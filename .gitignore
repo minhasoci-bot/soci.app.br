@@ -4,4 +4,8 @@ node_modules/
 .env
 .env.local
 .claude/
+.deploy-files.json
 supabase/.temp/
+
+.vercel
+.env*
