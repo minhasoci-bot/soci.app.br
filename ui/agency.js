@@ -399,7 +399,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
   function render() {
     const prev = document.querySelector('#screen')?.scrollTop || 0;
     const page = pages[A.page] || pages.dashboard;
-    document.title = `${agencyNav.find(n => n[0] === A.page)?.[1] || 'Agência'} · ${brandName(D().company.brand)}`;
+    document.title = 'graao';
     app.innerHTML = shell(page());
     document.documentElement.style.setProperty('--blue', brandColor(D().company.primary));
     for (const el of app.querySelectorAll('[data-w]')) el.style.width = `${el.dataset.w}%`;

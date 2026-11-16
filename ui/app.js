@@ -57,7 +57,7 @@ function render(){
   renderedView = viewKey;
   const brand=brandName(c.agency?.brand), customLink=c.agency?.menuLinks.find(l=>l.id===c.tab);
   const active=nav.find(x=>x[0]===c.view);
-  document.title=`${c.view==='link'?customLink?.title||'Link':active[1]} · ${brand}`;
+  document.title='graao';
   document.documentElement.style.setProperty('--blue',brandColor(c.agency?.primary));
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
@@ -563,7 +563,7 @@ document.addEventListener('submit',async ev=>{
 });
 
 if(viewPath){
-  try{const result=await api(`/api/view${viewPath}`), workspace=viewPath.split('/')[2]; document.title=`${result.row.name} · graao`;app.innerHTML=publicView(result,workspace);}
+  try{const result=await api(`/api/view${viewPath}`), workspace=viewPath.split('/')[2]; document.title='graao';app.innerHTML=publicView(result,workspace);}
   catch(e){app.innerHTML=`<div class="boot"><h1>Page unavailable</h1><p>${h(e.message)}</p><a href="/">Back to workspace</a></div>`;}
 }else{
   installDashboardControls({ c,dialog,close,render,load,mutate,flash,go });
