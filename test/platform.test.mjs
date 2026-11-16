@@ -1,0 +1,190 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, rmdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { makeServer } from '../server.mjs';
+import { blank, execute, hydrateWorkspace } from '../model.mjs';
+import { conversionTotals, scopedDeals, stageTotals } from '../ui/dashboard-data.js';
+
+async function start(dbPath=':memory:') {
+  const {server,host}=makeServer({dbPath,port:0});
+  await new Promise((resolve,reject)=>{server.on('error',reject);server.listen(0,host,resolve);});
+  const base=`http://${host}:${server.address().port}`;
+  const call=async(path,body,headers={})=>{
+    const r=await fetch(base+path,body===undefined?{headers}:{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(body)});
+    return {status:r.status,body:await r.json()};
+  };
+  return {call,base,close:()=>new Promise(resolve=>server.close(resolve))};
+}
+
+test('Published lead form creates a contact, tags it and creates a deal in the same workspace', async t=>{
+  const local=await start();t.after(local.close);
+  const workspace=(await local.call('/api/workspaces',{name:'Lead test'})).body.id;
+  const action=`/api/action?workspace=${workspace}`;
+  const save=(key,data,id='')=>local.call(action,{type:'save',key,id,data});
+  assert.equal((await save('workflows',{name:'New leads',trigger:'Form submitted',active:true,actions:[{type:'Add tag',value:'Website'},{type:'Create opportunity',value:'New website lead'},{type:'Create task',value:'Book discovery call'}]})).status,200);
+  const form=(await save('forms',{name:'Request a call',active:false,askPhone:true})).body.id;
+  const path=`/api/view/f/${workspace}/${form}`;
+  assert.equal((await local.call(path,{name:'Customer',email:'test@example.test'})).status,404);
+  assert.equal((await save('forms',{name:'Request a call',active:true,askPhone:true},form)).status,200);
+  assert.equal((await local.call(path,{name:'Customer',email:'TEST@example.test',phone:'123'})).status,201);
+  const {state,metrics}= (await local.call(`/api/state?workspace=${workspace}`)).body;
+  assert.equal(state.contacts[0].email,'test@example.test');
+  assert.deepEqual(state.contacts[0].tags,['Website']);
+  assert.equal(state.opportunities[0].contactId,state.contacts[0].id);
+  assert.equal(state.tasks[0].contactId,state.contacts[0].id);
+  assert.equal(state.runs[0].event,'Form submitted');
+  assert.equal(state.submissions[0].formId,form);
+  assert.equal(metrics.open,1);
+  assert.equal((await local.call('/api/state')).body.state.runs.length,0);
+});
+
+test('Records survive a restart, and a conflicting appointment or foreign origin cannot change them',async t=>{
+  const dir=mkdtempSync(join(tmpdir(),'go-platform-test-')), db=join(dir,'storage.sqlite');
+  t.after(()=>{for(const suffix of ['','-wal','-shm'])rmSync(db+suffix,{force:true});rmdirSync(dir);});
+  const first=await start(db);
+  try {
+    const row={type:'save',key:'appointments',data:{title:'Consultation',start:'2026-11-16T15:00:00Z',end:'2026-11-16T16:00:00Z'}};
+    assert.equal((await first.call('/api/action',row,{Origin:'https://foreign.example'})).status,403);
+    assert.equal((await first.call('/api/action',row)).status,200);
+    assert.equal((await first.call('/api/action',{...row,data:{...row.data,title:'Overlapping',start:'2026-11-16T15:30:00Z'}})).status,400);
+    const profile={type:'onboarding',data:{kind:'agency',goal:'calendars',done:true}};
+    assert.equal((await first.call('/api/action',profile)).status,200);
+  } finally {await first.close();}
+  const second=await start(db);
+  try {
+    const {state,metrics}= (await second.call('/api/state')).body;
+    assert.equal(state.onboarding.goal,'calendars');
+    assert.equal(state.appointments[0].title,'Consultation');
+    assert.equal(metrics.appointments,1);
+  } finally {await second.close();}
+});
+
+test('Bulk import is atomic and preserves records when input is invalid',async t=>{
+  const local=await start();t.after(local.close);
+  const status=await local.call('/api/action',{type:'import',data:{rows:[{name:'Imported',email:'new@example.test'},{name:'Bad email',email:'invalid'}]}});
+  assert.equal(status.status,400);
+  const {state}= (await local.call('/api/state')).body;
+  assert.equal(state.contacts.some(r=>r.email==='new@example.test'),false);
+});
+
+test('Manual actions pause a workflow and completing or skipping one resumes each step once', async t => {
+  const local = await start();
+  t.after(local.close);
+  const execute = body => local.call('/api/action', body);
+  const workflow = await execute({ type:'save', key:'workflows', data:{
+    name:'Follow up', trigger:'Contact created', active:true, actions:[
+      {type:'Manual Call', value:'Call the lead', assignee:'Sales'},
+      {type:'Add tag', value:'Called'},
+      {type:'Manual SMS', value:'Send follow-up'},
+      {type:'Create task', value:'Check response'}
+    ]
+  }});
+  assert.equal(workflow.status,200);
+  const created = await execute({type:'save',key:'contacts',data:{name:'New lead'}});
+  let {state} = created.body;
+  const pending = state.manualActions[0];
+  assert.equal(pending.assignee,'Sales');
+  assert.equal(state.runs[0].status,'Waiting');
+  assert.deepEqual(state.contacts.find(item => item.id === created.body.id).tags,[]);
+
+  const complete = id => execute({type:'manual-action', id, data:{status:'Completed', note:'Left a voicemail.'}});
+  ({state} = (await complete(pending.id)).body);
+  assert.equal(state.manualActions[0].status,'Completed');
+  assert.equal(state.manualActions[1].type,'Manual SMS');
+  assert.equal(state.runs[0].status,'Waiting');
+  assert.deepEqual(state.contacts.find(item => item.id === created.body.id).tags,['Called']);
+  ({state} = (await complete(pending.id)).body);
+  assert.equal(state.manualActions.length,2);
+  assert.equal(state.messages.filter(item => item.body.includes('Left a voicemail.')).length,1);
+
+  const skipped = await execute({type:'manual-action', id:state.manualActions[1].id, data:{status:'Skipped'}});
+  assert.equal(skipped.body.state.runs[0].status,'Completed');
+  assert.equal(skipped.body.state.tasks.filter(item => item.title === 'Check response').length,1);
+});
+
+test('Trigger links count each click and automate once for the contact who received the link', async t => {
+  const local = await start();
+  t.after(local.close);
+  const execute = body => local.call('/api/action',body);
+  const destination = 'https://example.test/offer';
+  const invalid = await execute({type:'save',key:'triggerLinks',data:{name:'Invalid',url:'javascript:alert(1)'}});
+  assert.equal(invalid.status,400);
+  const link = await execute({type:'save',key:'triggerLinks',data:{name:'Offer',url:destination}});
+  const linkId = link.body.id;
+  await execute({type:'save',key:'workflows',data:{name:'Viewed offer',trigger:'Trigger link clicked',linkId,active:true,actions:[{type:'Add tag',value:'Viewed offer'}]}});
+  const contactId = link.body.state.contacts[0].id;
+  const message = await execute({type:'message',data:{contactId,channel:'Email',subject:'Offer',direction:'Outbound',body:`See {{trigger_link.${linkId}}}`}});
+  assert.equal(message.status,200);
+  const path = message.body.state.messages.find(item => item.id === message.body.id).body.split(' ')[1];
+  for (const route of [`/r/demo/${linkId}`,path,path]) {
+    const response = await fetch(local.base + route,{redirect:'manual'});
+    assert.equal(response.status,302);
+    assert.equal(response.headers.get('Location'),destination);
+  }
+  const {state} = (await local.call('/api/state')).body;
+  assert.equal(state.linkClicks.length,3);
+  assert.equal(state.linkClicks.filter(item => item.contactId === contactId).length,2);
+  assert.equal(state.runs.filter(item => item.event === 'Trigger link clicked').length,1);
+  assert.ok(state.contacts.find(item => item.id === contactId).tags.includes('Viewed offer'));
+});
+
+test('Dashboard status dates survive stage changes and metrics stay scoped to the selected pipeline', () => {
+  const state = blank('Metrics');
+  const contact = execute(state,{type:'save',key:'contacts',data:{name:'Example lead'}});
+  const metricsPipeline = execute(state,{type:'pipeline',data:{name:'Inbound'}});
+  const first = state.stages.find(stage => stage.pipelineId === metricsPipeline);
+  const next = state.stages.find(stage => stage.pipelineId === metricsPipeline && stage.id !== first.id);
+  function deal(status,value,stage) {
+    const dealId = execute(state,{type:'save',key:'opportunities',data:{title:status,contactId:contact,status,value,stage}});
+    const item = state.opportunities.find(row => row.id === dealId);
+    item.created = item.statusChangedAt = '2025-01-10T16:00:00Z';
+    return item;
+  }
+  const early = deal('Open',100,first.id);
+  deal('Open',200,next.id);
+  deal('Won',300,next.id);
+  deal('Lost',400,next.id);
+  deal('Won',700,'won');
+  const settings = {pipeline:metricsPipeline,dateField:'status'};
+  const range = {start:'2025-01-10',end:'2025-01-10'};
+  const visible = scopedDeals(state,settings,range);
+  assert.equal(visible.length,4);
+  assert.deepEqual(conversionTotals(visible),{rate:25,revenue:300,count:1});
+  assert.deepEqual(stageTotals(state,metricsPipeline,visible).funnel.map(row => row.count),[3,2,1,1]);
+
+  execute(state,{type:'save',key:'opportunities',id:early.id,data:{...early,stage:next.id}});
+  const moved = state.opportunities.find(row => row.id === early.id);
+  assert.equal(moved.statusChangedAt,early.statusChangedAt);
+  execute(state,{type:'save',key:'opportunities',id:early.id,data:{...moved,status:'Won'}});
+  assert.equal(scopedDeals(state,settings,range).length,3);
+  assert.equal(scopedDeals(state,{...settings,dateField:'created'},range).length,4);
+  delete state.opportunities.find(row => row.id === early.id).statusChangedAt;
+  assert.ok(hydrateWorkspace(state).opportunities.every(row => row.statusChangedAt));
+});
+
+test('Dashboard reports are independent of subsequent edits and Studio projects can be reopened', async t => {
+  const app = await start();
+  t.after(app.close);
+  const action = command => app.call('/api/action',command);
+  const created = await action({type:'dashboard-create',data:{name:'Sales review',copyFrom:'dashboard'}});
+  const id = created.body.id;
+  const original = created.body.state.dashboards.find(board => board.id === id);
+  const report = await action({type:'dashboard-report',id,data:{name:'Initial report',period:'all'}});
+  assert.ok(report.body.state.dashboardReports[0].rows.length);
+  const changed = await action({type:'dashboard-save',id,data:{...original,widgets:[],name:'Renamed'}});
+  assert.equal(changed.body.state.dashboardReports[0].dashboard,'Sales review');
+  assert.equal((await action({type:'dashboard-save',id,data:original})).status,409);
+  const restored = await action({type:'dashboard-restore',id,data:{version:2,restoreVersion:1}});
+  assert.equal(restored.body.state.dashboards.find(board => board.id === id).widgets.length,15);
+
+  const studio = await app.call('/api/studio',{mode:'starter',template:'portfolio',brief:'Portfolio for Estúdio Cinco'});
+  assert.equal(studio.status,201);
+  await action({type:'studio-star',id:studio.body.id,data:{starred:true}});
+  const {state} = (await app.call('/api/state')).body;
+  const project = state.studioProjects.find(item => item.id === studio.body.id);
+  assert.equal(project.starred,true);
+  assert.equal(project.template,'portfolio');
+  assert.deepEqual(project.blocks.map(section => section.title),['Selected work','About','Contact']);
+});

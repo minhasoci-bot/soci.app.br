@@ -1,0 +1,26 @@
+const paths={
+  sun:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41', moon:'M20.5 14.1A8.5 8.5 0 1 1 9.9 3.5a7 7 0 0 0 10.6 10.6Z',
+  updown:'m7 15 5 5 5-5M7 9l5-5 5 5', panel:'M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM9 4v16',
+  spark:'M9 4c.6 4.6 2.4 6.4 7 7-4.6.6-6.4 2.4-7 7-.6-4.6-2.4-6.4-7-7 4.6-.6 6.4-2.4 7-7Z M18 2c.3 2.3 1.2 3.2 3.5 3.5-2.3.3-3.2 1.2-3.5 3.5-.3-2.3-1.2-3.2-3.5-3.5C16.8 5.2 17.7 4.3 18 2Z M18 15v6m-3-3h6', grid:'M3 3h7v7H3zM14 3h7v4h-7zM14 11h7v10h-7zM3 14h7v7H3z', chat:'M21 11.5a8 8 0 0 1-8 8H4l1.8-4.4a8 8 0 1 1 15.2-3.6Z', cal:'M5 5h14a2 2 0 0 1 2 2v13H3V7a2 2 0 0 1 2-2ZM7 2v6m10-6v6M3 10h18', contacts:'M5 3h14a1 1 0 0 1 1 1v16H5zM3 7h4m-4 5h4m-4 5h4m3-1c0-3 7-3 7 0m-3.5-4a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z', leads:'M3 4h5v5H3zM16 4h5v5h-5zM9.5 15h5v5h-5zM5.5 9v4h13V9m-6.5 4v2', pay:'M4 3h16M6 3v18l3-2 3 2 3-2 3 2V3m-3 5h-4a1.5 1.5 0 0 0 0 3h2a1.5 1.5 0 0 1 0 3H9m3-8v10', studio:'M3 4h16a2 2 0 0 1 2 2v6M3 4v13a2 2 0 0 0 2 2h7M3 8h18m-14 4 2 2-2 2m8-2c.3 2.4 1.6 3.7 4 4-2.4.3-3.7 1.6-4 4-.3-2.4-1.6-3.7-4-4 2.4-.3 3.7-1.6 4-4Z', send:'m22 2-7 20-4-9-9-4 20-7ZM11 13l11-11', flow:'M5 3h6v6H5zM13 15h6v6h-6zM8 9v6h5m-3-2 3 2-3 2M15 3h5v5m-5 0 5-5', site:'M3 4h18v16H3zM3 8h18m-10 5h7m-7 3h7m-12-4h2v5H6z', play:'M12 3a9 9 0 1 0 9 9m-12-4 6 4-6 4V8m9-5v6h6', folder:'M3 6h6l2 3h10v11H3V6Z', award:'M12 3a6 6 0 1 0 0 12 6 6 0 0 0 0-12Zm-4 11-2 7 6-2 6 2-2-7', chart:'M3 3v18h18M8 15v2m4-7v7m4-10v10m4-13v13', apps:'M3 4h7v7H3zM14 4h7v7h-7zM3 15h7v6H3zM17.5 14v7m-3.5-3.5h7', gear:'M10 3h4l.6 3 2 .9 2.6-1.4 2 3.5-2.3 2.1v2l2.3 2.1-2 3.5-2.7-1.4-1.9.9-.6 3h-4l-.6-3-1.9-.9-2.7 1.4-2-3.5L5 13v-2L2.8 9l2-3.5L7.5 7l1.9-1L10 3Zm2 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z', search:'M10 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12Zm4 10 6 6', pin:'M12 3a5 5 0 0 0-5 5c0 4 5 9 5 9s5-5 5-9a5 5 0 0 0-5-5Zm0 3.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM6 14c-5 2-3 6 6 6s11-4 6-6', bolt:'m13 2-8 12h6l-1 8 9-13h-6l1-7Z', lang:'M3 6h12M9 3v3m4 0c-1 5-5 9-10 11m3-8c2 3 5 5 8 6m1 5 3-8 3 8m-5-3h4', phone:'M7 3H4c-2 0 0 8 5 13s12 7 12 5v-3l-5-2-2 2c-3-1-6-4-7-7l2-2-2-6Z', meg:'M3 9h5l12-5v15L8 15H3zm5 6 2 5H6l-1-5', bell:'M5 17h14l-2-4V9A5 5 0 0 0 7 9v4l-2 4Zm5 3c0 2 4 2 4 0', help:'M9 8a3 3 0 1 1 4 2.8c-1 .4-1.2 1.5-1.2 2.7m0 3.5h.1', lock:'M6 10h12v10H6zM8 10V7a4 4 0 0 1 8 0v3', arrow:'M4 12h15m-6-6 6 6-6 6', plus:'M12 4v16M4 12h16', close:'m6 6 12 12M18 6 6 18', chevron:'m6 9 6 6 6-6', left:'m15 6-6 6 6 6', right:'m9 6 6 6-6 6', dots:'M5 12h.1m6.9 0h.1m6.9 0h.1', check:'m4 12 5 5L20 6', star:'m12 2 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z', filter:'M3 5h18l-7 8v5l-4 2v-7z', download:'M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4', upload:'M12 16V4m-5 5 5-5 5 5M4 17v4h16v-4', external:'M13 3h8v8m0-8L10 14M10 4H4v16h16v-6', mail:'M3 5h18v14H3zM3 6l9 7 9-7', list:'M8 5h13M8 12h13M8 19h13M3 5h.1M3 12h.1M3 19h.1', edit:'M4 20l5-1L21 7l-4-4L5 15l-1 5ZM14 6l4 4', inbox:'M5 4h14l3 11v5H2v-5L5 4Zm-3 11h6l1 2h6l1-2h6', trash:'M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 4v6m4-6v6', menu:'M3 6h18M3 12h18M3 18h18'
+};
+Object.assign(paths,{
+  refresh:'M20 10a8 8 0 1 0-.9 6.9M20 4v6h-6',
+  sliders:'M3 7h9m4 0h5M3 17h5m4 0h9M12 7a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM8 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z',
+  note:'M5 3h14a2 2 0 0 1 2 2v10l-6 6H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm10 18v-6h6M7 8h10M7 12h7',
+  users:'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 10c0-4 3-6 7-6s7 2 7 6m1-17a4 4 0 0 1 0 7.5M19 15c2 .6 3 2.6 3 6',
+  box:'m12 2 9 5v10l-9 5-9-5V7l9-5Zm0 10 9-5m-9 5L3 7m9 5v10',
+  tag:'M3 3h8l10 10-8 8L3 11V3Zm4.5 4.5h.1',
+  gift:'M3 8h18v4H3zM5 12v9h14v-9M12 8v13M12 8c-2-5-7-5-7-2s4 2 7 2c3 0 7 1 7-2s-5-3-7 2',
+  link:'M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1m2 4a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1',
+  book:'M4 4h6a3 3 0 0 1 3 3v14a2 2 0 0 0-2-2H4zm16 0h-6a3 3 0 0 0-1 .2M20 4v15h-7',
+  bulb:'M9 18h6m-5 3h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3Z',
+  mobile:'M7 2h10v20H7zM11 18h2',
+  monitor:'M3 4h18v12H3zM8 20h8m-4-4v4',
+  key:'M15 3a6 6 0 1 1-5.2 9L3 19v2h3v-2h2v-2h2l1.8-1.8A6 6 0 0 1 15 3Zm1.5 4.5h.1'
+});
+export const icon=(name,size=18)=>`<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]||paths.grid}"/></svg>`;
+export const logo=`<svg class="g-mark" width="36" height="36" viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="gm-a" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop stop-color="#ffc35c"/><stop offset=".48" stop-color="#ff7aa8"/><stop offset="1" stop-color="#7c5cf0"/></linearGradient></defs><rect width="40" height="40" rx="12" fill="url(#gm-a)"/><path fill="#fff" d="M20.6 8.5c5.6 2.9 8.4 8 7.1 13.6-1.2 5.3-5.6 9.1-10.1 9.4-2.8.2-4.6-1.6-4.9-4.3-.6-5.7 2.3-13.4 7.9-18.7Z"/><path fill="none" stroke="#7c5cf0" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round" d="M21.4 13.2c-2.6 4.7-3.8 9.3-3.9 14.2"/></svg>`;
+
+// Workspaces saved before the graao rename still carry the old defaults; those read as graao's own.
+export const brandName=b=>!b||b==='GO Workspace'?'graao':b;
+export const brandColor=c=>!c||c.toLowerCase()==='#1570ef'?'#7c5cf0':c;
