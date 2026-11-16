@@ -271,6 +271,7 @@ export function makeServer({dbPath=resolve(root,'.data','go.sqlite'),port=defaul
     catch { throw error('Invalid JSON request.',400); }
   };
   const server=createServer(async (req,res) => {
+    const isVercel = Boolean(process.env.VERCEL);
     const currentPort=server.address()?.port ?? port;
     const allowedHosts=[`127.0.0.1:${currentPort}`,`localhost:${currentPort}`];
     res.setHeader('Content-Security-Policy',csp);
@@ -280,8 +281,10 @@ export function makeServer({dbPath=resolve(root,'.data','go.sqlite'),port=defaul
     const send=(status,type,data)=>{res.writeHead(status,{'Content-Type':type});res.end(data);};
     const json=(data,status=200)=>send(status,'application/json; charset=utf-8',JSON.stringify(data));
     try {
-      if (!allowedHosts.includes(req.headers.host)) throw error('Use the local address shown in the terminal.',403);
-      const url=new URL(req.url,`http://${req.headers.host}`), p=url.pathname, method=req.method;
+      const host = req.headers.host || '';
+      if (!isVercel && !allowedHosts.includes(host)) throw error('Use the local address shown in the terminal.',403);
+      const proto = req.headers['x-forwarded-proto'] || (req.socket?.encrypted ? 'https' : 'http');
+      const url=new URL(req.url,`${proto}://${host}`), p=url.pathname, method=req.method;
       if (!['GET','HEAD','POST'].includes(method)) throw error('Method not allowed.',405);
       if (method==='POST' && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
       if (p.startsWith('/api/')) await ready;
