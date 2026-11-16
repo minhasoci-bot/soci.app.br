@@ -147,6 +147,10 @@
 :root[data-theme=dark] .sx-versions small{color:#8d939d}
 :root[data-theme=dark] .sx-live input{background:rgb(17 19 23)}
 :root[data-theme=dark] .ag-logo{background:rgb(17 19 23)}
+:root[data-theme=dark] .g-mark .sk-flame{fill:#14171f;stroke:rgba(255,255,255,0.45);stroke-width:26px;stroke-linejoin:round;paint-order:stroke fill;filter:drop-shadow(0 0 6px rgba(255,255,255,0.15))}
+:root[data-theme=dark] .g-mark .sk-head{fill:#f8fafc}
+:root[data-theme=dark] .g-mark .sk-feat{fill:#14171f}
+:root[data-theme=dark] .g-mark .sk-glint{fill:#ffffff}
 :root[data-theme=dark] .ag-acting select{background:rgb(17 19 23)}
 :root[data-theme=dark] .ag-delete{color:#f2a7b5}
 :root[data-theme=dark] .ag-notice{background:rgb(17 19 23);border-color:rgb(61 50 112)}

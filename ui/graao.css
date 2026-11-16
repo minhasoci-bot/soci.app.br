@@ -63,6 +63,11 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-violet);outline-o
 .g-side .logo{display:flex;align-items:center;gap:10px;min-height:0;padding:0;color:var(--g-ink);font-weight:800;font-size:20px;letter-spacing:-.05em;border-radius:12px}
 .g-side .logo .g-mark,.g-side .logo .ag-logo{flex:none;width:34px;height:34px;transition:transform .5s var(--ease-out)}
 .g-side .logo:hover .g-mark{transform:rotate(-8deg) scale(1.06)}
+.g-mark{display:inline-block;vertical-align:middle;overflow:visible}
+.g-mark .sk-flame{fill:#0d0f12;transition:fill .3s var(--ease-std),stroke .3s var(--ease-std)}
+.g-mark .sk-head{fill:#ffffff}
+.g-mark .sk-feat{fill:#0d0f12}
+.g-mark .sk-glint{fill:#ffffff}
 /* Collapse toggle (microkit "sidebar trigger"): beside the logo when open; in the rail it
    takes the logo's place on hover or keyboard focus, and is always shown on touch screens. */
 .side-head{position:relative;justify-content:space-between;gap:8px;padding:0 10px 0 16px}

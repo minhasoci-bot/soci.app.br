@@ -21,7 +21,7 @@ const staticFiles = new Map([
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
-  ['/fonts/plus-jakarta-sans.woff2','font/woff2']
+  ['/fonts/plus-jakarta-sans.woff2','font/woff2'], ['/favicon.svg','image/svg+xml']
 ]);
 const host = '127.0.0.1';
 const defaultPort = Number(process.env.GO_PORT || 4317);
@@ -289,7 +289,7 @@ export function makeServer({dbPath=resolve(root,'.data','go.sqlite'),port=defaul
       if (method==='POST' && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
       if (p.startsWith('/api/')) await ready;
       const id=url.searchParams.get('workspace') || 'demo';
-      if (p === '/favicon.ico') { res.writeHead(204); return res.end(); }
+      if (p === '/favicon.ico') { res.writeHead(302, { Location: '/favicon.svg' }); return res.end(); }
       const apiMatch = p.match(apiPath);
       if (apiMatch) {
         const [, account] = apiMatch;
