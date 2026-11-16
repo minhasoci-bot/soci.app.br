@@ -5,11 +5,11 @@ export const agencyRoles = ['Agency Owner', 'Agency Admin', 'Agency User', 'Acco
 export const agencyLevel = role => role.startsWith('Agency');
 
 export const subAccountModules = [
-  ['dashboard', 'Dashboard'], ['conversations', 'Conversations'], ['calendars', 'Calendars'], ['contacts', 'Contacts'],
-  ['opportunities', 'Opportunities'], ['payments', 'Payments'], ['studio', 'AI Studio'], ['ai-agents', 'AI Agents'],
-  ['marketing', 'Marketing'], ['automation', 'Automation'], ['sites', 'Sites'], ['memberships', 'Memberships'],
-  ['media', 'Media Storage'], ['reputation', 'Reputation'], ['reporting', 'Reporting'], ['marketplace', 'App Marketplace'],
-  ['settings', 'Settings']
+  ['dashboard', 'Painel'], ['conversations', 'Conversas'], ['calendars', 'Calendários'], ['contacts', 'Contatos'],
+  ['opportunities', 'Oportunidades'], ['payments', 'Pagamentos'], ['studio', 'AI Studio'], ['ai-agents', 'Agentes de IA'],
+  ['marketing', 'Marketing'], ['automation', 'Automação'], ['sites', 'Sites e Funis'], ['memberships', 'Área de Membros'],
+  ['media', 'Arquivos e Mídia'], ['reputation', 'Reputação'], ['reporting', 'Relatórios'], ['marketplace', 'Marketplace de Apps'],
+  ['settings', 'Configurações']
 ];
 
 // Record key of a sub-account mutation → module that must be permitted for the acting user.
@@ -22,50 +22,50 @@ export const moduleOfRecord = {
 
 export const accountStatuses = ['Active', 'Paused', 'Closed'];
 export const prospectStatuses = ['New', 'Contacted', 'Proposal sent', 'Won', 'Lost'];
-export const auditAreas = [['website', 'Website'], ['reviews', 'Reviews'], ['listings', 'Listings'], ['social', 'Social media'], ['ads', 'Paid ads']];
+export const auditAreas = [['website', 'Site'], ['reviews', 'Avaliações'], ['listings', 'Listagens'], ['social', 'Redes sociais'], ['ads', 'Anúncios pagos']];
 
 // [key, label, type, required, options]
 // Option tokens: '@accounts' (sub-accounts), '@modules' (sub-account modules).
 export const collections = {
   prospects: { label: 'Prospect', max: 500, fields: [
-    ['name', 'Business name', 'text', true], ['website', 'Website', 'url'], ['category', 'Category', 'text'], ['city', 'City', 'text'],
-    ['email', 'Email', 'email'], ['phone', 'Phone', 'tel'], ['status', 'Status', 'select', true, prospectStatuses],
-    ...auditAreas.map(([key, label]) => [`score_${key}`, `${label} score (0–10)`, 'score']),
-    ['notes', 'Notes', 'textarea']
+    ['name', 'Nome da empresa', 'text', true], ['website', 'Site', 'url'], ['category', 'Categoria', 'text'], ['city', 'Cidade', 'text'],
+    ['email', 'E-mail', 'email'], ['phone', 'Telefone', 'tel'], ['status', 'Status', 'select', true, prospectStatuses],
+    ...auditAreas.map(([key, label]) => [`score_${key}`, `Pontuação em ${label} (0–10)`, 'score']),
+    ['notes', 'Observações', 'textarea']
   ] },
-  partners: { label: 'Partner', max: 200, fields: [
-    ['name', 'Partner name', 'text', true], ['service', 'Service', 'select', true, ['Design', 'Development', 'Paid ads', 'Copywriting', 'Consulting', 'Other']],
-    ['contact', 'Contact person', 'text'], ['email', 'Email', 'email'], ['website', 'Website', 'url'], ['notes', 'Notes', 'textarea']
+  partners: { label: 'Parceiro', max: 200, fields: [
+    ['name', 'Nome do parceiro', 'text', true], ['service', 'Serviço', 'select', true, ['Design', 'Development', 'Paid ads', 'Copywriting', 'Consulting', 'Other']],
+    ['contact', 'Pessoa de contato', 'text'], ['email', 'E-mail', 'email'], ['website', 'Site', 'url'], ['notes', 'Observações', 'textarea']
   ] },
-  ideas: { label: 'Idea', max: 300, fields: [
-    ['title', 'Title', 'text', true], ['category', 'Area', 'select', true, ['CRM', 'Conversations', 'Automation', 'Sites', 'Payments', 'Reporting', 'Mobile', 'Other']],
-    ['body', 'Description', 'textarea', true]
+  ideas: { label: 'Ideia', max: 300, fields: [
+    ['title', 'Título', 'text', true], ['category', 'Área', 'select', true, ['CRM', 'Conversations', 'Automation', 'Sites', 'Payments', 'Reporting', 'Mobile', 'Other']],
+    ['body', 'Descrição', 'textarea', true]
   ] },
-  menuLinks: { label: 'Custom menu link', max: 30, fields: [
-    ['title', 'Link title', 'text', true], ['url', 'URL', 'url', true], ['icon', 'Icon', 'select', true, ['external', 'grid', 'chart', 'folder', 'help', 'star']],
-    ['openIn', 'Open in', 'select', true, ['New tab', 'Inside the app']], ['showOn', 'Show on', 'select', true, ['Sub-accounts', 'Agency', 'Both']],
-    ['accounts', 'Sub-accounts (none selected = all)', 'multi', false, '@accounts']
+  menuLinks: { label: 'Link de menu personalizado', max: 30, fields: [
+    ['title', 'Título do link', 'text', true], ['url', 'URL', 'url', true], ['icon', 'Ícone', 'select', true, ['external', 'grid', 'chart', 'folder', 'help', 'star']],
+    ['openIn', 'Abrir em', 'select', true, ['New tab', 'Inside the app']], ['showOn', 'Exibir em', 'select', true, ['Sub-accounts', 'Agency', 'Both']],
+    ['accounts', 'Subcontas (nenhuma selecionada = todas)', 'multi', false, '@accounts']
   ] },
-  announcements: { label: 'Announcement', max: 100, fields: [
-    ['title', 'Title', 'text', true], ['body', 'Message', 'textarea', true], ['tone', 'Style', 'select', true, ['Information', 'Success', 'Warning']],
-    ['accounts', 'Sub-accounts (none selected = all)', 'multi', false, '@accounts'], ['published', 'Published', 'check']
+  announcements: { label: 'Comunicado', max: 100, fields: [
+    ['title', 'Título', 'text', true], ['body', 'Mensagem', 'textarea', true], ['tone', 'Estilo', 'select', true, ['Information', 'Success', 'Warning']],
+    ['accounts', 'Subcontas (nenhuma selecionada = todas)', 'multi', false, '@accounts'], ['published', 'Publicado', 'check']
   ] },
-  users: { label: 'User', max: 100, fields: [
-    ['first', 'First name', 'text', true], ['last', 'Last name', 'text', true], ['email', 'Email', 'email', true], ['phone', 'Phone', 'tel'],
-    ['role', 'Role', 'select', true, agencyRoles], ['accounts', 'Sub-account access (account roles)', 'multi', false, '@accounts'],
-    ['permissions', 'Module permissions', 'multi', false, '@modules']
+  users: { label: 'Usuário', max: 100, fields: [
+    ['first', 'Nome', 'text', true], ['last', 'Sobrenome', 'text', true], ['email', 'E-mail', 'email', true], ['phone', 'Telefone', 'tel'],
+    ['role', 'Função', 'select', true, agencyRoles], ['accounts', 'Acesso a subcontas (funções de conta)', 'multi', false, '@accounts'],
+    ['permissions', 'Permissões de módulos', 'multi', false, '@modules']
   ] },
-  plans: { label: 'SaaS plan', max: 20, fields: [
-    ['name', 'Plan name', 'text', true], ['price', 'Monthly price (USD)', 'number', true], ['trialDays', 'Trial days', 'number'],
-    ['features', 'Included features (one per line)', 'textarea']
+  plans: { label: 'Plano SaaS', max: 20, fields: [
+    ['name', 'Nome do plano', 'text', true], ['price', 'Preço mensal (USD)', 'number', true], ['trialDays', 'Dias de teste', 'number'],
+    ['features', 'Recursos inclusos (um por linha)', 'textarea']
   ] },
   templates: { label: 'Template', max: 200, fields: [
-    ['name', 'Template name', 'text', true], ['category', 'Category', 'select', true, ['Automotive', 'Beauty', 'Coaching', 'Creative', 'Financial', 'Health', 'Home services', 'Legal', 'Real estate', 'Technology']],
-    ['headline', 'Headline', 'text', true], ['body', 'Body', 'textarea'], ['button', 'Button label', 'text'], ['withForm', 'Include a lead form', 'check']
+    ['name', 'Nome do template', 'text', true], ['category', 'Categoria', 'select', true, ['Automotive', 'Beauty', 'Coaching', 'Creative', 'Financial', 'Health', 'Home services', 'Legal', 'Real estate', 'Technology']],
+    ['headline', 'Título de impacto', 'text', true], ['body', 'Conteúdo', 'textarea'], ['button', 'Texto do botão', 'text'], ['withForm', 'Incluir formulário de captura', 'check']
   ] },
-  referrals: { label: 'Referral', max: 500, fields: [
-    ['name', 'Referred business', 'text', true], ['email', 'Email', 'email'], ['plan', 'Plan', 'select', true, ['Starter', 'Unlimited', 'Pro']],
-    ['amount', 'Monthly subscription (USD)', 'number', true], ['status', 'Status', 'select', true, ['Trial', 'Active', 'Cancelled']]
+  referrals: { label: 'Indicação', max: 500, fields: [
+    ['name', 'Empresa indicada', 'text', true], ['email', 'E-mail', 'email'], ['plan', 'Plano', 'select', true, ['Starter', 'Unlimited', 'Pro']],
+    ['amount', 'Assinatura mensal (USD)', 'number', true], ['status', 'Status', 'select', true, ['Trial', 'Active', 'Cancelled']]
   ] }
 };
 

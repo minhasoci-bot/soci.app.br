@@ -367,6 +367,7 @@ document.addEventListener('click',async ev=>{
     if(d.edit){edit(d.edit,d.id,{date:d.date,stage:d.stage,kind:d.kind,channel:d.channel,contactId:d.contact});return;}
     if(d.dismissNotice){sessionDismissed.add(d.dismissNotice);render();return;}
     if(d.go){close();go(d.go);return;}
+    if(d.agGo){close();location.hash='#agency/'+d.agGo;return;}
     if(d.tab){go(c.view,d.tab);return;}
     if(d.choice){c.choice=d.choice;G('.choices')?.querySelectorAll('button').forEach(el=>{const sel=el.dataset.choice===d.choice;el.classList.toggle('chosen',sel);el.setAttribute('aria-pressed',String(sel));});G('[data-act="continue-onboarding"]').disabled=false;return;}
     if(d.workspace){await useWorkspace(d.workspace);return;}
@@ -422,7 +423,37 @@ document.addEventListener('click',async ev=>{
 });
 
 function globalSearch(value){
-  const q=value.toLowerCase();G('#search-results').innerHTML=`<div class="quick-list">${nav.filter(x=>x.join(' ').toLowerCase().includes(q)).slice(0,8).map(([k,pt,ico])=>`<button class="secondary" data-go="${k}">${i(ico,17)} ${pt}</button>`).join('')}${q?c.s.contacts.filter(x=>`${x.name} ${x.email}`.toLowerCase().includes(q)).slice(0,5).map(x=>`<button class="secondary" data-edit="contacts" data-id="${x.id}">${avatar(x.name)} ${h(x.name)}</button>`).join(''):''}</div>`;
+  const q=value.toLowerCase();
+  if (location.hash.startsWith('#agency')) {
+    const agNavList = [
+      ['dashboard', 'Painel da agência', 'layout'],
+      ['prospecting', 'Prospecção', 'search'],
+      ['accounts', 'Subcontas', 'users'],
+      ['snapshots', 'Snapshots de contas', 'box'],
+      ['reselling', 'Revenda', 'tag'],
+      ['addons', 'Complementos', 'gift'],
+      ['affiliate', 'Portal de afiliados', 'gift'],
+      ['templates', 'Biblioteca de modelos', 'doc'],
+      ['partners', 'Parceiros', 'users'],
+      ['university', 'Universidade', 'book'],
+      ['saas-education', 'Educação SaaS', 'chart'],
+      ['ideas', 'Ideias', 'lightbulb'],
+      ['mobile-app', 'Aplicativo móvel', 'phone'],
+      ['desktop-app', 'Aplicativo desktop', 'computer'],
+      ['marketplace', 'Marketplace de apps', 'cart'],
+      ['settings', 'Configurações', 'cog']
+    ];
+    let agAccounts = [];
+    try {
+      const db = JSON.parse(localStorage.getItem('ag_db_v1') || '{}');
+      agAccounts = db.accounts || [];
+    } catch {}
+    const navHits = agNavList.filter(x => x.join(' ').toLowerCase().includes(q)).slice(0, 8);
+    const accHits = q ? agAccounts.filter(x => (x.name || '').toLowerCase().includes(q)).slice(0, 5) : [];
+    G('#search-results').innerHTML = `<div class="quick-list">${navHits.map(([k, pt, ico]) => `<button class="secondary" data-ag-go="${k}">${i(ico, 17)} ${pt}</button>`).join('')}${accHits.map(a => `<button class="secondary" data-ag-go="accounts">${avatar(a.name)} ${h(a.name)}</button>`).join('')}</div>`;
+    return;
+  }
+  G('#search-results').innerHTML=`<div class="quick-list">${nav.filter(x=>x.join(' ').toLowerCase().includes(q)).slice(0,8).map(([k,pt,ico])=>`<button class="secondary" data-go="${k}">${i(ico,17)} ${pt}</button>`).join('')}${q?c.s.contacts.filter(x=>`${x.name} ${x.email}`.toLowerCase().includes(q)).slice(0,5).map(x=>`<button class="secondary" data-edit="contacts" data-id="${x.id}">${avatar(x.name)} ${h(x.name)}</button>`).join(''):''}</div>`;
 }
 document.addEventListener('input', e => {
   const el = e.target;
