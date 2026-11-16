@@ -2,7 +2,7 @@
 .ag-logo{width:36px;height:36px;object-fit:contain;border-radius:8px;background:#fff;flex:none}
 .side-tools .agency-switch{height:30px;background:#1b2534;color:#fff;border-color:#566377}
 .ag-shell .side-tools .location{height:38px}
-.ag-acting{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+.ag-acting{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);width:auto;flex:none}
 .ag-acting select{max-width:min(280px,46vw);border:1px solid var(--line);border-radius:7px;padding:5px 8px;background:#fff}
 dialog.ag-wide{width:min(760px,calc(100vw - 24px))}
 .ag-full{grid-column:1/-1;width:100%}

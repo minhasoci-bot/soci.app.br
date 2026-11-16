@@ -135,7 +135,7 @@ export function startAgency(env) {
       ],
       search: 'data-act="search"',
       quick: 'data-act="agency-quick"',
-      extra: `<label class="ag-acting">${i('users', 15)}<span class="sr-only">Agindo como</span><select data-ag-user aria-label="Agindo como"><option value="">${h(D().profile.name)} (Dono da agência)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(tr(u.role))})</option>`).join('')}</select></label>`,
+      extra: `<div class="ag-acting">${i('users', 15)}<label class="sr-only" for="ag-user-select">Agindo como</label><select id="ag-user-select" data-ag-user aria-label="Agindo como"><option value="">${h(D().profile.name)} (Dono da agência)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(tr(u.role))})</option>`).join('')}</select></div>`,
       tools: [
         { icon: 'lang', label: 'Idioma', attr: 'data-act="language"' },
         { icon: 'phone', label: 'Discador', attr: 'data-act="dialer"' },
