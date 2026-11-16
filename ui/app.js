@@ -57,11 +57,11 @@ function render(){
   renderedView = viewKey;
   const brand=brandName(c.agency?.brand), customLink=c.agency?.menuLinks.find(l=>l.id===c.tab);
   const active=nav.find(x=>x[0]===c.view);
-  document.title=`${c.view==='link'?customLink?.title||'Link':active[3]} · ${brand}`;
+  document.title=`${c.view==='link'?customLink?.title||'Link':active[1]} · ${brand}`;
   document.documentElement.style.setProperty('--blue',brandColor(c.agency?.primary));
-  const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dismiss announcement">${i('close',15)}</button></div>`).join('');
-  const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">If the page stays blank, the site does not allow embedding. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Open it in a new tab</a></p></div>`:'<div class="page"><p>This link is no longer available.</p></div>'):screens[c.view](c);
-  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&actingUser()?`<div class="ag-banner acting" role="status"><b>Acting as ${h(c.access.name)}</b><span>Modules and sub-accounts follow this user’s permissions.</span><button class="secondary" data-act="stop-acting">Stop</button></div>`:''}${notices}<main id="screen" class="screen ${c.view==='ask-ai'?'screen-ask':''}">${screenHtml}</main></div></div>`;
+  const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
+  const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
+  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}<main id="screen" class="screen ${c.view==='ask-ai'?'screen-ask':''}">${screenHtml}</main></div></div>`;
   if(c.view==='conversations'&&c.thread) {const area=G('.thread-messages');if(area)area.scrollTop=area.scrollHeight;}
   if(c.view==='ask-ai'&&c.chat.length) {const area=G('.ask-scroll');if(area)area.scrollTop=area.scrollHeight;}
   if(c.view==='dashboard') { G('#screen').scrollTop=previousScroll; drawDashboardGauges(app); }
@@ -71,7 +71,7 @@ function rerenderSearch(focusId,value,start,end){ G('#screen').innerHTML=screens
 function close(){ const d=G('#dialog');if(d?.open)d.close();overlay.innerHTML='';if(modalReturn?.isConnected)modalReturn.focus(); }
 function dialog(title,body,{form='',description='',buttons='',key='',id=''}={}){
   modalReturn=document.activeElement;
-  overlay.innerHTML=`<dialog id="dialog" aria-labelledby="modal-title"><header><div><h2 id="modal-title">${h(title)}</h2>${description?`<p>${h(description)}</p>`:''}</div>${iconBtn('close','Close dialog','data-act="close"')}</header>${form?`<form data-form="${form}" data-key="${key}" data-id="${id}"><div class="modal-body">${body}<p class="form-status" role="alert"></p></div><footer>${buttons||'<button class="secondary" type="button" data-act="close">Cancel</button><button class="primary">Save</button>'}</footer></form>`:`<div class="modal-body">${body}</div>`}</dialog>`;
+  overlay.innerHTML=`<dialog id="dialog" aria-labelledby="modal-title"><header><div><h2 id="modal-title">${h(title)}</h2>${description?`<p>${h(description)}</p>`:''}</div>${iconBtn('close','Fechar','data-act="close"')}</header>${form?`<form data-form="${form}" data-key="${key}" data-id="${id}"><div class="modal-body">${body}<p class="form-status" role="alert"></p></div><footer>${buttons||'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Salvar</button>'}</footer></form>`:`<div class="modal-body">${body}</div>`}</dialog>`;
   const d=G('#dialog');d.showModal();d.addEventListener('cancel',ev=>{ev.preventDefault();close();});
 }
 const list=(arr)=>arr.map(item=>Array.isArray(item)?item:[item,item]);
@@ -158,7 +158,7 @@ function edit(key,id,preset={}){
   dialog(`${id?'Edit':'New'} ${title}`,body,{form:'record',key,id:id||'',buttons:`${id?`<button class="danger plain" type="button" data-delete="${key}" data-id="${id}">${i('trash',16)} Delete</button>`:''}<span class="spacer"></span><button class="secondary" type="button" data-act="close">Cancel</button><button class="primary">${id?'Save Changes':`Create ${title}`}</button>`});
 }
 
-function workspaces(){dialog('Switch workspace',`${c.workspaces.map(w=>`<button class="choice" data-workspace="${w.id}"><strong>${h(w.name)}</strong>${w.id===c.workspace?'<span>Current workspace</span>':''}</button>`).join('')}<button class="secondary" data-act="new-workspace">${i('plus',16)} New workspace</button>`);}
+function workspaces(){dialog('Trocar de workspace',`${c.workspaces.map(w=>`<button class="choice" data-workspace="${w.id}"><strong>${h(w.name)}</strong>${w.id===c.workspace?'<span>Workspace atual</span>':''}</button>`).join('')}<button class="secondary" data-act="new-workspace">${i('plus',16)} Novo workspace</button>`);}
 async function useWorkspace(id){ c.workspace=id;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.dash=dashboardPreferences(id);c.pipeline='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go('ask-ai'); }
 function downloads(name,content,type='text/csv;charset=utf-8'){
   const data=typeof content==='string'?new Blob([content],{type}):content, a=document.createElement('a'), u=URL.createObjectURL(data);
@@ -396,33 +396,33 @@ document.addEventListener('click',async ev=>{
       case 'workspaces':workspaces();break;
       case 'agency-view':location.hash='#agency/dashboard';break;
       case 'stop-acting':localStorage.removeItem('go.user');location.reload();break;
-      case 'new-workspace':dialog('Create workspace',input('Workspace name','name','',true),{form:'workspace'});break;
-      case 'search':dialog('Search workspace','<label>Find a module or contact<input id="global-search" placeholder="Search…" autocomplete="off"></label><div id="search-results"></div>');globalSearch('');break;
-      case 'quick':dialog('Quick actions','<div class="quick-list"><button class="secondary" data-edit="contacts">Add contact</button><button class="secondary" data-edit="opportunities">Add opportunity</button><button class="secondary" data-edit="appointments">Book appointment</button><button class="secondary" data-edit="workflows">Create workflow</button></div>');break;
-      case 'dialer':dialog('Dialer','<p>The dialer is disconnected. Voice calls require an authorized telephony provider.</p>');break;
-      case 'updates':dialog('Updates','<p>graao is running locally.</p>');break;
-      case 'language':dialog('Language','<p>The navigation uses Portuguese and the workspace screens use English.</p>');break;
-      case 'notifications':dialog('Notifications',`<p>${c.m.unread} unread message${c.m.unread===1?'':'s'}.</p><button class="secondary" data-go="conversations">Open inbox</button>`);break;
-      case 'help':dialog('Help','<p>Manage contacts, leads, appointments, forms, and workflows. Open Settings to create an empty workspace.</p><button class="secondary" data-go="ask-ai">Open guided setup</button>');break;
-      case 'reload':await load();render();flash('Workspace refreshed.');break;
-      case 'import':dialog('Import contacts',`<p>Choose a CSV file with a <b>name</b> column. Optional: email, phone, company, tags and notes. Up to 500 contacts.</p><label>CSV file<input name="file" type="file" accept=".csv,text/csv" required></label>`,{form:'import',buttons:'<button class="secondary" type="button" data-act="close">Cancel</button><button class="primary">Import contacts</button>'});break;
-      case 'upload':dialog('Upload file','<p>PNG, JPEG, GIF, WebP or PDF up to 700 KB.</p><label>File<input name="file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,application/pdf" required></label>',{form:'upload',buttons:'<button class="secondary" type="button" data-act="close">Cancel</button><button class="primary">Upload file</button>'});break;
-      case 'new-thread':dialog('New conversation',option('Contact','contactId','',contactChoices()),{form:'thread',buttons:'<button class="secondary" type="button" data-act="close">Cancel</button><button class="primary">Open conversation</button>'});break;
-      case 'new-pipeline':dialog('New pipeline',input('Pipeline name','name','',true),{form:'pipeline'});break;
+      case 'new-workspace':dialog('Criar workspace',input('Nome do workspace','name','',true),{form:'workspace',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Criar workspace</button>'});break;
+      case 'search':dialog('Buscar no workspace','<label>Encontre um módulo ou contato<input id="global-search" placeholder="Buscar módulos e contatos…" autocomplete="off"></label><div id="search-results"></div>');globalSearch('');break;
+      case 'quick':dialog('Ações rápidas','<div class="quick-list"><button class="secondary" data-edit="contacts">Adicionar contato</button><button class="secondary" data-edit="opportunities">Nova oportunidade</button><button class="secondary" data-edit="appointments">Agendar horário</button><button class="secondary" data-edit="workflows">Criar automação</button></div>');break;
+      case 'dialer':dialog('Discador','<p>O discador não está conectado. Chamadas de voz exigem a configuração de um provedor de telefonia autorizado.</p>');break;
+      case 'updates':dialog('Novidades','<p>O graao está rodando localmente com tudo atualizado.</p>');break;
+      case 'language':dialog('Idioma','<p>O sistema está operando em Português (Brasil).</p>');break;
+      case 'notifications':dialog('Notificações',`<p>${c.m.unread} mensage${c.m.unread===1?'m não lida':'ns não lidas'}.</p><button class="secondary" data-go="conversations">Abrir conversas</button>`);break;
+      case 'help':dialog('Ajuda','<p>Gerencie contatos, oportunidades, agendamentos, formulários e automações. Acesse Configurações para gerenciar workspaces.</p><button class="secondary" data-go="ask-ai">Abrir assistente</button>');break;
+      case 'reload':await load();render();flash('Workspace atualizado.');break;
+      case 'import':dialog('Importar contatos',`<p>Escolha um arquivo CSV com a coluna <b>name</b>. Opcional: email, phone, company, tags e notes. Até 500 contatos.</p><label>Arquivo CSV<input name="file" type="file" accept=".csv,text/csv" required></label>`,{form:'import',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Importar contatos</button>'});break;
+      case 'upload':dialog('Enviar arquivo','<p>PNG, JPEG, GIF, WebP ou PDF de até 700 KB.</p><label>Arquivo<input name="file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,application/pdf" required></label>',{form:'upload',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Enviar arquivo</button>'});break;
+      case 'new-thread':dialog('Nova conversa',option('Contato','contactId','',contactChoices()),{form:'thread',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Abrir conversa</button>'});break;
+      case 'new-pipeline':dialog('Novo pipeline',input('Nome do pipeline','name','',true),{form:'pipeline',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Criar pipeline</button>'});break;
       case 'toggle-star': {const starred=c.s.messages.some(x=>x.contactId===c.thread&&x.starred);await mutate({type:'thread',data:{contactId:c.thread,starred:!starred}});render();break;}
-      case 'mark-unread':await mutate({type:'thread',data:{contactId:c.thread,read:false}});c.thread='';render();flash('Marked unread.');break;
+      case 'mark-unread':await mutate({type:'thread',data:{contactId:c.thread,read:false}});c.thread='';render();flash('Marcada como não lida.');break;
       case 'back-inbox':c.thread='';render();break;
       case 'prev-month':case 'next-month':c.month=new Date(c.month.getFullYear(),c.month.getMonth()+(d.act==='prev-month'?-1:1),1);render();break;
       case 'this-month':c.month=new Date();render();break;
       case 'add-action':if(G('#workflow-actions').children.length<10)G('#workflow-actions').insertAdjacentHTML('beforeend',actionFields());break;
       case 'remove-action':if(G('#workflow-actions').children.length>1)b.closest('.workflow-action').remove();break;
-      case 'export': downloads('go-workspace-report.csv',['Metric,Value',...Object.entries(c.m).map(([k,v])=>`${k},${v}`)].join('\r\n'));break;
+      case 'export': downloads('go-workspace-relatorio.csv',['Métrica,Valor',...Object.entries(c.m).map(([k,v])=>`${k},${v}`)].join('\r\n'));break;
     }
   } catch(e){flash(e.message,true);}
 });
 
 function globalSearch(value){
-  const q=value.toLowerCase();G('#search-results').innerHTML=`<div class="quick-list">${nav.filter(x=>x.join(' ').toLowerCase().includes(q)).slice(0,8).map(([k,pt,ico,en])=>`<button class="secondary" data-go="${k}">${i(ico,17)} ${en}</button>`).join('')}${q?c.s.contacts.filter(x=>`${x.name} ${x.email}`.toLowerCase().includes(q)).slice(0,5).map(x=>`<button class="secondary" data-edit="contacts" data-id="${x.id}">${avatar(x.name)} ${h(x.name)}</button>`).join(''):''}</div>`;
+  const q=value.toLowerCase();G('#search-results').innerHTML=`<div class="quick-list">${nav.filter(x=>x.join(' ').toLowerCase().includes(q)).slice(0,8).map(([k,pt,ico])=>`<button class="secondary" data-go="${k}">${i(ico,17)} ${pt}</button>`).join('')}${q?c.s.contacts.filter(x=>`${x.name} ${x.email}`.toLowerCase().includes(q)).slice(0,5).map(x=>`<button class="secondary" data-edit="contacts" data-id="${x.id}">${avatar(x.name)} ${h(x.name)}</button>`).join(''):''}</div>`;
 }
 document.addEventListener('input', e => {
   const el = e.target;

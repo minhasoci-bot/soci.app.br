@@ -1,6 +1,7 @@
 import { icon as i, logo, brandName, brandColor } from './icons.js';
 import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
+import { tr } from './i18n.js';
 import {
   addOns, affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, labFeatures, learningTracks,
   mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog
@@ -121,7 +122,7 @@ export function startAgency(env) {
         { title: 'Atalhos', items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: l.title, icon: l.icon, external: true })) }
       ],
       footer: [item(agencyNav.at(-1))] })}
-      <div class="workspace">${topbar({ crumbs: [{ label: 'Agência', href: '#agency/dashboard' }, { label: agencyNav.find(n => n[0] === A.page)?.[1] || 'Agency' }], extra: `<label class="ag-acting">${i('users', 15)}<span class="sr-only">Acting as</span><select data-ag-user aria-label="Acting as"><option value="">${h(D().profile.name)} (Agency Owner)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(u.role)})</option>`).join('')}</select></label>` })}<main id="screen" class="screen">${content}</main></div></div>`;
+      <div class="workspace">${topbar({ crumbs: [{ label: 'Agência', href: '#agency/dashboard' }, { label: agencyNav.find(n => n[0] === A.page)?.[1] || 'Agência' }], extra: `<label class="ag-acting">${i('users', 15)}<span class="sr-only">Agindo como</span><select data-ag-user aria-label="Agindo como"><option value="">${h(D().profile.name)} (Dono da agência)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(tr(u.role))})</option>`).join('')}</select></label>` })}<main id="screen" class="screen">${content}</main></div></div>`;
   }
 
   // ---- Pages -------------------------------------------------------------
