@@ -155,7 +155,7 @@ function editor(c, project) {
 
 export function studio(c) {
   const project = c.tab === 'project' && c.s.studioProjects.find(item => item.id === c.studio.project);
-  return `<div class="studio-shell">${workspaceRail(c)}<section class="studio-main">${project ? editor(c,project) : home(c)}</section></div>`;
+  return `<div class="studio-shell"><section class="studio-main">${project ? editor(c,project) : home(c)}</section></div>`;
 }
 
 // ---- Editor behaviour -------------------------------------------------------------

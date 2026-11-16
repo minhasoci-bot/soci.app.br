@@ -362,7 +362,8 @@ input[type=radio],input[type=range]{accent-color:var(--g-violet)}
 .dash-card{background:var(--g-glass-strong);border:1px solid #fff;border-radius:var(--g-r);box-shadow:0 0 0 1px rgba(124,92,240,.06),var(--g-shadow)}
 .dash-card h2{font-weight:750;letter-spacing:-.02em}
 .dash-tool{border-radius:999px}
-.studio-shell{background:transparent;color:var(--g-ink)}
+.studio-shell{background:transparent;color:var(--g-ink);display:block;width:100%}
+.studio-rail{display:none !important}
 .studio-rail{background:rgba(255,255,255,.5);border-right-color:rgba(255,255,255,.9)}
 .studio-rail nav a{border-radius:11px}
 .studio-hero::before{background:
