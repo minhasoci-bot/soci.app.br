@@ -206,7 +206,47 @@ document.fonts?.ready.then(() => document.querySelectorAll('[data-g]').forEach(e
   delete el.dataset.g;
 })).then(() => { last.clear(); run(); });
 
-/* Theme toggle (light / dark) */
+/* Theme toggle: microkit diagonal wipe via View Transitions API */
+let themeBusy = null;
+export function toggleTheme(to) {
+  const html = document.documentElement;
+  const current = html.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  const next = to === 'light' || to === 'dark' ? to : current === 'dark' ? 'light' : 'dark';
+  if (current === next) return Promise.resolve();
+
+  const swap = () => {
+    if (next === 'dark') {
+      html.setAttribute('data-theme', 'dark');
+    } else {
+      html.removeAttribute('data-theme');
+    }
+    try { localStorage.setItem('graao.theme', next); } catch {}
+  };
+
+  if (themeBusy) {
+    try { themeBusy.skipTransition(); } catch {}
+  }
+
+  if (reduce || !document.startViewTransition || document.visibilityState !== 'visible') {
+    swap();
+    return Promise.resolve();
+  }
+
+  html.setAttribute('data-theme-to', next);
+  html.setAttribute('data-g-theme-to', next);
+  const transition = (themeBusy = document.startViewTransition(swap));
+  const done = () => {
+    if (themeBusy === transition) {
+      themeBusy = null;
+      html.removeAttribute('data-theme-to');
+      html.removeAttribute('data-g-theme-to');
+    }
+  };
+  transition.finished.then(done, done);
+  return transition.updateCallbackDone;
+}
+window.toggleTheme = toggleTheme;
+
 try {
   const savedTheme = localStorage.getItem('graao.theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   if (savedTheme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
@@ -215,12 +255,5 @@ try {
 document.addEventListener('click', e => {
   const btn = e.target instanceof Element && e.target.closest('[data-theme-toggle]');
   if (!btn) return;
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  const next = isDark ? 'light' : 'dark';
-  if (next === 'dark') {
-    document.documentElement.setAttribute('data-theme', 'dark');
-  } else {
-    document.documentElement.removeAttribute('data-theme');
-  }
-  try { localStorage.setItem('graao.theme', next); } catch {}
+  toggleTheme();
 });

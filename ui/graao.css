@@ -452,8 +452,19 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
 :root[data-theme=dark] .public-page>header{background:rgba(11,12,14,.72)}
 
 /* Theme switch: diagonal wipe through the View Transitions API (microkit). */
-::view-transition-old(root){z-index:-1;animation:none}
-::view-transition-new(root){animation:.7s cubic-bezier(.4,0,.2,1) forwards g-reveal-light}
-:root[data-theme-to=dark]::view-transition-new(root){animation-name:g-reveal-dark}
+::view-transition-old(root),
+::view-transition-new(root){
+  animation:none;
+  mix-blend-mode:normal;
+}
+::view-transition-old(root){z-index:1}
+::view-transition-new(root){
+  z-index:2;
+  animation:.7s cubic-bezier(.4,0,.2,1) forwards g-reveal-light;
+}
+:root[data-theme-to=dark]::view-transition-new(root),
+:root[data-g-theme-to=dark]::view-transition-new(root){
+  animation-name:g-reveal-dark;
+}
 @keyframes g-reveal-dark{0%{clip-path:polygon(50% -71%,-50% 71%,-50% 71%,50% -71%)}to{clip-path:polygon(50% -71%,-50% 71%,50% 171%,171% 50%)}}
 @keyframes g-reveal-light{0%{clip-path:polygon(171% 50%,50% 171%,50% 171%,171% 50%)}to{clip-path:polygon(171% 50%,50% 171%,-50% 71%,50% -71%)}}
