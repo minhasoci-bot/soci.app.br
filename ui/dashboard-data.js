@@ -29,7 +29,7 @@ export const widgets = {
   business:{ title:'Google Business Profile', width:12, provider:'Google Business Profile', period:'Last 30 days' },
   'meta-ads':{ title:'Meta Ads report', width:6, provider:'Meta Ads' },
   'google-ads':{ title:'Google Ads report', width:6, provider:'Google Ads' },
-  'email-health':{ title:'Email health report', width:6, provider:'Email delivery' },
+  'email-health':{ title:'Email health report', width:6, provider:'Entrega de e-mail' },
   efficiency:{ title:'Sales efficiency', width:6, pipeline:true },
   contacts:{ title:'Contacts created', width:4, quick:true },
   appointments:{ title:'Appointments', width:4 },

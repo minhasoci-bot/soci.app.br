@@ -1,9 +1,19 @@
+import { dateMatches, dayAt, metricByKind, metricGroups, metricTrend, metricValue, metricWidgets } from './dashboard-metrics.js';
+
+export { dateMatches, dayAt };
 export const salesPipeline = 'sales';
 export const opportunityStatuses = ['Open','Won','Lost','Abandoned'];
 export const dateFields = { status:'Por mudança de status', created:'Por data de criação', updated:'Por última atualização' };
 export const dashboardPeriods = {
-  today:'Hoje', yesterday:'Ontem', '7':'Últimos 7 dias', '30':'Últimos 30 dias', '90':'Últimos 90 dias',
-  month:'Este mês', previousMonth:'Mês passado', year:'Este ano', all:'Todo o período', custom:'Período personalizado'
+  '30':'Últimos 30 dias', today:'Hoje', yesterday:'Ontem', tomorrow:'Amanhã', week:'Esta semana', previousWeek:'Semana passada',
+  nextWeek:'Próxima semana', '7':'Últimos 7 dias', '90':'Últimos 90 dias', month:'Este mês', previousMonth:'Mês passado',
+  nextMonth:'Próximo mês', quarter:'Este trimestre', previousQuarter:'Trimestre passado', nextQuarter:'Próximo trimestre',
+  year:'Este ano', previousYear:'Ano passado', nextYear:'Próximo ano', tillDate:'Até hoje', all:'Todo o período', custom:'Período personalizado'
+};
+export const comparisonModes = { '':'Sem comparação', previous:'Período anterior', year:'Mesmo período do ano anterior' };
+export const dashboardThemes = {
+  default:['Rosa soci','#ff00bb'], blue:['Azul','#2563eb'], green:['Verde','#15803d'], purple:['Roxo','#7c3aed'], red:['Vermelho','#dc2626'],
+  orange:['Laranja','#ea580c'], yellow:['Âmbar','#d97706'], teal:['Turquesa','#0e7490'], graphite:['Grafite','#475569']
 };
 export const widgets = {
   status:{ title:'Opportunity status', width:5, pipeline:true },
@@ -19,34 +29,48 @@ export const widgets = {
   business:{ title:'Google Business Profile', width:12, provider:'Google Business Profile', period:'Last 30 days' },
   'meta-ads':{ title:'Meta Ads report', width:6, provider:'Meta Ads' },
   'google-ads':{ title:'Google Ads report', width:6, provider:'Google Ads' },
-  'email-health':{ title:'Email health report', width:6, provider:'Email delivery' },
+  'email-health':{ title:'Email health report', width:6, provider:'Entrega de e-mail' },
   efficiency:{ title:'Sales efficiency', width:6, pipeline:true },
   contacts:{ title:'Contacts created', width:4, quick:true },
   appointments:{ title:'Appointments', width:4 },
   invoices:{ title:'Paid invoices', width:4 },
-  note:{ title:'Sticky note', width:4 }
+  note:{ title:'Sticky note', width:4, category:'elements' },
+  heading:{ title:'Título', width:12, category:'elements', element:true },
+  text:{ title:'Caixa de texto', width:6, category:'elements', element:true },
+  image:{ title:'Imagem', width:6, category:'elements', element:true, url:true },
+  embed:{ title:'Conteúdo incorporado', width:6, category:'elements', element:true, url:true },
+  ...Object.fromEntries(metricWidgets.map(metric => [metric.kind, { title:metric.title, width:metric.width, category:metric.category,
+    metric:true, quick:Boolean(metric.quick) }]))
 };
+for (const kind of ['status','value','conversion','funnel','distribution','source','efficiency']) widgets[kind].category = 'general';
+for (const kind of ['tasks','manual']) widgets[kind].category = 'tasks';
+for (const kind of ['ga-count','ga-chart','business','meta-ads','google-ads','email-health']) widgets[kind].category = 'integrations';
+widgets.contacts.category = 'contacts';
+widgets.appointments.category = 'appointments';
+widgets.invoices.category = 'payments';
+export const widgetText = {
+  status:'Compare oportunidades por status', value:'Compare o valor das oportunidades por status', conversion:'Taxa de conversão e receita ganha',
+  funnel:'Avanço das oportunidades pelas etapas', distribution:'Oportunidades por etapa do pipeline', source:'Leads e valor por origem',
+  efficiency:'Duração média e valor das vendas', tasks:'Lista de tarefas com filtros', manual:'Ligações e SMS manuais pendentes',
+  contacts:'Contatos criados no período', appointments:'Agendamentos não cancelados', invoices:'Valor das faturas pagas',
+  'ga-count':'Sessões e usuários do Google Analytics', 'ga-chart':'Tráfego do Google Analytics por mês', business:'Visualizações e ações no Google',
+  'meta-ads':'Investimento e resultados no Meta Ads', 'google-ads':'Investimento e resultados no Google Ads', 'email-health':'Entrega, aberturas e rejeições',
+  note:'Anotação colorida para a equipe', heading:'Título para separar seções', text:'Parágrafo com orientações ou contexto',
+  image:'Imagem por endereço https', embed:'Página externa por endereço https',
+  ...Object.fromEntries(metricWidgets.map(metric => [metric.kind, metric.text]))
+};
+export const recommendedWidgets = ['m-contacts-count','m-revenue-trend','m-contacts-tags','m-appointments-count'];
 
 const defaultKinds = ['status','value','conversion','funnel','distribution','tasks','manual','source','ga-count','ga-chart',
   'business','meta-ads','google-ads','email-health','efficiency'];
 
 export function newWidget(kind,id) {
   const definition = widgets[kind];
-  return { id, kind, title:definition.title, width:definition.width, pipeline:'', dateField:'status', note:'' };
+  return { id, kind, title:definition.title, width:definition.width, pipeline:'', dateField:'status', note:'', url:'' };
 }
 
 export function defaultDashboard() {
-  return { id:'dashboard', name:'Dashboard', version:1, widgets:defaultKinds.map(kind => newWidget(kind,kind)), history:[] };
-}
-
-export function dayAt(instant, timezone) {
-  if (!instant) return '';
-  if (typeof instant === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(instant)) return instant;
-  const value = new Date(instant);
-  if (!Number.isFinite(+value)) return '';
-  const parts = new Intl.DateTimeFormat('en',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(value);
-  const part = type => parts.find(field => field.type === type).value;
-  return `${part('year')}-${part('month')}-${part('day')}`;
+  return { id:'dashboard', name:'Dashboard', version:1, theme:'default', timezone:'', widgets:defaultKinds.map(kind => newWidget(kind,kind)), history:[] };
 }
 
 function addDays(day, count) {
@@ -60,33 +84,64 @@ export function validDay(day) {
     Number.isFinite(Date.parse(day)) && new Date(day).toISOString().slice(0,10) === day;
 }
 
+function quarterStart(day) {
+  const month = Math.floor((Number(day.slice(5,7)) - 1) / 3) * 3 + 1;
+  return `${day.slice(0,4)}-${String(month).padStart(2,'0')}-01`;
+}
+
+function shiftMonths(day, count) {
+  const value = new Date(`${day.slice(0,7)}-01T00:00:00Z`);
+  value.setUTCMonth(value.getUTCMonth() + count);
+  return value.toISOString().slice(0,10);
+}
+
 export function resolveDates(filters, timezone, now = new Date()) {
   const today = dayAt(now,timezone);
-  const period = filters.period || '30';
+  const period = Object.hasOwn(dashboardPeriods,filters.period) ? filters.period : '30';
   const first = `${today.slice(0,7)}-01`;
+  const sunday = addDays(today,-new Date(`${today}T00:00:00Z`).getUTCDay());
+  const quarter = quarterStart(today);
+  const year = Number(today.slice(0,4));
+  const span = (start, months) => ({ start, end:addDays(shiftMonths(start,months),-1) });
   if (period === 'all') return { start:'', end:'' };
   if (period === 'custom' && validDay(filters.start) && validDay(filters.end) && filters.start <= filters.end) {
     return { start:filters.start, end:filters.end };
   }
-  if (period === 'today') return { start:today, end:today };
-  if (period === 'yesterday') { const yesterday = addDays(today,-1); return { start:yesterday, end:yesterday }; }
-  if (period === 'month') return { start:first, end:today };
-  if (period === 'previousMonth') { const end = addDays(first,-1); return { start:`${end.slice(0,7)}-01`, end }; }
-  if (period === 'year') return { start:`${today.slice(0,4)}-01-01`, end:today };
-  return { start:addDays(today,1-(Number(period) || 30)), end:today };
+  switch (period) {
+    case 'today': return { start:today, end:today };
+    case 'yesterday': { const day = addDays(today,-1); return { start:day, end:day }; }
+    case 'tomorrow': { const day = addDays(today,1); return { start:day, end:day }; }
+    case 'week': return { start:sunday, end:addDays(sunday,6) };
+    case 'previousWeek': return { start:addDays(sunday,-7), end:addDays(sunday,-1) };
+    case 'nextWeek': return { start:addDays(sunday,7), end:addDays(sunday,13) };
+    case 'month': return { start:first, end:today };
+    case 'previousMonth': return span(shiftMonths(first,-1),1);
+    case 'nextMonth': return span(shiftMonths(first,1),1);
+    case 'quarter': return span(quarter,3);
+    case 'previousQuarter': return span(shiftMonths(quarter,-3),3);
+    case 'nextQuarter': return span(shiftMonths(quarter,3),3);
+    case 'year': return { start:`${year}-01-01`, end:today };
+    case 'previousYear': return { start:`${year-1}-01-01`, end:`${year-1}-12-31` };
+    case 'nextYear': return { start:`${year+1}-01-01`, end:`${year+1}-12-31` };
+    case 'tillDate': return { start:'0001-01-01', end:today };
+    default: return { start:addDays(today,1-(Number(period) || 30)), end:today };
+  }
 }
 
-export function priorDates(range) {
-  if (!range.start) return null;
+function minusYear(day) {
+  const target = `${Number(day.slice(0,4)) - 1}${day.slice(4)}`;
+  return validDay(target) ? target : addDays(`${Number(day.slice(0,4)) - 1}-03-01`,-1);
+}
+
+export function priorDates(range, mode = 'previous') {
+  if (!range.start || range.start === '0001-01-01' || !mode) return null;
+  if (mode === 'year') return { start:minusYear(range.start), end:minusYear(range.end) };
   const days = Math.round((Date.parse(range.end) - Date.parse(range.start)) / 86400000) + 1;
   return { start:addDays(range.start,-days), end:addDays(range.start,-1) };
 }
 
-export function dateMatches(datetime, range, zone) {
-  if (!range.start) return true;
-  const day = dayAt(datetime,zone);
-  return Boolean(day && day >= range.start && day <= range.end);
-}
+export const comparisonMode = range => range.compare === true ? 'previous'
+  : Object.hasOwn(comparisonModes,range.compare || '') ? range.compare || '' : '';
 
 function opportunityDate(record, field) {
   if (field === 'created') return record.created;
@@ -157,9 +212,19 @@ export function effectiveWidget(state, widget, view = {}) {
   return config;
 }
 
-export function reportRows(state, dashboard, view, range, tag = '') {
+export function reportRows(state, dashboard, view, range, tag = '', now = new Date()) {
   const result = [];
+  const ctx = { range, zone:state.profile.timezone, today:dayAt(now,state.profile.timezone), tag };
   for (const widget of dashboard.widgets) {
+    const metric = metricByKind[widget.kind];
+    if (metric) {
+      if (metric.type === 'number') {
+        const value = metricValue(metric,state,ctx);
+        result.push([widget.title,metric.unit === 'money' ? 'Valor' : metric.unit === 'rating' ? 'Média' : 'Total',value === null ? '—' : Number(value.toFixed(2))]);
+      } else if (metric.type === 'breakdown') result.push(...metricGroups(metric,state,ctx).slice(0,12).map(row => [widget.title,row.name,row.value]));
+      else result.push(...metricTrend(metric,state,ctx).buckets.filter(row => row.value).map(row => [widget.title,row.name,row.value]));
+      continue;
+    }
     const config = effectiveWidget(state,widget,view[widget.id]);
     const deals = scopedDeals(state,config,range,{owner:config.owner});
     if (widget.kind === 'status' || widget.kind === 'value') {

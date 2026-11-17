@@ -1,25 +1,29 @@
-import { activeDashboard, dashboardRange } from './dashboard.js';
-import { dashboardPeriods, dateFields, effectiveWidget, newWidget, reportRows, validDay, widgets } from './dashboard-data.js';
+import { activeDashboard, dashboardRange, libraryList } from './dashboard.js';
+import { comparisonMode, comparisonModes, dashboardPeriods, dateFields, effectiveWidget, newWidget, reportRows, validDay, widgets } from './dashboard-data.js';
 import { h } from './screens.js';
+import { tr } from './i18n.js';
 
 export function dashboardPreferences(workspace) {
   const key = `go.dashboard.${workspace}`;
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch { /* Use defaults. */ }
-  return { key, id:saved.id || '', range:{ period:'30', ...saved.range }, view:{}, showQuick:false, quickTag:'', draft:null, undo:[], redo:[] };
+  return { key, id:saved.id || '', range:{ period:'30', ...saved.range }, view:{}, showQuick:false, quickTag:'', draft:null, undo:[], redo:[],
+    lib:{ tab:'widgets', sub:'builtin', query:'', open:[] } };
 }
 
 const select = (name, label, choices, value) => `<label>${label}<select name="${name}">${choices.map(([key,text]) =>
   `<option value="${h(key)}" ${String(value) === String(key) ? 'selected' : ''}>${h(text)}</option>`).join('')}</select></label>`;
-const text = (name,label,value = '') => `<label>${label}<input name="${name}" value="${h(value)}" required maxlength="100"></label>`;
+const text = (name,label,value = '',extra = 'required maxlength="100"') => `<label>${label}<input name="${name}" value="${h(value)}" ${extra}></label>`;
 const current = context => context.dash.draft || activeDashboard(context);
+const zones = (() => { try { return Intl.supportedValuesOf('timeZone'); } catch { return []; } })();
 
-export function installDashboardControls({ c, dialog, close, render, load, mutate, flash, go }) {
-  const remember = () => localStorage.setItem(c.dash.key,JSON.stringify({ id:c.dash.id, range:c.dash.range }));
+export function installDashboardControls({ c, dialog, close, render, load, mutate, flash, go, download }) {
+  let lastElementAdd = 0;
+  const remember = () => { try { localStorage.setItem(c.dash.key,JSON.stringify({ id:c.dash.id, range:c.dash.range })); } catch { /* Private mode. */ } };
 
   function startEditing() {
     const saved = activeDashboard(c);
-    c.dash.draft = { id:saved.id,name:saved.name,version:saved.version,widgets:structuredClone(saved.widgets) };
+    c.dash.draft = { id:saved.id,name:saved.name,version:saved.version,theme:saved.theme || 'default',widgets:structuredClone(saved.widgets) };
     c.dash.undo = [];
     c.dash.redo = [];
   }
@@ -44,6 +48,15 @@ export function installDashboardControls({ c, dialog, close, render, load, mutat
     const form = document.querySelector('#dialog form');
     form.dataset.boardForm = action;
     delete form.dataset.form;
+    return form;
+  }
+
+  function elementFields(kind, entry = {}) {
+    if (kind === 'heading') return text('note','Subtítulo (opcional)',entry.note,'maxlength="200"');
+    if (kind === 'text' || kind === 'note') return `<label>Texto<textarea name="note" maxlength="2000" required>${h(entry.note)}</textarea></label>`;
+    if (widgets[kind]?.url) return text('url',kind === 'image' ? 'Endereço da imagem (https)' : 'Endereço da página (https)',entry.url,'type="url" required maxlength="2000" placeholder="https://"') +
+      (kind === 'embed' ? '<p class="dim">Alguns sites não permitem ser exibidos dentro de outra página. Nesse caso, use o link “Abrir em nova aba”.</p>' : '');
+    return '';
   }
 
   function configureWidget(id) {
@@ -51,12 +64,12 @@ export function installDashboardControls({ c, dialog, close, render, load, mutat
     if (!entry) return;
     const config = effectiveWidget(c.s,entry,c.dash.draft ? {} : c.dash.view[id]);
     const definition = widgets[entry.kind];
-    const titles = !c.dash.draft ? '' : text('title','Widget title',entry.title) + select('width','Width',
-      [[3,'Quarter'],[4,'Third'],[5,'Five columns'],[6,'Half'],[8,'Two thirds'],[12,'Full width']],entry.width);
-    const pipeline = definition.pipeline ? select('dateField','Date property',Object.entries(dateFields),config.dateField) +
-      select('pipeline','Pipeline',[...(definition.needsPipeline ? [] : [['','All pipelines']]),...c.s.pipelines.map(item => [item.id,item.name])],config.pipeline) : '';
-    const notes = config.kind === 'note' ? `<label>Note<textarea name="note" maxlength="2000" required>${h(config.note)}</textarea></label>` : '';
-    dialogForm(`Configure ${entry.title}`,titles+pipeline+notes,'widget',{ id });
+    const titles = !c.dash.draft ? '' : text('title',entry.kind === 'heading' ? 'Título' : 'Título do widget',tr(entry.title)) + select('width','Largura',
+      [[3,'Um quarto'],[4,'Um terço'],[5,'Cinco colunas'],[6,'Metade'],[8,'Dois terços'],[12,'Largura total']],entry.width);
+    const pipeline = definition.pipeline ? select('dateField','Data usada no cálculo',Object.entries(dateFields),config.dateField) +
+      select('pipeline','Pipeline',[...(definition.needsPipeline ? [] : [['','Todos os pipelines']]),...c.s.pipelines.map(item => [item.id,tr(item.name)])],config.pipeline) : '';
+    const content = c.dash.draft || entry.kind === 'note' ? elementFields(entry.kind,entry) : '';
+    dialogForm(`Configurar ${tr(entry.title)}`,titles+pipeline+content,'widget',{ id });
   }
 
   async function saveBoard(board) {
@@ -65,29 +78,41 @@ export function installDashboardControls({ c, dialog, close, render, load, mutat
     c.dash.undo = [];
     c.dash.redo = [];
     c.dash.view = {};
-    close(); render(); flash('Dashboard saved.');
+    close(); render(); flash('Painel salvo.');
+  }
+
+  function switcherList(query = '') {
+    const term = query.trim().toLowerCase();
+    const boards = c.s.dashboards.filter(board => tr(board.name).toLowerCase().includes(term));
+    const active = activeDashboard(c).id;
+    return boards.map(board => `<button class="choice" data-dash-act="choose" data-widget="${board.id}"><strong>${h(tr(board.name))}${board.id === c.s.defaultDashboard ? ' <span class="badge pink">Padrão</span>' : ''}</strong>
+      <span>${board.id === active ? 'Painel aberto · ' : ''}${board.widgets.length} widgets</span></button>`).join('') || '<p class="dim">Nenhum painel com esse nome.</p>';
   }
 
   const act = {
     switch() {
-      dialog('Dashboards',c.s.dashboards.map(board => `<button class="choice" data-dash-act="choose" data-widget="${board.id}"><strong>${h(board.name)}</strong>${board.id === activeDashboard(c).id ? '<span>Current dashboard</span>' : ''}</button>`).join(''));
+      dialog('Painéis',`<label class="search dash-switch-search"><input type="search" data-dash-switch-search placeholder="Buscar painel" aria-label="Buscar painel"></label>
+        <div class="dash-switch-list" data-dash-switch-list>${switcherList()}</div>`,{ description:`${c.s.dashboards.length} de 20 painéis neste workspace` });
+      document.querySelector('[data-dash-switch-search]')?.focus();
     },
     choose(id) { c.dash.id=id; c.dash.view={}; c.dash.quickTag=''; remember(); close(); render(); },
-    new() { dialogForm('Create dashboard',text('name','Dashboard name') + select('copyFrom','Start with',
-      [['','Blank dashboard'],...c.s.dashboards.map(board => [board.id,board.name])],''),'new'); },
-    async refresh() { await load(); render(); flash('Dashboard refreshed.'); },
+    new() { dialogForm('Criar painel',text('name','Nome do painel') + select('copyFrom','Começar com',
+      [['','Painel em branco'],...c.s.dashboards.map(board => [board.id,`Cópia de ${tr(board.name)}`])],''),'new'); },
+    async refresh() { await load(); render(); flash('Painel atualizado.'); },
     quick() { c.dash.showQuick=!c.dash.showQuick; render(); },
     dates() {
-      const { period,start,end,compare } = c.dash.range;
-      dialogForm('Date range',select('period','Period',Object.entries(dashboardPeriods),period) +
+      const { period,start,end } = c.dash.range;
+      dialogForm('Período',select('period','Período',Object.entries(dashboardPeriods),period) +
         `<fieldset class="dash-date-fields" ${period === 'custom' ? '' : 'hidden disabled'}><div class="field-grid">
-          <label>Start date<input type="date" name="start" value="${validDay(start) ? start : ''}" required></label>
-          <label>End date<input type="date" name="end" value="${validDay(end) ? end : ''}" required></label></div></fieldset>
-        <label class="check"><input type="checkbox" name="compare" ${compare ? 'checked' : ''}> Compare with previous period</label>`,'dates');
+          <label>Início<input type="date" name="start" value="${validDay(start) ? start : ''}" required></label>
+          <label>Fim<input type="date" name="end" value="${validDay(end) ? end : ''}" required></label></div></fieldset>
+        ${select('compare','Comparar com',Object.entries(comparisonModes),comparisonMode(c.dash.range))}
+        <p class="dim">A comparação aparece nos widgets de número, status e conversão. Períodos sem data inicial não têm comparação.</p>`,'dates',
+      { buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Aplicar</button>' });
     },
     edit() { startEditing(); render(); },
     cancel() { c.dash.draft=null; render(); },
-    rename() { dialogForm('Rename dashboard',text('name','Dashboard name',current(c).name),'rename'); },
+    rename() { dialogForm('Renomear painel',text('name','Nome do painel',tr(current(c).name)),'rename'); },
     save() { return saveBoard(c.dash.draft); },
     undo() {
       const previous = c.dash.undo.pop();
@@ -100,31 +125,82 @@ export function installDashboardControls({ c, dialog, close, render, load, mutat
     up(id) { reorder(id,current(c).widgets.findIndex(item => item.id === id)-1); },
     down(id) { reorder(id,current(c).widgets.findIndex(item => item.id === id)+1); },
     remove(id) { edit(board => board.widgets=board.widgets.filter(item => item.id !== id)); },
+    'duplicate-widget'(id) {
+      edit(board => {
+        const index = board.widgets.findIndex(item => item.id === id);
+        if (index >= 0) board.widgets.splice(index+1,0,{ ...structuredClone(board.widgets[index]), id:crypto.randomUUID() });
+      });
+    },
     'widget-settings':configureWidget,
-    'widget-add'() {
-      const options = Object.entries(widgets).filter(([kind]) => kind !== 'note').map(([kind,definition]) => [kind,definition.title]);
-      dialogForm('Add widget',select('kind','Widget',options,'status'),'add');
+    'widget-add'(kind) {
+      // The Enter that submits the element dialog returns focus to this button; ignore its key-up click.
+      if (!c.dash.draft || !widgets[kind] || Date.now() - lastElementAdd < 500) return;
+      if (widgets[kind].url || kind === 'text') {
+        dialogForm(`Adicionar ${tr(widgets[kind].title).toLowerCase()}`,text('title','Título',tr(widgets[kind].title)) + elementFields(kind),'element',{ id:kind });
+        return;
+      }
+      edit(board => { board.widgets.push({ ...newWidget(kind,crypto.randomUUID()), title:tr(widgets[kind].title) }); });
+      flash(`${tr(widgets[kind].title)} entrou no fim do painel.`);
     },
-    note() { dialogForm('Add sticky note',text('title','Title','Sticky note') + '<label>Note<textarea name="note" maxlength="2000" required></textarea></label>','note'); },
+    'lib-tab'(tab) { c.dash.lib.tab=tab; render(); },
+    'lib-sub'(sub) { c.dash.lib.sub=sub; render(); },
+    theme(name) { edit(board => { board.theme=name; }); },
+    note() { dialogForm('Adicionar nota adesiva',text('title','Título','Nota adesiva') + '<label>Nota<textarea name="note" maxlength="2000" required></textarea></label>','note'); },
     more() {
-      dialog('Dashboard actions','<div class="quick-list"><button class="secondary" data-dash-act="duplicate">Duplicate</button><button class="secondary" data-dash-act="history">Version history</button></div>');
+      const board = activeDashboard(c);
+      const item = (action,label,extra = '') => `<button class="secondary" data-dash-act="${action}" ${extra}>${label}</button>`;
+      dialog('Ações do painel',`<div class="dash-actions-list">
+        ${item('duplicate','Duplicar')}
+        ${item('make-default',board.id === c.s.defaultDashboard ? 'Já é o painel padrão' : 'Definir como padrão',board.id === c.s.defaultDashboard ? 'disabled' : '')}
+        ${item('timezone','Fuso horário do painel')}
+        ${item('export','Exportar modelo')}
+        ${item('import','Importar modelo')}
+        ${item('history','Histórico de versões')}
+        ${item('delete','Excluir painel',c.s.dashboards.length > 1 ? 'data-danger' : 'disabled title="O workspace precisa de pelo menos um painel"')}</div>`,{ description:tr(board.name) });
     },
-    duplicate() { dialogForm('Duplicate dashboard',text('name','Dashboard name',`${activeDashboard(c).name} copy`),'duplicate'); },
+    duplicate() { dialogForm('Duplicar painel',text('name','Nome do painel',`${tr(activeDashboard(c).name)} (cópia)`),'duplicate'); },
+    async 'make-default'() {
+      await mutate({ type:'dashboard-default', id:activeDashboard(c).id, data:{} });
+      close(); render(); flash('Este painel abre por padrão para quem ainda não escolheu outro.');
+    },
+    timezone() {
+      const board = activeDashboard(c);
+      dialogForm('Fuso horário do painel',`<label>Fuso horário<input name="timezone" list="dash-zones" value="${h(board.timezone || '')}" placeholder="${h(c.s.profile.timezone)} (fuso do workspace)" maxlength="64"></label>
+        <datalist id="dash-zones">${zones.map(zone => `<option value="${h(zone)}">`).join('')}</datalist>
+        <p class="dim">Os períodos e as datas deste painel usam esse fuso. Deixe em branco para usar o fuso do workspace.</p>`,'timezone');
+    },
+    export() {
+      const board = activeDashboard(c);
+      const template = { format:'soci-dashboard', version:1, name:board.name, theme:board.theme || 'default',
+        widgets:board.widgets.map(({ id, ...widget }) => ({ ...widget, pipeline:'' })) };
+      const file = `${tr(board.name).normalize('NFD').replace(/[^\w-]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase() || 'painel'}.json`;
+      download(file,JSON.stringify(template,null,2),'application/json');
+      close(); flash('Modelo exportado. Os pipelines voltam para “Todos os pipelines” ao importar.');
+    },
+    import() {
+      dialogForm('Importar modelo',`<label>Arquivo do modelo (.json)<input type="file" name="file" accept="application/json,.json" required></label>
+        ${text('name','Nome do novo painel','','maxlength="80" placeholder="Usa o nome do modelo se ficar em branco"')}
+        <p class="dim">Use um arquivo gerado em “Exportar modelo”. O modelo cria um painel novo; nenhum painel existente é alterado.</p>`,'import');
+    },
+    delete() {
+      dialogForm('Excluir painel?',`<p>O painel <b>${h(tr(activeDashboard(c).name))}</b> e o histórico de versões dele serão excluídos. Os relatórios já enviados continuam em Relatórios.</p>`,'delete',
+        { buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary danger">Excluir painel</button>' });
+    },
     history() {
       const board = activeDashboard(c);
-      const entries = board.history.map(entry => `<button type="button" class="choice" data-dash-act="restore" data-widget="${entry.version}"><strong>Version ${entry.version} · ${h(entry.name)}</strong><span>${h(new Date(entry.when).toLocaleString())} · ${entry.widgets.length} widgets</span></button>`).join('');
-      dialog('Version history',entries || '<p>No saved versions yet.</p>',{ description:`Current version ${board.version}` });
+      const entries = board.history.map(entry => `<button type="button" class="choice" data-dash-act="restore" data-widget="${entry.version}"><strong>Versão ${entry.version} · ${h(tr(entry.name))}</strong><span>${h(new Date(entry.when).toLocaleString('pt-BR'))} · ${entry.widgets.length} widgets</span></button>`).join('');
+      dialog('Histórico de versões',entries || '<p>Nenhuma versão salva ainda.</p>',{ description:`Versão atual: ${board.version}` });
     },
     async restore(version) {
       const board = activeDashboard(c);
       await mutate({ type:'dashboard-restore', id:board.id, data:{ version:board.version, restoreVersion:Number(version) } });
-      c.dash.view={}; close(); render(); flash('Dashboard version restored.');
+      c.dash.view={}; close(); render(); flash('Versão restaurada.');
     },
     summary() {
       const rows = reportRows(c.s,activeDashboard(c),c.dash.view,dashboardRange(c),c.dash.quickTag);
-      dialog('Dashboard summary', reportGrid(rows),{ description:'Metrics for the selected period and widget filters.' });
+      dialog('Resumo do painel', reportGrid(rows),{ description:`${dashboardPeriods[c.dash.range.period] || 'Últimos 30 dias'} · com os filtros de cada widget` });
     },
-    report() { dialogForm('Send as report',text('name','Report name',`${activeDashboard(c).name} report`),'report',{ description:'Save a copy in Reporting.' }); }
+    report() { dialogForm('Enviar como relatório',text('name','Nome do relatório',`Relatório ${tr(activeDashboard(c).name)}`),'report',{ description:'Uma cópia das métricas atuais fica salva em Relatórios.' }); }
   };
 
   document.addEventListener('click', async event => {
@@ -137,6 +213,26 @@ export function installDashboardControls({ c, dialog, close, render, load, mutat
     catch (error) { flash(error.message,true); }
     finally { if (button.isConnected) button.disabled=false; }
   });
+
+  document.addEventListener('input', event => {
+    const field = event.target;
+    if (field.matches('[data-dash-library-search]')) {
+      c.dash.lib.query = field.value;
+      const target = document.querySelector('[data-dash-library-list]');
+      if (target && c.dash.draft) target.innerHTML = libraryList(c,c.dash.draft);
+    }
+    if (field.matches('[data-dash-switch-search]')) {
+      const target = document.querySelector('[data-dash-switch-list]');
+      if (target) target.innerHTML = switcherList(field.value);
+    }
+  });
+
+  document.addEventListener('toggle', event => {
+    const details = event.target;
+    if (!(details instanceof HTMLDetailsElement) || !details.dataset.dashCategory) return;
+    const key = details.dataset.dashCategory;
+    c.dash.lib.open = details.open ? [...new Set([...c.dash.lib.open,key])] : c.dash.lib.open.filter(item => item !== key);
+  }, true);
 
   document.addEventListener('change', event => {
     const field = event.target;
@@ -159,16 +255,36 @@ export function installDashboardControls({ c, dialog, close, render, load, mutat
     }
   });
 
+  async function readTemplate(file) {
+    if (!file || !file.size) throw new Error('Escolha um arquivo de modelo.');
+    if (file.size > 200000) throw new Error('O arquivo é grande demais para um modelo de painel.');
+    let template;
+    try { template = JSON.parse(await file.text()); } catch { throw new Error('O arquivo não é um JSON válido.'); }
+    if (template?.format !== 'soci-dashboard' || !Array.isArray(template.widgets)) throw new Error('Este arquivo não é um modelo de painel do soci.');
+    const unknown = template.widgets.filter(widget => !widgets[widget?.kind]).length;
+    return { template, widgets:template.widgets.filter(widget => widgets[widget?.kind]), unknown };
+  }
+
   const submit = {
-    async new(data) { act.choose(await mutate({type:'dashboard-create',data})); },
-    async duplicate(data) { act.choose(await mutate({type:'dashboard-create',data:{ ...data,copyFrom:activeDashboard(c).id }})); },
+    async new(data) { act.choose(await mutate({type:'dashboard-create',data})); flash('Painel criado.'); },
+    async duplicate(data) { act.choose(await mutate({type:'dashboard-create',data:{ ...data,copyFrom:activeDashboard(c).id }})); flash('Painel duplicado.'); },
     dates(data) {
       const { period,start,end } = data;
-      if (period === 'custom' && (!validDay(start) || !validDay(end) || start > end)) throw new Error('Choose a valid start and end date.');
-      c.dash.range={ period,start,end,compare:Boolean(data.compare) }; remember(); close(); render();
+      if (period === 'custom' && (!validDay(start) || !validDay(end) || start > end)) throw new Error('Escolha uma data de início e de fim válidas.');
+      c.dash.range={ period,start,end,compare:Object.hasOwn(comparisonModes,data.compare) ? data.compare : '' }; remember(); close(); render();
     },
     rename(data) { close(); edit(board => { board.name=data.name.trim() || board.name; }); },
-    add(data) { close(); edit(board => { board.widgets.push(newWidget(data.kind,crypto.randomUUID())); }); },
+    element(data,kind) {
+      if (widgets[kind].url) {
+        let url;
+        try { url = new URL(data.url); } catch { throw new Error('Informe um endereço https válido.'); }
+        if (url.protocol !== 'https:') throw new Error('Use um endereço que comece com https://.');
+      }
+      lastElementAdd = Date.now();
+      close();
+      edit(board => { board.widgets.push({ ...newWidget(kind,crypto.randomUUID()), title:data.title.trim() || tr(widgets[kind].title), note:data.note || '', url:data.url || '' }); });
+      flash(`${data.title.trim() || tr(widgets[kind].title)} entrou no fim do painel.`);
+    },
     async note(data) {
       const board = activeDashboard(c);
       const widget = { ...newWidget('note',crypto.randomUUID()), ...data };
@@ -177,11 +293,32 @@ export function installDashboardControls({ c, dialog, close, render, load, mutat
     widget(data,id) {
       close();
       if (c.dash.draft) edit(board => Object.assign(board.widgets.find(item => item.id === id),data,{ width:Number(data.width) }));
-      else { (c.dash.view[id] ||= {}); Object.assign(c.dash.view[id],data); render(); }
+      else {
+        const entry = activeDashboard(c).widgets.find(item => item.id === id);
+        if (entry?.kind === 'note' && data.note !== undefined) {
+          const board = activeDashboard(c);
+          return saveBoard({ ...board, widgets:board.widgets.map(item => item.id === id ? { ...item, note:data.note } : item) });
+        }
+        (c.dash.view[id] ||= {}); Object.assign(c.dash.view[id],data); render();
+      }
+    },
+    async 'timezone'(data) {
+      await mutate({ type:'dashboard-timezone', id:activeDashboard(c).id, data });
+      close(); render(); flash(data.timezone ? `Fuso do painel: ${data.timezone}.` : 'O painel voltou a usar o fuso do workspace.');
+    },
+    async import(data, _id, form) {
+      const { template, widgets:list, unknown } = await readTemplate(form.elements.file.files[0]);
+      const id = await mutate({ type:'dashboard-create', data:{ name:data.name.trim() || String(template.name || 'Painel importado').slice(0,80), theme:template.theme, widgets:list } });
+      act.choose(id);
+      flash(unknown ? `Modelo importado. ${unknown} widget(s) desconhecido(s) ficaram de fora.` : 'Modelo importado.');
+    },
+    async delete() {
+      const next = await mutate({ type:'dashboard-delete', id:activeDashboard(c).id, data:{} });
+      act.choose(next); flash('Painel excluído.');
     },
     async report(data) {
       await mutate({ type:'dashboard-report',id:activeDashboard(c).id,data:{ ...data,...c.dash.range,view:c.dash.view,tag:c.dash.quickTag } });
-      close(); go('reporting','snapshots'); flash('Report saved.');
+      close(); go('reporting','snapshots'); flash('Relatório salvo.');
     }
   };
 
@@ -193,20 +330,20 @@ export function installDashboardControls({ c, dialog, close, render, load, mutat
     form.dataset.pending='true';
     const button = form.querySelector('button.primary');
     button.disabled=true;
-    try { await submit[form.dataset.boardForm](Object.fromEntries(new FormData(form)),form.dataset.id); }
-    catch (error) { form.querySelector('.form-status').textContent=error.message; }
-    finally { delete form.dataset.pending; button.disabled=false; }
+    try { await submit[form.dataset.boardForm](Object.fromEntries([...new FormData(form)].filter(([, value]) => typeof value === 'string')),form.dataset.id,form); }
+    catch (error) { const note = form.querySelector('.form-status'); if (note) note.textContent=error.message; else flash(error.message,true); }
+    finally { delete form.dataset.pending; if (button.isConnected) button.disabled=false; }
   });
 
   document.addEventListener('dragstart',event => {
-    const handle = event.target.closest('[data-dash-drag]');
+    const handle = event.target.closest?.('[data-dash-drag]');
     if (handle) event.dataTransfer.setData('application/go-widget',handle.dataset.dashDrag);
   });
   document.addEventListener('dragover',event => {
-    if (c.dash.draft && event.target.closest('[data-dashboard-card]') && event.dataTransfer.types.includes('application/go-widget')) event.preventDefault();
+    if (c.dash.draft && event.target.closest?.('[data-dashboard-card]') && event.dataTransfer.types.includes('application/go-widget')) event.preventDefault();
   });
   document.addEventListener('drop',event => {
-    const card = event.target.closest('[data-dashboard-card]');
+    const card = event.target.closest?.('[data-dashboard-card]');
     const id = event.dataTransfer.getData('application/go-widget');
     if (!c.dash.draft || !id || !card) return;
     event.preventDefault();
@@ -215,7 +352,7 @@ export function installDashboardControls({ c, dialog, close, render, load, mutat
 }
 
 export function reportGrid(rows) {
-  if (!rows.length) return '<p>No metrics for this dashboard.</p>';
-  return `<div class="dash-table"><table><thead><tr><th>Widget</th><th>Measure</th><th>Value</th></tr></thead><tbody>${rows.map(row =>
-    `<tr>${row.map(value => `<td>${h(value)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  if (!rows.length) return '<p>Este painel não tem métricas.</p>';
+  return `<div class="dash-table"><table><thead><tr><th>Widget</th><th>Medida</th><th>Valor</th></tr></thead><tbody>${rows.map(row =>
+    `<tr>${row.map(value => `<td>${h(tr(String(value)))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }

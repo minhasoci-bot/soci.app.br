@@ -694,7 +694,7 @@ if(viewPath){
   try{const result=await api(`/api/view${viewPath}`), workspace=viewPath.split('/')[2]; document.title='soci';app.innerHTML=publicView(result,workspace);}
   catch(e){app.innerHTML=`<div class="boot"><h1>Página indisponível</h1><p>${h(e.message)}</p><a href="/">Voltar para a plataforma</a></div>`;}
 }else{
-  installDashboardControls({ c,dialog,close,render,load,mutate,flash,go });
+  installDashboardControls({ c,dialog,close,render,load,mutate,flash,go,download:downloads });
   agencyUI = startAgency({ app, overlay, api, flash, openWorkspace: useWorkspace, onBrandColorChange: primary => {
     if (!c.agency || c.workspace.startsWith('user-')) return;
     c.agency.primary = primary;
