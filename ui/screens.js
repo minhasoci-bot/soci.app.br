@@ -4,6 +4,7 @@ import {conversationPage, slaRecords} from './conversations.js';
 import {dashboard} from './dashboard.js';
 import {studio} from './studio.js';
 import {bulkBar, contactsTab, crmTabs, opportunitiesTab, paymentsTab, pickBox, pickHead, settingsTab} from './crm.js';
+import {socialPlanner} from './social.js';
 
 export const nav=[['ask-ai','Pergunte à IA','spark','Ask AI'],['dashboard','Painel de controle','grid','Dashboard'],['conversations','Conversas','chat','Conversations'],['calendars','Calendários','cal','Calendars'],['contacts','Contatos','contacts','Contacts'],['opportunities','Leads','leads','Opportunities'],['payments','Pagamentos','pay','Payments'],['studio','Estúdio de IA','studio','AI Studio'],['ai-agents','Agentes de IA','spark','AI Agents'],['marketing','Marketing','send','Marketing'],['automation','Automações','flow','Automation'],['sites','Sites','site','Sites'],['memberships','Assinaturas','play','Memberships'],['media','Mídia Drive','folder','Media Storage'],['reputation','Reputação','award','Reputation'],['reporting','Relatórios','chart','Reporting'],['marketplace','Apps do marketplace','apps','App Marketplace'],['settings','Configurações','gear','Settings']];
 export const h=x=>String(x??'').replace(/[&<>"']/g,v=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[v]);
@@ -147,7 +148,9 @@ function payments(c){
   return wrap(head('Pagamentos','Acompanhe as faturas registradas neste workspace.',primary('Nova fatura','invoices'),tabs(crmTabs.payments,c.tab||'invoices'))+`<div class="metrics three"><div class="surface metric"><span>Saldo em aberto</span><b>${mt(s.invoices.filter(x=>x.status==='Open').reduce((a,r)=>a+r.value,0),c)}</b></div><div class="surface metric"><span>Pagamentos registrados</span><b>${mt(c.m.invoicesPaid,c)}</b></div><div class="surface metric"><span>Total de faturas</span><b>${s.invoices.length}</b></div></div><div class="toolbar">${search(c.query,'Buscar faturas…')}</div>`+table(['Fatura','Contato','Valor','Vencimento','Status',''],records.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),mt(r.value,c),date(r.due,c),badge(r.status,r.status==='Paid'?'green':'blue')],'invoices',r.id)),empty('Nenhuma fatura registrada','Crie uma fatura em rascunho. Os pagamentos podem ser marcados manualmente aqui.','pay')));
 }
 function marketing(c){
-  const t=c.tab||'social', channel=t==='social'?'Social':'Email', records=top(c.s.campaigns.filter(x=>x.channel===channel),c.query,['name','body','status']);
+  const t=c.tab||'social';
+  if(t==='social') return socialPlanner(c,{head,tabsHtml:tabs([['social','Planejador social'],['email','E-mails']],t)});
+  const channel='Email', records=top(c.s.campaigns.filter(x=>x.channel===channel),c.query,['name','body','status']);
   return wrap(head('Marketing','Rascunhe e organize campanhas. Publique ou envie pelo seu provedor quando estiver pronto.',primary(t==='social'?'Nova publicação':'Nova campanha','campaigns',`data-channel="${channel}"`),tabs([['social','Planejador social'],['email','E-mails']],t))+`<div class="toolbar">${search(c.query,'Buscar campanhas…')}</div>`+table(['Campanha','Conteúdo','Data planejada','Status',''],records.map(r=>row([`<b>${h(r.name)}</b>`,`<span class="ellipsis">${h(r.body)}</span>`,date(r.date,c),badge(r.status,r.status==='Planned'?'blue':'')],'campaigns',r.id)),empty('Nenhuma campanha','Crie seu primeiro rascunho para planejar o conteúdo.','send')));
 }
 function sites(c){

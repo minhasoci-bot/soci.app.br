@@ -3,6 +3,7 @@ import { changeDashboard } from './dashboard-model.mjs';
 import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashboard-data.js';
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
 import { afterSave, beforeDelete, bulk, crmCollections, crmFields, customData } from './crm-model.mjs';
+import { socialBeforeDelete, socialCollections, socialCommand, socialFields } from './social-model.mjs';
 
 export const defaults = {
   profile: { name: 'Demo Workspace', email: 'hello@example.test', phone: '', timezone: 'America/Sao_Paulo', currency: 'BRL' },
@@ -13,13 +14,13 @@ export const defaults = {
   campaigns: [], pages: [], forms: [], submissions: [], courses: [], files: [], reviews: [], agents: [], integrations: [],
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   dashboards:[defaultDashboard()], dashboardReports:[], studioProjects:[],
-  ...Object.fromEntries(crmCollections.map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections].map(key => [key, []])),
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
 export const blank = name => ({ ...structuredClone(defaults), profile: { ...defaults.profile, ...(name ? { name } : {}) } });
 export function hydrateWorkspace(state) {
   const fresh = blank();
-  const additions = ['manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects',...crmCollections];
+  const additions = ['manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects',...crmCollections,...socialCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -72,6 +73,7 @@ const fields = {
       closeDate:d.closeDate ? date(d.closeDate).slice(0,10) : '', probability:percent(d.probability), custom:customData(s,'Opportunity',d) };
   },
   ...crmFields,
+  ...socialFields,
   appointments: (s, d) => {
     const start = date(d.start), end = date(d.end);
     if (end <= start) fail('End time must be after start time.');
@@ -242,6 +244,7 @@ export function execute(s, command, { workspace = 'demo' } = {}) {
   if (['dashboard-create','dashboard-save','dashboard-restore','dashboard-report'].includes(type)) {
     return changeDashboard(s,{ ...command,data:d },uid,now());
   }
+  if (typeof type === 'string' && type.startsWith('social-')) return socialCommand(s, { ...command, data:d }, { add, now });
   if (type === 'studio-meta') return studioMeta(s, id, d);
   if (type === 'studio-visit' || type === 'studio-star') {
     const project = find(s,'studioProjects',id);
@@ -305,6 +308,7 @@ export function execute(s, command, { workspace = 'demo' } = {}) {
 // Deletes one record and everything that only made sense with it. Shared by single and bulk deletes.
 function remove(s, key, id) {
     beforeDelete(s, key, id);
+    socialBeforeDelete(s, key, id);
     if (key==='contacts') {
       for (const related of ['tasks','opportunities','messages','appointments','invoices']) s[related] = s[related].filter(r=>r.contactId!==id);
       for (const row of s.submissions.filter(r=>r.contactId===id)) { row.contactId=''; row.name=''; row.email=''; }

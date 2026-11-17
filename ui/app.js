@@ -10,6 +10,7 @@ import { startAgency } from './agency.js';
 import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm.js';
+import { socialEvents } from './social.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay'), toast=document.querySelector('#toast');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
@@ -581,6 +582,7 @@ if(viewPath){
   agencyUI = startAgency({ app, overlay, api, flash, openWorkspace: async id => { c.mode=''; await useWorkspace(id); } });
   installStudio({ c, api, url, flash, render });
   crmEvents({ G, mutate, render, flash, dialog, close });
+  socialEvents({ c, G, api, url, mutate, render, flash, dialog, close, load });
   window.addEventListener('hashchange',route);
   setInterval(() => {
     if (!c.s?.conversationSla.enabled || c.view !== 'conversations' || document.hidden || overlay.innerHTML) return;

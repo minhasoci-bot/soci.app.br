@@ -14,6 +14,9 @@ import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-plac
 import { folded, prospectSearchText } from './ui/prospecting-data.js';
 import { shareReportHtml, widgetHtml } from './ui/prospect-report.js';
 import { moduleOfRecord, snapshotAssets } from './ui/agency-data.js';
+import { attachAccounts, claimDue, evergreenDue, settle } from './social-model.mjs';
+import { authUrl, availability, blueskyLogin, exchange as socialExchange, publish as socialPublish, seal, unseal } from './social-providers.mjs';
+import { network } from './ui/social-data.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const staticFiles = new Map([
@@ -26,6 +29,7 @@ const staticFiles = new Map([
   ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],
   ['/prospect-report.js','text/javascript; charset=utf-8'], ['/prospecting.css','text/css; charset=utf-8'],
   ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
+  ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
@@ -41,7 +45,7 @@ const paths = /^\/(p|f|course)\/([0-9a-f-]{36}|demo)\/([0-9a-f-]{36})$/;
 const redirectPath = /^\/r\/(demo|[0-9a-f-]{36})\/([0-9a-f-]{36})$/;
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
-const commandModule = { message:'conversations', thread:'conversations', 'manual-action':'conversations', 'conversation-sla':'conversations', 'dismiss-sla':'conversations',
+const commandModule = { 'social-post':'marketing', 'social-reschedule':'marketing', 'social-review':'marketing', 'social-duplicate':'marketing', 'social-delete':'marketing', 'social-bulk-delete':'marketing', 'social-retry':'marketing', 'social-csv':'marketing', 'social-account-remove':'marketing', message:'conversations', thread:'conversations', 'manual-action':'conversations', 'conversation-sla':'conversations', 'dismiss-sla':'conversations',
   pipeline:'opportunities', stage:'opportunities', import:'contacts', 'studio-visit':'studio', 'studio-star':'studio', profile:'settings',
   'dashboard-create':'dashboard', 'dashboard-save':'dashboard', 'dashboard-restore':'dashboard', 'dashboard-report':'dashboard' };
 const settingsCommands = new Set(['saas-mode','saas-rebilling','saas-account','workflow-builder','sub-feature','email-domain','email-domain-accounts','email-domain-remove','affiliate-pixel','profile','company','billing-plan','wallet','auto-recharge','system-email','labs','compliance','api-key','api-key-delete','private-integration','private-integration-delete']);
@@ -51,11 +55,11 @@ const publicAgency = agency => ({ ...agency,
   privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest) });
 const stamp = () => new Date().toISOString();
 
-const defaultDbPath = (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
+const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) : (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
   ? resolve(tmpdir(), 'go.sqlite')
   : resolve(root, '.data', 'go.sqlite');
 
-export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSqliteStore(dbPath)}={}) {
+export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSqliteStore(dbPath),socialScheduler=!process.env.VERCEL}={}) {
   const ready = Promise.all([store.insert('demo', seed()), store.insert(AGENCY_ID, blankAgency())]);
   ready.catch(() => {});
   const listWorkspaces = async () => (await store.list()).filter(w => spaceId.test(w.id));
@@ -351,6 +355,106 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
       return { id:result, state, metrics:metrics(state) };
     });
   }
+  // ---- Social Planner: OAuth secrets, scheduler and media ------------------------------------
+  const socialRow = async rowId => {
+    try { return await store.load(rowId); }
+    catch { await store.insert(rowId, { tokens:{}, pending:{}, states:{} }); return store.load(rowId); }
+  };
+  const socialSecrets = async (workspace, mutate) => { await socialRow(`social-${workspace}`); return store.change(`social-${workspace}`, mutate); };
+  const publicBase = req => process.env.SOCIAL_PUBLIC_URL || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+  const callbackPath = provider => `/api/social/callback/${provider === 'instagram' ? 'facebook' : provider}`;
+  const fileBytes = data => { const [, mime, b64] = String(data).match(/^data:([^;]+);base64,(.*)$/) || []; return { mime, bytes: Buffer.from(b64 || '', 'base64') }; };
+  const socialMedia = (state, workspace, base, post) => (post.media || []).map(m => {
+    if (m.fileId) {
+      const file = state.files.find(f => f.id === m.fileId);
+      if (!file) throw error('Uma imagem do post foi removida do Mídia Drive.',400);
+      const { mime, bytes } = fileBytes(file.data);
+      return { ...m, mime, url: `${base}/m/${workspace}/${m.fileId}`, bytes: async () => bytes };
+    }
+    return { ...m, bytes: async () => { const r = await fetch(m.url, { signal: AbortSignal.timeout(120_000) }); if (!r.ok) throw error(`Não foi possível baixar a mídia (${r.status}).`,502); return Buffer.from(await r.arrayBuffer()); } };
+  });
+  const rssItems = xml => [...xml.matchAll(/<(item|entry)\b[\s\S]*?<\/\1>/gi)].map(([block]) => {
+    const tag = name => (block.match(new RegExp(`<${name}\\b[^>]*>([\\s\\S]*?)<\\/${name}>`, 'i'))?.[1] || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '')
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').trim();
+    const link = tag('link') || block.match(/<link\b[^>]*href="([^"]+)"/i)?.[1] || '';
+    return { title: tag('title'), link, guid: tag('guid') || tag('id') || link, summary: tag('description') || tag('summary') };
+  }).filter(item => item.guid);
+  async function checkFeeds(workspace, at) {
+    const state = await store.load(workspace);
+    const stale = state.socialFeeds.filter(f => f.active && Date.parse(f.lastChecked || 0) < at - 30 * 60_000);
+    for (const feed of stale) {
+      let items = [], problem = '';
+      try {
+        const r = await fetch(feed.url, { signal: AbortSignal.timeout(20_000), headers: { Accept: 'application/rss+xml, application/atom+xml, text/xml' } });
+        if (!r.ok) throw Error(`HTTP ${r.status}`);
+        items = rssItems((await r.text()).slice(0, 2_000_000));
+      } catch (e) { problem = `Não foi possível ler o feed: ${e.message}`.slice(0, 200); }
+      await store.change(workspace, s => {
+        const row = s.socialFeeds.find(f => f.id === feed.id); if (!row) return;
+        row.lastChecked = new Date(at).toISOString(); row.error = problem; if (problem) return;
+        const seen = new Set(row.seen || []), fresh = items.filter(item => !seen.has(item.guid)).slice(0, row.seen ? 5 : 3).reverse();
+        for (const item of fresh) {
+          const summary = row.template.replace(/\{\{\s*(title|link|summary)\s*\}\}/g, (_, k) => item[k] || '').slice(0, 5000);
+          const accounts = row.accountIds.filter(accountId => s.socialAccounts.some(a => a.id === accountId));
+          s.socialPosts.push({ id: uid(), created: stamp(), type: 'post', summary, overrides: {}, accountIds: accounts, media: [], link: item.link, firstComment: '', categoryId: '', tags: [],
+            needsApproval: false, source: 'rss', feedId: row.id, scheduleDate: row.mode === 'schedule' ? new Date(at + 5 * 60_000).toISOString() : '', recurrence: null,
+            status: row.mode === 'schedule' && accounts.length ? 'scheduled' : 'draft', approval: '', results: [], createdBy: row.name, error: '' });
+        }
+        row.seen = items.map(item => item.guid).slice(0, 200);
+      });
+    }
+  }
+  async function runSocial(workspace, base, at = Date.now()) {
+    let state = await store.load(workspace);
+    if (state.socialFeeds?.length) await checkFeeds(workspace, at).catch(e => console.error(e.message));
+    if (!state.socialAccounts?.length) return 0;
+    const due = await store.change(workspace, s => {
+      for (const copy of evergreenDue(s, new Date(at), s.profile.timezone)) s.socialPosts.push({ ...copy, id: uid(), created: stamp() });
+      return claimDue(s, at);
+    });
+    if (!due.length) return 0;
+    state = await store.load(workspace);
+    const secrets = await socialRow(`social-${workspace}`);
+    const refreshed = {}, broken = {};
+    for (const post of due) {
+      const results = [];
+      let media = [];
+      try { media = socialMedia(state, workspace, base, post); }
+      catch (e) { results.push(...post.accountIds.map(accountId => ({ accountId, ok: false, error: e.message }))); }
+      if (!results.length) for (const accountId of post.accountIds) {
+        const account = state.socialAccounts.find(a => a.id === accountId);
+        if (!account) { results.push({ accountId, ok: false, error: 'Conta desconectada.' }); continue; }
+        try {
+          const secret = refreshed[accountId] || unseal(secrets.tokens[accountId]);
+          const { secret: next, ...outcome } = await socialPublish(account, secret, post, media);
+          refreshed[accountId] = next; results.push({ accountId, ...outcome });
+        } catch (e) {
+          if (e.status === 401) broken[accountId] = e.message;
+          results.push({ accountId, ok: false, error: `${network(account.provider)?.name}: ${e.message}`.slice(0, 500) });
+        }
+      }
+      await store.change(workspace, s => {
+        settle(s, post.id, results, { uid, now: stamp });
+        for (const [accountId, message] of Object.entries(broken)) { const a = s.socialAccounts.find(x => x.id === accountId); if (a) Object.assign(a, { status: 'expired', error: message }); }
+      });
+    }
+    if (Object.keys(refreshed).length) await socialSecrets(workspace, row => { for (const [k, v] of Object.entries(refreshed)) if (v) row.tokens[k] = seal(v); });
+    return due.length;
+  }
+  async function runAllSocial(base) {
+    let total = 0;
+    for (const w of await listWorkspaces()) {
+      try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
+    }
+    return total;
+  }
+  const socialTimer = socialScheduler ? setInterval(() => { ready.then(() => runAllSocial(process.env.SOCIAL_PUBLIC_URL || `http://${host}:${port}`)).catch(() => {}); }, 60_000) : null;
+  socialTimer?.unref?.();
+  const socialPopup = (base, message) => `<!doctype html><meta charset="utf-8"><title>graao</title><body style="font-family:system-ui;padding:24px">
+<p>${message.error ? 'Não foi possível conectar.' : 'Conta autorizada. Você pode fechar esta janela.'}</p><script>
+const m=${JSON.stringify({ type: 'graao-social', ...message }).replace(/</g, '\\u003c')};
+if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); window.close(); } else location.href='/app#marketing/social';
+</script>`;
   const payload = async request => {
     if (!/^application\/json(?:\s*;|$)/i.test(request.headers['content-type']||'')) throw error('Send a JSON request.',415);
     let size=0; const chunks=[];
@@ -508,6 +612,92 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
         }
         return json({workspaces:(await listWorkspaces()).filter(w => canOpen(who,w.id))});
       }
+      if (p === '/api/social/cron' && (method === 'GET' || method === 'POST')) {
+        if (process.env.CRON_SECRET && req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) throw error('Not allowed.',401);
+        return json({ published: await runAllSocial(publicBase(req)) });
+      }
+      const socialFile = p.match(/^\/m\/(demo|[0-9a-f-]{36})\/([0-9a-f-]{36})$/);
+      if (socialFile && method === 'GET') {
+        await ready;
+        const file = (await store.load(socialFile[1])).files.find(f => f.id === socialFile[2]);
+        if (!file || !file.data.startsWith('data:image/')) throw error('File not found.',404);
+        const { mime, bytes } = fileBytes(file.data);
+        res.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length, 'Cache-Control': 'public, max-age=3600' });
+        return res.end(bytes);
+      }
+      const socialStart = p.match(/^\/api\/social\/connect\/([a-z]+)$/);
+      if (socialStart && method === 'GET') {
+        if (!spaceId.test(id)) throw error('Workspace not found.',404);
+        const who = await access({ headers: { 'x-go-user': url.searchParams.get('user') || '' } });
+        if (!canOpen(who,id) || (who.modules && !who.modules.includes('marketing'))) throw error('Your user cannot connect accounts in this sub-account.',403);
+        const provider = socialStart[1], nonce = uid();
+        const target = authUrl(provider, { redirectUri: publicBase(req) + callbackPath(provider), state: nonce });
+        await socialRow('social-oauth');
+        await store.change('social-oauth', row => {
+          for (const [k, v] of Object.entries(row.states)) if (Date.parse(v.at) < Date.now() - 15 * 60_000) delete row.states[k];
+          row.states[nonce] = { workspace: id, provider, at: stamp() };
+        });
+        res.writeHead(302, { Location: target }); return res.end();
+      }
+      const socialBack = p.match(/^\/api\/social\/callback\/([a-z]+)$/);
+      if (socialBack && method === 'GET') {
+        const base = publicBase(req);
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'");
+        let provider = socialBack[1];
+        try {
+          await socialRow('social-oauth');
+          const nonce = url.searchParams.get('state') || '';
+          const pending = await store.change('social-oauth', row => { const v = row.states[nonce]; delete row.states[nonce]; return v; });
+          if (!pending || callbackPath(pending.provider) !== p) throw error('Este login expirou. Tente conectar de novo.',400);
+          provider = pending.provider;
+          if (url.searchParams.get('error')) throw error(url.searchParams.get('error_description') || 'A autorização foi cancelada.',400);
+          const candidates = await socialExchange(provider, { code: url.searchParams.get('code') || '', redirectUri: base + callbackPath(provider) });
+          const requestId = uid();
+          await socialSecrets(pending.workspace, row => {
+            for (const [k, v] of Object.entries(row.pending)) if (Date.parse(v.at) < Date.now() - 30 * 60_000) delete row.pending[k];
+            row.pending[requestId] = { provider, at: stamp(), candidates: seal(candidates) };
+          });
+          return send(200,'text/html; charset=utf-8',socialPopup(base, { requestId, provider }));
+        } catch (e) {
+          return send(200,'text/html; charset=utf-8',socialPopup(base, { provider, error: e.message }));
+        }
+      }
+      if (p.startsWith('/api/social/') && method === 'POST') {
+        if (!spaceId.test(id)) throw error('Workspace not found.',404);
+        const who = await access(req);
+        if (!canOpen(who,id) || (who.modules && !who.modules.includes('marketing'))) throw error('Your user does not have permission for this module.',403);
+        const input = await payload(req), op = p.slice('/api/social/'.length);
+        const withState = async extra => { const state = await store.load(id); return json({ state, metrics: metrics(state), ...extra }); };
+        if (op === 'candidates' || op === 'attach') {
+          const row = await socialRow(`social-${id}`), pending = row.pending[String(input.requestId || '')];
+          if (!pending) throw error('Esta autorização expirou. Conecte a conta de novo.',404);
+          const candidates = unseal(pending.candidates) || [];
+          if (op === 'candidates') {
+            const state = await store.load(id);
+            return json({ provider: pending.provider, candidates: candidates.map((c, index) => ({ index, provider: c.provider, name: c.name, handle: c.handle || '', avatar: c.avatar || '', kind: c.kind || '',
+              connected: state.socialAccounts.some(a => a.provider === c.provider && a.externalId === c.externalId) })) });
+          }
+          const picks = [...new Set((Array.isArray(input.picks) ? input.picks : []).map(Number))].filter(n => candidates[n]);
+          if (!picks.length) throw error('Escolha ao menos uma conta.',400);
+          const chosen = picks.map(n => candidates[n]);
+          const ids = await store.change(id, s => attachAccounts(s, chosen, { uid, now: stamp }));
+          await socialSecrets(id, r => { ids.forEach((accountId, n) => { r.tokens[accountId] = seal(chosen[n].secret); }); delete r.pending[input.requestId]; });
+          return withState({ id: ids });
+        }
+        if (op === 'bluesky') {
+          const [found] = await blueskyLogin(input.identifier, input.password);
+          const [accountId] = await store.change(id, s => attachAccounts(s, [found], { uid, now: stamp }));
+          await socialSecrets(id, r => { r.tokens[accountId] = seal(found.secret); });
+          return withState({ id: accountId });
+        }
+        if (op === 'run') { const published = await runSocial(id, publicBase(req)); return withState({ published }); }
+        if (op === 'disconnect') {
+          await change(id, { type: 'social-account-remove', id: String(input.id || '') });
+          await socialSecrets(id, r => { delete r.tokens[input.id]; });
+          return withState({});
+        }
+        throw error('Unknown social request.',404);
+      }
       if (p==='/api/state' && method!=='POST') {
         if (!spaceId.test(id)) throw error('Workspace not found.',404);
         const who = await access(req);
@@ -516,7 +706,7 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
         // Settings → Audit Logs of the sub-account: the agency audit entries written against this account.
         const account = workspaces.find(w => w.id === id)?.name || id;
         const audit = !who.modules || who.modules.includes('settings') ? agency.audit.filter(a => a.target === account).slice(-200) : [];
-        return json({state,metrics:metrics(state),workspaces:workspaces.filter(w => canOpen(who,w.id)),features:{studioAI:studioAiAvailable},
+        return json({state,metrics:metrics(state),workspaces:workspaces.filter(w => canOpen(who,w.id)),features:{studioAI:studioAiAvailable,social:availability()},
           agency:agencyForWorkspace(agency,id),access:{agency:who.agency,modules:who.modules,name:who.name},audit});
       }
       if (p==='/api/action' && method==='POST') {
@@ -657,7 +847,7 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
       if (!res.headersSent) json({error:e.status?e.message:'The workspace could not complete this request.'},e.status||500);
     }
   });
-  server.on('close',()=>store.close());
+  server.on('close',()=>{ if (socialTimer) clearInterval(socialTimer); store.close(); });
   return {server,port,host,ready,backend:store.kind};
 }
 

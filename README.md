@@ -121,6 +121,24 @@ O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, pu
 - Crie um link em **Conversas → Trigger Links** e insira-o em uma mensagem de saída. O primeiro clique no link daquela mensagem aciona os workflows correspondentes. A aba **Analyze** conta os cliques, incluindo repetições. Os links da prévia usam a URL local do servidor.
 - Ative o acompanhamento em **Conversas → Settings**. Registre um e-mail ou SMS de entrada e uma resposta para verificar o resultado em **Analytics**. As regras de SLA podem considerar apenas respostas manuais, todas as respostas de workflow ou uma lista de workflows.
 
+## Planejador social
+
+Marketing → Planejador social recria o Social Planner do GoHighLevel: conectar redes, escrever uma vez com prévia e limite de caracteres por rede, publicar agora/agendar/rascunho, recorrência, aprovação, calendário (mês/semana, arrastar para reagendar), lista com filtros, categorias com fila evergreen, grupos de hashtags, feeds RSS e agendamento em massa por CSV. Arquivos: `social-model.mjs` (registros e agendador), `social-providers.mjs` (OAuth e publicação), `ui/social.js`, `ui/social-data.js`, `ui/social.css`.
+
+Os tokens das contas ficam cifrados (AES-256-GCM) na linha `social-<subconta>` e nunca vão ao navegador. Chaves por rede (variáveis de ambiente) e URL de retorno a cadastrar em cada app (`<origem>/api/social/callback/<rede>`):
+
+| Rede | Variáveis | Callback |
+| --- | --- | --- |
+| Facebook + Instagram | `META_APP_ID`, `META_APP_SECRET` (opcional `META_LOGIN_CONFIG_ID`) | `/api/social/callback/facebook` |
+| Threads | `THREADS_APP_ID`, `THREADS_APP_SECRET` | `/api/social/callback/threads` |
+| LinkedIn | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | `/api/social/callback/linkedin` |
+| TikTok | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | `/api/social/callback/tiktok` |
+| YouTube e Google Business | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | `/api/social/callback/youtube`, `/api/social/callback/gbp` |
+| Pinterest | `PINTEREST_APP_ID`, `PINTEREST_APP_SECRET` | `/api/social/callback/pinterest` |
+| Bluesky | nenhuma (senha de app do usuário) | — |
+
+Outras: `SOCIAL_TOKEN_KEY` (chave de cifra dos tokens; padrão derivado de `GO_STORAGE_KEY`), `SOCIAL_PUBLIC_URL` (origem pública para mídia e callbacks), `CRON_SECRET`. Localmente o servidor publica os posts vencidos a cada minuto; na Vercel, chame `GET /api/social/cron` (com `Authorization: Bearer $CRON_SECRET`) a cada minuto. Imagens do Mídia Drive são servidas em `/m/<subconta>/<arquivo>` para as redes buscarem.
+
 ## Evidência e validação
 
 - **Observação direta:** navegador interno, em modo de leitura, para os 18 itens do menu, o primeiro passo do onboarding, a caixa de entrada e a lista de contatos. O segundo passo foi implementado com base na [documentação oficial de onboarding](https://help.gohighlevel.com/support/solutions/articles/155000009084-how-to-select-your-first-action-during-highlevel-onboarding), que descreve a escolha de objetivo e o encaminhamento ao módulo recomendado.

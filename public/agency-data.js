@@ -19,7 +19,8 @@ export const moduleOfRecord = {
   agents: 'ai-agents', files: 'media', snippetFolders: 'conversations', snippets: 'conversations', triggerLinks: 'conversations',
   studioProjects: 'studio', pipelines: 'opportunities', stages: 'opportunities',
   customFields: 'settings', customValues: 'settings', tags: 'contacts', companies: 'contacts',
-  products: 'payments', paymentLinks: 'payments', subscriptions: 'payments', transactions: 'payments', coupons: 'payments'
+  products: 'payments', paymentLinks: 'payments', subscriptions: 'payments', transactions: 'payments', coupons: 'payments',
+  socialCategories: 'marketing', socialHashtags: 'marketing', socialFeeds: 'marketing'
 };
 
 export const accountStatuses = ['Active', 'Paused', 'Closed'];

@@ -16,6 +16,7 @@ Object.assign(paths,{
   bulb:'M9 18h6m-5 3h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3Z',
   mobile:'M7 2h10v20H7zM11 18h2',
   monitor:'M3 4h18v12H3zM8 20h8m-4-4v4',
+  alert:'M12 3 2 20h20L12 3Zm0 6v5m0 3h.01',
   key:'M15 3a6 6 0 1 1-5.2 9L3 19v2h3v-2h2v-2h2l1.8-1.8A6 6 0 0 1 15 3Zm1.5 4.5h.1'
 });
 export const icon=(name,size=18)=>`<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]||paths.grid}"/></svg>`;

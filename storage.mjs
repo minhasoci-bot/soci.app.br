@@ -28,7 +28,7 @@ export function createSqliteStore(path) {
     const row = get.get(id);
     if (!row) throw workspaceMissing();
     const state = JSON.parse(row.state);
-    return id === 'agency' || id.startsWith('studio-') ? state : hydrateWorkspace(state);
+    return id === 'agency' || id.startsWith('studio-') || id.startsWith('social-') ? state : hydrateWorkspace(state);
   }
 
   return {
@@ -91,7 +91,7 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
   async function read(id) {
     const [row] = await table({ select: 'state,revision', id: `eq.${id}` });
     if (!row) throw workspaceMissing();
-    return { ...row, state: id === 'agency' || id.startsWith('studio-') ? row.state : hydrateWorkspace(row.state) };
+    return { ...row, state: id === 'agency' || id.startsWith('studio-') || id.startsWith('social-') ? row.state : hydrateWorkspace(row.state) };
   }
 
   return {

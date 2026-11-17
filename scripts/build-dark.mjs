@@ -12,7 +12,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ui = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'ui');
-const base = ['style.css', 'dashboard.css', 'studio.css', 'agency.css', 'prospecting.css'];
+const base = ['style.css', 'dashboard.css', 'studio.css', 'agency.css', 'prospecting.css', 'social.css'];
 const own = 'graao.css';
 const PREFIX = ':root[data-theme=dark]';
 
