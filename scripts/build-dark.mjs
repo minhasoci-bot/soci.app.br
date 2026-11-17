@@ -128,7 +128,7 @@ for (const file of [...base, own]) {
     const selectors = splitTop(r.selector, ',');
     const ds = decls(r.body);
     for (const sel of selectors) {
-      if (/\.g-mark|\.sk-/.test(sel)) continue;
+      if (/\.g-mark|\.sk-|\.spark-tile\b/.test(sel)) continue;
       const key = `${r.wrap.join('|')}::${sel.replace(/\s+/g, ' ')}`;
       const out = [];
       for (const [p, v] of ds) {

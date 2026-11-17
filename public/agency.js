@@ -4,7 +4,7 @@ import { topbar } from './topbar.js';
 import { tr } from './i18n.js';
 import { createProspecting, prospectRoutes } from './prospecting.js';
 import {
-  addOns, affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, labFeatures, learningTracks,
+  affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, labFeatures, learningTracks,
   mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
   appScopes, maxMarkup, rebillProducts, subFeatures, workflowBuilders
 } from './agency-data.js';
@@ -20,7 +20,7 @@ const initials = s => (s || '').split(/\s+/).slice(0, 2).map(p => p[0] || '').jo
 
 export const agencyNav = [
   ['ask', 'Pergunte à IA', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['saas', 'Configurador SaaS', 'chart'], ['prospecting', 'Prospecção', 'search'],
-  ['accounts', 'Subcontas', 'users'], ['snapshots', 'Snapshots de contas', 'box'], ['addons', 'Complementos', 'gift'],
+  ['accounts', 'Subcontas', 'users'], ['snapshots', 'Snapshots de contas', 'box'],
   ['affiliate', 'Portal de afiliados', 'link'], ['templates', 'Biblioteca de templates', 'site'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
   ['saas-education', 'Educação SaaS', 'chart'], ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'], ['desktop-app', 'Aplicativo desktop', 'monitor'],
   ['marketplace', 'Marketplace de apps', 'apps'], ['settings', 'Configurações', 'gear']
@@ -131,8 +131,8 @@ export function startAgency(env) {
       open: A.navOpen,
       groups: [
         { title: 'Visão geral', items: agencyNav.slice(0, 5).map(item) },
-        { title: 'Subcontas', items: agencyNav.slice(5, 11).map(item) },
-        { title: 'Aprender e apps', items: agencyNav.slice(11, -1).map(item) },
+        { title: 'Subcontas', items: agencyNav.slice(5, 10).map(item) },
+        { title: 'Aprender e apps', items: agencyNav.slice(10, -1).map(item) },
         { title: 'Atalhos', items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: l.title, icon: l.icon, external: true })) }
       ],
       footer: [item(agencyNav.at(-1)), { href: '/', label: 'Página inicial', icon: 'external' }]

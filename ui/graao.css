@@ -518,6 +518,8 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
 :root[data-theme=dark] .choice.chosen{border-color:var(--g-brand);background:var(--g-brand-surface);box-shadow:0 0 0 3px rgba(255,0,187,.25)}
 :root[data-theme=dark] .ask-composer{background:var(--g-surface);border-color:var(--g-line-2);box-shadow:0 0 0 1px var(--g-line)}
 :root[data-theme=dark] .ask-composer:focus-within{border-color:var(--g-brand);box-shadow:0 0 0 1px var(--g-brand),0 0 0 4px rgba(255,0,187,.2)}
+:root[data-theme=dark] .spark-tile{background:var(--g-grad-brand);border:0;color:#111317;fill:#111317;box-shadow:0 4px 14px -4px rgba(255,0,187,.6)}
+:root[data-theme=dark] .spark-tile svg{color:#111317;fill:#111317;stroke:#111317}
 :root[data-theme=dark] .ask-rail,:root[data-theme=dark] .studio-rail{background:rgba(13,14,17,.6);border-right-color:var(--g-line)}
 :root[data-theme=dark] .message{background:var(--g-surface);border-color:var(--g-line-2)}
 :root[data-theme=dark] .studio-hero::before{opacity:.35}

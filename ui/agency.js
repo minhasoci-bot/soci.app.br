@@ -4,7 +4,7 @@ import { topbar } from './topbar.js';
 import { tr } from './i18n.js';
 import { createProspecting, prospectRoutes } from './prospecting.js';
 import {
-  addOns, affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, labFeatures, learningTracks,
+  affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, labFeatures, learningTracks,
   mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
   appScopes, maxMarkup, rebillProducts, subFeatures, workflowBuilders
 } from './agency-data.js';
@@ -20,7 +20,7 @@ const initials = s => (s || '').split(/\s+/).slice(0, 2).map(p => p[0] || '').jo
 
 export const agencyNav = [
   ['ask', 'Pergunte à IA', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['saas', 'Configurador SaaS', 'chart'], ['prospecting', 'Prospecção', 'search'],
-  ['accounts', 'Subcontas', 'users'], ['snapshots', 'Snapshots de contas', 'box'], ['addons', 'Complementos', 'gift'],
+  ['accounts', 'Subcontas', 'users'], ['snapshots', 'Snapshots de contas', 'box'],
   ['affiliate', 'Portal de afiliados', 'link'], ['templates', 'Biblioteca de templates', 'site'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
   ['saas-education', 'Educação SaaS', 'chart'], ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'], ['desktop-app', 'Aplicativo desktop', 'monitor'],
   ['marketplace', 'Marketplace de apps', 'apps'], ['settings', 'Configurações', 'gear']
@@ -131,8 +131,8 @@ export function startAgency(env) {
       open: A.navOpen,
       groups: [
         { title: 'Visão geral', items: agencyNav.slice(0, 5).map(item) },
-        { title: 'Subcontas', items: agencyNav.slice(5, 11).map(item) },
-        { title: 'Aprender e apps', items: agencyNav.slice(11, -1).map(item) },
+        { title: 'Subcontas', items: agencyNav.slice(5, 10).map(item) },
+        { title: 'Aprender e apps', items: agencyNav.slice(10, -1).map(item) },
         { title: 'Atalhos', items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: l.title, icon: l.icon, external: true })) }
       ],
       footer: [item(agencyNav.at(-1)), { href: '/', label: 'Página inicial', icon: 'external' }]
@@ -263,12 +263,8 @@ export function startAgency(env) {
   };
 
   pages.addons = () => {
-    const requests = D().addonRequests;
-    const open = key => requests.find(r => r.addon === key && r.status === 'Requested');
-    const groups = [...new Set(addOns.map(a => a.group))];
-    return `<div class="page">${head('Complementos', 'Recursos avançados para sua marca, conformidade e suporte executivo. As solicitações são registradas localmente.')}
-      ${groups.map(g => `<h2 class="section-heading">${h(tr(g))}</h2><div class="card-grid">${addOns.filter(a => a.group === g).map(a => `<article class="surface padded resource"><div><h2>${h(a.name)}</h2><p class="ag-big">${usd(a.price)}<small>${h(a.period === '/mo' ? '/mês' : a.period)}</small></p></div><ul class="ag-list">${a.points.map(p => `<li>${h(p)}</li>`).join('')}</ul>${open(a.key) ? `${badge('Solicitado', 'blue')}${btn('Retirar solicitação', 'addon-cancel', `data-id="${open(a.key).id}"`)}` : btn('Solicitar complemento', 'addon-request', `data-id="${a.key}"`, 'primary')}</article>`).join('')}</div>`).join('')}
-      <h2 class="section-heading">Solicitações registradas</h2>${table(['Complemento', 'Status', 'Observação', 'Data do pedido'], [...requests].reverse().map(r => `<tr><td>${h(addOns.find(a => a.key === r.addon)?.name)}</td><td>${badge(r.status, tone(r.status))}</td><td>${h(r.note || '—')}</td><td>${day(r.created, true)}</td></tr>`), empty('Nenhuma solicitação', 'Os complementos solicitados pela sua agência aparecerão aqui.'))}</div>`;
+    location.replace('#agency/dashboard');
+    return '';
   };
 
   pages.affiliate = () => {
