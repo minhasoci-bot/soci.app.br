@@ -317,7 +317,8 @@ input[type=radio],input[type=range]{accent-color:var(--g-violet)}
 
 /* ───────── Ask AI ───────── */
 .screen-ask,.ask-layout{background:transparent}
-.ask-rail{background:rgba(255,255,255,.5);border-right:1px solid rgba(255,255,255,.9)}
+.ask-layout{grid-template-columns:minmax(0,1fr)}
+.ask-rail{display:none !important}
 .ask-rail .icon-btn{color:var(--g-violet)}
 .spark-tile{background:var(--g-grad-brand);border:0;color:#fff;border-radius:10px;box-shadow:0 6px 14px -6px rgba(255,111,159,.6)}
 .choices{position:relative}
