@@ -24,7 +24,7 @@ function validateDraft(draft) {
   };
 }
 
-export function findAgent(state, id) {
+function findAgent(state, id) {
   const agent = state.agents.find(item => item.id === id);
   if (!agent) fail('Agente não encontrado nesta subconta.', 404);
   return agent;

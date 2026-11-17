@@ -69,7 +69,7 @@ const domainName = value => {
   const v = str(value, 200).toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   return /^(?=.{4,200}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(v) ? v : fail('Enter a domain such as mail.youragency.com.');
 };
-export const featureOn = (agency, key, account) => {
+const featureOn = (agency, key, account) => {
   const spec = subFeatures.find(f => f[0] === key);
   const on = agency.subFeatures[key]?.on || {};
   return Object.hasOwn(on, account) ? on[account] : Boolean(spec?.[3]);

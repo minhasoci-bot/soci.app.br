@@ -9,7 +9,7 @@ const required = (v,label,limit) => text(v,limit) || bad(`Informe ${label}.`);
 const enabled = v => v === true || v === 'true' || v === 'on';
 const record = (list,id) => list.find(item => item.id === id) || bad('Registro não encontrado.',404);
 
-export function prospectWebsite(value) {
+function prospectWebsite(value) {
   const input = text(value,1600);
   if (!input) return '';
   try {
@@ -50,7 +50,7 @@ function signals(row) {
   return values;
 }
 
-export function buildProspectReport(agency,row) {
+function buildProspectReport(agency,row) {
   const summary = signals(row);
   return { generated:now(), signals:summary, brand:structuredClone(agency.prospecting.brand),
     sections:structuredClone(agency.prospecting.sections), business:{ name:row.name,website:row.website || '',city:row.city || '',
