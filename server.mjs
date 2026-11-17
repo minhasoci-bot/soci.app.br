@@ -370,7 +370,8 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
       const host = req.headers.host || '';
       if (!isVercel && !allowedHosts.includes(host)) throw error('Use the local address shown in the terminal.',403);
       const proto = req.headers['x-forwarded-proto'] || (req.socket?.encrypted ? 'https' : 'http');
-      const url=new URL(req.url,`${proto}://${host}`), p=url.pathname, method=req.method;
+      const effectiveUrl = req.headers['x-matched-path'] || req.headers['x-forwarded-url'] || req.url;
+      const url=new URL(effectiveUrl,`${proto}://${host}`), p=url.pathname, method=req.method;
       if (!['GET','HEAD','POST'].includes(method)) throw error('Method not allowed.',405);
       if (method==='POST' && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
       if (p.startsWith('/api/')) await ready;
