@@ -3,6 +3,18 @@ import { studioTemplates, studioThemes } from './ui/studio-data.js';
 const key = process.env.STUDIO_OPENAI_API_KEY;
 const model = process.env.STUDIO_OPENAI_MODEL;
 export const studioAiAvailable = Boolean(key && model);
+export const openAIModel = studioAiAvailable ? model : '';
+
+export async function openAIResponse(body, { timeout, problem }) {
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST', signal: AbortSignal.timeout(timeout), redirect: 'error',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, store: false })
+  }).catch(() => null);
+  const result = response?.ok ? await response.json().catch(() => null) : null;
+  if (!result) throw Object.assign(new Error(problem), { status: 502 });
+  return result;
+}
 
 const rules = `Rules for every page:
 - Return one complete HTML document: <!doctype html>, <html lang> matching the brief language, <head> with meta charset, meta viewport and <title>, then <body>.
@@ -16,14 +28,10 @@ const rules = `Rules for every page:
 
 async function respond({ instructions, input, name, schema }) {
   if (!studioAiAvailable) throw Object.assign(new Error('AI generation requires a configured model.'), { status: 503 });
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST', signal: AbortSignal.timeout(180000), redirect: 'error',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, store: false, max_output_tokens: 32000, instructions, input,
-      text: { format: { type: 'json_schema', name, strict: true, schema } } })
-  }).catch(() => null);
-  if (!response?.ok) throw Object.assign(new Error('The model could not complete this request. Try again or use a local template.'), { status: 502 });
-  const result = await response.json();
+  const result = await openAIResponse({
+    model, max_output_tokens: 32000, instructions, input,
+    text: { format: { type: 'json_schema', name, strict: true, schema } }
+  }, { timeout: 180000, problem: 'The model could not complete this request. Try again or use a local template.' });
   const content = result.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text');
   if (result.status !== 'completed' || !content) throw Object.assign(new Error('The model did not return a complete page. Try a shorter description.'), { status: 422 });
   try { return JSON.parse(content.text); }

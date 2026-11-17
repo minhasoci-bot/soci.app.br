@@ -8,7 +8,7 @@ export const subAccountModules = [
   ['dashboard', 'Painel'], ['conversations', 'Conversas'], ['calendars', 'Calendários'], ['contacts', 'Contatos'],
   ['opportunities', 'Oportunidades'], ['payments', 'Pagamentos'], ['studio', 'AI Studio'], ['ai-agents', 'Agentes de IA'],
   ['marketing', 'Marketing'], ['automation', 'Automação'], ['sites', 'Sites e Funis'], ['memberships', 'Área de Membros'],
-  ['media', 'Arquivos e Mídia'], ['reputation', 'Reputação'], ['reporting', 'Relatórios'], ['marketplace', 'Marketplace de Apps'],
+  ['media', 'Arquivos e Mídia'], ['reputation', 'Reputação'], ['reporting', 'Relatórios'],
   ['settings', 'Configurações']
 ];
 

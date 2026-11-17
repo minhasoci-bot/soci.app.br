@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { metrics, uid, now } from './model.mjs';
 import { hydrateProspecting } from './prospecting-model.mjs';
+import { agentTemplate } from './agent-model.mjs';
 import {
   accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog, labFeatures,
   mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
@@ -480,6 +481,7 @@ export function extractSnapshot(workspace, include = snapshotAssets.map(a => a[0
   if (assets.pages && !assets.forms) assets.forms = structuredClone(workspace.forms.filter(f => assets.pages.some(p => p.formId === f.id)));
   for (const page of assets.pages || []) page.active = false;
   for (const workflow of assets.workflows || []) workflow.active = false;
+  if (assets.agents) assets.agents = assets.agents.map(agentTemplate);
   const counts = Object.fromEntries(Object.entries(assets).map(([key, list]) => [key, list.length]));
   return { assets, counts };
 }
@@ -494,12 +496,13 @@ export function applySnapshot(target, snapshot, mode = 'skip') {
     map[key] = new Map();
     target[key] ??= [];
     for (const original of items) {
-      const item = structuredClone(original);
+      const item = structuredClone(key === 'agents' ? agentTemplate(original) : original);
       for (const [field, refKey] of Object.entries(refs[key] || {})) if (item[field]) item[field] = map[refKey]?.get(item[field]) ?? (target[refKey]?.some(r => r.id === item[field]) ? item[field] : '');
       const match = target[key].find(existing => label(key, existing) === label(key, item));
       if (match) {
         map[key].set(original.id, match.id);
         if (mode === 'overwrite' && key !== 'pipelines') {
+          if (key === 'agents') Object.assign(item, { active: Boolean(match.published), revision: uid() });
           Object.assign(match, { ...item, id: match.id, updated: now() });
           report.overwritten++;
         } else report.skipped++;

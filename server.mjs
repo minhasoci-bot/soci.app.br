@@ -7,6 +7,8 @@ import { blank, seed, uid, execute, metrics, find } from './model.mjs';
 import { createSqliteStore, supabaseFromEnv } from './storage.mjs';
 import { accountProfile, afterLogin, authFromEnv } from './auth.mjs';
 import { generatePage, generateSite, revisePage, studioAiAvailable } from './studio-ai.mjs';
+import { configuredAgentModel, replyAsAgent } from './agent-ai.mjs';
+import { agentPreview, editAgent } from './agent-model.mjs';
 import { addPage, deletePage, findPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, userAccess } from './agency-model.mjs';
@@ -26,6 +28,7 @@ const staticFiles = new Map([
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
   ['/studio.js','text/javascript; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
+  ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],
   ['/prospect-report.js','text/javascript; charset=utf-8'], ['/prospecting.css','text/css; charset=utf-8'],
@@ -67,7 +70,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 
 export function makeServer({
   dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
-  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID,
+  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=configuredAgentModel, generateAgentReply=replyAsAgent,
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
 }={}) {
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
@@ -116,6 +119,8 @@ export function makeServer({
   };
   const canOpen = (who, id) => privateSpace.test(id) ? who.personal && who.accounts.includes(id)
     : !who.accounts || who.accounts.includes(id);
+  const canUseAgents = who => !who.modules || who.modules.includes('ai-agents');
+  const visibleState = (who, state) => canUseAgents(who) ? state : { ...state, agents: [] };
   async function openPersonalWorkspace(who) {
     const [id] = who.accounts;
     try { return await store.load(id); }
@@ -681,7 +686,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const who = await access(req,res);
         if (!canOpen(who,id) || (who.modules && !who.modules.includes('marketing'))) throw error('Your user does not have permission for this module.',403);
         const input = await payload(req), op = p.slice('/api/social/'.length);
-        const withState = async extra => { const state = await store.load(id); return json({ state, metrics: metrics(state), ...extra }); };
+        const withState = async extra => {
+          const state = await store.load(id);
+          return json({ state: visibleState(who, state), metrics: metrics(state), ...extra });
+        };
         if (op === 'candidates' || op === 'attach') {
           const row = await socialRow(`social-${id}`), pending = row.pending[String(input.requestId || '')];
           if (!pending) throw error('Esta autorização expirou. Conecte a conta de novo.',404);
@@ -723,7 +731,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         // Settings → Audit Logs of the sub-account: the agency audit entries written against this account.
         const account = workspaces.find(w => w.id === id)?.name || id;
         const audit = !who.personal && (!who.modules || who.modules.includes('settings')) ? agency.audit.filter(a => a.target === account).slice(-200) : [];
-        return json({state,metrics:metrics(state),workspaces,features:{studioAI:studioAiAvailable,social:availability()},
+        return json({state:visibleState(who,state),metrics:metrics(state),workspaces,features:{studioAI:studioAiAvailable,social:availability(),agentModel:canUseAgents(who) ? agentModel : ''},
           agency:agencyForWorkspace(who.personal ? blankAgency() : agency,id),
           access:{agency:who.agency,modules:who.modules,name:who.name,session:who.session},audit});
       }
@@ -742,7 +750,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const label = command.type === 'bulk' ? `Bulk ${command.data?.operation || ''} on ${command.data?.object || ''}`.trim() : '';
           await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);
         }
-        return json(result);
+        return json({ ...result, state: visibleState(who, result.state) });
       }
       if (p==='/api/agency' && method!=='POST') {
         return json(await agencyPayload(req,res));
@@ -753,8 +761,29 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await agencyRequest(p.slice('/api/agency/'.length), who, await payload(req));
         return json(await agencyPayload(req,res, { result }, who));
       }
+      const agentAction = p.match(/^\/api\/agents\/(create|save|publish|unpublish|delete|test)$/);
+      if (agentAction && method==='POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
+        const who = await access(req,res);
+        if (!canOpen(who,id) || !canUseAgents(who)) throw error('Você não tem acesso aos agentes desta subconta.',403);
+        const operation = agentAction[1];
+        const input = await payload(req);
+        if (operation === 'test') {
+          const preview = agentPreview(await store.load(id), input);
+          if (!agentModel) throw error('Configure o modelo do AI Studio para testar o agente.',503);
+          const reply = await generateAgentReply({ ...preview, model: preview.model || agentModel });
+          return json({ reply });
+        }
+        const agent = await store.change(id, state => editAgent(state, operation, { ...input, model: agentModel }));
+        if (!who.personal && operation !== 'save') {
+          const labels = { create: 'Agente criado', publish: 'Agente publicado', unpublish: 'Agente despublicado', delete: 'Agente excluído' };
+          const account = (await listWorkspaces()).find(w => w.id === id)?.name || id;
+          await recordAudit(who, labels[operation], account, agent?.name || '');
+        }
+        return json({ agent }, operation === 'create' ? 201 : 200);
+      }
       if (p==='/api/studio' && method==='POST') {
-        await studioGuard(req,res,id);
+        const who = await studioGuard(req,res,id);
         const input = await payload(req);
         const brief = typeof input.brief === 'string' ? input.brief.trim() : '';
         const template = input.template || 'landing';
@@ -777,7 +806,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const created = await change(id,{type:'save',key:'studioProjects',data:{...draft,brief,template,reference:reference?.url || ''}});
         doc.project = created.id; doc.profile.name = `AI Studio ${created.id}`;
         await store.insert(siteRowId(created.id), doc);
-        return json(await syncMeta(id, created.id, doc),201);
+        const synced = await syncMeta(id, created.id, doc);
+        return json({ ...synced, state: visibleState(who, synced.state) },201);
       }
       if (p==='/api/studio/doc' && method!=='POST') {
         await studioGuard(req,res,id);
@@ -785,12 +815,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         return json({ doc: publicDoc(await siteDoc(id, projectId)) });
       }
       if (p.startsWith('/api/studio/') && method==='POST') {
-        await studioGuard(req,res,id);
+        const who = await studioGuard(req,res,id);
         const input = await payload(req);
         const result = await studioRequest(id, p.slice('/api/studio/'.length), input);
         const doc = await siteDoc(id, input.id);
         const synced = await syncMeta(id, input.id, doc);
-        return json({ ...synced, doc: publicDoc(doc), result });
+        return json({ ...synced, state: visibleState(who, synced.state), doc: publicDoc(doc), result });
       }
       const preview = p.match(previewPath);
       if (preview && method === 'GET') {

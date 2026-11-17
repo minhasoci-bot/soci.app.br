@@ -11,15 +11,16 @@ import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm.js';
 import { socialEvents } from './social.js';
+import { mountAgentScreen } from './agents.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay'), toast=document.querySelector('#toast');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
 const viewPath=!isAppPath ? location.pathname : '';
-const c={workspace:new URLSearchParams(location.search).get('workspace')||localStorage.getItem('go.workspace')||'demo',view:'ask-ai',tab:'',query:'',tag:'',thread:'',chat:[],month:new Date(),choice:'',askOpen:false,navOpen:false,workspaces:[],conversationFilters:{}};
+const c={workspace:new URLSearchParams(location.search).get('workspace')||localStorage.getItem('go.workspace')||'demo',view:'dashboard',tab:'',query:'',tag:'',thread:'',chat:[],month:new Date(),choice:'',askOpen:false,navOpen:false,workspaces:[],conversationFilters:{}};
 c.dash = dashboardPreferences(c.workspace);
 c.pipeline = '';
 c.studio = { brief:'',template:'landing',project:'' };
-let toastTimer, modalReturn, busy=false, renderedView='';
+let toastTimer, modalReturn, busy=false, renderedView='', editor;
 const G=s=>document.querySelector(s);
 const url=path=>`${path}?workspace=${encodeURIComponent(c.workspace)}`;
 function flash(msg,isError=false){ clearTimeout(toastTimer);toast.className=isError?'issue':'success';toast.textContent=msg;toastTimer=setTimeout(()=>{toast.className='';toast.textContent='';},4600); }
@@ -40,12 +41,16 @@ async function load(){
   const data = await api(url('/api/state'));
   if (workspace === c.workspace) Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,audit:data.audit});
 }
-const allowedView = id => id==='ask-ai' || !c.access?.modules || c.access.modules.includes(id);
+const allowedView = id => id==='dashboard' || !c.access?.modules || c.access.modules.includes(id);
 let agencyUI, openingWorkspace;
 const sessionDismissed=new Set();
 async function mutate(command){ const d=await api(url('/api/action'),command); c.s=d.state;c.m=d.metrics;return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions'],marketing:['social','email'],memberships:['courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions'],marketing:['social','email'],memberships:['courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project'],'ai-agents':['new','edit'],settings:crmTabs.settings.map(t=>t[0])};
+function leaveAgentEditor() {
+  if (editor) void editor.flush();
+  editor = null;
+}
 async function openInitialWorkspace() {
   const workspace = c.workspace;
   try { await load(); }
@@ -62,7 +67,7 @@ async function openInitialWorkspace() {
   }
 }
 function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
-  if(key==='agency'){ c.mode='agency'; close(); agencyUI.show(tab,project); return; }
+  if(key==='agency'){ c.mode='agency'; leaveAgentEditor(); close(); agencyUI.show(tab,project); return; }
   if(c.mode==='agency'){ agencyUI.leave(); c.mode=''; renderedView=''; }
   if (!c.s) {
     app.innerHTML = '<div class="boot" role="status">Abrindo o soci…</div>';
@@ -74,16 +79,17 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
       .finally(() => { openingWorkspace = null; });
     return;
   }
-  const view=key==='link'?'link':Object.hasOwn(screens,key)&&allowedView(key)?key:'ask-ai', nextTab=view==='link'?tab||'':validTabs[view]?.includes(tab)?tab:''; if(c.view!==view||c.tab!==nextTab){c.query='';c.tag='';}c.view=view;c.tab=nextTab; c.studio.project=project || ''; render(); }
+  if (key === 'ask-ai' || key === 'marketplace') { location.hash = '#dashboard'; return; }
+  const view=key==='link'?'link':Object.hasOwn(screens,key)&&allowedView(key)?key:'dashboard', nextTab=view==='link'?tab||'':validTabs[view]?.includes(tab)?tab:''; if(c.view!==view||c.tab!==nextTab){c.query='';c.tag='';}c.view=view;c.tab=nextTab; c.studio.project=project || ''; c.agentId=view==='ai-agents'&&nextTab==='edit'?project:''; render(); }
 const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${label}" title="${label}" ${attributes}>${i(name,17)}</button>`;
 const navItem=([id,pt,ico])=>({href:`#${id}`,label:pt,icon:ico,current:c.view===id});
 function appSidebar(brand){
   const items=nav.slice(0,-1).map((n,k)=>[n,k]).filter(([n])=>allowedView(n[0]));
   const links=(c.agency?.menuLinks||[]).map(l=>l.openIn==='Inside the app'?{href:`#link/${l.id}`,label:l.title,icon:l.icon,current:c.view==='link'&&c.tab===l.id}:{href:l.url,label:l.title,icon:l.icon,external:true});
-  return sidebar({label:'Navegação',home:'#ask-ai',brand,mark:c.agency?.logo?`<img class="ag-logo" src="${h(c.agency.logo)}" alt="">`:logo,
+  return sidebar({label:'Navegação',home:'#dashboard',brand,mark:c.agency?.logo?`<img class="ag-logo" src="${h(c.agency.logo)}" alt="">`:logo,
     account:{name:c.s.profile.name,caption:'Subconta · trocar',attr:'data-act="workspaces"',tip:'Trocar de workspace'},
     toggle:'data-act="nav"',open:c.navOpen,
-    groups:[{title:'Principal',items:items.filter(([,k])=>k<7).map(([n])=>navItem(n))},{title:'Crescimento',items:items.filter(([,k])=>k>=7).map(([n])=>navItem(n))},{title:'Atalhos',items:links}],
+    groups:[{title:'Principal',items:items.filter(([,k])=>k<6).map(([n])=>navItem(n))},{title:'Crescimento',items:items.filter(([,k])=>k>=6).map(([n])=>navItem(n))},{title:'Atalhos',items:links}],
     footer:[...(c.access?.agency?[{href:'#agency/dashboard',label:'Visão da agência',icon:'users'}]:[]),...(allowedView('settings')?[navItem(nav.at(-1))]:[])]});
 }
 function appTopbar(){
@@ -91,7 +97,7 @@ function appTopbar(){
   const active=nav.find(x=>x[0]===c.view), page=c.view==='link'?c.agency?.menuLinks.find(l=>l.id===c.tab)?.title||'Link':active?.[1];
   const profileLabel = session?.name || 'Perfil do workspace';
   const profileText = session?.name?.slice(0, 2).toUpperCase() || 'gr';
-  return topbar({crumbs:[{label:c.s.profile.name,href:'#ask-ai'},{label:page}],search:'data-act="search"',quick:'data-act="quick"',
+  return topbar({crumbs:[{label:c.s.profile.name,href:'#dashboard'},{label:page}],search:'data-act="search"',quick:'data-act="quick"',
     tools:[{icon:'lang',label:'Idioma',attr:'data-act="language"'},{icon:'phone',label:'Discador',attr:'data-act="dialer"'},{icon:'meg',label:'Novidades',attr:'data-act="updates"',dot:true},{icon:'bell',label:'Notificações',attr:'data-act="notifications"'},{icon:'help',label:'Ajuda',attr:'data-act="help"'}],
     profile:{text:profileText,picture:session?.picture||'',label:profileLabel,attr:session?'data-act="account"':'data-go="settings"'}});
 }
@@ -108,12 +114,36 @@ function render(){
   document.documentElement.style.setProperty('--g-brand', bColor);
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
-  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}<main id="screen" class="screen ${c.view==='ask-ai'?'screen-ask':''}">${screenHtml}</main></div></div>`;
+  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}<main id="screen" class="screen">${screenHtml}</main></div></div>`;
   if(c.view==='conversations'&&c.thread) {const area=G('.thread-messages');if(area)area.scrollTop=area.scrollHeight;}
-  if(c.view==='ask-ai'&&c.chat.length) {const area=G('.ask-scroll');if(area)area.scrollTop=area.scrollHeight;}
   if(c.view==='dashboard') { G('#screen').scrollTop=previousScroll; drawDashboardGauges(app); }
   if(c.view==='studio') afterStudioRender();
+  const agentScreen = G('[data-agent-screen]');
+  if (agentScreen?.dataset.agentId && editor?.id === agentScreen.dataset.agentId && editor.workspace === c.workspace) {
+    agentScreen.replaceWith(editor.root);
+    G('#screen').scrollTop = previousScroll;
+  } else {
+    leaveAgentEditor();
+    if (agentScreen) {
+      const workspace = c.workspace;
+      editor = mountAgentScreen({
+        root: agentScreen, workspace, model: c.features?.agentModel,
+        startAgent: c.s.agents.find(agent => agent.id === c.agentId),
+        request: (operation, data) => api(`/api/agents/${operation}?workspace=${encodeURIComponent(workspace)}`, data),
+        updateAgent(id, agent) {
+          if (c.workspace !== workspace) return;
+          const index = c.s.agents.findIndex(item => item.id === id);
+          if (index !== -1) c.s.agents.splice(index, 1, ...(agent ? [agent] : []));
+          else if (agent) c.s.agents.push(agent);
+          if (c.mode !== 'agency' && c.view === 'ai-agents' && !c.tab) render();
+        }
+      });
+    }
+  }
 }
+window.addEventListener('beforeunload', event => {
+  if (editor?.dirty()) event.preventDefault();
+});
 function rerenderSearch(focusId,value,start,end){ G('#screen').innerHTML=screens[c.view](c);const el=G(`#${focusId}`);if(el){el.value=value;el.focus();el.setSelectionRange(start,end);} }
 function close(){ const d=G('#dialog');if(d?.open)d.close();overlay.innerHTML='';if(modalReturn?.isConnected)modalReturn.focus(); }
 function dialog(title,body,{form='',description='',buttons='',key='',id=''}={}){
@@ -147,7 +177,7 @@ const input=(label,key,value,required=false,type='text')=>field(label,key,value,
 const area=(label,key,value,required=false)=>field(label,key,value,'textarea',required);
 const check=(label,key,value)=>field(label,key,value,'check');
 const zones=()=>c.s.profile.timezone;
-const entityNames={contacts:'Contact',tasks:'Task',opportunities:'Opportunity',appointments:'Appointment',workflows:'Workflow',invoices:'Invoice',campaigns:'Campaign',pages:'Page',forms:'Form',courses:'Course',reviews:'Review',agents:'Agent',snippets:'Snippet',snippetFolders:'Folder',triggerLinks:'Trigger Link',...crmEntityNames};
+const entityNames={contacts:'Contact',tasks:'Task',opportunities:'Opportunity',appointments:'Appointment',workflows:'Workflow',invoices:'Invoice',campaigns:'Campaign',pages:'Page',forms:'Form',courses:'Course',reviews:'Review',snippets:'Snippet',snippetFolders:'Folder',triggerLinks:'Trigger Link',...crmEntityNames};
 const actionNames = ['Add tag','Create task','Create opportunity','Log message','Manual Call','Manual SMS'];
 const triggerNames = ['Contact created','Form submitted','Opportunity stage changed','Appointment booked','Trigger link clicked'];
 const optionalGroup = (attribute, visible, content) => `<fieldset ${attribute} ${visible ? '' : 'hidden disabled'}>${content}</fieldset>`;
@@ -200,14 +230,13 @@ function edit(key,id,preset={}){
     case 'forms':body=input('Form name','name',r.name,true)+area('Description','description',r.description)+check('Ask for phone number','askPhone',r.askPhone)+check('Publish locally','active',r.active);break;
     case 'courses':body=input('Course name','name',r.name,true)+area('Description','description',r.description)+input('Lesson title','lesson',r.lesson,true)+area('Lesson content','body',r.body)+check('Publish locally','active',r.active);break;
     case 'reviews':body=input('Reviewer','author',r.author,true)+option('Rating','score',r.score||5,[5,4,3,2,1])+area('Review','text',r.text,true)+area('Reply','reply',r.reply);break;
-    case 'agents':body=input('Agent name','name',r.name,true)+option('Role','role',r.role||'Support',['Support','Sales','Scheduling'])+area('Instructions','instructions',r.instructions)+check('Enable profile','active',r.active);break;
     default:body=crmForm(c,key,r,preset);if(!body)return;
   }
   dialog(`${id?'Edit':'New'} ${title}`,body,{form:'record',key,id:id||'',buttons:`${id?`<button class="danger plain" type="button" data-delete="${key}" data-id="${id}">${i('trash',16)} Delete</button>`:''}<span class="spacer"></span><button class="secondary" type="button" data-act="close">Cancel</button><button class="primary">${id?'Save Changes':`Create ${title}`}</button>`});
 }
 
 function workspaces(){dialog('Trocar de workspace',`${c.workspaces.map(w=>`<button class="choice" data-workspace="${w.id}"><strong>${h(w.name)}</strong>${w.id===c.workspace?'<span>Workspace atual</span>':''}</button>`).join('')}${c.access?.agency ? `<button class="secondary" data-act="new-workspace">${i('plus',16)} Novo workspace</button>` : ''}`);}
-async function useWorkspace(id){ c.workspace=id;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.dash=dashboardPreferences(id);c.pipeline='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go('ask-ai'); }
+async function useWorkspace(id, view='dashboard'){ leaveAgentEditor();c.workspace=id;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.dash=dashboardPreferences(id);c.pipeline='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go(view); }
 function downloads(name,content,type='text/csv;charset=utf-8'){
   const data=typeof content==='string'?new Blob([content],{type}):content, a=document.createElement('a'), u=URL.createObjectURL(data);
   a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),3000);
@@ -424,7 +453,6 @@ document.addEventListener('click',async ev=>{
     if(d.task){const r=c.s.tasks.find(a=>a.id===d.task);await mutate({type:'save',key:'tasks',id:r.id,data:{...r,done:!r.done}});render();return;}
     if(d.file){const f=c.s.files.find(a=>a.id===d.file);const [header,body]=f.data.split(',');const data=new Blob([Uint8Array.from(atob(body),x=>x.charCodeAt(0))],{type:header.slice(5).split(';')[0]});downloads(f.name,data);return;}
     if(d.provider){dialog(d.provider,'<p>This integration is unavailable in the local workspace. A provider account and an authorized connection are required.</p>');return;}
-    if(d.agent){dialog('Test local reply',input('Sample message','message','',true)+`<p id="agent-reply" class="dim" role="status"></p>`,{form:'agent',id:d.agent,buttons:'<button class="primary">Preview reply</button>'});return;}
     if(d.delete){dialog('Delete this record?',`<p>${d.delete==='contacts'?'This will also delete associated messages, tasks, opportunities, appointments, and invoices.':'This removes the record from this workspace.'}</p>`,{form:'delete',key:d.delete,id:d.id,buttons:'<button class="secondary" type="button" data-act="close">Cancel</button><button class="danger">Delete</button>'});return;}
     switch(d.act){
       case 'start-manual': {
@@ -463,7 +491,7 @@ document.addEventListener('click',async ev=>{
       case 'updates':dialog('Novidades','<p>O soci está rodando localmente com tudo atualizado.</p>');break;
       case 'language':dialog('Idioma','<p>O sistema está operando em Português (Brasil).</p>');break;
       case 'notifications':dialog('Notificações',`<p>${c.m.unread} mensage${c.m.unread===1?'m não lida':'ns não lidas'}.</p><button class="secondary" data-go="conversations">Abrir conversas</button>`);break;
-      case 'help':dialog('Ajuda','<p>Gerencie contatos, oportunidades, agendamentos, formulários e automações. Acesse Configurações para gerenciar workspaces.</p><button class="secondary" data-go="ask-ai">Abrir assistente</button>');break;
+      case 'help':dialog('Ajuda','<p>Gerencie contatos, oportunidades, agendamentos, formulários e automações. Acesse Configurações para gerenciar workspaces.</p><button class="secondary" data-go="dashboard">Abrir painel</button>');break;
       case 'reload':await load();render();flash('Workspace atualizado.');break;
       case 'import':dialog('Importar contatos',`<p>Escolha um arquivo CSV com a coluna <b>name</b>. Opcional: email, phone, company, tags e notes. Até 500 contatos.</p><label>Arquivo CSV<input name="file" type="file" accept=".csv,text/csv" required></label>`,{form:'import',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Importar contatos</button>'});break;
       case 'upload':dialog('Enviar arquivo','<p>PNG, JPEG, GIF, WebP ou PDF de até 700 KB.</p><label>Arquivo<input name="file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,application/pdf" required></label>',{form:'upload',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Enviar arquivo</button>'});break;
@@ -610,7 +638,6 @@ document.addEventListener('submit',async ev=>{
       const blocks=fd.getAll('blockTitle').map((title,index)=>({title,body:fd.getAll('blockBody')[index]}));
       await mutate({type:'save',key:'studioProjects',id:project.id,data:{...project,...data,blocks}}); msg='Project saved.';
     }
-    else if(name==='agent'){const a=c.s.agents.find(item=>item.id===f.dataset.id);const replies={Support:`Thanks for reaching out. ${a.name} can record your question and route it to the support team.`,Sales:`Thanks for your interest. ${a.name} can help identify your goals and suggest a follow-up.`,Scheduling:`Thanks! ${a.name} can help identify a time. Share your preferred day and time.`};G('#agent-reply').textContent=replies[a.role];return;}
     close();render();flash(msg);
   } catch(e){if(status){status.classList.remove('confirmed');status.textContent=e.message;}else flash(e.message,true);}
   finally {delete f.dataset.pending;if(btn)btn.disabled=false;}

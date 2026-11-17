@@ -1,0 +1,63 @@
+.agent-page { width: 100%; max-width: 1280px; }
+.agent-page [hidden] { display: none !important; }
+.agent-back { display: inline-block; margin-bottom: 12px; color: var(--dim); font-size: 13px; }
+.agent-back:hover { text-decoration: underline; }
+.agent-search { display: flex; width: min(100%, 360px); margin-bottom: 16px; }
+.agent-search input { width: 100%; }
+.agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 14px; }
+.agent-card { display: flex; min-height: 148px; flex-direction: column; align-items: flex-start; gap: 10px; padding: 17px; overflow-wrap: anywhere; }
+.agent-card:hover { border-color: var(--blue); }
+.agent-card h2, .agent-preview h2, .agent-fields h2 { font-size: 15px; }
+.agent-card p { margin-top: 3px; font-size: 13px; }
+.agent-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.agent-card .agent-badges { margin-top: auto; }
+.agent-create { display: grid; gap: 10px; max-width: 510px; padding: 22px; }
+.agent-create button { justify-self: start; }
+.agent-create label, .agent-fields label, .agent-preview label { display: grid; gap: 5px; min-width: 0; font-size: 13px; font-weight: 650; }
+.agent-create input, .agent-fields input, .agent-page textarea { width: 100%; }
+.agent-header h1 { overflow-wrap: anywhere; }
+.agent-header .agent-badges { margin-top: 6px; }
+.agent-header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px 12px; }
+[data-agent-save-status] { color: var(--dim); font-size: 12px; }
+[data-agent-save-status][data-error] { color: #b42b2c; }
+:root[data-theme=dark] [data-agent-save-status][data-error] { color: #f2a7b5; }
+.agent-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(290px, 1fr); gap: 16px; align-items: start; }
+.agent-config, .agent-preview { min-width: 0; }
+.agent-sections { display: flex; flex-wrap: wrap; padding: 8px 12px 0; gap: 4px; border-bottom: 1px solid var(--line); }
+.agent-sections button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px 10px; background: none; color: var(--dim); border: 0; border-bottom: 2px solid transparent; border-radius: 0; }
+.agent-sections button[aria-pressed=true] { color: var(--ink); border-bottom-color: var(--blue); font-weight: 700; }
+.agent-fields { padding: clamp(14px, 2.2vw, 24px); }
+.agent-fields h2 { margin-bottom: 2px; }
+.agent-fields section, .agent-sources, .agent-release-info, section.agent-fields { display: grid; gap: 13px; }
+.agent-fields textarea { resize: vertical; line-height: 1.55; }
+.agent-fields small { font-size: 12px; }
+.agent-source { display: grid; gap: 10px; min-inline-size: 0; border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 0; }
+.agent-source legend { padding: 0 4px; font-size: 12px; color: var(--dim); }
+.agent-source button, .agent-fields button { justify-self: start; }
+.agent-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.agent-delete { margin-top: 10px; }
+.agent-preview > header { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); padding: 16px; }
+.agent-preview > header p { font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
+.agent-preview-version { padding: 10px 16px 0; }
+.agent-preview-version select { width: min(100%, 180px); }
+.agent-transcript { display: flex; flex-direction: column; gap: 10px; height: clamp(210px, 35vh, 420px); overflow: auto; padding: 16px; font-size: 13px; }
+.agent-bubble { max-width: 93%; border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; align-self: flex-start; }
+.agent-bubble.user { align-self: flex-end; background: color-mix(in srgb, var(--blue) 8%, var(--panel)); }
+.agent-bubble strong { display: block; color: var(--dim); font-size: 11px; margin-bottom: 3px; }
+.agent-bubble p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-message { display: grid; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--line); }
+.agent-message button { justify-self: end; }
+.agent-message textarea { resize: vertical; }
+.agent-page .form-status:empty { display: none; }
+.agent-confirm { background: var(--panel); }
+
+@media (max-width: 960px) {
+  .agent-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 540px) {
+  .agent-header { align-items: flex-start; flex-direction: column; }
+  .agent-header-actions { justify-content: flex-start; }
+  .agent-sections { padding-inline: 4px; }
+  .agent-sections button { padding-inline: 6px; font-size: 12px; }
+}

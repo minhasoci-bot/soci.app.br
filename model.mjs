@@ -20,7 +20,7 @@ export const defaults = {
 export const blank = name => ({ ...structuredClone(defaults), profile: { ...defaults.profile, ...(name ? { name } : {}) } });
 export function hydrateWorkspace(state) {
   const fresh = blank();
-  const additions = ['manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects',...crmCollections,...socialCollections];
+  const additions = ['agents','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects',...crmCollections,...socialCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -284,6 +284,10 @@ export function execute(s, command, { workspace = 'demo' } = {}) {
     if (key==='studioProjects' && !prior && s.studioProjects.length>=60) fail('A workspace can have up to 60 Studio projects.');
     const details = fields[key](s,{ ...d, id });
     const row = prior ? { ...prior, ...details, updated: now() } : add(s,key,details);
+    if (key==='agents' && prior) {
+      row.revision = uid();
+      if (prior.published) row.active = true;
+    }
     if (key === 'opportunities') row.statusChangedAt = !prior || row.status !== prior.status ? now() : prior.statusChangedAt || prior.created;
     if (key === 'studioProjects' && !prior) row.viewedAt = row.created;
     if (['bulkActions','imports'].includes(key)) fail('Unknown record type.');

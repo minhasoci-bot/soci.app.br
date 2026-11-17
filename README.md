@@ -101,7 +101,8 @@ Os outros gatilhos disponíveis são criação de contato, mudança de etapa da 
 | Assinaturas | Cadastro de cursos com uma aula publicada por curso e visualização local |
 | Mídia | Upload e download de imagens e PDFs |
 | Reputação | Registro de avaliações, respostas locais e cálculo da nota média |
-| AI Studio e Agentes | Sites com páginas HTML reais geradas por IA (opcionalmente a partir de um site de referência), várias páginas, prévia em desktop, tablet e celular, edição visual, editor de código, revisão por IA da página ou do elemento selecionado, histórico de versões, publicação local com formulário de leads ligado ao CRM e exportação HTML. Agentes oferecem prévia de respostas por função |
+| AI Studio | Geração de páginas HTML, edição visual e de código, revisão por IA, histórico de versões, publicação com formulário ligado ao CRM e exportação HTML |
+| Agentes de IA | Construtor por subconta com instruções, conhecimento em texto, chat de teste e publicação de versões |
 | Marketplace e Configurações | Catálogo indicativo de provedores, perfil, moeda, fuso e workspaces locais. Configurações com usuários com acesso, campos personalizados (contato, oportunidade, empresa; chave `{{contact.x}}`), valores personalizados (`{{custom_values.x}}`), tags (renomear atualiza os contatos), objetos, histórico de importação e log de auditoria do workspace |
 
 O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, publicação social, sincronização de calendários, hospedagem pública e permissões de equipe continuam pendentes. Os widgets de Google Analytics, Google Business Profile, Google Ads, Meta Ads e entregabilidade de e-mail exibem o estado da integração. O Studio exporta protótipos HTML editáveis. Os modelos de loja, chat e agenda representam a estrutura visual desses produtos, com os serviços de checkout, mensagens em tempo real e agendamento ainda pendentes.
@@ -120,6 +121,12 @@ O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, pu
   - **Publish:** publica em `http://127.0.0.1:4317/s/{workspace}/{projeto}` e cria em **Sites → Forms** um formulário que recebe os leads. Cada envio vira contato e dispara workflows com o gatilho **Form submitted**. O painel avisa quando há mudanças não publicadas.
 - As páginas são servidas, na prévia e publicadas, com uma política de segurança que bloqueia qualquer script. Cada site fica numa linha própria do armazenamento (`studio-{projeto}`), fora do estado do workspace. Projetos antigos, feitos por seções, abrem como uma página montada a partir delas.
 - **Fora do escopo local:** domínio próprio (exige um servidor público) e sincronização com o GitHub.
+
+## Construtor de agentes
+
+Em **Central de IA → Agentes de IA**, selecione a subconta e clique em **Novo agente**. O editor salva nome, função, instruções e fontes de conhecimento no rascunho. Em **Publicação**, guarde uma versão dessas configurações. O chat permite escolher entre o rascunho e a versão publicada. A publicação disponibiliza a versão para teste dentro do construtor. A conexão com canais de atendimento requer integração própria.
+
+O chat de teste usa `STUDIO_OPENAI_API_KEY` e `STUDIO_OPENAI_MODEL` no servidor. As mensagens, instruções e fontes usadas no teste são enviadas à API da OpenAI. Use dados de exemplo no chat.
 
 ## Conversas
 

@@ -196,10 +196,10 @@ export function startAgency(env) {
     const tools = [
       ['Funcionário de IA', 'Uso ilimitado de recursos de IA para as subcontas da agência.', 'Disponível em todas as subcontas', ''],
       ['AI Studio', 'Gere e edite protótipos de páginas e sites dentro de cada subconta.', 'Disponível em todas as subcontas', ''],
-      ['Agentes de IA', 'Perfis de agentes inteligentes treinados por função para automatizar respostas.', 'Disponível em todas as subcontas', ''],
+      ['Agentes de IA', 'Crie agentes com instruções e conhecimento próprios, teste suas respostas e publique versões.', 'Disponível em todas as subcontas', '', 'ai-agents'],
       ['Pergunte à IA', 'Assistente executivo com respostas baseadas nos registros da agência.', 'Nível da agência', 'ask']
     ];
-    return `<div class="page">${head('Central de IA', 'Ferramentas de Inteligência Artificial para potencializar sua agência e seus clientes.')}<div class="card-grid">${tools.map(([name, text, state, page]) => `<article class="surface padded resource"><span class="metric-icon">${i('spark')}</span><div><h2>${h(name)}</h2><p>${h(text)}</p></div>${badge(state, 'blue')}${page ? `<a class="text-link" href="#agency/${page}">Abrir ${i('arrow', 15)}</a>` : btn('Abrir em uma subconta', 'switch-account')}</article>`).join('')}</div></div>`;
+    return `<div class="page">${head('Central de IA', 'Ferramentas de Inteligência Artificial para potencializar sua agência e seus clientes.')}<div class="card-grid">${tools.map(([name, text, state, page, view]) => `<article class="surface padded resource"><span class="metric-icon">${i('spark')}</span><div><h2>${h(name)}</h2><p>${h(text)}</p></div>${badge(state, 'blue')}${page ? `<a class="text-link" href="#agency/${page}">Abrir ${i('arrow', 15)}</a>` : btn('Abrir em uma subconta', 'switch-account', view ? `data-view="${view}"` : '')}</article>`).join('')}</div></div>`;
   };
 
   pages.dashboard = () => {
@@ -484,7 +484,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       render();
     } catch (e) {
       if (currentVisit !== visit || !active()) return;
-      app.innerHTML = `<div class="boot"><h1>Visão da agência indisponível</h1><p>${h(e.message)}</p><a href="#ask-ai">Voltar para o workspace</a></div>`;
+      app.innerHTML = `<div class="boot"><h1>Visão da agência indisponível</h1><p>${h(e.message)}</p><a href="#dashboard">Voltar para o workspace</a></div>`;
     } finally {
       if (currentVisit === visit) loading = false;
     }
@@ -531,8 +531,15 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'go-profile': go('settings', 'company'); break;
         case 'nav': A.navOpen = !A.navOpen; render(); G('[data-ag="nav"]')?.focus(); break;
         case 'tab': go(A.page, d.sub); break;
-        case 'switch-account': dialog('Trocar para uma subconta', `<div class="ag-switch">${accounts().map(a => `<button class="choice" data-ag="open-account" data-id="${a.id}"><strong>${h(a.name)}</strong><span>${h(tr(a.status))} · ${a.contacts} contatos</span></button>`).join('')}</div>`); break;
-        case 'open-account': close(); await act('account-open', { id }); await openWorkspace(id); break;
+        case 'switch-account': {
+          const view = d.view === 'ai-agents' ? d.view : '';
+          const available = !view || !A.data.access.modules || A.data.access.modules.includes(view);
+          dialog(view ? 'Abrir Agentes de IA' : 'Trocar para uma subconta', available
+            ? `<div class="ag-switch">${accounts().map(a => `<button class="choice" data-ag="open-account" data-id="${a.id}" data-view="${view}"><strong>${h(a.name)}</strong><span>${h(tr(a.status))} · ${a.contacts} contatos</span></button>`).join('') || '<p class="dim">Nenhuma subconta disponível.</p>'}</div>`
+            : '<p class="dim">Você não tem acesso a Agentes de IA.</p>');
+          break;
+        }
+        case 'open-account': close(); await act('account-open', { id }); await openWorkspace(id, d.view === 'ai-agents' ? d.view : undefined); break;
         case 'ask': A.chat.push({ me: true, text: d.q }, { text: answer(d.q) }); render(); break;
         case 'new-account': dialog('Criar nova subconta', accountForm(), { form: 'account', submit: 'Criar subconta' }); break;
         case 'edit-account': {
@@ -567,7 +574,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'idea-comments': { const x = D().ideas.find(r => r.id === id); dialog(x.title, `${x.comments.map(cm => `<div class="line-item"><div><b>${h(cm.author)}</b> <small class="dim">${day(cm.at, true)}</small><p>${h(cm.body)}</p></div></div>`).join('') || '<p class="dim">Nenhum comentário registrado ainda.</p>'}<label>Adicionar comentário<textarea name="body" required maxlength="2000"></textarea></label>`, { form: 'idea-comment', id, submit: 'Comentar' }); break; }
         case 'move-up': case 'move-down': { const li = b.closest('li'); if (d.ag === 'move-up' && li.previousElementSibling) li.parentNode.insertBefore(li, li.previousElementSibling); if (d.ag === 'move-down' && li.nextElementSibling) li.parentNode.insertBefore(li.nextElementSibling, li); b.focus(); break; }
         case 'integration': { const x = integrationCatalog.find(r => r[0] === id); dialog(`Disponibilidade: ${x[1]}`, `<p class="dim">As subcontas selecionadas verão este app disponível. Cada cliente precisará da sua própria conta de ${h(x[1])} para conectar.</p>${pickAccounts('accounts', D().integrations[id]?.accounts || [])}`, { form: 'integration', id, submit: 'Salvar disponibilidade' }); break; }
-        case 'act-as': localStorage.setItem('go.user', id); flash('Navegando com as permissões do usuário selecionado.'); location.hash = '#ask-ai'; location.reload(); break;
+        case 'act-as': localStorage.setItem('go.user', id); flash('Navegando com as permissões do usuário selecionado.'); location.hash = '#dashboard'; location.reload(); break;
         case 'wallet': dialog('Lançamento na carteira', `<div class="field-grid"><label>Tipo de operação<select name="kind"><option value="Credit">Crédito</option><option value="Charge">Débito</option></select></label><label>Valor (USD)<input name="amount" type="number" min="0.01" step="0.01" required></label></div><label>Observação<input name="note" maxlength="200"></label>`, { form: 'wallet', submit: 'Registrar lançamento' }); break;
         case 'api-key': dialog('Criar chave de API', '<label>Identificação da chave<input name="name" required maxlength="80"></label>', { form: 'api-key', submit: 'Criar chave' }); break;
         case 'api-key-delete': confirmBox('Revogar esta chave de API?', 'Sistemas ou integrações que utilizam esta chave deixarão de funcionar imediatamente.', 'api-key-delete', id, 'Revogar'); break;
