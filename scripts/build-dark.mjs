@@ -128,7 +128,7 @@ for (const file of [...base, own]) {
     const selectors = splitTop(r.selector, ',');
     const ds = decls(r.body);
     for (const sel of selectors) {
-      if (/\.g-mark|\.sk-|\.spark-tile\b/.test(sel)) continue;
+      if (/\.g-mark|\.sk-|\.spark-tile\b|\.ag-color-knob|\.ag-color-controls/.test(sel)) continue;
       const key = `${r.wrap.join('|')}::${sel.replace(/\s+/g, ' ')}`;
       const out = [];
       for (const [p, v] of ds) {
@@ -146,7 +146,7 @@ for (const file of [...base, own]) {
   }
 }
 const gMarkDarkRules = [
-  `${PREFIX} .g-mark .sk-flame{fill:var(--g-brand,#ff00bb);stroke:none;filter:none}`,
+  `${PREFIX} .g-mark .sk-flame{fill:url(#g-flame-grad);stroke:none;filter:none}`,
   `${PREFIX} .g-mark .sk-head{fill:#ffffff}`,
   `${PREFIX} .g-mark .sk-feat{fill:#111317}`,
   `${PREFIX} .g-mark .sk-glint{fill:#ffffff}`
