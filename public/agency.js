@@ -142,7 +142,7 @@ export function startAgency(env) {
       home: '#agency/dashboard',
       brand: brandName(),
       mark: logo,
-      account: { name: company.name || 'Minha Agência', caption: 'Agência · ir para subconta', attr: 'data-ag="switch-account"', tip: 'Trocar para uma subconta' },
+      account: { name: company.name || 'Minha Agência', logo: company.logo || '', caption: 'Agência · ir para subconta', attr: 'data-ag="switch-account"', tip: 'Trocar para uma subconta' },
       toggle: 'data-ag="nav"',
       open: A.navOpen,
       groups: [

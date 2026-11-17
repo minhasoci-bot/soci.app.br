@@ -17,7 +17,7 @@ const item = ({ href, label, icon, current, external }) =>
  * @param {string} o.home         href of the logo
  * @param {string} o.brand        brand name
  * @param {string} o.mark         logo markup (svg or img)
- * @param {{name:string, caption:string, attr:string, tip:string}} o.account
+ * @param {{name:string, caption:string, attr:string, tip:string, logo?:string}} o.account
  * @param {string} o.toggle     data attribute of the collapse/expand action
  * @param {boolean} o.open      whether the sidebar is expanded
  * @param {{title:string, items:object[]}[]} o.groups
@@ -28,9 +28,12 @@ export function sidebar(o) {
     `<div class="side-group" role="group" aria-label="${esc(g.title)}"><p class="side-label" aria-hidden="true"><span class="side-text">${esc(g.title)}</span></p>${g.items.map(item).join('')}</div>`).join('');
   const action = o.open ? 'Recolher menu' : 'Expandir menu';
   const toggle = `<button type="button" class="side-toggle" ${o.toggle} aria-expanded="${o.open}" aria-label="${action}" aria-keyshortcuts="Control+B" data-tip="${action} · Ctrl B">${panelIcon}</button>`;
+  const avatar = o.account.logo
+    ? `<span class="side-avatar side-avatar-logo"><img src="${esc(o.account.logo)}" alt=""></span>`
+    : `<span class="side-avatar">${esc(initials(o.account.name))}</span>`;
   return `<aside class="sidebar g-side" aria-label="${esc(o.label)}">
     <div class="side-head"><a class="logo" href="${esc(o.home)}" aria-label="${esc(o.brand)}">${o.mark}<span class="side-text side-word">${esc(o.brand)}</span></a>${toggle}</div>
-    <button class="side-account" ${o.account.attr} data-tip="${esc(o.account.tip)}" aria-label="${esc(o.account.tip)}: ${esc(o.account.name)}"><span class="side-avatar">${esc(initials(o.account.name))}</span><span class="side-text side-account-text"><b>${esc(o.account.name)}</b><small>${esc(o.account.caption)}</small></span><span class="side-text side-updown">${i('updown', 15)}</span></button>
+    <button class="side-account" ${o.account.attr} data-tip="${esc(o.account.tip)}" aria-label="${esc(o.account.tip)}: ${esc(o.account.name)}">${avatar}<span class="side-text side-account-text"><b>${esc(o.account.name)}</b><small>${esc(o.account.caption)}</small></span><span class="side-text side-updown">${i('updown', 15)}</span></button>
     <nav class="side-nav" aria-label="Módulos">${groups}</nav>
     <div class="side-foot">${o.footer.map(item).join('')}</div>
   </aside>`;
