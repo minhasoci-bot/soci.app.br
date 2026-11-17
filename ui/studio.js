@@ -237,6 +237,13 @@ function modal(title, body, form, submit) {
     <form data-studio-form="${form}"><div class="modal-body">${body}<p class="form-status" role="alert"></p></div><footer><button type="button" class="secondary" data-close-dialog>Cancel</button><button class="primary">${h(submit)}</button></footer></form></dialog>`;
   const dialog = document.getElementById('dialog'); dialog.showModal();
   dialog.addEventListener('cancel', event => { event.preventDefault(); overlay.innerHTML = ''; });
+  let downTarget = null; dialog.addEventListener('mousedown', ev => { downTarget = ev.target; });
+  dialog.addEventListener('click', ev => {
+    if (ev.target === dialog && downTarget === dialog) {
+      const r = dialog.getBoundingClientRect();
+      if (ev.clientY < r.top || ev.clientY > r.bottom || ev.clientX < r.left || ev.clientX > r.right) closeModal();
+    }
+  });
   dialog.querySelector('input,textarea')?.focus();
 }
 const closeModal = () => { const overlay = document.getElementById('overlay'); overlay.querySelector('dialog')?.close(); overlay.innerHTML = ''; };

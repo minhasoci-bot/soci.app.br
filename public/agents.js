@@ -161,6 +161,13 @@ function mountEditor({ root, workspace, model, agent, request, updateAgent }) {
   const testStatus = get('[data-agent-test-status]');
   const testButton = testForm.querySelector('button');
   const confirm = get('.agent-confirm');
+  let confirmDown = null; confirm?.addEventListener('mousedown', ev => { confirmDown = ev.target; });
+  confirm?.addEventListener('click', ev => {
+    if (ev.target === confirm && confirmDown === confirm) {
+      const r = confirm.getBoundingClientRect();
+      if (ev.clientY < r.top || ev.clientY > r.bottom || ev.clientX < r.left || ev.clientX > r.right) confirm.close();
+    }
+  });
   const welcome = transcript.innerHTML;
   let timer, saving, actionPending = false, committing = false, deleted = false, testPending = false, conflict = false;
   let baseline = JSON.stringify(agentDraft(agent)), messages = [], chatConfig = '';

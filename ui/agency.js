@@ -68,6 +68,13 @@ export function startAgency(env) {
       ? `<form data-ag-form="${form}" data-id="${h(id)}"><div class="modal-body">${body}<p class="form-status" role="alert"></p></div><footer><button type="button" class="secondary" data-close-dialog>Cancelar</button><button class="primary">${h(submit)}</button></footer></form>`
       : `<div class="modal-body">${body}</div>`}</dialog>`;
     const d = G('#dialog'); d.showModal(); d.addEventListener('cancel', ev => { ev.preventDefault(); close(); });
+    let downTarget = null; d.addEventListener('mousedown', ev => { downTarget = ev.target; });
+    d.addEventListener('click', ev => {
+      if (ev.target === d && downTarget === d) {
+        const r = d.getBoundingClientRect();
+        if (ev.clientY < r.top || ev.clientY > r.bottom || ev.clientX < r.left || ev.clientX > r.right) close();
+      }
+    });
     d.querySelector('input:not([type=hidden]),select,textarea')?.focus();
   }
   const confirmBox = (title, text, form, id, submit) => dialog(title, `<p>${h(text)}</p>`, { form, id, submit });

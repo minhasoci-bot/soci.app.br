@@ -3,6 +3,7 @@ import { changeDashboard } from './dashboard-model.mjs';
 import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashboard-data.js';
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
 import { afterSave, beforeDelete, bulk, crmCollections, crmFields, customData } from './crm-model.mjs';
+import { inboxRule } from './ui/inbox-data.js';
 import { socialBeforeDelete, socialCollections, socialCommand, socialFields } from './social-model.mjs';
 
 export const defaults = {
@@ -13,6 +14,7 @@ export const defaults = {
   contacts: [], tasks: [], opportunities: [], messages: [], appointments: [], workflows: [], runs: [], invoices: [],
   campaigns: [], pages: [], forms: [], submissions: [], courses: [], files: [], reviews: [], agents: [], integrations: [],
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
+  threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], studioProjects:[],
   ...Object.fromEntries([...crmCollections, ...socialCollections].map(key => [key, []])),
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
@@ -20,7 +22,7 @@ export const defaults = {
 export const blank = name => ({ ...structuredClone(defaults), profile: { ...defaults.profile, ...(name ? { name } : {}) } });
 export function hydrateWorkspace(state) {
   const fresh = blank();
-  const additions = ['agents','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects',...crmCollections,...socialCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects',...crmCollections,...socialCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -111,6 +113,11 @@ const fields = {
     };
   },
   triggerLinks: (s,d) => ({ name: req(d.name, 'Link name', 100), url: linkDestination(d.url) }),
+  inboxViews: (s,d) => {
+    if (!Array.isArray(d.rules) || !d.rules.length || d.rules.length > 10) fail('A view needs between 1 and 10 conditions.');
+    const rules = d.rules.map(rule => inboxRule(rule) || fail('Choose a valid view condition.'));
+    return { name: req(d.name, 'View name', 60), match: one(d.match || 'and', ['and','or'], 'match'), rules };
+  },
   studioProjects: (s,d) => {
     const blocks = d.blocks === undefined ? [] : d.blocks;
     if (!Array.isArray(blocks) || blocks.length > 12) fail('A project can have up to 12 sections.');
@@ -314,7 +321,7 @@ function remove(s, key, id) {
     beforeDelete(s, key, id);
     socialBeforeDelete(s, key, id);
     if (key==='contacts') {
-      for (const related of ['tasks','opportunities','messages','appointments','invoices']) s[related] = s[related].filter(r=>r.contactId!==id);
+      for (const related of ['tasks','opportunities','messages','appointments','invoices','threads']) s[related] = s[related].filter(r=>r.contactId!==id);
       for (const row of s.submissions.filter(r=>r.contactId===id)) { row.contactId=''; row.name=''; row.email=''; }
       for (const pending of s.manualActions.filter(item => item.contactId === id)) {
         pending.contactId = '';
@@ -384,11 +391,26 @@ function other(s, command, type, key, id, d, workspace) {
     return link.url;
   }
   if (type === 'thread') {
-    const c = contactId(s,d.contactId);
-    const rows=s.messages.filter(r=>r.contactId===c);
-    if (Object.hasOwn(d,'read')) rows.forEach(r=>{r.read=Boolean(d.read);});
-    if (Object.hasOwn(d,'starred')) rows.forEach(r=>{r.starred=Boolean(d.starred);});
-    return c;
+    const ids = Array.isArray(d.contactIds) ? d.contactIds : [d.contactId];
+    if (!ids.length || ids.length > 200) fail('Choose between 1 and 200 conversations.');
+    const me = str(command.actor, 80) || 'Owner';
+    for (const c of new Set(ids.map(value => contactId(s, value)))) {
+      const rows=s.messages.filter(r=>r.contactId===c);
+      if (Object.hasOwn(d,'read')) rows.forEach(r=>{r.read=Boolean(d.read);});
+      if (Object.hasOwn(d,'starred')) rows.forEach(r=>{r.starred=Boolean(d.starred);});
+      if (!Object.hasOwn(d,'assignee') && !Object.hasOwn(d,'follow')) continue;
+      let meta = s.threads.find(r => r.contactId === c);
+      if (!meta) meta = add(s, 'threads', { contactId: c, assignee: '', followers: [] });
+      if (Object.hasOwn(d,'assignee')) meta.assignee = str(d.assignee, 80);
+      if (Object.hasOwn(d,'follow')) meta.followers = d.follow ? [...new Set([...meta.followers, me])] : meta.followers.filter(name => name !== me);
+      meta.updated = now();
+    }
+    return ids.length === 1 ? ids[0] : ids.length;
+  }
+  if (type === 'team-message') {
+    const row = add(s, 'teamMessages', { author: str(command.actor, 80) || 'Owner', body: req(d.body, 'Message', 2000) });
+    if (s.teamMessages.length > 500) s.teamMessages.splice(0, s.teamMessages.length - 500);
+    return row.id;
   }
   if (type === 'submit') {
     const form = find(s,'forms',id);

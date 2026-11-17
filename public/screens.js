@@ -1,6 +1,7 @@
 import {icon as i} from './icons.js';
 import {tr} from './i18n.js';
-import {conversationPage, slaRecords} from './conversations.js';
+import {conversationPage} from './conversations.js';
+import {inboxPage} from './inbox.js';
 import {dashboard} from './dashboard.js';
 import {studio} from './studio.js';
 import {bulkBar, contactsTab, crmTabs, opportunitiesTab, paymentsTab, pickBox, pickHead, settingsTab} from './crm.js';
@@ -47,56 +48,8 @@ function contacts(c){
   const tag=c.tag, tags=[...new Set(c.s.contacts.flatMap(x=>x.tags))].sort();
   return wrap(head('Contatos','',tab==='tasks'?primary('Adicionar tarefa','tasks'):`${action('Importar','import','upload')}${primary('Adicionar contato','contacts')}`,tabs(crmTabs.contacts,tab))+`<div class="toolbar">${search(c.query,tab==='tasks'?'Buscar tarefas…':'Busca rápida…')}${tab==='all'?`<label class="tag-filter">${i('filter',15)}<select id="tag-filter" aria-label="Filtrar contatos por tag"><option value="">Todas as tags</option>${tags.map(t=>`<option ${t===tag?'selected':''}>${h(t)}</option>`).join('')}</select></label>`:''}</div>`+(tab==='tasks'?table(['Tarefa','Contato','Prazo','Status',''],list.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),date(r.due,c),`<button class="pill-button ${r.done?'completed':''}" data-task="${r.id}">${r.done?'Concluída':'Em aberto'}</button>`],'tasks',r.id)),empty('Nenhuma tarefa encontrada','Adicione uma tarefa para acompanhar os retornos.','check')):(()=>{const shown=list.filter(r=>!tag||r.tags.includes(tag));return bulkBar(c,'contacts')+table([pickHead('contacts',shown.map(r=>r.id)),'Nome','Telefone','E-mail','Empresa','Tags',''],shown.map(r=>row([pickBox('contacts',r.id),`<button class="identity" data-edit="contacts" data-id="${r.id}">${avatar(r.name)}<strong>${h(r.name)}</strong></button>`,h(r.phone||'—'),h(r.email||'—'),h(r.company||'—'),r.tags.map(t=>badge(t,'blue')).join(' ')||'—'],'contacts',r.id)),empty('Nenhum contato encontrado','Crie um contato ou tente outro filtro.','contacts'))})()));
 }
-function messageContent(value) {
-  const path = /(\/r\/(?:demo|[a-f0-9-]{36})\/[a-f0-9-]{36})/g;
-  return value.split(path).map((part,index) => index % 2
-    ? `<a class="text-link" href="${h(part)}" target="_blank" rel="noopener noreferrer">${h(new URL(part, location.origin).href)}</a>`
-    : h(part)).join('');
-}
-
-function inbox(c) {
-  const threads = c.s.contacts.map(contact => {
-    const messages = c.s.messages.filter(message => message.contactId === contact.id);
-    return { contact, messages, latest:messages.at(-1), unread:messages.some(message => !message.read), starred:messages.some(message => message.starred) };
-  }).filter(thread => thread.latest).sort((a,b) => b.latest.created.localeCompare(a.latest.created));
-  const mode = c.tab || 'all';
-  const list = threads.filter(thread => (mode !== 'unread' || thread.unread) && (mode !== 'starred' || thread.starred) &&
-    (mode !== 'recent' || Date.now() - new Date(thread.latest.created) < 604800000) && thread.contact.name.toLowerCase().includes(c.query.toLowerCase()));
-  const contact = c.s.contacts.find(item => item.id === c.thread);
-  const selected = threads.find(thread => thread.contact.id === c.thread);
-  const deadlines = slaRecords(c.s).filter(item => !item.answered && item.state !== 'Dismissed' && item.contactId === c.thread);
-
-  return `<div class="conversation-page"><div class="inbox-grid ${contact ? 'has-thread' : ''}"><section class="thread-list">
-    <div class="thread-tools"><div class="section-heading"><h2>Caixa de entrada da equipe</h2>${action('Nova conversa','new-thread','plus')}</div>${search(c.query,'Encontrar conversas…')}</div>
-    ${tabs([['unread','Não lidas'],['all','Todas'],['recent','Recentes'],['starred','Com estrela']],mode)}
-    ${list.map(({contact,latest,unread}) => `<button data-thread="${contact.id}" class="thread-preview ${c.thread === contact.id ? 'selected' : ''}">
-      ${avatar(contact.name)}<span><b>${h(contact.name)}</b><small>${h(latest.body)}</small></span>${unread ? '<span class="unread-dot" aria-label="Não lida"></span>' : ''}
-    </button>`).join('') || empty('Nenhuma conversa','As conversas desta visualização aparecem aqui.','chat')}</section>
-    <section class="thread-body">${contact ? `<div class="thread-header">
-      <button class="icon-btn mobile-back" data-act="back-inbox" aria-label="Voltar para a caixa de entrada">${i('left')}</button>
-      ${avatar(contact.name)}<b>${h(contact.name)}</b><div class="spacer"></div>
-      <button class="icon-btn ${selected?.starred ? 'gold' : ''}" data-act="toggle-star" aria-label="Marcar ou desmarcar estrela">${i('star')}</button>
-      <button class="icon-btn" data-act="mark-unread" aria-label="Marcar como não lida">${i('mail')}</button>
-      <button class="icon-btn" data-edit="contacts" data-id="${contact.id}" aria-label="Editar contato">${i('contacts')}</button></div>
-      ${deadlines.length ? `<div class="thread-sla">${deadlines.map(item => `<span class="sla-clock-group">
-        <span class="badge ${item.state === 'Overdue' ? 'red' : 'blue'}" data-sla-clock="${item.id}">${tr(item.channel)} · ${tr(item.state)}</span>
-        <button class="icon-btn" aria-label="Dispensar SLA de ${tr(item.channel)}" title="Dispensar SLA" data-dismiss-sla="${item.id}">${i('close',13)}</button>
-        </span>`).join('')}</div>` : ''}
-      <div class="thread-messages">${(selected?.messages || []).map(message => `<div class="message ${message.direction === 'Outbound' ? 'outbound' : ''}">
-        <small>${h(tr(message.channel))} · ${date(message.created,c,true)}</small>${message.subject ? `<b class="message-subject">${h(message.subject)}</b>` : ''}<p>${messageContent(message.body)}</p></div>
-      `).join('') || empty('Comece esta conversa','Escreva uma mensagem abaixo.','chat')}</div>
-      <form class="message-compose" data-form="message"><p>As mensagens ficam registradas nesta caixa de entrada.</p>
-        <div class="inline-gap"><select name="channel" aria-label="Canal"><option value="Note">Nota</option><option value="Email">E-mail</option><option value="SMS">SMS</option></select>
-          <select name="direction" aria-label="Direção"><option value="Outbound">Enviada</option><option value="Inbound">Recebida</option></select>
-          <button type="button" class="secondary" data-act="insert-snippet">Inserir modelo</button>
-          <button type="button" class="secondary" data-act="insert-link">Inserir link de rastreamento</button></div>
-        <label class="message-email" hidden>Assunto<input name="subject" maxlength="240" disabled></label>
-        <textarea name="body" placeholder="Escreva uma mensagem…" aria-label="Mensagem" required></textarea>
-        <button class="primary">${i('send',15)} Registrar mensagem</button></form>` : empty('Selecione uma conversa','Escolha uma conversa para ver as mensagens e os dados do contato.','inbox')}</section></div></div>`;
-}
-
 function conversations(c) {
-  return conversationPage(c,inbox);
+  return conversationPage(c,inboxPage);
 }
 function calendars(c){
   const y=c.month.getFullYear(), m=c.month.getMonth(), title=new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(c.month), shift=(new Date(y,m,1).getDay()+6)%7, len=new Date(y,m+1,0).getDate(), tab=c.tab||'calendar';

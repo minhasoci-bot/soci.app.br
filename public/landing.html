@@ -10,6 +10,7 @@
   <script>
     // Se o usuário acessar a raiz com rota da plataforma no hash, redireciona para /app
     (function () {
+      if (location.pathname !== '/') return;
       var h = location.hash.slice(1);
       if (!h) return;
       var appSections = ['ask-ai', 'contacts', 'conversations', 'calendars', 'opportunities', 'payments', 'marketing', 'automation', 'sites', 'memberships', 'reporting', 'studio', 'settings', 'link', 'agency'];

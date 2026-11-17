@@ -158,8 +158,12 @@ async function startGoogleLogin() {
 
 for (const button of googleButtons) button.addEventListener("click", startGoogleLogin);
 $("#close-login").addEventListener("click", () => loginDialog.close());
+let loginDown = null; loginDialog.addEventListener("mousedown", event => { loginDown = event.target; });
 loginDialog.addEventListener("click", event => {
-  if (event.target === loginDialog) loginDialog.close();
+  if (event.target === loginDialog && loginDown === loginDialog) {
+    const r = loginDialog.getBoundingClientRect();
+    if (event.clientY < r.top || event.clientY > r.bottom || event.clientX < r.left || event.clientX > r.right) loginDialog.close();
+  }
 });
 if (location.pathname === "/login") {
   openLoginModal();

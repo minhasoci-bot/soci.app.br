@@ -35,7 +35,7 @@ const staticFiles = new Map([
   ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
   ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
-  ['/graao.css','text/css; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
+  ['/graao.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
   ['/fonts/plus-jakarta-sans.woff2','font/woff2'], ['/favicon.svg','image/svg+xml'],
   ['/landing.html','text/html; charset=utf-8'], ['/landing.css','text/css; charset=utf-8'], ['/landing.js','text/javascript; charset=utf-8']
@@ -105,7 +105,7 @@ export function makeServer({
     if (!session && !localAccess) throw error('O login do Supabase ainda não foi configurado.',503);
     if (session && session.id !== agencyOwnerId) {
       const member = agency.users.find(user => user.loginEnabled && user.email?.toLowerCase() === session.email.toLowerCase());
-      if (member) return { ...userAccess(agency,member.id), userId: member.id, session };
+      if (member) return { ...userAccess(agency,member.id), userId: member.id, session, owner: member.role === 'Agency Owner' };
       return { agency: false, settings: false, accounts: [personalId(session)], modules: null, name: session.name, session, personal: true };
     }
     const userId = localAccess ? String(req.headers['x-go-user'] || req.localSocialUser || '') : '';
@@ -119,7 +119,7 @@ export function makeServer({
     return accessFor(req,await loadAgency(),session);
   };
   const canOpen = (who, id) => privateSpace.test(id)
-    ? Boolean(who.session && personalId(who.session) === id && (who.personal || who.session.id === agencyOwnerId))
+    ? Boolean(who.session && personalId(who.session) === id && (who.personal || who.owner || who.session.id === agencyOwnerId))
     : !who.accounts || who.accounts.includes(id);
   const canUseAgents = who => !who.modules || who.modules.includes('ai-agents');
   const visibleState = (who, state) => canUseAgents(who) ? state : { ...state, agents: [] };

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { runInNewContext } from 'node:vm';
 import { createSupabaseAuth } from '../auth.mjs';
 import { blank } from '../model.mjs';
 import { makeServer } from '../server.mjs';
@@ -64,6 +65,14 @@ test('Landing page serves at / with login button, animations and modules', async
   assert.match(html, /id="google-signin-btn"/);
   assert.doesNotMatch(html, /id="login-form"|type="password"/);
   assert.doesNotMatch(html, /id="google-picker-dialog"/);
+
+  const redirectScript = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const redirects = [];
+  const location = { pathname: '/login', search: '?next=%2Fapp', hash: '#agency/dashboard', replace: path => redirects.push(path) };
+  runInNewContext(redirectScript, { location });
+  assert.deepEqual(redirects, []);
+  runInNewContext(redirectScript, { location: { ...location, pathname: '/' } });
+  assert.deepEqual(redirects, ['/app?next=%2Fapp#agency/dashboard']);
 });
 
 
@@ -210,6 +219,16 @@ test('Google sessions isolate personal workspaces and honor agency permissions',
   const memberState = await fetch(base + '/api/state?workspace=demo', { headers: memberHeaders }).then(r => r.json());
   assert.deepEqual(memberState.access.modules, ['contacts']);
   assert.equal((await fetch(base + '/api/agency', { headers: memberHeaders })).status, 403);
+
+  const ownerMembership = await post(base, '/api/agency/action', {
+    type: 'save', key: 'users', data: { first: 'Alice', last: 'Test', email: alice.email, role: 'Agency Owner' }
+  }, adminHeaders);
+  assert.equal(ownerMembership.status, 200);
+  const memberAgency = await fetch(base + '/api/agency', { headers });
+  assert.equal(memberAgency.status, 200);
+  assert.equal((await memberAgency.json()).personalWorkspace.id, 'user-' + alice.id);
+  assert.equal((await fetch(base + personalPath, { headers })).status, 200);
+  assert.equal((await fetch(base + ownerPath, { headers })).status, 403);
 
   const renewed = await fetch(base + '/api/workspaces', { headers: { Cookie: 'go_refresh=alice-oauth' } });
   assert.equal(renewed.status, 200);

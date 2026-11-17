@@ -1,6 +1,7 @@
 import {icon as i, logo, brandName, brandColor, bootScreen} from './icons.js';
 import {nav,h,avatar,screens,publicView,money} from './screens.js';
 import { conversationSections, manualQueue, slaRecords } from './conversations.js';
+import { inboxChange, inboxClick, inboxSubmit } from './inbox.js';
 import { dashboardPreferences, installDashboardControls, reportGrid } from './dashboard-controls.js';
 import { drawDashboardGauges } from './dashboard.js';
 import { opportunityStatuses } from './dashboard-data.js';
@@ -44,6 +45,7 @@ async function load(){
 const allowedView = id => id==='dashboard' || !c.access?.modules || c.access.modules.includes(id);
 let agencyUI, openingWorkspace;
 const sessionDismissed=new Set();
+const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const d=await api(url('/api/action'),command); c.s=d.state;c.m=d.metrics;return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
 const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions'],marketing:['social','email'],memberships:['courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project'],'ai-agents':['new','edit'],settings:crmTabs.settings.map(t=>t[0])};
@@ -150,6 +152,13 @@ function dialog(title,body,{form='',description='',buttons='',key='',id=''}={}){
   modalReturn=document.activeElement;
   overlay.innerHTML=`<dialog id="dialog" aria-labelledby="modal-title"><header><div><h2 id="modal-title">${h(title)}</h2>${description?`<p>${h(description)}</p>`:''}</div>${iconBtn('close','Fechar','data-act="close"')}</header>${form?`<form data-form="${form}" data-key="${key}" data-id="${id}"><div class="modal-body">${body}<p class="form-status" role="alert"></p></div><footer>${buttons||'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Salvar</button>'}</footer></form>`:`<div class="modal-body">${body}</div>`}</dialog>`;
   const d=G('#dialog');d.showModal();d.addEventListener('cancel',ev=>{ev.preventDefault();close();});
+  let downTarget=null;d.addEventListener('mousedown',ev=>{downTarget=ev.target;});
+  d.addEventListener('click',ev=>{
+    if(ev.target===d&&downTarget===d){
+      const r=d.getBoundingClientRect();
+      if(ev.clientY<r.top||ev.clientY>r.bottom||ev.clientX<r.left||ev.clientX>r.right)close();
+    }
+  });
 }
 const list=(arr)=>arr.map(item=>Array.isArray(item)?item:[item,item]);
 function field(label,key,v='',type='text',required=false,options=[]){
@@ -245,7 +254,7 @@ function workspaces(){
   const create = c.access?.agency ? `<button class="secondary" data-act="new-workspace">${i('plus',16)} Novo workspace</button>` : '';
   dialog('Trocar de workspace', `${agency}${choices}${create}`);
 }
-async function useWorkspace(id, view='dashboard'){ leaveAgentEditor();c.workspace=id;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.dash=dashboardPreferences(id);c.pipeline='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go(view); }
+async function useWorkspace(id, view='dashboard'){ leaveAgentEditor();c.workspace=id;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go(view); }
 function downloads(name,content,type='text/csv;charset=utf-8'){
   const data=typeof content==='string'?new Blob([content],{type}):content, a=document.createElement('a'), u=URL.createObjectURL(data);
   a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),3000);
@@ -407,9 +416,11 @@ document.addEventListener('click',async ev=>{
     return;
   }
   if (ev.target.closest('[data-close-dialog]')) { close(); return; }
+  if (c.inbox?.sortOpen && !ev.target.closest('.inbox-menu,[data-inbox-sort]')) { c.inbox.sortOpen=false; render(); }
   const b=ev.target.closest('button,a[data-act]');if(!b)return;
   const d=b.dataset;
   try {
+    if (await inboxClick(b,d,inboxContext())) return;
     if (d.studioTemplate) {
       const template = studioTemplates.find(item => item[0] === d.studioTemplate);
       c.studio.template=template[0];
@@ -557,6 +568,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', async e => {
   const el = e.target;
   conversationFormControls(el);
+  try { if (await inboxChange(el,inboxContext())) return; } catch (error) { render(); flash(error.message,true); return; }
   if (el.name === 'template' && el.form?.dataset.form === 'studio-create') {
     c.studio.template=el.value;
     const label=G('.studio-mode'), chosen=studioTemplates.find(item=>item[0]===el.value);
@@ -576,7 +588,7 @@ document.addEventListener('change', async e => {
 document.addEventListener('dragstart',ev=>{const el=ev.target.closest('[data-drag]');if(el){ev.dataTransfer.effectAllowed='move';ev.dataTransfer.setData('text/plain',el.dataset.drag);}});
 document.addEventListener('dragover',ev=>{if(ev.target.closest('[data-drop]'))ev.preventDefault();});
 document.addEventListener('drop',async ev=>{const el=ev.target.closest('[data-drop]');if(!el)return;ev.preventDefault();try{await move(ev.dataTransfer.getData('text/plain'),el.dataset.drop);}catch(e){flash(e.message,true);}});
-document.addEventListener('keydown',e=>{if(!viewPath&&c.s&&c.mode!=='agency'&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();G('[data-act="search"]').click();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&c.inbox?.sortOpen&&c.view==='conversations'){c.inbox.sortOpen=false;render();G('[data-inbox-sort]')?.focus();return;}if(!viewPath&&c.s&&c.mode!=='agency'&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();G('[data-act="search"]').click();}});
 
 document.addEventListener('submit',async ev=>{
   const f=ev.target;if(!f.dataset.form)return;ev.preventDefault();if(f.dataset.pending)return;f.dataset.pending='true';
@@ -601,6 +613,7 @@ document.addEventListener('submit',async ev=>{
     else if (name==='stage') { await mutate({type:'stage',id:f.dataset.id,data:{ ...data,visible:f.elements.visible.checked }}); msg='Stage saved.'; }
     else if (name==='pipeline') { await mutate({type:'pipeline',id:f.dataset.id,data}); msg='Pipeline saved.'; }
     else if(name==='thread'){await thread(data.contactId);return;}
+    else if(name.startsWith('inbox-')||name==='team-message'){flash(await inboxSubmit(name,f,data,inboxContext()));return;}
     else if(name==='workspace'){const d=await api('/api/workspaces',data);await useWorkspace(d.id);flash('Workspace created.');return;}
     else if(name==='message'){await mutate({type:'message',data:{...data,contactId:c.thread}});msg='Message logged.';}
     else if (name === 'manual-action') {
