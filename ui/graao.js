@@ -78,13 +78,7 @@ function glide(host, selector, ring = false, deep = false) {
 
 /* Spotlight Indicator: glowing bar beside the current nav item */
 function spotlight(nav, label) {
-  glide(nav, '.nav-link', false, true);
-  const on = nav.querySelector('.nav-link.current');
-  if (!on) { last.delete(`spot:${label}`); return; }
-  const bar = Object.assign(document.createElement('span'), { className: 'g-spot', ariaHidden: 'true' });
-  nav.append(bar);
-  const r = rel(on, nav);
-  slide(bar, `spot:${label}`, { x: 0, y: r.y + 10, w: 0, h: Math.max(0, r.h - 20) }, (n, p) => { n.style.transform = `translateY(${p.y}px)`; n.style.height = `${p.h}px`; });
+  // CSS handles native hover and .current::before spotlight indicator cleanly without coordinate jitter
 }
 
 /* Sidebar open/close: the shell is rebuilt on toggle, so the column width is replayed from its last state. */
