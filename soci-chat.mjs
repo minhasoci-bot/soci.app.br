@@ -703,7 +703,10 @@ export function createAskHandler({ store, openAI, openAIRequest = fetch }) {
   const chatStore = createChatStore(store);
 
   return async function handleAsk({ req, res, url, method, who, loadContext, json }) {
-    const op = url.pathname.slice('/api/ask/'.length).replace(/\/+$/, '');
+    let rawPath = url.searchParams.get('__path') || url.pathname;
+    if (!rawPath.startsWith('/')) rawPath = '/' + rawPath;
+    rawPath = rawPath.replace(/\/+/g, '/');
+    const op = rawPath.slice('/api/ask/'.length).replace(/\/+$/, '');
     const agencyId = who.agencyId;
 
     if (op === 'state' && method === 'GET') {

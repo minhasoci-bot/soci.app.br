@@ -40,6 +40,11 @@ async function start(opts = {}) {
 test('Pergunte à Soci streams live agency metrics, persists history, branches, feedback, search, rename, export/import', async t => {
   const local = await start(); t.after(local.close);
 
+  // Verify Vercel __path rewrite routing works for /api/ask/*
+  const viaRewrite = await local.call('/api/index.mjs?__path=/api/ask/state');
+  assert.equal(viaRewrite.status, 200);
+  assert.equal(viaRewrite.body.config.mode, 'local');
+
   // Initial state in local mode
   const initial = await local.call('/api/ask/state');
   assert.equal(initial.status, 200);
