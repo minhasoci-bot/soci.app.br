@@ -22,12 +22,12 @@ Para começar com dados vazios, use **Configurações → New Workspace**. Para 
 
 A plataforma se chama **soci**. A camada visual fica em dois arquivos carregados depois de todos os outros, sem alterar a estrutura das telas:
 
-- `ui/graao.css`: tokens da marca (lavanda de fundo, painéis brancos translúcidos, violeta `#7c5cf0` nos botões principais, rosa `#ff3d8d` nas chamadas de destaque e identidade da plataforma, rosa `#ff6f9f` nos alertas), a fonte Plus Jakarta Sans servida localmente em `ui/fonts/` e as curvas de animação do microkit.
+- `ui/graao.css`: tokens da marca (lavanda de fundo, painéis brancos translúcidos, violeta `#7c5cf0` nos botões principais, rosa `#ff00bb` nas chamadas de destaque e identidade da plataforma, rosa `#ff6f9f` nos alertas), a fonte Plus Jakarta Sans servida localmente em `ui/fonts/` e as curvas de animação do microkit.
 - `ui/graao.js`: versões em JavaScript puro dos componentes do [microkit.co](https://microkit.co) (MIT). Inclui a pílula que desliza entre as abas, o destaque de hover que desliza entre itens do menu, cartões e opções, a barra de destaque no item ativo do menu, o contador animado nas métricas, a linha deslizante nas subabas de Conversas e a luz que acompanha o cursor nos botões. O campo com halo de foco e a caixa de seleção com mola são só CSS.
 
 O menu lateral vem de `ui/sidebar.js` e é o mesmo na subconta e na agência. Recolhido, vira uma coluna de 64px só com ícones e mostra o nome de cada item num balão ao passar o mouse. Aberto, ocupa 248px e mostra o cartão do workspace, a busca (Ctrl K), as ações rápidas e os módulos em grupos com título. A largura muda com animação. No celular, o menu aberto fica sobre a página.
 
-As telas são redesenhadas com `innerHTML`, então os indicadores guardam a última posição e deslizam a partir dela a cada nova renderização. A entrada escalonada da página só acontece quando a tela muda, e não ao trocar de aba. Com `prefers-reduced-motion`, as animações são desativadas. Workspaces criados antes da mudança de nome ainda guardam "GO Workspace" e `#1570ef`; a interface exibe esses valores como soci e rosa `#ff3d8d`.
+As telas são redesenhadas com `innerHTML`, então os indicadores guardam a última posição e deslizam a partir dela a cada nova renderização. A entrada escalonada da página só acontece quando a tela muda, e não ao trocar de aba. Com `prefers-reduced-motion`, as animações são desativadas. Workspaces criados antes da mudança de nome ainda guardam "GO Workspace" e `#1570ef`; a interface exibe esses valores como soci e rosa `#ff00bb`.
 
 ## Visão da agência
 
