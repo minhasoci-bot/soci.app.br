@@ -593,3 +593,15 @@ if (process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)
     process.exitCode = 1;
   }
 }
+
+let vercelApp = null;
+export default async function handler(req, res) {
+  if (!vercelApp) {
+    const store = supabaseFromEnv();
+    const instance = makeServer(store ? { store } : {});
+    await instance.ready;
+    vercelApp = instance.server;
+  }
+  vercelApp.emit('request', req, res);
+}
+
