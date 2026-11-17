@@ -5,7 +5,7 @@ import { blank, execute } from '../model.mjs';
 import { couponStatus, forecast } from '../ui/crm-data.js';
 
 async function start() {
-  const { server, host } = makeServer({ dbPath: ':memory:', port: 0 });
+  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, dbPath: ':memory:', port: 0 });
   await new Promise((resolve, reject) => { server.on('error', reject); server.listen(0, host, resolve); });
   const base = `http://${host}:${server.address().port}`;
   const call = async (path, body) => {

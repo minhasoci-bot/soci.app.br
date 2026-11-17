@@ -39,7 +39,7 @@ function fakeNetworks() {
 }
 
 async function start() {
-  const { server, host } = makeServer({ dbPath: ':memory:', port: 0, socialScheduler: false });
+  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, dbPath: ':memory:', port: 0, socialScheduler: false });
   await new Promise((resolve, reject) => { server.on('error', reject); server.listen(0, host, resolve); });
   const base = `http://${host}:${server.address().port}`;
   const call = async (path, body) => {
@@ -208,7 +208,7 @@ test('Social secret rows satisfy the Supabase rule that every row has profile.na
   // go_workspaces.name is generated from state.profile.name and NOT NULL in Supabase.
   const sqlite = createSqliteStore(':memory:');
   const store = { ...sqlite, insert: (id, state) => { if (!state?.profile?.name) throw Object.assign(new Error('Supabase Data API request failed (400).'), {}); return sqlite.insert(id, state); } };
-  const { server, host } = makeServer({ store, socialScheduler: false });
+  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, store, socialScheduler: false });
   await new Promise(resolve => server.listen(0, host, resolve));
   t.after(() => new Promise(resolve => server.close(resolve)));
   const r = await fetch(`http://${host}:${server.address().port}/api/social/connect/facebook?workspace=demo`, { redirect: 'manual' });

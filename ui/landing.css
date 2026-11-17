@@ -1303,13 +1303,14 @@ li.open .faq-a { grid-template-rows: 1fr; }
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8);
   max-width: 440px;
   width: calc(100% - 32px);
-  overflow: hidden;
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
 }
 .login-dialog::backdrop {
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(6px);
 }
-.login-dialog-inner { padding: 32px; display: grid; gap: 20px; }
+.login-dialog-inner { padding: clamp(20px, 6vw, 32px); display: grid; gap: 16px; }
 .login-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; }
 .login-dialog h2 { font-family: var(--serif); font-size: 26px; }
 .login-dialog p { font-size: 14px; color: var(--muted); margin-top: 6px; }
@@ -1321,37 +1322,6 @@ li.open .faq-a { grid-template-rows: 1fr; }
   transition: background 0.2s, color 0.2s;
 }
 .login-dialog-close:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
-.login-options { display: grid; gap: 10px; }
-.login-card-btn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 18px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--line);
-  color: var(--ink);
-  text-align: left;
-  transition: all 0.2s;
-}
-.login-card-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 112, 26, 0.4);
-  transform: translateX(3px);
-}
-.login-card-btn b { display: block; font-size: 15px; margin-bottom: 2px; }
-.login-card-btn span { font-size: 12px; color: var(--muted); }
-.login-card-btn.primary-option {
-  background: rgba(255, 112, 26, 0.15);
-  border-color: rgba(255, 112, 26, 0.4);
-}
-.login-card-btn.primary-option:hover {
-  background: var(--cta);
-  color: #000;
-}
-.login-card-btn.primary-option:hover span { color: #351500; }
-
-/* Google Auth UI */
 .btn-google-nav {
   display: inline-flex;
   align-items: center;
@@ -1395,10 +1365,6 @@ li.open .faq-a { grid-template-rows: 1fr; }
 .btn-google-sheet:hover {
   background: rgba(255, 255, 255, 0.14);
 }
-.google-auth-box {
-  display: grid;
-  gap: 12px;
-}
 .btn-google-full {
   display: flex;
   align-items: center;
@@ -1424,26 +1390,6 @@ li.open .faq-a { grid-template-rows: 1fr; }
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(255, 255, 255, 0.12);
 }
-.google-gis-slot {
-  display: flex;
-  justify-content: center;
-  min-height: 0;
-}
-.google-gis-slot:empty {
-  display: none;
-}
-.google-status {
-  font-size: 13px;
-  text-align: center;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: rgba(255, 112, 26, 0.15);
-  color: var(--accent);
-}
-.google-status.error {
-  background: rgba(255, 0, 187, 0.15);
-  color: #ff00bb;
-}
 .login-divider {
   display: flex;
   align-items: center;
@@ -1462,102 +1408,33 @@ li.open .faq-a { grid-template-rows: 1fr; }
   height: 1px;
   background: var(--line);
 }
-.google-picker-dialog {
-  max-width: 480px;
-}
-.google-picker-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.google-picker-title h2 {
-  font-size: 20px;
-  font-family: var(--serif);
-}
-.google-accounts-list {
-  display: grid;
-  gap: 8px;
-}
-.google-account-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--line);
-  color: var(--ink);
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.2s;
-}
-.google-account-item:hover {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.28);
-  transform: translateX(3px);
-}
-.google-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 15px;
-  color: #fff;
-  flex-shrink: 0;
-}
-.google-account-info {
-  flex: 1;
+.login-form { display: grid; gap: 14px; }
+.login-form label { display: grid; gap: 6px; font-size: 13px; color: var(--ink); }
+.login-form label[hidden] { display: none; }
+.login-form input {
   min-width: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
 }
-.google-account-info b {
-  display: block;
-  font-size: 14px;
+.login-form .btn { width: 100%; justify-content: center; margin-top: 4px; }
+.login-form input:focus-visible, .login-dialog button:focus-visible { outline: 2px solid var(--cta); outline-offset: 3px; }
+.login-dialog button:disabled { opacity: 0.55; cursor: wait; }
+.login-dialog .login-status {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
   color: var(--ink);
 }
-.google-account-info span {
-  font-size: 12px;
-  color: var(--muted);
-}
-.google-account-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--muted);
-}
-.google-custom-box {
-  display: grid;
-  gap: 12px;
-}
-.google-custom-form {
-  display: grid;
-  gap: 10px;
-}
-.google-custom-form label {
-  display: grid;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--muted);
-}
-.google-custom-form input {
-  height: 42px;
-  padding: 0 14px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--line);
-  color: #fff;
-  font-family: inherit;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.2s;
-}
-.google-custom-form input:focus {
-  border-color: var(--cta);
-}
+.login-dialog .login-status.error { border-color: #ff85bc; color: #ffb1d4; }
+.login-dialog .login-switch { margin: 0; text-align: center; }
+.login-switch button { color: var(--cta); font: inherit; font-weight: 700; text-decoration: underline; }
 
 @media (max-width: 900px) {
   .nav { padding: 16px 16px; gap: 16px; }

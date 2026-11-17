@@ -300,7 +300,8 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
         <ul class="sp-env">${n.env.map(e => `<li><code>${e}</code></li>`).join('')}</ul><p>URL de redirecionamento (OAuth) para cadastrar no app:</p><p><code class="sp-break">${h(cb)}</code></p>`, { description: 'Chaves ainda não configuradas' });
       return;
     }
-    window.open(`${url(`/api/social/connect/${provider}`)}&user=${encodeURIComponent(user())}`, 'soci-social', 'width=620,height=760');
+    const acting = c.access?.session ? '' : '&user=' + encodeURIComponent(user());
+    window.open(url(`/api/social/connect/${provider}`) + acting, 'soci-social', 'width=620,height=760');
   };
   const pickAccounts = async requestId => {
     const d = await api(url('/api/social/candidates'), { requestId });

@@ -75,16 +75,19 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
       if (w.name) agency.accounts[w.id].name = w.name;
     }
   };
-  const access = async req => {
+  const accessFor = (req, agency, fallback) => {
     const userId = String(req.headers['x-go-user'] || '');
-    const result = userAccess(await loadAgency(), userId);
-    if (!result) throw error('The selected user no longer exists. Choose another user.',403);
-    return { ...result, userId };
+    const result = userAccess(agency, userId);
+    if (result) return { ...result, userId };
+    if (fallback) return fallback;
+    throw error('The selected user no longer exists. Choose another user.',403);
   };
+  const access = async req => accessFor(req, await loadAgency());
   const canOpen = (who, id) => !who.accounts || who.accounts.includes(id);
-  async function agencyPayload(who, extra = {}) {
-    const workspaces = await listWorkspaces();
-    const agency = await loadAgency();
+  async function agencyPayload(req, extra = {}, previousAccess) {
+    const [agency, workspaces] = await Promise.all([loadAgency(), listWorkspaces()]);
+    const who = accessFor(req, agency, previousAccess);
+    if (!previousAccess && !who.agency) throw error('Your user cannot open the agency view.',403);
     ensureAccounts(agency, workspaces);
     const states = await Promise.all(workspaces.map(async w => ({ ...w, state: await store.load(w.id) })));
     return { agency: publicAgency(agency), overview: agencyOverview(agency, states), workspaces, access: who,
@@ -701,9 +704,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (p==='/api/state' && method!=='POST') {
         if (!spaceId.test(id)) throw error('Workspace not found.',404);
-        const who = await access(req);
+        const agency = await loadAgency();
+        const who = accessFor(req, agency);
         if (!canOpen(who,id)) throw error('Your user cannot open this sub-account.',403);
-        const [state,workspaces,agency] = await Promise.all([store.load(id),listWorkspaces(),loadAgency()]);
+        const [state,workspaces] = await Promise.all([store.load(id),listWorkspaces()]);
         // Settings → Audit Logs of the sub-account: the agency audit entries written against this account.
         const account = workspaces.find(w => w.id === id)?.name || id;
         const audit = !who.modules || who.modules.includes('settings') ? agency.audit.filter(a => a.target === account).slice(-200) : [];
@@ -728,15 +732,13 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         return json(result);
       }
       if (p==='/api/agency' && method!=='POST') {
-        const who = await access(req);
-        if (!who.agency) throw error('Your user cannot open the agency view.',403);
-        return json(await agencyPayload(who));
+        return json(await agencyPayload(req));
       }
       if (p.startsWith('/api/agency/') && method==='POST') {
         const who = await access(req);
         if (!who.agency) throw error('Your user cannot open the agency view.',403);
         const result = await agencyRequest(p.slice('/api/agency/'.length), who, await payload(req));
-        return json(await agencyPayload(await access(req).catch(() => who), { result }));
+        return json(await agencyPayload(req, { result }, who));
       }
       if (p==='/api/studio' && method==='POST') {
         await studioGuard(req,id);

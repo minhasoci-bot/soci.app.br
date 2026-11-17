@@ -8,7 +8,7 @@ import { blank, execute, hydrateWorkspace } from '../model.mjs';
 import { conversionTotals, scopedDeals, stageTotals } from '../ui/dashboard-data.js';
 
 async function start(dbPath=':memory:') {
-  const {server,host}=makeServer({dbPath,port:0});
+  const {server,host}=makeServer({ allowLocalAccess: true, auth: null,dbPath,port:0});
   await new Promise((resolve,reject)=>{server.on('error',reject);server.listen(0,host,resolve);});
   const base=`http://${host}:${server.address().port}`;
   const call=async(path,body,headers={})=>{
