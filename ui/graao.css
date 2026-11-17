@@ -6,6 +6,7 @@
 
 @font-face{font-family:"Plus Jakarta Sans";src:url(/fonts/plus-jakarta-sans.woff2) format("woff2");font-weight:200 800;font-style:normal;font-display:swap}
 
+html{zoom:.9}
 :root{
   --g-ink:#1d1530; --g-ink-2:#463e5e; --g-dim:#776f8f; --g-faint:#a29bb8;
   --g-line:#ece6f8; --g-line-2:#ddd4f3;
