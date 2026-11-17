@@ -9,6 +9,7 @@ import { studioTemplates } from './studio-data.js';
 import { startAgency } from './agency.js';
 import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
+import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay'), toast=document.querySelector('#toast');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
@@ -24,13 +25,13 @@ function flash(msg,isError=false){ clearTimeout(toastTimer);toast.className=isEr
 const actingUser = () => { try { return localStorage.getItem('go.user') || ''; } catch { return ''; } };
 const googleUser = () => { try { return JSON.parse(localStorage.getItem('go.google_user') || 'null'); } catch { return null; } };
 async function api(path,body){ const headers={'X-Go-User':actingUser()}; const r=await fetch(path,body===undefined?{headers}:{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)}); const d=await r.json(); if(!r.ok) throw Object.assign(Error(d.error||'The request failed.'),{status:r.status}); return d; }
-async function load(){ const data=await api(url('/api/state')); Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access}); }
+async function load(){ const data=await api(url('/api/state')); Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,audit:data.audit}); }
 const allowedView = id => id==='ask-ai' || !c.access?.modules || c.access.modules.includes(id);
 let agencyUI;
 const sessionDismissed=new Set();
 async function mutate(command){ const d=await api(url('/api/action'),command); c.s=d.state;c.m=d.metrics;return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={contacts:['all','tasks'],conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:['pipeline','list','pipelines'],automation:['workflows','logs'],payments:['invoices'],sites:['funnels','websites','forms','submissions'],marketing:['social','email'],memberships:['courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project'],settings:['business','workspaces']};
+const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions'],marketing:['social','email'],memberships:['courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project'],settings:crmTabs.settings.map(t=>t[0])};
 function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(key==='agency'){ c.mode='agency'; close(); agencyUI.show(tab,project); return; }
   if(c.mode==='agency'){ c.mode=''; renderedView=''; }
@@ -107,7 +108,7 @@ const input=(label,key,value,required=false,type='text')=>field(label,key,value,
 const area=(label,key,value,required=false)=>field(label,key,value,'textarea',required);
 const check=(label,key,value)=>field(label,key,value,'check');
 const zones=()=>c.s.profile.timezone;
-const entityNames={contacts:'Contact',tasks:'Task',opportunities:'Opportunity',appointments:'Appointment',workflows:'Workflow',invoices:'Invoice',campaigns:'Campaign',pages:'Page',forms:'Form',courses:'Course',reviews:'Review',agents:'Agent',snippets:'Snippet',snippetFolders:'Folder',triggerLinks:'Trigger Link'};
+const entityNames={contacts:'Contact',tasks:'Task',opportunities:'Opportunity',appointments:'Appointment',workflows:'Workflow',invoices:'Invoice',campaigns:'Campaign',pages:'Page',forms:'Form',courses:'Course',reviews:'Review',agents:'Agent',snippets:'Snippet',snippetFolders:'Folder',triggerLinks:'Trigger Link',...crmEntityNames};
 const actionNames = ['Add tag','Create task','Create opportunity','Log message','Manual Call','Manual SMS'];
 const triggerNames = ['Contact created','Form submitted','Opportunity stage changed','Appointment booked','Trigger link clicked'];
 const optionalGroup = (attribute, visible, content) => `<fieldset ${attribute} ${visible ? '' : 'hidden disabled'}>${content}</fieldset>`;
@@ -123,7 +124,7 @@ function edit(key,id,preset={}){
   const entry=c.s[key]?.find(r=>r.id===id); if(id&&!entry)return;
   const r=entry||preset, title=entityNames[key]; let body='';
   switch(key){
-    case 'contacts':body=input('Full name','name',r.name,true)+`<div class="field-grid">${input('Email','email',r.email,false,'email')}${input('Phone','phone',r.phone,false,'tel')}</div>`+input('Company','company',r.company)+input('Tags (separate with commas)','tags',r.tags?.join(', '))+area('Notes','notes',r.notes)+(id?`<div class="inline-gap"><button type="button" class="secondary" data-start-thread="${id}">${i('chat',16)} Open conversation</button><button type="button" class="secondary" data-edit="tasks" data-contact="${id}">${i('plus',16)} New task</button></div>`:'');break;
+    case 'contacts':body=input('Full name','name',r.name,true)+`<div class="field-grid">${input('Email','email',r.email,false,'email')}${input('Phone','phone',r.phone,false,'tel')}</div>`+`<label>Company<input name="company" list="crm-companies" value="${h(r.company||'')}"></label><datalist id="crm-companies">${c.s.companies.map(x=>`<option value="${h(x.name)}">`).join('')}</datalist>`+input('Tags (separate with commas)','tags',r.tags?.join(', '))+area('Notes','notes',r.notes)+customInputs(c,'Contact',r)+(id?`<div class="inline-gap"><button type="button" class="secondary" data-start-thread="${id}">${i('chat',16)} Open conversation</button><button type="button" class="secondary" data-edit="tasks" data-contact="${id}">${i('plus',16)} New task</button></div>`:'');break;
     case 'tasks':body=input('Title','title',r.title,true)+option('Contact','contactId',r.contactId,contactChoices(),false)+input('Due','due',r.due?r.due.slice(0,10):'',false,'date')+input('Assigned to','owner',r.owner)+area('Notes','notes',r.notes)+check('Completed','done',r.done);break;
     case 'opportunities': {
       const pipeline = c.s.pipelines.find(item => item.id === c.pipeline) || c.s.pipelines[0];
@@ -133,7 +134,8 @@ function edit(key,id,preset={}){
         `<option value="${entry.id}" ${entry.id === stage ? 'selected' : ''}>${h(entry.name)}</option>`).join('')}</optgroup>`).join('')}</select></label>`;
       body=input('Opportunity name','title',r.title,true)+option('Contact','contactId',r.contactId,contactChoices())+picker+
         `<div class="field-grid">${input(`Value (${c.s.profile.currency})`,'value',r.value??0,true,'number')}${option('Status','status',r.status||'Open',opportunityStatuses)}</div>`+
-        `<div class="field-grid">${input('Opportunity source','source',r.source)}${input('Assigned to','owner',r.owner)}</div>`;
+        `<div class="field-grid">${input('Opportunity source','source',r.source)}${input('Assigned to','owner',r.owner)}</div>`+
+        `<div class="field-grid">${input('Expected close date','closeDate',r.closeDate,false,'date')}${input('Probability (%) — empty uses the stage','probability',r.probability??'',false,'number')}</div>`+customInputs(c,'Opportunity',r);
       break;
     }
     case 'appointments':body=input('Title','title',r.title,true)+option('Contact','contactId',r.contactId,contactChoices(),false)+`<p class="dim">All times are in ${h(zones())}.</p><div class="field-grid">${input('Starts','start',localTime(r.start,zones())||(r.date?`${r.date}T09:00`:''),true,'datetime-local')}${input('Ends','end',localTime(r.end,zones())||(r.date?`${r.date}T09:30`:''),true,'datetime-local')}</div>`+option('Status','status',r.status||'Confirmed',['Confirmed','Completed','Canceled'])+area('Notes','notes',r.notes);break;
@@ -160,7 +162,7 @@ function edit(key,id,preset={}){
     case 'courses':body=input('Course name','name',r.name,true)+area('Description','description',r.description)+input('Lesson title','lesson',r.lesson,true)+area('Lesson content','body',r.body)+check('Publish locally','active',r.active);break;
     case 'reviews':body=input('Reviewer','author',r.author,true)+option('Rating','score',r.score||5,[5,4,3,2,1])+area('Review','text',r.text,true)+area('Reply','reply',r.reply);break;
     case 'agents':body=input('Agent name','name',r.name,true)+option('Role','role',r.role||'Support',['Support','Sales','Scheduling'])+area('Instructions','instructions',r.instructions)+check('Enable profile','active',r.active);break;
-    default:return;
+    default:body=crmForm(c,key,r,preset);if(!body)return;
   }
   dialog(`${id?'Edit':'New'} ${title}`,body,{form:'record',key,id:id||'',buttons:`${id?`<button class="danger plain" type="button" data-delete="${key}" data-id="${id}">${i('trash',16)} Delete</button>`:''}<span class="spacer"></span><button class="secondary" type="button" data-act="close">Cancel</button><button class="primary">${id?'Save Changes':`Create ${title}`}</button>`});
 }
@@ -273,6 +275,7 @@ function editStage(id, pipelineId) {
   const stage = c.s.stages.find(item => item.id === id);
   dialog(stage ? 'Edit stage' : 'Add stage',input('Stage name','name',stage?.name,true) +
     `<input type="hidden" name="pipelineId" value="${h(stage?.pipelineId || pipelineId)}">` +
+    input('Win probability (%) for the forecast','probability',stage?.probability ?? '',false,'number') +
     check('Show in funnel and stage distribution','visible',stage?.visible !== false),{ form:'stage',id:stage?.id || '' });
 }
 
@@ -371,7 +374,7 @@ document.addEventListener('click',async ev=>{
     if (d.copyPath) { await copyLink(d.copyPath); return; }
     if (d.useSnippet) { useSnippet(d.useSnippet); return; }
     if (d.useLink) { insertIntoComposer(`{{trigger_link.${d.useLink}}}`); return; }
-    if(d.edit){edit(d.edit,d.id,{date:d.date,stage:d.stage,kind:d.kind,channel:d.channel,contactId:d.contact});return;}
+    if(d.edit){edit(d.edit,d.id,{date:d.date,stage:d.stage,kind:d.kind,channel:d.channel,contactId:d.contact,object:d.object,name:d.name});return;}
     if(d.dismissNotice){sessionDismissed.add(d.dismissNotice);render();return;}
     if(d.go){close();go(d.go);return;}
     if(d.agGo){close();location.hash='#agency/'+d.agGo;return;}
@@ -537,7 +540,7 @@ document.addEventListener('submit',async ev=>{
     }
     else if(name==='assistant'){const q=data.prompt.trim();if(q){c.chat.push({self:true,body:q},{body:assistant(q)});render();G('.ask-composer input')?.focus();}return;}
     else if(name==='lead'){await api(`/api/view/f/${f.dataset.workspace}/${f.dataset.id}`,data);f.reset();status.textContent='Thank you. Your information was submitted.';status.classList.add('confirmed');return;}
-    else if(name==='import'){if(data.file.size>500000)throw Error('Choose a CSV file under 500 KB.');const n=await mutate({type:'import',data:{rows:parseCSV(await data.file.text())}});msg=`${n} contact${n===1?'':'s'} imported. Existing emails were skipped.`;}
+    else if(name==='import'){if(data.file.size>500000)throw Error('Choose a CSV file under 500 KB.');const n=await mutate({type:'import',data:{rows:parseCSV(await data.file.text()),file:data.file.name}});msg=`${n} contact${n===1?'':'s'} imported. Existing emails were skipped.`;}
     else if(name==='upload'){ const file=data.file;if(file.size>700000)throw Error('Choose a file under 700 KB.');const encoded=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('File could not be read.'));reader.readAsDataURL(file);});await mutate({type:'save',key:'files',data:{name:file.name,data:encoded}});msg='File uploaded.';}
     else if (name === 'studio-create') {
       const generating=data.engine==='model', submitter=ev.submitter, original=submitter?.innerHTML;
@@ -577,6 +580,7 @@ if(viewPath){
   installDashboardControls({ c,dialog,close,render,load,mutate,flash,go });
   agencyUI = startAgency({ app, overlay, api, flash, openWorkspace: async id => { c.mode=''; await useWorkspace(id); } });
   installStudio({ c, api, url, flash, render });
+  crmEvents({ G, mutate, render, flash, dialog, close });
   window.addEventListener('hashchange',route);
   setInterval(() => {
     if (!c.s?.conversationSla.enabled || c.view !== 'conversations' || document.hidden || overlay.innerHTML) return;

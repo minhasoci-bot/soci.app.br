@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { changeDashboard } from './dashboard-model.mjs';
 import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashboard-data.js';
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
+import { afterSave, beforeDelete, bulk, crmCollections, crmFields, customData } from './crm-model.mjs';
 
 export const defaults = {
   profile: { name: 'Demo Workspace', email: 'hello@example.test', phone: '', timezone: 'America/Sao_Paulo', currency: 'BRL' },
@@ -12,12 +13,13 @@ export const defaults = {
   campaigns: [], pages: [], forms: [], submissions: [], courses: [], files: [], reviews: [], agents: [], integrations: [],
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   dashboards:[defaultDashboard()], dashboardReports:[], studioProjects:[],
+  ...Object.fromEntries(crmCollections.map(key => [key, []])),
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
 export const blank = name => ({ ...structuredClone(defaults), profile: { ...defaults.profile, ...(name ? { name } : {}) } });
 export function hydrateWorkspace(state) {
   const fresh = blank();
-  const additions = ['manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects'];
+  const additions = ['manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects',...crmCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -44,6 +46,12 @@ const amount = value => {
 const date = value => { const d = new Date(req(value, 'Date')); if (!Number.isFinite(+d)) fail('Enter a valid date.'); return d.toISOString(); };
 const email = value => { const v = str(value).toLowerCase(); if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) fail('Enter a valid email address.'); return v; };
 const file = value => { if (typeof value !== 'string' || value.length > 1000000 || !/^data:(?:image\/(?:png|jpeg|gif|webp)|application\/pdf);base64,[A-Za-z0-9+/]+=*$/.test(value)) fail('Choose a PNG, JPEG, GIF, WebP or PDF under 700 KB.'); return value; };
+const percent = value => {
+  if (value === '' || value == null) return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0 || n > 100) fail('Probability must be between 0 and 100.');
+  return Math.round(n);
+};
 const tags = value => [...new Set((Array.isArray(value) ? value : str(value).split(',')).map(a => str(a, 48)).filter(Boolean))].slice(0, 20);
 export const triggers = ['Contact created', 'Form submitted', 'Opportunity stage changed', 'Appointment booked', 'Trigger link clicked'];
 export const manualTypes = ['Manual Call', 'Manual SMS'];
@@ -54,14 +62,16 @@ const exists = (state, key, value, label, optional = false) => (!value && option
 function add(state, key, data) { const row = { id: uid(), created: now(), ...data }; state[key].push(row); return row; }
 const contactId = (s,v,optional = false) => exists(s, 'contacts', v, 'contact', optional);
 const fields = {
-  contacts: (s, d) => ({ name: req(d.name, 'Name'), email: email(d.email), phone: str(d.phone, 48), company: str(d.company), tags: tags(d.tags), notes: str(d.notes, 5000) }),
+  contacts: (s, d) => ({ name: req(d.name, 'Name'), email: email(d.email), phone: str(d.phone, 48), company: str(d.company), tags: tags(d.tags), notes: str(d.notes, 5000), custom: customData(s, 'Contact', d) }),
   tasks: (s, d) => ({ title: req(d.title, 'Title'), contactId: contactId(s,d.contactId,true), due: d.due ? date(d.due) : '', done: Boolean(d.done), owner:str(d.owner,80), notes:str(d.notes,2500) }),
   opportunities: (s, d) => {
     const stage = find(s,'stages',d.stage);
     if (!stage) fail('Choose a valid stage.');
     return { title:req(d.title,'Name'), contactId:contactId(s,d.contactId), stage:stage.id, pipelineId:stage.pipelineId,
-      value:amount(d.value ?? 0), status:one(d.status || 'Open',opportunityStatuses,'status'), source:str(d.source,80), owner:str(d.owner,80) };
+      value:amount(d.value ?? 0), status:one(d.status || 'Open',opportunityStatuses,'status'), source:str(d.source,80), owner:str(d.owner,80),
+      closeDate:d.closeDate ? date(d.closeDate).slice(0,10) : '', probability:percent(d.probability), custom:customData(s,'Opportunity',d) };
   },
+  ...crmFields,
   appointments: (s, d) => {
     const start = date(d.start), end = date(d.end);
     if (end <= start) fail('End time must be after start time.');
@@ -259,6 +269,8 @@ export function execute(s, command, { workspace = 'demo' } = {}) {
       if (row.email && s.contacts.some(c=>c.email===row.email)) continue;
       const contact=add(s,'contacts',row); run(s,'Contact created',{contactId:contact.id}); added++;
     }
+    add(s,'imports',{ source:'CSV', file:str(d.file,120), user:str(command.actor,120), found:d.rows.length, added, skipped:d.rows.length-added, status:'Completed' });
+    if (s.imports.length > 100) s.imports.splice(0, s.imports.length - 100);
     return added;
   }
   if (type === 'save') {
@@ -271,6 +283,8 @@ export function execute(s, command, { workspace = 'demo' } = {}) {
     const row = prior ? { ...prior, ...details, updated: now() } : add(s,key,details);
     if (key === 'opportunities') row.statusChangedAt = !prior || row.status !== prior.status ? now() : prior.statusChangedAt || prior.created;
     if (key === 'studioProjects' && !prior) row.viewedAt = row.created;
+    if (['bulkActions','imports'].includes(key)) fail('Unknown record type.');
+    afterSave(s, key, prior, row, add);
     if (prior) s[key] = s[key].map(r=>r.id===id ? row : r);
     if (!prior && key==='contacts') run(s,'Contact created',{ contactId:row.id });
     if (!prior && key==='appointments') run(s,'Appointment booked',row);
@@ -279,6 +293,18 @@ export function execute(s, command, { workspace = 'demo' } = {}) {
   }
   if (type === 'delete') {
     if (!Object.hasOwn(fields,key) || !find(s,key,id)) fail('Record not found.',404);
+    return remove(s, key, id);
+  }
+  if (type === 'bulk') {
+    return bulk(s, d, { add, remove, actor: command.actor, tags, stageOf: stageId => find(s,'stages',stageId),
+      moved: row => run(s,'Opportunity stage changed',row) });
+  }
+  return other(s, command, type, key, id, d, workspace);
+}
+
+// Deletes one record and everything that only made sense with it. Shared by single and bulk deletes.
+function remove(s, key, id) {
+    beforeDelete(s, key, id);
     if (key==='contacts') {
       for (const related of ['tasks','opportunities','messages','appointments','invoices']) s[related] = s[related].filter(r=>r.contactId!==id);
       for (const row of s.submissions.filter(r=>r.contactId===id)) { row.contactId=''; row.name=''; row.email=''; }
@@ -310,7 +336,9 @@ export function execute(s, command, { workspace = 'demo' } = {}) {
     }
     s[key] = s[key].filter(r=>r.id!==id);
     return id;
-  }
+}
+
+function other(s, command, type, key, id, d, workspace) {
   if (type === 'message') {
     const c = contactId(s, d.contactId);
     const channel = one(d.channel, messageChannels, 'channel');
@@ -379,10 +407,10 @@ export function execute(s, command, { workspace = 'demo' } = {}) {
   if (type === 'stage') {
     const previous = id && find(s,'stages',id);
     if (id && !previous) fail('Stage not found.',404);
-    const name = req(d.name,'Stage name',50);
-    if (previous) { previous.name = name; previous.visible = d.visible !== false; return previous.id; }
+    const name = req(d.name,'Stage name',50), probability = percent(d.probability);
+    if (previous) { previous.name = name; previous.visible = d.visible !== false; previous.probability = probability; return previous.id; }
     const pipelineId = exists(s,'pipelines',d.pipelineId || salesPipeline,'pipeline');
-    return add(s,'stages',{ name, pipelineId, visible:d.visible !== false }).id;
+    return add(s,'stages',{ name, pipelineId, visible:d.visible !== false, probability }).id;
   }
   fail('Unknown operation.');
 }

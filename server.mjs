@@ -25,6 +25,7 @@ const staticFiles = new Map([
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],
   ['/prospect-report.js','text/javascript; charset=utf-8'], ['/prospecting.css','text/css; charset=utf-8'],
+  ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
@@ -512,20 +513,26 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
         const who = await access(req);
         if (!canOpen(who,id)) throw error('Your user cannot open this sub-account.',403);
         const [state,workspaces,agency] = await Promise.all([store.load(id),listWorkspaces(),loadAgency()]);
+        // Settings → Audit Logs of the sub-account: the agency audit entries written against this account.
+        const account = workspaces.find(w => w.id === id)?.name || id;
+        const audit = !who.modules || who.modules.includes('settings') ? agency.audit.filter(a => a.target === account).slice(-200) : [];
         return json({state,metrics:metrics(state),workspaces:workspaces.filter(w => canOpen(who,w.id)),features:{studioAI:studioAiAvailable},
-          agency:agencyForWorkspace(agency,id),access:{agency:who.agency,modules:who.modules,name:who.name}});
+          agency:agencyForWorkspace(agency,id),access:{agency:who.agency,modules:who.modules,name:who.name},audit});
       }
       if (p==='/api/action' && method==='POST') {
         if (!spaceId.test(id)) throw error('Workspace not found.',404);
         const who = await access(req);
         if (!canOpen(who,id)) throw error('Your user cannot open this sub-account.',403);
         const command = await payload(req);
-        const module = command.type === 'save' || command.type === 'delete' ? moduleOfRecord[command.key] : commandModule[command.type];
+        const module = command.type === 'save' || command.type === 'delete' ? moduleOfRecord[command.key]
+          : command.type === 'bulk' ? (command.data?.object === 'opportunities' ? 'opportunities' : 'contacts') : commandModule[command.type];
         if (module && who.modules && !who.modules.includes(module)) throw error('Your user does not have permission for this module.',403);
+        command.actor = who.name;
         const result = await change(id,command);
-        if (['save','delete','import','pipeline','profile'].includes(command.type)) {
+        if (['save','delete','import','pipeline','profile','bulk'].includes(command.type)) {
           const account = (await listWorkspaces()).find(w => w.id === id)?.name || id;
-          await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : `Ran ${command.type}`, account);
+          const label = command.type === 'bulk' ? `Bulk ${command.data?.operation || ''} on ${command.data?.object || ''}`.trim() : '';
+          await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);
         }
         return json(result);
       }

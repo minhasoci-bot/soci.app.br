@@ -83,11 +83,11 @@ Os outros gatilhos disponíveis são criação de contato, mudança de etapa da 
 | --- | --- |
 | Pergunte à IA / Launchpad | Escolha do tipo de negócio e objetivo, recomendação de módulo e respostas baseadas nas métricas do workspace |
 | Dashboard e Relatórios | Grade com os widgets da referência, seleção de período e pipeline, comparação para status, valores e conversão, filtros de tarefas e ações manuais, notas, editor de layout, painéis adicionais, histórico de versões e relatórios independentes com CSV |
-| Contatos e tarefas | Cadastro, edição, busca, filtros por etiqueta, notas, importação CSV e conclusão de tarefas |
+| Contatos e tarefas | Cadastro, edição, busca, filtros por etiqueta, notas, importação CSV com histórico e conclusão de tarefas. Ações em massa (adicionar ou remover tag, excluir) com registro de andamento, campos personalizados nos formulários e empresas vinculadas pelo campo Empresa |
 | Conversas | Inbox com histórico, leitura e favoritos. Fila de ligações e SMS manuais com filtros e registro de resultado. Snippets de texto e e-mail em pastas, campos de personalização e inserção no compositor. Links rastreáveis, análise de cliques e workflow por clique identificado. Metas de SLA por canal, alertas e análise do tempo de resposta |
 | Calendários | Visão mensal, cadastro e edição, cancelamento, fuso horário e prevenção de conflitos |
-| Oportunidades | Vários pipelines em colunas ou lista, cadastro e edição de etapas, origem e responsável, movimentação por arraste ou seletor e data da última alteração de status |
-| Pagamentos | Registro de faturas, vencimentos, status e valores marcados manualmente como pagos |
+| Oportunidades | Vários pipelines em colunas ou lista, cadastro e edição de etapas, origem e responsável, movimentação por arraste ou seletor e data da última alteração de status. Data prevista de fechamento, probabilidade por oportunidade ou etapa, previsão (receita potencial, esperada e ganha, linha do tempo, risco por adiamento ou atraso, dados faltantes) e ações em massa (mover etapa, mudar status, excluir) |
+| Pagamentos | Faturas, produtos de pagamento único ou recorrente, assinaturas, links de pagamento, transações (a fatura marcada como paga gera a transação uma vez) e cupons percentuais ou de valor fixo com período e limite. Tudo como registro manual, sem gateway |
 | Marketing | Rascunhos e planejamento de conteúdo para redes sociais e e-mail |
 | Automações | Gatilhos de CRM, ações em sequência, publicação local, histórico de execuções e pausa em etapas manuais |
 | Sites | Edição de páginas por campos, páginas locais, formulários vinculados e submissões |
@@ -95,7 +95,7 @@ Os outros gatilhos disponíveis são criação de contato, mudança de etapa da 
 | Mídia | Upload e download de imagens e PDFs |
 | Reputação | Registro de avaliações, respostas locais e cálculo da nota média |
 | AI Studio e Agentes | Sites com páginas HTML reais geradas por IA (opcionalmente a partir de um site de referência), várias páginas, prévia em desktop, tablet e celular, edição visual, editor de código, revisão por IA da página ou do elemento selecionado, histórico de versões, publicação local com formulário de leads ligado ao CRM e exportação HTML. Agentes oferecem prévia de respostas por função |
-| Marketplace e Configurações | Catálogo indicativo de provedores, perfil, moeda, fuso e workspaces locais |
+| Marketplace e Configurações | Catálogo indicativo de provedores, perfil, moeda, fuso e workspaces locais. Configurações com usuários com acesso, campos personalizados (contato, oportunidade, empresa; chave `{{contact.x}}`), valores personalizados (`{{custom_values.x}}`), tags (renomear atualiza os contatos), objetos, histórico de importação e log de auditoria do workspace |
 
 O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, publicação social, sincronização de calendários, hospedagem pública e permissões de equipe continuam pendentes. Os widgets de Google Analytics, Google Business Profile, Google Ads, Meta Ads e entregabilidade de e-mail exibem o estado da integração. O Studio exporta protótipos HTML editáveis. Os modelos de loja, chat e agenda representam a estrutura visual desses produtos, com os serviços de checkout, mensagens em tempo real e agendamento ainda pendentes.
 
@@ -132,6 +132,7 @@ O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, pu
 
 - **Agência, observação direta:** navegador interno, só leitura, no menu da agência original (17 áreas e 21 abas de Settings), em Sub-Accounts, Account Snapshots, Reselling, Add-Ons, Template Library e Affiliate Portal.
 - **Agência, segunda passada (navegador interno, só leitura):** os 20 itens do menu original, incluindo SaaS Configurator (`/saas_dashboard`) e App Marketplace (`/integration`), as abas All Apps, Installed Apps, App Reselling e Earnings, e as 21 abas de Settings. O REA não pôde ser usado nesta passada porque nenhum navegador expunha um endpoint CDP de loopback. A passada também corrigiu a função de busca `match`, removida por engano em `b6f2c20`, que impedia Subcontas, Parceiros, Ideias, Templates, Marketplace e Logs de auditoria de abrir.
+- **Subconta, fase 1 (navegador interno, só leitura):** os 18 itens do menu da subconta e as abas de Contatos (Bulk Actions, Custom Fields, Companies), Opportunities (Forecast, Bulk Actions), Payments (Subscriptions, Payment Links, Transactions, Coupons) e Settings (Custom Fields, Custom Values, Tags, Objects, Import Data, Audit Logs). O REA não foi usado porque nenhum navegador com a sessão expunha um endpoint CDP de loopback. `test/crm.test.mjs` cobre as regras novas.
 - **Agência, REA MCP no app local:** Chrome controlado pelo REA percorreu painel → subcontas → snapshots → revenda → troca para subconta, com 10 de 10 passos concluídos, evidência `ev_b71592eece92893ebbd5486d2a014761b7295ecdd0312dfbd93c44997b59ad3b`. As 36 telas e abas da agência foram abertas no navegador interno sem erro.
 
 ### Arquivos principais

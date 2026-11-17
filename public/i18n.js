@@ -40,7 +40,7 @@ const PT = {
   // Configurador SaaS e recursos por subconta
   'Phone calls and SMS': 'Ligações e SMS', 'Email sending': 'Envio de e-mails', 'Premium workflow actions': 'Ações premium de workflow',
   'Conversation and content AI': 'IA de conversas e conteúdo', 'WhatsApp messages': 'Mensagens de WhatsApp', 'Voice AI minutes': 'Minutos de IA de voz',
-  'Contact enrichment': 'Enriquecimento de contatos', 'Domain purchases': 'Compra de domínios',
+  'Contact enrichment': 'Enriquecimento de contatos', Cash: 'Dinheiro', Pix: 'Pix', Card: 'Cartão', Manual: 'Manual', 'Domain purchases': 'Compra de domínios',
   'Workflow - Premium Features': 'Workflow: recursos premium', 'Workflow - External AI Models': 'Workflow: modelos de IA externos', 'Domain Purchase': 'Compra de domínios',
   'Look up the line type and carrier of phone numbers before sending SMS.': 'Consulta o tipo de linha e a operadora do número antes de enviar SMS.',
   'Premium triggers and actions in the workflow builder of each sub-account.': 'Gatilhos e ações premium no construtor de workflows de cada subconta.',

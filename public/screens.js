@@ -3,6 +3,7 @@ import {tr} from './i18n.js';
 import {conversationPage, slaRecords} from './conversations.js';
 import {dashboard} from './dashboard.js';
 import {studio} from './studio.js';
+import {bulkBar, contactsTab, crmTabs, opportunitiesTab, paymentsTab, pickBox, pickHead, settingsTab} from './crm.js';
 
 export const nav=[['ask-ai','Pergunte à IA','spark','Ask AI'],['dashboard','Painel de controle','grid','Dashboard'],['conversations','Conversas','chat','Conversations'],['calendars','Calendários','cal','Calendars'],['contacts','Contatos','contacts','Contacts'],['opportunities','Leads','leads','Opportunities'],['payments','Pagamentos','pay','Payments'],['studio','Estúdio de IA','studio','AI Studio'],['ai-agents','Agentes de IA','spark','AI Agents'],['marketing','Marketing','send','Marketing'],['automation','Automações','flow','Automation'],['sites','Sites','site','Sites'],['memberships','Assinaturas','play','Memberships'],['media','Mídia Drive','folder','Media Storage'],['reputation','Reputação','award','Reputation'],['reporting','Relatórios','chart','Reporting'],['marketplace','Apps do marketplace','apps','App Marketplace'],['settings','Configurações','gear','Settings']];
 export const h=x=>String(x??'').replace(/[&<>"']/g,v=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[v]);
@@ -39,9 +40,10 @@ export function askAI(c){
 }
 
 function contacts(c){
+  if(['bulk','fields','companies'].includes(c.tab)) return contactsTab(c,c.tab);
   const tab=c.tab||'all', list=tab==='tasks'?top(c.s.tasks,c.query,['title']):top(c.s.contacts,c.query,['name','email','phone','company','tags']);
   const tag=c.tag, tags=[...new Set(c.s.contacts.flatMap(x=>x.tags))].sort();
-  return wrap(head('Contatos','',tab==='tasks'?primary('Adicionar tarefa','tasks'):`${action('Importar','import','upload')}${primary('Adicionar contato','contacts')}`,tabs([['all','Listas inteligentes'],['tasks','Tarefas']],tab))+`<div class="toolbar">${search(c.query,tab==='tasks'?'Buscar tarefas…':'Busca rápida…')}${tab==='all'?`<label class="tag-filter">${i('filter',15)}<select id="tag-filter" aria-label="Filtrar contatos por tag"><option value="">Todas as tags</option>${tags.map(t=>`<option ${t===tag?'selected':''}>${h(t)}</option>`).join('')}</select></label>`:''}</div>`+(tab==='tasks'?table(['Tarefa','Contato','Prazo','Status',''],list.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),date(r.due,c),`<button class="pill-button ${r.done?'completed':''}" data-task="${r.id}">${r.done?'Concluída':'Em aberto'}</button>`],'tasks',r.id)),empty('Nenhuma tarefa encontrada','Adicione uma tarefa para acompanhar os retornos.','check')):table(['Nome','Telefone','E-mail','Empresa','Tags',''],list.filter(r=>!tag||r.tags.includes(tag)).map(r=>row([`<button class="identity" data-edit="contacts" data-id="${r.id}">${avatar(r.name)}<strong>${h(r.name)}</strong></button>`,h(r.phone||'—'),h(r.email||'—'),h(r.company||'—'),r.tags.map(t=>badge(t,'blue')).join(' ')||'—'],'contacts',r.id)),empty('Nenhum contato encontrado','Crie um contato ou tente outro filtro.','contacts'))));
+  return wrap(head('Contatos','',tab==='tasks'?primary('Adicionar tarefa','tasks'):`${action('Importar','import','upload')}${primary('Adicionar contato','contacts')}`,tabs(crmTabs.contacts,tab))+`<div class="toolbar">${search(c.query,tab==='tasks'?'Buscar tarefas…':'Busca rápida…')}${tab==='all'?`<label class="tag-filter">${i('filter',15)}<select id="tag-filter" aria-label="Filtrar contatos por tag"><option value="">Todas as tags</option>${tags.map(t=>`<option ${t===tag?'selected':''}>${h(t)}</option>`).join('')}</select></label>`:''}</div>`+(tab==='tasks'?table(['Tarefa','Contato','Prazo','Status',''],list.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),date(r.due,c),`<button class="pill-button ${r.done?'completed':''}" data-task="${r.id}">${r.done?'Concluída':'Em aberto'}</button>`],'tasks',r.id)),empty('Nenhuma tarefa encontrada','Adicione uma tarefa para acompanhar os retornos.','check')):(()=>{const shown=list.filter(r=>!tag||r.tags.includes(tag));return bulkBar(c,'contacts')+table([pickHead('contacts',shown.map(r=>r.id)),'Nome','Telefone','E-mail','Empresa','Tags',''],shown.map(r=>row([pickBox('contacts',r.id),`<button class="identity" data-edit="contacts" data-id="${r.id}">${avatar(r.name)}<strong>${h(r.name)}</strong></button>`,h(r.phone||'—'),h(r.email||'—'),h(r.company||'—'),r.tags.map(t=>badge(t,'blue')).join(' ')||'—'],'contacts',r.id)),empty('Nenhum contato encontrado','Crie um contato ou tente outro filtro.','contacts'))})()));
 }
 function messageContent(value) {
   const path = /(\/r\/(?:demo|[a-f0-9-]{36})\/[a-f0-9-]{36})/g;
@@ -104,10 +106,11 @@ function calendars(c){
 function opportunities(c){
   const {s} = c;
   const view = c.tab || 'pipeline';
+  if (['forecast','bulk'].includes(view)) return opportunitiesTab(c,view);
   const pipeline = s.pipelines.find(item => item.id === c.pipeline) || s.pipelines[0];
   const stages = s.stages.filter(stage => stage.pipelineId === pipeline.id);
   const local = top(s.opportunities.filter(item => item.pipelineId === pipeline.id),c.query,['title','status','source','owner']);
-  const sections = tabs([['pipeline','Oportunidades'],['list','Lista'],['pipelines','Pipelines']],view);
+  const sections = tabs(crmTabs.opportunities,view);
   if (view === 'pipelines') {
     return wrap(head('Oportunidades','',action('Novo pipeline','new-pipeline','plus'),sections) + `<div class="card-grid">${s.pipelines.map(item => `
       <article class="surface padded resource"><div class="section-heading"><h2>${h(item.name)}</h2><button class="icon-btn" data-pipeline-edit="${item.id}" aria-label="Renomear ${h(item.name)}">${i('edit',15)}</button></div>
@@ -117,7 +120,7 @@ function opportunities(c){
   }
   const options = stages.map(stage => [stage.id,stage.name]);
   const colors = status => status === 'Won' ? 'green' : ['Lost','Abandoned'].includes(status) ? 'red' : 'blue';
-  const list = table(['Oportunidade','Contato','Etapa','Valor','Status','Origem',''],local.map(item => row([
+  const list = bulkBar(c,'opportunities') + table([pickHead('opportunities',local.map(x => x.id)),'Oportunidade','Contato','Etapa','Valor','Status','Origem',''],local.map(item => row([pickBox('opportunities',item.id),
     `<b>${h(item.title)}</b>`,h(name(item.contactId,c)),h(stages.find(stage => stage.id === item.stage)?.name),mt(item.value,c),badge(item.status,colors(item.status)),h(item.source || '—')
   ],'opportunities',item.id)),empty('Nenhuma oportunidade encontrada','Adicione um contato e crie uma oportunidade.','leads'));
   const board = `<div class="kanban">${stages.map((stage,index) => {
@@ -139,8 +142,9 @@ function automation(c){
 }
 
 function payments(c){
+  if((c.tab||'invoices')!=='invoices') return paymentsTab(c,c.tab);
   const s=c.s, records=top(s.invoices,c.query,['title','status']);
-  return wrap(head('Pagamentos','Acompanhe as faturas registradas neste workspace.',primary('Nova fatura','invoices'),tabs([['invoices','Faturas']],c.tab||'invoices'))+`<div class="metrics three"><div class="surface metric"><span>Saldo em aberto</span><b>${mt(s.invoices.filter(x=>x.status==='Open').reduce((a,r)=>a+r.value,0),c)}</b></div><div class="surface metric"><span>Pagamentos registrados</span><b>${mt(c.m.invoicesPaid,c)}</b></div><div class="surface metric"><span>Total de faturas</span><b>${s.invoices.length}</b></div></div><div class="toolbar">${search(c.query,'Buscar faturas…')}</div>`+table(['Fatura','Contato','Valor','Vencimento','Status',''],records.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),mt(r.value,c),date(r.due,c),badge(r.status,r.status==='Paid'?'green':'blue')],'invoices',r.id)),empty('Nenhuma fatura registrada','Crie uma fatura em rascunho. Os pagamentos podem ser marcados manualmente aqui.','pay')));
+  return wrap(head('Pagamentos','Acompanhe as faturas registradas neste workspace.',primary('Nova fatura','invoices'),tabs(crmTabs.payments,c.tab||'invoices'))+`<div class="metrics three"><div class="surface metric"><span>Saldo em aberto</span><b>${mt(s.invoices.filter(x=>x.status==='Open').reduce((a,r)=>a+r.value,0),c)}</b></div><div class="surface metric"><span>Pagamentos registrados</span><b>${mt(c.m.invoicesPaid,c)}</b></div><div class="surface metric"><span>Total de faturas</span><b>${s.invoices.length}</b></div></div><div class="toolbar">${search(c.query,'Buscar faturas…')}</div>`+table(['Fatura','Contato','Valor','Vencimento','Status',''],records.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),mt(r.value,c),date(r.due,c),badge(r.status,r.status==='Paid'?'green':'blue')],'invoices',r.id)),empty('Nenhuma fatura registrada','Crie uma fatura em rascunho. Os pagamentos podem ser marcados manualmente aqui.','pay')));
 }
 function marketing(c){
   const t=c.tab||'social', channel=t==='social'?'Social':'Email', records=top(c.s.campaigns.filter(x=>x.channel===channel),c.query,['name','body','status']);
@@ -172,8 +176,9 @@ function marketplace(c){
   return wrap(head('Apps do marketplace','Conheça integrações que ampliariam este workspace.')+`<div class="toolbar">${search(c.query,'Buscar integrações…')}</div><div class="card-grid">${cards.filter(a=>a.join(' ').toLowerCase().includes(c.query.toLowerCase())).map(([n,ico,desc])=>`<article class="surface padded resource"><span class="metric-icon">${i(ico)}</span><div><h2>${n}</h2><p>${desc}</p></div>${badge('Não conectado')}<button class="secondary" data-provider="${n}">Ver requisitos</button></article>`).join('')||empty('Nenhuma integração encontrada','Tente outra busca.','apps')}</div>`);
 }
 function settings(c){
+  if(c.tab&&!['business','workspaces'].includes(c.tab)) return settingsTab(c,c.tab);
   const p=c.s.profile;
-  return wrap(head('Configurações','Gerencie o workspace ativo.',action('Novo workspace','new-workspace','plus'),tabs([['business','Perfil da empresa'],['workspaces','Workspaces']],c.tab||'business'))+(c.tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" value="${h(p.phone)}" type="tel"></label><label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<select name="currency">${['BRL','USD','EUR'].map(s=>`<option ${s===p.currency?'selected':''}>${s}</option>`).join('')}</select></label></div><button class="primary">Salvar alterações</button></form>`));
+  return wrap(head('Configurações','Gerencie o workspace ativo.',action('Novo workspace','new-workspace','plus'),tabs(crmTabs.settings,c.tab||'business'))+(c.tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" value="${h(p.phone)}" type="tel"></label><label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<select name="currency">${['BRL','USD','EUR'].map(s=>`<option ${s===p.currency?'selected':''}>${s}</option>`).join('')}</select></label></div><button class="primary">Salvar alterações</button></form>`));
 }
 function agents(c){
   return wrap(head('Agentes de IA','Configure perfis de agentes e teste respostas de exemplo localmente.',primary('Novo agente','agents'))+table(['Agente','Função','Status','Testar',''],c.s.agents.map(r=>row([`<b>${h(r.name)}</b>`,h(tr(r.role)),badge(r.active?'Ativo':'Draft',r.active?'green':''),`<button class="secondary" data-agent="${r.id}">Testar resposta</button>`],'agents',r.id)),empty('Nenhum agente configurado','Adicione um perfil de agente para testar o modelo de resposta.','spark')));
