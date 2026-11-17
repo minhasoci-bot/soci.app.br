@@ -17,7 +17,7 @@
 :root[data-theme=dark] .danger.plain{color:#f2a7b5}
 :root[data-theme=dark] .search{background:rgb(17 19 23)}
 :root[data-theme=dark] .tag-filter{background:rgb(17 19 23)}
-:root[data-theme=dark] .metric:hover:is(a){border-color:rgb(107 69 37)}
+:root[data-theme=dark] .metric:hover:is(a){border-color:rgb(61 50 112)}
 :root[data-theme=dark] .bar-row{color:#aab0b9}
 :root[data-theme=dark] .table-shell tr:hover td{background:rgb(21 23 27)}
 :root[data-theme=dark] .badge.blue{background:rgb(134 182 255 / 0.17);color:#86b6ff}
@@ -34,7 +34,7 @@
 :root[data-theme=dark] .day-number{color:#aab0b9}
 :root[data-theme=dark] .appointment.cancelled{color:#8d939d;background:rgb(242 167 181 / 0.17)}
 :root[data-theme=dark] .kanban-head>b{color:#8d939d}
-:root[data-theme=dark] .kanban-cards>.primary:hover{background:rgb(249 115 22 / 0.17)}
+:root[data-theme=dark] .kanban-cards>.primary:hover{background:rgb(17 19 23)}
 :root[data-theme=dark] .deal{background:rgb(17 19 23)}
 :root[data-theme=dark] .deal p{color:#8d939d}
 :root[data-theme=dark] .kanban-empty{color:#8d939d}
@@ -217,7 +217,7 @@
 :root[data-theme=dark] .sp-pv-comment{border-top:1px solid rgb(43 47 53)}
 :root[data-theme=dark]{background:rgb(21 23 27)}
 :root[data-theme=dark] body{background:rgb(21 23 27)}
-:root[data-theme=dark] ::selection{background:rgb(249 115 22 / 0.17);color:#ffb17a}
+:root[data-theme=dark] ::selection{background:rgb(187 165 255 / 0.17);color:#f2a7b5}
 :root[data-theme=dark] .g-side{background:rgb(17 19 23 / 0.82)}
 :root[data-theme=dark] .side-account{background:rgb(17 19 23 / 0.9)}
 :root[data-theme=dark] .shell:not(.wide) .side-account:hover{background:rgb(17 19 23)}
@@ -253,7 +253,7 @@
 :root[data-theme=dark] .studio-library{background:rgb(17 19 23 / 0.45)}
 :root[data-theme=dark] .public-page>header{background:rgb(17 19 23 / 0.82)}
 @media(max-width:700px){:root[data-theme=dark] .wide .g-side{background:rgb(17 19 23 / 0.96)}}
-:root[data-theme=dark] .g-mark .sk-flame{fill:var(--g-brand,#f97316);stroke:none;filter:none}
+:root[data-theme=dark] .g-mark .sk-flame{fill:var(--g-brand,#ff3d8d);stroke:none;filter:none}
 :root[data-theme=dark] .g-mark .sk-head{fill:#ffffff}
 :root[data-theme=dark] .g-mark .sk-feat{fill:#111317}
 :root[data-theme=dark] .g-mark .sk-glint{fill:#ffffff}

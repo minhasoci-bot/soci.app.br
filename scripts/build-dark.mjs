@@ -146,7 +146,7 @@ for (const file of [...base, own]) {
   }
 }
 const gMarkDarkRules = [
-  `${PREFIX} .g-mark .sk-flame{fill:var(--g-brand,#f97316);stroke:none;filter:none}`,
+  `${PREFIX} .g-mark .sk-flame{fill:var(--g-brand,#ff3d8d);stroke:none;filter:none}`,
   `${PREFIX} .g-mark .sk-head{fill:#ffffff}`,
   `${PREFIX} .g-mark .sk-feat{fill:#111317}`,
   `${PREFIX} .g-mark .sk-glint{fill:#ffffff}`
