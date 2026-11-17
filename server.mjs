@@ -21,16 +21,20 @@ import { moduleOfRecord, snapshotAssets } from './ui/agency-data.js';
 import { attachAccounts, claimDue, evergreenDue, settle } from './social-model.mjs';
 import { authUrl, availability, blueskyLogin, exchange as socialExchange, publish as socialPublish, seal, unseal } from './social-providers.mjs';
 import { network } from './ui/social-data.js';
+import { createAskHandler } from './soci-chat.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const staticFiles = new Map([
   ['/app.js','text/javascript; charset=utf-8'], ['/icons.js','text/javascript; charset=utf-8'],
   ['/screens.js','text/javascript; charset=utf-8'], ['/conversations.js','text/javascript; charset=utf-8'],
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
-  ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
+  ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
   ['/studio.js','text/javascript; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
+  ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
+  ['/highlight.js','text/javascript; charset=utf-8'],
+  ['/vendor/marked.js','text/javascript; charset=utf-8'], ['/vendor/purify.js','text/javascript; charset=utf-8'],
   ['/color-picker.js','text/javascript; charset=utf-8'],
   ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],
   ['/prospect-report.js','text/javascript; charset=utf-8'], ['/prospecting.css','text/css; charset=utf-8'],
@@ -60,7 +64,8 @@ const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 const commandModule = { 'social-post':'marketing', 'social-reschedule':'marketing', 'social-review':'marketing', 'social-duplicate':'marketing', 'social-delete':'marketing', 'social-bulk-delete':'marketing', 'social-retry':'marketing', 'social-csv':'marketing', 'social-account-remove':'marketing', message:'conversations', thread:'conversations', 'manual-action':'conversations', 'conversation-sla':'conversations', 'dismiss-sla':'conversations',
   pipeline:'opportunities', stage:'opportunities', import:'contacts', 'studio-visit':'studio', 'studio-star':'studio', profile:'settings',
-  'dashboard-create':'dashboard', 'dashboard-save':'dashboard', 'dashboard-restore':'dashboard', 'dashboard-report':'dashboard' };
+  'dashboard-create':'dashboard', 'dashboard-save':'dashboard', 'dashboard-restore':'dashboard', 'dashboard-report':'dashboard',
+  'dashboard-default':'dashboard', 'dashboard-timezone':'dashboard', 'dashboard-delete':'dashboard' };
 const settingsCommands = new Set(['saas-mode','saas-rebilling','saas-account','workflow-builder','sub-feature','email-domain','email-domain-accounts','email-domain-remove','affiliate-pixel','profile','company','billing-plan','wallet','auto-recharge','system-email','labs','compliance','api-key','api-key-delete','private-integration','private-integration-delete']);
 const settingsRecords = new Set(['users','menuLinks','announcements']);
 const publicAgency = agency => ({ ...agency,
@@ -80,6 +85,7 @@ export function makeServer({
 }={}) {
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
   const openAI = createOpenAI({ store, model: agentModel, secret: openAISecret, request: openAIRequest });
+  const handleAsk = createAskHandler({ store, openAI, openAIRequest });
   const ready = Promise.all([store.insert('demo', seed()), store.insert(AGENCY_ID, blankAgency())]);
   ready.catch(() => {});
   const workspaceOwner = id => id === AGENCY_ID ? null : id;
@@ -806,6 +812,19 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!who.agency) throw error('Your user cannot open the agency view.',403);
         const result = await agencyRequest(p.slice('/api/agency/'.length), who, await payload(req));
         return json(await agencyPayload(req,res, { result }, who));
+      }
+      if (p.startsWith('/api/ask/')) {
+        const { agency, who } = await accessContext(req, await verifiedUser(req, res));
+        if (!who.agency) throw error('Seu usuário não pode acessar o Pergunte à Soci.', 403);
+        return await handleAsk({
+          req, res, url, method, who, json,
+          loadContext: async () => {
+            const workspaces = await listWorkspaces(who.agencyId);
+            ensureAccounts(agency, workspaces);
+            const states = await Promise.all(workspaces.map(async w => ({ ...w, state: await store.load(w.id) })));
+            return { agency: publicAgency(agency), overview: agencyOverview(agency, states) };
+          }
+        });
       }
       const agentAction = p.match(/^\/api\/agents\/(create|save|publish|unpublish|move|delete|memory|test|build)$/);
       if (agentAction && method==='POST') {

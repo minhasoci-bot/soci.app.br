@@ -1,0 +1,1711 @@
+// Pergunte à Soci — componente de chat completo inspirado na referência do ChatGPT,
+// integrado ao design system, autenticação e contexto vivo da agência na Soci.
+import { Marked } from '/vendor/marked.js';
+import DOMPurify from '/vendor/purify.js';
+import { highlight } from '/highlight.js';
+
+const MAX_ATTACHMENTS = 10;
+const MAX_TEXT_FILE = 512 * 1024;
+const MAX_IMAGE_SIDE = 2048;
+const DEFAULT_TITLE = 'Novo chat';
+const STORAGE_KEY = 'soci.ask.settings';
+const COLLAPSED_KEY = 'soci.ask.sidebarCollapsed';
+const MODEL_KEY = 'soci.ask.model';
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+const QUICK_PROMPTS = [
+  'Qual é a nossa receita recorrente mensal (MRR)?',
+  'Qual subconta tem mais contatos cadastrados?',
+  'Quais subcontas ainda não realizaram login?',
+  'Quais são os próximos passos recomendados para a agência?'
+];
+
+const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|jsonl|js|mjs|cjs|ts|tsx|jsx|py|rb|go|rs|java|kt|c|h|cc|cpp|hpp|cs|php|html?|css|scss|less|sql|sh|bash|ps1|bat|ya?ml|toml|ini|cfg|conf|xml|log|env|vue|svelte|swift|dart|lua|r|tex)$/i;
+
+const ICON_PATHS = {
+  sidebar: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18"/>',
+  newChat: '<path d="M12 3H6a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3v-6"/><path d="M18.4 2.6a2 2 0 0 1 3 3L12.5 14.5 9 15.5l1-3.5z"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M18 11a6 6 0 0 1-12 0M12 17v4"/>',
+  wave: '<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10v4"/>',
+  arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  arrowDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+  stop: '<rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" stroke="none"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M15 9V5.5A2.5 2.5 0 0 0 12.5 3h-7A2.5 2.5 0 0 0 3 5.5v7A2.5 2.5 0 0 0 5.5 15H9"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  thumbUp: '<path d="M7 10v11"/><path d="M15 5.9 14 10h5.8a2 2 0 0 1 1.9 2.6l-2.3 7A2 2 0 0 1 17.5 21H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h2.8a2 2 0 0 0 1.8-1.1L12 2a3.1 3.1 0 0 1 3 3.9Z"/>',
+  thumbDown: '<path d="M17 14V3"/><path d="M9 18.1 10 14H4.2a2 2 0 0 1-1.9-2.6l2.3-7A2 2 0 0 1 6.5 3H20a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-2.8a2 2 0 0 0-1.8 1.1L12 22a3.1 3.1 0 0 1-3-3.9Z"/>',
+  speaker: '<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
+  retry: '<path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/>',
+  edit: '<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/>',
+  chevronLeft: '<path d="m15 18-6-6 6-6"/>',
+  chevronRight: '<path d="m9 18 6-6-6-6"/>',
+  chevronDown: '<path d="m6 9 6 6 6-6"/>',
+  more: '<circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
+  close: '<path d="M18 6 6 18M6 6l12 12"/>',
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  paperclip: '<path d="m21 11-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l8-8"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+  temporary: '<path d="M20.5 12a8.5 8.5 0 0 1-12.6 7.4L3.5 20.5l1.1-4.2A8.5 8.5 0 1 1 20.5 12z" stroke-dasharray="3.2 2.6"/>',
+  spark: '<path d="M9 4c.6 4.6 2.4 6.4 7 7-4.6.6-6.4 2.4-7 7-.6-4.6-2.4-6.4-7-7 4.6-.6 6.4-2.4 7-7Z"/><path d="M18 2c.3 2.3 1.2 3.2 3.5 3.5-2.3.3-3.2 1.2-3.5 3.5-.3-2.3-1.2-3.2-3.5-3.5C16.8 5.2 17.7 4.3 18 2Z"/>',
+  key: '<path d="M15 3a6 6 0 1 1-5.2 9L3 19v2h3v-2h2v-2h2l1.8-1.8A6 6 0 0 1 15 3Zm1.5 4.5h.1"/>'
+};
+
+function icon(name, size = 18) {
+  return `<svg class="sc-icon sc-icon-${name}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ''}</svg>`;
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+function iconButton(name, label, action, extra = '', size = 18) {
+  const b = el('button', `sc-icon-btn ${extra}`.trim());
+  b.type = 'button';
+  b.dataset.scAction = action;
+  b.setAttribute('aria-label', label);
+  b.title = label;
+  b.innerHTML = icon(name, size);
+  return b;
+}
+
+function readStorage(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw == null ? fallback : JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStorage(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
+
+function uuid() {
+  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+}
+
+function messageText(msg) {
+  const parts = msg?.content?.parts;
+  return Array.isArray(parts) ? parts.filter(p => typeof p === 'string').join('\n') : '';
+}
+
+function modelLabel(id) {
+  if (!id || id === 'local') return 'Assistente local';
+  return id;
+}
+
+function isTouch() {
+  return matchMedia('(pointer: coarse)').matches;
+}
+
+const marked = new Marked({ gfm: true, breaks: false });
+marked.use({
+  renderer: {
+    code({ text, lang }) {
+      const cleanLang = (lang || '').trim().split(/\s+/)[0].toLowerCase();
+      const body = highlight(text, cleanLang);
+      return `<div class="sc-code-block"><div class="sc-code-head"><span>${escapeHtml(cleanLang || 'código')}</span><button type="button" data-sc-action="copy-code">${icon('copy', 14)}<span>Copiar código</span></button></div><pre><code class="hljs">${body}</code></pre></div>`;
+    },
+    html({ text }) {
+      return escapeHtml(text);
+    }
+  }
+});
+
+function renderMarkdownInto(target, text) {
+  const frag = DOMPurify.sanitize(marked.parse(text || ''), { RETURN_DOM_FRAGMENT: true });
+  for (const table of frag.querySelectorAll('table')) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sc-table-wrap';
+    table.replaceWith(wrap);
+    wrap.append(table);
+  }
+  for (const a of frag.querySelectorAll('a[href]')) {
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+  }
+  target.replaceChildren(frag);
+}
+
+async function* readEvents(body) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let sep;
+    while ((sep = buffer.indexOf('\n\n')) >= 0) {
+      const block = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      let event = 'message';
+      const data = [];
+      for (const line of block.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
+      }
+      if (!data.length) continue;
+      try { yield { event, data: JSON.parse(data.join('\n')) }; } catch {}
+    }
+  }
+}
+
+export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders }) {
+  const settings = { instructions: '', ...readStorage(STORAGE_KEY, {}) };
+  const state = {
+    loaded: false,
+    config: { mode: 'local', source: 'local', defaultModel: 'local', models: ['local'] },
+    models: ['local'],
+    model: readStorage(MODEL_KEY, null),
+    list: [],
+    conv: null,
+    temporary: false,
+    stream: null,
+    error: null,
+    attachments: [],
+    editing: null,
+    renaming: null,
+    menuConvId: null,
+    speakingId: null
+  };
+
+  let pinned = true;
+  let dictation = null;
+  let searchTimer = 0;
+  let searchSelected = 0;
+  let dragDepth = 0;
+  let mounted = false;
+  const voice = { active: false, rec: null };
+
+  const root = el('div', 'sc-app');
+  if (readStorage(COLLAPSED_KEY, false)) root.classList.add('is-collapsed');
+
+  root.innerHTML = `
+    <aside class="sc-sidebar" aria-label="Histórico de conversas">
+      <div class="sc-rail">
+        <button type="button" class="sc-icon-btn" data-sc-action="toggle-sidebar" aria-label="Abrir histórico" title="Abrir histórico">${icon('sidebar', 18)}</button>
+        <button type="button" class="sc-icon-btn" data-sc-action="new-chat" aria-label="Novo chat" title="Novo chat">${icon('newChat', 18)}</button>
+        <button type="button" class="sc-icon-btn" data-sc-action="open-search" aria-label="Buscar chats" title="Buscar chats">${icon('search', 18)}</button>
+        <div class="sc-rail-spacer"></div>
+        <button type="button" class="sc-icon-btn" data-sc-action="open-settings" aria-label="Configurações do chat" title="Configurações do chat">${icon('settings', 18)}</button>
+      </div>
+      <div class="sc-panel">
+        <div class="sc-side-head">
+          <span class="sc-side-title"><span class="sc-side-title-dot" aria-hidden="true"></span>Conversas</span>
+          <button type="button" class="sc-icon-btn" data-sc-action="toggle-sidebar" aria-label="Recolher histórico" title="Recolher histórico">${icon('sidebar', 18)}</button>
+        </div>
+        <nav class="sc-side-nav" aria-label="Ações do chat">
+          <button type="button" class="sc-nav-item" data-sc-action="new-chat">${icon('newChat', 17)}<span>Novo chat</span><kbd>Ctrl Shift O</kbd></button>
+          <button type="button" class="sc-nav-item" data-sc-action="open-search">${icon('search', 17)}<span>Buscar chats</span></button>
+        </nav>
+        <div class="sc-history">
+          <h2 class="sc-history-title">Recentes</h2>
+          <ol class="sc-history-list" data-sc="history-list"></ol>
+          <p class="sc-history-empty" data-sc="history-empty" hidden>Suas conversas com a Soci aparecem aqui.</p>
+        </div>
+        <div class="sc-side-foot">
+          <button type="button" class="sc-nav-item" data-sc-action="open-settings">${icon('settings', 17)}<span>Configurações do chat</span></button>
+        </div>
+      </div>
+    </aside>
+    <div class="sc-backdrop" data-sc-action="toggle-sidebar" hidden></div>
+
+    <div class="sc-main is-home" data-sc="main">
+      <header class="sc-topbar">
+        <div class="sc-topbar-left">
+          <button type="button" class="sc-icon-btn sc-mobile-only" data-sc-action="toggle-sidebar" aria-label="Abrir histórico">${icon('menu', 19)}</button>
+          <div class="sc-model-picker">
+            <button type="button" class="sc-model-btn" data-sc="model-btn" aria-haspopup="dialog" aria-expanded="false">
+              <span>Soci</span>
+              <span class="sc-model-badge" data-sc="model-name">Assistente local</span>
+              ${icon('chevronDown', 15)}
+            </button>
+            <div class="sc-menu sc-model-menu" data-sc="model-menu" role="dialog" aria-label="Modelo de IA" hidden>
+              <div class="sc-menu-label">Modelo</div>
+              <div data-sc="model-list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="sc-topbar-right">
+          <button type="button" class="sc-icon-btn sc-mobile-only" data-sc-action="new-chat" aria-label="Novo chat" title="Novo chat">${icon('newChat', 18)}</button>
+          <button type="button" class="sc-icon-btn sc-temp-btn" data-sc="temp-btn" data-sc-action="toggle-temporary" aria-pressed="false" aria-label="Chat temporário" title="Ativar chat temporário">${icon('temporary', 18)}</button>
+        </div>
+      </header>
+
+      <div class="sc-content" data-sc="content">
+        <div class="sc-scroller" data-sc="scroller">
+          <div class="sc-thread" data-sc="thread" role="region" aria-label="Conversa com a Soci"></div>
+        </div>
+        <button type="button" class="sc-scroll-down" data-sc="scroll-down" aria-label="Rolar até o fim" hidden>${icon('arrowDown', 17)}</button>
+
+        <section class="sc-home">
+          <div class="sc-home-badge" aria-hidden="true">${icon('spark', 21)}</div>
+          <h1 data-sc="home-title">Por onde começamos?</h1>
+          <p class="sc-home-sub" data-sc="home-sub" hidden>Este chat não vai aparecer no histórico nem ser salvo.</p>
+        </section>
+
+        <div class="sc-dock" data-sc="dock">
+          <form class="sc-composer" data-sc="composer" autocomplete="off">
+            <div class="sc-attachments" data-sc="attachments" aria-label="Anexos"></div>
+            <div class="sc-composer-row">
+              <div class="sc-plus-wrap">
+                <button type="button" class="sc-icon-btn sc-plus" data-sc="plus-btn" aria-label="Adicionar arquivos" aria-expanded="false" title="Adicionar arquivos">${icon('plus', 19)}</button>
+                <div class="sc-menu sc-plus-menu" data-sc="plus-menu" hidden>
+                  <button type="button" class="sc-menu-item" data-sc-action="attach">${icon('paperclip', 17)}<span>Adicionar fotos e arquivos</span></button>
+                </div>
+              </div>
+              <label class="sr-only" for="sc-prompt">Pergunte à Soci</label>
+              <textarea id="sc-prompt" class="sc-text" data-sc="prompt" rows="1" placeholder="Pergunte à Soci sobre subcontas, receita, snapshots, equipe…" aria-label="Pergunte à Soci"></textarea>
+              <button type="button" class="sc-icon-btn sc-mic" data-sc="dictate-btn" aria-label="Iniciar ditado" title="Ditar">${icon('mic', 18)}</button>
+              <button type="submit" class="sc-send" data-sc="send-btn" aria-label="Enviar mensagem"></button>
+            </div>
+            <input type="file" data-sc="file-input" multiple hidden>
+          </form>
+          <div class="sc-suggestions" data-sc="suggestions">
+            ${QUICK_PROMPTS.map(p => `<button type="button" class="sc-suggestion" data-sc-action="quick-prompt" data-q="${escapeHtml(p)}">${escapeHtml(p)}</button>`).join('')}
+          </div>
+          <p class="sc-disclaimer">A Soci pode cometer erros. Confira informações importantes nos relatórios da agência.</p>
+        </div>
+
+        <div class="sc-drop-overlay" data-sc="drop-overlay" hidden><div>Solte os arquivos aqui para anexar à conversa</div></div>
+      </div>
+
+      <div class="sc-voice-banner" data-sc="voice-banner" hidden>
+        <span class="sc-voice-dot"></span>
+        <span data-sc="voice-status">Ouvindo…</span>
+        <button type="button" class="secondary" data-sc-action="stop-voice">Encerrar</button>
+      </div>
+    </div>
+
+    <div class="sc-menu sc-chat-menu" data-sc="chat-menu" hidden>
+      <button type="button" class="sc-menu-item" data-sc-action="rename-chat">${icon('edit', 16)}<span>Renomear</span></button>
+      <button type="button" class="sc-menu-item is-danger" data-sc-action="delete-chat">${icon('trash', 16)}<span>Excluir</span></button>
+    </div>
+
+    <dialog class="sc-modal" data-sc="search-modal" aria-label="Buscar chats">
+      <div class="sc-search-head">
+        ${icon('search', 18)}
+        <input type="search" data-sc="search-input" placeholder="Buscar chats…" aria-label="Buscar chats">
+        <button type="button" class="sc-icon-btn" data-sc-action="close-modal" aria-label="Fechar">${icon('close', 17)}</button>
+      </div>
+      <div class="sc-search-results" data-sc="search-results"></div>
+    </dialog>
+
+    <dialog class="sc-modal" data-sc="settings-modal" aria-labelledby="sc-settings-title">
+      <header>
+        <h2 id="sc-settings-title">Configurações do chat</h2>
+        <button type="button" class="sc-icon-btn" data-sc-action="close-modal" aria-label="Fechar">${icon('close', 17)}</button>
+      </header>
+      <div class="sc-settings-body">
+        <div class="sc-setting-block">
+          <label class="sc-setting-label" for="sc-instructions">Instruções personalizadas</label>
+          <p class="sc-setting-hint">Como a Soci deve responder ou o que deve considerar sobre a sua agência?</p>
+          <textarea id="sc-instructions" data-sc="instructions" rows="4" placeholder="Ex.: Responda de forma objetiva, sempre destacando oportunidades de aumento de MRR."></textarea>
+          <div class="sc-setting-actions">
+            <button type="button" class="primary" data-sc-action="save-instructions">Salvar instruções</button>
+          </div>
+        </div>
+        <div class="sc-setting-row">
+          <div>
+            <div class="sc-setting-label">Provedor de IA</div>
+            <p class="sc-setting-hint" data-sc="provider-info"></p>
+          </div>
+          <button type="button" class="secondary" data-sc-action="open-openai">Configurar OpenAI</button>
+        </div>
+        <div class="sc-setting-row">
+          <div>
+            <div class="sc-setting-label">Importar histórico</div>
+            <p class="sc-setting-hint">Arquivo JSON no formato conversations.json.</p>
+          </div>
+          <button type="button" class="secondary" data-sc-action="import">Importar</button>
+          <input type="file" data-sc="import-input" accept=".json,application/json" hidden>
+        </div>
+        <div class="sc-setting-row">
+          <div class="sc-setting-label">Exportar conversas</div>
+          <a class="secondary" href="/api/ask/export" download="soci-conversas.json">Exportar JSON</a>
+        </div>
+        <div class="sc-setting-row">
+          <div class="sc-setting-label">Excluir todos os chats</div>
+          <button type="button" class="danger" data-sc-action="delete-all">Excluir tudo</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="sc-modal" data-sc="confirm-modal">
+      <header>
+        <h2 data-sc="confirm-title"></h2>
+        <button type="button" class="sc-icon-btn" data-sc-action="close-modal" aria-label="Fechar">${icon('close', 17)}</button>
+      </header>
+      <div class="modal-body">
+        <p data-sc="confirm-text" class="dim"></p>
+      </div>
+      <footer>
+        <button type="button" class="secondary" data-sc-action="close-modal">Cancelar</button>
+        <button type="button" class="danger" data-sc="confirm-ok">Excluir</button>
+      </footer>
+    </dialog>
+  `;
+
+  const Q = name => root.querySelector(`[data-sc="${name}"]`);
+  const els = {
+    main: Q('main'),
+    content: Q('content'),
+    backdrop: root.querySelector('.sc-backdrop'),
+    historyList: Q('history-list'),
+    historyEmpty: Q('history-empty'),
+    scroller: Q('scroller'),
+    thread: Q('thread'),
+    scrollDown: Q('scroll-down'),
+    homeTitle: Q('home-title'),
+    homeSub: Q('home-sub'),
+    dock: Q('dock'),
+    composer: Q('composer'),
+    prompt: Q('prompt'),
+    sendBtn: Q('send-btn'),
+    dictateBtn: Q('dictate-btn'),
+    plusBtn: Q('plus-btn'),
+    plusMenu: Q('plus-menu'),
+    fileInput: Q('file-input'),
+    attachments: Q('attachments'),
+    dropOverlay: Q('drop-overlay'),
+    modelBtn: Q('model-btn'),
+    modelMenu: Q('model-menu'),
+    modelList: Q('model-list'),
+    modelName: Q('model-name'),
+    tempBtn: Q('temp-btn'),
+    chatMenu: Q('chat-menu'),
+    searchModal: Q('search-modal'),
+    searchInput: Q('search-input'),
+    searchResults: Q('search-results'),
+    settingsModal: Q('settings-modal'),
+    instructions: Q('instructions'),
+    providerInfo: Q('provider-info'),
+    importInput: Q('import-input'),
+    confirmModal: Q('confirm-modal'),
+    confirmTitle: Q('confirm-title'),
+    confirmText: Q('confirm-text'),
+    confirmOk: Q('confirm-ok'),
+    voiceBanner: Q('voice-banner'),
+    voiceStatus: Q('voice-status')
+  };
+
+  if (!SpeechRec) els.dictateBtn.hidden = true;
+
+  function syncHash(convId) {
+    const target = convId ? `#agency/ask/${convId}` : '#agency/ask';
+    if (location.hash !== target) history.replaceState(null, '', target);
+  }
+
+  function closeMenus() {
+    els.modelMenu.hidden = true;
+    els.modelBtn.setAttribute('aria-expanded', 'false');
+    els.plusMenu.hidden = true;
+    els.plusBtn.setAttribute('aria-expanded', 'false');
+    els.chatMenu.hidden = true;
+    state.menuConvId = null;
+    for (const li of root.querySelectorAll('.sc-history-item.menu-open')) li.classList.remove('menu-open');
+  }
+
+  function closeSidebarOnMobile() {
+    root.classList.remove('sidebar-open');
+    els.backdrop.hidden = true;
+  }
+
+  function toggleSidebar() {
+    if (matchMedia('(max-width: 860px)').matches) {
+      const open = !root.classList.contains('sidebar-open');
+      root.classList.toggle('sidebar-open', open);
+      els.backdrop.hidden = !open;
+    } else {
+      const collapsed = !root.classList.contains('is-collapsed');
+      root.classList.toggle('is-collapsed', collapsed);
+      writeStorage(COLLAPSED_KEY, collapsed);
+    }
+  }
+
+  function leaveCurrent() {
+    if (state.stream) state.stream.controller.abort();
+    stopSpeaking();
+    state.error = null;
+    state.editing = null;
+  }
+
+  function showHome({ updateHash = true } = {}) {
+    leaveCurrent();
+    state.conv = null;
+    if (updateHash) syncHash('');
+    render();
+    requestAnimationFrame(() => els.prompt.focus());
+  }
+
+  async function openConversation(id, { updateHash = true } = {}) {
+    leaveCurrent();
+    closeSidebarOnMobile();
+    try {
+      const conv = await api(`/api/ask/conversation?id=${encodeURIComponent(id)}`);
+      state.conv = conv;
+      state.temporary = Boolean(conv.temporary);
+      if (updateHash && !conv.temporary) syncHash(id);
+      render();
+      scrollToBottom();
+    } catch (err) {
+      flash(err.message || 'Conversa não encontrada.', true);
+      state.conv = null;
+      syncHash('');
+      render();
+    }
+  }
+
+  function newChat() {
+    closeSidebarOnMobile();
+    showHome({ updateHash: true });
+  }
+
+  // ---------- Renderização ----------
+  function render() {
+    const home = !state.conv;
+    els.main.classList.toggle('is-home', home);
+    els.homeTitle.textContent = state.temporary ? 'Chat temporário' : 'Por onde começamos?';
+    els.homeSub.hidden = !state.temporary;
+    els.tempBtn.setAttribute('aria-pressed', String(state.temporary));
+    els.tempBtn.title = state.temporary ? 'Desativar chat temporário' : 'Ativar chat temporário';
+    renderModels();
+    renderHistory();
+    renderThread();
+    updateComposer();
+  }
+
+  function renderModels() {
+    els.modelList.textContent = '';
+    for (const id of state.models) {
+      const item = el('button', 'sc-menu-item');
+      item.type = 'button';
+      item.dataset.scAction = 'pick-model';
+      item.dataset.model = id;
+      item.append(el('span', null, modelLabel(id)));
+      if (id === state.model) item.insertAdjacentHTML('beforeend', `<span class="sc-check">${icon('check', 16)}</span>`);
+      els.modelList.append(item);
+    }
+    if (state.config.mode === 'local') {
+      els.modelList.append(el('div', 'sc-menu-sep'));
+      const connect = el('button', 'sc-menu-item');
+      connect.type = 'button';
+      connect.dataset.scAction = 'open-openai';
+      connect.innerHTML = `${icon('key', 16)}<span>Conectar OpenAI…</span>`;
+      els.modelList.append(connect);
+    }
+    els.modelName.textContent = modelLabel(state.model);
+  }
+
+  function renderHistory() {
+    els.historyList.textContent = '';
+    for (const item of state.list) {
+      const li = el('li', 'sc-history-item');
+      li.dataset.id = item.id;
+      if (state.conv?.id === item.id) li.classList.add('active');
+      if (state.renaming === item.id) {
+        const input = el('input');
+        input.value = item.title || DEFAULT_TITLE;
+        input.setAttribute('aria-label', 'Novo nome do chat');
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') input.blur();
+          if (e.key === 'Escape') {
+            input.dataset.cancel = '1';
+            input.blur();
+          }
+        });
+        input.addEventListener('blur', () => finishRename(item, input.dataset.cancel ? null : input.value));
+        li.append(input);
+        requestAnimationFrame(() => { input.focus(); input.select(); });
+      } else {
+        const a = el('a', null, item.title || DEFAULT_TITLE);
+        a.href = `#agency/ask/${item.id}`;
+        a.dataset.scAction = 'open-conv';
+        a.title = item.title || DEFAULT_TITLE;
+        li.append(a, iconButton('more', 'Opções da conversa', 'chat-more', 'sc-item-more', 16));
+      }
+      els.historyList.append(li);
+    }
+    els.historyEmpty.hidden = state.list.length > 0;
+  }
+
+  function visibleNodes(conv) {
+    const out = [];
+    let node = conv.mapping[conv.current_node];
+    while (node) {
+      const msg = node.message;
+      const role = msg?.author?.role;
+      const type = msg?.content?.content_type;
+      const hidden = msg?.metadata?.is_visually_hidden_from_conversation;
+      if (!hidden && (role === 'user' || role === 'assistant') && (!type || type === 'text' || type === 'multimodal_text')) {
+        if (role === 'user' || messageText(msg).trim() || msg.metadata?.reasoning) out.push(node);
+      }
+      node = node.parent ? conv.mapping[node.parent] : null;
+    }
+    return out.reverse();
+  }
+
+  function renderThread() {
+    const conv = state.conv;
+    els.thread.textContent = '';
+    if (!conv) {
+      updateScrollButton();
+      return;
+    }
+    const nodes = visibleNodes(conv);
+    const streaming = state.stream?.conv === conv;
+    const lastAssistant = streaming ? null : [...nodes].reverse().find(n => n.message.author.role === 'assistant');
+    for (const node of nodes) {
+      els.thread.append(node.message.author.role === 'user' ? userTurn(node) : assistantTurn(node, node === lastAssistant));
+    }
+    if (streaming) els.thread.append(state.stream.el);
+    if (state.error?.conv === conv) els.thread.append(errorTurn(state.error));
+    updateScrollButton();
+  }
+
+  function userTurn(node) {
+    const msg = node.message;
+    const turn = el('div', 'sc-turn user');
+    turn.dataset.id = node.id;
+    if (state.editing === node.id) {
+      turn.append(editBox(node));
+      return turn;
+    }
+    const atts = msg.metadata?.attachments || [];
+    if (atts.length) {
+      const wrap = el('div', 'sc-user-attachments');
+      for (const a of atts) wrap.append(attachmentView(a, false));
+      turn.append(wrap);
+    }
+    const text = messageText(msg);
+    if (text) turn.append(el('div', 'sc-bubble', text));
+    const actions = el('div', 'sc-actions');
+    const nav = branchNav(node);
+    actions.append(iconButton('copy', 'Copiar', 'copy-msg', '', 16));
+    if (!state.stream) actions.append(iconButton('edit', 'Editar mensagem', 'edit-msg', '', 16));
+    if (nav) actions.append(nav);
+    turn.append(actions);
+    return turn;
+  }
+
+  function editBox(node) {
+    const box = el('div', 'sc-edit-box');
+    const ta = el('textarea');
+    ta.value = messageText(node.message);
+    ta.setAttribute('aria-label', 'Editar mensagem');
+    const fit = () => {
+      ta.style.height = 'auto';
+      ta.style.height = `${ta.scrollHeight}px`;
+    };
+    ta.addEventListener('input', fit);
+    ta.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        state.editing = null;
+        renderThread();
+      } else if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !isTouch()) {
+        e.preventDefault();
+        submitEdit(node.id, ta.value);
+      }
+    });
+    const actions = el('div', 'sc-edit-actions');
+    const cancel = el('button', 'secondary', 'Cancelar');
+    cancel.type = 'button';
+    cancel.dataset.scAction = 'edit-cancel';
+    const send = el('button', 'primary', 'Enviar');
+    send.type = 'button';
+    send.dataset.scAction = 'edit-send';
+    actions.append(cancel, send);
+    box.append(ta, actions);
+    requestAnimationFrame(() => {
+      fit();
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    });
+    return box;
+  }
+
+  function assistantTurn(node, latest) {
+    const msg = node.message;
+    const meta = msg.metadata || {};
+    const turn = el('div', `sc-turn assistant${latest ? ' latest' : ''}`);
+    turn.dataset.id = node.id;
+
+    const row = el('div', 'sc-assistant-row');
+    const av = el('div', 'sc-avatar');
+    av.setAttribute('aria-hidden', 'true');
+    av.innerHTML = icon('spark', 15);
+    const body = el('div', 'sc-assistant-body');
+    if (meta.reasoning) body.append(reasoningBlock(meta.reasoning, meta.reasoning_ms));
+    const md = el('div', 'sc-markdown');
+    renderMarkdownInto(md, messageText(msg));
+    body.append(md);
+    if (meta.finish_details?.type === 'interrupted') body.append(el('div', 'sc-interrupted', 'Resposta interrompida'));
+    row.append(av, body);
+    turn.append(row);
+
+    const actions = el('div', 'sc-actions');
+    const nav = branchNav(node);
+    if (nav) actions.append(nav);
+    actions.append(iconButton('copy', 'Copiar resposta', 'copy-msg', '', 16));
+    const up = iconButton('thumbUp', 'Boa resposta', 'feedback-up', meta.feedback === 'up' ? 'on' : '', 16);
+    const down = iconButton('thumbDown', 'Resposta ruim', 'feedback-down', meta.feedback === 'down' ? 'on' : '', 16);
+    if (meta.feedback !== 'down') actions.append(up);
+    if (meta.feedback !== 'up') actions.append(down);
+    if ('speechSynthesis' in window) {
+      const speaking = state.speakingId === node.id;
+      actions.append(iconButton(speaking ? 'stop' : 'speaker', speaking ? 'Parar leitura' : 'Ler em voz alta', 'read-aloud', speaking ? 'on' : '', 16));
+    }
+    if (!state.stream) actions.append(iconButton('retry', 'Tentar novamente', 'regenerate', '', 16));
+    turn.append(actions);
+    return turn;
+  }
+
+  function reasoningBlock(text, ms) {
+    const wrap = el('div', 'sc-reasoning');
+    const btn = el('button', 'sc-reasoning-toggle');
+    btn.type = 'button';
+    btn.dataset.scAction = 'toggle-reasoning';
+    btn.append(el('span', 'sc-reasoning-label', ms ? `Pensou por ${Math.max(1, Math.round(ms / 1000))}s` : 'Raciocínio'));
+    btn.insertAdjacentHTML('beforeend', icon('chevronDown', 15));
+    wrap.append(btn, el('div', 'sc-reasoning-body', text));
+    return wrap;
+  }
+
+  function errorTurn(error) {
+    const turn = el('div', 'sc-turn assistant');
+    const box = el('div', 'sc-error-box');
+    box.append(el('span', null, error.message || 'Não foi possível concluir a resposta.'));
+    const retry = el('button', 'secondary', 'Tentar novamente');
+    retry.type = 'button';
+    retry.dataset.scAction = 'retry-error';
+    box.append(retry);
+    turn.append(box);
+    return turn;
+  }
+
+  function branchNav(node) {
+    const conv = state.conv;
+    const role = node.message.author.role;
+    const parent = conv.mapping[node.parent];
+    const siblings = (parent?.children || []).filter(id => conv.mapping[id]?.message?.author?.role === role);
+    if (siblings.length < 2) return null;
+    const idx = siblings.indexOf(node.id);
+    const nav = el('div', 'sc-branch-nav');
+    const prev = iconButton('chevronLeft', 'Versão anterior', 'branch-prev', '', 15);
+    const next = iconButton('chevronRight', 'Próxima versão', 'branch-next', '', 15);
+    prev.disabled = idx <= 0 || Boolean(state.stream);
+    next.disabled = idx >= siblings.length - 1 || Boolean(state.stream);
+    nav.append(prev, el('span', null, `${idx + 1}/${siblings.length}`), next);
+    return nav;
+  }
+
+  function attachmentView(a, removable) {
+    if (a.kind === 'image') {
+      if (removable) {
+        const chip = el('div', 'sc-chip image');
+        const img = el('img');
+        img.src = a.dataUrl;
+        img.alt = a.name;
+        chip.append(img, removeButton(a.id));
+        return chip;
+      }
+      const img = el('img');
+      img.src = a.dataUrl;
+      img.alt = a.name;
+      img.dataset.scAction = 'open-image';
+      return img;
+    }
+    const chip = el('div', 'sc-chip');
+    const badge = el('span', 'sc-file-badge');
+    badge.innerHTML = icon('file', 17);
+    chip.append(badge, el('span', 'sc-file-name', a.name));
+    if (removable) chip.append(removeButton(a.id));
+    return chip;
+  }
+
+  function removeButton(id) {
+    const b = el('button', 'sc-chip-remove');
+    b.type = 'button';
+    b.dataset.scAction = 'remove-attachment';
+    b.dataset.id = id;
+    b.setAttribute('aria-label', 'Remover arquivo');
+    b.innerHTML = icon('close', 11);
+    return b;
+  }
+
+  function upsertListItem(conv) {
+    if (!conv.id || conv.temporary) return;
+    const existing = state.list.find(c => c.id === conv.id);
+    const item = existing || { id: conv.id, title: conv.title, create_time: conv.create_time };
+    item.title = conv.title;
+    item.update_time = Date.now() / 1000;
+    state.list = [item, ...state.list.filter(c => c.id !== conv.id)];
+  }
+
+  // ---------- Rolagem ----------
+  function nearBottom() {
+    const s = els.scroller;
+    return s.scrollHeight - s.scrollTop - s.clientHeight < 80;
+  }
+
+  function scrollToBottom(smooth = false) {
+    requestAnimationFrame(() => {
+      els.scroller.scrollTo({ top: els.scroller.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+      pinned = true;
+      updateScrollButton();
+    });
+  }
+
+  function updateScrollButton() {
+    const show = Boolean(state.conv) && !nearBottom();
+    els.scrollDown.hidden = !show;
+    if (show) els.scrollDown.style.bottom = `${els.dock.offsetHeight + 12}px`;
+  }
+
+  // ---------- Envio e streaming ----------
+  async function submitPrompt(overrideText) {
+    if (state.stream) return;
+    const text = overrideText !== undefined ? overrideText : els.prompt.value;
+    if (!text.trim() && !state.attachments.length) return;
+    const attachments = overrideText !== undefined ? [] : state.attachments;
+    if (overrideText === undefined) {
+      state.attachments = [];
+      els.prompt.value = '';
+      renderAttachments();
+      autosize();
+    }
+    await sendMessage({ text: text.trim() ? text : '', attachments, parentId: state.conv?.current_node ?? null });
+  }
+
+  function submitEdit(nodeId, text) {
+    const node = state.conv.mapping[nodeId];
+    const attachments = node.message.metadata?.attachments || [];
+    if (!text.trim() && !attachments.length) return;
+    state.editing = null;
+    sendMessage({ text, attachments, parentId: node.parent });
+  }
+
+  async function sendMessage({ text, attachments, parentId }) {
+    const msg = {
+      id: uuid(),
+      author: { role: 'user' },
+      content: { content_type: 'text', parts: [text] },
+      create_time: Date.now() / 1000,
+      metadata: attachments.length ? { attachments } : {}
+    };
+    if (!state.conv) {
+      const rootId = 'local-root';
+      state.conv = {
+        id: null,
+        title: DEFAULT_TITLE,
+        temporary: state.temporary,
+        current_node: msg.id,
+        mapping: {
+          [rootId]: { id: rootId, message: null, parent: null, children: [msg.id] },
+          [msg.id]: { id: msg.id, message: msg, parent: rootId, children: [] }
+        }
+      };
+      parentId = null;
+    } else {
+      const parent = state.conv.mapping[parentId];
+      state.conv.mapping[msg.id] = { id: msg.id, message: msg, parent: parentId, children: [] };
+      parent.children.push(msg.id);
+      state.conv.current_node = msg.id;
+    }
+    await runStream({ action: 'next', parentId, message: msg });
+  }
+
+  function regenerate(userMessageId) {
+    if (state.stream) return;
+    state.conv.current_node = userMessageId;
+    runStream({ action: 'variant', parentId: userMessageId });
+  }
+
+  function createStreamView() {
+    const turn = el('div', 'sc-turn assistant');
+    const row = el('div', 'sc-assistant-row');
+    const av = el('div', 'sc-avatar');
+    av.setAttribute('aria-hidden', 'true');
+    av.innerHTML = icon('spark', 15);
+    const body = el('div', 'sc-assistant-body');
+    const thinking = el('span', 'sc-thinking', 'Pensando');
+    const md = el('div', 'sc-markdown streaming');
+    body.append(thinking, md);
+    row.append(av, body);
+    turn.append(row);
+    return { el: turn, body, thinking, md, reasoningEl: null };
+  }
+
+  async function runStream({ action, parentId, message }) {
+    const conv = state.conv;
+    state.error = null;
+    const stream = {
+      conv,
+      controller: new AbortController(),
+      parentId: message ? message.id : parentId,
+      assistantId: null,
+      text: '',
+      reasoning: '',
+      started: Date.now(),
+      reasoningMs: null,
+      frame: 0,
+      ...createStreamView()
+    };
+    state.stream = stream;
+    render();
+    scrollToBottom();
+
+    const body = {
+      action,
+      conversation_id: conv.id,
+      parent_message_id: parentId,
+      model: state.model,
+      temporary: state.temporary,
+      system_prompt: settings.instructions || undefined,
+      messages: message ? [message] : []
+    };
+
+    try {
+      const res = await fetch('/api/ask/conversation', {
+        method: 'POST',
+        headers: { ...(getHeaders?.() || {}), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: stream.controller.signal
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Erro ${res.status}`);
+      }
+      for await (const { event, data } of readEvents(res.body)) {
+        if (event === 'meta') onMeta(stream, data);
+        else if (event === 'reasoning') onReasoning(stream, data.v);
+        else if (event === 'delta') onDelta(stream, data.v);
+        else if (event === 'done') finishStream(stream, data.message);
+        else if (event === 'error') finishStream(stream, data.assistant_message, data.message);
+        else if (event === 'title') onTitle(data);
+      }
+      if (state.stream === stream) finishStream(stream, null, 'A conexão com o servidor foi interrompida.');
+    } catch (err) {
+      if (err.name === 'AbortError') finishStream(stream, partialMessage(stream));
+      else finishStream(stream, null, err.message);
+    }
+  }
+
+  function onMeta(stream, data) {
+    const server = data.conversation;
+    const isNew = !stream.conv.id;
+    Object.assign(stream.conv, server);
+    stream.assistantId = data.assistant_message_id;
+    if (isNew && !server.temporary && state.conv === stream.conv) syncHash(server.id);
+    upsertListItem(stream.conv);
+    renderHistory();
+  }
+
+  function onReasoning(stream, v) {
+    stream.reasoning += v;
+    if (!stream.reasoningEl) {
+      stream.reasoningEl = reasoningBlock('', 0);
+      stream.reasoningEl.querySelector('.sc-reasoning-label').textContent = 'Pensando';
+      stream.thinking.hidden = true;
+      stream.body.prepend(stream.reasoningEl);
+    }
+    stream.reasoningEl.querySelector('.sc-reasoning-body').textContent = stream.reasoning;
+    followBottom();
+  }
+
+  function onDelta(stream, v) {
+    if (!stream.text) {
+      stream.thinking.hidden = true;
+      if (stream.reasoningEl) {
+        stream.reasoningMs = Date.now() - stream.started;
+        stream.reasoningEl.querySelector('.sc-reasoning-label').textContent = `Pensou por ${Math.max(1, Math.round(stream.reasoningMs / 1000))}s`;
+      }
+    }
+    stream.text += v;
+    if (!stream.frame) {
+      stream.frame = requestAnimationFrame(() => {
+        stream.frame = 0;
+        renderMarkdownInto(stream.md, stream.text);
+        followBottom();
+      });
+    }
+  }
+
+  function followBottom() {
+    if (pinned) els.scroller.scrollTop = els.scroller.scrollHeight;
+    updateScrollButton();
+  }
+
+  function partialMessage(stream) {
+    if (!stream.text && !stream.reasoning) return null;
+    return {
+      id: stream.assistantId || uuid(),
+      author: { role: 'assistant' },
+      content: { content_type: 'text', parts: [stream.text] },
+      create_time: Date.now() / 1000,
+      metadata: {
+        model_slug: state.model,
+        finish_details: { type: 'interrupted' },
+        ...(stream.reasoning ? { reasoning: stream.reasoning, reasoning_ms: stream.reasoningMs || Date.now() - stream.started } : {})
+      }
+    };
+  }
+
+  function finishStream(stream, assistant, errorMessage) {
+    if (state.stream !== stream) return;
+    cancelAnimationFrame(stream.frame);
+    state.stream = null;
+    const conv = stream.conv;
+    if (assistant && !conv.mapping[assistant.id]) {
+      conv.mapping[assistant.id] = { id: assistant.id, message: assistant, parent: stream.parentId, children: [] };
+      conv.mapping[stream.parentId]?.children.push(assistant.id);
+      conv.current_node = assistant.id;
+    }
+    if (errorMessage) state.error = { conv, parentId: stream.parentId, message: errorMessage };
+    upsertListItem(conv);
+    if (state.conv === conv) {
+      render();
+      if (pinned) scrollToBottom();
+    } else {
+      renderHistory();
+    }
+    if (voice.active) {
+      if (assistant && !errorMessage) speak(assistant.id, messageText(assistant), () => listenForVoice());
+      else listenForVoice();
+    }
+  }
+
+  function onTitle({ conversation_id, title }) {
+    const item = state.list.find(c => c.id === conversation_id);
+    if (item) item.title = title;
+    if (state.conv?.id === conversation_id) state.conv.title = title;
+    renderHistory();
+  }
+
+  function stopStream() {
+    state.stream?.controller.abort();
+  }
+
+  // ---------- Ações nas mensagens ----------
+  function switchBranch(nodeId, dir) {
+    const conv = state.conv;
+    const node = conv.mapping[nodeId];
+    const role = node.message.author.role;
+    const siblings = conv.mapping[node.parent].children.filter(id => conv.mapping[id]?.message?.author?.role === role);
+    const target = siblings[siblings.indexOf(nodeId) + dir];
+    if (!target) return;
+    let leaf = conv.mapping[target];
+    while (leaf.children.length && conv.mapping[leaf.children[leaf.children.length - 1]]) {
+      leaf = conv.mapping[leaf.children[leaf.children.length - 1]];
+    }
+    conv.current_node = leaf.id;
+    state.error = null;
+    renderThread();
+    if (conv.id) api('/api/ask/branch', { id: conv.id, current_node: leaf.id }).catch(() => {});
+  }
+
+  async function setFeedback(nodeId, rating) {
+    const conv = state.conv;
+    const msg = conv.mapping[nodeId].message;
+    const next = msg.metadata?.feedback === rating ? null : rating;
+    msg.metadata = { ...msg.metadata, feedback: next || undefined };
+    renderThread();
+    flash(next ? 'Obrigado pelo seu feedback.' : 'Feedback removido.');
+    if (!conv.id) return;
+    try {
+      await api('/api/ask/feedback', { id: conv.id, messageId: nodeId, rating: next });
+    } catch {
+      flash('Não foi possível salvar seu feedback.', true);
+    }
+  }
+
+  function speak(id, text, onEnd) {
+    stopSpeaking();
+    const plain = el('div');
+    renderMarkdownInto(plain, text);
+    for (const head of plain.querySelectorAll('.sc-code-head')) head.remove();
+    const utter = new SpeechSynthesisUtterance(plain.textContent.replace(/\s+/g, ' ').trim());
+    utter.lang = 'pt-BR';
+    const done = () => {
+      if (state.speakingId !== id) return;
+      state.speakingId = null;
+      if (state.conv) renderThread();
+      onEnd?.();
+    };
+    utter.onend = done;
+    utter.onerror = done;
+    state.speakingId = id;
+    speechSynthesis.speak(utter);
+    if (state.conv) renderThread();
+  }
+
+  function stopSpeaking() {
+    if (!('speechSynthesis' in window)) return;
+    const was = state.speakingId;
+    state.speakingId = null;
+    speechSynthesis.cancel();
+    if (was && state.conv) renderThread();
+  }
+
+  // ---------- Compositor & anexos ----------
+  function autosize() {
+    const ta = els.prompt;
+    ta.style.height = 'auto';
+    let expanded = els.composer.classList.contains('expanded');
+    if (!ta.value) expanded = false;
+    else if (!expanded && (ta.value.includes('\n') || ta.scrollHeight > 40)) expanded = true;
+    els.composer.classList.toggle('expanded', expanded);
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(ta.scrollHeight, window.innerHeight * 0.36)}px`;
+    updateScrollButton();
+  }
+
+  function updateComposer() {
+    const hasContent = Boolean(els.prompt.value.trim() || state.attachments.length);
+    let mode;
+    if (state.stream) mode = 'stop';
+    else if (hasContent) mode = 'send';
+    else if (SpeechRec) mode = 'voice';
+    else mode = 'empty';
+    const btn = els.sendBtn;
+    btn.classList.toggle('active', mode === 'voice' && voice.active);
+    if (btn.dataset.state === mode) return;
+    btn.dataset.state = mode;
+    btn.disabled = mode === 'empty';
+    const cfg = {
+      stop: ['stop', 'Parar geração'],
+      send: ['arrowUp', 'Enviar mensagem'],
+      voice: ['wave', 'Iniciar modo de voz'],
+      empty: ['arrowUp', 'Enviar mensagem']
+    }[mode];
+    btn.innerHTML = icon(cfg[0], 18);
+    btn.setAttribute('aria-label', cfg[1]);
+    btn.title = cfg[1];
+  }
+
+  function renderAttachments() {
+    els.attachments.textContent = '';
+    for (const a of state.attachments) els.attachments.append(attachmentView(a, true));
+    updateComposer();
+    updateScrollButton();
+  }
+
+  async function imageToDataUrl(file) {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    return file.type === 'image/png' ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.9);
+  }
+
+  async function addFiles(files) {
+    for (const file of files) {
+      if (state.attachments.length >= MAX_ATTACHMENTS) {
+        flash(`Você pode anexar até ${MAX_ATTACHMENTS} arquivos.`, true);
+        break;
+      }
+      try {
+        if (file.type.startsWith('image/')) {
+          state.attachments.push({ id: uuid(), kind: 'image', name: file.name || 'imagem', size: file.size, dataUrl: await imageToDataUrl(file) });
+        } else if ((file.type.startsWith('text/') || /json|xml|javascript|csv|yaml|sql/.test(file.type) || TEXT_EXT.test(file.name)) && file.size <= MAX_TEXT_FILE) {
+          const text = await file.text();
+          if (text.includes('\u0000')) throw new Error('binário');
+          state.attachments.push({ id: uuid(), kind: 'file', name: file.name, size: file.size, text });
+        } else {
+          flash('Esse tipo ou tamanho de arquivo não é aceito aqui.', true);
+        }
+      } catch {
+        flash(file.type.startsWith('image/') ? 'A imagem selecionada é inválida.' : 'Falha ao carregar arquivo.', true);
+      }
+    }
+    renderAttachments();
+    els.prompt.focus();
+  }
+
+  // ---------- Ditado e modo voz ----------
+  function toggleDictation() {
+    if (!SpeechRec) return;
+    if (dictation) {
+      dictation.stop();
+      return;
+    }
+    const rec = new SpeechRec();
+    rec.lang = navigator.language || 'pt-BR';
+    rec.interimResults = true;
+    rec.continuous = true;
+    const base = els.prompt.value ? `${els.prompt.value.replace(/\s*$/, '')} ` : '';
+    let finalText = '';
+    rec.onresult = e => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) finalText += r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      els.prompt.value = base + finalText + interim;
+      autosize();
+      updateComposer();
+    };
+    rec.onerror = e => {
+      if (e.error === 'not-allowed') flash('Permita o acesso ao microfone para ditar.', true);
+      else if (e.error !== 'aborted' && e.error !== 'no-speech') flash('Não foi possível iniciar o ditado.', true);
+    };
+    rec.onend = () => {
+      dictation = null;
+      els.dictateBtn.classList.remove('listening');
+      els.dictateBtn.setAttribute('aria-label', 'Iniciar ditado');
+      els.dictateBtn.title = 'Ditar';
+    };
+    rec.start();
+    dictation = rec;
+    els.dictateBtn.classList.add('listening');
+    els.dictateBtn.setAttribute('aria-label', 'Concluir ditado');
+    els.dictateBtn.title = 'Concluir ditado';
+  }
+
+  function startVoice() {
+    if (!SpeechRec || voice.active) return;
+    voice.active = true;
+    els.voiceBanner.hidden = false;
+    updateComposer();
+    listenForVoice();
+  }
+
+  function stopVoice() {
+    voice.active = false;
+    voice.rec?.abort();
+    voice.rec = null;
+    stopSpeaking();
+    els.voiceBanner.hidden = true;
+    updateComposer();
+  }
+
+  function listenForVoice() {
+    if (!voice.active || state.stream) return;
+    const rec = new SpeechRec();
+    rec.lang = navigator.language || 'pt-BR';
+    rec.interimResults = false;
+    rec.continuous = false;
+    let heard = false;
+    els.voiceStatus.textContent = 'Ouvindo…';
+    rec.onresult = e => {
+      const text = e.results[0]?.[0]?.transcript?.trim();
+      if (!text) return;
+      heard = true;
+      els.voiceStatus.textContent = 'Respondendo…';
+      sendMessage({ text, attachments: [], parentId: state.conv?.current_node ?? null });
+    };
+    rec.onerror = e => {
+      if (e.error === 'not-allowed') {
+        flash('Permita o acesso ao microfone para usar o modo de voz.', true);
+        stopVoice();
+      }
+    };
+    rec.onend = () => {
+      if (voice.rec === rec) voice.rec = null;
+      if (voice.active && !heard && !state.stream) setTimeout(listenForVoice, 200);
+    };
+    voice.rec = rec;
+    rec.start();
+  }
+
+  // ---------- Menus, modais e histórico ----------
+  function openChatMenu(button, id) {
+    closeMenus();
+    const menu = els.chatMenu;
+    menu.hidden = false;
+    const r = button.getBoundingClientRect();
+    const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+    const top = (r.bottom / zoom) + 4 + menu.offsetHeight > (innerHeight / zoom)
+      ? (r.top / zoom) - menu.offsetHeight - 4
+      : (r.bottom / zoom) + 4;
+    menu.style.top = `${Math.max(8, top)}px`;
+    menu.style.left = `${Math.min(r.left / zoom, (innerWidth / zoom) - menu.offsetWidth - 10)}px`;
+    state.menuConvId = id;
+    button.closest('.sc-history-item')?.classList.add('menu-open');
+  }
+
+  async function finishRename(item, value) {
+    if (state.renaming !== item.id) return;
+    state.renaming = null;
+    const title = value?.trim();
+    if (title && title !== item.title) {
+      item.title = title;
+      if (state.conv?.id === item.id) state.conv.title = title;
+      try {
+        await api('/api/ask/rename', { id: item.id, title });
+      } catch (err) {
+        flash(err.message || 'Não foi possível renomear.', true);
+      }
+    }
+    renderHistory();
+  }
+
+  function confirmDialog(title, text, okLabel = 'Excluir') {
+    return new Promise(resolve => {
+      els.confirmTitle.textContent = title;
+      els.confirmText.textContent = text;
+      els.confirmOk.textContent = okLabel;
+      els.confirmOk.onclick = () => {
+        resolve(true);
+        els.confirmModal.close();
+      };
+      els.confirmModal.onclose = () => resolve(false);
+      els.confirmModal.showModal();
+    });
+  }
+
+  async function deleteConversation(id) {
+    const item = state.list.find(c => c.id === id);
+    const ok = await confirmDialog('Excluir chat?', `Isso vai excluir “${item?.title || DEFAULT_TITLE}”.`);
+    if (!ok) return;
+    try {
+      await api('/api/ask/delete', { id });
+      state.list = state.list.filter(c => c.id !== id);
+      if (state.conv?.id === id) showHome();
+      else renderHistory();
+      flash('Conversa excluída.');
+    } catch (err) {
+      flash(err.message || 'Não foi possível excluir.', true);
+    }
+  }
+
+  function openSearch() {
+    closeMenus();
+    closeSidebarOnMobile();
+    els.searchInput.value = '';
+    els.searchModal.showModal();
+    runSearch();
+    els.searchInput.focus();
+  }
+
+  async function runSearch() {
+    const q = els.searchInput.value;
+    let items = [];
+    try {
+      items = (await api(`/api/ask/search?q=${encodeURIComponent(q)}`)).items || [];
+    } catch {}
+    if (q !== els.searchInput.value) return;
+    els.searchResults.textContent = '';
+    searchSelected = 0;
+    if (!q.trim()) els.searchResults.append(searchResult({ newChat: true }));
+    if (items.length) els.searchResults.append(el('div', 'sc-search-section', q.trim() ? 'Resultados' : 'Recentes'));
+    for (const item of items) els.searchResults.append(searchResult(item));
+    if (!items.length && q.trim()) els.searchResults.append(el('div', 'sc-search-section', 'Nenhum resultado encontrado'));
+    highlightSearch();
+  }
+
+  function searchResult(item) {
+    const b = el('button', 'sc-search-result');
+    b.type = 'button';
+    b.dataset.scAction = item.newChat ? 'search-new' : 'search-open';
+    if (!item.newChat) b.dataset.id = item.id;
+    b.innerHTML = icon(item.newChat ? 'newChat' : 'temporary', 17);
+    const text = el('span');
+    text.append(document.createTextNode(item.newChat ? 'Novo chat' : (item.title || DEFAULT_TITLE)));
+    if (item.snippet) text.append(el('small', null, item.snippet));
+    b.append(text);
+    return b;
+  }
+
+  function highlightSearch() {
+    const items = [...els.searchResults.querySelectorAll('.sc-search-result')];
+    items.forEach((node, idx) => node.classList.toggle('selected', idx === searchSelected));
+    items[searchSelected]?.scrollIntoView({ block: 'nearest' });
+  }
+
+  function openSettings() {
+    closeMenus();
+    closeSidebarOnMobile();
+    els.instructions.value = settings.instructions;
+    els.providerInfo.textContent = state.config.mode === 'live'
+      ? `Conectado à IA generativa · modelo atual: ${modelLabel(state.model)}.`
+      : 'Usando o Assistente local com os dados da agência. Conecte sua chave da OpenAI para liberar modelos generativos completos.';
+    els.settingsModal.showModal();
+  }
+
+  // ---------- Eventos internos ----------
+  root.addEventListener('click', async e => {
+    const target = e.target.closest('[data-sc-action]');
+    if (!target) {
+      if (!e.target.closest('.sc-menu') && !e.target.closest('[data-sc="model-btn"]') && !e.target.closest('[data-sc="plus-btn"]')) closeMenus();
+      if (e.target === els.composer || e.target.classList?.contains('sc-composer-row')) els.prompt.focus();
+      return;
+    }
+    const action = target.dataset.scAction;
+    const turnId = target.closest('.sc-turn')?.dataset.id;
+    const menuConvId = state.menuConvId;
+    if (action !== 'chat-more') closeMenus();
+
+    switch (action) {
+      case 'toggle-sidebar': toggleSidebar(); break;
+      case 'new-chat': e.preventDefault(); newChat(); break;
+      case 'open-search': openSearch(); break;
+      case 'open-settings': openSettings(); break;
+      case 'open-openai':
+        if (els.settingsModal.open) els.settingsModal.close();
+        onOpenOpenAISettings?.();
+        break;
+      case 'toggle-temporary':
+        state.temporary = !state.temporary;
+        if (state.conv) showHome();
+        else render();
+        break;
+      case 'quick-prompt':
+        submitPrompt(target.dataset.q || '');
+        break;
+      case 'open-conv':
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+        e.preventDefault();
+        openConversation(target.closest('.sc-history-item').dataset.id);
+        break;
+      case 'chat-more': {
+        const id = target.closest('.sc-history-item').dataset.id;
+        if (state.menuConvId === id) closeMenus();
+        else openChatMenu(target, id);
+        break;
+      }
+      case 'rename-chat':
+        state.renaming = menuConvId;
+        renderHistory();
+        break;
+      case 'delete-chat':
+        if (menuConvId) deleteConversation(menuConvId);
+        break;
+      case 'pick-model':
+        state.model = target.dataset.model;
+        writeStorage(MODEL_KEY, state.model);
+        renderModels();
+        break;
+      case 'attach':
+        els.fileInput.click();
+        break;
+      case 'remove-attachment':
+        state.attachments = state.attachments.filter(a => a.id !== target.dataset.id);
+        renderAttachments();
+        break;
+      case 'copy-code': {
+        const code = target.closest('.sc-code-block').querySelector('code').textContent;
+        try {
+          await navigator.clipboard.writeText(code);
+          const label = target.querySelector('span');
+          target.querySelector('svg').outerHTML = icon('check', 14);
+          label.textContent = 'Copiado';
+          setTimeout(() => {
+            if (!target.isConnected) return;
+            target.querySelector('svg').outerHTML = icon('copy', 14);
+            label.textContent = 'Copiar código';
+          }, 2000);
+        } catch {
+          flash('Não foi possível copiar o código.', true);
+        }
+        break;
+      }
+      case 'copy-msg': {
+        const msg = state.conv.mapping[turnId].message;
+        try {
+          await navigator.clipboard.writeText(messageText(msg));
+          flash(msg.author.role === 'user' ? 'Mensagem copiada.' : 'Resposta copiada.');
+        } catch {
+          flash('Não foi possível copiar.', true);
+        }
+        break;
+      }
+      case 'edit-msg':
+        state.editing = turnId;
+        renderThread();
+        break;
+      case 'edit-cancel':
+        state.editing = null;
+        renderThread();
+        break;
+      case 'edit-send':
+        submitEdit(turnId, target.closest('.sc-edit-box').querySelector('textarea').value);
+        break;
+      case 'branch-prev':
+      case 'branch-next':
+        switchBranch(turnId, action === 'branch-prev' ? -1 : 1);
+        break;
+      case 'feedback-up':
+      case 'feedback-down':
+        setFeedback(turnId, action === 'feedback-up' ? 'up' : 'down');
+        break;
+      case 'read-aloud':
+        if (state.speakingId === turnId) stopSpeaking();
+        else speak(turnId, messageText(state.conv.mapping[turnId].message));
+        break;
+      case 'regenerate':
+        regenerate(state.conv.mapping[turnId].parent);
+        break;
+      case 'retry-error':
+        if (state.error) regenerate(state.error.parentId);
+        break;
+      case 'toggle-reasoning':
+        target.closest('.sc-reasoning').classList.toggle('open');
+        break;
+      case 'open-image': {
+        const blob = await (await fetch(target.src)).blob();
+        window.open(URL.createObjectURL(blob), '_blank', 'noopener');
+        break;
+      }
+      case 'close-modal':
+        target.closest('dialog')?.close();
+        break;
+      case 'search-new':
+        els.searchModal.close();
+        newChat();
+        break;
+      case 'search-open':
+        els.searchModal.close();
+        openConversation(target.dataset.id);
+        break;
+      case 'save-instructions':
+        settings.instructions = els.instructions.value.trim();
+        writeStorage(STORAGE_KEY, settings);
+        flash('Instruções personalizadas salvas.');
+        break;
+      case 'import':
+        els.importInput.click();
+        break;
+      case 'delete-all': {
+        els.settingsModal.close();
+        const ok = await confirmDialog('Excluir todos os chats?', 'Isso vai remover todas as conversas salvas desta agência.', 'Excluir tudo');
+        if (!ok) break;
+        try {
+          await api('/api/ask/delete-all', {});
+          state.list = [];
+          showHome();
+          flash('Todas as conversas foram excluídas.');
+        } catch (err) {
+          flash(err.message || 'Não foi possível excluir.', true);
+        }
+        break;
+      }
+      case 'stop-voice':
+        stopVoice();
+        break;
+    }
+  });
+
+  els.modelBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const open = els.modelMenu.hidden;
+    closeMenus();
+    els.modelMenu.hidden = !open;
+    els.modelBtn.setAttribute('aria-expanded', String(open));
+  });
+
+  els.plusBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const open = els.plusMenu.hidden;
+    closeMenus();
+    els.plusMenu.hidden = !open;
+    els.plusBtn.setAttribute('aria-expanded', String(open));
+  });
+
+  els.dictateBtn.addEventListener('click', toggleDictation);
+
+  els.composer.addEventListener('submit', e => {
+    e.preventDefault();
+    const mode = els.sendBtn.dataset.state;
+    if (mode === 'stop') stopStream();
+    else if (mode === 'send') submitPrompt();
+    else if (mode === 'voice') (voice.active ? stopVoice() : startVoice());
+  });
+
+  els.prompt.addEventListener('input', () => {
+    autosize();
+    updateComposer();
+  });
+
+  els.prompt.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !isTouch()) {
+      e.preventDefault();
+      if (!state.stream) submitPrompt();
+    }
+  });
+
+  els.prompt.addEventListener('paste', e => {
+    const files = [...(e.clipboardData?.files || [])];
+    if (files.length) {
+      e.preventDefault();
+      addFiles(files);
+    }
+  });
+
+  els.fileInput.addEventListener('change', () => {
+    addFiles([...els.fileInput.files]);
+    els.fileInput.value = '';
+  });
+
+  els.content.addEventListener('dragenter', e => {
+    if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+    dragDepth += 1;
+    els.dropOverlay.hidden = false;
+  });
+  els.content.addEventListener('dragleave', () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) els.dropOverlay.hidden = true;
+  });
+  els.content.addEventListener('dragover', e => {
+    if ([...(e.dataTransfer?.types || [])].includes('Files')) e.preventDefault();
+  });
+  els.content.addEventListener('drop', e => {
+    e.preventDefault();
+    dragDepth = 0;
+    els.dropOverlay.hidden = true;
+    if (e.dataTransfer?.files?.length) addFiles([...e.dataTransfer.files]);
+  });
+
+  els.scroller.addEventListener('scroll', () => {
+    pinned = nearBottom();
+    updateScrollButton();
+  });
+  els.scrollDown.addEventListener('click', () => scrollToBottom(true));
+
+  els.searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(runSearch, 150);
+  });
+  els.searchInput.addEventListener('keydown', e => {
+    const items = els.searchResults.querySelectorAll('.sc-search-result');
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      searchSelected = (searchSelected + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % Math.max(items.length, 1);
+      highlightSearch();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      items[searchSelected]?.click();
+    }
+  });
+
+  els.importInput.addEventListener('change', async () => {
+    const file = els.importInput.files[0];
+    els.importInput.value = '';
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const { imported } = await api('/api/ask/import', Array.isArray(data) ? { conversations: data } : data);
+      const refreshed = await api('/api/ask/state');
+      state.list = refreshed.items || [];
+      renderHistory();
+      flash(imported === 1 ? '1 conversa importada.' : `${imported} conversas importadas.`);
+    } catch (err) {
+      flash(`Não foi possível importar: ${err.message}`, true);
+    }
+  });
+
+  for (const dialog of root.querySelectorAll('dialog')) {
+    dialog.addEventListener('click', e => {
+      if (e.target === dialog) dialog.close();
+    });
+  }
+
+  function onGlobalKeydown(e) {
+    if (!mounted || !root.isConnected) return;
+    const mod = e.ctrlKey || e.metaKey;
+    const key = e.key.toLowerCase();
+    if (mod && e.shiftKey && key === 'o') {
+      e.preventDefault();
+      newChat();
+    } else if (mod && e.shiftKey && key === 's') {
+      e.preventDefault();
+      toggleSidebar();
+    } else if (e.shiftKey && e.key === 'Escape') {
+      e.preventDefault();
+      els.prompt.focus();
+    } else if (e.key === 'Escape') {
+      closeMenus();
+      if (voice.active) stopVoice();
+    }
+  }
+
+  function onResize() {
+    if (!mounted || !root.isConnected) return;
+    autosize();
+    updateScrollButton();
+  }
+
+  document.addEventListener('keydown', onGlobalKeydown);
+  window.addEventListener('resize', onResize);
+
+  async function refreshState(targetConvId = '') {
+    try {
+      const data = await api('/api/ask/state');
+      state.config = data.config || state.config;
+      state.models = data.config?.models?.length ? data.config.models : ['local'];
+      if (!state.model || !state.models.includes(state.model)) {
+        state.model = data.config?.defaultModel || state.models[0] || 'local';
+      }
+      state.list = data.items || [];
+      state.loaded = true;
+      render();
+      if (targetConvId && state.conv?.id !== targetConvId) {
+        await openConversation(targetConvId, { updateHash: false });
+      }
+    } catch (err) {
+      flash(err.message || 'Não foi possível carregar o chat da Soci.', true);
+    }
+  }
+
+  function mount(host, { conversationId = '' } = {}) {
+    if (!host) return;
+    mounted = true;
+    if (root.parentElement !== host) {
+      host.textContent = '';
+      host.append(root);
+    }
+    updateComposer();
+    if (!state.loaded) {
+      render();
+      void refreshState(conversationId);
+    } else if (conversationId && state.conv?.id !== conversationId) {
+      void openConversation(conversationId, { updateHash: false });
+    } else {
+      render();
+    }
+    requestAnimationFrame(() => {
+      autosize();
+      if (!state.conv) els.prompt.focus();
+    });
+  }
+
+  function unmount() {
+    mounted = false;
+    closeMenus();
+    stopVoice();
+    stopSpeaking();
+    if (dictation) {
+      try { dictation.stop(); } catch {}
+      dictation = null;
+    }
+  }
+
+  function reset() {
+    unmount();
+    if (state.stream) state.stream.controller.abort();
+    state.loaded = false;
+    state.conv = null;
+    state.list = [];
+    state.error = null;
+    state.editing = null;
+  }
+
+  return { mount, unmount, reset, refreshState };
+}

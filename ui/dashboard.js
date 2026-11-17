@@ -191,14 +191,16 @@ export function drawDashboardGauges(root) {
     const start = -Math.PI/2;
     paint.clearRect(0,0,240,240);
     paint.lineWidth = 16;
-    paint.strokeStyle = getComputedStyle(canvas).getPropertyValue('--g-gauge-track').trim() || '#e4eaf7';
+    const styles = getComputedStyle(canvas);
+    const brand = styles.getPropertyValue('--g-brand').trim() || '#ff00bb';
+    paint.strokeStyle = styles.getPropertyValue('--g-gauge-track').trim() || '#e4eaf7';
     paint.beginPath(); paint.arc(120,120,110,0,Math.PI*2); paint.stroke();
     paint.lineCap = 'round';
-    paint.strokeStyle = '#ff00bb';
+    paint.strokeStyle = brand;
     if (value > 0) {
       paint.beginPath(); paint.arc(120,120,110,start,start+Math.PI*2*value/100); paint.stroke();
     } else {
-      paint.fillStyle = '#ff00bb';
+      paint.fillStyle = brand;
       paint.beginPath(); paint.arc(120,10,8,0,Math.PI*2); paint.fill();
     }
   }

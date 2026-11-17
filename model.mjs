@@ -249,7 +249,7 @@ export function metrics(s) {
 export function execute(s, command, { workspace = 'demo' } = {}) {
   const { type, key, id, data:d = {} } = command;
   if (!d || typeof d!=='object' || Array.isArray(d)) fail('Invalid record data.');
-  if (['dashboard-create','dashboard-save','dashboard-restore','dashboard-report'].includes(type)) {
+  if (['dashboard-create','dashboard-save','dashboard-restore','dashboard-report','dashboard-default','dashboard-timezone','dashboard-delete'].includes(type)) {
     return changeDashboard(s,{ ...command,data:d },uid,now());
   }
   if (typeof type === 'string' && type.startsWith('social-')) return socialCommand(s, { ...command, data:d }, { add, now });

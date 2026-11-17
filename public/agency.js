@@ -6,6 +6,7 @@ import { tr } from './i18n.js';
 import { money } from './screens.js';
 import { colorPicker, mountColorPicker } from './color-picker.js';
 import { createProspecting, prospectRoutes } from './prospecting.js';
+import { createSociChat } from './soci-chat.js';
 import {
   affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, labFeatures, learningTracks,
   mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
@@ -163,10 +164,7 @@ export function startAgency(env) {
       search: 'data-act="search"',
       extra: session ? '' : `<div class="ag-acting">${i('users', 15)}<label class="sr-only" for="ag-user-select">Agindo como</label><select id="ag-user-select" data-ag-user aria-label="Agindo como"><option value="">${h(D().profile.name)} (Dono da agência)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(tr(u.role))})</option>`).join('')}</select></div>`,
       tools: [
-        { icon: 'phone', label: 'Discador', attr: 'data-act="dialer"' },
-        { icon: 'meg', label: 'Novidades', attr: 'data-act="updates"', dot: true },
-        { icon: 'bell', label: 'Notificações', attr: 'data-act="notifications"' },
-        { icon: 'help', label: 'Ajuda', attr: 'data-act="help"' }
+        { icon: 'bell', label: 'Notificações', attr: 'data-act="notifications"' }
       ],
       profile: {
         text: initials(session?.name || company.name || D().profile.name || 'AG'),
@@ -174,34 +172,13 @@ export function startAgency(env) {
         label: session?.name || 'Configurações da agência',
         attr: session ? 'data-act="account"' : 'data-ag="go-profile"'
       }
-    })}<main id="screen" class="screen">${content}</main></div></div>`;
+    })}<main id="screen" class="screen${A.page === 'ask' ? ' screen-ask-chat' : ''}">${content}</main></div></div>`;
   }
 
   // ---- Pages -------------------------------------------------------------
   const pages = {};
 
-  pages.ask = () => {
-    const prompts = [
-      'Qual é a nossa receita recorrente mensal (MRR)?',
-      'Qual subconta tem mais contatos cadastrados?',
-      'Quais subcontas ainda não realizaram login?',
-      'Quais são os próximos passos recomendados para a agência?'
-    ];
-    return `<div class="page ag-ask">${head('Pergunte à Soci', 'Obtenha respostas com base nos dados e registros desta agência.')}
-      <div class="surface padded ag-chat">${A.chat.length ? A.chat.map(m => `<div class="${m.me ? 'user-msg' : 'ai-msg'}">${h(m.text)}</div>`).join('') : `<div class="ag-prompts">${prompts.map(p => btn(p, 'ask', `data-q="${h(p)}"`)).join('')}</div>`}</div>
-      <form class="ag-ask-form" data-ag-form="ask"><input name="q" required maxlength="500" placeholder="Pergunte sobre subcontas, receita, snapshots, equipe…" aria-label="Pergunta"><button class="primary">Perguntar</button></form></div>`;
-  };
-
-  function answer(q) {
-    const t = O().totals, list = accounts();
-    q = q.toLowerCase();
-    if (/receita|mrr|revenue|money|plano|faturamento/.test(q)) return `A receita recorrente mensal (MRR) dos planos SaaS é de ${money(t.mrr)} em ${t.active} subcontas ativas. ${D().plans.length ? '' : 'Nenhum plano SaaS foi criado ainda: crie um em Configurador SaaS → Planos SaaS.'}`;
-    if (/contato|contatos|contact|biggest|most|maior/.test(q)) { const top = [...list].sort((a, b) => b.contacts - a.contacts)[0]; return top ? `${top.name} tem o maior número de contatos (${top.contacts}). A agência possui ${t.contacts} contatos no total.` : 'Ainda não há subcontas cadastradas.'; }
-    if (/login|inativo|acesso|logged/.test(q)) { const idle = list.filter(a => !a.lastLogin); return idle.length ? `${idle.length} subconta(s) ainda não registraram login: ${idle.map(a => a.name).join(', ')}.` : 'Todas as subcontas registraram login recentemente.'; }
-    if (/snapshot/.test(q)) return `${D().snapshots.length} snapshot(s) salvos, carregados ${D().snapshotLoads.length} vez(es) nas subcontas.`;
-    const next = [!D().company.domain && 'configurar um domínio White Label em Configurações → Empresa', !D().snapshots.length && 'criar um snapshot a partir da sua melhor subconta', !D().plans.length && 'definir planos SaaS para cobrança recorrente', !D().users.length && 'convidar sua equipe em Configurações → Equipe'].filter(Boolean);
-    return next.length ? `Próximos passos recomendados: ${next.join('; ')}.` : 'A configuração da sua agência cobre identidade visual, snapshots, planos e equipe. Acompanhe a atividade no Painel da agência.';
-  }
+  pages.ask = () => `<div class="sc-host" data-soci-chat-host></div>`;
 
   pages['ai-suite'] = () => {
     const tools = [
@@ -526,6 +503,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     app.innerHTML = shell(page());
     const picker = app.querySelector('[data-color-picker]');
     if (picker) mountColorPicker(picker);
+    const chatHost = app.querySelector('[data-soci-chat-host]');
+    if (chatHost) sociChat.mount(chatHost, { conversationId: A.sub });
+    else sociChat.unmount();
     for (const el of app.querySelectorAll('[data-w]')) el.style.width = `${el.dataset.w}%`;
     for (const el of app.querySelectorAll('[data-h]')) el.style.height = `${Math.max(3, Number(el.dataset.h))}%`;
     for (const el of app.querySelectorAll('[data-bg]')) el.style.background = el.dataset.bg;
@@ -538,7 +518,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const nextPage = pages[page] ? page : 'dashboard';
     if (nextPage !== A.page) { A.query = ''; A.status = ''; A.category = ''; A.selected.clear(); A.auditPage = 0; }
     A.page = nextPage;
-    A.sub = subTabs[A.page]?.some(t => t[0] === sub) ? sub : '';
+    A.sub = A.page === 'ask'
+      ? (sub && /^[\w-]{4,80}$/.test(sub) ? sub : '')
+      : (subTabs[A.page]?.some(t => t[0] === sub) ? sub : '');
     if (A.data) {
       render();
       if (isOpenAIPage() && A.data.access.session && !A.openAI) await refreshOpenAI();
@@ -576,6 +558,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     A.data = null;
     A.openAI = null;
     A.openAIOnly = false;
+    sociChat.reset();
   }
 
   // ---- Events -------------------------------------------------------------
@@ -614,7 +597,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         }
         case 'open-personal-workspace': close(); await openWorkspace(A.data.personalWorkspace.id, d.view === 'ai-agents' ? d.view : undefined); break;
         case 'open-account': close(); await act('account-open', { id }); await openWorkspace(id, d.view === 'ai-agents' ? d.view : undefined); break;
-        case 'ask': A.chat.push({ me: true, text: d.q }, { text: answer(d.q) }); render(); break;
         case 'new-account': dialog('Criar nova subconta', accountForm(), { form: 'account', submit: 'Criar subconta' }); break;
         case 'edit-account': {
           const a = accounts().find(x => x.id === id), meta = D().accounts[id] || {};
@@ -737,10 +719,10 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           env.onOpenAIChange(connection);
           if (currentVisit !== visit) return;
           A.openAI = connection;
+          void sociChat.refreshState();
           msg = connect ? 'Chave da OpenAI conectada.' : 'Chave da OpenAI desconectada.';
           break;
         }
-        case 'ask': A.chat.push({ me: true, text: data.q }, { text: answer(data.q) }); msg = ''; break;
         case 'account': { const newId = await call('accounts', data); msg = 'Subconta criada.'; close(); dialog('Subconta criada com sucesso', `<p><b>${h(data.name)}</b> está pronta para uso.</p><div class="inline-gap">${btn('Acessar subconta agora', 'open-account', `data-id="${newId}"`, 'primary')}</div>`); keepOpen = true; break; }
         case 'account-meta': await act('account-meta', { id, data }); msg = 'Dados da subconta atualizados.'; break;
         case 'bulk-status': for (const x of A.selected) { const meta = D().accounts[x]; await act('account-meta', { id: x, data: { ...meta, status: data.status } }); } A.selected.clear(); msg = 'Status das subcontas atualizado.'; break;
@@ -805,5 +787,14 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
   });
 
   const prospecting = createProspecting({data:()=>A.data,accounts,call,render,dialog,close,flash,download});
+  const sociChat = createSociChat({
+    api,
+    flash,
+    onOpenOpenAISettings: () => go('settings', 'openai'),
+    getHeaders: () => {
+      if (A.data?.access?.session) return {};
+      try { return { 'X-Go-User': localStorage.getItem('go.user') || '' }; } catch { return {}; }
+    }
+  });
   return { show, leave, session: () => A.data?.access?.session };
 }

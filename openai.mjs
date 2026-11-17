@@ -28,6 +28,10 @@ export function createOpenAI({ store, model, secret, request = fetch }) {
   const status = apiKey => ({ configured: Boolean(apiKey), last4: apiKey?.slice(-4) || '', model });
   return {
     async status(session) { return status(await connection(session)); },
+    async optionalConnection(session) {
+      const apiKey = await connection(session);
+      return apiKey ? { apiKey, model, request } : null;
+    },
     async requireConnection(session) {
       const apiKey = await connection(session);
       if (!apiKey) throw fail(connectMessage, 503);
