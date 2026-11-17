@@ -7,7 +7,7 @@ import { conversionTotals, dashboardPeriods, dateFields, dateMatches, effectiveW
 const barColors = ['blue','green','red','gray'];
 const pct = value => `${Number(value.toFixed(1))}%`;
 const integer = value => new Intl.NumberFormat('en').format(value);
-const formatMoney = (c,value) => value === 0 ? `${new Intl.NumberFormat('pt-BR',{style:'currency',currency:c.s.profile.currency,maximumFractionDigits:0}).format(0).replace(/\s/g,'')}` : money(value,c.s.profile.currency);
+const formatMoney = value => value === 0 ? 'R$0' : money(value);
 const glyph = (id,label,ico) => `<button class="dash-tool dash-square" type="button" data-dash-act="${id}" aria-label="${label}" title="${label}">${icon(ico,17)}</button>`;
 const tool = (id,label,ico = '') => `<button class="dash-tool" type="button" data-dash-act="${id}">${ico ? icon(ico,16) : ''}${label}</button>`;
 
@@ -34,7 +34,7 @@ function meters(rows, c, amount, max = Math.max(1,...rows.map(amount))) {
     <meter min="0" max="${max}" value="${amount(row)}" aria-label="${h(row.status || row.name)}"></meter></div>`).join('')}</div>`;
 }
 
-function moneyOrNumber(c, value, useMoney) { return useMoney ? formatMoney(c,value) : integer(value); }
+function moneyOrNumber(value, useMoney) { return useMoney ? formatMoney(value) : integer(value); }
 
 function metricStatus(c, widget, deals, previous) {
   if (!deals.length) return emptyMessage();
@@ -42,15 +42,15 @@ function metricStatus(c, widget, deals, previous) {
   const key = isValue ? 'value' : 'count';
   const total = deals.reduce((sum,record) => sum + (isValue ? record.value : 1),0);
   const change = previous && total - previous.reduce((sum,record) => sum + (isValue ? record.value : 1),0);
-  return `<div class="dash-status-total"><b>${moneyOrNumber(c,total,isValue)}</b>${change === null ? '' : `<small>${change > 0 ? '+' : ''}${moneyOrNumber(c,change,isValue)} vs previous</small>`}</div>` +
-    meters(statusTotals(deals),row => moneyOrNumber(c,row[key],isValue),row => row[key]);
+  return `<div class="dash-status-total"><b>${moneyOrNumber(total,isValue)}</b>${change === null ? '' : `<small>${change > 0 ? '+' : ''}${moneyOrNumber(change,isValue)} vs previous</small>`}</div>` +
+    meters(statusTotals(deals),row => moneyOrNumber(row[key],isValue),row => row[key]);
 }
 
 function conversion(c, deals, previous) {
   const value = conversionTotals(deals);
   const delta = previous ? value.rate - conversionTotals(previous).rate : null;
   return `<div class="dash-conversion"><div class="dash-gauge"><canvas width="240" height="240" data-dash-gauge="${value.rate}" aria-hidden="true"></canvas><b>${pct(value.rate)}</b></div>
-    <small>Won revenue</small><strong>${formatMoney(c,value.revenue)}</strong>${delta === null ? '' : `<small>${delta >= 0 ? '+' : ''}${delta.toFixed(1)} pp vs previous</small>`}</div>`;
+    <small>Won revenue</small><strong>${formatMoney(value.revenue)}</strong>${delta === null ? '' : `<small>${delta >= 0 ? '+' : ''}${delta.toFixed(1)} pp vs previous</small>`}</div>`;
 }
 
 function funnel(c, rows) {
@@ -58,7 +58,7 @@ function funnel(c, rows) {
   return `<div class="dash-funnel"><div class="dash-funnel-ticks"><span>0</span><span>${max}</span></div><table><thead class="sr-only"><tr><th>Stage</th><th>Cumulative</th><th>Next step</th></tr></thead><tbody>${rows.map((row,index) => {
     const cumulative = rows[0].count ? row.count / rows[0].count * 100 : index ? 0 : 100;
     const next = index && rows[index - 1].count ? row.count / rows[index - 1].count * 100 : 0;
-    return `<tr><td><div><span>${h(row.name)}</span><b>${formatMoney(c,row.value)}</b></div><meter min="0" max="${max}" value="${row.count}" aria-label="${h(row.name)} count"></meter></td><td>${pct(cumulative)}</td><td>${index ? pct(next) : '—'}</td></tr>`;
+    return `<tr><td><div><span>${h(row.name)}</span><b>${formatMoney(row.value)}</b></div><meter min="0" max="${max}" value="${row.count}" aria-label="${h(row.name)} count"></meter></td><td>${pct(cumulative)}</td><td>${index ? pct(next) : '—'}</td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
 
@@ -99,13 +99,13 @@ function sources(c, deals) {
   const rows = sourceTotals(deals);
   if (!rows.length) return emptyMessage();
   return `<div class="dash-table"><table><thead><tr>${['Source','Total leads','Open','Won','Lost','Abandoned','Total value'].map(col => `<th>${col}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(row => `<tr><th>${h(row.source)}</th><td>${row.count}</td>${row.totals.map(status => `<td>${status.count}</td>`).join('')}<td>${formatMoney(c,row.value)}</td></tr>`).join('')}</tbody></table></div>`;
+    <tbody>${rows.map(row => `<tr><th>${h(row.source)}</th><td>${row.count}</td>${row.totals.map(status => `<td>${status.count}</td>`).join('')}<td>${formatMoney(row.value)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function sales(c, deals) {
   const sales = salesTotals(deals);
   const duration = sales.duration >= 86400000 ? `${(sales.duration/86400000).toFixed(1)}d` : sales.duration >= 3600000 ? `${(sales.duration/3600000).toFixed(1)}h` : sales.duration >= 60000 ? `${Math.round(sales.duration/60000)}m` : `${Math.round(sales.duration/1000)}s`;
-  return `<div class="dash-small-stats">${[['Average sales duration',duration],['Total sale value',formatMoney(c,sales.value)],['Sales velocity','—']].map(([label,value]) => `<div><b>${value}</b><small>${label}</small></div>`).join('')}</div>`;
+  return `<div class="dash-small-stats">${[['Average sales duration',duration],['Total sale value',formatMoney(sales.value)],['Sales velocity','—']].map(([label,value]) => `<div><b>${value}</b><small>${label}</small></div>`).join('')}</div>`;
 }
 
 function widgetBody(c, config, range, comparison) {
@@ -126,7 +126,7 @@ function widgetBody(c, config, range, comparison) {
   }
   if (config.kind === 'invoices') {
     const value = c.s.invoices.filter(item => item.status === 'Paid' && dateMatches(item.due,range,zone)).reduce((sum,item) => sum + item.value,0);
-    return `<div class="dash-small-stats"><div><b>${formatMoney(c,value)}</b><small>Paid invoices</small></div><a href="#payments" class="text-link">Go to payments</a></div>`;
+    return `<div class="dash-small-stats"><div><b>${formatMoney(value)}</b><small>Paid invoices</small></div><a href="#payments" class="text-link">Go to payments</a></div>`;
   }
   const deals = scopedDeals(c.s,config,range,{owner:config.owner});
   const before = comparison ? scopedDeals(c.s,config,comparison,{owner:config.owner}) : null;

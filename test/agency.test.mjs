@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeServer } from '../server.mjs';
+import { createSqliteStore } from '../storage.mjs';
+import { blank } from '../model.mjs';
 
-async function start() {
-  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, dbPath: ':memory:', port: 0 });
+async function start(store = createSqliteStore(':memory:')) {
+  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, store, port: 0 });
   await new Promise((resolve, reject) => { server.on('error', reject); server.listen(0, host, resolve); });
   const base = `http://${host}:${server.address().port}`;
   const call = async (path, body, headers = {}) => {
@@ -14,6 +16,43 @@ async function start() {
 }
 const action = (local, body, headers) => local.call('/api/agency/action', body, headers);
 const prospectAction = (local, op, id, data) => local.call('/api/agency/prospecting-action', { op, id, data });
+
+test('Company name is editable while the platform brand stays soci', async t => {
+  const local = await start(); t.after(local.close);
+  const logo = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+  const data = { name: 'Empresa Teste', timezone: 'America/Sao_Paulo', currency: 'BRL',
+    primary: '#7c5cf0', logo, domain: 'app.empresa.example' };
+  for (const requestedBrand of [{}, { brand: 'Outra marca' }]) {
+    const saved = await action(local, { type: 'company', data: { ...data, ...requestedBrand } });
+    assert.equal(saved.status, 200);
+    assert.equal(saved.body.agency.company.name, data.name);
+    assert.equal(saved.body.agency.company.brand, 'soci');
+  }
+  const { body } = await local.call('/api/state?workspace=demo');
+  assert.equal(body.agency.brand, 'soci');
+  assert.equal(body.agency.primary, data.primary);
+  assert.equal(body.agency.logo, logo);
+});
+
+test('Agency and sub-account currency is always BRL, including older records', async t => {
+  const store = createSqliteStore(':memory:');
+  const legacyId = '0d1c5227-63a5-48e7-abd0-6f6c91c4b67e';
+  const legacy = blank('Conta antiga');
+  legacy.profile.currency = 'USD';
+  await store.insert(legacyId, legacy);
+  const local = await start(store); t.after(local.close);
+  const { body: initial } = await local.call('/api/agency');
+  assert.equal(initial.agency.company.currency, 'BRL');
+  assert.equal(initial.overview.accounts.find(account => account.id === legacyId).currency, 'BRL');
+  const company = await action(local, { type: 'company', data: { name: 'Agência teste', timezone: 'America/Sao_Paulo', primary: '#FF00BB', currency: 'USD' } });
+  assert.equal(company.status, 200);
+  assert.equal(company.body.agency.company.currency, 'BRL');
+  const { body: created } = await local.call('/api/workspaces', { name: 'Conta nova', currency: 'USD' });
+  assert.equal((await local.call('/api/state?workspace=' + created.id)).body.state.profile.currency, 'BRL');
+  const profile = await local.call('/api/action?workspace=' + legacyId, { type: 'profile', data: { name: 'Conta antiga', timezone: 'America/Sao_Paulo', currency: 'EUR' } });
+  assert.equal(profile.status, 200);
+  assert.equal(profile.body.state.profile.currency, 'BRL');
+});
 
 test('Saving Google Maps leads persists only the place references, and duplicate references reuse the existing lead', async t => {
   const local = await start(); t.after(local.close);

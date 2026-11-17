@@ -1,4 +1,4 @@
-import {icon as i, logo, brandName, brandColor, bootScreen} from './icons.js';
+import {icon as i, logo, brandName, bootScreen} from './icons.js';
 import {nav,h,avatar,screens,publicView,money} from './screens.js';
 import { conversationSections, manualQueue, slaRecords } from './conversations.js';
 import { inboxChange, inboxClick, inboxSubmit } from './inbox.js';
@@ -13,6 +13,7 @@ import { topbar } from './topbar.js';
 import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm.js';
 import { socialEvents } from './social.js';
 import { mountAgentScreen } from './agents.js';
+import { applyBrandColor, setThemeAccount } from './graao.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay'), toast=document.querySelector('#toast');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
@@ -35,6 +36,7 @@ async function api(path,body){
     location.replace('/login?' + new URLSearchParams({ next }));
   }
   if (!response.ok) throw Object.assign(Error(data.error||'The request failed.'),{status:response.status});
+  if (isAppPath && data.access) setThemeAccount(data.access.session?.id);
   return data;
 }
 async function load(){
@@ -130,9 +132,7 @@ function render(){
   const brand=brandName(c.agency?.brand), customLink=c.agency?.menuLinks.find(l=>l.id===c.tab);
   const active=nav.find(x=>x[0]===c.view);
   document.title='soci';
-  const bColor = brandColor(c.agency?.primary);
-  document.documentElement.style.setProperty('--blue', bColor);
-  document.documentElement.style.setProperty('--g-brand', bColor);
+  applyBrandColor(c.agency?.primary);
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
   app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}<main id="screen" class="screen">${screenHtml}</main></div></div>`;
@@ -422,7 +422,7 @@ function conversationFormControls(element) {
     label.querySelector('select').disabled = label.hidden;
   }
 }
-function assistant(prompt){const q=prompt.toLowerCase(), m=c.m, cur=c.s.profile.currency;if(/deal|pipeline|opportun|lead|venda|funil/.test(q))return `There are ${m.open} open opportunities worth ${money(m.openValue,cur)}, and ${m.won} won deals. Open Opportunities to review the current stages.`;if(/agenda|appointment|book|calendar/.test(q))return `There are ${m.appointments} appointments that haven’t been canceled. Open Calendars for dates and details.`;if(/contact|contat/.test(q))return `You have ${m.contacts} contacts. Open Contacts to search, filter, or import more.`;if(/invoice|pagamento|payment/.test(q))return `${money(m.invoicesPaid,cur)} has been marked paid. Open Payments to see the invoices and balances.`;return `This workspace has ${m.contacts} contacts, ${m.open} open opportunities and ${m.unread} unread messages. I can summarize contacts, opportunities, appointments, or invoices.`;}
+function assistant(prompt){const q=prompt.toLowerCase(), m=c.m;if(/deal|pipeline|opportun|lead|venda|funil/.test(q))return `There are ${m.open} open opportunities worth ${money(m.openValue)}, and ${m.won} won deals. Open Opportunities to review the current stages.`;if(/agenda|appointment|book|calendar/.test(q))return `There are ${m.appointments} appointments that haven’t been canceled. Open Calendars for dates and details.`;if(/contact|contat/.test(q))return `You have ${m.contacts} contacts. Open Contacts to search, filter, or import more.`;if(/invoice|pagamento|payment/.test(q))return `${money(m.invoicesPaid)} has been marked paid. Open Payments to see the invoices and balances.`;return `This workspace has ${m.contacts} contacts, ${m.open} open opportunities and ${m.unread} unread messages. I can summarize contacts, opportunities, appointments, or invoices.`;}
 
 document.addEventListener('click',async ev=>{
   const studioLink = ev.target.closest('[data-studio-open]');
@@ -687,7 +687,11 @@ if(viewPath){
   catch(e){app.innerHTML=`<div class="boot"><h1>Página indisponível</h1><p>${h(e.message)}</p><a href="/">Voltar para a plataforma</a></div>`;}
 }else{
   installDashboardControls({ c,dialog,close,render,load,mutate,flash,go });
-  agencyUI = startAgency({ app, overlay, api, flash, openWorkspace: useWorkspace, onOpenAIChange: connection => {
+  agencyUI = startAgency({ app, overlay, api, flash, openWorkspace: useWorkspace, onBrandColorChange: primary => {
+    if (!c.agency || c.workspace.startsWith('user-')) return;
+    c.agency.primary = primary;
+    if (c.mode !== 'agency') render();
+  }, onOpenAIChange: connection => {
     if (!c.features) return;
     c.features.studioAI = connection.configured;
     c.features.agentModel = connection.configured && allowedView('ai-agents') ? connection.model : '';

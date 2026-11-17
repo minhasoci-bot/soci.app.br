@@ -21,7 +21,7 @@ const objectLabel = { Contact: 'Contato', Opportunity: 'Oportunidade', Company: 
 const typeLabel = { 'Single line': 'Linha única', 'Multi line': 'Várias linhas', Number: 'Número', Monetary: 'Monetário', Date: 'Data',
   'Dropdown (single)': 'Lista suspensa (única)', Checkbox: 'Caixa de seleção', Email: 'E-mail', Phone: 'Telefone' };
 const label = (map, v) => map[v] || tr(v);
-const mt = (n, c) => money(n, c.s.profile.currency);
+const mt = money;
 const date = (d, c, time = false) => fmt(d && d.length === 10 ? `${d}T12:00:00Z` : d, c.s.profile.timezone, time);
 const who = (id, c) => c.s.contacts.find(r => r.id === id)?.name || '—';
 const product = (id, c) => c.s.products.find(p => p.id === id);

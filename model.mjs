@@ -22,6 +22,7 @@ export const defaults = {
 export const blank = name => ({ ...structuredClone(defaults), profile: { ...defaults.profile, ...(name ? { name } : {}) } });
 export function hydrateWorkspace(state) {
   const fresh = blank();
+  state.profile.currency = defaults.profile.currency;
   const additions = ['threads','teamMessages','inboxViews','agents','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects',...crmCollections,...socialCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
@@ -432,7 +433,7 @@ function other(s, command, type, key, id, d, workspace) {
   if (type === 'profile') {
     const timezone=req(d.timezone,'Time zone');
     try { new Intl.DateTimeFormat('en',{timeZone:timezone}); } catch { fail('Use an IANA time zone, for example America/Sao_Paulo.'); }
-    s.profile={name:req(d.name,'Workspace name'),email:email(d.email),phone:str(d.phone,48),timezone,currency:one(d.currency,['BRL','USD','EUR'],'currency')}; return s.profile.name;
+    s.profile={name:req(d.name,'Workspace name'),email:email(d.email),phone:str(d.phone,48),timezone,currency:defaults.profile.currency}; return s.profile.name;
   }
   if (type === 'stage') {
     const previous = id && find(s,'stages',id);

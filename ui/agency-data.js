@@ -59,7 +59,7 @@ export const collections = {
     ['permissions', 'Permissões de módulos', 'multi', false, '@modules']
   ] },
   plans: { label: 'Plano SaaS', max: 20, fields: [
-    ['name', 'Nome do plano', 'text', true], ['price', 'Preço mensal (USD)', 'number', true], ['trialDays', 'Dias de teste', 'number'],
+    ['name', 'Nome do plano', 'text', true], ['price', 'Preço mensal (R$)', 'number', true], ['trialDays', 'Dias de teste', 'number'],
     ['features', 'Recursos inclusos (um por linha)', 'textarea']
   ] },
   templates: { label: 'Template', max: 200, fields: [
@@ -68,7 +68,7 @@ export const collections = {
   ] },
   referrals: { label: 'Indicação', max: 500, fields: [
     ['name', 'Empresa indicada', 'text', true], ['email', 'E-mail', 'email'], ['plan', 'Plano', 'select', true, ['Starter', 'Unlimited', 'Pro']],
-    ['amount', 'Assinatura mensal (USD)', 'number', true], ['status', 'Status', 'select', true, ['Trial', 'Active', 'Cancelled']]
+    ['amount', 'Assinatura mensal (R$)', 'number', true], ['status', 'Status', 'select', true, ['Trial', 'Active', 'Cancelled']]
   ] }
 };
 

@@ -223,7 +223,7 @@ const rail = [['contact','Contato','contacts'],['activity','Atividade','clock'],
 const add = (label, key, contact) => `<button class="secondary" data-edit="${key}" data-contact="${contact}">${i('plus',14)} ${label}</button>`;
 const items = (rows, nothing) => rows.length ? `<ul class="panel-list">${rows.join('')}</ul>` : `<p class="panel-empty">${nothing}</p>`;
 function panelBody(c, st, t) {
-  const x = t.contact, id = x.id, cur = c.s.profile.currency;
+  const x = t.contact, id = x.id;
   switch (st.panel) {
     case 'activity': {
       const events = [...t.messages.map(m => ({ at:m.created, text:`${m.direction === 'Outbound' ? 'Mensagem enviada' : 'Mensagem recebida'} · ${tr(m.channel)}` })),
@@ -233,14 +233,14 @@ function panelBody(c, st, t) {
       return items(events.map(e => `<li><span>${h(e.text)}</span><small>${date(e.at,c,true)}</small></li>`), 'Nenhuma atividade registrada.');
     }
     case 'opportunities': return add('Oportunidade','opportunities',id) + items(c.s.opportunities.filter(r => r.contactId === id).map(r =>
-      `<li><button class="identity" data-edit="opportunities" data-id="${r.id}"><b>${h(r.title)}</b></button><small>${h(c.s.stages.find(s => s.id === r.stage)?.name || '—')} · ${money(r.value,cur)}</small>${badge(r.status, r.status === 'Won' ? 'green' : '')}</li>`), 'Nenhuma oportunidade.');
+      `<li><button class="identity" data-edit="opportunities" data-id="${r.id}"><b>${h(r.title)}</b></button><small>${h(c.s.stages.find(s => s.id === r.stage)?.name || '—')} · ${money(r.value)}</small>${badge(r.status, r.status === 'Won' ? 'green' : '')}</li>`), 'Nenhuma oportunidade.');
     case 'tasks': return add('Tarefa','tasks',id) + items(c.s.tasks.filter(r => r.contactId === id).map(r =>
       `<li><b>${h(r.title)}</b><small>${r.due ? date(r.due,c) : 'Sem prazo'}</small><button class="pill-button ${r.done ? 'completed' : ''}" data-task="${r.id}">${r.done ? 'Concluída' : 'Em aberto'}</button></li>`), 'Nenhuma tarefa.');
     case 'notes': return `<button class="secondary" data-edit="contacts" data-id="${id}">${i('edit',14)} Editar notas</button>${x.notes ? `<p class="panel-notes">${h(x.notes)}</p>` : '<p class="panel-empty">Nenhuma nota.</p>'}`;
     case 'appointments': return add('Agendamento','appointments',id) + items(c.s.appointments.filter(r => r.contactId === id).map(r =>
       `<li><button class="identity" data-edit="appointments" data-id="${r.id}"><b>${h(r.title)}</b></button><small>${date(r.start,c,true)}</small>${badge(r.status)}</li>`), 'Nenhum agendamento.');
     case 'payments': return add('Fatura','invoices',id) + items(c.s.invoices.filter(r => r.contactId === id).map(r =>
-      `<li><button class="identity" data-edit="invoices" data-id="${r.id}"><b>${h(r.title)}</b></button><small>${money(r.value,cur)} · vence ${date(r.due,c)}</small>${badge(r.status, r.status === 'Paid' ? 'green' : '')}</li>`), 'Nenhuma fatura.');
+      `<li><button class="identity" data-edit="invoices" data-id="${r.id}"><b>${h(r.title)}</b></button><small>${money(r.value)} · vence ${date(r.due,c)}</small>${badge(r.status, r.status === 'Paid' ? 'green' : '')}</li>`), 'Nenhuma fatura.');
     default: return `<div class="panel-identity">${avatar(x.name)}<div><b>${h(x.name)}</b>${x.company ? `<small>${h(x.company)}</small>` : ''}</div></div>
       <dl class="panel-fields"><dt>E-mail</dt><dd>${h(x.email || '—')}</dd><dt>Telefone</dt><dd>${h(x.phone || '—')}</dd>
       <dt>Atribuída a</dt><dd>${h(t.assignee || 'Ninguém')}</dd><dt>Seguidores</dt><dd>${h(t.followers.join(', ') || '—')}</dd>

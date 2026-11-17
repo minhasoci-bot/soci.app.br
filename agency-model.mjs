@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { metrics, uid, now } from './model.mjs';
+import { defaults, metrics, uid, now } from './model.mjs';
 import { hydrateProspecting } from './prospecting-model.mjs';
 import { agentTemplate } from './agent-model.mjs';
 import {
@@ -10,6 +10,7 @@ import {
 
 export const AGENCY_ID = 'agency';
 const platformLanguage = 'Português (Brasil)';
+const platformBrand = 'soci';
 const defaultPrimary = '#ff00bb';
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value).slice(0, limit) : '';
@@ -43,7 +44,7 @@ export const hash = text => createHash('sha256').update(text).digest('hex');
 export function blankAgency() {
   return {
     profile: { name: 'Agency', first: 'Agency', last: 'Owner', email: '', phone: '', language: platformLanguage },
-    company: { name: 'My Agency', brand: 'soci', domain: '', website: '', phone: '', address: '', primary: defaultPrimary, logo: '', timezone: 'America/Sao_Paulo', currency: 'USD' },
+    company: { name: 'My Agency', brand: platformBrand, domain: '', website: '', phone: '', address: '', primary: defaultPrimary, logo: '', timezone: 'America/Sao_Paulo', currency: defaults.profile.currency },
     accounts: {}, plans: [], snapshots: [], snapshotLoads: [], prospects: [], partners: [], ideas: [], menuLinks: [], announcements: [],
     users: [], templates: [], templateInstalls: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], audit: [],
     reselling: Object.fromEntries(resellProducts.map(p => [p.key, { price: p.base, disabled: [] }])),
@@ -83,7 +84,8 @@ export function hydrateAgency(state) {
     else if (value && typeof value === 'object' && !Array.isArray(value) && !['accounts', 'integrations', 'reselling', 'systemEmails', 'labs'].includes(key)) state[key] = { ...value, ...state[key] };
   }
   state.profile.language = platformLanguage;
-  if (state.company.primary === '#7c5cf0') state.company.primary = defaultPrimary;
+  state.company.brand = platformBrand;
+  state.company.currency = defaults.profile.currency;
   for (const product of resellProducts) state.reselling[product.key] ??= { price: product.base, disabled: [] };
   for (const [key] of rebillProducts) state.saas.rebilling[key] ??= 1;
   for (const [key] of subFeatures) state.subFeatures[key] ??= { on: {}, rebill: [] };
@@ -249,9 +251,9 @@ export function executeAgency(state, command, { accountIds, actor, sharedSnapsho
       return 'profile';
     }
     case 'company': {
-      Object.assign(state.company, { name: req(d.name, 'Company name', 120), brand: req(d.brand, 'Brand name', 60), domain: str(d.domain, 200).toLowerCase(),
+      Object.assign(state.company, { name: req(d.name, 'Nome da empresa', 120), brand: platformBrand, domain: str(d.domain, 200).toLowerCase(),
         website: url(d.website, 'Website'), phone: str(d.phone, 48), address: str(d.address, 300), primary: color(d.primary),
-        timezone: req(d.timezone, 'Time zone', 60), currency: one(d.currency, ['USD', 'BRL', 'EUR', 'GBP'], 'currency') });
+        timezone: req(d.timezone, 'Time zone', 60), currency: defaults.profile.currency });
       if (d.logo !== undefined) state.company.logo = d.logo === 'remove' ? '' : d.logo ? image(d.logo) : state.company.logo;
       log('Company settings updated', state.company.name);
       return 'company';
@@ -587,7 +589,7 @@ export function agencyOverview(agency, workspaces) {
 export function agencyForWorkspace(agency, workspace) {
   const applies = item => !item.accounts?.length || item.accounts.includes(workspace);
   return {
-    brand: agency.company.brand, primary: agency.company.primary, logo: agency.company.logo,
+    brand: platformBrand, primary: agency.company.primary, logo: agency.company.logo,
     menuLinks: agency.menuLinks.filter(l => l.showOn !== 'Agency' && applies(l)).map(({ id, title, url: href, icon, openIn }) => ({ id, title, url: href, icon, openIn })),
     announcements: agency.announcements.filter(a => a.published && applies(a)).map(({ id, title, body, tone }) => ({ id, title, body, tone })),
     users: agency.users.map(({ id, first, last, role, accounts, permissions }) => ({ id, name: `${first} ${last}`, role, accounts, permissions }))

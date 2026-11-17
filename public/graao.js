@@ -127,12 +127,13 @@ function underline(nav) {
 function countUp(b, key) {
   const node = [...b.childNodes].find(n => n.nodeType === 3 && /\d/.test(n.textContent));
   if (!node) return;
-  const m = node.textContent.match(/^(\D*?)(-?\d[\d,]*(?:\.\d+)?)(.*)$/s);
+  const isMoney = node.textContent.includes('R$');
+  const m = node.textContent.match(isMoney ? /^(\D*?)(-?\d[\d.]*(?:,\d+)?)(.*)$/s : /^(\D*?)(-?\d[\d,]*(?:\.\d+)?)(.*)$/s);
   if (!m) return;
   const [, pre, num, post] = m;
-  const decimals = (num.split('.')[1] || '').length;
-  const fmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals, useGrouping: num.includes(',') });
-  const target = Number(num.replace(/,/g, ''));
+  const decimals = (num.split(isMoney ? ',' : '.')[1] || '').length;
+  const fmt = new Intl.NumberFormat(isMoney ? 'pt-BR' : 'en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals, useGrouping: num.includes(isMoney ? '.' : ',') });
+  const target = Number(isMoney ? num.replace(/\./g, '').replace(',', '.') : num.replace(/,/g, ''));
   if (!Number.isFinite(target) || fmt.format(target) !== num.replace(/^-/, '-')) return;
   const from = counts.get(key) ?? 0;
   counts.set(key, target);
@@ -208,19 +209,56 @@ document.fonts?.ready.then(() => document.querySelectorAll('[data-g]').forEach(e
 
 /* Theme toggle: microkit diagonal wipe via View Transitions API */
 let themeBusy = null;
+let themeStorageKey;
+
+function applyTheme(theme) {
+  const html = document.documentElement;
+  if (theme === 'dark') html.setAttribute('data-theme', 'dark');
+  else html.removeAttribute('data-theme');
+}
+
+export function applyBrandColor(value) {
+  const root = document.documentElement;
+  const color = /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : '#ff00bb';
+  const custom = color !== '#ff00bb';
+  root.toggleAttribute('data-custom-brand', custom);
+  if (!custom) return;
+
+  const [red, green, blue] = color.slice(1).match(/../g).map(hex => {
+    const channel = Number.parseInt(hex, 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const light = red * 0.2126 + green * 0.7152 + blue * 0.0722 > 0.179;
+  root.style.setProperty('--g-custom-brand', color);
+  root.style.setProperty('--g-brand-on', light ? '#000' : '#fff');
+  root.style.setProperty('--g-brand-depth', light ? '#fff' : '#000');
+}
+
+export function setThemeAccount(accountId) {
+  const key = accountId ? `soci.theme:${accountId}` : 'soci.theme';
+  if (themeStorageKey === key) return;
+  themeStorageKey = key;
+  let savedTheme;
+  try {
+    savedTheme = localStorage.getItem(key);
+    if (!accountId && !savedTheme) savedTheme = localStorage.getItem('graao.theme');
+  } catch {}
+  applyTheme(savedTheme);
+}
+
 export function toggleTheme(to) {
   const html = document.documentElement;
   const current = html.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
   const next = to === 'light' || to === 'dark' ? to : current === 'dark' ? 'light' : 'dark';
   if (current === next) return Promise.resolve();
 
+  const key = themeStorageKey;
   const swap = () => {
-    if (next === 'dark') {
-      html.setAttribute('data-theme', 'dark');
-    } else {
-      html.removeAttribute('data-theme');
+    if (themeStorageKey !== key) return;
+    applyTheme(next);
+    if (key) {
+      try { localStorage.setItem(key, next); } catch {}
     }
-    try { localStorage.setItem('soci.theme', next); } catch {}
   };
 
   if (themeBusy) {
@@ -246,11 +284,6 @@ export function toggleTheme(to) {
   return transition.updateCallbackDone;
 }
 window.toggleTheme = toggleTheme;
-
-try {
-  const savedTheme = localStorage.getItem('soci.theme') || localStorage.getItem('graao.theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-  if (savedTheme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
-} catch {}
 
 document.addEventListener('click', e => {
   const btn = e.target instanceof Element && e.target.closest('[data-theme-toggle]');

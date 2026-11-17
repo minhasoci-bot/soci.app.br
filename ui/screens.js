@@ -10,7 +10,8 @@ import {agentsScreen} from './agents.js';
 
 export const nav=[['dashboard','Painel de controle','grid','Dashboard'],['conversations','Conversas','chat','Conversations'],['calendars','Calendários','cal','Calendars'],['contacts','Contatos','contacts','Contacts'],['opportunities','Oportunidades','leads','Opportunities'],['payments','Pagamentos','pay','Payments'],['studio','Estúdio de IA','studio','AI Studio'],['ai-agents','Agentes de IA','spark','AI Agents'],['marketing','Marketing','send','Marketing'],['automation','Automações','flow','Automation'],['sites','Sites','site','Sites'],['memberships','Assinaturas','play','Memberships'],['media','Mídia Drive','folder','Media Storage'],['reputation','Reputação','award','Reputation'],['reporting','Relatórios','chart','Reporting'],['settings','Configurações','gear','Settings']];
 export const h=x=>String(x??'').replace(/[&<>"']/g,v=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[v]);
-export const money=(v,c='BRL')=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:c}).format(v||0);
+const brl = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' });
+export function money(value) { return brl.format(value || 0); }
 export const fmt=(d,tz='America/Sao_Paulo',time=false)=>d ? new Intl.DateTimeFormat('pt-BR',{timeZone:tz,day:'2-digit',month:'short',year:'numeric',...(time?{hour:'2-digit',minute:'2-digit'}:{})}).format(new Date(d)) : '—';
 export const initials=n=>n?.trim().split(/\s+/).slice(0,2).map(v=>v[0]?.toUpperCase()).join('')||'GO';
 export const badge=(s,t='')=>`<span class="badge ${t}">${h(tr(s))}</span>`;
@@ -27,7 +28,7 @@ const table=(columns,rows,nothing)=>`<div class="surface table-shell"><table><th
 const row=(cells,key,id)=>`<tr>${cells.map(c=>`<td>${c}</td>`).join('')}<td class="right"><button class="icon-btn" title="Editar registro" aria-label="Editar registro" data-edit="${key}" data-id="${id}">${i('edit',16)}</button></td></tr>`;
 const date=(d,c,time=false)=>fmt(d,c.s.profile.timezone,time);
 const name=(id,c)=>c.s.contacts.find(r=>r.id===id)?.name||'—';
-const mt=(n,c)=>money(n,c.s.profile.currency);
+const mt=money;
 const filter=(rows,q,fields)=>rows.filter(r=>!q||fields.some(f=>String(r[f]||'').toLowerCase().includes(q.toLowerCase())));
 const top=(rows,q,fields)=>filter([...rows].reverse(),q,fields);
 const viewLink=(label,kind,id,c)=>`<a class="secondary" href="/${kind}/${c.workspace}/${id}" target="_blank" rel="noopener">${i('external',14)} ${label}</a>`;
@@ -135,7 +136,7 @@ function marketplace(c){
 function settings(c){
   if(c.tab&&!['business','workspaces'].includes(c.tab)) return settingsTab(c,c.tab);
   const p=c.s.profile;
-  return wrap(head('Configurações','Gerencie o workspace ativo.',action('Novo workspace','new-workspace','plus'),tabs(crmTabs.settings,c.tab||'business'))+(c.tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" value="${h(p.phone)}" type="tel"></label><label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<select name="currency">${['BRL','USD','EUR'].map(s=>`<option ${s===p.currency?'selected':''}>${s}</option>`).join('')}</select></label></div><button class="primary">Salvar alterações</button></form>`));
+  return wrap(head('Configurações','Gerencie o workspace ativo.',action('Novo workspace','new-workspace','plus'),tabs(crmTabs.settings,c.tab||'business'))+(c.tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" value="${h(p.phone)}" type="tel"></label><label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label></div><button class="primary">Salvar alterações</button></form>`));
 }
 export const screens={'ask-ai':dashboard,dashboard,conversations,calendars,contacts,opportunities,automation,payments,marketing,sites,memberships,media,reputation,reporting,settings,studio,'ai-agents':agentsScreen};
 export { date, empty, name, primary, row, search, table };
