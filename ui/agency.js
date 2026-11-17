@@ -148,7 +148,6 @@ export function startAgency(env) {
         { label: currentPageLabel }
       ],
       search: 'data-act="search"',
-      quick: 'data-act="agency-quick"',
       extra: session ? '' : `<div class="ag-acting">${i('users', 15)}<label class="sr-only" for="ag-user-select">Agindo como</label><select id="ag-user-select" data-ag-user aria-label="Agindo como"><option value="">${h(D().profile.name)} (Dono da agência)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(tr(u.role))})</option>`).join('')}</select></div>`,
       tools: [
         { icon: 'lang', label: 'Idioma', attr: 'data-act="language"' },
@@ -509,20 +508,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     // Handle profile click from topbar
     const profBtn = ev.target.closest('[data-ag-profile]');
     if (profBtn) { go('settings', 'company'); return; }
-
-    // Handle agency quick actions from topbar
-    const quickBtn = ev.target.closest('[data-act="agency-quick"]');
-    if (quickBtn) {
-      dialog('Ações rápidas da agência', `<div class="quick-list">
-        <button class="secondary" data-ag="new-account">${i('plus', 16)} Nova subconta</button>
-        <button class="secondary" data-ag="snapshot-create">${i('box', 16)} Criar snapshot</button>
-        <button class="secondary" data-ag="new-record" data-key="users">${i('users', 16)} Adicionar membro da equipe</button>
-        <button class="secondary" data-ag="new-record" data-key="plans">${i('tag', 16)} Novo plano SaaS</button>
-        <button class="secondary" data-ag="new-record" data-key="partners">${i('award', 16)} Novo parceiro</button>
-        <button class="secondary" data-ag="switch-account">${i('refresh', 16)} Trocar para subconta</button>
-      </div>`);
-      return;
-    }
 
     const b = ev.target.closest('[data-ag]'); if (!b) return;
     const d = b.dataset, id = d.id;

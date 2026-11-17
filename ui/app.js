@@ -97,7 +97,7 @@ function appTopbar(){
   const active=nav.find(x=>x[0]===c.view), page=c.view==='link'?c.agency?.menuLinks.find(l=>l.id===c.tab)?.title||'Link':active?.[1];
   const profileLabel = session?.name || 'Perfil do workspace';
   const profileText = session?.name?.slice(0, 2).toUpperCase() || 'gr';
-  return topbar({crumbs:[{label:c.s.profile.name,href:'#dashboard'},{label:page}],search:'data-act="search"',quick:'data-act="quick"',
+  return topbar({crumbs:[{label:c.s.profile.name,href:'#dashboard'},{label:page}],search:'data-act="search"',
     tools:[{icon:'lang',label:'Idioma',attr:'data-act="language"'},{icon:'phone',label:'Discador',attr:'data-act="dialer"'},{icon:'meg',label:'Novidades',attr:'data-act="updates"',dot:true},{icon:'bell',label:'Notificações',attr:'data-act="notifications"'},{icon:'help',label:'Ajuda',attr:'data-act="help"'}],
     profile:{text:profileText,picture:session?.picture||'',label:profileLabel,attr:session?'data-act="account"':'data-go="settings"'}});
 }
@@ -490,7 +490,6 @@ document.addEventListener('click',async ev=>{
         break;
       case 'new-workspace':dialog('Criar workspace',input('Nome do workspace','name','',true),{form:'workspace',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Criar workspace</button>'});break;
       case 'search':dialog('Buscar no workspace','<label>Encontre um módulo ou contato<input id="global-search" placeholder="Buscar módulos e contatos…" autocomplete="off"></label><div id="search-results"></div>');globalSearch('');break;
-      case 'quick':dialog('Ações rápidas','<div class="quick-list"><button class="secondary" data-edit="contacts">Adicionar contato</button><button class="secondary" data-edit="opportunities">Nova oportunidade</button><button class="secondary" data-edit="appointments">Agendar horário</button><button class="secondary" data-edit="workflows">Criar automação</button></div>');break;
       case 'dialer':dialog('Discador','<p>O discador não está conectado. Chamadas de voz exigem a configuração de um provedor de telefonia autorizado.</p>');break;
       case 'updates':dialog('Novidades','<p>O soci está rodando localmente com tudo atualizado.</p>');break;
       case 'language':dialog('Idioma','<p>O sistema está operando em Português (Brasil).</p>');break;
