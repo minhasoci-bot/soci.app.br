@@ -8,6 +8,7 @@ import {
 } from './ui/agency-data.js';
 
 export const AGENCY_ID = 'agency';
+const defaultPrimary = '#ff00bb';
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value).slice(0, limit) : '';
 const req = (value, label, limit) => str(value, limit) || fail(`${label} is required.`);
@@ -40,7 +41,7 @@ export const hash = text => createHash('sha256').update(text).digest('hex');
 export function blankAgency() {
   return {
     profile: { name: 'Agency', first: 'Agency', last: 'Owner', email: '', phone: '', language: 'English (United States)' },
-    company: { name: 'My Agency', brand: 'soci', domain: '', website: '', phone: '', address: '', primary: '#7c5cf0', logo: '', timezone: 'America/Sao_Paulo', currency: 'USD' },
+    company: { name: 'My Agency', brand: 'soci', domain: '', website: '', phone: '', address: '', primary: defaultPrimary, logo: '', timezone: 'America/Sao_Paulo', currency: 'USD' },
     accounts: {}, plans: [], snapshots: [], snapshotLoads: [], prospects: [], partners: [], ideas: [], menuLinks: [], announcements: [],
     users: [], templates: [], templateInstalls: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], audit: [],
     reselling: Object.fromEntries(resellProducts.map(p => [p.key, { price: p.base, disabled: [] }])),
@@ -79,6 +80,7 @@ export function hydrateAgency(state) {
     if (state[key] === undefined) state[key] = value;
     else if (value && typeof value === 'object' && !Array.isArray(value) && !['accounts', 'integrations', 'reselling', 'systemEmails', 'labs'].includes(key)) state[key] = { ...value, ...state[key] };
   }
+  if (state.company.primary === '#7c5cf0') state.company.primary = defaultPrimary;
   for (const product of resellProducts) state.reselling[product.key] ??= { price: product.base, disabled: [] };
   for (const [key] of rebillProducts) state.saas.rebilling[key] ??= 1;
   for (const [key] of subFeatures) state.subFeatures[key] ??= { on: {}, rebill: [] };
