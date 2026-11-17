@@ -358,7 +358,8 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
   // ---- Social Planner: OAuth secrets, scheduler and media ------------------------------------
   const socialRow = async rowId => {
     try { return await store.load(rowId); }
-    catch { await store.insert(rowId, { tokens:{}, pending:{}, states:{} }); return store.load(rowId); }
+    // Supabase derives a NOT NULL name column from profile.name, so secret rows carry one too.
+    catch { await store.insert(rowId, { profile:{ name:'Social Planner' }, tokens:{}, pending:{}, states:{} }); return store.load(rowId); }
   };
   const socialSecrets = async (workspace, mutate) => { await socialRow(`social-${workspace}`); return store.change(`social-${workspace}`, mutate); };
   const publicBase = req => process.env.SOCIAL_PUBLIC_URL || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;

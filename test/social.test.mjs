@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeServer } from '../server.mjs';
+import { createSqliteStore } from '../storage.mjs';
 import { useFetch, seal, unseal } from '../social-providers.mjs';
 import { blank, execute } from '../model.mjs';
 import { evergreenDue, settle } from '../social-model.mjs';
@@ -199,4 +200,18 @@ test('Bluesky connects with an app password and publishes with link facets', asy
   const record = calls.find(c => c.url.endsWith('createRecord')).body.record;
   assert.deepEqual(record.facets.map(f => f.features[0].$type), ['app.bsky.richtext.facet#link', 'app.bsky.richtext.facet#tag']);
   assert.equal(calls.find(c => c.url.endsWith('createRecord')).auth, 'Bearer a2', 'the session is refreshed before posting');
+});
+
+test('Social secret rows satisfy the Supabase rule that every row has profile.name', async t => {
+  process.env.META_APP_ID = 'app-id'; process.env.META_APP_SECRET = 'app-secret';
+  t.after(() => { delete process.env.META_APP_ID; delete process.env.META_APP_SECRET; });
+  // go_workspaces.name is generated from state.profile.name and NOT NULL in Supabase.
+  const sqlite = createSqliteStore(':memory:');
+  const store = { ...sqlite, insert: (id, state) => { if (!state?.profile?.name) throw Object.assign(new Error('Supabase Data API request failed (400).'), {}); return sqlite.insert(id, state); } };
+  const { server, host } = makeServer({ store, socialScheduler: false });
+  await new Promise(resolve => server.listen(0, host, resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const r = await fetch(`http://${host}:${server.address().port}/api/social/connect/facebook?workspace=demo`, { redirect: 'manual' });
+  assert.equal(r.status, 302);
+  assert.match(r.headers.get('location'), /facebook\.com/);
 });
