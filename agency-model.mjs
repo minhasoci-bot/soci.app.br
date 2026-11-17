@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { metrics, uid, now } from './model.mjs';
+import { hydrateProspecting } from './prospecting-model.mjs';
 import {
   accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog, labFeatures,
   mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog
@@ -62,7 +63,7 @@ export function hydrateAgency(state) {
     else if (value && typeof value === 'object' && !Array.isArray(value) && !['accounts', 'integrations', 'reselling', 'systemEmails', 'labs'].includes(key)) state[key] = { ...value, ...state[key] };
   }
   for (const product of resellProducts) state.reselling[product.key] ??= { price: product.base, disabled: [] };
-  return state;
+  return hydrateProspecting(state);
 }
 
 function sanitize(key, input, accountIds) {

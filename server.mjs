@@ -8,6 +8,10 @@ import { generatePage, generateSite, revisePage, studioAiAvailable } from './stu
 import { addPage, deletePage, findPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, userAccess } from './agency-model.mjs';
+import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
+import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
+import { folded, prospectSearchText } from './ui/prospecting-data.js';
+import { shareReportHtml, widgetHtml } from './ui/prospect-report.js';
 import { moduleOfRecord, snapshotAssets } from './ui/agency-data.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -18,6 +22,8 @@ const staticFiles = new Map([
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
   ['/studio.js','text/javascript; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
+  ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],
+  ['/prospect-report.js','text/javascript; charset=utf-8'], ['/prospecting.css','text/css; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
@@ -30,6 +36,7 @@ const error = (message,status) => Object.assign(new Error(message),{status});
 const spaceId = /^[0-9a-f-]{36}$|^demo$/;
 const paths = /^\/(p|f|course)\/([0-9a-f-]{36}|demo)\/([0-9a-f-]{36})$/;
 const redirectPath = /^\/r\/(demo|[0-9a-f-]{36})\/([0-9a-f-]{36})$/;
+const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 const commandModule = { message:'conversations', thread:'conversations', 'manual-action':'conversations', 'conversation-sla':'conversations', 'dismiss-sla':'conversations',
   pipeline:'opportunities', stage:'opportunities', import:'contacts', 'studio-visit':'studio', 'studio-star':'studio', profile:'settings',
@@ -69,7 +76,8 @@ export function makeServer({dbPath=resolve(root,'.data','go.sqlite'),port=defaul
     const agency = await loadAgency();
     ensureAccounts(agency, workspaces);
     const states = await Promise.all(workspaces.map(async w => ({ ...w, state: await store.load(w.id) })));
-    return { agency: publicAgency(agency), overview: agencyOverview(agency, states), workspaces, access: who, ...extra };
+    return { agency: publicAgency(agency), overview: agencyOverview(agency, states), workspaces, access: who,
+      features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, ...extra };
   }
   async function recordAudit(who, action, target, details = '') {
     try { await changeAgency(agency => logTo(agency, who, action, target, details)); }
@@ -185,7 +193,80 @@ export function makeServer({dbPath=resolve(root,'.data','go.sqlite'),port=defaul
     const params = new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
     return Object.fromEntries(['name','email','phone','_page'].map(key => [key, (params.get(key) || '').slice(0,240)]));
   }
+  async function findProspects(input) {
+    const agency = await loadAgency();
+    const agent = input.agent ? agency.prospecting.agents.find(row => row.id === input.agent) : null;
+    if (input.agent && !agent) throw error('Agente não encontrado.',404);
+    const term = typeof input.keyword === 'string' ? input.keyword.trim().slice(0,120) : '';
+    const keywords = agent?.niches || (term ? [term] : []);
+    const location = agent?.location || (typeof input.location === 'string' ? input.location.trim().slice(0,140) : '');
+    const radius = agent?.radius || ([2,5,10,20,30].includes(Number(input.radius)) ? Number(input.radius) : 5);
+    if (!keywords.length || !location) throw error('Informe a empresa ou nicho e a região.',400);
+    if (!placesConfigured) {
+      const matches = agency.prospects.filter(row => !row.archived && folded(prospectSearchText(row)).includes(folded(location)) &&
+        keywords.some(word => folded(prospectSearchText(row)).includes(folded(word))));
+      return { provider:'local', rows:matches.slice(0,20).map(row => ({...row,saved:row.id})) };
+    }
+    const results = await placesSearch(keywords,location,radius);
+    const items = new Map(results.map(row => [row.placeId,row]));
+    const saved = new Map(agency.prospects.filter(row => row.placeId).map(row => [row.placeId,row.id]));
+    return { provider:'maps',rows:[...items.values()].slice(0,20).map(row => ({...row,saved:saved.get(row.placeId) || ''})) };
+  }
+
+  async function transferProspects(who,input) {
+    const workspace = typeof input.workspace === 'string' ? input.workspace : '';
+    if (!(await listWorkspaces()).some(row => row.id === workspace) || !canOpen(who,workspace)) throw error('Escolha uma subconta à qual você tem acesso.',400);
+    if (who.modules && (!who.modules.includes('contacts') || (input.opportunity === true && !who.modules.includes('opportunities')))) throw error('Você não tem acesso ao módulo de destino.',403);
+    const ids = Array.isArray(input.ids) ? [...new Set(input.ids.slice(0,100))] : [];
+    if (!ids.length) throw error('Selecione pelo menos um prospect.',400);
+    const agency = await loadAgency();
+    const prospects = ids.map(id => agency.prospects.find(row => row.id === id && !row.archived));
+    if (prospects.some(row => !row)) throw error('Um dos prospects não está disponível para envio.',404);
+    const imported = await store.change(workspace,state => {
+      state.prospectImports ??= {};
+      const stage = state.stages[0];
+      return prospects.map(row => {
+        const previous = state.prospectImports[row.id] || {};
+        const phone = row.contactPhone || row.phone || '';
+        const digits = value => String(value || '').replace(/\D/g,'');
+        const email = String(row.email || '').toLowerCase();
+        const dedupPhone = digits(phone);
+        const reused = state.contacts.find(contact => contact.id === previous.contact || (email && contact.email === email) ||
+          (dedupPhone.length >= 7 && digits(contact.phone) === dedupPhone));
+        const notes = [row.website,row.address,[row.city,row.region,row.country].filter(Boolean).join(', ')].filter(Boolean).join('\n');
+        const contact = reused?.id || execute(state,{type:'save',key:'contacts',data:{name:row.owner || row.name,email,phone,company:row.name,
+          notes,tags:['New Prospect Received']}});
+        if (reused && !reused.tags.includes('New Prospect Received')) reused.tags.push('New Prospect Received');
+        let opportunity = state.opportunities.some(item => item.id === previous.opportunity && item.contactId === contact) ? previous.opportunity : '';
+        if (input.opportunity === true && !opportunity && stage) opportunity = execute(state,{type:'save',key:'opportunities',data:{title:row.name,
+          contactId:contact,stage:stage.id,value:0,status:'Open',source:'Prospecting'}});
+        state.prospectImports[row.id] = {contact,opportunity};
+        return {id:row.id,contact,opportunity};
+      });
+    });
+    const at = stamp();
+    await changeAgency(current => {
+      for (const item of imported) {
+        const row = current.prospects.find(prospect => prospect.id === item.id);
+        if (row) row.transfers[workspace] = { contact:item.contact,opportunity:item.opportunity,at:row.transfers[workspace]?.at || at };
+      }
+      logTo(current,who,'Prospects sent to CRM',workspace,`${imported.length} prospect(s)`);
+    });
+    return imported;
+  }
+
   async function agencyRequest(op, who, input) {
+    if (op === 'prospecting-search') return findProspects(input);
+    if (op === 'prospecting-transfer') return transferProspects(who,input);
+    if (op === 'prospecting-action') {
+      if (!who.settings && ['brand','sections','widget'].includes(input.op)) throw error('Somente administradores podem alterar essas configurações.',403);
+      const data = input.data && typeof input.data === 'object' && !Array.isArray(input.data) ? input.data : {};
+      return changeAgency(agency => {
+        const result = runProspectingAction(agency,{...input,data});
+        logTo(agency,who,`Prospecting: ${input.op}`,typeof input.id === 'string' ? input.id : '');
+        return result;
+      });
+    }
     if (op === 'action') {
       if (!who.settings && (settingsCommands.has(input.type) || ((input.type === 'save' || input.type === 'delete') && settingsRecords.has(input.key)))) throw error('Only agency owners and admins can change agency settings.',403);
       const workspaces = await listWorkspaces();
@@ -290,6 +371,47 @@ export function makeServer({dbPath=resolve(root,'.data','go.sqlite'),port=defaul
       if (p.startsWith('/api/')) await ready;
       const id=url.searchParams.get('workspace') || 'demo';
       if (p === '/favicon.ico') { res.writeHead(302, { Location: '/favicon.svg' }); return res.end(); }
+      if (['/prospecting','/prospecting/','/prospecting/add-prospect'].includes(p) && method !== 'POST') {
+        res.writeHead(302,{Location:p.endsWith('add-prospect') ? '/#agency/prospecting/search' : '/#agency/prospecting'});
+        return res.end();
+      }
+      const prospectPublic = p.match(prospectPublicPath);
+      if (prospectPublic) {
+        await ready;
+        const [,kind,token] = prospectPublic;
+        if (kind === 'report') {
+          if (method === 'POST') throw error('Method not allowed.',405);
+          const findReport = agency => agency.prospects.find(row => row.shareId === token && !row.archived && row.report);
+          const prospect = findReport(await loadAgency());
+          if (!prospect) throw error('Relatório indisponível.',404);
+          if (method === 'GET' && !String(req.headers.purpose || req.headers['sec-purpose'] || '').includes('prefetch')) {
+            try {
+              await changeAgency(agency => {
+                const row = findReport(agency);
+                if (!row) return;
+                const date = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+                row.views[date] = (row.views[date] || 0)+1;
+                const dates = Object.keys(row.views).sort();
+                for (const old of dates.slice(0,Math.max(0,dates.length-370))) delete row.views[old];
+              });
+            } catch { /* The report remains available if the view count cannot be updated. */ }
+          }
+          return send(200,'text/html; charset=utf-8',method === 'HEAD' ? undefined : shareReportHtml(prospect.report));
+        }
+        const widget = (await loadAgency()).prospecting.widgets.find(item => item.id === token && item.active);
+        if (!widget) throw error('Formulário indisponível.',404);
+        res.setHeader('Content-Security-Policy',csp.replace("frame-ancestors 'none'",'frame-ancestors *'));
+        if (method === 'POST') {
+          if (!/^application\/x-www-form-urlencoded/i.test(req.headers['content-type'] || '')) throw error('Envie os campos do formulário.',415);
+          let size=0; const chunks=[];
+          for await (const part of req) { size+=part.length; if (size>12000) throw error('Formulário muito longo.',413); chunks.push(part); }
+          const data = Object.fromEntries(new URLSearchParams(Buffer.concat(chunks).toString('utf8')));
+          try { if (!data.fax) await changeAgency(agency => captureProspectWidget(agency,token,data)); }
+          catch (error) { if (error.status) return send(error.status,'text/html; charset=utf-8',widgetHtml(widget,false,error.message)); throw error; }
+          res.writeHead(303,{Location:`${p}?sent=1`}); return res.end();
+        }
+        return send(200,'text/html; charset=utf-8',method === 'HEAD' ? undefined : widgetHtml(widget,url.searchParams.has('sent')));
+      }
       const apiMatch = p.match(apiPath);
       if (apiMatch) {
         const [, account] = apiMatch;

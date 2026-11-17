@@ -23,4 +23,4 @@ export const logo=`<svg class="g-mark" width="36" height="36" viewBox="0 0 1000 
 
 // Workspaces saved before the graao rename still carry the old defaults; those read as graao's own.
 export const brandName=b=>!b||b==='GO Workspace'?'graao':b;
-export const brandColor=c=>!c||c.toLowerCase()==='#1570ef'?'#7c5cf0':c;
+export const brandColor=c=>!c||c.toLowerCase()==='#1570ef'||c.toLowerCase()==='#7c5cf0'?'#ea580c':c;

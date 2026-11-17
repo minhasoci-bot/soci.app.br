@@ -10,9 +10,90 @@ async function start() {
     const r = await fetch(base + path, body === undefined ? { headers } : { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
     return { status: r.status, body: await r.json() };
   };
-  return { call, close: () => new Promise(resolve => server.close(resolve)) };
+  return { base, call, close: () => new Promise(resolve => server.close(resolve)) };
 }
 const action = (local, body, headers) => local.call('/api/agency/action', body, headers);
+const prospectAction = (local, op, id, data) => local.call('/api/agency/prospecting-action', { op, id, data });
+
+test('Saving Google Maps leads persists only the place references, and duplicate references reuse the existing lead', async t => {
+  const local = await start(); t.after(local.close);
+  const payload = { placeIds: ['ChIJ-fixture'], rows: [{ placeId: 'ChIJ-fixture', name: 'Provider name', address: 'Provider address' }], audit: true };
+  const saved = await prospectAction(local, 'save-maps', '', payload);
+  assert.equal(saved.status, 200);
+  assert.equal(saved.body.result.length, 1);
+  const [lead] = saved.body.agency.prospects;
+  assert.equal(lead.placeId, 'ChIJ-fixture');
+  assert.equal(lead.name, 'Prospect do Maps');
+  assert.equal(lead.address, '');
+  assert.equal(lead.report, undefined);
+  assert.deepEqual((await prospectAction(local, 'save-maps', '', payload)).body.result, []);
+  assert.equal((await prospectAction(local, 'save-maps', '', { placeIds: ['invalid/id'] })).status, 400);
+});
+
+test('Prospecting keeps legacy records, shares reports without private details, and imports to the CRM idempotently', async t => {
+  const local = await start(); t.after(local.close);
+  const old = await action(local, { type: 'save', key: 'prospects', data: {
+    name: 'Legacy bakery', status: 'Contacted', score_website: 6, notes: 'Legacy note'
+  } });
+  const legacy = old.body.agency.prospects[0];
+  assert.equal(legacy.source, 'Manual');
+  assert.equal(legacy.report.signals.website, 6);
+  assert.equal(legacy.entries[0].text, 'Legacy note');
+
+  const category = (await prospectAction(local, 'category', '', { name: 'Services' })).body.result;
+  const result = await prospectAction(local, 'save', '', {
+    name: 'New business', website: 'example.net', owner: 'Private Person', email: 'private-person@example.net',
+    category: 'Dentist', city: 'Recife', categories: [category], audit: true
+  });
+  assert.equal(result.status, 200);
+  const id = result.body.result;
+  assert.deepEqual(result.body.agency.prospects.find(row => row.id === id).categories, [category]);
+  await prospectAction(local, 'note', id, { text: 'Keep this note private' });
+  const audit = await prospectAction(local, 'audit', id, { score_website: '3.5' });
+  assert.equal(audit.body.agency.prospects.find(row => row.id === id).report.signals.website, 3.5);
+  const token = (await prospectAction(local, 'share', id)).body.result;
+  const report = await fetch(local.base + '/prospecting/report/' + token);
+  assert.equal(report.status, 200);
+  const html = await report.text();
+  assert.match(html, /New business/);
+  assert.doesNotMatch(html, /Private Person|private-person@example\.net|Keep this note private/);
+  const agency = (await local.call('/api/agency')).body.agency;
+  const viewed = agency.prospects.find(row => row.id === id);
+  assert.equal(Object.values(viewed.views).reduce((a,b) => a+b,0), 1);
+
+  const transfer = () => local.call('/api/agency/prospecting-transfer', { workspace: 'demo', ids: [id], opportunity: true });
+  const initial = await transfer();
+  assert.equal(initial.status, 200);
+  assert.deepEqual((await transfer()).body.result, initial.body.result);
+  const state = (await local.call('/api/state?workspace=demo')).body.state;
+  assert.equal(state.contacts.filter(row => row.email === 'private-person@example.net').length, 1);
+  assert.equal(state.opportunities.filter(row => row.source === 'Prospecting').length, 1);
+  await prospectAction(local, 'unshare', id);
+  assert.equal((await fetch(local.base + '/prospecting/report/' + token)).status, 404);
+});
+
+test('An active Prospecting widget captures a lead once and can be disabled', async t => {
+  const local = await start(); t.after(local.close);
+  const saved = await prospectAction(local, 'widget', '', { name: 'Lead capture', headline: 'Request an audit', active: true, audit: true });
+  assert.equal(saved.status, 200);
+  const id = saved.body.result;
+  const url = local.base + '/prospecting/widget/' + id;
+  const widget = await fetch(url);
+  assert.equal(widget.status, 200);
+  assert.match(widget.headers.get('content-security-policy'), /frame-ancestors \*/);
+  assert.match(await widget.text(), /Request an audit/);
+  const capture = () => fetch(url, { method: 'POST', body: new URLSearchParams({
+    name: 'Widget lead', email: 'widget@example.net', website: 'example.net'
+  }) });
+  assert.match(await (await capture()).text(), /Recebemos seus dados/);
+  assert.equal((await capture()).status, 200);
+  const prospects = (await local.call('/api/agency')).body.agency.prospects;
+  assert.equal(prospects.length, 1);
+  assert.equal(prospects[0].source, 'Widget');
+  assert.ok(prospects[0].report);
+  await prospectAction(local, 'widget', id, { name: 'Lead capture', headline: 'Request an audit', active: false });
+  assert.equal((await fetch(url)).status, 404);
+});
 
 test('A snapshot copies assets into a new sub-account as drafts and keeps existing ones on reload', async t => {
   const local = await start(); t.after(local.close);

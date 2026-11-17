@@ -39,7 +39,7 @@ Abra <http://127.0.0.1:4317/#agency/dashboard> ou use o botão **Agency view** n
 | Sub-Accounts | Criação com snapshot e plano, busca, filtro por status, seleção em massa (status e snapshot), edição de endereço, telefone e site, troca para a subconta com registro do último acesso |
 | Account Snapshots | Criar a partir de uma subconta escolhendo os tipos de recurso, atualizar a partir da origem (com versão), carregar em várias subcontas mantendo ou sobrescrevendo itens de mesmo nome, compartilhar por código, importar, renomear, excluir e histórico de cargas. Contatos, conversas e pagamentos nunca são copiados. Páginas e workflows chegam como rascunho |
 | Reselling | Preço ao cliente por produto (não pode ficar abaixo do custo), lucro, liberação por subconta, planos SaaS e resumo por subconta |
-| Prospecting | Cadastro de prospects com notas de 0 a 10 em cinco áreas, relatório para baixar em HTML e conversão em subconta |
+| Prospecção | Lista de prospects em cartões, busca e cadastro, categorias, auditoria, compartilhamento, widgets, Analytics e envio para o CRM das subcontas |
 | Add-Ons, Affiliate Portal | Pedidos de add-on (sem cobrança). Aceite dos termos em quatro passos, link de indicação, indicações, comissão de 40%, dados e histórico de pagamento |
 | Template Library | 18 modelos próprios por categoria, modelos da agência, prévia e instalação numa subconta como página de funil em rascunho com formulário |
 | Partners, Ideas, University, SaaS Education | Diretório de parceiros. Quadro de ideias com votos, status e comentários. Trilhas de aulas com progresso |
@@ -59,6 +59,14 @@ Authorization: Bearer <chave>
 ```
 
 **Fica de fora ou só registrado:** cobrança real (Stripe, carteira e add-ons são registros manuais), envio de e-mails do sistema, publicação dos apps mobile e desktop, a auditoria remota do Prospecting (as notas são digitadas) e a loja de produtos da marca. Links de menu com "Inside the app" abrem num iframe; sites que proíbem incorporação mostram o link para nova aba.
+
+## Prospecção
+
+Acesse `/prospecting` para abrir a aba da agência. Cadastros, categorias, agentes de busca, relatórios e widgets usam o armazenamento da agência no Supabase. A migração para uma subconta cria ou reutiliza o contato e pode criar uma oportunidade. Relatórios compartilhados omitem notas e dados do ponto de contato.
+
+Com a variável de servidor `PROSPECTING_GOOGLE_PLACES_KEY` e as APIs Places (New) e Geocoding habilitadas, a busca traz resultados do Google Maps. O cadastro guarda o ID do local e permite adicionar dados comerciais próprios. A busca sem chave consulta os prospects salvos. O Prospect AI guarda os critérios e executa a busca sob demanda. A auditoria usa os dados do cadastro e as notas informadas.
+
+Para abrir o mapa dentro da aba, habilite a Maps Embed API e defina `PROSPECTING_GOOGLE_MAPS_EMBED_KEY`. Use outra chave, restrita à Maps Embed API e às origens em que o graao é acessado. A chave Places permanece no servidor.
 
 ## Fluxo integrado
 

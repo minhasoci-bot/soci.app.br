@@ -2,6 +2,7 @@ import { icon as i, logo, brandName, brandColor } from './icons.js';
 import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { tr } from './i18n.js';
+import { createProspecting, prospectRoutes } from './prospecting.js';
 import {
   addOns, affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, labFeatures, learningTracks,
   mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog
@@ -24,6 +25,7 @@ export const agencyNav = [
   ['marketplace', 'Marketplace de apps', 'apps'], ['settings', 'Configurações', 'gear']
 ];
 const subTabs = {
+  prospecting: prospectRoutes,
   snapshots: [['mine', 'Meus snapshots'], ['imported', 'Snapshots importados'], ['shared', 'Snapshots compartilhados'], ['history', 'Histórico de cargas']],
   reselling: [['subscription', 'Assinatura'], ['plans', 'Planos SaaS'], ['usage', 'Uso']],
   affiliate: [['dashboard', 'Painel'], ['reports', 'Relatórios de indicações'], ['payment', 'Dados de pagamento'], ['history', 'Histórico de pagamentos']],
@@ -201,13 +203,7 @@ export function startAgency(env) {
       <h2 class="section-heading">Subcontas por atividade</h2>${table(['Subconta', 'Status', 'Plano', 'Contatos', 'Negócios abertos', 'Último acesso', ''], top.map(a => `<tr><td><b>${h(a.name)}</b></td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td>${a.contacts}</td><td>${a.open}</td><td>${day(a.lastLogin, true)}</td><td class="right">${btn('Acessar', 'open-account', `data-id="${a.id}"`)}</td></tr>`), empty('Nenhuma subconta cadastrada', 'Crie uma subconta para acompanhar as métricas aqui.'))}</div>`;
   };
 
-  pages.prospecting = () => {
-    const rows = D().prospects.filter(p => match(p.name, p.category, p.city, p.status));
-    const score = p => auditAreas.reduce((s, [k]) => s + (p[`score_${k}`] ?? 0), 0);
-    return `<div class="page">${head('Prospecção', 'Audite empresas locais, gere relatórios profissionais e converta prospects em subcontas.', primary('Adicionar prospect', 'new-record', 'data-key="prospects"'))}
-      <div class="toolbar">${search('Buscar prospects…')}</div>
-      ${table(['Empresa', 'Categoria', 'Cidade', 'Status', 'Pontuação de auditoria', ''], rows.map(p => `<tr><td><b>${h(p.name)}</b><br><small class="dim">${h(p.website || p.email || '')}</small></td><td>${h(p.category || '—')}</td><td>${h(p.city || '—')}</td><td>${badge(p.status, tone(p.status))}</td><td>${score(p)} / 50 ${bar(score(p) * 2)}</td><td class="right inline-gap">${btn('Relatório', 'prospect-report', `data-id="${p.id}"`)}${p.workspace ? badge('Subconta criada', 'green') : btn('Converter', 'prospect-convert', `data-id="${p.id}"`)}${btn('Editar', 'edit-record', `data-key="prospects" data-id="${p.id}"`)}</td></tr>`), empty('Nenhum prospect cadastrado', 'Cadastre uma empresa e avalie sua presença online de 0 a 10 em cada pilar.'))}</div>`;
-  };
+  pages.prospecting = () => prospecting.render(A.sub);
 
   function prospectReport(p) {
     const rows = auditAreas.map(([k, label]) => [label, p[`score_${k}`]]);
@@ -607,5 +603,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     }
   });
 
+  const prospecting = createProspecting({data:()=>A.data,accounts,call,render,dialog,close,flash,download});
   return { show };
 }
