@@ -1,4 +1,4 @@
-# graao
+# soci
 
 Recriação local e independente do espaço de trabalho do HighLevel. A tela inicial, a barra lateral e a organização geral seguem a interface observada no navegador interno. Todos os registros de exemplo são fictícios. O projeto não se conecta à conta original.
 
@@ -20,14 +20,14 @@ Para começar com dados vazios, use **Configurações → New Workspace**. Para 
 
 ## Identidade visual e movimento
 
-A plataforma se chama **graao**. A camada visual fica em dois arquivos carregados depois de todos os outros, sem alterar a estrutura das telas:
+A plataforma se chama **soci**. A camada visual fica em dois arquivos carregados depois de todos os outros, sem alterar a estrutura das telas:
 
-- `ui/graao.css`: tokens da marca (lavanda de fundo, painéis brancos translúcidos, violeta `#7c5cf0` nos botões principais, laranja `#ff9a3c` nas chamadas de destaque, rosa `#ff6f9f` nos alertas), a fonte Plus Jakarta Sans servida localmente em `ui/fonts/` e as curvas de animação do microkit.
+- `ui/graao.css`: tokens da marca (lavanda de fundo, painéis brancos translúcidos, violeta `#7c5cf0` nos botões principais, rosa `#ff3d8d` nas chamadas de destaque e identidade da plataforma, rosa `#ff6f9f` nos alertas), a fonte Plus Jakarta Sans servida localmente em `ui/fonts/` e as curvas de animação do microkit.
 - `ui/graao.js`: versões em JavaScript puro dos componentes do [microkit.co](https://microkit.co) (MIT). Inclui a pílula que desliza entre as abas, o destaque de hover que desliza entre itens do menu, cartões e opções, a barra de destaque no item ativo do menu, o contador animado nas métricas, a linha deslizante nas subabas de Conversas e a luz que acompanha o cursor nos botões. O campo com halo de foco e a caixa de seleção com mola são só CSS.
 
 O menu lateral vem de `ui/sidebar.js` e é o mesmo na subconta e na agência. Recolhido, vira uma coluna de 64px só com ícones e mostra o nome de cada item num balão ao passar o mouse. Aberto, ocupa 248px e mostra o cartão do workspace, a busca (Ctrl K), as ações rápidas e os módulos em grupos com título. A largura muda com animação. No celular, o menu aberto fica sobre a página.
 
-As telas são redesenhadas com `innerHTML`, então os indicadores guardam a última posição e deslizam a partir dela a cada nova renderização. A entrada escalonada da página só acontece quando a tela muda, e não ao trocar de aba. Com `prefers-reduced-motion`, as animações são desativadas. Workspaces criados antes da mudança de nome ainda guardam "GO Workspace" e `#1570ef`; a interface exibe esses valores como graao e violeta.
+As telas são redesenhadas com `innerHTML`, então os indicadores guardam a última posição e deslizam a partir dela a cada nova renderização. A entrada escalonada da página só acontece quando a tela muda, e não ao trocar de aba. Com `prefers-reduced-motion`, as animações são desativadas. Workspaces criados antes da mudança de nome ainda guardam "GO Workspace" e `#1570ef`; a interface exibe esses valores como soci e rosa `#ff3d8d`.
 
 ## Visão da agência
 
@@ -67,7 +67,7 @@ Acesse `/prospecting` para abrir a aba da agência. Cadastros, categorias, agent
 
 Com a variável de servidor `PROSPECTING_GOOGLE_PLACES_KEY` e as APIs Places (New) e Geocoding habilitadas, a busca traz resultados do Google Maps. O cadastro guarda o ID do local e permite adicionar dados comerciais próprios. A busca sem chave consulta os prospects salvos. O Prospect AI guarda os critérios e executa a busca sob demanda. A auditoria usa os dados do cadastro e as notas informadas.
 
-Para abrir o mapa dentro da aba, habilite a Maps Embed API e defina `PROSPECTING_GOOGLE_MAPS_EMBED_KEY`. Use outra chave, restrita à Maps Embed API e às origens em que o graao é acessado. A chave Places permanece no servidor.
+Para abrir o mapa dentro da aba, habilite a Maps Embed API e defina `PROSPECTING_GOOGLE_MAPS_EMBED_KEY`. Use outra chave, restrita à Maps Embed API e às origens em que o soci é acessado. A chave Places permanece no servidor.
 
 ## Fluxo integrado
 

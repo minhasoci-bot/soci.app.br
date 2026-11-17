@@ -488,7 +488,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
   function render() {
     const prev = document.querySelector('#screen')?.scrollTop || 0;
     const page = pages[A.page] || pages.dashboard;
-    document.title = 'graao';
+    document.title = 'soci';
     app.innerHTML = shell(page());
     const bColor = brandColor(D().company.primary);
     document.documentElement.style.setProperty('--blue', bColor);

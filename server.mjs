@@ -451,9 +451,9 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
   }
   const socialTimer = socialScheduler ? setInterval(() => { ready.then(() => runAllSocial(process.env.SOCIAL_PUBLIC_URL || `http://${host}:${port}`)).catch(() => {}); }, 60_000) : null;
   socialTimer?.unref?.();
-  const socialPopup = (base, message) => `<!doctype html><meta charset="utf-8"><title>graao</title><body style="font-family:system-ui;padding:24px">
+  const socialPopup = (base, message) => `<!doctype html><meta charset="utf-8"><title>soci</title><body style="font-family:system-ui;padding:24px">
 <p>${message.error ? 'Não foi possível conectar.' : 'Conta autorizada. Você pode fechar esta janela.'}</p><script>
-const m=${JSON.stringify({ type: 'graao-social', ...message }).replace(/</g, '\\u003c')};
+const m=${JSON.stringify({ type: 'soci-social', ...message }).replace(/</g, '\\u003c')};
 if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); window.close(); } else location.href='/app#marketing/social';
 </script>`;
   const payload = async request => {

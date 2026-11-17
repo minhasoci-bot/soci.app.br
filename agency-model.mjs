@@ -40,7 +40,7 @@ export const hash = text => createHash('sha256').update(text).digest('hex');
 export function blankAgency() {
   return {
     profile: { name: 'Agency', first: 'Agency', last: 'Owner', email: '', phone: '', language: 'English (United States)' },
-    company: { name: 'My Agency', brand: 'graao', domain: '', website: '', phone: '', address: '', primary: '#7c5cf0', logo: '', timezone: 'America/Sao_Paulo', currency: 'USD' },
+    company: { name: 'My Agency', brand: 'soci', domain: '', website: '', phone: '', address: '', primary: '#7c5cf0', logo: '', timezone: 'America/Sao_Paulo', currency: 'USD' },
     accounts: {}, plans: [], snapshots: [], snapshotLoads: [], prospects: [], partners: [], ideas: [], menuLinks: [], announcements: [],
     users: [], templates: [], templateInstalls: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], audit: [],
     reselling: Object.fromEntries(resellProducts.map(p => [p.key, { price: p.base, disabled: [] }])),

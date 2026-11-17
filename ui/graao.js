@@ -1,4 +1,4 @@
-// graao motion layer: vanilla ports of microkit.co interactions (MIT).
+// soci motion layer: vanilla ports of microkit.co interactions (MIT).
 // The app re-renders whole regions with innerHTML, so every enhancement is re-applied
 // after each render. Indicators remember their last spot by key and slide from there,
 // which makes a full re-render read as one continuous motion.
@@ -220,7 +220,7 @@ export function toggleTheme(to) {
     } else {
       html.removeAttribute('data-theme');
     }
-    try { localStorage.setItem('graao.theme', next); } catch {}
+    try { localStorage.setItem('soci.theme', next); } catch {}
   };
 
   if (themeBusy) {
@@ -248,7 +248,7 @@ export function toggleTheme(to) {
 window.toggleTheme = toggleTheme;
 
 try {
-  const savedTheme = localStorage.getItem('graao.theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const savedTheme = localStorage.getItem('soci.theme') || localStorage.getItem('graao.theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   if (savedTheme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
 } catch {}
 

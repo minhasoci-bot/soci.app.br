@@ -18,7 +18,7 @@ test('Landing page serves at / with login button, animations and modules', async
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /text\/html/);
   const html = await res.text();
-  assert.match(html, /<title>graao — Plataforma para Agências & Negócios Digitais<\/title>/);
+  assert.match(html, /<title>soci — Plataforma para Agências & Negócios Digitais<\/title>/);
   assert.match(html, /Entrar na plataforma/);
   assert.match(html, /href="\/app"/);
   assert.match(html, /id="neuro"/);
@@ -28,8 +28,8 @@ test('Landing page serves at / with login button, animations and modules', async
   assert.match(html, /id="binary"/);
   assert.match(html, /id="login-dialog"/);
 
-  // 1.1 GET / on app.graao.com serves the platform app directly
-  const appSubdomainRes = await fetch(local.base + '/', { headers: { 'x-forwarded-host': 'app.graao.com' } });
+  // 1.1 GET / on app.soci.com serves the platform app directly
+  const appSubdomainRes = await fetch(local.base + '/', { headers: { 'x-forwarded-host': 'app.soci.com' } });
   assert.equal(appSubdomainRes.status, 200);
   const appSubdomainHtml = await appSubdomainRes.text();
   assert.match(appSubdomainHtml, /<div id="app">/);

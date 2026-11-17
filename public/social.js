@@ -300,7 +300,7 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
         <ul class="sp-env">${n.env.map(e => `<li><code>${e}</code></li>`).join('')}</ul><p>URL de redirecionamento (OAuth) para cadastrar no app:</p><p><code class="sp-break">${h(cb)}</code></p>`, { description: 'Chaves ainda não configuradas' });
       return;
     }
-    window.open(`${url(`/api/social/connect/${provider}`)}&user=${encodeURIComponent(user())}`, 'graao-social', 'width=620,height=760');
+    window.open(`${url(`/api/social/connect/${provider}`)}&user=${encodeURIComponent(user())}`, 'soci-social', 'width=620,height=760');
   };
   const pickAccounts = async requestId => {
     const d = await api(url('/api/social/candidates'), { requestId });
@@ -309,7 +309,7 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
       <p class="form-status" role="alert"></p><footer class="sp-foot"><span class="spacer"></span><button type="button" class="secondary" data-act="close">Cancelar</button><button class="primary">Conectar selecionadas</button></footer></form>`, { description: 'Selecione as páginas, perfis ou canais que o planejador poderá usar.' });
   };
   window.addEventListener('message', ev => {
-    if (ev.origin !== location.origin || ev.data?.type !== 'graao-social') return;
+    if (ev.origin !== location.origin || (ev.data?.type !== 'soci-social' && ev.data?.type !== 'graao-social')) return;
     if (ev.data.error) { flash(ev.data.error, true); return; }
     pickAccounts(ev.data.requestId).catch(e => flash(e.message, true));
   });

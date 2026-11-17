@@ -10,7 +10,7 @@ const fail = (message, status = 400) => { throw Object.assign(new Error(message)
 const env = name => process.env[name] || '';
 
 // ---- Token sealing -----------------------------------------------------------------------------
-const key = () => createHash('sha256').update(env('SOCIAL_TOKEN_KEY') || env('GO_STORAGE_KEY') || 'graao-local-social-key').digest();
+const key = (legacy = false) => createHash('sha256').update(env('SOCIAL_TOKEN_KEY') || env('GO_STORAGE_KEY') || (legacy ? 'graao-local-social-key' : 'soci-local-social-key')).digest();
 export function seal(value) {
   const iv = randomBytes(12), c = createCipheriv('aes-256-gcm', key(), iv);
   const data = Buffer.concat([c.update(JSON.stringify(value), 'utf8'), c.final()]);
@@ -19,10 +19,13 @@ export function seal(value) {
 export function unseal(text) {
   const [v, iv, tag, data] = String(text || '').split('.');
   if (v !== 'v1') return null;
-  try {
-    const d = createDecipheriv('aes-256-gcm', key(), Buffer.from(iv, 'base64url')); d.setAuthTag(Buffer.from(tag, 'base64url'));
-    return JSON.parse(Buffer.concat([d.update(Buffer.from(data, 'base64url')), d.final()]).toString('utf8'));
-  } catch { return null; }
+  for (const leg of [false, true]) {
+    try {
+      const d = createDecipheriv('aes-256-gcm', key(leg), Buffer.from(iv, 'base64url')); d.setAuthTag(Buffer.from(tag, 'base64url'));
+      return JSON.parse(Buffer.concat([d.update(Buffer.from(data, 'base64url')), d.final()]).toString('utf8'));
+    } catch {}
+  }
+  return null;
 }
 
 // ---- HTTP --------------------------------------------------------------------------------------

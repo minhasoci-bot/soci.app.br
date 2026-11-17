@@ -1,4 +1,4 @@
-// graao — Landing Page interativa baseada no projeto Parceiras Conselho.
+// soci — Landing Page interativa baseada no projeto Parceiras Conselho.
 // Mecânicas: Lenis + ScrollTrigger, galeria em coverflow, túnel 3D Three.js,
 // título com física Matter.js, cards empilhados, FAQ em loop e campo binário.
 
@@ -14,7 +14,7 @@ const smoothstep = (t) => t * t * (3 - 2 * t);
 const fold = (text) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const esc = (text) => String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-/* ---------- Dados dos Módulos da Plataforma graao ---------- */
+/* ---------- Dados dos Módulos da Plataforma soci ---------- */
 const AREAS = ["CRM & Vendas", "Conversas & SLA", "Automações", "AI Studio & Sites", "Prospecção", "Agência & SaaS"];
 const TAGS = {
   "CRM & Vendas": "oportunidades pipelines contatos negocios vendas leads funil kanban tarefas propostas clientes comercial",
@@ -358,7 +358,7 @@ function renderModules(items, matched = false) {
     const li = document.createElement("li");
     li.className = "service" + (matched ? " match" : "");
     li.style.animationDelay = Math.min(index, 12) * 25 + "ms";
-    li.innerHTML = `<small>${esc(item.area)}</small><h3>${esc(item.title)}</h3><p>${esc(item.detail)}</p><span class="price"><a class="btn btn-outline" style="min-height:30px;padding:0 12px;font-size:12px;" href="/app">Acessar no graao →</a></span>`;
+    li.innerHTML = `<small>${esc(item.area)}</small><h3>${esc(item.title)}</h3><p>${esc(item.detail)}</p><span class="price"><a class="btn btn-outline" style="min-height:30px;padding:0 12px;font-size:12px;" href="/app">Acessar no soci →</a></span>`;
     li.title = item.area + ": " + item.title + " — " + item.detail;
     return li;
   }));
@@ -481,7 +481,7 @@ const layerNeuro = $("#layer-neuro");
       float t = .00012 * u_time;
       float n = neuro(uv, t, p);
       n = 1.2 * pow(n, 3.); n += pow(n, 10.); n = max(.0, n - .5); n *= (1. - length(vUv - .5));
-      vec3 color = vec3(1.0, 0.44, 0.1) * min(n, u_cap); // tom vibrante de graao
+      vec3 color = vec3(1.0, 0.44, 0.1) * min(n, u_cap); // tom vibrante de soci
       gl_FragColor = vec4(color, n);
     }`;
   const compile = (type, source) => { const shader = gl.createShader(type); gl.shaderSource(shader, source); gl.compileShader(shader); return shader; };
@@ -632,7 +632,7 @@ const TEMPLATES = [
 ];
 const ITEMS = [
   ...TEMPLATES.map((t) => ({ label: t.label, need: t.need })),
-  { label: "Explore o graao completo.", need: "Todas as ferramentas da agência em um só sistema." },
+  { label: "Explore o soci completo.", need: "Todas as ferramentas da agência em um só sistema." },
 ];
 
 const track = $("#picker-track");
@@ -658,7 +658,7 @@ if (track) {
     track.append(li);
   });
   const exploreLi = document.createElement("li");
-  exploreLi.innerHTML = `<span class="tpl tpl--explore" data-cursor="scroll"><span class="tpl__page"><span class="tpl__explore-title">Explore o graao por dentro.</span></span></span>`;
+  exploreLi.innerHTML = `<span class="tpl tpl--explore" data-cursor="scroll"><span class="tpl__page"><span class="tpl__explore-title">Explore o soci por dentro.</span></span></span>`;
   track.append(exploreLi);
 }
 
@@ -784,7 +784,7 @@ if (motion && rail) {
   document.fonts.ready.then(() => { measurePicker(); ScrollTrigger.refresh(); });
 }
 
-/* ---------- Showcase: Do lead ao fechamento, com graao ---------- */
+/* ---------- Showcase: Do lead ao fechamento, com soci ---------- */
 const STEPS = [
   { tint: "#fef3e9", num: "01", word: "Atraia", body: "Capture leads em funis de alta conversão, formulários e no mapa." },
   { tint: "#f3f6ef", num: "02", word: "Conecte", body: "Converse em tempo real via WhatsApp, e-mail e SMS com controle de SLA." },
@@ -802,7 +802,7 @@ const slots = wheel ? STEPS.map((s) => {
 }) : [];
 
 const lines = $$(".tb-line");
-const LINES = ["Do primeiro lead ao fechamento,", "com o graao ao seu lado."];
+const LINES = ["Do primeiro lead ao fechamento,", "com o soci ao seu lado."];
 const chars = lines.flatMap((line, index) => {
   const out = [];
   for (const ch of LINES[index]) {

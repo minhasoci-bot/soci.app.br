@@ -1,4 +1,4 @@
-// graao header, shared by the sub-account and agency shells.
+// soci header, shared by the sub-account and agency shells.
 // Left: breadcrumb. Right: global search (Ctrl K), quick actions, one grouped toolbar,
 // the theme toggle and the profile. The sidebar toggle lives in the sidebar itself.
 import { icon as i } from './icons.js';
@@ -30,6 +30,6 @@ export function topbar(o) {
     ${o.extra || ''}
     ${tools ? `<div class="tool-group" role="group" aria-label="Ferramentas">${tools}</div>` : ''}
     ${themeToggle()}
-    ${o.profile ? `<button type="button" class="avatar avatar-pink top-profile" ${o.profile.attr} data-tip="${esc(o.profile.label)}" data-tip-pos="bottom" aria-label="${esc(o.profile.label)}">${esc(o.profile.text)}</button>` : ''}
+    ${o.profile ? `<button type="button" class="avatar avatar-pink top-profile" ${o.profile.attr} data-tip="${esc(o.profile.label)}" data-tip-pos="bottom" aria-label="${esc(o.profile.label)}">${o.profile.picture ? `<img src="${esc(o.profile.picture)}" alt="${esc(o.profile.label)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">` : esc(o.profile.text)}</button>` : ''}
   </header>`;
 }

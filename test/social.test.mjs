@@ -192,7 +192,7 @@ test('Bluesky connects with an app password and publishes with link facets', asy
   assert.equal(ok.status, 200);
   const account = ok.body.state.socialAccounts[0];
   assert.equal(account.name, 'Eu no Bluesky');
-  await local.act({ type: 'social-post', data: { summary: 'Novo post https://graao.com #marketing', accountIds: [account.id], mode: 'now' } });
+  await local.act({ type: 'social-post', data: { summary: 'Novo post https://soci.com #marketing', accountIds: [account.id], mode: 'now' } });
   const run = await local.call(local.q('/api/social/run'), {});
   const post = run.body.state.socialPosts[0];
   assert.equal(post.status, 'published', post.error);

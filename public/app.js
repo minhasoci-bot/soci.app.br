@@ -64,7 +64,7 @@ function render(){
   renderedView = viewKey;
   const brand=brandName(c.agency?.brand), customLink=c.agency?.menuLinks.find(l=>l.id===c.tab);
   const active=nav.find(x=>x[0]===c.view);
-  document.title='graao';
+  document.title='soci';
   const bColor = brandColor(c.agency?.primary);
   document.documentElement.style.setProperty('--blue', bColor);
   document.documentElement.style.setProperty('--g-brand', bColor);
@@ -415,7 +415,7 @@ document.addEventListener('click',async ev=>{
       case 'search':dialog('Buscar no workspace','<label>Encontre um módulo ou contato<input id="global-search" placeholder="Buscar módulos e contatos…" autocomplete="off"></label><div id="search-results"></div>');globalSearch('');break;
       case 'quick':dialog('Ações rápidas','<div class="quick-list"><button class="secondary" data-edit="contacts">Adicionar contato</button><button class="secondary" data-edit="opportunities">Nova oportunidade</button><button class="secondary" data-edit="appointments">Agendar horário</button><button class="secondary" data-edit="workflows">Criar automação</button></div>');break;
       case 'dialer':dialog('Discador','<p>O discador não está conectado. Chamadas de voz exigem a configuração de um provedor de telefonia autorizado.</p>');break;
-      case 'updates':dialog('Novidades','<p>O graao está rodando localmente com tudo atualizado.</p>');break;
+      case 'updates':dialog('Novidades','<p>O soci está rodando localmente com tudo atualizado.</p>');break;
       case 'language':dialog('Idioma','<p>O sistema está operando em Português (Brasil).</p>');break;
       case 'notifications':dialog('Notificações',`<p>${c.m.unread} mensage${c.m.unread===1?'m não lida':'ns não lidas'}.</p><button class="secondary" data-go="conversations">Abrir conversas</button>`);break;
       case 'help':dialog('Ajuda','<p>Gerencie contatos, oportunidades, agendamentos, formulários e automações. Acesse Configurações para gerenciar workspaces.</p><button class="secondary" data-go="ask-ai">Abrir assistente</button>');break;
@@ -577,7 +577,7 @@ document.addEventListener('submit',async ev=>{
 });
 
 if(viewPath){
-  try{const result=await api(`/api/view${viewPath}`), workspace=viewPath.split('/')[2]; document.title='graao';app.innerHTML=publicView(result,workspace);}
+  try{const result=await api(`/api/view${viewPath}`), workspace=viewPath.split('/')[2]; document.title='soci';app.innerHTML=publicView(result,workspace);}
   catch(e){app.innerHTML=`<div class="boot"><h1>Page unavailable</h1><p>${h(e.message)}</p><a href="/">Back to workspace</a></div>`;}
 }else{
   installDashboardControls({ c,dialog,close,render,load,mutate,flash,go });
