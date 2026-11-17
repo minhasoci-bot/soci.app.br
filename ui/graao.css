@@ -493,6 +493,8 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
 :root[data-theme=dark] .secondary:hover{background:var(--g-surface-2);border-color:#343940;color:var(--g-ink)}
 :root[data-theme=dark] .primary,:root[data-theme=dark] .dash-save{background:linear-gradient(180deg,#fb8a3c 0%,#ea580c 100%);border-color:rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 8px 20px -8px rgba(249,115,22,.65)}
 :root[data-theme=dark] .primary:hover{background:linear-gradient(180deg,#ff944d 0%,#f97316 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 12px 26px -8px rgba(249,115,22,.8)}
+:root[data-theme=dark] .pr-btn.pr-primary:not(:disabled){background:linear-gradient(180deg,#fb8a3c 0%,#ea580c 100%) !important;color:#fff !important;border-color:rgba(255,255,255,.12) !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 8px 20px -8px rgba(249,115,22,.65) !important}
+:root[data-theme=dark] .pr-btn.pr-primary:hover:not(:disabled){background:linear-gradient(180deg,#ff944d 0%,#f97316 100%) !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 12px 26px -8px rgba(249,115,22,.8) !important}
 :root[data-theme=dark] .primary:disabled,:root[data-theme=dark] button:disabled.primary,:root[data-theme=dark] .pr-btn.pr-primary:disabled{background:var(--g-surface-2) !important;color:var(--g-faint) !important;border-color:var(--g-line) !important;box-shadow:none !important;opacity:.75;cursor:not-allowed}
 :root[data-theme=dark] .badge{background:var(--g-surface-2);color:var(--g-ink-2)}
 :root[data-theme=dark] .badge.blue{background:rgba(134,182,255,.14);color:#86b6ff}
