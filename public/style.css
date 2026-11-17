@@ -74,4 +74,4 @@ dialog{border:1px solid var(--line);border-radius:12px;color:var(--ink);width:mi
 .crm-custom{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:4px 0 0}
 .crm-custom legend{font-size:12px;font-weight:600;padding:0 4px}
 td .text-link{background:none;border:0;padding:0;cursor:pointer;font:inherit}
-.page>.table-shell{flex-shrink:0}
+.page>.table-shell,.page>.tabs,.page>.ag-settings>.table-shell{flex-shrink:0}

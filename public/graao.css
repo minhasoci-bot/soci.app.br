@@ -82,7 +82,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-brand);outline-of
 .g-side .logo .g-mark,.g-side .logo .ag-logo{flex:none;width:34px;height:34px;transition:transform .5s var(--ease-out)}
 .g-side .logo:hover .g-mark{transform:rotate(-8deg) scale(1.06)}
 .g-mark{display:inline-block;vertical-align:middle;overflow:visible}
-.g-mark .sk-flame{fill:#0d0f12;transition:fill .3s var(--ease-std),stroke .3s var(--ease-std)}
+.g-mark .sk-flame{fill:var(--g-brand,#ea580c);transition:fill .3s var(--ease-std)}
 .g-mark .sk-head{fill:#ffffff;transition:fill .3s var(--ease-std)}
 .g-mark .sk-feat{fill:#0d0f12;transition:fill .3s var(--ease-std)}
 .g-mark .sk-glint{fill:#ffffff;transition:fill .3s var(--ease-std)}
@@ -527,7 +527,7 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
 :root[data-theme=dark] .boot{color:var(--g-dim)}
 :root[data-theme=dark] .ag-banner{background:var(--g-brand-surface);border-bottom-color:var(--g-line)}
 :root[data-theme=dark] .public-page>header{background:rgba(11,12,14,.72)}
-:root[data-theme=dark] .g-mark .sk-flame{fill:#111317;stroke:#f0f2f5;stroke-width:28px;stroke-linejoin:round;paint-order:stroke fill;filter:drop-shadow(0 0 6px rgba(255,255,255,0.15))}
+:root[data-theme=dark] .g-mark .sk-flame{fill:var(--g-brand,#f97316);stroke:none;filter:none}
 :root[data-theme=dark] .g-mark .sk-head{fill:#ffffff}
 :root[data-theme=dark] .g-mark .sk-feat{fill:#111317}
 :root[data-theme=dark] .g-mark .sk-glint{fill:#ffffff}
