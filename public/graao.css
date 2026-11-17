@@ -162,7 +162,7 @@ a.crumb:hover{color:var(--g-ink)}
 .crumb-current{color:var(--g-ink);font-weight:750;letter-spacing:-.015em;overflow:hidden;text-overflow:ellipsis}
 .crumb-current{animation:g-crumb .45s var(--ease-out)}
 @keyframes g-crumb{from{opacity:0;transform:translateY(4px)}}
-.top-search{display:flex;align-items:center;gap:8px;width:min(320px,30vw);height:36px;padding:0 6px 0 11px;border:1px solid var(--g-line-2);border-radius:10px;background:var(--g-surface);color:var(--g-faint);font-size:13px;font-weight:500;text-align:left;transition:border-color .25s var(--ease-std),box-shadow .32s var(--ease-focus),color .2s}
+.top-search{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;width:auto;height:36px;margin:0 4px;padding:0 8px 0 11px;border:1px solid var(--g-line-2);border-radius:10px;background:var(--g-surface);color:var(--g-faint);font-size:13px;font-weight:500;text-align:left;transition:border-color .25s var(--ease-std),box-shadow .32s var(--ease-focus),color .2s}
 .top-search span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .top-search kbd{flex:none;padding:2px 6px;border:1px solid var(--g-line-2);border-radius:6px;background:var(--g-surface-2);font:600 12px/1.4 inherit;color:var(--g-dim)}
 .top-search:hover{border-color:var(--g-brand-line);color:var(--g-dim)}
@@ -188,13 +188,14 @@ a.crumb:hover{color:var(--g-ink)}
 .g-top .ag-acting select:focus-visible{border-color:var(--g-brand);box-shadow:0 0 0 3px rgba(255,0,187,.2)}
 :root[data-theme=dark] .g-top .ag-acting select{background-color:var(--g-surface-2);color:var(--g-ink)}
 @media (max-width:1260px){
-  .top-search{width:36px;padding:0;justify-content:center}
-  .top-search span,.top-search kbd{display:none}
   .g-top .ag-acting select{max-width:150px}
 }
 @media (max-width:1080px){
   .tool-group .tool-btn:not([data-act=notifications]):not([data-act=language]){display:none}
   .g-top .ag-acting select{max-width:130px}
+}
+@media (max-width:960px){
+  .top-search kbd{display:none}
 }
 @media (max-width:850px){
   .crumb,.crumb-sep{display:none}
@@ -204,6 +205,10 @@ a.crumb:hover{color:var(--g-ink)}
   .topbar.g-top{padding:0 10px 0 14px;gap:6px}
   .tool-group .tool-btn:not([data-act=notifications]){display:none}
   .g-top .ag-acting select{max-width:105px}
+}
+@media (max-width:580px){
+  .top-search{flex:none;width:36px;margin:0 4px 0 auto;padding:0;justify-content:center}
+  .top-search span,.top-search kbd{display:none}
 }
 @media (max-width:540px){
   .g-top .ag-acting{display:none}

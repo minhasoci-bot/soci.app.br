@@ -23,8 +23,7 @@ export function topbar(o) {
   const tools = (o.tools || []).map(t => `<button type="button" class="tool-btn" ${t.attr} data-tip="${esc(t.label)}" data-tip-pos="bottom" aria-label="${esc(t.label)}">${i(t.icon, 17)}${t.dot ? '<span class="tool-dot" aria-hidden="true"></span>' : ''}</button>`).join('');
   return `<header class="topbar g-top">
     <nav class="crumbs" aria-label="Você está em">${crumbs}</nav>
-    <div class="spacer"></div>
-    ${o.search ? `<button type="button" class="top-search" ${o.search} aria-label="Buscar no workspace" aria-keyshortcuts="Control+K">${i('search', 15)}<span>Buscar módulos e contatos…</span><kbd>Ctrl K</kbd></button>` : ''}
+    ${o.search ? `<button type="button" class="top-search" ${o.search} aria-label="Buscar no workspace" aria-keyshortcuts="Control+K">${i('search', 15)}<span>Buscar módulos e contatos…</span><kbd>Ctrl K</kbd></button>` : '<div class="spacer"></div>'}
     ${o.extra || ''}
     ${tools ? `<div class="tool-group" role="group" aria-label="Ferramentas">${tools}</div>` : ''}
     ${themeToggle()}
