@@ -84,12 +84,12 @@ function appSidebar(brand){
     account:{name:c.s.profile.name,caption:'Subconta · trocar',attr:'data-act="workspaces"',tip:'Trocar de workspace'},
     toggle:'data-act="nav"',open:c.navOpen,
     groups:[{title:'Principal',items:items.filter(([,k])=>k<7).map(([n])=>navItem(n))},{title:'Crescimento',items:items.filter(([,k])=>k>=7).map(([n])=>navItem(n))},{title:'Atalhos',items:links}],
-    footer:[...(c.access?.agency?[{href:'#agency/dashboard',label:'Visão da agência',icon:'users'}]:[]),...(allowedView('settings')?[navItem(nav.at(-1))]:[]),{href:'/',label:'Página inicial',icon:'external'}]});
+    footer:[...(c.access?.agency?[{href:'#agency/dashboard',label:'Visão da agência',icon:'users'}]:[]),...(allowedView('settings')?[navItem(nav.at(-1))]:[])]});
 }
 function appTopbar(){
   const session = c.access?.session;
   const active=nav.find(x=>x[0]===c.view), page=c.view==='link'?c.agency?.menuLinks.find(l=>l.id===c.tab)?.title||'Link':active?.[1];
-  const profileLabel = gUser ? `Google: ${gUser.name || gUser.email}` : 'Perfil do workspace';
+  const profileLabel = session?.name || 'Perfil do workspace';
   const profileText = session?.name?.slice(0, 2).toUpperCase() || 'gr';
   return topbar({crumbs:[{label:c.s.profile.name,href:'#ask-ai'},{label:page}],search:'data-act="search"',quick:'data-act="quick"',
     tools:[{icon:'lang',label:'Idioma',attr:'data-act="language"'},{icon:'phone',label:'Discador',attr:'data-act="dialer"'},{icon:'meg',label:'Novidades',attr:'data-act="updates"',dot:true},{icon:'bell',label:'Notificações',attr:'data-act="notifications"'},{icon:'help',label:'Ajuda',attr:'data-act="help"'}],
@@ -108,7 +108,7 @@ function render(){
   document.documentElement.style.setProperty('--g-brand', bColor);
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
-  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${googleBanner}${notices}<main id="screen" class="screen ${c.view==='ask-ai'?'screen-ask':''}">${screenHtml}</main></div></div>`;
+  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}<main id="screen" class="screen ${c.view==='ask-ai'?'screen-ask':''}">${screenHtml}</main></div></div>`;
   if(c.view==='conversations'&&c.thread) {const area=G('.thread-messages');if(area)area.scrollTop=area.scrollHeight;}
   if(c.view==='ask-ai'&&c.chat.length) {const area=G('.ask-scroll');if(area)area.scrollTop=area.scrollHeight;}
   if(c.view==='dashboard') { G('#screen').scrollTop=previousScroll; drawDashboardGauges(app); }
@@ -206,7 +206,7 @@ function edit(key,id,preset={}){
   dialog(`${id?'Edit':'New'} ${title}`,body,{form:'record',key,id:id||'',buttons:`${id?`<button class="danger plain" type="button" data-delete="${key}" data-id="${id}">${i('trash',16)} Delete</button>`:''}<span class="spacer"></span><button class="secondary" type="button" data-act="close">Cancel</button><button class="primary">${id?'Save Changes':`Create ${title}`}</button>`});
 }
 
-function workspaces(){dialog('Trocar de workspace',`${c.workspaces.map(w=>`<button class="choice" data-workspace="${w.id}"><strong>${h(w.name)}</strong>${w.id===c.workspace?'<span>Workspace atual</span>':''}</button>`).join('')}<button class="secondary" data-act="new-workspace">${i('plus',16)} Novo workspace</button>`);}
+function workspaces(){dialog('Trocar de workspace',`${c.workspaces.map(w=>`<button class="choice" data-workspace="${w.id}"><strong>${h(w.name)}</strong>${w.id===c.workspace?'<span>Workspace atual</span>':''}</button>`).join('')}${c.access?.agency ? `<button class="secondary" data-act="new-workspace">${i('plus',16)} Novo workspace</button>` : ''}`);}
 async function useWorkspace(id){ c.workspace=id;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.dash=dashboardPreferences(id);c.pipeline='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go('ask-ai'); }
 function downloads(name,content,type='text/csv;charset=utf-8'){
   const data=typeof content==='string'?new Blob([content],{type}):content, a=document.createElement('a'), u=URL.createObjectURL(data);

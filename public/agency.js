@@ -122,6 +122,7 @@ export function startAgency(env) {
   function shell(content) {
     const company = D().company;
     const users = D().users;
+    const session = A.data.access?.session;
     const acting = localStorage.getItem('go.user') || '';
     const item = ([key, label, ico]) => ({ href: `#agency/${key}`, label, icon: ico, current: A.page === key });
     const currentPageLabel = agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência';
@@ -139,7 +140,7 @@ export function startAgency(env) {
         { title: 'Aprender e apps', items: agencyNav.slice(10, -1).map(item) },
         { title: 'Atalhos', items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: l.title, icon: l.icon, external: true })) }
       ],
-      footer: [item(agencyNav.at(-1)), { href: '/', label: 'Página inicial', icon: 'external' }]
+      footer: [item(agencyNav.at(-1))]
     })}
     <div class="workspace">${topbar({
       crumbs: [
@@ -148,7 +149,7 @@ export function startAgency(env) {
       ],
       search: 'data-act="search"',
       quick: 'data-act="agency-quick"',
-      extra: `<div class="ag-acting">${i('users', 15)}<label class="sr-only" for="ag-user-select">Agindo como</label><select id="ag-user-select" data-ag-user aria-label="Agindo como"><option value="">${h(D().profile.name)} (Dono da agência)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(tr(u.role))})</option>`).join('')}</select></div>`,
+      extra: session ? '' : `<div class="ag-acting">${i('users', 15)}<label class="sr-only" for="ag-user-select">Agindo como</label><select id="ag-user-select" data-ag-user aria-label="Agindo como"><option value="">${h(D().profile.name)} (Dono da agência)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(tr(u.role))})</option>`).join('')}</select></div>`,
       tools: [
         { icon: 'lang', label: 'Idioma', attr: 'data-act="language"' },
         { icon: 'phone', label: 'Discador', attr: 'data-act="dialer"' },
@@ -157,10 +158,10 @@ export function startAgency(env) {
         { icon: 'help', label: 'Ajuda', attr: 'data-act="help"' }
       ],
       profile: {
-        text: initials(company.name || D().profile.name || 'AG'),
-        picture: (() => { try { return JSON.parse(localStorage.getItem('go.google_user') || '{}')?.picture || ''; } catch { return ''; } })(),
-        label: 'Configurações da agência',
-        attr: 'data-ag="go-profile"'
+        text: initials(session?.name || company.name || D().profile.name || 'AG'),
+        picture: session?.picture,
+        label: session?.name || 'Configurações da agência',
+        attr: session ? 'data-act="account"' : 'data-ag="go-profile"'
       }
     })}<main id="screen" class="screen">${content}</main></div></div>`;
   }
@@ -483,7 +484,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       render();
     } catch (e) {
       if (currentVisit !== visit || !active()) return;
-      app.innerHTML = `<div class="boot"><h1>Visão da agência indisponível</h1><p>${h(e.message)}</p><button class="primary" data-ag="reset-user">Acessar como dono da agência</button> <a href="#ask-ai">Voltar para o workspace</a></div>`;
+      app.innerHTML = `<div class="boot"><h1>Visão da agência indisponível</h1><p>${h(e.message)}</p><a href="#ask-ai">Voltar para o workspace</a></div>`;
     } finally {
       if (currentVisit === visit) loading = false;
     }
@@ -705,5 +706,5 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
   });
 
   const prospecting = createProspecting({data:()=>A.data,accounts,call,render,dialog,close,flash,download});
-  return { show, leave };
+  return { show, leave, session: () => A.data?.access?.session };
 }
