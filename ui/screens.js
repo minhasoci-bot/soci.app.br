@@ -7,7 +7,8 @@ import {studio} from './studio.js';
 import {bulkBar, contactsTab, crmTabs, opportunitiesTab, paymentsTab, pickBox, pickHead, settingsTab} from './crm.js';
 import {socialPlanner} from './social.js';
 import {agentsScreen} from './agents.js';
-
+import {automationScreen} from './automation.js';
+import {portalAdminScreen, portalNav} from './client-portal.js';
 import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
 import {opportunityStatuses} from './dashboard-data.js';
 
@@ -133,11 +134,6 @@ function opportunities(c){
       ${view === 'pipeline' ? action('Personalizar cartões','opportunity-fields','sliders') : ''}
     </div>${bulkBar(c,'opportunities')}${view === 'list' ? list : board}`);
 }
-function automation(c){
-  const t=c.tab||'workflows';
-  return wrap(head('Automações','Crie fluxos de trabalho para eventos deste workspace.',primary('Criar fluxo','workflows'),tabs([['workflows','Fluxos'],['logs','Histórico de execuções']],t))+(t==='logs'?table(['Fluxo','Evento','Contato','Ações','Executado em'],[...c.s.runs].reverse().map(r=>`<tr><td><b>${h(r.name)}</b></td><td>${h(tr(r.event))}</td><td>${h(name(r.contactId,c))}</td><td>${r.results.map(x=>`<div>${h(x)}</div>`).join('')}</td><td>${date(r.created,c,true)}</td></tr>`),empty('Nenhuma execução registrada','Fluxos publicados rodam quando acontece um evento correspondente.','flow')):`<div class="toolbar">${search(c.query,'Buscar fluxos…')}</div>${table(['Nome','Gatilho','Ações','Status',''],top(c.s.workflows,c.query,['name','trigger']).map(r=>row([`<b>${h(r.name)}</b>`,h(tr(r.trigger)),String(r.actions.length),badge(r.active?'Published':'Draft',r.active?'green':'')],'workflows',r.id)),empty('Crie seu primeiro fluxo','Ligue um evento a ações e publique o fluxo para ativá-lo.','flow'))}`));
-}
-
 function payments(c){
   if((c.tab||'invoices')!=='invoices') return paymentsTab(c,c.tab);
   const s=c.s, records=top(s.invoices,c.query,['title','status']);
@@ -154,7 +150,14 @@ function sites(c){
   return wrap(head('Sites','Crie páginas de captura locais e receba envios.',t==='submissions'?'':t==='forms'?primary('Novo formulário','forms'):primary(p==='Website'?'Novo site':'Novo funil','pages',`data-kind="${p}"`),tabs([['funnels','Funis'],['websites','Sites'],['forms','Formulários'],['submissions','Envios']],t))+(t==='submissions'?table(['Formulário','Nome','E-mail','Recebido'],[...s.submissions].reverse().map(r=>`<tr><td>${h(s.forms.find(f=>f.id===r.formId)?.name||'Formulário excluído')}</td><td>${h(r.name||'—')}</td><td>${h(r.email||'—')}</td><td>${date(r.created,c,true)}</td></tr>`),empty('Nenhum envio','Publique um formulário e use o link local para captar um lead.','inbox')):`<div class="card-grid">${[...(t==='forms'?s.forms:s.pages.filter(r=>r.kind===p))].reverse().map(r=>`<article class="surface padded resource"><span class="metric-icon">${i(t==='forms'?'list':'site')}</span><div><h2>${h(r.name)}</h2><p>${h(r.headline||r.description||'')}</p></div>${badge(r.active?'Publicado localmente':'Draft',r.active?'green':'')}<div class="inline-gap">${r.active?viewLink('Abrir',t==='forms'?'f':'p',r.id,c):''}<button class="secondary" data-edit="${t==='forms'?'forms':'pages'}" data-id="${r.id}">${i('edit',15)} Editar</button></div></article>`).join('')||empty(t==='forms'?'Nenhum formulário ainda':t==='websites'?'Nenhum site ainda':'Nenhum funil ainda','Crie um item para visualizá-lo ou publicá-lo localmente.','site')}</div>`));
 }
 function memberships(c){
-  return wrap(head('Assinaturas','Gerencie o conteúdo dos cursos de um portal local para clientes.',primary('Novo curso','courses'),tabs([['courses','Cursos']],c.tab||'courses'))+`<div class="card-grid">${c.s.courses.map(r=>`<article class="surface padded resource"><span class="metric-icon">${i('play')}</span><div><h2>${h(r.name)}</h2><p>${h(r.description)}</p></div>${badge(r.active?'Publicado localmente':'Draft',r.active?'green':'')}<div class="inline-gap">${r.active?viewLink('Abrir aula','course',r.id,c):''}<button class="secondary" data-edit="courses" data-id="${r.id}">${i('edit',15)} Editar</button></div></article>`).join('')||empty('Nenhum curso','Adicione um curso e publique a primeira aula.','play')}</div>`);
+  if (c.tab !== 'courses') return portalAdminScreen(c);
+  return `<section class="cp-admin"><h1>Assinaturas</h1>${portalNav('courses')}
+    <div class="cp-section-title"><div><h2>Cursos</h2><p>Publique aulas para os clientes com acesso ao portal.</p></div>${primary('Novo curso','courses')}</div>
+    <div class="card-grid">${c.s.courses.map(r=>`<article class="surface padded resource"><span class="metric-icon">${i('play')}</span>
+      <div><h2>${h(r.name)}</h2><p>${h(r.description)}</p></div>${badge(r.active?(r.portalOnly?'No portal':'Publicado'):'Rascunho',r.active?'green':'')}
+      <div class="inline-gap">${r.active&&!r.portalOnly?viewLink('Abrir aula','course',r.id,c):''}
+        <button class="secondary" data-edit="courses" data-id="${h(r.id)}">${i('edit',15)} Editar</button></div></article>`).join('')
+      ||empty('Nenhum curso','Adicione um curso e publique a primeira aula.','play')}</div></section>`;
 }
 function media(c){
   return wrap(head('Mídia Drive','Guarde imagens e PDFs no drive local.',action('Enviar arquivo','upload','upload'))+`<div class="toolbar">${search(c.query,'Buscar arquivos…')}</div><div class="card-grid">${top(c.s.files,c.query,['name']).map(r=>`<article class="surface resource media-card"><div class="media-preview">${r.data.startsWith('data:image/')?`<img src="${h(r.data)}" alt="">`:`${i('folder',44)} <b>PDF</b>`}</div><div class="media-name"><h2>${h(r.name)}</h2><button class="icon-btn" data-file="${r.id}" title="Baixar" aria-label="Baixar ${h(r.name)}">${i('download',16)}</button><button class="icon-btn" data-delete="files" data-id="${r.id}" title="Remover" aria-label="Remover ${h(r.name)}">${i('trash',16)}</button></div></article>`).join('')||empty('Nenhum arquivo enviado','Adicione uma imagem ou PDF do seu computador.','folder')}</div>`);
@@ -179,7 +182,7 @@ function settings(c){
   const p=c.s.profile;
   return wrap(head('Configurações','Gerencie o workspace ativo.',action('Novo workspace','new-workspace','plus'),tabs(crmTabs.settings,c.tab||'business'))+(c.tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" value="${h(p.phone)}" type="tel"></label><label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label></div><button class="primary">Salvar alterações</button></form>`));
 }
-export const screens={'ask-ai':dashboard,dashboard,conversations,calendars,contacts,opportunities,automation,payments,marketing,sites,memberships,media,reputation,reporting,settings,studio,'ai-agents':agentsScreen};
+export const screens={'ask-ai':dashboard,dashboard,conversations,calendars,contacts,opportunities,automation:automationScreen,payments,marketing,sites,memberships,media,reputation,reporting,settings,studio,'ai-agents':agentsScreen};
 export { date, empty, name, primary, row, search, table };
 
 export function publicView(data,workspace){

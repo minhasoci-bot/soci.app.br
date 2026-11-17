@@ -22,6 +22,7 @@ import { attachAccounts, claimDue, evergreenDue, settle } from './social-model.m
 import { authUrl, availability, blueskyLogin, exchange as socialExchange, publish as socialPublish, seal, unseal } from './social-providers.mjs';
 import { network } from './ui/social-data.js';
 import { createAskHandler } from './soci-chat.mjs';
+import { makeClientPortal, portalCookie } from './client-portal.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const staticFiles = new Map([
@@ -30,6 +31,8 @@ const staticFiles = new Map([
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
   ['/studio.js','text/javascript; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
+  ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
@@ -56,6 +59,8 @@ const spaceId = /^[0-9a-f-]{36}$|^demo$/;
 const privateSpace = /^user-[0-9a-f-]{36}$/;
 const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
+const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
+const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course)(?:/([0-9a-f-]{36}))?$`);
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
@@ -65,6 +70,7 @@ const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 const commandModule = { 'social-post':'marketing', 'social-reschedule':'marketing', 'social-review':'marketing', 'social-duplicate':'marketing', 'social-delete':'marketing', 'social-bulk-delete':'marketing', 'social-retry':'marketing', 'social-csv':'marketing', 'social-account-remove':'marketing', message:'conversations', thread:'conversations', 'manual-action':'conversations', 'conversation-sla':'conversations', 'dismiss-sla':'conversations',
   pipeline:'opportunities', stage:'opportunities', import:'contacts', 'opportunity-import':'opportunities', 'opportunity-move':'opportunities', 'studio-visit':'studio', 'studio-star':'studio', profile:'settings',
+  'workflow-enroll':'automation', 'workflow-restore':'automation', 'workflow-move':'automation',
   'dashboard-create':'dashboard', 'dashboard-save':'dashboard', 'dashboard-restore':'dashboard', 'dashboard-report':'dashboard',
   'dashboard-default':'dashboard', 'dashboard-timezone':'dashboard', 'dashboard-delete':'dashboard' };
 const settingsCommands = new Set(['saas-mode','saas-rebilling','saas-account','workflow-builder','sub-feature','email-domain','email-domain-accounts','email-domain-remove','affiliate-pixel','profile','company','billing-plan','wallet','auto-recharge','system-email','labs','compliance','api-key','api-key-delete','private-integration','private-integration-delete']);
@@ -82,11 +88,13 @@ export function makeServer({
   dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, designAgentConfig=designAgent,
   openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch,
+  portalOptions={},
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
 }={}) {
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
   const openAI = createOpenAI({ store, model: agentModel, secret: openAISecret, request: openAIRequest });
   const handleAsk = createAskHandler({ store, openAI, openAIRequest });
+  const clientPortal = makeClientPortal({ ...portalOptions, store });
   const ready = Promise.all([store.insert('demo', seed()), store.insert(AGENCY_ID, blankAgency())]);
   ready.catch(() => {});
   const workspaceOwner = id => id === AGENCY_ID ? null : id;
@@ -584,6 +592,38 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (method==='POST' && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
       if (p.startsWith('/api/') && !p.startsWith('/api/auth/')) await ready;
       const id=url.searchParams.get('workspace') || 'demo';
+      const portalMatch = p.match(portalApi);
+      if (portalMatch) {
+        const [, workspace, operation, courseId] = portalMatch;
+        if (Boolean(courseId) !== (operation === 'course')) throw error('Página do portal não encontrada.',404);
+        if (operation === 'admin') {
+          const who = await access(req, res);
+          if (!await canOpen(who,workspace) || (who.modules && !who.modules.includes('memberships'))) {
+            throw error('Você não tem permissão para gerenciar o portal desta subconta.',403);
+          }
+          const state = await store.load(workspace);
+          return json(await clientPortal.admin(workspace, state, method === 'POST' ? await payload(req) : null));
+        }
+        const secure = proto === 'https';
+        if (method === 'POST' && operation === 'exchange') {
+          const { token } = await payload(req);
+          const session = await clientPortal.exchange(workspace, token);
+          portalCookie(req, res, workspace, session, secure);
+          return json({ ok:true });
+        }
+        if (method === 'POST' && operation === 'logout') {
+          await clientPortal.signOut(workspace, portalCookie(req,res,workspace,undefined,secure));
+          portalCookie(req,res,workspace,'',secure);
+          return json({ ok:true });
+        }
+        if (method === 'POST' || !['home','course'].includes(operation)) throw error('Método indisponível.',405);
+        const state = await store.load(workspace);
+        return json(await clientPortal.content(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId));
+      }
+      if (portalPage.test(p) && method !== 'POST') {
+        res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; form-action 'self'");
+        return send(200,'text/html; charset=utf-8',method==='HEAD' ? undefined : readFileSync(resolve(root,'ui','client-portal.html')));
+      }
       if (p === '/favicon.ico') { res.writeHead(302, { Location: '/favicon.svg' }); return res.end(); }
       if (['/prospecting','/prospecting/','/prospecting/add-prospect'].includes(p) && method !== 'POST') {
         res.writeHead(302,{Location:p.endsWith('add-prospect') ? '/#agency/prospecting/search' : '/#agency/prospecting'});
@@ -798,7 +838,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (module && who.modules && !who.modules.includes(module)) throw error('Your user does not have permission for this module.',403);
         command.actor = who.name;
         const result = await change(id,command);
-        if (!privateSpace.test(id) && ['save','delete','import','opportunity-import','opportunity-move','pipeline','profile','bulk'].includes(command.type)) {
+        if (!privateSpace.test(id) && ['save','delete','import','opportunity-import','opportunity-move','pipeline','profile','bulk','workflow-enroll','workflow-restore','workflow-move'].includes(command.type)) {
           const account = (await listWorkspaces(who.agencyId)).find(w => w.id === id)?.name || id;
           const label = command.type === 'bulk' ? `Bulk ${command.data?.operation || ''} on ${command.data?.object || ''}`.trim() : '';
           await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);
@@ -953,7 +993,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           return json({id:submission.id},201);
         }
         const state=await store.load(w), map={p:'pages',f:'forms',course:'courses'}, row=find(state,map[kind],item);
-        if(!row?.active) throw error('This item is not published.',404);
+        if(!row?.active || (kind==='course' && row.portalOnly)) throw error('This item is not published.',404);
         const form=kind==='p' && row.formId ? find(state,'forms',row.formId) : null;
         return json({kind,row,form:form?.active?form:null,brand:state.profile.name});
       }

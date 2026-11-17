@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeServer } from '../server.mjs';
 import { blank, execute, hydrateWorkspace } from '../model.mjs';
+import { createSupabaseStore } from '../storage.mjs';
 import { conversionTotals, scopedDeals, stageTotals } from '../ui/dashboard-data.js';
 
-async function start(dbPath=':memory:') {
-  const {server,host}=makeServer({ allowLocalAccess: true, auth: null,dbPath,port:0});
+async function start(dbPath=':memory:', options = {}) {
+  const {server,host}=makeServer({ allowLocalAccess: true, auth: null,dbPath,port:0, ...options });
   await new Promise((resolve,reject)=>{server.on('error',reject);server.listen(0,host,resolve);});
   const base=`http://${host}:${server.address().port}`;
   const call=async(path,body,headers={})=>{
@@ -17,6 +18,74 @@ async function start(dbPath=':memory:') {
   };
   return {call,base,close:()=>new Promise(resolve=>server.close(resolve))};
 }
+
+test('Automation definitions and executions persist together through the Supabase workspace adapter', async t => {
+  const rows = new Map();
+  const storageKey = 'a'.repeat(64);
+  let conflict = false;
+  const store = createSupabaseStore({
+    projectUrl: 'https://test.supabase.co',
+    publishableKey: 'sb_publishable_test',
+    storageKey,
+    async request(url, options) {
+      assert.equal(url.pathname, '/rest/v1/go_workspaces');
+      assert.equal(options.headers['X-Go-Storage-Key'], storageKey);
+      const id = url.searchParams.get('id')?.slice(3);
+      if (options.method === 'POST') {
+        const record = JSON.parse(options.body);
+        if (rows.has(record.id)) return Response.json([]);
+        rows.set(record.id, { ...record, name: record.state.profile.name, revision: 'initial' });
+        return Response.json([{ id: record.id }]);
+      }
+      const row = rows.get(id);
+      if (options.method === 'PATCH') {
+        if (conflict && id === 'demo') {
+          conflict = false;
+          row.revision = 'concurrent';
+        }
+        if (!row || url.searchParams.get('revision') !== `eq.${row.revision}`) return Response.json([]);
+        rows.set(id, { ...row, ...JSON.parse(options.body) });
+        return Response.json([{ id }]);
+      }
+      if (id) return Response.json(row ? [row] : []);
+      return Response.json([...rows.values()]);
+    }
+  });
+  const local = await start(':memory:', { store });
+  t.after(local.close);
+  const action = async (type, data = {}, id, key) => {
+    const response = await local.call('/api/action', { type, key, id, data });
+    assert.equal(response.status, 200, response.body.error);
+    return response.body.id;
+  };
+  const save = (key, data, id) => action('save', data, id, key);
+  const folderId = await save('workflowFolders', { name: 'Atendimento' });
+  await save('workflowLists', { name: 'Publicados', folderId, status: 'published' });
+  const workflowId = await save('workflows', { name: 'Retorno', folderId, actions: [] });
+  const invalid = await local.call('/api/action', { type: 'save', key: 'workflows', id: workflowId, data: { active: true } });
+  assert.equal(invalid.status, 400);
+  await save('workflows', { trigger: 'Contact created', active: true, allowReentry: false,
+    actions: [{ type: 'Create task', value: 'Revisar cadastro' }] }, workflowId);
+  conflict = true;
+  const contactId = await save('contacts', { name: 'Contato de teste', email: 'workflow@example.test' });
+  const repeated = await local.call('/api/action', { type: 'workflow-enroll', id: workflowId, data: { contactId } });
+  assert.equal(repeated.status, 409);
+
+  const saved = rows.get('demo').state;
+  assert.equal(saved.workflowFolders[0].id, folderId);
+  assert.equal(saved.workflowLists[0].folderId, folderId);
+  assert.equal(saved.workflows.find(row => row.id === workflowId).active, true);
+  assert.equal(saved.runs.filter(run => run.workflowId === workflowId && run.contactId === contactId).length, 1);
+  assert.equal(saved.tasks.filter(task => task.contactId === contactId && task.title === 'Revisar cadastro').length, 1);
+
+  await action('delete', {}, workflowId, 'workflows');
+  assert.equal(rows.get('demo').state.deletedWorkflows[0].id, workflowId);
+  await action('workflow-restore', {}, workflowId);
+  const reloaded = (await local.call('/api/state')).body.state;
+  assert.equal(reloaded.deletedWorkflows.length, 0);
+  assert.equal(reloaded.workflows.find(row => row.id === workflowId).active, false);
+  assert.equal(reloaded.runs.filter(run => run.workflowId === workflowId).length, 1);
+});
 
 test('Published lead form creates a contact, tags it and creates a deal in the same workspace', async t=>{
   const local=await start();t.after(local.close);

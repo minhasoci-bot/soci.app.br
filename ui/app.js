@@ -16,6 +16,8 @@ import { topbar } from './topbar.js';
 import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm.js';
 import { socialEvents } from './social.js';
 import { mountAgentScreen } from './agents.js';
+import { installAutomation } from './automation.js';
+import { installClientPortal } from './client-portal.js';
 import { applyBrandColor, setThemeAccount } from './graao.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay'), toast=document.querySelector('#toast');
@@ -25,7 +27,7 @@ const c={workspace:new URLSearchParams(location.search).get('workspace')||localS
 c.dash = dashboardPreferences(c.workspace);
 c.pipeline = '';
 c.studio = { brief:'',template:'landing',project:'' };
-let toastTimer, modalReturn, busy=false, renderedView='', editor;
+let toastTimer, modalReturn, busy=false, renderedView='', editor, mountClientPortal;
 const G=s=>document.querySelector(s);
 const url=path=>`${path}?workspace=${encodeURIComponent(c.workspace)}`;
 function flash(msg,isError=false){ clearTimeout(toastTimer);toast.className=isError?'issue':'success';toast.textContent=msg;toastTimer=setTimeout(()=>{toast.className='';toast.textContent='';},4600); }
@@ -51,9 +53,9 @@ const allowedView = id => id==='dashboard' || !c.access?.modules || c.access.mod
 let agencyUI, openingWorkspace;
 const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
-async function mutate(command){ const d=await api(url('/api/action'),command); c.s=d.state;c.m=d.metrics;return d.id; }
+async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions'],marketing:['social','email'],memberships:['courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -107,11 +109,14 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   }
   if (key === 'ask-ai' || key === 'marketplace') { location.hash = '#dashboard'; return; }
   const view=key==='link'?'link':Object.hasOwn(screens,key)&&allowedView(key)?key:'dashboard', nextTab=view==='link'?tab||'':validTabs[view]?.includes(tab)?tab:'';
+  const automationId = view === 'automation' ? project || '' : '';
   const opportunityViews = ['', 'pipeline', 'list'];
   const switchingOpportunityView = c.view === 'opportunities' && view === c.view &&
     opportunityViews.includes(c.tab) && opportunityViews.includes(nextTab);
   if((c.view!==view||c.tab!==nextTab) && !switchingOpportunityView){c.query='';c.tag='';}
- c.view=view;c.tab=nextTab; c.studio.project=project || ''; c.agentId=view==='ai-agents'&&['agent','edit'].includes(nextTab)?project:''; render(); }
+  if(view==='automation' && (c.view!==view || c.tab!==nextTab || c.automationId!==automationId)) c.workflowList=null;
+  c.view=view;c.tab=nextTab;c.automationId=automationId;c.studio.project=project||'';
+  c.agentId=view==='ai-agents'&&['agent','edit'].includes(nextTab)?project:''; render(); }
 const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${label}" title="${label}" ${attributes}>${i(name,17)}</button>`;
 const navItem=([id,pt,ico])=>({href:`#${id}`,label:pt,icon:ico,current:c.view===id});
 function appSidebar(brand){
@@ -154,6 +159,7 @@ function render(){
     if(board) board.scrollLeft = kanbanScroll;
   }
   if(c.view==='studio') afterStudioRender();
+  if(c.view==='memberships') mountClientPortal?.();
   const agentScreen = G('[data-agent-screen]');
   if (agentScreen?.dataset.agentId && editor?.id === agentScreen.dataset.agentId && editor.workspace === c.workspace) {
     agentScreen.replaceWith(editor.root);
@@ -236,17 +242,7 @@ const entityNames={contacts:'Contato',tasks:'Tarefa',opportunities:'Oportunidade
 const feminine=new Set(['tasks','opportunities','invoices','campaigns','pages','reviews','snippetFolders','companies','subscriptions','transactions']);
 const lowerName=key=>{const n=entityNames[key]||'';return key==='tags'?n:n.charAt(0).toLowerCase()+n.slice(1);};
 const newTitle=key=>`${feminine.has(key)?'Nova':'Novo'} ${lowerName(key)}`;
-const actionNames = ['Add tag','Create task','Create opportunity','Log message','Manual Call','Manual SMS'];
-const triggerNames = ['Contact created','Form submitted','Opportunity stage changed','Appointment booked','Trigger link clicked'];
 const optionalGroup = (attribute, visible, content) => `<fieldset ${attribute} ${visible ? '' : 'hidden disabled'}>${content}</fieldset>`;
-
-function actionFields(action = {}) {
-  return `<div class="workflow-action"><div class="workflow-action-main">
-    ${option('Action','actionType',action.type || 'Create task',actionNames)}${input('Value','actionValue',action.value,true)}
-    <button type="button" class="icon-btn remove-action" data-act="remove-action" aria-label="Remove action">${i('trash',16)}</button></div>
-    ${optionalGroup('data-action-assignee', ['Manual Call','Manual SMS'].includes(action.type), input('Assigned to','assignee',action.assignee))}
-    ${optionalGroup('data-action-channel', action.type === 'Log message', option('Channel','actionChannel',action.channel || 'Note',['Note','Email','SMS']))}</div>`;
-}
 function edit(key,id,preset={}){
   const entry=c.s[key]?.find(r=>r.id===id); if(id&&!entry)return;
   const r=entry||preset; let body='';
@@ -272,12 +268,6 @@ function edit(key,id,preset={}){
       break;
     }
     case 'appointments':body=input('Título','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices(),false)+`<p class="dim">Horários no fuso ${h(zones())}.</p><div class="field-grid">${input('Início','start',localTime(r.start,zones())||(r.date?`${r.date}T09:00`:''),true,'datetime-local')}${input('Fim','end',localTime(r.end,zones())||(r.date?`${r.date}T09:30`:''),true,'datetime-local')}</div>`+option('Status','status',r.status||'Confirmed',['Confirmed','Completed','Canceled'])+area('Notas','notes',r.notes);break;
-    case 'workflows':
-      body = input('Workflow name','name',r.name,true) + option('Trigger','trigger',r.trigger || triggerNames[0],triggerNames) +
-        optionalGroup('data-trigger-link',r.trigger === 'Trigger link clicked',option('Trigger link','linkId',r.linkId,[['','Any trigger link'],...c.s.triggerLinks.map(link => [link.id,link.name])],false)) +
-        `<strong>Actions</strong><div id="workflow-actions">${(r.actions || [{}]).map(actionFields).join('')}</div>
-        <button type="button" class="secondary" data-act="add-action">${i('plus',15)} Add action</button>` + check('Publish workflow','active',r.active);
-      break;
     case 'snippetFolders': body = input('Folder name','name',r.name,true); break;
     case 'snippets': {
       const type = r.type || r.kind || 'Text';
@@ -292,7 +282,7 @@ function edit(key,id,preset={}){
     case 'campaigns':body=input('Campaign name','name',r.name,true)+option('Channel','channel',r.channel||'Social',['Social','Email'])+area('Content','body',r.body,true)+input('Planned date','date',r.date?.slice(0,10),false,'date')+option('Status','status',r.status||'Draft',['Draft','Planned','Archived']);break;
     case 'pages':body=input('Page name','name',r.name,true)+option('Type','kind',r.kind||'Funnel',['Funnel','Website'])+input('Headline','headline',r.headline,true)+area('Page copy','body',r.body)+input('Button label','button',r.button)+option('Form','formId',r.formId,[['','No form'],...c.s.forms.map(a=>[a.id,`${a.name}${a.active?'':' (Draft)'}`])],false)+check('Publish locally','active',r.active);break;
     case 'forms':body=input('Form name','name',r.name,true)+area('Description','description',r.description)+check('Ask for phone number','askPhone',r.askPhone)+check('Publish locally','active',r.active);break;
-    case 'courses':body=input('Course name','name',r.name,true)+area('Description','description',r.description)+input('Lesson title','lesson',r.lesson,true)+area('Lesson content','body',r.body)+check('Publish locally','active',r.active);break;
+    case 'courses':body=input('Nome do curso','name',r.name,true)+area('Descrição','description',r.description)+input('Título da aula','lesson',r.lesson,true)+area('Conteúdo da aula','body',r.body)+check('Apenas no portal do cliente','portalOnly',r.portalOnly ?? !id)+check('Publicar curso','active',r.active);break;
     case 'reviews':body=input('Reviewer','author',r.author,true)+option('Rating','score',r.score||5,[5,4,3,2,1])+area('Review','text',r.text,true)+area('Reply','reply',r.reply);break;
     default:body=crmForm(c,key,r,preset);if(!body)return;
   }
@@ -477,12 +467,6 @@ function conversationFormControls(element) {
   const form = element.form;
   if (!form) return;
   if (form.dataset.form === 'message' && element.name === 'channel') showEmailSubject(form);
-  if (element.name === 'trigger') showFieldset(form.querySelector('[data-trigger-link]'),element.value === 'Trigger link clicked');
-  if (element.name === 'actionType') {
-    const block = element.closest('.workflow-action');
-    showFieldset(block.querySelector('[data-action-assignee]'),['Manual Call','Manual SMS'].includes(element.value));
-    showFieldset(block.querySelector('[data-action-channel]'),element.value === 'Log message');
-  }
   if (form.dataset.key === 'snippets' && element.name === 'type') showFieldset(form.querySelector('[data-snippet-subject]'),element.value === 'Email');
   if (form.dataset.form !== 'conversation-sla') return;
   if (element.name === 'mode') {
@@ -622,8 +606,6 @@ document.addEventListener('click',async ev=>{
       case 'back-inbox':c.thread='';render();break;
       case 'prev-month':case 'next-month':c.month=new Date(c.month.getFullYear(),c.month.getMonth()+(d.act==='prev-month'?-1:1),1);render();break;
       case 'this-month':c.month=new Date();render();break;
-      case 'add-action':if(G('#workflow-actions').children.length<10)G('#workflow-actions').insertAdjacentHTML('beforeend',actionFields());break;
-      case 'remove-action':if(G('#workflow-actions').children.length>1)b.closest('.workflow-action').remove();break;
       case 'export': downloads('go-workspace-relatorio.csv',['Métrica,Valor',...Object.entries(c.m).map(([k,v])=>`${k},${v}`)].join('\r\n'));break;
     }
   } catch(e){flash(e.message,true);}
@@ -723,12 +705,6 @@ document.addEventListener('submit',async ev=>{
     if(name==='record'){
       const {key,id}=f.dataset;
       for(const el of f.querySelectorAll('input[type="checkbox"]'))data[el.name]=el.checked;
-      if (key === 'workflows') data.actions = Array.from(f.querySelectorAll('.workflow-action'), block => ({
-        type: block.querySelector('[name="actionType"]').value,
-        value: block.querySelector('[name="actionValue"]').value,
-        assignee: block.querySelector('[name="assignee"]').value,
-        channel: block.querySelector('[name="actionChannel"]').value
-      }));
       if(key==='appointments'){data.start=toInstant(data.start,zones());data.end=toInstant(data.end,zones());}
       await mutate({type:'save',key,id,data});msg=id?'Alterações salvas.':`${entityNames[key]} ${feminine.has(key)?'criada':'criado'}.`;
     } else if(name==='delete'){await mutate({type:'delete',key:f.dataset.key,id:f.dataset.id});msg='Record deleted.';}
@@ -817,6 +793,8 @@ if(viewPath){
     c.features.agentModel = connection.configured && allowedView('ai-agents') ? connection.model : '';
   } });
   installStudio({ c, api, url, flash, render });
+  installAutomation({ c, mutate, render, flash, dialog, close });
+  mountClientPortal = installClientPortal({ c, api, flash, dialog, close });
   crmEvents({ G, mutate, render, flash, dialog, close });
   socialEvents({ c, G, api, url, mutate, render, flash, dialog, close, load });
   window.addEventListener('hashchange',route);

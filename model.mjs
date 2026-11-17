@@ -12,6 +12,7 @@ export const defaults = {
   pipelines:[{ id:salesPipeline, name:'Sales Pipeline' }],
   stages: [{ id: 'new', name: 'New Lead' }, { id: 'qualified', name: 'Qualified' }, { id: 'proposal', name: 'Proposal' }, { id: 'won', name: 'Won', visible:false }].map(stage => ({ ...stage, pipelineId:salesPipeline })),
   contacts: [], tasks: [], opportunities: [], messages: [], appointments: [], workflows: [], runs: [], invoices: [],
+  workflowFolders: [], workflowLists: [], deletedWorkflows: [],
   campaigns: [], pages: [], forms: [], submissions: [], courses: [], files: [], reviews: [], agents: [], agentRuns: [], integrations: [],
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
@@ -23,7 +24,7 @@ export const blank = name => ({ ...structuredClone(defaults), profile: { ...defa
 export function hydrateWorkspace(state) {
   const fresh = blank();
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects',...crmCollections,...socialCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -93,16 +94,25 @@ const fields = {
       if (type === 'Log message') action.channel = one(a.channel || 'Note', messageChannels, 'channel');
       return action;
     }) : [];
-    if (!actions.length) fail('Add at least one workflow action.');
-    const trigger = one(d.trigger,triggers,'trigger');
+    const active = Boolean(d.active);
+    if (active && (!actions.length || !d.trigger)) fail('Defina um gatilho e pelo menos uma ação para publicar.');
+    const trigger = d.trigger ? one(d.trigger,triggers,'trigger') : '';
     const linkId = trigger === 'Trigger link clicked' ? exists(s, 'triggerLinks', d.linkId, 'trigger link', true) : '';
-    return { name: req(d.name,'Name'), trigger, linkId, actions, active: Boolean(d.active) };
+    const formId = trigger === 'Form submitted' ? exists(s, 'forms', d.formId, 'form', true) : '';
+    const stageId = trigger === 'Opportunity stage changed' ? exists(s, 'stages', d.stageId, 'stage', true) : '';
+    return { name: req(d.name,'Nome'), trigger, linkId, formId, stageId, actions, active,
+      folderId: exists(s, 'workflowFolders', d.folderId, 'folder', true), allowReentry: d.allowReentry !== false };
   },
+  workflowFolders: (s, d) => ({ name: req(d.name, 'Nome da pasta', 100) }),
+  workflowLists: (s, d) => ({ name: req(d.name, 'Nome da lista', 100), query: str(d.query, 200),
+    status: one(d.status || 'all', ['all', 'draft', 'published'], 'status'),
+    folderId: exists(s, 'workflowFolders', d.folderId, 'folder', true) }),
   invoices: (s,d) => ({ title: req(d.title,'Invoice name'), contactId: contactId(s,d.contactId), value: amount(d.value), due: date(d.due), status: one(d.status || 'Draft',['Draft','Open','Paid','Void'],'status') }),
   campaigns: (s,d) => ({ name: req(d.name,'Campaign name'), channel: one(d.channel,['Email','Social'],'channel'), body: req(d.body,'Content',5000), date: d.date ? date(d.date) : '', status: one(d.status || 'Draft',['Draft','Planned','Archived'],'status') }),
   pages: (s,d) => ({ name: req(d.name,'Page name'), headline: req(d.headline,'Headline'), body: str(d.body,5000), button: str(d.button,80), formId: exists(s,'forms',d.formId,'form',true), kind: one(d.kind,['Website','Funnel'],'page type'), active: Boolean(d.active) }),
   forms: (s,d) => ({ name: req(d.name,'Form name'), description: str(d.description,1500), askPhone: Boolean(d.askPhone), active: Boolean(d.active) }),
-  courses: (s,d) => ({ name: req(d.name,'Course name'), description: str(d.description,2500), lesson: req(d.lesson,'Lesson title'), body: str(d.body,5000), active: Boolean(d.active) }),
+  courses: (s,d) => ({ name: req(d.name,'Course name'), description: str(d.description,2500), lesson: req(d.lesson,'Lesson title'), body: str(d.body,5000),
+    active: Boolean(d.active), portalOnly: typeof d.portalOnly === 'boolean' ? d.portalOnly : (d.id ? Boolean(find(s,'courses',d.id)?.portalOnly) : true) }),
   reviews: (s,d) => ({ author: req(d.author,'Author'), score: one(Number(d.score),[1,2,3,4,5],'rating'), text: req(d.text,'Review',2500), reply: str(d.reply,2500) }),
   files: (s,d) => ({ name: req(d.name,'File name'), data: file(d.data) }),
   agents: (s,d) => ({ name: req(d.name,'Agent name'), role: one(d.role,['Support','Sales','Scheduling'],'role'), instructions: str(d.instructions,5000), active: Boolean(d.active) }),
@@ -191,13 +201,20 @@ function continueRun(state, run) {
 
 function run(state, event, context) {
   for (const workflow of state.workflows) {
-    if (!workflow.active || workflow.trigger !== event || (workflow.linkId && workflow.linkId !== context.linkId)) continue;
-    const execution = add(state, 'runs', {
-      name: workflow.name, workflowId: workflow.id, event, contactId: context.contactId || '',
-      actions: structuredClone(workflow.actions), nextAction: 0, results: [], status: 'Running'
-    });
-    continueRun(state, execution);
+    if (!workflow.active || workflow.trigger !== event || (workflow.linkId && workflow.linkId !== context.linkId)
+      || (workflow.formId && workflow.formId !== context.formId) || (workflow.stageId && workflow.stageId !== context.stage)) continue;
+    enroll(state, workflow, event, context.contactId);
   }
+}
+
+function enroll(state, workflow, event, contactId = '') {
+  if (contactId && workflow.allowReentry === false && state.runs.some(run => run.workflowId === workflow.id && run.contactId === contactId)) return;
+  const execution = add(state, 'runs', {
+    name: workflow.name, workflowId: workflow.id, event, contactId,
+    actions: structuredClone(workflow.actions), nextAction: 0, results: [], status: 'Running'
+  });
+  continueRun(state, execution);
+  return execution.id;
 }
 
 function finishManualAction(state, id, data) {
@@ -251,6 +268,27 @@ export function metrics(s) {
 export function execute(s, command, { workspace = 'demo' } = {}) {
   const { type, key, id, data:d = {} } = command;
   if (!d || typeof d!=='object' || Array.isArray(d)) fail('Invalid record data.');
+  if (type === 'workflow-enroll') {
+    const workflow = find(s, 'workflows', id);
+    if (!workflow?.active) fail('Publique o fluxo antes de inscrever contatos.', 409);
+    return enroll(s, workflow, 'Manual enrollment', contactId(s, d.contactId))
+      || fail('Este contato já foi inscrito neste fluxo.', 409);
+  }
+  if (type === 'workflow-restore') {
+    const workflow = find(s, 'deletedWorkflows', id);
+    if (!workflow) fail('Fluxo excluído não encontrado.', 404);
+    const { deletedAt, ...draft } = workflow;
+    s.workflows.push({ ...draft, active: false, updated: now() });
+    s.deletedWorkflows = s.deletedWorkflows.filter(row => row.id !== id);
+    return id;
+  }
+  if (type === 'workflow-move') {
+    const workflow = find(s, 'workflows', id);
+    if (!workflow) fail('Fluxo não encontrado.', 404);
+    workflow.folderId = exists(s, 'workflowFolders', d.folderId, 'folder', true);
+    workflow.updated = now();
+    return id;
+  }
   if (['dashboard-create','dashboard-save','dashboard-restore','dashboard-report','dashboard-default','dashboard-timezone','dashboard-delete'].includes(type)) {
     return changeDashboard(s,{ ...command,data:d },uid,now());
   }
@@ -340,7 +378,7 @@ export function execute(s, command, { workspace = 'demo' } = {}) {
     if (id && !prior) fail('Record not found.',404);
     if (key==='files' && !prior && s.files.length>=60) fail('The local drive holds up to 60 files.');
     if (key==='studioProjects' && !prior && s.studioProjects.length>=60) fail('A workspace can have up to 60 Studio projects.');
-    const details = fields[key](s,{ ...d, id });
+    const details = fields[key](s, key === 'workflows' ? { ...prior, ...d, id } : { ...d, id });
     const row = prior ? { ...prior, ...details, updated: now() } : add(s,key,details);
     if (key==='agents' && prior) {
       row.revision = uid();
@@ -389,13 +427,24 @@ function remove(s, key, id) {
       for (const click of s.linkClicks.filter(click => click.contactId === id)) click.contactId = '';
     }
     if (key==='forms') s.pages.forEach(p=>{ if (p.formId===id) p.formId=''; });
+    for (const [collection, reference] of [['forms', 'formId'], ['triggerLinks', 'linkId']]) {
+      if (key !== collection) continue;
+      for (const workflow of [...s.workflows, ...s.deletedWorkflows]) {
+        if (workflow[reference] === id) workflow.active = false;
+      }
+    }
     if (key === 'snippetFolders') s.snippets.forEach(snippet => { if (snippet.folderId === id) snippet.folderId = ''; });
     if (key === 'triggerLinks') {
       s.linkTickets = s.linkTickets.filter(ticket => ticket.linkId !== id);
       s.linkClicks = s.linkClicks.filter(click => click.linkId !== id);
-      for (const workflow of s.workflows.filter(item => item.linkId === id)) workflow.active = false;
+    }
+    if (key === 'workflowFolders') {
+      for (const row of [...s.workflows, ...s.deletedWorkflows, ...s.workflowLists]) {
+        if (row.folderId === id) row.folderId = '';
+      }
     }
     if (key === 'workflows') {
+      s.deletedWorkflows.push({ ...find(s, key, id), active: false, deletedAt: now() });
       const sla = s.conversationSla;
       sla.workflows = sla.workflows.filter(item => item !== id);
       if (sla.automation === 'selected' && !sla.workflows.length) sla.automation = 'none';
@@ -471,7 +520,7 @@ function other(s, command, type, key, id, d, workspace) {
     let c = s.contacts.find(r=>r.email===mail);
     if (!c) { c=add(s,'contacts',{ name,email:mail,phone,tags:[],company:'',notes:'' }); run(s,'Contact created',{contactId:c.id}); }
     const submission=add(s,'submissions',{ formId:id, contactId:c.id, name, email:mail });
-    run(s,'Form submitted',{contactId:c.id});
+    run(s,'Form submitted',{contactId:c.id,formId:id});
     return submission.id;
   }
   if (type === 'onboarding') {

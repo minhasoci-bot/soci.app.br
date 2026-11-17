@@ -479,7 +479,8 @@ export function executeAgency(state, command, { accountIds, actor, sharedSnapsho
 
 // ---- Snapshots -------------------------------------------------------------
 
-const refs = { stages: { pipelineId: 'pipelines' }, pages: { formId: 'forms' }, snippets: { folderId: 'snippetFolders' }, workflows: { linkId: 'triggerLinks' } };
+const refs = { stages: { pipelineId: 'pipelines' }, pages: { formId: 'forms' }, snippets: { folderId: 'snippetFolders' },
+  workflows: { linkId: 'triggerLinks', formId: 'forms', stageId: 'stages', folderId: 'workflowFolders' } };
 const label = (key, item) => key === 'stages' ? `${item.pipelineId}:${item.name}` : (item.name || item.title || '').toLowerCase();
 
 export function extractSnapshot(workspace, include = snapshotAssets.map(a => a[0])) {
@@ -487,6 +488,8 @@ export function extractSnapshot(workspace, include = snapshotAssets.map(a => a[0
   for (const [key] of snapshotAssets) if (include.includes(key)) assets[key] = structuredClone(workspace[key] || []);
   if (assets.stages && !assets.pipelines) assets.pipelines = structuredClone(workspace.pipelines);
   if (assets.pages && !assets.forms) assets.forms = structuredClone(workspace.forms.filter(f => assets.pages.some(p => p.formId === f.id)));
+  if (assets.workflows) assets.workflowFolders = structuredClone((workspace.workflowFolders || [])
+    .filter(folder => assets.workflows.some(workflow => workflow.folderId === folder.id)));
   for (const page of assets.pages || []) page.active = false;
   for (const workflow of assets.workflows || []) workflow.active = false;
   if (assets.agents) assets.agents = assets.agents.map(agentTemplate);
@@ -496,7 +499,7 @@ export function extractSnapshot(workspace, include = snapshotAssets.map(a => a[0
 
 export function applySnapshot(target, snapshot, mode = 'skip') {
   const map = {};
-  const order = ['pipelines', 'stages', 'snippetFolders', 'forms', 'triggerLinks', 'pages', 'snippets', 'workflows', 'courses', 'agents', 'studioProjects'];
+  const order = ['pipelines', 'stages', 'snippetFolders', 'forms', 'triggerLinks', 'pages', 'snippets', 'workflowFolders', 'workflows', 'courses', 'agents', 'studioProjects'];
   const report = { added: 0, overwritten: 0, skipped: 0 };
   for (const key of order) {
     const items = snapshot.assets[key];

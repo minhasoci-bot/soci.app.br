@@ -15,6 +15,7 @@ export const subAccountModules = [
 // Record key of a sub-account mutation → module that must be permitted for the acting user.
 export const moduleOfRecord = {
   contacts: 'contacts', tasks: 'contacts', opportunities: 'opportunities', appointments: 'calendars', workflows: 'automation',
+  workflowFolders: 'automation', workflowLists: 'automation',
   invoices: 'payments', campaigns: 'marketing', pages: 'sites', forms: 'sites', courses: 'memberships', reviews: 'reputation',
   agents: 'ai-agents', agentRuns: 'ai-agents', files: 'media', snippetFolders: 'conversations', snippets: 'conversations', triggerLinks: 'conversations',
   studioProjects: 'studio', pipelines: 'opportunities', stages: 'opportunities',
