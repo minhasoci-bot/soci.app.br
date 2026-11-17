@@ -155,6 +155,7 @@ export function startAgency(env) {
       ],
       profile: {
         text: initials(company.name || D().profile.name || 'AG'),
+        picture: (() => { try { return JSON.parse(localStorage.getItem('go.google_user') || '{}')?.picture || ''; } catch { return ''; } })(),
         label: 'Configurações da agência',
         attr: 'data-ag="go-profile"'
       }

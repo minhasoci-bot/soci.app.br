@@ -22,6 +22,7 @@ const G=s=>document.querySelector(s);
 const url=path=>`${path}?workspace=${encodeURIComponent(c.workspace)}`;
 function flash(msg,isError=false){ clearTimeout(toastTimer);toast.className=isError?'issue':'success';toast.textContent=msg;toastTimer=setTimeout(()=>{toast.className='';toast.textContent='';},4600); }
 const actingUser = () => { try { return localStorage.getItem('go.user') || ''; } catch { return ''; } };
+const googleUser = () => { try { return JSON.parse(localStorage.getItem('go.google_user') || 'null'); } catch { return null; } };
 async function api(path,body){ const headers={'X-Go-User':actingUser()}; const r=await fetch(path,body===undefined?{headers}:{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)}); const d=await r.json(); if(!r.ok) throw Object.assign(Error(d.error||'The request failed.'),{status:r.status}); return d; }
 async function load(){ const data=await api(url('/api/state')); Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access}); }
 const allowedView = id => id==='ask-ai' || !c.access?.modules || c.access.modules.includes(id);
@@ -46,10 +47,13 @@ function appSidebar(brand){
     footer:[...(c.access?.agency?[{href:'#agency/dashboard',label:'Visão da agência',icon:'users'}]:[]),...(allowedView('settings')?[navItem(nav.at(-1))]:[]),{href:'/',label:'Página inicial',icon:'external'}]});
 }
 function appTopbar(){
+  const gUser = googleUser();
   const active=nav.find(x=>x[0]===c.view), page=c.view==='link'?c.agency?.menuLinks.find(l=>l.id===c.tab)?.title||'Link':active?.[1];
+  const profileLabel = gUser ? `Google: ${gUser.name || gUser.email}` : 'Perfil do workspace';
+  const profileText = gUser?.name ? gUser.name.slice(0, 2).toUpperCase() : 'gr';
   return topbar({crumbs:[{label:c.s.profile.name,href:'#ask-ai'},{label:page}],search:'data-act="search"',quick:'data-act="quick"',
     tools:[{icon:'lang',label:'Idioma',attr:'data-act="language"'},{icon:'phone',label:'Discador',attr:'data-act="dialer"'},{icon:'meg',label:'Novidades',attr:'data-act="updates"',dot:true},{icon:'bell',label:'Notificações',attr:'data-act="notifications"'},{icon:'help',label:'Ajuda',attr:'data-act="help"'}],
-    profile:{text:'gr',label:'Perfil do workspace',attr:'data-go="settings"'}});
+    profile:{text:profileText,picture:gUser?.picture||'',label:profileLabel,attr:'data-go="settings"'}});
 }
 function render(){
   if(viewPath||c.mode==='agency')return;
@@ -62,7 +66,9 @@ function render(){
   document.documentElement.style.setProperty('--blue',brandColor(c.agency?.primary));
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
-  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}<main id="screen" class="screen ${c.view==='ask-ai'?'screen-ask':''}">${screenHtml}</main></div></div>`;
+  const gUser = googleUser();
+  const googleBanner = gUser && !c.access?.name ? `<div class="ag-banner ok" role="status"><b>Conta Google conectada: ${h(gUser.name || gUser.email)}</b><span>Autenticado com sucesso.</span><button class="secondary" data-act="disconnect-google">Desconectar</button></div>` : '';
+  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${googleBanner}${notices}<main id="screen" class="screen ${c.view==='ask-ai'?'screen-ask':''}">${screenHtml}</main></div></div>`;
   if(c.view==='conversations'&&c.thread) {const area=G('.thread-messages');if(area)area.scrollTop=area.scrollHeight;}
   if(c.view==='ask-ai'&&c.chat.length) {const area=G('.ask-scroll');if(area)area.scrollTop=area.scrollHeight;}
   if(c.view==='dashboard') { G('#screen').scrollTop=previousScroll; drawDashboardGauges(app); }
@@ -398,6 +404,7 @@ document.addEventListener('click',async ev=>{
       case 'workspaces':workspaces();break;
       case 'agency-view':location.hash='#agency/dashboard';break;
       case 'stop-acting':localStorage.removeItem('go.user');location.reload();break;
+      case 'disconnect-google':localStorage.removeItem('go.google_user');location.reload();break;
       case 'new-workspace':dialog('Criar workspace',input('Nome do workspace','name','',true),{form:'workspace',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Criar workspace</button>'});break;
       case 'search':dialog('Buscar no workspace','<label>Encontre um módulo ou contato<input id="global-search" placeholder="Buscar módulos e contatos…" autocomplete="off"></label><div id="search-results"></div>');globalSearch('');break;
       case 'quick':dialog('Ações rápidas','<div class="quick-list"><button class="secondary" data-edit="contacts">Adicionar contato</button><button class="secondary" data-edit="opportunities">Nova oportunidade</button><button class="secondary" data-edit="appointments">Agendar horário</button><button class="secondary" data-edit="workflows">Criar automação</button></div>');break;

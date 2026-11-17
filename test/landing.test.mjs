@@ -48,4 +48,48 @@ test('Landing page serves at / with login button, animations and modules', async
   const jsRes = await fetch(local.base + '/landing.js');
   assert.equal(jsRes.status, 200);
   assert.match(jsRes.headers.get('content-type'), /text\/javascript/);
+
+  // 4. Google Auth elements in landing HTML
+  assert.match(html, /id="nav-google-btn"/);
+  assert.match(html, /id="google-signin-btn"/);
+  assert.match(html, /id="google-picker-dialog"/);
+  assert.match(html, /accounts\.google\.com\/gsi\/client/);
+});
+
+test('Google Auth endpoints allow configuration check and user sign-in', async t => {
+  const local = await start();
+  t.after(local.close);
+
+  // 1. GET /api/auth/google/config
+  const cfgRes = await fetch(local.base + '/api/auth/google/config');
+  assert.equal(cfgRes.status, 200);
+  const cfg = await cfgRes.json();
+  assert.equal(cfg.provider, 'google');
+  assert.equal(typeof cfg.configured, 'boolean');
+
+  // 2. POST /api/auth/google invalid email
+  const badRes = await fetch(local.base + '/api/auth/google', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'not-an-email' })
+  });
+  assert.equal(badRes.status, 400);
+
+  // 3. POST /api/auth/google valid sign-in
+  const loginRes = await fetch(local.base + '/api/auth/google', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: 'luiz@caramelo.co',
+      name: 'Luiz Caramelo',
+      picture: 'https://lh3.googleusercontent.com/a/photo'
+    })
+  });
+  assert.equal(loginRes.status, 200);
+  const logged = await loginRes.json();
+  assert.equal(logged.ok, true);
+  assert.equal(logged.user.email, 'luiz@caramelo.co');
+  assert.equal(logged.user.name, 'Luiz Caramelo');
+  assert.equal(logged.user.picture, 'https://lh3.googleusercontent.com/a/photo');
+  assert.ok(logged.user.id);
 });

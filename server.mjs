@@ -33,7 +33,7 @@ const staticFiles = new Map([
 ]);
 const host = '127.0.0.1';
 const defaultPort = Number(process.env.GO_PORT || 4317);
-const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self'; frame-src 'self' https:; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'";
+const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://accounts.google.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://accounts.google.com; frame-src 'self' https: https://accounts.google.com; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'";
 const error = (message,status) => Object.assign(new Error(message),{status});
 const spaceId = /^[0-9a-f-]{36}$|^demo$/;
 const paths = /^\/(p|f|course)\/([0-9a-f-]{36}|demo)\/([0-9a-f-]{36})$/;
@@ -438,6 +438,65 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
         await bearer(req,'contacts.write');
         const created = await change(account,{ type:'save', key:'contacts', data: await payload(req) });
         return json({ id: created.id },201);
+      }
+      if (p === '/api/auth/google/config' && method === 'GET') {
+        const clientId = process.env.GOOGLE_CLIENT_ID || '';
+        return json({ clientId, configured: Boolean(clientId), provider: 'google' });
+      }
+      if (p === '/api/auth/google' && method === 'POST') {
+        await ready;
+        const body = await payload(req);
+        let { email, name, picture, credential } = body;
+        if (credential && typeof credential === 'string') {
+          try {
+            const parts = credential.split('.');
+            if (parts.length === 3) {
+              const decoded = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+              email = decoded.email || email;
+              name = decoded.name || decoded.given_name || name;
+              picture = decoded.picture || picture;
+            }
+          } catch { /* proceed with raw values */ }
+        }
+        email = String(email || '').trim().toLowerCase();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw error('Email do Google inválido.', 400);
+        name = String(name || email.split('@')[0]).trim().slice(0, 100);
+        const [first, ...rest] = name.split(/\s+/);
+        const last = rest.join(' ') || '';
+
+        const agency = await loadAgency();
+        let user = agency.users.find(u => u.email?.toLowerCase() === email);
+        if (!user) {
+          user = {
+            id: uid(),
+            first,
+            last,
+            email,
+            avatar: picture || '',
+            role: agency.users.length === 0 ? 'Agency Owner' : 'Agency Admin',
+            permissions: [],
+            accounts: []
+          };
+          await changeAgency(a => {
+            a.users.push(user);
+            logTo(a, { name: 'Google Auth' }, 'User logged in with Google', `${name} (${email})`);
+          });
+        } else if (picture && user.avatar !== picture) {
+          await changeAgency(a => {
+            const found = a.users.find(u => u.id === user.id);
+            if (found) found.avatar = picture;
+          });
+        }
+        return json({
+          ok: true,
+          user: {
+            id: user.id,
+            name: `${user.first} ${user.last}`.trim(),
+            email: user.email,
+            picture: picture || user.avatar || '',
+            role: user.role
+          }
+        });
       }
       if (p==='/api/workspaces') {
         const who = await access(req);
