@@ -8,6 +8,16 @@ export function workspaceMissing() {
   return Object.assign(new Error('Workspace not found.'), { status: 404 });
 }
 
+const isDocument = id => id === 'agency' || /^(agency|studio|social|openai)-/.test(id);
+
+function containsJson(value, expected) {
+  if (Array.isArray(expected)) return Array.isArray(value) && expected.every(item => value.some(entry => containsJson(entry, item)));
+  if (expected && typeof expected === 'object') {
+    return Boolean(value) && Object.entries(expected).every(([key, item]) => containsJson(value[key], item));
+  }
+  return value === expected;
+}
+
 export function createSqliteStore(path) {
   if (path !== ':memory:') {
     try {
@@ -21,6 +31,9 @@ export function createSqliteStore(path) {
   db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS workspaces (id TEXT PRIMARY KEY, state TEXT NOT NULL) STRICT;');
   const get = db.prepare('SELECT state FROM workspaces WHERE id = ?');
   const list = db.prepare("SELECT id, json_extract(state, '$.profile.name') AS name FROM workspaces ORDER BY rowid");
+  const listByAgency = db.prepare("SELECT id, json_extract(state, '$.profile.name') AS name FROM workspaces WHERE json_extract(state, '$.agencyId') IS ? ORDER BY rowid");
+  const owned = db.prepare("SELECT 1 FROM workspaces WHERE id = ? AND json_extract(state, '$.agencyId') IS ?");
+  const agencies = db.prepare("SELECT id, state FROM workspaces WHERE id = 'agency' OR id LIKE 'agency-%' ORDER BY rowid");
   const insert = db.prepare('INSERT INTO workspaces (id, state) VALUES (?, ?) ON CONFLICT(id) DO NOTHING');
   const update = db.prepare('UPDATE workspaces SET state = ? WHERE id = ?');
 
@@ -28,13 +41,21 @@ export function createSqliteStore(path) {
     const row = get.get(id);
     if (!row) throw workspaceMissing();
     const state = JSON.parse(row.state);
-    return id === 'agency' || id.startsWith('studio-') || id.startsWith('social-') ? state : hydrateWorkspace(state);
+    return isDocument(id) ? state : hydrateWorkspace(state);
   }
 
   return {
     kind: 'SQLite',
     load,
-    list: () => list.all(),
+    list: agencyId => agencyId === undefined ? list.all() : listByAgency.all(agencyId),
+    belongsToAgency: (id, agencyId) => Boolean(owned.get(id, agencyId)),
+    findAgency(filter) {
+      for (const row of agencies.iterate()) {
+        const state = JSON.parse(row.state);
+        if (containsJson(state, filter)) return { id: row.id, state };
+      }
+      return null;
+    },
     insert: (id, state) => Boolean(insert.run(id, JSON.stringify(state)).changes),
     change(id, mutate) {
       db.exec('BEGIN IMMEDIATE');
@@ -91,13 +112,24 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
   async function read(id) {
     const [row] = await table({ select: 'state,revision', id: `eq.${id}` });
     if (!row) throw workspaceMissing();
-    return { ...row, state: id === 'agency' || id.startsWith('studio-') || id.startsWith('social-') ? row.state : hydrateWorkspace(row.state) };
+    return { ...row, state: isDocument(id) ? row.state : hydrateWorkspace(row.state) };
   }
 
+  const agencyFilter = agencyId => agencyId === null ? 'is.null' : `eq.${agencyId}`;
   return {
     kind: 'Supabase',
     load: async id => (await read(id)).state,
-    list: () => table({ select: 'id,name', order: 'created_at.asc,id.asc' }),
+    list: agencyId => table({ select: 'id,name', order: 'created_at.asc,id.asc',
+      ...(agencyId !== undefined && { 'state->>agencyId': agencyFilter(agencyId) }) }),
+    async belongsToAgency(id, agencyId) {
+      const rows = await table({ select: 'id', id: `eq.${id}`, 'state->>agencyId': agencyFilter(agencyId) });
+      return rows.length !== 0;
+    },
+    async findAgency(filter) {
+      const [row] = await table({ select: 'id,state', or: '(id.eq.agency,id.like.agency-*)',
+        state: 'cs.' + JSON.stringify(filter), order: 'created_at.asc,id.asc', limit: 1 });
+      return row || null;
+    },
     async insert(id, state) {
       const rows = await table({ on_conflict: 'id', select: 'id' }, {
         method: 'POST',

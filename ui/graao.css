@@ -1,6 +1,6 @@
 /* soci — visual identity layer.
    Palette, tokens, and design system based directly on microkit.co:
-   vibrant orange primary accent, clean obsidian dark mode, crisp neutral light surfaces,
+   pink as the primary accent, clean obsidian dark mode, crisp neutral light surfaces,
    precision hairline borders, subtle warm glows, glide highlights, and smooth view transitions. Loaded after every other stylesheet. */
 
 @font-face{font-family:"Plus Jakarta Sans";src:url(/fonts/plus-jakarta-sans.woff2) format("woff2");font-weight:200 800;font-style:normal;font-display:swap}
@@ -16,13 +16,10 @@ html,body{height:111.111111dvh;min-height:111.111111dvh;margin:0}
   --g-line:#e2e5ea; --g-line-2:#d2d7de; --g-line-strong:#b4bbc5;
   --g-brand:#ff00bb; --g-brand-hover:#d9009f; --g-brand-bright:#ff33cc;
   --g-brand-surface:#fff0fa; --g-brand-line:#fccae9; --g-brand-tint:#8a005f;
-  --g-violet:var(--g-brand); --g-violet-600:var(--g-brand-hover); --g-violet-400:var(--g-brand-bright);
-  --g-violet-200:var(--g-brand-line); --g-violet-100:var(--g-brand-surface); --g-violet-50:var(--g-brand-surface);
   --g-orange:#ea580c; --g-amber:#f59e0b; --g-orange-100:#fff6ee; --g-orange-200:#f8cba6; --g-orange-ink:#b1420a;
   --g-blue:#2563eb; --g-blue-100:#eff6ff;
   --g-pink:#ff00bb; --g-pink-100:#fff0fa;
   --g-mint:#157f3c; --g-mint-100:#f0fdf4;
-  --g-purple:#6b3bdc; --g-purple-100:#f5f3ff;
   --g-glass:rgba(255,255,255,.82); --g-glass-strong:rgba(255,255,255,.94); --g-glass-edge:rgba(255,255,255,.98);
   --g-surface:#ffffff; --g-surface-2:#f4f6f8; --g-surface-3:#dfe2e8; --g-paper:255 255 255;
   --g-scrollbar-thumb:rgba(15,19,26,.18); --g-scrollbar-thumb-hover:rgba(15,19,26,.36); --g-scrollbar-track:transparent;
@@ -31,13 +28,12 @@ html,body{height:111.111111dvh;min-height:111.111111dvh;margin:0}
   --g-r-lg:16px; --g-r:12px; --g-r-sm:8px;
   --g-shadow:0 1px 2px rgba(15,19,26,.05),0 8px 24px -12px rgba(15,19,26,.12);
   --g-shadow-lift:0 2px 4px rgba(15,19,26,.06),0 16px 36px -14px rgba(15,19,26,.18);
-  --g-grad-violet:linear-gradient(180deg,#ff00bb 0%,#d9009f 100%);
   --g-grad-orange:linear-gradient(180deg,#ff33cc 0%,#ff00bb 100%);
   --g-grad-brand:linear-gradient(180deg,#ff33cc 0%,#ff00bb 100%);
   --ease-glide:cubic-bezier(.32,.72,0,1); --ease-out:cubic-bezier(.16,1,.3,1); --ease-focus:cubic-bezier(.22,1,.36,1); --ease-std:cubic-bezier(.4,0,.2,1);
   /* tokens the original sheets read */
   --blue:var(--g-brand); --blue-dark:var(--g-brand-hover); --line:var(--g-line); --dim:var(--g-dim); --ink:var(--g-ink);
-  --purple:var(--g-brand); --panel:#fff; --shadow:var(--g-shadow);
+  --panel:#fff; --shadow:var(--g-shadow);
   font-family:"Plus Jakarta Sans",Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   color:var(--g-ink); background:#f4f6f8;
 }
@@ -71,16 +67,16 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-brand);outline-of
 
 /* ───────── Sidebar ─────────
    Collapsed: a 64px rail of 40px icon tiles with tooltips. Expanded: 248px with labels and
-   section headings. One hover highlight glides between items; an orange bar marks the page. */
+   section headings. One hover highlight glides between items; a pink bar marks the page. */
 .g-side{display:flex;flex-direction:column;min-width:0;padding:12px 0;background:rgba(255,255,255,.82);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-right:1px solid var(--g-line);box-shadow:1px 0 0 rgba(0,0,0,.02);color:var(--g-ink-2)}
 .g-side .side-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .shell:not(.wide) .g-side .side-text{display:none}
 .g-expanding .g-side .side-text{animation:g-label-in .42s var(--ease-out) both}
 @keyframes g-label-in{from{opacity:0;transform:translateX(-6px)}}
 
-.side-head{display:flex;align-items:center;height:40px;padding:0 16px;margin-bottom:12px}
+.side-head{position:relative;display:flex;align-items:center;justify-content:center;height:40px;padding:0 16px;margin-bottom:12px}
 .shell:not(.wide) .side-head{justify-content:center;padding:0}
-.g-side .logo{display:flex;align-items:center;gap:0;min-height:0;padding:0;color:var(--g-ink);font-weight:800;font-size:20px;letter-spacing:-.05em;border-radius:12px}
+.g-side .logo{display:flex;align-items:center;justify-content:center;gap:0;min-height:0;padding:0;line-height:1;color:var(--g-ink);font-weight:800;font-size:20px;letter-spacing:-.05em;border-radius:12px}
 .g-side .logo .g-mark{margin-right:-2px}
 .g-side .logo .ag-logo{margin-right:6px}
 .g-side .logo .g-mark,.g-side .logo .ag-logo{flex:none;width:34px;height:34px;transition:transform .5s var(--ease-out)}
@@ -92,10 +88,9 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-brand);outline-of
 .g-mark .sk-glint{fill:#ffffff;transition:fill .3s var(--ease-std)}
 /* Collapse toggle (microkit "sidebar trigger"): beside the logo when open; in the rail it
    takes the logo's place on hover or keyboard focus, and is always shown on touch screens. */
-.side-head{position:relative;justify-content:space-between;gap:8px;padding:0 10px 0 16px}
-.side-toggle{flex:none;width:32px;height:32px;display:grid;place-items:center;padding:0;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--g-dim);transition:background .2s var(--ease-std),border-color .2s,color .2s,opacity .2s,transform .16s var(--ease-out)}
+.side-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);flex:none;width:32px;height:32px;display:grid;place-items:center;padding:0;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--g-dim);transition:background .2s var(--ease-std),border-color .2s,color .2s,opacity .2s,transform .16s var(--ease-out)}
 .side-toggle:hover{background:var(--g-surface);border-color:var(--g-line-2);color:var(--g-ink)}
-.side-toggle:active{transform:scale(.92)}
+.side-toggle:active{transform:translateY(-50%) scale(.92)}
 .panel-icon .pi-rail{transform-box:fill-box;transform-origin:left center;transition:transform .45s var(--ease-glide),opacity .3s}
 .panel-icon .pi-chev{transform-box:fill-box;transform-origin:center;transition:transform .45s var(--ease-glide)}
 .shell:not(.wide) .panel-icon .pi-rail{transform:scaleX(.45);opacity:.55}
@@ -105,7 +100,8 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-brand);outline-of
 .shell:not(.wide) .side-toggle:hover .pi-chev{animation-name:g-nudge-r}
 @keyframes g-nudge-r{40%{translate:2px 0}}
 .shell:not(.wide) .side-head{justify-content:center;padding:0}
-.shell:not(.wide) .side-toggle{position:absolute;inset:4px 12px;width:auto;height:auto;opacity:0;pointer-events:none;background:var(--g-surface);border-color:var(--g-line-2)}
+.shell:not(.wide) .side-toggle{position:absolute;inset:4px 12px;width:auto;height:auto;transform:none;opacity:0;pointer-events:none;background:var(--g-surface);border-color:var(--g-line-2)}
+.shell:not(.wide) .side-toggle:active{transform:scale(.92)}
 .shell:not(.wide) .side-head .logo{transition:opacity .2s,transform .3s var(--ease-out)}
 .shell:not(.wide) .side-head:hover .side-toggle,.shell:not(.wide) .side-toggle:focus-visible{opacity:1;pointer-events:auto}
 .shell:not(.wide) .side-head:hover .logo,.shell:not(.wide) .side-head:has(.side-toggle:focus-visible) .logo{opacity:0;transform:scale(.85)}
@@ -330,7 +326,7 @@ input[type=radio],input[type=range]{accent-color:var(--g-brand)}
 /* ───────── Badges, tables, lists ───────── */
 .badge{border-radius:999px;font-weight:700;padding:3px 9px;background:var(--g-surface-2);color:var(--g-ink-2)}
 .badge.blue{background:#eff6ff;color:#2563eb}
-.badge.purple{background:#f5f3ff;color:#6b3bdc}
+.badge.pink{background:#fff0fa;color:#a00070}
 .badge.green,.pill-button.completed{background:#f0fdf4;color:#157f3c}
 .badge.red{background:#fff1f2;color:#e11d48}
 .table-shell th{background:var(--g-surface-2);color:var(--g-dim);font-weight:700;letter-spacing:.01em;border-bottom-color:var(--g-line)}
@@ -451,12 +447,10 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
   --g-line:#25292d; --g-line-2:#2b2f35; --g-line-strong:#343940;
   --g-brand:#ff00bb; --g-brand-hover:#ff33cc; --g-brand-bright:#ff66d9;
   --g-brand-surface:#260d19; --g-brand-line:#5c1837; --g-brand-tint:#ff9ec7;
-  --g-violet:var(--g-brand); --g-violet-600:var(--g-brand-bright); --g-violet-400:#ff33cc; --g-violet-200:#5c0043; --g-violet-100:rgba(255,0,187,.14); --g-violet-50:rgba(255,0,187,.08);
   --g-orange:#f97316; --g-amber:#fbbf24; --g-orange-100:rgba(249,115,22,.14); --g-orange-200:#6b4525; --g-orange-ink:#ffb17a;
   --g-blue:#86b6ff; --g-blue-100:rgba(134,182,255,.14);
   --g-pink:#f2a7b5; --g-pink-100:rgba(242,167,181,.14);
   --g-mint:#76d29b; --g-mint-100:rgba(118,210,155,.14);
-  --g-purple:#bba5ff; --g-purple-100:rgba(187,165,255,.14);
   --g-scrollbar-thumb:rgba(255,255,255,.18); --g-scrollbar-thumb-hover:rgba(255,255,255,.36); --g-scrollbar-track:transparent;
   --g-surface:#111317; --g-surface-2:#1b1d22; --g-surface-3:#20252d; --g-paper:17 19 23;
   --g-stage:#0b0c0e; --g-shell:#0e1014;
@@ -465,7 +459,6 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
   --g-shadow-lift:inset 0 1px 0 rgba(255,255,255,.04),0 24px 48px -20px rgba(0,0,0,.9);
   --g-gauge-track:#25292d; --panel:#111317;
   --blue:var(--g-brand); --blue-dark:var(--g-brand-hover);
-  --purple:var(--g-brand);
   background:#0b0c0e;
 }
 :root[data-theme=dark] body{
@@ -502,7 +495,7 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
 :root[data-theme=dark] .primary:disabled,:root[data-theme=dark] button:disabled.primary,:root[data-theme=dark] .pr-btn.pr-primary:disabled{background:var(--g-surface-2) !important;color:var(--g-faint) !important;border-color:var(--g-line) !important;box-shadow:none !important;opacity:.75;cursor:not-allowed}
 :root[data-theme=dark] .badge{background:var(--g-surface-2);color:var(--g-ink-2)}
 :root[data-theme=dark] .badge.blue{background:rgba(134,182,255,.14);color:#86b6ff}
-:root[data-theme=dark] .badge.purple{background:rgba(187,165,255,.14);color:#bba5ff}
+:root[data-theme=dark] .badge.pink{background:rgba(255,0,187,.14);color:#ff9adb}
 :root[data-theme=dark] .badge.green{background:rgba(118,210,155,.14);color:#76d29b}
 :root[data-theme=dark] .badge.red{background:rgba(242,167,181,.14);color:#f2a7b5}
 :root[data-theme=dark] .metric-icon{color:var(--g-brand)}
@@ -572,7 +565,7 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
   --t-caption:12.5px; --t-footnote:13px; --t-body:14px; --t-title3:17px; --t-title1:26px;
   --g-brand-fill:#d6009e; --g-brand-fill-hover:#c2008f; --g-brand-text:#c4008f;
   --g-grad-brand:linear-gradient(180deg,#e000a6 0%,#c8009a 100%);
-  --g-grad-orange:var(--g-grad-brand); --g-grad-violet:var(--g-grad-brand);
+  --g-grad-orange:var(--g-grad-brand);
   --g-faint:#6f7784;
 }
 :root[data-theme=dark]{ --g-brand-text:#ff5cd3; --g-faint:#7d8591 }

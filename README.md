@@ -21,7 +21,7 @@ O banco usa uma linha JSONB por workspace em `public.go_workspaces`. O servidor 
 1. Crie um cliente OAuth do tipo **Aplicativo da Web** no Google Cloud. Cadastre `https://<project-ref>.supabase.co/auth/v1/callback` como URI autorizada no cliente e informe o ID e o segredo em **Authentication → Sign In / Providers → Google**. [Login com Google no Supabase](https://supabase.com/docs/guides/auth/social-sign-in/auth-google)
 2. Em **Authentication → URL Configuration**, inclua `/api/auth/callback/google` na lista de redirecionamentos permitidos para cada origem do app. Para desenvolvimento, use `http://127.0.0.1:4317` ou `http://localhost:4317`. [URLs de redirecionamento](https://supabase.com/docs/guides/auth/redirect-urls)
 
-Uma conta nova recebe seu próprio workspace. Para recuperar a visão da agência e suas subcontas existentes, configure `GO_AGENCY_OWNER_ID` com o UUID da conta confirmada do proprietário em **Authentication → Users** e reinicie o servidor. Para vincular um membro da agência, adicione ou regrave seu cadastro em **Configurações → Membros da equipe** com o e-mail confirmado no Supabase. O membro recebe as permissões e subcontas definidas nesse cadastro.
+No primeiro login com Google, uma conta sem vínculo de equipe recebe sua própria agência e abre o painel com zero subcontas. Para acessar a agência original e suas subcontas existentes, configure `GO_AGENCY_OWNER_ID` com o UUID da conta confirmada do proprietário em **Authentication → Users** e reinicie o servidor. Para vincular um novo membro a uma agência, cadastre seu e-mail confirmado em **Configurações → Membros da equipe** antes do primeiro login no soci. O membro recebe as permissões e subcontas definidas nesse cadastro.
 
 Para desenvolver apenas com SQLite, é possível iniciar em loopback com `GO_DEV_NO_AUTH=1` e sem as variáveis Supabase. Esse modo local não é usado na Vercel.
 
@@ -29,7 +29,7 @@ Para desenvolver apenas com SQLite, é possível iniciar em loopback com `GO_DEV
 
 A plataforma se chama **soci**. A camada visual fica em dois arquivos carregados depois de todos os outros, sem alterar a estrutura das telas:
 
-- `ui/graao.css`: tokens da marca (lavanda de fundo, painéis brancos translúcidos, violeta `#7c5cf0` nos botões principais, rosa `#ff00bb` nas chamadas de destaque e identidade da plataforma, rosa `#ff6f9f` nos alertas), a fonte Plus Jakarta Sans servida localmente em `ui/fonts/` e as curvas de animação do microkit.
+- `ui/graao.css` define o pink `#FF00BB` como cor principal da soci, com superfícies neutras e tons de pink para estados e destaques. Também define as curvas de animação do microkit e carrega a fonte Plus Jakarta Sans de `ui/fonts/`.
 - `ui/graao.js`: versões em JavaScript puro dos componentes do [microkit.co](https://microkit.co) (MIT). Inclui a pílula que desliza entre as abas, o destaque de hover que desliza entre itens do menu, cartões e opções, a barra de destaque no item ativo do menu, o contador animado nas métricas, a linha deslizante nas subabas de Conversas e a luz que acompanha o cursor nos botões. O campo com halo de foco e a caixa de seleção com mola são só CSS.
 
 O menu lateral vem de `ui/sidebar.js` e é o mesmo na subconta e na agência. Recolhido, vira uma coluna de 64px só com ícones e mostra o nome de cada item num balão ao passar o mouse. Aberto, ocupa 248px e mostra o cartão do workspace, a busca (Ctrl K), as ações rápidas e os módulos em grupos com título. A largura muda com animação. No celular, o menu aberto fica sobre a página.
@@ -111,7 +111,8 @@ O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, pu
 
 - O Dashboard usa a última mudança de status como data padrão dos widgets de oportunidades. O menu de cada widget permite usar criação ou atualização. Mover uma oportunidade entre etapas preserva a data do status. A taxa de conversão divide as oportunidades ganhas pelo total filtrado. [Datas dos widgets](https://help.gohighlevel.com/support/solutions/articles/155000008109-opportunities-widgets-in-dashboards-reports) · [Funnel e distribuição](https://help.gohighlevel.com/support/solutions/articles/155000001455-how-funnels-and-stage-distribution-widgets-work)
 - Em **Edit dashboard** é possível mudar a ordem e largura dos widgets, adicionar ou remover itens e salvar uma versão. **Send as report** guarda uma cópia das métricas filtradas em **Reporting → Dashboard reports**. Os períodos e o painel selecionado ficam no navegador. As versões, notas e relatórios ficam no workspace.
-- Em **AI Studio**, descreva o site e clique em **Generate**. A IA devolve uma página HTML completa, com um formulário de leads. Opcionalmente, informe um **site de referência**: o servidor lê só a estrutura pública dele (títulos e ordem das seções) e a IA usa isso como inspiração de layout, sem copiar o texto. Endereços locais e de rede privada são recusados. Sem `STUDIO_OPENAI_API_KEY` e `STUDIO_OPENAI_MODEL`, o Studio cria a página a partir de um modelo local.
+- Em **Visão da agência → Configurações → OpenAI**, conecte a chave de API do seu projeto. Cada usuário usa sua própria chave, criptografada no servidor com uma chave derivada de `GO_STORAGE_KEY`. A configuração permite substituir ou desconectar a chave. Sem uma conexão, o AI Studio continua criando páginas com modelos locais.
+- Em **AI Studio**, descreva o site e clique em **Gerar** para criar uma página com IA e formulário de leads. Ao informar um site de referência, o servidor usa os títulos e a ordem das seções públicas como referência de layout. Endereços locais e de rede privada são recusados.
 - O **editor** tem páginas à esquerda, a prévia no centro e um painel com **AI**, **Versions** e **Publish**:
   - **Visual edit:** clique num elemento para selecioná-lo e dê duplo clique num texto para editá-lo. **Save changes** grava a página.
   - **Code:** edita o HTML da página. Scripts, `<iframe>`, eventos `on…` e links `javascript:` são removidos ao salvar.
@@ -126,7 +127,7 @@ O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, pu
 
 Em **Central de IA → Agentes de IA**, selecione a subconta e clique em **Novo agente**. O editor salva nome, função, instruções e fontes de conhecimento no rascunho. Em **Publicação**, guarde uma versão dessas configurações. O chat permite escolher entre o rascunho e a versão publicada. A publicação disponibiliza a versão para teste dentro do construtor. A conexão com canais de atendimento requer integração própria.
 
-O chat de teste usa `STUDIO_OPENAI_API_KEY` e `STUDIO_OPENAI_MODEL` no servidor. As mensagens, instruções e fontes usadas no teste são enviadas à API da OpenAI. Use dados de exemplo no chat.
+O chat de teste usa a chave da OpenAI conectada pelo usuário que executa o teste. As mensagens, instruções e fontes usadas no teste são enviadas à API da OpenAI. Use dados de exemplo no chat.
 
 ## Conversas
 

@@ -6,8 +6,9 @@ import { tmpdir } from 'node:os';
 import { blank, seed, uid, execute, metrics, find } from './model.mjs';
 import { createSqliteStore, supabaseFromEnv } from './storage.mjs';
 import { accountProfile, afterLogin, authFromEnv } from './auth.mjs';
-import { generatePage, generateSite, revisePage, studioAiAvailable } from './studio-ai.mjs';
-import { configuredAgentModel, replyAsAgent } from './agent-ai.mjs';
+import { generatePage, generateSite, revisePage } from './studio-ai.mjs';
+import { replyAsAgent } from './agent-ai.mjs';
+import { createOpenAI, openAIModel } from './openai.mjs';
 import { agentPreview, editAgent } from './agent-model.mjs';
 import { addPage, deletePage, findPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
@@ -72,15 +73,18 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 
 export function makeServer({
   dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
-  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=configuredAgentModel, generateAgentReply=replyAsAgent,
+  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent,
+  openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch,
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
 }={}) {
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
+  const openAI = createOpenAI({ store, model: agentModel, secret: openAISecret, request: openAIRequest });
   const ready = Promise.all([store.insert('demo', seed()), store.insert(AGENCY_ID, blankAgency())]);
   ready.catch(() => {});
-  const listWorkspaces = async () => (await store.list()).filter(w => spaceId.test(w.id));
-  const loadAgency = async () => hydrateAgency(await store.load(AGENCY_ID));
-  const changeAgency = mutate => store.change(AGENCY_ID, state => mutate(hydrateAgency(state)));
+  const workspaceOwner = id => id === AGENCY_ID ? null : id;
+  const listWorkspaces = async agencyId => (await store.list(workspaceOwner(agencyId))).filter(w => spaceId.test(w.id));
+  const loadAgency = async id => hydrateAgency(await store.load(id));
+  const changeAgency = (id, mutate) => store.change(id, state => mutate(hydrateAgency(state)));
   const logTo = (agency, who, action, target = '', details = '') => {
     agency.audit.push({ id: uid(), at: stamp(), actor: who.name, action, target, details });
     if (agency.audit.length > 1000) agency.audit.splice(0, agency.audit.length - 1000);
@@ -102,67 +106,80 @@ export function makeServer({
     }
     return requestUsers.get(req);
   }
-  const accessFor = (req, agency, session, fallback) => {
+  async function accessContext(req,session,fallback) {
     if (!session && !localAccess) throw error('O login do Supabase ainda não foi configurado.',503);
-    if (session && session.id !== agencyOwnerId) {
-      const member = agency.users.find(user => user.loginEnabled && user.email?.toLowerCase() === session.email.toLowerCase());
-      if (member) return { ...userAccess(agency,member.id), userId: member.id, session, owner: member.role === 'Agency Owner' };
-      return { agency: false, settings: false, accounts: [personalId(session)], modules: null, name: session.name, session, personal: true };
+    const agencyId = !session || session.id === agencyOwnerId ? AGENCY_ID : `agency-${session.id}`;
+    let agency;
+    try { agency = await loadAgency(agencyId); }
+    catch (e) { if (e.status !== 404 || agencyId === AGENCY_ID) throw e; }
+    if (!agency) {
+      const email = session.email.toLowerCase();
+      const invite = await store.findAgency({ users: [{ email, loginEnabled: true }] });
+      if (invite) {
+        agency = hydrateAgency(invite.state);
+        const member = agency.users.find(user => user.loginEnabled && user.email === email);
+        const who = { ...userAccess(agency,member.id), agencyId: invite.id, userId: member.id, session, owner: member.role === 'Agency Owner' };
+        return { agency, who };
+      }
+      const initial = blankAgency();
+      Object.assign(initial.profile, { name: session.name, email: session.email });
+      const [first, ...last] = (session.name === session.email ? '' : session.name).split(/\s+/);
+      initial.profile.first = first || 'Responsável';
+      initial.profile.last = last.join(' ');
+      initial.company.name = 'Minha agência';
+      await store.insert(agencyId,initial);
+      agency = await loadAgency(agencyId);
     }
     const userId = localAccess ? String(req.headers['x-go-user'] || req.localSocialUser || '') : '';
-    const result = userAccess(agency, userId);
-    if (result) return { ...result, userId, session, ...(session ? { name: session.name } : {}) };
-    if (fallback && localAccess) return fallback;
-    throw error('The selected user no longer exists. Choose another user.',403);
-  };
-  const access = async (req,res) => {
-    const session = await verifiedUser(req,res);
-    return accessFor(req,await loadAgency(),session);
-  };
-  const canOpen = (who, id) => privateSpace.test(id)
-    ? Boolean(who.session && personalId(who.session) === id && (who.personal || who.owner || who.session.id === agencyOwnerId))
-    : !who.accounts || who.accounts.includes(id);
+    const result = userAccess(agency,userId);
+    if (!result && !fallback) throw error('The selected user no longer exists. Choose another user.',403);
+    const who = result ? { ...result, agencyId, userId, session, ...(session ? { name: session.name, owner: true } : {}) } : fallback;
+    return { agency, who };
+  }
+  const access = async (req,res) => (await accessContext(req,await verifiedUser(req,res))).who;
+  const canOpenPersonal = (who,id) => Boolean(who.owner && who.session && personalId(who.session) === id);
+  async function canOpen(who,id) {
+    if (privateSpace.test(id)) return canOpenPersonal(who,id);
+    if (who.accounts && !who.accounts.includes(id)) return false;
+    return store.belongsToAgency(id,workspaceOwner(who.agencyId));
+  }
   const canUseAgents = who => !who.modules || who.modules.includes('ai-agents');
   const visibleState = (who, state) => canUseAgents(who) ? state : { ...state, agents: [] };
-  async function openPersonalWorkspace(who) {
-    const [id] = who.accounts;
-    try { return await store.load(id); }
+  async function existingPersonalWorkspace(who) {
+    if (!who.owner || !who.session) return;
+    const id = personalId(who.session);
+    try { return { id, name: (await store.load(id)).profile.name }; }
     catch (e) { if (e.status !== 404) throw e; }
-    const state = blank('Meu Workspace');
-    state.profile.email = who.session.email;
-    await store.insert(id,state);
-    return store.load(id);
   }
   async function visibleWorkspaces(who) {
-    if (who.personal) return [{ id: who.accounts[0], name: (await openPersonalWorkspace(who)).profile.name }];
-    return (await store.list()).filter(w => (spaceId.test(w.id) || privateSpace.test(w.id)) && canOpen(who,w.id));
+    const [workspaces, personalWorkspace] = await Promise.all([listWorkspaces(who.agencyId), existingPersonalWorkspace(who)]);
+    const visible = workspaces.filter(w => !who.accounts || who.accounts.includes(w.id));
+    return personalWorkspace ? [...visible, personalWorkspace] : visible;
   }
   async function agencyPayload(req, res, extra = {}, previousAccess) {
-    const session = await verifiedUser(req,res);
-    const [agency, availableWorkspaces] = await Promise.all([loadAgency(), store.list()]);
-    const who = accessFor(req, agency, session, previousAccess);
+    const { agency, who } = await accessContext(req,await verifiedUser(req,res),previousAccess);
     if (!who.agency) throw error('Your user cannot open the agency view.',403);
-    const workspaces = availableWorkspaces.filter(w => spaceId.test(w.id));
-    const personalWorkspace = availableWorkspaces.find(w => privateSpace.test(w.id) && canOpen(who,w.id));
+    const [workspaces, personalWorkspace] = await Promise.all([listWorkspaces(who.agencyId), existingPersonalWorkspace(who)]);
     ensureAccounts(agency, workspaces);
     const states = await Promise.all(workspaces.map(async w => ({ ...w, state: await store.load(w.id) })));
     return { agency: publicAgency(agency), overview: agencyOverview(agency, states), workspaces, personalWorkspace, access: who,
       features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, ...extra };
   }
   async function recordAudit(who, action, target, details = '') {
-    try { await changeAgency(agency => logTo(agency, who, action, target, details)); }
+    try { await changeAgency(who.agencyId, agency => logTo(agency, who, action, target, details)); }
     catch { /* Audit entries are best effort and never undo the action itself. */ }
   }
   async function createAccount(who, input) {
     const name = typeof input.name === 'string' ? input.name.trim().slice(0,70) : '';
     if (!name) throw error('Sub-account name is required.',400);
     const state = blank(name);
+    if (who.agencyId !== AGENCY_ID) state.agencyId = who.agencyId;
     const mail = typeof input.email === 'string' ? input.email.trim().toLowerCase().slice(0,240) : '';
     if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) throw error('Enter a valid email address.',400);
     Object.assign(state.profile, { email: mail, phone: String(input.phone || '').slice(0,48) });
     if (['America/Sao_Paulo','America/New_York','Europe/London','UTC'].includes(input.timezone)) state.profile.timezone = input.timezone;
     if (['BRL','USD','EUR','GBP'].includes(input.currency)) state.profile.currency = input.currency;
-    const agency = await loadAgency();
+    const agency = await loadAgency(who.agencyId);
     if (input.plan && !agency.plans.some(p => p.id === input.plan)) throw error('Choose a valid plan.',400);
     let loaded = null;
     if (input.snapshotId) {
@@ -172,7 +189,7 @@ export function makeServer({
     }
     const newId = uid();
     await store.insert(newId, state);
-    await changeAgency(a => {
+    await changeAgency(who.agencyId, a => {
       a.accounts[newId] = { name, status: 'Active', created: stamp(), lastLogin: '', plan: input.plan || '', address: String(input.address || '').slice(0,240), phone: state.profile.phone, website: '' };
       logTo(a, who, 'Sub-account created', name, loaded ? `Snapshot ${loaded.snap.name}` : '');
       if (loaded) a.snapshotLoads.push({ id: uid(), snapshotId: loaded.snap.id, snapshot: loaded.snap.name, workspace: newId, account: name, at: stamp(), mode: 'skip', ...loaded.report });
@@ -183,19 +200,23 @@ export function makeServer({
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i,'');
     if (!token) throw error('Send an API key in the Authorization header.',401);
     const digest = hash(token);
-    const allowed = await changeAgency(agency => {
+    const matches = await Promise.all([store.findAgency({ apiKeys: [{ hash: digest }] }), store.findAgency({ privateIntegrations: [{ hash: digest }] })]);
+    const match = matches.find(Boolean);
+    if (!match) throw error('This key is invalid or lacks the required scope.',401);
+    const allowed = await changeAgency(match.id, agency => {
       const key = agency.apiKeys.find(k => k.hash === digest) || agency.privateIntegrations.find(k => k.hash === digest);
       if (!key) return false;
       key.lastUsed = stamp();
       return !key.scopes || key.scopes.includes(scope);
     });
     if (!allowed) throw error('This key is invalid or lacks the required scope.',401);
+    return match.id;
   }
   // ---- AI Studio sites ----
   async function studioGuard(req, res, workspace) {
     if (!spaceId.test(workspace) && !privateSpace.test(workspace)) throw error('Workspace not found.',404);
     const who = await access(req,res);
-    if (!canOpen(who,workspace)) throw error('Your user cannot open this sub-account.',403);
+    if (!await canOpen(who,workspace)) throw error('Your user cannot open this sub-account.',403);
     if (who.modules && !who.modules.includes('studio')) throw error('Your user does not have permission for this module.',403);
     return who;
   }
@@ -214,7 +235,7 @@ export function makeServer({
   const syncMeta = (workspace, projectId, doc) => change(workspace,{ type:'studio-meta', id:projectId, data:{
     pages:doc.pages.map(({ id:pageId, name, slug }) => ({ id:pageId, name, slug })), rev:doc.rev,
     publishedAt:doc.published?.at || '', publishedRev:doc.published?.rev || 0 } });
-  async function studioRequest(workspace, op, input) {
+  async function studioRequest(workspace, op, input, session) {
     const project = (await store.load(workspace)).studioProjects.find(item => item.id === input.id);
     if (!project) throw error('Project not found.',404);
     const doc = await siteDoc(workspace, project.id);
@@ -224,7 +245,7 @@ export function makeServer({
       const instruction = text(input.instruction,'Request',2000);
       const selection = typeof input.selection === 'string' ? input.selection.slice(0,8000) : '';
       const page = findPage(doc, input.pageId);
-      const revised = await revisePage({ html:page.html, instruction, selection });
+      const revised = await revisePage(await openAI.requireConnection(session), { html:page.html, instruction, selection });
       await changeSite(project.id, d => savePage(d, page.id, revised.html, `AI: ${instruction}`));
       return { change: revised.change };
     }
@@ -233,7 +254,7 @@ export function makeServer({
         const name = text(input.name,'Page name',60);
         const description = typeof input.description === 'string' ? input.description.trim().slice(0,1500) : '';
         const home = doc.pages.find(item => item.slug === 'index') || doc.pages[0];
-        const html = input.ai && studioAiAvailable ? (await generatePage({ name, description, home:home.html, slugs:doc.pages.map(item => item.slug) })).html
+        const html = input.ai ? (await generatePage(await openAI.requireConnection(session), { name, description, home:home.html, slugs:doc.pages.map(item => item.slug) })).html
           : pageFromStructure({ ...project, blocks:[], summary:description }, name);
         return changeSite(project.id, d => addPage(d, name, html));
       }
@@ -263,8 +284,8 @@ export function makeServer({
     const params = new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
     return Object.fromEntries(['name','email','phone','_page'].map(key => [key, (params.get(key) || '').slice(0,240)]));
   }
-  async function findProspects(input) {
-    const agency = await loadAgency();
+  async function findProspects(who,input) {
+    const agency = await loadAgency(who.agencyId);
     const agent = input.agent ? agency.prospecting.agents.find(row => row.id === input.agent) : null;
     if (input.agent && !agent) throw error('Agente não encontrado.',404);
     const term = typeof input.keyword === 'string' ? input.keyword.trim().slice(0,120) : '';
@@ -285,11 +306,11 @@ export function makeServer({
 
   async function transferProspects(who,input) {
     const workspace = typeof input.workspace === 'string' ? input.workspace : '';
-    if (!(await listWorkspaces()).some(row => row.id === workspace) || !canOpen(who,workspace)) throw error('Escolha uma subconta à qual você tem acesso.',400);
+    if (!(await listWorkspaces(who.agencyId)).some(row => row.id === workspace) || !await canOpen(who,workspace)) throw error('Escolha uma subconta à qual você tem acesso.',400);
     if (who.modules && (!who.modules.includes('contacts') || (input.opportunity === true && !who.modules.includes('opportunities')))) throw error('Você não tem acesso ao módulo de destino.',403);
     const ids = Array.isArray(input.ids) ? [...new Set(input.ids.slice(0,100))] : [];
     if (!ids.length) throw error('Selecione pelo menos um prospect.',400);
-    const agency = await loadAgency();
+    const agency = await loadAgency(who.agencyId);
     const prospects = ids.map(id => agency.prospects.find(row => row.id === id && !row.archived));
     if (prospects.some(row => !row)) throw error('Um dos prospects não está disponível para envio.',404);
     const imported = await store.change(workspace,state => {
@@ -315,7 +336,7 @@ export function makeServer({
       });
     });
     const at = stamp();
-    await changeAgency(current => {
+    await changeAgency(who.agencyId, current => {
       for (const item of imported) {
         const row = current.prospects.find(prospect => prospect.id === item.id);
         if (row) row.transfers[workspace] = { contact:item.contact,opportunity:item.opportunity,at:row.transfers[workspace]?.at || at };
@@ -326,12 +347,12 @@ export function makeServer({
   }
 
   async function agencyRequest(op, who, input) {
-    if (op === 'prospecting-search') return findProspects(input);
+    if (op === 'prospecting-search') return findProspects(who,input);
     if (op === 'prospecting-transfer') return transferProspects(who,input);
     if (op === 'prospecting-action') {
       if (!who.settings && ['brand','sections','widget'].includes(input.op)) throw error('Somente administradores podem alterar essas configurações.',403);
       const data = input.data && typeof input.data === 'object' && !Array.isArray(input.data) ? input.data : {};
-      return changeAgency(agency => {
+      return changeAgency(who.agencyId, agency => {
         const result = runProspectingAction(agency,{...input,data});
         logTo(agency,who,`Prospecting: ${input.op}`,typeof input.id === 'string' ? input.id : '');
         return result;
@@ -339,10 +360,13 @@ export function makeServer({
     }
     if (op === 'action') {
       if (!who.settings && (settingsCommands.has(input.type) || ((input.type === 'save' || input.type === 'delete') && settingsRecords.has(input.key)))) throw error('Only agency owners and admins can change agency settings.',403);
-      const workspaces = await listWorkspaces();
-      return changeAgency(agency => {
+      const workspaces = await listWorkspaces(who.agencyId);
+      const shareCode = input.type === 'snapshot-import' && typeof input.data?.code === 'string' ? input.data.code.trim().toLowerCase() : '';
+      const shared = /^[0-9a-f]{12}$/.test(shareCode) ? await store.findAgency({ snapshots: [{ shareCode, shared: true }] }) : null;
+      const sharedSnapshot = shared?.state.snapshots.find(item => item.shareCode === shareCode && item.shared);
+      return changeAgency(who.agencyId, agency => {
         ensureAccounts(agency, workspaces);
-        const result = executeAgency(agency, input, { accountIds: workspaces.map(w => w.id), actor: who.name });
+        const result = executeAgency(agency, input, { accountIds: workspaces.map(w => w.id), actor: who.name, sharedSnapshot });
         if (who.session && input.type === 'save' && input.key === 'users') {
           agency.users.find(user => user.id === result).loginEnabled = true;
         }
@@ -351,18 +375,18 @@ export function makeServer({
     }
     if (op === 'accounts') return createAccount(who, input);
     if (op === 'snapshot-create' || op === 'snapshot-refresh') {
-      const agency = await loadAgency();
+      const agency = await loadAgency(who.agencyId);
       const prior = op === 'snapshot-refresh' ? agency.snapshots.find(s => s.id === input.id) : null;
       if (op === 'snapshot-refresh' && !prior) throw error('Snapshot not found.',404);
       if (prior && prior.kind !== 'mine') throw error('Only your own snapshots can be refreshed from their source.',400);
       const source = prior ? prior.workspace : input.workspace;
-      if (!(await listWorkspaces()).some(w => w.id === source)) throw error('Choose a valid source sub-account.',400);
+      if (!(await listWorkspaces(who.agencyId)).some(w => w.id === source)) throw error('Choose a valid source sub-account.',400);
       const include = prior ? prior.include : Array.isArray(input.include) && input.include.length ? input.include.filter(k => snapshotAssets.some(a => a[0] === k)) : snapshotAssets.map(a => a[0]);
       if (!include.length) throw error('Choose at least one asset type.',400);
       const name = prior ? prior.name : String(input.name || '').trim().slice(0,100);
       if (!name) throw error('Snapshot name is required.',400);
       const { assets, counts } = extractSnapshot(await store.load(source), include);
-      return changeAgency(a => {
+      return changeAgency(who.agencyId, a => {
         if (prior) {
           const snap = a.snapshots.find(s => s.id === prior.id);
           Object.assign(snap, { assets, counts, updated: stamp(), version: (snap.version || 1) + 1 });
@@ -377,9 +401,9 @@ export function makeServer({
       });
     }
     if (op === 'snapshot-load') {
-      const snap = (await loadAgency()).snapshots.find(s => s.id === input.id);
+      const snap = (await loadAgency(who.agencyId)).snapshots.find(s => s.id === input.id);
       if (!snap) throw error('Snapshot not found.',404);
-      const targets = Array.isArray(input.workspaces) ? (await listWorkspaces()).filter(w => input.workspaces.includes(w.id)) : [];
+      const targets = Array.isArray(input.workspaces) ? (await listWorkspaces(who.agencyId)).filter(w => input.workspaces.includes(w.id)) : [];
       if (!targets.length) throw error('Choose at least one sub-account.',400);
       const mode = input.mode === 'overwrite' ? 'overwrite' : 'skip';
       const loads = [];
@@ -387,7 +411,7 @@ export function makeServer({
         const report = await store.change(target.id, state => applySnapshot(state, snap, mode));
         loads.push({ id: uid(), snapshotId: snap.id, snapshot: snap.name, workspace: target.id, account: target.name, at: stamp(), mode, ...report });
       }
-      await changeAgency(a => {
+      await changeAgency(who.agencyId, a => {
         a.snapshotLoads.push(...loads);
         if (a.snapshotLoads.length > 500) a.snapshotLoads.splice(0, a.snapshotLoads.length - 500);
         logTo(a, who, 'Snapshot loaded', snap.name, targets.map(t => t.name).join(', '));
@@ -395,22 +419,22 @@ export function makeServer({
       return loads;
     }
     if (op === 'template-install') {
-      const template = catalogTemplate(input.template, await loadAgency());
-      const target = (await listWorkspaces()).find(w => w.id === input.workspace);
+      const template = catalogTemplate(input.template, await loadAgency(who.agencyId));
+      const target = (await listWorkspaces(who.agencyId)).find(w => w.id === input.workspace);
       if (!target) throw error('Choose a valid sub-account.',400);
       const page = await store.change(target.id, state => installTemplate(state, template));
-      await changeAgency(a => {
+      await changeAgency(who.agencyId, a => {
         a.templateInstalls.push({ id: uid(), template: template.id, name: template.name, workspace: target.id, account: target.name, at: stamp() });
         logTo(a, who, 'Template installed', template.name, target.name);
       });
       return { workspace: target.id, page };
     }
     if (op === 'prospect-convert') {
-      const prospect = (await loadAgency()).prospects.find(r => r.id === input.id);
+      const prospect = (await loadAgency(who.agencyId)).prospects.find(r => r.id === input.id);
       if (!prospect) throw error('Prospect not found.',404);
       if (prospect.workspace) throw error('This prospect already has a sub-account.',400);
       const newId = await createAccount(who, { name: prospect.name, email: prospect.email, phone: prospect.phone, address: prospect.city, snapshotId: input.snapshotId || '' });
-      await changeAgency(a => { const row = a.prospects.find(r => r.id === input.id); if (row) Object.assign(row, { workspace: newId, status: 'Won' }); });
+      await changeAgency(who.agencyId, a => { const row = a.prospects.find(r => r.id === input.id); if (row) Object.assign(row, { workspace: newId, status: 'Won' }); });
       return newId;
     }
     throw error('Unknown agency request.',404);
@@ -565,11 +589,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (kind === 'report') {
           if (method === 'POST') throw error('Method not allowed.',405);
           const findReport = agency => agency.prospects.find(row => row.shareId === token && !row.archived && row.report);
-          const prospect = findReport(await loadAgency());
+          const match = await store.findAgency({ prospects: [{ shareId: token }] });
+          const prospect = match && findReport(hydrateAgency(match.state));
           if (!prospect) throw error('Relatório indisponível.',404);
           if (method === 'GET' && !String(req.headers.purpose || req.headers['sec-purpose'] || '').includes('prefetch')) {
             try {
-              await changeAgency(agency => {
+              await changeAgency(match.id, agency => {
                 const row = findReport(agency);
                 if (!row) return;
                 const date = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -581,7 +606,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           }
           return send(200,'text/html; charset=utf-8',method === 'HEAD' ? undefined : shareReportHtml(prospect.report));
         }
-        const widget = (await loadAgency()).prospecting.widgets.find(item => item.id === token && item.active);
+        const match = await store.findAgency({ prospecting: { widgets: [{ id: token, active: true }] } });
+        const widget = match?.state.prospecting.widgets.find(item => item.id === token && item.active);
         if (!widget) throw error('Formulário indisponível.',404);
         res.setHeader('Content-Security-Policy',csp.replace("frame-ancestors 'none'",'frame-ancestors *'));
         if (method === 'POST') {
@@ -589,7 +615,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           let size=0; const chunks=[];
           for await (const part of req) { size+=part.length; if (size>12000) throw error('Formulário muito longo.',413); chunks.push(part); }
           const data = Object.fromEntries(new URLSearchParams(Buffer.concat(chunks).toString('utf8')));
-          try { if (!data.fax) await changeAgency(agency => captureProspectWidget(agency,token,data)); }
+          try { if (!data.fax) await changeAgency(match.id, agency => captureProspectWidget(agency,token,data)); }
           catch (error) { if (error.status) return send(error.status,'text/html; charset=utf-8',widgetHtml(widget,false,error.message)); throw error; }
           res.writeHead(303,{Location:`${p}?sent=1`}); return res.end();
         }
@@ -600,22 +626,27 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const [, account] = apiMatch;
         if (!account) {
           if (method !== 'GET') throw error('Method not allowed.',405);
-          await bearer(req,'subaccounts.read');
-          return json({ subaccounts: await listWorkspaces() });
+          const agencyId = await bearer(req,'subaccounts.read');
+          return json({ subaccounts: await listWorkspaces(agencyId) });
         }
-        if (!(await listWorkspaces()).some(w => w.id === account)) throw error('Sub-account not found.',404);
+        const agencyId = await bearer(req,method === 'POST' ? 'contacts.write' : 'contacts.read');
+        if (!await canOpen({agencyId},account)) throw error('Sub-account not found.',404);
         if (method !== 'POST') {
-          await bearer(req,'contacts.read');
           return json({ contacts: (await store.load(account)).contacts });
         }
-        await bearer(req,'contacts.write');
         const created = await change(account,{ type:'save', key:'contacts', data: await payload(req) });
         return json({ id: created.id },201);
       }
       if (p.startsWith('/api/auth/')) {
         if (!auth) throw error('O login do Supabase ainda não foi configurado.',503);
         const operation = p.slice('/api/auth/'.length);
-        if (operation === 'callback/google' && method === 'GET') return goTo(await auth.callback(req,res,url.searchParams));
+        if (operation === 'callback/google' && method === 'GET') {
+          return goTo(await auth.callback(req,res,url.searchParams,async (session,next) => {
+            await ready;
+            const { who } = await accessContext(req,session);
+            return who.owner && who.agencyId !== AGENCY_ID && !/[?#]/.test(next) ? '/app#agency/dashboard' : next;
+          }));
+        }
         if (operation === 'logout' && method === 'POST') {
           await auth.logout(req,res);
           return json({ ok:true });
@@ -626,14 +657,24 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         throw error('Page not found.',404);
       }
+      if (p === '/api/openai') {
+        const session = await verifiedUser(req,res);
+        if (!session) throw error('Entre na sua conta para conectar sua chave da OpenAI.',401);
+        res.setHeader('Cache-Control','no-store');
+        if (method !== 'POST') return json(await openAI.status(session));
+        const input = await payload(req);
+        if (input.action === 'connect') return json(await openAI.connect(session,input.apiKey));
+        if (input.action === 'disconnect') return json(await openAI.disconnect(session));
+        throw error('Escolha uma ação válida para a conexão com a OpenAI.',400);
+      }
       if (p==='/api/workspaces') {
         const who = await access(req,res);
         if (method==='POST') {
           if (!who.agency) throw error('Only agency users can create sub-accounts.',403);
           const newId = await createAccount(who, await payload(req));
-          return json({id:newId,workspaces:await listWorkspaces()},201);
+          return json({id:newId,workspaces:await listWorkspaces(who.agencyId)},201);
         }
-        return json({workspaces:await visibleWorkspaces(who)});
+        return json({workspaces:await visibleWorkspaces(who), agency:who.agency});
       }
       if (p === '/api/social/cron' && (method === 'GET' || method === 'POST')) {
         if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) throw error('Not allowed.',401);
@@ -653,7 +694,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
         if (localAccess) req.localSocialUser = url.searchParams.get('user');
         const who = await access(req,res);
-        if (!canOpen(who,id) || (who.modules && !who.modules.includes('marketing'))) throw error('Your user cannot connect accounts in this sub-account.',403);
+        if (!await canOpen(who,id) || (who.modules && !who.modules.includes('marketing'))) throw error('Your user cannot connect accounts in this sub-account.',403);
         const provider = socialStart[1], nonce = uid();
         const target = authUrl(provider, { redirectUri: publicBase(req) + callbackPath(provider), state: nonce });
         await socialRow('social-oauth');
@@ -689,7 +730,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/social/') && method === 'POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
         const who = await access(req,res);
-        if (!canOpen(who,id) || (who.modules && !who.modules.includes('marketing'))) throw error('Your user does not have permission for this module.',403);
+        if (!await canOpen(who,id) || (who.modules && !who.modules.includes('marketing'))) throw error('Your user does not have permission for this module.',403);
         const input = await payload(req), op = p.slice('/api/social/'.length);
         const withState = async extra => {
           const state = await store.load(id);
@@ -727,24 +768,23 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (p==='/api/state' && method!=='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const session = await verifiedUser(req,res);
-        const agency = await loadAgency();
-        const who = accessFor(req,agency,session);
-        if (!canOpen(who,id)) throw error('Your user cannot open this sub-account.',403);
+        const { agency, who } = await accessContext(req,await verifiedUser(req,res));
+        if (!await canOpen(who,id)) throw error('Your user cannot open this sub-account.',403);
         const isPersonal = privateSpace.test(id);
-        const state = who.personal ? await openPersonalWorkspace(who) : await store.load(id);
-        const workspaces = who.personal ? [{ id, name: state.profile.name }] : await visibleWorkspaces(who);
+        const state = await store.load(id);
+        const workspaces = await visibleWorkspaces(who);
         // Settings → Audit Logs of the sub-account: the agency audit entries written against this account.
         const account = workspaces.find(w => w.id === id)?.name || id;
         const audit = !isPersonal && (!who.modules || who.modules.includes('settings')) ? agency.audit.filter(a => a.target === account).slice(-200) : [];
-        return json({state:visibleState(who,state),metrics:metrics(state),workspaces,features:{studioAI:studioAiAvailable,social:availability(),agentModel:canUseAgents(who) ? agentModel : ''},
+        const studioAI = (await openAI.status(who.session)).configured;
+        return json({state:visibleState(who,state),metrics:metrics(state),workspaces,features:{studioAI,social:availability(),agentModel:studioAI && canUseAgents(who) ? agentModel : ''},
           agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id),
           access:{agency:who.agency,modules:who.modules,name:who.name,session:who.session},audit});
       }
       if (p==='/api/action' && method==='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
         const who = await access(req,res);
-        if (!canOpen(who,id)) throw error('Your user cannot open this sub-account.',403);
+        if (!await canOpen(who,id)) throw error('Your user cannot open this sub-account.',403);
         const command = await payload(req);
         const module = command.type === 'save' || command.type === 'delete' ? moduleOfRecord[command.key]
           : command.type === 'bulk' ? (command.data?.object === 'opportunities' ? 'opportunities' : 'contacts') : commandModule[command.type];
@@ -752,7 +792,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         command.actor = who.name;
         const result = await change(id,command);
         if (!privateSpace.test(id) && ['save','delete','import','pipeline','profile','bulk'].includes(command.type)) {
-          const account = (await listWorkspaces()).find(w => w.id === id)?.name || id;
+          const account = (await listWorkspaces(who.agencyId)).find(w => w.id === id)?.name || id;
           const label = command.type === 'bulk' ? `Bulk ${command.data?.operation || ''} on ${command.data?.object || ''}`.trim() : '';
           await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);
         }
@@ -771,19 +811,19 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (agentAction && method==='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
         const who = await access(req,res);
-        if (!canOpen(who,id) || !canUseAgents(who)) throw error('Você não tem acesso aos agentes desta subconta.',403);
+        if (!await canOpen(who,id) || !canUseAgents(who)) throw error('Você não tem acesso aos agentes desta subconta.',403);
         const operation = agentAction[1];
         const input = await payload(req);
         if (operation === 'test') {
           const preview = agentPreview(await store.load(id), input);
-          if (!agentModel) throw error('Configure o modelo do AI Studio para testar o agente.',503);
-          const reply = await generateAgentReply({ ...preview, model: preview.model || agentModel });
+          const connection = localAccess && generateAgentReply !== replyAsAgent ? null : await openAI.requireConnection(who.session);
+          const reply = await generateAgentReply({ ...preview, model: preview.model || agentModel }, connection);
           return json({ reply });
         }
         const agent = await store.change(id, state => editAgent(state, operation, { ...input, model: agentModel }));
         if (!privateSpace.test(id) && operation !== 'save') {
           const labels = { create: 'Agente criado', publish: 'Agente publicado', unpublish: 'Agente despublicado', delete: 'Agente excluído' };
-          const account = (await listWorkspaces()).find(w => w.id === id)?.name || id;
+          const account = (await listWorkspaces(who.agencyId)).find(w => w.id === id)?.name || id;
           await recordAudit(who, labels[operation], account, agent?.name || '');
         }
         return json({ agent }, operation === 'create' ? 201 : 200);
@@ -798,10 +838,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!['model','starter'].includes(input.mode)) throw error('Choose how to create the project.',400);
         const existing = await store.load(id);
         if (existing.studioProjects.length >= 60) throw error('A workspace can have up to 60 Studio projects.',400);
-        const reference = input.mode === 'model' && input.reference ? await readReference(input.reference) : null;
+        const connection = input.mode === 'model' ? await openAI.requireConnection(who.session) : null;
+        const reference = connection && input.reference ? await readReference(input.reference) : null;
         let draft, html;
         if (input.mode === 'model') {
-          const site = await generateSite(brief,template,reference?.summary);
+          const site = await generateSite(connection,brief,template,reference?.summary);
           draft = { name:site.name, headline:site.name, summary:site.summary, theme:site.theme, blocks:[] };
           html = site.html;
         } else {
@@ -823,7 +864,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/studio/') && method==='POST') {
         const who = await studioGuard(req,res,id);
         const input = await payload(req);
-        const result = await studioRequest(id, p.slice('/api/studio/'.length), input);
+        const result = await studioRequest(id, p.slice('/api/studio/'.length), input, who.session);
         const doc = await siteDoc(id, input.id);
         const synced = await syncMeta(id, input.id, doc);
         return json({ ...synced, state: visibleState(who, synced.state), doc: publicDoc(doc), result });

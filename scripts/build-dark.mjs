@@ -72,11 +72,11 @@ function hsl([r, g, b]) {
   if (c) h = max === r ? ((g - b) / c) % 6 : max === g ? (b - r) / c + 2 : (r - g) / c + 4;
   return { h: (h * 60 + 360) % 360, l, c };
 }
-const fam = h => h >= 330 || h < 18 ? 'red' : h < 68 ? 'orange' : h < 175 ? 'green' : (h < 265 ? 'blue' : 'violet');
+const fam = h => h >= 345 || h < 18 ? 'red' : h < 68 ? 'orange' : h < 175 ? 'green' : (h < 260 ? 'blue' : 'pink');
 const css = ([r, g, b], a = 1) => a >= 1 ? `rgb(${r} ${g} ${b})` : `rgb(${r} ${g} ${b} / ${+a.toFixed(3)})`;
-const TINT = { violet: [187, 165, 255], blue: [134, 182, 255], orange: [249, 115, 22], red: [242, 167, 181], green: [118, 210, 155] };
-const TEXT_ACCENT = { violet: '#bba5ff', blue: '#86b6ff', orange: '#ffb17a', red: '#f2a7b5', green: '#76d29b' };
-const LINE_TINT = { violet: [61, 50, 112], blue: [32, 50, 85], orange: [107, 69, 37], red: [90, 38, 51], green: [31, 77, 53] };
+const TINT = { pink: [255, 51, 204], blue: [134, 182, 255], orange: [249, 115, 22], red: [242, 167, 181], green: [118, 210, 155] };
+const TEXT_ACCENT = { pink: '#ff9adb', blue: '#86b6ff', orange: '#ffb17a', red: '#f2a7b5', green: '#76d29b' };
+const LINE_TINT = { pink: [92, 24, 75], blue: [32, 50, 85], orange: [107, 69, 37], red: [90, 38, 51], green: [31, 77, 53] };
 
 function mapColor(token, role) {
   const c = rgba(token); if (!c) return null;

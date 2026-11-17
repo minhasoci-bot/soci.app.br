@@ -2,18 +2,18 @@ import { icon } from './icons.js';
 import { h } from './screens.js';
 import { studioTemplates, studioThemes } from './studio-data.js';
 
-const templateName = key => studioTemplates.find(template => template[0] === key)?.[1] || 'Project';
+const templateName = key => studioTemplates.find(template => template[0] === key)?.[1] || 'Projeto';
 const projectLink = (id,label) => `<a href="#studio/project/${id}" data-studio-open="${id}">${h(label)}</a>`;
 
 function tile(c, project) {
   const pages = project.pages?.length || 1;
-  return `<article class="studio-tile"><a class="studio-thumb theme-${project.theme}" href="#studio/project/${project.id}" data-studio-open="${project.id}" aria-label="Open ${h(project.name)}"><i></i><i></i><i></i></a>
-    <div class="studio-tile-label"><div><h3>${projectLink(project.id,project.name)}</h3><p>${h(templateName(project.template))} · ${pages} page${pages === 1 ? '' : 's'}${project.publishedAt ? ' · <span class="studio-live">Live</span>' : ''}</p></div>
-    <button class="icon-btn ${project.starred ? 'studio-selected-star' : ''}" data-studio-star="${project.id}" aria-label="${project.starred ? 'Unstar' : 'Star'} ${h(project.name)}" aria-pressed="${Boolean(project.starred)}">${icon('star',17)}</button></div></article>`;
+  return `<article class="studio-tile"><a class="studio-thumb theme-${project.theme}" href="#studio/project/${project.id}" data-studio-open="${project.id}" aria-label="Abrir ${h(project.name)}"><i></i><i></i><i></i></a>
+    <div class="studio-tile-label"><div><h3>${projectLink(project.id,project.name)}</h3><p>${h(templateName(project.template))} · ${pages} página${pages === 1 ? '' : 's'}${project.publishedAt ? ' · <span class="studio-live">Publicado</span>' : ''}</p></div>
+    <button class="icon-btn ${project.starred ? 'studio-selected-star' : ''}" data-studio-star="${project.id}" aria-label="${project.starred ? 'Remover dos favoritos' : 'Favoritar'} ${h(project.name)}" aria-pressed="${Boolean(project.starred)}">${icon('star',17)}</button></div></article>`;
 }
 
 function studioSections(view) {
-  return `<nav class="studio-home-tabs" aria-label="Studio views">${[['recent','Recently viewed'],['projects','My projects'],['starred','Starred'],['templates','Templates']].map(([id,label]) =>
+  return `<nav class="studio-home-tabs" aria-label="Seções do AI Studio">${[['recent','Recentes'],['projects','Meus projetos'],['starred','Favoritos'],['templates','Modelos']].map(([id,label]) =>
     `<a href="#studio/${id}" ${view === id ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
 }
 
@@ -21,16 +21,16 @@ function home(c) {
   const view = c.tab || 'templates';
   const projects = [...c.s.studioProjects].sort((a,b) => String(b.viewedAt || b.created).localeCompare(a.viewedAt || a.created));
   const selected = studioTemplates.find(item => item[0] === c.studio.template);
-  const prompt = `<section class="studio-hero"><div class="studio-hero-inner"><h1>Let's build something amazing</h1>
+  const prompt = `<section class="studio-hero"><div class="studio-hero-inner"><h1>Crie seu site</h1>
     <form class="studio-prompt" data-form="studio-create">
-      <textarea name="brief" placeholder="Describe what you want to build..." aria-label="Describe what you want to build" required maxlength="4000">${h(c.studio.brief)}</textarea>
-      <div class="studio-compose-actions"><label><span class="sr-only">Template</span><select name="template">${studioTemplates.map(([id,title]) =>
+      <textarea name="brief" placeholder="Descreva o que você quer criar…" aria-label="Descreva o que você quer criar" required maxlength="4000">${h(c.studio.brief)}</textarea>
+      <div class="studio-compose-actions"><label><span class="sr-only">Modelo</span><select name="template">${studioTemplates.map(([id,title]) =>
         `<option value="${id}" ${id === c.studio.template ? 'selected' : ''}>${h(title)}</option>`).join('')}</select></label>
-        <div class="spacer"></div>${c.features?.studioAI ? `<button class="secondary" name="engine" value="starter">Use template</button><button class="primary" name="engine" value="model">${icon('spark',16)} Generate</button>` :
-          `<button class="studio-create primary" name="engine" value="starter" aria-label="Create from template" title="Create from template">${icon('arrow',19)}</button>`}</div>
-      ${c.features?.studioAI ? `<label class="studio-reference">${icon('external',14)}<span class="sr-only">Reference website (optional)</span><input name="reference" type="url" maxlength="500" placeholder="Reference website for the layout (optional), https://…" autocomplete="off"></label>` : ''}
+        <div class="spacer"></div>${c.features?.studioAI ? `<button class="secondary" name="engine" value="starter">Usar modelo</button><button class="primary" name="engine" value="model">${icon('spark',16)} Gerar</button>` :
+          `<button class="studio-create primary" name="engine" value="starter" aria-label="Criar a partir de um modelo" title="Criar a partir de um modelo">${icon('arrow',19)}</button>`}</div>
+      ${c.features?.studioAI ? `<label class="studio-reference">${icon('external',14)}<span class="sr-only">Site de referência (opcional)</span><input name="reference" type="url" maxlength="500" placeholder="Site de referência para o layout (opcional), https://…" autocomplete="off"></label>` : '<p class="dim"><a class="text-link" href="#agency/settings/openai">Conecte sua chave da OpenAI</a> para gerar páginas com IA.</p>'}
       <p class="form-status" role="alert"></p></form>
-    ${selected ? `<p class="studio-mode">${c.features?.studioAI ? 'Template' : 'Local template'} · ${h(selected[1])}</p>` : ''}</div></section>`;
+    ${selected ? `<p class="studio-mode">${c.features?.studioAI ? 'Modelo' : 'Modelo local'} · ${h(selected[1])}</p>` : ''}</div></section>`;
   let main;
   if (view === 'templates') {
     main = `<div class="studio-tiles">${studioTemplates.map(([id,title,description],index) => `<button class="studio-tile studio-template" type="button" data-studio-template="${id}">
@@ -39,9 +39,9 @@ function home(c) {
   } else {
     const visible = projects.filter(project => (view !== 'starred' || project.starred) &&
       (!c.query || `${project.name} ${templateName(project.template)}`.toLowerCase().includes(c.query.toLowerCase())));
-    main = `<label class="studio-search"><span class="sr-only">Search projects</span><input id="page-search" value="${h(c.query)}" placeholder="Search projects…"></label>` +
+    main = `<label class="studio-search"><span class="sr-only">Buscar projetos</span><input id="page-search" value="${h(c.query)}" placeholder="Buscar projetos…"></label>` +
       (visible.length ? `<div class="studio-tiles">${visible.slice(0,view === 'recent' ? 12 : 60).map(project => tile(c,project)).join('')}</div>` :
-        `<div class="studio-empty">${icon(view === 'starred' ? 'star' : 'folder',26)} <p>${view === 'starred' ? 'No starred projects' : 'No projects found'}</p></div>`);
+        `<div class="studio-empty">${icon(view === 'starred' ? 'star' : 'folder',26)} <p>${view === 'starred' ? 'Nenhum projeto favorito' : 'Nenhum projeto encontrado'}</p></div>`);
   }
   return prompt + `<section class="studio-library">${studioSections(view)}${main}</section>`;
 }
@@ -49,10 +49,10 @@ function home(c) {
 function workspaceRail(c) {
   const recent = c.s.studioProjects.slice().sort((a,b) => String(b.viewedAt).localeCompare(a.viewedAt)).slice(0,5);
   return `<aside class="studio-rail"><a href="#studio" class="studio-workspace"><span>${h(c.s.profile.name.charAt(0).toUpperCase())}</span><strong>${h(c.s.profile.name)}</strong></a>
-    <nav aria-label="AI Studio"><a href="#studio" ${!c.tab || c.tab === 'templates' ? 'aria-current="page"' : ''}>${icon('grid',16)} Home</a>
-      <p>Projects</p><a href="#studio/projects" ${c.tab === 'projects' ? 'aria-current="page"' : ''}>${icon('folder',16)} All projects</a>
-      <a href="#studio/starred" ${c.tab === 'starred' ? 'aria-current="page"' : ''}>${icon('star',16)} Starred</a>
-      <p>Recents</p>${recent.length ? recent.map(project => projectLink(project.id,project.name)).join('') : '<small>No recent projects</small>'}</nav></aside>`;
+    <nav aria-label="AI Studio"><a href="#studio" ${!c.tab || c.tab === 'templates' ? 'aria-current="page"' : ''}>${icon('grid',16)} Início</a>
+      <p>Projetos</p><a href="#studio/projects" ${c.tab === 'projects' ? 'aria-current="page"' : ''}>${icon('folder',16)} Todos os projetos</a>
+      <a href="#studio/starred" ${c.tab === 'starred' ? 'aria-current="page"' : ''}>${icon('star',16)} Favoritos</a>
+      <p>Recentes</p>${recent.length ? recent.map(project => projectLink(project.id,project.name)).join('') : '<small>Nenhum projeto recente</small>'}</nav></aside>`;
 }
 
 function projectSections(project) {
@@ -62,8 +62,8 @@ function projectSections(project) {
 }
 
 export function exportStudioProject(project) {
-  const colors = { indigo:'#f1ecff', forest:'#e7f5ee', amber:'#fff4dc', rose:'#fcebf0' };
-  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${h(project.name)}</title>
+  const colors = { indigo:'#eef0ff', forest:'#e7f5ee', amber:'#fff4dc', rose:'#fcebf0' };
+  return `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${h(project.name)}</title>
     <style>body{margin:0;font-family:system-ui,sans-serif;color:#182140;background:#f7f8fb}small{color:#596889}.studio-preview-top{display:flex;justify-content:space-between;gap:1em;padding:1.1rem;border-bottom:1px solid #e1e5f0;background:white}.studio-preview-hero{padding:clamp(2rem,8vw,6rem);background:${colors[project.theme]};text-align:center}.studio-preview-hero h2{font-size:clamp(2rem,6vw,4rem);margin:0}.studio-preview-blocks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin:2rem auto;max-width:1100px;padding:1rem}.studio-preview-blocks section{background:white;border-radius:12px;padding:1.5rem;box-shadow:0 1px 3px #0001}p{white-space:pre-wrap;overflow-wrap:anywhere}</style>
     <main>${projectSections(project)}</main></html>`;
 }
@@ -76,7 +76,7 @@ export function studioBlock(item = { title:'', body:'' }) {
 
 // ---- Site editor ---------------------------------------------------------------
 // Pages are real HTML documents served by /studio-preview with a CSP that blocks scripts.
-// Visual editing works on the same-origin preview document from this page's code.
+// Visual editing runs on the same-origin preview.
 
 let env = null;
 let selected = null, dirty = false;
@@ -85,70 +85,70 @@ const S = () => {
   st.log ??= []; st.device ??= 'desktop'; st.panel ??= 'ai'; st.visual ??= false; st.code ??= false;
   return st;
 };
-const devices = [['desktop','Desktop','monitor'],['tablet','Tablet','grid'],['mobile','Mobile','mobile']];
-const fmt = iso => iso ? new Intl.DateTimeFormat('en-GB',{ day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }).format(new Date(iso)) : '';
+const devices = [['desktop','Desktop','monitor'],['tablet','Tablet','grid'],['mobile','Celular','mobile']];
+const fmt = iso => iso ? new Intl.DateTimeFormat('pt-BR',{ day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }).format(new Date(iso)) : '';
 
 function pagesColumn(doc, page) {
-  return `<aside class="sx-pages" aria-label="Pages"><h2>Pages</h2><ul>${doc.pages.map(item => `<li class="${item.id === page.id ? 'current' : ''}">
+  return `<aside class="sx-pages" aria-label="Páginas"><h2>Páginas</h2><ul>${doc.pages.map(item => `<li class="${item.id === page.id ? 'current' : ''}">
     <button class="sx-page" data-studio-page="${item.id}" aria-current="${item.id === page.id}">${icon('site',15)}<span>${h(item.name)}</span><small>/${item.slug === 'index' ? '' : h(item.slug)}</small></button>
-    <span class="sx-page-tools"><button class="icon-btn" data-studio-rename-page="${item.id}" aria-label="Rename ${h(item.name)}">${icon('edit',14)}</button>${item.slug === 'index' ? '' :
-      `<button class="icon-btn" data-studio-delete-page="${item.id}" aria-label="Delete ${h(item.name)}">${icon('trash',14)}</button>`}</span></li>`).join('')}</ul>
-    <button class="secondary" data-studio-add-page ${doc.pages.length >= 8 ? 'disabled' : ''}>${icon('plus',15)} Add page</button></aside>`;
+    <span class="sx-page-tools"><button class="icon-btn" data-studio-rename-page="${item.id}" aria-label="Renomear ${h(item.name)}">${icon('edit',14)}</button>${item.slug === 'index' ? '' :
+      `<button class="icon-btn" data-studio-delete-page="${item.id}" aria-label="Excluir ${h(item.name)}">${icon('trash',14)}</button>`}</span></li>`).join('')}</ul>
+    <button class="secondary" data-studio-add-page ${doc.pages.length >= 8 ? 'disabled' : ''}>${icon('plus',15)} Adicionar página</button></aside>`;
 }
 
 function aiPanel(c) {
   const log = S().log.filter(item => item.project === S().project);
   return `<div class="sx-selection" id="sx-selection">${selectionHtml()}</div>
     <div class="sx-log" aria-live="polite">${log.length ? log.map(item => `<p class="sx-you">${h(item.ask)}</p><p class="sx-ai">${h(item.reply)}</p>`).join('') :
-      `<p class="dim">Describe a change, for example: “Make the header darker and add a pricing section.” Select an element with Visual edit to change only that part.</p>`}</div>
-    ${c.features?.studioAI ? `<form class="sx-ask" data-studio-form="revise"><label class="sr-only" for="sx-instruction">Change request</label><textarea id="sx-instruction" name="instruction" required maxlength="2000" placeholder="Ask AI to change this page…"></textarea>
-      <p class="form-status" role="alert"></p><button class="primary">${icon('spark',15)} Apply with AI</button></form>`
-      : '<p class="dim">AI changes need STUDIO_OPENAI_API_KEY and STUDIO_OPENAI_MODEL on the server. You can still edit visually or in code.</p>'}`;
+      `<p class="dim">Descreva uma alteração. Para editar uma parte específica, selecione um elemento no modo de edição visual.</p>`}</div>
+    ${c.features?.studioAI ? `<form class="sx-ask" data-studio-form="revise"><label class="sr-only" for="sx-instruction">Alteração desejada</label><textarea id="sx-instruction" name="instruction" required maxlength="2000" placeholder="Peça à IA uma alteração nesta página…"></textarea>
+      <p class="form-status" role="alert"></p><button class="primary">${icon('spark',15)} Aplicar com IA</button></form>`
+      : '<p class="dim"><a class="text-link" href="#agency/settings/openai">Conecte sua chave da OpenAI</a> para aplicar alterações com IA. A edição visual e o código continuam disponíveis.</p>'}`;
 }
 function versionsPanel(doc) {
-  return `<ol class="sx-versions">${doc.versions.map((version, index) => `<li><div><b>${h(version.label)}</b><small>${fmt(version.at)}${index === 0 ? ' · current' : ''}</small></div>
-    ${index === 0 ? '' : `<button class="secondary" data-studio-restore="${version.id}">Restore</button>`}</li>`).join('')}</ol>`;
+  return `<ol class="sx-versions">${doc.versions.map((version, index) => `<li><div><b>${h(version.label)}</b><small>${fmt(version.at)}${index === 0 ? ' · atual' : ''}</small></div>
+    ${index === 0 ? '' : `<button class="secondary" data-studio-restore="${version.id}">Restaurar</button>`}</li>`).join('')}</ol>`;
 }
 function publishPanel(c, project, doc) {
   const live = `/s/${c.workspace}/${project.id}`;
   const leads = project.formId ? c.s.submissions.filter(item => item.formId === project.formId).length : 0;
   const stale = doc.published && doc.published.rev !== doc.rev;
-  return `<div class="sx-publish"><p>${doc.published ? `<span class="badge green">Published</span> ${fmt(doc.published.at)}` : '<span class="badge">Draft</span> Not published'}${stale ? ' <span class="badge gold">Unpublished changes</span>' : ''}</p>
-    <div class="inline-gap">${doc.published ? `<button class="primary" data-studio-publish="on" ${stale ? '' : 'disabled'}>Update live site</button><button class="secondary" data-studio-publish="off">Unpublish</button>`
-      : '<button class="primary" data-studio-publish="on">Publish</button>'}</div>
-    ${doc.published ? `<label class="sx-live">Live address<span><input readonly value="${h(location.origin + live)}" aria-label="Live address"><a class="secondary" href="${live}" target="_blank" rel="noopener">${icon('external',14)} Open</a></span></label>` : ''}
-    <p><b>${leads}</b> lead${leads === 1 ? '' : 's'} from this site. ${project.formId ? '<a class="text-link" href="#sites/submissions">See submissions</a>' : 'Publishing creates a form in Sites that receives the leads.'}</p>
-    <p class="dim">Form submissions become contacts and run workflows with the “Form submitted” trigger. Custom domains need a public server; this local copy serves the site at the address above.</p></div>`;
+  return `<div class="sx-publish"><p>${doc.published ? `<span class="badge green">Publicado</span> ${fmt(doc.published.at)}` : '<span class="badge">Rascunho</span>'}${stale ? ' <span class="badge gold">Alterações pendentes</span>' : ''}</p>
+    <div class="inline-gap">${doc.published ? `<button class="primary" data-studio-publish="on" ${stale ? '' : 'disabled'}>Atualizar site</button><button class="secondary" data-studio-publish="off">Despublicar</button>`
+      : '<button class="primary" data-studio-publish="on">Publicar</button>'}</div>
+    ${doc.published ? `<label class="sx-live">Endereço do site<span><input readonly value="${h(location.origin + live)}" aria-label="Endereço do site"><a class="secondary" href="${live}" target="_blank" rel="noopener">${icon('external',14)} Abrir</a></span></label>` : ''}
+    <p><b>${leads}</b> lead${leads === 1 ? '' : 's'} deste site. ${project.formId ? '<a class="text-link" href="#sites/submissions">Ver envios</a>' : 'Ao publicar, um formulário em Sites passa a receber os leads.'}</p>
+    <p class="dim">Os envios do formulário criam contatos e acionam os fluxos com o gatilho “Formulário enviado”.</p></div>`;
 }
 
 function canvas(c, project, doc, page) {
   const st = S();
-  if (st.code) return `<form class="sx-code" data-studio-form="code"><label class="sr-only" for="sx-code">HTML of ${h(page.name)}</label>
+  if (st.code) return `<form class="sx-code" data-studio-form="code"><label class="sr-only" for="sx-code">HTML de ${h(page.name)}</label>
     <textarea id="sx-code" name="html" spellcheck="false" autocomplete="off">${h(page.html)}</textarea>
-    <div class="inline-gap"><button class="primary">Apply code</button><span class="dim">Scripts and event handlers are removed when saved.</span></div><p class="form-status" role="alert"></p></form>`;
-  return `${st.visual ? `<div class="sx-visualbar" role="status"><span>Click an element to select it. Double-click text to edit it.</span><div class="spacer"></div>
-      <button class="secondary" data-studio-discard disabled>Discard</button><button class="primary" data-studio-save-visual disabled>Save changes</button></div>` : ''}
-    <div class="sx-frame-wrap device-${st.device}"><iframe id="studio-frame" title="Preview of ${h(page.name)}" sandbox="allow-same-origin"
+    <div class="inline-gap"><button class="primary">Aplicar código</button><span class="dim">Scripts e manipuladores de eventos são removidos ao salvar.</span></div><p class="form-status" role="alert"></p></form>`;
+  return `${st.visual ? `<div class="sx-visualbar" role="status"><span>Clique para selecionar um elemento. Dê um clique duplo para editar o texto.</span><div class="spacer"></div>
+      <button class="secondary" data-studio-discard disabled>Descartar</button><button class="primary" data-studio-save-visual disabled>Salvar alterações</button></div>` : ''}
+    <div class="sx-frame-wrap device-${st.device}"><iframe id="studio-frame" title="Prévia de ${h(page.name)}" sandbox="allow-same-origin"
       src="/studio-preview/${c.workspace}/${project.id}/${page.id}?r=${doc.rev}"></iframe></div>`;
 }
 
 function editor(c, project) {
   const st = S();
   const doc = st.docFor === project.id ? st.doc : null;
-  if (!doc) { queueMicrotask(() => env?.loadDoc(project.id)); return `<section class="studio-editor"><p class="dim">Opening ${h(project.name)}…</p></section>`; }
+  if (!doc) { queueMicrotask(() => env?.loadDoc(project.id)); return `<section class="studio-editor"><p class="dim">Abrindo ${h(project.name)}…</p></section>`; }
   const page = doc.pages.find(item => item.id === st.page) || doc.pages[0];
   st.page = page.id;
   const panel = st.panel || 'ai';
-  return `<section class="studio-editor sx"><div class="studio-editor-head"><a href="#studio/projects" class="secondary">${icon('left',15)} Projects</a>
+  return `<section class="studio-editor sx"><div class="studio-editor-head"><a href="#studio/projects" class="secondary">${icon('left',15)} Projetos</a>
     <h1>${h(project.name)}</h1>
-    <div class="sx-devices" role="group" aria-label="Preview size">${devices.map(([id,label,ico]) => `<button class="icon-btn" data-studio-device="${id}" aria-pressed="${st.device === id}" aria-label="${label}" title="${label}">${icon(ico,16)}</button>`).join('')}</div>
+    <div class="sx-devices" role="group" aria-label="Tamanho da prévia">${devices.map(([id,label,ico]) => `<button class="icon-btn" data-studio-device="${id}" aria-pressed="${st.device === id}" aria-label="${label}" title="${label}">${icon(ico,16)}</button>`).join('')}</div>
     <div class="spacer"></div>
-    <button class="secondary" data-studio-visual aria-pressed="${st.visual}">${icon('edit',15)} Visual edit</button>
-    <button class="secondary" data-studio-code aria-pressed="${st.code}">${icon('list',15)} Code</button>
-    <button class="secondary" data-studio-star="${project.id}" aria-pressed="${Boolean(project.starred)}">${icon('star',16)} ${project.starred ? 'Starred' : 'Star'}</button>
-    <button class="secondary" data-studio-download>${icon('download',16)} Export HTML</button></div>
+    <button class="secondary" data-studio-visual aria-pressed="${st.visual}">${icon('edit',15)} Edição visual</button>
+    <button class="secondary" data-studio-code aria-pressed="${st.code}">${icon('list',15)} Código</button>
+    <button class="secondary" data-studio-star="${project.id}" aria-pressed="${Boolean(project.starred)}">${icon('star',16)} ${project.starred ? 'Favorito' : 'Favoritar'}</button>
+    <button class="secondary" data-studio-download>${icon('download',16)} Exportar HTML</button></div>
     <div class="sx-columns">${pagesColumn(doc,page)}<div class="sx-canvas">${canvas(c,project,doc,page)}</div>
-    <aside class="sx-panel"><div class="sx-tabs" role="tablist">${[['ai','AI'],['versions','Versions'],['publish','Publish']].map(([id,label]) =>
+    <aside class="sx-panel"><div class="sx-tabs" role="tablist">${[['ai','IA'],['versions','Versões'],['publish','Publicação']].map(([id,label]) =>
       `<button role="tab" data-studio-panel="${id}" aria-selected="${panel === id}">${label}</button>`).join('')}</div>
       <div class="sx-panel-body">${panel === 'versions' ? versionsPanel(doc) : panel === 'publish' ? publishPanel(c,project,doc) : aiPanel(c)}</div></aside></div></section>`;
 }
@@ -161,7 +161,7 @@ export function studio(c) {
 // ---- Editor behaviour -------------------------------------------------------------
 
 const frame = () => document.getElementById('studio-frame');
-const editStyle = '[data-go-hover]{outline:2px dashed #7657d9!important;outline-offset:2px}[data-go-selected]{outline:3px solid #7657d9!important;outline-offset:2px}[contenteditable]{cursor:text}';
+const editStyle = '[data-go-hover]{outline:2px dashed #a00070!important;outline-offset:2px}[data-go-selected]{outline:3px solid #a00070!important;outline-offset:2px}[contenteditable]{cursor:text}';
 function clean(node) {
   node.querySelectorAll('#go-edit-style').forEach(item => item.remove());
   for (const item of [node, ...node.querySelectorAll('[data-go-hover],[data-go-selected],[data-go-ready],[contenteditable]')]) {
@@ -173,8 +173,8 @@ const serialize = () => `<!doctype html>\n${clean(frame().contentDocument.docume
 function selectionHtml() {
   if (!selected?.isConnected) return '';
   const text = selected.textContent.replace(/\s+/g,' ').trim().slice(0,70);
-  return `<div class="sx-chip"><span><b>&lt;${h(selected.tagName.toLowerCase())}&gt;</b> ${h(text || 'element')}</span>
-    <span class="inline-gap"><button class="secondary" data-studio-edit-text>Edit text</button><button class="secondary" data-studio-remove-el>Delete</button><button class="icon-btn" data-studio-unselect aria-label="Clear selection">${icon('close',14)}</button></span></div>`;
+  return `<div class="sx-chip"><span><b>&lt;${h(selected.tagName.toLowerCase())}&gt;</b> ${h(text || 'elemento')}</span>
+    <span class="inline-gap"><button class="secondary" data-studio-edit-text>Editar texto</button><button class="secondary" data-studio-remove-el>Excluir</button><button class="icon-btn" data-studio-unselect aria-label="Limpar seleção">${icon('close',14)}</button></span></div>`;
 }
 const showSelection = () => { const box = document.getElementById('sx-selection'); if (box) box.innerHTML = selectionHtml(); };
 function select(element) {
@@ -228,7 +228,7 @@ export function afterStudioRender() {
 
 function blocked() {
   if (!dirty) return false;
-  env.flash('Save or discard your visual edits first.', true);
+  env.flash('Salve ou descarte as alterações visuais primeiro.', true);
   return true;
 }
 function modal(title, body, form, submit) {
@@ -284,13 +284,13 @@ export function installStudio(environment) {
         render(); return; }
       if (d.studioPage) { if (blocked()) return; S().page = d.studioPage; render(); return; }
       if ('studioAddPage' in d) { if (blocked()) return;
-        modal('Add page', `<label>Page name<input name="name" required maxlength="60" placeholder="About us"></label><label>What should this page contain?<textarea name="description" maxlength="1500"></textarea></label>${c.features?.studioAI ? '<label class="check"><input type="checkbox" name="ai" checked> Write the page with AI, in the same style as the home page</label>' : ''}`, 'add-page', 'Add page'); return; }
+        modal('Adicionar página', `<label>Nome da página<input name="name" required maxlength="60" placeholder="Sobre nós"></label><label>O que a página deve conter?<textarea name="description" maxlength="1500"></textarea></label>${c.features?.studioAI ? '<label class="check"><input type="checkbox" name="ai" checked> Gerar com IA no mesmo estilo da página inicial</label>' : ''}`, 'add-page', 'Adicionar página'); return; }
       if (d.studioRenamePage) { const page = S().doc.pages.find(item => item.id === d.studioRenamePage);
-        modal('Rename page', `<input type="hidden" name="pageId" value="${page.id}"><label>Page name<input name="name" required maxlength="60" value="${h(page.name)}"></label>`, 'rename-page', 'Rename'); return; }
+        modal('Renomear página', `<input type="hidden" name="pageId" value="${page.id}"><label>Nome da página<input name="name" required maxlength="60" value="${h(page.name)}"></label>`, 'rename-page', 'Renomear'); return; }
       if (d.studioDeletePage) { const page = S().doc.pages.find(item => item.id === d.studioDeletePage);
-        modal('Delete page?', `<input type="hidden" name="pageId" value="${page.id}"><p>“${h(page.name)}” will be removed. You can bring it back from Versions.</p>`, 'delete-page', 'Delete'); return; }
-      if (d.studioRestore) { if (blocked()) return; await call('restore', { versionId: d.studioRestore }); render(); flash('Version restored.'); return; }
-      if (d.studioPublish) { if (blocked()) return; button.disabled = true; await call('publish', { publish: d.studioPublish === 'on' }); render(); flash(d.studioPublish === 'on' ? 'Site published.' : 'Site unpublished.'); return; }
+        modal('Excluir página?', `<input type="hidden" name="pageId" value="${page.id}"><p>“${h(page.name)}” será removida. Você pode restaurá-la em Versões.</p>`, 'delete-page', 'Excluir'); return; }
+      if (d.studioRestore) { if (blocked()) return; await call('restore', { versionId: d.studioRestore }); render(); flash('Versão restaurada.'); return; }
+      if (d.studioPublish) { if (blocked()) return; button.disabled = true; await call('publish', { publish: d.studioPublish === 'on' }); render(); flash(d.studioPublish === 'on' ? 'Site publicado.' : 'Site despublicado.'); return; }
       if ('studioDownload' in d) {
         const page = currentPage();
         const html = page.html.replace(/(href\s*=\s*["'])page:([a-z0-9-]+)(["'])/gi, (_, a, slug, b) => `${a}${slug}.html${b}`);
@@ -301,7 +301,7 @@ export function installStudio(environment) {
       if ('studioRemoveEl' in d) { selected?.remove(); select(null); setDirty(true); return; }
       if ('studioUnselect' in d) { select(null); return; }
       if ('studioDiscard' in d) { setDirty(false); render(); return; }
-      if ('studioSaveVisual' in d) { button.disabled = true; await call('save', { pageId: S().page, html: serialize(), label: 'Visual edit' }); setDirty(false); render(); flash('Changes saved.'); return; }
+      if ('studioSaveVisual' in d) { button.disabled = true; await call('save', { pageId: S().page, html: serialize(), label: 'Edição visual' }); setDirty(false); render(); flash('Alterações salvas.'); return; }
     } catch (error) { flash(error.message, true); render(); }
   });
 
@@ -319,21 +319,21 @@ export function installStudio(environment) {
       if (name === 'revise') {
         const instruction = data.instruction.trim();
         const selection = selected?.isConnected ? clean(selected.cloneNode(true)).outerHTML : '';
-        if (dirty) await call('save', { pageId: S().page, html: serialize(), label: 'Visual edit' });
-        if (status) { status.classList.add('pending'); status.textContent = 'Working on your change. This can take up to a minute.'; }
+        if (dirty) await call('save', { pageId: S().page, html: serialize(), label: 'Edição visual' });
+        if (status) { status.classList.add('pending'); status.textContent = 'Aplicando a alteração…'; }
         const result = await call('revise', { pageId: S().page, instruction, selection });
-        S().log.push({ project: S().project, ask: instruction, reply: result?.change || 'Done.' });
-        setDirty(false); render(); flash('Page updated.');
+        S().log.push({ project: S().project, ask: instruction, reply: result?.change || 'Concluído.' });
+        setDirty(false); render(); flash('Página atualizada.');
       } else if (name === 'code') {
-        await call('save', { pageId: S().page, html: data.html, label: 'Code edit' }); render(); flash('Code applied.');
+        await call('save', { pageId: S().page, html: data.html, label: 'Edição de código' }); render(); flash('Código aplicado.');
       } else if (name === 'add-page') {
-        if (status && data.ai) { status.classList.add('pending'); status.textContent = 'Writing the page. This can take up to a minute.'; }
+        if (status && data.ai) { status.classList.add('pending'); status.textContent = 'Gerando a página…'; }
         const pageId = await call('page', { action: 'add', name: data.name, description: data.description, ai: Boolean(data.ai) });
-        S().page = pageId; closeModal(); render(); flash('Page added.');
+        S().page = pageId; closeModal(); render(); flash('Página adicionada.');
       } else if (name === 'rename-page') {
-        await call('page', { action: 'rename', pageId: data.pageId, name: data.name }); closeModal(); render(); flash('Page renamed.');
+        await call('page', { action: 'rename', pageId: data.pageId, name: data.name }); closeModal(); render(); flash('Página renomeada.');
       } else if (name === 'delete-page') {
-        await call('page', { action: 'delete', pageId: data.pageId }); S().page = ''; closeModal(); render(); flash('Page deleted.');
+        await call('page', { action: 'delete', pageId: data.pageId }); S().page = ''; closeModal(); render(); flash('Página excluída.');
       }
     } catch (error) {
       if (status) { status.classList.remove('pending'); status.textContent = error.message; } else flash(error.message, true);

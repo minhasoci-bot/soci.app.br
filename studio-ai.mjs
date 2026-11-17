@@ -1,20 +1,5 @@
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
-
-const key = process.env.STUDIO_OPENAI_API_KEY;
-const model = process.env.STUDIO_OPENAI_MODEL;
-export const studioAiAvailable = Boolean(key && model);
-export const openAIModel = studioAiAvailable ? model : '';
-
-export async function openAIResponse(body, { timeout, problem }) {
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST', signal: AbortSignal.timeout(timeout), redirect: 'error',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...body, store: false })
-  }).catch(() => null);
-  const result = response?.ok ? await response.json().catch(() => null) : null;
-  if (!result) throw Object.assign(new Error(problem), { status: 502 });
-  return result;
-}
+import { openAIResponse } from './openai.mjs';
 
 const rules = `Rules for every page:
 - Return one complete HTML document: <!doctype html>, <html lang> matching the brief language, <head> with meta charset, meta viewport and <title>, then <body>.
@@ -26,22 +11,21 @@ const rules = `Rules for every page:
 - Write all copy in the language of the brief.
 - Never invent testimonials, client names, prices, ratings, statistics, awards, addresses or contact details. Write a clearly marked placeholder in double brackets, for example [[Real customer testimonial]], for the owner to replace.`;
 
-async function respond({ instructions, input, name, schema }) {
-  if (!studioAiAvailable) throw Object.assign(new Error('AI generation requires a configured model.'), { status: 503 });
+async function respond(connection, { instructions, input, name, schema }) {
   const result = await openAIResponse({
-    model, max_output_tokens: 32000, instructions, input,
+    model: connection.model, max_output_tokens: 32000, instructions, input,
     text: { format: { type: 'json_schema', name, strict: true, schema } }
-  }, { timeout: 180000, problem: 'The model could not complete this request. Try again or use a local template.' });
+  }, { ...connection, timeout: 180000, problem: 'A OpenAI não concluiu a solicitação. Tente novamente ou use um modelo local.' });
   const content = result.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text');
-  if (result.status !== 'completed' || !content) throw Object.assign(new Error('The model did not return a complete page. Try a shorter description.'), { status: 422 });
+  if (result.status !== 'completed' || !content) throw Object.assign(new Error('A OpenAI retornou uma página incompleta. Tente uma descrição mais curta.'), { status: 422 });
   try { return JSON.parse(content.text); }
-  catch { throw Object.assign(new Error('The model returned an unreadable page.'), { status: 502 }); }
+  catch { throw Object.assign(new Error('A OpenAI retornou uma página em formato inválido.'), { status: 502 }); }
 }
 const object = properties => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
 
-export function generateSite(brief, template, reference = '') {
+export function generateSite(connection, brief, template, reference = '') {
   const kind = studioTemplates.find(item => item[0] === template);
-  return respond({
+  return respond(connection, {
     name: 'studio_site',
     schema: object({ name: { type: 'string' }, summary: { type: 'string' }, theme: { type: 'string', enum: studioThemes }, html: { type: 'string' } }),
     instructions: `You design and build the home page of a website from a short brief. Return a short project name, a one-sentence summary, the closest color theme, and the full HTML of the page.\n${rules}${reference ? '\nA summary of a reference website is included. Use only its structure and section order as inspiration. Do not copy its text, brand names or claims.' : ''}`,
@@ -49,8 +33,8 @@ export function generateSite(brief, template, reference = '') {
   });
 }
 
-export function revisePage({ html, instruction, selection = '' }) {
-  return respond({
+export function revisePage(connection, { html, instruction, selection = '' }) {
+  return respond(connection, {
     name: 'studio_revision',
     schema: object({ html: { type: 'string' }, change: { type: 'string' } }),
     instructions: `You edit an existing web page. Apply the requested change and return the complete updated HTML document plus one short sentence describing what changed, in the language of the request. Keep every part that the request does not mention exactly as it is.${selection ? ' A selected element is given: limit the change to that element unless the request clearly asks for more.' : ''}\n${rules}`,
@@ -58,8 +42,8 @@ export function revisePage({ html, instruction, selection = '' }) {
   });
 }
 
-export function generatePage({ name, description, home, slugs }) {
-  return respond({
+export function generatePage(connection, { name, description, home, slugs }) {
+  return respond(connection, {
     name: 'studio_page',
     schema: object({ html: { type: 'string' } }),
     instructions: `You add a new page to an existing website. Reuse the same CSS, fonts, colors, header, navigation and footer as the existing home page, so both pages look like one site. Add a navigation link to the new page where it fits.\n${rules}`,

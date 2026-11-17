@@ -14,7 +14,7 @@ const usd = v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: '
 const day = (d, time = false) => d ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', ...(time ? { hour: '2-digit', minute: '2-digit' } : {}) }).format(new Date(d)) : '—';
 const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(2)} MB`;
 const badge = (text, tone = '') => `<span class="badge ${tone}">${h(tr(text))}</span>`;
-const statusTone = { Active: 'green', Paused: 'gold', Closed: 'red', Won: 'green', Lost: 'red', Trial: 'blue', Cancelled: 'red', Requested: 'blue', Withdrawn: '', Planned: 'blue', 'In progress': 'purple', Completed: 'green', Declined: 'red', 'Under review': '' };
+const statusTone = { Active: 'green', Paused: 'gold', Closed: 'red', Won: 'green', Lost: 'red', Trial: 'blue', Cancelled: 'red', Requested: 'blue', Withdrawn: '', Planned: 'blue', 'In progress': 'pink', Completed: 'green', Declined: 'red', 'Under review': '' };
 const tone = s => statusTone[s] || '';
 const initials = s => (s || '').split(/\s+/).slice(0, 2).map(p => p[0] || '').join('').toUpperCase() || 'AG';
 
@@ -35,13 +35,13 @@ const subTabs = {
   settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'], ['workflow', 'Workflows'],
     ['phone', 'Integração de telefone'], ['email-services', 'Serviços de e-mail'], ['emails', 'E-mails do sistema'], ['announcements', 'Comunicados'],
     ['workflow-premium', 'Workflow: recursos premium'], ['external-ai', 'Workflow: IA externa'], ['domain-purchase', 'Compra de domínios'],
-    ['private-integrations', 'Integrações privadas'], ['affiliates', 'Afiliados'], ['menu-links', 'Links de menu'], ['stripe', 'Stripe'], ['api-keys', 'Chaves de API'],
+    ['openai', 'OpenAI'], ['private-integrations', 'Integrações privadas'], ['affiliates', 'Afiliados'], ['menu-links', 'Links de menu'], ['stripe', 'Stripe'], ['api-keys', 'Chaves de API'],
     ['compliance', 'Conformidade'], ['labs', 'Recursos experimentais'], ['audit', 'Logs de auditoria'], ['storage', 'Armazenamento de mídia']]
 };
 
 export function startAgency(env) {
   const { app, overlay, api, flash, openWorkspace } = env;
-  const A = { data: null, page: 'dashboard', sub: '', query: '', status: '', category: '', selected: new Set(), chat: [], auditPage: 0, navOpen: true };
+  const A = { data: null, openAI: null, openAIOnly: false, page: 'dashboard', sub: '', query: '', status: '', category: '', selected: new Set(), chat: [], auditPage: 0, navOpen: true };
   const G = s => document.querySelector(s);
   const D = () => A.data.agency;
   const O = () => A.data.overview;
@@ -157,7 +157,6 @@ export function startAgency(env) {
       search: 'data-act="search"',
       extra: session ? '' : `<div class="ag-acting">${i('users', 15)}<label class="sr-only" for="ag-user-select">Agindo como</label><select id="ag-user-select" data-ag-user aria-label="Agindo como"><option value="">${h(D().profile.name)} (Dono da agência)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(tr(u.role))})</option>`).join('')}</select></div>`,
       tools: [
-        { icon: 'lang', label: 'Idioma', attr: 'data-act="language"' },
         { icon: 'phone', label: 'Discador', attr: 'data-act="dialer"' },
         { icon: 'meg', label: 'Novidades', attr: 'data-act="updates"', dot: true },
         { icon: 'bell', label: 'Notificações', attr: 'data-act="notifications"' },
@@ -394,6 +393,34 @@ export function startAgency(env) {
   };
 
   // ---- Settings ----------------------------------------------------------
+  const isOpenAIPage = () => A.page === 'settings' && A.sub === 'openai';
+  function openAISettings() {
+    const connection = A.openAI;
+    const title = '<h2>Chave de API da OpenAI</h2>';
+    if (A.data && !A.data.access.session) return `<section class="surface padded">${title}<p>Entre na sua conta para conectar uma chave.</p></section>`;
+    if (!connection) return `<section class="surface padded">${title}<p role="status">Carregando conexão…</p></section>`;
+    if (connection.error) return `<section class="surface padded">${title}<p role="alert">${h(connection.error)}</p>${btn('Tentar novamente', 'openai-retry')}</section>`;
+    return `<form class="surface padded settings-form" data-ag-form="openai-connect">
+      ${title}
+      <p class="dim">Use a chave do seu projeto da OpenAI para gerar páginas no AI Studio e testar agentes. O uso é cobrado no seu projeto.</p>
+      <p>${connection.configured ? `Chave conectada · final <code>${h(connection.last4)}</code> · ${h(connection.model)}` : 'Nenhuma chave conectada'}</p>
+      <label>${connection.configured ? 'Nova chave de API' : 'Chave de API'}<input name="apiKey" type="password" autocomplete="off" spellcheck="false" maxlength="512" placeholder="sk-…" required></label>
+      <a class="text-link" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">Gerenciar chaves na OpenAI</a>
+      <div class="inline-gap"><button type="submit" class="primary">${connection.configured ? 'Substituir chave' : 'Conectar chave'}</button>
+        ${connection.configured ? '<button type="button" class="secondary" data-ag="openai-disconnect">Desconectar</button>' : ''}</div>
+      <p class="form-status" role="alert"></p>
+    </form>`;
+  }
+  async function refreshOpenAI() {
+    const currentVisit = visit;
+    try {
+      const connection = await api('/api/openai');
+      if (currentVisit === visit) A.openAI = connection;
+    } catch (error) {
+      if (currentVisit === visit) A.openAI = { error: error.message };
+    }
+    if (currentVisit === visit && isOpenAIPage()) render();
+  }
   // Per-sub-account switches: access to the feature and rebilling its usage through the wallet.
   function featureTable(key) {
     const [, title, text, byDefault] = subFeatures.find(f => f[0] === key);
@@ -405,10 +432,11 @@ export function startAgency(env) {
       ${table(['Subconta', 'Recurso ativo', 'Rebilling ativo'], rows, empty('Nenhuma subconta encontrada', 'Crie uma subconta ou ajuste a busca.'))}`;
   }
   const settingsPages = {
-    profile: () => { const p = D().profile; return `<form class="surface padded settings-form" data-ag-form="profile"><h2>Dados pessoais</h2><div class="field-grid"><label>Nome<input name="first" required value="${h(p.first)}"></label><label>Sobrenome<input name="last" required value="${h(p.last)}"></label><label>E-mail<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" type="tel" value="${h(p.phone)}"></label><label>Idioma da plataforma<select name="language">${['Português (Brasil)', 'English (United States)', 'Español'].map(l => `<option ${p.language === l ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div><button class="primary">Salvar perfil</button><p class="form-status" role="alert"></p></form>`; },
+    openai: openAISettings,
+    profile: () => { const p = D().profile; return `<form class="surface padded settings-form" data-ag-form="profile"><h2>Dados pessoais</h2><div class="field-grid"><label>Nome<input name="first" required value="${h(p.first)}"></label><label>Sobrenome<input name="last" required value="${h(p.last)}"></label><label>E-mail<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" type="tel" value="${h(p.phone)}"></label></div><button class="primary">Salvar perfil</button><p class="form-status" role="alert"></p></form>`; },
     company: () => { const c = D().company; return `<form class="surface padded settings-form" data-ag-form="company"><h2>Empresa e White Label</h2><div class="field-grid"><label>Nome da empresa<input name="name" required value="${h(c.name)}"></label><label>Nome da marca (exibido na interface)<input name="brand" required maxlength="60" value="${h(c.brand)}"></label><label>Domínio White Label<input name="domain" placeholder="app.suaagencia.com.br" value="${h(c.domain)}"></label><label>Site institucional<input name="website" type="url" value="${h(c.website)}"></label><label>Telefone<input name="phone" type="tel" value="${h(c.phone)}"></label><label>Endereço comercial<input name="address" value="${h(c.address)}"></label><label>Cor primária da marca<input name="primary" type="color" value="${h(c.primary)}"></label><label>Fuso horário padrão<select name="timezone">${['America/Sao_Paulo', 'America/New_York', 'Europe/London', 'UTC'].map(z => `<option ${c.timezone === z ? 'selected' : ''}>${z}</option>`).join('')}</select></label><label>Moeda padrão<select name="currency">${['BRL', 'USD', 'EUR', 'GBP'].map(z => `<option ${c.currency === z ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
       <label>Logotipo da agência (PNG, JPEG, WebP; até 300 KB)<input type="file" name="logoFile" accept="image/png,image/jpeg,image/webp,image/gif"></label></div>${c.logo ? `<div class="inline-gap"><img class="ag-logo-preview" src="${h(c.logo)}" alt="Logo atual"><label class="check"><input type="checkbox" name="removeLogo"> Remover logo</label></div>` : ''}<p class="dim">O nome da marca, as cores e o logo são aplicados na visão da agência e em todas as subcontas vinculadas.</p><button class="primary">Salvar dados da empresa</button><p class="form-status" role="alert"></p></form>`; },
-    users: () => `<div class="page-head"><div><h2>Membros da equipe</h2><p class="dim">${A.data.access?.session ? 'Use o e-mail confirmado no Supabase para conceder acesso à equipe.' : 'Use “Agir como” para testar as permissões de um usuário.'}</p></div>${primary('Adicionar usuário', 'new-record', 'data-key="users"')}</div>${table(['Nome', 'Função', 'Acesso', 'Permissões de módulos', ''], D().users.map(u => `<tr><td><b>${h(`${u.first} ${u.last}`)}</b><br><small class="dim">${h(u.email)}</small></td><td>${badge(u.role, u.role.startsWith('Agency') ? 'purple' : 'blue')}</td><td><small>${u.role.startsWith('Agency') ? 'Todas as subcontas' : h(u.accounts.map(accountName).join(', ') || 'Nenhuma subconta')}</small></td><td><small>${u.permissions.length ? `${u.permissions.length} módulos permitidos` : 'Todos os módulos'}</small></td><td class="right inline-gap">${A.data.access?.session ? '' : btn('Agir como', 'act-as', `data-id="${u.id}"`)}${btn('Editar', 'edit-record', `data-key="users" data-id="${u.id}"`)}</td></tr>`), empty('Nenhum membro cadastrado', 'Adicione usuários e defina permissões específicas por subconta e módulo.'))}`,
+    users: () => `<div class="page-head"><div><h2>Membros da equipe</h2><p class="dim">${A.data.access?.session ? 'Use o e-mail confirmado no Supabase para conceder acesso à equipe.' : 'Use “Agir como” para testar as permissões de um usuário.'}</p></div>${primary('Adicionar usuário', 'new-record', 'data-key="users"')}</div>${table(['Nome', 'Função', 'Acesso', 'Permissões de módulos', ''], D().users.map(u => `<tr><td><b>${h(`${u.first} ${u.last}`)}</b><br><small class="dim">${h(u.email)}</small></td><td>${badge(u.role, u.role.startsWith('Agency') ? 'pink' : 'blue')}</td><td><small>${u.role.startsWith('Agency') ? 'Todas as subcontas' : h(u.accounts.map(accountName).join(', ') || 'Nenhuma subconta')}</small></td><td><small>${u.permissions.length ? `${u.permissions.length} módulos permitidos` : 'Todos os módulos'}</small></td><td class="right inline-gap">${A.data.access?.session ? '' : btn('Agir como', 'act-as', `data-id="${u.id}"`)}${btn('Editar', 'edit-record', `data-key="users" data-id="${u.id}"`)}</td></tr>`), empty('Nenhum membro cadastrado', 'Adicione usuários e defina permissões específicas por subconta e módulo.'))}`,
     billing: () => { const b = D().billing; const wallet = O().totals.wallet; return `<div class="ag-two"><form class="surface padded settings-form" data-ag-form="billing-plan"><h2>Plano da agência</h2><p class="dim">O plano é gravado localmente para cálculo de recursos; a alteração não gera cobrança automática no cartão.</p><div class="ag-plans">${agencyPlans.map(([name, price]) => `<label class="choice"><input type="radio" name="plan" value="${name}" ${b.plan === name ? 'checked' : ''}><strong>${name}</strong><span>${usd(price)}/mês</span></label>`).join('')}</div><button class="primary">Alterar plano</button><p class="form-status" role="alert"></p></form>
       <form class="surface padded settings-form" data-ag-form="auto-recharge"><h2>Saldo da carteira</h2><p class="ag-big">${usd(wallet)}</p><label class="check"><input type="checkbox" name="enabled" ${b.autoRecharge.enabled ? 'checked' : ''}> Notificar quando o saldo estiver baixo</label><div class="field-grid"><label>Saldo mínimo de alerta<input name="threshold" type="number" min="0" step="0.01" value="${b.autoRecharge.threshold}"></label><label>Valor sugerido de recarga<input name="amount" type="number" min="0" step="0.01" value="${b.autoRecharge.amount}"></label></div><div class="inline-gap"><button class="primary">Salvar regras</button>${btn('Registrar lançamento', 'wallet')}</div><p class="form-status" role="alert"></p></form></div>
       ${b.autoRecharge.enabled && wallet < b.autoRecharge.threshold ? `<p class="surface padded ag-warn">O saldo da carteira está abaixo de ${usd(b.autoRecharge.threshold)}. Registre uma recarga de ${usd(b.autoRecharge.amount)}.</p>` : ''}
@@ -457,7 +485,13 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
 
   // ---- Render ------------------------------------------------------------
   function render() {
-    if (!active() || !A.data) return;
+    if (!active()) return;
+    if (!A.data) {
+      if (A.openAIOnly && isOpenAIPage()) {
+        app.innerHTML = `<main class="page">${head('Configurações', '', '<a class="secondary" href="#dashboard">Voltar para a subconta</a>')}<div class="ag-settings">${openAISettings()}</div></main>`;
+      }
+      return;
+    }
     const prev = document.querySelector('#screen')?.scrollTop || 0;
     const page = pages[A.page] || pages.dashboard;
     document.title = 'soci';
@@ -478,7 +512,11 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     if (nextPage !== A.page) { A.query = ''; A.status = ''; A.category = ''; A.selected.clear(); A.auditPage = 0; }
     A.page = nextPage;
     A.sub = subTabs[A.page]?.some(t => t[0] === sub) ? sub : '';
-    if (A.data) { render(); return; }
+    if (A.data) {
+      render();
+      if (isOpenAIPage() && A.data.access.session && !A.openAI) await refreshOpenAI();
+      return;
+    }
     if (loading) return;
     const currentVisit = visit;
     loading = true;
@@ -487,9 +525,17 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       const data = await api('/api/agency');
       if (currentVisit !== visit || !active()) return;
       A.data = data;
+      A.openAIOnly = false;
       render();
+      if (isOpenAIPage() && data.access.session && !A.openAI) await refreshOpenAI();
     } catch (e) {
       if (currentVisit !== visit || !active()) return;
+      if (e.status === 403 && isOpenAIPage()) {
+        A.openAIOnly = true;
+        render();
+        await refreshOpenAI();
+        return;
+      }
       app.innerHTML = `<div class="boot"><h1>Visão da agência indisponível</h1><p>${h(e.message)}</p><a href="#dashboard">Voltar para o workspace</a></div>`;
     } finally {
       if (currentVisit === visit) loading = false;
@@ -500,6 +546,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     visit++;
     loading = false;
     A.data = null;
+    A.openAI = null;
+    A.openAIOnly = false;
   }
 
   // ---- Events -------------------------------------------------------------
@@ -520,6 +568,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const d = b.dataset, id = d.id;
     try {
       switch (d.ag) {
+        case 'openai-retry': A.openAI = null; render(); await refreshOpenAI(); break;
+        case 'openai-disconnect': confirmBox('Desconectar a chave da OpenAI?', 'Você precisará conectar outra chave para voltar a usar os recursos de IA.', 'openai-disconnect', '', 'Desconectar'); break;
         case 'go-profile': go('settings', 'company'); break;
         case 'nav': A.navOpen = !A.navOpen; render(); G('[data-ag="nav"]')?.focus(); break;
         case 'tab': go(A.page, d.sub); break;
@@ -643,6 +693,17 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       if (name.startsWith('record:')) { await act('save', { key: name.slice(7), id, data }); msg = id ? 'Alterações salvas.' : 'Criado com sucesso.'; }
       else if (name.startsWith('delete:')) { await act('delete', { key: name.slice(7), id }); msg = 'Excluído com sucesso.'; }
       else switch (name) {
+        case 'openai-connect':
+        case 'openai-disconnect': {
+          const connect = name === 'openai-connect';
+          const currentVisit = visit;
+          const connection = await api('/api/openai', connect ? { action: 'connect', apiKey: data.apiKey } : { action: 'disconnect' });
+          env.onOpenAIChange(connection);
+          if (currentVisit !== visit) return;
+          A.openAI = connection;
+          msg = connect ? 'Chave da OpenAI conectada.' : 'Chave da OpenAI desconectada.';
+          break;
+        }
         case 'ask': A.chat.push({ me: true, text: data.q }, { text: answer(data.q) }); msg = ''; break;
         case 'account': { const newId = await call('accounts', data); msg = 'Subconta criada.'; close(); dialog('Subconta criada com sucesso', `<p><b>${h(data.name)}</b> está pronta para uso.</p><div class="inline-gap">${btn('Acessar subconta agora', 'open-account', `data-id="${newId}"`, 'primary')}</div>`); keepOpen = true; break; }
         case 'account-meta': await act('account-meta', { id, data }); msg = 'Dados da subconta atualizados.'; break;

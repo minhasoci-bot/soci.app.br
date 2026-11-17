@@ -194,11 +194,11 @@ export function drawDashboardGauges(root) {
     paint.strokeStyle = getComputedStyle(canvas).getPropertyValue('--g-gauge-track').trim() || '#e4eaf7';
     paint.beginPath(); paint.arc(120,120,110,0,Math.PI*2); paint.stroke();
     paint.lineCap = 'round';
-    paint.strokeStyle = '#9b80f8';
+    paint.strokeStyle = '#ff00bb';
     if (value > 0) {
       paint.beginPath(); paint.arc(120,120,110,start,start+Math.PI*2*value/100); paint.stroke();
     } else {
-      paint.fillStyle = '#9b80f8';
+      paint.fillStyle = '#ff00bb';
       paint.beginPath(); paint.arc(120,10,8,0,Math.PI*2); paint.fill();
     }
   }

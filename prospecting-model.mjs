@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { auditAreas } from './ui/agency-data.js';
-import { blankProspecting, folded, prospectLeadStatus, prospectSections, prospectSources, prospectThemes } from './ui/prospecting-data.js';
+import { blankProspecting, folded, normalizeProspectTheme, prospectLeadStatus, prospectSections, prospectSources, prospectThemes } from './ui/prospecting-data.js';
 
 const now = () => new Date().toISOString();
 function bad(message,status = 400) { throw Object.assign(new Error(message),{status}); }
@@ -62,6 +62,8 @@ export function hydrateProspecting(agency) {
   const defaults = blankProspecting();
   agency.prospecting = { ...defaults,...agency.prospecting };
   agency.prospecting.brand = { ...defaults.brand,...agency.prospecting.brand };
+  agency.prospecting.brand.theme = normalizeProspectTheme(agency.prospecting.brand.theme);
+  for (const widget of agency.prospecting.widgets) widget.theme = normalizeProspectTheme(widget.theme);
   for (const row of agency.prospects) {
     row.source ||= 'Manual';
     row.categories ||= [];
@@ -104,9 +106,10 @@ function saveCategory(agency,id,data) {
 
 function saveWidget(agency,id,data) {
   const list = agency.prospecting.widgets;
+  const theme = normalizeProspectTheme(data.theme);
   const fields = { name:required(data.name,'o nome do widget',80), headline:required(data.headline,'o título do formulário',110),
     description:text(data.description,500), button:text(data.button,50) || 'Enviar', askPhone:enabled(data.askPhone),
-    active:enabled(data.active), audit:enabled(data.audit), theme:Object.hasOwn(prospectThemes,data.theme) ? data.theme : 'blue' };
+    active:enabled(data.active), audit:enabled(data.audit), theme:Object.hasOwn(prospectThemes,theme) ? theme : 'blue' };
   if (id) { Object.assign(record(list,id),fields); return id; }
   if (list.length >= 30) bad('Você pode criar até 30 widgets.');
   const widget = { ...fields, id:randomUUID(), created:now() };
@@ -150,8 +153,9 @@ export function runProspectingAction(agency,command) {
   if (op === 'widget') return saveWidget(agency,id,d);
   if (op === 'agent') return saveAgent(agency,id,d);
   if (op === 'brand') {
-    if (!Object.hasOwn(prospectThemes,d.theme)) bad('Escolha um tema.');
-    agency.prospecting.brand = { theme:d.theme, title:required(d.title,'o título do relatório',100),intro:text(d.intro,600),footer:text(d.footer,300) };
+    const theme = normalizeProspectTheme(d.theme);
+    if (!Object.hasOwn(prospectThemes,theme)) bad('Escolha um tema.');
+    agency.prospecting.brand = { theme, title:required(d.title,'o título do relatório',100),intro:text(d.intro,600),footer:text(d.footer,300) };
     return true;
   }
   if (op === 'sections') {

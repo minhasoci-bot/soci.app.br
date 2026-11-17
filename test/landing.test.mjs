@@ -14,7 +14,7 @@ async function start(options = { auth: null, allowLocalAccess: true }) {
   return { base, close: () => new Promise(resolve => server.close(resolve)) };
 }
 
-test('Landing page serves at / with login button, animations and modules', async t => {
+test('Landing page serves static content and preserves app and login entry points', async t => {
   const local = await start();
   t.after(local.close);
 
@@ -23,14 +23,11 @@ test('Landing page serves at / with login button, animations and modules', async
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /text\/html/);
   const html = await res.text();
-  assert.match(html, /<title>soci — Plataforma para Agências & Negócios Digitais<\/title>/);
+  assert.match(html, /<h1[^>]*>[^<]+<\/h1>/);
   assert.match(html, /Entrar na plataforma/);
   assert.match(html, /href="\/app"/);
-  assert.match(html, /id="neuro"/);
-  assert.match(html, /id="gallery"/);
-  assert.match(html, /id="prompt-form"/);
-  assert.match(html, /id="tb-wheel"/);
-  assert.match(html, /id="binary"/);
+  assert.match(html, /<details>\s*<summary>/);
+  assert.doesNotMatch(html, /<(?:script|link)\b[^>]*(?:src|href)="(?:https?:)?\/\//);
   assert.match(html, /id="login-dialog"/);
 
   // 1.1 GET / on app.soci.com serves the platform app directly
@@ -171,7 +168,7 @@ test('Google OAuth requires a PKCE verifier and rejects password sessions', asyn
   }
 });
 
-test('Google sessions isolate personal workspaces and honor agency permissions', async t => {
+test('Google accounts open empty agencies and existing agency permissions still apply', async t => {
   const store = createSqliteStore(':memory:');
   const ownerWorkspaceId = 'user-' + owner.id;
   await store.insert(ownerWorkspaceId, blank('Workspace pessoal do proprietário'));
@@ -180,18 +177,17 @@ test('Google sessions isolate personal workspaces and honor agency permissions',
   const forged = { 'X-Go-User': owner.id };
   assert.equal((await fetch(base + '/api/state', { headers: forged })).status, 401);
   const login = await oauthLogin(base, 'alice-oauth', '//another-site.example');
-  assert.equal(login.headers.get('location'), '/app');
+  assert.equal(login.headers.get('location'), '/app#agency/dashboard');
   const headers = { Cookie: cookies(login), ...forged };
   const list = await fetch(base + '/api/workspaces', { headers }).then(r => r.json());
-  assert.deepEqual(list.workspaces.map(w => w.id), ['user-' + alice.id]);
+  assert.deepEqual(list, { workspaces: [], agency: true });
   const personalPath = '/api/state?workspace=user-' + alice.id;
-  const personal = await fetch(base + personalPath, { headers }).then(r => r.json());
-  assert.deepEqual(personal.state.contacts, []);
-  assert.equal(personal.access.session.id, alice.id);
-  assert.equal(personal.access.agency, false);
+  assert.equal((await fetch(base + personalPath, { headers })).status, 404);
   assert.equal((await fetch(base + '/api/state?workspace=demo', { headers })).status, 403);
   assert.equal((await fetch(base + '/api/state?workspace=user-' + bob.id, { headers })).status, 403);
-  assert.equal((await fetch(base + '/api/agency', { headers })).status, 403);
+  const newAgency = await fetch(base + '/api/agency', { headers }).then(r => r.json());
+  assert.equal(newAgency.access.owner, true);
+  assert.deepEqual(newAgency.overview.accounts, []);
 
   const admin = await oauthLogin(base, 'owner-oauth');
   const adminHeaders = { Cookie: cookies(admin) };
@@ -220,14 +216,11 @@ test('Google sessions isolate personal workspaces and honor agency permissions',
   assert.deepEqual(memberState.access.modules, ['contacts']);
   assert.equal((await fetch(base + '/api/agency', { headers: memberHeaders })).status, 403);
 
-  const ownerMembership = await post(base, '/api/agency/action', {
-    type: 'save', key: 'users', data: { first: 'Alice', last: 'Test', email: alice.email, role: 'Agency Owner' }
-  }, adminHeaders);
-  assert.equal(ownerMembership.status, 200);
-  const memberAgency = await fetch(base + '/api/agency', { headers });
-  assert.equal(memberAgency.status, 200);
-  assert.equal((await memberAgency.json()).personalWorkspace.id, 'user-' + alice.id);
-  assert.equal((await fetch(base + personalPath, { headers })).status, 200);
+  const child = await post(base, '/api/workspaces', { name: 'Cliente Alice' }, headers);
+  assert.equal(child.status, 201);
+  const { id } = await child.json();
+  assert.equal((await fetch(base + '/api/state?workspace=' + id, { headers })).status, 200);
+  assert.equal((await fetch(base + '/api/state?workspace=' + id, { headers: adminHeaders })).status, 403);
   assert.equal((await fetch(base + ownerPath, { headers })).status, 403);
 
   const renewed = await fetch(base + '/api/workspaces', { headers: { Cookie: 'go_refresh=alice-oauth' } });
@@ -237,4 +230,88 @@ test('Google sessions isolate personal workspaces and honor agency permissions',
   assert.equal(logout.status, 200);
   assert.ok(logout.headers.getSetCookie().every(line => line.includes('Max-Age=0')));
   assert.equal((await fetch(base + '/api/workspaces', { headers })).status, 401);
+});
+
+test('Users in one agency supply their own OpenAI key for Studio and agent tests', async t => {
+  const store = createSqliteStore(':memory:');
+  const aliceKey = 'sk-fixture-alice-123456789012';
+  const bobKey = 'sk-fixture-bob-987654321098';
+  const html = '<!doctype html><html lang="pt-BR"><head><title>Site</title></head><body><h1>Site de teste</h1></body></html>';
+  const generations = [];
+  const { base, close } = await start({
+    auth: provider(), agencyOwnerId: alice.id, store, agentModel: 'fixture-model', openAISecret: 'fixture-encryption-secret',
+    async openAIRequest(url, options) {
+      assert.equal(new URL(url).origin, 'https://api.openai.com');
+      const key = options.headers.Authorization.slice('Bearer '.length);
+      if (options.method === 'GET') {
+        assert.equal(new URL(url).pathname, '/v1/models/fixture-model');
+        return [aliceKey, bobKey].includes(key) ? reply({ id: 'fixture-model' }) : reply({ error: 'invalid' }, 401);
+      }
+      assert.equal(new URL(url).pathname, '/v1/responses');
+      const body = JSON.parse(options.body);
+      assert.equal(body.model, 'fixture-model');
+      assert.equal(body.store, false);
+      const kind = body.text?.format.name || 'agent';
+      generations.push({ key, kind });
+      const answers = { studio_site: { name: 'Site de teste', summary: 'Resumo', theme: 'indigo', html },
+        studio_page: { html }, studio_revision: { html, change: 'Página atualizada' } };
+      return reply({ status: 'completed', output: [{ content: [{ type: 'output_text', text: answers[kind] ? JSON.stringify(answers[kind]) : 'Resposta de teste' }] }] });
+    }
+  });
+  t.after(close);
+  const aliceHeaders = { Cookie: cookies(await oauthLogin(base, 'alice-oauth')) };
+  assert.equal((await post(base, '/api/agency/action', { type: 'save', key: 'users', data: {
+    first: 'Bob', last: 'Test', email: bob.email, role: 'Account User', accounts: ['demo']
+  } }, aliceHeaders)).status, 200);
+  const bobHeaders = { Cookie: cookies(await oauthLogin(base, 'bob-oauth')) };
+  const connect = (apiKey, headers) => post(base, '/api/openai', { action: 'connect', apiKey }, headers);
+  const state = headers => fetch(base + '/api/state', { headers }).then(res => res.json());
+  const requestStudio = (route, data, headers = aliceHeaders) => post(base, '/api/studio' + route, data, headers);
+  const input = { brief: 'Site de teste', template: 'landing', mode: 'model' };
+
+  assert.equal((await connect(aliceKey, {})).status, 401);
+  assert.equal((await requestStudio('', input)).status, 503);
+  assert.equal(generations.length, 0);
+  const connection = await connect(aliceKey, aliceHeaders);
+  assert.equal(connection.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await connection.json(), { configured: true, last4: '9012', model: 'fixture-model' });
+  assert.equal((await connect('sk-fixture-invalid-123456789012', aliceHeaders)).status, 422);
+  assert.equal(JSON.stringify(await store.load('openai-' + alice.id)).includes(aliceKey), false);
+  assert.equal((await state(aliceHeaders)).features.studioAI, true);
+  assert.equal((await state(bobHeaders)).features.studioAI, false);
+  assert.equal((await requestStudio('', input, bobHeaders)).status, 503);
+
+  const created = await requestStudio('', input);
+  assert.equal(created.status, 201);
+  const { id } = await created.json();
+  const { doc } = await fetch(base + '/api/studio/doc?id=' + id, { headers: aliceHeaders }).then(res => res.json());
+  assert.equal((await requestStudio('/revise', { id, pageId: doc.pages[0].id, instruction: 'Revise o título' })).status, 200);
+  assert.equal((await requestStudio('/page', { id, action: 'add', name: 'Contato', ai: true })).status, 200);
+  const { agent } = await post(base, '/api/agents/create', { name: 'Atendimento' }, aliceHeaders).then(res => res.json());
+  const preview = { id: agent.id, revision: agent.revision, version: 'draft', messages: ['Olá'] };
+  assert.equal((await connect(bobKey, bobHeaders)).status, 200);
+  assert.equal((await post(base, '/api/agents/test', preview, bobHeaders).then(res => res.json())).reply, 'Resposta de teste');
+  assert.deepEqual(generations, [
+    { key: aliceKey, kind: 'studio_site' }, { key: aliceKey, kind: 'studio_revision' },
+    { key: aliceKey, kind: 'studio_page' }, { key: bobKey, kind: 'agent' }
+  ]);
+  assert.equal((await post(base, '/api/openai', { action: 'disconnect' }, aliceHeaders)).status, 200);
+  assert.equal((await state(aliceHeaders)).features.studioAI, false);
+  assert.equal((await state(bobHeaders)).features.studioAI, true);
+  assert.equal((await store.load('openai-' + alice.id)).token, undefined);
+  assert.equal((await requestStudio('', { ...input, mode: 'starter' })).status, 201);
+});
+
+test('Agency profiles force Brazilian Portuguese even with a legacy language value', async t => {
+  const store = createSqliteStore(':memory:');
+  const { base, close } = await start({ auth: null, allowLocalAccess: true, store });
+  t.after(close);
+  await store.change('agency', state => { state.profile.language = 'English (United States)'; });
+  const agency = await fetch(base + '/api/agency').then(res => res.json());
+  assert.equal(agency.agency.profile.language, 'Português (Brasil)');
+  for (const fields of [{}, { language: 'Español' }]) {
+    const saved = await post(base, '/api/agency/action', { type: 'profile', data: { first: 'Ana', last: 'Lima', ...fields } });
+    assert.equal(saved.status, 200);
+    assert.equal((await saved.json()).agency.profile.language, 'Português (Brasil)');
+  }
 });

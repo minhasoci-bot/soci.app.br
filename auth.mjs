@@ -141,7 +141,7 @@ export function createSupabaseAuth({ projectUrl, publishableKey, request = fetch
         prompt: 'select_account'
       }).href;
     },
-    async callback(req,res,params) {
+    async callback(req,res,params,destination = (_user,next) => next) {
       const stored = readCookie(req,GOOGLE_FLOW);
       writeCookie(req,res,GOOGLE_FLOW,'',0);
       const code = params.get('code');
@@ -152,8 +152,9 @@ export function createSupabaseAuth({ projectUrl, publishableKey, request = fetch
         if (!/^[a-zA-Z0-9_-]{43}$/.test(flow.verifier)) return retry;
         const session = await grant('pkce',{ auth_code: code, code_verifier: flow.verifier });
         if (!googleUser(session.user, session.access_token)) return retry;
+        const next = await destination(accountProfile(session.user), afterLogin(flow.next));
         saveSession(req,res,session);
-        return afterLogin(flow.next);
+        return afterLogin(next);
       } catch {
         return retry;
       }

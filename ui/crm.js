@@ -142,7 +142,7 @@ export function settingsTab(c, tab) {
   }
   if (tab === 'users') {
     const users = (c.agency?.users || []).filter(u => u.role.startsWith('Agency') || u.accounts?.includes(c.workspace));
-    return wrapIt(c.access?.agency ? `<a class="secondary" href="#agency/settings/users">${i('users', 16)} Gerenciar na agência</a>` : '', table(['Nome', 'Função', 'Acesso', 'Permissões'], users.map(u => `<tr><td><b>${h(u.name)}</b></td><td>${badge(u.role, u.role.startsWith('Agency') ? 'purple' : 'blue')}</td><td><small>${u.role.startsWith('Agency') ? 'Todas as subcontas' : 'Esta subconta'}</small></td><td><small>${u.permissions?.length ? `${u.permissions.length} módulos` : 'Todos os módulos'}</small></td></tr>`),
+    return wrapIt(c.access?.agency ? `<a class="secondary" href="#agency/settings/users">${i('users', 16)} Gerenciar na agência</a>` : '', table(['Nome', 'Função', 'Acesso', 'Permissões'], users.map(u => `<tr><td><b>${h(u.name)}</b></td><td>${badge(u.role, u.role.startsWith('Agency') ? 'pink' : 'blue')}</td><td><small>${u.role.startsWith('Agency') ? 'Todas as subcontas' : 'Esta subconta'}</small></td><td><small>${u.permissions?.length ? `${u.permissions.length} módulos` : 'Todos os módulos'}</small></td></tr>`),
       empty('Nenhum usuário com acesso', 'Os usuários são criados em Agência → Configurações → Equipe.', 'users')));
   }
   if (tab === 'objects') {

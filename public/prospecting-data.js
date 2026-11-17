@@ -4,7 +4,8 @@ export const prospectSections = {
   address:'Endereço', summary:'Pontuação geral', business:'Dados da empresa', website:'Site e tecnologia',
   listings:'Perfil no Google e presença local', reputation:'Avaliações e reputação', next:'Próximos passos'
 };
-export const prospectThemes = { blue:'Azul', violet:'Violeta', teal:'Verde', graphite:'Grafite' };
+export const prospectThemes = { blue:'Azul', pink:'Pink soci', teal:'Verde', graphite:'Grafite' };
+export const normalizeProspectTheme = theme => theme === 'violet' ? 'pink' : theme;
 
 export function blankProspecting() {
   return { categories:[], widgets:[], agents:[], brand:{ theme:'blue', title:'Auditoria de marketing', intro:'', footer:'' },

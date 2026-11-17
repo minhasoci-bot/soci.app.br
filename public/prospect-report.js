@@ -1,5 +1,5 @@
 import { auditAreas } from './agency-data.js';
-import { opportunityScore, prospectSections } from './prospecting-data.js';
+import { normalizeProspectTheme, opportunityScore, prospectSections } from './prospecting-data.js';
 
 export const escapeProspect = value => String(value ?? '').replace(/[&<>"']/g,char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const h = escapeProspect;
@@ -36,7 +36,7 @@ export function auditReport(report,{navigation = true} = {}) {
     reputation:`<p>${business.rating === null ? 'Nota pública não disponível.' : `${h(business.rating)} de 5${business.reviews == null ? '' : ` · ${h(business.reviews)} avaliações`}`}</p>`,
     next:`<div class="pr-report-grades">${auditAreas.map(([key,label]) => `<div><span>${h(label)}</span>${Number.isFinite(report.signals[key]) ? `<meter min="0" max="10" value="${report.signals[key]}" aria-label="${h(label)}"></meter><b>${report.signals[key]}/10</b>` : '<small>Não avaliado</small>'}</div>`).join('')}</div>`
   };
-  return `<article class="pr-audit pr-theme-${h(report.brand.theme)}"><header class="pr-audit-hero"><p>${h(report.brand.title)}</p><h1>${h(business.name)}</h1><small>Gerado em ${h(displayDate(report.generated))}</small>${report.brand.intro ? `<p>${h(report.brand.intro)}</p>` : ''}</header>
+  return `<article class="pr-audit pr-theme-${h(normalizeProspectTheme(report.brand.theme))}"><header class="pr-audit-hero"><p>${h(report.brand.title)}</p><h1>${h(business.name)}</h1><small>Gerado em ${h(displayDate(report.generated))}</small>${report.brand.intro ? `<p>${h(report.brand.intro)}</p>` : ''}</header>
     ${navigation ? `<nav aria-label="Seções do relatório">${sections.map(({key}) => `<a href="#audit-${key}">${prospectSections[key]}</a>`).join('')}</nav>` : ''}
     <div class="pr-audit-content">${sections.map(({key}) => box(key,bodies[key])).join('')}</div>${report.brand.footer ? `<footer>${h(report.brand.footer)}</footer>` : ''}</article>`;
 }
@@ -45,7 +45,7 @@ const doc = (title,body,styles = '<link rel="stylesheet" href="/prospecting.css"
 
 export const shareReportHtml = report => doc(report.business.name,auditReport(report));
 export function widgetHtml(widget, thanks = false, message = '') {
-  return doc(widget.headline,`<main class="pr-public-form pr-theme-${h(widget.theme)}"><h1>${h(widget.headline)}</h1>${widget.description ? `<p>${h(widget.description)}</p>` : ''}
+  return doc(widget.headline,`<main class="pr-public-form pr-theme-${h(normalizeProspectTheme(widget.theme))}"><h1>${h(widget.headline)}</h1>${widget.description ? `<p>${h(widget.description)}</p>` : ''}
     ${thanks ? '<p role="status">Recebemos seus dados. Obrigado!</p>' : `${message ? `<p role="alert">${h(message)}</p>` : ''}<form method="post">
       <label>Nome da empresa<input name="name" maxlength="140" required></label><label>E-mail<input type="email" name="email" maxlength="240" required></label>
       <label>Site<input name="website" maxlength="1600" inputmode="url"></label>${widget.askPhone ? '<label>Telefone<input type="tel" name="phone" maxlength="40"></label>' : ''}

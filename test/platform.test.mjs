@@ -186,5 +186,5 @@ test('Dashboard reports are independent of subsequent edits and Studio projects 
   const project = state.studioProjects.find(item => item.id === studio.body.id);
   assert.equal(project.starred,true);
   assert.equal(project.template,'portfolio');
-  assert.deepEqual(project.blocks.map(section => section.title),['Selected work','About','Contact']);
+  assert.deepEqual(project.blocks.map(section => section.title),['Trabalhos selecionados','Sobre','Contato']);
 });

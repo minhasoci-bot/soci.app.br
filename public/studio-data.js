@@ -1,17 +1,18 @@
 export const studioTemplates = [
-  ['landing','Landing page','Present a product, its benefits, and pricing.',['Features','How it works','Pricing']],
-  ['dashboard','Dashboard','Set up a dashboard with metrics and activity.',['Overview','Recent activity','Reports']],
-  ['store','E-commerce','Start a storefront with products and a cart.',['Collection','Product details','Checkout']],
-  ['portfolio','Portfolio','Showcase selected work and introduce yourself.',['Selected work','About','Contact']],
-  ['blog','Blog / CMS','Organize articles and categories.',['Latest articles','Topics','Archive']],
-  ['todo','Todo / Task Manager','Organize work into a task board.',['To do','In progress','Done']],
-  ['chat','Chat Application','Plan a conversation list and inbox.',['Conversations','Messages','New message']],
-  ['restaurant','Restaurant / Food Ordering','Display a menu with an order summary.',['Menu','Popular dishes','Your order']],
-  ['fitness','Fitness Tracker','Track workouts and progress.',['Training log','Exercises','Progress']],
-  ['social','Social Media Feed','Set up a feed, profile, and activity.',['Feed','Discover','Profile']],
-  ['calendar','Calendar / Scheduling','Present availability and scheduled events.',['Calendar','Availability','Upcoming']],
-  ['weather','Weather App','Lay out a forecast and location search.',['Current conditions','7-day forecast','Locations']]
+  ['landing','Página de vendas','Apresente um produto, seus benefícios e preços.',['Recursos','Como funciona','Preços']],
+  ['dashboard','Painel','Apresente métricas e atividades recentes.',['Visão geral','Atividade recente','Relatórios']],
+  ['store','Loja virtual','Crie uma vitrine de produtos com carrinho.',['Coleção','Detalhes do produto','Finalizar compra']],
+  ['portfolio','Portfólio','Mostre seu trabalho e apresente-se.',['Trabalhos selecionados','Sobre','Contato']],
+  ['blog','Blog / CMS','Organize artigos e categorias.',['Últimos artigos','Tópicos','Arquivo']],
+  ['todo','Gerenciador de tarefas','Organize o trabalho em um quadro de tarefas.',['A fazer','Em andamento','Concluído']],
+  ['chat','Aplicativo de mensagens','Monte uma lista de conversas com caixa de entrada.',['Conversas','Mensagens','Nova mensagem']],
+  ['restaurant','Restaurante e pedidos','Exiba um cardápio com resumo do pedido.',['Cardápio','Pratos populares','Seu pedido']],
+  ['fitness','Acompanhamento de treinos','Registre treinos e acompanhe o progresso.',['Registro de treinos','Exercícios','Progresso']],
+  ['social','Rede social','Monte um feed com perfil e atividades.',['Feed','Descobrir','Perfil']],
+  ['calendar','Calendário e agendamentos','Mostre horários disponíveis e eventos agendados.',['Calendário','Disponibilidade','Próximos eventos']],
+  ['weather','Previsão do tempo','Exiba a previsão com busca por localidade.',['Condições atuais','Previsão de 7 dias','Localidades']]
 ];
+export const studioModelos = studioTemplates;
 export const studioThemes = ['indigo','forest','amber','rose'];
 
 export function starterProject(brief, idea) {

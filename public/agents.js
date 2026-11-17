@@ -79,11 +79,11 @@ function agentEditor(agent, model) {
         </section>
       </section>
       <aside class="surface agent-preview" aria-label="Teste do agente">
-        <header><div><h2>Testar agente</h2><p class="dim" data-agent-model>${model ? h(model) : 'Modelo do AI Studio não configurado'}</p></div>
+        <header><div><h2>Testar agente</h2><p class="dim" data-agent-model>${model ? h(model) : 'OpenAI desconectada'}</p></div>
           <button class="icon-btn" type="button" data-agent-reset title="Nova conversa" aria-label="Nova conversa">${icon('refresh', 16)}</button></header>
         <label class="agent-preview-version">Versão<select data-agent-test-version><option value="draft">Rascunho</option><option value="published">Publicada</option></select></label>
         <div class="agent-transcript" role="log" aria-label="Conversa de teste">
-          <p class="dim">${model ? 'Envie uma mensagem de exemplo para conferir como o agente responde.' : 'Configure o modelo do AI Studio para habilitar as respostas de teste.'}</p>
+          <p class="dim">${model ? 'Envie uma mensagem de exemplo para conferir como o agente responde.' : '<a class="text-link" href="#agency/settings/openai">Conecte sua chave da OpenAI</a> para testar o agente.'}</p>
         </div>
         <form class="agent-message" data-agent-test>
           <label class="sr-only" for="agent-test-message">Mensagem de teste</label>
@@ -221,7 +221,7 @@ function mountEditor({ root, workspace, model, agent, request, updateAgent }) {
   }
   function showModel() {
     const selected = testVersion.value === 'published' ? agent.published?.model || model : model;
-    get('[data-agent-model]').textContent = selected || 'Modelo do AI Studio não configurado';
+    get('[data-agent-model]').textContent = model && selected ? selected : 'OpenAI desconectada';
   }
   function validDraft(report) {
     const invalid = [...form.elements].find(field => field.validity && (!field.validity.valid || (field.required && !field.value.trim())));

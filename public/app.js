@@ -59,8 +59,12 @@ async function openInitialWorkspace() {
   catch (e) {
     if (workspace !== c.workspace) return;
     if (![403,404].includes(e.status)) throw e;
-    const {workspaces:open} = await api('/api/workspaces');
+    const {workspaces:open,agency} = await api('/api/workspaces');
     if (workspace !== c.workspace) return;
+    if (!open.length && agency) {
+      if (c.mode !== 'agency') location.replace('#agency/dashboard');
+      return;
+    }
     if (!open.length) throw Error('Sua conta ainda não tem acesso a uma subconta.');
     c.workspace = open[0].id;
     c.dash = dashboardPreferences(c.workspace);
@@ -69,16 +73,31 @@ async function openInitialWorkspace() {
   }
 }
 function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
-  if(key==='agency'){ c.mode='agency'; leaveAgentEditor(); close(); agencyUI.show(tab,project); return; }
+  if(key==='agency'){
+    if (c.access && !c.access.agency) { location.replace('#dashboard'); return; }
+    c.mode='agency'; leaveAgentEditor(); close(); agencyUI.show(tab,project); return;
+  }
   if(c.mode==='agency'){ agencyUI.leave(); c.mode=''; renderedView=''; }
   if (!c.s) {
     app.innerHTML = bootScreen('Abrindo o soci…');
     openingWorkspace ??= openInitialWorkspace()
-      .then(() => { if (c.s && c.mode !== 'agency') route(); })
+      .then(() => {
+        if (c.s && c.mode !== 'agency') {
+          if ((!location.hash || location.hash === '#' || location.hash === '') && c.access?.agency) {
+            location.replace('#agency/dashboard');
+            return;
+          }
+          route();
+        }
+      })
       .catch(e => {
         if (c.mode !== 'agency') app.innerHTML = `<div class="boot boot-error" role="alert"><h1>Não foi possível abrir o workspace</h1><p>${h(e.message)}</p><a class="primary" href="${h(location.pathname + location.search + location.hash)}">Tentar de novo</a></div>`;
       })
       .finally(() => { openingWorkspace = null; });
+    return;
+  }
+  if ((!location.hash || location.hash === '#' || location.hash === '') && c.access?.agency) {
+    location.replace('#agency/dashboard');
     return;
   }
   if (key === 'ask-ai' || key === 'marketplace') { location.hash = '#dashboard'; return; }
@@ -88,7 +107,7 @@ const navItem=([id,pt,ico])=>({href:`#${id}`,label:pt,icon:ico,current:c.view===
 function appSidebar(brand){
   const items=nav.slice(0,-1).map((n,k)=>[n,k]).filter(([n])=>allowedView(n[0]));
   const links=(c.agency?.menuLinks||[]).map(l=>l.openIn==='Inside the app'?{href:`#link/${l.id}`,label:l.title,icon:l.icon,current:c.view==='link'&&c.tab===l.id}:{href:l.url,label:l.title,icon:l.icon,external:true});
-  return sidebar({label:'Navegação',home:'#dashboard',brand,mark:c.agency?.logo?`<img class="ag-logo" src="${h(c.agency.logo)}" alt="">`:logo,
+  return sidebar({label:'Navegação',home:c.access?.agency?'#agency/dashboard':'#dashboard',brand,mark:c.agency?.logo?`<img class="ag-logo" src="${h(c.agency.logo)}" alt="">`:logo,
     account:{name:c.s.profile.name,caption:'Subconta · trocar',attr:'data-act="workspaces"',tip:'Trocar de workspace'},
     toggle:'data-act="nav"',open:c.navOpen,
     groups:[{title:'Principal',items:items.filter(([,k])=>k<6).map(([n])=>navItem(n))},{title:'Crescimento',items:items.filter(([,k])=>k>=6).map(([n])=>navItem(n))},{title:'Atalhos',items:links}],
@@ -100,7 +119,7 @@ function appTopbar(){
   const profileLabel = session?.name || 'Perfil do workspace';
   const profileText = session?.name?.slice(0, 2).toUpperCase() || 'gr';
   return topbar({crumbs:[{label:c.s.profile.name,href:'#dashboard'},{label:page}],search:'data-act="search"',
-    tools:[{icon:'lang',label:'Idioma',attr:'data-act="language"'},{icon:'phone',label:'Discador',attr:'data-act="dialer"'},{icon:'meg',label:'Novidades',attr:'data-act="updates"',dot:true},{icon:'bell',label:'Notificações',attr:'data-act="notifications"'},{icon:'help',label:'Ajuda',attr:'data-act="help"'}],
+    tools:[{icon:'phone',label:'Discador',attr:'data-act="dialer"'},{icon:'meg',label:'Novidades',attr:'data-act="updates"',dot:true},{icon:'bell',label:'Notificações',attr:'data-act="notifications"'},{icon:'help',label:'Ajuda',attr:'data-act="help"'}],
     profile:{text:profileText,picture:session?.picture||'',label:profileLabel,attr:session?'data-act="account"':'data-go="settings"'}});
 }
 function render(){
@@ -508,7 +527,6 @@ document.addEventListener('click',async ev=>{
       case 'search':dialog('Buscar no workspace','<label>Encontre um módulo ou contato<input id="global-search" placeholder="Buscar módulos e contatos…" autocomplete="off"></label><div id="search-results"></div>');globalSearch('');break;
       case 'dialer':dialog('Discador','<p>O discador não está conectado. Chamadas de voz exigem a configuração de um provedor de telefonia autorizado.</p>');break;
       case 'updates':dialog('Novidades','<p>O soci está rodando localmente com tudo atualizado.</p>');break;
-      case 'language':dialog('Idioma','<p>O sistema está operando em Português (Brasil).</p>');break;
       case 'notifications':dialog('Notificações',`<p>${c.m.unread} mensage${c.m.unread===1?'m não lida':'ns não lidas'}.</p><button class="secondary" data-go="conversations">Abrir conversas</button>`);break;
       case 'help':dialog('Ajuda','<p>Gerencie contatos, oportunidades, agendamentos, formulários e automações. Acesse Configurações para gerenciar workspaces.</p><button class="secondary" data-go="dashboard">Abrir painel</button>');break;
       case 'reload':await load();render();flash('Workspace atualizado.');break;
@@ -666,10 +684,14 @@ document.addEventListener('submit',async ev=>{
 
 if(viewPath){
   try{const result=await api(`/api/view${viewPath}`), workspace=viewPath.split('/')[2]; document.title='soci';app.innerHTML=publicView(result,workspace);}
-  catch(e){app.innerHTML=`<div class="boot"><h1>Page unavailable</h1><p>${h(e.message)}</p><a href="/">Back to workspace</a></div>`;}
+  catch(e){app.innerHTML=`<div class="boot"><h1>Página indisponível</h1><p>${h(e.message)}</p><a href="/">Voltar para a plataforma</a></div>`;}
 }else{
   installDashboardControls({ c,dialog,close,render,load,mutate,flash,go });
-  agencyUI = startAgency({ app, overlay, api, flash, openWorkspace: useWorkspace });
+  agencyUI = startAgency({ app, overlay, api, flash, openWorkspace: useWorkspace, onOpenAIChange: connection => {
+    if (!c.features) return;
+    c.features.studioAI = connection.configured;
+    c.features.agentModel = connection.configured && allowedView('ai-agents') ? connection.model : '';
+  } });
   installStudio({ c, api, url, flash, render });
   crmEvents({ G, mutate, render, flash, dialog, close });
   socialEvents({ c, G, api, url, mutate, render, flash, dialog, close, load });
