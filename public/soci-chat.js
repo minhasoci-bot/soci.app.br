@@ -3,6 +3,7 @@
 import { Marked } from '/vendor/marked.js';
 import DOMPurify from '/vendor/purify.js';
 import { highlight } from '/highlight.js';
+import { logo as sociLogo } from './icons.js';
 
 const MAX_ATTACHMENTS = 10;
 const MAX_TEXT_FILE = 512 * 1024;
@@ -204,7 +205,6 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
       </div>
       <div class="sc-panel">
         <div class="sc-side-head">
-          <span class="sc-side-title"><span class="sc-side-title-dot" aria-hidden="true"></span>Conversas</span>
           <button type="button" class="sc-icon-btn" data-sc-action="toggle-sidebar" aria-label="Recolher histórico" title="Recolher histórico">${icon('sidebar', 18)}</button>
         </div>
         <nav class="sc-side-nav" aria-label="Ações do chat">
@@ -252,7 +252,7 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
         <button type="button" class="sc-scroll-down" data-sc="scroll-down" aria-label="Rolar até o fim" hidden>${icon('arrowDown', 17)}</button>
 
         <section class="sc-home">
-          <div class="sc-home-badge" aria-hidden="true">${icon('spark', 21)}</div>
+          <div class="sc-home-badge" aria-hidden="true">${sociLogo}</div>
           <h1 data-sc="home-title">Por onde começamos?</h1>
           <p class="sc-home-sub" data-sc="home-sub" hidden>Este chat não vai aparecer no histórico nem ser salvo.</p>
         </section>
@@ -646,7 +646,7 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     const row = el('div', 'sc-assistant-row');
     const av = el('div', 'sc-avatar');
     av.setAttribute('aria-hidden', 'true');
-    av.innerHTML = icon('spark', 15);
+    av.innerHTML = sociLogo;
     const body = el('div', 'sc-assistant-body');
     if (meta.reasoning) body.append(reasoningBlock(meta.reasoning, meta.reasoning_ms));
     const md = el('div', 'sc-markdown');
@@ -839,7 +839,7 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     const row = el('div', 'sc-assistant-row');
     const av = el('div', 'sc-avatar');
     av.setAttribute('aria-hidden', 'true');
-    av.innerHTML = icon('spark', 15);
+    av.innerHTML = sociLogo;
     const body = el('div', 'sc-assistant-body');
     const thinking = el('span', 'sc-thinking', 'Pensando');
     const md = el('div', 'sc-markdown streaming');
@@ -1475,11 +1475,18 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
         els.searchModal.close();
         openConversation(target.dataset.id);
         break;
-      case 'save-instructions':
-        settings.instructions = els.instructions.value.trim();
-        writeStorage(STORAGE_KEY, settings);
-        flash('Instruções personalizadas salvas.');
+      case 'save-instructions': {
+        const nextInstructions = els.instructions.value.trim();
+        try {
+          const saved = await api('/api/ask/settings', { instructions: nextInstructions });
+          settings.instructions = saved.instructions ?? nextInstructions;
+          writeStorage(STORAGE_KEY, settings);
+          flash('Instruções personalizadas salvas.');
+        } catch (err) {
+          flash(err.message || 'Não foi possível salvar as instruções.', true);
+        }
         break;
+      }
       case 'import':
         els.importInput.click();
         break;
@@ -1654,6 +1661,10 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
         state.model = data.config?.defaultModel || state.models[0] || 'local';
       }
       state.list = data.items || [];
+      if (typeof data.instructions === 'string') {
+        settings.instructions = data.instructions;
+        writeStorage(STORAGE_KEY, settings);
+      }
       state.loaded = true;
       render();
       if (targetConvId && state.conv?.id !== targetConvId) {

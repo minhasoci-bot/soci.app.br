@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
-import { supabaseFromEnv } from './storage.mjs';
+import { isDocument, supabaseFromEnv } from './storage.mjs';
 import { hydrateWorkspace } from './model.mjs';
 
 async function migrate() {
@@ -13,7 +13,8 @@ async function migrate() {
   let identical = 0;
   try {
     for (const { id, state } of source.prepare('SELECT id, state FROM workspaces ORDER BY rowid').all()) {
-      const snapshot = hydrateWorkspace(JSON.parse(state));
+      const parsed = JSON.parse(state);
+      const snapshot = isDocument(id) ? parsed : hydrateWorkspace(parsed);
       const inserted = await target.insert(id, snapshot);
       if (!isDeepStrictEqual(await target.load(id), snapshot)) {
         throw new Error(`Workspace ${id} differs in Supabase. Existing data was preserved.`);

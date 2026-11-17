@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeServer } from '../server.mjs';
-import { createSqliteStore } from '../storage.mjs';
+import { createSqliteStore, createSupabaseStore } from '../storage.mjs';
 
 async function start(opts = {}) {
   const store = opts.store || createSqliteStore(':memory:');
@@ -146,4 +146,67 @@ test('Pergunte à Soci static assets are served cleanly', async t => {
     const r = await fetch(local.base + path);
     assert.equal(r.status, 200, `${path} should be served`);
   }
+});
+
+test('Pergunte à Soci persists conversations and custom instructions through Supabase store rules', async t => {
+  const rows = new Map();
+  const storageKey = 'a'.repeat(64);
+  const supabaseStore = createSupabaseStore({
+    projectUrl: 'https://test.supabase.co',
+    publishableKey: 'sb_publishable_test',
+    storageKey,
+    async request(url, options = {}) {
+      assert.equal(options.headers['X-Go-Storage-Key'], storageKey);
+      const u = new URL(url);
+      const method = options.method || 'GET';
+      const idParam = u.searchParams.get('id')?.replace(/^eq\./, '');
+      const revParam = u.searchParams.get('revision')?.replace(/^eq\./, '');
+      if (method === 'POST') {
+        const body = JSON.parse(options.body);
+        assert.ok(body.state && typeof body.state === 'object' && !Array.isArray(body.state), 'state must be JSON object');
+        assert.ok(typeof body.state.profile?.name === 'string' && body.state.profile.name.length > 0, `Row ${body.id} must have profile.name`);
+        if (rows.has(body.id)) return new Response(JSON.stringify([]), { status: 200 });
+        rows.set(body.id, { id: body.id, name: body.state.profile.name, state: structuredClone(body.state), revision: 'rev-0' });
+        return new Response(JSON.stringify([{ id: body.id }]), { status: 201 });
+      }
+      if (method === 'PATCH') {
+        const body = JSON.parse(options.body);
+        assert.ok(typeof body.state?.profile?.name === 'string' && body.state.profile.name.length > 0, `PATCH ${idParam} must keep profile.name`);
+        const cur = rows.get(idParam);
+        if (!cur || (revParam && cur.revision !== revParam)) return new Response(JSON.stringify([]), { status: 200 });
+        cur.state = structuredClone(body.state);
+        cur.name = body.state.profile.name;
+        cur.revision = body.revision;
+        return new Response(JSON.stringify([{ id: idParam }]), { status: 200 });
+      }
+      if (idParam) {
+        const cur = rows.get(idParam);
+        return new Response(JSON.stringify(cur ? [structuredClone(cur)] : []), { status: 200 });
+      }
+      return new Response(JSON.stringify([...rows.values()].map(({ id, name }) => ({ id, name }))), { status: 200 });
+    }
+  });
+
+  const local = await start({ store: supabaseStore }); t.after(local.close);
+
+  // Save custom instructions and verify persistence in Supabase row
+  const savedSettings = await local.call('/api/ask/settings', { instructions: 'Responda sempre em tópicos objetivos.' });
+  assert.equal(savedSettings.status, 200);
+  assert.equal(savedSettings.body.instructions, 'Responda sempre em tópicos objetivos.');
+
+  const stateBefore = await local.call('/api/ask/state');
+  assert.equal(stateBefore.status, 200);
+  assert.equal(stateBefore.body.instructions, 'Responda sempre em tópicos objetivos.');
+
+  // Stream a conversation and verify chat-agency row in Supabase
+  const reply = await local.stream('/api/ask/conversation', {
+    action: 'next',
+    messages: [{ content: { content_type: 'text', parts: ['Quais são os próximos passos recomendados?'] } }]
+  });
+  assert.equal(reply.status, 200);
+  const chatRow = rows.get('chat-agency');
+  assert.ok(chatRow, 'chat-agency row should exist in Supabase go_workspaces');
+  assert.equal(chatRow.name, 'Pergunte à Soci');
+  assert.equal(chatRow.state.instructions, 'Responda sempre em tópicos objetivos.');
+  assert.equal(chatRow.state.conversations.length, 1);
 });

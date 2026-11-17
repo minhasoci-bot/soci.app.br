@@ -125,11 +125,13 @@ function createChatStore(store) {
     const id = chatRowId(agencyId);
     try {
       const row = await store.load(id);
+      if (!row.profile?.name) row.profile = { name: 'Pergunte à Soci', ...(row.profile || {}) };
+      if (typeof row.instructions !== 'string') row.instructions = '';
       if (!Array.isArray(row.conversations)) row.conversations = [];
       return row;
     } catch (err) {
       if (err.status !== 404) throw err;
-      await store.insert(id, { profile: { name: 'Pergunte à Soci' }, conversations: [] });
+      await store.insert(id, { profile: { name: 'Pergunte à Soci' }, instructions: '', conversations: [] });
       return store.load(id);
     }
   }
@@ -137,6 +139,8 @@ function createChatStore(store) {
   async function changeRow(agencyId, mutate) {
     await ensureRow(agencyId);
     return store.change(chatRowId(agencyId), row => {
+      if (!row.profile?.name) row.profile = { name: 'Pergunte à Soci', ...(row.profile || {}) };
+      if (typeof row.instructions !== 'string') row.instructions = '';
       if (!Array.isArray(row.conversations)) row.conversations = [];
       return mutate(row);
     });
@@ -153,6 +157,19 @@ function createChatStore(store) {
     async list(agencyId) {
       const row = await ensureRow(agencyId);
       return summarizeList(row.conversations);
+    },
+
+    async getInstructions(agencyId) {
+      const row = await ensureRow(agencyId);
+      return row.instructions || '';
+    },
+
+    async setInstructions(agencyId, instructions) {
+      const clean = typeof instructions === 'string' ? instructions.trim().slice(0, 4000) : '';
+      return changeRow(agencyId, row => {
+        row.instructions = clean;
+        return { instructions: row.instructions };
+      });
     },
 
     async get(agencyId, id) {
@@ -691,7 +708,11 @@ export function createAskHandler({ store, openAI, openAIRequest = fetch }) {
 
     if (op === 'state' && method === 'GET') {
       const provider = await resolveProvider({ openAI, session: who.session, request: openAIRequest });
-      const [models, items] = await Promise.all([provider.listModels(), chatStore.list(agencyId)]);
+      const [models, items, instructions] = await Promise.all([
+        provider.listModels(),
+        chatStore.list(agencyId),
+        chatStore.getInstructions(agencyId)
+      ]);
       return json({
         config: {
           mode: provider.mode,
@@ -699,8 +720,14 @@ export function createAskHandler({ store, openAI, openAIRequest = fetch }) {
           defaultModel: provider.defaultModel,
           models
         },
-        items
+        items,
+        instructions
       });
+    }
+
+    if (op === 'settings' && method === 'POST') {
+      const body = await readLargeJson(req);
+      return json(await chatStore.setInstructions(agencyId, body.instructions));
     }
 
     if (op === 'conversation' && method === 'GET') {
@@ -808,7 +835,8 @@ export function createAskHandler({ store, openAI, openAIRequest = fetch }) {
       const attachments = parent.metadata?.attachments || [];
 
       try {
-        const history = buildLLMHistory({ conv, leafId: parent.id, agency, overview, customInstructions: body.system_prompt });
+        const storedInstructions = typeof body.system_prompt === 'string' ? body.system_prompt : await chatStore.getInstructions(agencyId);
+        const history = buildLLMHistory({ conv, leafId: parent.id, agency, overview, customInstructions: storedInstructions });
         const result = await provider.stream({
           model,
           messages: history,

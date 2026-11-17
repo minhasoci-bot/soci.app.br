@@ -158,29 +158,12 @@
 }
 
 .sc-side-head {
-  height: 52px;
+  height: 48px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 10px 0 16px;
+  justify-content: flex-end;
+  padding: 0 10px;
   flex-shrink: 0;
-}
-
-.sc-side-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 750;
-  letter-spacing: -0.015em;
-  color: var(--sc-text);
-}
-
-.sc-side-title-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--g-brand, #ff00bb);
 }
 
 .sc-side-nav {
@@ -470,15 +453,20 @@
 }
 
 .sc-home-badge {
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   margin: 0 auto 14px;
   display: grid;
   place-items: center;
-  border-radius: 14px;
-  background: var(--g-brand-2-surface, #fff5ea);
-  border: 1px solid var(--g-brand-2-line, #fed5a7);
-  color: var(--g-brand-2, #fc972d);
+  border-radius: 16px;
+  background: var(--g-brand-surface, #fff0fa);
+  border: 1px solid var(--g-brand-line, #fccae9);
+}
+
+.sc-home-badge .g-mark {
+  width: 36px;
+  height: 36px;
+  display: block;
 }
 
 .sc-home h1 {
@@ -881,8 +869,13 @@
   place-items: center;
   background: var(--g-brand-surface, #fff0fa);
   border: 1px solid var(--g-brand-line, #fccae9);
-  color: var(--g-brand, #ff00bb);
   margin-top: 1px;
+}
+
+.sc-avatar .g-mark {
+  width: 22px;
+  height: 22px;
+  display: block;
 }
 
 .sc-assistant-body {
@@ -1496,5 +1489,10 @@
     width: 26px;
     height: 26px;
     border-radius: 8px;
+  }
+
+  .sc-avatar .g-mark {
+    width: 19px;
+    height: 19px;
   }
 }
