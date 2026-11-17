@@ -20,7 +20,7 @@ const initials = s => (s || '').split(/\s+/).slice(0, 2).map(p => p[0] || '').jo
 
 export const agencyNav = [
   ['ask', 'Pergunte à IA', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['saas', 'Configurador SaaS', 'chart'], ['prospecting', 'Prospecção', 'search'],
-  ['accounts', 'Subcontas', 'users'], ['snapshots', 'Snapshots de contas', 'box'], ['reselling', 'Revenda', 'tag'], ['addons', 'Complementos', 'gift'],
+  ['accounts', 'Subcontas', 'users'], ['snapshots', 'Snapshots de contas', 'box'], ['addons', 'Complementos', 'gift'],
   ['affiliate', 'Portal de afiliados', 'link'], ['templates', 'Biblioteca de templates', 'site'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
   ['saas-education', 'Educação SaaS', 'chart'], ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'], ['desktop-app', 'Aplicativo desktop', 'monitor'],
   ['marketplace', 'Marketplace de apps', 'apps'], ['settings', 'Configurações', 'gear']
@@ -28,11 +28,10 @@ export const agencyNav = [
 const subTabs = {
   prospecting: prospectRoutes,
   snapshots: [['mine', 'Meus snapshots'], ['imported', 'Snapshots importados'], ['shared', 'Snapshots compartilhados'], ['history', 'Histórico de cargas']],
-  reselling: [['subscription', 'Assinatura'], ['plans', 'Planos SaaS'], ['usage', 'Uso']],
   affiliate: [['dashboard', 'Painel'], ['reports', 'Relatórios de indicações'], ['payment', 'Dados de pagamento'], ['history', 'Histórico de pagamentos']],
   templates: [['all', 'Todos os templates'], ['mine', 'Meus templates'], ['installs', 'Instalações']],
   ideas: [['all', 'Todas'], ['Under review', 'Em análise'], ['Planned', 'Planejadas'], ['In progress', 'Em andamento'], ['Completed', 'Concluídas']],
-  saas: [['overview', 'Visão geral'], ['rebilling', 'Rebilling da carteira'], ['accounts', 'Subcontas SaaS']],
+  saas: [['overview', 'Visão geral'], ['plans', 'Planos SaaS'], ['rebilling', 'Rebilling da carteira'], ['accounts', 'Subcontas SaaS']],
   marketplace: [['all', 'Todos os apps'], ['installed', 'Apps instalados'], ['reselling', 'Revenda de apps'], ['earnings', 'Ganhos']],
   settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'], ['workflow', 'Workflows'],
     ['phone', 'Integração de telefone'], ['email-services', 'Serviços de e-mail'], ['emails', 'E-mails do sistema'], ['announcements', 'Comunicados'],
@@ -132,8 +131,8 @@ export function startAgency(env) {
       open: A.navOpen,
       groups: [
         { title: 'Visão geral', items: agencyNav.slice(0, 5).map(item) },
-        { title: 'Revenda', items: agencyNav.slice(5, 12).map(item) },
-        { title: 'Aprender e apps', items: agencyNav.slice(12, -1).map(item) },
+        { title: 'Subcontas', items: agencyNav.slice(5, 11).map(item) },
+        { title: 'Aprender e apps', items: agencyNav.slice(11, -1).map(item) },
         { title: 'Atalhos', items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: l.title, icon: l.icon, external: true })) }
       ],
       footer: [item(agencyNav.at(-1)), { href: '/', label: 'Página inicial', icon: 'external' }]
@@ -180,7 +179,7 @@ export function startAgency(env) {
   function answer(q) {
     const t = O().totals, list = accounts();
     q = q.toLowerCase();
-    if (/receita|mrr|revenue|money|plano|faturamento/.test(q)) return `A receita recorrente mensal (MRR) dos planos SaaS é de ${usd(t.mrr)} em ${t.active} subcontas ativas. ${D().plans.length ? '' : 'Nenhum plano SaaS foi criado ainda: crie um em Revenda → Planos SaaS.'}`;
+    if (/receita|mrr|revenue|money|plano|faturamento/.test(q)) return `A receita recorrente mensal (MRR) dos planos SaaS é de ${usd(t.mrr)} em ${t.active} subcontas ativas. ${D().plans.length ? '' : 'Nenhum plano SaaS foi criado ainda: crie um em Configurador SaaS → Planos SaaS.'}`;
     if (/contato|contatos|contact|biggest|most|maior/.test(q)) { const top = [...list].sort((a, b) => b.contacts - a.contacts)[0]; return top ? `${top.name} tem o maior número de contatos (${top.contacts}). A agência possui ${t.contacts} contatos no total.` : 'Ainda não há subcontas cadastradas.'; }
     if (/login|inativo|acesso|logged/.test(q)) { const idle = list.filter(a => !a.lastLogin); return idle.length ? `${idle.length} subconta(s) ainda não registraram login: ${idle.map(a => a.name).join(', ')}.` : 'Todas as subcontas registraram login recentemente.'; }
     if (/snapshot/.test(q)) return `${D().snapshots.length} snapshot(s) salvos, carregados ${D().snapshotLoads.length} vez(es) nas subcontas.`;
@@ -189,10 +188,8 @@ export function startAgency(env) {
   }
 
   pages['ai-suite'] = () => {
-    const ai = D().reselling['ai-employee'];
-    const enabled = accounts().filter(a => !ai.disabled.includes(a.id));
     const tools = [
-      ['Funcionário de IA', 'Uso ilimitado de recursos de IA para as subcontas assinantes.', `${enabled.length} de ${accounts().length} subcontas podem contratar por ${usd(ai.price)}/mês`, 'reselling'],
+      ['Funcionário de IA', 'Uso ilimitado de recursos de IA para as subcontas da agência.', 'Disponível em todas as subcontas', ''],
       ['AI Studio', 'Gere e edite protótipos de páginas e sites dentro de cada subconta.', 'Disponível em todas as subcontas', ''],
       ['Agentes de IA', 'Perfis de agentes inteligentes treinados por função para automatizar respostas.', 'Disponível em todas as subcontas', ''],
       ['Pergunte à IA', 'Assistente executivo com respostas baseadas nos registros da agência.', 'Nível da agência', 'ask']
@@ -205,10 +202,10 @@ export function startAgency(env) {
     const top = [...accounts()].sort((a, b) => b.contacts - a.contacts).slice(0, 8);
     return `<div class="page">${head('Painel da agência', `Boas-vindas, ${D().profile.first}. Métricas consolidadas das suas subcontas e registros da agência.`, primary('Criar subconta', 'new-account'))}
       ${D().stripe.connected ? '' : `<div class="surface padded ag-notice">${i('pay', 20)}<div><b>Os KPIs de faturamento usam registros locais</b><p>A receita dos planos é calculada a partir do plano SaaS atribuído a cada subconta. Uma conexão com o Stripe é necessária para processar pagamentos reais.</p></div><a class="secondary" href="#agency/marketplace">Ver integrações</a></div>`}
-      <div class="metrics">${metric('Receita recorrente mensal (MRR)', usd(t.mrr), 'Dos planos SaaS de contas ativas')}${metric('Subcontas ativas', `${t.active} <small>/ ${t.accounts}</small>`, `${t.paused} pausada(s) · ${t.closed} encerrada(s)`)}${metric('Novas neste mês', t.newThisMonth)}${metric('Tabela de revenda', usd(t.resale), `${usd(t.resaleProfit)} de margem potencial se todas assinarem`)}</div>
+      <div class="metrics">${metric('Receita recorrente mensal (MRR)', usd(t.mrr), 'Dos planos SaaS de contas ativas')}${metric('Subcontas ativas', `${t.active} <small>/ ${t.accounts}</small>`, `${t.paused} pausada(s) · ${t.closed} encerrada(s)`)}${metric('Novas neste mês', t.newThisMonth)}${metric('Planos SaaS cadastrados', D().plans.length, 'Disponíveis no Configurador SaaS')}</div>
       <div class="metrics">${metric('Contatos', t.contacts)}${metric('Oportunidades abertas', t.open)}${metric('Execuções de automação', t.runs)}${metric('Saldo da carteira', usd(t.wallet))}</div>
       <div class="ag-two"><section class="surface padded"><h2>Crescimento de subcontas</h2><p class="dim">Total de subcontas acumuladas no final de cada mês</p><div class="ag-chart">${growth.map(g => `<div class="ag-col"><b>${g.total}</b><span class="ag-colbar"><span data-h="${(g.total / max) * 100}"></span></span><small>${h(g.month.slice(5))}/${h(g.month.slice(2, 4))}</small></div>`).join('')}</div></section>
-      <section class="surface padded"><h2>Configuração da agência</h2>${[['Identidade da marca', D().company.domain || D().company.logo, 'settings/company'], ['Primeiro snapshot', D().snapshots.length, 'snapshots'], ['Planos SaaS', D().plans.length, 'reselling/plans'], ['Membros da equipe', D().users.length, 'settings/users'], ['Programa de afiliados', D().affiliate.accepted, 'affiliate']].map(([label, done, page]) => `<a class="line-item" href="#agency/${page}"><span>${done ? badge('Concluído', 'green') : badge('Pendente')} ${h(label)}</span>${i('arrow', 15)}</a>`).join('')}</section></div>
+      <section class="surface padded"><h2>Configuração da agência</h2>${[['Identidade da marca', D().company.domain || D().company.logo, 'settings/company'], ['Primeiro snapshot', D().snapshots.length, 'snapshots'], ['Planos SaaS', D().plans.length, 'saas/plans'], ['Membros da equipe', D().users.length, 'settings/users'], ['Programa de afiliados', D().affiliate.accepted, 'affiliate']].map(([label, done, page]) => `<a class="line-item" href="#agency/${page}"><span>${done ? badge('Concluído', 'green') : badge('Pendente')} ${h(label)}</span>${i('arrow', 15)}</a>`).join('')}</section></div>
       <h2 class="section-heading">Subcontas por atividade</h2>${table(['Subconta', 'Status', 'Plano', 'Contatos', 'Negócios abertos', 'Último acesso', ''], top.map(a => `<tr><td><b>${h(a.name)}</b></td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td>${a.contacts}</td><td>${a.open}</td><td>${day(a.lastLogin, true)}</td><td class="right">${btn('Acessar', 'open-account', `data-id="${a.id}"`)}</td></tr>`), empty('Nenhuma subconta cadastrada', 'Crie uma subconta para acompanhar as métricas aqui.'))}</div>`;
   };
 
@@ -234,7 +231,7 @@ export function startAgency(env) {
         <div class="ag-account-main"><h2>${h(a.name)}</h2><div class="inline-gap">${badge(a.status, tone(a.status))}${a.plan ? badge(a.plan, 'blue') : ''}</div><p class="dim">${h(a.address || 'Sem endereço')} · ${h(a.phone || 'Sem telefone')}</p></div>
         <dl class="ag-facts"><div><dt>Criada em</dt><dd>${day(a.created)}</dd></div><div><dt>Último acesso</dt><dd>${a.lastLogin ? day(a.lastLogin, true) : 'N/A'}</dd></div><div><dt>Contatos</dt><dd>${a.contacts}</dd></div><div><dt>Negócios abertos</dt><dd>${a.open}</dd></div></dl>
         <div class="inline-gap">${btn('Acessar subconta', 'open-account', `data-id="${a.id}"`, 'primary')}${btn('Editar', 'edit-account', `data-id="${a.id}"`)}</div></article>`).join('') || empty('Nenhuma subconta encontrada', 'Tente outros termos de busca ou limpe os filtros.')}</div>
-      ${D().plans.length ? '' : `<p class="dim ag-hint">Dica: crie planos SaaS na aba Revenda para atribuir um plano e precificação a cada subconta.</p>`}</div>`;
+      ${D().plans.length ? '' : `<p class="dim ag-hint">Dica: crie planos SaaS no Configurador SaaS para atribuir um plano e precificação a cada subconta.</p>`}</div>`;
   };
 
   function accountForm(preset = {}) {
@@ -261,20 +258,8 @@ export function startAgency(env) {
   };
 
   pages.reselling = () => {
-    const sub = A.sub || 'subscription';
-    const r = D().reselling;
-    const head1 = head('Revenda', 'Configure preços de revenda de produtos e controle quais subcontas podem adquiri-los.');
-    if (sub === 'plans') return `<div class="page">${head1}${tabs('reselling')}<div class="page-head"><h2>Planos SaaS</h2>${primary('Novo plano', 'new-record', 'data-key="plans"')}</div>
-      ${table(['Plano', 'Preço', 'Período de teste', 'Recursos inclusos', 'Subcontas assinantes', ''], D().plans.map(p => `<tr><td><b>${h(p.name)}</b></td><td>${usd(p.price)}/mês</td><td>${p.trialDays ? `${p.trialDays} dias` : '—'}</td><td><small>${h((p.features || '').split('\n').filter(Boolean).join(' · ') || '—')}</small></td><td>${accounts().filter(a => a.plan === p.name).length}</td><td class="right">${btn('Editar', 'edit-record', `data-key="plans" data-id="${p.id}"`)}</td></tr>`), empty('Nenhum plano SaaS cadastrado', 'Os planos definem o valor mensal utilizado no cálculo de receita recorrente.'))}
-      <h2 class="section-heading">Plano por subconta</h2>${table(['Subconta', 'Status', 'Plano', ''], accounts().map(a => `<tr><td>${h(a.name)}</td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td class="right">${btn('Alterar', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), '')}</div>`;
-    if (sub === 'usage') return `<div class="page">${head1}${tabs('reselling')}${table(['Subconta', 'Produtos habilitados', 'Total da tabela', 'Plano atual'], accounts().map(a => { const list = resellProducts.filter(p => a.resold.includes(p.key)); return `<tr><td><b>${h(a.name)}</b></td><td>${list.length} / ${resellProducts.length}</td><td>${usd(list.reduce((s, p) => s + r[p.key].price, 0))}/mês</td><td>${h(a.plan || '—')}</td></tr>`; }), '')}</div>`;
-    return `<div class="page">${head1}${tabs('reselling')}<div class="ag-products">${resellProducts.map(p => {
-      const cfg = r[p.key], enabled = accounts().filter(a => !cfg.disabled.includes(a.id));
-      return `<form class="surface padded ag-product" data-ag-form="resell" data-id="${p.key}"><div class="ag-product-head"><div><h2>${h(tr(p.name))}</h2><p class="dim">${h(p.text)}</p></div>${badge(p.kind)}</div>
-        <div class="ag-price"><div><small>Seu custo base</small><b>${usd(p.base)}</b></div><label><small>Preço cobrado do cliente / mês</small><input name="price" type="number" min="${p.base}" step="0.01" value="${cfg.price}" data-ag-price="${p.base}"></label><div><small>Sua margem de lucro</small><b data-ag-profit>${usd(cfg.price - p.base)}</b></div></div>
-        <details><summary>Acesso por subconta · habilitadas: ${enabled.length} · desabilitadas: ${accounts().length - enabled.length}</summary><div class="ag-checks">${accounts().map(a => `<label class="check"><input type="checkbox" name="enabled" value="${a.id}" ${cfg.disabled.includes(a.id) ? '' : 'checked'}> ${h(a.name)}</label>`).join('')}</div></details>
-        <button class="primary">Salvar alterações</button><p class="form-status" role="alert"></p></form>`;
-    }).join('')}</div></div>`;
+    location.replace('#agency/dashboard');
+    return '';
   };
 
   pages.addons = () => {
@@ -379,13 +364,16 @@ export function startAgency(env) {
     }
     const sub = A.sub || 'overview', inSaas = accounts().filter(a => s.accounts.includes(a.id));
     const pageHead = head('Configurador SaaS', `Modo SaaS ativo desde ${day(s.enabledAt)}.`, btn('Desativar modo SaaS', 'saas-mode', 'data-on=""'));
+    if (sub === 'plans') return `<div class="page">${pageHead}${tabs('saas')}<div class="page-head"><h2>Planos SaaS</h2>${primary('Novo plano', 'new-record', 'data-key="plans"')}</div>
+      ${table(['Plano', 'Preço', 'Período de teste', 'Recursos inclusos', 'Subcontas assinantes', ''], D().plans.map(p => `<tr><td><b>${h(p.name)}</b></td><td>${usd(p.price)}/mês</td><td>${p.trialDays ? `${p.trialDays} dias` : '—'}</td><td><small>${h((p.features || '').split('\n').filter(Boolean).join(' · ') || '—')}</small></td><td>${accounts().filter(a => a.plan === p.name).length}</td><td class="right">${btn('Editar', 'edit-record', `data-key="plans" data-id="${p.id}"`)}</td></tr>`), empty('Nenhum plano SaaS cadastrado', 'Os planos definem o valor mensal utilizado no cálculo de receita recorrente.'))}
+      <h2 class="section-heading">Plano por subconta</h2>${table(['Subconta', 'Status', 'Plano', ''], accounts().map(a => `<tr><td>${h(a.name)}</td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td class="right">${btn('Alterar', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), '')}</div>`;
     if (sub === 'rebilling') return `<div class="page">${pageHead}${tabs('saas')}<form class="surface padded settings-form" data-ag-form="saas-rebilling"><h2>Rebilling da carteira</h2><p class="dim">Multiplicador aplicado ao custo de uso cobrado das subcontas SaaS. 1× repassa o custo sem margem; o máximo é ${maxMarkup}×.</p>
       <div class="field-grid">${rebillProducts.map(([key, label]) => `<label>${h(tr(label))}<input name="${key}" type="number" min="1" max="${maxMarkup}" step="0.01" required value="${s.rebilling[key]}"></label>`).join('')}</div><button class="primary">Salvar markups</button><p class="form-status" role="alert"></p></form>
       <p class="dim ag-hint">Exemplo: com markup 1,5× um SMS de $0,0079 custa $0,0119 para o cliente e deixa $0,0040 de margem para a agência.</p></div>`;
     if (sub === 'accounts') return `<div class="page">${pageHead}${tabs('saas')}<div class="toolbar">${search('Buscar subcontas…')}</div>${table(['Subconta', 'Status', 'Plano', 'Valor mensal', 'Modo SaaS', ''], accounts().filter(a => match(a.name)).map(a => `<tr><td><b>${h(a.name)}</b></td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td>${a.planPrice ? `${usd(a.planPrice)}/mês` : '—'}</td><td>${sw(`Modo SaaS em ${a.name}`, s.accounts.includes(a.id), `data-ag-saas-account="${a.id}"`)}</td><td class="right">${btn('Alterar plano', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), empty('Nenhuma subconta', 'Crie uma subconta para ativar o modo SaaS nela.'))}</div>`;
     const mrr = inSaas.filter(a => a.status === 'Active').reduce((t, a) => t + a.planPrice, 0);
     const avg = rebillProducts.reduce((t, [k]) => t + s.rebilling[k], 0) / rebillProducts.length;
-    const steps = [['Criar planos SaaS', D().plans.length, 'reselling/plans'], ['Definir markups da carteira', rebillProducts.some(([k]) => s.rebilling[k] > 1), 'saas/rebilling'], ['Colocar subcontas no modo SaaS', inSaas.length, 'saas/accounts'], ['Conectar o Stripe', D().stripe.connected, 'settings/stripe']];
+    const steps = [['Criar planos SaaS', D().plans.length, 'saas/plans'], ['Definir markups da carteira', rebillProducts.some(([k]) => s.rebilling[k] > 1), 'saas/rebilling'], ['Colocar subcontas no modo SaaS', inSaas.length, 'saas/accounts'], ['Conectar o Stripe', D().stripe.connected, 'settings/stripe']];
     return `<div class="page">${pageHead}${tabs('saas')}<div class="metrics">${metric('Subcontas no modo SaaS', `${inSaas.length} <small>/ ${accounts().length}</small>`)}${metric('MRR das subcontas SaaS', usd(mrr), 'Planos de subcontas ativas')}${metric('Planos SaaS', D().plans.length)}${metric('Markup médio da carteira', `${avg.toFixed(2).replace('.', ',')}×`)}</div>
       <section class="surface padded"><h2>Configuração</h2>${steps.map(([label, done, page]) => `<a class="line-item" href="#agency/${page}"><span>${done ? badge('Concluído', 'green') : badge('Pendente')} ${h(label)}</span>${i('arrow', 15)}</a>`).join('')}</section></div>`;
   };

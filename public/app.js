@@ -444,7 +444,6 @@ function globalSearch(value){
       ['prospecting', 'Prospecção', 'search'],
       ['accounts', 'Subcontas', 'users'],
       ['snapshots', 'Snapshots de contas', 'box'],
-      ['reselling', 'Revenda', 'tag'],
       ['addons', 'Complementos', 'gift'],
       ['affiliate', 'Portal de afiliados', 'gift'],
       ['templates', 'Biblioteca de modelos', 'doc'],
