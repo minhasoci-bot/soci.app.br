@@ -268,7 +268,7 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
                 </div>
               </div>
               <label class="sr-only" for="sc-prompt">Pergunte à Soci</label>
-              <textarea id="sc-prompt" class="sc-text" data-sc="prompt" rows="1" placeholder="Pergunte à Soci sobre subcontas, receita, snapshots, equipe…" aria-label="Pergunte à Soci"></textarea>
+              <textarea id="sc-prompt" class="sc-text" data-sc="prompt" rows="1" placeholder="Pergunte à Soci sobre subcontas, receita, setups, equipe…" aria-label="Pergunte à Soci"></textarea>
               <button type="button" class="sc-icon-btn sc-mic" data-sc="dictate-btn" aria-label="Iniciar ditado" title="Ditar">${icon('mic', 18)}</button>
               <button type="submit" class="sc-send" data-sc="send-btn" aria-label="Enviar mensagem"></button>
             </div>

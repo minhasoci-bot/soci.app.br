@@ -154,3 +154,20 @@ label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:no
 .sub-wa-card p{max-width:440px;margin:0}
 .sub-wa-steps{margin:0;padding-left:18px;text-align:left;display:grid;gap:4px;font-size:13.5px;color:var(--g-ink-2,var(--muted))}
 .sub-wa-pair{width:100%;max-width:380px;text-align:left;margin-top:8px;padding-top:14px;border-top:1px solid var(--g-line,var(--line))}
+/* Setup Marketplace */
+.ag-mkt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr));gap:14px}
+.ag-mkt-card{display:flex;flex-direction:column;gap:12px;padding:18px;transition:border-color .16s,transform .16s}
+.ag-mkt-card:hover{border-color:var(--g-brand-line,var(--blue))}
+.ag-mkt-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.ag-mkt-card h3{margin:0;font-size:16px;line-height:1.3}
+.ag-mkt-sum{margin:0;font-size:13.5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ag-mkt-chips{display:flex;flex-wrap:wrap;gap:6px}
+.ag-mkt-chip{font-size:12px;padding:3px 8px;border-radius:999px;background:var(--g-surface-2,#f4f6f8);border:1px solid var(--g-line,var(--line));color:var(--g-ink-2,var(--dim))}
+.ag-mkt-foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--g-line,var(--line));display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ag-mkt-meta{font-size:12.5px;color:var(--dim);display:grid;gap:2px}
+.ag-mkt-detail{display:grid;gap:16px}
+.ag-mkt-desc{margin:0;line-height:1.55;font-size:14px}
+.ag-mkt-sections{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr));gap:10px}
+.ag-mkt-sec{padding:12px;border:1px solid var(--g-line,var(--line));border-radius:10px;background:var(--g-surface-2,#f8fafc)}
+.ag-mkt-sec h4{margin:0 0 6px;font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--dim)}
+.ag-mkt-sec ul{margin:0;padding-left:16px;display:grid;gap:4px;font-size:13px}

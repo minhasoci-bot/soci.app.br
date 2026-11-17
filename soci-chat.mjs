@@ -348,7 +348,7 @@ export function buildAgencyContext({ agency, overview }) {
     `MRR (planos SaaS ativos): ${fmtMoney(t.mrr)}`,
     `Subcontas: ${t.accounts} no total (${t.active} ativas, ${t.paused} pausadas, ${t.closed} encerradas, ${t.newThisMonth} novas neste mês)`,
     `Contatos totais: ${t.contacts} | Oportunidades abertas: ${t.open} | Execuções de automação: ${t.runs} | Saldo da carteira: ${fmtMoney(t.wallet)}`,
-    `Planos SaaS: ${agency.plans?.length || 0} | Snapshots salvos: ${agency.snapshots?.length || 0} (${agency.snapshotLoads?.length || 0} carregamentos) | Equipe: ${agency.users?.length || 0} usuário(s) | Prospects: ${agency.prospects?.length || 0}`
+    `Planos SaaS: ${agency.plans?.length || 0} | Setups de conta salvos: ${agency.snapshots?.length || 0} (${agency.snapshotLoads?.length || 0} carregamentos) | Equipe: ${agency.users?.length || 0} usuário(s) | Prospects: ${agency.prospects?.length || 0}`
   ];
   if (accounts.length) {
     lines.push('Subcontas cadastradas:');
@@ -372,7 +372,7 @@ export function localAgencyReply({ prompt, agency, overview, attachments = [] })
   const files = attachments.filter(a => a.kind === 'file');
   const images = attachments.filter(a => a.kind === 'image');
 
-  if (files.length && !/receita|mrr|contato|login|snapshot|plano|equipe|prospect|subconta|próximo|proximo/.test(q)) {
+  if (files.length && !/receita|mrr|contato|login|snapshot|setup|plano|equipe|prospect|subconta|próximo|proximo/.test(q)) {
     const fileList = files.map(f => `- **${f.name}** (${f.text.split('\n').length} linhas, ${f.text.length} caracteres)`).join('\n');
     const preview = files[0].text.slice(0, 600).trim();
     return `Recebi ${files.length === 1 ? 'o arquivo anexado' : `${files.length} arquivos anexados`}:\n\n${fileList}\n\nPrévia de **${files[0].name}**:\n\n\`\`\`\n${preview}${files[0].text.length > 600 ? '\n…' : ''}\n\`\`\`\n\n> Para análises generativas profundas de arquivos e imagens, conecte sua chave da OpenAI em **Configurações → OpenAI**.`;
@@ -404,10 +404,10 @@ export function localAgencyReply({ prompt, agency, overview, attachments = [] })
     return `### Subcontas sem registro de login\n\nEncontrei **${idle.length}** subconta(s) que ainda não realizaram login:\n\n${idle.map(a => `- **${a.name}** (${a.status}${a.plan ? ` · Plano ${a.plan}` : ''})`).join('\n')}\n\n**Sugestão:** envie um onboarding guiado ou agende uma sessão de ativação com os responsáveis dessas contas.`;
   }
 
-  if (/snapshot/.test(q)) {
+  if (/snapshot|setup|marketplace/.test(q)) {
     const snaps = agency.snapshots || [];
-    if (!snaps.length) return 'Você ainda não tem snapshots salvos.\n\nCrie um snapshot em **Snapshots de contas** a partir da sua melhor subconta para replicar pipelines, formulários, páginas e automações em novos clientes.';
-    return `### Snapshots da agência\n\nVocê possui **${snaps.length}** snapshot(s) salvos e **${agency.snapshotLoads?.length || 0}** carregamento(s) registrados:\n\n${snaps.slice(0, 10).map(s => `- **${s.name}** (v${s.version || 1}${s.shared ? ' · Compartilhado' : ''})`).join('\n')}`;
+    if (!snaps.length) return 'Você ainda não tem setups salvos na sua biblioteca.\n\nExplore o **Marketplace** em **Setups de conta** para adicionar setups prontos da Soci e da comunidade gratuitamente, ou crie um setup a partir da sua melhor subconta.';
+    return `### Setups de conta da agência\n\nVocê possui **${snaps.length}** setup(s) na biblioteca e **${agency.snapshotLoads?.length || 0}** carregamento(s) registrado(s):\n\n${snaps.slice(0, 10).map(s => `- **${s.name}** (v${s.version || 1}${s.published ? ' · Publicado no marketplace' : s.kind === 'marketplace' ? ` · Marketplace (${s.marketplaceAuthor || 'Soci'})` : ''})`).join('\n')}`;
   }
 
   if (/equipe|time|usuário|usuario|team|membro/.test(q)) {
@@ -424,19 +424,19 @@ export function localAgencyReply({ prompt, agency, overview, attachments = [] })
 
   if (/subconta|contas|clientes|resumo|visão geral|visao geral|painel|status/.test(q)) {
     const rows = accounts.slice(0, 10).map(a => `| ${a.name} | ${a.status} | ${a.plan || '—'} | ${a.contacts} | ${a.open} |`);
-    return `### Resumo executivo — ${agency.company?.name || 'Minha agência'}\n\n- **MRR:** ${fmtMoney(t.mrr)}\n- **Subcontas:** ${t.active} ativas / ${t.accounts} no total (${t.paused} pausadas, ${t.closed} encerradas)\n- **Contatos totais:** ${t.contacts}\n- **Oportunidades abertas:** ${t.open}\n- **Snapshots:** ${agency.snapshots?.length || 0} | **Equipe:** ${agency.users?.length || 0}\n\n${rows.length ? `| Subconta | Status | Plano | Contatos | Oportunidades |\n|---|---|---|---:|---:|\n${rows.join('\n')}` : ''}`;
+    return `### Resumo executivo — ${agency.company?.name || 'Minha agência'}\n\n- **MRR:** ${fmtMoney(t.mrr)}\n- **Subcontas:** ${t.active} ativas / ${t.accounts} no total (${t.paused} pausadas, ${t.closed} encerradas)\n- **Contatos totais:** ${t.contacts}\n- **Oportunidades abertas:** ${t.open}\n- **Setups de conta:** ${agency.snapshots?.length || 0} | **Equipe:** ${agency.users?.length || 0}\n\n${rows.length ? `| Subconta | Status | Plano | Contatos | Oportunidades |\n|---|---|---|---:|---:|\n${rows.join('\n')}` : ''}`;
   }
 
   if (/próximo|proximo|passo|recomend|sugest|melhorar|prioridade/.test(q)) {
     const next = [
       !agency.company?.domain && '**Configurar domínio White Label** em *Configurações → Empresa e marca*',
-      !agency.snapshots?.length && '**Criar o primeiro snapshot** a partir da sua melhor subconta em *Snapshots de contas*',
+      !agency.snapshots?.length && '**Criar o primeiro setup** a partir da sua melhor subconta em *Setups de conta*',
       !agency.plans?.length && '**Definir planos SaaS** para estruturar cobrança recorrente em *Configurador SaaS → Planos SaaS*',
       !agency.users?.length && '**Convidar sua equipe** em *Configurações → Equipe*',
       !agency.stripe?.connected && '**Conectar o Stripe** em *Configurações → Stripe* para cobrar assinaturas reais'
     ].filter(Boolean);
     if (!next.length) {
-      return `### Próximos passos recomendados\n\nA estrutura base da sua agência (**marca, snapshots, planos, equipe e faturamento**) já está configurada.\n\n**Foco sugerido agora:**\n1. Acompanhar subcontas com menos atividade no **Painel da agência**.\n2. Usar **Prospecção** para gerar auditorias e converter novos clientes em subcontas.\n3. Revisar oportunidades abertas (**${t.open}** no total).`;
+      return `### Próximos passos recomendados\n\nA estrutura base da sua agência (**marca, setups de conta, planos, equipe e faturamento**) já está configurada.\n\n**Foco sugerido agora:**\n1. Acompanhar subcontas com menos atividade no **Painel da agência**.\n2. Usar **Prospecção** para gerar auditorias e converter novos clientes em subcontas.\n3. Revisar oportunidades abertas (**${t.open}** no total).`;
     }
     return `### Próximos passos recomendados\n\nCom base nos registros atuais da agência, priorize:\n\n${next.map((item, idx) => `${idx + 1}. ${item}`).join('\n')}`;
   }
@@ -447,7 +447,7 @@ export function localAgencyReply({ prompt, agency, overview, attachments = [] })
     return `### Detalhes da subconta: ${mentioned.name}\n\n- **Status:** ${mentioned.status}\n- **Plano SaaS:** ${mentioned.plan || 'Sem plano atribuído'}\n- **Contatos:** ${mentioned.contacts}\n- **Oportunidades abertas:** ${mentioned.open}\n- **Último login:** ${mentioned.lastLogin || 'Ainda não registrou acesso'}`;
   }
 
-  return `Aqui está o panorama atual da **${agency.company?.name || 'sua agência'}** com base nos registros locais:\n\n- **MRR:** ${fmtMoney(t.mrr)} em **${t.active}** subconta(s) ativa(s)\n- **Contatos:** ${t.contacts} | **Oportunidades abertas:** ${t.open}\n- **Snapshots:** ${agency.snapshots?.length || 0} | **Equipe:** ${agency.users?.length || 0}\n\nVocê pode perguntar especificamente sobre **MRR e planos**, **ranking de contatos**, **subcontas sem login**, **snapshots**, **equipe**, **prospects** ou **próximos passos**.\n\n> **Dica:** conecte sua chave da OpenAI em **Configurações → OpenAI** para conversar livremente com modelos generativos usando todos os dados da agência em tempo real.`;
+  return `Aqui está o panorama atual da **${agency.company?.name || 'sua agência'}** com base nos registros locais:\n\n- **MRR:** ${fmtMoney(t.mrr)} em **${t.active}** subconta(s) ativa(s)\n- **Contatos:** ${t.contacts} | **Oportunidades abertas:** ${t.open}\n- **Setups de conta:** ${agency.snapshots?.length || 0} | **Equipe:** ${agency.users?.length || 0}\n\nVocê pode perguntar especificamente sobre **MRR e planos**, **ranking de contatos**, **subcontas sem login**, **setups de conta**, **equipe**, **prospects** ou **próximos passos**.\n\n> **Dica:** conecte sua chave da OpenAI em **Configurações → OpenAI** para conversar livremente com modelos generativos usando todos os dados da agência em tempo real.`;
 }
 
 // ---------- Provedor LLM (OpenAI conectada na Soci / env / Assistente local) ----------

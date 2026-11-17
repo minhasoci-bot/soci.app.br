@@ -497,7 +497,7 @@ export function extractSnapshot(workspace, include = snapshotAssets.map(a => a[0
   return { assets, counts };
 }
 
-export function applySnapshot(target, snapshot, mode = 'skip') {
+export function applySnapshot(target, snapshot, mode = 'skip', studioMap = null) {
   const map = {};
   const order = ['pipelines', 'stages', 'snippetFolders', 'forms', 'triggerLinks', 'pages', 'snippets', 'workflowFolders', 'workflows', 'courses', 'agents', 'studioProjects'];
   const report = { added: 0, overwritten: 0, skipped: 0 };
@@ -515,6 +515,7 @@ export function applySnapshot(target, snapshot, mode = 'skip') {
         if (mode === 'overwrite' && key !== 'pipelines') {
           if (key === 'agents') Object.assign(item, { active: Boolean(match.published), revision: uid() });
           Object.assign(match, { ...item, id: match.id, updated: now() });
+          if (key === 'studioProjects' && studioMap) studioMap.set(original.id, match.id);
           report.overwritten++;
         } else report.skipped++;
         continue;
@@ -522,6 +523,7 @@ export function applySnapshot(target, snapshot, mode = 'skip') {
       const id = uid();
       map[key].set(original.id, id);
       target[key].push({ ...item, id, created: now() });
+      if (key === 'studioProjects' && studioMap) studioMap.set(original.id, id);
       report.added++;
     }
   }

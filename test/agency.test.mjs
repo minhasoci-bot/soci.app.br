@@ -279,3 +279,101 @@ test('SaaS Configurator, sub-account feature switches, email domain and app rese
   agency = (await action(local, { type: 'app-uninstall', id: agency.apps.installs[0].id })).body.agency;
   assert.equal(agency.apps.installs.length, 0);
 });
+
+test('Setup marketplace serves official Soci setups, supports install into sub-accounts, and community publish/unpublish across agencies', async t => {
+  const local = await start(); t.after(local.close);
+
+  // 1. Official Soci setups are available out of the box
+  const initial = await local.call('/api/agency');
+  assert.equal(initial.status, 200);
+  const officials = initial.body.marketplace.filter(item => item.official);
+  assert.equal(officials.length, 5);
+  const clinic = officials.find(item => item.id === 'official-clinica-estetica');
+  assert.ok(clinic);
+  assert.equal(clinic.installs, 0);
+  assert.ok(clinic.preview.pipelines?.includes('Avaliação & Fechamento'));
+  assert.equal(clinic.assets, undefined, 'marketplace list payload strips heavy assets');
+
+  // 2. Installing an official setup saves it to agency library, bumps installs, and loads cleanly into a new sub-account
+  const installed = await local.call('/api/agency/marketplace-install', { id: clinic.id });
+  assert.equal(installed.status, 200);
+  const copyId = installed.body.result.snapshotId;
+  assert.equal(installed.body.marketplace.find(x => x.id === clinic.id).installs, 1);
+  const savedSnap = installed.body.agency.snapshots.find(s => s.id === copyId);
+  assert.equal(savedSnap.kind, 'marketplace');
+  assert.equal(savedSnap.official, true);
+
+  const subRes = await local.call('/api/agency/accounts', { name: 'Clínica Bela', snapshotId: copyId });
+  assert.equal(subRes.status, 200);
+  const subState = (await local.call(`/api/state?workspace=${subRes.body.result}`)).body.state;
+  assert.ok(subState.pipelines.some(p => p.name === 'Avaliação & Fechamento'));
+  assert.ok(subState.forms.some(f => f.name === 'Agendamento de Avaliação'));
+  assert.ok(subState.pages.every(p => p.active === false), 'pages always arrive as drafts');
+  assert.ok(subState.workflows.every(w => w.active === false), 'workflows always arrive as drafts');
+  assert.ok(subState.agents.some(a => a.name === 'Recepcionista da Clínica'));
+
+  // 3. Create a custom setup with a Studio site (including HTML) and publish it to the marketplace
+  const studioRes = await local.call('/api/studio?workspace=demo', {
+    mode: 'starter',
+    template: 'landing',
+    brief: 'Página de vendas para clínica odontológica'
+  });
+  assert.equal(studioRes.status, 201);
+  const createdProjId = studioRes.body.id;
+  const createdSnap = await local.call('/api/agency/snapshot-create', {
+    workspace: 'demo',
+    name: 'Setup Odonto VIP',
+    include: ['pipelines', 'stages', 'studioProjects']
+  });
+  assert.equal(createdSnap.status, 200);
+  const ownSnapId = createdSnap.body.result;
+
+  const published = await local.call('/api/agency/marketplace-publish', {
+    snapshotId: ownSnapId,
+    title: 'Odonto VIP Completo',
+    category: 'Saúde e Estética',
+    summary: 'Funil odontológico com site de alta conversão no Studio.',
+    description: 'Estrutura testada para clínicas odontológicas.',
+    tags: 'odonto, clínica, studio'
+  });
+  assert.equal(published.status, 200);
+  const listingId = published.body.result.listingId;
+  assert.equal(published.body.result.updated, false);
+  const listing = published.body.marketplace.find(x => x.id === listingId);
+  assert.ok(listing);
+  assert.equal(listing.mine, true);
+  assert.equal(listing.official, false);
+  assert.deepEqual(listing.tags, ['odonto', 'clínica', 'studio']);
+
+  // Updating the same snapshot's publication updates in place rather than duplicating
+  const updatedPub = await local.call('/api/agency/marketplace-publish', {
+    snapshotId: ownSnapId,
+    title: 'Odonto VIP v2',
+    category: 'Saúde e Estética',
+    summary: 'Versão revisada do funil odontológico.',
+    tags: 'odonto, premium'
+  });
+  assert.equal(updatedPub.status, 200);
+  assert.equal(updatedPub.body.result.updated, true);
+  assert.equal(updatedPub.body.result.listingId, listingId);
+  assert.equal(updatedPub.body.marketplace.filter(x => x.id === listingId).length, 1);
+
+  // Install the community setup and verify the Studio HTML row is cloned into the new sub-account
+  const commInstall = await local.call('/api/agency/marketplace-install', { id: listingId });
+  assert.equal(commInstall.status, 200);
+  const sub2 = await local.call('/api/agency/accounts', { name: 'Clínica Sorriso', snapshotId: commInstall.body.result.snapshotId });
+  assert.equal(sub2.status, 200);
+  const sub2State = (await local.call(`/api/state?workspace=${sub2.body.result}`)).body.state;
+  const clonedProj = sub2State.studioProjects.find(p => p.id !== createdProjId);
+  assert.ok(clonedProj);
+  const siteCheck = await local.call(`/api/studio/doc?workspace=${sub2.body.result}&id=${clonedProj.id}`);
+  assert.equal(siteCheck.status, 200);
+  assert.ok(siteCheck.body.doc.pages.length >= 1, 'Studio HTML pages are cloned with the setup');
+  assert.match(siteCheck.body.doc.pages[0].html, /^<!doctype html>/i);
+
+  // Unpublish removes from marketplace while existing local copy remains intact
+  const unpub = await local.call('/api/agency/marketplace-unpublish', { id: listingId });
+  assert.equal(unpub.status, 200);
+  assert.equal(unpub.body.marketplace.some(x => x.id === listingId), false);
+  assert.ok(unpub.body.agency.snapshots.some(s => s.id === commInstall.body.result.snapshotId));
+});

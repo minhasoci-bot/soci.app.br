@@ -676,7 +676,7 @@ function globalSearch(value){
       ['dashboard', 'Painel da agência', 'layout'],
       ['prospecting', 'Prospecção', 'search'],
       ['accounts', 'Subcontas', 'users'],
-      ['snapshots', 'Snapshots de contas', 'box'],
+      ['snapshots', 'Setups de conta', 'box'],
       ['affiliate', 'Portal de afiliados', 'gift'],
       ['templates', 'Biblioteca de modelos', 'doc'],
       ['partners', 'Parceiros', 'users'],

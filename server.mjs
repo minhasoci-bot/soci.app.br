@@ -13,6 +13,7 @@ import { agentBuildRequest, agentPreview, applyAgentDesign, editAgent, recordAge
 import { addPage, deletePage, findPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, userAccess } from './agency-model.mjs';
+import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { folded, prospectSearchText } from './ui/prospecting-data.js';
@@ -78,6 +79,7 @@ const commandModule = { 'social-post':'marketing', 'social-reschedule':'marketin
 const settingsCommands = new Set(['saas-mode','saas-rebilling','saas-account','workflow-builder','sub-feature','email-domain','email-domain-accounts','email-domain-remove','affiliate-pixel','profile','company','billing-plan','wallet','auto-recharge','system-email','labs','compliance','api-key','api-key-delete','private-integration','private-integration-delete']);
 const settingsRecords = new Set(['users','menuLinks','announcements']);
 const publicAgency = agency => ({ ...agency,
+  snapshots: (agency.snapshots || []).map(({ studioSites: _studioSites, ...rest }) => rest),
   apiKeys: agency.apiKeys.map(({ hash: _hash, ...rest }) => rest),
   privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest) });
 const stamp = () => new Date().toISOString();
@@ -108,6 +110,48 @@ export function makeServer({
   const listWorkspaces = async agencyId => (await store.list(workspaceOwner(agencyId))).filter(w => spaceId.test(w.id));
   const loadAgency = async id => hydrateAgency(await store.load(id));
   const changeAgency = (id, mutate) => store.change(id, state => mutate(hydrateAgency(state)));
+  async function loadMarketplace() {
+    try { return hydrateMarketplace(await store.load(MARKETPLACE_DOC_ID)); }
+    catch (e) {
+      if (e.status !== 404) throw e;
+      await store.insert(MARKETPLACE_DOC_ID, emptyMarketplace());
+      return hydrateMarketplace(await store.load(MARKETPLACE_DOC_ID));
+    }
+  }
+  async function changeMarketplace(mutate) {
+    await store.insert(MARKETPLACE_DOC_ID, emptyMarketplace());
+    return store.change(MARKETPLACE_DOC_ID, doc => mutate(hydrateMarketplace(doc)));
+  }
+  async function extractStudioSites(assets) {
+    const sites = {};
+    for (const project of assets.studioProjects || []) {
+      try {
+        const doc = await store.load(siteRowId(project.id));
+        const copy = structuredClone(doc);
+        copy.published = false;
+        if (copy.stats) copy.stats = { visits: 0, leads: 0 };
+        sites[project.id] = copy;
+      } catch (e) { if (e.status !== 404) throw e; }
+    }
+    return sites;
+  }
+  async function applyStudioSites(snap, studioMap, targetWorkspaceId) {
+    if (!snap.studioSites || !studioMap?.size) return;
+    for (const [oldId, newId] of studioMap.entries()) {
+      const sourceDoc = snap.studioSites[oldId];
+      if (!sourceDoc) continue;
+      const copy = structuredClone(sourceDoc);
+      copy.profile = { name: copy.profile?.name || 'Studio Site' };
+      copy.workspace = targetWorkspaceId;
+      copy.projectId = newId;
+      copy.published = null;
+      copy.updatedAt = stamp();
+      if (Array.isArray(copy.pages)) copy.pages = copy.pages.map(pg => ({ ...pg, id: uid() }));
+      const rowId = siteRowId(newId);
+      const inserted = await store.insert(rowId, copy);
+      if (!inserted) await store.change(rowId, state => Object.assign(state, copy));
+    }
+  }
   const logTo = (agency, who, action, target = '', details = '') => {
     agency.audit.push({ id: uid(), at: stamp(), actor: who.name, action, target, details });
     if (agency.audit.length > 1000) agency.audit.splice(0, agency.audit.length - 1000);
@@ -182,10 +226,14 @@ export function makeServer({
   async function agencyPayload(req, res, extra = {}, previousAccess) {
     const { agency, who } = await accessContext(req,await verifiedUser(req,res),previousAccess);
     if (!who.agency) throw error('Your user cannot open the agency view.',403);
-    const [workspaces, personalWorkspace] = await Promise.all([listWorkspaces(who.agencyId), existingPersonalWorkspace(who)]);
+    const [workspaces, personalWorkspace, marketplaceDoc] = await Promise.all([
+      listWorkspaces(who.agencyId),
+      existingPersonalWorkspace(who),
+      loadMarketplace()
+    ]);
     ensureAccounts(agency, workspaces);
     const states = await Promise.all(workspaces.map(async w => ({ ...w, state: await store.load(w.id) })));
-    return { agency: publicAgency(agency), overview: agencyOverview(agency, states), workspaces, personalWorkspace, access: who,
+    return { agency: publicAgency(agency), overview: agencyOverview(agency, states), marketplace: publicMarketplaceList(marketplaceDoc, who.agencyId), workspaces, personalWorkspace, access: who,
       features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, ...extra };
   }
   async function recordAudit(who, action, target, details = '') {
@@ -204,13 +252,15 @@ export function makeServer({
     const agency = await loadAgency(who.agencyId);
     if (input.plan && !agency.plans.some(p => p.id === input.plan)) throw error('Choose a valid plan.',400);
     let loaded = null;
+    const studioMap = new Map();
     if (input.snapshotId) {
       const snap = agency.snapshots.find(item => item.id === input.snapshotId);
       if (!snap) throw error('Choose a valid snapshot.',400);
-      loaded = { snap, report: applySnapshot(state, snap) };
+      loaded = { snap, report: applySnapshot(state, snap, 'skip', studioMap) };
     }
     const newId = uid();
     await store.insert(newId, state);
+    if (loaded) await applyStudioSites(loaded.snap, studioMap, newId);
     await changeAgency(who.agencyId, a => {
       a.accounts[newId] = { name, status: 'Active', created: stamp(), lastLogin: '', plan: input.plan || '', address: String(input.address || '').slice(0,240), phone: state.profile.phone, website: '' };
       logTo(a, who, 'Sub-account created', name, loaded ? `Snapshot ${loaded.snap.name}` : '');
@@ -408,15 +458,16 @@ export function makeServer({
       const name = prior ? prior.name : String(input.name || '').trim().slice(0,100);
       if (!name) throw error('Snapshot name is required.',400);
       const { assets, counts } = extractSnapshot(await store.load(source), include);
+      const studioSites = await extractStudioSites(assets);
       return changeAgency(who.agencyId, a => {
         if (prior) {
           const snap = a.snapshots.find(s => s.id === prior.id);
-          Object.assign(snap, { assets, counts, updated: stamp(), version: (snap.version || 1) + 1 });
+          Object.assign(snap, { assets, studioSites, counts, updated: stamp(), version: (snap.version || 1) + 1 });
           logTo(a, who, 'Snapshot refreshed', snap.name, `Version ${snap.version}`);
           return snap.id;
         }
         if (a.snapshots.length >= 50) throw error('You can keep up to 50 snapshots.',400);
-        const snap = { id: uid(), name, kind: 'mine', workspace: source, include, assets, counts, version: 1, created: stamp(), updated: stamp(), shareCode: '', shared: false };
+        const snap = { id: uid(), name, kind: 'mine', workspace: source, include, assets, studioSites, counts, version: 1, created: stamp(), updated: stamp(), shareCode: '', shared: false };
         a.snapshots.push(snap);
         logTo(a, who, 'Snapshot created', name);
         return snap.id;
@@ -430,7 +481,9 @@ export function makeServer({
       const mode = input.mode === 'overwrite' ? 'overwrite' : 'skip';
       const loads = [];
       for (const target of targets) {
-        const report = await store.change(target.id, state => applySnapshot(state, snap, mode));
+        const studioMap = new Map();
+        const report = await store.change(target.id, state => applySnapshot(state, snap, mode, studioMap));
+        await applyStudioSites(snap, studioMap, target.id);
         loads.push({ id: uid(), snapshotId: snap.id, snapshot: snap.name, workspace: target.id, account: target.name, at: stamp(), mode, ...report });
       }
       await changeAgency(who.agencyId, a => {
@@ -439,6 +492,75 @@ export function makeServer({
         logTo(a, who, 'Snapshot loaded', snap.name, targets.map(t => t.name).join(', '));
       });
       return loads;
+    }
+    if (op === 'marketplace-publish') {
+      const agency = await loadAgency(who.agencyId);
+      const snap = agency.snapshots.find(s => s.id === input.snapshotId && s.kind === 'mine');
+      if (!snap) throw error('Escolha um setup criado pela sua agência para publicar.',400);
+      const author = agency.company?.name || who.name || 'Agência da comunidade';
+      const { listing, updated } = await changeMarketplace(doc => publishToMarketplace(doc, {
+        agencyId: who.agencyId, author, snap, studioSites: snap.studioSites || {}, input
+      }));
+      await changeAgency(who.agencyId, a => {
+        const localSnap = a.snapshots.find(s => s.id === snap.id);
+        if (localSnap) {
+          Object.assign(localSnap, {
+            published: true,
+            marketplaceId: listing.id,
+            publishedVersion: listing.version,
+            marketplaceCategory: listing.category,
+            marketplaceSummary: listing.summary,
+            marketplaceDescription: listing.description,
+            marketplaceTags: listing.tags
+          });
+        }
+        logTo(a, who, updated ? 'Setup updated on marketplace' : 'Setup published to marketplace', listing.title, `v${listing.version}`);
+      });
+      return { listingId: listing.id, updated };
+    }
+    if (op === 'marketplace-unpublish') {
+      const removed = await changeMarketplace(doc => unpublishFromMarketplace(doc, { agencyId: who.agencyId, listingId: input.id }));
+      await changeAgency(who.agencyId, a => {
+        for (const s of a.snapshots) {
+          if (s.marketplaceId === removed.id) {
+            s.published = false;
+            s.marketplaceId = '';
+          }
+        }
+        logTo(a, who, 'Setup unpublished from marketplace', removed.title);
+      });
+      return removed.id;
+    }
+    if (op === 'marketplace-install') {
+      const listing = findMarketplaceSetup(await loadMarketplace(), input.id);
+      if (!listing) throw error('Setup não encontrado no marketplace.',404);
+      const copy = await changeAgency(who.agencyId, a => {
+        if (a.snapshots.length >= 50) throw error('Você atingiu o limite de 50 setups salvos na agência.',400);
+        const snap = {
+          id: uid(),
+          name: listing.title,
+          kind: 'marketplace',
+          workspace: '',
+          include: Object.keys(listing.assets || {}),
+          assets: structuredClone(listing.assets || {}),
+          studioSites: structuredClone(listing.studioSites || {}),
+          counts: structuredClone(listing.counts || {}),
+          version: listing.version || 1,
+          created: stamp(),
+          updated: stamp(),
+          shareCode: '',
+          shared: false,
+          marketplaceId: listing.id,
+          marketplaceAuthor: listing.author,
+          marketplaceCategory: listing.category,
+          official: Boolean(listing.official)
+        };
+        a.snapshots.push(snap);
+        logTo(a, who, 'Setup installed from marketplace', listing.title, listing.author);
+        return { snapshotId: snap.id, name: snap.name };
+      });
+      await changeMarketplace(doc => recordMarketplaceInstall(doc, listing.id));
+      return copy;
     }
     if (op === 'template-install') {
       const template = catalogTemplate(input.template, await loadAgency(who.agencyId));

@@ -139,7 +139,7 @@ export const learningTracks = {
   university: [
     ['start', 'Getting started', [
       ['u-1', 'Set up your agency profile', 'Fill in company details and branding so every sub-account inherits them.'],
-      ['u-2', 'Create your first sub-account', 'Create an account for a client and load a snapshot to start from a working setup.'],
+      ['u-2', 'Create your first sub-account', 'Create an account for a client and load an account setup to start ready.'],
       ['u-3', 'Invite your team', 'Add users with the right role and limit each one to the accounts they serve.']
     ]],
     ['crm', 'CRM and pipelines', [
@@ -165,7 +165,7 @@ export const learningTracks = {
       ['s-4', 'Turn products on per account', 'Enable a product only for the accounts that bought it.']
     ]],
     ['retention', 'Onboarding and retention', [
-      ['s-5', 'Snapshot-based onboarding', 'Load a standard snapshot so every new client starts with the same assets.'],
+      ['s-5', 'Setup-based onboarding', 'Load a standard account setup so every new client starts with the same assets.'],
       ['s-6', 'Announcements', 'Publish messages that appear inside your clients’ accounts.']
     ]]
   ]
@@ -181,7 +181,7 @@ export const systemEmailKeys = [
 export const labFeatures = [
   ['workflowAi', 'AI workflow builder', 'Describe a workflow and get a draft in the builder.'],
   ['newInbox', 'Unified inbox preview', 'Group conversations from every channel in one list.'],
-  ['bulkSnapshots', 'Bulk snapshot loading', 'Load one snapshot into several sub-accounts at once.'],
+  ['bulkSnapshots', 'Bulk setup loading', 'Load one account setup into several sub-accounts at once.'],
   ['darkSidebar', 'Compact sidebar', 'Narrower navigation for small screens.']
 ];
 
@@ -191,6 +191,17 @@ export const snapshotAssets = [
   ['pipelines', 'Pipelines'], ['stages', 'Pipeline stages'], ['workflows', 'Workflows'], ['forms', 'Forms'], ['pages', 'Pages'],
   ['snippetFolders', 'Snippet folders'], ['snippets', 'Snippets'], ['triggerLinks', 'Trigger links'], ['courses', 'Courses'],
   ['agents', 'AI agents'], ['studioProjects', 'Studio projects']
+];
+
+export const marketplaceCategories = [
+  'Saúde e Estética',
+  'Imobiliário',
+  'Agências e Serviços',
+  'Educação e Infoprodutos',
+  'Negócios Locais',
+  'E-commerce',
+  'B2B e SaaS',
+  'Outro'
 ];
 
 // SaaS Configurator: wallet products whose usage the agency can rebill with a markup (1× = at cost, up to 10×).
