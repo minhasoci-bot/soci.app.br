@@ -14,13 +14,6 @@ async function getApp() {
 }
 
 export default async function handler(req, res) {
-  if (req.url.startsWith('/debug')) {
-    res.setHeader('Content-Type', 'application/json');
-    return res.end(JSON.stringify({
-      url: req.url,
-      headers: req.headers
-    }, null, 2));
-  }
   const server = await getApp();
   server.emit('request', req, res);
 }

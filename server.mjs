@@ -370,7 +370,11 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
       const host = req.headers.host || '';
       if (!isVercel && !allowedHosts.includes(host)) throw error('Use the local address shown in the terminal.',403);
       const proto = req.headers['x-forwarded-proto'] || (req.socket?.encrypted ? 'https' : 'http');
-      const url=new URL(req.url,`${proto}://${host}`), p=url.pathname, method=req.method;
+      const url=new URL(req.url,`${proto}://${host}`);
+      let p = url.searchParams.get('__path') || url.pathname;
+      if (!p.startsWith('/')) p = '/' + p;
+      p = p.replace(/\/+/g, '/');
+      const method=req.method;
       if (!['GET','HEAD','POST'].includes(method)) throw error('Method not allowed.',405);
       if (method==='POST' && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
       if (p.startsWith('/api/')) await ready;
@@ -577,7 +581,7 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
         const f=staticFiles.has(p)?p:'/index.html';
         return send(200,staticFiles.get(f),method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
       }
-      throw error(`Page not found: method=${method} p=${p} url=${req.url}`,404);
+      throw error('Page not found.',404);
     } catch(e) {
       if (!e.status) console.error(e.message);
       if (!res.headersSent) json({error:e.status?e.message:'The workspace could not complete this request.'},e.status||500);
