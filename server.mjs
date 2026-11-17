@@ -7,9 +7,9 @@ import { blank, seed, uid, execute, metrics, find } from './model.mjs';
 import { createSqliteStore, supabaseFromEnv } from './storage.mjs';
 import { accountProfile, afterLogin, authFromEnv } from './auth.mjs';
 import { generatePage, generateSite, revisePage } from './studio-ai.mjs';
-import { replyAsAgent } from './agent-ai.mjs';
+import { designAgent, replyAsAgent } from './agent-ai.mjs';
 import { createOpenAI, openAIModel } from './openai.mjs';
-import { agentPreview, editAgent } from './agent-model.mjs';
+import { agentBuildRequest, agentPreview, applyAgentDesign, editAgent, recordAgentRun } from './agent-model.mjs';
 import { addPage, deletePage, findPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, userAccess } from './agency-model.mjs';
@@ -74,7 +74,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 
 export function makeServer({
   dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
-  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent,
+  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, designAgentConfig=designAgent,
   openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch,
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
 }={}) {
@@ -145,7 +145,7 @@ export function makeServer({
     return store.belongsToAgency(id,workspaceOwner(who.agencyId));
   }
   const canUseAgents = who => !who.modules || who.modules.includes('ai-agents');
-  const visibleState = (who, state) => canUseAgents(who) ? state : { ...state, agents: [] };
+  const visibleState = (who, state) => canUseAgents(who) ? state : { ...state, agents: [], agentRuns: [] };
   async function existingPersonalWorkspace(who) {
     if (!who.owner || !who.session) return;
     const id = personalId(who.session);
@@ -807,7 +807,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await agencyRequest(p.slice('/api/agency/'.length), who, await payload(req));
         return json(await agencyPayload(req,res, { result }, who));
       }
-      const agentAction = p.match(/^\/api\/agents\/(create|save|publish|unpublish|delete|test)$/);
+      const agentAction = p.match(/^\/api\/agents\/(create|save|publish|unpublish|move|delete|memory|test|build)$/);
       if (agentAction && method==='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
         const who = await access(req,res);
@@ -818,7 +818,16 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const preview = agentPreview(await store.load(id), input);
           const connection = localAccess && generateAgentReply !== replyAsAgent ? null : await openAI.requireConnection(who.session);
           const reply = await generateAgentReply({ ...preview, model: preview.model || agentModel }, connection);
-          return json({ reply });
+          const message = preview.messages.at(-1).content;
+          const run = await store.change(id, state => recordAgentRun(state, { agent: input.id, version: input.version, input: message, output: reply }));
+          return json({ reply, run });
+        }
+        if (operation === 'build') {
+          const build = agentBuildRequest(await store.load(id), input);
+          const connection = localAccess && designAgentConfig !== designAgent ? null : await openAI.requireConnection(who.session);
+          const { summary, draft } = await designAgentConfig(build, connection);
+          const agent = await store.change(id, state => applyAgentDesign(state, input, draft));
+          return json({ agent, summary });
         }
         const agent = await store.change(id, state => editAgent(state, operation, { ...input, model: agentModel }));
         if (!privateSpace.test(id) && operation !== 'save') {

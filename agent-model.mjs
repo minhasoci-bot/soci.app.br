@@ -1,26 +1,68 @@
 import { randomUUID } from 'node:crypto';
-import { agentDraft, agentLimits, agentRevision, changedAgentFields } from './ui/agents-data.js';
+import {
+  agentDraft, agentIcons, agentLimits, agentResources, agentRevision, agentTemplate as templateById, changedAgentFields,
+  memoryKinds, scheduleOptions, triggerType
+} from './ui/agents-data.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
+const text = value => (typeof value === 'string' ? value.trim() : '');
 
 function requiredText(value, limit, label) {
-  const text = typeof value === 'string' ? value.trim() : '';
-  if (!text || text.length > limit) fail(`Preencha ${label} com até ${limit.toLocaleString('pt-BR')} caracteres.`);
-  return text;
+  const result = text(value);
+  if (!result || result.length > limit) fail(`Preencha ${label} com até ${limit.toLocaleString('pt-BR')} caracteres.`);
+  return result;
 }
 
-function validateDraft(draft) {
+function optionalText(value, limit, label) {
+  const result = text(value);
+  if (result.length > limit) fail(`Use até ${limit.toLocaleString('pt-BR')} caracteres em ${label}.`);
+  return result;
+}
+
+function validTriggers(list) {
+  if (!Array.isArray(list) || list.length > agentLimits.triggers) fail(`Adicione até ${agentLimits.triggers} gatilhos.`);
+  const seen = new Set();
+  return list.flatMap(trigger => {
+    const type = triggerType(trigger?.type);
+    if (!type) fail('Escolha um gatilho da lista.');
+    let value = '';
+    if (type.field) {
+      value = requiredText(trigger.value, agentLimits.triggerValue, `o campo ${type.field.label.toLowerCase()} do gatilho`);
+      if (type.field.options && !type.field.options.includes(value)) fail(`Escolha a frequência entre ${scheduleOptions.join(', ')}.`);
+    }
+    const key = `${type.id}:${value.toLowerCase()}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [value ? { type: type.id, value } : { type: type.id }];
+  });
+}
+
+function validSubagents(list) {
+  if (!Array.isArray(list) || list.length > agentLimits.subagents) fail(`Adicione até ${agentLimits.subagents} subagentes.`);
+  return list.map(item => ({
+    name: requiredText(item?.name, agentLimits.subagentName, 'o nome do subagente'),
+    when: requiredText(item?.when, agentLimits.subagentWhen, 'quando o subagente é chamado'),
+    instructions: requiredText(item?.instructions, agentLimits.subagentInstructions, 'as instruções do subagente')
+  }));
+}
+
+function validDraft(draft) {
   if (!Array.isArray(draft.knowledge) || draft.knowledge.length > agentLimits.sources) {
     fail(`Adicione até ${agentLimits.sources} fontes de conhecimento.`);
   }
+  const resources = draft.resources && typeof draft.resources === 'object' ? draft.resources : {};
   return {
     name: requiredText(draft.name, agentLimits.name, 'o nome'),
-    role: requiredText(draft.role, agentLimits.role, 'a função'),
+    icon: agentIcons.includes(draft.icon) ? draft.icon : 'spark',
+    description: optionalText(draft.description, agentLimits.description, 'a descrição'),
     instructions: requiredText(draft.instructions, agentLimits.instructions, 'as instruções'),
     knowledge: draft.knowledge.map(source => ({
       title: requiredText(source?.title, agentLimits.sourceName, 'o título da fonte'),
       text: requiredText(source?.text, agentLimits.sourceText, 'o conteúdo da fonte')
-    }))
+    })),
+    triggers: validTriggers(draft.triggers ?? [{ type: 'chat' }]),
+    subagents: validSubagents(draft.subagents ?? []),
+    resources: Object.fromEntries(agentResources.map(([key]) => [key, resources[key] === true]))
   };
 }
 
@@ -30,39 +72,54 @@ function findAgent(state, id) {
   return agent;
 }
 
-export function editAgent(state, operation, input) {
+function checkRevision(agent, revision) {
+  if (revision !== agentRevision(agent)) fail('O agente foi alterado em outra sessão. Recarregue antes de editar novamente.', 409);
+}
+
+function created(state, input) {
+  const template = input.template ? templateById(input.template) : null;
+  if (input.template && !template) fail('Modelo de agente não encontrado.', 404);
+  const base = template ? validDraft(agentDraft(template)) : {
+    ...validDraft({
+      name: requiredText(input.name || 'Novo agente', agentLimits.name, 'o nome'),
+      description: input.description,
+      instructions: text(input.instructions) || 'Ajude o usuário com clareza. Faça perguntas quando precisar de mais contexto e informe quando não souber uma resposta.',
+      knowledge: []
+    })
+  };
   const at = new Date().toISOString();
-  if (operation === 'create') {
-    const agent = {
-      id: randomUUID(), created: at, revision: randomUUID(),
-      name: requiredText(input.name, agentLimits.name, 'o nome'),
-      role: 'Assistente de IA',
-      instructions: 'Ajude o usuário com clareza. Faça perguntas quando precisar de mais contexto e informe quando não souber uma resposta.',
-      knowledge: [], active: false
-    };
-    state.agents.push(agent);
-    return agent;
-  }
+  const agent = { id: randomUUID(), created: at, updated: at, revision: randomUUID(), ...base, folder: '', memory: [], active: false };
+  state.agents.push(agent);
+  return agent;
+}
+
+export function editAgent(state, operation, input) {
+  if (operation === 'create') return created(state, input);
   const agent = findAgent(state, input.id);
-  if (input.revision !== agentRevision(agent)) {
-    fail('O agente foi alterado em outra sessão. Recarregue antes de editar novamente.', 409);
-  }
+  const at = new Date().toISOString();
+  if (operation === 'memory') return editMemory(agent, input);
+  checkRevision(agent, input.revision);
   switch (operation) {
     case 'save':
-      Object.assign(agent, validateDraft(input));
+      Object.assign(agent, validDraft(input));
+      delete agent.role;
       break;
     case 'publish':
       if (agent.published && !changedAgentFields(agent).length && agent.published.model === input.model) return agent;
       agent.version = (agent.version || 0) + 1;
-      agent.published = { ...validateDraft(agentDraft(agent)), version: agent.version, at, model: input.model };
+      agent.published = { ...validDraft(agentDraft(agent)), version: agent.version, at, model: input.model };
       agent.active = true;
       break;
     case 'unpublish':
       agent.published = null;
       agent.active = false;
       break;
+    case 'move':
+      agent.folder = optionalText(input.folder, agentLimits.folder, 'o nome da pasta');
+      break;
     case 'delete':
       state.agents = state.agents.filter(item => item.id !== agent.id);
+      state.agentRuns = (state.agentRuns || []).filter(run => run.agent !== agent.id);
       return null;
     default:
       fail('Operação desconhecida.', 404);
@@ -72,19 +129,35 @@ export function editAgent(state, operation, input) {
   return agent;
 }
 
+// Memory is runtime data, not configuration: it never changes the revision an open editor holds.
+function editMemory(agent, input) {
+  agent.memory ||= [];
+  if (input.action === 'remove') {
+    agent.memory = agent.memory.filter(item => item.id !== input.memoryId);
+    return agent;
+  }
+  if (input.action !== 'add') fail('Operação de memória desconhecida.', 404);
+  if (!memoryKinds.some(([kind]) => kind === input.kind)) fail('Escolha o tipo de memória.');
+  if (agent.memory.length >= agentLimits.memory) fail(`O agente guarda até ${agentLimits.memory} memórias. Remova uma para adicionar outra.`);
+  agent.memory.push({ id: randomUUID(), kind: input.kind, text: requiredText(input.text, agentLimits.memoryText, 'a memória'), at: new Date().toISOString() });
+  return agent;
+}
+
 export function agentPreview(state, input) {
   const agent = findAgent(state, input.id);
   if (input.revision !== agentRevision(agent)) fail('O agente foi alterado. Recarregue a página para testar a versão atual.', 409);
   if (!['draft', 'published'].includes(input.version)) fail('Escolha o rascunho ou a versão publicada para testar.');
-  const draft = input.version === 'published' ? agent.published : agentDraft(agent);
-  if (!draft) fail('Publique uma versão do agente para testá-la.', 404);
+  const config = input.version === 'published' ? agent.published : agent;
+  if (!config) fail('Publique uma versão do agente para testá-la.', 404);
+  const draft = validDraft(agentDraft(config));
   const messages = input.messages;
   if (!Array.isArray(messages) || messages.length < 1 || messages.length > 9 || messages.length % 2 !== 1) {
     fail('Envie uma mensagem ou reinicie a conversa de teste.');
   }
   return {
-    draft: validateDraft(draft),
-    model: input.version === 'published' ? draft.model : undefined,
+    draft,
+    model: input.version === 'published' ? config.model : undefined,
+    memory: draft.resources.memory ? (agent.memory || []).map(({ kind, text: fact }) => ({ kind, text: fact })) : [],
     messages: messages.map((message, index) => ({
       role: index % 2 ? 'assistant' : 'user',
       content: requiredText(message, index % 2 ? 12000 : agentLimits.message, 'a mensagem')
@@ -92,7 +165,33 @@ export function agentPreview(state, input) {
   };
 }
 
+// The current draft plus a validated change request, for the builder chat.
+export function agentBuildRequest(state, input) {
+  const agent = findAgent(state, input.id);
+  checkRevision(agent, input.revision);
+  return { current: agentDraft(agent), request: requiredText(input.request, agentLimits.request, 'o pedido') };
+}
+
+// The builder may rewrite the configuration but never the knowledge sources.
+export function applyAgentDesign(state, input, design) {
+  const agent = findAgent(state, input.id);
+  const draft = { ...agentDraft(agent), ...design, knowledge: agentDraft(agent).knowledge };
+  return editAgent(state, 'save', { ...draft, id: input.id, revision: input.revision });
+}
+
+export function recordAgentRun(state, { agent, version, input, output }) {
+  state.agentRuns ||= [];
+  const run = {
+    id: randomUUID(), agent, version, at: new Date().toISOString(),
+    input: input.slice(0, 280), output: output.slice(0, 600)
+  };
+  state.agentRuns.unshift(run);
+  state.agentRuns.length = Math.min(state.agentRuns.length, 100);
+  return run;
+}
+
+// Snapshot copy: configuration only, never versions or what the agent remembers about people.
 export function agentTemplate(agent) {
-  const { published, version, revision, ...template } = agent;
-  return { ...template, ...agentDraft(agent), active: false };
+  const { published, version, revision, memory, role, ...template } = agent;
+  return { ...template, ...agentDraft(agent), memory: [], active: false };
 }

@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeServer } from '../server.mjs';
 
-async function start(t, generateAgentReply, agentModel = 'fixture-model') {
+async function start(t, generateAgentReply, agentModel = 'fixture-model', designAgentConfig) {
   const { server, host } = makeServer({
     dbPath: ':memory:', port: 0, auth: null, allowLocalAccess: true,
-    socialScheduler: false, agentModel, generateAgentReply
+    socialScheduler: false, agentModel, generateAgentReply, ...(designAgentConfig && { designAgentConfig })
   });
   await new Promise(resolve => server.listen(0, host, resolve));
   t.after(() => new Promise(resolve => server.close(resolve)));
@@ -72,4 +72,62 @@ test('Agent routes honor module and workspace permissions and snapshots start fr
   assert.equal((await request('/api/agents/create', { name: 'Bloqueado' }, headers)).status, 403);
   assert.deepEqual((await request('/api/state', undefined, headers)).state.agents, []);
   assert.deepEqual((await request('/api/action', { type: 'save', key: 'contacts', data: { name: 'Contato' } }, headers)).state.agents, []);
+});
+
+test('Studio agents start from templates, keep triggers, subagents and resources, and log each test run', async t => {
+  const calls = [];
+  const request = await start(t, async context => { calls.push(context); return 'Resposta de teste'; });
+  const send = (op, data) => request(`/api/agents/${op}`, data);
+  assert.equal((await send('create', { template: 'nao-existe' })).status, 404);
+  const { agent } = await send('create', { template: 'social' });
+  assert.equal(agent.name, 'Posts para redes sociais');
+  assert.deepEqual(agent.triggers, [{ type: 'chat' }]);
+  assert.equal(agent.subagents.length, 1);
+  assert.deepEqual(agent.resources, { webSearch: true, memory: false, approval: true });
+
+  const base = { id: agent.id, revision: agent.revision, name: agent.name, icon: 'send', description: agent.description,
+    instructions: agent.instructions, knowledge: [], subagents: agent.subagents, resources: { ...agent.resources, memory: true } };
+  assert.equal((await send('save', { ...base, triggers: [{ type: 'desconhecido' }] })).status, 400);
+  assert.equal((await send('save', { ...base, triggers: [{ type: 'tag' }] })).status, 400);
+  assert.equal((await send('save', { ...base, triggers: [{ type: 'schedule', value: 'Toda hora' }] })).status, 400);
+  const { agent: saved } = await send('save', { ...base, triggers: [{ type: 'chat' }, { type: 'tag', value: 'vip' }, { type: 'tag', value: 'VIP' }, { type: 'schedule', value: 'Semanalmente' }] });
+  assert.deepEqual(saved.triggers, [{ type: 'chat' }, { type: 'tag', value: 'vip' }, { type: 'schedule', value: 'Semanalmente' }]);
+
+  const { agent: remembered } = await send('memory', { id: saved.id, action: 'add', kind: 'person', text: 'A Ana prefere e-mail.' });
+  assert.equal(remembered.revision, saved.revision);
+  assert.equal((await send('memory', { id: saved.id, action: 'add', kind: 'outro', text: 'x' })).status, 400);
+  const { reply, run } = await send('test', { id: saved.id, revision: saved.revision, version: 'draft', messages: ['Crie um post'] });
+  assert.equal(reply, 'Resposta de teste');
+  assert.deepEqual(calls[0].memory, [{ kind: 'person', text: 'A Ana prefere e-mail.' }]);
+  assert.equal(calls[0].draft.subagents[0].name, 'Pesquisador de marca');
+  assert.equal(run.agent, saved.id);
+  assert.equal(run.input, 'Crie um post');
+  const { state } = await request('/api/state');
+  assert.equal(state.agentRuns[0].id, run.id);
+
+  const { agent: moved } = await send('move', { id: saved.id, revision: saved.revision, folder: 'Marketing' });
+  assert.equal(moved.folder, 'Marketing');
+  await send('delete', { id: moved.id, revision: moved.revision });
+  assert.deepEqual((await request('/api/state')).state.agentRuns, []);
+});
+
+test('The builder chat rewrites the configuration but keeps the knowledge sources', async t => {
+  const requests = [];
+  const request = await start(t, undefined, 'fixture-model', async (build, connection) => {
+    requests.push({ build, connection });
+    return { summary: 'Adicionei o gatilho de formulário.', draft: { ...build.current, name: 'Qualificador', knowledge: [],
+      triggers: [{ type: 'form-submitted' }], resources: { webSearch: true, memory: false, approval: false } } };
+  });
+  const send = (op, data) => request(`/api/agents/${op}`, data);
+  const { agent } = await send('create', { name: 'Leads' });
+  const { agent: withSource } = await send('save', { ...agent, knowledge: [{ title: 'ICP', text: 'Clínicas em SP.' }] });
+  assert.equal((await send('build', { id: agent.id, revision: agent.revision, request: 'Adicione formulário' })).status, 409);
+  const { agent: built, summary } = await send('build', { id: withSource.id, revision: withSource.revision, request: 'Qualifique leads de formulário' });
+  assert.equal(summary, 'Adicionei o gatilho de formulário.');
+  assert.equal(requests[0].build.request, 'Qualifique leads de formulário');
+  assert.equal(requests[0].connection, null);
+  assert.equal(built.name, 'Qualificador');
+  assert.deepEqual(built.triggers, [{ type: 'form-submitted' }]);
+  assert.deepEqual(built.knowledge, [{ title: 'ICP', text: 'Clínicas em SP.' }]);
+  assert.notEqual(built.revision, withSource.revision);
 });

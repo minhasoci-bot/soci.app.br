@@ -207,7 +207,7 @@ export function startAgency(env) {
     const tools = [
       ['Funcionário de IA', 'Uso ilimitado de recursos de IA para as subcontas da agência.', 'Disponível em todas as subcontas', ''],
       ['AI Studio', 'Gere e edite protótipos de páginas e sites dentro de cada subconta.', 'Disponível em todas as subcontas', ''],
-      ['Agentes de IA', 'Crie agentes com instruções e conhecimento próprios, teste suas respostas e publique versões.', 'Disponível em todas as subcontas', '', 'ai-agents'],
+      ['Agentes de IA', 'Crie agentes por descrição ou modelo, configure gatilhos, subagentes e recursos, teste e publique versões.', 'Disponível em todas as subcontas', '', 'ai-agents'],
       ['Pergunte à Soci', 'Assistente executivo com respostas baseadas nos registros da agência.', 'Nível da agência', 'ask']
     ];
     return `<div class="page">${head('Central de IA', 'Ferramentas de Inteligência Artificial para potencializar sua agência e seus clientes.')}<div class="card-grid">${tools.map(([name, text, state, page, view]) => `<article class="surface padded resource"><span class="metric-icon">${i('spark')}</span><div><h2>${h(name)}</h2><p>${h(text)}</p></div>${badge(state, 'blue')}${page ? `<a class="text-link" href="#agency/${page}">Abrir ${i('arrow', 15)}</a>` : btn('Abrir em uma subconta', 'switch-account', view ? `data-view="${view}"` : '')}</article>`).join('')}</div></div>`;

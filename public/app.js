@@ -50,7 +50,7 @@ const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const d=await api(url('/api/action'),command); c.s=d.state;c.m=d.metrics;return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions'],marketing:['social','email'],memberships:['courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project'],'ai-agents':['new','edit'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions'],marketing:['social','email'],memberships:['courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -103,7 +103,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
     return;
   }
   if (key === 'ask-ai' || key === 'marketplace') { location.hash = '#dashboard'; return; }
-  const view=key==='link'?'link':Object.hasOwn(screens,key)&&allowedView(key)?key:'dashboard', nextTab=view==='link'?tab||'':validTabs[view]?.includes(tab)?tab:''; if(c.view!==view||c.tab!==nextTab){c.query='';c.tag='';}c.view=view;c.tab=nextTab; c.studio.project=project || ''; c.agentId=view==='ai-agents'&&nextTab==='edit'?project:''; render(); }
+  const view=key==='link'?'link':Object.hasOwn(screens,key)&&allowedView(key)?key:'dashboard', nextTab=view==='link'?tab||'':validTabs[view]?.includes(tab)?tab:''; if(c.view!==view||c.tab!==nextTab){c.query='';c.tag='';}c.view=view;c.tab=nextTab; c.studio.project=project || ''; c.agentId=view==='ai-agents'&&['agent','edit'].includes(nextTab)?project:''; render(); }
 const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${label}" title="${label}" ${attributes}>${i(name,17)}</button>`;
 const navItem=([id,pt,ico])=>({href:`#${id}`,label:pt,icon:ico,current:c.view===id});
 function appSidebar(brand){
@@ -150,14 +150,22 @@ function render(){
       editor = mountAgentScreen({
         root: agentScreen, workspace, model: c.features?.agentModel,
         startAgent: c.s.agents.find(agent => agent.id === c.agentId),
+        agents: () => c.s.agents,
         request: (operation, data) => api(`/api/agents/${operation}?workspace=${encodeURIComponent(workspace)}`, data),
-        updateAgent(id, agent) {
+        updateAgent(id, agent, rerender = true) {
           if (c.workspace !== workspace) return;
           const index = c.s.agents.findIndex(item => item.id === id);
           if (index !== -1) c.s.agents.splice(index, 1, ...(agent ? [agent] : []));
           else if (agent) c.s.agents.push(agent);
-          if (c.mode !== 'agency' && c.view === 'ai-agents' && !c.tab) render();
-        }
+          if (!agent) c.s.agentRuns = (c.s.agentRuns || []).filter(run => run.agent !== id);
+          if (rerender && c.mode !== 'agency' && c.view === 'ai-agents' && c.tab !== 'edit') render();
+        },
+        addRun(run) {
+          if (c.workspace !== workspace) return;
+          c.s.agentRuns = [run, ...(c.s.agentRuns || [])].slice(0, 100);
+          if (c.mode !== 'agency' && c.view === 'ai-agents' && c.tab !== 'edit') render();
+        },
+        refresh() { if (c.workspace === workspace && c.mode !== 'agency' && c.view === 'ai-agents' && c.tab !== 'edit') render(); }
       });
     }
   }

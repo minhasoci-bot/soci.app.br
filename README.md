@@ -102,7 +102,7 @@ Os outros gatilhos disponíveis são criação de contato, mudança de etapa da 
 | Mídia | Upload e download de imagens e PDFs |
 | Reputação | Registro de avaliações, respostas locais e cálculo da nota média |
 | AI Studio | Geração de páginas HTML, edição visual e de código, revisão por IA, histórico de versões, publicação com formulário ligado ao CRM e exportação HTML |
-| Agentes de IA | Construtor por subconta com instruções, conhecimento em texto, chat de teste e publicação de versões |
+| Agentes de IA | Estúdio de agentes por subconta: criação por descrição ou por modelo, editor com gatilhos, subagentes, recursos, conhecimento e instruções, construtor por chat, conversa de teste, atividade, memória, pastas e publicação de versões |
 | Marketplace e Configurações | Catálogo indicativo de provedores, perfil, moeda, fuso e workspaces locais. Configurações com usuários com acesso, campos personalizados (contato, oportunidade, empresa; chave `{{contact.x}}`), valores personalizados (`{{custom_values.x}}`), tags (renomear atualiza os contatos), objetos, histórico de importação e log de auditoria do workspace |
 
 O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, publicação social, sincronização de calendários, hospedagem pública e permissões de equipe continuam pendentes. Os widgets de Google Analytics, Google Business Profile, Google Ads, Meta Ads e entregabilidade de e-mail exibem o estado da integração. O Studio exporta protótipos HTML editáveis. Os modelos de loja, chat e agenda representam a estrutura visual desses produtos, com os serviços de checkout, mensagens em tempo real e agendamento ainda pendentes.
@@ -123,11 +123,17 @@ O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, pu
 - As páginas são servidas, na prévia e publicadas, com uma política de segurança que bloqueia qualquer script. Cada site fica numa linha própria do armazenamento (`studio-{projeto}`), fora do estado do workspace. Projetos antigos, feitos por seções, abrem como uma página montada a partir delas.
 - **Fora do escopo local:** domínio próprio (exige um servidor público) e sincronização com o GitHub.
 
-## Construtor de agentes
+## Estúdio de agentes
 
-Em **Central de IA → Agentes de IA**, selecione a subconta e clique em **Novo agente**. O editor salva nome, função, instruções e fontes de conhecimento no rascunho. Em **Publicação**, guarde uma versão dessas configurações. O chat permite escolher entre o rascunho e a versão publicada. A publicação disponibiliza a versão para teste dentro do construtor. A conexão com canais de atendimento requer integração própria.
+Em **Agentes de IA** (`#ai-agents`), o estúdio tem três áreas: a lista de agentes com busca, filtro por pasta e ordenação, a área central e o painel do agente selecionado.
 
-O chat de teste usa a chave da OpenAI conectada pelo usuário que executa o teste. As mensagens, instruções e fontes usadas no teste são enviadas à API da OpenAI. Use dados de exemplo no chat.
+- **Criar.** Descreva o que o agente deve fazer ou escolha um dos 8 modelos próprios (atendimento, qualificação de leads, pedido de avaliação, resumo de oportunidade, confirmação de agendamento, posts para redes sociais, monitor de concorrentes e relatório semanal). Com a OpenAI conectada, o construtor monta a configuração a partir da descrição. Sem ela, a descrição vira o rascunho das instruções.
+- **Editar** (`#ai-agents/edit/<id>`). À direita ficam o ícone, o nome, a descrição, os gatilhos (14 tipos em 8 categorias, com busca), até 4 subagentes, os recursos (pesquisa na web, memória e pedir aprovação), até 5 fontes de conhecimento e as instruções. O rascunho é salvo automaticamente. À esquerda, o chat do construtor aplica pedidos como "adicione um gatilho para formulários enviados" e reescreve a configuração sem tocar nas fontes de conhecimento.
+- **Testar e acompanhar** (`#ai-agents/agent/<id>`). A conversa de teste usa o rascunho ou a versão publicada. O painel mostra o status, o botão Publicar, o menu (editar, mover para pasta, despublicar, excluir) e três abas: Atividade (as últimas 100 conversas de teste da subconta), Aprovações e Memória (fatos sobre as pessoas e procedimentos, usados quando o recurso Memória está ligado).
+
+**Limites desta versão.** Os gatilhos ficam registrados na configuração, mas o agente só roda no chat do estúdio: eventos do CRM, programações, workflows, API e webhooks ainda não disparam execuções. Os subagentes entram nas instruções do agente principal, e não como chamadas separadas. Pedir aprovação é uma regra das instruções; a aba Aprovações não tem fila própria. Snapshots copiam a configuração dos agentes, sem versões publicadas, memória e atividade.
+
+O chat de teste e o construtor usam a chave da OpenAI conectada pelo usuário que os executa. Mensagens, instruções, memória e fontes são enviadas à API da OpenAI. Com Pesquisa na web ligada, a resposta pode usar a ferramenta de busca da OpenAI. Use dados de exemplo no chat.
 
 ## Conversas
 

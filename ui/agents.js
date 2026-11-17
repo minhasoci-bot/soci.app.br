@@ -1,252 +1,719 @@
 import { icon } from './icons.js';
 import { h } from './screens.js';
-import { agentDraft, agentLimits, agentRevision, changedAgentFields } from './agents-data.js';
+import {
+  agentDraft, agentFieldNames, agentIcons, agentLimits, agentResources, agentRevision, agentTemplates, changedAgentFields,
+  memoryKinds, triggerGroups, triggerLabel, triggerType, triggerTypes
+} from './agents-data.js';
 
-const sections = [['instructions', 'Instruções', 'edit'], ['knowledge', 'Conhecimento', 'folder'], ['release', 'Publicação', 'check']];
-const fieldNames = { name: 'Nome', role: 'Função', instructions: 'Instruções', knowledge: 'Conhecimento' };
-const dateFormat = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
-const agentLink = id => `#ai-agents/edit/${encodeURIComponent(id)}`;
-const listLink = '<a class="agent-back" href="#ai-agents">← Agentes de IA</a>';
+const timeFormat = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+const dayFormat = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' });
+const fullFormat = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
+const agentLink = id => `#ai-agents/agent/${encodeURIComponent(id)}`;
+const editLink = id => `#ai-agents/edit/${encodeURIComponent(id)}`;
+const normalized = value => String(value || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
-function badges(agent) {
-  if (!agent.published) return '<span class="badge">Rascunho</span>';
-  return `<span class="badge green">Publicado · v${h(agent.published.version)}</span>
-    ${changedAgentFields(agent).length ? '<span class="badge blue">Alterações no rascunho</span>' : ''}`;
+// View state that survives re-renders of the screen.
+const listState = { query: '', folder: '', sort: 'updated' };
+const chats = new Map();
+const builderLogs = new Map();
+const view = { side: 'activity', memory: 'person', focusDescribe: false };
+
+function tone(text) {
+  let sum = 0;
+  for (const char of String(text)) sum = (sum * 31 + char.codePointAt(0)) % 997;
+  return sum % 6;
 }
 
-function agentList(agents) {
-  const cards = agents.map(agent => {
+function avatar(agent, size = 18) {
+  const draft = agentDraft(agent);
+  return `<span class="agent-avatar tone-${tone(agent.id || draft.name)}" aria-hidden="true">${icon(draft.icon, size)}</span>`;
+}
+
+function status(agent) {
+  if (!agent.published) return ['draft', 'Rascunho'];
+  return changedAgentFields(agent).length ? ['changed', `Versão ${agent.published.version} publicada · alterações no rascunho`] : ['live', `Publicado · versão ${agent.published.version}`];
+}
+
+const statusDot = agent => {
+  const [state, label] = status(agent);
+  return `<span class="status-dot ${state}" title="${h(label)}"><span class="sr-only">${h(label)}</span></span>`;
+};
+
+function when(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  return dayFormat.format(date) === dayFormat.format(new Date()) ? timeFormat.format(date) : dayFormat.format(date);
+}
+
+function triggerChips(triggers, removable = false) {
+  return triggers.map((trigger, index) => `<span class="agent-chip">${icon(triggerType(trigger.type)?.icon || 'bolt', 13)}${h(triggerLabel(trigger))}${
+    removable ? `<button type="button" class="chip-remove" data-remove-trigger="${index}" aria-label="Remover gatilho ${h(triggerLabel(trigger))}">${icon('close', 12)}</button>` : ''}</span>`).join('');
+}
+
+function resourceChips(resources) {
+  return agentResources.filter(([key]) => resources?.[key]).map(([, label, , ico]) => `<span class="agent-chip quiet">${icon(ico, 13)}${h(label)}</span>`).join('');
+}
+
+/* ───────────── Studio: list, home, chat and side panel ───────────── */
+
+function visibleAgents(agents) {
+  const query = normalized(listState.query.trim());
+  const list = agents.filter(agent => {
     const draft = agentDraft(agent);
-    return `<a class="surface agent-card" href="${agentLink(agent.id)}" data-agent-card data-search="${h(`${draft.name} ${draft.role}`)}">
-      <span class="metric-icon">${icon('spark', 18)}</span><div><h2>${h(draft.name)}</h2><p class="dim">${h(draft.role)}</p></div>
-      <div class="agent-badges">${badges(agent)}</div></a>`;
+    return (!listState.folder || agent.folder === listState.folder) && normalized(`${draft.name} ${draft.description}`).includes(query);
+  });
+  return list.sort(listState.sort === 'name'
+    ? (a, b) => a.name.localeCompare(b.name, 'pt-BR')
+    : (a, b) => String(b.updated || b.created).localeCompare(String(a.updated || a.created)));
+}
+
+function listItems(agents, selectedId) {
+  const list = visibleAgents(agents);
+  if (!agents.length) return `<div class="ags-empty">${icon('spark', 20)}<b>Nenhum agente ainda</b><p>Crie o primeiro a partir de uma descrição ou de um modelo.</p></div>`;
+  if (!list.length) return `<div class="ags-empty"><b>Nenhum agente encontrado</b><p>Mude a busca ou a pasta.</p></div>`;
+  return list.map(agent => {
+    const draft = agentDraft(agent);
+    return `<a class="ags-item" href="${agentLink(agent.id)}" ${agent.id === selectedId ? 'aria-current="page"' : ''}>
+      ${avatar(agent, 16)}
+      <span class="ags-item-text"><span class="ags-item-top"><b>${h(draft.name)}</b><time datetime="${h(agent.updated || agent.created)}">${when(agent.updated || agent.created)}</time></span>
+        <span class="ags-item-desc">${h(draft.description || draft.instructions)}</span></span>
+      ${statusDot(agent)}</a>`;
   }).join('');
-  return `<div class="page agent-page" data-agent-screen="list">
-    <header class="page-head"><div><h1>Agentes de IA</h1><p>Crie, teste e publique agentes para esta subconta.</p></div>
-      <a class="primary" href="#ai-agents/new">${icon('plus', 16)} Novo agente</a></header>
-    ${agents.length ? '<label class="search agent-search"><input type="search" aria-label="Buscar agentes" placeholder="Buscar por nome ou função"></label>' : ''}
-    <div class="agent-grid">${cards}</div>
-    <div class="surface empty" data-agent-empty ${agents.length ? 'hidden' : ''}>
-      ${icon('spark', 24)}<strong>${agents.length ? 'Nenhum agente encontrado' : 'Nenhum agente criado'}</strong>
-      ${agents.length ? '' : '<p>Comece definindo a função e as instruções do seu agente.</p><a class="secondary" href="#ai-agents/new">Criar primeiro agente</a>'}
+}
+
+function listPane(agents, selectedId) {
+  const folders = [...new Set(agents.map(agent => agent.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  if (listState.folder && !folders.includes(listState.folder)) listState.folder = '';
+  return `<aside class="ags-list" aria-label="Agentes">
+    <header class="ags-list-head"><h1>Agentes <span class="ags-count">${agents.length}</span></h1>
+      <button class="ags-new" type="button" data-agent-new aria-label="Criar agente" title="Criar agente">${icon('plus', 17)}</button></header>
+    <label class="search ags-search">${icon('search', 15)}<input type="search" data-agent-query value="${h(listState.query)}" placeholder="Buscar agentes" aria-label="Buscar agentes"></label>
+    <div class="ags-filters">
+      <select data-agent-folder aria-label="Filtrar por pasta"><option value="">Todas as pastas</option>${folders.map(folder => `<option ${folder === listState.folder ? 'selected' : ''}>${h(folder)}</option>`).join('')}</select>
+      <select data-agent-sort aria-label="Ordenar agentes"><option value="updated">Atualizados recentemente</option><option value="name" ${listState.sort === 'name' ? 'selected' : ''}>Nome (A–Z)</option></select>
     </div>
+    <nav class="ags-items" data-agent-items aria-label="Lista de agentes">${listItems(agents, selectedId)}</nav>
+  </aside>`;
+}
+
+function templateCard(template) {
+  const triggers = template.triggers.slice(0, 1);
+  const extra = template.triggers.length - triggers.length + agentResources.filter(([key]) => template.resources?.[key]).length;
+  const first = agentResources.find(([key]) => template.resources?.[key]);
+  return `<button type="button" class="ags-template" data-agent-template="${h(template.id)}">
+    ${avatar(template, 18)}<b>${h(template.name)}</b><span class="dim">${h(template.description)}</span>
+    <span class="ags-template-chips">${triggerChips(triggers)}${first ? resourceChips({ [first[0]]: true }) : ''}${extra - (first ? 1 : 0) > 0 ? `<span class="agent-chip quiet">+${extra - (first ? 1 : 0)}</span>` : ''}</span>
+  </button>`;
+}
+
+function homeMain(model) {
+  return `<div class="ags-home">
+    <div class="ags-hero">
+      <span class="ags-hero-icon">${icon('spark', 22)}</span>
+      <h2>Crie seu próprio agente</h2>
+      <p class="dim">Descreva o que o agente deve fazer ou comece por um modelo.</p>
+      <form class="ags-describe" data-agent-describe>
+        <label class="sr-only" for="agent-describe">O que o agente deve fazer</label>
+        <textarea id="agent-describe" name="description" rows="2" maxlength="${agentLimits.request}" required placeholder="Descreva o que o seu agente deve fazer…"></textarea>
+        <button class="ags-send" aria-label="Criar agente com esta descrição">${icon('arrow', 17)}</button>
+      </form>
+      <p class="form-status" role="status" data-describe-status></p>
+      ${model ? '' : '<p class="ags-note">Sem uma chave da OpenAI conectada, a descrição vira o rascunho das instruções. <a class="text-link" href="#agency/settings/openai">Conectar a OpenAI</a></p>'}
+    </div>
+    <div class="ags-or"><span>ou</span></div>
+    <h3 class="ags-section-title">Comece por um caso de uso</h3>
+    <p class="dim ags-section-text">Gatilhos e recursos já configurados. Edite o que quiser depois de escolher.</p>
+    <div class="ags-templates">${agentTemplates.map(templateCard).join('')}</div>
   </div>`;
 }
+
+const chatKey = (workspace, id) => `${workspace}:${id}`;
+
+function chatMain(agent, model, chat) {
+  const draft = agentDraft(agent);
+  const bubbles = chat.log.map(entry => bubble(entry, draft.name)).join('');
+  return `<div class="ags-chat">
+    <div class="ags-chat-bar">
+      ${agent.published ? `<div class="ags-version" role="group" aria-label="Versão em teste">
+        <button type="button" data-chat-version="draft" aria-pressed="${chat.version === 'draft'}">Rascunho</button>
+        <button type="button" data-chat-version="published" aria-pressed="${chat.version === 'published'}">Versão ${h(agent.published.version)}</button></div>` : '<span></span>'}
+      <button class="secondary ags-small" type="button" data-agent-reset>${icon('plus', 14)} Nova conversa</button>
+    </div>
+    <div class="ags-transcript" role="log" aria-label="Conversa com o agente" data-agent-transcript>
+      <div class="ags-intro">
+        ${avatar(agent, 22)}
+        <span class="ags-name-pill">${h(draft.name)} ${statusDot(agent)}</span>
+        ${draft.description ? `<p>${h(draft.description)}</p>` : ''}
+        <div class="ags-runs-when"><span class="ags-label">Executa quando</span>${triggerChips(draft.triggers)}
+          <a class="agent-chip add" href="${editLink(agent.id)}">${icon('plus', 13)} Adicionar gatilho</a></div>
+      </div>
+      ${bubbles}
+    </div>
+    <form class="ags-composer" data-agent-test>
+      <span class="ags-test-chip">${chat.version === 'published' ? `Versão ${h(agent.published?.version)}` : 'Modo de teste'}</span>
+      <label class="sr-only" for="agent-test-message">Mensagem para o agente</label>
+      <textarea id="agent-test-message" name="message" rows="1" maxlength="${agentLimits.message}" placeholder="Mensagem para ${h(draft.name)}…" ${model ? '' : 'disabled'}></textarea>
+      <button aria-label="Enviar mensagem" ${model ? '' : 'disabled'}>${icon('send', 16)}</button>
+    </form>
+    <p class="form-status ags-chat-status${model ? '' : ' info'}" role="status" data-agent-test-status>${model ? '' : 'Conecte uma chave da OpenAI em Visão da agência → Configurações → OpenAI para conversar com o agente.'}</p>
+  </div>`;
+}
+
+function bubble(entry, name) {
+  return `<div class="agent-bubble ${entry.role}"><strong>${entry.role === 'user' ? 'Você' : h(name)}</strong><p>${h(entry.content)}</p></div>`;
+}
+
+function activityPanel(agent, runs) {
+  const list = runs.filter(run => run.agent === agent.id).slice(0, 30);
+  if (!list.length) return '<div class="ags-side-empty"><b>Nenhuma atividade ainda</b><p>Cada conversa de teste fica registrada aqui.</p></div>';
+  return `<ol class="ags-runs">${list.map(run => `<li>
+    <div class="ags-run-top"><span class="badge ${run.version === 'published' ? 'green' : ''}">${run.version === 'published' ? 'Versão publicada' : 'Rascunho'}</span><time datetime="${h(run.at)}">${fullFormat.format(new Date(run.at))}</time></div>
+    <p class="ags-run-in">${h(run.input)}</p><p class="ags-run-out">${h(run.output)}</p></li>`).join('')}</ol>`;
+}
+
+function approvalsPanel(agent) {
+  const on = agentDraft(agent).resources.approval;
+  return `<div class="ags-side-empty">${icon('check', 20)}<b>Nada aguardando você</b>
+    <p>${on ? 'Com Pedir aprovação ligado, o agente mostra o rascunho na conversa e só segue depois do seu sim.'
+      : 'Pedir aprovação está desligado. Ligue o recurso para o agente esperar o seu sim antes de enviar ou alterar algo.'}</p>
+    ${on ? '' : `<a class="text-link" href="${editLink(agent.id)}">Abrir recursos</a>`}</div>`;
+}
+
+function memoryPanel(agent) {
+  const on = agentDraft(agent).resources.memory;
+  const memory = agent.memory || [];
+  const list = memory.filter(item => item.kind === view.memory);
+  return `<div class="ags-memory">
+    <div class="ags-memory-head"><b>O que este agente lembra</b><span class="badge ${on ? 'green' : ''}">${on ? 'Ligada' : 'Desligada'}</span></div>
+    ${on ? '' : `<p class="dim">O agente só usa estas memórias com o recurso Memória ligado. <a class="text-link" href="${editLink(agent.id)}">Ligar</a></p>`}
+    <div class="ags-version" role="group" aria-label="Tipo de memória">${memoryKinds.map(([kind, label]) => `<button type="button" data-memory-kind="${kind}" aria-pressed="${view.memory === kind}">${label} <span>${memory.filter(item => item.kind === kind).length}</span></button>`).join('')}</div>
+    ${list.length ? `<ul class="ags-memory-list">${list.map(item => `<li><p>${h(item.text)}</p><button type="button" class="icon-btn" data-memory-remove="${h(item.id)}" aria-label="Remover memória">${icon('trash', 15)}</button></li>`).join('')}</ul>`
+      : `<div class="ags-side-empty">${icon('book', 20)}<b>Nenhuma memória ainda</b><p>${view.memory === 'person' ? 'Adicione fatos sobre quem conversa, como preferências e combinados.' : 'Adicione procedimentos que o agente deve seguir, como “confirmar o CEP antes do frete”.'}</p></div>`}
+    <form class="ags-memory-add" data-memory-add>
+      <label class="sr-only" for="agent-memory-text">Nova memória</label>
+      <input id="agent-memory-text" name="text" maxlength="${agentLimits.memoryText}" required placeholder="${view.memory === 'person' ? 'Ex. A Ana prefere contato por e-mail' : 'Ex. Sempre confirmar o endereço'}">
+      <button class="secondary ags-small" ${memory.length >= agentLimits.memory ? 'disabled' : ''}>Adicionar</button>
+      <p class="form-status" role="alert"></p>
+    </form>
+  </div>`;
+}
+
+function sidePane(agent, runs) {
+  const draft = agentDraft(agent);
+  const changes = changedAgentFields(agent);
+  const publishLabel = !agent.published ? 'Publicar' : changes.length ? 'Publicar alterações' : 'Publicado';
+  const tabs = [['activity', 'Atividade', 'list'], ['approvals', 'Aprovações', 'check'], ['memory', 'Memória', 'book']];
+  return `<aside class="ags-side" aria-label="Detalhes do agente">
+    <div class="ags-side-head">
+      ${avatar(agent, 26)}
+      <h2>${h(draft.name)}</h2>
+      <p class="ags-side-status">${statusDot(agent)} ${h(status(agent)[1])}</p>
+      <div class="ags-side-actions">
+        <button class="primary" type="button" data-agent-action="publish" ${agent.published && !changes.length ? 'disabled' : ''}>${publishLabel}</button>
+        <div class="ags-menu">
+          <button class="icon-btn" type="button" data-agent-menu aria-haspopup="menu" aria-expanded="false" aria-label="Mais ações">${icon('dots', 18)}</button>
+          <div class="ags-menu-list" role="menu" hidden>
+            <a role="menuitem" href="${editLink(agent.id)}">${icon('edit', 15)} Editar agente</a>
+            <button role="menuitem" type="button" data-agent-move>${icon('folder', 15)} Mover para pasta</button>
+            ${agent.published ? `<button role="menuitem" type="button" data-agent-action="unpublish">${icon('close', 15)} Despublicar</button>` : ''}
+            <button role="menuitem" type="button" class="danger-item" data-agent-confirm-delete>${icon('trash', 15)} Excluir agente</button>
+          </div>
+        </div>
+      </div>
+      <p class="form-status" role="alert" data-agent-side-status></p>
+    </div>
+    <div class="ags-side-block">
+      <div class="ags-side-row"><span class="ags-label">Executa quando</span><a class="text-link" href="${editLink(agent.id)}">Editar agente</a></div>
+      <div class="ags-chips">${triggerChips(draft.triggers)}</div>
+      ${resourceChips(draft.resources) ? `<div class="ags-chips">${resourceChips(draft.resources)}</div>` : ''}
+      ${agent.folder ? `<p class="dim ags-folder">${icon('folder', 14)} ${h(agent.folder)}</p>` : ''}
+    </div>
+    <div class="ags-tabs" role="tablist" aria-label="Painéis do agente">${tabs.map(([key, label, ico]) => `<button type="button" role="tab" id="agent-tab-${key}" aria-controls="agent-panel-${key}" aria-selected="${view.side === key}" data-side-tab="${key}">${icon(ico, 15)} ${label}</button>`).join('')}</div>
+    <div class="ags-panel" role="tabpanel" id="agent-panel-activity" aria-labelledby="agent-tab-activity" ${view.side === 'activity' ? '' : 'hidden'}>${activityPanel(agent, runs)}</div>
+    <div class="ags-panel" role="tabpanel" id="agent-panel-approvals" aria-labelledby="agent-tab-approvals" ${view.side === 'approvals' ? '' : 'hidden'}>${approvalsPanel(agent)}</div>
+    <div class="ags-panel" role="tabpanel" id="agent-panel-memory" aria-labelledby="agent-tab-memory" data-memory-panel ${view.side === 'memory' ? '' : 'hidden'}>${memoryPanel(agent)}</div>
+  </aside>
+  <dialog class="agent-dialog" data-agent-delete-dialog aria-labelledby="agent-delete-title"><header><h2 id="agent-delete-title">Excluir agente?</h2></header>
+    <div class="modal-body"><p>O rascunho, a versão publicada, a memória e a atividade de <b>${h(draft.name)}</b> serão removidos.</p></div>
+    <footer><button class="secondary" type="button" data-dialog-close>Cancelar</button><button type="button" class="danger" data-agent-action="delete">Excluir agente</button></footer></dialog>
+  <dialog class="agent-dialog" data-agent-move-dialog aria-labelledby="agent-move-title"><form data-agent-move-form><header><h2 id="agent-move-title">Mover para pasta</h2></header>
+    <div class="modal-body"><label>Pasta<input name="folder" maxlength="${agentLimits.folder}" list="agent-folder-list" value="${h(agent.folder || '')}" placeholder="Ex. Atendimento"></label>
+      <p class="dim">Deixe em branco para tirar o agente da pasta.</p><p class="form-status" role="alert"></p></div>
+    <footer><button class="secondary" type="button" data-dialog-close>Cancelar</button><button class="primary">Mover</button></footer></form></dialog>`;
+}
+
+function studioView(c, selected) {
+  const agents = c.s.agents;
+  const model = c.features?.agentModel;
+  const folders = [...new Set(agents.map(agent => agent.folder).filter(Boolean))];
+  let main = homeMain(model);
+  if (selected) {
+    const key = chatKey(c.workspace, selected.id);
+    if (!chats.has(key)) chats.set(key, { version: 'draft', messages: [], log: [], config: '' });
+    const chat = chats.get(key);
+    if (chat.version === 'published' && !selected.published) Object.assign(chat, { version: 'draft', messages: [], log: [], config: '' });
+    main = chatMain(selected, model, chat);
+  } else if (c.tab === 'agent') {
+    main = '<div class="ags-home"><div class="ags-side-empty"><b>Agente não encontrado nesta subconta</b><a class="text-link" href="#ai-agents">Voltar ao estúdio</a></div></div>';
+  }
+  return `<div class="agent-studio ${selected ? 'has-agent' : ''}" data-agent-screen="studio" data-studio-agent="${h(selected?.id || '')}">
+    ${listPane(agents, selected?.id)}
+    <section class="ags-main" aria-label="${selected ? 'Conversa com o agente' : 'Criar agente'}">${main}</section>
+    ${selected ? sidePane(selected, c.s.agentRuns || []) : ''}
+    <datalist id="agent-folder-list">${folders.map(folder => `<option value="${h(folder)}">`).join('')}</datalist>
+  </div>`;
+}
+
+/* ───────────── Editor ───────────── */
 
 function sourceFields(source = {}) {
   return `<fieldset class="agent-source">
     <legend>Fonte de conhecimento</legend>
     <label>Título<input name="sourceTitle" required maxlength="${agentLimits.sourceName}" value="${h(source.title)}"></label>
     <label>Conteúdo<textarea name="sourceText" required rows="4" maxlength="${agentLimits.sourceText}">${h(source.text)}</textarea></label>
-    <button class="secondary danger" type="button" data-agent-remove-source>Remover fonte</button>
+    <button class="secondary ags-small" type="button" data-agent-remove-source>${icon('trash', 14)} Remover fonte</button>
   </fieldset>`;
 }
 
-function agentEditor(agent, model) {
-  const draft = agentDraft(agent);
-  return `<div class="page agent-page" data-agent-screen="editor" data-agent-id="${h(agent.id)}">
-    ${listLink}
-    <header class="page-head agent-header"><div><h1 data-agent-name>${h(draft.name)}</h1><div class="agent-badges" data-agent-badges>${badges(agent)}</div></div>
-      <div class="agent-header-actions"><span role="status" data-agent-save-status>Rascunho salvo</span>
-        <button class="secondary" type="submit" form="agent-draft">Salvar rascunho</button></div></header>
-    <div class="agent-layout">
-      <section class="surface agent-config">
-        <nav class="agent-sections" aria-label="Configuração do agente">
-          ${sections.map(([key, label, ico]) => `<button type="button" data-agent-section="${key}" aria-pressed="${key === 'instructions'}">${icon(ico, 16)} ${label}</button>`).join('')}
-        </nav>
-        <form id="agent-draft" class="agent-fields" novalidate>
-          <section data-agent-panel="instructions">
-            <h2>Identidade e instruções</h2>
-            <label>Nome<input name="name" required maxlength="${agentLimits.name}" value="${h(draft.name)}"></label>
-            <label>Função<input name="role" required maxlength="${agentLimits.role}" value="${h(draft.role)}" placeholder="Ex. Assistente de atendimento"></label>
-            <label>Instruções<textarea name="instructions" required maxlength="${agentLimits.instructions}" rows="10">${h(draft.instructions)}</textarea></label>
-            <small class="dim" data-agent-count></small>
-          </section>
-          <section data-agent-panel="knowledge" hidden>
-            <h2>Conhecimento</h2>
-            <p class="dim">Adicione textos que o agente deve consultar ao responder, como políticas, FAQs ou informações de produtos.</p>
-            <div class="agent-sources" data-agent-sources>${draft.knowledge.map(sourceFields).join('')}</div>
-            <button class="secondary" type="button" data-agent-add-source>${icon('plus', 16)} Adicionar fonte</button>
-            <small class="dim" data-agent-source-count></small>
-          </section>
-        </form>
-        <section class="agent-fields" data-agent-panel="release" hidden>
-          <h2>Publicação</h2>
-          <div class="agent-release-info" data-agent-release-info></div>
-          <div class="agent-actions"><button class="primary" type="button" data-agent-action="publish">Publicar agente</button>
-            <button class="secondary" type="button" data-agent-action="unpublish">Despublicar</button></div>
-          <button class="secondary danger agent-delete" type="button" data-agent-confirm-delete>Excluir agente</button>
-        </section>
-      </section>
-      <aside class="surface agent-preview" aria-label="Teste do agente">
-        <header><div><h2>Testar agente</h2><p class="dim" data-agent-model>${model ? h(model) : 'OpenAI desconectada'}</p></div>
-          <button class="icon-btn" type="button" data-agent-reset title="Nova conversa" aria-label="Nova conversa">${icon('refresh', 16)}</button></header>
-        <label class="agent-preview-version">Versão<select data-agent-test-version><option value="draft">Rascunho</option><option value="published">Publicada</option></select></label>
-        <div class="agent-transcript" role="log" aria-label="Conversa de teste">
-          <p class="dim">${model ? 'Envie uma mensagem de exemplo para conferir como o agente responde.' : '<a class="text-link" href="#agency/settings/openai">Conecte sua chave da OpenAI</a> para testar o agente.'}</p>
-        </div>
-        <form class="agent-message" data-agent-test>
-          <label class="sr-only" for="agent-test-message">Mensagem de teste</label>
-          <textarea id="agent-test-message" name="message" rows="2" maxlength="${agentLimits.message}" placeholder="Escreva uma mensagem de teste…" required ${model ? '' : 'disabled'}></textarea>
-          <p data-agent-test-status class="form-status" role="status"></p>
-          <button class="primary" ${model ? '' : 'disabled'}>Enviar mensagem ${icon('send', 15)}</button>
-        </form>
-      </aside>
+function subagentFields(item = {}, open = false) {
+  return `<details class="agent-subagent" ${open ? 'open' : ''}>
+    <summary><span class="agent-subagent-dot" aria-hidden="true"></span><b data-subagent-title>${h(item.name || 'Novo subagente')}</b><span class="dim">Especialista</span>${icon('chevron', 15)}</summary>
+    <div class="agent-subagent-body">
+      <label>Nome<input name="subName" required maxlength="${agentLimits.subagentName}" value="${h(item.name)}" placeholder="Ex. Pesquisador de marca"></label>
+      <label>Quando chamar<textarea name="subWhen" required rows="2" maxlength="${agentLimits.subagentWhen}" placeholder="Quando precisar de…">${h(item.when)}</textarea></label>
+      <label>Instruções<textarea name="subInstructions" required rows="4" maxlength="${agentLimits.subagentInstructions}">${h(item.instructions)}</textarea></label>
+      <button class="secondary ags-small" type="button" data-remove-subagent>${icon('trash', 14)} Remover subagente</button>
     </div>
-    <dialog class="agent-confirm" aria-labelledby="agent-delete-title"><header><h2 id="agent-delete-title">Excluir agente?</h2></header>
-      <div class="modal-body"><p>O rascunho e a versão publicada deste agente serão removidos.</p></div>
-      <footer><button class="secondary" type="button" data-agent-cancel-delete>Cancelar</button>
-        <button type="button" class="secondary danger" data-agent-action="delete">Excluir agente</button></footer></dialog>
+  </details>`;
+}
+
+function configFields(agent) {
+  const draft = agentDraft(agent);
+  return `<div class="editor-identity">
+      <details class="icon-picker">
+        <summary aria-label="Escolher ícone do agente">${avatar(agent, 24)}<span class="icon-picker-edit">${icon('edit', 12)}</span></summary>
+        <div class="icon-grid" role="radiogroup" aria-label="Ícone do agente">${agentIcons.map(name => `<label class="icon-choice"><input type="radio" name="icon" value="${name}" ${draft.icon === name ? 'checked' : ''}><span>${icon(name, 18)}</span><span class="sr-only">${name}</span></label>`).join('')}</div>
+      </details>
+      <div class="editor-identity-text">
+        <label class="sr-only" for="agent-name">Nome do agente</label>
+        <input id="agent-name" class="editor-name" name="name" required maxlength="${agentLimits.name}" value="${h(draft.name)}">
+        <label class="sr-only" for="agent-description">Descrição</label>
+        <textarea id="agent-description" class="editor-description" name="description" rows="3" maxlength="${agentLimits.description}" placeholder="Descreva em uma ou duas frases o que o agente faz.">${h(draft.description)}</textarea>
+      </div>
+    </div>
+    <div class="editor-rows">
+      <div class="editor-row"><span class="editor-label">Gatilhos</span><div class="editor-value">
+        <div class="ags-chips" data-agent-triggers>${triggerChips(draft.triggers, true)}</div>
+        <button type="button" class="editor-add" data-agent-add-trigger>${icon('plus', 14)} Adicionar gatilho</button>
+        <small class="dim">Os gatilhos ficam registrados na configuração. Por enquanto, o agente conversa no chat do estúdio.</small></div></div>
+      <div class="editor-row"><span class="editor-label">Subagentes</span><div class="editor-value">
+        <div class="agent-subagents" data-agent-subagents>${draft.subagents.map(item => subagentFields(item)).join('')}</div>
+        <button type="button" class="editor-add" data-agent-add-subagent>${icon('plus', 14)} Adicionar subagente</button></div></div>
+      <div class="editor-row"><span class="editor-label">Recursos</span><div class="editor-value editor-resources">
+        ${agentResources.map(([key, label, text, ico]) => `<label class="resource-toggle"><span class="resource-icon">${icon(ico, 15)}</span>
+          <span class="resource-text"><b>${label}</b><small>${text}</small></span>
+          <input type="checkbox" role="switch" name="res-${key}" ${draft.resources[key] ? 'checked' : ''}></label>`).join('')}</div></div>
+      <div class="editor-row"><span class="editor-label">Base de conhecimento</span><div class="editor-value">
+        <div class="agent-sources" data-agent-sources>${draft.knowledge.map(sourceFields).join('')}</div>
+        <button type="button" class="editor-add" data-agent-add-source>${icon('plus', 14)} Adicionar fonte</button>
+        <small class="dim" data-agent-source-count></small></div></div>
+      <div class="editor-row stacked"><label class="editor-label" for="agent-instructions">Instruções</label><div class="editor-value">
+        <textarea id="agent-instructions" name="instructions" required rows="18" maxlength="${agentLimits.instructions}">${h(draft.instructions)}</textarea>
+        <small class="dim" data-agent-count></small></div></div>
+    </div>`;
+}
+
+function builderEntries(log) {
+  if (!log.length) return `<div class="builder-empty">${icon('chat', 20)}<b>Edite este agente pelo chat</b>
+    <p>Descreva o que quer mudar e o construtor atualiza a configuração ao lado.</p>
+    <p class="dim">Experimente “Adicione um gatilho para formulários enviados” ou “Deixe o tom mais descontraído”.</p></div>`;
+  return log.map(entry => `<div class="agent-bubble ${entry.role}${entry.error ? ' error' : ''}"><strong>${entry.role === 'user' ? 'Você' : 'Construtor'}</strong><p>${h(entry.content)}</p></div>`).join('');
+}
+
+function editorView(agent, model, workspace) {
+  const log = builderLogs.get(chatKey(workspace, agent.id)) || [];
+  return `<div class="agent-editor" data-agent-screen="editor" data-agent-id="${h(agent.id)}">
+    <header class="editor-bar">
+      <a class="editor-back" href="${agentLink(agent.id)}">${icon('left', 16)} Voltar</a>
+      <div class="editor-bar-actions"><span role="status" data-agent-save-status>Rascunho salvo</span>
+        <a class="secondary" href="${agentLink(agent.id)}">${icon('chat', 15)} Testar agente</a>
+        <button class="primary" type="button" data-agent-action="publish">Publicar</button></div>
+    </header>
+    <div class="editor-grid">
+      <section class="editor-builder" aria-label="Construtor por chat">
+        <div class="builder-log" role="log" data-builder-log>${builderEntries(log)}</div>
+        <form class="ags-composer builder-form" data-agent-build>
+          <label class="sr-only" for="agent-build-request">O que mudar no agente</label>
+          <textarea id="agent-build-request" name="request" rows="2" maxlength="${agentLimits.request}" placeholder="Descreva o que quer mudar no agente…" ${model ? '' : 'disabled'}></textarea>
+          <button aria-label="Aplicar pedido" ${model ? '' : 'disabled'}>${icon('arrow', 16)}</button>
+        </form>
+        <p class="form-status builder-status${model ? '' : ' info'}" role="status" data-agent-build-status>${model ? '' : 'Conecte uma chave da OpenAI em Visão da agência → Configurações → OpenAI para editar pelo chat. A configuração ao lado continua editável.'}</p>
+      </section>
+      <form id="agent-draft" class="editor-config" novalidate>${configFields(agent)}</form>
+    </div>
+    <dialog class="agent-dialog trigger-picker" data-trigger-picker aria-labelledby="trigger-picker-title">
+      <header><h2 id="trigger-picker-title">Adicionar gatilho</h2><button type="button" class="icon-btn" data-dialog-close aria-label="Fechar">${icon('close', 17)}</button></header>
+      <div class="picker-body">
+        <label class="search picker-search">${icon('search', 15)}<input type="search" data-trigger-query placeholder="Buscar gatilhos…" aria-label="Buscar gatilhos"></label>
+        <div class="picker-groups" role="group" aria-label="Categorias"><button type="button" data-trigger-group="" aria-pressed="true">Todos</button>${triggerGroups.map(([key, label]) => `<button type="button" data-trigger-group="${key}" aria-pressed="false">${label}</button>`).join('')}</div>
+        <div class="picker-list" data-trigger-list></div>
+        <form class="picker-value" data-trigger-value hidden></form>
+      </div>
+    </dialog>
   </div>`;
 }
 
 export function agentsScreen(c) {
-  if (c.tab === 'new') return `<div class="page agent-page" data-agent-screen="new">${listLink}
-    <header class="page-head"><div><h1>Novo agente</h1><p>Crie um rascunho para começar a configuração.</p></div></header>
-    <form class="surface agent-create" data-agent-create>
-      <label>Nome do agente<input name="name" required maxlength="${agentLimits.name}" placeholder="Ex. Atendimento ao cliente"></label>
-      <p class="form-status" role="alert"></p><button class="primary">Criar rascunho</button>
-    </form></div>`;
+  const agents = c.s.agents;
   if (c.tab === 'edit') {
-    const agent = c.s.agents.find(item => item.id === c.agentId);
-    return agent ? agentEditor(agent, c.features?.agentModel) : `<div class="page agent-page">${listLink}<div class="surface empty"><strong>Agente não encontrado nesta subconta</strong></div></div>`;
+    const agent = agents.find(item => item.id === c.agentId);
+    return agent ? editorView(agent, c.features?.agentModel, c.workspace)
+      : '<div class="page"><a class="text-link" href="#ai-agents">← Estúdio de agentes</a><div class="surface empty"><strong>Agente não encontrado nesta subconta</strong></div></div>';
   }
-  return agentList(c.s.agents);
+  return studioView(c, c.tab === 'agent' ? agents.find(item => item.id === c.agentId) : null);
 }
 
-export function mountAgentScreen({ root, workspace, model = '', startAgent, request, updateAgent }) {
-  if (root.dataset.agentScreen === 'list') {
-    const search = root.querySelector('input[type=search]');
-    search?.addEventListener('input', () => {
-      const normalized = text => text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-      const query = normalized(search.value.trim());
-      const cards = [...root.querySelectorAll('[data-agent-card]')];
-      for (const card of cards) card.hidden = !normalized(card.dataset.search).includes(query);
-      root.querySelector('[data-agent-empty]').hidden = cards.some(card => !card.hidden);
+/* ───────────── Behaviour ───────────── */
+
+function dialogBackdropClose(dialog) {
+  let down = null;
+  dialog.addEventListener('mousedown', event => { down = event.target; });
+  dialog.addEventListener('click', event => {
+    if (event.target !== dialog || down !== dialog) return;
+    const r = dialog.getBoundingClientRect();
+    if (event.clientY < r.top || event.clientY > r.bottom || event.clientX < r.left || event.clientX > r.right) dialog.close();
+  });
+}
+
+function autoGrow(textarea, max = 180) {
+  textarea.style.height = 'auto';
+  textarea.style.height = `${Math.min(textarea.scrollHeight + 2, max)}px`;
+}
+
+export function mountAgentScreen(options) {
+  if (options.root.dataset.agentScreen === 'editor') return mountEditor({ ...options, agent: options.startAgent });
+  return mountStudio(options);
+}
+
+function mountStudio({ root, workspace, model = '', startAgent, request, updateAgent, addRun, refresh, agents }) {
+  const get = selector => root.querySelector(selector);
+  let agent = startAgent && root.dataset.studioAgent === startAgent.id ? startAgent : null;
+  let busy = false;
+
+  const items = get('[data-agent-items]');
+  const refreshList = () => { items.innerHTML = listItems(agents(), agent?.id); };
+  get('[data-agent-query]').addEventListener('input', event => { listState.query = event.target.value; refreshList(); });
+  get('[data-agent-folder]').addEventListener('change', event => { listState.folder = event.target.value; refreshList(); });
+  get('[data-agent-sort]').addEventListener('change', event => { listState.sort = event.target.value; refreshList(); });
+  for (const dialog of root.querySelectorAll('dialog')) dialogBackdropClose(dialog);
+
+  const describe = get('[data-agent-describe]');
+  if (describe) {
+    const field = describe.elements.description;
+    field.addEventListener('input', () => autoGrow(field));
+    field.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); describe.requestSubmit(); }
     });
-    return;
-  }
-  if (root.dataset.agentScreen === 'new') {
-    const form = root.querySelector('form');
-    form.elements.name.focus();
-    form.addEventListener('submit', async event => {
+    if (view.focusDescribe) { view.focusDescribe = false; field.focus(); }
+    describe.addEventListener('submit', async event => {
       event.preventDefault();
-      const button = form.querySelector('button');
-      const status = form.querySelector('.form-status');
-      if (button.disabled) return;
-      button.disabled = true;
-      status.textContent = '';
+      const text = field.value.trim();
+      const note = get('[data-describe-status]');
+      if (!text || busy) return;
+      busy = true;
+      describe.inert = true;
+      note.classList.remove('confirmed');
+      note.textContent = model ? 'Montando o agente…' : 'Criando o rascunho…';
       try {
-        const { agent } = await request('create', { name: form.elements.name.value });
-        updateAgent(agent.id, agent);
-        if (root.isConnected) location.hash = agentLink(agent.id);
+        const name = model ? 'Novo agente' : text.split(/\s+/).slice(0, 6).join(' ').slice(0, agentLimits.name).replace(/[.,;:]$/, '');
+        const { agent: created } = await request('create', model ? { name } : { name, description: text.slice(0, agentLimits.description), instructions: text });
+        updateAgent(created.id, created, false);
+        const log = [{ role: 'user', content: text }];
+        builderLogs.set(chatKey(workspace, created.id), log);
+        if (model) {
+          try {
+            const result = await request('build', { id: created.id, revision: created.revision, request: text });
+            updateAgent(created.id, result.agent, false);
+            log.push({ role: 'assistant', content: result.summary });
+          } catch (error) {
+            log.push({ role: 'assistant', content: `Criei o rascunho, mas o construtor falhou: ${error.message}`, error: true });
+          }
+        } else {
+          log.push({ role: 'assistant', content: 'Criei um rascunho com a sua descrição nas instruções. Ajuste a configuração ao lado.' });
+        }
+        location.hash = editLink(created.id);
       } catch (error) {
-        status.textContent = error.message;
-      } finally { button.disabled = false; }
+        note.textContent = error.message;
+      } finally {
+        busy = false;
+        describe.inert = false;
+      }
     });
-    return;
   }
-  return mountEditor({ root, workspace, model, agent: startAgent, request, updateAgent });
+
+  root.addEventListener('click', async event => {
+    const target = event.target.closest('button, a');
+    if (!target || !root.contains(target)) return;
+    const data = target.dataset;
+    if (target.hasAttribute('data-agent-new')) {
+      view.focusDescribe = true;
+      if (location.hash !== '#ai-agents') location.hash = '#ai-agents';
+      else { view.focusDescribe = false; get('#agent-describe')?.focus(); }
+      return;
+    }
+    if (data.agentTemplate && !busy) {
+      busy = true;
+      target.disabled = true;
+      try {
+        const { agent: created } = await request('create', { template: data.agentTemplate });
+        updateAgent(created.id, created, false);
+        location.hash = agentLink(created.id);
+      } catch (error) {
+        get('[data-describe-status]').textContent = error.message;
+      } finally { busy = false; target.disabled = false; }
+      return;
+    }
+    if (!agent) return;
+    if (target.hasAttribute('data-agent-menu')) {
+      const list = target.nextElementSibling;
+      list.hidden = !list.hidden;
+      target.setAttribute('aria-expanded', String(!list.hidden));
+      if (!list.hidden) list.querySelector('a, button')?.focus();
+      return;
+    }
+    closeMenu();
+    if (data.sideTab) {
+      view.side = data.sideTab;
+      for (const tab of root.querySelectorAll('[data-side-tab]')) tab.setAttribute('aria-selected', String(tab === target));
+      for (const panel of root.querySelectorAll('.ags-panel')) panel.hidden = panel.id !== `agent-panel-${view.side}`;
+      return;
+    }
+    if (data.memoryKind) {
+      view.memory = data.memoryKind;
+      get('[data-memory-panel]').innerHTML = memoryPanel(agent);
+      return;
+    }
+    if (data.chatVersion) {
+      const chat = chats.get(chatKey(workspace, agent.id));
+      if (chat.version !== data.chatVersion && !chat.pending) Object.assign(chat, { version: data.chatVersion, messages: [], log: [], config: '' });
+      refresh();
+      return;
+    }
+    if (target.hasAttribute('data-agent-reset')) {
+      const chat = chats.get(chatKey(workspace, agent.id));
+      if (!chat.pending) Object.assign(chat, { messages: [], log: [], config: '' });
+      refresh();
+      return;
+    }
+    if (target.hasAttribute('data-dialog-close')) { target.closest('dialog').close(); return; }
+    if (target.hasAttribute('data-agent-confirm-delete')) { get('[data-agent-delete-dialog]').showModal(); return; }
+    if (target.hasAttribute('data-agent-move')) { get('[data-agent-move-dialog]').showModal(); return; }
+    if (data.memoryRemove) {
+      await act('memory', { action: 'remove', memoryId: data.memoryRemove }, target);
+      return;
+    }
+    if (data.agentAction) {
+      target.closest('dialog')?.close();
+      const deleted = await act(data.agentAction, { revision: agentRevision(agent) }, target);
+      if (deleted && data.agentAction === 'delete') location.hash = '#ai-agents';
+    }
+  });
+
+  function closeMenu() {
+    const list = get('.ags-menu-list');
+    if (list && !list.hidden) {
+      list.hidden = true;
+      get('[data-agent-menu]').setAttribute('aria-expanded', 'false');
+    }
+  }
+  root.addEventListener('keydown', event => { if (event.key === 'Escape' && !get('.ags-menu-list')?.hidden) { closeMenu(); get('[data-agent-menu]').focus(); } });
+  document.addEventListener('click', function outside(event) {
+    if (!root.isConnected) { document.removeEventListener('click', outside); return; }
+    if (!event.target.closest('.ags-menu')) closeMenu();
+  });
+
+  async function act(operation, data, button) {
+    if (busy) return false;
+    busy = true;
+    if (button) button.disabled = true;
+    const note = get('[data-agent-side-status]');
+    if (note) note.textContent = '';
+    try {
+      const result = await request(operation, { id: agent.id, ...data });
+      updateAgent(agent.id, result.agent, operation !== 'delete');
+      return true;
+    } catch (error) {
+      if (note) note.textContent = error.message;
+      return false;
+    } finally {
+      busy = false;
+      if (button?.isConnected) button.disabled = false;
+    }
+  }
+
+  if (!agent) return { root, workspace, id: '', flush: async () => true, dirty: () => false };
+
+  const moveForm = get('[data-agent-move-form]');
+  moveForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const note = moveForm.querySelector('.form-status');
+    try {
+      const result = await request('move', { id: agent.id, revision: agentRevision(agent), folder: moveForm.elements.folder.value });
+      moveForm.closest('dialog').close();
+      updateAgent(agent.id, result.agent);
+    } catch (error) { note.textContent = error.message; }
+  });
+
+  root.addEventListener('submit', async event => {
+    const form = event.target.closest('[data-memory-add]');
+    if (!form) return;
+    event.preventDefault();
+    const note = form.querySelector('.form-status');
+    try {
+      const result = await request('memory', { id: agent.id, action: 'add', kind: view.memory, text: form.elements.text.value });
+      updateAgent(agent.id, result.agent);
+    } catch (error) { note.textContent = error.message; }
+  });
+
+  const transcript = get('[data-agent-transcript]');
+  const testForm = get('[data-agent-test]');
+  const input = testForm.elements.message;
+  const testStatus = get('[data-agent-test-status]');
+  const chat = chats.get(chatKey(workspace, agent.id));
+  transcript.scrollTop = transcript.scrollHeight;
+  input.addEventListener('input', () => autoGrow(input, 160));
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); testForm.requestSubmit(); }
+  });
+  if (chat.pending) {
+    testForm.inert = true;
+    testStatus.textContent = 'Aguardando resposta…';
+  }
+  testForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const message = input.value.trim();
+    if (!model || !message || chat.pending) return;
+    const config = chat.version === 'published' ? `published:${agent.published?.version}` : agentRevision(agent);
+    if (chat.config && chat.config !== config) Object.assign(chat, { messages: [], log: [] });
+    chat.config = config;
+    const history = [...chat.messages.slice(-8), message];
+    chat.log.push({ role: 'user', content: message });
+    chat.pending = true;
+    transcript.insertAdjacentHTML('beforeend', bubble({ role: 'user', content: message }, agent.name));
+    transcript.scrollTop = transcript.scrollHeight;
+    input.value = '';
+    autoGrow(input, 160);
+    testForm.inert = true;
+    testStatus.textContent = 'Aguardando resposta…';
+    try {
+      const { reply, run } = await request('test', { id: agent.id, revision: agentRevision(agent), version: chat.version, messages: history });
+      chat.messages = [...history, reply];
+      chat.log.push({ role: 'assistant', content: reply });
+      chat.pending = false;
+      addRun(run);
+    } catch (error) {
+      chat.log.pop();
+      chat.pending = false;
+      if (!root.isConnected) refresh();
+      else {
+        transcript.lastElementChild?.remove();
+        input.value = message;
+        testStatus.textContent = error.message;
+        testForm.inert = false;
+        input.focus();
+      }
+    }
+  });
+  if (!chat.pending && model && !matchMedia('(max-width: 760px)').matches) input.focus({ preventScroll: true });
+  return { root, workspace, id: '', flush: async () => true, dirty: () => false };
 }
 
 function mountEditor({ root, workspace, model, agent, request, updateAgent }) {
   const get = selector => root.querySelector(selector);
   const form = get('#agent-draft');
-  const sources = get('[data-agent-sources]');
   const saveStatus = get('[data-agent-save-status]');
   const publish = get('[data-agent-action="publish"]');
-  const testVersion = get('[data-agent-test-version]');
-  const transcript = get('.agent-transcript');
-  const testForm = get('[data-agent-test]');
-  const testStatus = get('[data-agent-test-status]');
-  const testButton = testForm.querySelector('button');
-  const confirm = get('.agent-confirm');
-  let confirmDown = null; confirm?.addEventListener('mousedown', ev => { confirmDown = ev.target; });
-  confirm?.addEventListener('click', ev => {
-    if (ev.target === confirm && confirmDown === confirm) {
-      const r = confirm.getBoundingClientRect();
-      if (ev.clientY < r.top || ev.clientY > r.bottom || ev.clientX < r.left || ev.clientX > r.right) confirm.close();
-    }
-  });
-  const welcome = transcript.innerHTML;
-  let timer, saving, actionPending = false, committing = false, deleted = false, testPending = false, conflict = false;
-  let baseline = JSON.stringify(agentDraft(agent)), messages = [], chatConfig = '';
+  const picker = get('[data-trigger-picker]');
+  const builder = get('[data-agent-build]');
+  const builderLog = get('[data-builder-log]');
+  const buildStatus = get('[data-agent-build-status]');
+  const logKey = chatKey(workspace, agent.id);
+  dialogBackdropClose(picker);
+  let timer, saving, actionPending = false, committing = false, conflict = false, building = false;
+  let triggers = agentDraft(agent).triggers;
+  let baseline = JSON.stringify(agentDraft(agent));
+  let pickerGroup = '';
 
-  function openSection(section) {
-    for (const panel of root.querySelectorAll('[data-agent-panel]')) panel.hidden = panel.dataset.agentPanel !== section;
-    for (const button of root.querySelectorAll('[data-agent-section]')) button.setAttribute('aria-pressed', button.dataset.agentSection === section);
-    form.hidden = section === 'release';
-  }
+  const sources = () => get('[data-agent-sources]');
   function readDraft() {
     return {
       name: form.elements.name.value.trim(),
-      role: form.elements.role.value.trim(),
+      icon: form.querySelector('[name=icon]:checked')?.value || 'spark',
+      description: form.elements.description.value.trim(),
       instructions: form.elements.instructions.value.trim(),
-      knowledge: [...sources.children].map(source => ({
+      knowledge: [...sources().children].map(source => ({
         title: source.querySelector('input').value.trim(), text: source.querySelector('textarea').value.trim()
-      }))
+      })),
+      triggers: triggers.map(({ type, value }) => (value ? { type, value } : { type })),
+      subagents: [...form.querySelectorAll('.agent-subagent')].map(item => ({
+        name: item.querySelector('[name=subName]').value.trim(),
+        when: item.querySelector('[name=subWhen]').value.trim(),
+        instructions: item.querySelector('[name=subInstructions]').value.trim()
+      })),
+      resources: Object.fromEntries(agentResources.map(([key]) => [key, form.elements[`res-${key}`].checked]))
     };
   }
-  function dirty() { return !deleted && JSON.stringify(readDraft()) !== baseline; }
+  const dirty = () => JSON.stringify(readDraft()) !== baseline;
   function describe(message, isError = false) {
     saveStatus.textContent = message;
     saveStatus.toggleAttribute('data-error', isError);
   }
   function refreshCounters() {
     get('[data-agent-count]').textContent = `${form.elements.instructions.value.length.toLocaleString('pt-BR')} / ${agentLimits.instructions.toLocaleString('pt-BR')} caracteres`;
-    get('[data-agent-source-count]').textContent = `${sources.childElementCount} de ${agentLimits.sources} fontes`;
-    get('[data-agent-add-source]').disabled = sources.childElementCount >= agentLimits.sources;
+    get('[data-agent-source-count]').textContent = `${sources().childElementCount} de ${agentLimits.sources} fontes`;
+    get('[data-agent-add-source]').disabled = sources().childElementCount >= agentLimits.sources;
+    get('[data-agent-add-subagent]').disabled = form.querySelectorAll('.agent-subagent').length >= agentLimits.subagents;
+    get('[data-agent-add-trigger]').disabled = triggers.length >= agentLimits.triggers;
+    const summary = form.querySelector('.icon-picker summary .agent-avatar');
+    const chosen = form.querySelector('[name=icon]:checked')?.value;
+    if (summary && chosen) summary.innerHTML = icon(chosen, 24);
+    for (const item of form.querySelectorAll('.agent-subagent')) {
+      item.querySelector('[data-subagent-title]').textContent = item.querySelector('[name=subName]').value.trim() || 'Novo subagente';
+    }
   }
   function refreshRelease() {
-    const release = agent.published;
-    const changes = changedAgentFields(agent).map(field => fieldNames[field]);
-    const modelChanged = release && release.model !== model;
-    if (modelChanged) changes.push('Modelo');
-    get('[data-agent-name]').textContent = agent.name;
-    get('[data-agent-badges]').innerHTML = badges(agent);
-    get('[data-agent-release-info]').innerHTML = release
-      ? `<b>Versão ${h(release.version)} publicada em ${dateFormat.format(new Date(release.at))}</b>
-         <p class="dim">${changes.length ? `Alterações para publicar em ${h(changes.join(', '))}.` : 'O rascunho corresponde à versão publicada.'}</p>`
-      : '<p class="dim">Publique para guardar uma versão do rascunho. Você poderá testá-la mesmo depois de editar as instruções ou as fontes.</p>';
-    publish.textContent = release ? 'Publicar nova versão' : 'Publicar agente';
-    publish.disabled = Boolean(release && !changes.length && !dirty()) || conflict || actionPending;
-    get('[data-agent-action="unpublish"]').hidden = !release;
-    testVersion.querySelector('[value="published"]').disabled = !release;
-    testVersion.closest('label').hidden = !release;
-    if (!release && testVersion.value === 'published') {
-      testVersion.value = 'draft';
-      resetChat();
-    }
-    showModel();
+    const changes = changedAgentFields(agent).map(field => agentFieldNames[field]);
+    if (agent.published && model && agent.published.model !== model) changes.push('Modelo');
+    publish.textContent = !agent.published ? 'Publicar' : changes.length || dirty() ? 'Publicar alterações' : 'Publicado';
+    publish.disabled = Boolean(agent.published && !changes.length && !dirty()) || conflict || actionPending;
+    publish.title = agent.published ? `Versão ${agent.published.version} publicada em ${fullFormat.format(new Date(agent.published.at))}` : '';
   }
-  function showModel() {
-    const selected = testVersion.value === 'published' ? agent.published?.model || model : model;
-    get('[data-agent-model]').textContent = model && selected ? selected : 'OpenAI desconectada';
+  function renderTriggers() {
+    get('[data-agent-triggers]').innerHTML = triggerChips(triggers, true) || '<span class="dim">Nenhum gatilho. O agente só roda quando chamado no chat.</span>';
   }
   function validDraft(report) {
     const invalid = [...form.elements].find(field => field.validity && (!field.validity.valid || (field.required && !field.value.trim())));
     if (!invalid) return true;
     if (report) {
-      openSection(invalid.closest('[data-agent-panel]').dataset.agentPanel);
+      invalid.closest('details')?.setAttribute('open', '');
       invalid.focus();
       invalid.reportValidity();
     }
-    describe('Preencha todos os campos para salvar.', true);
+    describe('Preencha os campos obrigatórios para salvar.', true);
     return false;
   }
   function save(report = false) {
     clearTimeout(timer);
     if (saving) return saving;
-    if (conflict || committing || deleted) return Promise.resolve(false);
+    if (conflict || committing) return Promise.resolve(false);
     if (!dirty()) return Promise.resolve(true);
     if (!validDraft(report)) return Promise.resolve(false);
     saving = (async () => {
       try {
         while (dirty()) {
           if (!validDraft(report)) return false;
-          const draft = readDraft();
           describe('Salvando rascunho…');
-          const response = await request('save', { ...draft, id: agent.id, revision: agentRevision(agent) });
+          const response = await request('save', { ...readDraft(), id: agent.id, revision: agentRevision(agent) });
           agent = response.agent;
           baseline = JSON.stringify(agentDraft(agent));
           updateAgent(agent.id, agent);
@@ -271,115 +738,199 @@ function mountEditor({ root, workspace, model, agent, request, updateAgent }) {
     describe(dirty() ? 'Alterações pendentes' : 'Rascunho salvo');
     timer = setTimeout(() => save(), 950);
   }
-  function addMessage(content, role) {
-    const bubble = document.createElement('div');
-    bubble.className = `agent-bubble ${role}`;
-    const label = document.createElement('strong');
-    label.textContent = role === 'user' ? 'Você' : agent.name;
-    const body = document.createElement('p');
-    body.textContent = content;
-    bubble.append(label, body);
-    transcript.append(bubble);
-    transcript.scrollTop = transcript.scrollHeight;
-    return bubble;
+
+  function pickerItems() {
+    const query = normalized(get('[data-trigger-query]').value.trim());
+    const matches = type => (!pickerGroup || type.group === pickerGroup) && (!query || normalized(`${type.label} ${type.text}`).includes(query));
+    const item = type => {
+      const added = !type.field && triggers.some(trigger => trigger.type === type.id);
+      return `<button type="button" class="picker-item" data-pick-trigger="${type.id}" ${added ? 'aria-disabled="true"' : ''}>
+        <span class="resource-icon">${icon(type.icon, 15)}</span><span><span class="picker-title"><b>${h(type.label)}</b>${added ? '<span class="badge green">Adicionado</span>' : ''}</span><small>${h(type.text)}</small></span>${icon('right', 15)}</button>`;
+    };
+    if (query || pickerGroup) {
+      const list = triggerTypes.filter(matches);
+      return list.length ? list.map(item).join('') : '<p class="dim picker-empty">Nenhum gatilho encontrado.</p>';
+    }
+    const sections = [['Populares', triggerTypes.filter(type => type.popular)], ...triggerGroups.map(([key, label]) => [label, triggerTypes.filter(type => type.group === key)])];
+    return sections.map(([label, list]) => `<h3 class="picker-heading">${h(label)}</h3>${list.map(item).join('')}`).join('');
   }
-  function resetChat() {
-    messages = [];
-    chatConfig = '';
-    transcript.innerHTML = welcome;
-    testStatus.textContent = '';
+  function openPicker() {
+    get('[data-trigger-query]').value = '';
+    pickerGroup = '';
+    for (const button of picker.querySelectorAll('[data-trigger-group]')) button.setAttribute('aria-pressed', String(button.dataset.triggerGroup === ''));
+    get('[data-trigger-value]').hidden = true;
+    get('[data-trigger-list]').hidden = false;
+    get('[data-trigger-list]').innerHTML = pickerItems();
+    picker.showModal();
+    get('[data-trigger-query]').focus();
+  }
+  function addTrigger(trigger) {
+    if (!triggers.some(item => item.type === trigger.type && (item.value || '').toLowerCase() === (trigger.value || '').toLowerCase())) triggers = [...triggers, trigger];
+    picker.close();
+    renderTriggers();
+    scheduleSave();
+    get('[data-agent-add-trigger]').focus();
+  }
+  function askValue(type) {
+    const valueForm = get('[data-trigger-value]');
+    valueForm.innerHTML = `<p class="picker-value-title">${icon(type.icon, 15)} <b>${h(type.label)}</b></p>
+      <label>${h(type.field.label)}${type.field.options
+        ? `<select name="value" required>${type.field.options.map(option => `<option>${h(option)}</option>`).join('')}</select>`
+        : `<input name="value" required maxlength="${agentLimits.triggerValue}" placeholder="${h(type.field.placeholder || '')}">`}</label>
+      <div class="picker-value-actions"><button type="button" class="secondary" data-picker-back>Voltar</button><button class="primary">Adicionar gatilho</button></div>`;
+    valueForm.dataset.type = type.id;
+    valueForm.hidden = false;
+    get('[data-trigger-list]').hidden = true;
+    valueForm.elements.value.focus();
+  }
+  picker.addEventListener('input', event => {
+    if (event.target.matches('[data-trigger-query]')) get('[data-trigger-list]').innerHTML = pickerItems();
+  });
+  picker.addEventListener('click', event => {
+    const button = event.target.closest('button');
+    if (!button) return;
+    if (button.hasAttribute('data-dialog-close')) picker.close();
+    if (button.dataset.triggerGroup !== undefined) {
+      pickerGroup = button.dataset.triggerGroup;
+      for (const other of picker.querySelectorAll('[data-trigger-group]')) other.setAttribute('aria-pressed', String(other === button));
+      get('[data-trigger-list]').innerHTML = pickerItems();
+    }
+    if (button.hasAttribute('data-picker-back')) {
+      get('[data-trigger-value]').hidden = true;
+      get('[data-trigger-list]').hidden = false;
+    }
+    if (button.dataset.pickTrigger) {
+      if (button.getAttribute('aria-disabled') === 'true') return;
+      const type = triggerType(button.dataset.pickTrigger);
+      if (type.field) askValue(type);
+      else addTrigger({ type: type.id });
+    }
+  });
+  get('[data-trigger-value]').addEventListener('submit', event => {
+    event.preventDefault();
+    const valueForm = event.target;
+    const value = valueForm.elements.value.value.trim();
+    if (!value) return valueForm.elements.value.reportValidity();
+    addTrigger({ type: valueForm.dataset.type, value });
+  });
+
+  function renderConfig() {
+    const open = [...form.querySelectorAll('details.agent-subagent')].map(item => item.open);
+    form.innerHTML = configFields(agent);
+    form.querySelectorAll('details.agent-subagent').forEach((item, index) => { item.open = Boolean(open[index]); });
+    triggers = agentDraft(agent).triggers;
+    baseline = JSON.stringify(agentDraft(agent));
+    refreshCounters();
+    refreshRelease();
+  }
+  function renderBuilder() {
+    builderLog.innerHTML = builderEntries(builderLogs.get(logKey) || []);
+    builderLog.scrollTop = builderLog.scrollHeight;
   }
 
   form.addEventListener('input', scheduleSave);
+  form.addEventListener('change', event => { if (event.target.matches('[name=icon]')) form.querySelector('.icon-picker').open = false; });
   form.addEventListener('submit', event => { event.preventDefault(); void save(true); });
-  testVersion.addEventListener('change', () => { resetChat(); showModel(); });
   root.addEventListener('click', async event => {
     const button = event.target.closest('button');
-    if (!button) return;
-    const { agentSection, agentAction } = button.dataset;
-    if (agentSection) openSection(agentSection);
-    if (button.hasAttribute('data-agent-add-source')) {
-      sources.insertAdjacentHTML('beforeend', sourceFields());
-      sources.lastElementChild.querySelector('input').focus();
+    if (!button || picker.contains(button)) return;
+    if (button.hasAttribute('data-agent-add-trigger')) { openPicker(); return; }
+    if (button.dataset.removeTrigger) {
+      triggers = triggers.filter((_, index) => index !== Number(button.dataset.removeTrigger));
+      renderTriggers();
       scheduleSave();
+      get('[data-agent-add-trigger]').focus();
+      return;
+    }
+    if (button.hasAttribute('data-agent-add-source')) {
+      sources().insertAdjacentHTML('beforeend', sourceFields());
+      sources().lastElementChild.querySelector('input').focus();
+      scheduleSave();
+      return;
     }
     if (button.hasAttribute('data-agent-remove-source')) {
       button.closest('fieldset').remove();
       get('[data-agent-add-source]').focus();
       scheduleSave();
+      return;
     }
-    if (button.hasAttribute('data-agent-reset')) resetChat();
-    if (button.hasAttribute('data-agent-confirm-delete')) confirm.showModal();
-    if (button.hasAttribute('data-agent-cancel-delete')) confirm.close();
-    if (!agentAction || actionPending) return;
+    if (button.hasAttribute('data-agent-add-subagent')) {
+      get('[data-agent-subagents]').insertAdjacentHTML('beforeend', subagentFields({}, true));
+      get('[data-agent-subagents]').lastElementChild.querySelector('input').focus();
+      scheduleSave();
+      return;
+    }
+    if (button.hasAttribute('data-remove-subagent')) {
+      button.closest('details').remove();
+      get('[data-agent-add-subagent]').focus();
+      scheduleSave();
+      return;
+    }
+    if (button.dataset.agentAction !== 'publish' || actionPending) return;
     actionPending = true;
-    button.disabled = true;
-    if (confirm.open) confirm.close();
+    publish.disabled = true;
     try {
-      if (agentAction === 'publish' && !await save(true)) return;
-      if (saving && !await saving) return;
+      if (!await save(true)) return;
       clearTimeout(timer);
       committing = form.inert = true;
-      const id = agent.id;
-      const result = await request(agentAction, { id, revision: agentRevision(agent) });
-      deleted = agentAction === 'delete';
-      updateAgent(id, result.agent);
-      if (deleted) {
-        if (root.isConnected) location.hash = '#ai-agents';
-        return;
-      }
+      const result = await request('publish', { id: agent.id, revision: agentRevision(agent) });
       agent = result.agent;
-      describe(agentAction === 'publish' ? 'Versão publicada' : 'Agente despublicado');
-      if (dirty()) timer = setTimeout(() => save(), 950);
+      updateAgent(agent.id, agent);
+      describe(`Versão ${agent.published.version} publicada`);
     } catch (error) {
       conflict = error.status === 409;
       describe(error.message, true);
     } finally {
       actionPending = committing = form.inert = false;
-      button.disabled = false;
-      if (!deleted) refreshRelease();
-    }
-  });
-  testForm.addEventListener('submit', async event => {
-    event.preventDefault();
-    const input = testForm.elements.message;
-    const message = input.value.trim();
-    if (!model || !message || testPending) return;
-    testPending = true;
-    const version = testVersion.value;
-    const reset = get('[data-agent-reset]');
-    testButton.disabled = testVersion.disabled = reset.disabled = input.disabled = true;
-    testStatus.textContent = 'Preparando teste…';
-    let bubble;
-    try {
-      if (version === 'draft' && !await save(true)) {
-        testStatus.textContent = 'Resolva as pendências do rascunho e tente novamente.';
-        return;
-      }
-      const config = version === 'published' ? `published:${agent.published?.version}` : baseline;
-      if (chatConfig !== config) resetChat();
-      chatConfig = config;
-      if (!messages.length) transcript.replaceChildren();
-      bubble = addMessage(message, 'user');
-      testStatus.textContent = 'Aguardando resposta…';
-      const history = [...messages.slice(-8), message];
-      const { reply } = await request('test', { id: agent.id, revision: agentRevision(agent), version, messages: history });
-      messages = [...history, reply];
-      addMessage(reply, 'assistant');
-      input.value = '';
-      testStatus.textContent = '';
-    } catch (error) {
-      bubble?.remove();
-      if (!messages.length) transcript.innerHTML = welcome;
-      testStatus.textContent = error.message;
-    } finally {
-      testPending = false;
-      testButton.disabled = testVersion.disabled = reset.disabled = input.disabled = false;
-      if (root.isConnected) input.focus();
+      refreshRelease();
     }
   });
 
+  const buildField = builder.elements.request;
+  buildField.addEventListener('input', () => autoGrow(buildField, 160));
+  buildField.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); builder.requestSubmit(); }
+  });
+  builder.addEventListener('submit', async event => {
+    event.preventDefault();
+    const text = buildField.value.trim();
+    if (!model || !text || building) return;
+    building = true;
+    builder.inert = true;
+    const log = builderLogs.get(logKey) || [];
+    builderLogs.set(logKey, log);
+    log.push({ role: 'user', content: text });
+    renderBuilder();
+    buildField.value = '';
+    autoGrow(buildField, 160);
+    buildStatus.textContent = 'Atualizando o agente…';
+    try {
+      if (!await save(true)) throw new Error('Resolva as pendências do rascunho e tente de novo.');
+      committing = form.inert = true;
+      const result = await request('build', { id: agent.id, revision: agentRevision(agent), request: text });
+      agent = result.agent;
+      updateAgent(agent.id, agent);
+      log.push({ role: 'assistant', content: result.summary });
+      committing = form.inert = false;
+      renderConfig();
+      describe('Rascunho salvo');
+      buildStatus.textContent = '';
+    } catch (error) {
+      conflict ||= error.status === 409;
+      log.push({ role: 'assistant', content: error.message, error: true });
+      buildStatus.textContent = '';
+      if (!buildField.value) buildField.value = text;
+    } finally {
+      building = committing = form.inert = false;
+      builder.inert = false;
+      renderBuilder();
+      refreshRelease();
+    }
+  });
+
+  renderTriggers();
   refreshCounters();
   refreshRelease();
+  builderLog.scrollTop = builderLog.scrollHeight;
   return { root, workspace, id: agent.id, flush: () => save(), dirty };
 }
