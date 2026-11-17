@@ -28,6 +28,12 @@ test('Landing page serves at / with login button, animations and modules', async
   assert.match(html, /id="binary"/);
   assert.match(html, /id="login-dialog"/);
 
+  // 1.1 GET / on app.graao.com serves the platform app directly
+  const appSubdomainRes = await fetch(local.base + '/', { headers: { 'x-forwarded-host': 'app.graao.com' } });
+  assert.equal(appSubdomainRes.status, 200);
+  const appSubdomainHtml = await appSubdomainRes.text();
+  assert.match(appSubdomainHtml, /<div id="app">/);
+
   // 2. GET /app and /painel serve the platform app
   const appRes = await fetch(local.base + '/app');
   assert.equal(appRes.status, 200);

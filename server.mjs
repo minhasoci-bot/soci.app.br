@@ -638,7 +638,10 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
         return json({kind,row,form:form?.active?form:null,brand:state.profile.name});
       }
       if ((method==='GET'||method==='HEAD') && (p==='/' || ['/app','/app/','/painel','/painel/'].includes(p) || paths.test(p) || staticFiles.has(p))) {
-        const f=staticFiles.has(p)?p:(p==='/'?'/landing.html':'/index.html');
+        const hostHeader = (req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
+        const isAppDomain = hostHeader.startsWith('app.');
+        const isLanding = p === '/' && !isAppDomain;
+        const f = staticFiles.has(p) ? p : (isLanding ? '/landing.html' : '/index.html');
         return send(200,staticFiles.get(f)||'text/html; charset=utf-8',method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
       }
       throw error('Page not found.',404);
