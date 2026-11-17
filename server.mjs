@@ -577,7 +577,7 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
         const f=staticFiles.has(p)?p:'/index.html';
         return send(200,staticFiles.get(f),method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
       }
-      throw error('Page not found.',404);
+      throw error(`Page not found: method=${method} p=${p} url=${req.url}`,404);
     } catch(e) {
       if (!e.status) console.error(e.message);
       if (!res.headersSent) json({error:e.status?e.message:'The workspace could not complete this request.'},e.status||500);
