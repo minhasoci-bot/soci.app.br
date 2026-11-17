@@ -217,21 +217,46 @@ function applyTheme(theme) {
   else html.removeAttribute('data-theme');
 }
 
-export function applyBrandColor(value) {
-  const root = document.documentElement;
-  const color = /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : '#ff00bb';
-  const custom = color !== '#ff00bb';
-  root.toggleAttribute('data-custom-brand', custom);
-  if (!custom) return;
+const DEFAULT_BRAND_PRIMARY = '#ff00bb';
+const DEFAULT_BRAND_SECONDARY = '#fc972d';
 
-  const [red, green, blue] = color.slice(1).match(/../g).map(hex => {
-    const channel = Number.parseInt(hex, 16) / 255;
+function relativeLuminance(hex) {
+  const [red, green, blue] = hex.slice(1).match(/../g).map(part => {
+    const channel = Number.parseInt(part, 16) / 255;
     return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
   });
-  const light = red * 0.2126 + green * 0.7152 + blue * 0.0722 > 0.179;
-  root.style.setProperty('--g-custom-brand', color);
-  root.style.setProperty('--g-brand-on', light ? '#000' : '#fff');
-  root.style.setProperty('--g-brand-depth', light ? '#fff' : '#000');
+  return red * 0.2126 + green * 0.7152 + blue * 0.0722;
+}
+
+export function applyBrandColor(primaryValue, secondaryValue) {
+  const root = document.documentElement;
+  const primary = /^#[0-9a-f]{6}$/i.test(primaryValue) ? primaryValue.toLowerCase() : DEFAULT_BRAND_PRIMARY;
+  const secondary = /^#[0-9a-f]{6}$/i.test(secondaryValue) ? secondaryValue.toLowerCase() : DEFAULT_BRAND_SECONDARY;
+  const custom = primary !== DEFAULT_BRAND_PRIMARY || secondary !== DEFAULT_BRAND_SECONDARY;
+  root.toggleAttribute('data-custom-brand', custom);
+  if (!custom) {
+    for (const prop of [
+      '--g-custom-brand', '--g-custom-brand-2',
+      '--g-brand-on', '--g-brand-depth',
+      '--g-brand-2-on', '--g-brand-2-depth',
+      '--g-grad-on'
+    ]) root.style.removeProperty(prop);
+    return;
+  }
+
+  const lum1 = relativeLuminance(primary);
+  const lum2 = relativeLuminance(secondary);
+  const light1 = lum1 > 0.34;
+  const light2 = lum2 > 0.34;
+  const gradLight = (lum1 + lum2) / 2 > 0.42;
+
+  root.style.setProperty('--g-custom-brand', primary);
+  root.style.setProperty('--g-custom-brand-2', secondary);
+  root.style.setProperty('--g-brand-on', light1 ? '#0f131a' : '#fff');
+  root.style.setProperty('--g-brand-depth', lum1 > 0.08 ? '#000' : '#fff');
+  root.style.setProperty('--g-brand-2-on', light2 ? '#0f131a' : '#fff');
+  root.style.setProperty('--g-brand-2-depth', lum2 > 0.08 ? '#000' : '#fff');
+  root.style.setProperty('--g-grad-on', gradLight ? '#0f131a' : '#fff');
 }
 
 export function setThemeAccount(accountId) {

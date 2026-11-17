@@ -19,18 +19,27 @@ function hsvToHex({ hue, saturation, value }) {
   return '#' + channels.map(channel => Math.round((channel + value - chroma) * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
 }
 
-export function colorPicker(value) {
-  const hex = /^#[\da-f]{6}$/i.test(value) ? value.toUpperCase() : '#FF00BB';
+export function colorPicker(value, {
+  name = 'primary',
+  id = `ag-${name}-color`,
+  label = 'Cor primária',
+  fallback = '#FF00BB'
+} = {}) {
+  const safeFallback = /^#[\da-f]{6}$/i.test(fallback) ? fallback.toUpperCase() : '#FF00BB';
+  const hex = /^#[\da-f]{6}$/i.test(value) ? value.toUpperCase() : safeFallback;
+  const panelId = `${id}-panel`;
+  const hueId = `${id}-hue`;
+  const lowerLabel = label.toLowerCase();
   return `<div class="ag-color-picker" data-color-picker>
-    <label for="ag-primary-color">Cor primária</label>
+    <label for="${id}">${label}</label>
     <div class="ag-color-fields">
-      <button type="button" class="secondary ag-color-trigger" data-color-toggle aria-label="Seletor de cor primária" aria-expanded="false" aria-controls="ag-color-panel">
+      <button type="button" class="secondary ag-color-trigger" data-color-toggle aria-label="Seletor de ${lowerLabel}" aria-expanded="false" aria-controls="${panelId}">
         <span class="ag-color-swatch" aria-hidden="true"></span><span class="ag-color-chevron" aria-hidden="true"></span>
       </button>
-      <input id="ag-primary-color" name="primary" value="${hex}" pattern="#[0-9A-Fa-f]{6}" maxlength="7" required
-        title="Código HEX de seis dígitos, como #FF00BB" aria-label="Cor primária em HEX" autocomplete="off" spellcheck="false">
+      <input id="${id}" name="${name}" data-color-input value="${hex}" pattern="#[0-9A-Fa-f]{6}" maxlength="7" required
+        title="Código HEX de seis dígitos, como ${safeFallback}" aria-label="${label} em HEX" autocomplete="off" spellcheck="false">
     </div>
-    <div class="ag-color-panel" id="ag-color-panel" hidden>
+    <div class="ag-color-panel" id="${panelId}" data-color-panel hidden>
       <div class="ag-color-plane" data-color-plane tabindex="0" role="group" aria-label="Saturação e brilho. Use as setas para ajustar.">
         <span class="ag-color-knob" aria-hidden="true"></span>
       </div>
@@ -38,18 +47,18 @@ export function colorPicker(value) {
         <button type="button" class="icon-btn ag-color-dropper" data-color-dropper title="Conta-gotas" aria-label="Selecionar cor da tela" hidden>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 7 3 3M5 19l4-1 10-10a2.1 2.1 0 0 0-3-3L6 15l-1 4Z"/></svg>
         </button>
-        <label for="ag-color-hue"><span class="sr-only">Matiz</span><input id="ag-color-hue" type="range" min="0" max="360"></label>
+        <label for="${hueId}"><span class="sr-only">Matiz</span><input id="${hueId}" data-color-hue type="range" min="0" max="360"></label>
       </div>
     </div>
   </div>`;
 }
 
 export function mountColorPicker(root) {
-  const field = root.querySelector('[name=primary]');
+  const field = root.querySelector('[data-color-input]') || root.querySelector('[name=primary]');
   const trigger = root.querySelector('[data-color-toggle]');
-  const panel = root.querySelector('#ag-color-panel');
+  const panel = root.querySelector('[data-color-panel]');
   const plane = root.querySelector('[data-color-plane]');
-  const slider = root.querySelector('#ag-color-hue');
+  const slider = root.querySelector('[data-color-hue]');
   const dropper = root.querySelector('[data-color-dropper]');
   let color = hexToHsv(field.value);
   let syncing = false;

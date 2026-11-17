@@ -133,8 +133,8 @@
 :root[data-theme=dark] .ag-logo{background:rgb(17 19 23)}
 :root[data-theme=dark] .ag-acting select{background:rgb(17 19 23)}
 :root[data-theme=dark] .ag-delete{color:#f2a7b5}
-:root[data-theme=dark] .ag-notice{background:var(--g-brand-surface,rgb(17 19 23));border-color:var(--g-brand-line,rgb(92 24 75))}
-:root[data-theme=dark] .ag-warn{background:var(--g-brand-surface,rgb(17 19 23));border-color:var(--g-brand-line,rgb(92 24 75))}
+:root[data-theme=dark] .ag-notice{background:var(--g-brand-2-surface,rgb(249 115 22 / 0.17));border-color:var(--g-brand-2-line,rgb(107 69 37))}
+:root[data-theme=dark] .ag-warn{background:var(--g-brand-2-surface,rgb(249 115 22 / 0.17));border-color:var(--g-brand-2-line,rgb(107 69 37))}
 :root[data-theme=dark] .ag-warn{background:rgb(249 115 22 / 0.17);border-color:rgb(107 69 37)}
 :root[data-theme=dark] .ag-colbar{background:rgb(21 23 27)}
 :root[data-theme=dark] .ag-bar{background:rgb(27 29 34)}
@@ -144,7 +144,7 @@
 :root[data-theme=dark] .ag-done{background:rgb(118 210 155 / 0.17);border-color:rgb(31 77 53);color:#76d29b}
 :root[data-theme=dark] .ag-idea p{color:#aab0b9}
 :root[data-theme=dark] .ag-vote{background:rgb(17 19 23)}
-:root[data-theme=dark] .ag-vote.on{background:var(--g-brand-surface,rgb(17 19 23))}
+:root[data-theme=dark] .ag-vote.on{background:var(--g-brand-2-surface,rgb(249 115 22 / 0.17))}
 :root[data-theme=dark] .ag-phone{background:rgb(17 19 23)}
 :root[data-theme=dark] .ag-phone-list li{border-bottom:1px solid rgb(43 47 53)}
 :root[data-theme=dark] .ag-window{background:rgb(17 19 23)}
@@ -152,6 +152,7 @@
 :root[data-theme=dark] .ag-color-knob{border:2px solid rgb(43 47 53)}
 :root[data-theme=dark] .ag-color-controls input[type=range]::-webkit-slider-thumb{border:2px solid rgb(43 47 53)}
 :root[data-theme=dark] .ag-color-controls input[type=range]::-moz-range-thumb{border:2px solid rgb(43 47 53)}
+:root[data-theme=dark] .ag-brand-preview{background:var(--g-surface-2,rgb(21 23 27))}
 :root[data-theme=dark] .ag-banner.warn{background:rgb(249 115 22 / 0.17);border-color:rgb(107 69 37)}
 :root[data-theme=dark] .ag-banner.ok{background:rgb(118 210 155 / 0.17);border-color:rgb(31 77 53)}
 :root[data-theme=dark] .ag-banner.acting{background:rgb(17 19 23);border-color:rgb(32 50 85)}
@@ -227,7 +228,6 @@
 :root[data-theme=dark] .g-side .whatsapp-icon{color:#76d29b}
 :root[data-theme=dark] .metrics>:nth-child(4n+2) .metric-icon{background:rgb(21 23 27);color:#76d29b}
 :root[data-theme=dark] .metrics>:nth-child(4n+3) .metric-icon{background:rgb(134 182 255 / 0.17);color:#86b6ff}
-:root[data-theme=dark] .metrics>:nth-child(4n+4) .metric-icon{background:rgb(17 19 23);color:#f2a7b5}
 :root[data-theme=dark] .secondary{background:rgb(17 19 23)}
 :root[data-theme=dark] .danger.plain{color:#f2a7b5}
 :root[data-theme=dark] .continue{border:1px solid rgb(43 47 53 / 0.4)}

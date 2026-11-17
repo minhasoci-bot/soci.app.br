@@ -58,7 +58,7 @@ export function startAgency(env) {
     const currentVisit = visit;
     const data = await api(`/api/agency/${op}`, body);
     if (currentVisit === visit) A.data = data;
-    if (op === 'action' && body.type === 'company') env.onBrandColorChange(data.agency.company.primary);
+    if (op === 'action' && body.type === 'company') env.onBrandColorChange(data.agency.company.primary, data.agency.company.secondary);
     return data.result;
   }
   const act = (type, extra = {}) => call('action', { type, ...extra });
@@ -428,9 +428,17 @@ export function startAgency(env) {
           <label>Endereço comercial<input name="address" value="${h(c.address)}"></label>
           <label>Fuso horário padrão<select name="timezone">${['America/Sao_Paulo', 'America/New_York', 'Europe/London', 'UTC'].map(z => `<option ${c.timezone === z ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
           <label>Moeda<input readonly value="Real brasileiro (BRL)"></label>
-          ${colorPicker(c.primary)}
+          ${colorPicker(c.primary, { name: 'primary', label: 'Cor primária', fallback: '#FF00BB' })}
+          ${colorPicker(c.secondary, { name: 'secondary', label: 'Cor secundária', fallback: '#FC972D' })}
         </div>
-        <p class="dim">A cor primária é usada na visão da agência e nas subcontas vinculadas.</p>
+        <div class="ag-brand-preview" aria-label="Prévia das cores primária e secundária">
+          <span class="ag-brand-preview-bar" aria-hidden="true"></span>
+          <span class="ag-brand-preview-meta">
+            <span class="badge pink">Badge</span>
+            <span class="text-link">Link de destaque</span>
+          </span>
+        </div>
+        <p class="dim">As cores primária e secundária formam o gradiente de botões, avatares e heróis, além dos focos e destaques na agência e nas subcontas.</p>
         <h2>White Label das subcontas</h2>
         <div class="field-grid">
           <label>Domínio para subcontas<input name="domain" placeholder="app.suaagencia.com.br" value="${h(c.domain)}"></label>
@@ -499,10 +507,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const prev = document.querySelector('#screen')?.scrollTop || 0;
     const page = pages[A.page] || pages.dashboard;
     document.title = 'soci';
-    applyBrandColor(D().company.primary);
+    applyBrandColor(D().company.primary, D().company.secondary);
     app.innerHTML = shell(page());
-    const picker = app.querySelector('[data-color-picker]');
-    if (picker) mountColorPicker(picker);
+    for (const picker of app.querySelectorAll('[data-color-picker]')) mountColorPicker(picker);
     const chatHost = app.querySelector('[data-soci-chat-host]');
     if (chatHost) sociChat.mount(chatHost, { conversationId: A.sub });
     else sociChat.unmount();
@@ -661,9 +668,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     }
     if (el.matches('[data-ag-price]')) el.form.querySelector('[data-ag-profit]').textContent = money((Number(el.value) || 0) - Number(el.dataset.agPrice));
     if (el.matches('[data-ag-app-price],[data-ag-app-cost]')) { const price = Number(el.form.price.value) || 0; el.form.querySelector('[data-ag-profit]').textContent = money(price ? price - (Number(el.form.cost.value) || 0) : 0); }
-    if (el.form?.dataset.agForm === 'company' && el.name === 'primary' && /^#[0-9a-f]{6}$/i.test(el.value)) {
-      D().company.primary = el.value;
-      applyBrandColor(el.value);
+    if (el.form?.dataset.agForm === 'company' && (el.name === 'primary' || el.name === 'secondary') && /^#[0-9a-f]{6}$/i.test(el.value)) {
+      D().company[el.name] = el.value.toLowerCase();
+      applyBrandColor(D().company.primary, D().company.secondary);
     }
     if (el.form?.dataset.agForm === 'mobile-app' || el.form?.dataset.agForm === 'desktop-app') {
       const preview = el.form.parentElement;
@@ -676,9 +683,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
   document.addEventListener('change', async ev => {
     if (!active()) return;
     const el = ev.target;
-    if (el.form?.dataset.agForm === 'company' && el.name === 'primary' && /^#[0-9a-f]{6}$/i.test(el.value)) {
-      D().company.primary = el.value;
-      applyBrandColor(el.value);
+    if (el.form?.dataset.agForm === 'company' && (el.name === 'primary' || el.name === 'secondary') && /^#[0-9a-f]{6}$/i.test(el.value)) {
+      D().company[el.name] = el.value.toLowerCase();
+      applyBrandColor(D().company.primary, D().company.secondary);
     }
     try {
       if (el.matches('[data-ag-user]')) { if (el.value) localStorage.setItem('go.user', el.value); else localStorage.removeItem('go.user'); location.reload(); }

@@ -7,8 +7,8 @@
   --pr-soft:var(--g-surface-2,#f4f6f8);
   --pr-accent:var(--g-brand,#ff00bb);
   --pr-accent-soft:var(--g-brand-surface,#fff0f6);
-  --pr-pink:var(--g-brand-text,#a00070);
-  --pr-pink-soft:var(--g-brand-surface,#fff0fa);
+  --pr-pink:var(--g-brand-2-text,#b85c00);
+  --pr-pink-soft:var(--g-brand-2-surface,#fff5ea);
   --pr-good:#157f3c;
   --pr-good-soft:#f0fdf4;
   --pr-bad:#e11d48;
@@ -24,8 +24,8 @@
   --pr-soft:var(--g-surface-2,#1b1d22);
   --pr-accent:var(--g-brand,#ff00bb);
   --pr-accent-soft:color-mix(in srgb,var(--g-brand,#ff00bb) 14%,transparent);
-  --pr-pink:var(--g-brand-text,#ff9adb);
-  --pr-pink-soft:color-mix(in srgb,var(--g-brand,#ff00bb) 14%,transparent);
+  --pr-pink:var(--g-brand-2-text,#ffb366);
+  --pr-pink-soft:color-mix(in srgb,var(--g-brand-2,#fc972d) 15%,transparent);
   --pr-good:var(--g-mint,#76d29b);
   --pr-good-soft:rgba(118,210,155,.14);
   --pr-bad:#f2a7b5;
@@ -56,13 +56,13 @@
 }
 .pr-btn:hover,.pr-icon:hover { border-color:var(--pr-accent); color:var(--pr-accent); background:var(--pr-accent-soft); }
 .pr-btn.pr-primary {
-  color: var(--g-brand-on, white);
-  background: var(--g-brand-fill, linear-gradient(180deg, #ff33cc 0%, #ff00bb 100%));
+  color: var(--g-grad-on, white);
+  background: var(--g-grad-brand, linear-gradient(135deg, #e000a6 0%, #f07d18 100%));
   border-color: rgba(255, 255, 255, 0.12);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 8px 20px -8px color-mix(in srgb, var(--g-brand, #ff00bb) 55%, transparent);
 }
 .pr-btn.pr-primary:hover {
-  background: var(--g-brand-fill-hover, linear-gradient(180deg, #ff66d9 0%, #ff00bb 100%));
+  background: var(--g-grad-brand-hover, linear-gradient(135deg, #c70093 0%, #d96f0a 100%));
   border-color: rgba(255, 255, 255, 0.18);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 12px 26px -8px color-mix(in srgb, var(--g-brand, #ff00bb) 68%, transparent);
 }
@@ -72,14 +72,14 @@
   box-shadow: none;
 }
 :root[data-theme=dark] .pr-btn.pr-primary:not(:disabled) {
-  color: var(--g-brand-on, white) !important;
-  background: var(--g-brand-fill, linear-gradient(180deg, #ff33cc 0%, #ff00bb 100%)) !important;
+  color: var(--g-grad-on, white) !important;
+  background: var(--g-grad-brand, linear-gradient(135deg, #e600ab 0%, #f5861d 100%)) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 8px 20px -8px color-mix(in srgb, var(--g-brand, #ff00bb) 55%, transparent) !important;
 }
 
 :root[data-theme=dark] .pr-btn.pr-primary:hover:not(:disabled) {
-  background: var(--g-brand-fill-hover, linear-gradient(180deg, #ff66d9 0%, #ff00bb 100%)) !important;
+  background: var(--g-grad-brand-hover, linear-gradient(135deg, #ff1ac4 0%, #fc972d 100%)) !important;
   border-color: rgba(255, 255, 255, 0.18) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 12px 26px -8px color-mix(in srgb, var(--g-brand, #ff00bb) 68%, transparent) !important;
 }

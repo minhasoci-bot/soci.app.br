@@ -19,18 +19,26 @@ const prospectAction = (local, op, id, data) => local.call('/api/agency/prospect
 
 test('Company name is editable while the platform brand stays soci', async t => {
   const local = await start(); t.after(local.close);
+  const { body: initial } = await local.call('/api/agency');
+  assert.equal(initial.agency.company.primary, '#ff00bb');
+  assert.equal(initial.agency.company.secondary, '#fc972d');
   const logo = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
   const data = { name: 'Empresa Teste', timezone: 'America/Sao_Paulo', currency: 'BRL',
-    primary: '#7c5cf0', logo, domain: 'app.empresa.example' };
+    primary: '#7c5cf0', secondary: '#00c49a', logo, domain: 'app.empresa.example' };
   for (const requestedBrand of [{}, { brand: 'Outra marca' }]) {
     const saved = await action(local, { type: 'company', data: { ...data, ...requestedBrand } });
     assert.equal(saved.status, 200);
     assert.equal(saved.body.agency.company.name, data.name);
     assert.equal(saved.body.agency.company.brand, 'soci');
+    assert.equal(saved.body.agency.company.primary, data.primary);
+    assert.equal(saved.body.agency.company.secondary, data.secondary);
   }
+  const invalidSecondary = await action(local, { type: 'company', data: { ...data, secondary: 'not-a-color' } });
+  assert.equal(invalidSecondary.status, 400);
   const { body } = await local.call('/api/state?workspace=demo');
   assert.equal(body.agency.brand, 'soci');
   assert.equal(body.agency.primary, data.primary);
+  assert.equal(body.agency.secondary, data.secondary);
   assert.equal(body.agency.logo, logo);
 });
 
