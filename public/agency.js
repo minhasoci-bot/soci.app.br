@@ -23,7 +23,7 @@ export const agencyNav = [
   ['accounts', 'Subcontas', 'users'], ['snapshots', 'Snapshots de contas', 'box'],
   ['affiliate', 'Portal de afiliados', 'link'], ['templates', 'Biblioteca de templates', 'site'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
   ['saas-education', 'Educação SaaS', 'chart'], ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'], ['desktop-app', 'Aplicativo desktop', 'monitor'],
-  ['marketplace', 'Marketplace de apps', 'apps'], ['settings', 'Configurações', 'gear']
+  ['settings', 'Configurações', 'gear']
 ];
 const subTabs = {
   prospecting: prospectRoutes,
@@ -32,7 +32,6 @@ const subTabs = {
   templates: [['all', 'Todos os templates'], ['mine', 'Meus templates'], ['installs', 'Instalações']],
   ideas: [['all', 'Todas'], ['Under review', 'Em análise'], ['Planned', 'Planejadas'], ['In progress', 'Em andamento'], ['Completed', 'Concluídas']],
   saas: [['overview', 'Visão geral'], ['plans', 'Planos SaaS'], ['rebilling', 'Rebilling da carteira'], ['accounts', 'Subcontas SaaS']],
-  marketplace: [['all', 'Todos os apps'], ['installed', 'Apps instalados'], ['reselling', 'Revenda de apps'], ['earnings', 'Ganhos']],
   settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'], ['workflow', 'Workflows'],
     ['phone', 'Integração de telefone'], ['email-services', 'Serviços de e-mail'], ['emails', 'E-mails do sistema'], ['announcements', 'Comunicados'],
     ['workflow-premium', 'Workflow: recursos premium'], ['external-ai', 'Workflow: IA externa'], ['domain-purchase', 'Compra de domínios'],
@@ -201,7 +200,7 @@ export function startAgency(env) {
     const t = O().totals, growth = O().growth, max = Math.max(1, ...growth.map(g => g.total));
     const top = [...accounts()].sort((a, b) => b.contacts - a.contacts).slice(0, 8);
     return `<div class="page">${head('Painel da agência', `Boas-vindas, ${D().profile.first}. Métricas consolidadas das suas subcontas e registros da agência.`, primary('Criar subconta', 'new-account'))}
-      ${D().stripe.connected ? '' : `<div class="surface padded ag-notice">${i('pay', 20)}<div><b>Os KPIs de faturamento usam registros locais</b><p>A receita dos planos é calculada a partir do plano SaaS atribuído a cada subconta. Uma conexão com o Stripe é necessária para processar pagamentos reais.</p></div><a class="secondary" href="#agency/marketplace">Ver integrações</a></div>`}
+      ${D().stripe.connected ? '' : `<div class="surface padded ag-notice">${i('pay', 20)}<div><b>Os KPIs de faturamento usam registros locais</b><p>A receita dos planos é calculada a partir do plano SaaS atribuído a cada subconta. Uma conexão com o Stripe é necessária para processar pagamentos reais.</p></div><a class="secondary" href="#agency/settings/stripe">Configurar Stripe</a></div>`}
       <div class="metrics">${metric('Receita recorrente mensal (MRR)', usd(t.mrr), 'Dos planos SaaS de contas ativas')}${metric('Subcontas ativas', `${t.active} <small>/ ${t.accounts}</small>`, `${t.paused} pausada(s) · ${t.closed} encerrada(s)`)}${metric('Novas neste mês', t.newThisMonth)}${metric('Planos SaaS cadastrados', D().plans.length, 'Disponíveis no Configurador SaaS')}</div>
       <div class="metrics">${metric('Contatos', t.contacts)}${metric('Oportunidades abertas', t.open)}${metric('Execuções de automação', t.runs)}${metric('Saldo da carteira', usd(t.wallet))}</div>
       <div class="ag-two"><section class="surface padded"><h2>Crescimento de subcontas</h2><p class="dim">Total de subcontas acumuladas no final de cada mês</p><div class="ag-chart">${growth.map(g => `<div class="ag-col"><b>${g.total}</b><span class="ag-colbar"><span data-h="${(g.total / max) * 100}"></span></span><small>${h(g.month.slice(5))}/${h(g.month.slice(2, 4))}</small></div>`).join('')}</div></section>
@@ -375,35 +374,9 @@ export function startAgency(env) {
   };
 
   // ---- App Marketplace ----------------------------------------------------
-  const appName = key => integrationCatalog.find(x => x[0] === key)?.[1] || key;
-  const appMoney = () => {
-    const rows = D().apps.installs.filter(x => x.account && accounts().some(a => a.id === x.account));
-    const money = x => D().apps.resell[x.app] || { cost: 0, price: 0 };
-    return { rows, revenue: rows.reduce((t, x) => t + money(x).price, 0), cost: rows.reduce((t, x) => t + money(x).cost, 0), money };
-  };
   pages.marketplace = () => {
-    const sub = A.sub || 'all', apps = D().apps;
-    const pageHead = head('Marketplace de apps', 'Explore integrações, instale na agência ou nas subcontas e defina preços de revenda.');
-    if (sub === 'installed') {
-      const scope = A.status || 'Agency';
-      const rows = apps.installs.filter(x => x.scope === scope && match(appName(x.app), x.account ? accountName(x.account) : ''));
-      return `<div class="page">${pageHead}${tabs('marketplace')}<div class="toolbar">${search('Buscar pelo nome do app…')}<select data-ag-status aria-label="Nível da instalação">${appScopes.map(s => `<option value="${s}" ${scope === s ? 'selected' : ''}>${s === 'Agency' ? 'Apps da agência' : 'Apps das subcontas'}</option>`).join('')}</select></div>
-        ${table(['App', ...(scope === 'Agency' ? [] : ['Subconta']), 'Instalado por', 'Instalado em', 'Plano atual', ''], [...rows].reverse().map(x => `<tr><td><b>${h(appName(x.app))}</b></td>${scope === 'Agency' ? '' : `<td>${h(accountName(x.account))}</td>`}<td>${h(x.by)}</td><td>${day(x.at, true)}</td><td>${apps.resell[x.app]?.price ? `${usd(apps.resell[x.app].price)}/mês` : 'Gratuito'}</td><td class="right">${btn('Desinstalar', 'app-uninstall', `data-id="${x.id}"`)}</td></tr>`), empty('Nenhum app instalado', 'Instale um app pela aba Todos os apps.'))}</div>`;
-    }
-    if (sub === 'reselling') return `<div class="page">${pageHead}${tabs('marketplace')}<div class="page-head"><div><h2>Revenda de apps para todas as subcontas</h2><p class="dim">As subcontas pagam o preço com markup definido aqui ao instalar o app. Deixe o preço em 0 para não revender.</p></div>${search('Buscar apps…')}</div>
-      <div class="ag-products">${integrationCatalog.filter(x => match(x[1], x[3])).map(([key, name, ico, cat]) => { const r = apps.resell[key] || { cost: 0, price: 0 }; return `<form class="surface padded ag-product" data-ag-form="app-resell" data-id="${key}"><div class="ag-product-head"><div><h2>${i(ico, 16)} ${h(name)}</h2><p class="dim">${h(cat)}</p></div>${r.price ? badge('Revendido', 'green') : badge('Não revendido')}</div>
-        <div class="ag-price"><label><small>Custo do app / mês</small><input name="cost" type="number" min="0" step="0.01" value="${r.cost}" data-ag-app-cost></label><label><small>Seu preço de revenda / mês</small><input name="price" type="number" min="0" step="0.01" value="${r.price}" data-ag-app-price></label><div><small>Seu lucro</small><b data-ag-profit>${usd(r.price ? r.price - r.cost : 0)}</b></div></div>
-        <button class="primary">Salvar alterações</button><p class="form-status" role="alert"></p></form>`; }).join('')}</div></div>`;
-    if (sub === 'earnings') {
-      const { rows, revenue, cost, money } = appMoney();
-      const byApp = integrationCatalog.map(([key, name]) => { const list = rows.filter(x => x.app === key); return { name, installs: list.length, accounts: new Set(list.map(x => x.account)).size, revenue: list.reduce((t, x) => t + money(x).price, 0), cost: list.reduce((t, x) => t + money(x).cost, 0) }; }).filter(r => r.installs);
-      const byAccount = accounts().map(a => { const list = rows.filter(x => x.account === a.id); return { name: a.name, apps: list.length, revenue: list.reduce((t, x) => t + money(x).price, 0), cost: list.reduce((t, x) => t + money(x).cost, 0) }; }).filter(r => r.apps);
-      return `<div class="page">${pageHead}${tabs('marketplace')}<div class="metrics">${metric('Apps únicos instalados', new Set(apps.installs.map(x => x.app)).size)}${metric('Instalações ativas', apps.installs.length)}${metric('Subcontas com apps', new Set(rows.map(x => x.account)).size)}${metric('Receita − custo = lucro', `${usd(revenue)} − ${usd(cost)} = ${usd(revenue - cost)}`, 'Por mês, nas instalações em subcontas')}</div>
-        <h2 class="section-heading">Análise por app</h2>${table(['App', 'Instalações', 'Subcontas ativas', 'Receita total', 'Custo', 'Lucro'], byApp.map(r => `<tr><td><b>${h(r.name)}</b></td><td>${r.installs}</td><td>${r.accounts}</td><td>${usd(r.revenue)}</td><td>${usd(r.cost)}</td><td>${usd(r.revenue - r.cost)}</td></tr>`), empty('Sem ganhos registrados', 'Instale apps revendidos nas subcontas para acompanhar receita e lucro.'))}
-        <h2 class="section-heading">Análise por subconta</h2>${table(['Subconta', 'Apps instalados', 'Receita', 'Custo', 'Lucro'], byAccount.map(r => `<tr><td><b>${h(r.name)}</b></td><td>${r.apps}</td><td>${usd(r.revenue)}</td><td>${usd(r.cost)}</td><td>${usd(r.revenue - r.cost)}</td></tr>`), '')}</div>`;
-    }
-    return `<div class="page">${pageHead}${tabs('marketplace')}<div class="toolbar">${search('Buscar apps e integrações…')}</div>
-    <div class="card-grid">${integrationCatalog.filter(x => match(x[1], x[3], x[4])).map(([key, name, ico, cat, text]) => { const n = D().integrations[key]?.accounts.length || 0, count = apps.installs.filter(x => x.app === key).length; return `<article class="surface padded resource"><span class="metric-icon">${i(ico)}</span><div><h2>${h(name)}</h2><p>${h(text)}</p></div><div class="inline-gap">${badge(cat)}${badge(n ? `Disponível para ${n}` : 'Não oferecido', n ? 'blue' : '')}${count ? badge(`${count} instalação(ões)`, 'green') : ''}${apps.resell[key]?.price ? badge(`${usd(apps.resell[key].price)}/mês`, 'purple') : ''}</div><div class="inline-gap">${btn('Instalar', 'app-install', `data-id="${key}"`, 'primary')}${btn('Gerenciar disponibilidade', 'integration', `data-id="${key}"`)}</div></article>`; }).join('')}</div></div>`;
+    location.replace('#agency/dashboard');
+    return '';
   };
 
   // ---- Settings ----------------------------------------------------------

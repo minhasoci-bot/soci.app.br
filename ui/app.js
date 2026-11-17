@@ -452,7 +452,6 @@ function globalSearch(value){
       ['ideas', 'Ideias', 'lightbulb'],
       ['mobile-app', 'Aplicativo móvel', 'phone'],
       ['desktop-app', 'Aplicativo desktop', 'computer'],
-      ['marketplace', 'Marketplace de apps', 'cart'],
       ['settings', 'Configurações', 'cog']
     ];
     let agAccounts = [];
