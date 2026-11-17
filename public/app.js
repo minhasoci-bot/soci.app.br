@@ -26,17 +26,45 @@ function flash(msg,isError=false){ clearTimeout(toastTimer);toast.className=isEr
 const actingUser = () => { try { return localStorage.getItem('go.user') || ''; } catch { return ''; } };
 const googleUser = () => { try { return JSON.parse(localStorage.getItem('go.google_user') || 'null'); } catch { return null; } };
 async function api(path,body){ const headers={'X-Go-User':actingUser()}; const r=await fetch(path,body===undefined?{headers}:{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)}); const d=await r.json(); if(!r.ok) throw Object.assign(Error(d.error||'The request failed.'),{status:r.status}); return d; }
-async function load(){ const data=await api(url('/api/state')); Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,audit:data.audit}); }
+async function load(){
+  const workspace = c.workspace;
+  const data = await api(url('/api/state'));
+  if (workspace === c.workspace) Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,audit:data.audit});
+}
 const allowedView = id => id==='ask-ai' || !c.access?.modules || c.access.modules.includes(id);
-let agencyUI;
+let agencyUI, openingWorkspace;
 const sessionDismissed=new Set();
 async function mutate(command){ const d=await api(url('/api/action'),command); c.s=d.state;c.m=d.metrics;return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
 const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions'],marketing:['social','email'],memberships:['courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project'],settings:crmTabs.settings.map(t=>t[0])};
+async function openInitialWorkspace() {
+  const workspace = c.workspace;
+  try { await load(); }
+  catch (e) {
+    if (workspace !== c.workspace) return;
+    if (![403,404].includes(e.status)) throw e;
+    const {workspaces:open} = await api('/api/workspaces');
+    if (workspace !== c.workspace) return;
+    if (!open.length) throw Error('Your user has no sub-account access. Choose another user in the agency view.');
+    c.workspace = open[0].id;
+    localStorage.setItem('go.workspace',c.workspace);
+    await load();
+  }
+}
 function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(key==='agency'){ c.mode='agency'; close(); agencyUI.show(tab,project); return; }
-  if(c.mode==='agency'){ c.mode=''; renderedView=''; }
-  const view=key==='link'?'link':Object.hasOwn(screens,key)&&allowedView(key)?key:'ask-ai', nextTab=view==='link'?tab||'':validTabs[view]?.includes(tab)?tab:''; if(c.view!==view||c.tab!==nextTab){c.query='';c.tag='';}c.view=view;c.tab=nextTab; c.studio.project=project || ''; if(c.s) render(); }
+  if(c.mode==='agency'){ agencyUI.leave(); c.mode=''; renderedView=''; }
+  if (!c.s) {
+    app.innerHTML = '<div class="boot" role="status">Abrindo o soci…</div>';
+    openingWorkspace ??= openInitialWorkspace()
+      .then(() => { if (c.s && c.mode !== 'agency') route(); })
+      .catch(e => {
+        if (c.mode !== 'agency') app.innerHTML = `<div class="boot"><h1>Workspace unavailable</h1><p>${h(e.message)}</p><a href="/">Retry</a></div>`;
+      })
+      .finally(() => { openingWorkspace = null; });
+    return;
+  }
+  const view=key==='link'?'link':Object.hasOwn(screens,key)&&allowedView(key)?key:'ask-ai', nextTab=view==='link'?tab||'':validTabs[view]?.includes(tab)?tab:''; if(c.view!==view||c.tab!==nextTab){c.query='';c.tag='';}c.view=view;c.tab=nextTab; c.studio.project=project || ''; render(); }
 const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${label}" title="${label}" ${attributes}>${i(name,17)}</button>`;
 const navItem=([id,pt,ico])=>({href:`#${id}`,label:pt,icon:ico,current:c.view===id});
 function appSidebar(brand){
@@ -451,7 +479,6 @@ function globalSearch(value){
       ['saas-education', 'Educação SaaS', 'chart'],
       ['ideas', 'Ideias', 'lightbulb'],
       ['mobile-app', 'Aplicativo móvel', 'phone'],
-      ['desktop-app', 'Aplicativo desktop', 'computer'],
       ['settings', 'Configurações', 'cog']
     ];
     let agAccounts = [];
@@ -578,7 +605,7 @@ if(viewPath){
   catch(e){app.innerHTML=`<div class="boot"><h1>Page unavailable</h1><p>${h(e.message)}</p><a href="/">Back to workspace</a></div>`;}
 }else{
   installDashboardControls({ c,dialog,close,render,load,mutate,flash,go });
-  agencyUI = startAgency({ app, overlay, api, flash, openWorkspace: async id => { c.mode=''; await useWorkspace(id); } });
+  agencyUI = startAgency({ app, overlay, api, flash, openWorkspace: useWorkspace });
   installStudio({ c, api, url, flash, render });
   crmEvents({ G, mutate, render, flash, dialog, close });
   socialEvents({ c, G, api, url, mutate, render, flash, dialog, close, load });
@@ -603,15 +630,5 @@ if(viewPath){
       (c.view === 'conversations' && ['analytics','link-analysis','manual-actions'].includes(c.tab));
     if (live) try { await load(); render(); } catch { /* The current view remains available. */ }
   });
-  try{
-    try{await load();}
-    catch(e){
-      if(![403,404].includes(e.status))throw e;
-      const {workspaces:open}=await api('/api/workspaces');
-      if(open.length){ c.workspace=open[0].id;localStorage.setItem('go.workspace',c.workspace);await load(); }
-      else if(!location.hash.startsWith('#agency')) throw Error('Your user has no sub-account access. Choose another user in the agency view.');
-    }
-    route();
-  }
-  catch(e){app.innerHTML=`<div class="boot"><h1>Workspace unavailable</h1><p>${h(e.message)}</p><a href="/">Retry</a></div>`;}
+  route();
 }

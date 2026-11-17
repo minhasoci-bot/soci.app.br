@@ -22,7 +22,7 @@ export const agencyNav = [
   ['ask', 'Pergunte à IA', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['saas', 'Configurador SaaS', 'chart'], ['prospecting', 'Prospecção', 'search'],
   ['accounts', 'Subcontas', 'users'], ['snapshots', 'Snapshots de contas', 'box'],
   ['affiliate', 'Portal de afiliados', 'link'], ['templates', 'Biblioteca de templates', 'site'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
-  ['saas-education', 'Educação SaaS', 'chart'], ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'], ['desktop-app', 'Aplicativo desktop', 'monitor'],
+  ['saas-education', 'Educação SaaS', 'chart'], ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'],
   ['settings', 'Configurações', 'gear']
 ];
 const subTabs = {
@@ -50,8 +50,13 @@ export function startAgency(env) {
   const match = (...values) => !A.query || values.join(' ').toLowerCase().includes(A.query.toLowerCase());
   const go = (page, sub = '') => { const next = `#agency/${page}${sub ? `/${sub}` : ''}`; if (location.hash === next) render(); else location.hash = next; };
 
-  async function load() { A.data = await api('/api/agency'); }
-  async function call(op, body) { const d = await api(`/api/agency/${op}`, body); A.data = d; return d.result; }
+  let visit = 0, loading = false;
+  async function call(op, body) {
+    const currentVisit = visit;
+    const data = await api(`/api/agency/${op}`, body);
+    if (currentVisit === visit) A.data = data;
+    return data.result;
+  }
   const act = (type, extra = {}) => call('action', { type, ...extra });
 
   // ---- Dialogs -----------------------------------------------------------
@@ -339,9 +344,8 @@ export function startAgency(env) {
   };
 
   pages['desktop-app'] = () => {
-    const d = D().desktopApp;
-    return `<div class="page">${head('Aplicativo desktop', 'Personalize o aplicativo desktop para download pela sua equipe e clientes.')}<div class="ag-builder"><form class="surface padded settings-form" data-ag-form="desktop-app"><div class="field-grid"><label>Nome do app<input name="appName" required maxlength="40" value="${h(d.appName)}"></label><label>Domínio do app<input name="domain" placeholder="app.suaagencia.com.br" value="${h(d.domain)}"></label><label>Cor primária<input name="primary" type="color" value="${h(d.primary)}"></label></div><button class="primary">Salvar aplicativo desktop</button><p class="form-status" role="alert"></p></form>
-      <div class="ag-window"><div class="ag-window-bar" data-bg="${h(d.primary)}"><span></span><span></span><span></span><b data-preview="appName">${h(d.appName)}</b></div><div class="ag-window-body"><p class="dim">${h(d.domain || 'app.suaagencia.com.br')}</p><p>As compilações oficiais para Windows e macOS exigem certificados de assinatura de código e servidor de atualizações.</p></div></div></div></div>`;
+    location.replace('#agency/dashboard');
+    return '';
   };
 
   // ---- SaaS Configurator --------------------------------------------------
@@ -443,6 +447,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
 
   // ---- Render ------------------------------------------------------------
   function render() {
+    if (!active() || !A.data) return;
     const prev = document.querySelector('#screen')?.scrollTop || 0;
     const page = pages[A.page] || pages.dashboard;
     document.title = 'soci';
@@ -463,14 +468,32 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     if (nextPage !== A.page) { A.query = ''; A.status = ''; A.category = ''; A.selected.clear(); A.auditPage = 0; }
     A.page = nextPage;
     A.sub = subTabs[A.page]?.some(t => t[0] === sub) ? sub : '';
-    try { await load(); render(); }
-    catch (e) {
+    if (A.data) { render(); return; }
+    if (loading) return;
+    const currentVisit = visit;
+    loading = true;
+    app.innerHTML = '<div class="boot" role="status">Abrindo a agência…</div>';
+    try {
+      const data = await api('/api/agency');
+      if (currentVisit !== visit || !active()) return;
+      A.data = data;
+      render();
+    } catch (e) {
+      if (currentVisit !== visit || !active()) return;
       app.innerHTML = `<div class="boot"><h1>Visão da agência indisponível</h1><p>${h(e.message)}</p><button class="primary" data-ag="reset-user">Acessar como dono da agência</button> <a href="#ask-ai">Voltar para o workspace</a></div>`;
+    } finally {
+      if (currentVisit === visit) loading = false;
     }
   }
 
+  function leave() {
+    visit++;
+    loading = false;
+    A.data = null;
+  }
+
   // ---- Events -------------------------------------------------------------
-  const active = () => location.hash.startsWith('#agency');
+  const active = () => location.hash === '#agency' || location.hash.startsWith('#agency/');
   const download = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
   const pickAccounts = (name = 'workspaces', chosen = []) => `<fieldset class="ag-checks"><legend>Subcontas selecionadas</legend>${accounts().map(a => `<label class="check"><input type="checkbox" name="${name}" value="${a.id}" ${chosen.includes(a.id) ? 'checked' : ''}> ${h(a.name)}</label>`).join('')}</fieldset>`;
   const oneAccount = () => `<label>Subconta de destino<select name="workspace" required>${accounts().map(a => `<option value="${a.id}">${h(a.name)}</option>`).join('')}</select></label>`;
@@ -679,5 +702,5 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
   });
 
   const prospecting = createProspecting({data:()=>A.data,accounts,call,render,dialog,close,flash,download});
-  return { show };
+  return { show, leave };
 }
