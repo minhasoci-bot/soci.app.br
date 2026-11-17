@@ -489,7 +489,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const page = pages[A.page] || pages.dashboard;
     document.title = 'graao';
     app.innerHTML = shell(page());
-    document.documentElement.style.setProperty('--blue', brandColor(D().company.primary));
+    const bColor = brandColor(D().company.primary);
+    document.documentElement.style.setProperty('--blue', bColor);
+    document.documentElement.style.setProperty('--g-brand', bColor);
     for (const el of app.querySelectorAll('[data-w]')) el.style.width = `${el.dataset.w}%`;
     for (const el of app.querySelectorAll('[data-h]')) el.style.height = `${Math.max(3, Number(el.dataset.h))}%`;
     for (const el of app.querySelectorAll('[data-bg]')) el.style.background = el.dataset.bg;

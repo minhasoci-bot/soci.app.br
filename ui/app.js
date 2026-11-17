@@ -65,7 +65,9 @@ function render(){
   const brand=brandName(c.agency?.brand), customLink=c.agency?.menuLinks.find(l=>l.id===c.tab);
   const active=nav.find(x=>x[0]===c.view);
   document.title='graao';
-  document.documentElement.style.setProperty('--blue',brandColor(c.agency?.primary));
+  const bColor = brandColor(c.agency?.primary);
+  document.documentElement.style.setProperty('--blue', bColor);
+  document.documentElement.style.setProperty('--g-brand', bColor);
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
   const gUser = googleUser();
