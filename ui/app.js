@@ -23,7 +23,40 @@ import { applyBrandColor, setThemeAccount } from './graao.js';
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay'), toast=document.querySelector('#toast');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
 const viewPath=!isAppPath ? location.pathname : '';
-const c={workspace:new URLSearchParams(location.search).get('workspace')||localStorage.getItem('go.workspace')||'demo',view:'dashboard',tab:'',query:'',tag:'',thread:'',chat:[],month:new Date(),choice:'',askOpen:false,navOpen:false,workspaces:[],conversationFilters:{}};
+const c={workspace:new URLSearchParams(location.search).get('workspace')||localStorage.getItem('go.workspace')||'demo',view:'dashboard',tab:'',query:'',tag:'',thread:'',chat:[],month:new Date(),choice:'',askOpen:false,navOpen:false,workspaces:[],conversationFilters:{},wa:null,waPairOpen:false};
+let waSubPoll=null;
+function stopSubWaPoll(){ if(waSubPoll){ clearInterval(waSubPoll); waSubPoll=null; } }
+function startSubWaPoll(){
+  stopSubWaPoll();
+  const ws=c.workspace;
+  waSubPoll=setInterval(async()=>{
+    if(c.mode==='agency'||c.view!=='settings'||c.tab!=='whatsapp'||c.workspace!==ws){ stopSubWaPoll(); return; }
+    try{
+      const live=await api(url('/api/whatsapp/workspace/status'));
+      if(c.workspace!==ws||c.view!=='settings'||c.tab!=='whatsapp') return;
+      const was=c.wa?.status;
+      c.wa=live;
+      if(live.status==='connected'){
+        stopSubWaPoll();
+        if(was!=='connected') flash('WhatsApp conectado com sucesso!');
+      }
+      render();
+    }catch{}
+  },3000);
+}
+async function refreshSubWa(){
+  const ws=c.workspace;
+  try{
+    const live=await api(url('/api/whatsapp/workspace/status'));
+    if(c.workspace!==ws) return;
+    c.wa=live;
+    if(live.status==='connecting'&&c.view==='settings'&&c.tab==='whatsapp') startSubWaPoll();
+    else stopSubWaPoll();
+  }catch(e){
+    if(c.workspace===ws) c.wa={error:e.message};
+  }
+  if(c.mode!=='agency'&&c.view==='settings'&&c.tab==='whatsapp') render();
+}
 c.dash = dashboardPreferences(c.workspace);
 c.pipeline = '';
 c.studio = { brief:'',template:'landing',project:'' };
@@ -82,6 +115,7 @@ async function openInitialWorkspace() {
 function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(key==='agency'){
     if (c.access && !c.access.agency) { location.replace('#dashboard'); return; }
+    stopSubWaPoll();
     c.mode='agency'; leaveAgentEditor(); close(); agencyUI.show(tab,project); return;
   }
   if(c.mode==='agency'){ agencyUI.leave(); c.mode=''; renderedView=''; }
@@ -116,7 +150,10 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if((c.view!==view||c.tab!==nextTab) && !switchingOpportunityView){c.query='';c.tag='';}
   if(view==='automation' && (c.view!==view || c.tab!==nextTab || c.automationId!==automationId)) c.workflowList=null;
   c.view=view;c.tab=nextTab;c.automationId=automationId;c.studio.project=project||'';
-  c.agentId=view==='ai-agents'&&['agent','edit'].includes(nextTab)?project:''; render(); }
+  c.agentId=view==='ai-agents'&&['agent','edit'].includes(nextTab)?project:'';
+  if(view==='settings'&&nextTab==='whatsapp'){ render(); void refreshSubWa(); return; }
+  stopSubWaPoll();
+  render(); }
 const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${label}" title="${label}" ${attributes}>${i(name,17)}</button>`;
 const navItem=([id,pt,ico])=>({href:`#${id}`,label:pt,icon:ico,current:c.view===id});
 function appSidebar(brand){
@@ -295,7 +332,7 @@ function workspaces(){
   const create = c.access?.agency ? `<button class="secondary" data-act="new-workspace">${i('plus',16)} Novo workspace</button>` : '';
   dialog('Trocar de workspace', `${agency}${choices}${create}`);
 }
-async function useWorkspace(id, view='dashboard'){ leaveAgentEditor();c.workspace=id;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go(view); }
+async function useWorkspace(id, view='dashboard'){ leaveAgentEditor();stopSubWaPoll();c.workspace=id;c.wa=null;c.waPairOpen=false;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go(view); }
 function downloads(name,content,type='text/csv;charset=utf-8'){
   const data=typeof content==='string'?new Blob([content],{type}):content, a=document.createElement('a'), u=URL.createObjectURL(data);
   a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),3000);
@@ -607,6 +644,27 @@ document.addEventListener('click',async ev=>{
       case 'prev-month':case 'next-month':c.month=new Date(c.month.getFullYear(),c.month.getMonth()+(d.act==='prev-month'?-1:1),1);render();break;
       case 'this-month':c.month=new Date();render();break;
       case 'export': downloads('go-workspace-relatorio.csv',['Métrica,Valor',...Object.entries(c.m).map(([k,v])=>`${k},${v}`)].join('\r\n'));break;
+      case 'wa-refresh': await refreshSubWa(); flash('Status do WhatsApp atualizado.'); break;
+      case 'wa-toggle-pair': c.waPairOpen=!c.waPairOpen; render(); break;
+      case 'wa-connect': {
+        stopSubWaPoll();
+        c.wa={...(c.wa||{}),available:true,enabled:true,status:'connecting',qrcode:'',paircode:''};
+        render();
+        const live=await api(url('/api/whatsapp/workspace/connect'),{});
+        c.wa=live;
+        render();
+        if(live.status==='connecting'){ startSubWaPoll(); flash('QR Code gerado! Escaneie com o WhatsApp.'); }
+        else if(live.status==='connected') flash('WhatsApp conectado!');
+        break;
+      }
+      case 'wa-disconnect': {
+        stopSubWaPoll();
+        c.wa=await api(url('/api/whatsapp/workspace/disconnect'),{});
+        c.waPairOpen=false;
+        render();
+        flash('WhatsApp desconectado.');
+        break;
+      }
     }
   } catch(e){flash(e.message,true);}
 });
@@ -709,6 +767,17 @@ document.addEventListener('submit',async ev=>{
       await mutate({type:'save',key,id,data});msg=id?'Alterações salvas.':`${entityNames[key]} ${feminine.has(key)?'criada':'criado'}.`;
     } else if(name==='delete'){await mutate({type:'delete',key:f.dataset.key,id:f.dataset.id});msg='Record deleted.';}
     else if(name==='profile'){await mutate({type:'profile',data});await load();msg='Business profile saved.';}
+    else if(name==='wa-pair'){
+      stopSubWaPoll();
+      const live=await api(url('/api/whatsapp/workspace/connect'),{phone:data.phone});
+      c.wa=live;
+      if(live.status==='connecting') startSubWaPoll();
+      msg=live.paircode?'Código de pareamento gerado!':'Conexão iniciada.';
+    }
+    else if(name==='wa-test'){
+      await api(url('/api/whatsapp/workspace/test'),{phone:data.phone,text:data.text});
+      msg='Mensagem de teste enviada pelo WhatsApp!';
+    }
     else if (name==='stage') { await mutate({type:'stage',id:f.dataset.id,data:{ ...data,visible:f.elements.visible.checked }}); msg='Stage saved.'; }
     else if (name==='pipeline') { await mutate({type:'pipeline',id:f.dataset.id,data}); msg='Pipeline saved.'; }
     else if(name==='thread'){await thread(data.contactId);return;}

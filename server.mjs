@@ -23,6 +23,7 @@ import { authUrl, availability, blueskyLogin, exchange as socialExchange, publis
 import { network } from './ui/social-data.js';
 import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
+import { createWhatsAppHandler } from './whatsapp.mjs';
 import { makeClientPortal, portalCookie } from './client-portal.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -88,7 +89,8 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 export function makeServer({
   dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, designAgentConfig=designAgent,
-  openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, wahaRequest=fetch,
+  openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, wahaRequest=fetch, whatsappRequest=fetch,
+  uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
   portalOptions={},
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
 }={}) {
@@ -96,6 +98,9 @@ export function makeServer({
   const openAI = createOpenAI({ store, model: agentModel, secret: openAISecret, request: openAIRequest });
   const handleAsk = createAskHandler({ store, openAI, openAIRequest });
   const waha = createWahaHandler({ store, secret: openAISecret, request: wahaRequest });
+  const whatsapp = createWhatsAppHandler({
+    store, secret: openAISecret, request: whatsappRequest, envBaseUrl: uazapiBaseUrl, envAdminToken: uazapiAdminToken
+  });
   const clientPortal = makeClientPortal({ ...portalOptions, store });
   const ready = Promise.all([store.insert('demo', seed()), store.insert(AGENCY_ID, blankAgency())]);
   ready.catch(() => {});
@@ -840,12 +845,19 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (module && who.modules && !who.modules.includes(module)) throw error('Your user does not have permission for this module.',403);
         command.actor = who.name;
         const result = await change(id,command);
+        let delivery = null;
+        if (!privateSpace.test(id) && command.type === 'message' && command.data?.channel === 'WhatsApp' && command.data?.direction === 'Outbound') {
+          const contact = result.state.contacts.find(c => c.id === command.data.contactId);
+          if (contact?.phone) {
+            delivery = await whatsapp.sendWorkspaceText(who.agencyId, id, contact.phone, command.data.body);
+          }
+        }
         if (!privateSpace.test(id) && ['save','delete','import','opportunity-import','opportunity-move','pipeline','profile','bulk','workflow-enroll','workflow-restore','workflow-move'].includes(command.type)) {
           const account = (await listWorkspaces(who.agencyId)).find(w => w.id === id)?.name || id;
           const label = command.type === 'bulk' ? `Bulk ${command.data?.operation || ''} on ${command.data?.object || ''}`.trim() : '';
           await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);
         }
-        return json({ ...result, state: visibleState(who, result.state) });
+        return json({ ...result, ...(delivery ? { delivery } : {}), state: visibleState(who, result.state) });
       }
       if (p==='/api/agency' && method!=='POST') {
         return json(await agencyPayload(req,res));
@@ -855,6 +867,27 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!who.agency) throw error('Your user cannot open the agency view.',403);
         const result = await agencyRequest(p.slice('/api/agency/'.length), who, await payload(req));
         return json(await agencyPayload(req,res, { result }, who));
+      }
+      if (p.startsWith('/api/whatsapp/webhook/') && method === 'POST') {
+        return await whatsapp.handleWebhook({ req, url, payload, listWorkspaces, json });
+      }
+      if (p.startsWith('/api/whatsapp/agency/')) {
+        const who = await access(req, res);
+        if (!who.agency) throw error('Seu usuário não pode gerenciar a integração global com WhatsApp.', 403);
+        return await whatsapp.handleAgencyApi({
+          req, url, method, who, payload, publicOrigin: publicBase(req), listWorkspaces, json
+        });
+      }
+      if (p.startsWith('/api/whatsapp/workspace/')) {
+        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
+        const who = await access(req, res);
+        if (!await canOpen(who, id)) throw error('Seu usuário não pode abrir esta subconta.', 403);
+        if (!who.agency && who.modules && !who.modules.includes('settings')) {
+          throw error('Seu usuário não tem permissão para gerenciar o WhatsApp desta subconta.', 403);
+        }
+        return await whatsapp.handleWorkspaceApi({
+          req, url, method, agencyId: who.agencyId, workspaceId: id, payload, publicOrigin: publicBase(req), json
+        });
       }
       if (p.startsWith('/api/waha/webhook/') && method === 'POST') {
         return await waha.handleWebhook({ req, url, payload, listWorkspaces, json });

@@ -140,11 +140,17 @@ label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:no
 .ag-hero-card{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
 .ag-hero-card b{font-size:18px}
 @media (max-width:760px){.ag-hero{grid-template-columns:1fr}}
-/* WhatsApp (WAHA) settings */
-.ag-waha-icon{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;flex:none;background:rgba(37,211,102,.14);color:#128046}
+/* WhatsApp (UAZAPI) settings */
+.ag-waha-icon{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;flex:none;background:rgba(37,211,102,.14);color:#128046}
 :root[data-theme=dark] .ag-waha-icon{color:#25d366}
 .ag-waha-qr{display:grid;justify-items:center;gap:10px;padding:18px;border:1px solid var(--g-line,var(--line));border-radius:12px;background:var(--g-surface-2,#f4f6f8);text-align:center}
-.ag-waha-qr-frame{padding:12px;border-radius:12px;background:#ffffff;border:1px solid #e2e5ea;box-shadow:0 2px 10px rgba(15,19,26,.08)}
-.ag-waha-qr-frame img{display:block;width:210px;height:210px;object-fit:contain}
+.ag-waha-qr-frame{padding:14px;border-radius:14px;background:#ffffff;border:1px solid #e2e5ea;box-shadow:0 2px 12px rgba(15,19,26,.08)}
+.ag-waha-qr-frame img{display:block;width:220px;height:220px;object-fit:contain}
 .ag-waha-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:22px;font-weight:750;letter-spacing:.14em;padding:12px 16px;border-radius:10px;border:1px dashed var(--g-brand-line,var(--line));background:var(--g-brand-surface,#fff0fa);color:var(--g-ink);text-align:center}
-.ag-waha-session-input{max-width:160px;padding:6px 9px;font-size:12.5px}
+.ag-wa-details{margin-top:12px;padding-top:12px;border-top:1px solid var(--g-line,var(--line))}
+.ag-wa-details>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--g-muted,var(--muted));user-select:none}
+.ag-wa-details[open]>summary{margin-bottom:12px}
+.sub-wa-card{display:grid;justify-items:center;gap:12px;text-align:center;max-width:560px;margin:0 auto;padding:28px 24px}
+.sub-wa-card p{max-width:440px;margin:0}
+.sub-wa-steps{margin:0;padding-left:18px;text-align:left;display:grid;gap:4px;font-size:13.5px;color:var(--g-ink-2,var(--muted))}
+.sub-wa-pair{width:100%;max-width:380px;text-align:left;margin-top:8px;padding-top:14px;border-top:1px solid var(--g-line,var(--line))}

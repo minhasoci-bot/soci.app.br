@@ -177,10 +177,66 @@ function marketplace(c){
   const cards=[['Stripe','pay','Receba pagamentos de faturas e checkout.'],['Google Agenda','cal','Sincronize disponibilidade e agendamentos.'],['Twilio','chat','Ative SMS e voz nas conversas.'],['Perfil da Empresa no Google','award','Sincronize avaliações e dados da empresa.'],['Meta','send','Conecte Facebook e Instagram para publicar nas redes.'],['Provedor de e-mail','mail','Envie campanhas e e-mails para clientes.']];
   return wrap(head('Apps do marketplace','Conheça integrações que ampliariam este workspace.')+`<div class="toolbar">${search(c.query,'Buscar integrações…')}</div><div class="card-grid">${cards.filter(a=>a.join(' ').toLowerCase().includes(c.query.toLowerCase())).map(([n,ico,desc])=>`<article class="surface padded resource"><span class="metric-icon">${i(ico)}</span><div><h2>${n}</h2><p>${desc}</p></div>${badge('Não conectado')}<button class="secondary" data-provider="${n}">Ver requisitos</button></article>`).join('')||empty('Nenhuma integração encontrada','Tente outra busca.','apps')}</div>`);
 }
+function whatsappSubView(c){
+  const w=c.wa;
+  if(!w) return `<div class="surface padded sub-wa-card"><span class="ag-waha-icon" aria-hidden="true">${i('whatsapp',22)}</span><h2>WhatsApp</h2><p class="dim">Verificando conexão do WhatsApp desta subconta…</p></div>`;
+  if(w.error) return `<div class="surface padded sub-wa-card"><span class="ag-waha-icon" aria-hidden="true">${i('whatsapp',22)}</span><h2>WhatsApp</h2><p class="form-status">${h(w.error)}</p><button class="secondary" data-act="wa-refresh">Tentar novamente</button></div>`;
+  if(!w.available) return `<div class="surface padded sub-wa-card"><span class="ag-waha-icon" aria-hidden="true">${i('whatsapp',22)}</span><h2>WhatsApp ainda não disponível</h2><p class="dim">Peça ao administrador da agência para ativar a integração de WhatsApp nas configurações da agência.</p>${c.access?.agency?'<a class="primary" href="#agency/settings/whatsapp">Configurar na agência</a>':''}</div>`;
+  if(!w.enabled) return `<div class="surface padded sub-wa-card"><span class="ag-waha-icon" aria-hidden="true">${i('whatsapp',22)}</span><h2>WhatsApp desativado nesta subconta</h2><p class="dim">O recurso de WhatsApp não está habilitado para este workspace no momento.</p></div>`;
+  if(w.status==='connected'){
+    return `<div class="ag-two">
+      <div class="surface padded sub-wa-card">
+        <span class="ag-waha-icon" aria-hidden="true">${i('whatsapp',24)}</span>
+        <div class="inline-gap"><h2>${h(w.profileName||'WhatsApp conectado')}</h2>${badge('Conectado','green')}</div>
+        <p class="dim">${w.phone?`Número conectado: <b>+${h(w.phone)}</b><br>`:''}Mensagens recebidas chegam automaticamente em <b>Conversas</b> e respostas pelo canal WhatsApp são enviadas por este número.</p>
+        <div class="inline-gap">
+          <a class="primary" href="#conversations">Abrir Conversas</a>
+          <button class="secondary" data-act="wa-refresh">Atualizar status</button>
+          <button class="secondary" data-act="wa-disconnect">Desconectar</button>
+        </div>
+      </div>
+      <form class="surface padded settings-form" data-form="wa-test">
+        <h2>Enviar mensagem de teste</h2>
+        <p class="dim">Teste o disparo real pelo WhatsApp conectado nesta subconta.</p>
+        <label>Número destino (com DDI)<input name="phone" required inputmode="numeric" placeholder="5511999999999"></label>
+        <label>Mensagem<textarea name="text" required maxlength="2000" placeholder="Olá! Mensagem de teste enviada pela Soci."></textarea></label>
+        <button class="primary">Enviar teste</button>
+        <p class="form-status" role="alert"></p>
+      </form>
+    </div>`;
+  }
+  if(w.status==='connecting'){
+    return `<div class="surface padded sub-wa-card">
+      <div class="inline-gap"><h2>Escaneie o QR Code</h2>${badge('Aguardando leitura','blue')}</div>
+      ${w.qrcode
+        ? `<div class="ag-waha-qr-frame"><img src="${h(w.qrcode)}" alt="QR Code para conectar o WhatsApp"></div>
+           <ol class="sub-wa-steps"><li>Abra o <b>WhatsApp</b> no seu celular</li><li>Toque em <b>Aparelhos conectados → Conectar aparelho</b></li><li>Aponte a câmera para este QR Code</li></ol>
+           <small class="dim">A página detecta automaticamente assim que o celular confirmar a conexão.</small>`
+        : w.paircode
+          ? `<div class="ag-waha-code" aria-label="Código de pareamento">${h(w.paircode)}</div>
+             <p class="dim">No WhatsApp: <b>Aparelhos conectados → Conectar aparelho → Conectar com número de telefone</b> e digite o código acima.</p>`
+          : `<p class="dim">Preparando QR Code…</p>`}
+      <div class="inline-gap">
+        <button class="primary" data-act="wa-connect">Atualizar QR Code</button>
+        <button class="secondary" data-act="wa-disconnect">Cancelar</button>
+      </div>
+    </div>`;
+  }
+  return `<div class="surface padded sub-wa-card">
+    <span class="ag-waha-icon" aria-hidden="true">${i('whatsapp',24)}</span>
+    <div class="inline-gap"><h2>Conectar WhatsApp</h2>${badge('Desconectado')}</div>
+    <p class="dim">Conecte o número desta subconta em segundos: basta clicar abaixo e apontar a câmera do WhatsApp para o QR Code.</p>
+    <div class="inline-gap">
+      <button class="primary" data-act="wa-connect">${i('whatsapp',16)} Conectar WhatsApp</button>
+      <button class="secondary" data-act="wa-toggle-pair">${c.waPairOpen?'Ocultar opção por número':'Conectar por número de telefone'}</button>
+    </div>
+    ${c.waPairOpen?`<form class="settings-form sub-wa-pair" data-form="wa-pair"><label>Seu número de WhatsApp (com DDI e DDD)<input name="phone" required inputmode="numeric" placeholder="5511999999999"></label><button class="secondary">Gerar código de 8 dígitos</button><p class="form-status" role="alert"></p></form>`:''}
+  </div>`;
+}
 function settings(c){
-  if(c.tab&&!['business','workspaces'].includes(c.tab)) return settingsTab(c,c.tab);
+  if(c.tab&&!['business','workspaces','whatsapp'].includes(c.tab)) return settingsTab(c,c.tab);
   const p=c.s.profile;
-  return wrap(head('Configurações','Gerencie o workspace ativo.',action('Novo workspace','new-workspace','plus'),tabs(crmTabs.settings,c.tab||'business'))+(c.tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" value="${h(p.phone)}" type="tel"></label><label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label></div><button class="primary">Salvar alterações</button></form>`));
+  return wrap(head('Configurações','Gerencie o workspace ativo.',action('Novo workspace','new-workspace','plus'),tabs(crmTabs.settings,c.tab||'business'))+(c.tab==='whatsapp'?whatsappSubView(c):c.tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" value="${h(p.phone)}" type="tel"></label><label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label></div><button class="primary">Salvar alterações</button></form>`));
 }
 export const screens={'ask-ai':dashboard,dashboard,conversations,calendars,contacts,opportunities,automation:automationScreen,payments,marketing,sites,memberships,media,reputation,reporting,settings,studio,'ai-agents':agentsScreen};
 export { date, empty, name, primary, row, search, table };
