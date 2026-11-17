@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { hydrateWorkspace, uid } from './model.mjs';
 
@@ -8,7 +9,14 @@ export function workspaceMissing() {
 }
 
 export function createSqliteStore(path) {
-  if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
+  if (path !== ':memory:') {
+    try {
+      mkdirSync(dirname(path), { recursive: true });
+    } catch (err) {
+      path = resolve(tmpdir(), 'go.sqlite');
+      mkdirSync(dirname(path), { recursive: true });
+    }
+  }
   const db = new DatabaseSync(path);
   db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS workspaces (id TEXT PRIMARY KEY, state TEXT NOT NULL) STRICT;');
   const get = db.prepare('SELECT state FROM workspaces WHERE id = ?');

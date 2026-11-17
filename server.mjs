@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { blank, seed, uid, execute, metrics, find } from './model.mjs';
 import { createSqliteStore, supabaseFromEnv } from './storage.mjs';
 import { generatePage, generateSite, revisePage, studioAiAvailable } from './studio-ai.mjs';
@@ -48,7 +49,11 @@ const publicAgency = agency => ({ ...agency,
   privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest) });
 const stamp = () => new Date().toISOString();
 
-export function makeServer({dbPath=resolve(root,'.data','go.sqlite'),port=defaultPort,store=createSqliteStore(dbPath)}={}) {
+const defaultDbPath = (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
+  ? resolve(tmpdir(), 'go.sqlite')
+  : resolve(root, '.data', 'go.sqlite');
+
+export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSqliteStore(dbPath)}={}) {
   const ready = Promise.all([store.insert('demo', seed()), store.insert(AGENCY_ID, blankAgency())]);
   ready.catch(() => {});
   const listWorkspaces = async () => (await store.list()).filter(w => spaceId.test(w.id));
