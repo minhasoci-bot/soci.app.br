@@ -73,7 +73,9 @@ const fields = {
     if (!stage) fail('Choose a valid stage.');
     return { title:req(d.title,'Name'), contactId:contactId(s,d.contactId), stage:stage.id, pipelineId:stage.pipelineId,
       value:amount(d.value ?? 0), status:one(d.status || 'Open',opportunityStatuses,'status'), source:str(d.source,80), owner:str(d.owner,80),
-      closeDate:d.closeDate ? date(d.closeDate).slice(0,10) : '', probability:percent(d.probability), custom:customData(s,'Opportunity',d) };
+      closeDate:d.closeDate ? date(d.closeDate).slice(0,10) : '', probability:percent(d.probability), custom:customData(s,'Opportunity',d),
+      company:str(d.company,160), tags:tags(d.tags), followers:tags(d.followers),
+      lostReason:d.status === 'Lost' ? str(d.lostReason,250) : '' };
   },
   ...crmFields,
   ...socialFields,
@@ -283,6 +285,54 @@ export function execute(s, command, { workspace = 'demo' } = {}) {
     add(s,'imports',{ source:'CSV', file:str(d.file,120), user:str(command.actor,120), found:d.rows.length, added, skipped:d.rows.length-added, status:'Completed' });
     if (s.imports.length > 100) s.imports.splice(0, s.imports.length - 100);
     return added;
+  }
+  if (type === 'opportunity-import') {
+    if (!Array.isArray(d.rows) || !d.rows.length || d.rows.length > 500) fail('Importe de 1 a 500 oportunidades por arquivo.');
+    const defaultPipeline = exists(s,'pipelines',d.pipelineId,'pipeline');
+    const choices = (records, value, label) => {
+      const key = str(value).toLowerCase();
+      const direct = records.find(row => row.id === key);
+      if (direct) return direct;
+      const matches = records.filter(row => row.name.toLowerCase() === key);
+      if (matches.length !== 1) fail(`Selecione um(a) ${label} com nome ou ID único.`);
+      return matches[0];
+    };
+    const rows = d.rows.map((input,index) => {
+      try {
+        if (!input || typeof input !== 'object') fail('Linha inválida.');
+        const address = email(input.email);
+        const found = address ? s.contacts.filter(contact => contact.email?.toLowerCase() === address) : [];
+        const contact = find(s,'contacts',input.contactid) || (found.length === 1 ? found[0] : null);
+        if (!contact) fail('Informe o e-mail único ou o ID de um contato existente.');
+        const pipeline = input.pipeline ? choices(s.pipelines,input.pipeline,'pipeline').id : defaultPipeline;
+        const stages = s.stages.filter(stage => stage.pipelineId === pipeline);
+        const stage = input.stage ? choices(stages,input.stage,'etapa') : stages[0];
+        const status = input.status ? opportunityStatuses.find(value => value.toLowerCase() === str(input.status).toLowerCase()) : 'Open';
+        if (!status) fail('Use Open, Won, Lost ou Abandoned no status.');
+        const value = str(input.value).replace(',', '.') || 0;
+        return fields.opportunities(s,{...input,contactId:contact.id,stage:stage?.id,status,value,
+          closeDate:input.closedate,lostReason:input.lostreason});
+      } catch (error) {
+        fail(`Linha ${index + 2}: ${error.message}`);
+      }
+    });
+    const created = now();
+    for (const details of rows) add(s,'opportunities',{ ...details, slips:0, statusChangedAt:created });
+    add(s,'imports',{ object:'opportunities', source:'CSV', file:str(d.file,120), user:str(command.actor,120),
+      found:rows.length, added:rows.length, skipped:0, status:'Completed' });
+    if (s.imports.length > 100) s.imports.splice(0,s.imports.length - 100);
+    return rows.length;
+  }
+  if (type === 'opportunity-move') {
+    const record = find(s,'opportunities',id);
+    if (!record) fail('Oportunidade não encontrada.',404);
+    const stage = find(s,'stages',d.stage);
+    if (!stage) fail('Selecione uma etapa válida.');
+    if (record.stage !== stage.id) {
+      Object.assign(record,{ stage:stage.id, pipelineId:stage.pipelineId, updated:now() });
+      run(s,'Opportunity stage changed',record);
+    }
+    return id;
   }
   if (type === 'save') {
     if (!Object.hasOwn(fields,key)) fail('Unknown record type.');

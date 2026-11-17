@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { makeServer } from '../server.mjs';
 import { blank, execute } from '../model.mjs';
 import { couponStatus, forecast } from '../ui/crm-data.js';
+import { opportunityCsv, opportunityResults } from '../ui/opportunity-data.js';
+import { parseCsv } from '../ui/social-data.js';
 
 async function start() {
   const { server, host } = makeServer({ allowLocalAccess: true, auth: null, dbPath: ':memory:', port: 0 });
@@ -139,4 +141,48 @@ test('CSV import keeps a history and bulk logs cannot be written directly', asyn
   const { state: s } = await local.state();
   assert.deepEqual([s.imports[0].file, s.imports[0].found, s.imports[0].added, s.imports[0].skipped], ['leads.csv', 2, 1, 1]);
   assert.equal((await local.save('bulkActions', { label: 'fake' })).status, 400);
+});
+
+test('Opportunity imports are atomic and stage moves preserve opportunity details and status dates', async t => {
+  const local = await start(); t.after(local.close);
+  const contact = (await local.save('contacts', { name:'Lúcia', email:'lucia@example.test' })).body.id;
+  const pipeline = (await local.act({ type:'pipeline', data:{ name:'Vendas' } })).body.id;
+  const data = { pipelineId:pipeline, file:'negocios.csv' };
+  const rows = parseCsv('title;email;stage;value;status;owner;company;tags;followers\nProposta;lucia@example.test;Qualified;125,50;Open;João;Exemplo;VIP;Ana');
+  const invalid = await local.act({ type:'opportunity-import', data:{ ...data, rows:[...rows,{ title:'Inválida', email:'unknown@example.test' }] } });
+  assert.equal(invalid.status,400);
+  assert.match(invalid.body.error,/Linha 3:/);
+  assert.equal((await local.state()).state.opportunities.length,0);
+  const imported = await local.act({ type:'opportunity-import', data:{ ...data, rows } });
+  assert.equal(imported.status,200);
+  assert.equal(imported.body.id,1);
+  const { state } = imported.body;
+  const [record] = state.opportunities;
+  assert.equal(record.contactId,contact);
+  assert.equal(record.value,125.5);
+  assert.deepEqual(record.followers,['Ana']);
+  assert.deepEqual(record.tags,['VIP']);
+  assert.equal(state.imports[0].object,'opportunities');
+  const next = state.stages.find(stage => stage.pipelineId === pipeline && stage.name === 'Proposal');
+  const moved = await local.act({ type:'opportunity-move', id:record.id, data:{ stage:next.id } });
+  assert.equal(moved.status,200);
+  assert.deepEqual(moved.body.state.opportunities[0],{ ...record, stage:next.id, updated:moved.body.state.opportunities[0].updated });
+  const [exported] = parseCsv(opportunityCsv(moved.body.state,moved.body.state.opportunities));
+  assert.equal(exported.stage,'Proposal');
+  assert.equal(exported.email,'lucia@example.test');
+  assert.equal(exported.contactid,contact);
+});
+
+test('Opportunity views share pipeline scope, accent-insensitive search, filters and sort', () => {
+  const state = blank();
+  const add = (title,value,status,stage='new') => execute(state,{ type:'save', key:'opportunities',
+    data:{ title, value, status, stage, contactId:contact, owner:'João', tags:'VIP' } });
+  const contact = execute(state,{ type:'save', key:'contacts', data:{ name:'Lúcia' } });
+  add('Maior',200,'Open'); add('Menor',50,'Open'); add('Fechada',400,'Won','won');
+  const pipeline = state.pipelines[0].id;
+  assert.equal(opportunityResults(state,pipeline,'').length,2);
+  assert.deepEqual(opportunityResults(state,pipeline,'lucia',{ owner:'joao', tag:'vip' },{ field:'value',direction:'asc' })
+    .map(row => row.title),['Menor','Maior','Fechada']);
+  assert.deepEqual(opportunityResults(state,pipeline,'',{ minValue:'100', maxValue:'300', stage:'new' }).map(row => row.title),['Maior']);
+  assert.equal(opportunityResults(state,'other','').length,0);
 });

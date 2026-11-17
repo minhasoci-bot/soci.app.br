@@ -1,0 +1,35 @@
+.opportunity-toolbar {
+  flex-wrap: wrap;
+  margin-block: 0 10px;
+}
+.opportunity-toolbar .tag-filter select { min-width: 140px; }
+.opportunity-views { display: inline-flex; gap: 4px; }
+.opportunity-views [aria-pressed="true"] {
+  background: var(--g-brand-surface);
+  border-color: var(--g-brand-line);
+  color: var(--g-brand-text);
+}
+.opportunity-stage-totals {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--g-dim);
+  font-size: var(--t-caption);
+}
+.opportunity-stage-totals b { color: var(--g-ink); }
+.kanban-head h2 .icon-btn { flex-shrink: 0; }
+.opportunity-card { min-width: 0; }
+.opportunity-card .opportunity-card-title { align-items: start; gap: 10px; }
+.opportunity-card dl { display: grid; gap: 6px; margin: 8px 0 0; }
+.opportunity-card dl:empty { display: none; }
+.opportunity-card dl div { display: flex; flex-wrap: wrap; gap: 3px 8px; justify-content: space-between; }
+.opportunity-card dt { color: var(--g-dim); }
+.opportunity-card dt, .opportunity-card dd { font-size: var(--t-caption); overflow-wrap: anywhere; margin: 0; }
+.opportunity-card.layout-compact dl { gap: 2px; margin-top: 4px; }
+.opportunity-card.layout-compact { padding: 8px; }
+.opportunity-fieldset { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+.opportunity-fieldset legend { margin-bottom: 8px; }
+@media (max-width: 620px) {
+  .opportunity-toolbar .spacer { display: none; }
+  .opportunity-toolbar .search { flex: 1 1 100%; }
+}

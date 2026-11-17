@@ -8,6 +8,9 @@ import {bulkBar, contactsTab, crmTabs, opportunitiesTab, paymentsTab, pickBox, p
 import {socialPlanner} from './social.js';
 import {agentsScreen} from './agents.js';
 
+import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
+import {opportunityStatuses} from './dashboard-data.js';
+
 export const nav=[['dashboard','Painel de controle','grid','Dashboard'],['conversations','Conversas','chat','Conversations'],['calendars','Calendários','cal','Calendars'],['contacts','Contatos','contacts','Contacts'],['opportunities','Oportunidades','leads','Opportunities'],['payments','Pagamentos','pay','Payments'],['studio','Estúdio de IA','studio','AI Studio'],['ai-agents','Agentes de IA','spark','AI Agents'],['marketing','Marketing','send','Marketing'],['automation','Automações','flow','Automation'],['sites','Sites','site','Sites'],['memberships','Assinaturas','play','Memberships'],['media','Mídia Drive','folder','Media Storage'],['reputation','Reputação','award','Reputation'],['reporting','Relatórios','chart','Reporting'],['settings','Configurações','gear','Settings']];
 export const h=x=>String(x??'').replace(/[&<>"']/g,v=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[v]);
 const brl = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' });
@@ -65,8 +68,10 @@ function opportunities(c){
   if (['forecast','bulk'].includes(view)) return opportunitiesTab(c,view);
   const pipeline = s.pipelines.find(item => item.id === c.pipeline) || s.pipelines[0];
   const stages = s.stages.filter(stage => stage.pipelineId === pipeline.id);
-  const local = top(s.opportunities.filter(item => item.pipelineId === pipeline.id),c.query,['title','status','source','owner']);
-  const sections = tabs(crmTabs.opportunities,view);
+  const local = opportunityResults(s,pipeline.id,c.query,c.opportunityFilters,c.opportunitySort);
+  const filters = c.opportunityFilters || { status:'Open' };
+  const filterCount = Object.values(filters).filter(Boolean).length;
+  const sections = tabs(crmTabs.opportunities.filter(([key]) => key !== 'list'),view === 'list' ? 'pipeline' : view);
   if (view === 'pipelines') {
     return wrap(head('Oportunidades','',action('Novo pipeline','new-pipeline','plus'),sections) + `<div class="card-grid">${s.pipelines.map(item => `
       <article class="surface padded resource"><div class="section-heading"><h2>${h(item.name)}</h2><button class="icon-btn" data-pipeline-edit="${item.id}" aria-label="Renomear ${h(item.name)}">${i('edit',15)}</button></div>
@@ -74,23 +79,59 @@ function opportunities(c){
           <button class="icon-btn" data-stage-edit="${stage.id}" aria-label="Editar ${h(stage.name)}">${i('edit',15)}</button></div>`).join('')}
         <button class="secondary" data-stage-new="${item.id}">${i('plus',15)} Adicionar etapa</button></article>`).join('')}</div>`);
   }
-  const options = stages.map(stage => [stage.id,stage.name]);
+  const stageNames = new Map(stages.map(stage => [stage.id,stage.name]));
+  const contacts = new Map(s.contacts.map(contact => [contact.id,contact]));
   const colors = status => status === 'Won' ? 'green' : ['Lost','Abandoned'].includes(status) ? 'red' : 'blue';
-  const list = bulkBar(c,'opportunities') + table([pickHead('opportunities',local.map(x => x.id)),'Oportunidade','Contato','Etapa','Valor','Status','Origem',''],local.map(item => row([pickBox('opportunities',item.id),
-    `<b>${h(item.title)}</b>`,h(name(item.contactId,c)),h(stages.find(stage => stage.id === item.stage)?.name),mt(item.value,c),badge(item.status,colors(item.status)),h(item.source || '—')
-  ],'opportunities',item.id)),empty('Nenhuma oportunidade encontrada','Adicione um contato e crie uma oportunidade.','leads'));
+  const nothing = filterCount || c.query
+    ? empty('Nenhuma oportunidade corresponde aos filtros','', 'filter', action('Limpar filtros','opportunity-clear','close'))
+    : empty('Nenhuma oportunidade neste pipeline','', 'leads', primary('Adicionar oportunidade','opportunities'));
+  const title = (item, className) => `<button class="${className}" data-edit="opportunities" data-id="${item.id}">${h(item.title)}</button>`;
+  const list = table([pickHead('opportunities',local.map(x => x.id)),'Oportunidade','Contato','Etapa','Valor','Status','Responsável','Origem',''],local.map(item => row([pickBox('opportunities',item.id),
+    title(item,'text-link'),h(contacts.get(item.contactId)?.name || '—'),h(stageNames.get(item.stage)),mt(item.value,c),
+    badge(item.status,colors(item.status)),h(item.owner || '—'),h(item.source || '—')
+  ],'opportunities',item.id)),nothing);
+  const { layout, fields } = c.opportunityCard || opportunityPreferences(c.workspace,c.access?.session?.id);
+  const card = item => {
+    const contact = contacts.get(item.contactId);
+    const values = {
+      contact:h(contact?.name), company:h(item.company || contact?.company), owner:h(item.owner), source:h(item.source),
+      value:mt(item.value,c), status:badge(item.status,colors(item.status)), closeDate:item.closeDate ? date(`${item.closeDate}T12:00:00Z`,c) : '',
+      tags:item.tags?.map(tag => badge(tag)).join(' '), lostReason:item.status === 'Lost' ? h(item.lostReason) : ''
+    };
+    return `<article class="deal opportunity-card layout-${layout}" draggable="true" data-drag="${item.id}">
+      <div class="opportunity-card-title">${title(item,'deal-title')}${pickBox('opportunities',item.id)}</div>
+      <dl>${fields.filter(field => values[field]).map(field => `<div><dt${layout === 'unlabeled' ? ' class="sr-only"' : ''}>${cardFields[field]}</dt><dd>${values[field]}</dd></div>`).join('')}</dl>
+      <label><span class="sr-only">Mover ${h(item.title)} para a etapa</span><select data-move="${item.id}">
+      ${stages.map(stage => `<option value="${stage.id}" ${stage.id === item.stage ? 'selected' : ''}>${h(stage.name)}</option>`).join('')}</select></label>
+    </article>`;
+  };
   const board = `<div class="kanban">${stages.map((stage,index) => {
     const matches = local.filter(item => item.stage === stage.id);
-    return `<section class="kanban-col tone-${index%4}" data-drop="${stage.id}"><div class="kanban-head"><h2>${h(stage.name)} <span>${matches.length}</span></h2>
-      <b>${mt(matches.reduce((sum,item) => sum+item.value,0),c)}</b></div><div class="kanban-cards">${matches.map(item => `<article class="deal" draggable="true" data-drag="${item.id}">
-      <button class="deal-title" data-edit="opportunities" data-id="${item.id}">${h(item.title)}</button><p>${h(name(item.contactId,c))}</p>
-      <div><b>${mt(item.value,c)}</b>${badge(item.status,colors(item.status))}</div><label><span class="sr-only">Mover ${h(item.title)} para a etapa</span>
-      <select data-move="${item.id}">${options.map(([id,label]) => `<option value="${id}" ${id === item.stage ? 'selected' : ''}>${h(label)}</option>`).join('')}</select></label></article>`).join('') || '<p class="kanban-empty">Solte uma oportunidade aqui</p>'}
-      ${primary('Adicionar oportunidade','opportunities',`data-stage="${stage.id}"`)}</div></section>`;
-  }).join('')}</div>`;
-  return wrap(head('Oportunidades','',`<button class="secondary" data-stage-new="${pipeline.id}">${i('plus',15)} Adicionar etapa</button>${primary('Adicionar oportunidade','opportunities')}`,sections) +
-    `<div class="toolbar">${search(c.query,'Buscar oportunidades…')}<label class="tag-filter"><span class="sr-only">Selecionar pipeline</span><select data-opportunity-pipeline>
-    ${s.pipelines.map(item => `<option value="${item.id}" ${item.id === pipeline.id ? 'selected' : ''}>${h(item.name)}</option>`).join('')}</select></label></div>${view === 'list' ? list : board}`);
+    return `<section class="kanban-col tone-${index%4}" data-drop="${stage.id}"><div class="kanban-head">
+      <h2>${h(stage.name)} <button class="icon-btn" data-edit="opportunities" data-stage="${stage.id}" aria-label="Adicionar em ${h(stage.name)}">${i('plus',15)}</button></h2>
+      <div class="opportunity-stage-totals"><span>${matches.length} ${matches.length === 1 ? 'oportunidade' : 'oportunidades'}</span>
+      <b>${mt(matches.reduce((sum,item) => sum + item.value,0),c)}</b></div></div>
+      <div class="kanban-cards">${matches.map(card).join('')}</div></section>`;
+  }).join('')}</div>${local.length ? '' : nothing}`;
+  const quickStatus = [['','Todos os status'],...opportunityStatuses.map(status => [status,tr(status)])];
+  return wrap(head('Oportunidades','',action('Importar','opportunity-import','upload') +
+    action('Exportar','opportunity-export','download') + primary('Adicionar oportunidade','opportunities'),sections) +
+    `<div class="toolbar opportunity-toolbar">
+      <label class="tag-filter"><select data-opportunity-pipeline aria-label="Pipeline">${s.pipelines.map(item => `<option value="${item.id}" ${item.id === pipeline.id ? 'selected' : ''}>${h(item.name)}</option>`).join('')}</select></label>
+      <span class="dim" role="status">${local.length} ${local.length === 1 ? 'oportunidade' : 'oportunidades'}</span>
+      <div class="spacer"></div>
+      <div class="opportunity-views" aria-label="Visualização">
+        <button class="secondary" data-tab="pipeline" aria-pressed="${view === 'pipeline'}">${i('grid',15)} Quadro</button>
+        <button class="secondary" data-tab="list" aria-pressed="${view === 'list'}">${i('list',15)} Lista</button>
+      </div>
+    </div><div class="toolbar opportunity-toolbar">
+      <label class="tag-filter"><select data-opportunity-status aria-label="Status das oportunidades">${quickStatus.map(([value,label]) =>
+        `<option value="${value}" ${value === (filters.status || '') ? 'selected' : ''}>${h(label)}</option>`).join('')}</select></label>
+      ${action(`Filtros avançados${filterCount ? ` (${filterCount})` : ''}`,'opportunity-filters','filter')}
+      ${action('Ordenar','opportunity-sort','sort')}
+      <div class="spacer"></div>${search(c.query,'Buscar oportunidades…')}
+      ${view === 'pipeline' ? action('Personalizar cartões','opportunity-fields','sliders') : ''}
+    </div>${bulkBar(c,'opportunities')}${view === 'list' ? list : board}`);
 }
 function automation(c){
   const t=c.tab||'workflows';

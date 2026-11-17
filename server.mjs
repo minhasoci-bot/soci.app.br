@@ -39,6 +39,7 @@ const staticFiles = new Map([
   ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],
   ['/prospect-report.js','text/javascript; charset=utf-8'], ['/prospecting.css','text/css; charset=utf-8'],
   ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
+  ['/opportunity-data.js','text/javascript; charset=utf-8'], ['/opportunities.css','text/css; charset=utf-8'],
   ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
@@ -63,7 +64,7 @@ const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 const commandModule = { 'social-post':'marketing', 'social-reschedule':'marketing', 'social-review':'marketing', 'social-duplicate':'marketing', 'social-delete':'marketing', 'social-bulk-delete':'marketing', 'social-retry':'marketing', 'social-csv':'marketing', 'social-account-remove':'marketing', message:'conversations', thread:'conversations', 'manual-action':'conversations', 'conversation-sla':'conversations', 'dismiss-sla':'conversations',
-  pipeline:'opportunities', stage:'opportunities', import:'contacts', 'studio-visit':'studio', 'studio-star':'studio', profile:'settings',
+  pipeline:'opportunities', stage:'opportunities', import:'contacts', 'opportunity-import':'opportunities', 'opportunity-move':'opportunities', 'studio-visit':'studio', 'studio-star':'studio', profile:'settings',
   'dashboard-create':'dashboard', 'dashboard-save':'dashboard', 'dashboard-restore':'dashboard', 'dashboard-report':'dashboard',
   'dashboard-default':'dashboard', 'dashboard-timezone':'dashboard', 'dashboard-delete':'dashboard' };
 const settingsCommands = new Set(['saas-mode','saas-rebilling','saas-account','workflow-builder','sub-feature','email-domain','email-domain-accounts','email-domain-remove','affiliate-pixel','profile','company','billing-plan','wallet','auto-recharge','system-email','labs','compliance','api-key','api-key-delete','private-integration','private-integration-delete']);
@@ -797,7 +798,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (module && who.modules && !who.modules.includes(module)) throw error('Your user does not have permission for this module.',403);
         command.actor = who.name;
         const result = await change(id,command);
-        if (!privateSpace.test(id) && ['save','delete','import','pipeline','profile','bulk'].includes(command.type)) {
+        if (!privateSpace.test(id) && ['save','delete','import','opportunity-import','opportunity-move','pipeline','profile','bulk'].includes(command.type)) {
           const account = (await listWorkspaces(who.agencyId)).find(w => w.id === id)?.name || id;
           const label = command.type === 'bulk' ? `Bulk ${command.data?.operation || ''} on ${command.data?.object || ''}`.trim() : '';
           await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);

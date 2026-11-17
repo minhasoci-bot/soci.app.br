@@ -5,6 +5,9 @@ import { inboxChange, inboxClick, inboxSubmit } from './inbox.js';
 import { dashboardPreferences, installDashboardControls, reportGrid } from './dashboard-controls.js';
 import { drawDashboardGauges } from './dashboard.js';
 import { opportunityStatuses } from './dashboard-data.js';
+import { tr } from './i18n.js';
+import { cardFields, cardLayouts, opportunityCsv, opportunityCsvColumns, opportunityPreferences, opportunityResults, opportunitySorts } from './opportunity-data.js';
+import { parseCsv } from './social-data.js';
 import { afterStudioRender, exportStudioProject, installStudio, studioBlock } from './studio.js';
 import { studioTemplates } from './studio-data.js';
 import { startAgency } from './agency.js';
@@ -103,7 +106,12 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
     return;
   }
   if (key === 'ask-ai' || key === 'marketplace') { location.hash = '#dashboard'; return; }
-  const view=key==='link'?'link':Object.hasOwn(screens,key)&&allowedView(key)?key:'dashboard', nextTab=view==='link'?tab||'':validTabs[view]?.includes(tab)?tab:''; if(c.view!==view||c.tab!==nextTab){c.query='';c.tag='';}c.view=view;c.tab=nextTab; c.studio.project=project || ''; c.agentId=view==='ai-agents'&&['agent','edit'].includes(nextTab)?project:''; render(); }
+  const view=key==='link'?'link':Object.hasOwn(screens,key)&&allowedView(key)?key:'dashboard', nextTab=view==='link'?tab||'':validTabs[view]?.includes(tab)?tab:'';
+  const opportunityViews = ['', 'pipeline', 'list'];
+  const switchingOpportunityView = c.view === 'opportunities' && view === c.view &&
+    opportunityViews.includes(c.tab) && opportunityViews.includes(nextTab);
+  if((c.view!==view||c.tab!==nextTab) && !switchingOpportunityView){c.query='';c.tag='';}
+ c.view=view;c.tab=nextTab; c.studio.project=project || ''; c.agentId=view==='ai-agents'&&['agent','edit'].includes(nextTab)?project:''; render(); }
 const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${label}" title="${label}" ${attributes}>${i(name,17)}</button>`;
 const navItem=([id,pt,ico])=>({href:`#${id}`,label:pt,icon:ico,current:c.view===id});
 function appSidebar(brand){
@@ -128,6 +136,7 @@ function render(){
   if(viewPath||c.mode==='agency')return;
   const viewKey = `${c.workspace}:${c.view}:${c.tab}:${c.studio.project}`;
   const previousScroll = renderedView === viewKey ? G('#screen')?.scrollTop || 0 : 0;
+  const kanbanScroll = renderedView === viewKey ? G('.kanban')?.scrollLeft || 0 : 0;
   renderedView = viewKey;
   const agencyName=c.agency?.name&&!['My Agency','Minha agência'].includes(c.agency.name)?c.agency.name:'';
   const brand=agencyName||brandName(c.agency?.brand), customLink=c.agency?.menuLinks.find(l=>l.id===c.tab);
@@ -139,6 +148,11 @@ function render(){
   app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}<main id="screen" class="screen">${screenHtml}</main></div></div>`;
   if(c.view==='conversations'&&c.thread) {const area=G('.thread-messages');if(area)area.scrollTop=area.scrollHeight;}
   if(c.view==='dashboard') { G('#screen').scrollTop=previousScroll; drawDashboardGauges(app); }
+  if(c.view==='opportunities') {
+    G('#screen').scrollTop = previousScroll;
+    const board = G('.kanban');
+    if(board) board.scrollLeft = kanbanScroll;
+  }
   if(c.view==='studio') afterStudioRender();
   const agentScreen = G('[data-agent-screen]');
   if (agentScreen?.dataset.agentId && editor?.id === agentScreen.dataset.agentId && editor.workspace === c.workspace) {
@@ -210,6 +224,9 @@ function toInstant(wall,zone){
 }
 const contactChoices=()=>[['','Select a contact'],...c.s.contacts.map(r=>[r.id,r.name])];
 const option=(label,key,value,choices,required=true)=>field(label,key,value,'select',required,choices);
+const opportunityStatusChoices=()=>opportunityStatuses.map(status=>[status,tr(status)]);
+const pipelineChoices=()=>c.s.pipelines.map(item=>[item.id,item.name]);
+const stageChoices=pipelineId=>c.s.stages.filter(stage=>stage.pipelineId===pipelineId).map(stage=>[stage.id,stage.name]);
 const input=(label,key,value,required=false,type='text')=>field(label,key,value,type,required);
 const area=(label,key,value,required=false)=>field(label,key,value,'textarea',required);
 const check=(label,key,value)=>field(label,key,value,'check');
@@ -237,15 +254,21 @@ function edit(key,id,preset={}){
     case 'contacts':body=input('Nome completo','name',r.name,true)+`<div class="field-grid">${input('E-mail','email',r.email,false,'email')}${input('Telefone','phone',r.phone,false,'tel')}</div>`+`<label>Empresa<input name="company" list="crm-companies" value="${h(r.company||'')}"></label><datalist id="crm-companies">${c.s.companies.map(x=>`<option value="${h(x.name)}">`).join('')}</datalist>`+input('Tags (separadas por vírgula)','tags',r.tags?.join(', '))+area('Notas','notes',r.notes)+customInputs(c,'Contact',r)+(id?`<div class="inline-gap"><button type="button" class="secondary" data-start-thread="${id}">${i('chat',16)} Abrir conversa</button><button type="button" class="secondary" data-edit="tasks" data-contact="${id}">${i('plus',16)} Nova tarefa</button></div>`:'');break;
     case 'tasks':body=input('Título','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices(),false)+input('Prazo','due',r.due?r.due.slice(0,10):'',false,'date')+input('Responsável','owner',r.owner)+area('Notas','notes',r.notes)+check('Concluída','done',r.done);break;
     case 'opportunities': {
-      const pipeline = c.s.pipelines.find(item => item.id === c.pipeline) || c.s.pipelines[0];
-      const start = c.s.stages.find(stage => stage.pipelineId === pipeline.id)?.id;
-      const stage = r.stage || start;
-      const picker = `<label>Etapa<select name="stage" required>${c.s.pipelines.map(item => `<optgroup label="${h(item.name)}">${c.s.stages.filter(entry => entry.pipelineId === item.id).map(entry =>
-        `<option value="${entry.id}" ${entry.id === stage ? 'selected' : ''}>${h(entry.name)}</option>`).join('')}</optgroup>`).join('')}</select></label>`;
-      body=input('Nome da oportunidade','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices())+picker+
-        `<div class="field-grid">${input(`Valor (${c.s.profile.currency})`,'value',r.value??0,true,'number')}${option('Status','status',r.status||'Open',opportunityStatuses)}</div>`+
+      const pipelineId = c.s.stages.find(stage => stage.id === r.stage)?.pipelineId ||
+        c.s.pipelines.find(item => item.id === c.pipeline)?.id || c.s.pipelines[0].id;
+      const stages = stageChoices(pipelineId);
+      const contact = c.s.contacts.find(item => item.id === r.contactId);
+      body='<h3>Contato principal</h3>'+option('Contato','contactId',r.contactId,[['','Selecione um contato'],...contactChoices().slice(1)])+
+        `<div class="field-grid"><label>E-mail <output data-opportunity-email>${h(contact?.email || '—')}</output></label>
+        <label>Telefone <output data-opportunity-phone>${h(contact?.phone || '—')}</output></label></div>`+
+        '<h3>Dados da oportunidade</h3>'+input('Nome da oportunidade','title',r.title,true)+
+        `<div class="field-grid">${option('Pipeline','pipelineId',pipelineId,pipelineChoices())}${option('Etapa','stage',r.stage || stages[0]?.[0],stages)}</div>`+
+        `<div class="field-grid">${input(`Valor (${c.s.profile.currency})`,'value',r.value??0,true,'number')}${option('Status','status',r.status||'Open',opportunityStatusChoices())}</div>`+
+        optionalGroup('data-opportunity-loss',r.status === 'Lost',input('Motivo da perda','lostReason',r.lostReason))+
         `<div class="field-grid">${input('Origem','source',r.source)}${input('Responsável','owner',r.owner)}</div>`+
-        `<div class="field-grid">${input('Previsão de fechamento','closeDate',r.closeDate,false,'date')}${input('Probabilidade (%), vazio usa a da etapa','probability',r.probability??'',false,'number')}</div>`+customInputs(c,'Opportunity',r);
+        `<div class="field-grid">${input('Empresa','company',r.company)}${input('Seguidores (separados por vírgula)','followers',r.followers?.join(', '))}</div>`+
+        `<div class="field-grid">${input('Previsão de fechamento','closeDate',r.closeDate,false,'date')}${input('Probabilidade (%), vazio usa a da etapa','probability',r.probability??'',false,'number')}</div>`+
+        input('Tags (separadas por vírgula)','tags',r.tags?.join(', '))+customInputs(c,'Opportunity',r);
       break;
     }
     case 'appointments':body=input('Título','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices(),false)+`<p class="dim">Horários no fuso ${h(zones())}.</p><div class="field-grid">${input('Início','start',localTime(r.start,zones())||(r.date?`${r.date}T09:00`:''),true,'datetime-local')}${input('Fim','end',localTime(r.end,zones())||(r.date?`${r.date}T09:30`:''),true,'datetime-local')}</div>`+option('Status','status',r.status||'Confirmed',['Confirmed','Completed','Canceled'])+area('Notas','notes',r.notes);break;
@@ -282,7 +305,7 @@ function workspaces(){
   const create = c.access?.agency ? `<button class="secondary" data-act="new-workspace">${i('plus',16)} Novo workspace</button>` : '';
   dialog('Trocar de workspace', `${agency}${choices}${create}`);
 }
-async function useWorkspace(id, view='dashboard'){ leaveAgentEditor();c.workspace=id;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go(view); }
+async function useWorkspace(id, view='dashboard'){ leaveAgentEditor();c.workspace=id;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go(view); }
 function downloads(name,content,type='text/csv;charset=utf-8'){
   const data=typeof content==='string'?new Blob([content],{type}):content, a=document.createElement('a'), u=URL.createObjectURL(data);
   a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),3000);
@@ -298,7 +321,47 @@ function parseCSV(csv){
   return rows.map(row=>Object.fromEntries(keys.map((k,n)=>[k,row[n]||''])));
 }
 async function thread(id){ c.thread=id;await mutate({type:'thread',data:{contactId:id,read:true}});close();go('conversations',c.view==='conversations' && !conversationSections.includes(c.tab) ? c.tab : ''); }
-async function move(id,stage){const r=c.s.opportunities.find(x=>x.id===id);if(!r||r.stage===stage)return;await mutate({type:'save',key:'opportunities',id,data:{...r,stage}});render();flash('Opportunity moved.');}
+async function move(id,stage){
+  const record=c.s.opportunities.find(item=>item.id===id);
+  if(!record || record.stage===stage)return;
+  await mutate({type:'opportunity-move',id,data:{stage}});
+  render();
+  flash('Oportunidade movida.');
+}
+
+function opportunityDialog(action) {
+  const pipelineId = c.s.pipelines.find(item => item.id === c.pipeline)?.id || c.s.pipelines[0].id;
+  const filters = c.opportunityFilters || { status:'Open' };
+  const cancel = '<button class="secondary" type="button" data-act="close">Cancelar</button>';
+  const apply = cancel + '<button class="primary">Aplicar</button>';
+  if (action === 'opportunity-filters') {
+    const status = option('Status','status',filters.status,[['','Todos'],...opportunityStatusChoices()],false);
+    const stage = option('Etapa','stage',filters.stage,[['','Todas'],...stageChoices(pipelineId)],false);
+    dialog('Filtros avançados', `<div class="field-grid">${status}${stage}</div>
+      <div class="field-grid">${input('Responsável','owner',filters.owner)}${input('Origem','source',filters.source)}</div>
+      ${input('Tag','tag',filters.tag)}<div class="field-grid">
+      ${input('Valor mínimo','minValue',filters.minValue,false,'number')}${input('Valor máximo','maxValue',filters.maxValue,false,'number')}</div>`,
+      {form:action,buttons:'<button class="secondary" type="button" data-act="opportunity-clear">Limpar filtros</button><span class="spacer"></span>'+apply});
+  } else if (action === 'opportunity-sort') {
+    const sort = c.opportunitySort || {};
+    dialog('Ordenar oportunidades',option('Campo','field',sort.field || 'created',Object.entries(opportunitySorts))+
+      option('Direção','direction',sort.direction || 'desc',[['desc','Decrescente'],['asc','Crescente']]),{form:action,buttons:apply});
+  } else if (action === 'opportunity-fields') {
+    const {layout,fields} = c.opportunityCard || opportunityPreferences(c.workspace,c.access?.session?.id);
+    dialog('Personalizar cartões',option('Layout','layout',layout,Object.entries(cardLayouts))+
+      '<fieldset class="opportunity-fieldset"><legend>Campos exibidos</legend>'+
+      Object.entries(cardFields).map(([key,label])=>`<label class="check"><input type="checkbox" name="field" value="${key}" ${fields.includes(key)?'checked':''}> ${label}</label>`).join('')+
+      '</fieldset>',{form:action,buttons:apply});
+  } else if (action === 'opportunity-import') {
+    const history = c.s.imports.filter(row=>row.object === 'opportunities').slice(-5).reverse();
+    dialog('Importar oportunidades',option('Pipeline padrão','pipelineId',pipelineId,pipelineChoices())+
+      '<p>Envie até 500 linhas. Informe <b>title</b> e o <b>email</b> ou <b>contactid</b> de um contato existente. Sem etapa indicada, a Soci usa a primeira do pipeline.</p>'+
+      '<button class="secondary" type="button" data-act="opportunity-template">Baixar modelo CSV</button>'+
+      '<label>Arquivo CSV<input name="file" type="file" accept=".csv,text/csv" required></label>'+
+      (history.length ? '<h3>Importações recentes</h3>'+history.map(row=>`<div class="line-item"><span>${h(row.file || 'CSV')}</span><span>${row.added} importada(s)</span></div>`).join('') : ''),
+      {form:action,buttons:cancel+'<button class="primary">Importar</button>'});
+  }
+}
 
 function manualDetails(id, queueMode = false) {
   const item = c.s.manualActions.find(entry => entry.id === id);
@@ -540,6 +603,17 @@ document.addEventListener('click',async ev=>{
       case 'help':dialog('Ajuda','<p>Gerencie contatos, oportunidades, agendamentos, formulários e automações. Acesse Configurações para gerenciar workspaces.</p><button class="secondary" data-go="dashboard">Abrir painel</button>');break;
       case 'reload':await load();render();flash('Workspace atualizado.');break;
       case 'import':dialog('Importar contatos',`<p>Escolha um arquivo CSV com a coluna <b>name</b>. Opcional: email, phone, company, tags e notes. Até 500 contatos.</p><label>Arquivo CSV<input name="file" type="file" accept=".csv,text/csv" required></label>`,{form:'import',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Importar contatos</button>'});break;
+      case 'opportunity-clear':
+        c.opportunityFilters={};c.query='';close();render();G('[data-act="opportunity-filters"]')?.focus();break;
+      case 'opportunity-filters': case 'opportunity-sort': case 'opportunity-fields': case 'opportunity-import':
+        opportunityDialog(d.act);break;
+      case 'opportunity-template':
+        downloads('modelo-oportunidades.csv',opportunityCsvColumns.join(',')+'\r\n');break;
+      case 'opportunity-export': {
+        const pipelineId=c.s.pipelines.find(item=>item.id===c.pipeline)?.id || c.s.pipelines[0].id;
+        const rows=opportunityResults(c.s,pipelineId,c.query,c.opportunityFilters,c.opportunitySort);
+        downloads('oportunidades.csv',opportunityCsv(c.s,rows));break;
+      }
       case 'upload':dialog('Enviar arquivo','<p>PNG, JPEG, GIF, WebP ou PDF de até 700 KB.</p><label>Arquivo<input name="file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,application/pdf" required></label>',{form:'upload',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Enviar arquivo</button>'});break;
       case 'new-thread':dialog('Nova conversa',option('Contato','contactId','',contactChoices()),{form:'thread',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Abrir conversa</button>'});break;
       case 'new-pipeline':dialog('Novo pipeline',input('Nome do pipeline','name','',true),{form:'pipeline',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Criar pipeline</button>'});break;
@@ -609,7 +683,29 @@ document.addEventListener('change', async e => {
     G(`[data-conv-filter="${filter}"]`)?.focus();
   }
   if (el.id === 'tag-filter') { c.tag=el.value; render(); G('#tag-filter')?.focus(); }
-  if (el.hasAttribute('data-opportunity-pipeline')) { c.pipeline=el.value; render(); G('[data-opportunity-pipeline]')?.focus(); }
+  if (el.hasAttribute('data-opportunity-pipeline')) {
+    c.pipeline=el.value;
+    if(c.opportunityFilters) delete c.opportunityFilters.stage;
+    render(); G('[data-opportunity-pipeline]')?.focus();
+  }
+  if (el.hasAttribute('data-opportunity-status')) {
+    c.opportunityFilters={...c.opportunityFilters,status:el.value};
+    render();G('[data-opportunity-status]')?.focus();
+  }
+  if(el.form?.dataset.key==='opportunities') {
+    const form=el.form;
+    if(el.name==='pipelineId') form.elements.stage.replaceChildren(...stageChoices(el.value).map(([id,name])=>new Option(name,id)));
+    if(el.name==='contactId') {
+      const contact=c.s.contacts.find(item=>item.id===el.value);
+      form.querySelector('[data-opportunity-email]').textContent=contact?.email || '—';
+      form.querySelector('[data-opportunity-phone]').textContent=contact?.phone || '—';
+      if(contact && !form.elements.title.value.trim()) form.elements.title.value=contact.name;
+    }
+    if(el.name==='status') {
+      const loss=form.querySelector('[data-opportunity-loss]');
+      loss.hidden=loss.disabled=el.value!=='Lost';
+    }
+  }
   if (el.dataset.move) try { await move(el.dataset.move,el.value); } catch (error) { render(); flash(error.message,true); }
 });
 document.addEventListener('dragstart',ev=>{const el=ev.target.closest('[data-drag]');if(el){ev.dataTransfer.effectAllowed='move';ev.dataTransfer.setData('text/plain',el.dataset.drag);}});
@@ -660,6 +756,20 @@ document.addEventListener('submit',async ev=>{
     else if(name==='assistant'){const q=data.prompt.trim();if(q){c.chat.push({self:true,body:q},{body:assistant(q)});render();G('.ask-composer input')?.focus();}return;}
     else if(name==='lead'){await api(`/api/view/f/${f.dataset.workspace}/${f.dataset.id}`,data);f.reset();status.textContent='Thank you. Your information was submitted.';status.classList.add('confirmed');return;}
     else if(name==='import'){if(data.file.size>500000)throw Error('Choose a CSV file under 500 KB.');const n=await mutate({type:'import',data:{rows:parseCSV(await data.file.text()),file:data.file.name}});msg=`${n} contact${n===1?'':'s'} imported. Existing emails were skipped.`;}
+    else if(name==='opportunity-import') {
+      if(data.file.size>500000)throw Error('Escolha um CSV de até 500 KB.');
+      const n=await mutate({type:name,data:{pipelineId:data.pipelineId,rows:parseCsv(await data.file.text()),file:data.file.name}});
+      msg=n===1?'1 oportunidade importada.':`${n} oportunidades importadas.`;
+    }
+    else if(name==='opportunity-filters' || name==='opportunity-sort' || name==='opportunity-fields') {
+      if(name==='opportunity-filters') {
+        if(data.minValue && data.maxValue && Number(data.minValue)>Number(data.maxValue)) throw Error('O valor máximo deve ser maior ou igual ao mínimo.');
+        c.opportunityFilters=Object.fromEntries(Object.entries(data).map(([key,value])=>[key,value.trim()]));
+      }
+      if(name==='opportunity-sort') c.opportunitySort={field:data.field,direction:data.direction};
+      if(name==='opportunity-fields') c.opportunityCard=opportunityPreferences(c.workspace,c.access?.session?.id,{layout:data.layout,fields:fd.getAll('field')});
+      close();render();G(`[data-act="${name}"]`)?.focus();return;
+    }
     else if(name==='upload'){ const file=data.file;if(file.size>700000)throw Error('Choose a file under 700 KB.');const encoded=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('File could not be read.'));reader.readAsDataURL(file);});await mutate({type:'save',key:'files',data:{name:file.name,data:encoded}});msg='File uploaded.';}
     else if (name === 'studio-create') {
       const generating=data.engine==='model', submitter=ev.submitter, original=submitter?.innerHTML;
