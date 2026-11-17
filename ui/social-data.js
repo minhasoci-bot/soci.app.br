@@ -21,6 +21,10 @@ export const statusTone = { draft: '', in_review: 'amber', scheduled: 'blue', in
 export const postTypes = [['post', 'Post'], ['story', 'Story'], ['reel', 'Reel / vídeo curto']];
 export const recurrences = [['', 'Não repetir'], ['daily', 'Todo dia'], ['weekly', 'Toda semana'], ['monthly', 'Todo mês']];
 export const csvColumns = ['date', 'content', 'accounts', 'link', 'media', 'category', 'first_comment'];
+export const bulkCsvColumns = {
+  basic: ['postAtSpecificTime', 'content', 'link (OGmetaUrl)', 'imageUrls', 'videoUrls', 'gifUrl'],
+  advanced: ['postAtSpecificTime', 'content', 'link (OGmetaUrl)', 'imageUrls', 'videoUrls', 'gifUrl', 'type', 'tags', 'category', 'followUpComment', 'accounts']
+};
 export const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 const isVideo = url => /\.(mp4|mov|m4v|webm)(\?|$)/i.test(url || '');

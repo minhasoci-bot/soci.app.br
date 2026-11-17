@@ -106,6 +106,60 @@ export function socialBeforeDelete(s, key, id) {
 const findPost = (s, id) => s.socialPosts.find(p => p.id === id) || fail('Post não encontrado.', 404);
 const editable = p => { if (p.status === 'in_progress') fail('Este post está sendo publicado agora.', 409); };
 
+function csvDate(value, zone) {
+  const raw = str(value, 40);
+  if (!raw) return '';
+  const ymd = raw.match(/^(\d{4})[-/](\d\d)[-/](\d\d)[ T](\d{1,2}):(\d\d)(?::(\d\d))?(Z|[+-]\d\d:?\d\d)?$/i);
+  const mdy = raw.match(/^(\d\d)[-/](\d\d)[-/](\d{4}) (\d{1,2}):(\d\d)(?::(\d\d))?$/);
+  if (!ymd && !mdy) fail('Use data no formato AAAA-MM-DD HH:MM.');
+  const [, y, m, d, hour, minute, sec = '00', offset] = ymd || [null, mdy[3], mdy[1], mdy[2], ...mdy.slice(4)];
+  const local = `${y}-${m}-${d}T${hour.padStart(2, '0')}:${minute}:${sec}`;
+  const target = Date.parse(local + 'Z');
+  if (!Number.isFinite(target) || new Date(target).toISOString().slice(0, 19) !== local) fail('Data ou horário inválido.');
+  if (offset) return instant(local + offset);
+  const fmt = new Intl.DateTimeFormat('sv-SE', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+  let at = target;
+  for (let n = 0; n < 4; n++) {
+    const seen = fmt.format(new Date(at)).replace(' ', 'T');
+    if (seen === local) return new Date(at).toISOString();
+    at += target - Date.parse(seen + 'Z');
+  }
+  return fail('O horário não existe nesse fuso.');
+}
+
+export function reviewSocialCsv(s, d) {
+  const rows = Array.isArray(d.rows) ? d.rows : [];
+  if (!rows.length || rows.length > 300) fail('Importe entre 1 e 300 posts por arquivo.');
+  const selected = d.accountIds === undefined ? s.socialAccounts.map(a => a.id) : accountIds(s, d.accountIds);
+  const destinations = s.socialAccounts.filter(a => selected.includes(a.id));
+  const zone = s.profile.timezone || 'America/Sao_Paulo';
+  const split = (value, sep) => str(value, 8000).split(sep).map(x => x.trim()).filter(Boolean);
+  return Array.from(rows, (row, index) => {
+    try {
+      if (!row || typeof row !== 'object') fail('Linha inválida.');
+      const wanted = str(row.accounts, 2000).toLowerCase();
+      const ids = !wanted || ['all', 'todas'].includes(wanted) ? selected : split(wanted, '|').map(name => {
+        const matches = destinations.filter(a => a.name.toLowerCase() === name);
+        if (matches.length > 1) fail(`mais de uma conta chamada “${name}”; selecione apenas uma delas`);
+        return matches[0]?.id || fail(`conta “${name}” não selecionada ou desconectada`);
+      });
+      const category = row.category ? s.socialCategories.find(c => c.name.toLowerCase() === str(row.category).toLowerCase())?.id || fail(`categoria “${row.category}” não existe`) : '';
+      const raw = str(row.date || row.postatspecifictime, 40);
+      const scheduleDate = csvDate(raw, zone);
+      const videos = split(row.videourls, /[|,]/), images = split(row.imageurls, /[|,]/), gif = str(row.gifurl, 2000);
+      const legacyMedia = split(row.media, '|');
+      if (videos.length > 1) fail('Use até um vídeo por post.');
+      if (gif && (videos.length || images.length || legacyMedia.length)) fail('Use o GIF sem outras mídias.');
+      if (!str(row.content, 63206) && !legacyMedia.length && !images.length && !videos.length && !gif) fail('Escreva um texto ou adicione mídia.');
+      const fields = postFields(s, { summary: row.content, accountIds: ids, link: row.link || row['link (ogmetaurl)'] || row.ogmetaurl,
+        type: str(row.type).toLowerCase() || 'post', firstComment: row.first_comment || row.followupcomment, categoryId: category, tags: row.tags,
+        media: [...legacyMedia.map(url => ({ url })), ...images.map(url => ({ url, type: 'image' })), ...videos.map(url => ({ url, type: 'video' })), ...(gif ? [{ url: gif, type: 'image' }] : [])],
+        scheduleDate, mode: d.asDraft || !scheduleDate ? 'draft' : 'schedule', needsApproval: d.needsApproval, source: 'csv' });
+      return { index, fields };
+    } catch (e) { if (!e.status) throw e; return { index, error: e.message }; }
+  });
+}
+
 /** `social-*` commands of /api/action. Returns the id the client should focus. */
 export function socialCommand(s, command, { add, now }) {
   const { type, id, data: d = {} } = command;
@@ -152,27 +206,18 @@ export function socialCommand(s, command, { add, now }) {
       p.status = 'scheduled'; p.scheduleDate = now(); p.error = ''; p.updated = now(); return p.id;
     }
     case 'social-csv': {
-      const rows = Array.isArray(d.rows) ? d.rows : [];
-      if (!rows.length || rows.length > 300) fail('Importe entre 1 e 300 posts por arquivo.');
-      const byName = new Map(s.socialAccounts.map(a => [a.name.toLowerCase(), a.id]));
-      const created = [], errors = [];
-      rows.forEach((row, n) => {
-        try {
-          const wanted = str(row.accounts, 2000).toLowerCase();
-          const ids = !wanted || wanted === 'all' || wanted === 'todas' ? s.socialAccounts.map(a => a.id)
-            : wanted.split('|').map(x => byName.get(x.trim()) || fail(`conta “${x.trim()}” não conectada`));
-          const category = row.category ? s.socialCategories.find(c => c.name.toLowerCase() === str(row.category).toLowerCase())?.id || fail(`categoria “${row.category}” não existe`) : '';
-          const when = str(row.date, 40).replace(' ', 'T');
-          const fields = postFields(s, { summary: row.content, accountIds: ids, link: row.link, firstComment: row.first_comment, categoryId: category,
-            media: str(row.media, 4000).split('|').map(x => x.trim()).filter(Boolean).map(url => ({ url })),
-            scheduleDate: /[zZ]|[+-]\d\d:?\d\d$/.test(when) ? when : `${when}${when.length === 16 ? ':00' : ''}${d.offset || 'Z'}`,
-            mode: d.asDraft ? 'draft' : 'schedule', source: 'csv' });
-          created.push(add(s, 'socialPosts', { ...fields, results: [], createdBy: str(command.actor, 120), error: '' }).id);
-        } catch (e) { errors.push(`Linha ${n + 2}: ${e.message}`); }
-      });
-      add(s, 'socialImports', { file: str(d.file, 120), total: rows.length, created: created.length, errors: errors.slice(0, 50) });
+      const rows = reviewSocialCsv(s, d);
+      const chosen = Array.isArray(d.includeIndices) ? new Set(d.includeIndices) : null;
+      const selected = rows.filter(r => !chosen || chosen.has(r.index));
+      if (d.requireValid && (!selected.length || selected.some(r => r.error))) fail('O lote mudou desde a revisão. Volte e valide as linhas novamente.', 409);
+      const errors = rows.filter(r => r.error || (chosen && !chosen.has(r.index)))
+        .map(r => `Linha ${r.index + 2}: ${r.error || 'Não selecionada na revisão.'}`);
+      const valid = selected.filter(r => r.fields);
+      if (s.socialPosts.length + valid.length > 3000) fail('O planejador guarda até 3.000 posts. Exclua posts antigos.');
+      for (const { fields } of valid) add(s, 'socialPosts', { ...fields, results: [], createdBy: str(command.actor, 120), error: '' });
+      add(s, 'socialImports', { file: str(d.file, 120), total: rows.length, count: valid.length, errors: errors.slice(0, 50) });
       if (s.socialImports.length > 50) s.socialImports.splice(0, s.socialImports.length - 50);
-      return { created: created.length, errors };
+      return { created: valid.length, errors };
     }
     case 'social-account-remove': {
       const a = s.socialAccounts.find(x => x.id === id) || fail('Conta não encontrada.', 404);

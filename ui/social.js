@@ -3,9 +3,12 @@
 // screens.js renders socialPlanner(c); app.js calls socialEvents once with its helpers.
 import { icon as i } from './icons.js';
 import { badge, h, fmt } from './screens.js';
-import { csvColumns, mediaKind, network, networks, occurrencesBetween, parseCsv, postIssues, postTypes, recurrences, statusLabel, statusTone, textFor, weekdays } from './social-data.js';
+import { bulkCsvColumns, mediaKind, network, networks, occurrencesBetween, parseCsv, postIssues, postTypes, recurrences, statusLabel, statusTone, textFor, weekdays } from './social-data.js';
 
 const ui = { view: 'calendar', mode: 'month', cursor: new Date(), status: 'all', account: '', draft: null, picked: new Set() };
+const freshCsv = () => ({ step: 1, file: '', rows: [], accountIds: [], asDraft: false, needsApproval: false, review: [] });
+let csv = freshCsv();
+let plannerWorkspace;
 const views = [['calendar', 'Calendário', 'cal'], ['list', 'Lista', 'note'], ['accounts', 'Contas', 'users'], ['categories', 'Categorias', 'tag'], ['hashtags', 'Hashtags', 'link'], ['rss', 'RSS', 'refresh'], ['csv', 'CSV em massa', 'upload']];
 const zoneOf = c => c.s.profile.timezone || 'America/Sao_Paulo';
 
@@ -46,15 +49,16 @@ function connectGrid(c) {
     <h3>Também disponíveis</h3><div class="sp-net-grid">${networks.filter(n => n.group === 'more').map(card).join('')}</div></div>`;
 }
 function onboarding(c) {
-  const feature = (ico, title, text) => `<article class="sp-feature">${i(ico, 20)}<b>${title}</b><p>${text}</p></article>`;
+  const feature = (ico, title, text, action) => `<button type="button" class="sp-feature" ${action}>${i(ico, 20)}<b>${title}</b><span>${text}</span></button>`;
   return `<section class="surface sp-hero"><h2>Publique em todas as redes em minutos</h2>
     <p>Crie o conteúdo uma vez e publique automaticamente no Facebook, Instagram, LinkedIn, TikTok e muito mais.</p>
     <h3 class="sp-hero-sub">Conecte suas redes sociais</h3><p class="dim">Escolha onde quer publicar. Você pode adicionar ou remover redes quando quiser.</p>
-    ${connectGrid(c)}<div class="sp-hero-actions">${newPost('Começar com um rascunho')}</div></section>
-    <section class="sp-features">${feature('upload', 'Agendamento em massa por CSV', 'Importe e agende dezenas de posts de uma vez a partir de uma planilha.')}
-    ${feature('refresh', 'Fila evergreen', 'Monte uma biblioteca de conteúdo atemporal que se repete sozinha nos horários da categoria.')}
-    ${feature('cal', 'Posts recorrentes', 'Programe posts que se repetem todo dia, semana ou mês.')}
-    ${feature('link', 'Posts a partir de RSS', 'Gere posts automaticamente quando seus blogs favoritos publicarem.')}</section>`;
+    ${connectGrid(c)}<div class="sp-hero-actions"><button class="secondary" data-sp-invite>${i('link', 16)} Convidar cliente para conectar</button>${newPost('Começar com um rascunho')}</div></section>
+    <section aria-label="Mais formas de planejar conteúdo"><h2 class="sp-feature-title">Mais formas de planejar conteúdo</h2><div class="sp-features">
+    ${feature('upload', 'Agendamento em massa por CSV', 'Revise e importe várias publicações de uma vez.', 'data-sp-view="csv"')}
+    ${feature('refresh', 'Fila evergreen', 'Reaproveite seus melhores posts em horários fixos.', 'data-sp-edit="socialCategories" data-evergreen')}
+    ${feature('cal', 'Posts recorrentes', 'Programe posts que se repetem todo dia, semana ou mês.', 'data-sp-new data-recurring')}
+    ${feature('link', 'Posts a partir de RSS', 'Crie posts automaticamente a partir de novos itens de um feed.', 'data-sp-view="rss"')}</div></section>`;
 }
 
 // ---- Calendar ------------------------------------------------------------------------------------
@@ -130,7 +134,7 @@ function accountsView(c) {
     <td>${a.status === 'connected' ? badge('Conectada', 'green') : `${badge('Reconectar', 'red')} <small class="sp-err">${h(a.error || '')}</small>`}</td><td>${fmt(a.connectedAt, zoneOf(c))}</td>
     <td class="right">${a.status !== 'connected' ? `<button class="secondary" data-sp-connect="${a.provider}">Reconectar</button>` : ''}<button class="danger plain" data-sp-disconnect="${a.id}">Desconectar</button></td></tr>`);
   return `${rows.length ? `<div class="surface table-shell"><table><thead><tr><th>Conta</th><th>Status</th><th>Conectada em</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table></div>` : ''}
-    <section class="surface padded sp-section"><h2>Conectar outra conta</h2><p class="dim">O token de cada conta fica criptografado no servidor e nunca é enviado ao navegador.</p>${connectGrid(c)}</section>`;
+    <section class="surface padded sp-section"><h2>Conectar outra conta</h2>${connectGrid(c)}<div class="sp-hero-actions"><button class="secondary" data-sp-invite>${i('link', 16)} Convidar cliente para conectar</button></div></section>`;
 }
 function categoriesView(c) {
   const cards = c.s.socialCategories.map(cat => {
@@ -151,14 +155,35 @@ function rssView(c) {
     <div class="sp-accts">${f.accountIds.map(id => c.s.socialAccounts.find(a => a.id === id)).filter(Boolean).map(a => accountChip(a)).join('')}</div><button class="secondary" data-sp-edit="socialFeeds" data-id="${f.id}">${i('edit', 15)} Editar</button></article>`).join('') || emptyBox('Nenhum feed RSS', 'Adicione um feed para gerar posts automaticamente.')}</div>`;
 }
 function csvView(c) {
-  const history = [...c.s.socialImports].reverse().map(x => `<tr><td>${h(x.file || 'CSV')}</td><td>${fmt(x.created, zoneOf(c), true)}</td><td>${x.created} de ${x.total}</td><td>${x.errors.length ? `<details><summary>${x.errors.length} erro(s)</summary><small>${x.errors.map(h).join('<br>')}</small></details>` : badge('Sem erros', 'green')}</td></tr>`).join('');
+  const history = [...c.s.socialImports].reverse().map(x => `<tr><td>${h(x.file || 'CSV')}</td><td>${typeof x.created === 'string' ? fmt(x.created, zoneOf(c), true) : '—'}</td><td>${x.count ?? x.created} de ${x.total}</td><td>${x.errors.length ? `<details><summary>${x.errors.length} erro(s)</summary><small>${x.errors.map(h).join('<br>')}</small></details>` : badge('Sem erros', 'green')}</td></tr>`).join('');
+  const valid = csv.review.filter(r => !r.error).length;
+  const steps = ['Carregar arquivo', 'Selecionar contas', 'Revisar conteúdo'];
+  const content = [
+    `<p class="dim">Carregue até 300 posts em um arquivo CSV de até 1 MB. Use datas no formato AAAA-MM-DD HH:MM, no fuso ${h(zoneOf(c))}. Linhas sem data viram rascunhos.</p>
+    <div class="sp-csv-templates"><button type="button" class="secondary" data-sp-template="basic">${i('download', 16)} Modelo básico</button><button type="button" class="secondary" data-sp-template="advanced">${i('download', 16)} Modelo avançado</button></div>
+    <label class="sp-csv-file">Arquivo CSV<input type="file" name="file" accept=".csv,text/csv" ${csv.file ? '' : 'required'}></label>${csv.file ? `<p class="dim">${h(csv.file)} · ${csv.rows.length} linhas</p>` : ''}`,
+    `<p class="dim">${h(csv.file)} · ${csv.rows.length} linhas. As contas indicadas em cada linha precisam estar entre as selecionadas aqui.</p>
+    <fieldset class="sp-block"><legend>Contas de destino</legend><div class="sp-picks">${c.s.socialAccounts.filter(a => a.status === 'connected').map(a => `<label class="sp-pick"><input type="checkbox" name="account" value="${h(a.id)}" ${csv.accountIds.includes(a.id) ? 'checked' : ''}>${accountChip(a)} ${h(a.name)}</label>`).join('') || '<p class="dim">Você pode continuar sem contas se importar como rascunho.</p>'}</div></fieldset>
+    <label class="check"><input type="checkbox" name="asDraft" ${csv.asDraft ? 'checked' : ''}> Importar tudo como rascunho</label>
+    <label class="check"><input type="checkbox" name="needsApproval" ${csv.needsApproval ? 'checked' : ''}> Enviar posts com data para aprovação</label>`,
+    `<p class="dim">${valid} de ${csv.rows.length} linhas prontas para importar. ${valid < csv.rows.length ? 'As linhas com erro serão ignoradas. Para corrigi-las, volte e carregue o arquivo ajustado.' : 'Confira os destinos e as datas antes de confirmar.'}</p>
+    <div class="table-shell sp-csv-review"><table><thead><tr><th>Linha</th><th>Conteúdo</th><th>Data</th><th>Resultado</th></tr></thead><tbody>
+    ${csv.review.map(r => `<tr><td>${r.index + 2}</td><td>${h((csv.rows[r.index]?.content || '(mídia)').slice(0, 100))}</td><td>${r.date ? fmt(r.date, zoneOf(c), true) : '—'}</td>
+    <td>${r.error ? `<span class="sp-err">${h(r.error)}</span>` : `${status(r.status)} <small class="dim">${r.accounts} conta(s)</small>`}</td></tr>`).join('')}</tbody></table></div>`
+  ];
   return `<section class="surface padded sp-section"><h2>Agendar posts por CSV</h2>
-    <p class="dim">Colunas: <code>${csvColumns.join(', ')}</code>. <b>date</b> no formato <code>AAAA-MM-DD HH:MM</code> (fuso da subconta). <b>accounts</b> com nomes separados por <code>|</code> ou <code>todas</code>. <b>media</b> com URLs públicas separadas por <code>|</code>.</p>
-    <form class="sp-csv" data-sp-csv><input type="file" name="file" accept=".csv,text/csv" required><label class="check"><input type="checkbox" name="asDraft"> Importar como rascunhos</label><button class="primary">${i('upload', 16)} Importar</button><button type="button" class="secondary" data-sp-template>${i('download', 16)} Baixar modelo</button></form></section>
+    <ol class="sp-csv-steps" aria-label="Etapas da importação">${steps.map((step, n) => `<li ${n + 1 === csv.step ? 'aria-current="step"' : ''}><span>${n + 1}</span>${step}</li>`).join('')}</ol>
+    <form class="sp-csv" data-sp-csv>${content[csv.step - 1]}<p class="form-status" role="alert"></p><footer class="sp-foot">
+    ${csv.step > 1 ? '<button type="button" class="secondary" data-sp-csv-back>Voltar</button>' : ''}
+    <span class="spacer"></span><button class="primary" ${csv.step === 3 && !valid ? 'disabled' : ''}>${csv.step === 3 ? `Importar ${valid} post(s)` : csv.step === 2 ? 'Revisar posts' : 'Continuar'}</button></footer></form></section>
     ${history ? `<div class="surface table-shell"><table><thead><tr><th>Arquivo</th><th>Quando</th><th>Criados</th><th>Resultado</th></tr></thead><tbody>${history}</tbody></table></div>` : ''}`;
 }
 
 export function socialPlanner(c, { head, tabsHtml }) {
+  if (plannerWorkspace !== c.workspace) {
+    plannerWorkspace = c.workspace;
+    csv = freshCsv(); ui.account = ''; ui.status = 'all'; ui.picked.clear();
+  }
   const hasAccounts = c.s.socialAccounts.length > 0;
   const actions = { categories: `<button class="primary" data-sp-edit="socialCategories">${i('plus', 16)} Nova categoria</button>`, hashtags: `<button class="primary" data-sp-edit="socialHashtags">${i('plus', 16)} Novo grupo</button>`,
     rss: `<button class="primary" data-sp-edit="socialFeeds" ${hasAccounts ? '' : 'disabled'}>${i('plus', 16)} Novo feed</button>` };
@@ -171,9 +196,12 @@ export function socialPlanner(c, { head, tabsHtml }) {
 }
 
 // ---- Composer ------------------------------------------------------------------------------------
-const blankDraft = (c, day) => ({ id: '', type: 'post', summary: '', overrides: {}, accountIds: c.s.socialAccounts.filter(a => a.status === 'connected').length === 1 ? [c.s.socialAccounts[0].id] : [],
-  media: [], link: '', firstComment: '', categoryId: '', tags: [], needsApproval: false, recurrence: null, mode: day ? 'schedule' : 'schedule',
-  when: day ? `${day}T09:00` : wall(new Date(Date.now() + 3_600_000).toISOString(), zoneOf(c)), preview: '' });
+const blankDraft = (c, day) => {
+  const connected = c.s.socialAccounts.filter(a => a.status === 'connected');
+  return { id: '', type: 'post', summary: '', overrides: {}, accountIds: connected.length === 1 ? [connected[0].id] : [],
+    media: [], link: '', firstComment: '', categoryId: '', tags: [], needsApproval: false, recurrence: null, mode: connected.length ? 'schedule' : 'draft',
+    when: day ? `${day}T09:00` : wall(new Date(Date.now() + 3_600_000).toISOString(), zoneOf(c)), preview: '' };
+};
 function composerHtml(c) {
   const d = ui.draft, zone = zoneOf(c), locked = d.status === 'published';
   const accts = c.s.socialAccounts.map(a => `<label class="sp-pick ${d.accountIds.includes(a.id) ? 'on' : ''}"><input type="checkbox" name="account" value="${a.id}" ${d.accountIds.includes(a.id) ? 'checked' : ''} ${locked ? 'disabled' : ''}>${accountChip(a)}<span>${h(a.name)}</span></label>`).join('')
@@ -255,10 +283,11 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
   const withState = d => { c.s = d.state; c.m = d.metrics; };
   const user = () => { try { return localStorage.getItem('go.user') || ''; } catch { return ''; } };
   const wide = () => G('#dialog')?.classList.add('sp-dialog');
-  const openComposer = (id, day) => {
+  const openComposer = (id, day, recurring = false) => {
     const p = id ? c.s.socialPosts.find(x => x.id === id) : null;
     if (id && !p) return;
     ui.draft = p ? { ...structuredClone(p), mode: p.status === 'draft' ? 'draft' : 'schedule', when: wall(p.scheduleDate || new Date(Date.now() + 3_600_000).toISOString(), zoneOf(c)), preview: '' } : blankDraft(c, day);
+    if (recurring) Object.assign(ui.draft, { mode: 'schedule', recurrence: { freq: 'weekly', interval: 1, until: '' } });
     const title = !p ? 'Novo post' : p.status === 'published' ? 'Post publicado' : 'Editar post';
     dialog(title, composerHtml(c), { description: p ? `${statusLabel[p.status]}${p.createdBy ? ` · criado por ${p.createdBy}` : ''}` : 'Escreva uma vez e publique em várias redes.' });
     wide(); refreshComposer(c);
@@ -268,13 +297,13 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
     const failed = c.s.socialPosts.filter(p => p.status === 'failed' && Date.parse(p.publishedAt || 0) > Date.now() - 120_000);
     flash(d.published ? failed.length ? 'Alguns posts falharam. Veja os detalhes na lista.' : 'Post publicado.' : 'Nada para publicar agora.', Boolean(failed.length));
   };
-  const recordDialog = (key, id) => {
+  const recordDialog = (key, id, evergreen = false) => {
     const r = id ? c.s[key].find(x => x.id === id) : null; if (id && !r) return;
     const acctBoxes = (chosen = []) => `<div class="sp-picks">${c.s.socialAccounts.map(a => `<label class="sp-pick ${chosen.includes(a.id) ? 'on' : ''}"><input type="checkbox" name="accountIds" value="${a.id}" ${chosen.includes(a.id) ? 'checked' : ''}>${accountChip(a)}<span>${h(a.name)}</span></label>`).join('') || '<p class="dim">Conecte contas primeiro.</p>'}</div>`;
     const body = {
       socialCategories: () => `<label>Nome<input name="name" value="${h(r?.name || '')}" required maxlength="60"></label><label>Cor<input type="color" name="color" value="${h(r?.color || '#ea580c')}"></label>
-        <label class="check"><input type="checkbox" name="evergreen" ${r?.evergreen ? 'checked' : ''}> Fila evergreen (republicar em rodízio)</label>
-        <fieldset class="sp-block"><legend>Horários da fila</legend><div data-sp-slots>${(r?.slots || []).map(s => slotRow(s)).join('')}</div><button type="button" class="secondary" data-sp-slot>${i('plus', 14)} Horário</button></fieldset>
+        <label class="check"><input type="checkbox" name="evergreen" ${r?.evergreen || evergreen ? 'checked' : ''}> Fila evergreen (republicar em rodízio)</label>
+        <fieldset class="sp-block"><legend>Horários da fila</legend><div data-sp-slots>${(r?.slots || (evergreen ? [undefined] : [])).map(s => slotRow(s)).join('')}</div><button type="button" class="secondary" data-sp-slot>${i('plus', 14)} Horário</button></fieldset>
         <fieldset class="sp-block"><legend>Contas da fila</legend>${acctBoxes(r?.accountIds || [])}</fieldset>`,
       socialHashtags: () => `<label>Nome do grupo<input name="name" value="${h(r?.name || '')}" required maxlength="60"></label><label>Hashtags<textarea name="tags" rows="4" placeholder="#marketing #vendas">${h((r?.tags || []).map(t => `#${t}`).join(' '))}</textarea></label>`,
       socialFeeds: () => `<label>Nome<input name="name" value="${h(r?.name || '')}" required maxlength="80"></label><label>URL do feed (RSS ou Atom)<input type="url" name="url" value="${h(r?.url || '')}" required></label>
@@ -315,13 +344,31 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
     pickAccounts(ev.data.requestId).catch(e => flash(e.message, true));
   });
   const fail = (form, e) => { const s = form?.querySelector('.form-status'); if (s) s.textContent = e.message; else flash(e.message, true); };
+  const inviteDialog = ({ expires, url: link }) => {
+    dialog('Convidar cliente para conectar', `<form data-sp-invite-form>
+      <p>Qualquer pessoa com este link pode adicionar contas de redes sociais a esta subconta até o prazo escolhido. Ela precisa autorizar as contas na própria rede.</p>
+      ${expires ? `<p class="dim">Convite ativo até ${h(fmt(new Date(expires).toISOString(), zoneOf(c), true))}. Gerar outro invalida o link anterior.</p>` : ''}
+      ${link ? '<label>Link do convite<input name="inviteUrl" readonly></label><button type="button" class="secondary" data-sp-copy-invite>Copiar link</button>' : ''}
+      <label>Prazo de validade<select name="hours"><option value="1">1 hora</option><option value="24" selected>1 dia</option><option value="72">3 dias</option><option value="168">7 dias</option></select></label>
+      <p class="form-status" role="alert"></p><footer class="sp-foot">${expires ? '<button type="button" class="secondary" data-sp-revoke-invite>Revogar convite</button>' : ''}<span class="spacer"></span><button class="primary">Gerar link</button></footer></form>`);
+    if (link) G('input[name="inviteUrl"]').value = link;
+  };
 
   document.addEventListener('click', async ev => {
-    const t = ev.target.closest('[data-sp-view],[data-sp-mode],[data-sp-move],[data-sp-new],[data-sp-open],[data-sp-dup],[data-sp-retry],[data-sp-review],[data-sp-connect],[data-sp-disconnect],[data-sp-edit],[data-sp-remove],[data-sp-delete],[data-sp-preview],[data-sp-file],[data-sp-add-url],[data-sp-unmedia],[data-sp-goto],[data-sp-zoom],[data-sp-status-pick],[data-sp-bulk-delete],[data-sp-clear],[data-sp-template],[data-sp-slot],[data-sp-unslot],[data-sp-decide]');
+    const t = ev.target.closest('[data-sp-view],[data-sp-mode],[data-sp-move],[data-sp-new],[data-sp-open],[data-sp-dup],[data-sp-retry],[data-sp-review],[data-sp-connect],[data-sp-disconnect],[data-sp-edit],[data-sp-remove],[data-sp-delete],[data-sp-preview],[data-sp-file],[data-sp-add-url],[data-sp-unmedia],[data-sp-goto],[data-sp-zoom],[data-sp-status-pick],[data-sp-bulk-delete],[data-sp-clear],[data-sp-template],[data-sp-slot],[data-sp-unslot],[data-sp-decide],[data-sp-csv-back],[data-sp-invite],[data-sp-copy-invite],[data-sp-revoke-invite]');
     if (!t) return;
     const ds = t.dataset;
     try {
       if (ds.spView) { ui.view = ds.spView; c.query = ''; render(); return; }
+      if (ds.spCsvBack !== undefined) { csv.step = Math.max(1, csv.step - 1); render(); return; }
+      if (ds.spInvite !== undefined) { inviteDialog(await api(url('/api/social/invite'), { action: 'status' })); return; }
+      if (ds.spCopyInvite !== undefined) {
+        const field = t.form.elements.inviteUrl;
+        field.select();
+        try { await navigator.clipboard.writeText(field.value); flash('Link copiado.'); } catch { flash('Link selecionado para copiar.'); }
+        return;
+      }
+      if (ds.spRevokeInvite !== undefined) { inviteDialog(await api(url('/api/social/invite'), { action: 'revoke' })); flash('Convite revogado.'); return; }
       if (ds.spGoto) { close(); ui.view = ds.spGoto; render(); return; }
       if (ds.spMode) { ui.mode = ds.spMode; render(); return; }
       if (ds.spMove !== undefined) {
@@ -331,7 +378,7 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
       }
       if (ds.spZoom) { ui.mode = 'week'; ui.cursor = new Date(`${ds.spZoom}T12:00:00Z`); render(); return; }
       if (ds.spStatusPick) { ui.status = ds.spStatusPick; ui.view = 'list'; render(); return; }
-      if (t.hasAttribute('data-sp-new')) { ev.stopPropagation(); openComposer('', ds.day); return; }
+      if (t.hasAttribute('data-sp-new')) { ev.stopPropagation(); openComposer('', ds.day, ds.recurring !== undefined); return; }
       if (ds.spOpen) { openComposer(ds.spOpen); return; }
       if (ds.spDup) { const id = await mutate({ type: 'social-duplicate', id: ds.spDup }); close(); render(); flash('Post duplicado como rascunho.'); openComposer(id); return; }
       if (ds.spRetry) { await mutate({ type: 'social-retry', id: ds.spRetry }); render(); await publishNow(); render(); return; }
@@ -354,7 +401,7 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
         if (!confirm(`Desconectar ${a.name}? Posts agendados só para esta conta voltam a ser rascunhos.`)) return;
         withState(await api(url('/api/social/disconnect'), { id: a.id })); render(); flash('Conta desconectada.'); return;
       }
-      if (ds.spEdit) { recordDialog(ds.spEdit, ds.id); return; }
+      if (ds.spEdit) { recordDialog(ds.spEdit, ds.id, ds.evergreen !== undefined); return; }
       if (ds.spRemove) { if (!confirm('Excluir este item?')) return; await mutate({ type: 'delete', key: ds.spRemove, id: ds.id }); close(); render(); flash('Excluído.'); return; }
       if (ds.spDelete) { if (!confirm('Excluir este post? Isso não remove o que já foi publicado nas redes.')) return; await mutate({ type: 'social-delete', id: ds.spDelete }); close(); render(); flash('Post excluído.'); return; }
       if (ds.spBulkDelete) {
@@ -374,9 +421,11 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
         ui.draft.media.push({ url: v, type: /\.(mp4|mov|m4v|webm)(\?|$)/i.test(v) ? 'video' : 'image' }); input.value = ''; refreshComposer(c); return;
       }
       if (ds.spUnmedia !== undefined) { ui.draft.media.splice(Number(ds.spUnmedia), 1); refreshComposer(c); return; }
-      if (t.hasAttribute('data-sp-template')) {
-        const sample = `${csvColumns.join(',')}\n2026-12-01 09:00,"Bom dia! Conheça nossa nova coleção 🌿",todas,https://exemplo.com,,Lançamentos,\n`;
-        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([sample], { type: 'text/csv;charset=utf-8' })); a.download = 'modelo-planejador-social.csv'; a.click(); return;
+      if (ds.spTemplate) {
+        const columns = bulkCsvColumns[ds.spTemplate];
+        const sample = ['\uFEFF' + columns.join(','), columns.map(key => ({ content: 'Conheça nossa nova coleção!', type: 'post', tags: '"coleção,novidades"' })[key] || '').join(',')].join('\r\n');
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([sample], { type: 'text/csv;charset=utf-8' })); a.download = `planejador-social-${ds.spTemplate}.csv`; a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000); return;
       }
       if (t.hasAttribute('data-sp-slot')) { t.previousElementSibling.insertAdjacentHTML('beforeend', slotRow()); return; }
       if (t.hasAttribute('data-sp-unslot')) { t.closest('.sp-slot').remove(); return; }
@@ -403,7 +452,7 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
 
   document.addEventListener('submit', async ev => {
     const form = ev.target;
-    if (!form.matches('[data-sp-form],[data-sp-record],[data-sp-bluesky],[data-sp-attach],[data-sp-csv]')) return;
+    if (!form.matches('[data-sp-form],[data-sp-record],[data-sp-bluesky],[data-sp-attach],[data-sp-csv],[data-sp-invite-form]')) return;
     ev.preventDefault(); if (form.dataset.pending) return; form.dataset.pending = '1';
     const button = form.querySelector('.primary'); button?.setAttribute('disabled', '');
     try {
@@ -430,13 +479,40 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
       } else if (form.dataset.spAttach) {
         const picks = [...form.querySelectorAll('[name="pick"]:checked')].map(x => Number(x.value));
         withState(await api(url('/api/social/attach'), { requestId: form.dataset.spAttach, picks })); close(); ui.view = ui.view === 'accounts' ? 'accounts' : 'calendar'; render(); flash('Contas conectadas.');
+      } else if (form.dataset.spInviteForm !== undefined) {
+        const workspace = c.workspace, result = await api(url('/api/social/invite'), { action: 'create', hours: Number(form.elements.hours.value) });
+        if (c.workspace === workspace && form.isConnected) inviteDialog(result);
       } else if (form.dataset.spCsv !== undefined) {
-        const file = form.elements.file.files[0]; if (!file) throw Error('Escolha um arquivo CSV.');
-        if (file.size > 1_000_000) throw Error('O CSV pode ter até 1 MB.');
-        const rows = parseCsv(await file.text());
-        const offset = (() => { const s = wall(new Date().toISOString(), zoneOf(c)); const diff = Math.round((Date.parse(`${s}:00Z`) - Date.now()) / 60_000); const sign = diff >= 0 ? '+' : '-', a = Math.abs(diff); return `${sign}${String(Math.floor(a / 60)).padStart(2, '0')}:${String(a % 60).padStart(2, '0')}`; })();
-        const result = await mutate({ type: 'social-csv', data: { rows, file: file.name, offset, asDraft: form.elements.asDraft.checked } });
-        render(); flash(`${result.created} post(s) criados${result.errors.length ? `, ${result.errors.length} com erro` : ''}.`, Boolean(result.errors.length));
+        const batch = csv, workspace = c.workspace;
+        const current = () => csv === batch && c.workspace === workspace;
+        const data = () => ({ rows: batch.rows, file: batch.file, accountIds: batch.accountIds, asDraft: batch.asDraft, needsApproval: batch.needsApproval });
+        if (batch.step === 1) {
+          const file = form.elements.file.files[0];
+          if (file) {
+            if (file.size > 1_000_000) throw Error('O CSV pode ter até 1 MB.');
+            const rows = parseCsv(await file.text());
+            if (!current()) return;
+            if (!rows.length || rows.length > 300) throw Error('O CSV precisa ter entre 1 e 300 linhas de conteúdo.');
+            if (!Object.hasOwn(rows[0], 'content')) throw Error('Adicione a coluna content ou use um dos modelos.');
+            batch.file = file.name; batch.rows = rows;
+            batch.accountIds = c.s.socialAccounts.filter(a => a.status === 'connected').map(a => a.id);
+          } else if (!batch.file) throw Error('Escolha um arquivo CSV.');
+          batch.step = 2;
+        } else if (batch.step === 2) {
+          batch.accountIds = new FormData(form).getAll('account');
+          batch.asDraft = form.elements.asDraft.checked;
+          batch.needsApproval = form.elements.needsApproval.checked;
+          const { rows } = await api(url('/api/social/csv-preview'), data());
+          if (!current()) return;
+          batch.review = rows; batch.step = 3;
+        } else {
+          const reviewed = batch.review.filter(r => !r.error);
+          if (!reviewed.length) return;
+          const result = await mutate({ type: 'social-csv', data: { ...data(), includeIndices: reviewed.map(r => r.index), requireValid: true } });
+          if (!current()) return;
+          csv = freshCsv(); flash(`${result.created} post(s) importados${result.errors.length ? ` · ${result.errors.length} linha(s) ignoradas` : ''}.`);
+        }
+        render();
       }
     } catch (e) { fail(form, e); }
     finally { delete form.dataset.pending; button?.removeAttribute('disabled'); }
