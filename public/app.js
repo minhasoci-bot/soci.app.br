@@ -1,4 +1,4 @@
-import {icon as i, logo, brandName, brandColor} from './icons.js';
+import {icon as i, logo, brandName, brandColor, bootScreen} from './icons.js';
 import {nav,h,avatar,screens,publicView,money} from './screens.js';
 import { conversationSections, manualQueue, slaRecords } from './conversations.js';
 import { dashboardPreferences, installDashboardControls, reportGrid } from './dashboard-controls.js';
@@ -70,7 +70,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(key==='agency'){ c.mode='agency'; leaveAgentEditor(); close(); agencyUI.show(tab,project); return; }
   if(c.mode==='agency'){ agencyUI.leave(); c.mode=''; renderedView=''; }
   if (!c.s) {
-    app.innerHTML = '<div class="boot" role="status">Abrindo o soci…</div>';
+    app.innerHTML = bootScreen('Abrindo o soci…');
     openingWorkspace ??= openInitialWorkspace()
       .then(() => { if (c.s && c.mode !== 'agency') route(); })
       .catch(e => {

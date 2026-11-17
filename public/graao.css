@@ -50,8 +50,12 @@ body{
 ::selection{background:#fce7f3;color:#831843}
 button:focus-visible,a:focus-visible{outline:2px solid var(--g-brand);outline-offset:2px}
 .boot{color:var(--g-dim);font-weight:600}
-.boot::before{content:'';width:44px;height:44px;margin:0 auto 6px;border-radius:14px;background:var(--g-grad-brand);animation:g-breathe 1.4s var(--ease-std) infinite alternate}
-@keyframes g-breathe{to{transform:scale(.9) rotate(8deg);opacity:.7}}
+.boot{gap:6px}
+.boot::before{content:'';width:64px;height:64px;margin:0 auto 10px;background:url(/favicon.svg) center/contain no-repeat;transform-origin:50% 85%;animation:g-flicker 1.6s var(--ease-std) infinite alternate}
+@keyframes g-flicker{to{transform:translateY(-3px) rotate(-5deg) scale(1.04)}}
+.boot-title{font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--g-ink)}
+.boot-quip{font-size:13px;font-weight:500;color:var(--g-dim);animation:g-quip .5s var(--ease-out) .25s both}
+@keyframes g-quip{from{opacity:0;transform:translateY(4px)}}
 
 /* ───────── Global Custom Scrollbar (Microkit) ───────── */
 *{scrollbar-width:thin;scrollbar-color:var(--g-scrollbar-thumb) var(--g-scrollbar-track)}

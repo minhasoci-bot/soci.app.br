@@ -25,3 +25,18 @@ export const logo=`<svg class="g-mark" width="36" height="36" viewBox="0 0 1000 
 // Workspaces saved before the soci rename still carry the old defaults; those read as soci's own.
 export const brandName=b=>!b||b==='GO Workspace'||b==='graao'?'soci':b;
 export const brandColor=c=>!c||['#1570ef','#ea580c','#f97316','#ff3d8d'].includes(c.toLowerCase())?'#ff00bb':c;
+
+// Loading screen: the skull-flame mark (drawn by .boot::before) over the status line and one
+// playful line, drawn once per page load so the app and agency loaders tell the same joke.
+const quips = [
+  'Acendendo a chama…',
+  'Acordando a caveira. Ela não é de manhã.',
+  'Esquentando os leads…',
+  'Colocando as oportunidades em fila indiana…',
+  'Dando um cafezinho pro servidor…',
+  'Contando os contatos nos dedos. São muitos.',
+  'Alinhando os pixels um por um…',
+  'Polindo a caveira pra você…'
+];
+const quip = quips[Math.floor(Math.random() * quips.length)];
+export const bootScreen = title => `<div class="boot" role="status"><strong class="boot-title">${title}</strong><small class="boot-quip">${quip}</small></div>`;

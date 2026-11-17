@@ -1,4 +1,4 @@
-import { icon as i, logo, brandName, brandColor } from './icons.js';
+import { icon as i, logo, brandName, brandColor, bootScreen } from './icons.js';
 import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { tr } from './i18n.js';
@@ -476,7 +476,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     if (loading) return;
     const currentVisit = visit;
     loading = true;
-    app.innerHTML = '<div class="boot" role="status">Abrindo a agência…</div>';
+    app.innerHTML = bootScreen('Abrindo a agência…');
     try {
       const data = await api('/api/agency');
       if (currentVisit !== visit || !active()) return;
