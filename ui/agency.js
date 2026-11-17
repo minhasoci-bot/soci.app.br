@@ -22,7 +22,7 @@ export const agencyNav = [
   ['ask', 'Pergunte à IA', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['saas', 'Configurador SaaS', 'chart'], ['prospecting', 'Prospecção', 'search'],
   ['accounts', 'Subcontas', 'users'], ['snapshots', 'Snapshots de contas', 'box'],
   ['affiliate', 'Portal de afiliados', 'link'], ['templates', 'Biblioteca de templates', 'site'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
-  ['saas-education', 'Educação SaaS', 'chart'], ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'],
+  ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'],
   ['settings', 'Configurações', 'gear']
 ];
 const subTabs = {
@@ -320,7 +320,10 @@ export function startAgency(env) {
       ${tracks.map(([, name, lessons]) => `<section class="surface padded ag-track"><h2>${h(name)}</h2>${lessons.map(([id, lesson, summary]) => `<div class="line-item"><div><b>${h(lesson)}</b><p class="dim">${h(summary)}</p></div>${btn(done.includes(id) ? 'Concluída' : 'Marcar como concluída', 'learn', `data-id="${id}" aria-pressed="${done.includes(id)}"`, done.includes(id) ? 'secondary ag-done' : 'secondary')}</div>`).join('')}</section>`).join('')}</div>`;
   };
   pages.university = learning('university', 'Universidade', 'Treinamentos práticos e metodológicos para estruturar e operar sua plataforma de agência.');
-  pages['saas-education'] = learning('saas', 'Educação SaaS', 'Como transformar sua agência em um software próprio (White Label) com receita recorrente previsível.');
+  pages['saas-education'] = () => {
+    location.replace('#agency/dashboard');
+    return '';
+  };
 
   pages.ideas = () => {
     const sub = A.sub || 'all';

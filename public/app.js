@@ -476,7 +476,6 @@ function globalSearch(value){
       ['templates', 'Biblioteca de modelos', 'doc'],
       ['partners', 'Parceiros', 'users'],
       ['university', 'Universidade', 'book'],
-      ['saas-education', 'Educação SaaS', 'chart'],
       ['ideas', 'Ideias', 'lightbulb'],
       ['mobile-app', 'Aplicativo móvel', 'phone'],
       ['settings', 'Configurações', 'cog']
