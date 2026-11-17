@@ -446,7 +446,6 @@ export function startAgency(env) {
         <h2>Dados da empresa</h2>
         <div class="field-grid">
           <label>Nome da empresa<input name="name" required maxlength="120" value="${h(c.name)}"></label>
-          <label>Nome da marca<input readonly value="${h(c.brand)}"></label>
           <label>Site institucional<input name="website" type="url" value="${h(c.website)}"></label>
           <label>Telefone<input name="phone" type="tel" value="${h(c.phone)}"></label>
           <label>Endereço comercial<input name="address" value="${h(c.address)}"></label>
