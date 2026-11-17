@@ -263,12 +263,8 @@ export function startAgency(env) {
   };
 
   pages.addons = () => {
-    const requests = D().addonRequests;
-    const open = key => requests.find(r => r.addon === key && r.status === 'Requested');
-    const groups = [...new Set(addOns.map(a => a.group))];
-    return `<div class="page">${head('Complementos', 'Recursos avançados para sua marca, conformidade e suporte executivo. As solicitações são registradas localmente.')}
-      ${groups.map(g => `<h2 class="section-heading">${h(tr(g))}</h2><div class="card-grid">${addOns.filter(a => a.group === g).map(a => `<article class="surface padded resource"><div><h2>${h(a.name)}</h2><p class="ag-big">${usd(a.price)}<small>${h(a.period === '/mo' ? '/mês' : a.period)}</small></p></div><ul class="ag-list">${a.points.map(p => `<li>${h(p)}</li>`).join('')}</ul>${open(a.key) ? `${badge('Solicitado', 'blue')}${btn('Retirar solicitação', 'addon-cancel', `data-id="${open(a.key).id}"`)}` : btn('Solicitar complemento', 'addon-request', `data-id="${a.key}"`, 'primary')}</article>`).join('')}</div>`).join('')}
-      <h2 class="section-heading">Solicitações registradas</h2>${table(['Complemento', 'Status', 'Observação', 'Data do pedido'], [...requests].reverse().map(r => `<tr><td>${h(addOns.find(a => a.key === r.addon)?.name)}</td><td>${badge(r.status, tone(r.status))}</td><td>${h(r.note || '—')}</td><td>${day(r.created, true)}</td></tr>`), empty('Nenhuma solicitação', 'Os complementos solicitados pela sua agência aparecerão aqui.'))}</div>`;
+    location.replace('#agency/dashboard');
+    return '';
   };
 
   pages.affiliate = () => {
