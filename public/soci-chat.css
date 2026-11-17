@@ -453,19 +453,16 @@
 }
 
 .sc-home-badge {
-  width: 52px;
-  height: 52px;
-  margin: 0 auto 14px;
+  margin: 0 auto 12px;
   display: grid;
   place-items: center;
-  border-radius: 16px;
-  background: var(--g-brand-surface, #fff0fa);
-  border: 1px solid var(--g-brand-line, #fccae9);
+  background: transparent;
+  border: 0;
 }
 
 .sc-home-badge .g-mark {
-  width: 36px;
-  height: 36px;
+  width: 52px;
+  height: 52px;
   display: block;
 }
 
@@ -864,17 +861,16 @@
 .sc-avatar {
   width: 30px;
   height: 30px;
-  border-radius: 10px;
   display: grid;
   place-items: center;
-  background: var(--g-brand-surface, #fff0fa);
-  border: 1px solid var(--g-brand-line, #fccae9);
+  background: transparent;
+  border: 0;
   margin-top: 1px;
 }
 
 .sc-avatar .g-mark {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   display: block;
 }
 
@@ -1488,11 +1484,10 @@
   .sc-avatar {
     width: 26px;
     height: 26px;
-    border-radius: 8px;
   }
 
   .sc-avatar .g-mark {
-    width: 19px;
-    height: 19px;
+    width: 24px;
+    height: 24px;
   }
 }
