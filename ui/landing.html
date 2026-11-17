@@ -24,7 +24,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Sans:wght@300;400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11.1.14/swiper-bundle.min.css">
   <link rel="stylesheet" href="/landing.css">
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <div class="cursor" id="cursor" aria-hidden="true"><span class="cursor-icon"></span></div>
@@ -53,7 +52,6 @@
         </svg>
         <span class="btn-google-text">Entrar com Google</span>
       </button>
-      <button type="button" class="btn btn-outline" data-open-login data-cursor="hover" title="Escolher workspace">Acessos</button>
       <a class="btn btn-cta" href="/app" id="nav-enter-btn" data-cursor="sparkle">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
         <span>Entrar na plataforma</span>
@@ -288,9 +286,9 @@
         </li>
         <li>
           <button type="button" class="faq-q" aria-expanded="false" data-cursor="plus">
-            <span class="n">02</span><span class="q">Como funciona o botão de login e o acesso?</span><span class="plus" aria-hidden="true"></span>
+            <span class="n">02</span><span class="q">Como faço para entrar?</span><span class="plus" aria-hidden="true"></span>
           </button>
-          <div class="faq-a" role="region"><div><p>Clique em <strong>Entrar na plataforma</strong> e continue com Google ou use seu e-mail e senha. Para começar, clique em <strong>Criar conta</strong> e confirme seu e-mail.</p></div></div>
+          <div class="faq-a" role="region"><div><p>Clique em <strong>Entrar na plataforma</strong> e escolha sua conta Google. O primeiro acesso cria sua conta no soci.</p></div></div>
         </li>
         <li>
           <button type="button" class="faq-q" aria-expanded="false" data-cursor="plus">
@@ -350,114 +348,23 @@
     </div>
   </footer>
 
-  <!-- Modal de Escolha de Acesso / Login -->
-  <dialog class="login-dialog" id="login-dialog">
+  <dialog class="login-dialog" id="login-dialog" aria-labelledby="login-title">
     <div class="login-dialog-inner">
       <div class="login-dialog-head">
-        <div>
-          <h2>Acessar o soci</h2>
-          <p>Escolha o ambiente ou conecte sua conta:</p>
-        </div>
-        <button type="button" class="login-dialog-close" id="close-login" aria-label="Fechar modal">✕</button>
+        <h2 id="login-title">Entrar no soci</h2>
+        <button type="button" class="login-dialog-close" id="close-login" aria-label="Fechar">✕</button>
       </div>
 
-      <!-- Login com Google em destaque -->
-      <div class="google-auth-box" id="google-auth-box">
-        <button type="button" class="btn-google-full" id="google-signin-btn" data-cursor="hover">
+      <button type="button" class="btn-google-full" id="google-signin-btn">
           <svg class="google-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.4 9 5 12 5z"/>
             <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"/>
             <path fill="#FBBC05" d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.9 7.3C.7 9.7 0 12 0 12s.7 2.3 1.9 4.7l3.7-2.9z"/>
             <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2-6.4-4.8L1.9 16.4C3.7 20.4 7.5 23 12 23z"/>
           </svg>
-          <span id="google-btn-label">Fazer login com o Google</span>
-        </button>
-        <div id="google-gis-slot" class="google-gis-slot"></div>
-        <div class="google-status" id="google-status" hidden></div>
-      </div>
-
-      <div class="login-divider">
-        <span>ou acesse direto por ambiente</span>
-      </div>
-
-      <div class="login-options">
-        <a class="login-card-btn primary-option" href="/app">
-          <div>
-            <b>Workspace Principal</b>
-            <span>Acessar CRM, conversas, automações e estúdio</span>
-          </div>
-          <span>→</span>
-        </a>
-        <a class="login-card-btn" href="/app#agency/dashboard">
-          <div>
-            <b>Visão da Agência</b>
-            <span>Painel financeiro, subcontas e snapshots</span>
-          </div>
-          <span>→</span>
-        </a>
-        <a class="login-card-btn" href="/app?workspace=demo#ask-ai">
-          <div>
-            <b>Ambiente de Demonstração</b>
-            <span>Explorar dados de exemplo do Demo Workspace</span>
-          </div>
-          <span>→</span>
-        </a>
-      </div>
-    </div>
-  </dialog>
-
-  <!-- Modal Seletor de Conta Google -->
-  <dialog class="login-dialog google-picker-dialog" id="google-picker-dialog">
-    <div class="login-dialog-inner">
-      <div class="login-dialog-head">
-        <div class="google-picker-title">
-          <svg class="google-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-            <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.4 9 5 12 5z"/>
-            <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"/>
-            <path fill="#FBBC05" d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.9 7.3C.7 9.7 0 12 0 12s.7 2.3 1.9 4.7l3.7-2.9z"/>
-            <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2-6.4-4.8L1.9 16.4C3.7 20.4 7.5 23 12 23z"/>
-          </svg>
-          <div>
-            <h2>Escolha sua Conta Google</h2>
-            <p>Para entrar no <b>soci</b> com login Google</p>
-          </div>
-        </div>
-        <button type="button" class="login-dialog-close" id="close-google-picker" aria-label="Fechar modal">✕</button>
-      </div>
-
-      <div class="google-accounts-list" id="google-accounts-list">
-        <button type="button" class="google-account-item" data-account="luiz" data-email="luiz@caramelo.co" data-name="Luiz Caramelo">
-          <div class="google-avatar" style="background:#ff701a;">L</div>
-          <div class="google-account-info">
-            <b>Luiz Caramelo</b>
-            <span>luiz@caramelo.co</span>
-          </div>
-          <span class="google-account-badge">Dono</span>
-        </button>
-        <button type="button" class="google-account-item" data-account="soci" data-email="contato@soci.com.br" data-name="Soci Agência">
-          <div class="google-avatar" style="background:#25bfff;">S</div>
-          <div class="google-account-info">
-            <b>Soci Agência</b>
-            <span>contato@soci.com.br</span>
-          </div>
-          <span class="google-account-badge">Admin</span>
-        </button>
-      </div>
-
-      <div class="google-custom-box">
-        <div class="login-divider"><span>ou use outro e-mail Google</span></div>
-        <form id="google-custom-form" class="google-custom-form">
-          <label>E-mail Google:
-            <input type="email" id="google-custom-email" placeholder="seu-email@gmail.com" required>
-          </label>
-          <label>Seu nome:
-            <input type="text" id="google-custom-name" placeholder="Ex: Ana Silva">
-          </label>
-          <button type="submit" class="btn btn-cta" id="google-custom-submit">
-            Continuar com esta conta
-          </button>
-        </form>
-      </div>
+        <span>Continuar com Google</span>
+      </button>
+      <p class="login-status" id="login-status" role="status" hidden></p>
     </div>
   </dialog>
 

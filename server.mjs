@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { blank, seed, uid, execute, metrics, find } from './model.mjs';
 import { createSqliteStore, supabaseFromEnv } from './storage.mjs';
+import { accountProfile, afterLogin, authFromEnv } from './auth.mjs';
 import { generatePage, generateSite, revisePage, studioAiAvailable } from './studio-ai.mjs';
 import { addPage, deletePage, findPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
@@ -41,8 +42,13 @@ const defaultPort = Number(process.env.GO_PORT || 4317);
 const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://accounts.google.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://accounts.google.com; frame-src 'self' https: https://accounts.google.com; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'";
 const error = (message,status) => Object.assign(new Error(message),{status});
 const spaceId = /^[0-9a-f-]{36}$|^demo$/;
-const paths = /^\/(p|f|course)\/([0-9a-f-]{36}|demo)\/([0-9a-f-]{36})$/;
-const redirectPath = /^\/r\/(demo|[0-9a-f-]{36})\/([0-9a-f-]{36})$/;
+const privateSpace = /^user-[0-9a-f-]{36}$/;
+const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
+const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
+const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
+const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
+const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{36})/([0-9a-f-]{36})$`);
+const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,48}))?$`);
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 const commandModule = { 'social-post':'marketing', 'social-reschedule':'marketing', 'social-review':'marketing', 'social-duplicate':'marketing', 'social-delete':'marketing', 'social-bulk-delete':'marketing', 'social-retry':'marketing', 'social-csv':'marketing', 'social-account-remove':'marketing', message:'conversations', thread:'conversations', 'manual-action':'conversations', 'conversation-sla':'conversations', 'dismiss-sla':'conversations',
@@ -59,7 +65,12 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
   ? resolve(tmpdir(), 'go.sqlite')
   : resolve(root, '.data', 'go.sqlite');
 
-export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSqliteStore(dbPath),socialScheduler=!process.env.VERCEL}={}) {
+export function makeServer({
+  dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
+  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID,
+  allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
+}={}) {
+  const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
   const ready = Promise.all([store.insert('demo', seed()), store.insert(AGENCY_ID, blankAgency())]);
   ready.catch(() => {});
   const listWorkspaces = async () => (await store.list()).filter(w => spaceId.test(w.id));
@@ -75,19 +86,54 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
       if (w.name) agency.accounts[w.id].name = w.name;
     }
   };
-  const accessFor = (req, agency, fallback) => {
-    const userId = String(req.headers['x-go-user'] || '');
+  const requestUsers = new WeakMap();
+  function verifiedUser(req, res) {
+    if (!auth) return null;
+    if (!requestUsers.has(req)) {
+      requestUsers.set(req, auth.user(req,res).then(user => {
+        if (!user) throw error('Entre na sua conta para continuar.',401);
+        return accountProfile(user);
+      }));
+    }
+    return requestUsers.get(req);
+  }
+  const accessFor = (req, agency, session, fallback) => {
+    if (!session && !localAccess) throw error('O login do Supabase ainda não foi configurado.',503);
+    if (session && session.id !== agencyOwnerId) {
+      const member = agency.users.find(user => user.loginEnabled && user.email?.toLowerCase() === session.email.toLowerCase());
+      if (member) return { ...userAccess(agency,member.id), userId: member.id, session };
+      return { agency: false, settings: false, accounts: [`user-${session.id}`], modules: null, name: session.name, session, personal: true };
+    }
+    const userId = localAccess ? String(req.headers['x-go-user'] || req.localSocialUser || '') : '';
     const result = userAccess(agency, userId);
-    if (result) return { ...result, userId };
-    if (fallback) return fallback;
+    if (result) return { ...result, userId, session, ...(session ? { name: session.name } : {}) };
+    if (fallback && localAccess) return fallback;
     throw error('The selected user no longer exists. Choose another user.',403);
   };
-  const access = async req => accessFor(req, await loadAgency());
-  const canOpen = (who, id) => !who.accounts || who.accounts.includes(id);
-  async function agencyPayload(req, extra = {}, previousAccess) {
+  const access = async (req,res) => {
+    const session = await verifiedUser(req,res);
+    return accessFor(req,await loadAgency(),session);
+  };
+  const canOpen = (who, id) => privateSpace.test(id) ? who.personal && who.accounts.includes(id)
+    : !who.accounts || who.accounts.includes(id);
+  async function openPersonalWorkspace(who) {
+    const [id] = who.accounts;
+    try { return await store.load(id); }
+    catch (e) { if (e.status !== 404) throw e; }
+    const state = blank('Meu Workspace');
+    state.profile.email = who.session.email;
+    await store.insert(id,state);
+    return store.load(id);
+  }
+  async function visibleWorkspaces(who) {
+    if (who.personal) return [{ id: who.accounts[0], name: (await openPersonalWorkspace(who)).profile.name }];
+    return (await listWorkspaces()).filter(w => canOpen(who,w.id));
+  }
+  async function agencyPayload(req, res, extra = {}, previousAccess) {
+    const session = await verifiedUser(req,res);
     const [agency, workspaces] = await Promise.all([loadAgency(), listWorkspaces()]);
-    const who = accessFor(req, agency, previousAccess);
-    if (!previousAccess && !who.agency) throw error('Your user cannot open the agency view.',403);
+    const who = accessFor(req, agency, session, previousAccess);
+    if (!who.agency) throw error('Your user cannot open the agency view.',403);
     ensureAccounts(agency, workspaces);
     const states = await Promise.all(workspaces.map(async w => ({ ...w, state: await store.load(w.id) })));
     return { agency: publicAgency(agency), overview: agencyOverview(agency, states), workspaces, access: who,
@@ -136,9 +182,9 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
     if (!allowed) throw error('This key is invalid or lacks the required scope.',401);
   }
   // ---- AI Studio sites ----
-  async function studioGuard(req, workspace) {
-    if (!spaceId.test(workspace)) throw error('Workspace not found.',404);
-    const who = await access(req);
+  async function studioGuard(req, res, workspace) {
+    if (!spaceId.test(workspace) && !privateSpace.test(workspace)) throw error('Workspace not found.',404);
+    const who = await access(req,res);
     if (!canOpen(who,workspace)) throw error('Your user cannot open this sub-account.',403);
     if (who.modules && !who.modules.includes('studio')) throw error('Your user does not have permission for this module.',403);
     return who;
@@ -284,7 +330,14 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
     if (op === 'action') {
       if (!who.settings && (settingsCommands.has(input.type) || ((input.type === 'save' || input.type === 'delete') && settingsRecords.has(input.key)))) throw error('Only agency owners and admins can change agency settings.',403);
       const workspaces = await listWorkspaces();
-      return changeAgency(agency => { ensureAccounts(agency, workspaces); return executeAgency(agency, input, { accountIds: workspaces.map(w => w.id), actor: who.name }); });
+      return changeAgency(agency => {
+        ensureAccounts(agency, workspaces);
+        const result = executeAgency(agency, input, { accountIds: workspaces.map(w => w.id), actor: who.name });
+        if (who.session && input.type === 'save' && input.key === 'users') {
+          agency.users.find(user => user.id === result).loginEnabled = true;
+        }
+        return result;
+      });
     }
     if (op === 'accounts') return createAccount(who, input);
     if (op === 'snapshot-create' || op === 'snapshot-refresh') {
@@ -447,7 +500,7 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
   }
   async function runAllSocial(base) {
     let total = 0;
-    for (const w of await listWorkspaces()) {
+    for (const w of (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id))) {
       try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
     }
     return total;
@@ -476,10 +529,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     res.setHeader('Cache-Control','no-store');
     const send=(status,type,data)=>{res.writeHead(status,{'Content-Type':type});res.end(data);};
     const json=(data,status=200)=>send(status,'application/json; charset=utf-8',JSON.stringify(data));
+    const goTo = path => { res.writeHead(303, { Location: path }); res.end(); };
     try {
       const host = req.headers.host || '';
       if (!isVercel && !allowedHosts.includes(host)) throw error('Use the local address shown in the terminal.',403);
-      const proto = req.headers['x-forwarded-proto'] || (req.socket?.encrypted ? 'https' : 'http');
+      const proto = isVercel || req.socket?.encrypted ? 'https' : 'http';
       const url=new URL(req.url,`${proto}://${host}`);
       let p = url.searchParams.get('__path') || url.pathname;
       if (!p.startsWith('/')) p = '/' + p;
@@ -487,7 +541,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       const method=req.method;
       if (!['GET','HEAD','POST'].includes(method)) throw error('Method not allowed.',405);
       if (method==='POST' && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
-      if (p.startsWith('/api/')) await ready;
+      if (p.startsWith('/api/') && !p.startsWith('/api/auth/')) await ready;
       const id=url.searchParams.get('workspace') || 'demo';
       if (p === '/favicon.ico') { res.writeHead(302, { Location: '/favicon.svg' }); return res.end(); }
       if (['/prospecting','/prospecting/','/prospecting/add-prospect'].includes(p) && method !== 'POST') {
@@ -548,79 +602,34 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const created = await change(account,{ type:'save', key:'contacts', data: await payload(req) });
         return json({ id: created.id },201);
       }
-      if (p === '/api/auth/google/config' && method === 'GET') {
-        const clientId = process.env.GOOGLE_CLIENT_ID || '';
-        return json({ clientId, configured: Boolean(clientId), provider: 'google' });
-      }
-      if (p === '/api/auth/google' && method === 'POST') {
-        await ready;
-        const body = await payload(req);
-        let { email, name, picture, credential } = body;
-        if (credential && typeof credential === 'string') {
-          try {
-            const parts = credential.split('.');
-            if (parts.length === 3) {
-              const decoded = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-              email = decoded.email || email;
-              name = decoded.name || decoded.given_name || name;
-              picture = decoded.picture || picture;
-            }
-          } catch { /* proceed with raw values */ }
+      if (p.startsWith('/api/auth/')) {
+        if (!auth) throw error('O login do Supabase ainda não foi configurado.',503);
+        const operation = p.slice('/api/auth/'.length);
+        if (operation === 'callback/google' && method === 'GET') return goTo(await auth.callback(req,res,url.searchParams));
+        if (operation === 'logout' && method === 'POST') {
+          await auth.logout(req,res);
+          return json({ ok:true });
         }
-        email = String(email || '').trim().toLowerCase();
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw error('Email do Google inválido.', 400);
-        name = String(name || email.split('@')[0]).trim().slice(0, 100);
-        const [first, ...rest] = name.split(/\s+/);
-        const last = rest.join(' ') || '';
-
-        const agency = await loadAgency();
-        let user = agency.users.find(u => u.email?.toLowerCase() === email);
-        if (!user) {
-          user = {
-            id: uid(),
-            first,
-            last,
-            email,
-            avatar: picture || '',
-            role: agency.users.length === 0 ? 'Agency Owner' : 'Agency Admin',
-            permissions: [],
-            accounts: []
-          };
-          await changeAgency(a => {
-            a.users.push(user);
-            logTo(a, { name: 'Google Auth' }, 'User logged in with Google', `${name} (${email})`);
-          });
-        } else if (picture && user.avatar !== picture) {
-          await changeAgency(a => {
-            const found = a.users.find(u => u.id === user.id);
-            if (found) found.avatar = picture;
-          });
+        if (operation === 'google' && method === 'POST') {
+          const input = await payload(req);
+          return json({ url:await auth.google(req,res,url.origin,input.next) });
         }
-        return json({
-          ok: true,
-          user: {
-            id: user.id,
-            name: `${user.first} ${user.last}`.trim(),
-            email: user.email,
-            picture: picture || user.avatar || '',
-            role: user.role
-          }
-        });
+        throw error('Page not found.',404);
       }
       if (p==='/api/workspaces') {
-        const who = await access(req);
+        const who = await access(req,res);
         if (method==='POST') {
           if (!who.agency) throw error('Only agency users can create sub-accounts.',403);
           const newId = await createAccount(who, await payload(req));
           return json({id:newId,workspaces:await listWorkspaces()},201);
         }
-        return json({workspaces:(await listWorkspaces()).filter(w => canOpen(who,w.id))});
+        return json({workspaces:await visibleWorkspaces(who)});
       }
       if (p === '/api/social/cron' && (method === 'GET' || method === 'POST')) {
-        if (process.env.CRON_SECRET && req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) throw error('Not allowed.',401);
+        if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) throw error('Not allowed.',401);
         return json({ published: await runAllSocial(publicBase(req)) });
       }
-      const socialFile = p.match(/^\/m\/(demo|[0-9a-f-]{36})\/([0-9a-f-]{36})$/);
+      const socialFile = p.match(socialFilePath);
       if (socialFile && method === 'GET') {
         await ready;
         const file = (await store.load(socialFile[1])).files.find(f => f.id === socialFile[2]);
@@ -631,8 +640,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       const socialStart = p.match(/^\/api\/social\/connect\/([a-z]+)$/);
       if (socialStart && method === 'GET') {
-        if (!spaceId.test(id)) throw error('Workspace not found.',404);
-        const who = await access({ headers: { 'x-go-user': url.searchParams.get('user') || '' } });
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
+        if (localAccess) req.localSocialUser = url.searchParams.get('user');
+        const who = await access(req,res);
         if (!canOpen(who,id) || (who.modules && !who.modules.includes('marketing'))) throw error('Your user cannot connect accounts in this sub-account.',403);
         const provider = socialStart[1], nonce = uid();
         const target = authUrl(provider, { redirectUri: publicBase(req) + callbackPath(provider), state: nonce });
@@ -667,8 +677,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
       }
       if (p.startsWith('/api/social/') && method === 'POST') {
-        if (!spaceId.test(id)) throw error('Workspace not found.',404);
-        const who = await access(req);
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
+        const who = await access(req,res);
         if (!canOpen(who,id) || (who.modules && !who.modules.includes('marketing'))) throw error('Your user does not have permission for this module.',403);
         const input = await payload(req), op = p.slice('/api/social/'.length);
         const withState = async extra => { const state = await store.load(id); return json({ state, metrics: metrics(state), ...extra }); };
@@ -703,20 +713,23 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         throw error('Unknown social request.',404);
       }
       if (p==='/api/state' && method!=='POST') {
-        if (!spaceId.test(id)) throw error('Workspace not found.',404);
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
+        const session = await verifiedUser(req,res);
         const agency = await loadAgency();
-        const who = accessFor(req, agency);
+        const who = accessFor(req,agency,session);
         if (!canOpen(who,id)) throw error('Your user cannot open this sub-account.',403);
-        const [state,workspaces] = await Promise.all([store.load(id),listWorkspaces()]);
+        const state = who.personal ? await openPersonalWorkspace(who) : await store.load(id);
+        const workspaces = who.personal ? [{ id, name: state.profile.name }] : await visibleWorkspaces(who);
         // Settings → Audit Logs of the sub-account: the agency audit entries written against this account.
         const account = workspaces.find(w => w.id === id)?.name || id;
-        const audit = !who.modules || who.modules.includes('settings') ? agency.audit.filter(a => a.target === account).slice(-200) : [];
-        return json({state,metrics:metrics(state),workspaces:workspaces.filter(w => canOpen(who,w.id)),features:{studioAI:studioAiAvailable,social:availability()},
-          agency:agencyForWorkspace(agency,id),access:{agency:who.agency,modules:who.modules,name:who.name},audit});
+        const audit = !who.personal && (!who.modules || who.modules.includes('settings')) ? agency.audit.filter(a => a.target === account).slice(-200) : [];
+        return json({state,metrics:metrics(state),workspaces,features:{studioAI:studioAiAvailable,social:availability()},
+          agency:agencyForWorkspace(who.personal ? blankAgency() : agency,id),
+          access:{agency:who.agency,modules:who.modules,name:who.name,session:who.session},audit});
       }
       if (p==='/api/action' && method==='POST') {
-        if (!spaceId.test(id)) throw error('Workspace not found.',404);
-        const who = await access(req);
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
+        const who = await access(req,res);
         if (!canOpen(who,id)) throw error('Your user cannot open this sub-account.',403);
         const command = await payload(req);
         const module = command.type === 'save' || command.type === 'delete' ? moduleOfRecord[command.key]
@@ -724,7 +737,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (module && who.modules && !who.modules.includes(module)) throw error('Your user does not have permission for this module.',403);
         command.actor = who.name;
         const result = await change(id,command);
-        if (['save','delete','import','pipeline','profile','bulk'].includes(command.type)) {
+        if (!who.personal && ['save','delete','import','pipeline','profile','bulk'].includes(command.type)) {
           const account = (await listWorkspaces()).find(w => w.id === id)?.name || id;
           const label = command.type === 'bulk' ? `Bulk ${command.data?.operation || ''} on ${command.data?.object || ''}`.trim() : '';
           await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);
@@ -732,16 +745,16 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         return json(result);
       }
       if (p==='/api/agency' && method!=='POST') {
-        return json(await agencyPayload(req));
+        return json(await agencyPayload(req,res));
       }
       if (p.startsWith('/api/agency/') && method==='POST') {
-        const who = await access(req);
+        const who = await access(req,res);
         if (!who.agency) throw error('Your user cannot open the agency view.',403);
         const result = await agencyRequest(p.slice('/api/agency/'.length), who, await payload(req));
-        return json(await agencyPayload(req, { result }, who));
+        return json(await agencyPayload(req,res, { result }, who));
       }
       if (p==='/api/studio' && method==='POST') {
-        await studioGuard(req,id);
+        await studioGuard(req,res,id);
         const input = await payload(req);
         const brief = typeof input.brief === 'string' ? input.brief.trim() : '';
         const template = input.template || 'landing';
@@ -767,27 +780,28 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         return json(await syncMeta(id, created.id, doc),201);
       }
       if (p==='/api/studio/doc' && method!=='POST') {
-        await studioGuard(req,id);
+        await studioGuard(req,res,id);
         const projectId = url.searchParams.get('id') || '';
         return json({ doc: publicDoc(await siteDoc(id, projectId)) });
       }
       if (p.startsWith('/api/studio/') && method==='POST') {
-        await studioGuard(req,id);
+        await studioGuard(req,res,id);
         const input = await payload(req);
         const result = await studioRequest(id, p.slice('/api/studio/'.length), input);
         const doc = await siteDoc(id, input.id);
         const synced = await syncMeta(id, input.id, doc);
         return json({ ...synced, doc: publicDoc(doc), result });
       }
-      const preview = p.match(/^\/studio-preview\/(demo|[0-9a-f-]{36})\/([0-9a-f-]{36})\/([0-9a-f-]{36})$/);
+      const preview = p.match(previewPath);
       if (preview && method === 'GET') {
         await ready;
         const [, workspace, projectId, pageId] = preview;
+        await studioGuard(req,res,workspace);
         const doc = await siteDoc(workspace, projectId);
         res.writeHead(200, previewHeaders);
         return res.end(findPage(doc, pageId).html);
       }
-      const site = p.match(/^\/s\/(demo|[0-9a-f-]{36})\/([0-9a-f-]{36})(?:\/([a-z0-9-]{1,48}))?$/);
+      const site = p.match(sitePath);
       if (site) {
         await ready;
         const [, workspace, projectId, slug = 'index'] = site;
@@ -837,10 +851,15 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const form=kind==='p' && row.formId ? find(state,'forms',row.formId) : null;
         return json({kind,row,form:form?.active?form:null,brand:state.profile.name});
       }
-      if ((method==='GET'||method==='HEAD') && (p==='/' || ['/app','/app/','/painel','/painel/'].includes(p) || paths.test(p) || staticFiles.has(p))) {
+      if ((method==='GET'||method==='HEAD') && (p==='/' || p==='/login' || ['/app','/app/','/painel','/painel/'].includes(p) || paths.test(p) || staticFiles.has(p))) {
         const hostHeader = (req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
         const isAppDomain = hostHeader.startsWith('app.');
-        const isLanding = p === '/' && !isAppDomain;
+        const isLanding = p === '/login' || (p === '/' && !isAppDomain);
+        if (!isLanding && !paths.test(p) && (!staticFiles.has(p) || p === '/index.html') && !localAccess && !auth?.hasSession(req)) {
+          const search = new URLSearchParams(url.search); search.delete('__path');
+          const next = afterLogin((p === '/' || p === '/index.html' ? '/app' : p) + (search.size ? '?' + search : ''));
+          return goTo('/login?' + new URLSearchParams({ next }));
+        }
         const f = staticFiles.has(p) ? p : (isLanding ? '/landing.html' : '/index.html');
         return send(200,staticFiles.get(f)||'text/html; charset=utf-8',method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
       }

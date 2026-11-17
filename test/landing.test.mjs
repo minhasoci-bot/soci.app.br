@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { createSupabaseAuth } from '../auth.mjs';
 import { makeServer } from '../server.mjs';
 
-async function start() {
-  const { server, host } = makeServer({ dbPath: ':memory:', port: 0 });
+async function start(options = { auth: null, allowLocalAccess: true }) {
+  const { server, host } = makeServer({ dbPath: ':memory:', port: 0, ...options });
   await new Promise((resolve, reject) => { server.on('error', reject); server.listen(0, host, resolve); });
   const base = `http://${host}:${server.address().port}`;
   return { base, close: () => new Promise(resolve => server.close(resolve)) };
@@ -58,44 +60,145 @@ test('Landing page serves at / with login button, animations and modules', async
   // 4. Google Auth elements in landing HTML
   assert.match(html, /id="nav-google-btn"/);
   assert.match(html, /id="google-signin-btn"/);
-  assert.match(html, /id="google-picker-dialog"/);
-  assert.match(html, /accounts\.google\.com\/gsi\/client/);
+  assert.doesNotMatch(html, /id="login-form"|type="password"/);
+  assert.doesNotMatch(html, /id="google-picker-dialog"/);
 });
 
-test('Google Auth endpoints allow configuration check and user sign-in', async t => {
-  const local = await start();
-  t.after(local.close);
 
-  // 1. GET /api/auth/google/config
-  const cfgRes = await fetch(local.base + '/api/auth/google/config');
-  assert.equal(cfgRes.status, 200);
-  const cfg = await cfgRes.json();
-  assert.equal(cfg.provider, 'google');
-  assert.equal(typeof cfg.configured, 'boolean');
+const alice = { id: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', email: 'alice@example.com', email_confirmed_at: '2026-01-01', identities: [{ provider: 'google' }] };
+const bob = { id: 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb', email: 'bob@example.com', email_confirmed_at: '2026-01-01', identities: [{ provider: 'google' }] };
+const owner = { id: 'cccccccc-cccc-4ccc-cccc-cccccccccccc', email: 'owner@example.com', email_confirmed_at: '2026-01-01', identities: [{ provider: 'google' }] };
+const users = { alice, bob, owner };
+const reply = (value, status = 200) => Response.json(value, { status });
+const post = (base, route, body, headers = {}) => fetch(base + route, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', ...headers },
+  body: JSON.stringify(body),
+  redirect: 'manual'
+});
+const cookies = result => result.headers.getSetCookie().map(line => line.split(';', 1)[0]).filter(part => !part.endsWith('=')).join('; ');
 
-  // 2. POST /api/auth/google invalid email
-  const badRes = await fetch(local.base + '/api/auth/google', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'not-an-email' })
+function session(name, method = 'oauth') {
+  const user = users[name];
+  const claims = Buffer.from(JSON.stringify({ sub: user.id, amr: [{ method }] })).toString('base64url');
+  return { access_token: 'test.' + claims + '.test', refresh_token: name + '-' + method, expires_in: 3600, user };
+}
+
+function provider(google = true) {
+  const signedOut = new Set();
+  const sessions = Object.keys(users).flatMap(name => ['oauth', 'password'].map(method => session(name, method)));
+  const projectUrl = 'https://test.supabase.co';
+  return createSupabaseAuth({ projectUrl, publishableKey: 'public-key', async request(url, options) {
+    assert.equal(url.origin, projectUrl);
+    assert.equal(options.headers.apikey, 'public-key');
+    const input = options.body && JSON.parse(options.body);
+    switch (url.pathname) {
+      case '/auth/v1/settings':
+        return reply({ external: { google } });
+      case '/auth/v1/token': {
+        const grant = url.searchParams.get('grant_type');
+        if (grant === 'refresh_token') {
+          const refreshed = sessions.find(candidate => candidate.refresh_token === input.refresh_token && !signedOut.has(candidate.access_token));
+          return refreshed ? reply(refreshed) : reply({}, 400);
+        }
+        assert.equal(grant, 'pkce');
+        assert.match(input.code_verifier, /^[a-zA-Z0-9_-]{43}$/);
+        const [name, method] = input.auth_code.split('-');
+        return users[name] ? reply(session(name, method)) : reply({}, 400);
+      }
+      case '/auth/v1/user': {
+        const token = options.headers.Authorization.slice('Bearer '.length);
+        const current = sessions.find(candidate => candidate.access_token === token && !signedOut.has(token));
+        return current ? reply(current.user) : reply({}, 401);
+      }
+      case '/auth/v1/logout':
+        assert.equal(url.searchParams.get('scope'), 'local');
+        signedOut.add(options.headers.Authorization.slice('Bearer '.length));
+        return new Response(null, { status: 204 });
+      default: throw Error('Unexpected Auth API request');
+    }
+  } });
+}
+
+async function oauthLogin(base, code, next = '/app') {
+  const start = await post(base, '/api/auth/google', { next });
+  assert.equal(start.status, 200);
+  return fetch(base + '/api/auth/callback/google?code=' + code, {
+    headers: { Cookie: cookies(start) },
+    redirect: 'manual'
   });
-  assert.equal(badRes.status, 400);
+}
 
-  // 3. POST /api/auth/google valid sign-in
-  const loginRes = await fetch(local.base + '/api/auth/google', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email: 'luiz@caramelo.co',
-      name: 'Luiz Caramelo',
-      picture: 'https://lh3.googleusercontent.com/a/photo'
-    })
-  });
-  assert.equal(loginRes.status, 200);
-  const logged = await loginRes.json();
-  assert.equal(logged.ok, true);
-  assert.equal(logged.user.email, 'luiz@caramelo.co');
-  assert.equal(logged.user.name, 'Luiz Caramelo');
-  assert.equal(logged.user.picture, 'https://lh3.googleusercontent.com/a/photo');
-  assert.ok(logged.user.id);
+test('Google OAuth requires a PKCE verifier and rejects password sessions', async t => {
+  const { base, close } = await start({ auth: provider() });
+  t.after(close);
+  const app = await fetch(base + '/app', { redirect: 'manual' });
+  assert.equal(app.status, 303);
+  assert.equal(app.headers.get('location'), '/login?next=%2Fapp');
+  assert.equal((await post(base, '/api/auth/login', { email: alice.email, password: 'example' })).status, 404);
+  assert.equal((await post(base, '/api/auth/signup', { email: alice.email, password: 'example' })).status, 404);
+
+  const startGoogle = await post(base, '/api/auth/google', { next: '/app#dashboard', email: alice.email, credential: 'fake.jwt.token' });
+  assert.doesNotMatch(cookies(startGoogle), /go_access=/);
+  const target = new URL((await startGoogle.json()).url);
+  assert.equal(target.pathname, '/auth/v1/authorize');
+  assert.equal(target.searchParams.get('provider'), 'google');
+  assert.equal(target.searchParams.get('redirect_to'), base + '/api/auth/callback/google');
+  const flow = cookies(startGoogle).split('=')[1];
+  const { verifier } = JSON.parse(Buffer.from(flow, 'base64url').toString('utf8'));
+  assert.equal(target.searchParams.get('code_challenge'), createHash('sha256').update(verifier).digest('base64url'));
+  const back = base + '/api/auth/callback/google?code=alice-oauth';
+  assert.equal((await fetch(back, { redirect: 'manual' })).headers.get('location'), '/login?error=google');
+  const result = await fetch(back, { redirect: 'manual', headers: { Cookie: cookies(startGoogle) } });
+  assert.equal(result.headers.get('location'), '/app#dashboard');
+  assert.match(result.headers.getSetCookie().join('\n'), /go_access=.*HttpOnly; SameSite=Lax/);
+  const wrongMethod = await oauthLogin(base, 'alice-password');
+  assert.equal(wrongMethod.headers.get('location'), '/login?error=google');
+  assert.doesNotMatch(cookies(wrongMethod), /go_access=/);
+  for (const cookie of ['go_access=' + session('alice','password').access_token, 'go_refresh=alice-password']) {
+    assert.equal((await fetch(base + '/api/state', { headers: { Cookie: cookie } })).status, 401);
+  }
+});
+
+test('Google sessions isolate personal workspaces and honor agency permissions', async t => {
+  const { base, close } = await start({ auth: provider(), agencyOwnerId: owner.id });
+  t.after(close);
+  const forged = { 'X-Go-User': owner.id };
+  assert.equal((await fetch(base + '/api/state', { headers: forged })).status, 401);
+  const login = await oauthLogin(base, 'alice-oauth', '//another-site.example');
+  assert.equal(login.headers.get('location'), '/app');
+  const headers = { Cookie: cookies(login), ...forged };
+  const list = await fetch(base + '/api/workspaces', { headers }).then(r => r.json());
+  assert.deepEqual(list.workspaces.map(w => w.id), ['user-' + alice.id]);
+  const personalPath = '/api/state?workspace=user-' + alice.id;
+  const personal = await fetch(base + personalPath, { headers }).then(r => r.json());
+  assert.deepEqual(personal.state.contacts, []);
+  assert.equal(personal.access.session.id, alice.id);
+  assert.equal(personal.access.agency, false);
+  assert.equal((await fetch(base + '/api/state?workspace=demo', { headers })).status, 403);
+  assert.equal((await fetch(base + '/api/state?workspace=user-' + bob.id, { headers })).status, 403);
+  assert.equal((await fetch(base + '/api/agency', { headers })).status, 403);
+
+  const admin = await oauthLogin(base, 'owner-oauth');
+  const adminHeaders = { Cookie: cookies(admin) };
+  assert.equal((await fetch(base + '/api/agency', { headers: adminHeaders })).status, 200);
+  assert.equal((await fetch(base + personalPath, { headers: adminHeaders })).status, 403);
+  const membership = await post(base, '/api/agency/action', {
+    type: 'save', key: 'users',
+    data: { first: 'Bob', last: 'Test', email: bob.email, role: 'Account User', accounts: ['demo'], permissions: ['contacts'] }
+  }, adminHeaders);
+  assert.equal(membership.status, 200);
+  const memberLogin = await oauthLogin(base, 'bob-oauth');
+  const memberHeaders = { Cookie: cookies(memberLogin) };
+  const memberState = await fetch(base + '/api/state?workspace=demo', { headers: memberHeaders }).then(r => r.json());
+  assert.deepEqual(memberState.access.modules, ['contacts']);
+  assert.equal((await fetch(base + '/api/agency', { headers: memberHeaders })).status, 403);
+
+  const renewed = await fetch(base + '/api/workspaces', { headers: { Cookie: 'go_refresh=alice-oauth' } });
+  assert.equal(renewed.status, 200);
+  assert.match(cookies(renewed), /go_access=/);
+  const logout = await post(base, '/api/auth/logout', {}, headers);
+  assert.equal(logout.status, 200);
+  assert.ok(logout.headers.getSetCookie().every(line => line.includes('Max-Age=0')));
+  assert.equal((await fetch(base + '/api/workspaces', { headers })).status, 401);
 });

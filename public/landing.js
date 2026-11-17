@@ -114,189 +114,62 @@ const onNavScroll = () => nav?.classList.toggle("compact", scrollY > innerHeight
 addEventListener("scroll", onNavScroll, { passive: true });
 onNavScroll();
 
-/* ---------- Autenticação com Google & Modais de Acesso ---------- */
+/* ---------- Autenticação ---------- */
 const loginDialog = $("#login-dialog");
-const googlePickerDialog = $("#google-picker-dialog");
-const googleStatus = $("#google-status");
+const loginStatus = $("#login-status");
+const googleButtons = ["#nav-google-btn", "#sheet-google-btn", "#google-signin-btn"].map(selector => $(selector)).filter(Boolean);
+const loginParams = new URLSearchParams(location.search);
+const requestedPath = loginParams.get("next") || "/app";
+const loginNext = requestedPath + (location.pathname === "/login" && !requestedPath.includes("#") ? location.hash : "");
+let authBusy = false;
+
+function showLoginStatus(message, failed = false) {
+  loginStatus.hidden = !message;
+  loginStatus.classList.toggle("error", failed);
+  loginStatus.textContent = message;
+}
 
 function openLoginModal() {
   closeSheet();
-  if (loginDialog?.showModal) loginDialog.showModal();
-}
-function closeLoginModal() {
-  if (loginDialog?.close) loginDialog.close();
-}
-function openGooglePicker() {
-  closeSheet();
-  if (loginDialog?.close) loginDialog.close();
-  if (googlePickerDialog?.showModal) googlePickerDialog.showModal();
-}
-function closeGooglePicker() {
-  if (googlePickerDialog?.close) googlePickerDialog.close();
+  if (!loginDialog.open) loginDialog.showModal();
 }
 
-function getStoredGoogleUser() {
+async function startGoogleLogin() {
+  openLoginModal();
+  if (authBusy) return;
+  authBusy = true;
+  googleButtons.forEach(button => { button.disabled = true; });
+  showLoginStatus("Conectando ao Google…");
   try {
-    return JSON.parse(localStorage.getItem("go.google_user") || "null");
-  } catch {
-    return null;
-  }
-}
-
-function updateGoogleUI() {
-  const user = getStoredGoogleUser();
-  if (!user) return;
-  const navGoogleBtn = $("#nav-google-btn");
-  if (navGoogleBtn) {
-    const firstName = user.name ? user.name.split(" ")[0] : "Google";
-    navGoogleBtn.innerHTML = `
-      <span class="google-avatar-nav" style="width:22px;height:22px;border-radius:50%;background:#ff701a;color:#fff;display:inline-grid;place-items:center;font-size:11px;font-weight:700;">${esc(firstName[0] || "G")}</span>
-      <span>${esc(firstName)}</span>
-    `;
-    navGoogleBtn.onclick = (e) => {
-      e.preventDefault();
-      location.href = "/app";
-    };
-  }
-  const googleBtnLabel = $("#google-btn-label");
-  if (googleBtnLabel && user.name) {
-    googleBtnLabel.textContent = `Continuar como ${user.name}`;
-  }
-}
-
-async function handleGoogleAuth(payload) {
-  if (googleStatus) {
-    googleStatus.hidden = false;
-    googleStatus.className = "google-status";
-    googleStatus.textContent = "Autenticando com o Google...";
-  }
-  try {
-    const res = await fetch("/api/auth/google", {
+    const response = await fetch("/api/auth/google", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ next: loginNext })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Falha ao autenticar com o Google.");
-
-    localStorage.setItem("go.google_user", JSON.stringify(data.user));
-    if (data.user?.id) localStorage.setItem("go.user", data.user.id);
-
-    if (googleStatus) {
-      googleStatus.textContent = `Conectado como ${data.user.name || data.user.email}! Entrando...`;
-    }
-    setTimeout(() => {
-      location.href = "/app";
-    }, 450);
-  } catch (err) {
-    if (googleStatus) {
-      googleStatus.hidden = false;
-      googleStatus.className = "google-status error";
-      googleStatus.textContent = err.message;
-    } else {
-      alert(err.message);
-    }
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Não foi possível entrar com Google.");
+    location.assign(result.url);
+  } catch (error) {
+    showLoginStatus(error.message || "Não foi possível entrar com Google.", true);
+    authBusy = false;
+    googleButtons.forEach(button => { button.disabled = false; });
   }
 }
 
-async function initGoogleAuth() {
-  updateGoogleUI();
-
-  let googleConfig = { configured: false, clientId: "" };
-  try {
-    const r = await fetch("/api/auth/google/config");
-    if (r.ok) googleConfig = await r.json();
-  } catch {
-    /* fallback */
-  }
-
-  if (googleConfig.configured && window.google?.accounts?.id) {
-    try {
-      google.accounts.id.initialize({
-        client_id: googleConfig.clientId,
-        callback: (resp) => {
-          if (resp?.credential) handleGoogleAuth({ credential: resp.credential });
-        },
-      });
-      const gisSlot = $("#google-gis-slot");
-      if (gisSlot) {
-        google.accounts.id.renderButton(gisSlot, {
-          theme: "filled_blue",
-          size: "large",
-          shape: "pill",
-          text: "continue_with",
-          locale: "pt-BR",
-          width: 320,
-        });
-      }
-    } catch (e) {
-      console.warn("Google GIS error:", e);
-    }
-  }
-
-  $("#nav-google-btn")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (getStoredGoogleUser()) {
-      location.href = "/app";
-      return;
-    }
-    if (googleConfig.configured && window.google?.accounts?.id) {
-      google.accounts.id.prompt();
-    } else {
-      openGooglePicker();
-    }
-  });
-
-  $("#sheet-google-btn")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    closeSheet();
-    if (getStoredGoogleUser()) {
-      location.href = "/app";
-      return;
-    }
-    openGooglePicker();
-  });
-
-  $("#google-signin-btn")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (googleConfig.configured && window.google?.accounts?.id) {
-      google.accounts.id.prompt();
-    } else {
-      openGooglePicker();
-    }
-  });
-
-  $$(".google-account-item").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const email = btn.dataset.email;
-      const name = btn.dataset.name;
-      handleGoogleAuth({ email, name });
-    });
-  });
-
-  const customForm = $("#google-custom-form");
-  customForm?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const email = $("#google-custom-email")?.value.trim();
-    const name = $("#google-custom-name")?.value.trim();
-    if (email) handleGoogleAuth({ email, name });
-  });
-
-  $("#close-google-picker")?.addEventListener("click", closeGooglePicker);
-  googlePickerDialog?.addEventListener("click", (e) => {
-    if (e.target === googlePickerDialog) closeGooglePicker();
-  });
-}
-
-$$("[data-open-login]").forEach((btn) => btn.addEventListener("click", (e) => {
-  e.preventDefault();
-  openLoginModal();
-}));
-$("#close-login")?.addEventListener("click", closeLoginModal);
-loginDialog?.addEventListener("click", (e) => {
-  if (e.target === loginDialog) closeLoginModal();
+for (const button of googleButtons) button.addEventListener("click", startGoogleLogin);
+$("#close-login").addEventListener("click", () => loginDialog.close());
+loginDialog.addEventListener("click", event => {
+  if (event.target === loginDialog) loginDialog.close();
 });
-initGoogleAuth();
+if (location.pathname === "/login") {
+  openLoginModal();
+  if (loginParams.has("error")) showLoginStatus("Não foi possível entrar com Google. Tente de novo.", true);
+}
+try {
+  if (localStorage.getItem("go.google_user")) localStorage.removeItem("go.user");
+  localStorage.removeItem("go.google_user");
+} catch {}
+
 
 /* ---------- Hero ---------- */
 const heroTitle = $("#hero-title");

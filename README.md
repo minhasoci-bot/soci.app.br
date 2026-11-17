@@ -10,13 +10,20 @@ No PowerShell, na pasta deste projeto, com Node.js 24 ou superior:
 npm.cmd start
 ```
 
-Abra <http://127.0.0.1:4317/> para ver a página inicial (Landing Page interativa inspirada no projeto Parceiras Conselho). Para entrar direto no painel do workspace, clique em **Entrar na plataforma** ou abra <http://127.0.0.1:4317/app>. Para outra porta, defina `$env:GO_PORT` antes de iniciar. Nesta instalação, o servidor usa o projeto Supabase `graao-club`. O arquivo local `.env.local` guarda a configuração usada pelo servidor. O navegador conversa apenas com o servidor em `127.0.0.1`.
+Abra <http://127.0.0.1:4317/> e clique em **Entrar na plataforma** para acessar com Google. Para outra porta, defina `$env:GO_PORT` antes de iniciar e cadastre a URL de retorno dessa porta no Supabase. Nesta instalação, o servidor usa o projeto Supabase `graao-club`. O arquivo local `.env.local` guarda a configuração usada pelo servidor.
 
 O banco usa uma linha JSONB por workspace em `public.go_workspaces`. O servidor grava sob controle de revisão para evitar sobrescrever mutações concorrentes. A política de segurança por linha exige a credencial do servidor, além da chave pública do projeto. Em outra instalação, aplique a migração SQL. Gere uma chave aleatória de 32 bytes em formato hexadecimal, calcule o SHA-256 desse texto e aplique `supabase/provision-storage.sql` com o marcador substituído pelo hash. Guarde a chave original em `.env.local`, nas variáveis indicadas em `.env.example`. Sem as variáveis do Supabase, o servidor usa SQLite local para desenvolvimento.
 
-`npm.cmd run migrate:sqlite` copia os workspaces de `.data/go.sqlite` para o Supabase configurado e compara o conteúdo gravado com a origem. Um workspace que já tenha mudado no destino é preservado. O servidor foi feito para uso local por um operador. Os workspaces organizam registros e ainda compartilham a mesma fronteira de acesso.
+`npm.cmd run migrate:sqlite` copia os workspaces de `.data/go.sqlite` para o Supabase configurado e compara o conteúdo gravado com a origem. Um workspace que já tenha mudado no destino é preservado.
 
-Para começar com dados vazios, use **Configurações → New Workspace**. Para explorar sem cadastrar nada, escolha **Demo Workspace** no seletor lateral.
+## Login com Supabase Auth
+
+1. Crie um cliente OAuth do tipo **Aplicativo da Web** no Google Cloud. Cadastre `https://<project-ref>.supabase.co/auth/v1/callback` como URI autorizada no cliente e informe o ID e o segredo em **Authentication → Sign In / Providers → Google**. [Login com Google no Supabase](https://supabase.com/docs/guides/auth/social-sign-in/auth-google)
+2. Em **Authentication → URL Configuration**, inclua `/api/auth/callback/google` na lista de redirecionamentos permitidos para cada origem do app. Para desenvolvimento, use `http://127.0.0.1:4317` ou `http://localhost:4317`. [URLs de redirecionamento](https://supabase.com/docs/guides/auth/redirect-urls)
+
+Uma conta nova recebe seu próprio workspace. Para recuperar a visão da agência e suas subcontas existentes, configure `GO_AGENCY_OWNER_ID` com o UUID da conta confirmada do proprietário em **Authentication → Users** e reinicie o servidor. Para vincular um membro da agência, adicione ou regrave seu cadastro em **Configurações → Membros da equipe** com o e-mail confirmado no Supabase. O membro recebe as permissões e subcontas definidas nesse cadastro.
+
+Para desenvolver apenas com SQLite, é possível iniciar em loopback com `GO_DEV_NO_AUTH=1` e sem as variáveis Supabase. Esse modo local não é usado na Vercel.
 
 ## Identidade visual e movimento
 
@@ -59,7 +66,7 @@ POST /api/v1/subaccounts/{id}/contacts
 Authorization: Bearer <chave>
 ```
 
-**Fica de fora ou só registrado:** cobrança real (Stripe, carteira, markups, revenda de apps e add-ons são registros manuais), verificação de DNS do domínio de e-mail dedicado, as abas AI Agents, Support Tickets e Templates do App Marketplace (conteúdo de terceiros), segurança da conta (senha e 2FA, pois não há login), envio de e-mails do sistema, publicação dos apps mobile e desktop, a auditoria remota do Prospecting (as notas são digitadas) e a loja de produtos da marca. Links de menu com "Inside the app" abrem num iframe; sites que proíbem incorporação mostram o link para nova aba.
+**Fica de fora ou só registrado:** cobrança real (Stripe, carteira, markups, revenda de apps e add-ons são registros manuais), verificação de DNS do domínio de e-mail dedicado, as abas AI Agents, Support Tickets e Templates do App Marketplace (conteúdo de terceiros), 2FA, envio dos e-mails configuráveis da agência, publicação dos apps mobile e desktop, a auditoria remota do Prospecting (as notas são digitadas) e a loja de produtos da marca. Links de menu com "Inside the app" abrem dentro de um iframe. Sites que proíbem incorporação mostram o link para nova aba.
 
 ## Prospecção
 

@@ -1390,40 +1390,7 @@ li.open .faq-a { grid-template-rows: 1fr; }
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(255, 255, 255, 0.12);
 }
-.login-divider {
-  display: flex;
-  align-items: center;
-  text-align: center;
-  gap: 14px;
-  color: var(--muted);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 4px 0;
-}
-.login-divider::before,
-.login-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--line);
-}
-.login-form { display: grid; gap: 14px; }
-.login-form label { display: grid; gap: 6px; font-size: 13px; color: var(--ink); }
-.login-form label[hidden] { display: none; }
-.login-form input {
-  min-width: 0;
-  min-height: 44px;
-  padding: 0 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.35);
-  color: var(--ink);
-  font: inherit;
-  font-size: 16px;
-}
-.login-form .btn { width: 100%; justify-content: center; margin-top: 4px; }
-.login-form input:focus-visible, .login-dialog button:focus-visible { outline: 2px solid var(--cta); outline-offset: 3px; }
+.login-dialog button:focus-visible { outline: 2px solid var(--cta); outline-offset: 3px; }
 .login-dialog button:disabled { opacity: 0.55; cursor: wait; }
 .login-dialog .login-status {
   margin: 0;
@@ -1433,8 +1400,6 @@ li.open .faq-a { grid-template-rows: 1fr; }
   color: var(--ink);
 }
 .login-dialog .login-status.error { border-color: #ff85bc; color: #ffb1d4; }
-.login-dialog .login-switch { margin: 0; text-align: center; }
-.login-switch button { color: var(--cta); font: inherit; font-weight: 700; text-decoration: underline; }
 
 @media (max-width: 900px) {
   .nav { padding: 16px 16px; gap: 16px; }
