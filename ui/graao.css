@@ -340,10 +340,15 @@ input[type=radio],input[type=range]{accent-color:var(--g-violet)}
 .ask-rail{display:none !important}
 .ask-rail .icon-btn{color:var(--g-violet)}
 .spark-tile{background:var(--g-grad-brand);border:0;color:#fff;border-radius:10px;box-shadow:0 6px 14px -6px rgba(255,111,159,.6)}
-.choices{position:relative}
-.choice{position:relative;z-index:1;border:1px solid var(--g-line-2);border-radius:14px;background:rgba(255,255,255,.9);transition:border-color .25s var(--ease-std),background .25s,transform .16s var(--ease-out)}
-.choice:hover{border-color:var(--g-line-2);background:#fff}
-.choice.chosen{border-color:var(--g-violet);background:var(--g-violet-50);box-shadow:0 0 0 3px rgba(124,92,240,.14)}
+.choices{position:relative;display:grid;gap:10px}
+.choice{position:relative;z-index:1;display:flex;flex-direction:column;text-align:left;gap:4px;min-height:56px;padding:14px 16px;border:1px solid var(--g-line-2);border-radius:14px;background:var(--g-surface);color:var(--g-ink);transition:border-color .2s ease,background .2s ease,transform .16s var(--ease-out),box-shadow .2s ease;cursor:pointer}
+.choice strong{font-size:14px;font-weight:700;color:var(--g-ink)}
+.choice span{font-size:12.5px;color:var(--g-dim);line-height:1.4}
+.choice:hover{border-color:var(--g-violet-400);background:var(--g-surface-2);transform:translateY(-1px)}
+.choice.chosen{border-color:var(--g-violet);background:var(--g-violet-50);box-shadow:0 0 0 3px rgba(124,92,240,.18)}
+:root[data-theme=dark] .choice{background:var(--g-surface);border-color:var(--g-line-2)}
+:root[data-theme=dark] .choice:hover{border-color:var(--g-violet-400);background:var(--g-surface-2)}
+:root[data-theme=dark] .choice.chosen{border-color:var(--g-violet);background:rgba(139,111,245,.14);box-shadow:0 0 0 3px rgba(139,111,245,.25)}
 .ask-composer{background:rgba(255,255,255,.88);border:1px solid #fff;box-shadow:0 0 0 1px rgba(124,92,240,.1),var(--g-shadow);transition:box-shadow .32s var(--ease-focus)}
 .ask-composer:focus-within{box-shadow:0 0 0 1px var(--g-violet),0 0 0 5px rgba(124,92,240,.14),var(--g-shadow)}
 .ask-composer input{box-shadow:none!important;border:0!important}

@@ -9,7 +9,13 @@ const counts = new Map(); // metric key -> last shown value
 
 const rel = (el, host) => {
   const a = el.getBoundingClientRect(), b = host.getBoundingClientRect();
-  return { x: a.left - b.left + host.scrollLeft - host.clientLeft, y: a.top - b.top + host.scrollTop - host.clientTop, w: a.width, h: a.height };
+  const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+  return {
+    x: (a.left - b.left) / z + host.scrollLeft - host.clientLeft,
+    y: (a.top - b.top) / z + host.scrollTop - host.clientTop,
+    w: a.width / z,
+    h: a.height / z
+  };
 };
 const keyOf = (host, items, prefix) => `${prefix}:${host.getAttribute('aria-label') || ''}:${items.map(n => n.textContent.trim()).join('|')}`;
 
@@ -160,7 +166,7 @@ function enhance(root) {
   fresh('.g-side .side-nav', n => spotlight(n, `${n.closest('.ag-shell') ? 'agency' : 'app'}-nav`));
   fresh('.g-side .side-foot', n => spotlight(n, `${n.closest('.ag-shell') ? 'agency' : 'app'}-foot`));
   fresh('.conversations-nav nav', underline);
-  fresh('.choices', n => glide(n, '.choice', true));
+  // fresh('.choices', n => glide(n, '.choice', true));
   fresh('.card-grid', n => glide(n, '.surface', true));
   fresh('.metrics', n => { glide(n, '.surface', true); n.querySelectorAll(':scope > .metric').forEach(m => { const b = m.querySelector('b'); if (b) countUp(b, `${location.hash}:${m.firstElementChild?.textContent.trim()}`); }); });
   fresh('.studio-tiles', n => glide(n, '.studio-tile', true));
