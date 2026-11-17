@@ -239,7 +239,12 @@ function edit(key,id,preset={}){
   dialog(id?`Editar ${lowerName(key)}`:newTitle(key),body,{form:'record',key,id:id||'',buttons:`${id?`<button class="danger plain" type="button" data-delete="${key}" data-id="${id}">${i('trash',16)} Excluir</button>`:''}<span class="spacer"></span><button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">${id?'Salvar alterações':`Criar ${lowerName(key)}`}</button>`});
 }
 
-function workspaces(){dialog('Trocar de workspace',`${c.workspaces.map(w=>`<button class="choice" data-workspace="${w.id}"><strong>${h(w.name)}</strong>${w.id===c.workspace?'<span>Workspace atual</span>':''}</button>`).join('')}${c.access?.agency ? `<button class="secondary" data-act="new-workspace">${i('plus',16)} Novo workspace</button>` : ''}`);}
+function workspaces(){
+  const agency = c.access?.agency ? '<button class="choice" data-act="agency-view"><strong>Visão da agência</strong></button>' : '';
+  const choices = c.workspaces.map(w => `<button class="choice" data-workspace="${w.id}"><strong>${h(w.name)}</strong>${w.id === c.workspace ? '<span>Workspace atual</span>' : ''}</button>`).join('');
+  const create = c.access?.agency ? `<button class="secondary" data-act="new-workspace">${i('plus',16)} Novo workspace</button>` : '';
+  dialog('Trocar de workspace', `${agency}${choices}${create}`);
+}
 async function useWorkspace(id, view='dashboard'){ leaveAgentEditor();c.workspace=id;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.dash=dashboardPreferences(id);c.pipeline='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go(view); }
 function downloads(name,content,type='text/csv;charset=utf-8'){
   const data=typeof content==='string'?new Blob([content],{type}):content, a=document.createElement('a'), u=URL.createObjectURL(data);
@@ -476,7 +481,7 @@ document.addEventListener('click',async ev=>{
         break;
       }
       case 'workspaces':workspaces();break;
-      case 'agency-view':location.hash='#agency/dashboard';break;
+      case 'agency-view':close();location.hash='#agency/dashboard';break;
       case 'stop-acting':localStorage.removeItem('go.user');location.reload();break;
       case 'account': {
         const session = c.access?.session || agencyUI.session();

@@ -38,7 +38,7 @@ As telas são redesenhadas com `innerHTML`, então os indicadores guardam a últ
 
 ## Visão da agência
 
-Abra <http://127.0.0.1:4317/#agency/dashboard> ou use o botão **Agency view** no topo da barra lateral de uma subconta. A agência fica numa linha própria (`agency`) do mesmo armazenamento, e cada workspace aparece como uma subconta.
+Com um login de agência, abra a **Visão da agência** no seletor de workspaces ou no rodapé da barra lateral. O endereço local é <http://127.0.0.1:4317/app#agency/dashboard>. Se o proprietário já tiver um workspace pessoal, ele continua disponível no seletor. O painel da agência lista as subcontas compartilhadas.
 
 | Área | O que funciona localmente |
 | --- | --- |

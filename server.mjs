@@ -46,6 +46,7 @@ const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://accou
 const error = (message,status) => Object.assign(new Error(message),{status});
 const spaceId = /^[0-9a-f-]{36}$|^demo$/;
 const privateSpace = /^user-[0-9a-f-]{36}$/;
+const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
@@ -105,7 +106,7 @@ export function makeServer({
     if (session && session.id !== agencyOwnerId) {
       const member = agency.users.find(user => user.loginEnabled && user.email?.toLowerCase() === session.email.toLowerCase());
       if (member) return { ...userAccess(agency,member.id), userId: member.id, session };
-      return { agency: false, settings: false, accounts: [`user-${session.id}`], modules: null, name: session.name, session, personal: true };
+      return { agency: false, settings: false, accounts: [personalId(session)], modules: null, name: session.name, session, personal: true };
     }
     const userId = localAccess ? String(req.headers['x-go-user'] || req.localSocialUser || '') : '';
     const result = userAccess(agency, userId);
@@ -117,7 +118,8 @@ export function makeServer({
     const session = await verifiedUser(req,res);
     return accessFor(req,await loadAgency(),session);
   };
-  const canOpen = (who, id) => privateSpace.test(id) ? who.personal && who.accounts.includes(id)
+  const canOpen = (who, id) => privateSpace.test(id)
+    ? Boolean(who.session && personalId(who.session) === id && (who.personal || who.session.id === agencyOwnerId))
     : !who.accounts || who.accounts.includes(id);
   const canUseAgents = who => !who.modules || who.modules.includes('ai-agents');
   const visibleState = (who, state) => canUseAgents(who) ? state : { ...state, agents: [] };
@@ -132,16 +134,18 @@ export function makeServer({
   }
   async function visibleWorkspaces(who) {
     if (who.personal) return [{ id: who.accounts[0], name: (await openPersonalWorkspace(who)).profile.name }];
-    return (await listWorkspaces()).filter(w => canOpen(who,w.id));
+    return (await store.list()).filter(w => (spaceId.test(w.id) || privateSpace.test(w.id)) && canOpen(who,w.id));
   }
   async function agencyPayload(req, res, extra = {}, previousAccess) {
     const session = await verifiedUser(req,res);
-    const [agency, workspaces] = await Promise.all([loadAgency(), listWorkspaces()]);
+    const [agency, availableWorkspaces] = await Promise.all([loadAgency(), store.list()]);
     const who = accessFor(req, agency, session, previousAccess);
     if (!who.agency) throw error('Your user cannot open the agency view.',403);
+    const workspaces = availableWorkspaces.filter(w => spaceId.test(w.id));
+    const personalWorkspace = availableWorkspaces.find(w => privateSpace.test(w.id) && canOpen(who,w.id));
     ensureAccounts(agency, workspaces);
     const states = await Promise.all(workspaces.map(async w => ({ ...w, state: await store.load(w.id) })));
-    return { agency: publicAgency(agency), overview: agencyOverview(agency, states), workspaces, access: who,
+    return { agency: publicAgency(agency), overview: agencyOverview(agency, states), workspaces, personalWorkspace, access: who,
       features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, ...extra };
   }
   async function recordAudit(who, action, target, details = '') {
@@ -726,13 +730,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const agency = await loadAgency();
         const who = accessFor(req,agency,session);
         if (!canOpen(who,id)) throw error('Your user cannot open this sub-account.',403);
+        const isPersonal = privateSpace.test(id);
         const state = who.personal ? await openPersonalWorkspace(who) : await store.load(id);
         const workspaces = who.personal ? [{ id, name: state.profile.name }] : await visibleWorkspaces(who);
         // Settings → Audit Logs of the sub-account: the agency audit entries written against this account.
         const account = workspaces.find(w => w.id === id)?.name || id;
-        const audit = !who.personal && (!who.modules || who.modules.includes('settings')) ? agency.audit.filter(a => a.target === account).slice(-200) : [];
+        const audit = !isPersonal && (!who.modules || who.modules.includes('settings')) ? agency.audit.filter(a => a.target === account).slice(-200) : [];
         return json({state:visibleState(who,state),metrics:metrics(state),workspaces,features:{studioAI:studioAiAvailable,social:availability(),agentModel:canUseAgents(who) ? agentModel : ''},
-          agency:agencyForWorkspace(who.personal ? blankAgency() : agency,id),
+          agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id),
           access:{agency:who.agency,modules:who.modules,name:who.name,session:who.session},audit});
       }
       if (p==='/api/action' && method==='POST') {
@@ -745,7 +750,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (module && who.modules && !who.modules.includes(module)) throw error('Your user does not have permission for this module.',403);
         command.actor = who.name;
         const result = await change(id,command);
-        if (!who.personal && ['save','delete','import','pipeline','profile','bulk'].includes(command.type)) {
+        if (!privateSpace.test(id) && ['save','delete','import','pipeline','profile','bulk'].includes(command.type)) {
           const account = (await listWorkspaces()).find(w => w.id === id)?.name || id;
           const label = command.type === 'bulk' ? `Bulk ${command.data?.operation || ''} on ${command.data?.object || ''}`.trim() : '';
           await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);
@@ -775,7 +780,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           return json({ reply });
         }
         const agent = await store.change(id, state => editAgent(state, operation, { ...input, model: agentModel }));
-        if (!who.personal && operation !== 'save') {
+        if (!privateSpace.test(id) && operation !== 'save') {
           const labels = { create: 'Agente criado', publish: 'Agente publicado', unpublish: 'Agente despublicado', delete: 'Agente excluído' };
           const account = (await listWorkspaces()).find(w => w.id === id)?.name || id;
           await recordAudit(who, labels[operation], account, agent?.name || '');

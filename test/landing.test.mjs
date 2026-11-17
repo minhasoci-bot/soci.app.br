@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createSupabaseAuth } from '../auth.mjs';
+import { blank } from '../model.mjs';
 import { makeServer } from '../server.mjs';
+import { createSqliteStore } from '../storage.mjs';
 
 async function start(options = { auth: null, allowLocalAccess: true }) {
   const { server, host } = makeServer({ dbPath: ':memory:', port: 0, ...options });
@@ -161,7 +163,10 @@ test('Google OAuth requires a PKCE verifier and rejects password sessions', asyn
 });
 
 test('Google sessions isolate personal workspaces and honor agency permissions', async t => {
-  const { base, close } = await start({ auth: provider(), agencyOwnerId: owner.id });
+  const store = createSqliteStore(':memory:');
+  const ownerWorkspaceId = 'user-' + owner.id;
+  await store.insert(ownerWorkspaceId, blank('Workspace pessoal do proprietário'));
+  const { base, close } = await start({ auth: provider(), agencyOwnerId: owner.id, store });
   t.after(close);
   const forged = { 'X-Go-User': owner.id };
   assert.equal((await fetch(base + '/api/state', { headers: forged })).status, 401);
@@ -181,7 +186,19 @@ test('Google sessions isolate personal workspaces and honor agency permissions',
 
   const admin = await oauthLogin(base, 'owner-oauth');
   const adminHeaders = { Cookie: cookies(admin) };
-  assert.equal((await fetch(base + '/api/agency', { headers: adminHeaders })).status, 200);
+  const agencyResponse = await fetch(base + '/api/agency', { headers: adminHeaders });
+  assert.equal(agencyResponse.status, 200);
+  const agency = await agencyResponse.json();
+  assert.equal(agency.personalWorkspace.id, ownerWorkspaceId);
+  assert.ok(agency.overview.accounts.every(w => !w.id.startsWith('user-')));
+  const ownerPath = '/api/state?workspace=' + ownerWorkspaceId;
+  const ownerResponse = await fetch(base + ownerPath, { headers: adminHeaders });
+  assert.equal(ownerResponse.status, 200);
+  const ownerState = await ownerResponse.json();
+  assert.equal(ownerState.state.profile.name, 'Workspace pessoal do proprietário');
+  assert.equal(ownerState.access.agency, true);
+  assert.deepEqual(ownerState.workspaces.map(w => w.id).sort(), ['demo', ownerWorkspaceId]);
+  assert.equal((await fetch(base + ownerPath, { headers })).status, 403);
   assert.equal((await fetch(base + personalPath, { headers: adminHeaders })).status, 403);
   const membership = await post(base, '/api/agency/action', {
     type: 'save', key: 'users',

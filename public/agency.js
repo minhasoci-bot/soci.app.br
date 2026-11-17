@@ -519,11 +519,15 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'switch-account': {
           const view = d.view === 'ai-agents' ? d.view : '';
           const available = !view || !A.data.access.modules || A.data.access.modules.includes(view);
+          const personal = A.data.personalWorkspace;
+          const personalChoice = personal ? `<button class="choice" data-ag="open-personal-workspace" data-view="${view}"><strong>${h(personal.name)}</strong><span>Workspace pessoal</span></button>` : '';
+          const choices = personalChoice + accounts().map(a => `<button class="choice" data-ag="open-account" data-id="${a.id}" data-view="${view}"><strong>${h(a.name)}</strong><span>${h(tr(a.status))} · ${a.contacts} contatos</span></button>`).join('');
           dialog(view ? 'Abrir Agentes de IA' : 'Trocar para uma subconta', available
-            ? `<div class="ag-switch">${accounts().map(a => `<button class="choice" data-ag="open-account" data-id="${a.id}" data-view="${view}"><strong>${h(a.name)}</strong><span>${h(tr(a.status))} · ${a.contacts} contatos</span></button>`).join('') || '<p class="dim">Nenhuma subconta disponível.</p>'}</div>`
+            ? `<div class="ag-switch">${choices || '<p class="dim">Nenhuma subconta disponível.</p>'}</div>`
             : '<p class="dim">Você não tem acesso a Agentes de IA.</p>');
           break;
         }
+        case 'open-personal-workspace': close(); await openWorkspace(A.data.personalWorkspace.id, d.view === 'ai-agents' ? d.view : undefined); break;
         case 'open-account': close(); await act('account-open', { id }); await openWorkspace(id, d.view === 'ai-agents' ? d.view : undefined); break;
         case 'ask': A.chat.push({ me: true, text: d.q }, { text: answer(d.q) }); render(); break;
         case 'new-account': dialog('Criar nova subconta', accountForm(), { form: 'account', submit: 'Criar subconta' }); break;
