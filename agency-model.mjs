@@ -593,7 +593,7 @@ export function agencyOverview(agency, workspaces) {
 export function agencyForWorkspace(agency, workspace) {
   const applies = item => !item.accounts?.length || item.accounts.includes(workspace);
   return {
-    brand: platformBrand, primary: agency.company.primary, secondary: agency.company.secondary || defaultSecondary, logo: agency.company.logo,
+    brand: platformBrand, name: agency.company.name, primary: agency.company.primary, secondary: agency.company.secondary || defaultSecondary, logo: agency.company.logo,
     menuLinks: agency.menuLinks.filter(l => l.showOn !== 'Agency' && applies(l)).map(({ id, title, url: href, icon, openIn }) => ({ id, title, url: href, icon, openIn })),
     announcements: agency.announcements.filter(a => a.published && applies(a)).map(({ id, title, body, tone }) => ({ id, title, body, tone })),
     users: agency.users.map(({ id, first, last, role, accounts, permissions }) => ({ id, name: `${first} ${last}`, role, accounts, permissions }))

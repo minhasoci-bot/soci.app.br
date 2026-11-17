@@ -37,6 +37,7 @@ test('Company name is editable while the platform brand stays soci', async t => 
   assert.equal(invalidSecondary.status, 400);
   const { body } = await local.call('/api/state?workspace=demo');
   assert.equal(body.agency.brand, 'soci');
+  assert.equal(body.agency.name, data.name);
   assert.equal(body.agency.primary, data.primary);
   assert.equal(body.agency.secondary, data.secondary);
   assert.equal(body.agency.logo, logo);
