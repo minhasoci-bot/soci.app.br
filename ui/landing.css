@@ -1,17 +1,17 @@
 :root {
   color-scheme: dark;
-  --bg: #000000;
-  --surface: #0e1110;
-  --surface-2: #161a18;
-  --surface-3: #1f2522;
+  --bg: #0b0c0e;
+  --surface: #101216;
+  --surface-2: #16191f;
+  --surface-3: #222630;
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.16);
-  --ink: #f6f7f2;
-  --muted: rgba(246, 247, 242, 0.64);
-  --faint: rgba(246, 247, 242, 0.32);
-  --cta: #ff701a;
-  --cta-hover: #ff8533;
-  --cta-ink: #000000;
+  --ink: #FFF4E8;
+  --muted: rgba(255, 244, 232, 0.68);
+  --faint: rgba(255, 244, 232, 0.35);
+  --cta: #ff00bb;
+  --cta-hover: #ff33cc;
+  --cta-ink: #ffffff;
   --lime: #d8f386;
   --lime-ink: #0f1f17;
   --green: #183d30;
@@ -81,11 +81,12 @@ button { cursor: pointer; background: none; border: 0; padding: 0; }
   height: 32px;
   border-radius: 9px;
   background: #17181c;
-  border: 1px solid rgba(255, 112, 26, 0.3);
-  box-shadow: 0 0 14px rgba(255, 112, 26, 0.2);
+  border: 1px solid rgba(255, 0, 187, 0.35);
+  box-shadow: 0 0 16px rgba(255, 0, 187, 0.25);
   flex: none;
 }
 .brand-mark svg { width: 22px; height: 22px; }
+.brand-mark-img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .brand-mark i {
   position: absolute;
   width: 15px;
@@ -727,7 +728,7 @@ main { position: relative; z-index: 1; }
 }
 .picker__spark svg { position: absolute; inset: 0; }
 .picker__spark-core { color: var(--cta); }
-.picker__spark-echo { color: #ffbe8a; opacity: 0; }
+.picker__spark-echo { color: #ff33cc; opacity: 0; }
 .picker__float.is-in .picker__spark { animation: spark 1.6s var(--ease) both; }
 .picker__float.is-in .picker__spark-echo { animation: sparkEcho 1.6s var(--ease) both; }
 @keyframes spark {
@@ -1048,7 +1049,7 @@ main { position: relative; z-index: 1; }
   font-size: max(1.2cqw, 9px);
   font-weight: 700;
 }
-.cap-live i { width: 6px; height: 6px; border-radius: 50%; background: #ff701a; box-shadow: 0 0 6px #ff701a; }
+.cap-live i { width: 6px; height: 6px; border-radius: 50%; background: #ff00bb; box-shadow: 0 0 6px #ff00bb; }
 .cap-body { padding: 2.4cqw; }
 .cap-metrics { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 1.6cqw; }
 .metric {
@@ -1086,7 +1087,7 @@ main { position: relative; z-index: 1; }
   background: #2a2f2c;
   color: #fff;
 }
-.pill-mid { background: #3a2215; color: #ffbe8a; }
+.pill-mid { background: #330b28; color: #ff66dd; }
 .pill-ok { background: var(--cta); color: #000; font-weight: 800; }
 .cap-note { margin-top: 0.8cqw; font-size: max(1.3cqw, 9px); color: var(--muted); }
 .cap-panel { display: grid; grid-template-columns: 20cqw 1fr; gap: 2cqw; }

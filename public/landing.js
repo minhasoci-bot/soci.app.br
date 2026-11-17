@@ -28,40 +28,40 @@ const STOP = new Set("a o as os de da do das dos e em no na nos nas um uma uns u
 
 const modules = [
   // CRM & Vendas
-  { area: "CRM & Vendas", title: "Pipelines de Oportunidades", detail: "Kanban visual com arraste de etapas, valores e status." },
-  { area: "CRM & Vendas", title: "Gestão de Contatos & Empresas", detail: "Visão 360°, filtros por tags, notas e histórico unificado." },
-  { area: "CRM & Vendas", title: "Tarefas & Lembretes Comerciais", detail: "Atribuição por responsável e acompanhamento de prazos." },
-  { area: "CRM & Vendas", title: "Controle Financeiro de Vendas", detail: "Faturas, vencimentos e conciliação de pagamentos." },
+  { area: "CRM & Vendas", title: "Pipelines de Oportunidades", detail: "Kanban visual arrastável, probabilidades e valor de funil sem planilhas mágicas." },
+  { area: "CRM & Vendas", title: "Gestão de Contatos & Empresas", detail: "Visão 360°, histórico de interações e tags que não somem sozinhas." },
+  { area: "CRM & Vendas", title: "Tarefas Comerciais & Prazos", detail: "Quem tem que ligar pra quem, quando e com qual objetivo. Sem desculpas." },
+  { area: "CRM & Vendas", title: "Faturas & Conciliação", detail: "Cobranças, pagamentos e controle de quem está em dia ou inadimplente." },
 
   // Conversas & SLA
-  { area: "Conversas & SLA", title: "Inbox Multicanal Unificada", detail: "WhatsApp, SMS, E-mail e histórico de ligações em uma só tela." },
-  { area: "Conversas & SLA", title: "Metas de SLA por Canal", detail: "Alertas visuais de atraso e medição do tempo de primeira resposta." },
-  { area: "Conversas & SLA", title: "Snippets & Respostas Rápidas", detail: "Modelos dinâmicos com campos de personalização do cliente." },
-  { area: "Conversas & SLA", title: "Links Rastreados & Automação", detail: "Contagem de cliques com disparo instantâneo de workflows." },
+  { area: "Conversas & SLA", title: "Inbox Multicanal Unificada", detail: "WhatsApp, E-mail e SMS reunidos. Acabou o atendente com 4 abas e 2 celulares." },
+  { area: "Conversas & SLA", title: "Metas de SLA com Alerta", detail: "Contagem regressiva visual antes do cliente mandar interrogação no WhatsApp." },
+  { area: "Conversas & SLA", title: "Snippets & Modelos Dinâmicos", detail: "Respostas padronizadas com dados do cliente sem parecer um robô do SAC." },
+  { area: "Conversas & SLA", title: "Links Rastreados com Gatilho", detail: "Saiba no exato segundo em que a proposta foi aberta para ligar em seguida." },
 
   // Automações
-  { area: "Automações", title: "Motor de Workflows Inteligente", detail: "Gatilhos por formulário, mudança de etapa ou agendamento." },
-  { area: "Automações", title: "Ações em Cadeia & Condicionais", detail: "Atribua tags, crie tarefas e notifique a equipe no momento certo." },
-  { area: "Automações", title: "Filas de Ações Manuais", detail: "Pausa estruturada para ligações e mensagens personalizadas." },
-  { area: "Automações", title: "Logs de Auditoria & Execuções", detail: "Rastreabilidade de cada passo executado sem falhas." },
+  { area: "Automações", title: "Motor de Workflows em Tempo Real", detail: "Disparos instantâneos por formulário, mudança de etapa ou agendamento." },
+  { area: "Automações", title: "Régua de Follow-up Implacável", detail: "Mensagens cadenciadas que insistem pelo seu time até o lead responder ou comprar." },
+  { area: "Automações", title: "Filas de Tarefas Humanas", detail: "Quando a automação prepara o terreno e passa a bola para um humano ligar." },
+  { area: "Automações", title: "Logs de Execução & Auditoria", detail: "Rastreabilidade de cada passo disparado. Se falhar, você sabe o porquê na hora." },
 
   // AI Studio & Sites
-  { area: "AI Studio & Sites", title: "AI Studio: Geração de Sites", detail: "Crie páginas HTML completas e responsivas em segundos com IA." },
-  { area: "AI Studio & Sites", title: "Editor Visual & Código Limpo", detail: "Ajuste textos, troque blocos e refine com instruções em linguagem natural." },
-  { area: "AI Studio & Sites", title: "Formulários de Captura Nativos", detail: "Capte leads diretamente para o pipeline sem ferramentas externas." },
-  { area: "AI Studio & Sites", title: "Histórico de Versões & Rollback", detail: "Restaure qualquer versão anterior do site com um único clique." },
+  { area: "AI Studio & Sites", title: "AI Studio: Geração de Sites", detail: "Descreva o que precisa ou cole referências. Receba HTML limpo e responsivo." },
+  { area: "AI Studio & Sites", title: "Editor Visual sem Bloatware", detail: "Sem plugins pesados travando o servidor. Código limpo que carrega na hora." },
+  { area: "AI Studio & Sites", title: "Formulários Nativos no CRM", detail: "Preencheu na landing page, caiu no pipeline e disparou WhatsApp no mesmo instante." },
+  { area: "AI Studio & Sites", title: "Versões & Rollback em 1 Clique", detail: "Fez besteira na página na sexta-feira? Restaure a versão estável imediatamente." },
 
   // Prospecção
-  { area: "Prospecção", title: "Radar Google Maps AI", detail: "Encontre empresas qualificadas por nicho, cidade e raio de busca." },
-  { area: "Prospecção", title: "Enriquecimento Comercial", detail: "Capture telefone, site, endereço e dados de contato dos prospects." },
-  { area: "Prospecção", title: "Envio Idempotente ao CRM", detail: "Transfira prospects para subcontas sem duplicar contatos existentes." },
-  { area: "Prospecção", title: "Widgets de Auditoria & Captura", detail: "Formulários prontos para captar empresas interessadas em consultoria." },
+  { area: "Prospecção", title: "Radar Google Maps AI", detail: "Encontre empresas ativas por nicho, cidade e raio geográfico em segundos." },
+  { area: "Prospecção", title: "Enriquecimento de Contatos", detail: "Telefone, endereço, site e avaliações para qualificar antes da primeira abordagem." },
+  { area: "Prospecção", title: "Importação Sem Duplicatas", detail: "Transfira centenas de empresas pro seu pipeline sem criar contatos repetidos." },
+  { area: "Prospecção", title: "Widgets de Captura B2B", detail: "Iscas comerciais prontas para captar donos de empresas que precisam da agência." },
 
   // Agência & SaaS
-  { area: "Agência & SaaS", title: "Dashboard Financeiro da Agência", detail: "Acompanhe MRR de planos SaaS, retenção e crescimento em 6 meses." },
-  { area: "Agência & SaaS", title: "Gestão Multi-Subcontas", detail: "Ambientes isolados para cada cliente com controle rigoroso de acesso." },
-  { area: "Agência & SaaS", title: "Account Snapshots", detail: "Replique funis, automações e estruturas completas em um clique." },
-  { area: "Agência & SaaS", title: "White-label & Marca Própria", detail: "Personalize logo, cores, aplicativo móvel e portal do cliente." },
+  { area: "Agência & SaaS", title: "Painel Financeiro & MRR", detail: "Acompanhe receita recorrente de subcontas, churn e retenção sem gambiarra." },
+  { area: "Agência & SaaS", title: "Gestão Multi-Subcontas", detail: "Cada cliente no seu quadrado: contatos, dados e acessos totalmente blindados." },
+  { area: "Agência & SaaS", title: "Snapshots em 1 Clique", detail: "Suba um funil validado para 10 novos clientes sem refazer nada do zero." },
+  { area: "Agência & SaaS", title: "White-Label & Marca Própria", detail: "Sua logo, suas cores, seu domínio. Seu cliente nem desconfia de onde vem." },
 ];
 
 const services = modules.map((item) => ({
@@ -174,7 +174,7 @@ try {
 /* ---------- Hero ---------- */
 const heroTitle = $("#hero-title");
 if (heroTitle) {
-  "Seu negócio cresce. A automação trabalha.".split(" ").forEach((word, index) => {
+  "Pare de assinar 12 ferramentas para passar vergonha no follow-up.".split(" ").forEach((word, index) => {
     if (index) heroTitle.append(" ");
     const span = document.createElement("span");
     span.className = "hero-in";
@@ -185,12 +185,12 @@ if (heroTitle) {
 }
 
 const phrases = [
-  "Como automatizar o follow-up de novos leads?",
-  "Quero criar um funil de alta conversão com IA.",
-  "Preciso gerenciar subcontas de clientes em um só lugar.",
-  "Como disparar mensagens e controlar SLAs de atendimento?",
-  "Quero prospectar clientes no Google Maps com IA.",
-  "Como replicar pipelines com snapshots em 1 clique?",
+  "Como parar de pagar US$ 997 em ferramentas que ninguém usa?",
+  "Por que meu webhook do Zapier quebrou domingo às 23h?",
+  "Como responder leads no WhatsApp antes de irem pro concorrente?",
+  "Quero prospectar clientes no Google Maps sem comprar lista fria.",
+  "Como clonar toda a operação da agência para um cliente em 2 min?",
+  "Como cobrar mensalidade de software em vez de vender hora?",
 ];
 const typed = $("#typed");
 const promptInput = $("#prompt-input");
@@ -354,7 +354,7 @@ const layerNeuro = $("#layer-neuro");
       float t = .00012 * u_time;
       float n = neuro(uv, t, p);
       n = 1.2 * pow(n, 3.); n += pow(n, 10.); n = max(.0, n - .5); n *= (1. - length(vUv - .5));
-      vec3 color = vec3(1.0, 0.44, 0.1) * min(n, u_cap); // tom vibrante de soci
+      vec3 color = vec3(1.0, 0.0, 0.733) * min(n, u_cap); // tom vibrante de soci (#ff00bb)
       gl_FragColor = vec4(color, n);
     }`;
   const compile = (type, source) => { const shader = gl.createShader(type); gl.shaderSource(shader, source); gl.compileShader(shader); return shader; };
@@ -418,7 +418,7 @@ const gallery = (function tunnel() {
   const camera = new THREE.PerspectiveCamera(P.fov, 1, 0.1, 600);
   const geometry = new THREE.PlaneGeometry(1, 1);
   const palette = [
-    ["#ff701a", "#0f1f17"], ["#f3f6ef", "#192421"], ["#141716", "#ff701a"],
+    ["#ff00bb", "#141620"], ["#f3f6ef", "#192421"], ["#141620", "#ff00bb"],
     ["#fef2e8", "#2a1508"], ["#171920", "#d8f386"], ["#e6ebf2", "#18202c"],
     ["#7c5cf0", "#ffffff"], ["#2f4a39", "#eefcc6"]
   ];
@@ -484,24 +484,24 @@ const gallery = (function tunnel() {
 
 /* ---------- Vitrine de Áreas — Coverflow ---------- */
 const TEMPLATES = [
-  { kind: "wordmark", label: "CRM & Vendas", need: "Gerencie oportunidades com clareza.", brand: "CRM", word: "PIPELINES", left: "Kanban", right: "Etapas",
-    tagline: "Do primeiro contato\nao fechamento.", address: "Contatos · Oportunidades", cats: ["Pipelines", "Oportunidades"],
-    style: { bg: "#f3f6ef", ink: "#192421", shape: "#ffbe8a" } },
-  { kind: "statement", label: "Conversas & SLA", need: "Atenda em todos os canais com controle.", brand: "Chat", word: "OMNICHANNEL",
-    body: "WhatsApp, SMS, E-mail e discador em uma central rápida, com medição rigorosa de SLA de atendimento.", left: "Inbox", right: "SLA",
-    style: { bg: "#151817", ink: "#f3f6ef", shape: "#ff701a" } },
-  { kind: "editorial", label: "AI Studio", need: "Crie landing pages com IA em segundos.", brand: "Studio", left: "Visual", right: "Código",
-    headline: ["CRIE", "PÁGINAS E", "FUNIS"], accent: "Design com IA integrada", cta: "VER RECURSOS", foot: ["HTML PURO SEM LIMITES", "FORMULÁRIOS NATIVOS"],
-    style: { bg: "#fef5ed", ink: "#2a1508", shape: "#ffb47e" } },
-  { kind: "editorial", label: "Workflows", need: "Automatize processos de ponta a ponta.", brand: "Motor", left: "Gatilhos", right: "Ações",
-    headline: ["EXECUTE", "AÇÕES EM", "CADEIA"], accent: "Automação orientada a eventos", cta: "VER RECURSOS", foot: ["DISPAROS EM TEMPO REAL", "FILAS MANUAIS"],
-    style: { bg: "#e9f2eb", ink: "#183d28", shape: "#7ecb94" } },
-  { kind: "statement", label: "Prospecção Maps", need: "Localize empresas no mapa com IA.", brand: "Radar", word: "MAPS AI",
-    body: "Encontre prospects qualificados no Google Maps por raio, nicho e localização, enviando-os direto para o CRM.", left: "Geocoding", right: "Places",
-    style: { bg: "#ff701a", ink: "#000000", shape: "#ffffff" } },
-  { kind: "wordmark", label: "Agência & SaaS", need: "Escale clientes com subcontas e snapshots.", brand: "Agência", word: "WHITE-LABEL", left: "Subcontas", right: "MRR",
-    tagline: "Multi-tenancy real.\nSua marca em evidência.", address: "Snapshots · Revenda", cats: ["Subcontas", "Snapshots"],
-    style: { bg: "#0e1110", ink: "#f3f6ef", shape: "#7c5cf0" } },
+  { kind: "wordmark", label: "CRM & Vendas", need: "Pare de perder negócios por esquecimento na planilha.", brand: "CRM", word: "PIPELINES", left: "Kanban", right: "Sem Caos",
+    tagline: "Do 'oi' curioso ao PIX no caixa\nsem esquecer ninguém no limbo.", address: "Contatos · Oportunidades", cats: ["Etapas Claras", "Follow-up Ativo"],
+    style: { bg: "#101216", ink: "#FFF4E8", shape: "#ff00bb" } },
+  { kind: "statement", label: "Conversas & SLA", need: "WhatsApp unificado com cronômetro na cara do atendente.", brand: "Inbox", word: "OMNICHANNEL",
+    body: "Porque lead quente esfria em 5 minutos. Centralize WhatsApp, E-mail e SMS sem deixar mensagem não lida virar prejuízo.", left: "WhatsApp", right: "SLA Frio",
+    style: { bg: "#141620", ink: "#FFF4E8", shape: "#7657ff" } },
+  { kind: "editorial", label: "AI Studio", need: "Landing pages em HTML puro que carregam antes do cliente piscar.", brand: "Studio", left: "Sem Slop", right: "HTML Puro",
+    headline: ["CRIE", "PÁGINAS QUE", "CONVERTEM"], accent: "Zero plugins travando WordPress", cta: "VER RECURSOS", foot: ["FORMULÁRIOS LIGADOS AO CRM", "100% RESPONSIVO & RÁPIDO"],
+    style: { bg: "#15101a", ink: "#FFF4E8", shape: "#ff00bb" } },
+  { kind: "editorial", label: "Workflows", need: "Automações nativas que não cobram por 'tarefa executada'.", brand: "Motor", left: "Gatilhos", right: "Zero Falhas",
+    headline: ["EXECUTE", "ROTINAS EM", "50MS"], accent: "Sem surpresas na fatura no fim do mês", cta: "VER RECURSOS", foot: ["TAGS & DISTRIBUIÇÃO", "FILAS MANUAIS CONTROLADAS"],
+    style: { bg: "#0f1614", ink: "#FFF4E8", shape: "#25bfff" } },
+  { kind: "statement", label: "Prospecção Maps", need: "Encontre clientes com caixa perto de você sem lista vazada.", brand: "Radar", word: "MAPS B2B",
+    body: "Busque negócios reais no Google Maps por nicho e cidade, puxe telefones validados e mande direto pro funil da sua agência.", left: "Raio Local", right: "Enriquecido",
+    style: { bg: "#ff00bb", ink: "#ffffff", shape: "#101014" } },
+  { kind: "wordmark", label: "Agência & SaaS", need: "Venda o seu próprio software e pare de trocar tempo por dinheiro.", brand: "Agência", word: "MODELO SAAS", left: "Subcontas", right: "MRR",
+    tagline: "Sua marca, seus planos, seu lucro.\nChega de ser afiliado dos outros.", address: "Snapshots em 1 Clique · Multi-tenant", cats: ["Cobrança Própria", "Domínio Custom"],
+    style: { bg: "#0e1110", ink: "#FFF4E8", shape: "#ffd52a" } },
 ];
 const ITEMS = [
   ...TEMPLATES.map((t) => ({ label: t.label, need: t.need })),
@@ -659,9 +659,9 @@ if (motion && rail) {
 
 /* ---------- Showcase: Do lead ao fechamento, com soci ---------- */
 const STEPS = [
-  { tint: "#fef3e9", num: "01", word: "Atraia", body: "Capture leads em funis de alta conversão, formulários e no mapa." },
-  { tint: "#f3f6ef", num: "02", word: "Conecte", body: "Converse em tempo real via WhatsApp, e-mail e SMS com controle de SLA." },
-  { tint: "#ff701a", num: "03", word: "Automatize", body: "Deixe workflows inteligentes cuidarem do follow-up e das tarefas." },
+  { tint: "#14171f", num: "01", word: "Atraia", body: "Capture leads em páginas ultrarrápidas ou pesquise empresas no Google Maps sem comprar listas de spam." },
+  { tint: "#1a1324", num: "02", word: "Conecte", body: "Atenda no WhatsApp e SMS com contagem de SLA. Lead esfria em 5 minutos; o concorrente não dorme." },
+  { tint: "#ff00bb", num: "03", word: "Automatize", body: "Workflows que cobram, atualizam etapas e distribuem leads sem você precisar ficar de babá." },
 ];
 const wheel = $("#tb-wheel");
 const slots = wheel ? STEPS.map((s) => {
@@ -675,7 +675,7 @@ const slots = wheel ? STEPS.map((s) => {
 }) : [];
 
 const lines = $$(".tb-line");
-const LINES = ["Do primeiro lead ao fechamento,", "com o soci ao seu lado."];
+const LINES = ["Do primeiro 'oi' curioso ao dinheiro no caixa,", "sem depender da sorte (ou do estagiário)."];
 const chars = lines.flatMap((line, index) => {
   const out = [];
   for (const ch of LINES[index]) {
@@ -893,7 +893,7 @@ if (window.Swiper && $("#why-swiper")) {
       marks.replaceChildren();
       markEls = Array.from({ length: reps }, () => {
         const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        g.innerHTML = '<rect x="-30" y="-30" width="60" height="60" rx="17" fill="#0f1f17"/><ellipse rx="15" ry="6" fill="none" stroke="#ff701a" stroke-width="3" transform="rotate(45)"/><ellipse rx="15" ry="6" fill="none" stroke="#ff701a" stroke-width="3" transform="rotate(-45)"/><circle r="3" fill="#ff701a"/>';
+        g.innerHTML = '<rect x="-30" y="-30" width="60" height="60" rx="17" fill="#141620"/><ellipse rx="15" ry="6" fill="none" stroke="#ff00bb" stroke-width="3" transform="rotate(45)"/><ellipse rx="15" ry="6" fill="none" stroke="#ff00bb" stroke-width="3" transform="rotate(-45)"/><circle r="3" fill="#ff00bb"/>';
         marks.append(g);
         return g;
       });
@@ -973,7 +973,7 @@ $$(".faq-q").forEach((button) => {
       const t = document.createElement("canvas"); t.width = t.height = cell;
       const c = t.getContext("2d");
       c.font = `${Math.round(cell * 0.72)}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
-      c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = `rgba(255, 112, 26, ${alpha})`;
+      c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = `rgba(255, 0, 187, ${alpha})`;
       c.fillText(g, cell / 2, cell / 2);
       return t;
     }));
