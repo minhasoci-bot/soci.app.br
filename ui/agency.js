@@ -10,7 +10,7 @@ import { createSociChat } from './soci-chat.js';
 import {
   affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, labFeatures, learningTracks,
   mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
-  appScopes, maxMarkup, rebillProducts, subFeatures, workflowBuilders
+  appScopes, maxMarkup, rebillProducts, subFeatures
 } from './agency-data.js';
 
 const h = x => String(x ?? '').replace(/[&<>"']/g, v => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[v]);
@@ -35,7 +35,7 @@ const subTabs = {
   templates: [['all', 'Todos os templates'], ['mine', 'Meus templates'], ['installs', 'Instalações']],
   ideas: [['all', 'Todas'], ['Under review', 'Em análise'], ['Planned', 'Planejadas'], ['In progress', 'Em andamento'], ['Completed', 'Concluídas']],
   saas: [['overview', 'Visão geral'], ['plans', 'Planos SaaS'], ['rebilling', 'Rebilling da carteira'], ['accounts', 'Subcontas SaaS']],
-  settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'], ['workflow', 'Workflows'],
+  settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'],
     ['phone', 'Integração de telefone'], ['email-services', 'Serviços de e-mail'], ['emails', 'E-mails do sistema'], ['announcements', 'Comunicados'],
     ['workflow-premium', 'Workflow: recursos premium'], ['external-ai', 'Workflow: IA externa'], ['domain-purchase', 'Compra de domínios'],
     ['openai', 'OpenAI'], ['private-integrations', 'Integrações privadas'], ['affiliates', 'Afiliados'], ['menu-links', 'Links de menu'], ['stripe', 'Stripe'], ['api-keys', 'Chaves de API'],
@@ -463,10 +463,6 @@ POST ${h(location.origin)}/api/v1/subaccounts/{id}/contacts
 Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     'private-integrations': () => `<div class="page-head"><div><h2>Integrações privadas</h2><p class="dim">Tokens com escopos estritamente delimitados para scripts e sistemas internos. O token é exibido apenas uma vez.</p></div>${primary('Criar integração', 'private-integration')}</div>
       ${table(['Nome', 'Escopos autorizados', 'Token', 'Criada em', 'Último uso', ''], D().privateIntegrations.map(k => `<tr><td><b>${h(k.name)}</b><br><small class="dim">${h(k.description)}</small></td><td><small>${h(k.scopes.join(', '))}</small></td><td><code>pit_…${h(k.last4)}</code></td><td>${day(k.created, true)}</td><td>${k.lastUsed ? day(k.lastUsed, true) : 'Nunca'}</td><td class="right">${btn('Excluir', 'private-integration-delete', `data-id="${k.id}"`)}</td></tr>`), empty('Nenhuma integração privada', 'Crie uma integração privada para scripts que exigem apenas permissões pontuais.'))}`,
-    workflow: () => { const w = D().workflowSettings; return `<form class="surface padded settings-form" data-ag-form="workflow-builder"><h2>Construtor padrão para subcontas</h2><p class="dim">Define qual construtor abre por padrão nos novos workflows.</p>
-      <div class="ag-plans">${[['Standard', 'Construtor padrão', 'Para automações simples, jornadas lineares e edição rápida.'], ['Advanced', 'Construtor avançado', 'Para lógica complexa, caminhos com ramificações e vários gatilhos.']].map(([v, t, x]) => `<label class="choice"><input type="radio" name="builder" value="${v}" ${w.builder === v ? 'checked' : ''}><strong>${t}</strong><span>${x}</span></label>`).join('')}</div>
-      <h3>Construtor por subconta</h3><p class="dim">Escolha outro construtor para subcontas específicas.</p>${accounts().length ? `<div class="field-grid">${accounts().map(a => `<label>${h(a.name)}<select name="o_${a.id}"><option value="default">Usar o padrão</option>${workflowBuilders.map(b => `<option value="${b}" ${w.overrides[a.id] === b ? 'selected' : ''}>${b === 'Standard' ? 'Construtor padrão' : 'Construtor avançado'}</option>`).join('')}</select></label>`).join('')}</div>` : '<p class="dim">Nenhuma subconta cadastrada.</p>'}
-      <button class="primary">Salvar</button><p class="form-status" role="alert"></p></form>`; },
     phone: () => `<div class="surface padded ag-notice">${i('phone', 20)}<div><b>Revenda do uso de telefone (ligações, SMS e números)</b><p>O markup de telefone é definido no Configurador SaaS (atual: ${String(D().saas.rebilling.phone).replace('.', ',')}×). Linhas e envios reais exigem um provedor de telefonia conectado.</p></div><a class="secondary" href="#agency/saas/rebilling">Ajustar markup</a></div>${featureTable('number-intelligence')}`,
     'email-services': () => { const e = D().emailServices; return `${e.domain ? `<div class="surface padded ag-notice">${i('mail', 20)}<div><b>Domínio dedicado: ${h(e.domain)}</b><p>Adicionado em ${day(e.added)}. A verificação de DNS e o aquecimento do domínio dependem do provedor de envio, que não está conectado neste projeto local.</p></div>${btn('Remover domínio', 'email-domain-remove')}</div>
       <form class="surface padded settings-form ag-gap" data-ag-form="email-domain-accounts"><h2>Subcontas que enviam pelo domínio dedicado</h2>${pickAccounts('accounts', e.accounts)}<button class="primary">Salvar</button><p class="form-status" role="alert"></p></form>`
@@ -775,7 +771,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'private-integration': { const r = await act('private-integration', { data: { ...data, scopes: data.scopes || [] } }); close(); render(); secretBox('Token de integração privada criado', r.secret); keepOpen = true; msg = ''; break; }
         case 'private-integration-delete': await act('private-integration-delete', { id }); msg = 'Integração privada excluída.'; break;
         case 'saas-rebilling': await act('saas-rebilling', { data }); msg = 'Markups da carteira salvos.'; break;
-        case 'workflow-builder': await act('workflow-builder', { data }); msg = 'Configurações de workflow salvas.'; break;
         case 'email-domain': await act('email-domain', { data }); msg = 'Domínio dedicado adicionado.'; break;
         case 'email-domain-accounts': await act('email-domain-accounts', { data: { accounts: data.accounts } }); msg = 'Subcontas do domínio dedicado salvas.'; break;
         case 'email-domain-remove': await act('email-domain-remove'); msg = 'Domínio dedicado removido.'; break;
