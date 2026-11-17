@@ -11,7 +11,8 @@ import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay'), toast=document.querySelector('#toast');
-const viewPath=location.pathname!=='/' && location.pathname!=='/index.html' ? location.pathname : '';
+const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
+const viewPath=!isAppPath ? location.pathname : '';
 const c={workspace:localStorage.getItem('go.workspace')||'demo',view:'ask-ai',tab:'',query:'',tag:'',thread:'',chat:[],month:new Date(),choice:'',askOpen:false,navOpen:false,workspaces:[],conversationFilters:{}};
 c.dash = dashboardPreferences(c.workspace);
 c.pipeline = '';
@@ -42,7 +43,7 @@ function appSidebar(brand){
     account:{name:c.s.profile.name,caption:'Subconta · trocar',attr:'data-act="workspaces"',tip:'Trocar de workspace'},
     toggle:'data-act="nav"',open:c.navOpen,
     groups:[{title:'Principal',items:items.filter(([,k])=>k<7).map(([n])=>navItem(n))},{title:'Crescimento',items:items.filter(([,k])=>k>=7).map(([n])=>navItem(n))},{title:'Atalhos',items:links}],
-    footer:[...(c.access?.agency?[{href:'#agency/dashboard',label:'Visão da agência',icon:'users'}]:[]),...(allowedView('settings')?[navItem(nav.at(-1))]:[])]});
+    footer:[...(c.access?.agency?[{href:'#agency/dashboard',label:'Visão da agência',icon:'users'}]:[]),...(allowedView('settings')?[navItem(nav.at(-1))]:[]),{href:'/',label:'Página inicial',icon:'external'}]});
 }
 function appTopbar(){
   const active=nav.find(x=>x[0]===c.view), page=c.view==='link'?c.agency?.menuLinks.find(l=>l.id===c.tab)?.title||'Link':active?.[1];

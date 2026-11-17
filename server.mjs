@@ -28,11 +28,12 @@ const staticFiles = new Map([
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
-  ['/fonts/plus-jakarta-sans.woff2','font/woff2'], ['/favicon.svg','image/svg+xml']
+  ['/fonts/plus-jakarta-sans.woff2','font/woff2'], ['/favicon.svg','image/svg+xml'],
+  ['/landing.html','text/html; charset=utf-8'], ['/landing.css','text/css; charset=utf-8'], ['/landing.js','text/javascript; charset=utf-8']
 ]);
 const host = '127.0.0.1';
 const defaultPort = Number(process.env.GO_PORT || 4317);
-const csp = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self' https:; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'";
+const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self'; frame-src 'self' https:; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'";
 const error = (message,status) => Object.assign(new Error(message),{status});
 const spaceId = /^[0-9a-f-]{36}$|^demo$/;
 const paths = /^\/(p|f|course)\/([0-9a-f-]{36}|demo)\/([0-9a-f-]{36})$/;
@@ -577,9 +578,9 @@ export function makeServer({dbPath=defaultDbPath,port=defaultPort,store=createSq
         const form=kind==='p' && row.formId ? find(state,'forms',row.formId) : null;
         return json({kind,row,form:form?.active?form:null,brand:state.profile.name});
       }
-      if ((method==='GET'||method==='HEAD') && (p==='/' || paths.test(p) || staticFiles.has(p))) {
-        const f=staticFiles.has(p)?p:'/index.html';
-        return send(200,staticFiles.get(f),method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
+      if ((method==='GET'||method==='HEAD') && (p==='/' || ['/app','/app/','/painel','/painel/'].includes(p) || paths.test(p) || staticFiles.has(p))) {
+        const f=staticFiles.has(p)?p:(p==='/'?'/landing.html':'/index.html');
+        return send(200,staticFiles.get(f)||'text/html; charset=utf-8',method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
       }
       throw error('Page not found.',404);
     } catch(e) {

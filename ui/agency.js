@@ -136,7 +136,7 @@ export function startAgency(env) {
         { title: 'Aprender e apps', items: agencyNav.slice(12, -1).map(item) },
         { title: 'Atalhos', items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: l.title, icon: l.icon, external: true })) }
       ],
-      footer: [item(agencyNav.at(-1))]
+      footer: [item(agencyNav.at(-1)), { href: '/', label: 'Página inicial', icon: 'external' }]
     })}
     <div class="workspace">${topbar({
       crumbs: [

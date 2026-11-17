@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="graao — A plataforma tudo-em-um para agências e criadores. CRM, automações, funis com IA, conversas multicanal e gestão de subcontas.">
+  <title>graao — Plataforma para Agências & Negócios Digitais</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <script>
+    // Se o usuário acessar a raiz com rota da plataforma no hash, redireciona para /app
+    (function () {
+      var h = location.hash.slice(1);
+      if (!h) return;
+      var appSections = ['ask-ai', 'contacts', 'conversations', 'calendars', 'opportunities', 'payments', 'marketing', 'automation', 'sites', 'memberships', 'reporting', 'studio', 'settings', 'link', 'agency'];
+      var prefix = h.split('/')[0];
+      if (appSections.indexOf(prefix) !== -1) {
+        location.replace('/app' + location.search + location.hash);
+      }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Sans:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11.1.14/swiper-bundle.min.css">
+  <link rel="stylesheet" href="/landing.css">
+</head>
+<body>
+  <div class="cursor" id="cursor" aria-hidden="true"><span class="cursor-icon"></span></div>
+
+  <header class="nav" id="nav">
+    <a class="brand" href="#start" data-cursor="up" aria-label="graao, início">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2c.6 4.6 2.4 6.4 7 7-4.6.6-6.4 2.4-7 7-.6-4.6-2.4-6.4-7-7 4.6-.6 6.4-2.4 7-7Z" fill="#ff701a" stroke="none"/></svg>
+      </span>
+      <span class="brand-name">graao</span>
+    </a>
+    <nav class="nav-links" aria-label="Navegação principal">
+      <a href="#showcase">Como funciona</a>
+      <a href="#conteudo">Módulos</a>
+      <a href="#objetivo">Recursos</a>
+      <a href="#diferenciais">Diferenciais</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-end">
+      <button type="button" class="btn btn-outline" data-open-login data-cursor="hover" title="Escolher workspace">Acessos</button>
+      <a class="btn btn-cta" href="/app" data-cursor="sparkle">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+        Entrar na plataforma
+      </a>
+      <button class="nav-menu" id="nav-menu" type="button" aria-expanded="false" aria-controls="nav-sheet" aria-label="Abrir menu" data-cursor="menu">
+        <span></span><span></span>
+      </button>
+    </div>
+    <div class="nav-sheet" id="nav-sheet" hidden>
+      <a href="#showcase">Como funciona</a>
+      <a href="#conteudo">Módulos</a>
+      <a href="#objetivo">Recursos</a>
+      <a href="#diferenciais">Diferenciais</a>
+      <a href="#faq">FAQ</a>
+      <div class="nav-sheet-divider"></div>
+      <a href="/app" class="btn btn-cta">Entrar na plataforma</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Camadas fixas: brilho WebGL do topo e túnel 3D -->
+    <div class="layer-neuro" id="layer-neuro" aria-hidden="true"><canvas id="neuro"></canvas></div>
+    <div class="layer-gallery" id="layer-gallery" aria-hidden="true">
+      <canvas id="gallery"></canvas>
+      <div class="fade-top"></div><div class="fade-bottom"></div>
+    </div>
+
+    <!-- Seção Hero -->
+    <section class="hero" id="start" aria-labelledby="hero-title">
+      <div class="hero-inner">
+        <div class="hero-badge hero-in"><i></i> Sistema Unificado para Agências & Negócios Digitais</div>
+        <h1 id="hero-title" class="hero-title"></h1>
+        <p class="hero-sub hero-in">CRM, conversas multicanal, funis de vendas, IA integrada e gestão de subcontas em um único espaço de trabalho.</p>
+        
+        <form class="hero-prompt" id="prompt-form" role="search">
+          <div class="hero-prompt__content">
+            <label class="sr-only" for="prompt-input">O que você quer automatizar ou criar?</label>
+            <input id="prompt-input" name="q" autocomplete="off" data-cursor="text">
+            <span class="typed" id="typed" aria-hidden="true"></span>
+          </div>
+          <button class="hero-prompt__send hero-prompt__content" type="submit" aria-label="Explorar módulos" title="Explorar módulos" data-cursor="send">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 11.5 21 4l-7.5 18-2.2-8.3z" fill="currentColor"/></svg>
+          </button>
+        </form>
+
+        <div class="hero-quick hero-in">
+          <span class="hero-quick-label">Atalhos rápidos:</span>
+          <a href="/app" class="highlight" data-cursor="sparkle"><span>✦</span> Entrar na plataforma</a>
+          <a href="/app#agency/dashboard"><span>✦</span> Visão da Agência</a>
+          <a href="/app?workspace=demo#ask-ai"><span>✦</span> Demo Workspace</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Vitrine de Áreas (Picker Coverflow) -->
+    <section class="picker" id="templates" aria-label="Áreas da plataforma">
+      <div class="picker__rail" id="picker-rail">
+        <div class="picker__panel" id="picker-panel">
+          <div class="picker__viewport" id="picker-viewport">
+            <ul class="picker__track" id="picker-track"></ul>
+          </div>
+          <div class="picker__caption" id="picker-caption" aria-live="polite"></div>
+          <div class="picker__float" id="picker-float">
+            <span class="picker__spark" aria-hidden="true">
+              <svg class="picker__spark-echo" viewBox="0 0 24 24"><path d="M12 0c.6 6.4 5.6 11.4 12 12-6.4.6-11.4 5.6-12 12-.6-6.4-5.6-11.4-12-12C6.4 11.4 11.4 6.4 12 0z" fill="currentColor"/></svg>
+              <svg class="picker__spark-core" viewBox="0 0 24 24"><path d="M12 0c.6 6.4 5.6 11.4 12 12-6.4.6-11.4 5.6-12 12-.6-6.4-5.6-11.4-12-12C6.4 11.4 11.4 6.4 12 0z" fill="currentColor"/></svg>
+            </span>
+            <div class="picker__pill" role="group" aria-label="Posição na galeria" data-cursor="dot" id="picker-dots"></div>
+            <button class="picker__next" type="button" id="picker-next" data-cursor="nav" aria-label="Próximo módulo">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m9.5 5 7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Showcase: Do lead ao fechamento -->
+    <section class="showcase" id="showcase" aria-labelledby="showcase-title">
+      <div class="showcase__sticky">
+        <div class="tb-layer" id="tb-layer">
+          <div class="tb-cards" aria-hidden="true"><div class="tb-wheel" id="tb-wheel"></div></div>
+          <h2 class="sr-only" id="showcase-title">Do primeiro lead ao fechamento, com o graao ao seu lado.</h2>
+          <ol class="sr-only">
+            <li><h3>01 — Atraia</h3><p>Capture leads em funis de alta conversão, formulários e no mapa.</p></li>
+            <li><h3>02 — Conecte</h3><p>Converse em tempo real via WhatsApp, e-mail e SMS com controle de SLA.</p></li>
+            <li><h3>03 — Automatize</h3><p>Deixe workflows inteligentes cuidarem do follow-up e das tarefas.</p></li>
+          </ol>
+          <div class="tb-headline" id="tb-headline" aria-hidden="true">
+            <p class="tb-line"></p>
+            <p class="tb-line tb-line--accent"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Catálogo de Módulos e Busca -->
+    <section class="catalog" id="conteudo" aria-labelledby="catalog-title">
+      <span class="chip">Módulos & Ferramentas</span>
+      <h2 id="catalog-title" class="display">Tudo para operar e escalar sua agência.</h2>
+      <p class="sub" id="catalog-status">6 áreas integradas. 20+ recursos nativos. Sem ferramentas soltas.</p>
+      <div class="filters" role="group" aria-label="Filtrar por área" id="catalog-filters"></div>
+      <ul class="service-list" id="service-list"></ul>
+    </section>
+
+    <!-- Capacidades / Recursos (Cards empilhados) -->
+    <section class="capabilities" id="objetivo" aria-label="Recursos da plataforma">
+      <div class="cap-pin" id="cap-pin">
+        <div class="cap-sticky">
+          <header class="cap-head">
+            <div class="cap-notch">
+              <span class="chip">Arquitetura Completa</span>
+              <div class="cap-titles" id="cap-titles">
+                <div class="cap-title"><h2 class="display">01 — Centralize o cliente</h2><p>Pipelines visuais, histórico unificado e controle de negócios abertos.</p></div>
+                <div class="cap-title"><h2 class="display">02 — Escale com automação</h2><p>Workflows inteligentes eliminam o trabalho manual repetitivo.</p></div>
+                <div class="cap-title"><h2 class="display">03 — Opere como agência</h2><p>Multi-tenancy com subcontas isoladas, snapshots e modelo SaaS.</p></div>
+              </div>
+            </div>
+          </header>
+          
+          <!-- Card 1: CRM -->
+          <div class="cap-card" style="--a:#ff701a;--b:#ffbe8a;--c:#141716">
+            <div class="cap-window">
+              <div class="cap-bar"><span class="brand-mark sm" aria-hidden="true"><i></i><i></i><i></i></span><strong>graao · CRM & Vendas</strong><span class="cap-live"><i></i>Live CRM</span></div>
+              <div class="cap-body cap-metrics">
+                <div class="metric big"><small>Pipeline Geral</small><strong>R$ 84.500</strong><span>em negociação</span></div>
+                <div class="metric"><small>Oportunidades</small><strong>32</strong><span>ativas no mês</span></div>
+                <div class="metric"><small>Conversão</small><strong>28.4%</strong><span>taxa média</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Workflows -->
+          <div class="cap-card" style="--a:#7c5cf0;--b:#ff701a;--c:#18202c">
+            <div class="cap-window">
+              <div class="cap-bar"><span class="brand-mark sm" aria-hidden="true"><i></i><i></i><i></i></span><strong>Motor de Automação</strong><span class="cap-live"><i></i>Workflows</span></div>
+              <div class="cap-body cap-sales">
+                <div class="sale"><span class="pill pill-ok">Formulário</span><i></i><i></i></div>
+                <div class="sale"><span class="pill pill-mid">Criar Negócio</span><i></i><i></i></div>
+                <div class="sale"><span class="pill">Follow-up SLA</span><i></i><i></i></div>
+                <p class="cap-note">Gatilhos automáticos executados em menos de 50ms.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Visão da Agência -->
+          <div class="cap-card" style="--a:#183d30;--b:#ff701a;--c:#d8f386">
+            <div class="cap-window">
+              <div class="cap-bar"><span class="brand-mark sm" aria-hidden="true"><i></i><i></i><i></i></span><strong>Visão da Agência · SaaS</strong><span class="cap-live"><i></i>Multi-tenant</span></div>
+              <div class="cap-body cap-panel">
+                <nav class="cap-rail"><b>Subcontas</b><span>Snapshots</span><span>MRR SaaS</span></nav>
+                <div class="cap-grid" id="cap-grid"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Por que o graao (Diferenciais Swiper) -->
+    <section class="why" id="diferenciais" aria-labelledby="why-title">
+      <div class="why-head">
+        <div>
+          <span class="chip">Diferenciais</span>
+          <h2 id="why-title" class="display">Menos ferramentas. Mais sistema.</h2>
+        </div>
+        <div class="why-nav">
+          <button class="round-btn" type="button" id="why-prev" aria-label="Anterior" data-cursor="back"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="round-btn" type="button" id="why-next" aria-label="Próximo" data-cursor="nav"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+      <div class="swiper why-swiper" id="why-swiper" data-cursor="arrows">
+        <div class="swiper-wrapper">
+          <article class="swiper-slide why-card">
+            <small>Centralização</small>
+            <div>
+              <h3>Mais controle. Menos dispersão.</h3>
+              <p>Abandone a colcha de retalhos de 10 ferramentas diferentes com dados desintegrados.</p>
+            </div>
+          </article>
+          <article class="swiper-slide why-card">
+            <small>Velocidade</small>
+            <div>
+              <h3>Mais escala. Menos retrabalho.</h3>
+              <p>Snapshots permitem replicar campanhas, funis e automações em um novo cliente em minutos.</p>
+            </div>
+          </article>
+          <article class="swiper-slide why-card">
+            <small>Rentabilidade</small>
+            <div>
+              <h3>Mais margem. Menos custos por assento.</h3>
+              <p>Crie planos SaaS para seus clientes, adicione sua marca e precifique os seus serviços com autonomia.</p>
+            </div>
+          </article>
+          <article class="swiper-slide why-card">
+            <small>Segurança</small>
+            <div>
+              <h3>Mais privacidade. Dados sob seu comando.</h3>
+              <p>Execução local ou em nuvem com Supabase e SQLite sem lock-in nem limites ocultos.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ com Loop de texto SVG -->
+    <section class="faq" id="faq" aria-labelledby="faq-title">
+      <h2 id="faq-title" class="sr-only">Perguntas frequentes</h2>
+      <div class="loop" aria-hidden="true">
+        <svg class="loop-svg" id="loop-svg" viewBox="0 0 1440 320" preserveAspectRatio="xMidYMid meet">
+          <path id="loop-path" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <text class="loop-measure" id="loop-measure-word">Perguntas frequentes</text>
+          <text class="loop-text" dy="0.34em"><textPath id="loop-a" href="#loop-path"></textPath></text>
+          <text class="loop-text" dy="0.34em"><textPath id="loop-b" href="#loop-path"></textPath></text>
+          <g id="loop-marks"></g>
+        </svg>
+      </div>
+      <ul class="faq-list" id="faq-list">
+        <li>
+          <button type="button" class="faq-q" aria-expanded="false" data-cursor="plus">
+            <span class="n">01</span><span class="q">O que é a plataforma graao?</span><span class="plus" aria-hidden="true"></span>
+          </button>
+          <div class="faq-a" role="region"><div><p>O graao é um espaço de trabalho integrado e de alta performance que reúne CRM, funis de vendas, automações, central de conversas multicanal, AI Studio e visão multi-subcontas para agências e negócios digitais.</p></div></div>
+        </li>
+        <li>
+          <button type="button" class="faq-q" aria-expanded="false" data-cursor="plus">
+            <span class="n">02</span><span class="q">Como funciona o botão de login e o acesso?</span><span class="plus" aria-hidden="true"></span>
+          </button>
+          <div class="faq-a" role="region"><div><p>Basta clicar no botão <strong>Entrar na plataforma</strong> no topo da página ou no final da página. Você entrará diretamente no ambiente do workspace, podendo escolher subcontas ou navegar para a visão da agência.</p></div></div>
+        </li>
+        <li>
+          <button type="button" class="faq-q" aria-expanded="false" data-cursor="plus">
+            <span class="n">03</span><span class="q">Posso gerenciar múltiplos clientes em subcontas separadas?</span><span class="plus" aria-hidden="true"></span>
+          </button>
+          <div class="faq-a" role="region"><div><p>Sim! Na Visão da Agência você cria quantas subcontas precisar. Cada cliente possui contatos, conversas, formulários e oportunidades completamente isolados e seguros.</p></div></div>
+        </li>
+        <li>
+          <button type="button" class="faq-q" aria-expanded="false" data-cursor="plus">
+            <span class="n">04</span><span class="q">O que é o AI Studio e como ele cria sites?</span><span class="plus" aria-hidden="true"></span>
+          </button>
+          <div class="faq-a" role="region"><div><p>O AI Studio gera páginas HTML completas, limpas e responsivas a partir de instruções em linguagem natural ou sites de referência. Você pode editar visualmente, alterar código e publicar localmente com formulário conectado ao CRM.</p></div></div>
+        </li>
+        <li>
+          <button type="button" class="faq-q" aria-expanded="false" data-cursor="plus">
+            <span class="n">05</span><span class="q">Como funciona a busca de clientes com Google Maps?</span><span class="plus" aria-hidden="true"></span>
+          </button>
+          <div class="faq-a" role="region"><div><p>O módulo de Prospecção permite pesquisar estabelecimentos comerciais e empresas por nicho e raio geográfico, enriquecer os dados comerciais e importá-los para o CRM da subconta sem duplicidades.</p></div></div>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Chamada Final com Campo Binário Interativo -->
+    <section class="final" id="final" aria-labelledby="final-title">
+      <canvas class="binary" id="binary" aria-hidden="true"></canvas>
+      <div class="final-vignette" aria-hidden="true"></div>
+      <div class="final-inner">
+        <h2 id="final-title" class="display">Sua operação pronta para o próximo nível.</h2>
+        <p>Centralize processos, encante seus clientes e escale com automações inteligentes no graao.</p>
+        <a class="btn btn-cta btn-lg" href="/app" id="final-cta" data-cursor="sparkle">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+          Entrar na plataforma
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <!-- Rodapé -->
+  <footer class="footer">
+    <div class="footer-top">
+      <p class="display">Menos ferramenta. Mais sistema.</p>
+      <a class="brand" href="#start" data-cursor="up" aria-label="Voltar ao topo">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2c.6 4.6 2.4 6.4 7 7-4.6.6-6.4 2.4-7 7-.6-4.6-2.4-6.4-7-7 4.6-.6 6.4-2.4 7-7Z" fill="#ff701a" stroke="none"/></svg>
+        </span>
+        <span class="brand-name">graao</span>
+      </a>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 graao · Todos os direitos reservados.</span>
+      <nav aria-label="Links do rodapé">
+        <a href="#showcase">Como funciona</a>
+        <a href="#conteudo">Módulos</a>
+        <a href="#faq">FAQ</a>
+        <a href="/app">Entrar</a>
+      </nav>
+    </div>
+  </footer>
+
+  <!-- Modal de Escolha de Acesso / Login -->
+  <dialog class="login-dialog" id="login-dialog">
+    <div class="login-dialog-inner">
+      <div class="login-dialog-head">
+        <div>
+          <h2>Acessar o graao</h2>
+          <p>Escolha o ambiente para entrar:</p>
+        </div>
+        <button type="button" class="login-dialog-close" id="close-login" aria-label="Fechar modal">✕</button>
+      </div>
+      <div class="login-options">
+        <a class="login-card-btn primary-option" href="/app">
+          <div>
+            <b>Workspace Principal</b>
+            <span>Acessar CRM, conversas, automações e estúdio</span>
+          </div>
+          <span>→</span>
+        </a>
+        <a class="login-card-btn" href="/app#agency/dashboard">
+          <div>
+            <b>Visão da Agência</b>
+            <span>Painel financeiro, subcontas e snapshots</span>
+          </div>
+          <span>→</span>
+        </a>
+        <a class="login-card-btn" href="/app?workspace=demo#ask-ai">
+          <div>
+            <b>Ambiente de Demonstração</b>
+            <span>Explorar dados de exemplo do Demo Workspace</span>
+          </div>
+          <span>→</span>
+        </a>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Bibliotecas de animação e suporte -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11.1.14/swiper-bundle.min.js"></script>
+  <script src="/landing.js"></script>
+</body>
+</html>
