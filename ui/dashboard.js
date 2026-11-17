@@ -1,5 +1,6 @@
 import { icon } from './icons.js';
 import { h, money, fmt } from './screens.js';
+import { tr } from './i18n.js';
 import { conversionTotals, dashboardPeriods, dateFields, dateMatches, effectiveWidget, priorDates, resolveDates,
   salesTotals, scopedDeals, sourceTotals, stageTotals, statusTotals, widgets } from './dashboard-data.js';
 
@@ -146,7 +147,7 @@ function widgetCard(c, entry, index, count, range, comparison) {
   const caption = definition.pipeline ? dateFields[config.dateField] : definition.period;
   const users = config.kind === 'efficiency' ? [...new Set(c.s.opportunities.map(record => record.owner).filter(Boolean))].sort() : [];
   const pipeline = definition.pipeline ? `<div class="dash-card-filters">
-    ${selectMarkup(`${config.title} pipeline`,`data-dash-widget="${entry.id}" data-dash-field="pipeline"`,config.pipeline,c.s.pipelines.map(row => [row.id,row.name]),definition.needsPipeline ? '' : 'All pipelines')}
+    ${selectMarkup(`${config.title} pipeline`,`data-dash-widget="${entry.id}" data-dash-field="pipeline"`,config.pipeline,c.s.pipelines.map(row => [row.id,row.name]),definition.needsPipeline ? '' : 'Todos os pipelines')}
     ${config.kind === 'efficiency' ? selectMarkup('Opportunity owner',`data-dash-widget="${entry.id}" data-dash-field="owner"`,config.owner || '',users.map(label => [label,label]),'All users') : ''}</div>` : '';
   const editTools = editor ? `<div class="dash-edit-tools">
     <button type="button" class="icon-btn" data-dash-act="up" data-widget="${entry.id}" aria-label="Move ${h(entry.title)} earlier" ${index ? '' : 'disabled'}>${icon('left',15)}</button>
@@ -154,7 +155,7 @@ function widgetCard(c, entry, index, count, range, comparison) {
     <button type="button" class="icon-btn" data-dash-act="remove" data-widget="${entry.id}" aria-label="Remove ${h(entry.title)}">${icon('trash',15)}</button></div>` : '';
   const cardSettings = editor || definition.pipeline ? `<button type="button" class="icon-btn dash-card-settings" data-dash-act="widget-settings" data-widget="${entry.id}" aria-label="Configure ${h(entry.title)}" title="Configure widget">${icon('sliders',15)}</button>` : '';
   return `<section class="dash-card dash-w${entry.width} ${index < 3 && ['status','value','conversion'].includes(entry.kind) ? 'dash-primary' : ''} ${entry.kind === 'note' ? 'dash-note-card' : ''}" data-dashboard-card="${entry.id}">
-    <header ${editor ? `draggable="true" data-dash-drag="${entry.id}"` : ''}><div><h2>${h(entry.title)}</h2>${caption ? `<p>(${h(caption)})</p>` : ''}</div>${editTools}${cardSettings}</header>
+    <header ${editor ? `draggable="true" data-dash-drag="${entry.id}"` : ''}><div><h2>${h(tr(entry.title))}</h2>${caption ? `<p>${h(tr(caption))}</p>` : ''}</div>${editTools}${cardSettings}</header>
     <div class="dash-card-body">${pipeline}${widgetBody(c,config,range,comparison)}</div></section>`;
 }
 
@@ -166,20 +167,20 @@ export function dashboard(c) {
   const editing = Boolean(c.dash.draft);
   const compatible = board.widgets.some(item => widgets[item.kind].quick);
   const labels = Object.entries(dashboardPeriods);
-  const period = labels.find(([key]) => key === c.dash.range.period)?.[1] || 'Last 30 days';
+  const period = labels.find(([key]) => key === c.dash.range.period)?.[1] || 'Últimos 30 dias';
   const toolbar = editing ? `<div class="dash-right">
-    ${glyph('undo','Undo','left')}${glyph('redo','Redo','right')}${tool('widget-add','Add widget','plus')}${tool('cancel','Cancel')}
-    <button class="primary dash-save" data-dash-act="save">Save changes</button></div>` : `<div class="dash-right">
-    ${glyph('refresh','Refresh dashboard','refresh')}${glyph('note','Add sticky note','note')}${tool('dates',`${period} ${icon('chevron',14)}`,'cal')}
-    ${tool('summary',`Dashboard summary ${icon('spark',15)}`)}${tool('edit','Edit dashboard','edit')}
-    ${glyph('report','Send as report','send')}${glyph('more','More actions','dots')}</div>`;
+    ${glyph('undo','Desfazer','left')}${glyph('redo','Refazer','right')}${tool('widget-add','Adicionar widget','plus')}${tool('cancel','Cancelar')}
+    <button class="primary dash-save" data-dash-act="save">Salvar alterações</button></div>` : `<div class="dash-right">
+    ${glyph('refresh','Atualizar painel','refresh')}${glyph('note','Adicionar nota adesiva','note')}${tool('dates',`${period} ${icon('chevron',14)}`,'cal')}
+    ${tool('summary',`Resumo do painel ${icon('spark',15)}`)}${tool('edit','Editar painel','edit')}
+    ${glyph('report','Enviar como relatório','send')}${glyph('more','Mais ações','dots')}</div>`;
   const tags = [...new Set(c.s.contacts.flatMap(contact => contact.tags))].sort();
-  return `<div class="dashboard-page"><div class="dashboard-toolbar" aria-label="Dashboard header"><div class="dash-switch">
-    <h1>${tool(editing ? 'rename' : 'switch',`${h(board.name)} ${icon(editing ? 'edit' : 'chevron',15)}`)}</h1>${editing ? '' : tool('new','New','plus')}</div>${toolbar}</div>
-    <div class="dash-quick"><button data-dash-act="quick" ${compatible ? '' : 'disabled'}>Quick filters</button>
-    ${compatible && c.dash.showQuick ? selectMarkup('Contact tag','data-dash-quick',c.dash.quickTag,tags.map(label => [label,label]),'All tags') : ''}</div>
-    <div class="dashboard-grid" aria-label="Dashboard widgets">${board.widgets.map((entry,index) => widgetCard(c,entry,index,board.widgets.length,range,comparison)).join('') ||
-      `<div class="dash-card dash-w12">${emptyMessage('This dashboard has no widgets','grid',tool(editing ? 'widget-add' : 'edit',editing ? 'Add widget' : 'Edit dashboard','plus'))}</div>`}</div></div>`;
+  return `<div class="dashboard-page"><div class="dashboard-toolbar" aria-label="Cabeçalho do painel"><div class="dash-switch">
+    <h1>${tool(editing ? 'rename' : 'switch',`${h(tr(board.name))} ${icon(editing ? 'edit' : 'chevron',15)}`)}</h1>${editing ? '' : tool('new','Novo','plus')}</div>${toolbar}</div>
+    <div class="dash-quick"><button data-dash-act="quick" ${compatible ? '' : 'disabled'}>Filtros rápidos</button>
+    ${compatible && c.dash.showQuick ? selectMarkup('Tag do contato','data-dash-quick',c.dash.quickTag,tags.map(label => [label,label]),'Todas as tags') : ''}</div>
+    <div class="dashboard-grid" aria-label="Widgets do painel">${board.widgets.map((entry,index) => widgetCard(c,entry,index,board.widgets.length,range,comparison)).join('') ||
+      `<div class="dash-card dash-w12">${emptyMessage('Este painel ainda não tem widgets','grid',tool(editing ? 'widget-add' : 'edit',editing ? 'Adicionar widget' : 'Editar painel','plus'))}</div>`}</div></div>`;
 }
 
 export function drawDashboardGauges(root) {

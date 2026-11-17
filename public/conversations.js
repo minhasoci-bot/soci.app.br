@@ -3,8 +3,8 @@ import { badge, date, empty, h, name, primary, row, search, table, tabs } from '
 
 export const conversationSections = ['manual-actions', 'snippets', 'folders', 'trigger-links', 'link-analysis', 'analytics', 'settings'];
 const sections = [
-  ['','Conversations'], ['manual-actions','Manual Actions'], ['snippets','Snippets'],
-  ['trigger-links','Trigger Links'], ['analytics','Analytics'], ['settings','Settings']
+  ['','Conversas'], ['manual-actions','Ações manuais'], ['snippets','Snippets'],
+  ['trigger-links','Links de rastreamento'], ['analytics','Análises'], ['settings','Configurações']
 ];
 
 export function conversationPage(c, inbox) {

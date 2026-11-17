@@ -74,7 +74,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
     openingWorkspace ??= openInitialWorkspace()
       .then(() => { if (c.s && c.mode !== 'agency') route(); })
       .catch(e => {
-        if (c.mode !== 'agency') app.innerHTML = `<div class="boot"><h1>Workspace unavailable</h1><p>${h(e.message)}</p><a href="/">Retry</a></div>`;
+        if (c.mode !== 'agency') app.innerHTML = `<div class="boot boot-error" role="alert"><h1>Não foi possível abrir o workspace</h1><p>${h(e.message)}</p><a class="primary" href="${h(location.pathname + location.search + location.hash)}">Tentar de novo</a></div>`;
       })
       .finally(() => { openingWorkspace = null; });
     return;
@@ -177,7 +177,11 @@ const input=(label,key,value,required=false,type='text')=>field(label,key,value,
 const area=(label,key,value,required=false)=>field(label,key,value,'textarea',required);
 const check=(label,key,value)=>field(label,key,value,'check');
 const zones=()=>c.s.profile.timezone;
-const entityNames={contacts:'Contact',tasks:'Task',opportunities:'Opportunity',appointments:'Appointment',workflows:'Workflow',invoices:'Invoice',campaigns:'Campaign',pages:'Page',forms:'Form',courses:'Course',reviews:'Review',snippets:'Snippet',snippetFolders:'Folder',triggerLinks:'Trigger Link',...crmEntityNames};
+const entityNames={contacts:'Contato',tasks:'Tarefa',opportunities:'Oportunidade',appointments:'Agendamento',workflows:'Fluxo',invoices:'Fatura',campaigns:'Campanha',pages:'Página',forms:'Formulário',courses:'Curso',reviews:'Avaliação',snippets:'Snippet',snippetFolders:'Pasta',triggerLinks:'Link de rastreamento',...crmEntityNames};
+// Grammatical gender of each record name, so titles read "Nova tarefa" and "Novo contato".
+const feminine=new Set(['tasks','opportunities','invoices','campaigns','pages','reviews','snippetFolders','companies','subscriptions','transactions']);
+const lowerName=key=>{const n=entityNames[key]||'';return key==='tags'?n:n.charAt(0).toLowerCase()+n.slice(1);};
+const newTitle=key=>`${feminine.has(key)?'Nova':'Novo'} ${lowerName(key)}`;
 const actionNames = ['Add tag','Create task','Create opportunity','Log message','Manual Call','Manual SMS'];
 const triggerNames = ['Contact created','Form submitted','Opportunity stage changed','Appointment booked','Trigger link clicked'];
 const optionalGroup = (attribute, visible, content) => `<fieldset ${attribute} ${visible ? '' : 'hidden disabled'}>${content}</fieldset>`;
@@ -191,23 +195,23 @@ function actionFields(action = {}) {
 }
 function edit(key,id,preset={}){
   const entry=c.s[key]?.find(r=>r.id===id); if(id&&!entry)return;
-  const r=entry||preset, title=entityNames[key]; let body='';
+  const r=entry||preset; let body='';
   switch(key){
-    case 'contacts':body=input('Full name','name',r.name,true)+`<div class="field-grid">${input('Email','email',r.email,false,'email')}${input('Phone','phone',r.phone,false,'tel')}</div>`+`<label>Company<input name="company" list="crm-companies" value="${h(r.company||'')}"></label><datalist id="crm-companies">${c.s.companies.map(x=>`<option value="${h(x.name)}">`).join('')}</datalist>`+input('Tags (separate with commas)','tags',r.tags?.join(', '))+area('Notes','notes',r.notes)+customInputs(c,'Contact',r)+(id?`<div class="inline-gap"><button type="button" class="secondary" data-start-thread="${id}">${i('chat',16)} Open conversation</button><button type="button" class="secondary" data-edit="tasks" data-contact="${id}">${i('plus',16)} New task</button></div>`:'');break;
-    case 'tasks':body=input('Title','title',r.title,true)+option('Contact','contactId',r.contactId,contactChoices(),false)+input('Due','due',r.due?r.due.slice(0,10):'',false,'date')+input('Assigned to','owner',r.owner)+area('Notes','notes',r.notes)+check('Completed','done',r.done);break;
+    case 'contacts':body=input('Nome completo','name',r.name,true)+`<div class="field-grid">${input('E-mail','email',r.email,false,'email')}${input('Telefone','phone',r.phone,false,'tel')}</div>`+`<label>Empresa<input name="company" list="crm-companies" value="${h(r.company||'')}"></label><datalist id="crm-companies">${c.s.companies.map(x=>`<option value="${h(x.name)}">`).join('')}</datalist>`+input('Tags (separadas por vírgula)','tags',r.tags?.join(', '))+area('Notas','notes',r.notes)+customInputs(c,'Contact',r)+(id?`<div class="inline-gap"><button type="button" class="secondary" data-start-thread="${id}">${i('chat',16)} Abrir conversa</button><button type="button" class="secondary" data-edit="tasks" data-contact="${id}">${i('plus',16)} Nova tarefa</button></div>`:'');break;
+    case 'tasks':body=input('Título','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices(),false)+input('Prazo','due',r.due?r.due.slice(0,10):'',false,'date')+input('Responsável','owner',r.owner)+area('Notas','notes',r.notes)+check('Concluída','done',r.done);break;
     case 'opportunities': {
       const pipeline = c.s.pipelines.find(item => item.id === c.pipeline) || c.s.pipelines[0];
       const start = c.s.stages.find(stage => stage.pipelineId === pipeline.id)?.id;
       const stage = r.stage || start;
-      const picker = `<label>Stage<select name="stage" required>${c.s.pipelines.map(item => `<optgroup label="${h(item.name)}">${c.s.stages.filter(entry => entry.pipelineId === item.id).map(entry =>
+      const picker = `<label>Etapa<select name="stage" required>${c.s.pipelines.map(item => `<optgroup label="${h(item.name)}">${c.s.stages.filter(entry => entry.pipelineId === item.id).map(entry =>
         `<option value="${entry.id}" ${entry.id === stage ? 'selected' : ''}>${h(entry.name)}</option>`).join('')}</optgroup>`).join('')}</select></label>`;
-      body=input('Opportunity name','title',r.title,true)+option('Contact','contactId',r.contactId,contactChoices())+picker+
-        `<div class="field-grid">${input(`Value (${c.s.profile.currency})`,'value',r.value??0,true,'number')}${option('Status','status',r.status||'Open',opportunityStatuses)}</div>`+
-        `<div class="field-grid">${input('Opportunity source','source',r.source)}${input('Assigned to','owner',r.owner)}</div>`+
-        `<div class="field-grid">${input('Expected close date','closeDate',r.closeDate,false,'date')}${input('Probability (%) — empty uses the stage','probability',r.probability??'',false,'number')}</div>`+customInputs(c,'Opportunity',r);
+      body=input('Nome da oportunidade','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices())+picker+
+        `<div class="field-grid">${input(`Valor (${c.s.profile.currency})`,'value',r.value??0,true,'number')}${option('Status','status',r.status||'Open',opportunityStatuses)}</div>`+
+        `<div class="field-grid">${input('Origem','source',r.source)}${input('Responsável','owner',r.owner)}</div>`+
+        `<div class="field-grid">${input('Previsão de fechamento','closeDate',r.closeDate,false,'date')}${input('Probabilidade (%), vazio usa a da etapa','probability',r.probability??'',false,'number')}</div>`+customInputs(c,'Opportunity',r);
       break;
     }
-    case 'appointments':body=input('Title','title',r.title,true)+option('Contact','contactId',r.contactId,contactChoices(),false)+`<p class="dim">All times are in ${h(zones())}.</p><div class="field-grid">${input('Starts','start',localTime(r.start,zones())||(r.date?`${r.date}T09:00`:''),true,'datetime-local')}${input('Ends','end',localTime(r.end,zones())||(r.date?`${r.date}T09:30`:''),true,'datetime-local')}</div>`+option('Status','status',r.status||'Confirmed',['Confirmed','Completed','Canceled'])+area('Notes','notes',r.notes);break;
+    case 'appointments':body=input('Título','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices(),false)+`<p class="dim">Horários no fuso ${h(zones())}.</p><div class="field-grid">${input('Início','start',localTime(r.start,zones())||(r.date?`${r.date}T09:00`:''),true,'datetime-local')}${input('Fim','end',localTime(r.end,zones())||(r.date?`${r.date}T09:30`:''),true,'datetime-local')}</div>`+option('Status','status',r.status||'Confirmed',['Confirmed','Completed','Canceled'])+area('Notas','notes',r.notes);break;
     case 'workflows':
       body = input('Workflow name','name',r.name,true) + option('Trigger','trigger',r.trigger || triggerNames[0],triggerNames) +
         optionalGroup('data-trigger-link',r.trigger === 'Trigger link clicked',option('Trigger link','linkId',r.linkId,[['','Any trigger link'],...c.s.triggerLinks.map(link => [link.id,link.name])],false)) +
@@ -224,7 +228,7 @@ function edit(key,id,preset={}){
       break;
     }
     case 'triggerLinks': body = input('Name','name',r.name,true) + input('Link URL','url',r.url,true,'url'); break;
-    case 'invoices':body=input('Invoice name','title',r.title,true)+option('Contact','contactId',r.contactId,contactChoices())+`<div class="field-grid">${input(`Amount (${c.s.profile.currency})`,'value',r.value??0,true,'number')}${input('Due date','due',r.due?.slice(0,10),true,'date')}</div>`+option('Status','status',r.status||'Draft',['Draft','Open','Paid','Void']);break;
+    case 'invoices':body=input('Nome da fatura','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices())+`<div class="field-grid">${input(`Valor (${c.s.profile.currency})`,'value',r.value??0,true,'number')}${input('Vencimento','due',r.due?.slice(0,10),true,'date')}</div>`+option('Status','status',r.status||'Draft',['Draft','Open','Paid','Void']);break;
     case 'campaigns':body=input('Campaign name','name',r.name,true)+option('Channel','channel',r.channel||'Social',['Social','Email'])+area('Content','body',r.body,true)+input('Planned date','date',r.date?.slice(0,10),false,'date')+option('Status','status',r.status||'Draft',['Draft','Planned','Archived']);break;
     case 'pages':body=input('Page name','name',r.name,true)+option('Type','kind',r.kind||'Funnel',['Funnel','Website'])+input('Headline','headline',r.headline,true)+area('Page copy','body',r.body)+input('Button label','button',r.button)+option('Form','formId',r.formId,[['','No form'],...c.s.forms.map(a=>[a.id,`${a.name}${a.active?'':' (Draft)'}`])],false)+check('Publish locally','active',r.active);break;
     case 'forms':body=input('Form name','name',r.name,true)+area('Description','description',r.description)+check('Ask for phone number','askPhone',r.askPhone)+check('Publish locally','active',r.active);break;
@@ -232,7 +236,7 @@ function edit(key,id,preset={}){
     case 'reviews':body=input('Reviewer','author',r.author,true)+option('Rating','score',r.score||5,[5,4,3,2,1])+area('Review','text',r.text,true)+area('Reply','reply',r.reply);break;
     default:body=crmForm(c,key,r,preset);if(!body)return;
   }
-  dialog(`${id?'Edit':'New'} ${title}`,body,{form:'record',key,id:id||'',buttons:`${id?`<button class="danger plain" type="button" data-delete="${key}" data-id="${id}">${i('trash',16)} Delete</button>`:''}<span class="spacer"></span><button class="secondary" type="button" data-act="close">Cancel</button><button class="primary">${id?'Save Changes':`Create ${title}`}</button>`});
+  dialog(id?`Editar ${lowerName(key)}`:newTitle(key),body,{form:'record',key,id:id||'',buttons:`${id?`<button class="danger plain" type="button" data-delete="${key}" data-id="${id}">${i('trash',16)} Excluir</button>`:''}<span class="spacer"></span><button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">${id?'Salvar alterações':`Criar ${lowerName(key)}`}</button>`});
 }
 
 function workspaces(){dialog('Trocar de workspace',`${c.workspaces.map(w=>`<button class="choice" data-workspace="${w.id}"><strong>${h(w.name)}</strong>${w.id===c.workspace?'<span>Workspace atual</span>':''}</button>`).join('')}${c.access?.agency ? `<button class="secondary" data-act="new-workspace">${i('plus',16)} Novo workspace</button>` : ''}`);}
@@ -587,7 +591,7 @@ document.addEventListener('submit',async ev=>{
         channel: block.querySelector('[name="actionChannel"]').value
       }));
       if(key==='appointments'){data.start=toInstant(data.start,zones());data.end=toInstant(data.end,zones());}
-      await mutate({type:'save',key,id,data});msg=id?'Changes saved.':`${entityNames[key]} created.`;
+      await mutate({type:'save',key,id,data});msg=id?'Alterações salvas.':`${entityNames[key]} ${feminine.has(key)?'criada':'criado'}.`;
     } else if(name==='delete'){await mutate({type:'delete',key:f.dataset.key,id:f.dataset.id});msg='Record deleted.';}
     else if(name==='profile'){await mutate({type:'profile',data});await load();msg='Business profile saved.';}
     else if (name==='stage') { await mutate({type:'stage',id:f.dataset.id,data:{ ...data,visible:f.elements.visible.checked }}); msg='Stage saved.'; }

@@ -1,9 +1,9 @@
 export const salesPipeline = 'sales';
 export const opportunityStatuses = ['Open','Won','Lost','Abandoned'];
-export const dateFields = { status:'Status change', created:'Created on', updated:'Updated on' };
+export const dateFields = { status:'Por mudança de status', created:'Por data de criação', updated:'Por última atualização' };
 export const dashboardPeriods = {
-  today:'Today', yesterday:'Yesterday', '7':'Last 7 days', '30':'Last 30 days', '90':'Last 90 days',
-  month:'This month', previousMonth:'Last month', year:'This year', all:'All time', custom:'Custom range'
+  today:'Hoje', yesterday:'Ontem', '7':'Últimos 7 dias', '30':'Últimos 30 dias', '90':'Últimos 90 dias',
+  month:'Este mês', previousMonth:'Mês passado', year:'Este ano', all:'Todo o período', custom:'Período personalizado'
 };
 export const widgets = {
   status:{ title:'Opportunity status', width:5, pipeline:true },

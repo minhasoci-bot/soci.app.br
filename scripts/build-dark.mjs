@@ -19,7 +19,7 @@ const PREFIX = ':root[data-theme=dark]';
 // microkit dark palette
 const P = {
   surface: [17, 19, 23], sunken: [21, 23, 27], raised: [27, 29, 34], hairline: [43, 47, 53], divider: [37, 41, 45],
-  text: '#f1f2f4', text2: '#cfd4da', text3: '#aab0b9', muted: '#8d939d', dim: '#68707c',
+  text: '#f1f2f4', text2: '#cfd4da', text3: '#aab0b9', muted: '#8d939d', dim: '#7d8591',
 };
 
 /* ── tiny CSS reader: rules, @media/@supports blocks; skips @keyframes, @font-face and comments ── */

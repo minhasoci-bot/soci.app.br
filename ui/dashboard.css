@@ -30,7 +30,7 @@
 .dash-card > header { min-height: 73px; display: flex; gap: 6px; justify-content: space-between; align-items: center; padding: 13px 16px; border-bottom: 1px solid #e5e9f2; }
 .dash-card > header[draggable] { cursor: grab; background: #f8f5ff; }
 .dash-card h2 { margin: 0; font-size: 15px; font-weight: 660; letter-spacing: -.01em; overflow-wrap: anywhere; }
-.dash-card > header p { font-size: 12px; margin: 2px 0 0; }
+.dash-card > header p { font-size: 12.5px; margin: 2px 0 0; }
 .dash-card-settings { width: 30px; margin-left: auto; flex: 0 0 30px; }
 .dash-card-body { padding: 16px; display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .dash-card-filters { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -45,23 +45,23 @@
 .dash-gauge { width: min(100%,198px); margin: 0 auto 8px; aspect-ratio: 1; position: relative; display: grid; place-items: center; }
 .dash-gauge canvas { display: block; max-width: 100%; width: 100%; height: auto; }
 .dash-gauge b { position: absolute; font-size: 25px; color: #162d4d; font-weight: 600; }
-.dash-conversion small, .dash-small-stats small { color: #4e6684; font-size: 12px; }
+.dash-conversion small, .dash-small-stats small { color: #4e6684; font-size: 12.5px; }
 .dash-conversion strong { font-size: 17px; font-weight: 640; }
 .dash-status-total { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 4px; padding: 22px 0 8px; }
 .dash-status-total b { font-size: 23px; color: #1a2e4d; font-weight: 650; }
 .dash-status-total small { color: #617894; }
 .dash-meters { display: grid; gap: 9px; margin: 12px 0 6px; }
-.dash-meter { display: grid; color: #2c415f; font-size: 12px; }
+.dash-meter { display: grid; color: #2c415f; font-size: 12.5px; }
 .dash-meter div, .dash-funnel td:first-child>div { justify-content: space-between; display: flex; gap: 8px; }
 .dash-meter meter, .dash-funnel meter { display: block; width: 100%; height: 12px; }
 .dash-meter meter::-webkit-meter-bar, .dash-funnel meter::-webkit-meter-bar { border: 0; background: #edf1f7; }
 .tone-blue { --dash-meter: #9b80f8; }.tone-green { --dash-meter: #55b69b; }.tone-red { --dash-meter: #e2818c; }.tone-gray { --dash-meter: #b0bdd2; }
 .dash-meter meter::-webkit-meter-optimum-value, .dash-funnel meter::-webkit-meter-optimum-value { background: var(--dash-meter,#9b80f8); }
 .dash-funnel { overflow: auto; max-height: 340px; margin-top: 15px; }
-.dash-funnel table, .dash-table table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; }
+.dash-funnel table, .dash-table table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12.5px; }
 .dash-funnel td, .dash-table td, .dash-table th { padding: 8px 7px; border-bottom: 1px solid #eaf0f7; white-space: nowrap; }
 .dash-funnel td:not(:first-child) { text-align: right; }
-.dash-funnel-ticks { display: flex; justify-content: space-between; padding: 4px 70px 2px 8px; color: #55728e; font-size: 11px; }
+.dash-funnel-ticks { display: flex; justify-content: space-between; padding: 4px 70px 2px 8px; color: #55728e; font-size: 12px; }
 .dash-table { overflow: auto; max-height: 350px; margin-top: 12px; }
 .dash-table th { color: #35516d; background: #f7f9fc; }
 .dash-small-stats { display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; gap: 12px; padding: 22px 0; flex: 1; }
