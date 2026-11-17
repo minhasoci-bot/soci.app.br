@@ -42,7 +42,7 @@ const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 const commandModule = { message:'conversations', thread:'conversations', 'manual-action':'conversations', 'conversation-sla':'conversations', 'dismiss-sla':'conversations',
   pipeline:'opportunities', stage:'opportunities', import:'contacts', 'studio-visit':'studio', 'studio-star':'studio', profile:'settings',
   'dashboard-create':'dashboard', 'dashboard-save':'dashboard', 'dashboard-restore':'dashboard', 'dashboard-report':'dashboard' };
-const settingsCommands = new Set(['profile','company','billing-plan','wallet','auto-recharge','system-email','labs','compliance','api-key','api-key-delete','private-integration','private-integration-delete']);
+const settingsCommands = new Set(['saas-mode','saas-rebilling','saas-account','workflow-builder','sub-feature','email-domain','email-domain-accounts','email-domain-remove','affiliate-pixel','profile','company','billing-plan','wallet','auto-recharge','system-email','labs','compliance','api-key','api-key-delete','private-integration','private-integration-delete']);
 const settingsRecords = new Set(['users','menuLinks','announcements']);
 const publicAgency = agency => ({ ...agency,
   apiKeys: agency.apiKeys.map(({ hash: _hash, ...rest }) => rest),

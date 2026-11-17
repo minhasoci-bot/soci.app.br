@@ -195,3 +195,39 @@ test('Reselling, plans, affiliate payouts and announcements feed the dashboard a
   assert.equal(pages[0].name, 'Dental Clinic');
   assert.ok(pages[0].formId);
 });
+
+test('SaaS Configurator, sub-account feature switches, email domain and app reselling follow their rules', async t => {
+  const local = await start(); t.after(local.close);
+  const ws = (await local.call('/api/agency')).body.overview.accounts[0].id;
+
+  assert.equal((await action(local, { type: 'saas-mode', data: { enabled: true } })).body.agency.saas.enabled, true);
+  assert.equal((await action(local, { type: 'saas-rebilling', data: { phone: 11 } })).status, 400);
+  const rebill = Object.fromEntries(['phone', 'email', 'automations', 'ai', 'whatsapp', 'voice-ai', 'enrichment', 'domains'].map(k => [k, 1]));
+  assert.equal((await action(local, { type: 'saas-rebilling', data: { ...rebill, phone: 1.5 } })).body.agency.saas.rebilling.phone, 1.5);
+  assert.deepEqual((await action(local, { type: 'saas-account', id: ws, data: { enabled: true } })).body.agency.saas.accounts, [ws]);
+
+  // Number Intelligence starts off: rebilling it is refused until it is enabled; disabling clears rebilling.
+  assert.equal((await action(local, { type: 'sub-feature', id: 'number-intelligence', data: { account: ws, field: 'rebill', value: true } })).status, 400);
+  await action(local, { type: 'sub-feature', id: 'number-intelligence', data: { account: ws, field: 'on', value: true } });
+  let agency = (await action(local, { type: 'sub-feature', id: 'number-intelligence', data: { account: ws, field: 'rebill', value: true } })).body.agency;
+  assert.deepEqual(agency.subFeatures['number-intelligence'].rebill, [ws]);
+  agency = (await action(local, { type: 'sub-feature', id: 'number-intelligence', data: { account: ws, field: 'on', value: false } })).body.agency;
+  assert.deepEqual(agency.subFeatures['number-intelligence'].rebill, []);
+  // Premium features start on, so rebilling is allowed right away.
+  assert.equal((await action(local, { type: 'sub-feature', id: 'workflow-premium', data: { account: ws, field: 'rebill', value: true } })).status, 200);
+
+  assert.equal((await action(local, { type: 'workflow-builder', data: { builder: 'Advanced', [`o_${ws}`]: 'Standard' } })).body.agency.workflowSettings.overrides[ws], 'Standard');
+  assert.equal((await action(local, { type: 'email-domain', data: { domain: 'not a domain' } })).status, 400);
+  assert.equal((await action(local, { type: 'email-domain', data: { domain: 'https://Mail.Example.com/' } })).body.agency.emailServices.domain, 'mail.example.com');
+  assert.equal((await action(local, { type: 'affiliate-pixel', data: { pixelId: 'abc' } })).status, 400);
+
+  assert.equal((await action(local, { type: 'app-resell', id: 'slack', data: { cost: 10, price: 5 } })).status, 400);
+  await action(local, { type: 'app-resell', id: 'slack', data: { cost: 10, price: 25 } });
+  assert.equal((await action(local, { type: 'app-install', id: 'slack', data: { scope: 'Sub-account', account: ws } })).status, 400);
+  await action(local, { type: 'integration', id: 'slack', data: { accounts: [ws] } });
+  agency = (await action(local, { type: 'app-install', id: 'slack', data: { scope: 'Sub-account', account: ws } })).body.agency;
+  assert.equal(agency.apps.installs.length, 1);
+  assert.equal((await action(local, { type: 'app-install', id: 'slack', data: { scope: 'Sub-account', account: ws } })).status, 400);
+  agency = (await action(local, { type: 'app-uninstall', id: agency.apps.installs[0].id })).body.agency;
+  assert.equal(agency.apps.installs.length, 0);
+});

@@ -3,7 +3,8 @@ import { metrics, uid, now } from './model.mjs';
 import { hydrateProspecting } from './prospecting-model.mjs';
 import {
   accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog, labFeatures,
-  mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog
+  mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
+  appScopes, maxMarkup, rebillProducts, subFeatures, workflowBuilders
 } from './ui/agency-data.js';
 
 export const AGENCY_ID = 'agency';
@@ -52,9 +53,25 @@ export function blankAgency() {
     systemEmails: Object.fromEntries(systemEmailKeys.map(([key, , subject, body]) => [key, { subject, body }])),
     labs: Object.fromEntries(labFeatures.map(([key]) => [key, false])),
     compliance: { retentionDays: 365, consent: 'By submitting, you agree to receive messages from this business.', cookieBanner: true, hipaa: false },
-    stripe: { connected: false }
+    stripe: { connected: false },
+    saas: { enabled: false, enabledAt: '', rebilling: Object.fromEntries(rebillProducts.map(([key]) => [key, 1])), accounts: [] },
+    workflowSettings: { builder: 'Standard', overrides: {} },
+    subFeatures: Object.fromEntries(subFeatures.map(([key]) => [key, { on: {}, rebill: [] }])),
+    emailServices: { domain: '', added: '', accounts: [] },
+    apps: { installs: [], resell: {} }
   };
 }
+
+const flag = value => value === true || value === 'on' || value === 'true';
+const domainName = value => {
+  const v = str(value, 200).toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  return /^(?=.{4,200}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(v) ? v : fail('Enter a domain such as mail.youragency.com.');
+};
+export const featureOn = (agency, key, account) => {
+  const spec = subFeatures.find(f => f[0] === key);
+  const on = agency.subFeatures[key]?.on || {};
+  return Object.hasOwn(on, account) ? on[account] : Boolean(spec?.[3]);
+};
 
 export function hydrateAgency(state) {
   const fresh = blankAgency();
@@ -63,6 +80,8 @@ export function hydrateAgency(state) {
     else if (value && typeof value === 'object' && !Array.isArray(value) && !['accounts', 'integrations', 'reselling', 'systemEmails', 'labs'].includes(key)) state[key] = { ...value, ...state[key] };
   }
   for (const product of resellProducts) state.reselling[product.key] ??= { price: product.base, disabled: [] };
+  for (const [key] of rebillProducts) state.saas.rebilling[key] ??= 1;
+  for (const [key] of subFeatures) state.subFeatures[key] ??= { on: {}, rebill: [] };
   return hydrateProspecting(state);
 }
 
@@ -252,6 +271,104 @@ export function executeAgency(state, command, { accountIds, actor }) {
       const accounts = Array.isArray(d.accounts) ? d.accounts.filter(v => accountIds.includes(v)) : [];
       state.integrations[id] = { accounts, updated: now() };
       log('Integration availability changed', item[1], `${accounts.length} sub-accounts`);
+      return id;
+    }
+    case 'saas-mode': {
+      state.saas.enabled = flag(d.enabled);
+      if (state.saas.enabled && !state.saas.enabledAt) state.saas.enabledAt = now();
+      log(state.saas.enabled ? 'SaaS mode enabled' : 'SaaS mode disabled');
+      return state.saas.enabled;
+    }
+    case 'saas-rebilling': {
+      for (const [key, label] of rebillProducts) {
+        const markup = num(d[key], `${label} markup`, maxMarkup);
+        if (markup < 1) fail(`${label} markup must be between 1× and ${maxMarkup}×.`);
+        state.saas.rebilling[key] = markup;
+      }
+      log('Wallet rebilling updated');
+      return 'rebilling';
+    }
+    case 'saas-account': {
+      if (!accountIds.includes(id)) fail('Sub-account not found.', 404);
+      state.saas.accounts = state.saas.accounts.filter(a => a !== id && accountIds.includes(a));
+      if (flag(d.enabled)) state.saas.accounts.push(id);
+      log(flag(d.enabled) ? 'SaaS mode enabled for sub-account' : 'SaaS mode disabled for sub-account', id);
+      return id;
+    }
+    case 'workflow-builder': {
+      const builder = one(d.builder, workflowBuilders, 'default builder');
+      const overrides = {};
+      for (const account of accountIds) {
+        const value = d[`o_${account}`];
+        if (value && value !== 'default') overrides[account] = one(value, workflowBuilders, 'builder');
+      }
+      state.workflowSettings = { builder, overrides };
+      log('Default workflow builder changed', builder, `${Object.keys(overrides).length} sub-account overrides`);
+      return builder;
+    }
+    case 'sub-feature': {
+      const spec = subFeatures.find(f => f[0] === id) || fail('Setting not found.', 404);
+      const account = accountIds.includes(d.account) ? d.account : fail('Sub-account not found.', 404);
+      const field = one(d.field, ['on', 'rebill'], 'setting');
+      const value = flag(d.value);
+      const entry = state.subFeatures[id];
+      if (field === 'on') {
+        entry.on[account] = value;
+        if (!value) entry.rebill = entry.rebill.filter(a => a !== account);
+      } else {
+        if (value && !featureOn(state, id, account)) fail(`Enable ${spec[1]} for this sub-account before rebilling it.`);
+        entry.rebill = entry.rebill.filter(a => a !== account);
+        if (value) entry.rebill.push(account);
+      }
+      log(`${spec[1]} ${field === 'on' ? 'access' : 'rebilling'} ${value ? 'enabled' : 'disabled'}`, account);
+      return id;
+    }
+    case 'email-domain': {
+      state.emailServices = { domain: domainName(d.domain), added: now(), accounts: [] };
+      log('Dedicated sending domain added', state.emailServices.domain);
+      return state.emailServices.domain;
+    }
+    case 'email-domain-accounts': {
+      if (!state.emailServices.domain) fail('Add a dedicated domain first.');
+      state.emailServices.accounts = Array.isArray(d.accounts) ? d.accounts.filter(v => accountIds.includes(v)) : [];
+      log('Dedicated domain sub-accounts changed', state.emailServices.domain, `${state.emailServices.accounts.length} sub-accounts`);
+      return 'email';
+    }
+    case 'email-domain-remove': {
+      const old = state.emailServices.domain || fail('No dedicated domain to remove.');
+      state.emailServices = { domain: '', added: '', accounts: [] };
+      log('Dedicated sending domain removed', old);
+      return 'email';
+    }
+    case 'affiliate-pixel': {
+      const pixelId = str(d.pixelId, 32);
+      if (pixelId && !/^\d{5,20}$/.test(pixelId)) fail('The Facebook Pixel ID has only digits (5 to 20).');
+      state.affiliate.pixelId = pixelId;
+      log('Affiliate page settings saved');
+      return 'pixel';
+    }
+    case 'app-install': {
+      const app = integrationCatalog.find(entry => entry[0] === id) || fail('App not found.', 404);
+      const scope = one(d.scope, appScopes, 'installation level');
+      const account = scope === 'Sub-account' ? (accountIds.includes(d.account) ? d.account : fail('Choose a sub-account.')) : '';
+      if (account && !state.integrations[id]?.accounts.includes(account)) fail(`Make ${app[1]} available to this sub-account first.`);
+      if (state.apps.installs.some(x => x.app === id && x.account === account)) fail(`${app[1]} is already installed there.`);
+      state.apps.installs.push({ id: uid(), app: id, scope, account, at: now(), by: str(actor, 120) || 'Agency Owner' });
+      log('App installed', app[1], account || 'Agency');
+      return id;
+    }
+    case 'app-uninstall': {
+      const row = state.apps.installs.find(x => x.id === id) || fail('Installation not found.', 404);
+      state.apps.installs = state.apps.installs.filter(x => x.id !== id);
+      log('App uninstalled', integrationCatalog.find(entry => entry[0] === row.app)?.[1] || row.app, row.account || 'Agency');
+      return id;
+    }
+    case 'app-resell': {
+      const app = integrationCatalog.find(entry => entry[0] === id) || fail('App not found.', 404);
+      const cost = num(d.cost, 'App cost', 100000), price = num(d.price, 'Reselling price', 100000);
+      if (price && price < cost) fail('The reselling price cannot be lower than the app cost.');
+      state.apps.resell[id] = { cost, price };
+      log('App reselling price changed', app[1], `$${price}`);
       return id;
     }
     case 'billing-plan': {

@@ -36,7 +36,16 @@ const PT = {
   Subscription: 'Assinatura', 'Subscription + usage': 'Assinatura + uso',
   Automotive: 'Automotivo', Beauty: 'Beleza', Creative: 'Criativo', Financial: 'Financeiro', Health: 'Saúde',
   'Home services': 'Serviços residenciais', Legal: 'Jurídico', 'Real estate': 'Imobiliário', Technology: 'Tecnologia',
-  Calendars: 'Calendários', Phone: 'Telefone', Accounting: 'Contabilidade', Team: 'Equipe', Commerce: 'Comércio'
+  Calendars: 'Calendários', Phone: 'Telefone', Accounting: 'Contabilidade', Team: 'Equipe', Commerce: 'Comércio',
+  // Configurador SaaS e recursos por subconta
+  'Phone calls and SMS': 'Ligações e SMS', 'Email sending': 'Envio de e-mails', 'Premium workflow actions': 'Ações premium de workflow',
+  'Conversation and content AI': 'IA de conversas e conteúdo', 'WhatsApp messages': 'Mensagens de WhatsApp', 'Voice AI minutes': 'Minutos de IA de voz',
+  'Contact enrichment': 'Enriquecimento de contatos', 'Domain purchases': 'Compra de domínios',
+  'Workflow - Premium Features': 'Workflow: recursos premium', 'Workflow - External AI Models': 'Workflow: modelos de IA externos', 'Domain Purchase': 'Compra de domínios',
+  'Look up the line type and carrier of phone numbers before sending SMS.': 'Consulta o tipo de linha e a operadora do número antes de enviar SMS.',
+  'Premium triggers and actions in the workflow builder of each sub-account.': 'Gatilhos e ações premium no construtor de workflows de cada subconta.',
+  'Workflow actions that call external AI models from a sub-account.': 'Ações de workflow que chamam modelos de IA externos a partir da subconta.',
+  'Let sub-accounts buy domains from inside Sites settings.': 'Permite que as subcontas comprem domínios nas configurações de Sites.'
 };
 
 export const tr = value => PT[value] ?? value;

@@ -188,3 +188,20 @@ export const snapshotAssets = [
   ['snippetFolders', 'Snippet folders'], ['snippets', 'Snippets'], ['triggerLinks', 'Trigger links'], ['courses', 'Courses'],
   ['agents', 'AI agents'], ['studioProjects', 'Studio projects']
 ];
+
+// SaaS Configurator: wallet products whose usage the agency can rebill with a markup (1× = at cost, up to 10×).
+export const rebillProducts = [
+  ['phone', 'Phone calls and SMS'], ['email', 'Email sending'], ['automations', 'Premium workflow actions'], ['ai', 'Conversation and content AI'],
+  ['whatsapp', 'WhatsApp messages'], ['voice-ai', 'Voice AI minutes'], ['enrichment', 'Contact enrichment'], ['domains', 'Domain purchases']
+];
+export const maxMarkup = 10;
+
+// Per-sub-account switches shown on Settings tabs: [key, title, description, enabled by default].
+export const subFeatures = [
+  ['number-intelligence', 'Number Intelligence', 'Look up the line type and carrier of phone numbers before sending SMS.', false],
+  ['workflow-premium', 'Workflow - Premium Features', 'Premium triggers and actions in the workflow builder of each sub-account.', true],
+  ['external-ai', 'Workflow - External AI Models', 'Workflow actions that call external AI models from a sub-account.', true],
+  ['domain-purchase', 'Domain Purchase', 'Let sub-accounts buy domains from inside Sites settings.', true]
+];
+export const workflowBuilders = ['Standard', 'Advanced'];
+export const appScopes = ['Agency', 'Sub-account'];

@@ -5,7 +5,8 @@ import { tr } from './i18n.js';
 import { createProspecting, prospectRoutes } from './prospecting.js';
 import {
   addOns, affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, labFeatures, learningTracks,
-  mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog
+  mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
+  appScopes, maxMarkup, rebillProducts, subFeatures, workflowBuilders
 } from './agency-data.js';
 
 const h = x => String(x ?? '').replace(/[&<>"']/g, v => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[v]);
@@ -18,7 +19,7 @@ const tone = s => statusTone[s] || '';
 const initials = s => (s || '').split(/\s+/).slice(0, 2).map(p => p[0] || '').join('').toUpperCase() || 'AG';
 
 export const agencyNav = [
-  ['ask', 'Pergunte à IA', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['prospecting', 'Prospecção', 'search'],
+  ['ask', 'Pergunte à IA', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['saas', 'Configurador SaaS', 'chart'], ['prospecting', 'Prospecção', 'search'],
   ['accounts', 'Subcontas', 'users'], ['snapshots', 'Snapshots de contas', 'box'], ['reselling', 'Revenda', 'tag'], ['addons', 'Complementos', 'gift'],
   ['affiliate', 'Portal de afiliados', 'link'], ['templates', 'Biblioteca de templates', 'site'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
   ['saas-education', 'Educação SaaS', 'chart'], ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'], ['desktop-app', 'Aplicativo desktop', 'monitor'],
@@ -31,8 +32,13 @@ const subTabs = {
   affiliate: [['dashboard', 'Painel'], ['reports', 'Relatórios de indicações'], ['payment', 'Dados de pagamento'], ['history', 'Histórico de pagamentos']],
   templates: [['all', 'Todos os templates'], ['mine', 'Meus templates'], ['installs', 'Instalações']],
   ideas: [['all', 'Todas'], ['Under review', 'Em análise'], ['Planned', 'Planejadas'], ['In progress', 'Em andamento'], ['Completed', 'Concluídas']],
-  settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'], ['menu-links', 'Links de menu'], ['api-keys', 'Chaves de API'],
-    ['announcements', 'Comunicados'], ['emails', 'E-mails do sistema'], ['labs', 'Recursos experimentais'], ['compliance', 'Conformidade'], ['audit', 'Logs de auditoria'], ['storage', 'Armazenamento de mídia']]
+  saas: [['overview', 'Visão geral'], ['rebilling', 'Rebilling da carteira'], ['accounts', 'Subcontas SaaS']],
+  marketplace: [['all', 'Todos os apps'], ['installed', 'Apps instalados'], ['reselling', 'Revenda de apps'], ['earnings', 'Ganhos']],
+  settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'], ['workflow', 'Workflows'],
+    ['phone', 'Integração de telefone'], ['email-services', 'Serviços de e-mail'], ['emails', 'E-mails do sistema'], ['announcements', 'Comunicados'],
+    ['workflow-premium', 'Workflow: recursos premium'], ['external-ai', 'Workflow: IA externa'], ['domain-purchase', 'Compra de domínios'],
+    ['private-integrations', 'Integrações privadas'], ['affiliates', 'Afiliados'], ['menu-links', 'Links de menu'], ['stripe', 'Stripe'], ['api-keys', 'Chaves de API'],
+    ['compliance', 'Conformidade'], ['labs', 'Recursos experimentais'], ['audit', 'Logs de auditoria'], ['storage', 'Armazenamento de mídia']]
 };
 
 export function startAgency(env) {
@@ -43,6 +49,7 @@ export function startAgency(env) {
   const O = () => A.data.overview;
   const accounts = () => O().accounts;
   const accountName = id => accounts().find(a => a.id === id)?.name || 'Subconta removida';
+  const match = (...values) => !A.query || values.join(' ').toLowerCase().includes(A.query.toLowerCase());
   const go = (page, sub = '') => { const next = `#agency/${page}${sub ? `/${sub}` : ''}`; if (location.hash === next) render(); else location.hash = next; };
 
   async function load() { A.data = await api('/api/agency'); }
@@ -106,6 +113,7 @@ export function startAgency(env) {
   const table = (cols, rows, nothing) => `<div class="surface table-shell"><table><thead><tr>${cols.map(c => `<th scope="col">${h(c)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length ? '' : nothing}</div>`;
   const metric = (label, value, note = '') => `<div class="surface metric"><span>${h(label)}</span><b>${value}</b>${note ? `<small class="dim">${h(note)}</small>` : ''}</div>`;
   const search = placeholder => `<label class="search">${i('search', 16)}<input data-ag-search value="${h(A.query)}" placeholder="${h(placeholder)}" aria-label="${h(placeholder)}" autocomplete="off"></label>`;
+  const sw = (label, on, attrs, disabled = false) => `<label class="ag-sw"><input type="checkbox" role="switch" ${on ? 'checked' : ''} ${disabled ? 'disabled' : ''} ${attrs} aria-label="${h(label)}"><span aria-hidden="true"></span></label>`;
   const bar = (pct, cls = '') => `<span class="ag-bar ${cls}"><span data-w="${Math.max(0, Math.min(100, Math.round(pct)))}"></span></span>`;
 
   function shell(content) {
@@ -123,9 +131,9 @@ export function startAgency(env) {
       toggle: 'data-ag="nav"',
       open: A.navOpen,
       groups: [
-        { title: 'Visão geral', items: agencyNav.slice(0, 4).map(item) },
-        { title: 'Revenda', items: agencyNav.slice(4, 11).map(item) },
-        { title: 'Aprender e apps', items: agencyNav.slice(11, -1).map(item) },
+        { title: 'Visão geral', items: agencyNav.slice(0, 5).map(item) },
+        { title: 'Revenda', items: agencyNav.slice(5, 12).map(item) },
+        { title: 'Aprender e apps', items: agencyNav.slice(12, -1).map(item) },
         { title: 'Atalhos', items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: l.title, icon: l.icon, external: true })) }
       ],
       footer: [item(agencyNav.at(-1))]
@@ -355,10 +363,75 @@ export function startAgency(env) {
       <div class="ag-window"><div class="ag-window-bar" data-bg="${h(d.primary)}"><span></span><span></span><span></span><b data-preview="appName">${h(d.appName)}</b></div><div class="ag-window-body"><p class="dim">${h(d.domain || 'app.suaagencia.com.br')}</p><p>As compilações oficiais para Windows e macOS exigem certificados de assinatura de código e servidor de atualizações.</p></div></div></div></div>`;
   };
 
-  pages.marketplace = () => `<div class="page">${head('Marketplace de apps', 'Habilite integrações externas disponíveis para as subcontas conectarem seus próprios serviços.')}<div class="toolbar">${search('Buscar apps e integrações…')}</div>
-    <div class="card-grid">${integrationCatalog.filter(x => match(x[1], x[3], x[4])).map(([key, name, ico, cat, text]) => { const n = D().integrations[key]?.accounts.length || 0; return `<article class="surface padded resource"><span class="metric-icon">${i(ico)}</span><div><h2>${h(name)}</h2><p>${h(text)}</p></div><div class="inline-gap">${badge(cat)}${badge(n ? `Disponível para ${n}` : 'Não oferecido', n ? 'blue' : '')}</div>${btn('Gerenciar disponibilidade', 'integration', `data-id="${key}"`)}</article>`; }).join('')}</div></div>`;
+  // ---- SaaS Configurator --------------------------------------------------
+  pages.saas = () => {
+    const s = D().saas;
+    if (!s.enabled) {
+      const points = [
+        ['chart', 'Escale sua receita', 'O modo SaaS aumenta a retenção dos clientes e cria uma receita recorrente previsível.'],
+        ['flow', 'Automatize a operação de receita', 'Cada subconta recebe um plano e a cobrança mensal entra no MRR do painel da agência.'],
+        ['pay', 'Aumente suas margens', `A carteira repassa o uso de telefone, e-mail, automações, IA e outros produtos com markup de até ${maxMarkup}×.`]
+      ];
+      return `<div class="page">${head('Configurador SaaS', 'Venda a plataforma com a sua marca, em planos mensais.')}<section class="surface padded ag-hero"><div><h2>Transforme a agência em um software com receita recorrente</h2><ul class="ag-points">${points.map(([ico, t, x]) => `<li><span class="metric-icon">${i(ico)}</span><div><b>${h(t)}</b><p class="dim">${h(x)}</p></div></li>`).join('')}</ul>
+        ${btn('Ativar o modo SaaS', 'saas-mode', 'data-on="1"', 'primary', 'spark')}<p class="dim">A cobrança dos planos fica registrada localmente. Pagamentos reais exigem a conexão com o Stripe.</p></div>
+        <div class="ag-hero-art" aria-hidden="true"><div class="ag-hero-card"><small>Plano mensal</small><b>${usd(D().plans[0]?.price || 297)}</b></div><div class="ag-hero-card"><small>Markup da carteira</small><b>até ${maxMarkup}×</b></div><div class="ag-hero-card"><small>Subcontas</small><b>${accounts().length}</b></div></div></section></div>`;
+    }
+    const sub = A.sub || 'overview', inSaas = accounts().filter(a => s.accounts.includes(a.id));
+    const pageHead = head('Configurador SaaS', `Modo SaaS ativo desde ${day(s.enabledAt)}.`, btn('Desativar modo SaaS', 'saas-mode', 'data-on=""'));
+    if (sub === 'rebilling') return `<div class="page">${pageHead}${tabs('saas')}<form class="surface padded settings-form" data-ag-form="saas-rebilling"><h2>Rebilling da carteira</h2><p class="dim">Multiplicador aplicado ao custo de uso cobrado das subcontas SaaS. 1× repassa o custo sem margem; o máximo é ${maxMarkup}×.</p>
+      <div class="field-grid">${rebillProducts.map(([key, label]) => `<label>${h(tr(label))}<input name="${key}" type="number" min="1" max="${maxMarkup}" step="0.01" required value="${s.rebilling[key]}"></label>`).join('')}</div><button class="primary">Salvar markups</button><p class="form-status" role="alert"></p></form>
+      <p class="dim ag-hint">Exemplo: com markup 1,5× um SMS de $0,0079 custa $0,0119 para o cliente e deixa $0,0040 de margem para a agência.</p></div>`;
+    if (sub === 'accounts') return `<div class="page">${pageHead}${tabs('saas')}<div class="toolbar">${search('Buscar subcontas…')}</div>${table(['Subconta', 'Status', 'Plano', 'Valor mensal', 'Modo SaaS', ''], accounts().filter(a => match(a.name)).map(a => `<tr><td><b>${h(a.name)}</b></td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td>${a.planPrice ? `${usd(a.planPrice)}/mês` : '—'}</td><td>${sw(`Modo SaaS em ${a.name}`, s.accounts.includes(a.id), `data-ag-saas-account="${a.id}"`)}</td><td class="right">${btn('Alterar plano', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), empty('Nenhuma subconta', 'Crie uma subconta para ativar o modo SaaS nela.'))}</div>`;
+    const mrr = inSaas.filter(a => a.status === 'Active').reduce((t, a) => t + a.planPrice, 0);
+    const avg = rebillProducts.reduce((t, [k]) => t + s.rebilling[k], 0) / rebillProducts.length;
+    const steps = [['Criar planos SaaS', D().plans.length, 'reselling/plans'], ['Definir markups da carteira', rebillProducts.some(([k]) => s.rebilling[k] > 1), 'saas/rebilling'], ['Colocar subcontas no modo SaaS', inSaas.length, 'saas/accounts'], ['Conectar o Stripe', D().stripe.connected, 'settings/stripe']];
+    return `<div class="page">${pageHead}${tabs('saas')}<div class="metrics">${metric('Subcontas no modo SaaS', `${inSaas.length} <small>/ ${accounts().length}</small>`)}${metric('MRR das subcontas SaaS', usd(mrr), 'Planos de subcontas ativas')}${metric('Planos SaaS', D().plans.length)}${metric('Markup médio da carteira', `${avg.toFixed(2).replace('.', ',')}×`)}</div>
+      <section class="surface padded"><h2>Configuração</h2>${steps.map(([label, done, page]) => `<a class="line-item" href="#agency/${page}"><span>${done ? badge('Concluído', 'green') : badge('Pendente')} ${h(label)}</span>${i('arrow', 15)}</a>`).join('')}</section></div>`;
+  };
+
+  // ---- App Marketplace ----------------------------------------------------
+  const appName = key => integrationCatalog.find(x => x[0] === key)?.[1] || key;
+  const appMoney = () => {
+    const rows = D().apps.installs.filter(x => x.account && accounts().some(a => a.id === x.account));
+    const money = x => D().apps.resell[x.app] || { cost: 0, price: 0 };
+    return { rows, revenue: rows.reduce((t, x) => t + money(x).price, 0), cost: rows.reduce((t, x) => t + money(x).cost, 0), money };
+  };
+  pages.marketplace = () => {
+    const sub = A.sub || 'all', apps = D().apps;
+    const pageHead = head('Marketplace de apps', 'Explore integrações, instale na agência ou nas subcontas e defina preços de revenda.');
+    if (sub === 'installed') {
+      const scope = A.status || 'Agency';
+      const rows = apps.installs.filter(x => x.scope === scope && match(appName(x.app), x.account ? accountName(x.account) : ''));
+      return `<div class="page">${pageHead}${tabs('marketplace')}<div class="toolbar">${search('Buscar pelo nome do app…')}<select data-ag-status aria-label="Nível da instalação">${appScopes.map(s => `<option value="${s}" ${scope === s ? 'selected' : ''}>${s === 'Agency' ? 'Apps da agência' : 'Apps das subcontas'}</option>`).join('')}</select></div>
+        ${table(['App', ...(scope === 'Agency' ? [] : ['Subconta']), 'Instalado por', 'Instalado em', 'Plano atual', ''], [...rows].reverse().map(x => `<tr><td><b>${h(appName(x.app))}</b></td>${scope === 'Agency' ? '' : `<td>${h(accountName(x.account))}</td>`}<td>${h(x.by)}</td><td>${day(x.at, true)}</td><td>${apps.resell[x.app]?.price ? `${usd(apps.resell[x.app].price)}/mês` : 'Gratuito'}</td><td class="right">${btn('Desinstalar', 'app-uninstall', `data-id="${x.id}"`)}</td></tr>`), empty('Nenhum app instalado', 'Instale um app pela aba Todos os apps.'))}</div>`;
+    }
+    if (sub === 'reselling') return `<div class="page">${pageHead}${tabs('marketplace')}<div class="page-head"><div><h2>Revenda de apps para todas as subcontas</h2><p class="dim">As subcontas pagam o preço com markup definido aqui ao instalar o app. Deixe o preço em 0 para não revender.</p></div>${search('Buscar apps…')}</div>
+      <div class="ag-products">${integrationCatalog.filter(x => match(x[1], x[3])).map(([key, name, ico, cat]) => { const r = apps.resell[key] || { cost: 0, price: 0 }; return `<form class="surface padded ag-product" data-ag-form="app-resell" data-id="${key}"><div class="ag-product-head"><div><h2>${i(ico, 16)} ${h(name)}</h2><p class="dim">${h(cat)}</p></div>${r.price ? badge('Revendido', 'green') : badge('Não revendido')}</div>
+        <div class="ag-price"><label><small>Custo do app / mês</small><input name="cost" type="number" min="0" step="0.01" value="${r.cost}" data-ag-app-cost></label><label><small>Seu preço de revenda / mês</small><input name="price" type="number" min="0" step="0.01" value="${r.price}" data-ag-app-price></label><div><small>Seu lucro</small><b data-ag-profit>${usd(r.price ? r.price - r.cost : 0)}</b></div></div>
+        <button class="primary">Salvar alterações</button><p class="form-status" role="alert"></p></form>`; }).join('')}</div></div>`;
+    if (sub === 'earnings') {
+      const { rows, revenue, cost, money } = appMoney();
+      const byApp = integrationCatalog.map(([key, name]) => { const list = rows.filter(x => x.app === key); return { name, installs: list.length, accounts: new Set(list.map(x => x.account)).size, revenue: list.reduce((t, x) => t + money(x).price, 0), cost: list.reduce((t, x) => t + money(x).cost, 0) }; }).filter(r => r.installs);
+      const byAccount = accounts().map(a => { const list = rows.filter(x => x.account === a.id); return { name: a.name, apps: list.length, revenue: list.reduce((t, x) => t + money(x).price, 0), cost: list.reduce((t, x) => t + money(x).cost, 0) }; }).filter(r => r.apps);
+      return `<div class="page">${pageHead}${tabs('marketplace')}<div class="metrics">${metric('Apps únicos instalados', new Set(apps.installs.map(x => x.app)).size)}${metric('Instalações ativas', apps.installs.length)}${metric('Subcontas com apps', new Set(rows.map(x => x.account)).size)}${metric('Receita − custo = lucro', `${usd(revenue)} − ${usd(cost)} = ${usd(revenue - cost)}`, 'Por mês, nas instalações em subcontas')}</div>
+        <h2 class="section-heading">Análise por app</h2>${table(['App', 'Instalações', 'Subcontas ativas', 'Receita total', 'Custo', 'Lucro'], byApp.map(r => `<tr><td><b>${h(r.name)}</b></td><td>${r.installs}</td><td>${r.accounts}</td><td>${usd(r.revenue)}</td><td>${usd(r.cost)}</td><td>${usd(r.revenue - r.cost)}</td></tr>`), empty('Sem ganhos registrados', 'Instale apps revendidos nas subcontas para acompanhar receita e lucro.'))}
+        <h2 class="section-heading">Análise por subconta</h2>${table(['Subconta', 'Apps instalados', 'Receita', 'Custo', 'Lucro'], byAccount.map(r => `<tr><td><b>${h(r.name)}</b></td><td>${r.apps}</td><td>${usd(r.revenue)}</td><td>${usd(r.cost)}</td><td>${usd(r.revenue - r.cost)}</td></tr>`), '')}</div>`;
+    }
+    return `<div class="page">${pageHead}${tabs('marketplace')}<div class="toolbar">${search('Buscar apps e integrações…')}</div>
+    <div class="card-grid">${integrationCatalog.filter(x => match(x[1], x[3], x[4])).map(([key, name, ico, cat, text]) => { const n = D().integrations[key]?.accounts.length || 0, count = apps.installs.filter(x => x.app === key).length; return `<article class="surface padded resource"><span class="metric-icon">${i(ico)}</span><div><h2>${h(name)}</h2><p>${h(text)}</p></div><div class="inline-gap">${badge(cat)}${badge(n ? `Disponível para ${n}` : 'Não oferecido', n ? 'blue' : '')}${count ? badge(`${count} instalação(ões)`, 'green') : ''}${apps.resell[key]?.price ? badge(`${usd(apps.resell[key].price)}/mês`, 'purple') : ''}</div><div class="inline-gap">${btn('Instalar', 'app-install', `data-id="${key}"`, 'primary')}${btn('Gerenciar disponibilidade', 'integration', `data-id="${key}"`)}</div></article>`; }).join('')}</div></div>`;
+  };
 
   // ---- Settings ----------------------------------------------------------
+  // Per-sub-account switches: access to the feature and rebilling its usage through the wallet.
+  function featureTable(key) {
+    const [, title, text, byDefault] = subFeatures.find(f => f[0] === key);
+    const st = D().subFeatures[key];
+    const on = id => Object.hasOwn(st.on, id) ? st.on[id] : byDefault;
+    const rows = accounts().filter(a => match(a.name)).map(a => `<tr><td><b>${h(a.name)}</b><br><small class="dim">${h(a.id)}</small></td><td>${sw(`${title} em ${a.name}`, on(a.id), `data-ag-feature="${key}" data-field="on" data-account="${a.id}"`)}</td><td>${sw(`Rebilling de ${title} em ${a.name}`, st.rebill.includes(a.id), `data-ag-feature="${key}" data-field="rebill" data-account="${a.id}"`, !on(a.id))}</td></tr>`);
+    return `<div class="page-head"><div><h2>${h(tr(title))}</h2><p class="dim">${h(tr(text))}</p></div></div>
+      <div class="page-head"><div><h3>Configurações das subcontas ${badge(`${accounts().length} subcontas`, 'blue')}</h3><p class="dim">Ative ou desative o recurso e o rebilling para cada subconta.</p></div>${search('Buscar pelo nome…')}</div>
+      ${table(['Subconta', 'Recurso ativo', 'Rebilling ativo'], rows, empty('Nenhuma subconta encontrada', 'Crie uma subconta ou ajuste a busca.'))}`;
+  }
   const settingsPages = {
     profile: () => { const p = D().profile; return `<form class="surface padded settings-form" data-ag-form="profile"><h2>Dados pessoais</h2><div class="field-grid"><label>Nome<input name="first" required value="${h(p.first)}"></label><label>Sobrenome<input name="last" required value="${h(p.last)}"></label><label>E-mail<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" type="tel" value="${h(p.phone)}"></label><label>Idioma da plataforma<select name="language">${['Português (Brasil)', 'English (United States)', 'Español'].map(l => `<option ${p.language === l ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div><button class="primary">Salvar perfil</button><p class="form-status" role="alert"></p></form>`; },
     company: () => { const c = D().company; return `<form class="surface padded settings-form" data-ag-form="company"><h2>Empresa e White Label</h2><div class="field-grid"><label>Nome da empresa<input name="name" required value="${h(c.name)}"></label><label>Nome da marca (exibido na interface)<input name="brand" required maxlength="60" value="${h(c.brand)}"></label><label>Domínio White Label<input name="domain" placeholder="app.suaagencia.com.br" value="${h(c.domain)}"></label><label>Site institucional<input name="website" type="url" value="${h(c.website)}"></label><label>Telefone<input name="phone" type="tel" value="${h(c.phone)}"></label><label>Endereço comercial<input name="address" value="${h(c.address)}"></label><label>Cor primária da marca<input name="primary" type="color" value="${h(c.primary)}"></label><label>Fuso horário padrão<select name="timezone">${['America/Sao_Paulo', 'America/New_York', 'Europe/London', 'UTC'].map(z => `<option ${c.timezone === z ? 'selected' : ''}>${z}</option>`).join('')}</select></label><label>Moeda padrão<select name="currency">${['BRL', 'USD', 'EUR', 'GBP'].map(z => `<option ${c.currency === z ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
@@ -371,12 +444,31 @@ export function startAgency(env) {
     'menu-links': () => `<div class="page-head"><div><h2>Links personalizados do menu</h2><p class="dim">Estes links aparecem na barra lateral das subcontas ou da própria agência.</p></div>${primary('Adicionar link', 'new-record', 'data-key="menuLinks"')}</div>${table(['Título', 'URL', 'Exibição', 'Subcontas com acesso', ''], D().menuLinks.map(l => `<tr><td>${i(l.icon, 15)} <b>${h(l.title)}</b></td><td><small>${h(l.url)}</small></td><td>${h(tr(l.showOn))} · ${h(tr(l.openIn))}</td><td><small>${l.accounts.length ? h(l.accounts.map(accountName).join(', ')) : 'Todas'}</small></td><td class="right">${btn('Editar', 'edit-record', `data-key="menuLinks" data-id="${l.id}"`)}</td></tr>`), empty('Nenhum link personalizado', 'Adicione atalhos para sistemas ou ferramentas externas utilizadas pelos clientes.'))}`,
     'api-keys': () => `<div class="page-head"><div><h2>Chaves de API da agência</h2><p class="dim">Chaves de API concedem acesso programático de leitura a subcontas e contatos via <code>/api/v1</code>. O token é exibido apenas uma vez.</p></div>${primary('Criar chave', 'api-key')}</div>
       ${table(['Nome', 'Chave (final)', 'Criada em', 'Último uso', ''], D().apiKeys.map(k => `<tr><td><b>${h(k.name)}</b></td><td><code>go_…${h(k.last4)}</code></td><td>${day(k.created, true)}</td><td>${k.lastUsed ? day(k.lastUsed, true) : 'Nunca'}</td><td class="right">${btn('Revogar', 'api-key-delete', `data-id="${k.id}"`)}</td></tr>`), empty('Nenhuma chave de API', 'Crie chaves de API para automatizar fluxos via scripts ou integrações.'))}
-      <div class="page-head ag-gap"><div><h2>Integrações privadas</h2><p class="dim">Tokens com escopos estritamente delimitados.</p></div>${primary('Criar integração', 'private-integration')}</div>
-      ${table(['Nome', 'Escopos autorizados', 'Token', 'Último uso', ''], D().privateIntegrations.map(k => `<tr><td><b>${h(k.name)}</b><br><small class="dim">${h(k.description)}</small></td><td><small>${h(k.scopes.join(', '))}</small></td><td><code>pit_…${h(k.last4)}</code></td><td>${k.lastUsed ? day(k.lastUsed, true) : 'Nunca'}</td><td class="right">${btn('Excluir', 'private-integration-delete', `data-id="${k.id}"`)}</td></tr>`), empty('Nenhuma integração privada', 'Crie uma integração privada para scripts que exigem apenas permissões pontuais.'))}
+      <p class="dim ag-hint">Tokens com escopos limitados ficam em <a class="text-link" href="#agency/settings/private-integrations">Integrações privadas</a>.</p>
       <div class="surface padded ag-gap"><h2>Endpoints disponíveis</h2><pre class="ag-code">GET  ${h(location.origin)}/api/v1/subaccounts
 GET  ${h(location.origin)}/api/v1/subaccounts/{id}/contacts
 POST ${h(location.origin)}/api/v1/subaccounts/{id}/contacts
 Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
+    'private-integrations': () => `<div class="page-head"><div><h2>Integrações privadas</h2><p class="dim">Tokens com escopos estritamente delimitados para scripts e sistemas internos. O token é exibido apenas uma vez.</p></div>${primary('Criar integração', 'private-integration')}</div>
+      ${table(['Nome', 'Escopos autorizados', 'Token', 'Criada em', 'Último uso', ''], D().privateIntegrations.map(k => `<tr><td><b>${h(k.name)}</b><br><small class="dim">${h(k.description)}</small></td><td><small>${h(k.scopes.join(', '))}</small></td><td><code>pit_…${h(k.last4)}</code></td><td>${day(k.created, true)}</td><td>${k.lastUsed ? day(k.lastUsed, true) : 'Nunca'}</td><td class="right">${btn('Excluir', 'private-integration-delete', `data-id="${k.id}"`)}</td></tr>`), empty('Nenhuma integração privada', 'Crie uma integração privada para scripts que exigem apenas permissões pontuais.'))}`,
+    workflow: () => { const w = D().workflowSettings; return `<form class="surface padded settings-form" data-ag-form="workflow-builder"><h2>Construtor padrão para subcontas</h2><p class="dim">Define qual construtor abre por padrão nos novos workflows.</p>
+      <div class="ag-plans">${[['Standard', 'Construtor padrão', 'Para automações simples, jornadas lineares e edição rápida.'], ['Advanced', 'Construtor avançado', 'Para lógica complexa, caminhos com ramificações e vários gatilhos.']].map(([v, t, x]) => `<label class="choice"><input type="radio" name="builder" value="${v}" ${w.builder === v ? 'checked' : ''}><strong>${t}</strong><span>${x}</span></label>`).join('')}</div>
+      <h3>Construtor por subconta</h3><p class="dim">Escolha outro construtor para subcontas específicas.</p>${accounts().length ? `<div class="field-grid">${accounts().map(a => `<label>${h(a.name)}<select name="o_${a.id}"><option value="default">Usar o padrão</option>${workflowBuilders.map(b => `<option value="${b}" ${w.overrides[a.id] === b ? 'selected' : ''}>${b === 'Standard' ? 'Construtor padrão' : 'Construtor avançado'}</option>`).join('')}</select></label>`).join('')}</div>` : '<p class="dim">Nenhuma subconta cadastrada.</p>'}
+      <button class="primary">Salvar</button><p class="form-status" role="alert"></p></form>`; },
+    phone: () => `<div class="surface padded ag-notice">${i('phone', 20)}<div><b>Revenda do uso de telefone (ligações, SMS e números)</b><p>O markup de telefone é definido no Configurador SaaS (atual: ${String(D().saas.rebilling.phone).replace('.', ',')}×). Linhas e envios reais exigem um provedor de telefonia conectado.</p></div><a class="secondary" href="#agency/saas/rebilling">Ajustar markup</a></div>${featureTable('number-intelligence')}`,
+    'email-services': () => { const e = D().emailServices; return `${e.domain ? `<div class="surface padded ag-notice">${i('mail', 20)}<div><b>Domínio dedicado: ${h(e.domain)}</b><p>Adicionado em ${day(e.added)}. A verificação de DNS e o aquecimento do domínio dependem do provedor de envio, que não está conectado neste projeto local.</p></div>${btn('Remover domínio', 'email-domain-remove')}</div>
+      <form class="surface padded settings-form ag-gap" data-ag-form="email-domain-accounts"><h2>Subcontas que enviam pelo domínio dedicado</h2>${pickAccounts('accounts', e.accounts)}<button class="primary">Salvar</button><p class="form-status" role="alert"></p></form>`
+      : `<div class="surface padded ag-notice">${i('mail', 20)}<div><b>Você está usando um domínio compartilhado</b><p>As subcontas enviam pelo domínio compartilhado da plataforma porque nenhum domínio da agência está conectado. Um domínio dedicado dá controle sobre a reputação de envio.</p></div></div>
+      <form class="surface padded settings-form ag-gap" data-ag-form="email-domain"><h2>Criar domínio dedicado</h2><label>Domínio de envio<input name="domain" required placeholder="mail.suaagencia.com.br" maxlength="200"></label><button class="primary">Adicionar domínio</button><p class="form-status" role="alert"></p></form>`}
+      <h2 class="section-heading">Desempenho das subcontas</h2>${table(['Subconta', 'Domínio de envio', 'Status'], accounts().map(a => `<tr><td><b>${h(a.name)}</b></td><td>${e.accounts.includes(a.id) ? h(e.domain) : 'Compartilhado'}</td><td>${badge(a.status, tone(a.status))}</td></tr>`), empty('Nenhuma subconta', 'As subcontas que enviam e-mails aparecem aqui.'))}`; },
+    'workflow-premium': () => featureTable('workflow-premium'),
+    'external-ai': () => featureTable('external-ai'),
+    'domain-purchase': () => featureTable('domain-purchase'),
+    affiliates: () => { const aff = D().affiliate, link = `${location.origin}/?ref=${aff.code}`; return `<div class="surface padded"><h2>Configurações de afiliado</h2>${aff.accepted ? `<p>Este é o seu link de afiliado. Quem se cadastrar por ele gera ${Math.round(affiliateRate * 100)}% de comissão recorrente para você.</p><div class="ag-copy"><input readonly value="${h(link)}" aria-label="Link de afiliado">${btn('Copiar link', 'copy', `data-text="${h(link)}"`)}</div><p class="dim">Acrescente <code>?ref=${h(aff.code)}</code> ao final de qualquer URL do seu site.</p>` : `<p class="dim">Aceite os termos no Portal de afiliados para gerar seu link.</p><a class="secondary" href="#agency/affiliate">Abrir Portal de afiliados</a>`}</div>
+      <form class="surface padded settings-form ag-gap" data-ag-form="affiliate-pixel"><h2>Configurações da página</h2><label>ID do Pixel do Facebook<input name="pixelId" inputmode="numeric" maxlength="20" placeholder="ID do Pixel" value="${h(aff.pixelId || '')}"></label><button class="primary">Salvar</button><p class="form-status" role="alert"></p></form>`; },
+    stripe: () => `<div class="surface padded"><h2>Integração com o Stripe</h2><p>Conectar uma conta Stripe libera cobrança de assinaturas, rebilling, revenda e modo SaaS com pagamentos reais.</p>
+      <p class="surface padded ag-warn">Depois de conectada, a conta Stripe não pode ser trocada. Use uma conta dedicada aos ganhos da agência.</p>
+      <p>${D().stripe.connected ? badge('Conectado', 'green') : badge('Não conectado')}</p><p class="dim">A conexão usa o fluxo OAuth do Stripe Connect, que exige um endereço público e credenciais da plataforma. Neste projeto local, planos, carteira e revendas ficam registrados sem cobrança.</p></div>`,
     announcements: () => `<div class="page-head"><div><h2>Comunicados gerais</h2><p class="dim">Comunicados ativos são exibidos em banner de destaque no topo das subcontas selecionadas.</p></div>${primary('Novo comunicado', 'new-record', 'data-key="announcements"')}</div>${table(['Título', 'Estilo', 'Público-alvo', 'Status', ''], [...D().announcements].reverse().map(a => `<tr><td><b>${h(a.title)}</b><br><small class="dim">${h(a.body.slice(0, 90))}</small></td><td>${h(tr(a.tone))}</td><td><small>${a.accounts.length ? h(a.accounts.map(accountName).join(', ')) : 'Todas as subcontas'}</small></td><td>${badge(a.published ? 'Publicado' : 'Rascunho', a.published ? 'green' : '')}</td><td class="right">${btn('Editar', 'edit-record', `data-key="announcements" data-id="${a.id}"`)}</td></tr>`), empty('Nenhum comunicado', 'Crie comunicados informativos ou alertas para os clientes da agência.'))}`,
     emails: () => `<h2>E-mails do sistema</h2><p class="dim ag-hint">Modelos de e-mail disparados pela plataforma. O envio em produção requer um provedor de e-mail conectado.</p>${systemEmailKeys.map(([key, label]) => { const e = D().systemEmails[key]; return `<form class="surface padded settings-form ag-gap" data-ag-form="system-email" data-id="${key}"><h2>${h(tr(label))}</h2><label class="ag-full">Assunto<input name="subject" required value="${h(e.subject)}"></label><label class="ag-full">Mensagem<textarea name="body" required>${h(e.body)}</textarea></label><button class="primary">Salvar modelo</button><p class="form-status" role="alert"></p></form>`; }).join('')}`,
     labs: () => `<form class="surface padded settings-form" data-ag-form="labs"><h2>Recursos experimentais (Labs)</h2><p class="dim">Ative antecipadamente funcionalidades e comportamentos em fase de experimentação.</p>${labFeatures.map(([key, label, text]) => `<label class="check ag-lab"><input type="checkbox" name="${key}" ${D().labs[key] ? 'checked' : ''}><span><b>${h(label)}</b><br><small class="dim">${h(text)}</small></span></label>`).join('')}<button class="primary">Salvar preferências</button><p class="form-status" role="alert"></p></form>`,
@@ -495,6 +587,14 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'api-key-delete': confirmBox('Revogar esta chave de API?', 'Sistemas ou integrações que utilizam esta chave deixarão de funcionar imediatamente.', 'api-key-delete', id, 'Revogar'); break;
         case 'private-integration': dialog('Criar integração privada', `<label>Nome da integração<input name="name" required maxlength="80"></label><label>Descrição do propósito<input name="description" maxlength="500"></label><fieldset class="ag-checks"><legend>Escopos de acesso</legend>${['subaccounts.read', 'contacts.read', 'contacts.write'].map(s => `<label class="check"><input type="checkbox" name="scopes" value="${s}"> ${s}</label>`).join('')}</fieldset>`, { form: 'private-integration', submit: 'Criar token' }); break;
         case 'private-integration-delete': confirmBox('Excluir esta integração?', 'O token associado deixará de funcionar imediatamente.', 'private-integration-delete', id, 'Excluir'); break;
+        case 'saas-mode': await act('saas-mode', { data: { enabled: Boolean(d.on) } }); go('saas'); flash(d.on ? 'Modo SaaS ativado.' : 'Modo SaaS desativado.'); break;
+        case 'app-install': {
+          const name = appName(id), avail = D().integrations[id]?.accounts || [];
+          dialog(`Instalar ${name}`, `<label>Onde instalar<select name="scope">${appScopes.map(s => `<option value="${s}">${s === 'Agency' ? 'Na agência' : 'Em uma subconta'}</option>`).join('')}</select></label><label>Subconta (para instalação em subconta)<select name="account"><option value="">—</option>${accounts().filter(a => avail.includes(a.id)).map(a => `<option value="${a.id}">${h(a.name)}</option>`).join('')}</select></label><p class="dim">${avail.length ? 'Só aparecem subcontas para as quais o app está disponível.' : 'O app ainda não está disponível para nenhuma subconta. Use "Gerenciar disponibilidade" para liberá-lo.'}</p>`, { form: 'app-install', id, submit: 'Instalar' });
+          break;
+        }
+        case 'app-uninstall': confirmBox('Desinstalar este app?', 'A instalação sai da lista e deixa de contar nos ganhos.', 'app-uninstall', id, 'Desinstalar'); break;
+        case 'email-domain-remove': confirmBox('Remover o domínio dedicado?', 'As subcontas voltam a enviar pelo domínio compartilhado.', 'email-domain-remove', '', 'Remover'); break;
         case 'audit-page': A.auditPage += Number(d.step); render(); break;
         case 'audit-csv': { const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`; download('auditoria-agencia.csv', ['Data,Usuario,Acao,Alvo,Detalhes', ...D().audit.map(a => [a.at, a.actor, a.action, a.target, a.details].map(q).join(','))].join('\n'), 'text/csv'); break; }
       }
@@ -511,6 +611,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       const next = G('[data-ag-search]'); next.focus(); next.setSelectionRange(pos, pos);
     }
     if (el.matches('[data-ag-price]')) el.form.querySelector('[data-ag-profit]').textContent = usd((Number(el.value) || 0) - Number(el.dataset.agPrice));
+    if (el.matches('[data-ag-app-price],[data-ag-app-cost]')) { const price = Number(el.form.price.value) || 0; el.form.querySelector('[data-ag-profit]').textContent = usd(price ? price - (Number(el.form.cost.value) || 0) : 0); }
     if (el.form?.dataset.agForm === 'mobile-app' || el.form?.dataset.agForm === 'desktop-app') {
       const preview = el.form.parentElement;
       if (el.name === 'appName' || el.name === 'loginTitle') preview.querySelectorAll(`[data-preview="${el.name}"]`).forEach(x => { x.textContent = el.value; });
@@ -528,6 +629,11 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       if (el.matches('[data-ag-category]')) { A.category = el.value; render(); G('[data-ag-category]').focus(); }
       if (el.matches('[data-ag-pick]')) { if (el.checked) A.selected.add(el.dataset.agPick); else A.selected.delete(el.dataset.agPick); render(); G(`[data-ag-pick="${el.dataset.agPick}"]`)?.focus(); }
       if (el.matches('[data-ag-all]')) { const ids = accounts().filter(a => match(a.name, a.address, a.phone, a.email) && (!A.status || a.status === A.status)).map(a => a.id); ids.forEach(x => el.checked ? A.selected.add(x) : A.selected.delete(x)); render(); G('[data-ag-all]').focus(); }
+      if (el.matches('[data-ag-feature]')) {
+        const sel = `[data-ag-feature="${el.dataset.agFeature}"][data-field="${el.dataset.field}"][data-account="${el.dataset.account}"]`;
+        await act('sub-feature', { id: el.dataset.agFeature, data: { account: el.dataset.account, field: el.dataset.field, value: el.checked } }); render(); G(sel)?.focus(); flash('Configuração salva.');
+      }
+      if (el.matches('[data-ag-saas-account]')) { const x = el.dataset.agSaasAccount; await act('saas-account', { id: x, data: { enabled: el.checked } }); render(); G(`[data-ag-saas-account="${x}"]`)?.focus(); flash(el.checked ? 'Subconta no modo SaaS.' : 'Modo SaaS desativado na subconta.'); }
       if (el.matches('[data-ag-idea-status]')) { await act('idea-status', { id: el.dataset.agIdeaStatus, data: { status: el.value } }); render(); flash('Status atualizado.'); }
     } catch (e) { flash(e.message, true); render(); }
   });
@@ -593,6 +699,15 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'api-key-delete': await act('api-key-delete', { id }); msg = 'Chave de API revogada.'; break;
         case 'private-integration': { const r = await act('private-integration', { data: { ...data, scopes: data.scopes || [] } }); close(); render(); secretBox('Token de integração privada criado', r.secret); keepOpen = true; msg = ''; break; }
         case 'private-integration-delete': await act('private-integration-delete', { id }); msg = 'Integração privada excluída.'; break;
+        case 'saas-rebilling': await act('saas-rebilling', { data }); msg = 'Markups da carteira salvos.'; break;
+        case 'workflow-builder': await act('workflow-builder', { data }); msg = 'Configurações de workflow salvas.'; break;
+        case 'email-domain': await act('email-domain', { data }); msg = 'Domínio dedicado adicionado.'; break;
+        case 'email-domain-accounts': await act('email-domain-accounts', { data: { accounts: data.accounts } }); msg = 'Subcontas do domínio dedicado salvas.'; break;
+        case 'email-domain-remove': await act('email-domain-remove'); msg = 'Domínio dedicado removido.'; break;
+        case 'affiliate-pixel': await act('affiliate-pixel', { data }); msg = 'Configurações da página salvas.'; break;
+        case 'app-install': await act('app-install', { id, data }); msg = `${appName(id)} instalado.`; break;
+        case 'app-uninstall': await act('app-uninstall', { id }); msg = 'App desinstalado.'; break;
+        case 'app-resell': await act('app-resell', { id, data }); msg = 'Preço de revenda salvo.'; break;
         default: throw Error('Formulário desconhecido.');
       }
       if (!keepOpen) { close(); render(); }

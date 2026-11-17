@@ -546,3 +546,8 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
 }
 @keyframes g-reveal-dark{0%{clip-path:polygon(50% -71%,-50% 71%,-50% 71%,50% -71%)}to{clip-path:polygon(50% -71%,-50% 71%,50% 171%,171% 50%)}}
 @keyframes g-reveal-light{0%{clip-path:polygon(171% 50%,50% 171%,50% 171%,171% 50%)}to{clip-path:polygon(171% 50%,50% 171%,-50% 71%,50% -71%)}}
+/* Agency switches and SaaS intro in dark mode: keep the on/off state readable over the generated overrides. */
+:root[data-theme=dark] .ag-sw span{background:rgb(63 68 76)}
+:root[data-theme=dark] .ag-sw span::after{background:#f4f4f5}
+:root[data-theme=dark] .ag-sw input:checked+span{background:var(--blue)}
+:root[data-theme=dark] .ag-hero-art{background:rgb(28 31 37)}

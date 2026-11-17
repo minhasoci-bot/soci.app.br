@@ -44,8 +44,9 @@ Abra <http://127.0.0.1:4317/#agency/dashboard> ou use o botão **Agency view** n
 | Template Library | 18 modelos próprios por categoria, modelos da agência, prévia e instalação numa subconta como página de funil em rascunho com formulário |
 | Partners, Ideas, University, SaaS Education | Diretório de parceiros. Quadro de ideias com votos, status e comentários. Trilhas de aulas com progresso |
 | Mobile App, Desktop App | Nome, cores, título de login, ordem e visibilidade dos módulos e módulos por URL, com prévia ao vivo |
-| App Marketplace | Escolha de quais subcontas podem usar cada integração |
-| Settings | Perfil, empresa e marca branca (nome, cor e logo aplicados à agência e às subcontas), usuários com papéis, acesso por subconta e permissões por módulo, plano e carteira, links de menu personalizados, chaves de API e integrações privadas, avisos para subcontas, e-mails do sistema, Labs, compliance, log de auditoria com CSV e uso de mídia |
+| SaaS Configurator | Tela de apresentação até ativar o modo SaaS. Depois: visão geral com MRR das subcontas SaaS e checklist, markup da carteira por produto (de 1× a 10×) e modo SaaS por subconta |
+| App Marketplace | Todos os apps (disponibilidade por subconta e instalação), apps instalados na agência ou nas subcontas, revenda com custo, preço e lucro por app e ganhos (receita − custo = lucro) por app e por subconta |
+| Settings | 21 abas, como no original: perfil, empresa e marca branca (nome, cor e logo aplicados à agência e às subcontas), usuários com papéis, acesso por subconta e permissões por módulo, plano e carteira, construtor de workflow padrão e por subconta, integração de telefone (Number Intelligence), serviços de e-mail (domínio dedicado e subcontas que o usam), e-mails do sistema, avisos para subcontas, recursos premium de workflow, modelos de IA externos e compra de domínios (cada um com recurso e rebilling por subconta), integrações privadas, afiliados (link e Pixel do Facebook), links de menu, Stripe, chaves de API, compliance, Labs, log de auditoria com CSV e uso de mídia |
 
 **Usuários e permissões.** Em **Settings → Users**, **Act as** faz a aplicação passar a agir como aquele usuário (cabeçalho `X-Go-User`). O servidor bloqueia subcontas fora do acesso, módulos sem permissão, a visão da agência para usuários de conta e as configurações da agência para o papel Agency User. Isso não é autenticação: qualquer pessoa com acesso ao endereço local pode escolher o usuário. O log de auditoria registra ações da agência e gravações feitas nas subcontas.
 
@@ -58,7 +59,7 @@ POST /api/v1/subaccounts/{id}/contacts
 Authorization: Bearer <chave>
 ```
 
-**Fica de fora ou só registrado:** cobrança real (Stripe, carteira e add-ons são registros manuais), envio de e-mails do sistema, publicação dos apps mobile e desktop, a auditoria remota do Prospecting (as notas são digitadas) e a loja de produtos da marca. Links de menu com "Inside the app" abrem num iframe; sites que proíbem incorporação mostram o link para nova aba.
+**Fica de fora ou só registrado:** cobrança real (Stripe, carteira, markups, revenda de apps e add-ons são registros manuais), verificação de DNS do domínio de e-mail dedicado, as abas AI Agents, Support Tickets e Templates do App Marketplace (conteúdo de terceiros), segurança da conta (senha e 2FA, pois não há login), envio de e-mails do sistema, publicação dos apps mobile e desktop, a auditoria remota do Prospecting (as notas são digitadas) e a loja de produtos da marca. Links de menu com "Inside the app" abrem num iframe; sites que proíbem incorporação mostram o link para nova aba.
 
 ## Prospecção
 
@@ -130,6 +131,7 @@ O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, pu
 - **Análise estática pelo REA:** os scripts JavaScript locais que implementam as 18 rotas foram analisados sob `ev_9f0f7196a489ec827e175662691ae9f30bb59d50d39fcf2e8ad72e028c579138`. O carregador público da interface original foi analisado sob `ev_b5a3302e36319f9b2e2ab69707682934c84514c7d0b73253888c7ae87b957639`. A análise do bundle público do AI Studio atingiu o limite de execução e reteve módulos sob `ev_5ae62d9d15bc0408e0ad2f53bfd85a0ec338e6185df84615fd3e835691f7ff8b`. O navegador interno oferece inspeção por aba, enquanto o REA exige um endpoint CDP de loopback para inspeção em execução. As evidências acima cobrem o frontend selecionado e os fluxos verificados.
 
 - **Agência, observação direta:** navegador interno, só leitura, no menu da agência original (17 áreas e 21 abas de Settings), em Sub-Accounts, Account Snapshots, Reselling, Add-Ons, Template Library e Affiliate Portal.
+- **Agência, segunda passada (navegador interno, só leitura):** os 20 itens do menu original, incluindo SaaS Configurator (`/saas_dashboard`) e App Marketplace (`/integration`), as abas All Apps, Installed Apps, App Reselling e Earnings, e as 21 abas de Settings. O REA não pôde ser usado nesta passada porque nenhum navegador expunha um endpoint CDP de loopback. A passada também corrigiu a função de busca `match`, removida por engano em `b6f2c20`, que impedia Subcontas, Parceiros, Ideias, Templates, Marketplace e Logs de auditoria de abrir.
 - **Agência, REA MCP no app local:** Chrome controlado pelo REA percorreu painel → subcontas → snapshots → revenda → troca para subconta, com 10 de 10 passos concluídos, evidência `ev_b71592eece92893ebbd5486d2a014761b7295ecdd0312dfbd93c44997b59ad3b`. As 36 telas e abas da agência foram abertas no navegador interno sem erro.
 
 ### Arquivos principais
