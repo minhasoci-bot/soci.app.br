@@ -209,7 +209,7 @@ function threadPanel(c, all) {
     <div class="thread-messages">${t.messages.map(m => `<div class="message ${m.direction === 'Outbound' ? 'outbound' : ''} ${origin(m) !== 'human' ? 'automated' : ''}">
       <small>${h(tr(m.channel))} · ${date(m.created,c,true)}${origin(m) === 'workflow' ? ' · Automação' : ''}</small>${m.subject ? `<b class="message-subject">${h(m.subject)}</b>` : ''}<p>${messageContent(m.body)}</p></div>`).join('')}</div>
     <form class="message-compose" data-form="message"><p>As mensagens ficam registradas nesta caixa de entrada.</p>
-      <div class="inline-gap"><select name="channel" aria-label="Canal"><option value="Note">Nota</option><option value="Email">E-mail</option><option value="SMS">SMS</option></select>
+      <div class="inline-gap"><select name="channel" aria-label="Canal"><option value="Note">Nota</option><option value="Email">E-mail</option><option value="SMS">SMS</option><option value="WhatsApp">WhatsApp</option></select>
         <select name="direction" aria-label="Direção"><option value="Outbound">Enviada</option><option value="Inbound">Recebida</option></select>
         <button type="button" class="secondary" data-act="insert-snippet">Inserir modelo</button>
         <button type="button" class="secondary" data-act="insert-link">Inserir link de rastreamento</button></div>

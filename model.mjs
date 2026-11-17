@@ -61,7 +61,7 @@ const tags = value => [...new Set((Array.isArray(value) ? value : str(value).spl
 export const triggers = ['Contact created', 'Form submitted', 'Opportunity stage changed', 'Appointment booked', 'Trigger link clicked'];
 const manualTypes = ['Manual Call', 'Manual SMS'];
 const actionTypes = ['Add tag', 'Create task', 'Create opportunity', 'Log message', ...manualTypes];
-const messageChannels = ['Note', 'Email', 'SMS'];
+const messageChannels = ['Note', 'Email', 'SMS', 'WhatsApp'];
 export const find = (state, key, id) => state[key].find(a => a.id === id);
 const exists = (state, key, value, label, optional = false) => (!value && optional) ? '' : find(state, key, value)?.id ?? fail(`Choose a valid ${label}.`);
 function add(state, key, data) { const row = { id: uid(), created: now(), ...data }; state[key].push(row); return row; }

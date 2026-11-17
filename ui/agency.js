@@ -36,7 +36,7 @@ const subTabs = {
   ideas: [['all', 'Todas'], ['Under review', 'Em análise'], ['Planned', 'Planejadas'], ['In progress', 'Em andamento'], ['Completed', 'Concluídas']],
   saas: [['overview', 'Visão geral'], ['plans', 'Planos SaaS'], ['rebilling', 'Rebilling da carteira'], ['accounts', 'Subcontas SaaS']],
   settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'],
-    ['phone', 'Integração de telefone'], ['email-services', 'Serviços de e-mail'], ['emails', 'E-mails do sistema'], ['announcements', 'Comunicados'],
+    ['whatsapp', 'WhatsApp'], ['email-services', 'Serviços de e-mail'], ['emails', 'E-mails do sistema'], ['announcements', 'Comunicados'],
     ['workflow-premium', 'Workflow: recursos premium'], ['external-ai', 'Workflow: IA externa'], ['domain-purchase', 'Compra de domínios'],
     ['openai', 'OpenAI'], ['private-integrations', 'Integrações privadas'], ['affiliates', 'Afiliados'], ['menu-links', 'Links de menu'], ['stripe', 'Stripe'], ['api-keys', 'Chaves de API'],
     ['compliance', 'Conformidade'], ['labs', 'Recursos experimentais'], ['audit', 'Logs de auditoria'], ['storage', 'Armazenamento de mídia']]
@@ -44,7 +44,7 @@ const subTabs = {
 
 export function startAgency(env) {
   const { app, overlay, api, flash, openWorkspace } = env;
-  const A = { data: null, openAI: null, openAIOnly: false, page: 'dashboard', sub: '', query: '', status: '', category: '', selected: new Set(), chat: [], auditPage: 0, navOpen: true };
+  const A = { data: null, openAI: null, openAIOnly: false, waha: null, wahaQr: '', wahaPairCode: '', page: 'dashboard', sub: '', query: '', status: '', category: '', selected: new Set(), chat: [], auditPage: 0, navOpen: true };
   const G = s => document.querySelector(s);
   const D = () => A.data.agency;
   const O = () => A.data.overview;
@@ -404,6 +404,134 @@ export function startAgency(env) {
     }
     if (currentVisit === visit && isOpenAIPage()) render();
   }
+  const isWhatsAppPage = () => A.page === 'settings' && A.sub === 'whatsapp';
+  async function refreshWaha() {
+    const currentVisit = visit;
+    try {
+      const data = await api('/api/waha/status');
+      if (currentVisit === visit) A.waha = data;
+    } catch (error) {
+      if (currentVisit === visit) A.waha = { error: error.message };
+    }
+    if (currentVisit === visit && isWhatsAppPage()) render();
+  }
+  function whatsappSettings() {
+    const w = A.waha;
+    const markup = String(D().saas.rebilling.whatsapp ?? 1).replace('.', ',');
+    const live = w?.live;
+    const statusMap = {
+      WORKING: ['Conectado', 'green'],
+      SCAN_QR_CODE: ['Aguardando QR Code', 'blue'],
+      STARTING: ['Iniciando sessão…', 'blue'],
+      STOPPED: ['Sessão parada', ''],
+      FAILED: ['Falha na sessão', 'red'],
+      OFFLINE: ['Servidor indisponível', 'red'],
+      ERROR: ['Erro de conexão', 'red'],
+      UNCONFIGURED: ['Não configurado', '']
+    };
+    const [statusLabel, statusTone] = statusMap[live?.status] || (w?.error ? ['Erro ao consultar', 'red'] : !w ? ['Carregando…', ''] : ['Não configurado', '']);
+    const connectedAs = live?.me?.pushName || live?.me?.id?.replace(/@.*$/, '') || '';
+    const subCfg = w?.subaccounts || {};
+    const rows = accounts().filter(a => match(a.name)).map(a => {
+      const cfg = subCfg[a.id] || { enabled: false, rebill: false, session: w?.session || 'default' };
+      return `<tr>
+        <td><b>${h(a.name)}</b><br><small class="dim">${h(a.id)}</small></td>
+        <td><input class="ag-waha-session-input" data-ag-waha-session="${a.id}" value="${h(cfg.session || w?.session || 'default')}" maxlength="64" aria-label="Sessão WAHA de ${h(a.name)}"></td>
+        <td>${sw(`WhatsApp em ${a.name}`, cfg.enabled, `data-ag-waha-sub="${a.id}" data-field="enabled"`)}</td>
+        <td>${sw(`Rebilling de WhatsApp em ${a.name}`, cfg.rebill, `data-ag-waha-sub="${a.id}" data-field="rebill"`, !cfg.enabled)}</td>
+      </tr>`;
+    });
+    return `
+      <div class="surface padded ag-notice">
+        <span class="ag-waha-icon" aria-hidden="true">${i('whatsapp', 20)}</span>
+        <div>
+          <div class="inline-gap"><b>Integração com WhatsApp (WAHA)</b>${badge(statusLabel, statusTone)}${connectedAs ? badge(connectedAs, 'green') : ''}</div>
+          <p>Conecte sua instância <a class="text-link" href="https://waha.devlike.pro/" target="_blank" rel="noopener">WAHA (WhatsApp HTTP API)</a> para parear números via QR Code, enviar mensagens e receber conversas nas subcontas. Markup SaaS atual: <b>${h(markup)}×</b>.</p>
+          ${live?.error ? `<p class="form-status">${h(live.error)}</p>` : ''}
+          ${w?.error ? `<p class="form-status">${h(w.error)}</p>` : ''}
+        </div>
+        <a class="secondary" href="#agency/saas/rebilling">Ajustar markup</a>
+      </div>
+
+      <form class="surface padded settings-form" data-ag-form="waha-config">
+        <h2>Servidor WAHA</h2>
+        <p class="dim">Informe o endereço da sua instância WAHA e a chave <code>X-Api-Key</code> (armazenada criptografada no Supabase).</p>
+        <div class="field-grid">
+          <label class="ag-full">URL do servidor WAHA<input name="baseUrl" type="url" required placeholder="https://waha.suaagencia.com.br" value="${h(w?.baseUrl || '')}"></label>
+          <label>Chave de API (X-Api-Key)<input name="apiKey" type="password" autocomplete="off" placeholder="${w?.hasApiKey ? `Chave salva (••••${h(w.apiKeyLast4)}) — deixe em branco para manter` : 'Opcional se o WAHA estiver sem chave'}"></label>
+          <label>Sessão padrão<input name="session" maxlength="64" placeholder="default" value="${h(w?.session || 'default')}"></label>
+        </div>
+        ${w?.hasApiKey ? `<label class="check"><input type="checkbox" name="clearApiKey"> Remover chave X-Api-Key salva</label>` : ''}
+        <div class="inline-gap">
+          <button class="primary">Salvar e verificar conexão</button>
+          ${w?.configured ? `${btn('Atualizar status', 'waha-refresh', '', 'secondary', 'refresh')}${btn('Desconectar', 'waha-disconnect', '', 'secondary')}` : ''}
+        </div>
+        <p class="form-status" role="alert"></p>
+      </form>
+
+      ${w?.configured ? `
+        <div class="surface padded ag-gap">
+          <div class="page-head">
+            <div>
+              <h2>Sessão e pareamento (${h(w.session || 'default')})</h2>
+              <p class="dim">Inicie a sessão no WAHA e conecte o WhatsApp lendo o QR Code ou usando o código de 8 dígitos.</p>
+            </div>
+            <div class="inline-gap">
+              ${btn('Iniciar sessão', 'waha-session', 'data-op="start"', 'primary')}
+              ${btn('Atualizar QR Code', 'waha-qr')}
+              ${btn('Parar', 'waha-session', 'data-op="stop"')}
+              ${btn('Logout', 'waha-session', 'data-op="logout"')}
+            </div>
+          </div>
+          <div class="ag-two">
+            <div class="ag-waha-qr">
+              ${A.wahaQr
+                ? `<div class="ag-waha-qr-frame"><img src="${h(A.wahaQr)}" alt="QR Code do WhatsApp (WAHA)"></div><small class="dim">No WhatsApp do celular: <b>Aparelhos conectados → Conectar aparelho</b>.</small>`
+                : live?.status === 'WORKING'
+                  ? `<span class="ag-waha-icon">${i('whatsapp', 22)}</span><b>WhatsApp conectado e pronto</b><small class="dim">${connectedAs ? `Conta ativa: ${h(connectedAs)}` : 'Sessão em operação (WORKING).'}</small>`
+                  : `<span class="ag-waha-icon">${i('whatsapp', 22)}</span><b>QR Code aguardando geração</b><small class="dim">Clique em <b>Iniciar sessão</b> e depois em <b>Atualizar QR Code</b> para parear seu aparelho.</small>`}
+            </div>
+            <form class="settings-form" data-ag-form="waha-pair">
+              <h3>Parear por código (sem câmera)</h3>
+              <p class="dim">Com a sessão no status <code>SCAN_QR_CODE</code>, informe o número do WhatsApp com DDI e DDD para receber um código de pareamento.</p>
+              <label>Número do WhatsApp (com DDI)<input name="phoneNumber" required inputmode="numeric" placeholder="5511999999999"></label>
+              <button class="secondary">Gerar código de pareamento</button>
+              ${A.wahaPairCode ? `<div class="ag-waha-code" aria-label="Código de pareamento">${h(A.wahaPairCode)}</div>` : ''}
+              <p class="form-status" role="alert"></p>
+            </form>
+          </div>
+        </div>
+
+        <div class="ag-two ag-gap">
+          <form class="surface padded settings-form" data-ag-form="waha-test">
+            <h2>Testar envio de mensagem</h2>
+            <p class="dim">Envia uma mensagem real via <code>POST /api/sendText</code> usando a sessão conectada.</p>
+            <label>Número destino (com DDI)<input name="phone" required inputmode="numeric" placeholder="5511999999999"></label>
+            <label>Mensagem<textarea name="text" required maxlength="2000" placeholder="Olá! Mensagem de teste enviada pela Soci via WAHA."></textarea></label>
+            <button class="primary">Enviar teste</button>
+            <p class="form-status" role="alert"></p>
+          </form>
+          <div class="surface padded">
+            <h2>Webhook de recebimento</h2>
+            <p class="dim">Configure esta URL no seu servidor WAHA (<code>WHATSAPP_HOOK_URL</code> com <code>WHATSAPP_HOOK_EVENTS=message,session.status</code>) para receber mensagens recebidas direto na aba <b>Conversas</b> da subconta correspondente.</p>
+            <div class="ag-copy">
+              <input readonly value="${h(w.webhookUrl || '')}" aria-label="URL do webhook WAHA">
+              ${btn('Copiar', 'copy', `data-text="${h(w.webhookUrl || '')}"`)}
+            </div>
+            <p class="dim ag-hint">Dica: cada subconta pode usar sua própria sessão WAHA na tabela abaixo (WAHA Plus) ou compartilhar a sessão <code>default</code> (WAHA Core).</p>
+          </div>
+        </div>
+      ` : ''}
+
+      <div class="page-head ag-gap">
+        <div>
+          <h3>Configurações das subcontas ${badge(`${accounts().length} subconta(s)`, 'blue')}</h3>
+          <p class="dim">Defina a sessão WAHA, ative o WhatsApp e controle o rebilling por subconta.</p>
+        </div>
+        ${search('Buscar pelo nome…')}
+      </div>
+      ${table(['Subconta', 'Sessão WAHA', 'WhatsApp ativo', 'Rebilling ativo'], rows, empty('Nenhuma subconta encontrada', 'Crie uma subconta ou ajuste a busca.'))}`;
+  }
   // Per-sub-account switches: access to the feature and rebilling its usage through the wallet.
   function featureTable(key) {
     const [, title, text, byDefault] = subFeatures.find(f => f[0] === key);
@@ -463,7 +591,8 @@ POST ${h(location.origin)}/api/v1/subaccounts/{id}/contacts
 Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     'private-integrations': () => `<div class="page-head"><div><h2>Integrações privadas</h2><p class="dim">Tokens com escopos estritamente delimitados para scripts e sistemas internos. O token é exibido apenas uma vez.</p></div>${primary('Criar integração', 'private-integration')}</div>
       ${table(['Nome', 'Escopos autorizados', 'Token', 'Criada em', 'Último uso', ''], D().privateIntegrations.map(k => `<tr><td><b>${h(k.name)}</b><br><small class="dim">${h(k.description)}</small></td><td><small>${h(k.scopes.join(', '))}</small></td><td><code>pit_…${h(k.last4)}</code></td><td>${day(k.created, true)}</td><td>${k.lastUsed ? day(k.lastUsed, true) : 'Nunca'}</td><td class="right">${btn('Excluir', 'private-integration-delete', `data-id="${k.id}"`)}</td></tr>`), empty('Nenhuma integração privada', 'Crie uma integração privada para scripts que exigem apenas permissões pontuais.'))}`,
-    phone: () => `<div class="surface padded ag-notice">${i('phone', 20)}<div><b>Revenda do uso de telefone (ligações, SMS e números)</b><p>O markup de telefone é definido no Configurador SaaS (atual: ${String(D().saas.rebilling.phone).replace('.', ',')}×). Linhas e envios reais exigem um provedor de telefonia conectado.</p></div><a class="secondary" href="#agency/saas/rebilling">Ajustar markup</a></div>${featureTable('number-intelligence')}`,
+    whatsapp: whatsappSettings,
+    phone: whatsappSettings,
     'email-services': () => { const e = D().emailServices; return `${e.domain ? `<div class="surface padded ag-notice">${i('mail', 20)}<div><b>Domínio dedicado: ${h(e.domain)}</b><p>Adicionado em ${day(e.added)}. A verificação de DNS e o aquecimento do domínio dependem do provedor de envio, que não está conectado neste projeto local.</p></div>${btn('Remover domínio', 'email-domain-remove')}</div>
       <form class="surface padded settings-form ag-gap" data-ag-form="email-domain-accounts"><h2>Subcontas que enviam pelo domínio dedicado</h2>${pickAccounts('accounts', e.accounts)}<button class="primary">Salvar</button><p class="form-status" role="alert"></p></form>`
       : `<div class="surface padded ag-notice">${i('mail', 20)}<div><b>Você está usando um domínio compartilhado</b><p>As subcontas enviam pelo domínio compartilhado da plataforma porque nenhum domínio da agência está conectado. Um domínio dedicado dá controle sobre a reputação de envio.</p></div></div>
@@ -521,12 +650,14 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const nextPage = pages[page] ? page : 'dashboard';
     if (nextPage !== A.page) { A.query = ''; A.status = ''; A.category = ''; A.selected.clear(); A.auditPage = 0; }
     A.page = nextPage;
+    const normalizedSub = A.page === 'settings' && sub === 'phone' ? 'whatsapp' : sub;
     A.sub = A.page === 'ask'
       ? (sub && /^[\w-]{4,80}$/.test(sub) ? sub : '')
-      : (subTabs[A.page]?.some(t => t[0] === sub) ? sub : '');
+      : (subTabs[A.page]?.some(t => t[0] === normalizedSub) ? normalizedSub : '');
     if (A.data) {
       render();
       if (isOpenAIPage() && A.data.access.session && !A.openAI) await refreshOpenAI();
+      if (isWhatsAppPage() && !A.waha) await refreshWaha();
       return;
     }
     if (loading) return;
@@ -541,6 +672,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       A.openAIOnly = false;
       render();
       if (isOpenAIPage() && data.access.session && !A.openAI) await refreshOpenAI();
+      if (isWhatsAppPage() && !A.waha) await refreshWaha();
     } catch (e) {
       if (currentVisit !== visit || !active()) return;
       if (e.status === 403 && isOpenAIPage()) {
@@ -561,6 +693,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     A.data = null;
     A.openAI = null;
     A.openAIOnly = false;
+    A.waha = null;
+    A.wahaQr = '';
+    A.wahaPairCode = '';
     sociChat.reset();
   }
 
@@ -584,6 +719,26 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       switch (d.ag) {
         case 'openai-retry': A.openAI = null; render(); await refreshOpenAI(); break;
         case 'openai-disconnect': confirmBox('Desconectar a chave da OpenAI?', 'Você precisará conectar outra chave para voltar a usar os recursos de IA.', 'openai-disconnect', '', 'Desconectar'); break;
+        case 'waha-refresh': A.wahaQr = ''; await refreshWaha(); flash('Status do WhatsApp atualizado.'); break;
+        case 'waha-disconnect': confirmBox('Desconectar o servidor WAHA?', 'A URL e a chave X-Api-Key serão removidas desta agência.', 'waha-disconnect', '', 'Desconectar'); break;
+        case 'waha-session': {
+          A.wahaQr = '';
+          A.wahaPairCode = '';
+          A.waha = await api('/api/waha/session', { action: d.op });
+          render();
+          if (d.op === 'start' && A.waha.live?.status === 'SCAN_QR_CODE') {
+            try { A.wahaQr = (await api('/api/waha/qr')).dataUrl; render(); } catch {}
+          }
+          flash(d.op === 'start' ? 'Sessão iniciada.' : d.op === 'stop' ? 'Sessão parada.' : 'Aparelho desconectado.');
+          break;
+        }
+        case 'waha-qr': {
+          const qr = await api('/api/waha/qr');
+          A.wahaQr = qr.dataUrl;
+          render();
+          flash('QR Code atualizado.');
+          break;
+        }
         case 'go-profile': go('settings', 'company'); break;
         case 'nav': A.navOpen = !A.navOpen; render(); G('[data-ag="nav"]')?.focus(); break;
         case 'tab': go(A.page, d.sub); break;
@@ -693,6 +848,18 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         const sel = `[data-ag-feature="${el.dataset.agFeature}"][data-field="${el.dataset.field}"][data-account="${el.dataset.account}"]`;
         await act('sub-feature', { id: el.dataset.agFeature, data: { account: el.dataset.account, field: el.dataset.field, value: el.checked } }); render(); G(sel)?.focus(); flash('Configuração salva.');
       }
+      if (el.matches('[data-ag-waha-sub]')) {
+        const ws = el.dataset.agWahaSub, field = el.dataset.field;
+        const res = await api('/api/waha/subaccount', { workspace: ws, [field]: el.checked });
+        if (A.waha) A.waha.subaccounts = res.subaccounts;
+        render(); G(`[data-ag-waha-sub="${ws}"][data-field="${field}"]`)?.focus(); flash('Configuração do WhatsApp salva.');
+      }
+      if (el.matches('[data-ag-waha-session]')) {
+        const ws = el.dataset.agWahaSession;
+        const res = await api('/api/waha/subaccount', { workspace: ws, session: el.value.trim() || 'default' });
+        if (A.waha) A.waha.subaccounts = res.subaccounts;
+        render(); flash('Sessão WAHA da subconta atualizada.');
+      }
       if (el.matches('[data-ag-saas-account]')) { const x = el.dataset.agSaasAccount; await act('saas-account', { id: x, data: { enabled: el.checked } }); render(); G(`[data-ag-saas-account="${x}"]`)?.focus(); flash(el.checked ? 'Subconta no modo SaaS.' : 'Modo SaaS desativado na subconta.'); }
       if (el.matches('[data-ag-idea-status]')) { await act('idea-status', { id: el.dataset.agIdeaStatus, data: { status: el.value } }); render(); flash('Status atualizado.'); }
     } catch (e) { flash(e.message, true); render(); }
@@ -724,6 +891,31 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           A.openAI = connection;
           void sociChat.refreshState();
           msg = connect ? 'Chave da OpenAI conectada.' : 'Chave da OpenAI desconectada.';
+          break;
+        }
+        case 'waha-config': {
+          A.wahaQr = '';
+          A.wahaPairCode = '';
+          A.waha = await api('/api/waha/config', data);
+          msg = A.waha.live?.reachable ? 'Servidor WAHA conectado e verificado.' : 'Configuração salva. Verifique a acessibilidade do servidor WAHA.';
+          break;
+        }
+        case 'waha-disconnect': {
+          A.wahaQr = '';
+          A.wahaPairCode = '';
+          A.waha = await api('/api/waha/disconnect', {});
+          msg = 'Servidor WAHA desconectado.';
+          break;
+        }
+        case 'waha-pair': {
+          const r = await api('/api/waha/pair-code', { phoneNumber: data.phoneNumber });
+          A.wahaPairCode = r.code;
+          msg = 'Código de pareamento gerado.';
+          break;
+        }
+        case 'waha-test': {
+          await api('/api/waha/test', { phone: data.phone, text: data.text });
+          msg = 'Mensagem de teste enviada pelo WhatsApp.';
           break;
         }
         case 'account': { const newId = await call('accounts', data); msg = 'Subconta criada.'; close(); dialog('Subconta criada com sucesso', `<p><b>${h(data.name)}</b> está pronta para uso.</p><div class="inline-gap">${btn('Acessar subconta agora', 'open-account', `data-id="${newId}"`, 'primary')}</div>`); keepOpen = true; break; }

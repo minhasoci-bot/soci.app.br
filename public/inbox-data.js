@@ -21,7 +21,7 @@ export const inboxSorts = [
 export const fixedRuleValues = {
   direction: [['Inbound', 'Recebida'], ['Outbound', 'Enviada']],
   outboundType: [['human', 'Manual'], ['workflow', 'Automação'], ['internal', 'Interna']],
-  channel: [['Note', 'Nota'], ['Email', 'E-mail'], ['SMS', 'SMS']],
+  channel: [['Note', 'Nota'], ['Email', 'E-mail'], ['SMS', 'SMS'], ['WhatsApp', 'WhatsApp']],
   sla: [['Overdue', 'Atrasado'], ['Due soon', 'Vence em breve'], ['Waiting', 'No prazo']]
 };
 const fieldIds = inboxFilterFields.map(([id]) => id);
