@@ -6,7 +6,8 @@
 
 @font-face{font-family:"Plus Jakarta Sans";src:url(/fonts/plus-jakarta-sans.woff2) format("woff2");font-weight:200 800;font-style:normal;font-display:swap}
 
-html{zoom:.9}
+html{zoom:.9;scroll-behavior:smooth}
+*{scroll-behavior:smooth}
 :root{
   --g-ink:#1d1530; --g-ink-2:#463e5e; --g-dim:#776f8f; --g-faint:#a29bb8;
   --g-line:#ece6f8; --g-line-2:#ddd4f3;
@@ -15,7 +16,7 @@ html{zoom:.9}
   --g-pink:#ff6f9f; --g-pink-100:#ffe8f0; --g-mint:#2fbf9b; --g-mint-100:#e2f7f0;
   --g-glass:rgba(255,255,255,.74); --g-glass-strong:rgba(255,255,255,.9); --g-glass-edge:rgba(255,255,255,.95);
   --g-surface:#fff; --g-surface-2:#f6f3fc; --g-surface-3:rgba(124,92,240,.08); --g-paper:255 255 255;
-  --g-orange-200:#ffe0bf; --g-orange-ink:#e07b17; --g-gauge-track:#ebe5f8;
+  --g-orange-200:#ffe0bf; --g-scrollbar-thumb:rgba(124,92,240,.28); --g-scrollbar-thumb-hover:rgba(124,92,240,.55); --g-scrollbar-track:transparent; --g-orange-ink:#e07b17; --g-gauge-track:#ebe5f8;
   color-scheme:light;
   --g-r-lg:20px; --g-r:16px; --g-r-sm:11px;
   --g-shadow:0 1px 2px rgba(58,36,120,.05),0 10px 28px -14px rgba(84,52,170,.22);
@@ -46,6 +47,14 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-violet);outline-o
 .boot::before{content:'';width:44px;height:44px;margin:0 auto 6px;border-radius:14px;background:var(--g-grad-brand);animation:g-breathe 1.4s var(--ease-std) infinite alternate}
 @keyframes g-breathe{to{transform:scale(.9) rotate(8deg);opacity:.7}}
 
+/* ───────── Global Custom Scrollbar (Microkit) ───────── */
+*{scrollbar-width:thin;scrollbar-color:var(--g-scrollbar-thumb) var(--g-scrollbar-track)}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-track{background:var(--g-scrollbar-track)}
+::-webkit-scrollbar-thumb{background:var(--g-scrollbar-thumb);border-radius:999px;border:1px solid transparent;background-clip:padding-box;transition:background .2s ease}
+::-webkit-scrollbar-thumb:hover{background:var(--g-scrollbar-thumb-hover)}
+::-webkit-scrollbar-corner{background:transparent}
+
 /* ───────── Shell: frosted sidebar + topbar ───────── */
 .shell{background:transparent;grid-template-columns:64px minmax(0,1fr);transition:grid-template-columns .45s var(--ease-glide)}
 .shell.wide{grid-template-columns:248px minmax(0,1fr)}
@@ -61,14 +70,14 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-violet);outline-o
 
 .side-head{display:flex;align-items:center;height:40px;padding:0 16px;margin-bottom:12px}
 .shell:not(.wide) .side-head{justify-content:center;padding:0}
-.g-side .logo{display:flex;align-items:center;gap:10px;min-height:0;padding:0;color:var(--g-ink);font-weight:800;font-size:20px;letter-spacing:-.05em;border-radius:12px}
+.g-side .logo{display:flex;align-items:center;gap:4px;min-height:0;padding:0;color:var(--g-ink);font-weight:800;font-size:20px;letter-spacing:-.05em;border-radius:12px}
 .g-side .logo .g-mark,.g-side .logo .ag-logo{flex:none;width:34px;height:34px;transition:transform .5s var(--ease-out)}
 .g-side .logo:hover .g-mark{transform:rotate(-8deg) scale(1.06)}
 .g-mark{display:inline-block;vertical-align:middle;overflow:visible}
 .g-mark .sk-flame{fill:#0d0f12;transition:fill .3s var(--ease-std),stroke .3s var(--ease-std)}
-.g-mark .sk-head{fill:#ffffff}
-.g-mark .sk-feat{fill:#0d0f12}
-.g-mark .sk-glint{fill:#ffffff}
+.g-mark .sk-head{fill:#ffffff;transition:fill .3s var(--ease-std)}
+.g-mark .sk-feat{fill:#0d0f12;transition:fill .3s var(--ease-std)}
+.g-mark .sk-glint{fill:#ffffff;transition:fill .3s var(--ease-std)}
 /* Collapse toggle (microkit "sidebar trigger"): beside the logo when open; in the rail it
    takes the logo's place on hover or keyboard focus, and is always shown on touch screens. */
 .side-head{position:relative;justify-content:space-between;gap:8px;padding:0 10px 0 16px}
@@ -405,6 +414,7 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
 .g-enter>:nth-child(2){animation-delay:.05s}.g-enter>:nth-child(3){animation-delay:.1s}.g-enter>:nth-child(4){animation-delay:.15s}.g-enter>:nth-child(5){animation-delay:.2s}.g-enter>:nth-child(n+6){animation-delay:.25s}
 
 @media (prefers-reduced-motion:reduce){
+  html,*{scroll-behavior:auto!important}
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
 @media(max-width:700px){.page-head h1{font-size:23px}.shell.wide{grid-template-columns:64px minmax(0,1fr)}.wide .g-side{width:264px;background:rgba(255,255,255,.96);box-shadow:12px 0 40px -12px rgba(46,24,110,.35)}.wide .top-menu{margin-left:206px}}
@@ -420,7 +430,7 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
   --g-ink:#f1f2f4; --g-ink-2:#cfd4da; --g-dim:#8d939d; --g-faint:#68707c;
   --g-line:#25292d; --g-line-2:#2b2f35;
   --g-violet:#8b6ff5; --g-violet-600:#bba5ff; --g-violet-400:#a68ffa; --g-violet-200:#3d3270; --g-violet-100:rgba(139,111,245,.16); --g-violet-50:rgba(139,111,245,.08);
-  --g-orange-100:rgba(249,115,22,.13); --g-orange-200:#6b4525; --g-orange-ink:#ffb17a;
+  --g-orange-100:rgba(249,115,22,.13); --g-orange-200:#6b4525; --g-scrollbar-thumb:rgba(255,255,255,.18); --g-scrollbar-thumb-hover:rgba(255,255,255,.36); --g-scrollbar-track:transparent; --g-orange-ink:#ffb17a;
   --g-pink-100:rgba(242,90,130,.15); --g-mint-100:rgba(118,210,155,.13);
   --g-surface:#111317; --g-surface-2:#1b1d22; --g-surface-3:#20252d; --g-paper:17 19 23;
   --g-glass:rgba(17,19,23,.74); --g-glass-strong:#111317; --g-glass-edge:#25292d;
@@ -483,6 +493,10 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
 :root[data-theme=dark] .boot{color:var(--g-dim)}
 :root[data-theme=dark] .ag-banner{background:rgba(139,111,245,.08);border-bottom-color:var(--g-line)}
 :root[data-theme=dark] .public-page>header{background:rgba(11,12,14,.72)}
+:root[data-theme=dark] .g-mark .sk-flame{fill:#111317;stroke:#f0f2f5;stroke-width:28px;stroke-linejoin:round;paint-order:stroke fill;filter:drop-shadow(0 0 6px rgba(255,255,255,0.15))}
+:root[data-theme=dark] .g-mark .sk-head{fill:#ffffff}
+:root[data-theme=dark] .g-mark .sk-feat{fill:#111317}
+:root[data-theme=dark] .g-mark .sk-glint{fill:#ffffff}
 
 /* Theme switch: diagonal wipe through the View Transitions API (microkit). */
 ::view-transition-old(root),
