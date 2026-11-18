@@ -62,7 +62,7 @@ html,body{height:111.111111dvh;min-height:111.111111dvh;margin:0}
   --g-eb-rim-glow:linear-gradient(91.96deg,transparent 6.11%,color-mix(in srgb,var(--g-brand-2) 22%,transparent) 53.57%,var(--g-brand) 93.6%);
   --g-eb-outer-blur:9px;
   --g-eb-rim-blur:4px;
-  --g-eb-glow-gain:.62;
+  --g-eb-glow-gain:0;
   /* Social & Platform Highlight Cards tokens (Microkit × Soci — light mode) */
   --shc-bg:#ffffff;
   --shc-bg-hover:#f0f2f5;
@@ -767,12 +767,12 @@ input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color])
 :root[data-theme=dark] .search:focus-within,:root[data-theme=dark] .tag-filter:focus-within{border-color:var(--g-brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--g-brand) 30%,transparent)}
 
 /* Buttons */
-.primary,.dash-save{background:var(--g-grad-brand);color:var(--g-grad-on,#fff);border:1px solid transparent;box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 1px 2px rgba(15,19,26,.14)}
-.primary:hover{background:var(--g-grad-brand-hover);border-color:transparent;box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 4px 12px -2px color-mix(in srgb,var(--g-brand) 38%,color-mix(in srgb,var(--g-brand-2) 38%,transparent))}
+.primary,.dash-save{background:var(--g-grad-brand);color:var(--g-grad-on,#fff);border:1px solid transparent;box-shadow:inset 0 1px 0 rgba(255,255,255,.16)}
+.primary:hover{background:var(--g-grad-brand-hover);border-color:transparent;box-shadow:inset 0 1px 0 rgba(255,255,255,.16)}
 .primary::after,.continue::after{display:none}
 .primary::before,.continue::before,.studio-create::before{background:radial-gradient(80px circle at var(--gx,50%) var(--gy,50%),rgba(255,255,255,.2),transparent 70%)}
-.continue,.studio-create,.studio-compose-actions .primary{background:var(--g-grad-brand);color:var(--g-grad-on,#fff);border-color:transparent;box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 1px 2px rgba(15,19,26,.14)}
-.continue:not(:disabled):hover,.studio-create:hover,.studio-compose-actions .primary:hover{background:var(--g-grad-brand-hover);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 4px 12px -2px color-mix(in srgb,var(--g-brand) 38%,color-mix(in srgb,var(--g-brand-2) 38%,transparent))}
+.continue,.studio-create,.studio-compose-actions .primary{background:var(--g-grad-brand);color:var(--g-grad-on,#fff);border-color:transparent;box-shadow:inset 0 1px 0 rgba(255,255,255,.16)}
+.continue:not(:disabled):hover,.studio-create:hover,.studio-compose-actions .primary:hover{background:var(--g-grad-brand-hover);box-shadow:inset 0 1px 0 rgba(255,255,255,.16)}
 .danger{background:#d1343a;border-color:#d1343a;color:#fff}
 .danger:hover{background:#b52a30;border-color:#b52a30}
 .danger.plain{background:transparent;border-color:transparent;color:#c0262d}
@@ -1418,6 +1418,9 @@ dialog::backdrop{background:rgba(15,19,26,.38);-webkit-backdrop-filter:blur(2px)
   transform:translate(-50%,-50%);
   pointer-events:none;
   will-change:transform,opacity;
+}
+:root:not([data-theme=dark]) .g-eb-glow{
+  display:none !important;
 }
 .g-eb-glow-l{
   transform:translate(-50%,-50%) scaleX(-1);

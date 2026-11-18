@@ -1068,9 +1068,9 @@ function enhanceEdgeButton(btn) {
   };
 
   let bound = measureBound();
-  let x = btn._eb?.x ?? bound;
+  let x = btn._eb?.x ?? 0;
   let velocity = 0;
-  let target = btn._eb?.target ?? bound;
+  let target = btn._eb?.target ?? 0;
   let inside = false;
   let lastTs = 0;
 
@@ -1096,11 +1096,10 @@ function enhanceEdgeButton(btn) {
   };
 
   const measure = () => {
-    const prev = bound;
     bound = measureBound();
-    if (!inside && Math.abs(x - prev) < 1) {
-      x = bound;
-      target = bound;
+    if (!inside) {
+      x = 0;
+      target = 0;
     } else {
       x = Math.max(-bound, Math.min(bound, x));
       target = Math.max(-bound, Math.min(bound, target));
@@ -1163,7 +1162,7 @@ function enhanceEdgeButton(btn) {
 
   btn.onpointerleave = () => {
     inside = false;
-    target = x;
+    target = 0;
     kick();
   };
 
@@ -1176,7 +1175,7 @@ function enhanceEdgeButton(btn) {
 
   btn.onblur = () => {
     inside = false;
-    target = x;
+    target = 0;
     kick();
   };
 }
