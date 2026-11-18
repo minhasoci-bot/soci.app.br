@@ -1,5 +1,6 @@
-import { activeDashboard, dashboardRange, libraryList } from './dashboard.js';
+import { activeDashboard, dashboardRange, libraryList, resetDashboardGauges } from './dashboard.js';
 import { comparisonMode, comparisonModes, dashboardPeriods, dateFields, effectiveWidget, newWidget, reportRows, validDay, widgets } from './dashboard-data.js';
+import { resetCountUps } from './graao.js';
 import { h } from './screens.js';
 import { tr } from './i18n.js';
 
@@ -95,10 +96,10 @@ export function installDashboardControls({ c, dialog, close, render, load, mutat
         <div class="dash-switch-list" data-dash-switch-list>${switcherList()}</div>`,{ description:`${c.s.dashboards.length} de 20 painéis neste workspace` });
       document.querySelector('[data-dash-switch-search]')?.focus();
     },
-    choose(id) { c.dash.id=id; c.dash.view={}; c.dash.quickTag=''; remember(); close(); render(); },
+    choose(id) { c.dash.id=id; c.dash.view={}; c.dash.quickTag=''; remember(); resetCountUps('dash:'); resetDashboardGauges(); close(); render(); },
     new() { dialogForm('Criar painel',text('name','Nome do painel') + select('copyFrom','Começar com',
       [['','Painel em branco'],...c.s.dashboards.map(board => [board.id,`Cópia de ${tr(board.name)}`])],''),'new'); },
-    async refresh() { await load(); render(); flash('Painel atualizado.'); },
+    async refresh() { await load(); resetCountUps('dash:'); resetDashboardGauges(); render(); flash('Painel atualizado.'); },
     quick() { c.dash.showQuick=!c.dash.showQuick; render(); },
     dates() {
       const { period,start,end } = c.dash.range;
