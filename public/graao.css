@@ -2127,28 +2127,52 @@ button.shc-card:active{
   box-shadow:none;
 }
 .g-utabs-head{
+  position:relative;
+  display:flex;
+  align-items:center;
+  gap:6px;
   flex:none;
-  padding:5px 12px 0;
+  padding:5px 10px 0;
   min-width:0;
 }
 .g-utabs.is-flush > .g-utabs-head{
-  padding:4px 16px 0;
+  padding:4px 14px 0;
 }
 .g-utabs.is-nested > .g-utabs-head{
-  padding:3px 10px 0;
+  padding:3px 8px 0;
 }
 
-/* Scrollable Tab Strip: padding-bottom:2px prevents clipping the bottom:-2px 3px indicator */
+/* Scrollable Tab Strip: thin themed scrollbar + smooth touch/wheel panning */
 .g-utabs-list{
   position:relative;
+  flex:1;
+  min-width:0;
   overflow-x:auto;
   overflow-y:hidden;
-  padding-bottom:2px;
-  scrollbar-width:none;
+  padding-bottom:3px;
+  scrollbar-width:thin;
+  scrollbar-color:var(--g-scrollbar-thumb) transparent;
   -webkit-overflow-scrolling:touch;
 }
 .g-utabs-list::-webkit-scrollbar{
-  display:none;
+  height:5px;
+  display:block;
+}
+.g-utabs-list::-webkit-scrollbar-track{
+  background:transparent;
+  border-radius:999px;
+  margin:0 4px;
+}
+.g-utabs-list::-webkit-scrollbar-thumb{
+  background:var(--g-scrollbar-thumb);
+  border-radius:999px;
+  border:1px solid transparent;
+  background-clip:padding-box;
+  transition:background .2s ease;
+}
+.g-utabs-list::-webkit-scrollbar-thumb:hover,
+.g-utabs-head:hover .g-utabs-list::-webkit-scrollbar-thumb{
+  background:var(--g-scrollbar-thumb-hover);
 }
 .g-utabs-list[data-fade-right]:not([data-fade-left]){
   -webkit-mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 28px),transparent 100%);
@@ -2161,6 +2185,49 @@ button.shc-card:active{
 .g-utabs-list[data-fade-left][data-fade-right]{
   -webkit-mask-image:linear-gradient(to right,transparent 0,#000 28px,#000 calc(100% - 28px),transparent 100%);
   mask-image:linear-gradient(to right,transparent 0,#000 28px,#000 calc(100% - 28px),transparent 100%);
+}
+
+/* Nav scroll buttons (‹ / ›) that appear when tabs overflow */
+.g-utabs-nav{
+  flex:none;
+  width:26px;
+  height:26px;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+  border:1px solid var(--g-line);
+  border-radius:7px;
+  background:var(--g-surface);
+  color:var(--g-dim);
+  cursor:pointer;
+  user-select:none;
+  margin-bottom:3px;
+  box-shadow:0 1px 2px rgba(0,0,0,.04);
+  transition:background .18s ease,border-color .18s ease,color .18s ease,opacity .18s ease,transform .12s ease;
+}
+.g-utabs-head[data-has-overflow] .g-utabs-nav{
+  display:inline-flex;
+}
+.g-utabs-nav:hover{
+  background:var(--g-surface-2);
+  color:var(--g-ink);
+  border-color:var(--g-line-2);
+}
+.g-utabs-nav:active{
+  transform:scale(.92);
+}
+.g-utabs-nav[disabled],
+.g-utabs-nav.is-disabled{
+  opacity:0;
+  pointer-events:none;
+  visibility:hidden;
+}
+.g-utabs.is-nested .g-utabs-nav{
+  width:22px;
+  height:22px;
+  border-radius:6px;
+  margin-bottom:2px;
 }
 .g-utabs-track{
   position:relative;
@@ -2419,14 +2486,29 @@ button.shc-card:active{
   padding-bottom:2px;
   overflow-x:auto;
   overflow-y:hidden;
-  scrollbar-width:none;
+  scrollbar-width:thin;
+  scrollbar-color:var(--g-scrollbar-thumb) transparent;
   border:0 !important;
   border-radius:0 !important;
   background:transparent !important;
   width:100% !important;
+  -webkit-overflow-scrolling:touch;
 }
 .g-utabs-bar::-webkit-scrollbar{
-  display:none;
+  height:4px;
+  display:block;
+}
+.g-utabs-bar::-webkit-scrollbar-track{
+  background:transparent;
+  border-radius:999px;
+}
+.g-utabs-bar::-webkit-scrollbar-thumb{
+  background:var(--g-scrollbar-thumb);
+  border-radius:999px;
+  transition:background .2s ease;
+}
+.g-utabs-bar::-webkit-scrollbar-thumb:hover{
+  background:var(--g-scrollbar-thumb-hover);
 }
 .g-utabs-bar .g-utabs-track{
   display:flex;

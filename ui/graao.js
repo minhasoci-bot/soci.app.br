@@ -246,15 +246,75 @@ const utabLast = new Map();   // key -> { x, w }
 const utabScroll = new Map(); // key -> scrollLeft
 const utabActive = new Map(); // key -> active tab id
 
-function mountSlidingUnderline({ host, list, track, panel = null, key, activeValue = null }) {
+function mountSlidingUnderline({ host, head = null, list, track, panel = null, key, activeValue = null }) {
   if (!(host instanceof HTMLElement) || !(track instanceof HTMLElement)) return;
   host._gUtabsCleanup?.();
 
   const scroller = list || host;
+  const headEl = head || (host.classList.contains('g-utabs-head') ? host : host.querySelector(':scope > .g-utabs-head'));
+
+  let prevBtn = headEl?.querySelector(':scope > .g-utabs-nav.prev');
+  let nextBtn = headEl?.querySelector(':scope > .g-utabs-nav.next');
+  if (headEl && scroller && (!prevBtn || !nextBtn)) {
+    if (!prevBtn) {
+      prevBtn = document.createElement('button');
+      prevBtn.type = 'button';
+      prevBtn.className = 'g-utabs-nav prev is-disabled';
+      prevBtn.setAttribute('aria-label', 'Rolar para esquerda');
+      prevBtn.setAttribute('title', 'Rolar para esquerda');
+      prevBtn.tabIndex = -1;
+      prevBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>';
+      headEl.prepend(prevBtn);
+    }
+    if (!nextBtn) {
+      nextBtn = document.createElement('button');
+      nextBtn.type = 'button';
+      nextBtn.className = 'g-utabs-nav next is-disabled';
+      nextBtn.setAttribute('aria-label', 'Rolar para direita');
+      nextBtn.setAttribute('title', 'Rolar para direita');
+      nextBtn.tabIndex = -1;
+      nextBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+      headEl.append(nextBtn);
+    }
+  }
+
+  const scrollStep = () => Math.max(180, Math.floor(scroller.clientWidth * 0.65));
+  const onPrev = e => { e.preventDefault(); scroller.scrollBy({ left: -scrollStep(), behavior: 'smooth' }); };
+  const onNext = e => { e.preventDefault(); scroller.scrollBy({ left: scrollStep(), behavior: 'smooth' }); };
+  prevBtn?.addEventListener('click', onPrev);
+  nextBtn?.addEventListener('click', onNext);
+
+  const onWheel = e => {
+    if (e.ctrlKey) return;
+    const overflow = scroller.scrollWidth - scroller.clientWidth;
+    if (overflow <= 1) return;
+    if (Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
+      const canRight = e.deltaY > 0 && scroller.scrollLeft < overflow - 1;
+      const canLeft = e.deltaY < 0 && scroller.scrollLeft > 1;
+      if (canRight || canLeft) {
+        scroller.scrollLeft += e.deltaY;
+        e.preventDefault();
+      }
+    }
+  };
+  scroller.addEventListener('wheel', onWheel, { passive: false });
+
   const syncFade = () => {
     const overflow = scroller.scrollWidth - scroller.clientWidth;
-    scroller.toggleAttribute('data-fade-left', overflow > 4 && scroller.scrollLeft > 4);
-    scroller.toggleAttribute('data-fade-right', overflow > 4 && scroller.scrollLeft < overflow - 4);
+    const hasOverflow = overflow > 4;
+    if (headEl) headEl.toggleAttribute('data-has-overflow', hasOverflow);
+    scroller.toggleAttribute('data-fade-left', hasOverflow && scroller.scrollLeft > 4);
+    scroller.toggleAttribute('data-fade-right', hasOverflow && scroller.scrollLeft < overflow - 4);
+    if (prevBtn) {
+      const disabled = !hasOverflow || scroller.scrollLeft <= 4;
+      prevBtn.classList.toggle('is-disabled', disabled);
+      prevBtn.disabled = disabled;
+    }
+    if (nextBtn) {
+      const disabled = !hasOverflow || scroller.scrollLeft >= overflow - 4;
+      nextBtn.classList.toggle('is-disabled', disabled);
+      nextBtn.disabled = disabled;
+    }
   };
   if (utabScroll.has(key)) scroller.scrollLeft = utabScroll.get(key);
   const onScroll = () => { utabScroll.set(key, scroller.scrollLeft); syncFade(); };
@@ -278,7 +338,7 @@ function mountSlidingUnderline({ host, list, track, panel = null, key, activeVal
     if (!on || scroller.scrollWidth <= scroller.clientWidth + 2) return;
     const left = on.offsetLeft;
     const right = left + on.offsetWidth;
-    const pad = 20;
+    const pad = 36;
     if (left < scroller.scrollLeft + pad) {
       scroller.scrollLeft = Math.max(0, left - pad);
     } else if (right > scroller.scrollLeft + scroller.clientWidth - pad) {
@@ -364,9 +424,11 @@ function mountSlidingUnderline({ host, list, track, panel = null, key, activeVal
     ro = new ResizeObserver(() => {
       if (!track.isConnected) { cleanup(); return; }
       place(true);
+      syncFade();
     });
     ro.observe(track);
     if (scroller !== track) ro.observe(scroller);
+    if (headEl && headEl !== scroller) ro.observe(headEl);
   }
 
   const cleanup = () => {
@@ -374,18 +436,22 @@ function mountSlidingUnderline({ host, list, track, panel = null, key, activeVal
     mo.disconnect();
     ro?.disconnect();
     scroller.removeEventListener('scroll', onScroll);
+    scroller.removeEventListener('wheel', onWheel);
+    prevBtn?.removeEventListener('click', onPrev);
+    nextBtn?.removeEventListener('click', onNext);
   };
   host._gUtabsCleanup = cleanup;
 }
 
 function slidingUnderlineTabs(host) {
-  const list = host.querySelector(':scope > .g-utabs-head > .g-utabs-list');
+  const head = host.querySelector(':scope > .g-utabs-head');
+  const list = head?.querySelector(':scope > .g-utabs-list') || host.querySelector('.g-utabs-list');
   const track = list?.querySelector(':scope > .g-utabs-track');
   const panel = host.querySelector(':scope > .g-utabs-panel');
   if (!track) return;
   const items = [...track.querySelectorAll(':scope > button, :scope > a')];
   const key = `utabs:${host.dataset.utabs || keyOf(track, items, 'utabs')}`;
-  mountSlidingUnderline({ host, list, track, panel, key, activeValue: host.dataset.utabsActive ?? null });
+  mountSlidingUnderline({ host, head, list, track, panel, key, activeValue: host.dataset.utabsActive ?? null });
 }
 
 function slidingUnderlineBar(bar) {
