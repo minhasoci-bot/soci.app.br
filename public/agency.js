@@ -915,7 +915,11 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'marketplace-preview': {
           const item = M().find(x => x.id === id);
           if (!item) break;
-          const sections = Object.entries(item.preview || {}).map(([k, names]) => `<div class="ag-mkt-sec"><h4>${h(assetLabelsPt[k] || k)} (${names.length})</h4><ul>${names.map(n => `<li>${h(n)}</li>`).join('')}</ul></div>`).join('');
+          const sections = Object.entries(item.preview || {}).map(([k, names]) => {
+            const total = item.counts?.[k] || names.length;
+            const more = total > names.length ? `<li class="dim">+ ${total - names.length} mais</li>` : '';
+            return `<div class="ag-mkt-sec"><h4>${h(assetLabelsPt[k] || k)} (${total})</h4><ul>${names.map(n => `<li>${h(n)}</li>`).join('')}${more}</ul></div>`;
+          }).join('');
           const tagsHtml = (item.tags || []).length ? `<div class="ag-mkt-chips">${item.tags.map(t => `<span class="ag-mkt-chip">#${h(t)}</span>`).join('')}</div>` : '';
           const installed = D().snapshots.some(s => s.marketplaceId === item.id);
           const cta = item.mine

@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { agentTemplate } from './agent-model.mjs';
 import { marketplaceCategories } from './ui/agency-data.js';
+import { agenciaCompleta360Spec } from './setup-agencia-360.mjs';
 
 export const MARKETPLACE_DOC_ID = 'marketplace-setups';
 export const MAX_MARKETPLACE_LISTINGS = 500;
@@ -75,6 +76,7 @@ function buildOfficial(spec) {
 }
 
 const OFFICIAL_SETUPS = [
+  buildOfficial(agenciaCompleta360Spec),
   buildOfficial({
     id: 'official-clinica-estetica',
     title: 'Clínica de Estética & Harmonização',
