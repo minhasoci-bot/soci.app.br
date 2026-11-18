@@ -269,3 +269,50 @@ test('Dashboard reports are independent of subsequent edits and Studio projects 
   assert.equal(project.template,'portfolio');
   assert.deepEqual(project.blocks.map(section => section.title),['Trabalhos selecionados','Sobre','Contato']);
 });
+
+test('ManyChat workflow triggers on inbound message keywords and executes WhatsApp replies and tagging', async t => {
+  const local = await start();
+  t.after(local.close);
+  const action = async (type, data = {}, id, key) => {
+    const response = await local.call('/api/action', { type, key, id, data });
+    assert.equal(response.status, 200, response.body.error);
+    return response.body.id;
+  };
+  const save = (key, data, id) => action('save', data, id, key);
+  const contactId = await save('contacts', { name: 'Lead ManyChat', phone: '+5511999998888' });
+  const wfId = await save('workflows', {
+    name: 'Auto-resposta QUERO',
+    trigger: 'Customer replied',
+    channel: 'WhatsApp',
+    keyword: 'QUERO',
+    active: true,
+    actions: [
+      { type: 'Add tag', value: 'Interesse WhatsApp' },
+      { type: 'Send WhatsApp', value: 'Olá! Segue o link com a sua proposta: https://soci.app' },
+      { type: 'Create opportunity', value: 'Oportunidade WhatsApp' }
+    ]
+  });
+
+  // Sending an unrelated message does NOT trigger the workflow
+  await action('message', { contactId, channel: 'WhatsApp', direction: 'Inbound', body: 'Bom dia, tudo bem?' });
+  let state = (await local.call('/api/state')).body.state;
+  assert.equal(state.runs.filter(r => r.workflowId === wfId).length, 0);
+
+  // Sending a message containing the keyword 'QUERO' triggers the workflow
+  await action('message', { contactId, channel: 'WhatsApp', direction: 'Inbound', body: 'Olá, EU QUERO receber a proposta!' });
+  state = (await local.call('/api/state')).body.state;
+  const runs = state.runs.filter(r => r.workflowId === wfId);
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].status, 'Completed');
+
+  const contact = state.contacts.find(c => c.id === contactId);
+  assert.ok(contact.tags.includes('Interesse WhatsApp'));
+  const opp = state.opportunities.find(o => o.contactId === contactId);
+  assert.ok(opp);
+  assert.equal(opp.title, 'Oportunidade WhatsApp');
+
+  const outbound = state.messages.find(m => m.contactId === contactId && m.direction === 'Outbound' && m.origin === 'workflow');
+  assert.ok(outbound);
+  assert.equal(outbound.channel, 'WhatsApp');
+  assert.equal(outbound.body, 'Olá! Segue o link com a sua proposta: https://soci.app');
+});

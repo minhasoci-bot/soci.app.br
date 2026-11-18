@@ -440,3 +440,41 @@ test('Agency admins cannot grant the owner role and agency operators cannot reac
   assert.equal((await agency({ type: 'save', key: 'plans', data: { name: 'Unauthorized plan', price: 10 } })).status, 403);
   assert.equal((await call('/api/whatsapp/agency/status', { user: member })).status, 403);
 });
+
+test('Public Sites previews verify identity and tenant and suspended accounts reject new visitor operations', async t => {
+  const { base, store, ownerA, ownerB, call, createWorkspace, agencyAction } = await start(t);
+  const workspace = await createWorkspace(ownerA, 'Public Sites authorization');
+  const id = randomUUID();
+  store.change(workspace, state => {
+    state.blogs.push({ id, name: 'Private draft blog', active: false });
+    state.stores.push({ id, name: 'Private draft store', active: false });
+    state.webinars.push({ id, name: 'Private draft webinar', active: false });
+    state.chatWidgets.push({ id, name: 'Private draft chat', active: false });
+  });
+  const previews = [
+    `/b/${workspace}/${id}?preview=1`,
+    `/loja/${workspace}/${id}?preview=1`,
+    `/w/${workspace}/${id}?preview=1`,
+    `/chat/${workspace}/${id}/demo`
+  ];
+  for (const path of previews) {
+    assert.equal((await fetch(base + path, { headers: { Cookie: 'go_access=fabricated' } })).status, 401);
+    assert.equal((await fetch(base + path, { headers: { Cookie: `go_access=${tokenFor(ownerB)}` } })).status, 404);
+  }
+  const writes = [
+    `/api/webinar/${workspace}/${id}/register`,
+    `/api/store/${workspace}/${id}/checkout`,
+    `/api/store/${workspace}/${id}/quote`,
+    `/api/chat/${workspace}/${id}/start`,
+    `/api/chat/${workspace}/${id}/send`
+  ];
+  const saved = store.load(workspace);
+  for (const [status, expected] of [['Paused', 403], ['Closed', 404]]) {
+    await agencyAction(ownerA, { type: 'account-meta', id: workspace, data: { status } });
+    for (const path of writes) assert.equal((await call(path, { body: {} })).status, expected, path);
+    assert.deepEqual(store.load(workspace), saved);
+  }
+  for (const path of [...previews, `/q/${workspace}/${id}`]) {
+    assert.equal((await fetch(base + path)).status, 404, path);
+  }
+});

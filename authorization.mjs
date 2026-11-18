@@ -35,6 +35,9 @@ const commandModules = {
   'pipeline-duplicate': 'opportunities', 'pipeline-delete': 'opportunities', 'stage-order': 'opportunities',
   'stage-delete': 'opportunities', 'smart-tag': 'opportunities', 'smart-tag-delete': 'opportunities',
   'studio-visit': 'sites', 'studio-star': 'sites', 'studio-meta': 'sites',
+  'chat-start': 'sites', 'chat-send': 'sites', 'blog-view': 'sites',
+  'store-checkout': 'payments', 'webinar-register': 'sites', 'webinar-attend': 'sites',
+  'webinar-reminders': 'sites', 'qr-scan': 'sites',
   onboarding: 'dashboard', profile: 'settings',
   'workflow-enroll': 'automation', 'workflow-restore': 'automation', 'workflow-move': 'automation'
 };

@@ -2,12 +2,19 @@ import { icon } from './icons.js';
 import { fmt, h, pageShell, utabs } from './screens.js';
 
 const triggers = [
-  ['', 'Selecione um gatilho'], ['Contact created', 'Contato criado'], ['Form submitted', 'Formulário enviado'],
-  ['Opportunity stage changed', 'Etapa da oportunidade alterada'], ['Appointment booked', 'Agendamento criado'],
-  ['Trigger link clicked', 'Link de rastreamento clicado']
+  ['', 'Selecione um gatilho'],
+  ['Contact created', 'Contato criado'],
+  ['Form submitted', 'Formulário enviado'],
+  ['Opportunity stage changed', 'Etapa da oportunidade alterada'],
+  ['Appointment booked', 'Agendamento criado'],
+  ['Trigger link clicked', 'Link de rastreamento clicado'],
+  ['Customer replied', 'Mensagem recebida / Resposta do cliente (ManyChat)']
 ];
 const actions = {
+  'Send WhatsApp': ['Enviar WhatsApp (ManyChat)', 'chat', 'Mensagem do WhatsApp'],
+  'Send SMS': ['Enviar SMS automático', 'mail', 'Mensagem do SMS'],
   'Add tag': ['Adicionar tag', 'tag', 'Nome da tag'],
+  'Remove tag': ['Remover tag', 'trash', 'Nome da tag a remover'],
   'Create task': ['Criar tarefa', 'check', 'Título da tarefa'],
   'Create opportunity': ['Criar oportunidade', 'leads', 'Título da oportunidade'],
   'Log message': ['Registrar mensagem no CRM', 'chat', 'Mensagem'],
@@ -16,7 +23,10 @@ const actions = {
 };
 const actionOptions = Object.entries(actions).map(([type, [label]]) => [type, label]);
 const actionDescriptions = {
+  'Send WhatsApp': 'Envia uma mensagem direta automática no WhatsApp do contato (estilo ManyChat).',
+  'Send SMS': 'Envia uma mensagem SMS direta automática para o contato.',
   'Add tag': 'Aplica uma tag ao contato.',
+  'Remove tag': 'Remove uma tag existente do contato.',
   'Create task': 'Cria uma tarefa vinculada ao contato.',
   'Create opportunity': 'Abre uma oportunidade para o contato.',
   'Log message': 'Registra uma nota, um e-mail ou um SMS no CRM.',
@@ -27,6 +37,217 @@ const maxActions = 10;
 const triggerLabels = Object.fromEntries([...triggers, ['Manual enrollment', 'Inscrição manual']]);
 const statuses = [['all', 'Todos os status'], ['draft', 'Rascunho'], ['published', 'Publicado']];
 const runStatuses = { Running: 'Em execução', Waiting: 'Aguardando ação', Completed: 'Concluída', Canceled: 'Cancelada' };
+
+const workflowRecipes = [
+  {
+    id: 'blank',
+    title: 'Iniciar do zero',
+    desc: 'Comece com uma tela em branco e configure seus próprios gatilhos e ações.',
+    glyph: 'flow',
+    tags: ['Personalizado'],
+    recipe: null
+  },
+  {
+    id: '01_novo_lead',
+    title: '01. Novo Lead - Follow Up de Não Agendamento',
+    desc: 'Ao preencher formulário: aplica tag de Novo Lead, cria oportunidade e agenda follow-up imediato.',
+    glyph: 'edit',
+    tags: ['Gatilho: Formulário', '4 ações'],
+    recipe: {
+      name: '01. Novo Lead - Follow Up de Não Agendamento',
+      trigger: 'Form submitted',
+      actions: [
+        { type: 'Add tag', value: 'Novo Lead' },
+        { type: 'Create opportunity', value: 'Oportunidade - Novo Lead' },
+        { type: 'Create task', value: 'Follow-up imediato de agendamento' },
+        { type: 'Log message', value: 'Lead adicionado ao fluxo de agendamento', channel: 'Note' }
+      ]
+    }
+  },
+  {
+    id: '02_confirmacao_agendamento',
+    title: '02. Confirmação de Agendamento + Lembretes',
+    desc: 'Ao marcar agendamento: aplica tag de Reunião Marcada, cria tarefa de preparação e registra nota.',
+    glyph: 'clock',
+    tags: ['Gatilho: Agendamento', '3 ações'],
+    recipe: {
+      name: '02. Confirmação de Agendamento + Lembretes',
+      trigger: 'Appointment booked',
+      actions: [
+        { type: 'Add tag', value: 'Reunião Marcada' },
+        { type: 'Create task', value: 'Preparar apresentação e material da reunião' },
+        { type: 'Log message', value: 'Confirmação de agendamento enviada ao contato', channel: 'Note' }
+      ]
+    }
+  },
+  {
+    id: '03_followup_nao_comparecimento',
+    title: '03. Follow-up de Não Comparecimento',
+    desc: 'Ao alterar para etapa No-Show: tagueia falta, agenda recontato e registra histórico.',
+    glyph: 'leads',
+    tags: ['Gatilho: Etapa CRM', '3 ações'],
+    recipe: {
+      name: '03. Follow-up de Não Comparecimento',
+      trigger: 'Opportunity stage changed',
+      actions: [
+        { type: 'Add tag', value: 'No-Show' },
+        { type: 'Create task', value: 'Recontatar lead para reagendar reunião' },
+        { type: 'Log message', value: 'Tentativa de reagendamento pós-falta', channel: 'Note' }
+      ]
+    }
+  },
+  {
+    id: '04_campanha_nutricao',
+    title: '04. Campanha de Nutrição de Leads (Semanal)',
+    desc: 'Ao cadastrar contato: tagueia nutrição semanal, registra disparo de conteúdo e tarefa de qualificação.',
+    glyph: 'users',
+    tags: ['Gatilho: Contato', '3 ações'],
+    recipe: {
+      name: '04. Campanha de Nutrição de Leads (Semanal)',
+      trigger: 'Contact created',
+      actions: [
+        { type: 'Add tag', value: 'Nutrição Semanal' },
+        { type: 'Log message', value: 'Disparo de conteúdo educativo e prova social semana 1', channel: 'Note' },
+        { type: 'Create task', value: 'Verificar engajamento do lead e qualificação' }
+      ]
+    }
+  },
+  {
+    id: '05_vendido',
+    title: '05. Vendido',
+    desc: 'Ao mover oportunidade para etapa Fechado/Ganho: aplica tag de Cliente Ativo e dispara onboarding.',
+    glyph: 'bolt',
+    tags: ['Gatilho: Etapa CRM', '3 ações'],
+    recipe: {
+      name: '05. Vendido',
+      trigger: 'Opportunity stage changed',
+      actions: [
+        { type: 'Add tag', value: 'Cliente Ativo' },
+        { type: 'Create task', value: 'Iniciar onboarding e entrega do serviço' },
+        { type: 'Log message', value: 'Negócio fechado e onboarding disparado', channel: 'Note' }
+      ]
+    }
+  },
+  {
+    id: 'manychat_whatsapp_keyword',
+    title: 'ManyChat WhatsApp - Auto-resposta por Palavra-chave',
+    desc: 'Ao receber mensagem com palavra-chave (ex: QUERO): tagueia, responde no WhatsApp, abre deal e cria tarefa.',
+    glyph: 'chat',
+    tags: ['Gatilho: ManyChat', '4 ações'],
+    recipe: {
+      name: 'ManyChat WhatsApp - Auto-resposta (QUERO)',
+      trigger: 'Customer replied',
+      keyword: 'QUERO',
+      channel: 'WhatsApp',
+      actions: [
+        { type: 'Add tag', value: 'Interessado via WhatsApp' },
+        { type: 'Send WhatsApp', value: 'Olá! Recebi seu interesse. Aqui está o link com os detalhes da proposta: https://soci.app' },
+        { type: 'Create opportunity', value: 'Lead WhatsApp - Oferta' },
+        { type: 'Create task', value: 'Acompanhar resposta no WhatsApp em até 30min' }
+      ]
+    }
+  },
+  {
+    id: 'manychat_human_handoff',
+    title: 'ManyChat - Transbordo para Atendente Humano',
+    desc: 'Ao receber mensagem com ATENDENTE: tagueia, avisa o cliente no WhatsApp e pausa o fluxo para ligação/atendimento.',
+    glyph: 'users',
+    tags: ['Gatilho: ManyChat', '3 ações'],
+    recipe: {
+      name: 'ManyChat - Transbordo para Atendente Humano',
+      trigger: 'Customer replied',
+      keyword: 'ATENDENTE',
+      channel: 'WhatsApp',
+      actions: [
+        { type: 'Add tag', value: 'Solicitou Atendente' },
+        { type: 'Send WhatsApp', value: 'Perfeito! Já transferi seu atendimento para um de nossos especialistas. Aguarde um instante.' },
+        { type: 'Manual Call', value: 'Atendimento prioritário solicitado via WhatsApp' }
+      ]
+    }
+  }
+];
+
+function parseAiWorkflowPrompt(text, folderId = '') {
+  const lower = filterText(text);
+  let trigger = 'Contact created';
+  let name = 'Fluxo Automatizado com IA';
+  let keyword = '';
+  let channel = '';
+  const actionsList = [];
+
+  if (lower.includes('manychat') || lower.includes('palavra') || lower.includes('respondeu') || lower.includes('mensagem recebida') || lower.includes('quando o cliente mandar') || lower.includes('quando mandar') || lower.includes('receber mensagem')) {
+    trigger = 'Customer replied';
+    channel = lower.includes('sms') ? 'SMS' : 'WhatsApp';
+    const kwMatch = text.match(/palavra[-\s]?chave\s*["'“]?([^"'”,\.\n]+)["'”]?/i) || text.match(/["'“]([A-Z0-9_\-\s]+)["'”]/i);
+    keyword = kwMatch?.[1]?.trim() || '';
+    name = keyword ? `ManyChat WhatsApp (${keyword})` : 'ManyChat WhatsApp - Resposta Automática';
+  } else if (lower.includes('form') || lower.includes('site') || lower.includes('captura')) {
+    trigger = 'Form submitted';
+    name = 'Follow-up de Formulário Recebido';
+  } else if (lower.includes('agend') || lower.includes('reuni') || lower.includes('calend') || lower.includes('marcad')) {
+    trigger = 'Appointment booked';
+    name = 'Confirmação e Lembretes de Agendamento';
+  } else if (lower.includes('link') || lower.includes('clique') || lower.includes('clicou')) {
+    trigger = 'Trigger link clicked';
+    name = 'Engajamento em Link de Disparo';
+  } else if (lower.includes('etapa') || lower.includes('estagio') || lower.includes('pipeline') || lower.includes('oportunidade')) {
+    trigger = 'Opportunity stage changed';
+    name = 'Avanço de Etapa no Pipeline';
+  } else {
+    trigger = 'Contact created';
+    name = 'Boas-vindas a Novo Lead';
+  }
+
+  if (lower.includes('enviar whatsapp') || lower.includes('mandar whatsapp') || lower.includes('mensagem de whatsapp') || trigger === 'Customer replied') {
+    actionsList.push({ type: 'Send WhatsApp', value: 'Olá! Recebemos sua mensagem e já vamos te responder com todos os detalhes.' });
+  }
+
+  if (lower.includes('tag')) {
+    const match = text.match(/tag\s*["'“]?([^"'”,\.\n]+)["'”]?/i);
+    const tagVal = match?.[1]?.trim() || (trigger === 'Form submitted' ? 'Lead Formulário' : 'Novo Lead');
+    actionsList.push({ type: 'Add tag', value: tagVal });
+  } else {
+    actionsList.push({ type: 'Add tag', value: trigger === 'Customer replied' ? 'Lead ManyChat' : trigger === 'Form submitted' ? 'Lead Formulário' : 'Lead Qualificado' });
+  }
+
+  if (lower.includes('oportunidade') || lower.includes('pipeline') || lower.includes('negocio') || lower.includes('deal')) {
+    actionsList.push({ type: 'Create opportunity', value: 'Oportunidade - ' + name });
+  }
+
+  if (lower.includes('tarefa') || lower.includes('ligar') || lower.includes('contato') || lower.includes('retornar') || lower.includes('follow')) {
+    actionsList.push({ type: 'Create task', value: 'Fazer follow-up com o lead' });
+  }
+
+  if (lower.includes('nota') || lower.includes('mensagem') || lower.includes('crm') || lower.includes('registro')) {
+    actionsList.push({ type: 'Log message', value: 'Ação automática registrada no CRM via IA', channel: 'Note' });
+  }
+
+  if (lower.includes('ligacao') || lower.includes('ligação manual') || lower.includes('atendente') || lower.includes('humano')) {
+    actionsList.push({ type: 'Manual Call', value: 'Realizar atendimento com o contato' });
+  }
+
+  if (actionsList.length === 0) {
+    actionsList.push({ type: 'Add tag', value: 'Processado pela IA' });
+    actionsList.push({ type: 'Create task', value: 'Revisar lead no CRM' });
+  }
+
+  return {
+    name,
+    folderId,
+    trigger,
+    keyword,
+    channel,
+    actions: actionsList.slice(0, 10),
+    active: false,
+    allowReentry: true
+  };
+}
+
+const actionCategories = [
+  { title: 'Automação ManyChat & WhatsApp', keys: ['Send WhatsApp', 'Send SMS', 'Log message'] },
+  { title: 'CRM & Pipeline', keys: ['Add tag', 'Remove tag', 'Create task', 'Create opportunity'] },
+  { title: 'Transbordo & Ações Manuais', keys: ['Manual Call', 'Manual SMS'] }
+];
 const records = rows => rows.map(row => [row.id, row.name]);
 const folders = (s, label) => [['', label], ...records(s.workflowFolders)];
 const options = (entries, value) => entries.map(([id, label]) =>
@@ -96,29 +317,31 @@ function workflowList(c, tab, id) {
   const folderCards = showFolders ? s.workflowFolders.map(row =>
     `<div class="wf-folder">${link('folder', `${icon('folder', 20)}<b>${h(row.name)}</b>`, row.id)}
     ${button('folder-menu', 'Gerenciar', { id: row.id, cls: 'wf-text' })}</div>`).join('') : '';
-  const viewTabs = [['workflows', 'Todos os fluxos'], ['review', `Precisam de revisão (${reviewCount})`], ['deleted', 'Excluídos']];
+  const viewTabs = [['workflows', 'Todos os fluxos'], ['review', `Precisa de avaliação${reviewCount ? ` (${reviewCount})` : ''}`], ['deleted', 'Apagado(a)']];
   const heads = deleted ? ['Nome', 'Excluído em', '<span class="sr-only">Ações</span>'] :
     ['Nome', 'Status', 'Total de inscrições', 'Inscrições ativas', 'Última atualização', '<span class="sr-only">Ações</span>'];
   const drawRow = row => {
     if (deleted) return `<tr><td><strong>${h(row.name)}</strong></td><td>${date(c, row.deletedAt)}</td>
       <td>${button('restore', 'Restaurar', { id: row.id, glyph: 'refresh' })}</td></tr>`;
     const summary = summaryById.get(row.id);
-    return `<tr><td>${link('builder', `<strong>${h(row.name)}</strong>`, row.id, 'wf-name')}
+    const statusToggle = `<button type="button" class="wf-toggle-btn ${row.active ? 'active' : ''}" data-wf="quick-toggle" data-wf-id="${h(row.id)}" role="switch" aria-checked="${row.active}" title="${row.active ? 'Publicado (clique para pausar)' : 'Rascunho (clique para publicar)'}"><span class="wf-toggle-track"><span class="wf-toggle-thumb"></span></span><span class="wf-toggle-text">${row.active ? 'Publicado' : 'Rascunho'}</span></button>`;
+    const openGlyph = `<svg class="wf-external-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h7v7M13 3L7 9"/></svg>`;
+    return `<tr><td>${link('builder', `<strong>${h(row.name)}</strong>${openGlyph}`, row.id, 'wf-name')}
       <span class="wf-sub">${h(triggerLabels[row.trigger] || 'Gatilho pendente')}</span></td>
-      <td>${stateBadge(row.active)}</td>
+      <td>${statusToggle}</td>
       <td>${link('enrollments', summary?.total || '0', row.id, 'wf-count')}</td>
       <td>${summary?.active || '0'}</td>
       <td>${date(c, row.updated || row.created)}</td>
       <td>${button('workflow-menu', 'Gerenciar', { id: row.id, cls: 'wf-text' })}</td></tr>`;
   };
   const body = `<div class="wf-toolbar"><label class="wf-search">${icon('search', 17)}
-      <input data-wf-search aria-label="Buscar fluxos" placeholder="Buscar fluxos…" value="${h(filters.query)}"></label>
+      <input data-wf-search aria-label="Pesquisar fluxos" placeholder="Pesquisar…" value="${h(filters.query)}"></label>
       ${deleted ? '' : `<select data-wf-filter="status" aria-label="Filtrar por status">${options(statuses, filters.status)}</select>`}
       <select data-wf-filter="sort" aria-label="Ordenar fluxos">${options([['updated', 'Mais recentes'], ['name', 'Nome de A a Z']], filters.sort)}</select>
       ${deleted || tab === 'review' ? '' : button('smart-edit', 'Nova lista inteligente', { glyph: 'plus' })}
     </div>
-    ${folder || saved ? `<div class="wf-crumb">${link('workflows', 'Todos os fluxos')} ${icon('right', 13)}
-      <strong>${h((folder || saved).name)}</strong>${saved ? button('smart-menu', 'Gerenciar lista', { id: saved.id, cls: 'wf-text' }) : ''}</div>` : ''}
+    ${folder || saved ? `<div class="wf-crumb">${link('workflows', 'Página inicial')} ${icon('right', 13)}
+      <strong>${h((folder || saved).name)}</strong>${saved ? button('smart-menu', 'Gerenciar lista', { id: saved.id, cls: 'wf-text' }) : ''}</div>` : `<div class="wf-crumb-root">${icon('folder', 14)} <span>Página inicial</span></div>`}
     ${s.workflowLists.length && !deleted && tab !== 'review' ? `<nav class="wf-saved" aria-label="Listas inteligentes">${s.workflowLists.map(row =>
       link('smart', h(row.name), row.id, row.id === id ? 'current' : '')).join('')}</nav>` : ''}
     ${folderCards ? `<div class="wf-folders">${folderCards}</div>` : ''}
@@ -190,7 +413,8 @@ function canvas(c, editor) {
     'Trigger link clicked': ['linkId', 'Link de rastreamento', [['', 'Qualquer link'], ...records(c.s.triggerLinks)]],
     'Form submitted': ['formId', 'Formulário', [['', 'Qualquer formulário'], ...records(c.s.forms)]],
     'Opportunity stage changed': ['stageId', 'Etapa de destino', [['', 'Qualquer etapa'], ...c.s.stages.map(stage =>
-      [stage.id, [c.s.pipelines.find(pipeline => pipeline.id === stage.pipelineId)?.name, stage.name].filter(Boolean).join(' / ')])]]
+      [stage.id, [c.s.pipelines.find(pipeline => pipeline.id === stage.pipelineId)?.name, stage.name].filter(Boolean).join(' / ')])]],
+    'Customer replied': ['channel', 'Canal da mensagem', [['', 'Qualquer canal'], ['WhatsApp', 'WhatsApp'], ['SMS', 'SMS'], ['Email', 'E-mail'], ['Live chat', 'Chat']]]
   };
   const ref = refs[row.trigger];
   const panel = selected ? `${select('type', 'Ação', actionOptions, selected.type)}
@@ -201,7 +425,8 @@ function canvas(c, editor) {
         ${button('node-down', 'Mover depois', { glyph: 'right', disabled: node === row.actions.length - 1 })}
         ${button('node-delete', 'Remover ação', { cls: 'wf-text', glyph: 'trash' })}</div>`
     : `${select('trigger', 'Evento que inicia o fluxo', triggers, row.trigger)}
-      ${ref ? select(ref[0], ref[1], ref[2], row[ref[0]]) : ''}`;
+      ${ref ? select(ref[0], ref[1], ref[2], row[ref[0]]) : ''}
+      ${row.trigger === 'Customer replied' ? field('keyword', 'Palavra-chave (ex: QUERO, PRECO - opcional)', row.keyword || '', 100, false) : ''}`;
   return `<div class="wf-workbench"><div class="wf-stage">
     <div class="wf-canvas" tabindex="0" role="region" aria-label="Canvas do fluxo"><div class="wf-canvas-space"><div class="wf-track" style="--wf-zoom:${editor.zoom}">
     ${card('trigger', triggerLabels[row.trigger] || 'Adicionar gatilho', '', 'bolt')}
@@ -273,9 +498,9 @@ export function automationScreen(c) {
   }
   const activeRoute = tab === 'overview' || tab === 'logs' ? tab : 'workflows';
   return pageShell({
-    title: 'Automações',
+    title: 'Lista de fluxos de trabalho',
     desc: 'Automatize processos do CRM, organize fluxos em pastas e acompanhe o histórico de execuções.',
-    cta: `${button('folder-edit', 'Criar pasta', { glyph: 'folder' })}${link('builder', `${icon('plus', 17)} Criar fluxo`, tab === 'folder' ? id : '', 'primary')}`,
+    cta: `${button('folder-edit', 'Criar pasta', { glyph: 'folder' })}${button('ai-workflow-modal', 'Construa usando IA', { glyph: 'sparkles', cls: 'wf-btn-ai' })}${button('recipe-picker', 'Criar fluxo de trabalho', { glyph: 'plus', cls: 'primary', id: tab === 'folder' ? id : '' })}`,
     className: 'wf-page',
     tabs: {
       key: 'automation',
@@ -341,11 +566,17 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
     else viewport.scrollLeft += (after.left + center * after.width - bounds.left - bounds.width / 2) * viewport.clientWidth / bounds.width;
   };
   const actionPicker = position => {
-    dialog('Nova ação', `<div class="wf-picker" data-wf-insert="${position}">
-      <label class="wf-search">${icon('search', 17)}<span class="sr-only">Buscar ação</span><input type="search" placeholder="Buscar ação" data-wf-action-search autofocus></label>
-      <div class="wf-picker-grid">${Object.entries(actions).map(([type, [label, glyph]]) =>
-        button('node-insert', `<span class="wf-node-icon">${icon(glyph, 20)}</span><span><strong>${label}</strong><small>${actionDescriptions[type]}</small></span>`,
-          { id: type, cls: 'wf-picker-option' })).join('')}</div>
+    dialog('Adicionar ação ao fluxo', `<div class="wf-picker" data-wf-insert="${position}">
+      <label class="wf-search">${icon('search', 17)}<span class="sr-only">Buscar ação</span><input type="search" placeholder="Buscar ação..." data-wf-action-search autofocus></label>
+      ${actionCategories.map(cat => `
+        <div class="wf-picker-category">
+          <h3 class="wf-picker-category-title">${cat.title}</h3>
+          <div class="wf-picker-grid">${cat.keys.filter(type => actions[type]).map(type => {
+            const [label, glyph] = actions[type];
+            return button('node-insert', `<span class="wf-node-icon">${icon(glyph, 20)}</span><span><strong>${label}</strong><small>${actionDescriptions[type]}</small></span>`,
+              { id: type, cls: 'wf-picker-option' });
+          }).join('')}</div>
+        </div>`).join('')}
       <p data-wf-no-actions hidden role="status">Nenhuma ação encontrada.</p></div>`);
     document.querySelector('[data-wf-action-search]')?.focus();
   };
@@ -387,11 +618,15 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
         option.hidden = !filterText(option.textContent).includes(query);
         found ||= !option.hidden;
       }
+      for (const cat of picker.querySelectorAll('.wf-picker-category')) {
+        const hasVisible = Array.from(cat.querySelectorAll('.wf-picker-option')).some(opt => !opt.hidden);
+        cat.hidden = !hasVisible;
+      }
       picker.querySelector('[data-wf-no-actions]').hidden = found;
     } else if (input.matches('[data-wf-search]')) {
       Object.assign(listing(c), { query: input.value, page: 0 });
       updateList(input);
-    } else if (input.closest('[data-wf-editor]') && ['name', 'value', 'assignee'].includes(input.name)) {
+    } else if (input.closest('[data-wf-editor]') && ['name', 'value', 'assignee', 'keyword'].includes(input.name)) {
       const editor = c.workflowDraft;
       const record = input.name === 'name' ? editor.row : editor.row.actions[editor.node];
       record[input.name] = input.value;
@@ -485,6 +720,77 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
         c.workflowDraft = null;
         if (c.view === 'automation' && ['builder', 'settings'].includes(c.tab) && c.automationId === editor.key) show(c.tab, key);
         flash(active ? 'Fluxo publicado.' : 'Rascunho salvo.');
+      } else if (op === 'quick-toggle') {
+        if (!row) return;
+        const nextActive = !row.active;
+        if (nextActive && (!row.trigger || !row.actions?.length)) {
+          throw Error('Defina um gatilho e pelo menos uma ação para publicar.');
+        }
+        pendingSave = true;
+        btn.disabled = true;
+        await mutate({ type: 'save', key: 'workflows', id: row.id, data: { ...row, active: nextActive } });
+        render();
+        flash(nextActive ? 'Fluxo publicado.' : 'Fluxo alterado para rascunho.');
+      } else if (op === 'ai-workflow-modal') {
+        dialog('Construa usando IA', `<form class="wf-modal wf-ai-modal" data-wf-form="ai-workflow-form" data-wf-folder="${h(id || '')}">
+          <p class="wf-ai-desc">Descreva em linguagem natural o objetivo da sua automação. A inteligência da Soci configurará o gatilho, as condições e as ações automaticamente.</p>
+          <label>Instrução para a IA
+            <textarea name="prompt" rows="4" placeholder="Ex: Quando um lead preencher o formulário no site, adicione a tag 'Novo Lead', crie uma oportunidade de R$ 3.000 no pipeline e agende uma ligação manual para retorno." required autofocus></textarea>
+          </label>
+          <div class="wf-ai-suggestions">
+            <span class="wf-ai-sug-title">Sugestões rápidas:</span>
+            <button type="button" class="wf-pill-btn" data-wf="ai-suggest" data-wf-prompt="Quando um lead preencher o formulário do site, aplicar a tag Novo Lead, criar oportunidade no pipeline e criar tarefa de retorno em até 15 minutos.">01. Follow-up de Novo Lead</button>
+            <button type="button" class="wf-pill-btn" data-wf="ai-suggest" data-wf-prompt="Quando um agendamento for marcado no calendário, aplicar a tag Reunião Marcada e agendar tarefa de preparação da pauta.">02. Confirmação de Agendamento</button>
+            <button type="button" class="wf-pill-btn" data-wf="ai-suggest" data-wf-prompt="Quando a oportunidade mudar para a etapa de Negociação, aplicar tag Etapa Avançada e agendar tarefa de acompanhamento com tomador de decisão.">03. Avanço no Pipeline</button>
+          </div>
+          <div class="wf-head-actions">
+            <button type="button" class="secondary" data-close-dialog>Cancelar</button>
+            <button class="primary wf-btn-ai-submit" type="submit">${icon('sparkles', 15)} Gerar com IA</button>
+          </div>
+        </form>`);
+      } else if (op === 'ai-suggest') {
+        const textarea = document.querySelector('.wf-ai-modal textarea[name="prompt"]');
+        if (textarea) {
+          textarea.value = btn.dataset.wfPrompt || '';
+          textarea.focus();
+        }
+      } else if (op === 'recipe-picker') {
+        dialog('Criar novo fluxo de automação', `<div class="wf-recipe-modal">
+          <p class="wf-recipe-intro">Escolha uma receita pré-configurada baseada em fluxos de alto desempenho do HighLevel ou comece do zero.</p>
+          <div class="wf-recipe-grid">${workflowRecipes.map(recipe => `
+            <button type="button" class="wf-recipe-card" data-wf="apply-recipe" data-wf-id="${recipe.id}" data-wf-folder="${h(id || '')}">
+              <div class="wf-recipe-header">
+                <span class="wf-recipe-icon">${icon(recipe.glyph, 20)}</span>
+                <div class="wf-recipe-tags">${recipe.tags.map(t => `<span class="wf-recipe-tag">${h(t)}</span>`).join('')}</div>
+              </div>
+              <strong>${h(recipe.title)}</strong>
+              <p>${h(recipe.desc)}</p>
+            </button>`).join('')}</div></div>`);
+      } else if (op === 'apply-recipe') {
+        const recipeItem = workflowRecipes.find(r => r.id === id);
+        const folderId = btn.dataset.wfFolder || '';
+        close();
+        if (!recipeItem || !recipeItem.recipe) {
+          show('builder', folderId);
+        } else {
+          c.workflowDraft = {
+            workspace: c.workspace,
+            key: '',
+            row: {
+              name: recipeItem.recipe.name,
+              folderId,
+              trigger: recipeItem.recipe.trigger,
+              actions: structuredClone(recipeItem.recipe.actions),
+              active: false,
+              allowReentry: true
+            },
+            node: null,
+            zoom: 1,
+            dirty: true
+          };
+          show('builder');
+          flash('Receita aplicada no construtor. Revise e publique quando desejar.');
+        }
       } else if (op === 'page') {
         listing(c).page = Number(id);
         render();
@@ -571,6 +877,24 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
     };
     input.disabled = pendingSave = true;
     try {
+      if (op === 'ai-workflow-form') {
+        const folderId = form.dataset.wfFolder || '';
+        const prompt = data.prompt || '';
+        if (!prompt.trim()) throw Error('Descreva o que o fluxo deve fazer.');
+        const parsed = parseAiWorkflowPrompt(prompt, folderId);
+        c.workflowDraft = {
+          workspace: c.workspace,
+          key: '',
+          row: parsed,
+          node: null,
+          zoom: 1,
+          dirty: true
+        };
+        close();
+        show('builder');
+        flash('Fluxo gerado pela IA com sucesso! Revise e publique.');
+        return;
+      }
       if (op === 'enroll' && !data.contactId) throw Error('Selecione um contato.');
       const result = await mutate(commands[op]);
       if (op === 'move' && c.workflowDraft?.key === id) c.workflowDraft.row.folderId = data.folderId;

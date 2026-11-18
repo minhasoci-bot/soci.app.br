@@ -294,6 +294,11 @@ export function makeServer({
     const { agency, who } = await accessContext(req, await verifiedUser(req, res));
     return requireWorkspaceAccess(agency, who, id, options);
   }
+  async function publicPreview(req, res, url, workspace) {
+    if (url.searchParams.get('preview') !== '1') return false;
+    await workspaceAccess(req, res, workspace, { modules: ['sites'], hide: true });
+    return true;
+  }
   async function existingPersonalWorkspace(who) {
     if (!who.owner || !who.session) return;
     const id = personalId(who.session);
@@ -1495,9 +1500,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (webinarRoute && (method === 'GET' || method === 'HEAD')) {
         await ready;
         const [, workspace, webinarId, part] = webinarRoute;
+        const active = await publicAccountPolicy(workspace, false, 'sites');
         const state = await store.load(workspace);
         const webinar = state.webinars?.find(item => item.id === webinarId);
-        const preview = url.searchParams.get('preview') === '1' && (localAccess || auth?.hasSession(req));
+        const preview = await publicPreview(req, res, url, workspace);
         if (!webinar || (!webinar.active && !preview)) throw error('Este webinar não está disponível.',404);
         const zone = state.profile?.timezone || 'America/Sao_Paulo';
         const page = body => { res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer',
@@ -1512,7 +1518,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           return res.end(calendarFile(webinar, session, `${publicBase(req)}/w/${workspace}/${webinarId}/sala?t=${registration.token}`));
         }
         const now = Date.now();
-        if (session && webinar.active && method === 'GET' && now >= Date.parse(session.start) - webinar.openBefore * 60000 && now < Date.parse(session.start) + session.duration * 60000)
+        if (active && session && webinar.active && method === 'GET' && now >= Date.parse(session.start) - webinar.openBefore * 60000 && now < Date.parse(session.start) + session.duration * 60000)
           await Promise.resolve().then(() => change(workspace,{ type:'webinar-attend', id:webinarId, data:{ token:registration.token } })).catch(() => {});
         return page(roomPage(webinar, registration, { workspace, zone, at:now }));
       }
@@ -1522,6 +1528,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (method !== 'POST') throw error('Method not allowed.',405);
         const [, workspace, webinarId] = webinarCall;
         const input = await payload(req);
+        await publicAccountPolicy(workspace, true, 'sites');
         const result = await change(workspace,{ type:'webinar-register', id:webinarId, data:{ name:input.name, email:input.email, phone:input.phone, sessionId:input.sessionId } });
         const registration = result.state.webinarRegistrations.find(item => item.id === result.id);
         return json({ room:`/w/${workspace}/${webinarId}/sala?t=${registration.token}` },201);
@@ -1531,6 +1538,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (qrRoute && (method === 'GET' || method === 'HEAD')) {
         await ready;
         const [, workspace, qrId] = qrRoute;
+        const active = await publicAccountPolicy(workspace, false, 'sites');
         const state = await store.load(workspace);
         const qr = state.qrCodes?.find(item => item.id === qrId);
         const target = qr?.active ? qrTarget(state, qr, { base:publicBase(req), workspace }) : '';
@@ -1538,7 +1546,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           res.writeHead(404, { 'Content-Type':'text/html; charset=utf-8', 'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'" });
           return res.end(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR Code indisponível</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;color:#101828;background:#f2f4f7}main{max-width:420px;padding:32px;border-radius:18px;background:#fff;text-align:center}</style></head><body><main><h1 style="font-size:22px;margin:0 0 8px">Este QR Code não está ativo</h1><p style="margin:0;color:#475467">O destino foi pausado ou removido por quem criou o código.</p></main></body></html>`);
         }
-        if (method === 'GET') {
+        if (active && method === 'GET') {
           const visitor = `${req.headers['x-forwarded-for'] || req.socket?.remoteAddress || ''}|${req.headers['user-agent'] || ''}`;
           await Promise.resolve().then(() => change(workspace,{ type:'qr-scan', id:qrId, data:{ visitor, device:deviceOf(String(req.headers['user-agent'] || '')) } })).catch(() => {});
         }
@@ -1550,9 +1558,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (storeRoute && (method === 'GET' || method === 'HEAD')) {
         await ready;
         const [, workspace, storeId, cart, slug] = storeRoute;
+        await publicAccountPolicy(workspace, false, 'sites');
         const state = await store.load(workspace);
         const shop = state.stores?.find(item => item.id === storeId);
-        const preview = url.searchParams.get('preview') === '1' && (localAccess || auth?.hasSession(req));
+        const preview = await publicPreview(req, res, url, workspace);
         if (!shop || (!shop.active && !preview)) throw error('Esta loja não está aberta.',404);
         const base = `/loja/${workspace}/${storeId}`;
         let body;
@@ -1569,6 +1578,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (method !== 'POST') throw error('Method not allowed.',405);
         const [, workspace, storeId, op] = storeCall;
         const input = await payload(req);
+        await publicAccountPolicy(workspace, true, 'sites');
+        await publicAccountPolicy(workspace, true, 'payments');
         if (op === 'quote') {
           const state = await store.load(workspace);
           const shop = state.stores?.find(item => item.id === storeId && item.active);
@@ -1585,22 +1596,23 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (blogRoute && (method === 'GET' || method === 'HEAD')) {
         await ready;
         const [, workspace, blogId, slug] = blogRoute;
+        const active = await publicAccountPolicy(workspace, false, 'sites');
         const state = await store.load(workspace);
         const blog = state.blogs?.find(item => item.id === blogId);
-        const preview = url.searchParams.get('preview') === '1' && (localAccess || auth?.hasSession(req));
+        const preview = await publicPreview(req, res, url, workspace);
         if (!blog || (!blog.active && !preview)) throw error('Este blog não está publicado.',404);
         const base = `/b/${workspace}/${blogId}`, origin = publicBase(req);
-        const html = (status, body) => { res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Cache-Control':preview ? 'no-store' : 'public, max-age=60',
+        const html = (status, body) => { res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Cache-Control':'no-store',
           'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }); return res.end(method === 'HEAD' ? undefined : body); };
         if (slug === 'rss.xml') {
           if (blog.rss === false) throw error('Este blog não tem RSS.',404);
-          res.writeHead(200, { 'Content-Type':'application/rss+xml; charset=utf-8', 'Cache-Control':'public, max-age=300' });
+          res.writeHead(200, { 'Content-Type':'application/rss+xml; charset=utf-8', 'Cache-Control':'no-store' });
           return res.end(method === 'HEAD' ? undefined : blogRss(state, blog, { base, origin }));
         }
         if (!slug) return html(200, blogHome(state, blog, { base, origin, category:String(url.searchParams.get('categoria') || '').slice(0,80), page:Number(url.searchParams.get('pagina')) || 1 }));
         const post = state.blogPosts.find(item => item.blogId === blogId && item.slug === slug);
         if (!post || (!isLive(post) && !preview)) throw error('Artigo não encontrado.',404);
-        if (!preview && method === 'GET') await Promise.resolve().then(() => change(workspace,{ type:'blog-view', id:post.id })).catch(() => {});
+        if (active && !preview && method === 'GET') await Promise.resolve().then(() => change(workspace,{ type:'blog-view', id:post.id })).catch(() => {});
         return html(200, blogPost(state, blog, post, { base, origin, preview }));
       }
       if (p === '/api/blog/ai' && method === 'POST') {
@@ -1619,10 +1631,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (chatRoute && (method === 'GET' || method === 'HEAD')) {
         await ready;
         const [, workspace, widgetId, part] = chatRoute;
+        await publicAccountPolicy(workspace, false, 'sites');
         const state = await store.load(workspace);
         const widget = state.chatWidgets?.find(item => item.id === widgetId);
-        const signedIn = localAccess || auth?.hasSession(req);
-        if (!widget || (!widget.active && !signedIn)) throw error('Este chat não está publicado.',404);
+        if (widget && !widget.active) await workspaceAccess(req, res, workspace, { modules: ['sites'], hide: true });
+        if (!widget) throw error('Este chat não está publicado.',404);
         if (part === 'widget.js') {
           res.writeHead(200, { 'Content-Type':'text/javascript; charset=utf-8', 'Cache-Control':'no-cache', 'Cross-Origin-Resource-Policy':'cross-origin' });
           return res.end(method === 'HEAD' ? undefined : widget.active ? loaderScript(widget, { workspace }) : '/* chat em rascunho */');
@@ -1639,6 +1652,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (chatCall) {
         await ready;
         const [, workspace, widgetId, op] = chatCall;
+        await publicAccountPolicy(workspace, method === 'POST', 'sites');
         const token = String(req.headers['x-chat-token'] || '');
         const tokenHash = /^[0-9a-f]{48}$/.test(token) ? hash(token) : '';
         if (op === 'messages') {

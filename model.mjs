@@ -68,9 +68,9 @@ const percent = value => {
   return Math.round(n * 100) / 100;
 };
 const tags = value => [...new Set((Array.isArray(value) ? value : str(value).split(',')).map(a => str(a, 48)).filter(Boolean))].slice(0, 20);
-export const triggers = ['Contact created', 'Form submitted', 'Opportunity stage changed', 'Appointment booked', 'Trigger link clicked'];
+export const triggers = ['Contact created', 'Form submitted', 'Opportunity stage changed', 'Appointment booked', 'Trigger link clicked', 'Customer replied'];
 const manualTypes = ['Manual Call', 'Manual SMS'];
-const actionTypes = ['Add tag', 'Create task', 'Create opportunity', 'Log message', ...manualTypes];
+const actionTypes = ['Add tag', 'Remove tag', 'Create task', 'Create opportunity', 'Log message', 'Send WhatsApp', 'Send SMS', ...manualTypes];
 const messageChannels = ['Note', 'Email', 'SMS', 'WhatsApp', 'Live chat'];
 export const find = (state, key, id) => state[key].find(a => a.id === id);
 const webAddress = value => { const v = str(value, 600); if (v && !/^https?:\/\/[^\s/]+\.[^\s]+$/i.test(v)) fail('Use um endereço que comece com https://'); return v; };
@@ -141,7 +141,9 @@ const fields = {
     const linkId = trigger === 'Trigger link clicked' ? exists(s, 'triggerLinks', d.linkId, 'trigger link', true) : '';
     const formId = trigger === 'Form submitted' ? exists(s, 'forms', d.formId, 'form', true) : '';
     const stageId = trigger === 'Opportunity stage changed' ? exists(s, 'stages', d.stageId, 'stage', true) : '';
-    return { name: req(d.name,'Nome'), trigger, linkId, formId, stageId, actions, active,
+    const channel = trigger === 'Customer replied' && d.channel ? one(d.channel, messageChannels, 'channel') : '';
+    const keyword = trigger === 'Customer replied' ? str(d.keyword, 100) : '';
+    return { name: req(d.name,'Nome'), trigger, linkId, formId, stageId, channel, keyword, actions, active,
       folderId: exists(s, 'workflowFolders', d.folderId, 'folder', true), allowReentry: d.allowReentry !== false };
   },
   workflowFolders: (s, d) => ({ name: req(d.name, 'Nome da pasta', 100) }),
@@ -224,6 +226,7 @@ function continueRun(state, run) {
       return;
     }
     if (action.type === 'Add tag') contact.tags = tags([...contact.tags, action.value]);
+    if (action.type === 'Remove tag') contact.tags = contact.tags.filter(t => t.toLowerCase() !== action.value.toLowerCase().trim());
     if (action.type === 'Create task') add(state, 'tasks', { title: action.value, contactId: contact?.id || '', done: false, due: '' });
     if (action.type === 'Create opportunity') {
       const firstStage = state.stages[0];
@@ -236,6 +239,18 @@ function continueRun(state, run) {
         starred: false, origin: 'workflow', workflowId: run.workflowId
       });
     }
+    if (action.type === 'Send WhatsApp') {
+      add(state, 'messages', {
+        contactId: contact.id, body: action.value, direction: 'Outbound', channel: 'WhatsApp', read: true,
+        starred: false, origin: 'workflow', workflowId: run.workflowId
+      });
+    }
+    if (action.type === 'Send SMS') {
+      add(state, 'messages', {
+        contactId: contact.id, body: action.value, direction: 'Outbound', channel: 'SMS', read: true,
+        starred: false, origin: 'workflow', workflowId: run.workflowId
+      });
+    }
     run.results.push(`${action.type}: done`);
   }
   run.status = 'Completed';
@@ -244,7 +259,10 @@ function continueRun(state, run) {
 function run(state, event, context) {
   for (const workflow of state.workflows) {
     if (!workflow.active || workflow.trigger !== event || (workflow.linkId && workflow.linkId !== context.linkId)
-      || (workflow.formId && workflow.formId !== context.formId) || (workflow.stageId && workflow.stageId !== context.stage)) continue;
+      || (workflow.formId && workflow.formId !== context.formId) || (workflow.stageId && workflow.stageId !== context.stage)
+      || (workflow.channel && context.channel && workflow.channel !== context.channel)
+      || (workflow.keyword && (!context.body || !context.body.toLowerCase().includes(workflow.keyword.toLowerCase().trim())))
+    ) continue;
     enroll(state, workflow, event, context.contactId);
   }
 }
@@ -536,8 +554,10 @@ function other(s, command, type, key, id, d, workspace) {
         return `/r/${workspace}/${tickets.get(linkId)}`;
       });
     }
-    return add(s, 'messages', { contactId: c, body, subject: channel === 'Email' ? str(d.subject, 240) : '',
+    const msgId = add(s, 'messages', { contactId: c, body, subject: channel === 'Email' ? str(d.subject, 240) : '',
       channel, direction, read: direction !== 'Inbound', starred: false, origin: 'human' }).id;
+    if (direction === 'Inbound') run(s, 'Customer replied', { contactId: c, channel, body });
+    return msgId;
   }
   if (type === 'manual-action') return finishManualAction(s, id, d);
   if (type === 'conversation-sla') return saveSla(s, d);
