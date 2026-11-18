@@ -85,6 +85,18 @@ test('Automation definitions and executions persist together through the Supabas
   assert.equal(reloaded.deletedWorkflows.length, 0);
   assert.equal(reloaded.workflows.find(row => row.id === workflowId).active, false);
   assert.equal(reloaded.runs.filter(run => run.workflowId === workflowId).length, 1);
+
+  const setStatus = await local.call('/api/agency/action', { type: 'account-meta', id: 'demo', data: { status: 'Paused' } });
+  assert.equal(setStatus.status, 200, setStatus.body.error);
+  assert.equal(rows.get('agency').state.accounts.demo.status, 'Paused');
+  assert.equal((await local.call('/api/state')).body.account.support, true);
+  const stopped = await local.call('/api/action', { type: 'save', key: 'contacts', data: { name: 'Denied by lifecycle' } });
+  assert.equal(stopped.status, 403);
+  assert.equal(stopped.body.code, 'ACCOUNT_SUSPENDED');
+  assert.deepEqual(rows.get('demo').state.contacts, reloaded.contacts);
+  assert.equal((await local.call('/api/agency/action', { type: 'account-reactivate', id: 'demo' })).status, 200);
+  assert.equal(rows.get('agency').state.accounts.demo.status, 'Active');
+  assert.equal((await local.call('/api/state')).body.account, undefined);
 });
 
 test('Published lead form creates a contact, tags it and creates a deal in the same workspace', async t=>{

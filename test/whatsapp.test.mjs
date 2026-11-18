@@ -207,6 +207,33 @@ test('UAZAPI managed 1-click QR isolates sub-accounts, routes inbound webhooks a
   assert.equal(sendCall?.body?.text, 'Claro, qual melhor horário?');
   assert.equal(sendCall?.headers?.token, token1);
 
+  const message = { EventType: 'messages', message: { chatid: '5511966665555@c.us', senderName: 'Blocked contact', text: 'Suspended message' } };
+  const beforePaused = local.store.load('demo');
+  const sendCount = uaz.calls.length;
+  const plan = await local.call('/api/agency/action', { type: 'save', key: 'plans', data: { name: 'Without conversations', price: 0, modules: ['settings'] } });
+  assert.equal(plan.status, 200, plan.body.error);
+  const assignedPlan = await local.call('/api/agency/action', { type: 'account-meta', id: 'demo', data: { status: 'Active', plan: plan.body.result } });
+  assert.equal(assignedPlan.status, 200);
+  assert.equal((await local.call(hookPath, message)).body.reason, 'MODULE_DISABLED');
+  assert.deepEqual(local.store.load('demo'), beforePaused);
+  for (const status of ['Paused', 'Closed']) {
+    assert.equal((await local.call('/api/agency/action', { type: 'account-meta', id: 'demo', data: { status } })).status, 200);
+    const ignored = await local.call(hookPath, message);
+    assert.equal(ignored.status, 200);
+    assert.deepEqual(ignored.body, { ok: true, ignored: true, reason: 'ACCOUNT_SUSPENDED' });
+    assert.equal((await local.call('/api/action?workspace=demo', {
+      type: 'message', data: { contactId: contact.id, channel: 'WhatsApp', direction: 'Outbound', body: 'Do not send' }
+    })).body.code, 'ACCOUNT_SUSPENDED');
+    assert.equal((await local.call('/api/whatsapp/workspace/test?workspace=demo', { phone: '5511966665555', text: 'Do not send' })).status, 403);
+    assert.deepEqual(local.store.load('demo'), beforePaused);
+    assert.equal(uaz.calls.length, sendCount);
+  }
+  assert.equal(local.store.load('agency').accounts.demo.ignoredWebhooks.uazapi.count, 2);
+  assert.ok(rawDoc.subaccounts.demo.tokenSealed);
+  assert.equal(local.store.load('whatsapp-agency').subaccounts.demo.tokenSealed, rawDoc.subaccounts.demo.tokenSealed);
+  assert.equal((await local.call('/api/agency/action', { type: 'account-reactivate', id: 'demo' })).status, 200);
+  assert.equal((await local.call(hookPath, message)).body.stored, true);
+
   // Disconnect demo cleanly
   const disc = await local.call('/api/whatsapp/workspace/disconnect?workspace=demo', {});
   assert.equal(disc.status, 200);

@@ -365,7 +365,7 @@ export function createWhatsAppHandler({
     };
   }
 
-  async function sendWorkspaceText(agencyId, workspaceId, phoneRaw, textRaw) {
+  async function sendWorkspaceText(agencyId, workspaceId, phoneRaw, textRaw, accountIsActive) {
     const number = digits(phoneRaw);
     const text = typeof textRaw === 'string' ? textRaw.trim().slice(0, 4000) : '';
     if (number.length < 10 || number.length > 15) return { sent: false, reason: 'invalid-phone' };
@@ -377,6 +377,7 @@ export function createWhatsAppHandler({
     if (!creds.configured || !sub?.enabled || !token || sub.status !== 'connected') {
       return { sent: false, reason: 'not-connected' };
     }
+    if (!await accountIsActive(agencyId, workspaceId)) return { sent: false, reason: 'account-suspended' };
     const res = await uazapiFetch(creds.baseUrl, '/send/text', {
       method: 'POST',
       token,
@@ -389,7 +390,7 @@ export function createWhatsAppHandler({
     return { sent: true, id: String(data.id || data.messageid || data.key?.id || '') };
   }
 
-  async function handleWebhook({ req, url, payload, listWorkspaces, json }) {
+  async function handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json }) {
     const rawPath = resolvePath(url);
     const match = rawPath.match(/^\/api\/whatsapp\/webhook\/([^/]+)\/([^/]+)\/([a-f0-9]{32,128})$/);
     if (!match) throw fail('Webhook inválido.', 404);
@@ -397,7 +398,9 @@ export function createWhatsAppHandler({
     const workspaceId = decodeURIComponent(match[2]);
     const secretToken = match[3];
 
-    const row = await ensureRow(agencyId);
+    let row;
+    try { row = normalizeRow(await store.load(rowId(agencyId))); }
+    catch (e) { if (e.status === 404) throw fail('Assinatura do webhook inválida.', 403); throw e; }
     const sub = row.subaccounts[workspaceId];
     if (!sub || !safeEqual(sub.webhookSecret, secretToken)) {
       throw fail('Assinatura do webhook inválida.', 403);
@@ -409,6 +412,10 @@ export function createWhatsAppHandler({
     }
 
     const body = await payload(req);
+    const ignored = await webhookBlockReason(agencyId, workspaceId, 'uazapi');
+    if (ignored) {
+      return json({ ok: true, ignored: true, reason: ignored });
+    }
     const eventType = String(body.EventType || body.event || body.type || '').toLowerCase();
 
     if (eventType === 'connection') {
@@ -465,7 +472,7 @@ export function createWhatsAppHandler({
     return json({ ok: true, stored: true, workspace: workspaceId });
   }
 
-  async function handleAgencyApi({ req, url, method, who, payload, publicOrigin, listWorkspaces, json }) {
+  async function handleAgencyApi({ req, url, method, who, payload, publicOrigin, listWorkspaces, requireActiveAccount, json }) {
     const rawPath = resolvePath(url);
     const op = rawPath.slice('/api/whatsapp/agency/'.length).replace(/\/+$/, '');
     const agencyId = who.agencyId;
@@ -477,7 +484,6 @@ export function createWhatsAppHandler({
     }
 
     if (op === 'config' && method === 'POST') {
-      if (!who.settings) throw fail('Somente administradores podem configurar a UAZAPI.', 403);
       const body = await payload(req);
       const baseUrl = cleanBaseUrl(body.baseUrl);
       const rawToken = typeof body.adminToken === 'string' ? body.adminToken.trim() : '';
@@ -497,7 +503,6 @@ export function createWhatsAppHandler({
     }
 
     if (op === 'disconnect-server' && method === 'POST') {
-      if (!who.settings) throw fail('Somente administradores podem desconectar o servidor UAZAPI.', 403);
       const saved = await changeRow(agencyId, row => {
         row.baseUrl = '';
         row.adminTokenSealed = '';
@@ -508,10 +513,10 @@ export function createWhatsAppHandler({
     }
 
     if (op === 'subaccount' && method === 'POST') {
-      if (!who.settings) throw fail('Somente administradores podem configurar subcontas.', 403);
       const body = await payload(req);
       const workspace = String(body.workspace || '');
       if (!workspaces.some(w => w.id === workspace)) throw fail('Subconta inválida.', 400);
+      await requireActiveAccount(agencyId, workspace, true, 'conversations');
       const saved = await changeRow(agencyId, row => {
         const prev = normalizeSub(workspace, row.subaccounts[workspace]);
         const enabled = body.enabled !== undefined ? Boolean(body.enabled) : prev.enabled;
@@ -525,7 +530,7 @@ export function createWhatsAppHandler({
     throw fail('Rota do WhatsApp não encontrada.', 404);
   }
 
-  async function handleWorkspaceApi({ req, url, method, agencyId, workspaceId, payload, publicOrigin, json }) {
+  async function handleWorkspaceApi({ req, url, method, agencyId, workspaceId, payload, publicOrigin, requireActiveAccount, json }) {
     const rawPath = resolvePath(url);
     const op = rawPath.slice('/api/whatsapp/workspace/'.length).replace(/\/+$/, '');
 
@@ -542,7 +547,9 @@ export function createWhatsAppHandler({
       if (body.phone && (phone.length < 10 || phone.length > 15)) {
         throw fail('Informe o número com DDI e DDD (ex.: 5511999999999).');
       }
+      await requireActiveAccount(agencyId, workspaceId, true, 'conversations');
       const { creds, token } = await ensureInstance(agencyId, workspaceId, publicOrigin);
+      await requireActiveAccount(agencyId, workspaceId, true, 'conversations');
       const connectRes = await uazapiFetch(creds.baseUrl, '/instance/connect', {
         method: 'POST',
         token,
@@ -612,6 +619,7 @@ export function createWhatsAppHandler({
       const creds = serverCredentials(row, agencyId);
       const token = instanceTokenOf(row, agencyId, workspaceId);
       if (!creds.configured || !token) throw fail('Conecte o WhatsApp desta subconta antes de enviar mensagens.', 409);
+      await requireActiveAccount(agencyId, workspaceId, true, 'conversations');
       const res = await uazapiFetch(creds.baseUrl, '/send/text', {
         method: 'POST',
         token,

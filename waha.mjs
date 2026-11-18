@@ -162,14 +162,25 @@ export function createWahaHandler({ store, secret = process.env.GO_STORAGE_KEY |
     };
   }
 
-  async function handleWebhook({ req, url, payload, listWorkspaces, json }) {
+  async function workspaceForSession(agencyId, row, session, listWorkspaces) {
+    const workspaces = await listWorkspaces(agencyId);
+    const entries = Object.entries(row.subaccounts || {}).filter(([, cfg]) => cfg?.enabled);
+    const target = entries.find(([, cfg]) => (cfg.session || row.session || 'default') === session) || entries[0];
+    if (!target) return workspaces[0]?.id;
+    return workspaces.find(workspace => workspace.id === target[0])?.id;
+  }
+
+  async function handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json }) {
     let rawPath = url.searchParams.get('__path') || url.pathname;
     if (!rawPath.startsWith('/')) rawPath = '/' + rawPath;
     rawPath = rawPath.replace(/\/+/g, '/');
     const match = rawPath.match(/^\/api\/waha\/webhook\/([^/]+)\/([a-f0-9]{32,128})$/);
     if (!match) throw fail('Webhook inválido.', 404);
-    const [, agencyId, token] = match;
-    const row = await ensureRow(decodeURIComponent(agencyId));
+    const [, encodedAgencyId, token] = match;
+    const agencyId = decodeURIComponent(encodedAgencyId);
+    let row;
+    try { row = normalizeRow(await store.load(rowId(agencyId))); }
+    catch (e) { if (e.status === 404) throw fail('Assinatura do webhook inválida.', 403); throw e; }
     if (!safeEqual(row.webhookSecret, token)) throw fail('Assinatura do webhook inválida.', 403);
 
     const event = await payload(req);
@@ -185,11 +196,12 @@ export function createWahaHandler({ store, secret = process.env.GO_STORAGE_KEY |
 
     const phone = digits(fromRaw.replace(/@.*$/, ''));
     const senderName = String(event.payload._data?.notifyName || event.payload.notifyName || phone || 'Contato WhatsApp').slice(0, 120);
-    const workspaces = await listWorkspaces(decodeURIComponent(agencyId));
-    const entries = Object.entries(row.subaccounts || {}).filter(([, cfg]) => cfg?.enabled);
-    const targetEntry = entries.find(([, cfg]) => (cfg.session || row.session || 'default') === sessionName) || entries[0];
-    const targetWorkspace = targetEntry?.[0] || workspaces[0]?.id;
+    const targetWorkspace = await workspaceForSession(agencyId, row, sessionName, listWorkspaces);
     if (!targetWorkspace) return json({ ok: true, stored: false });
+    const ignored = await webhookBlockReason(agencyId, targetWorkspace, 'waha');
+    if (ignored) {
+      return json({ ok: true, ignored: true, reason: ignored });
+    }
 
     await store.change(targetWorkspace, state => {
       let contact = state.contacts.find(c => digits(c.phone) === phone && phone.length >= 8);
@@ -211,11 +223,15 @@ export function createWahaHandler({ store, secret = process.env.GO_STORAGE_KEY |
     return json({ ok: true, stored: true, workspace: targetWorkspace });
   }
 
-  async function handleApi({ req, res, url, method, who, payload, publicOrigin, listWorkspaces, json }) {
+  async function handleApi({ req, res, url, method, who, payload, publicOrigin, listWorkspaces, requireActiveAccount, json }) {
     let rawPath = url.searchParams.get('__path') || url.pathname;
     if (!rawPath.startsWith('/')) rawPath = '/' + rawPath;
     rawPath = rawPath.replace(/\/+/g, '/');
     const op = rawPath.slice('/api/waha/'.length).replace(/\/+$/, '');
+    async function requireSessionActive(row, session) {
+      const workspace = await workspaceForSession(agencyId, row, session, listWorkspaces);
+      if (workspace) await requireActiveAccount(agencyId, workspace, true, 'conversations');
+    }
     const agencyId = who.agencyId;
 
     if (op === 'status' && method === 'GET') {
@@ -226,7 +242,6 @@ export function createWahaHandler({ store, secret = process.env.GO_STORAGE_KEY |
     }
 
     if (op === 'config' && method === 'POST') {
-      if (!who.settings) throw fail('Somente administradores podem configurar o WhatsApp.', 403);
       const body = await payload(req);
       const baseUrl = cleanBaseUrl(body.baseUrl);
       const session = cleanSession(body.session);
@@ -249,7 +264,6 @@ export function createWahaHandler({ store, secret = process.env.GO_STORAGE_KEY |
     }
 
     if (op === 'disconnect' && method === 'POST') {
-      if (!who.settings) throw fail('Somente administradores podem desconectar o WhatsApp.', 403);
       const saved = await changeRow(agencyId, row => {
         row.baseUrl = '';
         row.apiKeySealed = '';
@@ -261,7 +275,6 @@ export function createWahaHandler({ store, secret = process.env.GO_STORAGE_KEY |
     }
 
     if (op === 'session' && method === 'POST') {
-      if (!who.settings) throw fail('Somente administradores podem controlar a sessão do WhatsApp.', 403);
       const body = await payload(req);
       const action = String(body.action || '');
       if (!['start', 'stop', 'logout', 'restart'].includes(action)) throw fail('Ação de sessão inválida.');
@@ -269,12 +282,14 @@ export function createWahaHandler({ store, secret = process.env.GO_STORAGE_KEY |
       const sessionName = body.session ? cleanSession(body.session) : row.session;
       const webhookUrl = `${publicOrigin}/api/waha/webhook/${encodeURIComponent(agencyId)}/${row.webhookSecret}`;
 
+      if (action === 'start' || action === 'restart') await requireSessionActive(row, sessionName);
       if (action === 'start') {
         const config = /^https:\/\//i.test(webhookUrl)
           ? { webhooks: [{ url: webhookUrl, events: ['message', 'session.status'] }] }
           : undefined;
         let resApi = await wahaFetch(row, agencyId, `/api/sessions/${encodeURIComponent(sessionName)}/start`, { method: 'POST' });
         if (resApi.status === 404 || resApi.status === 422) {
+          await requireSessionActive(row, sessionName);
           resApi = await wahaFetch(row, agencyId, '/api/sessions', {
             method: 'POST',
             body: { name: sessionName, start: true, ...(config ? { config } : {}) }
@@ -322,12 +337,12 @@ export function createWahaHandler({ store, secret = process.env.GO_STORAGE_KEY |
     }
 
     if (op === 'pair-code' && method === 'POST') {
-      if (!who.settings) throw fail('Somente administradores podem gerar código de pareamento.', 403);
       const body = await payload(req);
       const phoneNumber = digits(body.phoneNumber);
       if (phoneNumber.length < 10 || phoneNumber.length > 15) throw fail('Informe o número com DDI e DDD (ex.: 5511999999999).');
       const row = await ensureRow(agencyId);
       const sessionName = body.session ? cleanSession(body.session) : row.session;
+      await requireSessionActive(row, sessionName);
       const resApi = await wahaFetch(row, agencyId, `/api/${encodeURIComponent(sessionName)}/auth/request-code`, {
         method: 'POST',
         body: { phoneNumber }
@@ -339,13 +354,13 @@ export function createWahaHandler({ store, secret = process.env.GO_STORAGE_KEY |
     }
 
     if (op === 'test' && method === 'POST') {
-      if (!who.settings) throw fail('Somente administradores podem enviar mensagens de teste.', 403);
       const body = await payload(req);
       const chatId = toChatId(body.phone);
       const text = typeof body.text === 'string' ? body.text.trim().slice(0, 2000) : '';
       if (!text) throw fail('Escreva uma mensagem para testar o envio.');
       const row = await ensureRow(agencyId);
       const sessionName = body.session ? cleanSession(body.session) : row.session;
+      await requireSessionActive(row, sessionName);
       const resApi = await wahaFetch(row, agencyId, '/api/sendText', {
         method: 'POST',
         body: { session: sessionName, chatId, text }
@@ -359,11 +374,11 @@ export function createWahaHandler({ store, secret = process.env.GO_STORAGE_KEY |
     }
 
     if (op === 'subaccount' && method === 'POST') {
-      if (!who.settings) throw fail('Somente administradores podem configurar subcontas.', 403);
       const body = await payload(req);
       const workspace = String(body.workspace || '');
       const allowed = (await listWorkspaces(agencyId)).some(w => w.id === workspace);
       if (!allowed) throw fail('Subconta inválida.', 400);
+      await requireActiveAccount(agencyId, workspace, true, 'conversations');
       const saved = await changeRow(agencyId, row => {
         const prev = row.subaccounts[workspace] || { enabled: false, rebill: false, session: row.session || 'default' };
         const enabled = body.enabled !== undefined ? Boolean(body.enabled) : Boolean(prev.enabled);

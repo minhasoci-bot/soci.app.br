@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeServer } from '../server.mjs';
-import { formTemplates, newField, readAnswers, validFields } from '../ui/form-fields.js';
+import { formTemplates, newField, quizTemplates, readAnswers, surveyTemplates, validFields } from '../ui/form-fields.js';
 
 async function start(t) {
   const { server, host } = makeServer({ allowLocalAccess: true, auth: null, dbPath: ':memory:', port: 0, socialScheduler: false });
@@ -95,4 +95,56 @@ test('Redirects, schedules and drafts are respected', async t => {
 
   await action({ type: 'save', key: 'forms', id: form.id, data: { ...form, active: false, schedule: { start: '', end: '', closedMessage: '' } } });
   assert.equal((await fetch(`${base}/form/demo/${form.id}`)).status, 404);
+});
+
+test('Survey steps follow jumps: skipped steps are not required and their answers are not kept', async t => {
+  const { base, action, post } = await start(t);
+  const fields = surveyTemplates.find(item => item.id === 'nps').build();
+  const saved = await action({ type: 'save', key: 'forms', data: { name: 'NPS', active: true, kind: 'survey', fields } });
+  assert.equal(saved.status, 200);
+  const survey = saved.body.state.forms.find(item => item.name === 'NPS');
+  assert.equal(survey.kind, 'survey');
+  assert.equal(survey.fields.filter(field => field.type === 'break').length, 2);
+  assert.equal(survey.fields[0].logic.length, 1, 'the jump survives validation');
+
+  const page = await (await fetch(`${base}/form/demo/${survey.id}`)).text();
+  assert.equal((page.match(/class="sf-slide"/g) || []).length, 3);
+  assert.match(page, /data-steps/);
+  assert.match(page, /sf-logic/);
+
+  const promoter = await post(`/form/demo/${survey.id}`, 'recomendaria=Sim%2C+com+certeza&melhorias=ignorado&name=Davi&email=davi%40example.com');
+  assert.equal(promoter.status, 200, 'a promoter skips the improvement step');
+  const detractor = await post(`/form/demo/${survey.id}`, 'recomendaria=N%C3%A3o&name=Eva&email=eva%40example.com');
+  assert.equal(detractor.status, 422, 'a detractor must answer the improvement step');
+  assert.match(await detractor.text(), /Preencha este campo/);
+
+  const { body } = await action({ type: 'form-view', id: survey.id });
+  const kept = body.state.submissions.find(item => item.formId === survey.id);
+  assert.ok(!kept.answers.some(answer => answer.key === 'melhorias'), 'answers from a skipped step are dropped');
+  assert.equal(validFields(fields, [], 'form').some(field => field.type === 'break'), false, 'plain forms have no steps');
+});
+
+test('A quiz scores the answers, shows the tier result and tags the contact', async t => {
+  const { base, action, post } = await start(t);
+  const fields = quizTemplates.find(item => item.id === 'marketing').build();
+  const tiers = [{ name: 'Iniciante', min: 0, max: 49, message: 'Comece pelo básico.', tag: 'quiz-iniciante' },
+    { name: 'Avançado', min: 50, max: 100, message: 'Vamos acelerar.', ctaLabel: 'Agendar conversa', ctaUrl: 'https://example.com/agenda', tag: 'quiz-avancado' }];
+  assert.equal((await action({ type: 'save', key: 'forms', data: { name: 'Q', active: true, kind: 'quiz', fields, tiers: [{ name: 'A', min: 0, max: 60 }, { name: 'B', min: 50, max: 100 }] } })).status, 400, 'overlapping tiers are refused');
+  const saved = await action({ type: 'save', key: 'forms', data: { name: 'Diagnóstico', active: true, kind: 'quiz', fields, tiers, button: 'Ver meu resultado' } });
+  const quiz = saved.body.state.forms.find(item => item.name === 'Diagnóstico');
+  assert.equal(quiz.tiers.length, 2);
+
+  const sent = await post(`/form/demo/${quiz.id}`, 'frequencia=Uma+vez+por+semana&anuncios=Todo+m%C3%AAs%2C+com+metas&ferramentas=CRM&ferramentas=WhatsApp+Business&first_name=Gil&email=gil%40example.com');
+  const html = await sent.text();
+  assert.equal(sent.status, 200);
+  assert.match(html, /67%/);
+  assert.match(html, /Avançado/);
+  assert.match(html, /href="https:\/\/example.com\/agenda"/);
+  assert.match(html, /Conteúdo/);
+
+  const { body } = await action({ type: 'form-view', id: quiz.id });
+  const submission = body.state.submissions.find(item => item.formId === quiz.id);
+  assert.deepEqual([submission.result.percent, submission.result.tier, submission.result.score, submission.result.max], [67, 'Avançado', 20, 30]);
+  assert.match(submission.answers.at(-1).value, /Avançado · 67%/);
+  assert.deepEqual(body.state.contacts.find(item => item.email === 'gil@example.com').tags, ['quiz-avancado']);
 });

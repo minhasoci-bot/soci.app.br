@@ -34,10 +34,12 @@ export const fieldKinds = {
   heading: { label: 'Texto', input: 'static' },
   terms: { label: 'Termos e consentimento', input: 'consent' },
   source: { label: 'Origem', input: 'hidden', key: 'source' },
-  custom: { label: 'Campo do contato', input: 'custom' }
+  custom: { label: 'Campo do contato', input: 'custom' },
+  break: { label: 'Nova etapa', input: 'break' }
 };
 
 export const fieldCatalog = [
+  ['Estrutura', ['break']],
   ['Dados pessoais', ['name', 'first_name', 'last_name', 'email', 'phone', 'birthday']],
   ['Endereço', ['address', 'city', 'state', 'country', 'postal_code', 'organization', 'website']],
   ['Texto', ['text', 'textarea']],
@@ -59,6 +61,7 @@ export function newField(type, extra = {}) {
   if (type === 'terms') { field.required = true; field.label = 'Consentimento'; field.text = 'Concordo em receber contatos sobre este assunto e aceito a política de privacidade.'; }
   if (type === 'source') { field.hidden = true; field.value = 'Formulário'; }
   if (type === 'rating') field.label = 'Como você avalia?';
+  if (type === 'break') field.label = '';
   return { ...field, ...extra };
 }
 
@@ -73,7 +76,8 @@ export function formFields(form) {
 }
 
 // Validates the fields coming from the builder. Throws a message in Portuguese.
-export function validFields(input, customFields = []) {
+export function validFields(input, customFields = [], formKind = 'form') {
+  if (Array.isArray(input) && formKind === 'form') input = input.filter(raw => raw?.type !== 'break');
   if (!Array.isArray(input) || !input.length) fail('Adicione pelo menos um campo ao formulário.');
   if (input.length > 60) fail('Um formulário aceita até 60 campos.');
   const keys = new Set(), ids = new Set();
@@ -95,11 +99,17 @@ export function validFields(input, customFields = []) {
     if (kind.choices) {
       field.options = [...new Set((Array.isArray(raw.options) ? raw.options : String(raw.options || '').split('\n')).map(option => clean(option, 120)).filter(Boolean))].slice(0, 50);
       if (!field.options.length) fail(`Adicione opções ao campo “${field.label}”.`);
+      if (formKind === 'quiz' && raw.scores && typeof raw.scores === 'object')
+        field.scores = Object.fromEntries(field.options.filter(option => raw.scores[option] !== undefined && raw.scores[option] !== '').map(option => [option, Math.max(-1000, Math.min(1000, Math.round(Number(raw.scores[option]) || 0)))]));
+      if (formKind === 'quiz') field.category = clean(raw.category, 40);
+      if (formKind !== 'form' && ['select', 'radio'].includes(type) && Array.isArray(raw.logic))
+        field.logic = raw.logic.map(rule => ({ option: clean(rule?.option, 120), to: clean(rule?.to, 40) })).filter(rule => field.options.includes(rule.option) && rule.to).slice(0, 50);
     }
+    if (type === 'break') { field.label = clean(raw.label, 200); field.required = false; field.hidden = false; }
     if (kind.input === 'static') { field.required = false; field.hidden = false; }
     if (kind.input === 'hidden') { field.hidden = true; field.required = false; }
     if (field.hidden && kind.input !== 'hidden') field.required = false;
-    if (kind.input !== 'static') {
+    if (!['static', 'break'].includes(kind.input)) {
       let key = kind.key || slugKey(raw.key) || slugKey(field.label) || 'campo';
       if (!kind.key) for (let n = 2; keys.has(key); n++) key = `${slugKey(raw.key) || slugKey(field.label) || 'campo'}_${n}`;
       if (keys.has(key)) fail(`O campo “${field.label}” aparece duas vezes. Use apenas um.`);
@@ -108,6 +118,9 @@ export function validFields(input, customFields = []) {
     }
     return field;
   });
+  // A jump goes forward to a later step, or to the end.
+  const at = new Map(fields.map((field, index) => [field.id, index]));
+  fields.forEach((field, index) => { if (field.logic) field.logic = field.logic.filter(rule => rule.to === 'end' || (fields[at.get(rule.to)]?.type === 'break' && at.get(rule.to) > index)); });
   if (!fields.some(field => ['email', 'phone'].includes(field.type) && !field.hidden)) fail('Inclua um campo de e-mail ou de telefone: é com ele que o contato é criado.');
   return fields;
 }
@@ -118,15 +131,96 @@ const customInput = (field, customFields) => {
 };
 export const inputOf = (field, customFields = []) => field.type === 'custom' ? customInput(field, customFields) : fieldKinds[field.type]?.input || 'text';
 
+const isQuestion = field => !field.hidden && !['static', 'hidden', 'break'].includes(fieldKinds[field.type]?.input);
+
+// Steps of a survey or quiz: a "break" starts a new step; with oneAtATime every question is its own step.
+export function slidesOf(form) {
+  const slides = [{ anchors: ['start'], title: '', fields: [] }];
+  for (const field of formFields(form)) {
+    const last = slides.at(-1);
+    if (field.type === 'break') {
+      if (last.fields.some(isQuestion)) slides.push({ anchors: [field.id], title: field.label, fields: [] });
+      else { last.anchors.push(field.id); last.title ||= field.label; }
+      continue;
+    }
+    if (form.oneAtATime && isQuestion(field) && last.fields.some(isQuestion)) slides.push({ anchors: [], title: '', fields: [] });
+    slides.at(-1).fields.push(field);
+  }
+  return slides.filter((slide, index) => index === 0 || slide.fields.length);
+}
+
+// The steps a visitor goes through, following the jumps of the answers given.
+export function pathOf(form, input = {}) {
+  const slides = slidesOf(form), visited = [];
+  const at = anchor => slides.findIndex(slide => slide.anchors.includes(anchor));
+  for (let i = 0; i >= 0 && i < slides.length && !visited.includes(i);) {
+    visited.push(i);
+    let next = i + 1;
+    for (const field of slides[i].fields) {
+      const raw = input[field.key], value = clean(Array.isArray(raw) ? raw[0] : raw, 120);
+      const rule = field.logic?.find(item => item.option === value);
+      if (!rule) continue;
+      next = rule.to === 'end' ? -1 : at(rule.to);
+      if (next !== -1 && next <= i) next = i + 1;
+      break;
+    }
+    i = next;
+  }
+  return { slides, visited };
+}
+
+export const defaultTiers = [
+  { name: 'Baixo', min: 0, max: 39, message: 'Há bastante espaço para crescer. Vamos montar juntos os primeiros passos?', ctaLabel: '', ctaUrl: '', tag: '' },
+  { name: 'Médio', min: 40, max: 70, message: 'Você já tem uma boa base. Alguns ajustes podem acelerar os resultados.', ctaLabel: '', ctaUrl: '', tag: '' },
+  { name: 'Alto', min: 71, max: 100, message: 'Excelente! Você está à frente da maioria. Vamos levar isso ao próximo nível?', ctaLabel: '', ctaUrl: '', tag: '' }
+];
+
+export function validTiers(input) {
+  if (!Array.isArray(input) || !input.length) fail('Crie pelo menos uma faixa de resultado.');
+  if (input.length > 10) fail('Use até 10 faixas de resultado.');
+  const tiers = input.map(raw => {
+    const min = Math.round(Number(raw?.min)), max = Math.round(Number(raw?.max));
+    const name = clean(raw?.name, 40) || fail('Dê um nome a cada faixa.');
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max > 100 || min > max) fail(`A faixa “${name}” precisa ir de 0 a 100%, com o início menor que o fim.`);
+    const ctaUrl = clean(raw?.ctaUrl, 600);
+    if (ctaUrl && !/^https?:\/\/[^\s/]+\.[^\s]+$/i.test(ctaUrl)) fail(`O link do botão da faixa “${name}” precisa começar com https://`);
+    return { name, min, max, message: String(raw?.message ?? '').trim().slice(0, 600), ctaLabel: clean(raw?.ctaLabel, 60), ctaUrl, tag: clean(raw?.tag, 48) };
+  }).sort((a, b) => a.min - b.min);
+  tiers.slice(1).forEach((tier, index) => { if (tier.min <= tiers[index].max) fail(`As faixas “${tiers[index].name}” e “${tier.name}” se sobrepõem.`); });
+  return tiers;
+}
+
+// Quiz result: points of the chosen answers over the most points possible, and the matching tier.
+export function scoreOf(form, values) {
+  let score = 0, max = 0;
+  const categories = new Map();
+  for (const field of formFields(form).filter(item => fieldKinds[item.type]?.choices && item.scores && Object.keys(item.scores).length)) {
+    const points = field.options.map(option => Number(field.scores[option]) || 0);
+    const many = ['multiselect', 'checkbox'].includes(field.type);
+    const most = many ? points.filter(n => n > 0).reduce((a, b) => a + b, 0) : Math.max(0, ...points);
+    const value = values[field.key], chosen = Array.isArray(value) ? value : value ? [value] : [];
+    const got = chosen.reduce((sum, option) => sum + (Number(field.scores[option]) || 0), 0);
+    score += got; max += most;
+    if (field.category) { const row = categories.get(field.category) || { name: field.category, score: 0, max: 0 }; row.score += got; row.max += most; categories.set(field.category, row); }
+  }
+  const percent = max ? Math.max(0, Math.min(100, Math.round(score / max * 100))) : 0;
+  const tiers = form.tiers?.length ? form.tiers : defaultTiers;
+  const tier = tiers.find(item => percent >= item.min && percent <= item.max) || null;
+  return { score, max, percent, tier: tier?.name || '', tierDetail: tier,
+    categories: [...categories.values()].map(row => ({ ...row, percent: row.max ? Math.max(0, Math.min(100, Math.round(row.score / row.max * 100))) : 0 })) };
+}
+
 const empty = value => value === undefined || value === null || (Array.isArray(value) ? !value.length : String(value).trim() === '');
 
 // Reads a visitor's answers. Returns the contact data, custom contact values and the answers to keep.
 export function readAnswers(form, input, customFields = []) {
   const fields = formFields(form), errors = {}, values = {}, answers = [], contact = {}, custom = {};
   const strict = Array.isArray(form?.fields) && form.fields.length > 0; // forms made before the builder accepted any phone
+  const { slides, visited } = pathOf(form, input || {});
+  const reached = new Set(visited.flatMap(index => slides[index].fields.map(field => field.id)));
   for (const field of fields) {
     const type = inputOf(field, customFields);
-    if (type === 'static') continue;
+    if (type === 'static' || type === 'break' || !reached.has(field.id)) continue;
     let raw = input?.[field.key];
     if (type === 'hidden') raw = empty(raw) ? field.value : raw;
     const many = ['multi', 'checkbox'].includes(type);
@@ -157,7 +251,9 @@ export function readAnswers(form, input, customFields = []) {
   }
   const name = contact.name || [contact.firstName, contact.lastName].filter(Boolean).join(' ');
   if (!Object.keys(errors).length && !contact.email && !contact.phone) errors._form = 'Informe um e-mail ou telefone.';
-  return { ok: !Object.keys(errors).length, errors, values, answers: answers.slice(0, 60),
+  const result = form?.kind === 'quiz' ? scoreOf(form, values) : null;
+  if (result) answers.push({ key: '_result', label: 'Resultado', value: `${result.tier ? `${result.tier} · ` : ''}${result.percent}% (${result.score} de ${result.max} pontos)` });
+  return { ok: !Object.keys(errors).length, errors, values, answers: answers.slice(0, 61), result,
     contact: { name: name || contact.email || contact.phone || '', email: contact.email || '', phone: contact.phone || '', company: contact.company || '' }, custom };
 }
 
@@ -182,6 +278,7 @@ export function fieldMarkup(field, { values = {}, errors = {}, customFields = []
   const auto = fieldKinds[field.type]?.auto ? ` autocomplete="${fieldKinds[field.type].auto}"` : '';
   const ph = field.placeholder ? ` placeholder="${esc(field.placeholder)}"` : '';
   const cls = `sf-field sf-${type}${field.width === 50 ? ' sf-half' : ''}${field.hidden ? ' sf-is-hidden' : ''}`;
+  if (type === 'break') return disabled ? `<div class="sf-field sf-break" data-field="${esc(field.id)}"><span>Nova etapa</span>${field.label ? `<b>${esc(field.label)}</b>` : ''}</div>` : '';
   if (type === 'static') return `<div class="${cls}" data-field="${esc(field.id)}">${field.label ? `<h3 class="sf-heading">${esc(field.label)}</h3>` : ''}${field.text ? `<p class="sf-text">${esc(field.text)}</p>` : ''}</div>`;
   if (!disabled && (type === 'hidden' || field.hidden)) return `<input type="hidden" name="${esc(field.key)}" value="${esc(empty(value) ? field.value : value)}">`;
   let control;
@@ -207,12 +304,31 @@ export function fieldMarkup(field, { values = {}, errors = {}, customFields = []
 }
 
 export function formMarkup(form, { action = '', values = {}, errors = {}, customFields = [], target = '' } = {}) {
-  const fields = formFields(form);
-  return `<form class="sf" method="post" action="${esc(action)}"${target ? ` target="${esc(target)}"` : ''} novalidate>
-    ${errors._form ? `<p class="sf-alert" role="alert">${esc(errors._form)}</p>` : Object.keys(errors).length ? '<p class="sf-alert" role="alert">Confira os campos destacados.</p>' : ''}
-    <div class="sf-grid">${fields.map(field => fieldMarkup(field, { values, errors, customFields })).join('')}</div>
-    <button class="sf-submit" type="submit">${esc(form.button || 'Enviar')}</button></form>`;
+  const alert = errors._form ? `<p class="sf-alert" role="alert">${esc(errors._form)}</p>` : Object.keys(errors).length ? '<p class="sf-alert" role="alert">Confira os campos destacados.</p>' : '';
+  const slides = form.kind && form.kind !== 'form' ? slidesOf(form) : [{ anchors: ['start'], title: '', fields: formFields(form) }];
+  const grid = slide => `<div class="sf-grid">${slide.fields.map(field => fieldMarkup(field, { values, errors, customFields })).join('')}</div>`;
+  const open = `<form class="sf${slides.length > 1 ? ' sf-steps' : ''}" method="post" action="${esc(action)}"${target ? ` target="${esc(target)}"` : ''} novalidate${slides.length > 1 ? ' data-steps' : ''}>`;
+  if (slides.length < 2) return `${open}${alert}${grid(slides[0])}<button class="sf-submit" type="submit">${esc(form.button || 'Enviar')}</button></form>`;
+  const logic = { slides: slides.map(slide => ({ anchors: slide.anchors, rules: slide.fields.filter(field => field.logic?.length).map(field => ({ key: field.key, logic: field.logic })) })) };
+  return `${open}${alert}<div class="sf-progress" aria-hidden="true"><i></i></div>
+    ${slides.map((slide, index) => `<section class="sf-slide" data-slide="${index}" aria-label="Etapa ${index + 1} de ${slides.length}">${slide.title ? `<h2 class="sf-slide-title">${esc(slide.title)}</h2>` : ''}${grid(slide)}</section>`).join('')}
+    <div class="sf-nav"><button type="button" class="sf-back" data-back>Voltar</button><span class="sf-count" data-count></span><button type="button" class="sf-submit sf-next" data-next>Próximo</button><button class="sf-submit" type="submit" data-send>${esc(form.button || 'Enviar')}</button></div>
+    <script type="application/json" class="sf-logic">${JSON.stringify(logic).replace(/</g, '\\u003c')}</script></form>`;
 }
+
+// Runs the steps in the browser: one step at a time, required fields checked, jumps followed.
+// Without JavaScript every step shows at once and the server applies the same jumps.
+const stepsScript = `(()=>{const f=document.querySelector('form[data-steps]');if(!f)return;f.classList.add('sf-js');
+const map=JSON.parse(f.querySelector('.sf-logic').textContent),slides=[...f.querySelectorAll('.sf-slide')],back=f.querySelector('[data-back]'),next=f.querySelector('[data-next]'),send=f.querySelector('[data-send]'),bar=f.querySelector('.sf-progress i'),count=f.querySelector('[data-count]');
+const target=i=>{for(const r of map.slides[i].rules){const v=(f.elements[r.key]&&f.elements[r.key].value)||'';const rule=r.logic.find(x=>x.option===v);if(rule){if(rule.to==='end')return -1;const j=map.slides.findIndex(s=>s.anchors.includes(rule.to));return j>i?j:i+1}}return i+1<slides.length?i+1:-1};
+let hist=[0];const err=slides.findIndex(s=>s.querySelector('.sf-error'));
+if(err>0)while(hist.at(-1)!==err&&hist.length<=slides.length){const t=target(hist.at(-1));if(t<0)break;hist.push(t)}
+const ok=i=>{for(const el of slides[i].querySelectorAll('input,select,textarea')){if(!el.checkValidity()){el.reportValidity();return false}}return true};
+const show=()=>{const i=hist.at(-1),t=target(i);slides.forEach((s,j)=>{s.hidden=j!==i});back.hidden=hist.length<2;next.hidden=t<0;send.hidden=t>=0;bar.style.width=Math.round((i+1)/slides.length*100)+'%';count.textContent=(i+1)+' de '+slides.length};
+next.addEventListener('click',()=>{const i=hist.at(-1);if(!ok(i))return;hist.push(target(i));show();const el=slides[hist.at(-1)].querySelector('input:not([type=hidden]),select,textarea');el&&el.focus()});
+back.addEventListener('click',()=>{hist.pop();show()});f.addEventListener('change',show);
+f.addEventListener('submit',e=>{if(!next.hidden){e.preventDefault();next.click();return}if(!ok(hist.at(-1))){e.preventDefault();return}slides.forEach((s,j)=>{if(!hist.includes(j))s.querySelectorAll('input,select,textarea').forEach(el=>{el.disabled=true})})});
+show()})()`;
 
 export const formCss = `
 .sf{--sf-accent:#155eef;display:grid;gap:18px;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#101828}
@@ -240,24 +356,46 @@ export const formCss = `
 .sf-alert{margin:0;padding:10px 12px;border-radius:10px;background:#fef3f2;color:#b42318;font-weight:600}
 .sf-submit{min-height:46px;padding:10px 22px;border:0;border-radius:10px;background:var(--sf-accent);color:#fff;font:inherit;font-weight:700;cursor:pointer;justify-self:start}
 .sf-submit:hover{filter:brightness(1.08)}.sf-submit:focus-visible{outline:2px solid var(--sf-accent);outline-offset:3px}
+.sf-progress{height:6px;border-radius:99px;background:#eaecf0;overflow:hidden;display:none}.sf-progress i{display:block;height:100%;width:0;background:var(--sf-accent);transition:width .25s ease}
+.sf-js .sf-progress{display:block}.sf-slide{display:grid;gap:16px}.sf-slide[hidden]{display:none}.sf-slide+.sf-slide{padding-top:18px;border-top:1px solid #eaecf0}.sf-js .sf-slide+.sf-slide{padding-top:0;border:0}
+.sf-slide-title{margin:0;font-size:19px;line-height:1.3}
+.sf-nav{display:flex;align-items:center;gap:10px}.sf-nav .sf-submit{margin-left:auto}.sf-nav [hidden]{display:none}
+.sf-back{min-height:46px;padding:10px 18px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font:inherit;font-weight:600;cursor:pointer}
+.sf-count{color:#667085;font-size:13px}.sf:not(.sf-js) .sf-back,.sf:not(.sf-js) .sf-next,.sf:not(.sf-js) .sf-count{display:none}
+.sf-break{flex:1 1 100%;display:flex;align-items:center;gap:10px;padding:8px 0;color:#155eef;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.sf-break::after{content:'';flex:1;border-top:2px dashed #b2ccff}.sf-break b{color:#101828;text-transform:none;letter-spacing:0;font-size:14px}
+@media (prefers-reduced-motion:reduce){.sf-progress i{transition:none}}
 `;
 
 // The standalone public page of a form (also used inside an iframe when embedded).
 export function formPage(form, { action, values, errors, customFields, embed = false, brand = '', notice = '', accent = '#155eef', target = '' } = {}) {
   const color = /^#[0-9a-f]{6}$/i.test(form.accent || '') ? form.accent : accent;
-  const body = notice
-    ? `<div class="sf-done" role="status"><span aria-hidden="true">✓</span><h1>${esc(notice.title || 'Obrigado!')}</h1>${notice.text ? `<p>${esc(notice.text)}</p>` : ''}</div>`
+  const r = notice?.result;
+  const cta = notice?.cta?.url ? `<a class="sf-submit sf-cta" href="${esc(notice.cta.url)}"${embed ? ' target="_top"' : ''}>${esc(notice.cta.label || 'Saiba mais')}</a>` : '';
+  const body = r
+    ? `<div class="sf-done sf-result" role="status"><p class="sf-kicker">Seu resultado</p><div class="sf-ring" style="--p:${r.percent}"><b>${r.percent}%</b></div>
+        ${r.tier ? `<h1>${esc(r.tier)}</h1>` : ''}${notice.text ? `<p>${esc(notice.text)}</p>` : ''}
+        ${r.categories?.length ? `<ul class="sf-cats">${r.categories.map(cat => `<li><span>${esc(cat.name)}</span><span class="sf-cat-bar"><i style="width:${cat.percent}%"></i></span><b>${cat.percent}%</b></li>`).join('')}</ul>` : ''}${cta}</div>`
+    : notice
+    ? `<div class="sf-done" role="status"><span class="sf-check" aria-hidden="true">✓</span><h1>${esc(notice.title || 'Obrigado!')}</h1>${notice.text ? `<p>${esc(notice.text)}</p>` : ''}${cta}</div>`
     : `${form.showTitle !== false && form.name ? `<header class="sf-head"><h1>${esc(form.name)}</h1>${form.description ? `<p>${esc(form.description)}</p>` : ''}</header>` : ''}${formMarkup(form, { action, values, errors, customFields, target })}`;
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(form.name || 'Formulário')}${brand ? ` · ${esc(brand)}` : ''}</title><meta name="robots" content="noindex">
 <style>${formCss}
 html{background:${embed ? 'transparent' : '#f2f4f7'}}body{margin:0;padding:${embed ? '4px' : '40px 16px'}}
 .sf-card{max-width:620px;margin:0 auto;${embed ? '' : 'padding:32px;border-radius:18px;background:#fff;box-shadow:0 1px 3px rgba(16,24,40,.1),0 1px 2px rgba(16,24,40,.06);'}font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#101828}
-.sf{--sf-accent:${color}}.sf-head{margin-bottom:22px}.sf-head h1{margin:0;font-size:24px;line-height:1.25}.sf-head p{margin:6px 0 0;color:#475467}
-.sf-done{display:grid;justify-items:center;gap:8px;text-align:center;padding:24px 0}.sf-done span{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:${color};color:#fff;font-size:26px}
+.sf,.sf-card{--sf-accent:${color}}.sf-head{margin-bottom:22px}.sf-head h1{margin:0;font-size:24px;line-height:1.25}.sf-head p{margin:6px 0 0;color:#475467}
+.sf-done{display:grid;justify-items:center;gap:8px;text-align:center;padding:24px 0}.sf-check{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:${color};color:#fff;font-size:26px}
 .sf-done h1{margin:4px 0 0;font-size:22px}.sf-done p{margin:0;color:#475467;max-width:46ch}
 .sf-brand{margin:18px auto 0;max-width:620px;text-align:center;color:#98a2b3;font-size:12px}
+.sf-kicker{margin:0;color:#667085;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.sf-ring{display:grid;place-items:center;width:128px;height:128px;border-radius:50%;background:conic-gradient(${color} calc(var(--p)*1%),#eaecf0 0)}
+.sf-ring b{display:grid;place-items:center;width:100px;height:100px;border-radius:50%;background:#fff;font-size:28px}
+.sf-cats{display:grid;gap:8px;width:100%;max-width:380px;margin:8px 0 0;padding:0;list-style:none;text-align:left;font-size:14px}
+.sf-cats li{display:grid;grid-template-columns:minmax(0,1fr) 120px 44px;align-items:center;gap:10px}.sf-cat-bar{height:8px;border-radius:99px;background:#eaecf0;overflow:hidden}.sf-cat-bar i{display:block;height:100%;background:${color};border-radius:99px}
+.sf-cats b{text-align:right}.sf-cta{display:inline-flex;align-items:center;justify-content:center;margin-top:8px;text-decoration:none;justify-self:center}
 </style></head><body><main class="sf-card">${body}</main>${embed || !brand ? '' : `<p class="sf-brand">${esc(brand)}</p>`}
+${!notice && form.kind && form.kind !== 'form' && slidesOf(form).length > 1 ? `<script>${stepsScript}</script>` : ''}
 ${embed ? `<script>(()=>{const send=()=>parent.postMessage({sociForm:${JSON.stringify(String(form.id || ''))},height:document.documentElement.scrollHeight},'*');addEventListener('load',send);new ResizeObserver(send).observe(document.body)})()</script>` : ''}</body></html>`;
 }
 
@@ -274,3 +412,31 @@ export const formTemplates = [
     field('radio', { label: 'Você nos recomendaria?', key: 'recomendaria', options: ['Sim', 'Talvez', 'Não'] }), field('checkbox', { label: 'O que mais gostou?', key: 'destaques', options: ['Atendimento', 'Prazo', 'Qualidade', 'Preço'] }), field('textarea', { label: 'Comentários', key: 'comentarios' })] },
   { id: 'newsletter', name: 'Newsletter', description: 'Nome, e-mail e consentimento.', build: () => [field('first_name', { required: true }), field('email'), field('terms', { text: 'Quero receber novidades por e-mail. Posso cancelar quando quiser.' })] }
 ];
+
+const steps = (...groups) => groups.flat();
+export const surveyTemplates = [
+  { id: 'nps', name: 'Satisfação com desvio', description: 'Quem recomenda vai direto aos dados; quem não recomenda conta o que melhorar.', build: () => {
+    const improve = field('break', { label: 'O que podemos melhorar?' }), contact = field('break', { label: 'Seus dados' });
+    return steps(field('radio', { label: 'Você recomendaria a gente para um amigo?', key: 'recomendaria', required: true, options: ['Sim, com certeza', 'Talvez', 'Não'], logic: [{ option: 'Sim, com certeza', to: contact.id }] }),
+      improve, field('textarea', { label: 'Conte o que faltou para ser uma ótima experiência', key: 'melhorias', required: true }),
+      contact, field('name', { required: true }), field('email'));
+  } },
+  { id: 'onboarding', name: 'Onboarding de cliente', description: 'Três etapas: você, a empresa e os objetivos.', build: () => steps(
+    field('break', { label: 'Sobre você' }), field('name', { required: true }), field('email', { width: 50 }), field('phone', { width: 50 }),
+    field('break', { label: 'Sobre a empresa' }), field('organization', { required: true }), field('select', { label: 'Segmento', key: 'segmento', options: ['Serviços', 'Varejo', 'Saúde', 'Educação', 'Outro'] }), field('radio', { label: 'Tamanho da equipe', key: 'equipe', options: ['Só eu', '2 a 10', '11 a 50', 'Mais de 50'] }),
+    field('break', { label: 'Objetivos' }), field('checkbox', { label: 'O que você quer alcançar?', key: 'objetivos', options: ['Mais clientes', 'Vender online', 'Fortalecer a marca', 'Organizar o atendimento'] }), field('textarea', { label: 'Algo mais que devemos saber?', key: 'observacoes' })) }
+];
+export const quizTemplates = [
+  { id: 'marketing', name: 'Diagnóstico de marketing', description: 'Pontua conteúdo, anúncios e atendimento e mostra o resultado na hora.', build: () => steps(
+    field('radio', { label: 'Com que frequência você publica nas redes?', key: 'frequencia', required: true, category: 'Conteúdo', options: ['Quase nunca', 'Uma vez por semana', 'Três vezes ou mais por semana'], scores: { 'Quase nunca': 0, 'Uma vez por semana': 5, 'Três vezes ou mais por semana': 10 } }),
+    field('radio', { label: 'Você investe em anúncios pagos?', key: 'anuncios', required: true, category: 'Anúncios', options: ['Não', 'Às vezes', 'Todo mês, com metas'], scores: { 'Não': 0, 'Às vezes': 4, 'Todo mês, com metas': 10 } }),
+    field('break', { label: 'Atendimento' }),
+    field('checkbox', { label: 'O que você já usa?', key: 'ferramentas', category: 'Atendimento', options: ['WhatsApp Business', 'CRM', 'Respostas automáticas', 'Agendamento online'], scores: { 'WhatsApp Business': 2, CRM: 3, 'Respostas automáticas': 3, 'Agendamento online': 2 } }),
+    field('break', { label: 'Para onde mandamos o resultado?' }), field('first_name', { required: true }), field('email')) },
+  { id: 'perfil', name: 'Qualificação de lead', description: 'Orçamento, prazo e decisão viram uma nota de prioridade.', build: () => steps(
+    field('radio', { label: 'Qual é o orçamento para o projeto?', key: 'orcamento', required: true, options: ['Até R$ 2 mil', 'De R$ 2 mil a R$ 10 mil', 'Acima de R$ 10 mil'], scores: { 'Até R$ 2 mil': 2, 'De R$ 2 mil a R$ 10 mil': 6, 'Acima de R$ 10 mil': 10 } }),
+    field('radio', { label: 'Para quando você precisa?', key: 'prazo', required: true, options: ['Sem pressa', 'Nos próximos 3 meses', 'Este mês'], scores: { 'Sem pressa': 1, 'Nos próximos 3 meses': 5, 'Este mês': 10 } }),
+    field('radio', { label: 'Você decide a contratação?', key: 'decisor', required: true, options: ['Sim', 'Divido a decisão', 'Não'], scores: { Sim: 10, 'Divido a decisão': 5, 'Não': 0 } }),
+    field('break', { label: 'Seus dados' }), field('name', { required: true }), field('email'), field('phone')) }
+];
+export const templatesFor = kind => kind === 'survey' ? surveyTemplates : kind === 'quiz' ? quizTemplates : formTemplates;

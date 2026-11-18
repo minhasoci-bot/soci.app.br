@@ -21,7 +21,7 @@ O banco usa uma linha JSONB por workspace em `public.go_workspaces`. O servidor 
 1. Crie um cliente OAuth do tipo **Aplicativo da Web** no Google Cloud. Cadastre `https://<project-ref>.supabase.co/auth/v1/callback` como URI autorizada no cliente e informe o ID e o segredo em **Authentication → Sign In / Providers → Google**. [Login com Google no Supabase](https://supabase.com/docs/guides/auth/social-sign-in/auth-google)
 2. Em **Authentication → URL Configuration**, inclua `/api/auth/callback/google` na lista de redirecionamentos permitidos para cada origem do app. Para desenvolvimento, use `http://127.0.0.1:4317` ou `http://localhost:4317`. [URLs de redirecionamento](https://supabase.com/docs/guides/auth/redirect-urls)
 
-No primeiro login com Google, uma conta sem vínculo de equipe recebe sua própria agência e abre o painel com zero subcontas. Para acessar a agência original e suas subcontas existentes, configure `GO_AGENCY_OWNER_ID` com o UUID da conta confirmada do proprietário em **Authentication → Users** e reinicie o servidor. Para vincular um novo membro a uma agência, cadastre seu e-mail confirmado em **Configurações → Membros da equipe** antes do primeiro login no soci. O membro recebe as permissões e subcontas definidas nesse cadastro.
+No primeiro login com Google, uma conta sem vínculo de equipe recebe sua própria agência e abre o painel com zero subcontas. Para acessar a agência original e suas subcontas existentes, configure `GO_AGENCY_OWNER_ID` com o UUID da conta confirmada do proprietário em **Authentication → Users** e reinicie o servidor. Para vincular um novo membro a uma agência, cadastre seu e-mail confirmado em **Configurações → Membros da equipe** antes do primeiro login na soci. O membro recebe as permissões e subcontas definidas nesse cadastro.
 
 Para desenvolver apenas com SQLite, é possível iniciar em loopback com `GO_DEV_NO_AUTH=1` e sem as variáveis Supabase. Esse modo local não é usado na Vercel.
 
@@ -74,7 +74,7 @@ Acesse `/prospecting` para abrir a aba da agência. Cadastros, categorias, agent
 
 Com a variável de servidor `PROSPECTING_GOOGLE_PLACES_KEY` e as APIs Places (New) e Geocoding habilitadas, a busca traz resultados do Google Maps. O cadastro guarda o ID do local e permite adicionar dados comerciais próprios. A busca sem chave consulta os prospects salvos. O Prospect AI guarda os critérios e executa a busca sob demanda. A auditoria usa os dados do cadastro e as notas informadas.
 
-Para abrir o mapa dentro da aba, habilite a Maps Embed API e defina `PROSPECTING_GOOGLE_MAPS_EMBED_KEY`. Use outra chave, restrita à Maps Embed API e às origens em que o soci é acessado. A chave Places permanece no servidor.
+Para abrir o mapa dentro da aba, habilite a Maps Embed API e defina `PROSPECTING_GOOGLE_MAPS_EMBED_KEY`. Use outra chave, restrita à Maps Embed API e às origens em que a soci é acessada. A chave Places permanece no servidor.
 
 ## Fluxo integrado
 
@@ -126,7 +126,7 @@ O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, pu
 
 ## Construtor com IA (estilo vibe)
 
-Ao descrever um site na página inicial do **AI Studio**, ou escolher **Construir com IA** em **Sites**, o soci abre o construtor (`#studio/build`), com a conversa à esquerda e a prévia à direita:
+Ao descrever um site na página inicial do **AI Studio**, ou escolher **Construir com IA** em **Sites**, a soci abre o construtor (`#studio/build`), com a conversa à esquerda e a prévia à direita:
 
 1. **Direção visual.** Antes de construir, três perguntas: paleta (4 opções com as cores), par de fontes do Google Fonts e estrutura da página (tela dividida, seções empilhadas, centralizado ou conteúdo com coluna). Cada pergunta aceita uma resposta escrita. Há revisão das respostas e **Pular todas**. Com a OpenAI conectada, a IA propõe paletas e fontes para o negócio descrito.
 2. **Plano.** A IA (ou o gerador local) define as páginas em ordem. Um funil sempre termina numa página de obrigado.
@@ -159,6 +159,26 @@ Em **Sites → Formulários** há três abas: **Todos os formulários**, **Anál
 - **Envios e Análises.** Respostas completas de cada envio, busca e exportação em CSV; visitas, envios e conversão em 7, 30 ou 90 dias.
 
 Cada envio cria o contato ou atualiza o existente (pelo e-mail ou telefone) e dispara os fluxos com o gatilho **Formulário enviado**. O servidor valida cada resposta pelo tipo do campo e devolve a página com os erros. Ainda não existem upload de arquivo, assinatura, pagamento no formulário nem notificação por e-mail.
+
+## Pesquisas e questionários
+
+**Sites → Pesquisas** e **Sites → Questionários** usam o mesmo construtor dos formulários, com as abas de lista, análises e envios de cada um.
+
+- **Etapas.** O elemento **Nova etapa** divide a pesquisa em telas, com barra de progresso e os botões Voltar e Próximo. Com **Uma pergunta por tela**, cada pergunta vira uma tela. Os campos obrigatórios são conferidos antes de avançar.
+- **Desvios.** Em perguntas de opção única ou lista, cada resposta pode levar à próxima etapa, a uma etapa mais à frente ou direto ao envio. O servidor refaz o mesmo caminho: etapas puladas não são obrigatórias e as respostas delas não ficam guardadas.
+- **Pontuação (questionários).** Cada resposta de escolha vale pontos e a pergunta pode ter uma categoria. O resultado é a soma sobre o máximo possível, em porcentagem. Na aba **Pontuação** ficam as faixas (por padrão Baixo, Médio e Alto), cada uma com mensagem, botão com link e tag para o contato.
+- **Resultado.** Ao enviar um questionário, o visitante vê a porcentagem, a faixa, a mensagem e as barras por categoria. O envio guarda o resultado, o contato recebe a tag da faixa e a aba Análises mostra quantas pessoas caíram em cada faixa.
+
+Modelos: pesquisa de satisfação com desvio e onboarding de cliente; diagnóstico de marketing e qualificação de lead. Sem JavaScript, todas as etapas aparecem juntas e o envio continua funcionando.
+
+## Chat do site
+
+Em **Sites → Chat** você cria bolhas de chat para colocar em qualquer site. O editor tem prévia ao vivo e três abas: **Configurar** (tipo, cor, posição, título, nome de quem responde, convite da bolha com atraso, boas-vindas, aviso legal, campos de nome, e-mail e telefone, tags), **Instalar** (código e página de teste) e **Insights** (conversas iniciadas, mensagens recebidas, conversas respondidas e a página de origem).
+
+- **Chat ao vivo.** O visitante preenche os dados e escreve. A soci cria ou encontra o contato pelo e-mail ou telefone, e a mensagem chega em **Conversas** no canal **Chat ao vivo**. Responder nesse canal entrega a mensagem no chat do visitante (o painel consulta novas mensagens a cada 4 segundos com a aba visível).
+- **SMS e e-mail.** Coleta os dados e a primeira mensagem, mostra o agradecimento e registra a conversa como SMS (com telefone) ou e-mail.
+
+Instalação: `<script src="https://<seu-soci>/chat/<workspace>/<id>/widget.js" async></script>`. O script cria a bolha num shadow root e abre o painel num iframe servido pela soci, então o CSS do site não interfere. O visitante guarda só um token aleatório; o servidor guarda apenas o hash dele e devolve somente as mensagens do chat daquela sessão. Facebook, Instagram, WhatsApp e IA de voz dentro do widget dependem de integrações externas e não foram incluídos.
 
 ## Estúdio de agentes
 

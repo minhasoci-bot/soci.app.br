@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { changeDashboard } from './dashboard-model.mjs';
 import { validDesign } from './ui/studio-design.js';
-import { formOpen, readAnswers, validFields } from './ui/form-fields.js';
+import { formOpen, readAnswers, validFields, validTiers } from './ui/form-fields.js';
 import { changeReport } from './report-model.mjs';
 import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashboard-data.js';
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
 import { afterSave, beforeDelete, bulk, crmCollections, crmFields, customData } from './crm-model.mjs';
 import { inboxRule } from './ui/inbox-data.js';
 import { socialBeforeDelete, socialCollections, socialCommand, socialFields } from './social-model.mjs';
+import { chatBeforeDelete, chatCollections, chatCommand, chatFields } from './chat-model.mjs';
+import { blogBeforeDelete, blogCollections, blogFields, blogView } from './blog-model.mjs';
 
 export const defaults = {
   profile: { name: 'Demo Workspace', email: 'hello@example.test', phone: '', timezone: 'America/Sao_Paulo', currency: 'BRL' },
@@ -20,7 +22,7 @@ export const defaults = {
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[],
-  ...Object.fromEntries([...crmCollections, ...socialCollections].map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections].map(key => [key, []])),
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
 export const blank = name => ({ ...structuredClone(defaults), profile: { ...defaults.profile, ...(name ? { name } : {}) } });
@@ -28,7 +30,7 @@ export function hydrateWorkspace(state) {
   const fresh = blank();
   state.customReports ??= [];
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -65,14 +67,18 @@ const tags = value => [...new Set((Array.isArray(value) ? value : str(value).spl
 export const triggers = ['Contact created', 'Form submitted', 'Opportunity stage changed', 'Appointment booked', 'Trigger link clicked'];
 const manualTypes = ['Manual Call', 'Manual SMS'];
 const actionTypes = ['Add tag', 'Create task', 'Create opportunity', 'Log message', ...manualTypes];
-const messageChannels = ['Note', 'Email', 'SMS', 'WhatsApp'];
+const messageChannels = ['Note', 'Email', 'SMS', 'WhatsApp', 'Live chat'];
 export const find = (state, key, id) => state[key].find(a => a.id === id);
 const webAddress = value => { const v = str(value, 600); if (v && !/^https?:\/\/[^\s/]+\.[^\s]+$/i.test(v)) fail('Use um endereço que comece com https://'); return v; };
 const when = (value, label) => { if (!value) return ''; const t = Date.parse(value); if (Number.isNaN(t)) fail(`Use uma data válida em ${label}.`); return new Date(t).toISOString(); };
 // Forms: the builder sends fields and settings; older callers send only name, description and askPhone.
 function formRecord(s, d) {
-  const row = { name: req(d.name,'Form name'), description: str(d.description,1500), askPhone: Boolean(d.askPhone), active: Boolean(d.active) };
-  if (d.fields !== undefined) row.fields = validFields(d.fields, s.customFields || []);
+  const prior = d.id ? find(s,'forms',d.id) : null;
+  const kind = d.kind !== undefined ? one(d.kind, ['form','survey','quiz'], 'tipo') : prior?.kind || 'form';
+  const row = { name: req(d.name,'Form name'), description: str(d.description,1500), askPhone: Boolean(d.askPhone), active: Boolean(d.active), kind };
+  if (d.fields !== undefined) row.fields = validFields(d.fields, s.customFields || [], kind);
+  if (d.oneAtATime !== undefined) row.oneAtATime = kind !== 'form' && Boolean(d.oneAtATime);
+  if (d.tiers !== undefined && kind === 'quiz') row.tiers = validTiers(d.tiers);
   if (d.button !== undefined) row.button = str(d.button, 60) || 'Enviar';
   if (d.accent !== undefined) row.accent = /^#[0-9a-f]{6}$/i.test(d.accent || '') ? d.accent.toLowerCase() : '#155eef';
   if (d.showTitle !== undefined) row.showTitle = Boolean(d.showTitle);
@@ -106,6 +112,8 @@ const fields = {
   },
   ...crmFields,
   ...socialFields,
+  ...chatFields,
+  ...blogFields,
   appointments: (s, d) => {
     const start = date(d.start), end = date(d.end);
     if (end <= start) fail('End time must be after start time.');
@@ -292,9 +300,22 @@ export function metrics(s) {
   const open = s.opportunities.filter(v=>v.status==='Open'), won = s.opportunities.filter(v=>v.status==='Won');
   return { contacts:s.contacts.length, open:open.length, openValue:open.reduce((n,r)=>n+r.value,0), won:won.length, wonValue:won.reduce((n,r)=>n+r.value,0), appointments:s.appointments.filter(a=>a.status!=='Canceled').length, invoicesPaid:s.invoices.filter(i=>i.status==='Paid').reduce((n,r)=>n+r.value,0), unread:s.messages.filter(m=>!m.read).length, reviews:s.reviews.length, average:s.reviews.length ? s.reviews.reduce((n,r)=>n+r.score,0)/s.reviews.length : 0 };
 }
-export function execute(s, command, { workspace = 'demo' } = {}) {
+export function execute(s, command, { workspace = 'demo', trackClick = true } = {}) {
   const { type, key, id, data:d = {} } = command;
   if (!d || typeof d!=='object' || Array.isArray(d)) fail('Invalid record data.');
+  if (type === 'link-click') {
+    const ticket = find(s, 'linkTickets', id);
+    const link = find(s, 'triggerLinks', ticket?.linkId || id);
+    if (!link) fail('Trigger link not found.', 404);
+    if (!trackClick) return link.url;
+    const firstClick = ticket && !ticket.clickedAt;
+    add(s, 'linkClicks', { linkId: link.id, contactId: ticket?.contactId || '' });
+    if (firstClick) {
+      ticket.clickedAt = now();
+      run(s, 'Trigger link clicked', { linkId: link.id, contactId: ticket.contactId });
+    }
+    return link.url;
+  }
   if (type === 'workflow-enroll') {
     const workflow = find(s, 'workflows', id);
     if (!workflow?.active) fail('Publique o fluxo antes de inscrever contatos.', 409);
@@ -321,6 +342,8 @@ export function execute(s, command, { workspace = 'demo' } = {}) {
   }
   if (['report-create','report-save','report-delete'].includes(type)) return changeReport(s,{ ...command,data:d },uid,now());
   if (typeof type === 'string' && type.startsWith('social-')) return socialCommand(s, { ...command, data:d }, { add, now });
+  if (type === 'chat-start' || type === 'chat-send') return chatCommand(s, { ...command, data:d }, { add, now, run });
+  if (type === 'blog-view') return blogView(s, id);
   if (type === 'studio-meta') return studioMeta(s, id, d);
   if (type === 'studio-visit' || type === 'studio-star') {
     const project = find(s,'studioProjects',id);
@@ -437,6 +460,8 @@ export function execute(s, command, { workspace = 'demo' } = {}) {
 function remove(s, key, id) {
     beforeDelete(s, key, id);
     socialBeforeDelete(s, key, id);
+    chatBeforeDelete(s, key, id);
+    blogBeforeDelete(s, key, id);
     if (key==='contacts') {
       for (const related of ['tasks','opportunities','messages','appointments','invoices','threads']) s[related] = s[related].filter(r=>r.contactId!==id);
       for (const row of s.submissions.filter(r=>r.contactId===id)) { row.contactId=''; row.name=''; row.email=''; }
@@ -506,18 +531,6 @@ function other(s, command, type, key, id, d, workspace) {
     message.slaDismissedAt ??= now();
     return id;
   }
-  if (type === 'link-click') {
-    const ticket = find(s, 'linkTickets', id);
-    const link = find(s, 'triggerLinks', ticket?.linkId || id);
-    if (!link) fail('Trigger link not found.', 404);
-    const firstClick = ticket && !ticket.clickedAt;
-    add(s, 'linkClicks', { linkId: link.id, contactId: ticket?.contactId || '' });
-    if (firstClick) {
-      ticket.clickedAt = now();
-      run(s, 'Trigger link clicked', { linkId: link.id, contactId: ticket.contactId });
-    }
-    return link.url;
-  }
   if (type === 'thread') {
     const ids = Array.isArray(d.contactIds) ? d.contactIds : [d.contactId];
     if (!ids.length || ids.length > 200) fail('Choose between 1 and 200 conversations.');
@@ -546,7 +559,7 @@ function other(s, command, type, key, id, d, workspace) {
     if (!formOpen(form)) fail(form.schedule?.closedMessage || 'Este formulário não está recebendo respostas agora.',403);
     const read = readAnswers(form, d, s.customFields || []);
     if (!read.ok) fail(Object.entries(read.errors).map(([key, text]) => key === '_form' ? text : `${form.fields?.find(f => f.key === key)?.label || key}: ${text}`)[0]);
-    const info = read.contact, addTags = form.addTags || [];
+    const info = read.contact, addTags = tags([...(form.addTags || []), ...(read.result?.tierDetail?.tag ? [read.result.tierDetail.tag] : [])]);
     let c = (info.email && s.contacts.find(r=>r.email===info.email)) || (info.phone && s.contacts.find(r=>digits(r.phone) && digits(r.phone)===digits(info.phone)));
     if (!c) {
       c=add(s,'contacts',{ name:info.name || 'Contato do formulário', email:info.email, phone:info.phone, tags:addTags, company:info.company, notes:'', custom:customData(s,'Contact',{ custom:read.custom }) });
@@ -559,7 +572,7 @@ function other(s, command, type, key, id, d, workspace) {
       if (addTags.length) c.tags = tags([...(c.tags || []), ...addTags]);
       c.updated = now();
     }
-    const submission=add(s,'submissions',{ formId:id, contactId:c.id, name:info.name || c.name, email:info.email, phone:info.phone, answers:read.answers, source:str(d._source,40) || 'Link' });
+    const submission=add(s,'submissions',{ formId:id, contactId:c.id, name:info.name || c.name, email:info.email, phone:info.phone, answers:read.answers, source:str(d._source,40) || 'Link', ...(read.result ? { result:{ score:read.result.score, max:read.result.max, percent:read.result.percent, tier:read.result.tier, categories:read.result.categories } } : {}) });
     if (s.submissions.length > 5000) s.submissions.splice(0, s.submissions.length - 5000);
     run(s,'Form submitted',{contactId:c.id,formId:id});
     return submission.id;

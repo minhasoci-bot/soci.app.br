@@ -4,6 +4,7 @@ import { icon } from './icons.js';
 import { h, pageShell } from './screens.js';
 import { studioTemplates } from './studio-data.js';
 import { startBuild } from './studio-builder.js';
+import { siteTabs } from './forms.js';
 
 const view = { doc: null, docFor: '', loading: '', section: 'steps', page: '', query: '', busy: false };
 let env = null;
@@ -70,7 +71,7 @@ function list(c) {
       key: 'sites',
       label: 'Seções de sites',
       current: c.tab || 'funnels',
-      items: [['funnels', 'Funis'], ['websites', 'Sites'], ['forms', 'Formulários']]
+      items: siteTabs
     },
     content
   });
@@ -148,7 +149,7 @@ function settingsSection(c, project, w) {
     <dl class="site-facts">
       <div><dt>Endereço</dt><dd>${project.publishedAt ? `<a class="text-link" href="${siteBase(c, project)}" target="_blank" rel="noopener">${h(location.origin + siteBase(c, project))}</a>` : 'Publique para gerar o endereço.'}</dd></div>
       <div><dt>Formulário que recebe os leads</dt><dd>${form ? `<a class="text-link" href="#sites/forms">${h(form.name)}</a>` : 'Criado automaticamente na primeira publicação.'}</dd></div>
-      <div><dt>Domínio próprio</dt><dd>Indisponível nesta versão: o ${w.one} é servido pelo endereço do soci.</dd></div>
+      <div><dt>Domínio próprio</dt><dd>Indisponível nesta versão: o ${w.one} é servido pelo endereço da soci.</dd></div>
     </dl>
     <div class="site-danger"><div><b>Excluir ${w.one}</b><p class="dim">Tira o ${w.one} do ar e apaga o projeto. Os contatos e envios já recebidos continuam no CRM.</p></div>
       <button class="secondary danger-text" data-site-delete>${icon('trash', 15)} Excluir ${w.one}</button></div></section>`;

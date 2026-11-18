@@ -52,7 +52,7 @@ html,body{height:111.111111dvh;min-height:111.111111dvh;margin:0}
   --g-eb-border:rgba(255,255,255,.38);
   --g-eb-text:var(--g-grad-on,#ffffff);
   --g-eb-text-shadow:none;
-  --g-eb-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 2px 4px rgba(15,19,26,.08),0 8px 18px -6px color-mix(in srgb,var(--g-brand) 38%,transparent);
+  --g-eb-shadow:none;
   --g-eb-core:radial-gradient(50% 50% at 50% 50%,rgba(255,255,255,.85) 4%,rgba(255,255,255,.4) 28%,rgba(255,255,255,.12) 50%,transparent 88%);
   --g-eb-bloom:radial-gradient(43.3% 44.23% at 50% 49.51%,rgba(255,255,255,.55) 16%,rgba(255,255,255,.18) 50%,transparent 100%);
   --g-eb-track-opacity:.58;
@@ -112,8 +112,10 @@ body{
 ::selection{background:color-mix(in srgb,var(--g-brand) 16%,var(--g-surface));color:var(--g-brand-text)}
 button:focus-visible,a:focus-visible{outline:2px solid var(--g-brand);outline-offset:2px}
 .boot{min-height:111.111111dvh;display:grid;place-content:center;justify-items:center;text-align:center;gap:10px;padding:24px;color:var(--g-dim);font-weight:600}
-.boot::before{content:'';width:96px;height:96px;margin:0 auto 12px;background:url(/favicon.svg) center/contain no-repeat;transform-origin:50% 85%;animation:g-flicker 1.6s var(--ease-std) infinite alternate}
+.boot::before{content:'';width:96px;height:96px;margin:0 auto 12px;background:url(/skull_flame_animated.svg) center/contain no-repeat;transform-origin:50% 85%;animation:g-flicker 1.6s var(--ease-std) infinite alternate}
 @keyframes g-flicker{to{transform:translateY(-3px) rotate(-5deg) scale(1.04)}}
+.boot-live::before{display:none}.boot .boot-mark{width:96px;height:96px;margin:0 auto 12px;transform-origin:50% 85%;animation:g-flicker 1.6s var(--ease-std) infinite alternate}
+@media (prefers-reduced-motion:reduce){.boot::before,.boot .boot-mark{animation:none}}
 .boot-title{font-size:19px;font-weight:700;letter-spacing:-.015em;color:var(--g-ink)}
 .boot-quip{font-size:15px;font-weight:500;color:var(--g-dim);animation:g-quip .5s var(--ease-out) .25s both}
 @keyframes g-quip{from{opacity:0;transform:translateY(4px)}}
@@ -153,6 +155,9 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-brand);outline-of
 .g-mark .sk-head{fill:#ffffff;transition:fill .3s var(--ease-std)}
 .g-mark .sk-feat{fill:#0d0f12;transition:fill .3s var(--ease-std)}
 .g-mark .sk-glint{fill:#ffffff;transition:fill .3s var(--ease-std)}
+.g-mark .sk-fr{opacity:0;animation:sk-flick .6s steps(1,end) infinite}.g-mark .sk-f2{animation-delay:-.45s}.g-mark .sk-f3{animation-delay:-.3s}.g-mark .sk-f4{animation-delay:-.15s}
+@keyframes sk-flick{0%{opacity:1}25%,100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.g-mark .sk-fr{animation:none}.g-mark .sk-f1{opacity:1}}
 /* Collapse toggle (microkit "sidebar trigger"): beside the logo when open; in the rail it
    takes the logo's place on hover or keyboard focus, and is always shown on touch screens. */
 .side-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);flex:none;width:32px;height:32px;display:grid;place-items:center;padding:0;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--g-dim);transition:background .2s var(--ease-std),border-color .2s,color .2s,opacity .2s,transform .16s var(--ease-out)}
@@ -316,8 +321,8 @@ a.metric:hover{transform:translateY(-3px);box-shadow:0 0 0 1px var(--g-line),var
 
 /* ───────── Buttons ───────── */
 .primary,.secondary,.danger{border-radius:999px;font-weight:700;padding:8px 16px;min-height:38px;letter-spacing:-.005em;transition:transform .16s var(--ease-out),box-shadow .35s var(--ease-std),background-color .25s var(--ease-std),border-color .25s var(--ease-std),color .25s}
-.primary,.dash-save{position:relative;isolation:isolate;overflow:hidden;background:var(--g-brand-fill);border:1px solid rgba(0,0,0,.1);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 8px 18px -6px color-mix(in srgb,var(--g-brand-fill) 45%,transparent)}
-.primary:hover{background:var(--g-brand-fill-hover);border-color:rgba(0,0,0,.15);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 12px 24px -6px color-mix(in srgb,var(--g-brand-fill-hover) 55%,transparent)}
+.primary,.dash-save{position:relative;isolation:isolate;overflow:hidden;background:var(--g-brand-fill);border:1px solid rgba(0,0,0,.1);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+.primary:hover{background:var(--g-brand-fill-hover);border-color:rgba(0,0,0,.15);box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
 /* cursor-tracked light (microkit "cursor edge glow") + shine sweep */
 .primary::before,.continue::before,.studio-create::before{content:'';position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .35s var(--ease-std);background:radial-gradient(90px circle at var(--gx,50%) var(--gy,50%),rgba(255,255,255,.42),transparent 70%)}
 .primary:hover::before,.continue:hover::before,.studio-create:hover::before{opacity:1}
@@ -332,8 +337,8 @@ a.metric:hover{transform:translateY(-3px);box-shadow:0 0 0 1px var(--g-line),var
 .danger:hover{background:#cf3a40;border-color:#cf3a40}
 .danger.plain{color:#cf3a40}
 /* Accent CTA = the orange "Effects" pill */
-.continue,.studio-create,.studio-compose-actions .primary{position:relative;isolation:isolate;overflow:hidden;background:var(--g-grad-brand);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:999px;box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 10px 22px -10px color-mix(in srgb,var(--g-brand-fill) 70%,transparent);font-weight:700;transition:transform .16s var(--ease-out),box-shadow .35s var(--ease-std)}
-.continue:not(:disabled):hover,.studio-create:hover{background:var(--g-grad-brand);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 14px 28px -10px color-mix(in srgb,var(--g-brand-fill-hover) 80%,transparent)}
+.continue,.studio-create,.studio-compose-actions .primary{position:relative;isolation:isolate;overflow:hidden;background:var(--g-grad-brand);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:999px;box-shadow:inset 0 1px 0 rgba(255,255,255,.45);font-weight:700;transition:transform .16s var(--ease-out),box-shadow .35s var(--ease-std)}
+.continue:not(:disabled):hover,.studio-create:hover{background:var(--g-grad-brand);box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
 .icon-btn{border-radius:10px;color:var(--g-dim);transition:background .2s var(--ease-std),color .2s,transform .16s var(--ease-out)}
 .icon-btn:hover{background:var(--g-brand-2-surface);color:var(--g-brand-2-text)}
 .icon-btn:active{transform:scale(.92)}
@@ -596,7 +601,7 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
   --g-eb-border:rgba(255,255,255,.32);
   --g-eb-text:var(--g-grad-on,#ffffff);
   --g-eb-text-shadow:none;
-  --g-eb-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 4px 16px -6px color-mix(in srgb,var(--g-brand) 45%,transparent);
+  --g-eb-shadow:none;
   --g-eb-core:radial-gradient(50% 50% at 50% 50%,rgba(255,255,255,.9) 4%,rgba(255,255,255,.5) 28%,color-mix(in srgb,var(--g-brand-2) 45%,transparent) 52%,transparent 90%);
   --g-eb-bloom:radial-gradient(43.3% 44.23% at 50% 49.51%,rgba(255,255,255,.6) 20%,color-mix(in srgb,var(--g-brand-2) 35%,transparent) 50%,transparent 100%);
   --g-eb-track-opacity:.62;
@@ -1308,7 +1313,7 @@ dialog::backdrop{background:rgba(15,19,26,.38);-webkit-backdrop-filter:blur(2px)
   background:transparent;
   color:var(--g-eb-text);
   text-shadow:var(--g-eb-text-shadow);
-  box-shadow:none;
+  box-shadow:none !important;
   font-weight:700;
   letter-spacing:-.015em;
   gap:7px;
@@ -1324,7 +1329,7 @@ dialog::backdrop{background:rgba(15,19,26,.38);-webkit-backdrop-filter:blur(2px)
   background:transparent;
   border-color:transparent;
   color:var(--g-eb-text);
-  box-shadow:none;
+  box-shadow:none !important;
 }
 .g-edge-btn::before,
 .g-edge-btn::after{

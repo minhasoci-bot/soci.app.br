@@ -10,12 +10,13 @@ import { nextOccurrence, occurrencesBetween, parseCsv, postIssues } from '../ui/
 const reply = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
 
 // A fake of every network endpoint the tests touch. `calls` records what the planner sent.
-function fakeNetworks() {
+function fakeNetworks(onRequest) {
   const calls = [];
   useFetch(async (url, init = {}) => {
     const u = new URL(url), body = init.body && typeof init.body === 'string' ? (init.body.startsWith('{') ? JSON.parse(init.body) : Object.fromEntries(new URLSearchParams(init.body))) : init.body;
     calls.push({ url: u.href, method: init.method || 'GET', body, auth: init.headers?.Authorization });
     const path = u.pathname;
+    await onRequest?.(path, body);
     if (u.host === 'graph.facebook.com') {
       if (path.endsWith('/oauth/access_token')) return reply({ access_token: u.searchParams.get('grant_type') ? 'long-user' : 'short-user' });
       if (path.endsWith('/me/accounts')) return reply({ data: [{ id: 'page1', name: 'Padaria Sol', access_token: 'page-token', picture: { data: { url: 'https://cdn.example/p.png' } },
@@ -42,8 +43,8 @@ async function start() {
   const { server, host } = makeServer({ allowLocalAccess: true, auth: null, dbPath: ':memory:', port: 0, socialScheduler: false });
   await new Promise((resolve, reject) => { server.on('error', reject); server.listen(0, host, resolve); });
   const base = `http://${host}:${server.address().port}`;
-  const call = async (path, body) => {
-    const r = await fetch(base + path, body === undefined ? { redirect: 'manual' } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const call = async (path, body, headers = {}) => {
+    const r = await fetch(base + path, body === undefined ? { redirect: 'manual', headers } : { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const text = await r.text();
     let json; try { json = JSON.parse(text); } catch { json = null; }
     return { status: r.status, body: json, text, location: r.headers.get('location'), type: r.headers.get('content-type') };
@@ -168,7 +169,8 @@ test('Tokens are sealed so stored rows never hold them in clear text', () => {
 test('Facebook login connects pages and Instagram accounts, then posts publish to each network', async t => {
   process.env.META_APP_ID = 'app-id'; process.env.META_APP_SECRET = 'app-secret';
   t.after(() => { delete process.env.META_APP_ID; delete process.env.META_APP_SECRET; });
-  const calls = fakeNetworks();
+  let onRequest;
+  const calls = fakeNetworks((path, body) => onRequest?.(path, body));
   const local = await start(); t.after(local.close);
 
   assert.equal((await local.call(local.q('/api/state'))).body.features.social.facebook, true);
@@ -205,6 +207,31 @@ test('Facebook login connects pages and Instagram accounts, then posts publish t
   assert.equal(media.status, 200); assert.equal(media.type, 'image/png');
 
   const post = (await local.act({ type: 'social-post', data: { summary: 'Pão quentinho saindo agora!', accountIds: [page.id, ig.id], media: [{ fileId: file }], firstComment: '#padaria', mode: 'now' } })).body.id;
+  const cronSecret = process.env.CRON_SECRET;
+  process.env.CRON_SECRET = 'fixture-social-cron';
+  t.after(() => {
+    if (cronSecret === undefined) delete process.env.CRON_SECRET;
+    else process.env.CRON_SECRET = cronSecret;
+  });
+  const cron = () => local.call('/api/social/cron', undefined, { Authorization: 'Bearer fixture-social-cron' });
+  const callCount = calls.length;
+  const scheduled = (await local.state()).socialPosts.find(row => row.id === post);
+  const planResponse = await local.call('/api/agency/action', { type: 'save', key: 'plans', data: { name: 'Without marketing', price: 0, modules: ['contacts'] } });
+  assert.equal(planResponse.status, 200, planResponse.body.error);
+  assert.equal((await local.call('/api/agency/action', { type: 'account-meta', id: local.workspace, data: { status: 'Active', plan: planResponse.body.result } })).status, 200);
+  assert.deepEqual((await cron()).body, { published: 0 });
+  assert.equal((await local.call(local.q('/api/social/run'), {})).status, 403);
+  assert.equal(calls.length, callCount);
+  assert.equal((await local.call('/api/agency/action', { type: 'account-meta', id: local.workspace, data: { status: 'Active', plan: '' } })).status, 200);
+  for (const status of ['Paused', 'Closed']) {
+    const metadata = await local.call('/api/agency/action', { type: 'account-meta', id: local.workspace, data: { status } });
+    assert.equal(metadata.status, 200);
+    assert.deepEqual((await cron()).body, { published: 0 });
+    assert.equal((await local.call(local.q('/api/social/run'), {})).body.code, 'ACCOUNT_SUSPENDED');
+    assert.equal(calls.length, callCount);
+    assert.deepEqual((await local.state()).socialPosts.find(row => row.id === post), scheduled);
+  }
+  assert.equal((await local.call('/api/agency/action', { type: 'account-reactivate', id: local.workspace })).status, 200);
   const run = await local.call(local.q('/api/social/run'), {});
   assert.equal(run.body.published, 1);
   const done = run.body.state.socialPosts.find(p => p.id === post);
@@ -214,6 +241,35 @@ test('Facebook login connects pages and Instagram accounts, then posts publish t
   assert.equal(photo.body.caption, 'Pão quentinho saindo agora!');
   assert.match(photo.body.url, new RegExp(`/m/${local.workspace}/${file}$`), 'the network fetches the image from the public media route');
   assert.ok(calls.some(c => c.url.includes('/igpost1/comments') && c.body.message === '#padaria'), 'first comment is posted');
+
+  const schedule = async summary => {
+    const saved = await local.act({ type: 'social-post', data: {
+      summary, accountIds: [page.id, ig.id], media: [{ fileId: file }], mode: 'now'
+    } });
+    assert.equal(saved.status, 200, saved.body.error);
+    return saved.body.id;
+  };
+  const first = await schedule('Suspensão durante o envio');
+  const pending = await schedule('Aguardando reativação');
+  onRequest = async (path, body) => {
+    if (!path.endsWith('/page1/photos') || body.caption !== 'Suspensão durante o envio') return;
+    const paused = await local.call('/api/agency/action', { type: 'account-meta', id: local.workspace, data: { status: 'Paused' } });
+    assert.equal(paused.status, 200);
+  };
+  const firstBatch = await cron();
+  assert.deepEqual(firstBatch.body, { published: 1 });
+  let posts = (await local.state()).socialPosts;
+  const results = posts.find(row => row.id === first).results;
+  assert.equal(results[0].ok, true);
+  assert.equal(results[1].ok, false);
+  assert.match(results[1].error, /suspensa/);
+  assert.equal(posts.find(row => row.id === pending).status, 'scheduled');
+  assert.ok(!posts.find(row => row.id === pending).claimedAt);
+  assert.equal((await local.call('/api/agency/action', { type: 'account-reactivate', id: local.workspace })).status, 200);
+  assert.deepEqual((await cron()).body, { published: 1 });
+  posts = (await local.state()).socialPosts;
+  assert.equal(posts.find(row => row.id === pending).status, 'published');
+  assert.equal(calls.filter(c => c.body?.caption === 'Suspensão durante o envio').length, 1);
 
   // Approval: a post that needs approval waits in review until approved.
   const review = (await local.act({ type: 'social-post', data: { summary: 'Promo de sexta', accountIds: [page.id], needsApproval: true, mode: 'schedule', scheduleDate: new Date(Date.now() + 86_400_000).toISOString() } })).body.id;
@@ -236,6 +292,28 @@ test('Facebook login connects pages and Instagram accounts, then posts publish t
   await local.call(local.q('/api/social/disconnect'), { id: page.id });
   s = await local.state();
   assert.equal(s.socialPosts.find(p => p.id === review).status, 'draft');
+});
+
+test('A social OAuth callback rechecks the current permissions of the member who began it', async t => {
+  process.env.META_APP_ID = 'app-id';
+  process.env.META_APP_SECRET = 'app-secret';
+  t.after(() => { delete process.env.META_APP_ID; delete process.env.META_APP_SECRET; });
+  const local = await start();
+  t.after(local.close);
+  const calls = fakeNetworks();
+  const profile = { first: 'Social', last: 'Member', email: 'social@example.test', role: 'Account User', accounts: [local.workspace] };
+  const save = (permissions, id) => local.call('/api/agency/action', { type: 'save', key: 'users', id, data: { ...profile, permissions } });
+  const member = await save(['marketing']);
+  assert.equal(member.status, 200);
+  const id = member.body.result;
+  const begin = await local.call(local.q(`/api/social/connect/facebook?user=${id}`));
+  assert.equal(begin.status, 302);
+  assert.equal((await save(['contacts'], id)).status, 200);
+  const state = new URL(begin.location).searchParams.get('state');
+  const callback = await local.call(`/api/social/callback/facebook?code=good&state=${state}`);
+  assert.match(callback.text, /não tem permissão/);
+  assert.doesNotMatch(callback.text, /"requestId":"/);
+  assert.equal(calls.length, 0);
 });
 
 test('Bluesky connects with an app password and publishes with link facets', async t => {

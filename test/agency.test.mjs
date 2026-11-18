@@ -171,6 +171,12 @@ test('A snapshot copies assets into a new sub-account as drafts and keeps existi
   const overview = again.body.overview;
   assert.equal(overview.totals.accounts, 2);
   assert.ok(again.body.agency.audit.some(entry => entry.action === 'Snapshot loaded'));
+
+  assert.equal((await action(local, { type: 'account-meta', id, data: { status: 'Paused' } })).status, 200);
+  const denied = await local.call('/api/agency/snapshot-load', { id: snap.id, workspaces: ['demo', id], mode: 'overwrite' });
+  assert.equal(denied.body.code, 'ACCOUNT_SUSPENDED');
+  assert.equal((await local.call('/api/state?workspace=demo')).body.state.forms[0].active, true, 'the entire batch is checked before the first change');
+  assert.deepEqual((await local.call(`/api/state?workspace=${id}`)).body.state, state);
 });
 
 test('API keys are shown once, stored as hashes, and private integrations respect scopes', async t => {

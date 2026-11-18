@@ -143,6 +143,18 @@ test('WAHA integration seals X-Api-Key, controls session/QR/pairing, sends test 
   const msg = demo.messages.find(m => m.contactId === contact.id && m.channel === 'WhatsApp');
   assert.equal(msg?.body, 'Oi, quero saber sobre os planos!');
   assert.equal(msg?.direction, 'Inbound');
+  assert.equal((await local.call('/api/agency/action', { type: 'account-meta', id: 'demo', data: { status: 'Closed' } })).status, 200);
+  const ignored = await local.call(webhookPath, {
+    event: 'message', session: 'default', payload: { id: 'msg-closed', from: '5531777777777@c.us', body: 'Do not deliver' }
+  });
+  assert.equal(ignored.status, 200);
+  assert.deepEqual(ignored.body, { ok: true, ignored: true, reason: 'ACCOUNT_SUSPENDED' });
+  const callsBeforeTest = waha.calls.length;
+  assert.equal((await local.call('/api/waha/test', { phone: '5511988887777', text: 'Do not send' })).body.code, 'ACCOUNT_SUSPENDED');
+  assert.equal((await local.call('/api/waha/session', { action: 'start' })).status, 403);
+  assert.equal(waha.calls.length, callsBeforeTest);
+  assert.deepEqual(local.store.load('demo'), demo);
+  assert.equal(local.store.load('agency').accounts.demo.ignoredWebhooks.waha.count, 1);
 });
 
 test('WAHA config persists cleanly through Supabase store rules and denies sub-account users', async t => {

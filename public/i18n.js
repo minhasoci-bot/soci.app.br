@@ -6,7 +6,7 @@ const PT = {
   Confirmed: 'Confirmado', Completed: 'Concluído', Canceled: 'Cancelado', Cancelled: 'Cancelado',
   Draft: 'Rascunho', Paid: 'Pago', Void: 'Anulada', Planned: 'Planejado', Archived: 'Arquivado', Published: 'Publicado',
   // Canais e mensagens
-  Social: 'Social', Email: 'E-mail', SMS: 'SMS', Note: 'Nota', Outbound: 'Enviada', Inbound: 'Recebida', Text: 'Texto',
+  Social: 'Social', Email: 'E-mail', SMS: 'SMS', Note: 'Nota', 'Live chat': 'Chat ao vivo', Outbound: 'Enviada', Inbound: 'Recebida', Text: 'Texto',
   // Páginas e agentes
   Funnel: 'Funil', Website: 'Site', Support: 'Suporte', Sales: 'Vendas', Scheduling: 'Agendamento',
   // Ações manuais e automações

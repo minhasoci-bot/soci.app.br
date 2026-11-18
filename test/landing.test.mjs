@@ -205,15 +205,20 @@ test('Google accounts open empty agencies and existing agency permissions still 
   assert.deepEqual(ownerState.workspaces.map(w => w.id).sort(), ['demo', ownerWorkspaceId]);
   assert.equal((await fetch(base + ownerPath, { headers })).status, 403);
   assert.equal((await fetch(base + personalPath, { headers: adminHeaders })).status, 403);
+  const secondAccount = await post(base, '/api/workspaces', { name: 'Segundo cliente' }, adminHeaders);
+  assert.equal(secondAccount.status, 201);
+  const { id: secondAccountId } = await secondAccount.json();
   const membership = await post(base, '/api/agency/action', {
     type: 'save', key: 'users',
-    data: { first: 'Bob', last: 'Test', email: bob.email, role: 'Account User', accounts: ['demo'], permissions: ['contacts'] }
+    data: { first: 'Bob', last: 'Test', email: bob.email, role: 'Account User', accounts: ['demo', secondAccountId], permissions: ['contacts'] }
   }, adminHeaders);
   assert.equal(membership.status, 200);
   const memberLogin = await oauthLogin(base, 'bob-oauth');
   const memberHeaders = { Cookie: cookies(memberLogin) };
   const memberState = await fetch(base + '/api/state?workspace=demo', { headers: memberHeaders }).then(r => r.json());
   assert.deepEqual(memberState.access.modules, ['contacts']);
+  assert.deepEqual(memberState.workspaces.map(w => w.id).sort(), ['demo', secondAccountId].sort());
+  assert.equal((await fetch(base + '/api/state?workspace=' + secondAccountId, { headers: memberHeaders })).status, 200);
   assert.equal((await fetch(base + '/api/agency', { headers: memberHeaders })).status, 403);
 
   const child = await post(base, '/api/workspaces', { name: 'Cliente Alice' }, headers);

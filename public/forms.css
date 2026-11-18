@@ -71,6 +71,9 @@
 .fb-sheet .sf-field input:not([type=radio]):not([type=checkbox]), .fb-sheet .sf-field select, .fb-sheet .sf-field textarea { background: #f9fafb !important; color: #101828 !important; border: 1px solid #d0d5dd !important; opacity: 1; box-shadow: none !important; }
 .fb-sheet .sf-field ::placeholder { color: #98a2b3; }
 .fb-sheet .sf-help, .fb-sheet .sf-prefix { color: #667085; }
+.fb-sheet .sf-option { display: flex !important; align-items: flex-start; gap: 8px; margin: 0; color: #344054; font-weight: 400; }
+.fb-sheet .sf-option input { width: 18px; height: 18px; margin: 2px 0 0; flex: none; }
+.fb-sheet .sf-option span { color: #344054; }
 .fb-tools { position: absolute; top: -12px; right: 8px; display: none; gap: 2px; padding: 2px; border-radius: 8px; background: #155eef; }
 .fb-item:hover .fb-tools, .fb-item.selected .fb-tools, .fb-item:focus-within .fb-tools { display: flex; }
 .fb-tools .icon-btn { width: 24px; height: 24px; min-height: 0; border: 0; border-radius: 6px; background: none; color: #fff; }
@@ -119,3 +122,19 @@
   .fb-integrate, .fb-two { grid-template-columns: minmax(0, 1fr); }
   .fb-sheet { padding: 18px; }
 }
+
+/* Pesquisas e questionários: etapas, desvios e pontuação */
+.fb-score, .fb-logic { display: grid; gap: 8px; margin: 0; padding: 10px; border: 1px solid var(--g-line); border-radius: 10px; }
+.fb-score legend, .fb-logic legend { padding: 0 4px; font-size: 13px; font-weight: 600; }
+.fb-score > label:not(.fb-category), .fb-logic > label { display: grid !important; grid-template-columns: minmax(0, 1fr) 96px; align-items: center; gap: 8px; font-weight: 500 !important; }
+.fb-logic > label { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+.fb-score span, .fb-logic span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.fb-logic select { width: 100%; min-width: 0; font-size: 12.5px; }
+.fb-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.fb-tier-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fb-tier-head button { min-height: 30px; padding: 3px 10px; font-size: 12.5px; }
+.fb-warn { padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, #f79009 12%, var(--g-surface)); color: var(--g-ink); font-size: 13px; }
+.fm-tiers { margin: 0 0 14px; }
+.fm-tiers caption { padding: 12px 16px 4px; text-align: left; font-weight: 650; }
+.fb-layer-step { font-weight: 650; }
+@media (max-width: 760px) { .fb-three { grid-template-columns: minmax(0, 1fr); } }

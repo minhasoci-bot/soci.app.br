@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { blank, seed, uid, execute, metrics, find } from './model.mjs';
+import { blank, seed, uid, execute, find } from './model.mjs';
 import { createSqliteStore, supabaseFromEnv } from './storage.mjs';
 import { accountProfile, afterLogin, authFromEnv } from './auth.mjs';
 import { discoverDesign, generatePage, generateSite, planSite, revisePage, suggestSeo } from './studio-ai.mjs';
@@ -20,7 +20,8 @@ import { captureProspectWidget, runProspectingAction } from './prospecting-model
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { folded, prospectSearchText } from './ui/prospecting-data.js';
 import { shareReportHtml, widgetHtml } from './ui/prospect-report.js';
-import { moduleOfRecord, snapshotAssets } from './ui/agency-data.js';
+import { snapshotAssets } from './ui/agency-data.js';
+import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, requireWorkspaceCommand, workspaceView } from './authorization.mjs';
 import { attachAccounts, claimDue, evergreenDue, reviewSocialCsv, settle } from './social-model.mjs';
 import { authUrl, availability, blueskyLogin, exchange as socialExchange, publish as socialPublish, seal, unseal } from './social-providers.mjs';
 import { network } from './ui/social-data.js';
@@ -28,6 +29,11 @@ import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
 import { makeClientPortal, portalCookie } from './client-portal.mjs';
+import { randomBytes } from 'node:crypto';
+import { chatHistory } from './chat-model.mjs';
+import { chatPage, demoPage, loaderScript } from './ui/chat-widget-data.js';
+import { blogHome, blogPost, blogRss, isLive } from './ui/blog-data.js';
+import { localDraft, postSeo, writePost } from './blog-ai.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const staticFiles = new Map([
@@ -35,7 +41,7 @@ const staticFiles = new Map([
   ['/screens.js','text/javascript; charset=utf-8'], ['/conversations.js','text/javascript; charset=utf-8'],
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
-  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
+  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'],
   ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'],
@@ -56,7 +62,7 @@ const staticFiles = new Map([
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
   ['/fonts/plus-jakarta-sans.woff2','font/woff2'], ['/favicon.svg','image/svg+xml'],
   ['/landing.html','text/html; charset=utf-8'], ['/landing.css','text/css; charset=utf-8'], ['/landing.js','text/javascript; charset=utf-8'],
-  ['/privacidade.html','text/html; charset=utf-8'], ['/skull_flame.svg','image/svg+xml']
+  ['/privacidade.html','text/html; charset=utf-8'], ['/skull_flame.svg','image/svg+xml'], ['/skull_flame_animated.svg','image/svg+xml']
 ]);
 const host = '127.0.0.1';
 const defaultPort = Number(process.env.GO_PORT || 4317);
@@ -69,6 +75,9 @@ const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
 const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course)(?:/([0-9a-f-]{36}))?$`);
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
+const chatPath = new RegExp(`^/chat/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js|demo))?/?$`);
+const chatApi = new RegExp(`^/api/chat/${workspaceSegment}/([0-9a-f-]{36})/(start|send|messages)$`);
+const blogPath = new RegExp(`^/b/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,80}|rss\\.xml))?/?$`);
 const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
 const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
@@ -77,18 +86,22 @@ const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{
 const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,48}))?$`);
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
-const commandModule = { 'form-view':'sites', 'social-post':'marketing', 'social-reschedule':'marketing', 'social-review':'marketing', 'social-duplicate':'marketing', 'social-delete':'marketing', 'social-bulk-delete':'marketing', 'social-retry':'marketing', 'social-csv':'marketing', 'social-account-remove':'marketing', message:'conversations', thread:'conversations', 'manual-action':'conversations', 'conversation-sla':'conversations', 'dismiss-sla':'conversations',
-  pipeline:'opportunities', stage:'opportunities', import:'contacts', 'opportunity-import':'opportunities', 'opportunity-move':'opportunities',
-  'studio-visit':'studio', 'studio-star':'studio', profile:'settings',
-  'workflow-enroll':'automation', 'workflow-restore':'automation', 'workflow-move':'automation',
-  'dashboard-create':'dashboard', 'dashboard-save':'dashboard', 'dashboard-restore':'dashboard', 'dashboard-report':'dashboard',
-  'studio-meta':'studio', 'dashboard-default':'dashboard', 'dashboard-timezone':'dashboard', 'dashboard-delete':'dashboard' };
-const settingsCommands = new Set(['saas-mode','saas-rebilling','saas-account','workflow-builder','sub-feature','email-domain','email-domain-accounts','email-domain-remove','affiliate-pixel','profile','company','billing-plan','wallet','auto-recharge','system-email','labs','compliance','api-key','api-key-delete','private-integration','private-integration-delete']);
-const settingsRecords = new Set(['users','menuLinks','announcements']);
-const publicAgency = agency => ({ ...agency,
-  snapshots: (agency.snapshots || []).map(({ studioSites: _studioSites, ...rest }) => rest),
-  apiKeys: agency.apiKeys.map(({ hash: _hash, ...rest }) => rest),
-  privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest) });
+function publicAgency(agency, who) {
+  const view = { ...agency,
+    snapshots: agency.snapshots.map(({ studioSites: _studioSites, ...rest }) => rest),
+    apiKeys: agency.apiKeys.map(({ hash: _hash, ...rest }) => rest),
+    privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest)
+  };
+  if (!who.settings) {
+    const empty = blankAgency();
+    for (const key of ['profile', 'users', 'billing', 'apiKeys', 'privateIntegrations', 'audit', 'emailServices', 'systemEmails', 'compliance']) {
+      if (Object.hasOwn(empty, key)) view[key] = empty[key];
+    }
+    view.accounts = Object.fromEntries(Object.entries(agency.accounts).map(([id, { statusHistory, ignoredWebhooks, suspendedReason, ...meta }]) => [id, meta]));
+  }
+  if (who.modules !== null || !who.settings) view.snapshots = view.snapshots.map(({ assets, shareCode, ...snap }) => snap);
+  return view;
+}
 const stamp = () => new Date().toISOString();
 
 const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) : (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
@@ -180,7 +193,7 @@ export function makeServer({
     }
     return requestUsers.get(req);
   }
-  async function accessContext(req,session,fallback) {
+  async function accessContext(req,session) {
     if (!session && !localAccess) throw error('O login do Supabase ainda não foi configurado.',503);
     const agencyId = !session || session.id === agencyOwnerId ? AGENCY_ID : `agency-${session.id}`;
     let agency;
@@ -206,8 +219,8 @@ export function makeServer({
     }
     const userId = localAccess ? String(req.headers['x-go-user'] || req.localSocialUser || '') : '';
     const result = userAccess(agency,userId);
-    if (!result && !fallback) throw error('The selected user no longer exists. Choose another user.',403);
-    const who = result ? { ...result, agencyId, userId, session, ...(session ? { name: session.name, owner: true } : {}) } : fallback;
+    if (!result) throw error('The selected user no longer exists. Choose another user.',403);
+    const who = { ...result, agencyId, userId, session, ...(session ? { name: session.name, owner: true } : {}) };
     return { agency, who };
   }
   const access = async (req,res) => (await accessContext(req,await verifiedUser(req,res))).who;
@@ -217,8 +230,58 @@ export function makeServer({
     if (who.accounts && !who.accounts.includes(id)) return false;
     return store.belongsToAgency(id,workspaceOwner(who.agencyId));
   }
-  const canUseAgents = who => !who.modules || who.modules.includes('ai-agents');
-  const visibleState = (who, state) => canUseAgents(who) ? state : { ...state, agents: [], agentRuns: [] };
+  const pausedError = (lifecycle, showReason = false) => Object.assign(
+    error(lifecycle.status === 'Closed' ? 'Esta subconta foi encerrada.' : 'Esta subconta está pausada.', 403),
+    { code: 'ACCOUNT_SUSPENDED', account: showReason ? lifecycle : { status: lifecycle.status } }
+  );
+  async function systemWorkspaceAccess(id, agencyId) {
+    const actor = { modules: null };
+    if (privateSpace.test(id)) return effectiveAccess({}, actor, id, true);
+    const owner = agencyId || (await store.load(id)).agencyId || AGENCY_ID;
+    return effectiveAccess(await store.load(owner), actor, id);
+  }
+  const accountIsActive = async (agencyId, id, module) => {
+    const access = await systemWorkspaceAccess(id, agencyId);
+    return access.account.status === 'Active' && (!module || hasModule(access, module));
+  };
+  async function requireActiveAccount(agencyId, id, showReason = false, module) {
+    const access = await systemWorkspaceAccess(id, agencyId);
+    const lifecycle = access.account;
+    if (lifecycle.status !== 'Active') throw pausedError(lifecycle, showReason);
+    if (module) requireModule(access, module);
+  }
+  async function webhookBlockReason(agencyId, id, provider) {
+    const access = await systemWorkspaceAccess(id, agencyId);
+    if (access.account.status === 'Active') return hasModule(access, 'conversations') ? null : 'MODULE_DISABLED';
+    await changeAgency(agencyId, agency => {
+      const meta = agency.accounts[id];
+      meta.ignoredWebhooks ??= {};
+      const prior = meta.ignoredWebhooks[provider];
+      meta.ignoredWebhooks[provider] = { count: (prior?.count || 0) + 1, lastAt: stamp() };
+    });
+    return 'ACCOUNT_SUSPENDED';
+  }
+  async function publicAccountPolicy(id, write = false, module) {
+    const access = await systemWorkspaceAccess(id);
+    const lifecycle = access.account;
+    if (lifecycle.status === 'Closed') throw Object.assign(error('Este conteúdo está indisponível.', 404), { publicAccount: true });
+    if (module && !hasModule(access, module)) throw Object.assign(error('Este conteúdo está indisponível.', 404), { publicAccount: true });
+    if (write && lifecycle.status !== 'Active') throw Object.assign(pausedError(lifecycle), { publicAccount: true });
+    return lifecycle.status === 'Active';
+  }
+  async function requireWorkspaceAccess(agency, actor, id, { modules = [], support = false, hide = false, reason = true } = {}) {
+    if ((!spaceId.test(id) && !privateSpace.test(id)) || !await canOpen(actor, id)) {
+      throw error('Your user cannot open this sub-account.', hide ? 404 : 403);
+    }
+    const who = effectiveAccess(agency, actor, id, privateSpace.test(id));
+    requireModule(who, ...modules);
+    if (who.account.status !== 'Active' && !(support && who.support)) throw pausedError(who.account, reason);
+    return who;
+  }
+  async function workspaceAccess(req, res, id, options) {
+    const { agency, who } = await accessContext(req, await verifiedUser(req, res));
+    return requireWorkspaceAccess(agency, who, id, options);
+  }
   async function existingPersonalWorkspace(who) {
     if (!who.owner || !who.session) return;
     const id = personalId(who.session);
@@ -230,19 +293,22 @@ export function makeServer({
     const visible = workspaces.filter(w => !who.accounts || who.accounts.includes(w.id));
     return personalWorkspace ? [...visible, personalWorkspace] : visible;
   }
-  async function agencyPayload(req, res, extra = {}, previousAccess) {
-    const { agency, who } = await accessContext(req,await verifiedUser(req,res),previousAccess);
-    if (!who.agency) throw error('Your user cannot open the agency view.',403);
+  async function agencyPayload(req, res, extra = {}) {
+    const { agency, who } = await accessContext(req,await verifiedUser(req,res));
+    requireCapability(who, 'agency', 'Your user cannot open the agency view.');
     const [workspaces, personalWorkspace, marketplaceDoc] = await Promise.all([
       listWorkspaces(who.agencyId),
       existingPersonalWorkspace(who),
       loadMarketplace()
     ]);
     ensureAccounts(agency, workspaces);
-    const states = await Promise.all(workspaces.map(async w => ({ ...w, state: await store.load(w.id) })));
-    return { agency: publicAgency(agency), overview: agencyOverview(agency, states), marketplace: publicMarketplaceList(marketplaceDoc, who.agencyId), workspaces, personalWorkspace, access: who,
+    const states = await agencyWorkspaceViews(agency, who, workspaces);
+    return { agency: publicAgency(agency, who), overview: agencyOverview(agency, states), marketplace: publicMarketplaceList(marketplaceDoc, who.agencyId), workspaces, personalWorkspace, access: who,
       features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, ...extra };
   }
+  const agencyWorkspaceViews = (agency, who, workspaces) => Promise.all(workspaces.map(async w => ({
+    ...w, ...workspaceView(effectiveAccess(agency, who, w.id), await store.load(w.id))
+  })));
   async function recordAudit(who, action, target, details = '') {
     try { await changeAgency(who.agencyId, agency => logTo(agency, who, action, target, details)); }
     catch { /* Audit entries are best effort and never undo the action itself. */ }
@@ -257,15 +323,20 @@ export function makeServer({
     Object.assign(state.profile, { email: mail, phone: String(input.phone || '').slice(0,48) });
     if (['America/Sao_Paulo','America/New_York','Europe/London','UTC'].includes(input.timezone)) state.profile.timezone = input.timezone;
     const agency = await loadAgency(who.agencyId);
-    if (input.plan && !agency.plans.some(p => p.id === input.plan)) throw error('Choose a valid plan.',400);
+    if (input.plan) {
+      requireCapability(who, 'settings', 'Somente administradores podem atribuir um plano à subconta.');
+      if (!agency.plans.some(p => p.id === input.plan)) throw error('Choose a valid plan.',400);
+    }
+    const newId = uid();
     let loaded = null;
     const studioMap = new Map();
     if (input.snapshotId) {
       const snap = agency.snapshots.find(item => item.id === input.snapshotId);
       if (!snap) throw error('Choose a valid snapshot.',400);
+      const planned = { ...agency, accounts: { [newId]: { plan: input.plan } } };
+      requireSetupModules(effectiveAccess(planned, who, newId), Object.keys(snap.assets || {}));
       loaded = { snap, report: applySnapshot(state, snap, 'skip', studioMap) };
     }
-    const newId = uid();
     await store.insert(newId, state);
     if (loaded) await applyStudioSites(loaded.snap, studioMap, newId);
     await changeAgency(who.agencyId, a => {
@@ -294,10 +365,7 @@ export function makeServer({
   // ---- AI Studio sites ----
   async function studioGuard(req, res, workspace) {
     if (!spaceId.test(workspace) && !privateSpace.test(workspace)) throw error('Workspace not found.',404);
-    const who = await access(req,res);
-    if (!await canOpen(who,workspace)) throw error('Your user cannot open this sub-account.',403);
-    if (who.modules && !who.modules.includes('studio')) throw error('Your user does not have permission for this module.',403);
-    return who;
+    return workspaceAccess(req, res, workspace, { modules: ['studio'] });
   }
   async function siteDoc(workspace, projectId, create = true) {
     if (!/^[0-9a-f-]{36}$/.test(String(projectId))) throw error('Project not found.',404);
@@ -422,8 +490,10 @@ export function makeServer({
 
   async function transferProspects(who,input) {
     const workspace = typeof input.workspace === 'string' ? input.workspace : '';
-    if (!(await listWorkspaces(who.agencyId)).some(row => row.id === workspace) || !await canOpen(who,workspace)) throw error('Escolha uma subconta à qual você tem acesso.',400);
-    if (who.modules && (!who.modules.includes('contacts') || (input.opportunity === true && !who.modules.includes('opportunities')))) throw error('Você não tem acesso ao módulo de destino.',403);
+    if (!spaceId.test(workspace)) throw error('Escolha uma subconta à qual você tem acesso.',400);
+    await requireWorkspaceAccess(await loadAgency(who.agencyId), who, workspace, {
+      modules: input.opportunity === true ? ['contacts', 'opportunities'] : ['contacts']
+    });
     const ids = Array.isArray(input.ids) ? [...new Set(input.ids.slice(0,100))] : [];
     if (!ids.length) throw error('Selecione pelo menos um prospect.',400);
     const agency = await loadAgency(who.agencyId);
@@ -466,7 +536,7 @@ export function makeServer({
     if (op === 'prospecting-search') return findProspects(who,input);
     if (op === 'prospecting-transfer') return transferProspects(who,input);
     if (op === 'prospecting-action') {
-      if (!who.settings && ['brand','sections','widget'].includes(input.op)) throw error('Somente administradores podem alterar essas configurações.',403);
+      if (['brand','sections','widget'].includes(input.op)) requireCapability(who, 'settings', 'Somente administradores podem alterar essas configurações.');
       const data = input.data && typeof input.data === 'object' && !Array.isArray(input.data) ? input.data : {};
       return changeAgency(who.agencyId, agency => {
         const result = runProspectingAction(agency,{...input,data});
@@ -475,12 +545,16 @@ export function makeServer({
       });
     }
     if (op === 'action') {
-      if (!who.settings && (settingsCommands.has(input.type) || ((input.type === 'save' || input.type === 'delete') && settingsRecords.has(input.key)))) throw error('Only agency owners and admins can change agency settings.',403);
       const workspaces = await listWorkspaces(who.agencyId);
       const shareCode = input.type === 'snapshot-import' && typeof input.data?.code === 'string' ? input.data.code.trim().toLowerCase() : '';
       const shared = /^[0-9a-f]{12}$/.test(shareCode) ? await store.findAgency({ snapshots: [{ shareCode, shared: true }] }) : null;
       const sharedSnapshot = shared?.state.snapshots.find(item => item.shareCode === shareCode && item.shared);
       return changeAgency(who.agencyId, agency => {
+        const currentActor = userAccess(agency, who.userId);
+        if (!currentActor) throw error('The selected user no longer exists.',403);
+        requireCapability(currentActor, 'agency', 'Your user cannot open the agency view.');
+        requireAgencyCommand(currentActor, input, agency);
+        if (sharedSnapshot) requireSetupModules(currentActor, Object.keys(sharedSnapshot.assets || {}));
         ensureAccounts(agency, workspaces);
         const result = executeAgency(agency, input, { accountIds: workspaces.map(w => w.id), actor: who.name, sharedSnapshot });
         if (who.session && input.type === 'save' && input.key === 'users') {
@@ -497,8 +571,10 @@ export function makeServer({
       if (prior && prior.kind !== 'mine') throw error('Only your own snapshots can be refreshed from their source.',400);
       const source = prior ? prior.workspace : input.workspace;
       if (!(await listWorkspaces(who.agencyId)).some(w => w.id === source)) throw error('Choose a valid source sub-account.',400);
+      const sourceAccess = await requireWorkspaceAccess(agency, who, source);
       const include = prior ? prior.include : Array.isArray(input.include) && input.include.length ? input.include.filter(k => snapshotAssets.some(a => a[0] === k)) : snapshotAssets.map(a => a[0]);
       if (!include.length) throw error('Choose at least one asset type.',400);
+      requireSetupModules(sourceAccess, include);
       const name = prior ? prior.name : String(input.name || '').trim().slice(0,100);
       if (!name) throw error('Snapshot name is required.',400);
       const { assets, counts } = extractSnapshot(await store.load(source), include);
@@ -518,10 +594,15 @@ export function makeServer({
       });
     }
     if (op === 'snapshot-load') {
-      const snap = (await loadAgency(who.agencyId)).snapshots.find(s => s.id === input.id);
+      const agency = await loadAgency(who.agencyId);
+      const snap = agency.snapshots.find(s => s.id === input.id);
       if (!snap) throw error('Snapshot not found.',404);
       const targets = Array.isArray(input.workspaces) ? (await listWorkspaces(who.agencyId)).filter(w => input.workspaces.includes(w.id)) : [];
       if (!targets.length) throw error('Choose at least one sub-account.',400);
+      for (const target of targets) {
+        const targetAccess = await requireWorkspaceAccess(agency, who, target.id);
+        requireSetupModules(targetAccess, Object.keys(snap.assets || {}));
+      }
       const mode = input.mode === 'overwrite' ? 'overwrite' : 'skip';
       const loads = [];
       for (const target of targets) {
@@ -541,6 +622,7 @@ export function makeServer({
       const agency = await loadAgency(who.agencyId);
       const snap = agency.snapshots.find(s => s.id === input.snapshotId && s.kind === 'mine');
       if (!snap) throw error('Escolha um setup criado pela sua agência para publicar.',400);
+      requireSetupModules(who, Object.keys(snap.assets || {}));
       const author = agency.company?.name || who.name || 'Agência da comunidade';
       const { listing, updated } = await changeMarketplace(doc => publishToMarketplace(doc, {
         agencyId: who.agencyId, author, snap, studioSites: snap.studioSites || {}, input
@@ -607,9 +689,11 @@ export function makeServer({
       return copy;
     }
     if (op === 'template-install') {
-      const template = catalogTemplate(input.template, await loadAgency(who.agencyId));
+      const agency = await loadAgency(who.agencyId);
+      const template = catalogTemplate(input.template, agency);
       const target = (await listWorkspaces(who.agencyId)).find(w => w.id === input.workspace);
       if (!target) throw error('Choose a valid sub-account.',400);
+      await requireWorkspaceAccess(agency, who, target.id, { modules: ['sites'] });
       const page = await store.change(target.id, state => installTemplate(state, template));
       await changeAgency(who.agencyId, a => {
         a.templateInstalls.push({ id: uid(), template: template.id, name: template.name, workspace: target.id, account: target.name, at: stamp() });
@@ -627,10 +711,11 @@ export function makeServer({
     }
     throw error('Unknown agency request.',404);
   }
-  function change(id,command) {
+  function change(id,command,who) {
     return store.change(id, state => {
+      if (who) requireRecordEffects(who, state, command);
       const result = execute(state, command, { workspace: id });
-      return { id:result, state, metrics:metrics(state) };
+      return { id:result, state };
     });
   }
   // ---- Social Planner: OAuth secrets, scheduler and media ------------------------------------
@@ -647,18 +732,20 @@ export function makeServer({
     if (!key || invite?.hash !== key || invite.expires <= Date.now()) throw error('Este convite expirou ou foi revogado.',404);
     return invite;
   };
-  async function startSocialOAuth(req, workspace, provider, inviteKey = '') {
+  const socialActor = who => who.session?.id || who.userId || 'local-owner';
+  async function startSocialOAuth(req, workspace, provider, inviteKey = '', actor = null) {
     const nonce = uid();
     const target = authUrl(provider, { redirectUri: publicBase(req) + callbackPath(provider), state: nonce });
     await socialRow('social-oauth');
     await store.change('social-oauth', row => {
       for (const [k, v] of Object.entries(row.states)) if (Date.parse(v.at) < Date.now() - 15 * 60_000) delete row.states[k];
-      row.states[nonce] = { workspace, provider, at: stamp(), inviteKey };
+      row.states[nonce] = { workspace, provider, at: stamp(), inviteKey, actor };
     });
     return target;
   }
   async function inviteAttach(workspace, key, chosen) {
     validateInvite(await store.load(`social-${workspace}`), key);
+    await publicAccountPolicy(workspace, true, 'marketing');
     const ids = await store.change(workspace, s => {
       const fresh = chosen.filter(x => !s.socialAccounts.some(a => a.provider === x.provider && a.externalId === x.externalId));
       if (fresh.length !== chosen.length) throw error('Uma das contas já está conectada. Selecione somente novas contas.',409);
@@ -683,16 +770,18 @@ export function makeServer({
     const link = tag('link') || block.match(/<link\b[^>]*href="([^"]+)"/i)?.[1] || '';
     return { title: tag('title'), link, guid: tag('guid') || tag('id') || link, summary: tag('description') || tag('summary') };
   }).filter(item => item.guid);
-  async function checkFeeds(workspace, at) {
+  async function checkFeeds(workspace, agencyId, at) {
     const state = await store.load(workspace);
     const stale = state.socialFeeds.filter(f => f.active && Date.parse(f.lastChecked || 0) < at - 30 * 60_000);
     for (const feed of stale) {
+      if (!await accountIsActive(agencyId, workspace, 'marketing')) return;
       let items = [], problem = '';
       try {
         const r = await fetch(feed.url, { signal: AbortSignal.timeout(20_000), headers: { Accept: 'application/rss+xml, application/atom+xml, text/xml' } });
         if (!r.ok) throw Error(`HTTP ${r.status}`);
         items = rssItems((await r.text()).slice(0, 2_000_000));
       } catch (e) { problem = `Não foi possível ler o feed: ${e.message}`.slice(0, 200); }
+      if (!await accountIsActive(agencyId, workspace, 'marketing')) return;
       await store.change(workspace, s => {
         const row = s.socialFeeds.find(f => f.id === feed.id); if (!row) return;
         row.lastChecked = new Date(at).toISOString(); row.error = problem; if (problem) return;
@@ -710,7 +799,13 @@ export function makeServer({
   }
   async function runSocial(workspace, base, at = Date.now()) {
     let state = await store.load(workspace);
-    if (state.socialFeeds?.length) await checkFeeds(workspace, at).catch(e => console.error(e.message));
+    if (!state.socialFeeds?.length && !state.socialAccounts?.length) return 0;
+    const agencyId = state.agencyId || AGENCY_ID;
+    if (!await accountIsActive(agencyId, workspace, 'marketing')) return 0;
+    if (state.socialFeeds?.length) {
+      await checkFeeds(workspace, agencyId, at).catch(e => console.error(e.message));
+      if (!await accountIsActive(agencyId, workspace, 'marketing')) return 0;
+    }
     if (!state.socialAccounts?.length) return 0;
     const due = await store.change(workspace, s => {
       for (const copy of evergreenDue(s, new Date(at), s.profile.timezone)) s.socialPosts.push({ ...copy, id: uid(), created: stamp() });
@@ -720,12 +815,29 @@ export function makeServer({
     state = await store.load(workspace);
     const secrets = await socialRow(`social-${workspace}`);
     const refreshed = {}, broken = {};
+    let completed = 0;
     for (const post of due) {
+      if (!await accountIsActive(agencyId, workspace, 'marketing')) {
+        const pending = new Map(due.slice(completed).map(row => [row.id, row.claimedAt]));
+        await store.change(workspace, current => {
+          for (const row of current.socialPosts) {
+            if (row.status === 'in_progress' && pending.get(row.id) === row.claimedAt && pending.has(row.id)) {
+              row.status = 'scheduled';
+              delete row.claimedAt;
+            }
+          }
+        });
+        break;
+      }
       const results = [];
       let media = [];
       try { media = socialMedia(state, workspace, base, post); }
       catch (e) { results.push(...post.accountIds.map(accountId => ({ accountId, ok: false, error: e.message }))); }
-      if (!results.length) for (const accountId of post.accountIds) {
+      if (!results.length) for (const [index, accountId] of post.accountIds.entries()) {
+        if (index && !await accountIsActive(agencyId, workspace, 'marketing')) {
+          results.push(...post.accountIds.slice(index).map(id => ({ accountId: id, ok: false, error: 'Subconta suspensa durante a publicação.' })));
+          break;
+        }
         const account = state.socialAccounts.find(a => a.id === accountId);
         if (!account) { results.push({ accountId, ok: false, error: 'Conta desconectada.' }); continue; }
         try {
@@ -741,9 +853,10 @@ export function makeServer({
         settle(s, post.id, results, { uid, now: stamp });
         for (const [accountId, message] of Object.entries(broken)) { const a = s.socialAccounts.find(x => x.id === accountId); if (a) Object.assign(a, { status: 'expired', error: message }); }
       });
+      completed++;
     }
     if (Object.keys(refreshed).length) await socialSecrets(workspace, row => { for (const [k, v] of Object.entries(refreshed)) if (v) row.tokens[k] = seal(v); });
-    return due.length;
+    return completed;
   }
   async function runAllSocial(base) {
     let total = 0;
@@ -777,12 +890,13 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     const send=(status,type,data)=>{res.writeHead(status,{'Content-Type':type});res.end(data);};
     const json=(data,status=200)=>send(status,'application/json; charset=utf-8',JSON.stringify(data));
     const goTo = path => { res.writeHead(303, { Location: path }); res.end(); };
+    let p = '';
     try {
       const host = req.headers.host || '';
       if (!isVercel && !allowedHosts.includes(host)) throw error('Use the local address shown in the terminal.',403);
       const proto = isVercel || req.socket?.encrypted ? 'https' : 'http';
       const url=new URL(req.url,`${proto}://${host}`);
-      let p = url.searchParams.get('__path') || url.pathname;
+      p = url.searchParams.get('__path') || url.pathname;
       if (!p.startsWith('/')) p = '/' + p;
       p = p.replace(/\/+/g, '/');
       const method=req.method;
@@ -795,16 +909,16 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const [, workspace, operation, courseId] = portalMatch;
         if (Boolean(courseId) !== (operation === 'course')) throw error('Página do portal não encontrada.',404);
         if (operation === 'admin') {
-          const who = await access(req, res);
-          if (!await canOpen(who,workspace) || (who.modules && !who.modules.includes('memberships'))) {
-            throw error('Você não tem permissão para gerenciar o portal desta subconta.',403);
-          }
+          const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'] });
+          const input = method === 'POST' ? await payload(req) : null;
+          await requireActiveAccount(who.agencyId, workspace, true);
           const state = await store.load(workspace);
-          return json(await clientPortal.admin(workspace, state, method === 'POST' ? await payload(req) : null));
+          return json(await clientPortal.admin(workspace, state, input));
         }
         const secure = proto === 'https';
         if (method === 'POST' && operation === 'exchange') {
           const { token } = await payload(req);
+          await publicAccountPolicy(workspace, true, 'memberships');
           const session = await clientPortal.exchange(workspace, token);
           portalCookie(req, res, workspace, session, secure);
           return json({ ok:true });
@@ -815,10 +929,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           return json({ ok:true });
         }
         if (method === 'POST' || !['home','course'].includes(operation)) throw error('Método indisponível.',405);
+        await publicAccountPolicy(workspace, false, 'memberships');
         const state = await store.load(workspace);
         return json(await clientPortal.content(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId));
       }
-      if (portalPage.test(p) && method !== 'POST') {
+      const portal = p.match(portalPage);
+      if (portal && method !== 'POST') {
+        await ready;
+        await publicAccountPolicy(portal[1], false, 'memberships');
         res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; form-action 'self'");
         return send(200,'text/html; charset=utf-8',method==='HEAD' ? undefined : readFileSync(resolve(root,'ui','client-portal.html')));
       }
@@ -875,11 +993,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           return json({ subaccounts: await listWorkspaces(agencyId) });
         }
         const agencyId = await bearer(req,method === 'POST' ? 'contacts.write' : 'contacts.read');
-        if (!await canOpen({agencyId},account)) throw error('Sub-account not found.',404);
+        const input = method === 'POST' ? await payload(req) : null;
+        await requireWorkspaceAccess(await loadAgency(agencyId), { agencyId, modules: null }, account, {
+          modules: ['contacts'], hide: true, reason: false
+        });
         if (method !== 'POST') {
           return json({ contacts: (await store.load(account)).contacts });
         }
-        const created = await change(account,{ type:'save', key:'contacts', data: await payload(req) });
+        const created = await change(account,{ type:'save', key:'contacts', data: input });
         return json({ id: created.id },201);
       }
       if (p.startsWith('/api/auth/')) {
@@ -915,7 +1036,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p==='/api/workspaces') {
         const who = await access(req,res);
         if (method==='POST') {
-          if (!who.agency) throw error('Only agency users can create sub-accounts.',403);
+          requireCapability(who, 'agency', 'Only agency users can create sub-accounts.');
           const newId = await createAccount(who, await payload(req));
           return json({id:newId,workspaces:await listWorkspaces(who.agencyId)},201);
         }
@@ -928,14 +1049,32 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       const socialFile = p.match(socialFilePath);
       if (socialFile && method === 'GET') {
         await ready;
-        const file = (await store.load(socialFile[1])).files.find(f => f.id === socialFile[2]);
+        const [, workspace, fileId] = socialFile;
+        await publicAccountPolicy(workspace);
+        const state = await store.load(workspace);
+        const referenced = state.socialPosts.some(post => ['in_progress', 'published'].includes(post.status) &&
+          post.media?.some(item => item.fileId === fileId));
+        if (referenced) {
+          await publicAccountPolicy(workspace, false, 'marketing');
+        } else {
+          if (!localAccess && !auth?.hasSession(req)) throw error('File not found.',404);
+          try { await workspaceAccess(req, res, workspace, { modules: ['media'], support: true, hide: true }); }
+          catch (e) {
+            if ([401, 403, 404].includes(e.status)) throw error('File not found.',404);
+            throw e;
+          }
+        }
+        const file = state.files.find(f => f.id === fileId);
         if (!file || !file.data.startsWith('data:image/')) throw error('File not found.',404);
         const { mime, bytes } = fileBytes(file.data);
-        res.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length, 'Cache-Control': 'public, max-age=3600' });
+        res.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length });
         return res.end(bytes);
       }
       const socialStart = p.match(/^\/api\/social\/connect\/([a-z]+)$/);
-      if (socialInvitePath.test(p) && method === 'GET') {
+      const invitePage = p.match(socialInvitePath);
+      if (invitePage && method === 'GET') {
+        await ready;
+        await publicAccountPolicy(invitePage[1], false, 'marketing');
         res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/social-connect.html')));
       }
@@ -946,6 +1085,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const key = hash(input.token);
         const row = await store.load(`social-${id}`);
         const invite = validateInvite(row, key);
+        await publicAccountPolicy(id, input.action !== 'info', 'marketing');
         if (input.action === 'info') return json({ expires: invite.expires, providers: availability() });
         if (input.action === 'start') return json({ url: await startSocialOAuth(req, id, input.provider, key) });
         if (input.action === 'bluesky') {
@@ -973,9 +1113,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (socialStart && method === 'GET') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
         if (localAccess) req.localSocialUser = url.searchParams.get('user');
-        const who = await access(req,res);
-        if (!await canOpen(who,id) || (who.modules && !who.modules.includes('marketing'))) throw error('Your user cannot connect accounts in this sub-account.',403);
-        const target = await startSocialOAuth(req, id, socialStart[1]);
+        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
+        const target = await startSocialOAuth(req, id, socialStart[1], '', socialActor(who));
         res.writeHead(302, { Location: target }); return res.end();
       }
       const socialBack = p.match(/^\/api\/social\/callback\/([a-z]+)$/);
@@ -988,15 +1127,23 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const nonce = url.searchParams.get('state') || '';
           const pending = await store.change('social-oauth', row => { const v = row.states[nonce]; delete row.states[nonce]; return v; });
           if (!pending || Date.parse(pending.at) < Date.now() - 15 * 60_000 || callbackPath(pending.provider) !== p) throw error('Este login expirou. Tente conectar de novo.',400);
-          if (pending.inviteKey) validateInvite(await store.load(`social-${pending.workspace}`), pending.inviteKey);
+          if (pending.inviteKey) {
+            validateInvite(await store.load(`social-${pending.workspace}`), pending.inviteKey);
+          } else {
+            if (localAccess && pending.actor !== 'local-owner') req.localSocialUser = pending.actor;
+            const who = await workspaceAccess(req, res, pending.workspace, { modules: ['marketing'] });
+            if (pending.actor !== socialActor(who)) throw error('Esta autorização pertence a outra sessão.',403);
+          }
+          await publicAccountPolicy(pending.workspace, true, 'marketing');
           provider = pending.provider;
           if (url.searchParams.get('error')) throw error(url.searchParams.get('error_description') || 'A autorização foi cancelada.',400);
           const candidates = await socialExchange(provider, { code: url.searchParams.get('code') || '', redirectUri: base + callbackPath(provider) });
+          await publicAccountPolicy(pending.workspace, true, 'marketing');
           const requestId = uid();
           await socialSecrets(pending.workspace, row => {
             for (const [k, v] of Object.entries(row.pending)) if (Date.parse(v.at) < Date.now() - 30 * 60_000) delete row.pending[k];
             if (pending.inviteKey) validateInvite(row, pending.inviteKey);
-            row.pending[requestId] = { provider, at: stamp(), candidates: seal(candidates), inviteKey: pending.inviteKey || '' };
+            row.pending[requestId] = { provider, at: stamp(), candidates: seal(candidates), inviteKey: pending.inviteKey || '', actor: pending.actor };
           });
           return send(200,'text/html; charset=utf-8',socialPopup(base, { requestId, provider }));
         } catch (e) {
@@ -1005,9 +1152,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (p.startsWith('/api/social/') && method === 'POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const who = await access(req,res);
-        if (!await canOpen(who,id) || (who.modules && !who.modules.includes('marketing'))) throw error('Your user does not have permission for this module.',403);
         const input = await payload(req), op = p.slice('/api/social/'.length);
+        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
         if (op === 'csv-preview') return json({ rows: reviewSocialCsv(await store.load(id), input).map(({ index, fields, error }) =>
           fields ? { index, status: fields.status, date: fields.scheduleDate, accounts: fields.accountIds.length } : { index, error }) });
         if (op === 'invite') {
@@ -1026,11 +1172,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         const withState = async extra => {
           const state = await store.load(id);
-          return json({ state: visibleState(who, state), metrics: metrics(state), ...extra });
+          return json({ ...workspaceView(who, state), ...extra });
         };
         if (op === 'candidates' || op === 'attach') {
           const row = await socialRow(`social-${id}`), pending = row.pending[String(input.requestId || '')];
-          if (!pending || pending.inviteKey || Date.parse(pending.at) < Date.now() - 30 * 60_000) throw error('Esta autorização expirou. Conecte a conta de novo.',404);
+          if (!pending || pending.inviteKey || pending.actor !== socialActor(who) ||
+              Date.parse(pending.at) < Date.now() - 30 * 60_000) throw error('Esta autorização expirou. Conecte a conta de novo.',404);
           const candidates = unseal(pending.candidates) || [];
           if (op === 'candidates') {
             const state = await store.load(id);
@@ -1060,37 +1207,36 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (p==='/api/state' && method!=='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const { agency, who } = await accessContext(req,await verifiedUser(req,res));
+        const { agency, who: actor } = await accessContext(req,await verifiedUser(req,res));
         const isPersonal = privateSpace.test(id);
-        // Run the independent reads in parallel; nothing is returned unless canOpen passes.
-        const [allowed, loaded, workspaces, aiStatus] = await Promise.allSettled([() => canOpen(who,id), () => store.load(id), () => visibleWorkspaces(who), () => openAI.status(who.session)].map(async read => read()));
-        if (allowed.status === 'rejected') throw allowed.reason;
-        if (!allowed.value) throw error('Your user cannot open this sub-account.',403);
-        for (const r of [loaded, workspaces, aiStatus]) if (r.status === 'rejected') throw r.reason;
-        const state = loaded.value;
-        // Settings → Audit Logs of the sub-account: the agency audit entries written against this account.
-        const account = workspaces.value.find(w => w.id === id)?.name || id;
-        const audit = !isPersonal && (!who.modules || who.modules.includes('settings')) ? agency.audit.filter(a => a.target === account).slice(-200) : [];
-        const studioAI = aiStatus.value.configured;
-        return json({state:visibleState(who,state),metrics:metrics(state),workspaces:workspaces.value,features:{studioAI,social:availability(),agentModel:studioAI && canUseAgents(who) ? agentModel : ''},
-          agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id),
+        const who = await requireWorkspaceAccess(agency, actor, id, { support: true });
+        const studio = hasModule(who, 'studio'), agents = hasModule(who, 'ai-agents');
+        const [state, workspaces, aiStatus] = await Promise.all([
+          store.load(id), visibleWorkspaces(who), !who.support && (studio || agents) ? openAI.status(who.session) : null
+        ]);
+        const account = workspaces.find(w => w.id === id)?.name || id;
+        const audit = !isPersonal && (who.support || hasModule(who, 'settings')) ? agency.audit.filter(a => a.target === account || a.target === id).slice(-200) : [];
+        if (who.support) await changeAgency(who.agencyId, current => logTo(current, who, 'Sub-account support viewed', id, who.account.status));
+        return json({ ...workspaceView(who, state), workspaces,
+          features:{studioAI: Boolean(aiStatus?.configured && studio), social: hasModule(who, 'marketing') ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
+          agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id,who.settings),
+          ...(who.support && { account: { ...who.account, support: true, statusHistory: agency.accounts[id]?.statusHistory || [],
+            ignoredWebhooks: agency.accounts[id]?.ignoredWebhooks || {} } }),
           access:{agency:who.agency,modules:who.modules,name:who.name,session:who.session},audit});
       }
       if (p==='/api/action' && method==='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const who = await access(req,res);
-        if (!await canOpen(who,id)) throw error('Your user cannot open this sub-account.',403);
         const command = await payload(req);
-        const module = command.type === 'save' || command.type === 'delete' ? moduleOfRecord[command.key]
-          : command.type === 'bulk' ? (command.data?.object === 'opportunities' ? 'opportunities' : 'contacts') : commandModule[command.type];
-        if (module && who.modules && !who.modules.includes(module)) throw error('Your user does not have permission for this module.',403);
+        const who = await workspaceAccess(req, res, id);
+        requireWorkspaceCommand(who, command);
         command.actor = who.name;
-        const result = await change(id,command);
+        const result = await change(id,command,who);
         let delivery = null;
         if (!privateSpace.test(id) && command.type === 'message' && command.data?.channel === 'WhatsApp' && command.data?.direction === 'Outbound') {
           const contact = result.state.contacts.find(c => c.id === command.data.contactId);
           if (contact?.phone) {
-            delivery = await whatsapp.sendWorkspaceText(who.agencyId, id, contact.phone, command.data.body);
+            delivery = await whatsapp.sendWorkspaceText(who.agencyId, id, contact.phone, command.data.body,
+              (agencyId, workspace) => accountIsActive(agencyId, workspace, 'conversations'));
           }
         }
         if (!privateSpace.test(id) && ['save','delete','import','opportunity-import','opportunity-move','pipeline','profile','bulk','workflow-enroll','workflow-restore','workflow-move'].includes(command.type)) {
@@ -1098,69 +1244,66 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const label = command.type === 'bulk' ? `Bulk ${command.data?.operation || ''} on ${command.data?.object || ''}`.trim() : '';
           await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);
         }
-        return json({ ...result, ...(delivery ? { delivery } : {}), state: visibleState(who, result.state) });
+        return json({ id: result.id, ...workspaceView(who, result.state), ...(delivery ? { delivery } : {}) });
       }
       if (p==='/api/agency' && method!=='POST') {
         return json(await agencyPayload(req,res));
       }
       if (p.startsWith('/api/agency/') && method==='POST') {
         const who = await access(req,res);
-        if (!who.agency) throw error('Your user cannot open the agency view.',403);
+        requireCapability(who, 'agency', 'Your user cannot open the agency view.');
         const op = p.slice('/api/agency/'.length), body = await payload(req);
         const result = await agencyRequest(op, who, body);
         // Opening a sub-account only stamps lastLogin; skip rebuilding the full agency payload (it loads every sub-account).
         if (op === 'action' && body?.type === 'account-open') return json({ result });
-        return json(await agencyPayload(req,res, { result }, who));
+        return json(await agencyPayload(req,res, { result }));
       }
       if (p.startsWith('/api/whatsapp/webhook/') && method === 'POST') {
-        return await whatsapp.handleWebhook({ req, url, payload, listWorkspaces, json });
+        return await whatsapp.handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json });
       }
       if (p.startsWith('/api/whatsapp/agency/')) {
         const who = await access(req, res);
-        if (!who.agency) throw error('Seu usuário não pode gerenciar a integração global com WhatsApp.', 403);
+        requireCapability(who, 'settings', 'Seu usuário não pode gerenciar a integração global com WhatsApp.');
         return await whatsapp.handleAgencyApi({
-          req, url, method, who, payload, publicOrigin: publicBase(req), listWorkspaces, json
+          req, url, method, who, payload, publicOrigin: publicBase(req), listWorkspaces, requireActiveAccount, json
         });
       }
       if (p.startsWith('/api/whatsapp/workspace/')) {
         if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
-        const who = await access(req, res);
-        if (!await canOpen(who, id)) throw error('Seu usuário não pode abrir esta subconta.', 403);
-        if (!who.agency && who.modules && !who.modules.includes('settings')) {
-          throw error('Seu usuário não tem permissão para gerenciar o WhatsApp desta subconta.', 403);
-        }
+        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
+        if (method === 'POST' && p.replace(/\/+$/, '') === '/api/whatsapp/workspace/test') requireModule(who, 'conversations');
         return await whatsapp.handleWorkspaceApi({
-          req, url, method, agencyId: who.agencyId, workspaceId: id, payload, publicOrigin: publicBase(req), json
+          req, url, method, agencyId: who.agencyId, workspaceId: id, payload, publicOrigin: publicBase(req), requireActiveAccount, json
         });
       }
       if (p.startsWith('/api/waha/webhook/') && method === 'POST') {
-        return await waha.handleWebhook({ req, url, payload, listWorkspaces, json });
+        return await waha.handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json });
       }
       if (p.startsWith('/api/waha/')) {
         const who = await access(req, res);
-        if (!who.agency) throw error('Seu usuário não pode gerenciar a integração com WhatsApp.', 403);
+        requireCapability(who, 'settings', 'Seu usuário não pode gerenciar a integração com WhatsApp.');
+        if (method === 'POST' && p.replace(/\/+$/, '') === '/api/waha/test') requireModule(who, 'conversations');
         return await waha.handleApi({
-          req, res, url, method, who, payload, publicOrigin: publicBase(req), listWorkspaces, json
+          req, res, url, method, who, payload, publicOrigin: publicBase(req), listWorkspaces, requireActiveAccount, json
         });
       }
       if (p.startsWith('/api/ask/')) {
         const { agency, who } = await accessContext(req, await verifiedUser(req, res));
-        if (!who.agency) throw error('Seu usuário não pode acessar o Pergunte à Soci.', 403);
+        requireCapability(who, 'agency', 'Seu usuário não pode acessar o Pergunte à Soci.');
         return await handleAsk({
           req, res, url, method, who, json,
           loadContext: async () => {
             const workspaces = await listWorkspaces(who.agencyId);
             ensureAccounts(agency, workspaces);
-            const states = await Promise.all(workspaces.map(async w => ({ ...w, state: await store.load(w.id) })));
-            return { agency: publicAgency(agency), overview: agencyOverview(agency, states) };
+            const states = await agencyWorkspaceViews(agency, who, workspaces);
+            return { agency: publicAgency(agency, who), overview: agencyOverview(agency, states) };
           }
         });
       }
       const agentAction = p.match(/^\/api\/agents\/(create|save|publish|unpublish|move|delete|memory|test|build)$/);
       if (agentAction && method==='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await access(req,res);
-        if (!await canOpen(who,id) || !canUseAgents(who)) throw error('Você não tem acesso aos agentes desta subconta.',403);
+        const who = await workspaceAccess(req, res, id, { modules: ['ai-agents'] });
         const operation = agentAction[1];
         const input = await payload(req);
         if (operation === 'test') {
@@ -1226,7 +1369,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         doc.project = created.id; doc.profile.name = `AI Studio ${created.id}`;
         await store.insert(siteRowId(created.id), doc);
         const synced = await syncMeta(id, created.id, doc);
-        return json({ ...synced, state: visibleState(who, synced.state) },201);
+        return json({ id: synced.id, ...workspaceView(who, synced.state) },201);
       }
       if ((p==='/api/studio/discover' || p==='/api/studio/plan') && method==='POST') {
         const who = await studioGuard(req,res,id);
@@ -1258,7 +1401,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await studioRequest(id, p.slice('/api/studio/'.length), input, who.session);
         const doc = await siteDoc(id, input.id);
         const synced = await syncMeta(id, input.id, doc);
-        return json({ ...synced, state: visibleState(who, synced.state), doc: publicDoc(doc), result });
+        return json({ id: synced.id, ...workspaceView(who, synced.state), doc: publicDoc(doc), result });
       }
       const preview = p.match(previewPath);
       if (preview && method === 'GET') {
@@ -1273,11 +1416,13 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (site) {
         await ready;
         const [, workspace, projectId, slug = 'index'] = site;
+        const active = await publicAccountPolicy(workspace, method === 'POST', 'studio');
         const base = `/s/${workspace}/${projectId}`;
         const doc = await siteDoc(workspace, projectId, false).catch(() => null);
         if (!doc?.published) throw error('This site is not published.',404);
         if (method === 'POST') {
           const fields = await formFields(req);
+          await publicAccountPolicy(workspace, true, 'studio');
           const back = fields._page && fields._page !== 'index' ? `${base}/${encodeURIComponent(fields._page)}` : base;
           const project = (await store.load(workspace)).studioProjects.find(item => item.id === projectId);
           try {
@@ -1296,22 +1441,102 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (method !== 'GET') throw error('Method not allowed.',405);
         const page = doc.published.pages.find(item => item.slug === slug);
         if (!page) throw error('Page not found.',404);
-        if (method === 'GET' && !url.searchParams.has('sent') && !url.searchParams.has('error')) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, page.id, 'views'))).catch(() => {});
+        if (active && !url.searchParams.has('sent') && !url.searchParams.has('error')) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, page.id, 'views'))).catch(() => {});
         const pt = /<html\b[^>]*\blang\s*=\s*["']?pt/i.test(page.html), es = /<html\b[^>]*\blang\s*=\s*["']?es/i.test(page.html);
         const notice = url.searchParams.has('sent') ? { ok:true, text:pt ? 'Obrigado! Seus dados foram enviados.' : es ? '¡Gracias! Tus datos fueron enviados.' : 'Thank you! Your details were sent.' }
           : url.searchParams.has('error') ? { ok:false, text:pt ? 'Não foi possível enviar. Confira o nome e o e-mail e tente de novo.' : es ? 'No se pudo enviar. Revisa el nombre y el correo e inténtalo de nuevo.' : 'Your details could not be sent. Check the name and email and try again.' } : '';
         res.writeHead(200, publicHeaders);
         return res.end(renderPublic(page,{ base, notice }));
       }
+      // Blogs: home with categories and pages, posts with SEO tags, and RSS. Drafts open with ?preview=1 when signed in.
+      const blogRoute = p.match(blogPath);
+      if (blogRoute && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, blogId, slug] = blogRoute;
+        const state = await store.load(workspace);
+        const blog = state.blogs?.find(item => item.id === blogId);
+        const preview = url.searchParams.get('preview') === '1' && (localAccess || auth?.hasSession(req));
+        if (!blog || (!blog.active && !preview)) throw error('Este blog não está publicado.',404);
+        const base = `/b/${workspace}/${blogId}`, origin = publicBase(req);
+        const html = (status, body) => { res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Cache-Control':preview ? 'no-store' : 'public, max-age=60',
+          'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }); return res.end(method === 'HEAD' ? undefined : body); };
+        if (slug === 'rss.xml') {
+          if (blog.rss === false) throw error('Este blog não tem RSS.',404);
+          res.writeHead(200, { 'Content-Type':'application/rss+xml; charset=utf-8', 'Cache-Control':'public, max-age=300' });
+          return res.end(method === 'HEAD' ? undefined : blogRss(state, blog, { base, origin }));
+        }
+        if (!slug) return html(200, blogHome(state, blog, { base, origin, category:String(url.searchParams.get('categoria') || '').slice(0,80), page:Number(url.searchParams.get('pagina')) || 1 }));
+        const post = state.blogPosts.find(item => item.blogId === blogId && item.slug === slug);
+        if (!post || (!isLive(post) && !preview)) throw error('Artigo não encontrado.',404);
+        if (!preview && method === 'GET') await Promise.resolve().then(() => change(workspace,{ type:'blog-view', id:post.id })).catch(() => {});
+        return html(200, blogPost(state, blog, post, { base, origin, preview }));
+      }
+      if (p === '/api/blog/ai' && method === 'POST') {
+        const who = await workspaceAccess(req,res,id,{ modules:['sites'] });
+        const input = await payload(req);
+        const connection = await openAI.status(who.session).then(status => status.configured ? openAI.requireConnection(who.session) : null);
+        if (input.mode === 'seo') {
+          if (!connection) throw error('Conecte a OpenAI em Configurações para gerar o SEO com IA.',409);
+          return json({ ai:true, seo:await postSeo(connection,{ title:input.title, body:input.body }) });
+        }
+        if (!String(input.topic || input.title || '').trim()) throw error('Descreva o tema do artigo.',400);
+        return json(connection ? { ai:true, post:await writePost(connection, input) } : { ai:false, post:localDraft(input) });
+      }
+      // Chat widget: the loader a site embeds, the panel it opens in an iframe, a demo page and the visitor API.
+      const chatRoute = p.match(chatPath);
+      if (chatRoute && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, widgetId, part] = chatRoute;
+        const state = await store.load(workspace);
+        const widget = state.chatWidgets?.find(item => item.id === widgetId);
+        const signedIn = localAccess || auth?.hasSession(req);
+        if (!widget || (!widget.active && !signedIn)) throw error('Este chat não está publicado.',404);
+        if (part === 'widget.js') {
+          res.writeHead(200, { 'Content-Type':'text/javascript; charset=utf-8', 'Cache-Control':'no-cache', 'Cross-Origin-Resource-Policy':'cross-origin' });
+          return res.end(method === 'HEAD' ? undefined : widget.active ? loaderScript(widget, { workspace }) : '/* chat em rascunho */');
+        }
+        if (part === 'demo') {
+          res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; frame-src 'self'; base-uri 'none'; frame-ancestors 'self'" });
+          return res.end(method === 'HEAD' ? undefined : demoPage(widget, { workspace, brand:state.profile?.name || '' }));
+        }
+        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
+          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors *" });
+        return res.end(method === 'HEAD' ? undefined : chatPage(widget, { workspace }));
+      }
+      const chatCall = p.match(chatApi);
+      if (chatCall) {
+        await ready;
+        const [, workspace, widgetId, op] = chatCall;
+        const token = String(req.headers['x-chat-token'] || '');
+        const tokenHash = /^[0-9a-f]{48}$/.test(token) ? hash(token) : '';
+        if (op === 'messages') {
+          if (method !== 'GET') throw error('Method not allowed.',405);
+          const state = await store.load(workspace);
+          if (!state.chatWidgets?.some(item => item.id === widgetId && item.active)) throw error('Este chat não está disponível.',404);
+          return json({ messages:chatHistory(state, widgetId, tokenHash) });
+        }
+        if (method !== 'POST') throw error('Method not allowed.',405);
+        const input = await payload(req);
+        if (op === 'start') {
+          const fresh = randomBytes(24).toString('hex');
+          const result = await change(workspace,{ type:'chat-start', id:widgetId, data:{ name:input.name, email:input.email, phone:input.phone, body:input.body, page:req.headers.referer || '', tokenHash:hash(fresh) } });
+          return json({ token:fresh, messages:chatHistory(result.state, widgetId, hash(fresh)) },201);
+        }
+        const result = await change(workspace,{ type:'chat-send', id:widgetId, data:{ body:input.body, tokenHash } });
+        return json({ messages:chatHistory(result.state, widgetId, tokenHash) },201);
+      }
       const formRoute = p.match(formPath);
       if (formRoute) {
         await ready;
         const [, workspace, formId] = formRoute;
         const embed = url.searchParams.get('embed') === '1', preview = url.searchParams.get('preview') === '1';
+        if (preview) {
+          await workspaceAccess(req, res, workspace, { modules: ['sites'], hide: true });
+        }
+        const active = await publicAccountPolicy(workspace, method === 'POST', 'sites');
         const state = await store.load(workspace);
         const form = state.forms.find(item => item.id === formId);
-        const signedIn = localAccess || auth?.hasSession(req);
-        if (!form || (!form.active && !(preview && signedIn))) throw error('Este formulário não está publicado.',404);
+        if (!form || (!form.active && !preview)) throw error('Este formulário não está publicado.',404);
         const redirects = form.onSubmit?.action === 'redirect' && form.onSubmit.url;
         const page = (status, options) => {
           res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
@@ -1321,7 +1546,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         };
         if (!formOpen(form)) return page(200, { notice:{ title:'Formulário encerrado', text:form.schedule?.closedMessage || 'Este formulário não está recebendo respostas agora.' } });
         if (method === 'GET' || method === 'HEAD') {
-          if (method === 'GET' && !preview && form.active) await Promise.resolve().then(() => change(workspace,{ type:'form-view', id:formId })).catch(() => {});
+          if (active && method === 'GET' && !preview && form.active) await Promise.resolve().then(() => change(workspace,{ type:'form-view', id:formId })).catch(() => {});
           const values = Object.fromEntries([...url.searchParams].filter(([key]) => !['embed','preview','__path'].includes(key)).map(([key, value]) => [key, value.slice(0,500)]));
           return page(200, { values });
         }
@@ -1329,16 +1554,22 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const input = await formBody(req);
         const read = readAnswers(form, input, state.customFields || []);
         if (!read.ok) return page(422, { values:read.values, errors:read.errors });
+        await publicAccountPolicy(workspace, true, 'sites');
         try { await change(workspace,{ type:'submit', id:formId, data:{ ...input, _source:embed ? 'Incorporado' : 'Link' } }); }
         catch (failure) { return page(failure.status && failure.status < 500 ? 422 : 500, { values:read.values, errors:{ _form:failure.status && failure.status < 500 ? failure.message : 'Não foi possível enviar agora. Tente de novo.' } }); }
         if (redirects) { res.writeHead(303, { Location:form.onSubmit.url }); return res.end(); }
+        const tier = read.result?.tierDetail;
+        if (read.result) return page(200, { notice:{ result:read.result, text:tier?.message || form.onSubmit?.message || '', cta:tier?.ctaUrl ? { url:tier.ctaUrl, label:tier.ctaLabel } : null } });
         return page(200, { notice:{ title:'Obrigado!', text:form.onSubmit?.message || 'Recebemos suas respostas.' } });
       }
       const redirect = p.match(redirectPath);
       if (redirect && method === 'GET') {
         await ready;
         const [, workspace, linkId] = redirect;
-        const target = await store.change(workspace, state => execute(state, { type: 'link-click', id: linkId }));
+        const active = await publicAccountPolicy(workspace, false, 'conversations');
+        const target = active
+          ? await store.change(workspace, state => execute(state, { type: 'link-click', id: linkId }))
+          : execute(await store.load(workspace), { type: 'link-click', id: linkId }, { trackClick: false });
         res.writeHead(302, { Location: target });
         return res.end();
       }
@@ -1347,16 +1578,23 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const [,kind,w,item]=match;
         if (method==='POST') {
           if (kind!=='f') throw error('Method not allowed.',405);
-          const submission = await change(w,{type:'submit',id:item,data:await payload(req)});
+          const input = await payload(req);
+          await publicAccountPolicy(w, true, 'sites');
+          const submission = await change(w,{type:'submit',id:item,data:input});
           return json({id:submission.id},201);
         }
+        await publicAccountPolicy(w, false, kind === 'course' ? 'memberships' : 'sites');
         const state=await store.load(w), map={p:'pages',f:'forms',course:'courses'}, row=find(state,map[kind],item);
         if(!row?.active || (kind==='course' && row.portalOnly)) throw error('This item is not published.',404);
         const form=kind==='p' && row.formId ? find(state,'forms',row.formId) : null;
         return json({kind,row,form:form?.active?form:null,brand:state.profile.name});
       }
-      const legacyForm = method === 'GET' && p.match(paths);
-      if (legacyForm && legacyForm[1] === 'f') { res.writeHead(302, { Location:`/form/${legacyForm[2]}/${legacyForm[3]}` }); return res.end(); }
+      const legacyPage = method !== 'POST' && p.match(paths);
+      if (legacyPage) {
+        await ready;
+        await publicAccountPolicy(legacyPage[2], false, legacyPage[1] === 'course' ? 'memberships' : 'sites');
+      }
+      if (method === 'GET' && legacyPage?.[1] === 'f') { res.writeHead(302, { Location:`/form/${legacyPage[2]}/${legacyPage[3]}` }); return res.end(); }
       if (p === '/privacidade' || p === '/privacidade/') p = '/privacidade.html';
       if ((method==='GET'||method==='HEAD') && (p==='/' || p==='/login' || ['/app','/app/','/painel','/painel/'].includes(p) || paths.test(p) || staticFiles.has(p))) {
         const hostHeader = (req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
@@ -1373,7 +1611,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       throw error('Page not found.',404);
     } catch(e) {
       if (!e.status) console.error(e.message);
-      if (!res.headersSent) json({error:e.status?e.message:'The workspace could not complete this request.'},e.status||500);
+      if (!res.headersSent && e.publicAccount && !p.startsWith('/api/')) {
+        return send(e.status, 'text/html; charset=utf-8', req.method === 'HEAD' ? undefined :
+          `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Conteúdo indisponível</title><main><h1>${e.message}</h1><p>Entre em contato com o responsável pela publicação para saber mais.</p></main></html>`);
+      }
+      if (!res.headersSent) json({
+        error: e.status ? e.message : 'The workspace could not complete this request.',
+        ...(e.code === 'ACCOUNT_SUSPENDED' && { code: e.code, account: e.account })
+      }, e.status || 500);
     }
   });
   server.on('close',()=>{ if (socialTimer) clearInterval(socialTimer); store.close(); });

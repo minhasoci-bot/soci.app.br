@@ -1,9 +1,21 @@
-// Sites → Formulários: list, analytics and submissions, plus the form builder
-// (palette of fields, live canvas, field properties, settings, embed, per-form results).
+// Sites → Formulários, Pesquisas e Questionários: list, analytics and submissions, plus the builder
+// (palette of fields, live canvas, field properties, steps and jumps, quiz scoring, settings, embed, results).
 import { icon } from './icons.js';
 import { h, pageShell, utabs } from './screens.js';
 import { designStage, mountDesignStage } from './design-workspace.js';
-import { fieldCatalog, fieldKinds, fieldMarkup, formCss, formFields, formTemplates, inputOf, newField, validFields } from './form-fields.js';
+import { defaultTiers, fieldCatalog, fieldKinds, fieldMarkup, formCss, formFields, inputOf, newField, scoreOf, templatesFor, validFields } from './form-fields.js';
+
+// The three kinds share the engine; each has its own list, analytics and submissions under Sites.
+const KINDS = {
+  form: { list: 'forms', analytics: 'form-analytics', subs: 'submissions', one: 'formulário', One: 'Formulário', many: 'formulários', Many: 'Formulários', New: 'Novo formulário', all: 'Todos os formulários', icon: 'list', fem: false },
+  survey: { list: 'surveys', analytics: 'survey-analytics', subs: 'survey-submissions', one: 'pesquisa', One: 'Pesquisa', many: 'pesquisas', Many: 'Pesquisas', New: 'Nova pesquisa', all: 'Todas as pesquisas', icon: 'chart', fem: true },
+  quiz: { list: 'quizzes', analytics: 'quiz-analytics', subs: 'quiz-submissions', one: 'questionário', One: 'Questionário', many: 'questionários', Many: 'Questionários', New: 'Novo questionário', all: 'Todos os questionários', icon: 'award', fem: false }
+};
+export const siteTabs = [['funnels', 'Funis'], ['websites', 'Sites'], ['blogs', 'Blogs'], ['forms', 'Formulários'], ['surveys', 'Pesquisas'], ['quizzes', 'Questionários'], ['chat-widget', 'Chat']];
+export const formTabs = Object.values(KINDS).flatMap(k => [k.list, k.analytics, k.subs]).concat('form');
+const kindOf = form => KINDS[form?.kind] ? form.kind : 'form';
+const kindForTab = tab => Object.keys(KINDS).find(kind => [KINDS[kind].list, KINDS[kind].analytics, KINDS[kind].subs].includes(tab)) || 'form';
+const formsOf = (c, kind) => c.s.forms.filter(form => kindOf(form) === kind);
 
 const fb = { id: '', draft: null, selected: '', dirty: false, section: 'edit', palette: 'quick', query: '', formFilter: '', open: '', range: 30, busy: false, drag: null };
 let env = null;
@@ -16,20 +28,21 @@ const pct = (a, b) => b ? `${(Math.round(a / b * 1000) / 10).toLocaleString('pt-
 const settingsOf = form => ({ button: form.button || 'Enviar', accent: form.accent || '#155eef', showTitle: form.showTitle !== false, addTags: form.addTags || [],
   onSubmit: { action: 'message', message: '', url: '', ...(form.onSubmit || {}) }, schedule: { start: '', end: '', closedMessage: '', ...(form.schedule || {}) } });
 const customFieldsOf = c => (c.s.customFields || []).filter(field => field.object === 'Contact');
-const subsOf = (c, id) => c.s.submissions.filter(item => !id || item.formId === id);
+const subsOf = (c, id, kind) => c.s.submissions.filter(item => id ? item.formId === id : !kind || kindOf(c.s.forms.find(form => form.id === item.formId)) === kind);
 
 /* ───────── Lista, análises e envios ───────── */
 
-function formsPage(c, body, actions = '') {
+function formsPage(c, body, actions = '', kind = kindForTab(c.tab)) {
+  const k = KINDS[kind];
   const inner = utabs({
-    key: 'sites-forms-sub',
+    key: `sites-${k.list}-sub`,
     nested: true,
-    label: 'Formulários',
-    current: c.tab || 'forms',
+    label: k.Many,
+    current: c.tab || k.list,
     items: [
-      { value: 'forms', label: 'Todos os formulários', href: '#sites/forms' },
-      { value: 'form-analytics', label: 'Análises', href: '#sites/form-analytics' },
-      { value: 'submissions', label: 'Envios', href: '#sites/submissions' }
+      { value: k.list, label: k.all, href: `#sites/${k.list}` },
+      { value: k.analytics, label: 'Análises', href: `#sites/${k.analytics}` },
+      { value: k.subs, label: 'Envios', href: `#sites/${k.subs}` }
     ],
     content: body
   });
@@ -41,37 +54,40 @@ function formsPage(c, body, actions = '') {
     tabs: {
       key: 'sites',
       label: 'Seções de sites',
-      current: 'forms',
-      items: [['funnels', 'Funis'], ['websites', 'Sites'], ['forms', 'Formulários']]
+      current: k.list,
+      items: siteTabs
     },
     content: inner
   });
 }
 
-function listView(c) {
-  const query = norm(fb.query.trim());
-  const forms = [...c.s.forms].filter(form => norm(form.name).includes(query)).sort((a, b) => String(b.updated || b.created).localeCompare(String(a.updated || a.created)));
+function listView(c, kind) {
+  const k = KINDS[kind], query = norm(fb.query.trim()), all = formsOf(c, kind);
+  const forms = all.filter(form => norm(form.name).includes(query)).sort((a, b) => String(b.updated || b.created).localeCompare(String(a.updated || a.created)));
   const rows = forms.map(form => {
-    const count = subsOf(c, form.id).length, fields = formFields(form).filter(field => fieldKinds[field.type]?.input !== 'static').length;
-    return `<tr><td><a class="site-name" href="#sites/form/${form.id}">${icon('list', 16)}<span>${h(form.name)}</span></a></td><td>${fields}</td><td>${count}</td>
-      <td>${when(form.updated || form.created)}</td><td>${form.active ? badge('Publicado', 'green') : badge('Rascunho')}</td>
-      <td class="site-row-actions">${form.active ? `<a class="icon-btn" href="${formUrl(c, form)}" target="_blank" rel="noopener" title="Abrir formulário publicado" aria-label="Abrir ${h(form.name)} publicado">${icon('external', 15)}</a>` : ''}
+    const count = subsOf(c, form.id).length, fields = formFields(form).filter(field => !['static', 'break'].includes(fieldKinds[field.type]?.input)).length;
+    return `<tr><td><a class="site-name" href="#sites/form/${form.id}">${icon(k.icon, 16)}<span>${h(form.name)}</span></a></td><td>${fields}</td><td>${count}</td>
+      <td>${when(form.updated || form.created)}</td><td>${form.active ? badge(k.fem ? 'Publicada' : 'Publicado', 'green') : badge('Rascunho')}</td>
+      <td class="site-row-actions">${form.active ? `<a class="icon-btn" href="${formUrl(c, form)}" target="_blank" rel="noopener" title="Abrir publicado" aria-label="Abrir ${h(form.name)} publicado">${icon('external', 15)}</a>` : ''}
         <a class="secondary site-open" href="#sites/form/${form.id}">Editar</a></td></tr>`;
   }).join('');
-  return formsPage(c, `${c.s.forms.length ? `<div class="toolbar"><label class="search">${icon('search', 15)}<input type="search" data-fm-search value="${h(fb.query)}" placeholder="Buscar formulários" aria-label="Buscar formulários"></label></div>` : ''}
-    ${rows ? `<div class="surface table-shell"><table class="site-table"><thead><tr><th scope="col">Nome</th><th scope="col">Campos</th><th scope="col">Envios</th><th scope="col">Atualizado</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
-      : c.s.forms.length ? '<div class="surface empty"><strong>Nenhum formulário encontrado</strong><p>Tente outro nome.</p></div>'
-      : `<div class="surface empty site-empty">${icon('list', 26)}<strong>Nenhum formulário ainda</strong><p>Comece em branco ou de um modelo: contato, orçamento, consultoria, pesquisa ou newsletter.</p><button class="primary" data-fm-new>${icon('plus', 16)} Novo formulário</button></div>`}`,
-    `<button class="primary" data-fm-new>${icon('plus', 16)} Novo formulário</button>`);
+  const blurb = { form: 'Comece em branco ou de um modelo: contato, orçamento, consultoria, pesquisa ou newsletter.',
+    survey: 'Pesquisas em etapas, com uma pergunta por tela se quiser e desvios conforme a resposta.',
+    quiz: 'Cada resposta vale pontos; o visitante vê o resultado na hora e o contato recebe a tag da faixa.' }[kind];
+  const button = `<button class="primary" data-fm-new="${kind}">${icon('plus', 16)} ${k.New}</button>`;
+  return formsPage(c, `${all.length ? `<div class="toolbar"><label class="search">${icon('search', 15)}<input type="search" data-fm-search value="${h(fb.query)}" placeholder="Buscar ${k.many}" aria-label="Buscar ${k.many}"></label></div>` : ''}
+    ${rows ? `<div class="surface table-shell"><table class="site-table"><thead><tr><th scope="col">Nome</th><th scope="col">${kind === 'form' ? 'Campos' : 'Perguntas'}</th><th scope="col">Envios</th><th scope="col">Atualizado</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      : all.length ? `<div class="surface empty"><strong>Nenhum${k.fem ? 'a' : ''} ${k.one} encontrad${k.fem ? 'a' : 'o'}</strong><p>Tente outro nome.</p></div>`
+      : `<div class="surface empty site-empty">${icon(k.icon, 26)}<strong>Nenhum${k.fem ? 'a' : ''} ${k.one} ainda</strong><p>${blurb}</p>${button}</div>`}`, button, kind);
 }
 
 const dayKey = date => date.toISOString().slice(0, 10);
-function series(c, formId, days) {
+function series(c, formId, days, kind) {
   const today = new Date(), out = [];
   for (let i = days - 1; i >= 0; i--) { const d = new Date(today); d.setDate(today.getDate() - i); out.push({ day: dayKey(d), views: 0, subs: 0, direct: 0 }); }
   const index = Object.fromEntries(out.map((row, i) => [row.day, i]));
-  for (const form of c.s.forms.filter(form => !formId || form.id === formId)) for (const [day, n] of Object.entries(form.viewsByDay || {})) if (day in index) out[index[day]].views += n;
-  for (const sub of subsOf(c, formId)) { const day = String(sub.created).slice(0, 10); if (day in index) { out[index[day]].subs += 1; if (['Link', 'Incorporado'].includes(sub.source)) out[index[day]].direct += 1; } }
+  for (const form of c.s.forms.filter(form => formId ? form.id === formId : !kind || kindOf(form) === kind)) for (const [day, n] of Object.entries(form.viewsByDay || {})) if (day in index) out[index[day]].views += n;
+  for (const sub of subsOf(c, formId, kind)) { const day = String(sub.created).slice(0, 10); if (day in index) { out[index[day]].subs += 1; if (['Link', 'Incorporado'].includes(sub.source)) out[index[day]].direct += 1; } }
   return out;
 }
 
@@ -85,43 +101,55 @@ function chart(rows) {
     </div><div class="fm-chart-foot dim"><span>${label(rows[0].day)}</span><span>${label(rows.at(-1).day)}</span></div></figure>`;
 }
 
-function stats(c, formId) {
-  const rows = series(c, formId, fb.range);
+function stats(c, formId, kind) {
+  const rows = series(c, formId, fb.range, kind);
   const views = rows.reduce((sum, row) => sum + row.views, 0), subs = rows.reduce((sum, row) => sum + row.subs, 0), direct = rows.reduce((sum, row) => sum + row.direct, 0);
   return `<div class="fm-range" role="group" aria-label="Período">${[7, 30, 90].map(days => `<button class="${fb.range === days ? 'selected' : ''}" aria-pressed="${fb.range === days}" data-fm-range="${days}">${days} dias</button>`).join('')}</div>
     <div class="metrics three"><div class="surface metric"><span>Visitas</span><b>${views}</b></div><div class="surface metric"><span>Envios</span><b>${subs}</b></div><div class="surface metric"><span>Conversão</span><b>${pct(direct, views)}</b></div></div>
     ${chart(rows)}`;
 }
 
-function analyticsView(c) {
+function analyticsView(c, kind) {
+  const k = KINDS[kind];
   const since = dayKey(new Date(Date.now() - (fb.range - 1) * 864e5));
-  const rows = c.s.forms.map(form => {
+  const rows = formsOf(c, kind).map(form => {
     const views = Object.entries(form.viewsByDay || {}).filter(([day]) => day >= since).reduce((sum, [, n]) => sum + n, 0);
     const recent = subsOf(c, form.id).filter(sub => String(sub.created).slice(0, 10) >= since), subs = recent.length, direct = recent.filter(sub => ['Link', 'Incorporado'].includes(sub.source)).length;
     const last = subsOf(c, form.id).at(-1);
     return `<tr><td><a href="#sites/form/${form.id}">${h(form.name)}</a></td><td>${views}</td><td>${subs}</td><td>${pct(direct, views)}</td><td>${last ? when(last.created) : '—'}</td></tr>`;
   }).join('');
-  return formsPage(c, `${stats(c, '')}
-    ${rows ? `<div class="surface table-shell"><table class="site-table"><caption class="sr-only">Desempenho por formulário</caption><thead><tr><th scope="col">Formulário</th><th scope="col">Visitas</th><th scope="col">Envios</th><th scope="col">Conversão</th><th scope="col">Último envio</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
-    <p class="dim fm-note">Visitas contam aberturas do link e do formulário incorporado. Envios feitos pelos funis e sites do AI Studio entram em Envios, mas não na conversão: as visitas deles ficam nas estatísticas do próprio funil.</p>`);
+  return formsPage(c, `${stats(c, '', kind)}${kind === 'quiz' ? tierTable(subsOf(c, '', 'quiz')) : ''}
+    ${rows ? `<div class="surface table-shell"><table class="site-table"><caption class="sr-only">Desempenho por ${k.one}</caption><thead><tr><th scope="col">${k.One}</th><th scope="col">Visitas</th><th scope="col">Envios</th><th scope="col">Conversão</th><th scope="col">Último envio</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+    <p class="dim fm-note">Visitas contam aberturas do link e da versão incorporada. Envios feitos pelos funis e sites do AI Studio entram em Envios, mas não na conversão: as visitas deles ficam nas estatísticas do próprio funil.</p>`, '', kind);
 }
 
-function submissionsTable(c, formId) {
-  const query = norm(fb.query.trim());
-  const list = [...subsOf(c, formId || fb.formFilter)].reverse().filter(sub => !query || norm(`${sub.name} ${sub.email} ${sub.phone} ${(sub.answers || []).map(a => a.value).join(' ')}`).includes(query));
+// How many quiz takers landed in each result tier.
+function tierTable(subs) {
+  const scored = subs.filter(sub => sub.result);
+  if (!scored.length) return '';
+  const counts = new Map();
+  for (const sub of scored) counts.set(sub.result.tier || 'Sem faixa', (counts.get(sub.result.tier || 'Sem faixa') || 0) + 1);
+  const average = Math.round(scored.reduce((sum, sub) => sum + sub.result.percent, 0) / scored.length);
+  return `<div class="surface table-shell fm-tiers"><table class="site-table"><caption>Resultados · média de ${average}%</caption><thead><tr><th scope="col">Faixa</th><th scope="col">Pessoas</th><th scope="col">Parcela</th></tr></thead>
+    <tbody>${[...counts].map(([tier, n]) => `<tr><td>${h(tier)}</td><td>${n}</td><td>${pct(n, scored.length)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function submissionsTable(c, formId, kind = 'form') {
+  const query = norm(fb.query.trim()), k = KINDS[kind], scored = kind === 'quiz';
+  const list = [...subsOf(c, formId || fb.formFilter, kind)].reverse().filter(sub => !query || norm(`${sub.name} ${sub.email} ${sub.phone} ${(sub.answers || []).map(a => a.value).join(' ')}`).includes(query));
   const formName = id => c.s.forms.find(form => form.id === id)?.name || 'Formulário excluído';
   const rows = list.slice(0, 300).map(sub => {
     const open = fb.open === sub.id;
     return `<tr class="${open ? 'open' : ''}"><td>${when(sub.created)}</td>${formId ? '' : `<td>${h(formName(sub.formId))}</td>`}<td>${sub.contactId ? `<a href="#contacts" data-fm-contact="${sub.contactId}">${h(sub.name || '—')}</a>` : h(sub.name || '—')}</td>
-      <td>${h(sub.email || sub.phone || '—')}</td><td>${h(sub.source || '—')}</td>
+      <td>${h(sub.email || sub.phone || '—')}</td>${scored ? `<td>${sub.result ? `${h(sub.result.tier || '—')} · ${sub.result.percent}%` : '—'}</td>` : ''}<td>${h(sub.source || '—')}</td>
       <td><button class="text-link" data-fm-open="${sub.id}" aria-expanded="${open}">${open ? 'Ocultar' : 'Ver respostas'}</button></td></tr>
-      ${open ? `<tr class="fm-answers"><td colspan="${formId ? 5 : 6}"><dl>${(sub.answers?.length ? sub.answers : [{ label: 'Nome', value: sub.name }, { label: 'E-mail', value: sub.email }]).map(a => `<div><dt>${h(a.label)}</dt><dd>${h(a.value || '—')}</dd></div>`).join('')}</dl></td></tr>` : ''}`;
+      ${open ? `<tr class="fm-answers"><td colspan="${(formId ? 5 : 6) + (scored ? 1 : 0)}"><dl>${(sub.answers?.length ? sub.answers : [{ label: 'Nome', value: sub.name }, { label: 'E-mail', value: sub.email }]).map(a => `<div><dt>${h(a.label)}</dt><dd>${h(a.value || '—')}</dd></div>`).join('')}</dl></td></tr>` : ''}`;
   }).join('');
   return `<div class="toolbar"><label class="search">${icon('search', 15)}<input type="search" data-fm-search value="${h(fb.query)}" placeholder="Buscar nas respostas" aria-label="Buscar nas respostas"></label>
-      ${formId ? '' : `<select data-fm-filter aria-label="Filtrar por formulário"><option value="">Todos os formulários</option>${c.s.forms.map(form => `<option value="${form.id}"${fb.formFilter === form.id ? ' selected' : ''}>${h(form.name)}</option>`).join('')}</select>`}
-      <span class="spacer"></span>${list.length ? `<button class="secondary" data-fm-csv="${formId || fb.formFilter}">${icon('download', 15)} Exportar CSV</button>` : ''}</div>
-    ${rows ? `<div class="surface table-shell"><table class="site-table fm-subs"><thead><tr><th scope="col">Recebido</th>${formId ? '' : '<th scope="col">Formulário</th>'}<th scope="col">Nome</th><th scope="col">Contato</th><th scope="col">Origem</th><th scope="col"><span class="sr-only">Respostas</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
-      : `<div class="surface empty">${icon('inbox', 24)}<strong>Nenhum envio${query ? ' encontrado' : ' ainda'}</strong><p>${query ? 'Tente outra busca.' : 'Publique o formulário e compartilhe o link para receber respostas.'}</p></div>`}`;
+      ${formId ? '' : `<select data-fm-filter aria-label="Filtrar por ${k.one}"><option value="">${k.all}</option>${formsOf(c, kind).map(form => `<option value="${form.id}"${fb.formFilter === form.id ? ' selected' : ''}>${h(form.name)}</option>`).join('')}</select>`}
+      <span class="spacer"></span>${list.length ? `<button class="secondary" data-fm-csv="${formId || fb.formFilter}" data-kind="${kind}">${icon('download', 15)} Exportar CSV</button>` : ''}</div>
+    ${rows ? `<div class="surface table-shell"><table class="site-table fm-subs"><thead><tr><th scope="col">Recebido</th>${formId ? '' : `<th scope="col">${k.One}</th>`}<th scope="col">Nome</th><th scope="col">Contato</th>${scored ? '<th scope="col">Resultado</th>' : ''}<th scope="col">Origem</th><th scope="col"><span class="sr-only">Respostas</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      : `<div class="surface empty">${icon('inbox', 24)}<strong>Nenhum envio${query ? ' encontrado' : ' ainda'}</strong><p>${query ? 'Tente outra busca.' : `Publique ${k.fem ? 'a' : 'o'} ${k.one} e compartilhe o link para receber respostas.`}</p></div>`}`;
 }
 
 /* ───────── Construtor ───────── */
@@ -132,7 +160,8 @@ function loadDraft(c) {
   if (fb.id !== form.id || (!fb.dirty && fb.rev !== (form.updated || form.created))) {
     const sameForm = fb.id === form.id;
     Object.assign(fb, { id: form.id, rev: form.updated || form.created, dirty: false, selected: sameForm ? fb.selected : '', section: sameForm ? fb.section : 'edit', palette: sameForm ? fb.palette : 'layers', viewport: sameForm ? fb.viewport : {}, open: '' });
-    fb.draft = { name: form.name, description: form.description || '', active: form.active, fields: structuredClone(formFields(form)), ...structuredClone(settingsOf(form)) };
+    fb.draft = { name: form.name, description: form.description || '', active: form.active, kind: kindOf(form), oneAtATime: Boolean(form.oneAtATime), tiers: structuredClone(form.tiers?.length ? form.tiers : defaultTiers),
+      fields: structuredClone(formFields(form)), ...structuredClone(settingsOf(form)) };
   }
   return form;
 }
@@ -145,17 +174,17 @@ function paletteHtml(c) {
   return `<aside class="fb-palette dw-panel" aria-label="Estrutura do formulário"><div class="fb-palette-tabs" role="tablist">
       ${[['layers','Camadas'],['quick','Adicionar'],['contact','Contato']].map(([id,label]) => `<button role="tab" aria-selected="${fb.palette === id}" data-fb-palette="${id}">${label}</button>`).join('')}</div>
     <div class="fb-palette-body">${fb.palette === 'layers' ? `<ul class="dw-layer-list" data-fb-layers>${formLayers()}</ul>` : fb.palette === 'quick'
-      ? fieldCatalog.map(([group, types]) => `<section><h3>${h(group)}</h3><div class="fb-tiles">${types.map(type => tile(type, fieldKinds[type].label)).join('')}</div></section>`).join('')
+      ? fieldCatalog.filter(([group]) => group !== 'Estrutura' || fb.draft.kind !== 'form').map(([group, types]) => `<section><h3>${h(group)}</h3><div class="fb-tiles">${types.map(type => tile(type, fieldKinds[type].label)).join('')}</div></section>`).join('')
       : custom.length ? `<section><h3>Campos personalizados do contato</h3><div class="fb-tiles">${custom.map(field => `<button type="button" class="fb-tile" draggable="true" data-fb-add="custom" data-custom="${field.id}"${used.has(`custom:${field.id}`) ? ' disabled title="Já está no formulário"' : ''}><span aria-hidden="true">${icon('contacts', 18)}</span>${h(field.name)}</button>`).join('')}</div></section><p class="dim">A resposta é gravada no campo do contato.</p>`
       : `<p class="dim">Nenhum campo personalizado de contato. Crie em <a href="#settings/fields">Configurações → Campos personalizados</a> e ele aparece aqui.</p>`}</div>
     ${fb.palette !== 'layers' ? '<p class="fb-palette-hint dim">Clique para adicionar ao fim ou arraste para a posição.</p>' : ''}</aside>`;
 }
 const tileIcon = type => ({ name: 'contacts', first_name: 'contacts', last_name: 'contacts', email: 'mail', phone: 'phone', birthday: 'cal', address: 'pin', city: 'pin', state: 'pin', country: 'pin', postal_code: 'pin', organization: 'box', website: 'site',
-  text: 'edit', textarea: 'note', select: 'chevron', multiselect: 'list', checkbox: 'check', radio: 'check', rating: 'star', date: 'cal', number: 'sort', monetary: 'pay', heading: 'note', terms: 'lock', source: 'link' })[type] || 'edit';
+  break: 'menu', text: 'edit', textarea: 'note', select: 'chevron', multiselect: 'list', checkbox: 'check', radio: 'check', rating: 'star', date: 'cal', number: 'sort', monetary: 'pay', heading: 'note', terms: 'lock', source: 'link' })[type] || 'edit';
 
 function formLayers() {
   return `<li><button class="dw-layer" data-fb-select="" aria-pressed="${!fb.selected}">${icon('list',14)} <span>Formulário</span></button></li>${fb.draft.fields.map(field =>
-    `<li><button class="dw-layer" data-fb-layer="${field.id}" aria-pressed="${fb.selected === field.id}" style="--dw-depth:1">${icon(tileIcon(field.type),14)}<span>${h(field.label || fieldKinds[field.type].label)}</span></button></li>`).join('')}`;
+    `<li><button class="dw-layer${field.type === 'break' ? ' fb-layer-step' : ''}" data-fb-layer="${field.id}" aria-pressed="${fb.selected === field.id}" style="--dw-depth:${field.type === 'break' ? 0 : 1}">${icon(tileIcon(field.type),14)}<span>${h(field.label || fieldKinds[field.type].label)}</span></button></li>`).join('')}`;
 }
 
 function canvasItems(c) {
@@ -185,21 +214,58 @@ function propsHtml(c) {
     <label>Descrição<textarea data-fb-form="description" rows="2" maxlength="1500">${h(d.description)}</textarea></label>
     <label class="check"><input type="checkbox" data-fb-form="showTitle"${d.showTitle ? ' checked' : ''}> Mostrar nome e descrição no topo</label>
     <label>Texto do botão<input data-fb-form="button" value="${h(d.button)}" maxlength="60"></label>
-    <label>Cor de destaque<span class="fb-color"><input type="color" data-fb-form="accent" value="${h(d.accent)}"><code>${h(d.accent)}</code></span></label></aside>`;
+    <label>Cor de destaque<span class="fb-color"><input type="color" data-fb-form="accent" value="${h(d.accent)}"><code>${h(d.accent)}</code></span></label>
+    ${d.kind !== 'form' ? `<label class="check"><input type="checkbox" data-fb-form="oneAtATime"${d.oneAtATime ? ' checked' : ''}> Uma pergunta por tela</label>
+      <p class="dim">Use “Nova etapa” na paleta para dividir em telas. Com uma pergunta por tela, cada pergunta vira uma tela.</p>` : ''}</aside>`;
   const kind = fieldKinds[field.type], type = inputOf(field, c.s.customFields || []);
   const isStatic = type === 'static', isHidden = type === 'hidden';
+  if (type === 'break') return `<aside class="fb-props dw-panel" aria-label="Propriedades da etapa"><div class="fb-props-head"><button type="button" class="icon-btn" data-fb-select="" aria-label="Voltar às propriedades">${icon('left', 16)}</button><h2>Nova etapa</h2></div>
+    <label>Título da etapa <small class="dim">opcional</small><input data-fb-prop="label" value="${h(field.label)}" maxlength="200" placeholder="Ex. Sobre a empresa"></label>
+    <p class="dim">Tudo abaixo desta marca aparece numa nova tela, com os botões Voltar e Próximo. Respostas de etapas anteriores podem pular direto para cá.</p>
+    <div class="fb-props-foot"><button type="button" class="secondary danger" data-fb-del="${field.id}">Excluir etapa</button></div></aside>`;
   const custom = field.type === 'custom' ? (c.s.customFields || []).find(item => item.id === field.customId) : null;
   return `<aside class="fb-props dw-panel" aria-label="Propriedades do campo"><div class="fb-props-head"><button type="button" class="icon-btn" data-fb-select="" aria-label="Voltar às propriedades do formulário">${icon('left', 16)}</button><h2>${h(custom ? custom.name : kind.label)}</h2></div>
     <label>${isStatic ? 'Título' : 'Rótulo'}<input data-fb-prop="label" value="${h(field.label)}" maxlength="200"></label>
     ${isStatic || type === 'consent' ? `<label>${isStatic ? 'Texto' : 'Texto do consentimento'}<textarea data-fb-prop="text" rows="3" maxlength="2000">${h(field.text)}</textarea></label>` : ''}
     ${['text', 'email', 'tel', 'url', 'number', 'money', 'textarea', 'select'].includes(type) ? `<label>Placeholder<input data-fb-prop="placeholder" value="${h(field.placeholder)}" maxlength="120"></label>` : ''}
     ${kind.choices ? `<label>Opções <small class="dim">uma por linha</small><textarea data-fb-prop="options" rows="5">${h(field.options.join('\n'))}</textarea></label>` : ''}
+    ${kind.choices && fb.draft.kind === 'quiz' ? scoreEditor(field) : ''}
+    ${['select', 'radio'].includes(field.type) && fb.draft.kind !== 'form' ? logicEditor(field) : ''}
     ${isHidden ? `<label>Valor padrão<input data-fb-prop="value" value="${h(field.value)}" maxlength="200"></label><p class="dim">Use <code>?${h(field.key || 'source')}=valor</code> no link para trocar o valor.</p>` : ''}
     ${!isStatic ? `<label>Chave de consulta<input data-fb-prop="key" value="${h(field.key)}" maxlength="40"${kind.key ? ' readonly' : ''} aria-describedby="fb-key-help"></label><small id="fb-key-help" class="dim">${kind.key ? 'Fixa para este tipo de campo.' : 'Gerada pelo rótulo ao salvar.'} Preenche o campo pelo link: <code>?${h(field.key || 'chave')}=…</code></small>` : ''}
     ${!isStatic && !isHidden ? `<label>Texto de ajuda<input data-fb-prop="help" value="${h(field.help)}" maxlength="300"></label>` : ''}
     ${!isStatic ? `<fieldset class="fb-width"><legend>Largura</legend>${[[100, 'Inteira'], [50, 'Metade']].map(([w, label]) => `<label><input type="radio" name="fb-width" data-fb-prop="width" value="${w}"${field.width === w ? ' checked' : ''}> ${label}</label>`).join('')}</fieldset>` : ''}
     ${!isStatic && !isHidden ? `<div class="fb-checks">${check('required', 'Obrigatório', field.required, field.hidden ? ' disabled' : '')}${check('hidden', 'Oculto', field.hidden)}</div>` : ''}
     <div class="fb-props-foot"><button type="button" class="secondary" data-fb-dup="${field.id}">Duplicar</button><button type="button" class="secondary danger" data-fb-del="${field.id}">Excluir campo</button></div></aside>`;
+}
+
+function scoreEditor(field) {
+  const scores = field.scores || {};
+  return `<fieldset class="fb-score"><legend>Pontos por resposta</legend>${field.options.map((option, index) => `<label><span>${h(option)}</span><input type="number" step="1" min="-1000" max="1000" data-fb-score="${index}" value="${scores[option] ?? ''}" placeholder="0" aria-label="Pontos para ${h(option)}"></label>`).join('')}
+    <label class="fb-category">Categoria <small class="dim">opcional</small><input data-fb-prop="category" value="${h(field.category || '')}" maxlength="40" placeholder="Ex. Conteúdo"></label></fieldset>`;
+}
+
+// Where each answer leads: the next step (default), a later step, or the end.
+function logicEditor(field) {
+  const list = fb.draft.fields, at = list.indexOf(field);
+  const later = list.map((item, index) => ({ item, index })).filter(({ item, index }) => item.type === 'break' && index > at);
+  const step = item => `Etapa ${list.filter(other => other.type === 'break').indexOf(item) + 2}${item.label ? ` · ${item.label}` : ''}`;
+  const rule = option => field.logic?.find(entry => entry.option === option)?.to || '';
+  return `<fieldset class="fb-logic"><legend>Depois desta resposta</legend>${field.options.map((option, index) => `<label><span>${h(option)}</span><select data-fb-logic="${index}" aria-label="Destino de ${h(option)}">
+      <option value="">Próxima etapa</option>${later.map(({ item }) => `<option value="${item.id}"${rule(option) === item.id ? ' selected' : ''}>${h(step(item))}</option>`).join('')}<option value="end"${rule(option) === 'end' ? ' selected' : ''}>Ir para o envio</option></select></label>`).join('')}
+    ${later.length ? '' : '<p class="dim">Adicione uma “Nova etapa” depois desta pergunta para criar desvios.</p>'}</fieldset>`;
+}
+
+function scoringHtml() {
+  const d = fb.draft, most = scoreOf({ kind: 'quiz', fields: d.fields, tiers: d.tiers }, {}).max;
+  return `<div class="fb-settings fb-scoring">
+    <section class="surface padded"><h2>Como a pontuação funciona</h2><p class="dim">Cada resposta vale os pontos definidos nas propriedades da pergunta. O resultado é a soma dos pontos sobre o máximo possível${most ? ` (hoje, <b>${most} pontos</b>)` : ''}, em porcentagem. A faixa define a mensagem, o botão e a tag que o contato recebe.</p>
+      ${most ? '' : '<p class="fb-warn">Nenhuma pergunta tem pontos ainda. Selecione uma pergunta de escolha no editor e preencha “Pontos por resposta”.</p>'}</section>
+    ${d.tiers.map((tier, index) => `<section class="surface padded fb-tier"><div class="fb-tier-head"><h2>Faixa ${index + 1}</h2>${d.tiers.length > 1 ? `<button type="button" class="secondary danger" data-fb-tier-del="${index}">Remover</button>` : ''}</div>
+      <div class="fb-three"><label>Nome<input data-fb-tier="${index}" data-key="name" value="${h(tier.name)}" maxlength="40"></label><label>De (%)<input type="number" min="0" max="100" data-fb-tier="${index}" data-key="min" value="${tier.min}"></label><label>Até (%)<input type="number" min="0" max="100" data-fb-tier="${index}" data-key="max" value="${tier.max}"></label></div>
+      <label>Mensagem do resultado<textarea rows="2" data-fb-tier="${index}" data-key="message" maxlength="600">${h(tier.message)}</textarea></label>
+      <div class="fb-three"><label>Texto do botão<input data-fb-tier="${index}" data-key="ctaLabel" value="${h(tier.ctaLabel)}" maxlength="60" placeholder="Agendar conversa"></label><label>Link do botão<input type="url" data-fb-tier="${index}" data-key="ctaUrl" value="${h(tier.ctaUrl)}" maxlength="600" placeholder="https://"></label><label>Tag no contato<input data-fb-tier="${index}" data-key="tag" value="${h(tier.tag)}" maxlength="48" placeholder="quiz-${h(norm(tier.name).replace(/[^a-z0-9]+/g, '-'))}"></label></div></section>`).join('')}
+    ${d.tiers.length < 10 ? `<button type="button" class="secondary" data-fb-tier-add>${icon('plus', 15)} Adicionar faixa</button>` : ''}</div>`;
 }
 
 function settingsHtml() {
@@ -232,29 +298,31 @@ function integrateHtml(c, form) {
 
 function builderView(c) {
   const form = loadDraft(c);
-  if (!form) return `<div class="page sites-page"><div class="surface empty"><strong>Formulário não encontrado</strong><p>Ele pode ter sido excluído.</p><a class="primary" href="#sites/forms">Voltar aos formulários</a></div></div>`;
-  const d = fb.draft;
-  const sections = [['edit', 'Editar'], ['settings', 'Configurações'], ['integrate', 'Integrar'], ['results', 'Envios'], ['analytics', 'Análises']];
-  const body = fb.section === 'settings' ? settingsHtml() : fb.section === 'integrate' ? integrateHtml(c, form)
-    : fb.section === 'results' ? `<div class="fb-results">${submissionsTable(c, form.id)}</div>`
-    : fb.section === 'analytics' ? `<div class="fb-results">${stats(c, form.id)}</div>`
+  if (!form) return `<div class="page sites-page"><div class="surface empty"><strong>Não encontrado</strong><p>Pode ter sido excluído.</p><a class="primary" href="#sites/forms">Voltar aos formulários</a></div></div>`;
+  const d = fb.draft, k = KINDS[d.kind];
+  const sections = [['edit', 'Editar'], ...(d.kind === 'quiz' ? [['scoring', 'Pontuação']] : []), ['settings', 'Configurações'], ['integrate', 'Integrar'], ['results', 'Envios'], ['analytics', 'Análises']];
+  if (!sections.some(([id]) => id === fb.section)) fb.section = 'edit';
+  const body = fb.section === 'settings' ? settingsHtml() : fb.section === 'scoring' ? scoringHtml() : fb.section === 'integrate' ? integrateHtml(c, form)
+    : fb.section === 'results' ? `<div class="fb-results">${submissionsTable(c, form.id, d.kind)}</div>`
+    : fb.section === 'analytics' ? `<div class="fb-results">${stats(c, form.id)}${d.kind === 'quiz' ? tierTable(subsOf(c, form.id)) : ''}</div>`
     : `<div class="fb-edit dw-columns">${paletteHtml(c)}${designStage({ label: '<span data-fb-board-name>' + h(d.name) + '</span>', width: 640, content: canvasHtml(c),
       tools: `<button type="button" data-fb-palette="quick" aria-pressed="${fb.palette === 'quick'}" title="Adicionar campos">${icon('plus',15)} Campos</button>` })}${propsHtml(c)}</div>`;
   return `<div class="fb dw-workspace">
-    <header class="fb-top dw-header"><a class="secondary fb-back" href="#sites/forms">${icon('left', 15)} Formulários</a>
-      <div class="fb-title"><h1>${h(d.name)}</h1>${form.active ? badge('Publicado', 'green') : badge('Rascunho')}${fb.dirty ? badge('Alterações não salvas', 'blue') : ''}</div>
+    <header class="fb-top dw-header"><a class="secondary fb-back" href="#sites/${k.list}">${icon('left', 15)} ${k.Many}</a>
+      <div class="fb-title"><h1>${h(d.name)}</h1>${form.active ? badge(k.fem ? 'Publicada' : 'Publicado', 'green') : badge('Rascunho')}${fb.dirty ? badge('Alterações não salvas', 'blue') : ''}</div>
       <div class="fb-top-actions">${form.active ? `<a class="secondary" href="${formUrl(c, form)}" target="_blank" rel="noopener">${icon('external', 14)} Ver publicado</a>` : `<a class="secondary" href="${formUrl(c, form)}?preview=1" target="_blank" rel="noopener">${icon('external', 14)} Prévia</a>`}
         <button class="secondary" data-fb-publish="${form.active ? 'off' : 'on'}">${form.active ? 'Despublicar' : 'Publicar'}</button>
-        <button class="primary" data-fb-save${fb.dirty ? '' : ' disabled'}>Salvar</button><button class="icon-btn" data-fb-delete aria-label="Excluir formulário" title="Excluir formulário">${icon('trash', 16)}</button></div></header>
+        <button class="primary" data-fb-save${fb.dirty ? '' : ' disabled'}>Salvar</button><button class="icon-btn" data-fb-delete aria-label="Excluir ${k.one}" title="Excluir ${k.one}">${icon('trash', 16)}</button></div></header>
     <nav class="fb-sections" aria-label="Seções do formulário">${sections.map(([id, label]) => `<button class="${fb.section === id ? 'selected' : ''}" aria-current="${fb.section === id ? 'page' : 'false'}" data-fb-section="${id}">${label}</button>`).join('')}</nav>
     ${body}</div>`;
 }
 
 export function formsScreen(c) {
   if (c.tab === 'form') return builderView(c);
-  if (c.tab === 'form-analytics') return analyticsView(c);
-  if (c.tab === 'submissions') return formsPage(c, submissionsTable(c, ''));
-  return listView(c);
+  const kind = kindForTab(c.tab), k = KINDS[kind];
+  if (c.tab === k.analytics) return analyticsView(c, kind);
+  if (c.tab === k.subs) return formsPage(c, submissionsTable(c, '', kind), '', kind);
+  return listView(c, kind);
 }
 
 export function afterFormsRender() {
@@ -280,8 +348,8 @@ function dialog(title, body, submitLabel, onSubmit) {
 }
 const closeDialog = () => { const overlay = document.getElementById('overlay'); overlay.querySelector('dialog')?.close(); overlay.innerHTML = ''; };
 
-function csv(c, formId) {
-  const list = subsOf(c, formId);
+function csv(c, formId, kind) {
+  const list = subsOf(c, formId, kind);
   const labels = [...new Set(list.flatMap(sub => (sub.answers || []).map(a => a.label)))];
   const cell = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
   const formName = id => c.s.forms.find(form => form.id === id)?.name || '';
@@ -331,38 +399,46 @@ export function installForms(environment) {
 
   async function save(extra = {}) {
     const d = fb.draft, form = current();
-    const fields = validFields(d.fields, c.s.customFields || []);
-    const data = { name: d.name.trim() || form.name, description: d.description, active: form.active, askPhone: form.askPhone, fields, button: d.button, accent: d.accent, showTitle: d.showTitle,
-      addTags: d.addTags, onSubmit: d.onSubmit, schedule: d.schedule, ...extra };
+    const fields = validFields(d.fields, c.s.customFields || [], d.kind);
+    const data = { name: d.name.trim() || form.name, description: d.description, active: form.active, askPhone: form.askPhone, kind: d.kind, fields, button: d.button, accent: d.accent, showTitle: d.showTitle,
+      addTags: d.addTags, onSubmit: d.onSubmit, schedule: d.schedule, ...(d.kind !== 'form' ? { oneAtATime: d.oneAtATime } : {}), ...(d.kind === 'quiz' ? { tiers: d.tiers } : {}), ...extra };
     await mutate({ type: 'save', key: 'forms', id: form.id, data });
     fb.dirty = false; fb.rev = '';
   }
 
   document.addEventListener('click', async event => {
-    const target = event.target.closest('[data-fm-new],[data-fm-close],[data-fm-range],[data-fm-open],[data-fm-csv],[data-fm-contact],[data-fb-add],[data-fb-palette],[data-fb-section],[data-fb-item],[data-fb-select],[data-fb-layer],[data-fb-move],[data-fb-dup],[data-fb-del],[data-fb-save],[data-fb-publish],[data-fb-delete],[data-fb-copy]');
+    const target = event.target.closest('[data-fm-new],[data-fm-close],[data-fm-range],[data-fm-open],[data-fm-csv],[data-fm-contact],[data-fb-add],[data-fb-palette],[data-fb-section],[data-fb-item],[data-fb-select],[data-fb-layer],[data-fb-move],[data-fb-dup],[data-fb-del],[data-fb-save],[data-fb-publish],[data-fb-delete],[data-fb-copy],[data-fb-tier-add],[data-fb-tier-del]');
     if (!target || !(c.view === 'sites' || target.closest('#overlay'))) return;
     const d = target.dataset;
     try {
       if ('fmClose' in d) { closeDialog(); return; }
       if ('fmNew' in d) {
-        dialog('Novo formulário', `<label>Nome<input name="name" required maxlength="120" placeholder="Ex. Pedido de orçamento"></label>
+        const kind = KINDS[d.fmNew] ? d.fmNew : 'form', k = KINDS[kind], templates = templatesFor(kind);
+        const blankText = { form: 'Nome e e-mail para você montar o resto.', survey: 'Uma pergunta e os dados de contato.', quiz: 'Uma pergunta com pontos e os dados de contato.' }[kind];
+        dialog(k.New, `<label>Nome<input name="name" required maxlength="120" placeholder="Ex. ${h(templates[0].name)}"></label>
           <fieldset class="fm-templates"><legend>Começar com</legend>
-            <label class="fm-template"><input type="radio" name="template" value="" checked><span><b>Em branco</b><small>Nome e e-mail para você montar o resto.</small></span></label>
-            ${formTemplates.map(t => `<label class="fm-template"><input type="radio" name="template" value="${t.id}"><span><b>${h(t.name)}</b><small>${h(t.description)}</small></span></label>`).join('')}</fieldset>`,
-          'Criar formulário', async data => {
-            const template = formTemplates.find(t => t.id === data.template);
+            <label class="fm-template"><input type="radio" name="template" value="" checked><span><b>Em branco</b><small>${blankText}</small></span></label>
+            ${templates.map(t => `<label class="fm-template"><input type="radio" name="template" value="${t.id}"><span><b>${h(t.name)}</b><small>${h(t.description)}</small></span></label>`).join('')}</fieldset>`,
+          `Criar ${k.one}`, async data => {
+            const template = templates.find(t => t.id === data.template);
             const name = data.name?.trim() || template?.name;
-            if (!name) throw new Error('Dê um nome ao formulário.');
-            const fields = template ? template.build() : [newField('name', { required: true }), newField('email')];
-            const id = await mutate({ type: 'save', key: 'forms', data: { name, description: '', active: false, fields, button: 'Enviar' } });
+            if (!name) throw new Error(`Dê um nome ${k.fem ? 'à' : 'ao'} ${k.one}.`);
+            const fields = template ? template.build() : kind === 'quiz'
+              ? [newField('radio', { label: 'Primeira pergunta', key: 'pergunta_1', required: true, options: ['Resposta A', 'Resposta B', 'Resposta C'], scores: { 'Resposta A': 0, 'Resposta B': 5, 'Resposta C': 10 } }), newField('break', { label: 'Seus dados' }), newField('name', { required: true }), newField('email')]
+              : kind === 'survey' ? [newField('radio', { label: 'Primeira pergunta', key: 'pergunta_1', required: true }), newField('break', { label: 'Seus dados' }), newField('name', { required: true }), newField('email')]
+              : [newField('name', { required: true }), newField('email')];
+            const id = await mutate({ type: 'save', key: 'forms', data: { name, description: '', active: false, kind, fields, button: kind === 'quiz' ? 'Ver meu resultado' : 'Enviar',
+              ...(kind === 'quiz' ? { tiers: defaultTiers } : {}) } });
             Object.assign(fb, { id: '', section: 'edit', selected: '' });
-            location.hash = `#sites/form/${id}`; flash('Formulário criado. Ajuste os campos e publique.');
+            location.hash = `#sites/form/${id}`; flash(`${k.One} criad${k.fem ? 'a' : 'o'}. Ajuste e publique.`);
           });
         return;
       }
+      if ('fbTierAdd' in d) { const last = fb.draft.tiers.at(-1); fb.draft.tiers.push({ name: 'Nova faixa', min: Math.min(100, (last?.max ?? -1) + 1), max: 100, message: '', ctaLabel: '', ctaUrl: '', tag: '' }); fb.dirty = true; render(); return; }
+      if (d.fbTierDel) { fb.draft.tiers.splice(Number(d.fbTierDel), 1); fb.dirty = true; render(); return; }
       if (d.fmRange) { fb.range = Number(d.fmRange); render(); return; }
       if (d.fmOpen) { fb.open = fb.open === d.fmOpen ? '' : d.fmOpen; render(); return; }
-      if ('fmCsv' in d) { csv(c, d.fmCsv); return; }
+      if ('fmCsv' in d) { csv(c, d.fmCsv, d.kind); return; }
       if (d.fmContact) { event.preventDefault(); location.hash = '#contacts'; return; }
       if (!inBuilder()) return;
       if (d.fbPalette) { fb.palette = d.fbPalette; render(); document.querySelector(`.fb-palette [data-fb-palette="${d.fbPalette}"]`)?.focus({ preventScroll: true }); return; }
@@ -401,10 +477,10 @@ export function installForms(environment) {
       if ('fbDelete' in d) {
         const form = current();
         const count = subsOf(c, form.id).length;
-        dialog('Excluir formulário?', `<p>“${h(form.name)}” sai do ar e deixa de receber respostas. ${count ? `Os ${count} envios já recebidos continuam em Envios.` : ''} Isso não pode ser desfeito.</p>`, 'Excluir', async () => {
+        dialog(`Excluir ${KINDS[kindOf(form)].one}?`, `<p>“${h(form.name)}” sai do ar e deixa de receber respostas. ${count ? `Os ${count} envios já recebidos continuam em Envios.` : ''} Isso não pode ser desfeito.</p>`, 'Excluir', async () => {
           await mutate({ type: 'delete', key: 'forms', id: form.id });
           Object.assign(fb, { id: '', dirty: false, draft: null });
-          location.hash = '#sites/forms'; flash('Formulário excluído.');
+          location.hash = `#sites/${KINDS[kindOf(form)].list}`; flash('Excluído.');
         });
       }
     } catch (error) { flash(error.message, true); render(); }
@@ -435,6 +511,25 @@ export function installForms(environment) {
       const layers = document.querySelector('[data-fb-layers]'); if (layers) layers.innerHTML = formLayers();
       if (el.type === 'checkbox' || el.type === 'radio') { render(); document.querySelector(el.type === 'radio' ? `[data-fb-prop="${prop}"][value="${el.value}"]` : `[data-fb-prop="${prop}"]`)?.focus(); }
       return;
+    }
+    if (el.dataset.fbScore !== undefined) {
+      const field = fb.draft.fields.find(f => f.id === fb.selected), option = field?.options[Number(el.dataset.fbScore)];
+      if (!field || option === undefined) return;
+      field.scores = { ...(field.scores || {}) };
+      if (el.value === '') delete field.scores[option]; else field.scores[option] = Number(el.value);
+      touch(); return;
+    }
+    if (el.dataset.fbLogic !== undefined) {
+      const field = fb.draft.fields.find(f => f.id === fb.selected);
+      if (!field) return;
+      field.logic = [...document.querySelectorAll('[data-fb-logic]')].map(select => ({ option: field.options[Number(select.dataset.fbLogic)], to: select.value })).filter(rule => rule.option !== undefined && rule.to);
+      touch(); return;
+    }
+    if (el.dataset.fbTier !== undefined) {
+      const tier = fb.draft.tiers[Number(el.dataset.fbTier)];
+      if (!tier) return;
+      tier[el.dataset.key] = ['min', 'max'].includes(el.dataset.key) ? Number(el.value) : el.value;
+      touch(); return;
     }
     if (el.dataset.fbForm) {
       const key = el.dataset.fbForm;

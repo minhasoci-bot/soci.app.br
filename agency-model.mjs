@@ -128,6 +128,29 @@ export function audit(state, actor, action, target = '', details = '') {
   if (state.audit.length > 1000) state.audit.splice(0, state.audit.length - 1000);
 }
 
+export function accountLifecycle(agency, id) {
+  const meta = agency.accounts?.[id];
+  const status = meta?.status || 'Active';
+  return {
+    status,
+    suspendedReason: status === 'Active' ? '' : meta?.suspendedReason || '',
+    suspendedAt: status === 'Paused' ? meta?.suspendedAt || '' : '',
+    closedAt: status === 'Closed' ? meta?.closedAt || '' : ''
+  };
+}
+
+function updateAccountStatus(state, id, meta, status, reason, actor) {
+  const previous = meta.status || 'Active';
+  if (reason !== undefined || previous !== status) meta.suspendedReason = status === 'Active' ? '' : str(reason, 500);
+  if (previous === status) return;
+  const at = now();
+  Object.assign(meta, { status, suspendedAt: status === 'Paused' ? at : '', closedAt: status === 'Closed' ? at : '' });
+  meta.statusHistory = [...(meta.statusHistory || []).slice(-99), {
+    from: previous, to: status, at, actor, reason: meta.suspendedReason
+  }];
+  audit(state, actor, 'Sub-account status changed', id, `${previous} → ${status}`);
+}
+
 const pick = (state, key, id) => state[key].find(item => item.id === id) || fail('Record not found.', 404);
 
 // Commands that only touch the agency record.
@@ -141,6 +164,13 @@ export function executeAgency(state, command, { accountIds, actor, sharedSnapsho
       const clean = sanitize(key, d, accountIds);
       if (key === 'users' && state.users.some(u => u.email === clean.email && u.id !== id)) fail('A user with this email already exists.');
       if (key === 'users' && agencyLevel(clean.role)) clean.accounts = [];
+      if (key === 'users' && d.permissionMode !== undefined) {
+        clean.permissionMode = one(d.permissionMode, ['', 'inherit', 'restricted', 'none'], 'permission mode');
+      }
+      if (key === 'plans' && d.modules !== undefined) {
+        if (!Array.isArray(d.modules) || d.modules.some(module => !subAccountModules.some(([key]) => key === module))) fail('Choose valid plan modules.');
+        clean.modules = [...new Set(d.modules)];
+      }
       if (id) {
         const row = pick(state, key, id);
         Object.assign(row, clean, { updated: now() });
@@ -164,15 +194,23 @@ export function executeAgency(state, command, { accountIds, actor, sharedSnapsho
       return id;
     }
     case 'account-meta': {
-      const meta = state.accounts[id] || fail('Sub-account not found.', 404);
+      const meta = accountIds.includes(id) && state.accounts[id] || fail('Sub-account not found.', 404);
       const plan = str(d.plan, 60);
       if (plan && !state.plans.some(p => p.id === plan)) fail('Choose a valid plan.');
-      Object.assign(meta, { address: str(d.address, 240), phone: str(d.phone, 48), website: url(d.website, 'Website'), status: one(d.status, accountStatuses, 'status'), plan });
-      log('Sub-account updated', meta.name || id, `Status ${meta.status}`);
+      const status = one(d.status, accountStatuses, 'status');
+      Object.assign(meta, { address: str(d.address, 240), phone: str(d.phone, 48), website: url(d.website, 'Website'), plan });
+      updateAccountStatus(state, id, meta, status, d.suspendedReason, actor);
+      log('Sub-account updated', meta.name || id, `Status ${status}`);
+      return id;
+    }
+    case 'account-reactivate': {
+      const meta = accountIds.includes(id) && state.accounts[id] || fail('Sub-account not found.', 404);
+      updateAccountStatus(state, id, meta, 'Active', '', actor);
       return id;
     }
     case 'account-open': {
-      const meta = state.accounts[id] || fail('Sub-account not found.', 404);
+      const meta = accountIds.includes(id) && state.accounts[id] || fail('Sub-account not found.', 404);
+      if (meta.status && meta.status !== 'Active') return id;
       meta.lastLogin = now();
       return id;
     }
@@ -556,9 +594,9 @@ export function catalogTemplate(id, agency) {
 
 const monthKey = iso => iso.slice(0, 7);
 export function agencyOverview(agency, workspaces) {
-  const accounts = workspaces.map(({ id, name, state }) => {
+  const accounts = workspaces.map(({ id, name, state, metrics: scopedMetrics }) => {
     const meta = agency.accounts[id] || {};
-    const m = metrics(state);
+    const m = scopedMetrics || metrics(state);
     const plan = agency.plans.find(p => p.id === meta.plan);
     const resold = resellProducts.filter(p => !agency.reselling[p.key]?.disabled.includes(id));
     const storage = state.files.reduce((sum, f) => sum + Math.floor((f.data.length - f.data.indexOf(',') - 1) * 3 / 4), 0);
@@ -595,24 +633,32 @@ export function agencyOverview(agency, workspaces) {
 }
 
 // Public view of agency settings that a sub-account screen needs.
-export function agencyForWorkspace(agency, workspace) {
+export function agencyForWorkspace(agency, workspace, includePermissions = false) {
   const applies = item => !item.accounts?.length || item.accounts.includes(workspace);
   return {
     brand: platformBrand, name: agency.company.name, primary: agency.company.primary, secondary: agency.company.secondary || defaultSecondary, logo: agency.company.logo,
     menuLinks: agency.menuLinks.filter(l => l.showOn !== 'Agency' && applies(l)).map(({ id, title, url: href, icon, openIn }) => ({ id, title, url: href, icon, openIn })),
     announcements: agency.announcements.filter(a => a.published && applies(a)).map(({ id, title, body, tone }) => ({ id, title, body, tone })),
-    users: agency.users.map(({ id, first, last, role, accounts, permissions }) => ({ id, name: `${first} ${last}`, role, accounts, permissions }))
+    users: agency.users.filter(user => String(user.role || '').startsWith('Agency') || user.accounts?.includes(workspace))
+      .map(({ id, first, last, role, accounts, permissions }) => ({
+        id, name: `${first} ${last}`, role, accounts: includePermissions ? accounts : (String(role || '').startsWith('Agency') ? [] : [workspace]),
+        ...(includePermissions && { permissions })
+      }))
   };
 }
 
 // Access rules for an acting user (local operator chooses who they act as; this is not authentication).
 export function userAccess(agency, userId) {
-  if (!userId) return { agency: true, settings: true, accounts: null, modules: null, name: agency.profile.name || 'Agency Owner' };
+  if (!userId) return { role: 'Agency Owner', agency: true, settings: true, accounts: null, modules: null, permissionMode: 'unspecified', name: agency.profile.name || 'Agency Owner' };
   const user = agency.users.find(u => u.id === userId);
   if (!user) return null;
   const name = `${user.first} ${user.last}`;
-  const modules = user.permissions?.length ? user.permissions : null;
-  if (user.role === 'Agency Owner' || user.role === 'Agency Admin') return { agency: true, settings: true, accounts: null, modules, name };
-  if (user.role === 'Agency User') return { agency: true, settings: false, accounts: null, modules, name };
-  return { agency: false, settings: false, accounts: user.accounts || [], modules, name };
+  const saved = Array.isArray(user.permissions) ? user.permissions : [];
+  const permissionMode = user.permissionMode || (saved.length ? 'restricted' : user.permissions ? 'inherit' : 'unspecified');
+  const modules = permissionMode === 'inherit' || permissionMode === 'unspecified' ? null
+    : permissionMode === 'restricted' ? saved : [];
+  const role = user.role;
+  const agencyMember = ['Agency Owner', 'Agency Admin', 'Agency User'].includes(role);
+  return { role, agency: agencyMember, settings: role === 'Agency Owner' || role === 'Agency Admin',
+    accounts: agencyMember ? null : Array.isArray(user.accounts) ? user.accounts : [], modules, permissionMode, name };
 }

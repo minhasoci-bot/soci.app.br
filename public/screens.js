@@ -8,7 +8,9 @@ import {bulkBar, contactsTab, crmTabs, opportunitiesTab, paymentsTab, pickBox, p
 import {socialPlanner} from './social.js';
 import {agentsScreen} from './agents.js';
 import {sitesScreen} from './sites.js';
-import { formsScreen } from './forms.js';
+import { formsScreen, formTabs } from './forms.js';
+import { chatScreen, chatTabs } from './chat-widgets.js';
+import { blogScreen, blogTabs } from './blogs.js';
 import {automationScreen} from './automation.js';
 import {portalAdminScreen, portalTabs} from './client-portal.js';
 import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
@@ -204,7 +206,9 @@ function marketing(c){
   });
 }
 function sites(c){
-  if(['forms','submissions','form-analytics','form'].includes(c.tab)) return formsScreen(c);
+  if(formTabs.includes(c.tab)) return formsScreen(c);
+  if(chatTabs.includes(c.tab)) return chatScreen(c);
+  if(blogTabs.includes(c.tab)) return blogScreen(c);
   if(!['forms','submissions'].includes(c.tab)) return sitesScreen(c);
   const t=c.tab||'funnels', p=t==='websites'?'Website':'Funnel', s=c.s;
   return pageShell({

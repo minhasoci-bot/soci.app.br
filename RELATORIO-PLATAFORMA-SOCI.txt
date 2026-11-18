@@ -1,0 +1,959 @@
+================================================================================
+RELATÓRIO TÉCNICO E FUNCIONAL COMPLETO — PLATAFORMA SOCI (soci.app)
+Arquitetura de Contas, Ferramentas, Controles, Permissões e Mapa de Maturidade
+================================================================================
+Data da análise: 18/11/2026
+Repositório analisado: d:\meus documentos\soci.app
+Base da auditoria: leitura integral do código-fonte (backend Node.js, frontend
+UI, modelos de domínio, storage SQLite/Supabase, autenticação e integrações).
+
+================================================================================
+1. VISÃO GERAL E ARQUITETURA DE CONTAS DA PLATAFORMA
+================================================================================
+
+A plataforma Soci opera com uma arquitetura multi-tenant hierárquica inspirada
+no modelo Agência -> Subcontas, armazenada em documentos JSONB (tabela
+`public.go_workspaces` no Supabase ou `workspaces` no SQLite local).
+
+Na prática, o sistema possui DOIS níveis principais de conta operacional
+(Conta Principal e Conta Secundária) e QUATRO contextos auxiliares/externos:
+
+  [1] CONTA PRINCIPAL — VISÃO DA AGÊNCIA (Nível Agência)
+      - ID no banco: `agency` (agência principal/compartilhada, controlada por
+        `GO_AGENCY_OWNER_ID`) ou `agency-<uuid-do-usuario>` (agência própria
+        criada automaticamente no 1º login Google de contas sem convite).
+      - Rota na interface: `/app#agency/...`
+      - Função: gestão central da operação, criação e governança de subcontas,
+        white label, planos SaaS, prospecção comercial, distribuição de setups,
+        equipe, integrações globais e auditoria consolidada.
+
+  [2] CONTA SECUNDÁRIA — SUBCONTA / WORKSPACE DE CLIENTE (Nível Operacional)
+      - ID no banco: `demo` ou `<uuid>` (vinculado à agência via campo
+        `state.agencyId`; `null` quando pertence à agência raiz `agency`).
+      - Rota na interface: `/app#<modulo>` (com `?workspace=<id>`).
+      - Função: ambiente isolado de CRM, atendimento, marketing, automação,
+        sites, funis, agentes de IA, área de membros e relatórios de um
+        cliente ou marca específica.
+
+  [3] CONTEXTOS AUXILIARES E EXTERNOS EXISTENTES NO SISTEMA
+      a) Workspace Pessoal (`user-<uuid>`):
+         - Espaço privado acessível apenas ao dono da agência (`who.owner`).
+         - Isolado da camada de agência: não herda comunicados/links/marca da
+           agência, não entra nos totais do Painel da Agência e não grava logs
+           na auditoria da agência.
+      b) Conta de Cliente Final no Portal (`/portal/<workspace>`):
+         - Acesso exclusivo para alunos/clientes consumirem cursos da subconta.
+         - Autenticação própria por link único (cookie `soci_portal` /
+           `__Secure-soci_portal`, sessão de 8 horas), totalmente separada do
+           login Google da Soci.
+      c) Acesso Externo Temporário (Convite Social `/social-connect/<ws>#<token>`):
+         - Permite que um cliente conecte novas redes sociais no Planejador
+           Social da subconta sem ter login na plataforma.
+      d) Acesso Programático (API Pública `/api/v1/...`):
+         - Autenticação via `Authorization: Bearer <token>` usando Chaves de API
+           da Agência (`go_...`) ou Integrações Privadas com escopos (`pit_...`).
+
+
+================================================================================
+2. MAPA DE DADOS E ISOLAMENTO NO ARMAZENAMENTO (STORAGE)
+================================================================================
+
+Todos os registros ficam na tabela única `go_workspaces` (Supabase com controle
+de concorrência por `revision` + RLS via `X-Go-Storage-Key`) ou SQLite local:
+
+  Prefixo / ID do documento      | Pertence a...          | O que armazena
+  -------------------------------+------------------------+---------------------------------------------
+  `agency` / `agency-<uuid>`     | Conta Principal        | Configs da agência, subcontas (metadados),
+                                 |                        | planos, snapshots, prospects, usuários,
+                                 |                        | afiliados, templates, parceiros, ideias,
+                                 |                        | auditoria (até 1.000 logs), etc.
+  `chat-<agencyId>`              | Conta Principal        | Histórico do "Pergunte à Soci" (até 200
+                                 |                        | conversas) e instruções personalizadas.
+  `whatsapp-<agencyId>`          | Conta Principal +      | Servidor UAZAPI (URL + admintoken cifrado) e
+                                 | instâncias por Subconta| tokens/status/webhooks de cada subconta.
+  `waha-<agencyId>`              | Conta Principal (leg.) | Config legado do servidor WAHA (backend).
+  `marketplace-setups`           | Global da Plataforma   | Catálogo de setups publicados pela comunidade
+                                 |                        | (até 500) + contagem de instalações oficiais.
+  `openai-<userId>`              | Usuário autenticado    | Chave da API OpenAI individual cifrada em
+                                 |                        | AES-256-GCM (usada no Studio, Agentes e Chat).
+  `demo` / `<uuid>`              | Conta Secundária       | Estado completo da subconta (CRM, pipelines,
+                                 |                        | conversas, agenda, workflows, forms, cursos,
+                                 |                        | mídias, pagamentos, social posts, etc.).
+  `studio-<projectId>`           | Conta Secundária       | Documento HTML multipáginas, histórico (12
+                                 |                        | versões), chat de revisão, SEO e estatísticas
+                                 |                        | de cada projeto do AI Studio / Sites.
+  `social-<workspaceId>`         | Conta Secundária       | Tokens OAuth cifrados das redes sociais,
+                                 |                        | autorizações pendentes e convite ativo.
+  `social-oauth`                 | Global / Temporário    | Nonces temporários (15 min) de fluxos OAuth.
+  `portal-<workspaceId>`         | Conta Secundária       | Configs do Portal do Cliente, membros, links
+                                 |                        | mágicos (hash SHA-256) e sessões ativas.
+  `user-<userId>`                | Dono da Agência        | Workspace pessoal isolado (mesma estrutura de
+                                 |                        | uma subconta).
+
+
+================================================================================
+3. TUDO O QUE É DA CONTA PRINCIPAL (VISÃO DA AGÊNCIA)
+================================================================================
+
+A barra lateral da Conta Principal possui 14 MÓDULOS ATIVOS distribuídos em 3
+grupos + atalhos customizados + rodapé (Comunidade WhatsApp + Configurações).
+
+--------------------------------------------------------------------------------
+3.1. GRUPO: VISÃO GERAL
+--------------------------------------------------------------------------------
+
+1) PERGUNTE À SOCI (`#agency/ask` | Backend: `soci-chat.mjs`, `/api/ask/*`)
+   - Assistente executivo de IA com acesso em tempo real aos dados consolidados
+     da agência (MRR, subcontas, status, planos, contatos, oportunidades,
+     execuções, saldo da carteira, setups, equipe e prospects).
+   - Recursos completos:
+     * Árvore de conversas com múltiplos ramos/variantes (regenerar resposta e
+       navegar entre versões).
+     * Streaming em tempo real via SSE (Server-Sent Events).
+     * Conversas temporárias (não salvas no banco, limite de 40 em memória).
+     * Anexos de até 10 arquivos de texto (até 512 KB cada) e imagens (PNG,
+       JPEG, WebP, GIF) com corpo máximo de 16 MB.
+     * Instruções personalizadas da agência (até 4.000 caracteres).
+     * Busca no histórico, renomear, feedback (positivo/negativo), excluir
+       individual ou tudo, exportar e importar conversas em JSON.
+     * Fallback inteligente em 3 camadas:
+       1. Chave OpenAI conectada pelo usuário (`Configurações -> OpenAI`);
+       2. Variáveis de ambiente (`GEMINI_API_KEY` ou `OPENAI_API_KEY`/`OPENAI_BASE_URL`);
+       3. Assistente Local sem IA externa (responde sobre MRR, ranking de
+          contatos, subcontas sem login, setups, equipe, prospects e próximos
+          passos).
+   - Controle: exclusivo para papéis de Agência (`who.agency`).
+
+2) CENTRAL DE IA (`#agency/ai-suite`)
+   - Vitrine/hub central das ferramentas de IA da plataforma:
+     * Funcionário de IA (disponível nas subcontas);
+     * AI Studio (atalho para abrir em uma subconta);
+     * Agentes de IA (atalho direto para `#ai-agents` de uma subconta);
+     * Pergunte à Soci (atalho direto para `#agency/ask`).
+
+3) PAINEL DA AGÊNCIA (`#agency/dashboard`)
+   - KPIs consolidados em tempo real de todas as subcontas da agência:
+     * MRR (Receita Recorrente Mensal calculada pelos planos SaaS de contas ativas);
+     * Total de subcontas (Ativas / Pausadas / Encerradas);
+     * Novas subcontas no mês;
+     * Quantidade de planos SaaS cadastrados;
+     * Totais somados de Contatos, Oportunidades abertas, Execuções de
+       automação e Saldo da carteira da agência.
+   - Gráfico de crescimento acumulado de subcontas nos últimos 6 meses.
+   - Checklist de configuração da agência (Marca, 1º Setup, Planos SaaS, Equipe,
+     Programa de Afiliados).
+   - Tabela "Subcontas por atividade" (top 8 por número de contatos, com botão
+     de acesso direto).
+   - Aviso de status do Stripe (informa que os KPIs usam registros locais até
+     haver integração Stripe).
+
+4) CONFIGURADOR SAAS (`#agency/saas` — 4 abas)
+   - Ativação / desativação do Modo SaaS da agência (exige `who.settings`).
+   - Aba "Visão geral": subcontas no modo SaaS, MRR das subcontas SaaS, total
+     de planos, markup médio da carteira e checklist SaaS.
+   - Aba "Planos SaaS": CRUD de até 20 planos (nome, preço mensal em R$, dias
+     de teste, lista de recursos inclusos) + tabela de plano atribuído por
+     subconta.
+   - Aba "Rebilling da carteira": configuração de multiplicador de margem de
+     1× (custo) até 10× para 8 produtos de uso:
+       1. Ligações e SMS (`phone`)
+       2. Envio de e-mails (`email`)
+       3. Ações premium de workflow (`automations`)
+       4. IA de conversa e conteúdo (`ai`)
+       5. Mensagens de WhatsApp (`whatsapp`)
+       6. Minutos de Voice AI (`voice-ai`)
+       7. Enriquecimento de contatos (`enrichment`)
+       8. Compra de domínios (`domains`)
+   - Aba "Subcontas SaaS": busca e switch individual para ligar/desligar o Modo
+     SaaS por subconta + atalho para trocar plano.
+
+5) PROSPECÇÃO (`#agency/prospecting` | `prospecting-model.mjs`, `prospecting-places.mjs`)
+   - Ferramenta comercial completa da agência para encontrar, auditar e
+     converter empresas em clientes.
+   - Abas e telas:
+     * Todas as contas: cards com filtro por texto, categoria, origem (Manual,
+       Google Maps, Prospect AI, Widget), status (Lead aberto, Ganho, Perdido)
+       e arquivados; score automático de oportunidade (0–100%); ações rápidas.
+     * Buscar prospects: integração real com Google Places API (New) +
+       Geocoding API (`PROSPECTING_GOOGLE_PLACES_KEY`) com raio de 2 a 30 km e
+       mapa embutido via Maps Embed API (`PROSPECTING_GOOGLE_MAPS_EMBED_KEY`);
+       sem chave, busca na base local salva.
+     * Prospect AI: até 15 agentes de busca salvos (nome, 1 a 3 nichos, região
+       e raio) executados sob demanda.
+     * Cadastro manual e Detalhe do prospect: dados da empresa, ponto de
+       contato, categorização (até 70 categorias), até 60 notas por prospect e
+       histórico de envios ao CRM.
+     * Auditoria e Relatórios: notas de 0 a 10 em 5 áreas (Site, Avaliações,
+       Listagens, Redes sociais, Anúncios pagos), geração de relatório público
+       compartilhável (`/prospecting/report/<token>`, com contador diário de
+       visualizações e omissão automática de notas internas e contato direto) e
+       download em HTML offline.
+     * Widgets: até 30 formulários públicos incorporáveis (`/prospecting/widget/<id>`)
+       com anti-spam (honeypot `fax`), dedup automática e geração opcional de
+       auditoria imediata. (Criar/editar widget exige `who.settings`).
+     * Editor de relatórios: personalização de tema visual (Azul, Pink soci,
+       Verde, Grafite), título, introdução, rodapé e ordem/visibilidade das 7
+       seções do relatório. (Exige `who.settings`).
+     * Analytics: métricas de volume, origens, visualizações de relatórios e
+       conversões.
+     * Migração / Conversão:
+       - "Enviar ao CRM": envia até 100 prospects de uma vez para qualquer
+         subconta acessível, deduplicando por e-mail/telefone, aplicando a tag
+         `New Prospect Received` e opcionalmente criando uma Oportunidade.
+       - "Converter em subconta": transforma diretamente um prospect em uma
+         nova Subconta (opcionalmente aplicando um Setup inicial) e marca como
+         `Won`.
+
+--------------------------------------------------------------------------------
+3.2. GRUPO: SUBCONTAS
+--------------------------------------------------------------------------------
+
+6) SUBCONTAS (`#agency/accounts`)
+   - Lista todas as subcontas da agência com busca e filtro por status (`Active`,
+     `Paused`, `Closed`).
+   - Criação de nova subconta: nome, e-mail, telefone, endereço, fuso horário
+     (São Paulo, Nova York, Londres, UTC), moeda fixa BRL, Setup inicial
+     opcional e Plano SaaS opcional.
+   - Edição de metadados da subconta: status, plano, endereço, telefone, site.
+   - Ações em massa (com seleção múltipla):
+     * Alterar status em lote;
+     * Carregar um Setup de conta em várias subcontas simultaneamente.
+   - Botão "Acessar subconta": registra `lastLogin` em background e entra no
+     workspace da subconta.
+
+7) SETUPS DE CONTA / SNAPSHOTS (`#agency/snapshots` | `setup-marketplace.mjs`)
+   - Sistema de empacotamento e replicação de estruturas inteiras entre
+     subcontas (até 50 setups salvos por agência).
+   - 11 tipos de ativos empacotáveis:
+     Pipelines, Etapas, Workflows (com suas pastas), Formulários, Páginas,
+     Pastas de snippets, Snippets, Links de gatilho, Cursos, Agentes de IA
+     (somente configuração, sem memória/histórico) e Projetos do AI Studio
+     (incluindo os documentos HTML completos `studioSites`).
+   - Segurança de dados: contatos, conversas, pagamentos e estatísticas NUNCA
+     são copiados; páginas, sites e workflows chegam sempre como rascunho.
+   - 4 abas:
+     * Marketplace: catálogo gratuito com 6 Setups Oficiais da Soci (destaque
+       para "Agência Completa 360° — Da Prospecção à Retenção", além de
+       Clínica de Estética, Imobiliária, Agência de Marketing, Infoprodutos e
+       Negócios Locais) + setups publicados por outras agências da comunidade
+       (até 500 publicações), com filtro por 8 categorias, busca, prévia de
+       ativos e instalação em 1 clique.
+     * Meus setups: criar a partir de uma subconta, atualizar da origem
+       (incrementa versão), carregar em múltiplas subcontas em modo "Manter
+       existentes" (`skip`) ou "Sobrescrever" (`overwrite`), publicar/atualizar
+       no Marketplace, renomear e excluir. (Backend também suporta compartilhar
+       por código hexadecimal e importar por código).
+     * Publicados por mim: gerenciamento de setups publicados pela agência no
+       marketplace, contagem de instalações e retirada.
+     * Histórico de cargas: registro das últimas 500 aplicações (adicionados,
+       sobrescritos e ignorados por subconta).
+
+8) PORTAL DE AFILIADOS (`#agency/affiliate`)
+   - Fluxo de adesão em 4 etapas obrigatórias (política, vídeo, kit, fluxograma)
+     + aceite dos termos para gerar o código único (`?ref=<codigo>`).
+   - Comissão fixa de 40% recorrente.
+   - 4 abas pós-aceite: Painel (métricas + link de indicação), Relatórios de
+     indicações (CRUD de até 500 indicações com status Trial/Active/Cancelled),
+     Dados de pagamento (Transferência, PayPal, Wise, Pix) e Histórico de
+     pagamentos (baixa manual de comissões devidas).
+
+9) BIBLIOTECA DE TEMPLATES (`#agency/templates`)
+   - 18 modelos prontos da plataforma em 10 categorias (Automotivo, Beleza,
+     Coaching, Criativo, Financeiro, Saúde, Serviços locais, Jurídico,
+     Imobiliário, Tecnologia) + até 200 templates próprios da agência.
+   - 3 abas: Todos os templates, Meus templates e Instalações.
+   - Prévia visual e instalação direta em qualquer subconta (cria página de
+     funil em rascunho + formulário de captura vinculado).
+
+10) PARCEIROS (`#agency/partners`)
+    - Diretório interno de até 200 parceiros/fornecedores categorizados por
+      serviço (Design, Desenvolvimento, Tráfego pago, Copywriting, Consultoria,
+      Outro), com busca, contato, e-mail, site e observações.
+
+--------------------------------------------------------------------------------
+3.3. GRUPO: APRENDER E APPS
+--------------------------------------------------------------------------------
+
+11) UNIVERSIDADE (`#agency/university`)
+    - 4 trilhas de treinamento (Primeiros passos, CRM e pipelines, Automação,
+      Sites e formulários) somando 9 aulas com barra e marcação de progresso.
+
+12) IDEIAS E SUGESTÕES (`#agency/ideas`)
+    - Quadro de roadmap/feedback (até 300 ideias) com votação (upvote),
+      comentários, categorias (CRM, Conversas, Automação, Sites, Pagamentos,
+      Relatórios, Mobile, Outro) e 5 abas de status (Todas, Em análise,
+      Planejadas, Em andamento, Concluídas + status Recusada).
+
+13) APLICATIVO MÓVEL (`#agency/mobile-app`)
+    - Customizador White Label do app mobile com prévia interativa de celular:
+      nome do app, título da tela de login, cor primária, cor de destaque,
+      visibilidade e reordenação (subir/descer) de 7 módulos padrão + até 5
+      módulos customizados por URL.
+
+--------------------------------------------------------------------------------
+3.4. CONFIGURAÇÕES DA CONTA PRINCIPAL (`#agency/settings` — 21 ABAS)
+--------------------------------------------------------------------------------
+
+Atenção: alterações em configurações da agência exigem `who.settings` (apenas
+`Agency Owner` e `Agency Admin`).
+
+  01. Meu perfil (`profile`): nome, sobrenome, e-mail, telefone (idioma fixo
+      Português Brasil).
+  02. Empresa e marca (`company`): dados cadastrais, fuso padrão, moeda BRL,
+      seletor de Cor Primária e Cor Secundária (propagadas para toda a agência
+      e todas as subcontas), Domínio White Label e upload de Logotipo (até
+      300 KB) herdado pelas subcontas.
+  03. Equipe (`users`): CRUD de até 100 membros da equipe com função (5 papéis),
+      subcontas permitidas (para funções de conta) e módulos permitidos (entre
+      os 16 módulos). Em login Supabase, marca `loginEnabled = true` para
+      liberar acesso pelo e-mail Google. Em modo local sem auth, exibe botão
+      "Agir como".
+  04. Faturamento e carteira (`billing`): seleção do plano da agência (Starter
+      R$97, Unlimited R$297, Agency Pro R$497 — registro local), saldo da
+      carteira, lançamento manual de créditos/débitos, histórico e regras de
+      alerta de saldo mínimo / recarga sugerida.
+  05. WhatsApp (`whatsapp`, alias `phone` | `whatsapp.mjs`):
+      - Configuração global do servidor UAZAPI (URL + `admintoken` cifrado em
+        AES-256-GCM) OU uso automático do servidor gerenciado via variáveis de
+        ambiente (`UAZAPI_BASE_URL` + `UAZAPI_ADMIN_TOKEN`, modo "1-clique").
+      - Tabela com todas as subcontas mostrando status real (Conectado,
+        Aguardando QR Code, Hibernado, Desconectado), número conectado,
+        switches individuais de "WhatsApp ativo" e "Rebilling ativo".
+      - Painel de controle direto pela agência: gerar QR Code ou código de
+        pareamento de 8 dígitos para qualquer subconta, desconectar e enviar
+        mensagem de teste.
+  06. Serviços de e-mail (`email-services`): cadastro/remoção de domínio
+      dedicado de envio e seleção de quais subcontas o utilizam (demais ficam
+      em "Compartilhado").
+  07. E-mails do sistema (`emails`): edição de assunto e corpo de 4 templates
+      transacionais (Boas-vindas, Redefinição de senha, Convite de usuário,
+      Lembrete de agendamento).
+  08. Comunicados (`announcements`): CRUD de até 100 banners (Informação,
+      Sucesso, Alerta) com publicação liga/desliga e segmentação para todas ou
+      subcontas específicas (aparecem no topo da tela das subcontas).
+  09. Workflow: recursos premium (`workflow-premium`): matriz de switches por
+      subconta de "Recurso ativo" + "Rebilling ativo".
+  10. Workflow: IA externa (`external-ai`): matriz de switches por subconta de
+      "Recurso ativo" + "Rebilling ativo".
+  11. Compra de domínios (`domain-purchase`): matriz de switches por subconta
+      de "Recurso ativo" + "Rebilling ativo".
+  12. OpenAI (`openai` | `/api/openai`): conexão/substituição/desconexão da
+      chave `sk-...` validada em tempo real na OpenAI e salva cifrada por
+      usuário (`openai-<session.id>`). Alimenta AI Studio, Agentes de IA e
+      Pergunte à Soci.
+  13. Integrações privadas (`private-integrations`): até 20 tokens `pit_...`
+      exibidos uma única vez (salvos só em hash SHA-256) com escopos granulares
+      (`subaccounts.read`, `contacts.read`, `contacts.write`) e data de último
+      uso.
+  14. Afiliados (`affiliates`): link de indicação e configuração de ID do Pixel
+      do Facebook (5 a 20 dígitos).
+  15. Links de menu (`menu-links`): até 30 atalhos customizados (título, URL,
+      ícone, abrir em Nova aba ou Dentro do app via iframe, exibir na Agência,
+      Subcontas ou Ambos, segmentável por subconta).
+  16. Stripe (`stripe`): status de conexão Stripe Connect (informativo; OAuth
+      real não conectado).
+  17. Chaves de API (`api-keys`): até 10 chaves globais `go_...` (salvas só em
+      hash SHA-256) com acesso aos endpoints `/api/v1/subaccounts`,
+      `GET /api/v1/subaccounts/{id}/contacts` e `POST /api/v1/subaccounts/{id}/contacts`.
+  18. Conformidade (`compliance`): período de retenção de dados (0 a 3.650 dias),
+      texto padrão de consentimento LGPD, banner de cookies e flag HIPAA.
+  19. Recursos experimentais (`labs`): 4 flags de Labs (`workflowAi`, `newInbox`,
+      `bulkSnapshots`, `darkSidebar`).
+  20. Logs de auditoria (`audit`): tabela paginada (50/página) dos últimos
+      1.000 eventos da agência e das subcontas, com busca e exportação CSV.
+  21. Armazenamento de mídia (`storage`): consumo total de arquivos e bytes por
+      subconta com gráfico comparativo de barras.
+
+--------------------------------------------------------------------------------
+3.5. RECURSOS DA CONTA PRINCIPAL QUE EXISTEM NO BACKEND MAS ESTÃO OCULTOS NA UI
+--------------------------------------------------------------------------------
+
+No código atual (`ui/agency.js`), as rotas abaixo redirecionam automaticamente
+para `#agency/dashboard`, embora seus dados e comandos continuem ativos no
+backend (`agency-model.mjs`, `agency-data.js`, `waha.mjs`):
+  - Revenda de produtos (`#agency/reselling` — 10 produtos em `resellProducts`);
+  - Complementos / Add-ons (`#agency/addons` — 5 add-ons pagos em `addOns`);
+  - Educação SaaS (`#agency/saas-education` — 3 trilhas, 6 aulas);
+  - Aplicativo Desktop (`#agency/desktop-app`);
+  - App Marketplace da agência (`#agency/marketplace` — 10 integrações em
+    `integrationCatalog`, instalação em agência/subconta e revenda);
+  - Integração WhatsApp via WAHA (`waha.mjs`, rotas `/api/waha/*` e webhook
+    `/api/waha/webhook/...` — substituída na interface pela UAZAPI em
+    `whatsapp.mjs`, mas ainda montada no servidor);
+  - Switch `number-intelligence` em `subFeatures` (existe no modelo/API, mas
+    sem aba dedicada na barra de Configurações).
+  - Construtor de workflow padrão (`workflowSettings`: Standard/Advanced,
+    comando `workflow-builder` ativo no backend, sem aba na UI atual).
+
+
+================================================================================
+4. TUDO O QUE É DA CONTA SECUNDÁRIA (SUBCONTA / WORKSPACE)
+================================================================================
+
+A barra lateral da Conta Secundária possui 16 MÓDULOS ATIVOS divididos em:
+  - Grupo "Principal" (6 módulos): Painel de controle, Conversas, Calendários,
+    Contatos, Oportunidades, Pagamentos.
+  - Grupo "Crescimento" (9 módulos): Estúdio de IA, Agentes de IA, Marketing,
+    Automações, Sites, Assinaturas, Mídia Drive, Reputação, Relatórios.
+  - Grupo "Atalhos": links personalizados injetados pela Conta Principal.
+  - Rodapé: "Visão da agência" (visível apenas se `who.agency === true`) e
+    "Configurações".
+
+Além disso, a subconta exibe no topo eventuais Comunicados publicados pela
+agência e herda automaticamente logotipo, nome, cor primária e cor secundária
+definidos pela Conta Principal.
+
+Abaixo, o inventário completo de cada um dos 16 módulos da Conta Secundária:
+
+--------------------------------------------------------------------------------
+4.1. GRUPO: PRINCIPAL
+--------------------------------------------------------------------------------
+
+1) PAINEL DE CONTROLE (`#dashboard` | `dashboard-model.mjs`, `dashboard*.js`)
+   - Múltiplos painéis customizáveis por subconta, com definição de painel
+     padrão, duplicação, exclusão, fuso horário por painel, exportação e
+     importação de layout em JSON.
+   - Biblioteca com 88+ widgets de métricas/gráficos em 12 categorias (Geral,
+     Contatos, Agendamentos, Oportunidades, Conversas, Pagamentos, E-mail e
+     campanhas, Social Planner, Reputação, Formulários e sites, Tarefas,
+     Integrações) + 5 elementos de composição (Nota adesiva, Título, Caixa de
+     texto, Imagem HTTPS, Conteúdo incorporado HTTPS).
+   - 9 temas de cores para gráficos; edição de posição, largura, duplicação e
+     remoção de widgets; histórico de versões com restauração.
+   - 21 opções de filtro de período (hoje, amanhã, semanas, trimestres, anos,
+     até hoje, personalizado) + comparação com período anterior ou ano anterior
+     + filtro por pipeline e campo de data (mudança de status, criação ou
+     atualização).
+   - "Enviar como relatório": salva um snapshot das métricas filtradas em
+     `Relatórios -> Relatórios do painel` com download CSV.
+   - Nota: widgets de Google Analytics, Google Business Profile, Meta Ads,
+     Google Ads e Entregabilidade de e-mail mostram o estado da integração
+     (ainda sem coleta externa).
+
+2) CONVERSAS (`#conversations` | `inbox.js`, `conversations.js`, `whatsapp.mjs`)
+   - 6 seções internas:
+     a) Conversas (Inbox):
+        - Navegação por caixas: Caixa da equipe, Minhas (Todas), Atribuídas a
+          mim, Seguidas, mais Vistas Inteligentes salvas (`inboxViews`) com até
+          10 regras combináveis (E / OU) por responsável, seguidor, menção `@`,
+          direção, tipo de envio, canal, tag e status de SLA.
+        - Subfiltros: Todas, Não lidas, Recentes (7 dias), Favoritas, busca e
+          6 ordenações (mais recentes, antigas, manuais, SLA vencido/próximo).
+        - Ações em massa em até 200 conversas (ler/não ler, favoritar, atribuir
+          responsável, seguir).
+        - Compositor de mensagens em 4 canais: Nota interna, E-mail, SMS e
+          WhatsApp.
+          * WHATSAPP REAL: quando a subconta tem WhatsApp conectado via UAZAPI,
+            mensagens enviadas pelo canal WhatsApp disparam de verdade para o
+            telefone do contato, e mensagens recebidas no webhook entram
+            automaticamente criando/atualizando o contato e a conversa.
+          * E-mail, SMS e Nota são registrados localmente no histórico do CRM.
+        - Inserção rápida de Snippets (com merge de variáveis `{{contact.*}}` e
+          `{{location.name}}`) e Links de rastreamento.
+        - Painel lateral do contato + Chat interno da equipe (`teamMessages`,
+          últimas 500 mensagens).
+     b) Ações manuais (`manual-actions`):
+        - Fila paginada de ligações (`Manual Call`) e SMS (`Manual SMS`)
+          criados por workflows pausados.
+        - Filtros por workflow, responsável, tipo e status; modo fila contínua
+          ("Let's Start"); conclusão ou salto destrava automaticamente a
+          execução do workflow.
+     c) Snippets (`snippets` / `folders`):
+        - Templates reutilizáveis de Texto e E-mail (com assunto) organizados
+          em pastas.
+     d) Links de rastreamento (`trigger-links` / `link-analysis`):
+        - Cria links encurtados/rastreáveis (`/r/<workspace>/<ticketId>`).
+        - Quando inserido via `{{trigger_link.<id>}}` numa mensagem de saída,
+          gera ticket único por contato; o 1º clique dispara workflows com
+          gatilho "Link de rastreamento clicado".
+        - Aba Analyze contabiliza cliques totais, contatos únicos e último clique.
+     e) Análises (`analytics`):
+        - Métricas de SLA de tempo de resposta em E-mail e SMS.
+     f) Configurações (`settings`):
+        - Ativação de SLA comum ou por canal (alerta "vencendo" e "atrasado"
+          de 1 a 10.080 min) + regra de contagem para respostas de automação
+          (nenhuma, todas ou workflows selecionados) + atualização ao vivo a
+          cada 15s e opção de dispensar timer.
+
+3) CALENDÁRIOS (`#calendars`)
+   - 2 abas: Calendário (visão mensal interativa clicável por dia) e Lista de
+     Agendamentos.
+   - Cadastro, edição e cancelamento com vínculo a contato, fuso horário da
+     subconta e bloqueio automático de conflito/sobreposição de horários.
+   - Dispara automaticamente workflows com gatilho "Agendamento criado".
+
+4) CONTATOS (`#contacts` — 5 abas)
+   - Listas inteligentes (`all`): busca, filtro por tag, CRUD de contatos com
+     campos personalizados, acesso rápido para abrir conversa ou criar tarefa,
+     importação CSV (até 500 linhas por vez, deduplicando por e-mail e
+     disparando workflow "Contato criado").
+   - Ações em massa (`bulk`): seleção de até 500 contatos para Adicionar tag,
+     Remover tag ou Excluir (exclusão em cascata limpa tarefas, oportunidades,
+     mensagens, agendamentos, faturas, assinaturas e cancela ações pendentes)
+     + tabela de histórico das últimas 200 ações em massa.
+   - Campos personalizados (`fields`): gerenciamento de campos extras do objeto
+     Contato (9 tipos: Linha única, Várias linhas, Número, Monetário, Data,
+     Dropdown, Checkbox, E-mail, Telefone).
+   - Tarefas (`tasks`): gestão de tarefas vinculadas a contatos, prazo,
+     responsável, notas e alternância rápida Em aberto / Concluída.
+   - Empresas (`companies`): cadastro de empresas (com endereço completo e
+     campos personalizados) vinculadas automaticamente aos contatos pelo nome
+     da empresa (renomear propaga para todos os contatos).
+
+5) OPORTUNIDADES (`#opportunities` — 5 visualizações/abas)
+   - Quadro Kanban (`pipeline`) e Lista (`list`):
+     * Até 30 pipelines por subconta; criação/edição de etapas com probabilidade
+       de ganho e visibilidade em relatórios.
+     * Movimentação de negócios via arrastar-e-soltar (drag-and-drop) ou
+       seletor no cartão — dispara workflow "Etapa da oportunidade alterada".
+     * Personalização visual dos cartões (layout e campos exibidos por usuário).
+     * Filtros avançados (status, etapa, responsável, origem, tag, valor min/max),
+       ordenação customizável, busca, importação CSV (até 500 linhas) e
+       exportação CSV.
+     * Registro automático de `statusChangedAt`, motivo da perda e contador de
+       adiamentos (`slips`) quando a data prevista de fechamento é empurrada.
+   - Previsão / Forecast (`forecast`):
+     * Filtra por pipeline; calcula Receita potencial máxima, Receita esperada
+       (ponderada por probabilidade), Receita ganha e negócios abertos.
+     * Linha do tempo mensal de fechamento, tabela de Oportunidades em Risco
+       (Alto/Médio/Baixo conforme adiamentos e dias de atraso) e auditoria de
+       dados faltantes (sem data de fechamento / sem probabilidade).
+   - Pipelines (`pipelines`): gerenciador de pipelines e etapas.
+   - Ações em massa (`bulk`): mover etapa, alterar status (Open/Won/Lost/
+     Abandoned) ou excluir até 500 oportunidades com log de execução.
+
+6) PAGAMENTOS (`#payments` — 6 abas | `crm-model.mjs`)
+   - Faturas (`invoices`): criação, vencimento, status (Draft/Open/Paid/Void);
+     ao marcar uma fatura como `Paid`, registra automaticamente a Transação
+     correspondente uma única vez.
+   - Produtos (`products`): catálogo de produtos de pagamento único ou
+     recorrente (semanal, mensal, anual).
+   - Assinaturas (`subscriptions`): vínculo de contato a produto recorrente
+     (Active/Paused/Canceled).
+   - Links de pagamento (`links`): cadastro de links vinculados a produtos.
+   - Transações (`transactions`): histórico e métricas (Recebido, Reembolsado,
+     Total), formas de pagamento (Manual, Dinheiro, Transferência, Pix, Cartão).
+   - Cupons (`coupons`): desconto percentual ou fixo, período de validade,
+     limite de resgates e filtro automático por status (Ativos, Agendados,
+     Expirados, Inativos).
+   - Observação: todo o módulo é de registro/controle financeiro local (sem
+     gateway de pagamento/checkout online conectado).
+
+--------------------------------------------------------------------------------
+4.2. GRUPO: CRESCIMENTO
+--------------------------------------------------------------------------------
+
+7) ESTÚDIO DE IA / AI STUDIO (`#studio` | `studio-site.mjs`, `studio-ai.mjs`, `studio-builder.js`)
+   - Limite de até 60 projetos por subconta, até 8 páginas por projeto.
+   - 12 modelos base (Página de vendas, Painel, Loja virtual, Portfólio, Blog,
+     Tarefas, Chat, Restaurante, Fitness, Rede social, Calendário, Previsão).
+   - Construtor com IA estilo "vibe" (`#studio/build`):
+     1. Direção visual (paleta de cores, par de Google Fonts e layout — gerados
+        sob medida pela OpenAI ou via opções locais);
+     2. Plano de páginas;
+     3. Construção passo a passo com prévia ao vivo.
+   - Aceita URL de site de referência público (bloqueia IPs privados/locais).
+   - Editor completo de páginas:
+     * Edição Visual (seleção de elementos + duplo clique para editar textos);
+     * Edição de Código HTML (com sanitização obrigatória que remove `<script>`,
+       `<iframe>`, eventos `on*` e links `javascript:`);
+     * Chat de Revisão com IA (altera a página inteira ou apenas o elemento
+       selecionado, com botão Desfazer por alteração);
+     * Gerenciamento de páginas (adicionar com IA ou local, renomear, slug,
+       duplicar, reordenar, excluir, links internos `page:slug`);
+     * Histórico das 12 últimas versões com restauração;
+     * SEO por página (manual ou sugerido por IA);
+     * Publicação em `/s/<workspace>/<projectId>` com CSP sem scripts e criação/
+       vínculo automático de formulário no CRM (cada envio cria/atualiza contato
+       e dispara workflows de "Form submitted");
+     * Exportação de arquivo HTML.
+
+8) AGENTES DE IA (`#ai-agents` | `agent-model.mjs`, `agent-ai.mjs`)
+   - Estúdio dedicado por subconta com busca, filtro por pasta e ordenação.
+   - Criação do zero, por descrição ou a partir de 8 templates prontos
+     (Atendimento, Qualificação de leads, Pedido de avaliação, Resumo de
+     oportunidade, Confirmação de agendamento, Posts para redes sociais,
+     Monitor de concorrentes, Relatório semanal).
+   - Editor com salvamento automático, controle de concorrência por revisão e
+     chat construtor por IA (reescreve a configuração sem apagar fontes de
+     conhecimento):
+     * Nome, ícone (12 opções), descrição e instruções (até 15.000 chars);
+     * Até 8 gatilhos escolhidos entre 14 tipos em 8 grupos;
+     * Até 4 subagentes (nome, quando chamar, instruções);
+     * 3 recursos ativáveis: Pesquisa na web (tool nativa OpenAI), Memória e
+       Pedir aprovação;
+     * Até 5 fontes de conhecimento (até 6.000 chars cada).
+   - Operação e teste:
+     * Publicar/despublicar versões numeradas (v1, v2...);
+     * Chat de teste contra o rascunho ou contra a versão publicada (usa a chave
+       OpenAI do usuário);
+     * Memória persistente (até 30 fatos de Pessoas ou Procedimentos);
+     * Atividade: log das últimas 100 execuções de teste na subconta.
+   - Limite atual importante: os gatilhos são salvos na configuração, mas o
+     agente executa apenas no chat de teste do estúdio (ainda não dispara
+     automaticamente por eventos do CRM, webhooks ou cron); subagentes e
+     aprovação entram como instruções no prompt.
+
+9) MARKETING (`#marketing` — 2 abas: Planejador Social + E-mails)
+   - Aba PLANEJADOR SOCIAL (`social-model.mjs`, `social-providers.mjs`):
+     * Integração OAuth real e publicação real para 9 redes sociais (quando as
+       chaves env de cada rede estiverem configuradas no servidor):
+       Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest, Threads,
+       Google Business Profile e Bluesky (via senha de app, sem OAuth).
+     * Tokens armazenados cifrados em AES-256-GCM em `social-<workspace>`.
+     * Convite de cliente (`/social-connect/<ws>#<token>`, validade 1h/24h/72h/7d,
+       revogável) para o cliente autorizar redes sem entrar na plataforma.
+     * 7 subvisões: Calendário (mês/semana com drag-and-drop), Lista (filtros e
+       exclusão em massa), Contas, Categorias (com fila Evergreen automática),
+       Grupos de Hashtags, Feeds RSS (verificação a cada 30 min criando
+       rascunhos ou posts agendados) e Importação CSV em massa (até 1 MB / 300
+       linhas, com revisão linha a linha e modelos básico/avançado).
+     * Compositor com customização de texto por rede, validação automática de
+       limites/carrosséis/mídia, tipos Post/Story/Reel, primeiro comentário,
+       fluxo de revisão/aprovação, recorrência (diária/semanal/mensal), retry de
+       falhas e agendador automático (cron a cada 1 min local ou `GET /api/social/cron`
+       na Vercel).
+   - Aba E-MAILS:
+     * Cadastro, busca e planejamento de rascunhos de campanhas de e-mail
+       (sem disparador SMTP/API externo conectado nesta aba).
+
+10) AUTOMAÇÕES (`#automation` | `automation.js`, `model.mjs`)
+    - Motor real de workflows executados na mesma transação dos eventos do CRM.
+    - 5 gatilhos reais + inscrição manual:
+      1. Contato criado (`Contact created`)
+      2. Formulário enviado (`Form submitted`, filtrável por formulário)
+      3. Etapa da oportunidade alterada (`Opportunity stage changed`, filtrável por etapa)
+      4. Agendamento criado (`Appointment booked`)
+      5. Link de rastreamento clicado (`Trigger link clicked`, filtrável por link)
+      + Inscrição manual de contatos via UI (`workflow-enroll`).
+    - 6 ações executáveis (até 10 ações por fluxo):
+      1. Adicionar tag (`Add tag`)
+      2. Criar tarefa (`Create task`)
+      3. Criar oportunidade (`Create opportunity`)
+      4. Registrar mensagem no CRM (`Log message` em Nota/E-mail/SMS/WhatsApp)
+      5. Ligação manual (`Manual Call` — pausa o fluxo e envia para a fila em Conversas)
+      6. SMS manual (`Manual SMS` — pausa o fluxo e envia para a fila em Conversas)
+    - Gestão profissional: Pastas de workflows, Listas inteligentes salvas,
+      controle de reentrada (`allowReentry`), aba "Precisam de revisão" (detecta
+      erros de execução sem contato), Lixeira de fluxos excluídos com
+      Restauração, Visão geral, aba de Inscrições e Histórico completo de
+      execuções.
+
+11) SITES (`#sites` — 3 abas principais: Funis, Sites, Formulários)
+    - Funis e Sites: usam o mesmo motor multipáginas do AI Studio (criação em
+      branco, com IA ou por modelo; gestão de etapas, reordenação, slugs,
+      edição com IA, SEO, estatísticas de visitas/envios/conversão com zerar).
+      Em Funis, enviar o formulário de uma etapa redireciona automaticamente
+      para a próxima etapa até a página de obrigado.
+    - Suporte a "Páginas simples" legadas (`/p/<ws>/<id>`).
+    - Formulários (`forms.js`, `form-fields.js` — 3 subabas: Todos os
+      formulários, Análises, Envios):
+      * Construtor visual com 27 tipos de campos (Dados pessoais, Endereço,
+        Texto, Escolhas, Avaliação, Consentimento, Origem oculta, Data/Número/
+        Monetário + todos os Campos Personalizados de Contato).
+      * Personalização de cor, botão, título, tags automáticas ao enviar, ação
+        pós-envio (mensagem ou redirecionamento URL) e agendamento de período
+        de abertura/fechamento.
+      * Publicação por link direto (`/form/<ws>/<id>`) ou incorporação via
+        iframe (`?embed=1`), com preenchimento prévio via query string.
+      * Análises de visitas, envios e taxa de conversão em 7, 30 ou 90 dias
+        com gráfico diário.
+      * Tabela de Envios (até 5.000 salvos) com visualização de respostas
+        expandível, filtro por formulário e exportação CSV.
+
+12) ASSINATURAS / ÁREA DE MEMBROS (`#memberships` | `client-portal.mjs`)
+    - 4 abas: Portal do cliente, Clientes, Configurações e Cursos.
+    - Portal do Cliente (`/portal/<workspace>`):
+      * Endereço dedicado com personalização de nome, boas-vindas, cor e
+        interruptor Liga/Desliga (desligar encerra sessões e invalida links).
+      * Emissão de Link Mágico de uso único (validade 15 min), Convite (7 dias)
+        e E-mail de acesso (24h). Envio real por e-mail via API do Resend
+        quando `RESEND_API_KEY`, `PORTAL_EMAIL_FROM` e `PORTAL_PUBLIC_ORIGIN`
+        estão configurados; sem Resend, gera o link copiável manualmente.
+      * Gestão de membros: controle granular de quais cursos cada cliente pode
+        acessar, revogação imediata de sessões/links e reativação.
+    - Cursos: criação/edição de cursos (descrição, título e conteúdo da aula),
+      flag `portalOnly` (restrito ao portal do cliente ou aula aberta em
+      `/course/<ws>/<id>`) e rascunho/publicado.
+
+13) MÍDIA DRIVE (`#media`)
+    - Repositório local de até 60 arquivos (PNG, JPEG, GIF, WebP e PDF, até
+      700 KB por arquivo), com busca, prévia, download e exclusão.
+    - Imagens enviadas ficam acessíveis via `/m/<workspace>/<fileId>` para uso
+      no Planejador Social.
+
+14) REPUTAÇÃO (`#reputation`)
+    - Registro manual de avaliações de clientes (autor, nota 1 a 5, texto e
+      resposta local), com cálculo automático de nota média, total e pendentes
+      de resposta.
+
+15) RELATÓRIOS (`#reporting`)
+    - 2 abas ativas na UI:
+      * Visão geral: tabela consolidada de contatos, oportunidades abertas/
+        ganhas, agendamentos, faturas, envios de formulário e execuções de
+        fluxos, com exportação.
+      * Relatórios do painel: lista de snapshots salvos a partir do Dashboard
+        com visualização em modal e download CSV.
+    - Nota técnica: o repositório já contém `report-model.mjs` e `ui/reports.js`
+      (construtor de relatórios multipáginas customizados com até 100 relatórios
+      e 20 páginas cada), com comandos ligados em `model.mjs`, porém ainda não
+      conectados ao roteamento/UI de `#reporting`.
+
+--------------------------------------------------------------------------------
+4.3. CONFIGURAÇÕES DA CONTA SECUNDÁRIA (`#settings` — 10 ABAS)
+--------------------------------------------------------------------------------
+
+  01. Perfil da empresa (`business`): nome do workspace, e-mail, telefone, fuso
+      horário IANA (moeda fixa BRL).
+  02. WhatsApp (`whatsapp`):
+      - Interface de autoatendimento para a subconta conectar seu próprio número
+        via QR Code ou código de pareamento de 8 dígitos (UAZAPI), ver número
+        conectado, enviar mensagem de teste e desconectar.
+      - Só funciona se a Conta Principal tiver servidor UAZAPI ativo (ou
+        gerenciado) E mantiver o switch `enabled` ligado para esta subconta.
+  03. Usuários (`users`): tabela SOMENTE LEITURA dos membros da agência e de
+      subconta que possuem acesso a este workspace (o cadastro/edição só existe
+      na Conta Principal; exibe atalho se o usuário for da agência).
+  04. Campos personalizados (`fields`): gestão de campos extras para os 3
+      objetos (Contato, Oportunidade, Empresa), gerando chaves `{{contact.*}}`,
+      `{{opportunity.*}}` e `{{business.*}}`.
+  05. Valores personalizados (`values`): constantes reutilizáveis
+      (`{{custom_values.*}}`) organizadas em pastas.
+  06. Tags (`tags`): catálogo central de tags com categoria, descrição e
+      contagem de uso; renomear atualiza todos os contatos; excluir remove de
+      todos os contatos.
+  07. Objetos (`objects`): painel resumo dos 3 objetos padrão (Contatos,
+      Oportunidades, Empresas) e contagem de campos personalizados.
+  08. Importar dados (`import`): importação CSV de contatos + histórico das
+      últimas 100 importações (contatos e oportunidades).
+  09. Logs de auditoria (`audit`): exibe os últimos 200 registros de auditoria
+      da agência filtrados especificamente para esta subconta (requer permissão
+      no módulo `settings`; vazio em workspace pessoal).
+  10. Workspaces (`workspaces`): lista de workspaces acessíveis para troca rápida.
+
+--------------------------------------------------------------------------------
+4.4. RECURSOS DA SUBCONTA OCULTOS / REDIRECIONADOS NA UI
+--------------------------------------------------------------------------------
+
+  - `#ask-ai` (Launchpad / Onboarding guiado + assistente local): função existe
+    em `ui/screens.js`, mas `ui/app.js` redireciona para `#dashboard`.
+  - `#marketplace` (Catálogo informativo de integrações da subconta): função
+    existe em `ui/screens.js`, mas `ui/app.js` redireciona para `#dashboard`.
+
+
+================================================================================
+5. SISTEMA DE CONTROLE, PAPÉIS, PERMISSÕES E GOVERNANÇA
+================================================================================
+
+--------------------------------------------------------------------------------
+5.1. OS 5 PAPÉIS DE USUÁRIO (`agencyRoles` em `ui/agency-data.js` e `agency-model.mjs`)
+--------------------------------------------------------------------------------
+
+Papel           | Visão da Agência | Configs da Agência | Subcontas Acessíveis        | Módulos na Subconta
+----------------+------------------+--------------------+-----------------------------+----------------------------
+Agency Owner    | SIM              | SIM                | Todas da agência            | Todos (ou lista definida)*
+Agency Admin    | SIM              | SIM                | Todas da agência            | Todos (ou lista definida)*
+Agency User     | SIM              | NÃO (403)          | Todas da agência            | Todos (ou lista definida)*
+Account Admin   | NÃO (403)        | NÃO (403)          | Apenas `user.accounts`      | Todos (ou lista definida)*
+Account User    | NÃO (403)        | NÃO (403)          | Apenas `user.accounts`      | Todos (ou lista definida)*
+
+  (*) Regra de `permissions`: se `user.permissions` estiver vazio, o usuário
+      acessa TODOS os 16 módulos da subconta. Se tiver módulos marcados, o
+      servidor bloqueia (HTTP 403) qualquer mutação ou rota dos módulos fora
+      da lista. O módulo `dashboard` permanece sempre acessível como tela base.
+      No caso de `ai-agents`, o servidor também oculta `agents` e `agentRuns`
+      do payload `/api/state` quando o usuário não tem permissão.
+
+  PONTO DE ATENÇÃO TÉCNICO IDENTIFICADO NO CÓDIGO:
+  1. Em `agency-model.mjs` (`userAccess`, linhas 609–618), hoje `Account Admin`
+     e `Account User` recebem exatamente o mesmo objeto de permissão
+     (`{ agency: false, settings: false, accounts: user.accounts || [], modules }`).
+     Ou seja: ainda não há diferenciação de privilégios internos entre
+     Administrador de Subconta e Usuário Comum de Subconta — a diferenciação
+     prática hoje é feita marcando/desmarcando módulos (especialmente `settings`).
+  2. O dono da conta autenticado (que entra na própria agência `agency-<uuid>`
+     ou via `GO_AGENCY_OWNER_ID`) tem acesso irrestrito (`agency: true`,
+     `settings: true`, `accounts: null`, `modules: null`, `owner: true`) e pode
+     também abrir seu Workspace Pessoal (`user-<uuid>`).
+
+--------------------------------------------------------------------------------
+5.2. O QUE É BLOQUEADO PARA QUEM NÃO TEM `who.settings` (Ex.: `Agency User`)
+--------------------------------------------------------------------------------
+
+Mesmo tendo acesso à Visão da Agência, o papel `Agency User` é bloqueado pelo
+servidor (HTTP 403) em:
+  - Alterar dados do Perfil da Agência e Empresa/Marca (White Label);
+  - Criar, editar ou excluir Usuários (`users`), Links de Menu (`menuLinks`) e
+    Comunicados (`announcements`);
+  - Ativar/desativar Modo SaaS, editar Rebilling da carteira ou Modo SaaS por
+    subconta;
+  - Alterar Plano da agência, Carteira e Auto-recarga;
+  - Configurar servidor WhatsApp (UAZAPI/WAHA), ligar/desligar WhatsApp ou
+    rebilling em subcontas;
+  - Alterar Domínio dedicado de e-mail, E-mails do sistema, Labs, Conformidade,
+    Pixel de afiliado e Switches de recursos premium/IA externa/domínios;
+  - Criar/revogar Chaves de API (`api-key`) e Integrações Privadas;
+  - Alterar Marca, Seções do relatório e Widgets de Prospecção.
+
+Em contrapartida, `Agency User` PODE:
+  - Ver o Painel da Agência e usar o Pergunte à Soci;
+  - Criar/gerenciar Subcontas, Setups/Snapshots, Templates, Parceiros, Ideias,
+    Afiliados (operacional), Prospecção (buscar, auditar, enviar ao CRM) e
+    acessar todas as subcontas conforme seus módulos permitidos.
+
+--------------------------------------------------------------------------------
+5.3. CONTROLES DA CONTA PRINCIPAL SOBRE A CONTA SECUNDÁRIA (DE CIMA PARA BAIXO)
+--------------------------------------------------------------------------------
+
+A Conta Principal exerce 11 controles diretos sobre as Contas Secundárias:
+
+  1. Provisionamento e Ciclo de Vida: criar subcontas, aplicar Setup inicial,
+     atribuir Plano SaaS e definir status (Active/Paused/Closed).
+     *Nota técnica:* o status `Paused` ou `Closed` hoje afeta os cálculos de MRR
+     e filtros no Painel da Agência, mas NÃO bloqueia o login/abertura da
+     subconta no servidor (`canOpen` não verifica `agency.accounts[id].status`).
+  2. Identidade Visual White Label: nome da empresa, cor primária, cor
+     secundária, logotipo e domínio são herdados automaticamente por todas as
+     subcontas.
+  3. Comunicação Direta: publicar Comunicados (`announcements`) exibidos em
+     banners no topo de todas ou de subcontas selecionadas.
+  4. Navegação Customizada: injetar Links de Menu (`menuLinks`) no grupo
+     "Atalhos" da barra lateral de todas ou de subcontas escolhidas (nova aba
+     ou iframe embutido).
+  5. Controle de Acesso e Equipe: somente a Conta Principal cria/edita/remove
+     usuários e define quais subcontas e quais dos 16 módulos cada pessoa vê.
+     Na subconta, a aba `Configurações -> Usuários` é somente leitura.
+  6. Governança de WhatsApp (UAZAPI): a agência configura o servidor (ou usa o
+     gerenciado), libera ou bloqueia o recurso por subconta (`enabled`), marca
+     `rebill`, e pode parear/testar/desconectar o WhatsApp da subconta
+     diretamente pelo painel da agência.
+  7. Switches de Recursos e Rebilling: liga/desliga acesso e cobrança de
+     repasse (`rebill`) por subconta para Workflow Premium, Workflow IA Externa
+     e Compra de Domínios, além do Modo SaaS e markups (1× a 10×).
+     *Nota técnica:* hoje esses switches (exceto o `enabled` do WhatsApp, que é
+     validado no servidor em `whatsapp.mjs`) funcionam como controles
+     administrativos/comerciais salvos na agência e ainda não travam os botões
+     correspondentes dentro da subconta.
+  8. Infraestrutura de E-mail: define se cada subconta usa o domínio dedicado
+     da agência ou domínio compartilhado.
+  9. Replicação de Ativos: empurra Setups completos (em massa, mantendo ou
+     sobrescrevendo) e Templates de páginas/funis para qualquer subconta.
+ 10. Auditoria Centralizada: toda ação relevante executada dentro das subcontas
+     (salvar, excluir, importar, mover oportunidade, criar pipeline, ações em
+     massa, automações, agentes) é gravada no `agency.audit` da Conta Principal.
+ 11. Acesso via API Pública: a agência emite chaves `go_...` ou `pit_...` que
+     permitem listar subcontas e ler/criar contatos diretamente nas subcontas.
+
+--------------------------------------------------------------------------------
+5.4. CONTROLES EXCLUSIVOS DA CONTA SECUNDÁRIA (AUTONOMIA DO CLIENTE/OPERADOR)
+--------------------------------------------------------------------------------
+
+Dentro dos módulos liberados para seu usuário, a Conta Secundária controla de
+forma independente e isolada:
+  - Todos os seus dados operacionais de CRM (contatos, empresas, campos/valores
+    personalizados, tags, tarefas, oportunidades, pipelines, etapas, agenda);
+  - Suas conversas, caixas/vistas inteligentes, snippets, trigger links, SLA e
+    conexão/desconexão do próprio número de WhatsApp (se habilitado);
+  - Seus workflows, formulários, sites/funis no AI Studio e publicações;
+  - Suas redes sociais no Planejador Social (OAuth, convite de cliente,
+    calendário editorial, RSS, CSV);
+  - Seus Agentes de IA (instruções, conhecimento, memória, testes e versões);
+  - Seu Portal do Cliente e Cursos (membros, links mágicos, revogação, aulas);
+  - Seus Dashboards personalizados, relatórios salvos, avaliações e Mídia Drive;
+  - Seu perfil comercial (nome, e-mail, telefone, fuso horário).
+
+  Nota sobre a chave OpenAI (`/api/openai`):
+  - A chave OpenAI é pessoal por usuário autenticado (`openai-<session.id>`),
+    não por subconta nem compartilhada com toda a agência.
+  - Fica em `#agency/settings/openai`, mas possui exceção intencional no código
+    (`openAIOnly` em `ui/agency.js`): mesmo um usuário sem acesso à Visão da
+    Agência consegue abrir apenas a tela de conectar sua própria chave OpenAI.
+
+--------------------------------------------------------------------------------
+5.5. SEGURANÇA, AUTENTICAÇÃO E MODO LOCAL
+--------------------------------------------------------------------------------
+
+  - Produção (Supabase Auth): login exclusivamente via Google OAuth 2.0 com
+    PKCE, exige e-mail confirmado (`email_confirmed_at`) e `amr: oauth`, cookies
+    `HttpOnly`, `SameSite=Lax` (`__Host-go_access` e `__Host-go_refresh` em
+    HTTPS/Vercel).
+  - Vínculo automático de equipe: no 1º login Google, o servidor verifica se o
+    e-mail existe em alguma agência com `loginEnabled: true`; se sim, entra
+    como membro com o papel/subcontas/módulos cadastrados. Caso contrário, cria
+    uma nova agência própria vazia (`agency-<uuid>`).
+  - Proteções HTTP: CSP estrito, bloqueio CSRF cross-site em POSTs, sanitização
+    de HTML do AI Studio sem scripts, criptografia AES-256-GCM para chaves
+    OpenAI, tokens UAZAPI/WAHA e tokens OAuth sociais, hash SHA-256 para chaves
+    de API, webhooks com token secreto (`timingSafeEqual`) e links mágicos de
+    uso único.
+  - Modo de desenvolvimento local (`GO_DEV_NO_AUTH=1` sem Supabase): desabilita
+    login Google e ativa o seletor "Agir como" (`X-Go-User`) no topo para testar
+    papéis e permissões localmente (nunca ativo na Vercel).
+
+
+================================================================================
+6. QUADRO RESUMO DE MATURIDADE: REAL / INTEGRADO vs LOCAL / SIMULADO
+================================================================================
+
+[A] FUNCIONA DE PONTA A PONTA COM INTEGRAÇÕES REAIS (quando variáveis configuradas)
+  1. Autenticação Google OAuth + PKCE (Supabase Auth) e persistência Supabase
+     com RLS e controle de revisão (ou SQLite local).
+  2. WhatsApp bidirecional real via UAZAPI (`whatsapp.mjs`): provisionamento de
+     instância isolada por subconta, QR Code, pareamento 8 dígitos, webhook de
+     entrada criando contato/mensagem em Conversas e envio real pelo compositor.
+  3. Planejador Social real (`social-providers.mjs`): OAuth + publicação +
+     agendador/cron para Facebook, Instagram, LinkedIn, TikTok, YouTube,
+     Pinterest, Threads, Google Business e Bluesky + feeds RSS reais + convite
+     externo de cliente.
+  4. IA generativa real via OpenAI (e Gemini via env no Chat): Pergunte à Soci
+     (streaming SSE + contexto vivo + anexos), AI Studio (descoberta visual,
+     planejamento, geração/revisão de páginas, SEO), Estúdio de Agentes
+     (construtor por chat, testes com web search e memória).
+  5. Prospecção com Google Places API (New), Geocoding API e Maps Embed API +
+     relatórios compartilháveis e widgets incorporáveis reais.
+  6. Portal do Cliente (`/portal/<ws>`) com autenticação real por link único,
+     sessão isolada e envio real de e-mails via API do Resend.
+  7. Páginas e Funis publicados (`/s/...`), Formulários públicos e incorporáveis
+     (`/form/...`), Trigger Links (`/r/...`), Mídia pública (`/m/...`) e motor
+     real de Workflows (gatilhos CRM -> ações + pausa em ações manuais).
+  8. API Pública v1 (`/api/v1/subaccounts` e `/contacts`) com chaves `go_...` e
+     tokens escopados `pit_...`.
+
+[B] FUNCIONAL LOCALMENTE (REGISTRO / CONTROLE INTERNO — SEM GATEWAY EXTERNO)
+  1. Pagamentos da Subconta (faturas, produtos, assinaturas, links, transações,
+     cupons) e Faturamento/SaaS da Agência (planos, MRR, carteira, markups,
+     revenda, afiliados): todos os cálculos e fluxos funcionam localmente, mas
+     sem cobrança real (Stripe Connect não conectado).
+  2. E-mail e SMS em Conversas e Campanhas de E-mail em Marketing: registrados
+     no CRM (com SLA e triggers), sem envio SMTP/Mailgun/Twilio externo.
+  3. Reputação: registro e resposta local de avaliações (sem sync Google/Meta).
+  4. Calendários: agenda local com prevenção de conflitos (sem sync Google/Zoom).
+  5. Aplicativo Móvel: customizador e prévia funcionais, sem build/publicação
+     real nas lojas.
+  6. Domínio dedicado de e-mail, domínio próprio de sites/white label e compra
+     de domínios: registros administrativos sem provisionamento DNS real.
+  7. Agentes de IA: execução apenas no chat de teste do estúdio (gatilhos
+     automáticos de CRM/webhook/cron e fila real de aprovações pendentes).
+  8. Widgets de integrações no Dashboard (GA, GBP, Meta Ads, Google Ads, Saúde
+     de e-mail): exibem estado de desconectado.
+
+[C] GAPS DE CONTROLE E CÓDIGO LEGADO/OCULTO RECOMENDADOS PARA DECISÃO
+  1. Diferenciar `Account Admin` de `Account User` em `userAccess()` (hoje têm
+     exatamente a mesma regra no servidor).
+  2. Avaliar se subcontas com status `Paused` ou `Closed` devem ter acesso
+     bloqueado em `canOpen()` (hoje o status é apenas gerencial/visual).
+  3. Decidir se os switches de `subFeatures` (`workflow-premium`, `external-ai`,
+     `domain-purchase`, `number-intelligence`) passarão a travar recursos reais
+     na subconta ou serão simplificados.
+  4. Conectar ou remover o módulo pronto de Relatórios Customizados
+     (`report-model.mjs` + `ui/reports.js`), hoje desconectado da UI.
+  5. Limpar ou reativar os módulos ocultos/legados: `waha.mjs` (substituído por
+     UAZAPI), além de `reselling`, `addons`, `desktop-app`, `saas-education` e
+     `marketplace` (redirecionados para o dashboard).
+  6. Avaliar se a chave OpenAI deve permanecer por usuário individual ou ganhar
+     opção de "chave da agência compartilhada com subcontas" (essencial se for
+     vender IA no Modo SaaS com rebilling).
+
+================================================================================
+FIM DO RELATÓRIO
+================================================================================

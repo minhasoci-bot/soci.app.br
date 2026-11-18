@@ -18,6 +18,8 @@ import { socialEvents } from './social.js';
 import { mountAgentScreen } from './agents.js';
 import { afterSitesRender, installSites } from './sites.js';
 import { afterFormsRender, installForms } from './forms.js';
+import { installChat } from './chat-widgets.js';
+import { installBlogs } from './blogs.js';
 import { unmountDesignStage } from './design-workspace.js';
 import { installBuilder, startBuild } from './studio-builder.js';
 import { installAutomation } from './automation.js';
@@ -77,22 +79,34 @@ async function api(path,body){
     const next = (location.pathname === '/' || location.pathname === '/index.html' ? '/app' : location.pathname) + location.search + location.hash;
     location.replace('/login?' + new URLSearchParams({ next }));
   }
-  if (!response.ok) throw Object.assign(Error(data.error||'The request failed.'),{status:response.status});
+  if (!response.ok) {
+    if (data.code === 'ACCOUNT_SUSPENDED' && c.mode !== 'agency' && !path.startsWith('/api/state?') &&
+        new URL(path, location.origin).searchParams.get('workspace') === c.workspace) {
+      await load();
+      if (c.account) { close(); render(); }
+    }
+    throw Object.assign(Error(data.error||'The request failed.'),{status:response.status,code:data.code,account:data.account});
+  }
   if (isAppPath && data.access) setThemeAccount(data.access.session?.id);
   return data;
 }
 async function load(){
   const workspace = c.workspace;
-  const data = await api(url('/api/state'));
-  if (workspace === c.workspace) Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,audit:data.audit});
+  try {
+    const data = await api(url('/api/state'));
+    if (workspace === c.workspace) Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,audit:data.audit,account:data.account});
+  } catch (e) {
+    if (e.code !== 'ACCOUNT_SUSPENDED') throw e;
+    if (workspace === c.workspace) Object.assign(c,{s:null,m:null,account:e.account,audit:[]});
+  }
 }
-const allowedView = id => id==='dashboard' || !c.access?.modules || c.access.modules.includes(id);
+const allowedView = id => !c.access?.modules || c.access.modules.includes(id);
 let agencyUI, openingWorkspace;
 const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions','funnel','form','form-analytics'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -123,11 +137,12 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
     c.mode='agency'; leaveAgentEditor(); close(); agencyUI.show(tab,project); return;
   }
   if(c.mode==='agency'){ agencyUI.leave(); c.mode=''; renderedView=''; }
+  if (c.account) { renderAccountLifecycle(); return; }
   if (!c.s) {
-    app.innerHTML = bootScreen('Abrindo o soci…');
+    app.innerHTML = bootScreen('Abrindo a soci…');
     openingWorkspace ??= openInitialWorkspace()
       .then(() => {
-        if (c.s && c.mode !== 'agency') {
+        if ((c.s || c.account) && c.mode !== 'agency') {
           if ((!location.hash || location.hash === '#' || location.hash === '') && c.access?.agency) {
             location.replace('#agency/dashboard');
             return;
@@ -146,7 +161,14 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
     return;
   }
   if (key === 'ask-ai' || key === 'marketplace') { location.hash = '#dashboard'; return; }
-  const view=key==='link'?'link':Object.hasOwn(screens,key)&&allowedView(key)?key:'dashboard', nextTab=view==='link'?tab||'':validTabs[view]?.includes(tab)?tab:'';
+  const view = key === 'link' && allowedView('conversations') ? 'link'
+    : Object.hasOwn(screens,key) && allowedView(key) ? key
+      : nav.find(([item]) => allowedView(item))?.[0];
+  if (!view) {
+    app.innerHTML = `<main class="boot boot-error"><h1>Nenhum módulo disponível</h1><p>Seu acesso a esta subconta está ativo. Solicite as permissões necessárias à sua agência.</p><div class="inline-gap"><button class="secondary" data-act="workspaces">Trocar de workspace</button>${c.access?.agency ? '<a class="secondary" href="#agency/dashboard">Visão da agência</a>' : ''}</div></main>`;
+    return;
+  }
+  const nextTab=view==='link'?tab||'':validTabs[view]?.includes(tab)?tab:'';
   const automationId = view === 'automation' ? project || '' : '';
   const opportunityViews = ['', 'pipeline', 'list'];
   const switchingOpportunityView = c.view === 'opportunities' && view === c.view &&
@@ -178,7 +200,25 @@ function appTopbar(){
     tools:[{icon:'bell',label:'Notificações',attr:'data-act="notifications"'}],
     profile:{text:profileText,picture:session?.picture||'',label:profileLabel,attr:session?'data-act="account"':'data-go="settings"'}});
 }
+function renderAccountLifecycle() {
+  stopSubWaPoll();
+  const account = c.account;
+  const status = account.status === 'Closed' ? 'encerrada' : 'pausada';
+  const history = (account.statusHistory || []).slice().reverse();
+  const date = value => new Date(value).toLocaleString('pt-BR');
+  const support = account.support ? `<p>Modo de suporte · Somente leitura</p>
+    <p>${h(c.s.profile.name)} · ${c.m.contacts} contatos · ${c.m.open} oportunidades abertas</p>
+    ${history.length ? `<details><summary>Histórico de status</summary><ul>${history.map(row =>
+      `<li>${h(date(row.at))} · ${h(row.actor)} · ${h(tr(row.from))} → ${h(tr(row.to))}${row.reason ? ` · ${h(row.reason)}` : ''}</li>`).join('')}</ul></details>` : ''}
+    ${Object.keys(account.ignoredWebhooks || {}).length ? `<details><summary>Eventos recebidos durante a suspensão</summary><ul>${Object.entries(account.ignoredWebhooks).map(([provider, row]) =>
+      `<li>${h(provider === 'uazapi' ? 'UAZAPI' : 'WAHA')} · ${h(row.count)} ignorado(s) · último em ${h(date(row.lastAt))}</li>`).join('')}</ul></details>` : ''}
+    <a class="primary" href="#agency/accounts">Gerenciar subcontas</a>` : `<p>Entre em contato com o suporte da sua agência para recuperar o acesso.</p>`;
+  app.innerHTML = `<main class="boot boot-error"><h1>Subconta ${status}</h1>
+    ${account.suspendedReason ? `<p>${h(account.suspendedReason)}</p>` : ''}${support}
+    <div class="inline-gap"><button class="secondary" data-act="account-retry">Verificar acesso</button><button class="secondary" data-act="workspaces">Trocar de workspace</button></div></main>`;
+}
 function render(){
+  if (c.account) { renderAccountLifecycle(); return; }
   if(viewPath||c.mode==='agency')return;
   unmountDesignStage(G('.dw-stage'));
   const viewKey = `${c.workspace}:${c.view}:${c.tab}:${c.studio.project}`;
@@ -620,7 +660,13 @@ document.addEventListener('click',async ev=>{
         try {const was=c.s.onboarding;await mutate({type:'onboarding',data:was.kind?{kind:was.kind,goal:c.choice,done:true}:{kind:c.choice}});c.choice='';render();(G('.choice')||G('.ask-composer input'))?.focus();} finally {busy=false;if(b.isConnected)b.disabled=false;}
         break;
       }
-      case 'workspaces':workspaces();break;
+      case 'workspaces':
+        if (c.account && !c.account.support) {
+          const available = await api('/api/workspaces');
+          c.workspaces = available.workspaces;
+        }
+        workspaces();break;
+      case 'account-retry':await load();route();break;
       case 'agency-view':close();location.hash='#agency/dashboard';break;
       case 'stop-acting':localStorage.removeItem('go.user');location.reload();break;
       case 'account': {
@@ -636,7 +682,7 @@ document.addEventListener('click',async ev=>{
       case 'new-workspace':dialog('Criar workspace',input('Nome do workspace','name','',true),{form:'workspace',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Criar workspace</button>'});break;
       case 'search':dialog('Buscar no workspace','<label>Encontre um módulo ou contato<input id="global-search" placeholder="Buscar módulos e contatos…" autocomplete="off"></label><div id="search-results"></div>');globalSearch('');break;
       case 'dialer':dialog('Discador','<p>O discador não está conectado. Chamadas de voz exigem a configuração de um provedor de telefonia autorizado.</p>');break;
-      case 'updates':dialog('Novidades','<p>O soci está rodando localmente com tudo atualizado.</p>');break;
+      case 'updates':dialog('Novidades','<p>A soci está rodando localmente com tudo atualizado.</p>');break;
       case 'notifications':dialog('Notificações',`<p>${c.m.unread} mensage${c.m.unread===1?'m não lida':'ns não lidas'}.</p><button class="secondary" data-go="conversations">Abrir conversas</button>`);break;
       case 'help':dialog('Ajuda','<p>Gerencie contatos, oportunidades, agendamentos, formulários e automações. Acesse Configurações para gerenciar workspaces.</p><button class="secondary" data-go="dashboard">Abrir painel</button>');break;
       case 'reload':await load();render();flash('Workspace atualizado.');break;
@@ -712,7 +758,7 @@ function globalSearch(value){
     G('#search-results').innerHTML = `<div class="quick-list">${navHits.map(([k, pt, ico]) => `<button class="secondary" data-ag-go="${k}">${i(ico, 17)} ${pt}</button>`).join('')}${accHits.map(a => `<button class="secondary" data-ag-go="accounts">${avatar(a.name)} ${h(a.name)}</button>`).join('')}</div>`;
     return;
   }
-  G('#search-results').innerHTML=`<div class="quick-list">${nav.filter(x=>x.join(' ').toLowerCase().includes(q)).slice(0,8).map(([k,pt,ico])=>`<button class="secondary" data-go="${k}">${i(ico,17)} ${pt}</button>`).join('')}${q?c.s.contacts.filter(x=>`${x.name} ${x.email}`.toLowerCase().includes(q)).slice(0,5).map(x=>`<button class="secondary" data-edit="contacts" data-id="${x.id}">${avatar(x.name)} ${h(x.name)}</button>`).join(''):''}</div>`;
+  G('#search-results').innerHTML=`<div class="quick-list">${nav.filter(x=>allowedView(x[0])&&x.join(' ').toLowerCase().includes(q)).slice(0,8).map(([k,pt,ico])=>`<button class="secondary" data-go="${k}">${i(ico,17)} ${pt}</button>`).join('')}${q&&allowedView('contacts')?c.s.contacts.filter(x=>`${x.name} ${x.email}`.toLowerCase().includes(q)).slice(0,5).map(x=>`<button class="secondary" data-edit="contacts" data-id="${x.id}">${avatar(x.name)} ${h(x.name)}</button>`).join(''):''}</div>`;
 }
 document.addEventListener('input', e => {
   const el = e.target;
@@ -881,6 +927,8 @@ if(viewPath){
   installStudio({ c, api, url, flash, render });
   installSites({ c, api, url, mutate, flash, render });
   installForms({ c, api, url, mutate, flash, render });
+  installChat({ c, api, url, mutate, flash, render });
+  installBlogs({ c, api, url, mutate, flash, render });
   installBuilder({ c, api, url, flash, render });
   installAutomation({ c, mutate, render, flash, dialog, close });
   mountClientPortal = installClientPortal({ c, api, flash, dialog, close });
