@@ -113,12 +113,12 @@
   cursor: default;
 }
 
-/* ---------- Barra lateral de conversas ---------- */
+/* ---------- Barra lateral de conversas (Microkit Spotlight Indicator) ---------- */
 .sc-sidebar {
   width: 256px;
   flex-shrink: 0;
   display: flex;
-  background: var(--sc-panel);
+  background: var(--g-spot-bg, var(--sc-panel));
   border-right: 1px solid var(--sc-border);
   overflow: hidden;
   transition: width 0.22s var(--ease-glide, ease);
@@ -167,7 +167,7 @@
 }
 
 .sc-side-nav {
-  padding: 2px 8px 10px;
+  padding: 2px 10px 10px 12px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -176,32 +176,42 @@
 .sc-nav-item {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   height: 36px;
   padding: 0 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   font-size: 13.5px;
-  font-weight: 600;
-  color: var(--sc-text-2);
+  font-weight: 550;
+  color: var(--g-spot-item, var(--sc-text-2));
   text-decoration: none;
   text-align: left;
   width: 100%;
-  transition: background-color 0.16s ease, color 0.16s ease;
+  transition: background-color 0.3s var(--ease-std, ease), color 0.3s var(--ease-std, ease);
 }
 
-.sc-nav-item:hover {
-  background: var(--sc-hover);
-  color: var(--sc-text);
+.sc-nav-item:hover,
+.sc-nav-item:focus-visible {
+  background: var(--g-spot-hover-bg, var(--sc-hover));
+  color: var(--g-spot-item-hover, var(--sc-text));
+}
+
+.sc-nav-item:focus-visible {
+  outline: 2px solid var(--g-brand, #ff00bb);
+  outline-offset: -2px;
 }
 
 .sc-nav-item .sc-icon {
-  color: var(--sc-muted);
+  color: currentColor;
+  opacity: var(--g-spot-icon-opacity, 0.46);
+  transition: opacity 0.3s var(--ease-std, ease), color 0.3s var(--ease-std, ease);
 }
 
-.sc-nav-item:hover .sc-icon {
-  color: var(--sc-text);
+.sc-nav-item:hover .sc-icon,
+.sc-nav-item:focus-visible .sc-icon {
+  color: currentColor;
+  opacity: var(--g-spot-icon-hover-opacity, 0.84);
 }
 
 .sc-nav-item kbd {
@@ -217,11 +227,12 @@
 }
 
 .sc-history {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 4px 8px 12px;
+  padding: 4px 10px 12px 12px;
 }
 
 .sc-history-title {
@@ -244,13 +255,15 @@
 
 .sc-history-item {
   position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   min-width: 0;
   width: 100%;
   overflow: hidden;
-  border-radius: 10px;
-  transition: background-color 0.15s ease;
+  border-radius: 8px;
+  background: transparent;
+  transition: background-color 0.3s var(--ease-std, ease);
 }
 
 .sc-history-item a {
@@ -261,40 +274,36 @@
   font-size: 13.5px;
   font-weight: 500;
   line-height: 1.35;
-  color: var(--sc-text-2);
+  color: var(--g-spot-item, var(--sc-text-2));
   text-decoration: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 0.3s var(--ease-std, ease);
 }
 
 .sc-history-item:hover,
 .sc-history-item.menu-open {
-  background: var(--sc-hover);
+  background: var(--g-spot-hover-bg, var(--sc-hover));
 }
 
-.sc-history-item:hover a {
-  color: var(--sc-text);
+.sc-history-item:hover a,
+.sc-history-item.menu-open a {
+  color: var(--g-spot-item-hover, var(--sc-text));
 }
 
 .sc-history-item.active {
-  background: var(--sc-active);
-  box-shadow: inset 0 0 0 1px var(--sc-active-line);
+  background: transparent;
+  box-shadow: none;
 }
 
-.sc-history-item.active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 7px;
-  bottom: 7px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--g-brand, #ff00bb);
+.sc-history-item.active:hover,
+.sc-history-item.active.menu-open {
+  background: var(--g-spot-hover-bg, var(--sc-hover));
 }
 
 .sc-history-item.active a {
-  color: var(--sc-text);
+  color: var(--g-spot-item-active, var(--sc-text));
   font-weight: 650;
 }
 
@@ -332,7 +341,7 @@
 
 .sc-side-foot {
   border-top: 1px solid var(--sc-border);
-  padding: 8px;
+  padding: 8px 10px 8px 12px;
   flex-shrink: 0;
 }
 
@@ -1198,53 +1207,70 @@
 .sc-app .hljs-attr, .sc-app .hljs-attribute, .sc-app .hljs-property, .sc-app .hljs-params, .sc-app .hljs-variable, .sc-app .hljs-template-variable { color: var(--sc-hl-attr); }
 .sc-app .hljs-built_in, .sc-app .hljs-type, .sc-app .hljs-title.class_, .sc-app .hljs-tag, .sc-app .hljs-name, .sc-app .hljs-selector-class, .sc-app .hljs-selector-id { color: var(--sc-hl-built); }
 
-/* ---------- Menus flutuantes ---------- */
+/* ---------- Menus flutuantes (Blur Glide Menu) ---------- */
+.sc-model-btn svg {
+  transition: transform 0.34s var(--ease-glide, cubic-bezier(0.32, 0.72, 0, 1)), color 0.2s ease;
+}
+.sc-model-btn[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+  color: var(--g-brand, #ff00bb);
+}
 .sc-menu {
   position: absolute;
   z-index: 40;
-  min-width: 224px;
-  padding: 6px;
-  border: 1px solid var(--sc-border);
-  border-radius: 14px;
-  background: var(--sc-panel);
-  box-shadow: var(--g-shadow-lift, 0 12px 32px rgba(15, 19, 26, 0.16));
+  min-width: 228px;
+  padding: 5px;
+  border: 1px solid var(--g-menu-border, var(--sc-border));
+  border-radius: 12px;
+  background: var(--g-menu-bg, var(--sc-panel));
+  -webkit-backdrop-filter: blur(20px) saturate(1.35);
+  backdrop-filter: blur(20px) saturate(1.35);
+  box-shadow: var(--g-menu-shadow, var(--g-shadow-lift, 0 12px 32px rgba(15, 19, 26, 0.16)));
+  transform-origin: 20% 0;
+  animation: g-blur-glide-in 0.32s var(--ease-glide, cubic-bezier(0.32, 0.72, 0, 1)) both;
 }
 
 .sc-menu-label {
+  position: relative;
+  z-index: 1;
   padding: 6px 10px 4px;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--sc-faint);
 }
 
 .sc-menu-sep {
+  position: relative;
+  z-index: 1;
   height: 1px;
-  margin: 5px 6px;
-  background: var(--sc-border);
+  margin: 4px 6px;
+  background: var(--g-menu-divider, var(--sc-border));
 }
 
 .sc-menu-item {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 9px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 8px;
   background: transparent;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 550;
-  color: var(--sc-text);
+  color: var(--g-menu-item, var(--sc-text));
   text-align: left;
   text-decoration: none;
-  transition: background-color 0.14s ease;
+  transition: color 0.18s ease, background-color 0.18s ease;
 }
 
 .sc-menu-item:hover,
 .sc-menu-item:focus-visible {
-  background: var(--sc-hover);
+  color: var(--g-menu-item-hover, var(--sc-text));
   outline: none;
 }
 
@@ -1272,11 +1298,13 @@
 .sc-plus-menu {
   bottom: 44px;
   left: 0;
+  transform-origin: 15% 100%;
+  animation-name: g-blur-glide-up;
 }
 
 .sc-chat-menu {
   position: fixed;
-  min-width: 164px;
+  min-width: 170px;
 }
 
 /* ---------- Modais internos do chat ---------- */
