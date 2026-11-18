@@ -4,6 +4,7 @@ import { conversationSections, manualQueue, slaRecords } from './conversations.j
 import { inboxChange, inboxClick, inboxSubmit } from './inbox.js';
 import { dashboardPreferences, installDashboardControls, reportGrid } from './dashboard-controls.js';
 import { drawDashboardGauges } from './dashboard.js';
+import { launchpadGuide } from './launchpad.js';
 import { opportunityStatuses } from './dashboard-data.js';
 import { tr } from './i18n.js';
 import { cardFields, cardLayouts, opportunityCsv, opportunityCsvColumns, opportunityPreferences, opportunityResults, opportunitySorts, quickActions } from './opportunity-data.js';
@@ -66,7 +67,7 @@ async function refreshSubWa(){
   }catch(e){
     if(c.workspace===ws) c.wa={error:e.message};
   }
-  if(c.mode!=='agency'&&c.view==='settings'&&c.tab==='whatsapp') render();
+  if(c.workspace===ws && c.mode!=='agency'&&(c.view==='launchpad'||c.view==='settings'&&c.tab==='whatsapp')) render();
 }
 c.dash = dashboardPreferences(c.workspace);
 c.pipeline = '';
@@ -105,13 +106,13 @@ async function load(){
     if (workspace === c.workspace) Object.assign(c,{s:null,m:null,account:e.account,audit:[]});
   }
 }
-const allowedView = id => !c.access?.modules || c.access.modules.includes(id);
+const allowedView = id => id === 'launchpad' ? !c.access?.modules || c.access.modules.length > 0 : !c.access?.modules || c.access.modules.includes(id);
 let agencyUI, openingWorkspace;
 const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -168,8 +169,9 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if (key === 'ask-ai' || key === 'marketplace') { location.hash = '#dashboard'; return; }
   // The AI Studio now lives inside Sites: old links keep working.
   if (key === 'studio') { location.replace(tab === 'project' && project ? `#sites/editor/${project}` : tab === 'build' ? '#sites/build' : '#sites/funnels'); return; }
+  const requested = key || 'launchpad';
   const view = key === 'link' && allowedView('conversations') ? 'link'
-    : Object.hasOwn(screens,key) && allowedView(key) ? key
+    : Object.hasOwn(screens,requested) && allowedView(requested) ? requested
       : nav.find(([item]) => allowedView(item))?.[0];
   if (!view) {
     app.innerHTML = `<main class="boot boot-error"><h1>Nenhum módulo disponível</h1><p>Seu acesso a esta subconta está ativo. Solicite as permissões necessárias à sua agência.</p><div class="inline-gap"><button class="secondary" data-act="workspaces">Trocar de workspace</button>${c.access?.agency ? '<a class="secondary" href="#agency/dashboard">Visão da agência</a>' : ''}</div></main>`;
@@ -184,6 +186,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(view==='automation' && (c.view!==view || c.tab!==nextTab || c.automationId!==automationId)) c.workflowList=null;
   c.view=view;c.tab=nextTab;c.automationId=automationId;c.studio.project=project||'';
   c.agentId=view==='ai-agents'&&['agent','edit'].includes(nextTab)?project:'';
+  if(view==='launchpad'){ render(); if(allowedView('settings')) void refreshSubWa(); return; }
   if(view==='settings'&&nextTab==='whatsapp'){ render(); void refreshSubWa(); return; }
   stopSubWaPoll();
   render(); }
@@ -192,10 +195,10 @@ const navItem=([id,pt,ico])=>({href:`#${id}`,label:pt,icon:ico,current:c.view===
 function appSidebar(brand){
   const items=nav.slice(0,-1).map((n,k)=>[n,k]).filter(([n])=>allowedView(n[0]));
   const links=(c.agency?.menuLinks||[]).map(l=>l.openIn==='Inside the app'?{href:`#link/${l.id}`,label:l.title,icon:l.icon,current:c.view==='link'&&c.tab===l.id}:{href:l.url,label:l.title,icon:l.icon,external:true});
-  return sidebar({label:'Navegação',home:c.access?.agency?'#agency/dashboard':'#dashboard',brand,mark:c.agency?.logo?`<img class="ag-logo" src="${h(c.agency.logo)}" alt="">`:logo,
+  return sidebar({label:'Navegação',home:c.access?.agency?'#agency/dashboard':'#launchpad',brand,mark:c.agency?.logo?`<img class="ag-logo" src="${h(c.agency.logo)}" alt="">`:logo,
     account:{name:c.s.profile.name,caption:'Subconta · trocar',attr:'data-act="workspaces"',tip:'Trocar de workspace'},
     toggle:'data-act="nav"',open:c.navOpen,
-    groups:[{title:'Principal',items:items.filter(([,k])=>k<6).map(([n])=>navItem(n))},{title:'Crescimento',items:items.filter(([,k])=>k>=6).map(([n])=>navItem(n))},{title:'Atalhos',items:links}],
+    groups:[{title:'Principal',items:items.filter(([,k])=>k<7).map(([n])=>navItem(n))},{title:'Crescimento',items:items.filter(([,k])=>k>=7).map(([n])=>navItem(n))},{title:'Atalhos',items:links}],
     footer:[...(c.access?.agency?[{href:'#agency/dashboard',label:'Visão da agência',icon:'users'}]:[]),...(allowedView('settings')?[navItem(nav.at(-1))]:[])]});
 }
 function appTopbar(){
@@ -203,7 +206,7 @@ function appTopbar(){
   const active=nav.find(x=>x[0]===c.view), page=c.view==='link'?c.agency?.menuLinks.find(l=>l.id===c.tab)?.title||'Link':active?.[1];
   const profileLabel = session?.name || 'Perfil do workspace';
   const profileText = session?.name?.slice(0, 2).toUpperCase() || 'gr';
-  return topbar({crumbs:[{label:c.s.profile.name,href:'#dashboard'},{label:page}],search:'data-act="search"',
+  return topbar({crumbs:[{label:c.s.profile.name,href:'#launchpad'},{label:page}],search:'data-act="search"',
     tools:[{icon:'bell',label:'Notificações',attr:'data-act="notifications"'}],
     profile:{text:profileText,picture:session?.picture||'',label:profileLabel,attr:session?'data-act="account"':'data-go="settings"'}});
 }
@@ -239,7 +242,7 @@ function render(){
   applyBrandColor(c.agency?.primary, c.agency?.secondary);
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
-  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}<main id="screen" class="screen">${screenHtml}</main></div></div>`;
+  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}${c.launchpadReturn && c.view!=='launchpad' ? `<div class="lp-return"><a href="#launchpad/${h(c.launchpadReturn)}">${i('left',14)} Voltar ao guia</a><span>Continue a configuração. Seu progresso será reconhecido ao voltar.</span><button class="icon-btn" aria-label="Fechar lembrete do guia" data-act="launchpad-dismiss">${i('close',14)}</button></div>` : ''}<main id="screen" class="screen">${screenHtml}</main></div></div>`;
   if(c.view==='conversations'&&c.thread) {const area=G('.thread-messages');if(area)area.scrollTop=area.scrollHeight;}
   if(c.view==='dashboard') { G('#screen').scrollTop=previousScroll; }
   if(c.view==='dashboard' || c.view==='reporting') { drawDashboardGauges(app); }
@@ -393,11 +396,11 @@ function switchingCover(name){
   document.body.append(cover);
   return cover;
 }
-async function useWorkspace(id, view='dashboard', name){
+async function useWorkspace(id, view='launchpad', name){
   const cover=switchingCover(name||c.workspaces.find(w=>w.id===id)?.name);
   try { await enterWorkspace(id, view); } finally { cover.remove(); }
 }
-async function enterWorkspace(id, view){ leaveAgentEditor();stopSubWaPoll();c.workspace=id;c.wa=null;c.waPairOpen=false;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.opportunityList='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go(view); }
+async function enterWorkspace(id, view){ leaveAgentEditor();stopSubWaPoll();c.workspace=id;c.launchpadReturn='';c.wa=null;c.waPairOpen=false;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.opportunityList='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);const address=new URL(location.href);address.searchParams.set('workspace',id);history.replaceState(null,'',address);close();go(view); }
 function downloads(name,content,type='text/csv;charset=utf-8'){
   const data=typeof content==='string'?new Blob([content],{type}):content, a=document.createElement('a'), u=URL.createObjectURL(data);
   a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),3000);
@@ -576,6 +579,13 @@ function conversationFormControls(element) {
 function assistant(prompt){const q=prompt.toLowerCase(), m=c.m;if(/deal|pipeline|opportun|lead|venda|funil/.test(q))return `There are ${m.open} open opportunities worth ${money(m.openValue)}, and ${m.won} won deals. Open Opportunities to review the current stages.`;if(/agenda|appointment|book|calendar/.test(q))return `There are ${m.appointments} appointments that haven’t been canceled. Open Calendars for dates and details.`;if(/contact|contat/.test(q))return `You have ${m.contacts} contacts. Open Contacts to search, filter, or import more.`;if(/invoice|pagamento|payment/.test(q))return `${money(m.invoicesPaid)} has been marked paid. Open Payments to see the invoices and balances.`;return `This workspace has ${m.contacts} contacts, ${m.open} open opportunities and ${m.unread} unread messages. I can summarize contacts, opportunities, appointments, or invoices.`;}
 
 document.addEventListener('click',async ev=>{
+  const setupLink = ev.target.closest('a[data-launchpad-start]');
+  if(setupLink && !ev.defaultPrevented && !ev.metaKey && !ev.ctrlKey && !ev.shiftKey && !ev.altKey){
+    ev.preventDefault();
+    const [view, tab] = setupLink.getAttribute('href').slice(1).split('/');
+    c.launchpadReturn=setupLink.dataset.launchpadStart;
+    close();go(view,tab);return;
+  }
   const studioLink = ev.target.closest('[data-studio-open]');
   if (studioLink && !ev.defaultPrevented && !ev.metaKey && !ev.ctrlKey && !ev.shiftKey && !ev.altKey) {
     ev.preventDefault();
@@ -617,6 +627,8 @@ document.addEventListener('click',async ev=>{
       return;
     }
     if ('studioRemoveBlock' in d) { b.closest('.studio-block').remove(); return; }
+    if(d.launchpadHelp){const guide=launchpadGuide(c,d.launchpadHelp);if(guide)dialog(guide.title,guide.body);return;}
+    if(d.act==='launchpad-dismiss'){c.launchpadReturn='';render();return;}
     if (d.dashboardReport) { viewReport(d.dashboardReport); return; }
     if (d.reportDownload) { downloadReport(d.reportDownload); return; }
     if (d.stageNew || d.stageEdit) { editStage(d.stageEdit,d.stageNew); return; }

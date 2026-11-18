@@ -3,6 +3,7 @@ import {tr} from './i18n.js';
 import {conversationPage} from './conversations.js';
 import {inboxPage} from './inbox.js';
 import {dashboard} from './dashboard.js';
+import {launchpad} from './launchpad.js';
 import {studio} from './studio.js';
 import {bulkBar, contactsTab, crmTabs, opportunitiesTab, paymentsTab, pickBox, pickHead, settingsTab} from './crm.js';
 import {socialPlanner} from './social.js';
@@ -21,7 +22,7 @@ import {cardFields, opportunityPreferences, opportunityResults} from './opportun
 import {opportunityStatuses} from './dashboard-data.js';
 import {cardContext, filterButton, forecastView, listTabs, moreMenu, pipelinesView, quickActionBar, smartTagChips, stageStyle} from './opportunities.js';
 
-export const nav=[['dashboard','Painel de controle','grid','Dashboard'],['conversations','Conversas','chat','Conversations'],['calendars','Calendários','cal','Calendars'],['contacts','Contatos','contacts','Contacts'],['opportunities','Oportunidades','leads','Opportunities'],['payments','Pagamentos','pay','Payments'],['ai-agents','Agentes de IA','spark','AI Agents'],['marketing','Marketing','send','Marketing'],['automation','Automações','flow','Automation'],['sites','Sites','site','Sites'],['memberships','Assinaturas','play','Memberships'],['media','Mídia Drive','folder','Media Storage'],['reputation','Reputação','award','Reputation'],['reporting','Relatórios','chart','Reporting'],['settings','Configurações','gear','Settings']];
+export const nav=[['launchpad','Launchpad','sun','Setup guide'],['dashboard','Painel de controle','grid','Dashboard'],['conversations','Conversas','chat','Conversations'],['calendars','Calendários','cal','Calendars'],['contacts','Contatos','contacts','Contacts'],['opportunities','Oportunidades','leads','Opportunities'],['payments','Pagamentos','pay','Payments'],['ai-agents','Agentes de IA','spark','AI Agents'],['marketing','Marketing','send','Marketing'],['automation','Automações','flow','Automation'],['sites','Sites','site','Sites'],['memberships','Assinaturas','play','Memberships'],['media','Mídia Drive','folder','Media Storage'],['reputation','Reputação','award','Reputation'],['reporting','Relatórios','chart','Reporting'],['settings','Configurações','gear','Settings']];
 export const h=x=>String(x??'').replace(/[&<>"']/g,v=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[v]);
 const brl = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' });
 export function money(value) { return brl.format(value || 0); }
@@ -340,7 +341,7 @@ function settings(c){
     content: body
   });
 }
-export const screens={'ask-ai':dashboard,dashboard,conversations,calendars,contacts,opportunities,automation:automationScreen,payments,marketing,sites,memberships,media,reputation,reporting,settings,studio,'ai-agents':agentsScreen};
+export const screens={launchpad,'ask-ai':dashboard,dashboard,conversations,calendars,contacts,opportunities,automation:automationScreen,payments,marketing,sites,memberships,media,reputation,reporting,settings,studio,'ai-agents':agentsScreen};
 export { date, empty, name, primary, row, search, table };
 
 export function publicView(data,workspace){
