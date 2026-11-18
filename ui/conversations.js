@@ -1,5 +1,5 @@
 import { icon } from './icons.js';
-import { badge, date, empty, h, name, primary, row, search, table, tabs } from './screens.js';
+import { badge, date, empty, h, name, pageShell, primary, row, search, table, utabs } from './screens.js';
 
 export const conversationSections = ['manual-actions', 'snippets', 'folders', 'trigger-links', 'link-analysis', 'analytics', 'settings'];
 const sections = [
@@ -9,12 +9,23 @@ const sections = [
 
 export function conversationPage(c, inbox) {
   const selected = { folders: 'snippets', 'link-analysis': 'trigger-links' }[c.tab] || c.tab;
-  const header = `<header class="conversations-nav"><h1>Conversations</h1><nav aria-label="Conversations sections">${sections.map(([id, label]) => {
-    const current = id ? selected === id : !conversationSections.includes(c.tab);
-    return `<a href="#conversations${id ? `/${id}` : ''}"${current ? ' aria-current="page"' : ''}>${label}</a>`;
-  }).join('')}</nav></header>`;
+  const activeKey = conversationSections.includes(c.tab) ? selected : '';
   const panel = panels[c.tab];
-  return `<div class="conversations-shell">${header}${panel ? `<div class="page conversation-subpage">${panel(c)}</div>` : inbox(c)}</div>`;
+  const isInbox = !panel;
+  return pageShell({
+    title: 'Conversas',
+    desc: 'Gerencie atendimentos, ações manuais, snippets, links de rastreamento e metas de SLA.',
+    className: isInbox ? 'conversations-page is-inbox' : 'conversations-page',
+    tabs: {
+      key: 'conversations',
+      label: 'Seções de conversas',
+      current: activeKey,
+      flush: isInbox,
+      fill: isInbox,
+      items: sections.map(([id, label]) => ({ value: id, label, href: `#conversations${id ? `/${id}` : ''}` }))
+    },
+    content: panel ? panel(c) : inbox(c)
+  });
 }
 
 const headline = (title, details, action = '') => `<div class="page-head"><div><h2>${title}</h2><p>${details}</p></div><div class="head-actions">${action}</div></div>`;
@@ -72,8 +83,7 @@ function snippets(c) {
   const create = primary('New Folder','snippetFolders') + `<button class="primary" data-act="new-snippet">${icon('plus',16)} New Snippet</button>`;
   const folders = c.s.snippetFolders.filter(item => matches(c.query, item.name));
   const list = c.s.snippets.filter(item => (!folder || item.folderId === folder) && matches(c.query, item.name, item.body, item.subject));
-  return headline('Snippets', 'Save reusable text and email replies.', create) + tabs([['snippets','All Snippets'],['folders','Folders']],c.tab) +
-    `<div class="toolbar">${search(c.query, isFolders ? 'Search folders…' : 'Search snippets…')}
+  const subBody = `<div class="toolbar">${search(c.query, isFolders ? 'Search folders…' : 'Search snippets…')}
     ${isFolders ? '' : selectFilter('folder','Folder',folder,[['','All folders'], ...c.s.snippetFolders.map(item => [item.id,item.name])])}</div>` +
     (isFolders ? table(['Folder','Snippets','Date Updated',''], folders.map(item => row([
       `<button class="identity" data-open-folder="${item.id}">${icon('folder',16)}<strong>${h(item.name)}</strong></button>`,
@@ -83,6 +93,8 @@ function snippets(c) {
         `<b>${h(item.name)}</b>`, `<span class="ellipsis">${h(item.body)}</span>`, h(findLabel(c.s.snippetFolders,item.folderId)),
         badge(item.type,'blue'), date(item.updated || item.created,c,true)
       ], 'snippets', item.id)), empty('No snippets','Create a text or email snippet to use in the inbox.','chat')));
+  return headline('Snippets', 'Save reusable text and email replies.', create) +
+    utabs({ key: 'conversations-snippets', nested: true, items: [['snippets','All Snippets'],['folders','Folders']], current: c.tab, label: 'Snippets', content: subBody });
 }
 
 function triggerLinks(c) {
@@ -104,7 +116,7 @@ function triggerLinks(c) {
     secondary('Copy link', `data-copy-path="/r/${c.workspace}/${item.id}"`, 'external'), date(item.created,c,true)
   ],'triggerLinks',item.id)),empty('No links available','Create a link to track clicks on local messages.','external'));
   return headline('Trigger Links','Track link clicks and use them to start workflows.',primary('Add Link','triggerLinks')) +
-    tabs([['trigger-links','Link'],['link-analysis','Analyze']],c.tab) + `<div class="toolbar">${search(c.query,'Search links…')}</div>` + content;
+    utabs({ key: 'conversations-links', nested: true, items: [['trigger-links','Link'],['link-analysis','Analyze']], current: c.tab, label: 'Trigger Links', content: `<div class="toolbar">${search(c.query,'Search links…')}</div>${content}` });
 }
 
 export function slaRecords(state, clock = Date.now()) {

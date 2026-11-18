@@ -1,7 +1,7 @@
 // Sites → Formulários: list, analytics and submissions, plus the form builder
 // (palette of fields, live canvas, field properties, settings, embed, per-form results).
 import { icon } from './icons.js';
-import { h, tabs } from './screens.js';
+import { h, pageShell, utabs } from './screens.js';
 import { designStage, mountDesignStage } from './design-workspace.js';
 import { fieldCatalog, fieldKinds, fieldMarkup, formCss, formFields, formTemplates, inputOf, newField, validFields } from './form-fields.js';
 
@@ -20,12 +20,32 @@ const subsOf = (c, id) => c.s.submissions.filter(item => !id || item.formId === 
 
 /* ───────── Lista, análises e envios ───────── */
 
-function head(c, actions = '') {
-  return `<header class="page-head"><div><h1>Formulários</h1><p>Monte formulários com campos de verdade, publique por link ou incorporado e acompanhe envios e conversão.</p></div>
-    <div class="head-actions">${actions}</div></header>
-    ${tabs([['funnels', 'Funis'], ['websites', 'Sites'], ['forms', 'Formulários']], 'forms')}
-    <nav class="fm-subnav" aria-label="Formulários">${[['forms', 'Todos os formulários'], ['form-analytics', 'Análises'], ['submissions', 'Envios']].map(([tab, label]) =>
-      `<a href="#sites/${tab}" class="${c.tab === tab ? 'selected' : ''}"${c.tab === tab ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
+function formsPage(c, body, actions = '') {
+  const inner = utabs({
+    key: 'sites-forms-sub',
+    nested: true,
+    label: 'Formulários',
+    current: c.tab || 'forms',
+    items: [
+      { value: 'forms', label: 'Todos os formulários', href: '#sites/forms' },
+      { value: 'form-analytics', label: 'Análises', href: '#sites/form-analytics' },
+      { value: 'submissions', label: 'Envios', href: '#sites/submissions' }
+    ],
+    content: body
+  });
+  return pageShell({
+    title: 'Sites',
+    desc: 'Crie funis, sites e formulários com IA, publique e acompanhe visitas e conversões.',
+    cta: actions,
+    className: 'sites-page fm-page',
+    tabs: {
+      key: 'sites',
+      label: 'Seções de sites',
+      current: 'forms',
+      items: [['funnels', 'Funis'], ['websites', 'Sites'], ['forms', 'Formulários']]
+    },
+    content: inner
+  });
 }
 
 function listView(c) {
@@ -38,11 +58,11 @@ function listView(c) {
       <td class="site-row-actions">${form.active ? `<a class="icon-btn" href="${formUrl(c, form)}" target="_blank" rel="noopener" title="Abrir formulário publicado" aria-label="Abrir ${h(form.name)} publicado">${icon('external', 15)}</a>` : ''}
         <a class="secondary site-open" href="#sites/form/${form.id}">Editar</a></td></tr>`;
   }).join('');
-  return `<div class="page sites-page fm-page">${head(c, `<button class="primary" data-fm-new>${icon('plus', 16)} Novo formulário</button>`)}
-    ${c.s.forms.length ? `<div class="toolbar"><label class="search">${icon('search', 15)}<input type="search" data-fm-search value="${h(fb.query)}" placeholder="Buscar formulários" aria-label="Buscar formulários"></label></div>` : ''}
+  return formsPage(c, `${c.s.forms.length ? `<div class="toolbar"><label class="search">${icon('search', 15)}<input type="search" data-fm-search value="${h(fb.query)}" placeholder="Buscar formulários" aria-label="Buscar formulários"></label></div>` : ''}
     ${rows ? `<div class="surface table-shell"><table class="site-table"><thead><tr><th scope="col">Nome</th><th scope="col">Campos</th><th scope="col">Envios</th><th scope="col">Atualizado</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
       : c.s.forms.length ? '<div class="surface empty"><strong>Nenhum formulário encontrado</strong><p>Tente outro nome.</p></div>'
-      : `<div class="surface empty site-empty">${icon('list', 26)}<strong>Nenhum formulário ainda</strong><p>Comece em branco ou de um modelo: contato, orçamento, consultoria, pesquisa ou newsletter.</p><button class="primary" data-fm-new>${icon('plus', 16)} Novo formulário</button></div>`}</div>`;
+      : `<div class="surface empty site-empty">${icon('list', 26)}<strong>Nenhum formulário ainda</strong><p>Comece em branco ou de um modelo: contato, orçamento, consultoria, pesquisa ou newsletter.</p><button class="primary" data-fm-new>${icon('plus', 16)} Novo formulário</button></div>`}`,
+    `<button class="primary" data-fm-new>${icon('plus', 16)} Novo formulário</button>`);
 }
 
 const dayKey = date => date.toISOString().slice(0, 10);
@@ -81,9 +101,9 @@ function analyticsView(c) {
     const last = subsOf(c, form.id).at(-1);
     return `<tr><td><a href="#sites/form/${form.id}">${h(form.name)}</a></td><td>${views}</td><td>${subs}</td><td>${pct(direct, views)}</td><td>${last ? when(last.created) : '—'}</td></tr>`;
   }).join('');
-  return `<div class="page sites-page fm-page">${head(c)}${stats(c, '')}
+  return formsPage(c, `${stats(c, '')}
     ${rows ? `<div class="surface table-shell"><table class="site-table"><caption class="sr-only">Desempenho por formulário</caption><thead><tr><th scope="col">Formulário</th><th scope="col">Visitas</th><th scope="col">Envios</th><th scope="col">Conversão</th><th scope="col">Último envio</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
-    <p class="dim fm-note">Visitas contam aberturas do link e do formulário incorporado. Envios feitos pelos funis e sites do AI Studio entram em Envios, mas não na conversão: as visitas deles ficam nas estatísticas do próprio funil.</p></div>`;
+    <p class="dim fm-note">Visitas contam aberturas do link e do formulário incorporado. Envios feitos pelos funis e sites do AI Studio entram em Envios, mas não na conversão: as visitas deles ficam nas estatísticas do próprio funil.</p>`);
 }
 
 function submissionsTable(c, formId) {
@@ -233,7 +253,7 @@ function builderView(c) {
 export function formsScreen(c) {
   if (c.tab === 'form') return builderView(c);
   if (c.tab === 'form-analytics') return analyticsView(c);
-  if (c.tab === 'submissions') return `<div class="page sites-page fm-page">${head(c)}${submissionsTable(c, '')}</div>`;
+  if (c.tab === 'submissions') return formsPage(c, submissionsTable(c, ''));
   return listView(c);
 }
 

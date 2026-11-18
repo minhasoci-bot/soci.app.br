@@ -1,16 +1,18 @@
 import { icon } from './icons.js';
-import { h, fmt } from './screens.js';
+import { h, fmt, pageShell } from './screens.js';
 
 const pathOf = workspace => `/api/client-portal/${encodeURIComponent(workspace)}/admin`;
 const navigation = [['portal','Portal do cliente'], ['portal-members','Clientes'], ['portal-settings','Configurações'], ['courses','Cursos']];
-export const portalNav = tab => `<nav class="cp-tabs" aria-label="Assinaturas">${navigation.map(([id, label]) =>
-  `<a href="#memberships/${id}" ${tab === id ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
+export const portalTabs = () => navigation.map(([id, label]) => ({ value: id, label, href: `#memberships/${id}` }));
 export function portalAdminScreen(c) {
   const tab = c.tab || 'portal';
-  return `<section class="cp-admin">
-    <h1>Assinaturas</h1>${portalNav(tab)}
-    <div data-portal-admin aria-live="polite"><div class="cp-empty">Carregando portal do cliente…</div></div>
-  </section>`;
+  return pageShell({
+    title: 'Assinaturas',
+    desc: 'Gerencie o portal do cliente, permissões de acesso e cursos deste workspace.',
+    className: 'cp-admin',
+    tabs: { key: 'memberships', items: portalTabs(), current: tab, label: 'Seções de assinaturas' },
+    content: '<div data-portal-admin aria-live="polite"><div class="cp-empty">Carregando portal do cliente…</div></div>'
+  });
 }
 
 const button = (action, label, glyph, id = '', cls = 'secondary', disabled = false) =>

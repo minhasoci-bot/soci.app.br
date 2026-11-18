@@ -3,7 +3,7 @@
 // screens.js calls the renderers; app.js calls crmForm/customInputs from its record dialog and crmEvents once.
 import { icon as i } from './icons.js';
 import { tr } from './i18n.js';
-import { badge, h, money, fmt, tabs } from './screens.js';
+import { badge, h, money, fmt, pageShell } from './screens.js';
 import { bulkOperations, couponKinds, couponStatus, customObjects, fieldTypes, forecast, intervals, paymentMethods, productKinds,
   subscriptionStatuses, transactionSources, transactionStatuses } from './crm-data.js';
 
@@ -71,61 +71,104 @@ function fieldsTable(c, objectFilter) {
 
 // ---- Contacts ------------------------------------------------------------------------------------
 export function contactsTab(c, tab) {
-  const sub = tabs(crmTabs.contacts, tab);
-  if (tab === 'bulk') return page(head('Contatos', '', '', sub) + bulkLog(c, 'contacts'));
-  if (tab === 'fields') return page(head('Contatos', '', primary('Novo campo', 'customFields', 'data-object="Contact"'), sub) + fieldsTable(c, 'Contact'));
+  const tabCfg = { key: 'contacts', items: crmTabs.contacts, current: tab, label: 'Seções de contatos' };
+  const desc = 'Gerencie leads, tarefas, campos personalizados e empresas deste workspace.';
+  if (tab === 'bulk') return pageShell({ title: 'Contatos', desc, tabs: tabCfg, content: bulkLog(c, 'contacts') });
+  if (tab === 'fields') return pageShell({ title: 'Contatos', desc, cta: primary('Novo campo', 'customFields', 'data-object="Contact"'), tabs: tabCfg, content: fieldsTable(c, 'Contact') });
   const rows = c.s.companies.filter(x => match(c, x.name, x.email, x.phone, x.city, x.website));
   const people = x => c.s.contacts.filter(p => same(p.company, x.name)).length;
-  return page(head('Contatos', '', primary('Adicionar empresa', 'companies'), sub) + `<p class="dim crm-intro">${c.s.companies.length} empresa(s). O vínculo com contatos usa o campo Empresa do contato.</p><div class="toolbar">${search(c, 'Buscar empresas…')}</div>` +
-    table(['Empresa', 'Telefone', 'E-mail', 'Site', 'Cidade', 'Contatos', 'Criada em', ''], rows.map(x => `<tr><td><b>${h(x.name)}</b></td><td>${h(x.phone || '—')}</td><td>${h(x.email || '—')}</td><td>${x.website ? `<a class="text-link" href="${h(x.website)}" target="_blank" rel="noopener">${h(new URL(x.website).hostname)}</a>` : '—'}</td><td>${h([x.city, x.state].filter(Boolean).join(', ') || '—')}</td><td>${people(x)}</td><td>${date(x.created, c)}</td>${edit('companies', x.id)}</tr>`),
-      empty('Nenhuma empresa cadastrada', 'Cadastre empresas e associe contatos a elas pelo campo Empresa.', 'users')));
+  return pageShell({
+    title: 'Contatos',
+    desc,
+    cta: primary('Adicionar empresa', 'companies'),
+    tabs: tabCfg,
+    content: `<p class="dim crm-intro">${c.s.companies.length} empresa(s). O vínculo com contatos usa o campo Empresa do contato.</p><div class="toolbar">${search(c, 'Buscar empresas…')}</div>` +
+      table(['Empresa', 'Telefone', 'E-mail', 'Site', 'Cidade', 'Contatos', 'Criada em', ''], rows.map(x => `<tr><td><b>${h(x.name)}</b></td><td>${h(x.phone || '—')}</td><td>${h(x.email || '—')}</td><td>${x.website ? `<a class="text-link" href="${h(x.website)}" target="_blank" rel="noopener">${h(new URL(x.website).hostname)}</a>` : '—'}</td><td>${h([x.city, x.state].filter(Boolean).join(', ') || '—')}</td><td>${people(x)}</td><td>${date(x.created, c)}</td>${edit('companies', x.id)}</tr>`),
+        empty('Nenhuma empresa cadastrada', 'Cadastre empresas e associe contatos a elas pelo campo Empresa.', 'users'))
+  });
 }
 
 // ---- Opportunities ------------------------------------------------------------------------------
 let forecastPipeline = '';
 export function opportunitiesTab(c, tab) {
-  const sub = tabs(crmTabs.opportunities, tab);
-  if (tab === 'bulk') return page(head('Oportunidades', '', '', sub) + bulkLog(c, 'opportunities'));
+  const tabCfg = { key: 'opportunities', items: crmTabs.opportunities.filter(([key]) => key !== 'list'), current: tab, label: 'Seções de oportunidades' };
+  const desc = 'Acompanhe negócios no pipeline, previsões de receita e etapas de vendas.';
+  if (tab === 'bulk') return pageShell({ title: 'Oportunidades', desc, tabs: tabCfg, content: bulkLog(c, 'opportunities') });
   const f = forecast(c.s, { pipelineId: forecastPipeline });
   const stageName = id => c.s.stages.find(st => st.id === id)?.name || '—';
   const riskRows = ['High', 'Medium', 'Low'].flatMap(level => f.risk[level].map(x => `<tr><td>${badge({ High: 'Alto', Medium: 'Médio', Low: 'Baixo' }[level], { High: 'red', Medium: 'gold', Low: '' }[level])}</td><td><button class="text-link" data-edit="opportunities" data-id="${x.deal.id}">${h(x.deal.title)}</button></td><td>${date(x.deal.closeDate, c)}</td><td>${x.deal.slips || 0}</td><td>${x.late ? `${x.late} dia(s)` : '—'}</td><td>${mt(x.deal.value, c)}</td></tr>`));
   const quality = (title, list, note) => `<section class="surface padded"><h2>${title} <span class="dim">${list.length}</span></h2><p class="dim">${note}</p>${list.slice(0, 6).map(d => `<div class="line-item"><span>${h(d.title)} <small class="dim">${h(stageName(d.stage))}</small></span><button class="secondary" data-edit="opportunities" data-id="${d.id}">Corrigir</button></div>`).join('')}</section>`;
-  return page(head('Oportunidades', '', '', sub) + `<div class="toolbar"><label class="tag-filter"><span class="sr-only">Pipeline</span><select data-crm-forecast-pipeline><option value="">Todos os pipelines</option>${c.s.pipelines.map(p => `<option value="${p.id}" ${p.id === forecastPipeline ? 'selected' : ''}>${h(p.name)}</option>`).join('')}</select></label></div>
-    <div class="metrics">${metric('Receita potencial máxima', mt(f.potential, c), 'Se todas as oportunidades abertas fecharem')}${metric('Receita esperada', mt(f.expected, c), 'Pela probabilidade da oportunidade ou da etapa')}${metric('Receita ganha', mt(f.won, c), 'Oportunidades ganhas')}${metric('Oportunidades abertas', f.open, 'Em andamento')}</div>
-    <h2 class="section-heading">Linha do tempo da previsão</h2>${table(['Mês de fechamento', 'Oportunidades', 'Valor', 'Receita esperada'], f.timeline.map(m => `<tr><td><b>${new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${m.month}-01T12:00:00Z`))}</b></td><td>${m.count}</td><td>${mt(m.value, c)}</td><td>${mt(m.expected, c)}</td></tr>`), empty('Sem datas de fechamento', 'Informe a data prevista de fechamento nas oportunidades abertas.', 'chart'))}
-    <h2 class="section-heading">Oportunidades em risco</h2><p class="dim crm-intro">Alto: adiada 2+ vezes ou atrasada 14+ dias · Médio: adiada 1 vez ou atrasada 7+ dias · Baixo: atrasada 1+ dia.</p>${table(['Risco', 'Oportunidade', 'Fechamento previsto', 'Adiamentos', 'Atraso', 'Valor'], riskRows, empty('Nenhuma oportunidade em risco', 'As datas de fechamento das oportunidades abertas estão em dia.', 'check'))}
-    <h2 class="section-heading">Corrija os dados da previsão</h2><div class="ag-two">${quality('Sem data de fechamento', f.missingClose, 'Não entram na linha do tempo.')}${quality('Sem probabilidade', f.missingChance, 'Contam como 0% na receita esperada. Defina na oportunidade ou na etapa.')}</div>`);
+  return pageShell({
+    title: 'Oportunidades',
+    desc,
+    tabs: tabCfg,
+    content: `<div class="toolbar"><label class="tag-filter"><span class="sr-only">Pipeline</span><select data-crm-forecast-pipeline><option value="">Todos os pipelines</option>${c.s.pipelines.map(p => `<option value="${p.id}" ${p.id === forecastPipeline ? 'selected' : ''}>${h(p.name)}</option>`).join('')}</select></label></div>
+      <div class="metrics">${metric('Receita potencial máxima', mt(f.potential, c), 'Se todas as oportunidades abertas fecharem')}${metric('Receita esperada', mt(f.expected, c), 'Pela probabilidade da oportunidade ou da etapa')}${metric('Receita ganha', mt(f.won, c), 'Oportunidades ganhas')}${metric('Oportunidades abertas', f.open, 'Em andamento')}</div>
+      <h2 class="section-heading">Linha do tempo da previsão</h2>${table(['Mês de fechamento', 'Oportunidades', 'Valor', 'Receita esperada'], f.timeline.map(m => `<tr><td><b>${new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${m.month}-01T12:00:00Z`))}</b></td><td>${m.count}</td><td>${mt(m.value, c)}</td><td>${mt(m.expected, c)}</td></tr>`), empty('Sem datas de fechamento', 'Informe a data prevista de fechamento nas oportunidades abertas.', 'chart'))}
+      <h2 class="section-heading">Oportunidades em risco</h2><p class="dim crm-intro">Alto: adiada 2+ vezes ou atrasada 14+ dias · Médio: adiada 1 vez ou atrasada 7+ dias · Baixo: atrasada 1+ dia.</p>${table(['Risco', 'Oportunidade', 'Fechamento previsto', 'Adiamentos', 'Atraso', 'Valor'], riskRows, empty('Nenhuma oportunidade em risco', 'As datas de fechamento das oportunidades abertas estão em dia.', 'check'))}
+      <h2 class="section-heading">Corrija os dados da previsão</h2><div class="ag-two">${quality('Sem data de fechamento', f.missingClose, 'Não entram na linha do tempo.')}${quality('Sem probabilidade', f.missingChance, 'Contam como 0% na receita esperada. Defina na oportunidade ou na etapa.')}</div>`
+  });
 }
 
 // ---- Payments ------------------------------------------------------------------------------------
 export function paymentsTab(c, tab) {
-  const sub = tabs(crmTabs.payments, tab), s = c.s;
+  const tabCfg = { key: 'payments', items: crmTabs.payments, current: tab, label: 'Seções de pagamentos' };
+  const s = c.s;
   const price = p => p ? `${mt(p.price, c)}${p.kind === 'Recurring' ? `/${{ Weekly: 'semana', Monthly: 'mês', Yearly: 'ano' }[p.interval]}` : ''}` : '—';
-  if (tab === 'products') return page(head('Pagamentos', 'Produtos e preços usados em links de pagamento e assinaturas.', primary('Novo produto', 'products'), sub) + `<div class="toolbar">${search(c, 'Buscar produtos…')}</div>` +
-    table(['Produto', 'Tipo de preço', 'Preço', 'Status', 'Criado em', ''], s.products.filter(p => match(c, p.name, p.description)).map(p => `<tr><td><b>${h(p.name)}</b><br><small class="dim">${h(p.description.slice(0, 80))}</small></td><td>${p.kind === 'Recurring' ? 'Recorrente' : 'Pagamento único'}</td><td>${price(p)}</td><td>${badge(p.active ? 'Ativo' : 'Inativo', p.active ? 'green' : '')}</td><td>${date(p.created, c)}</td>${edit('products', p.id)}</tr>`), empty('Nenhum produto', 'Crie um produto para usar em links de pagamento e assinaturas.', 'box')));
-  if (tab === 'subscriptions') return page(head('Pagamentos', 'Acompanhe as assinaturas dos clientes.', primary('Nova assinatura', 'subscriptions'), sub) + `<div class="toolbar">${search(c, 'Buscar assinaturas…')}</div>` +
-    table(['Provedor', 'Cliente', 'Produto', 'Início', 'Valor', 'Status', ''], [...s.subscriptions].reverse().filter(x => match(c, who(x.contactId, c), product(x.productId, c)?.name)).map(x => `<tr><td>${h(x.provider === 'Manual' ? 'Manual' : x.provider)}</td><td><b>${h(who(x.contactId, c))}</b></td><td>${h(product(x.productId, c)?.name || '—')}</td><td>${date(x.start, c)}</td><td>${price(product(x.productId, c))}</td><td>${badge(x.status, { Active: 'green', Paused: 'gold', Canceled: 'red' }[x.status])}</td>${edit('subscriptions', x.id)}</tr>`), empty('Nenhuma assinatura ainda', 'Crie um produto recorrente e registre a assinatura de um contato.', 'pay')));
-  if (tab === 'links') return page(head('Pagamentos', 'Crie e gerencie links de pagamento.', primary('Novo link', 'paymentLinks'), sub) + `<p class="surface padded ag-warn">O checkout dos links exige um gateway de pagamento conectado. Neste projeto local os links ficam registrados com produto e preço.</p><div class="toolbar">${search(c, 'Buscar links…')}</div>` +
-    table(['Nome', 'Produto', 'Status', 'Preço', 'Criado em', ''], [...s.paymentLinks].reverse().filter(l => match(c, l.name, product(l.productId, c)?.name)).map(l => `<tr><td><b>${h(l.name)}</b></td><td>${h(product(l.productId, c)?.name || '—')}</td><td>${badge(l.active ? 'Ativo' : 'Inativo', l.active ? 'green' : '')}</td><td>${price(product(l.productId, c))}</td><td>${date(l.created, c)}</td>${edit('paymentLinks', l.id)}</tr>`), empty('Nenhum link de pagamento', 'Crie um produto e gere um link para ele.', 'link')));
+  if (tab === 'products') return pageShell({
+    title: 'Pagamentos',
+    desc: 'Produtos e preços usados em links de pagamento e assinaturas.',
+    cta: primary('Novo produto', 'products'),
+    tabs: tabCfg,
+    content: `<div class="toolbar">${search(c, 'Buscar produtos…')}</div>` +
+      table(['Produto', 'Tipo de preço', 'Preço', 'Status', 'Criado em', ''], s.products.filter(p => match(c, p.name, p.description)).map(p => `<tr><td><b>${h(p.name)}</b><br><small class="dim">${h(p.description.slice(0, 80))}</small></td><td>${p.kind === 'Recurring' ? 'Recorrente' : 'Pagamento único'}</td><td>${price(p)}</td><td>${badge(p.active ? 'Ativo' : 'Inativo', p.active ? 'green' : '')}</td><td>${date(p.created, c)}</td>${edit('products', p.id)}</tr>`), empty('Nenhum produto', 'Crie um produto para usar em links de pagamento e assinaturas.', 'box'))
+  });
+  if (tab === 'subscriptions') return pageShell({
+    title: 'Pagamentos',
+    desc: 'Acompanhe as assinaturas dos clientes.',
+    cta: primary('Nova assinatura', 'subscriptions'),
+    tabs: tabCfg,
+    content: `<div class="toolbar">${search(c, 'Buscar assinaturas…')}</div>` +
+      table(['Provedor', 'Cliente', 'Produto', 'Início', 'Valor', 'Status', ''], [...s.subscriptions].reverse().filter(x => match(c, who(x.contactId, c), product(x.productId, c)?.name)).map(x => `<tr><td>${h(x.provider === 'Manual' ? 'Manual' : x.provider)}</td><td><b>${h(who(x.contactId, c))}</b></td><td>${h(product(x.productId, c)?.name || '—')}</td><td>${date(x.start, c)}</td><td>${price(product(x.productId, c))}</td><td>${badge(x.status, { Active: 'green', Paused: 'gold', Canceled: 'red' }[x.status])}</td>${edit('subscriptions', x.id)}</tr>`), empty('Nenhuma assinatura ainda', 'Crie um produto recorrente e registre a assinatura de um contato.', 'pay'))
+  });
+  if (tab === 'links') return pageShell({
+    title: 'Pagamentos',
+    desc: 'Crie e gerencie links de pagamento.',
+    cta: primary('Novo link', 'paymentLinks'),
+    tabs: tabCfg,
+    content: `<p class="surface padded ag-warn">O checkout dos links exige um gateway de pagamento conectado. Neste projeto local os links ficam registrados com produto e preço.</p><div class="toolbar">${search(c, 'Buscar links…')}</div>` +
+      table(['Nome', 'Produto', 'Status', 'Preço', 'Criado em', ''], [...s.paymentLinks].reverse().filter(l => match(c, l.name, product(l.productId, c)?.name)).map(l => `<tr><td><b>${h(l.name)}</b></td><td>${h(product(l.productId, c)?.name || '—')}</td><td>${badge(l.active ? 'Ativo' : 'Inativo', l.active ? 'green' : '')}</td><td>${price(product(l.productId, c))}</td><td>${date(l.created, c)}</td>${edit('paymentLinks', l.id)}</tr>`), empty('Nenhum link de pagamento', 'Crie um produto e gere um link para ele.', 'link'))
+  });
   if (tab === 'transactions') {
     const ok = s.transactions.filter(t => t.status === 'Succeeded'), refunded = s.transactions.filter(t => t.status === 'Refunded');
-    return page(head('Pagamentos', 'Acompanhe os pagamentos dos clientes em um só lugar.', primary('Registrar transação', 'transactions'), sub) +
-      `<div class="metrics three">${metric('Recebido', mt(ok.reduce((n, t) => n + t.amount, 0), c), `${ok.length} transação(ões)`)}${metric('Reembolsado', mt(refunded.reduce((n, t) => n + t.amount, 0), c))}${metric('Total de transações', s.transactions.length)}</div><div class="toolbar">${search(c, 'Buscar transações…')}</div>` +
-      table(['Cliente', 'Provedor', 'Origem', 'Data', 'Valor', 'Status', ''], [...s.transactions].sort((a, b) => b.date.localeCompare(a.date)).filter(t => match(c, who(t.contactId, c), t.note, t.source)).map(t => `<tr><td><b>${h(who(t.contactId, c))}</b>${t.note ? `<br><small class="dim">${h(t.note)}</small>` : ''}</td><td>${h(tr(t.method))}</td><td>${h({ Invoice: 'Fatura', Subscription: 'Assinatura', 'Payment link': 'Link de pagamento', Manual: 'Manual' }[t.source])}</td><td>${date(t.date, c)}</td><td>${mt(t.amount, c)}</td><td>${badge({ Succeeded: 'Concluída', Refunded: 'Reembolsada', Failed: 'Falhou' }[t.status], { Succeeded: 'green', Refunded: 'gold', Failed: 'red' }[t.status])}</td>${edit('transactions', t.id)}</tr>`),
-        empty('Nenhuma transação ainda', 'Marcar uma fatura como paga registra a transação automaticamente.', 'pay')));
+    return pageShell({
+      title: 'Pagamentos',
+      desc: 'Acompanhe os pagamentos dos clientes em um só lugar.',
+      cta: primary('Registrar transação', 'transactions'),
+      tabs: tabCfg,
+      content: `<div class="metrics three">${metric('Recebido', mt(ok.reduce((n, t) => n + t.amount, 0), c), `${ok.length} transação(ões)`)}${metric('Reembolsado', mt(refunded.reduce((n, t) => n + t.amount, 0), c))}${metric('Total de transações', s.transactions.length)}</div><div class="toolbar">${search(c, 'Buscar transações…')}</div>` +
+        table(['Cliente', 'Provedor', 'Origem', 'Data', 'Valor', 'Status', ''], [...s.transactions].sort((a, b) => b.date.localeCompare(a.date)).filter(t => match(c, who(t.contactId, c), t.note, t.source)).map(t => `<tr><td><b>${h(who(t.contactId, c))}</b>${t.note ? `<br><small class="dim">${h(t.note)}</small>` : ''}</td><td>${h(tr(t.method))}</td><td>${h({ Invoice: 'Fatura', Subscription: 'Assinatura', 'Payment link': 'Link de pagamento', Manual: 'Manual' }[t.source])}</td><td>${date(t.date, c)}</td><td>${mt(t.amount, c)}</td><td>${badge({ Succeeded: 'Concluída', Refunded: 'Reembolsada', Failed: 'Falhou' }[t.status], { Succeeded: 'green', Refunded: 'gold', Failed: 'red' }[t.status])}</td>${edit('transactions', t.id)}</tr>`),
+          empty('Nenhuma transação ainda', 'Marcar uma fatura como paga registra a transação automaticamente.', 'pay'))
+    });
   }
   const status = c.tag || '';
   const rows = [...s.coupons].reverse().filter(x => match(c, x.name, x.code) && (!status || couponStatus(x) === status));
-  return page(head('Pagamentos', 'Gerencie cupons de desconto para aumentar a conversão.', primary('Novo cupom', 'coupons'), sub) +
-    `<div class="toolbar">${search(c, 'Buscar cupons…')}<label class="tag-filter">${i('filter', 15)}<select id="tag-filter" aria-label="Status do cupom"><option value="">Todos</option>${[['Active', 'Ativos'], ['Scheduled', 'Agendados'], ['Expired', 'Expirados'], ['Inactive', 'Inativos']].map(([v, l]) => `<option value="${v}" ${status === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>` +
-    table(['Cupom', 'Código', 'Desconto', 'Início', 'Status', 'Resgates', ''], rows.map(x => { const st = couponStatus(x); return `<tr><td><b>${h(x.name)}</b></td><td><code>${h(x.code)}</code></td><td>${x.kind === 'Percent' ? `${x.amount}%` : mt(x.amount, c)}</td><td>${x.start ? date(x.start, c) : '—'}${x.end ? ` → ${date(x.end, c)}` : ''}</td><td>${badge({ Active: 'Ativo', Scheduled: 'Agendado', Expired: 'Expirado', Inactive: 'Inativo' }[st], { Active: 'green', Scheduled: 'blue', Expired: 'red' }[st] || '')}</td><td>${x.redemptions || 0}${x.limit ? ` / ${x.limit}` : ''}</td>${edit('coupons', x.id)}</tr>`; }),
-      empty('Nenhum cupom encontrado', 'Crie um cupom percentual ou de valor fixo.', 'gift')));
+  return pageShell({
+    title: 'Pagamentos',
+    desc: 'Gerencie cupons de desconto para aumentar a conversão.',
+    cta: primary('Novo cupom', 'coupons'),
+    tabs: tabCfg,
+    content: `<div class="toolbar">${search(c, 'Buscar cupons…')}<label class="tag-filter">${i('filter', 15)}<select id="tag-filter" aria-label="Status do cupom"><option value="">Todos</option>${[['Active', 'Ativos'], ['Scheduled', 'Agendados'], ['Expired', 'Expirados'], ['Inactive', 'Inativos']].map(([v, l]) => `<option value="${v}" ${status === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>` +
+      table(['Cupom', 'Código', 'Desconto', 'Início', 'Status', 'Resgates', ''], rows.map(x => { const st = couponStatus(x); return `<tr><td><b>${h(x.name)}</b></td><td><code>${h(x.code)}</code></td><td>${x.kind === 'Percent' ? `${x.amount}%` : mt(x.amount, c)}</td><td>${x.start ? date(x.start, c) : '—'}${x.end ? ` → ${date(x.end, c)}` : ''}</td><td>${badge({ Active: 'Ativo', Scheduled: 'Agendado', Expired: 'Expirado', Inactive: 'Inativo' }[st], { Active: 'green', Scheduled: 'blue', Expired: 'red' }[st] || '')}</td><td>${x.redemptions || 0}${x.limit ? ` / ${x.limit}` : ''}</td>${edit('coupons', x.id)}</tr>`; }),
+        empty('Nenhum cupom encontrado', 'Crie um cupom percentual ou de valor fixo.', 'gift'))
+  });
 }
 
 // ---- Settings ------------------------------------------------------------------------------------
 export function settingsTab(c, tab) {
-  const sub = tabs(crmTabs.settings, tab), s = c.s;
-  const wrapIt = (cta, body) => page(head('Configurações', 'Gerencie o workspace ativo.', cta, sub) + body);
+  const tabCfg = { key: 'settings', items: crmTabs.settings, current: tab, label: 'Seções de configurações' };
+  const s = c.s;
+  const wrapIt = (cta, body) => pageShell({ title: 'Configurações', desc: 'Gerencie o workspace ativo.', cta, tabs: tabCfg, content: body });
   if (tab === 'fields') {
     const object = customObjects.includes(c.tag) ? c.tag : '';
     return wrapIt(primary('Novo campo', 'customFields', `data-object="${object || 'Contact'}"`), `<div class="toolbar"><label class="tag-filter">${i('filter', 15)}<select id="tag-filter" aria-label="Objeto"><option value="">Todos os objetos</option>${customObjects.map(o => `<option value="${o}" ${object === o ? 'selected' : ''}>${label(objectLabel, o)}</option>`).join('')}</select></label></div>` + fieldsTable(c, object));

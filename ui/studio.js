@@ -1,5 +1,5 @@
 import { icon } from './icons.js';
-import { h } from './screens.js';
+import { h, utabs } from './screens.js';
 import { studioTemplates, studioThemes } from './studio-data.js';
 import { afterBuilderRender, builderView } from './studio-builder.js';
 import { designStage, mountDesignStage, resizeDesignStage } from './design-workspace.js';
@@ -14,10 +14,7 @@ function tile(c, project) {
     <button class="icon-btn ${project.starred ? 'studio-selected-star' : ''}" data-studio-star="${project.id}" aria-label="${project.starred ? 'Remover dos favoritos' : 'Favoritar'} ${h(project.name)}" aria-pressed="${Boolean(project.starred)}">${icon('star',17)}</button></div></article>`;
 }
 
-function studioSections(view) {
-  return `<nav class="studio-home-tabs" aria-label="Seções do AI Studio">${[['recent','Recentes'],['projects','Meus projetos'],['starred','Favoritos'],['templates','Modelos']].map(([id,label]) =>
-    `<a href="#studio/${id}" ${view === id ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
-}
+const studioHomeItems = [['recent','Recentes'],['projects','Meus projetos'],['starred','Favoritos'],['templates','Modelos']].map(([id,label]) => ({ value: id, label, href: `#studio/${id}` }));
 
 function home(c) {
   const view = c.tab || 'templates';
@@ -45,7 +42,7 @@ function home(c) {
       (visible.length ? `<div class="studio-tiles">${visible.slice(0,view === 'recent' ? 12 : 60).map(project => tile(c,project)).join('')}</div>` :
         `<div class="studio-empty">${icon(view === 'starred' ? 'star' : 'folder',26)} <p>${view === 'starred' ? 'Nenhum projeto favorito' : 'Nenhum projeto encontrado'}</p></div>`);
   }
-  return prompt + `<section class="studio-library">${studioSections(view)}${main}</section>`;
+  return prompt + utabs({ key: 'studio-home', className: 'studio-library', label: 'Seções do AI Studio', items: studioHomeItems, current: view, content: main });
 }
 
 function workspaceRail(c) {

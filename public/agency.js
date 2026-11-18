@@ -3,7 +3,7 @@ import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { applyBrandColor } from './graao.js';
 import { tr } from './i18n.js';
-import { money } from './screens.js';
+import { money, utabs } from './screens.js';
 import { colorPicker, mountColorPicker } from './color-picker.js';
 import { createProspecting, prospectRoutes } from './prospecting.js';
 import { createSociChat } from './soci-chat.js';
@@ -106,7 +106,10 @@ export function startAgency(env) {
   function editRecord(key, id = '', preset = {}) {
     const row = id ? D()[key].find(r => r.id === id) : preset;
     if (id && !row) return;
-    dialog(`${id ? 'Editar' : 'Novo'} ${collections[key].label.toLowerCase()}`, fieldsFor(key, row) + (id ? `<button type="button" class="secondary danger ag-delete" data-ag="delete-record" data-key="${key}" data-id="${id}">${i('trash', 15)} Excluir</button>` : ''), { form: `record:${key}`, id, submit: id ? 'Salvar alterações' : 'Criar' });
+    const modes = [['', 'Legado (lista vazia herda todos)'], ['inherit', 'Herdar todos os módulos'], ['restricted', 'Somente módulos selecionados'], ['none', 'Nenhum módulo']];
+    const access = key === 'users' ? `<label>Modo de acesso<select name="permissionMode">${modes.map(([mode, label]) =>
+      `<option value="${mode}" ${(row.permissionMode || '') === mode ? 'selected' : ''}>${h(label)}</option>`).join('')}</select></label>` : '';
+    dialog(`${id ? 'Editar' : 'Novo'} ${collections[key].label.toLowerCase()}`, fieldsFor(key, row) + access + (id ? `<button type="button" class="secondary danger ag-delete" data-ag="delete-record" data-key="${key}" data-id="${id}">${i('trash', 15)} Excluir</button>` : ''), { form: `record:${key}`, id, submit: id ? 'Salvar alterações' : 'Criar' });
   }
   function formData(form) {
     const fd = new FormData(form), out = {};
@@ -123,7 +126,13 @@ export function startAgency(env) {
 
   // ---- Shell -------------------------------------------------------------
   const head = (title, desc = '', actions = '') => `<header class="page-head"><div><h1>${h(title)}</h1>${desc ? `<p>${h(desc)}</p>` : ''}</div><div class="head-actions">${actions}</div></header>`;
-  const tabs = page => `<div class="tabs" role="tablist">${subTabs[page].map(([key, label]) => `<button role="tab" data-ag="tab" data-sub="${key}" class="${A.sub === key ? 'selected' : ''}" aria-selected="${A.sub === key}">${h(label)}</button>`).join('')}</div>`;
+  const tabCard = (page, content, label = 'Seções') => utabs({
+    key: `agency-${page}`,
+    label,
+    current: A.sub || subTabs[page][0][0],
+    items: subTabs[page].map(([key, text]) => ({ value: key, label: text, attrs: `data-ag="tab" data-sub="${key}"` })),
+    content
+  });
   const btn = (label, ag, attrs = '', cls = 'secondary', ico = '') => `<button class="${cls}" data-ag="${ag}" ${attrs}>${ico ? i(ico, 15) : ''}${h(label)}</button>`;
   const primary = (label, ag, attrs = '') => btn(label, ag, attrs, 'primary', 'plus');
   const empty = (title, text, cta = '') => `<div class="empty">${i('inbox', 26)}<strong>${h(title)}</strong><p>${h(text)}</p>${cta}</div>`;
@@ -261,13 +270,12 @@ export function startAgency(env) {
     const actions = `${btn('Publicar no marketplace', 'marketplace-publish', '', 'secondary', 'upload')}${primary('Criar setup', 'snapshot-create')}`;
 
     if (sub === 'history') {
-      return `<div class="page">${head('Setups de conta', 'Histórico de setups carregados nas subcontas.', actions)}${tabs('snapshots')}${table(['Setup', 'Subconta', 'Modo', 'Adicionados', 'Sobrescritos', 'Ignorados', 'Carregado em'], [...D().snapshotLoads].reverse().map(l => `<tr><td><b>${h(l.snapshot)}</b></td><td>${h(l.account)}</td><td>${l.mode === 'overwrite' ? 'Sobrescrever' : 'Manter existentes'}</td><td>${l.added}</td><td>${l.overwritten}</td><td>${l.skipped}</td><td>${day(l.at, true)}</td></tr>`), empty('Nenhum carregamento registrado', 'Ao carregar um setup em uma subconta, o histórico aparecerá aqui.'))}</div>`;
+      return `<div class="page">${head('Setups de conta', 'Histórico de setups carregados nas subcontas.', actions)}${tabCard('snapshots', table(['Setup', 'Subconta', 'Modo', 'Adicionados', 'Sobrescritos', 'Ignorados', 'Carregado em'], [...D().snapshotLoads].reverse().map(l => `<tr><td><b>${h(l.snapshot)}</b></td><td>${h(l.account)}</td><td>${l.mode === 'overwrite' ? 'Sobrescrever' : 'Manter existentes'}</td><td>${l.added}</td><td>${l.overwritten}</td><td>${l.skipped}</td><td>${day(l.at, true)}</td></tr>`), empty('Nenhum carregamento registrado', 'Ao carregar um setup em uma subconta, o histórico aparecerá aqui.')), 'Seções de setups')}</div>`;
     }
 
     if (sub === 'published') {
       const mine = M().filter(item => item.mine);
-      return `<div class="page">${head('Setups de conta', 'Gerencie os setups que você publicou no marketplace para outros usuários.', actions)}${tabs('snapshots')}
-        ${mine.length ? table(['Setup publicado', 'Categoria', 'Recursos', 'Versão', 'Instalações', 'Atualizado em', ''], mine.map(item => `<tr>
+      const body = mine.length ? table(['Setup publicado', 'Categoria', 'Recursos', 'Versão', 'Instalações', 'Atualizado em', ''], mine.map(item => `<tr>
           <td><b>${h(item.title)}</b><br><small class="dim">${h(item.summary)}</small></td>
           <td><span class="badge">${h(item.category)}</span></td>
           <td><small>${h(assetSummary(item.counts))}</small></td>
@@ -276,14 +284,14 @@ export function startAgency(env) {
           <td>${day(item.updatedAt, true)}</td>
           <td class="right inline-gap">${btn('Ver detalhes', 'marketplace-preview', `data-id="${item.id}"`)}${item.sourceSnapshotId ? btn('Editar / Atualizar', 'marketplace-publish', `data-id="${item.sourceSnapshotId}"`, 'primary') : ''}${btn('Retirar', 'marketplace-unpublish', `data-id="${item.id}"`)}</td>
         </tr>`), '')
-        : `<div class="surface padded ag-explain"><h2>Compartilhe seus melhores setups no marketplace</h2><p class="dim">Publique estruturas prontas para ajudar outras agências e empresas na Soci — gratuitamente e sem expor nenhum dado real de clientes.</p><ul><li><b>Publicação imediata:</b> escolha um dos seus setups, adicione nicho e descrição e ele já entra no ar.</li><li><b>Controle total:</b> atualize para novas versões ou retire do marketplace quando quiser.</li><li><b>Privacidade garantida:</b> contatos, conversas e pagamentos nunca são publicados.</li></ul><div class="inline-gap">${D().snapshots.some(s => s.kind === 'mine') ? primary('Publicar um setup', 'marketplace-publish') : primary('Criar meu primeiro setup', 'snapshot-create')}</div></div>`}</div>`;
+        : `<div class="surface padded ag-explain"><h2>Compartilhe seus melhores setups no marketplace</h2><p class="dim">Publique estruturas prontas para ajudar outras agências e empresas na Soci — gratuitamente e sem expor nenhum dado real de clientes.</p><ul><li><b>Publicação imediata:</b> escolha um dos seus setups, adicione nicho e descrição e ele já entra no ar.</li><li><b>Controle total:</b> atualize para novas versões ou retire do marketplace quando quiser.</li><li><b>Privacidade garantida:</b> contatos, conversas e pagamentos nunca são publicados.</li></ul><div class="inline-gap">${D().snapshots.some(s => s.kind === 'mine') ? primary('Publicar um setup', 'marketplace-publish') : primary('Criar meu primeiro setup', 'snapshot-create')}</div></div>`;
+      return `<div class="page">${head('Setups de conta', 'Gerencie os setups que você publicou no marketplace para outros usuários.', actions)}${tabCard('snapshots', body, 'Seções de setups')}</div>`;
     }
 
     if (sub === 'mine') {
       const list = D().snapshots;
       const publishedMap = new Map(M().filter(item => item.mine && item.sourceSnapshotId).map(item => [item.sourceSnapshotId, item]));
-      return `<div class="page">${head('Setups de conta', 'Todos os setups da sua agência: criados por você ou adicionados do marketplace.', actions)}${tabs('snapshots')}
-        ${list.length ? table(['Setup', 'Origem', 'Recursos inclusos', 'Versão', 'Atualizado em', ''], list.map(s => {
+      const body = list.length ? table(['Setup', 'Origem', 'Recursos inclusos', 'Versão', 'Atualizado em', ''], list.map(s => {
           const pub = publishedMap.get(s.id);
           const origin = s.kind === 'mine'
             ? `${h(accountName(s.workspace))}${pub ? ` <span class="badge green">No marketplace</span>` : ''}`
@@ -293,7 +301,8 @@ export function startAgency(env) {
           return `<tr><td><b>${h(s.name)}</b></td><td>${origin}</td><td><small>${h(assetSummary(s.counts))}</small></td><td>v${s.version || 1}</td><td>${day(s.updated, true)}</td>
             <td class="right inline-gap">${btn('Carregar', 'snapshot-load', `data-id="${s.id}"`, 'primary')}${s.kind === 'mine' ? btn(pub ? 'Atualizar no marketplace' : 'Publicar', 'marketplace-publish', `data-id="${s.id}"`) : ''}${s.kind === 'mine' ? btn('Atualizar', 'snapshot-refresh', `data-id="${s.id}"`) : ''}${btn('Renomear', 'snapshot-rename', `data-id="${s.id}"`)}<button class="icon-btn" data-ag="snapshot-delete" data-id="${s.id}" aria-label="Excluir ${h(s.name)}">${i('trash', 16)}</button></td></tr>`;
         }), '')
-        : `<div class="surface padded ag-explain"><h2>Para que servem os setups de conta</h2><ul><li><b>Reutilização:</b> empacote pipelines, automações, formulários, páginas, agentes de IA e sites da sua melhor subconta.</li><li><b>Consistência:</b> carregue o mesmo setup estruturado em cada novo cliente em poucos cliques.</li><li><b>Marketplace:</b> comece ainda mais rápido adicionando setups oficiais da Soci ou criados pela comunidade.</li><li><b>Segurança:</b> contatos, conversas e pagamentos nunca entram no setup.</li></ul><div class="inline-gap">${primary('Criar setup', 'snapshot-create')}${btn('Explorar marketplace', 'go-marketplace')}</div></div>`}</div>`;
+        : `<div class="surface padded ag-explain"><h2>Para que servem os setups de conta</h2><ul><li><b>Reutilização:</b> empacote pipelines, automações, formulários, páginas, agentes de IA e sites da sua melhor subconta.</li><li><b>Consistência:</b> carregue o mesmo setup estruturado em cada novo cliente em poucos cliques.</li><li><b>Marketplace:</b> comece ainda mais rápido adicionando setups oficiais da Soci ou criados pela comunidade.</li><li><b>Segurança:</b> contatos, conversas e pagamentos nunca entram no setup.</li></ul><div class="inline-gap">${primary('Criar setup', 'snapshot-create')}${btn('Explorar marketplace', 'go-marketplace')}</div></div>`;
+      return `<div class="page">${head('Setups de conta', 'Todos os setups da sua agência: criados por você ou adicionados do marketplace.', actions)}${tabCard('snapshots', body, 'Seções de setups')}</div>`;
     }
 
     // Default tab: Marketplace
@@ -304,8 +313,7 @@ export function startAgency(env) {
       if (A.mktOrigin === 'community' && item.official) return false;
       return match(item.title, item.summary, item.description, item.category, item.author, ...(item.tags || []));
     });
-    return `<div class="page">${head('Setups de conta', 'Descubra setups completos da Soci e da comunidade para replicar em suas subcontas.', actions)}${tabs('snapshots')}
-      <div class="toolbar">
+    const body = `<div class="toolbar">
         ${search('Buscar por nicho, nome ou recurso…')}
         <select data-ag-category aria-label="Categoria"><option value="">Todas as categorias</option>${marketplaceCategories.map(c => `<option value="${h(c)}" ${A.category === c ? 'selected' : ''}>${h(c)}</option>`).join('')}</select>
         <select data-ag-mkt-origin aria-label="Origem"><option value="">Todos os setups</option><option value="official" ${A.mktOrigin === 'official' ? 'selected' : ''}>Oficiais Soci</option><option value="community" ${A.mktOrigin === 'community' ? 'selected' : ''}>Comunidade</option></select>
@@ -328,7 +336,8 @@ export function startAgency(env) {
           </div>
         </article>`;
       }).join('')}</div>`
-      : empty('Nenhum setup encontrado', 'Tente outro termo de busca, limpe os filtros ou publique o primeiro setup deste nicho.')}</div>`;
+      : empty('Nenhum setup encontrado', 'Tente outro termo de busca, limpe os filtros ou publique o primeiro setup deste nicho.')}`;
+    return `<div class="page">${head('Setups de conta', 'Descubra setups completos da Soci e da comunidade para replicar em suas subcontas.', actions)}${tabCard('snapshots', body, 'Seções de setups')}</div>`;
   };
 
   pages.reselling = () => {
@@ -361,22 +370,22 @@ export function startAgency(env) {
     const link = `${location.origin}/?ref=${aff.code}`;
     const paid = aff.payments.reduce((s, p) => s + p.amount, 0);
     const pageHead = head('Portal de afiliados', `Código de indicação: ${aff.code}`);
-    if (sub === 'reports') return `<div class="page">${pageHead}${tabs('affiliate')}<div class="page-head"><h2>Indicações</h2>${primary('Adicionar indicação', 'new-record', 'data-key="referrals"')}</div>${table(['Empresa', 'Plano', 'Valor da assinatura', 'Comissão mensal', 'Status', 'Pago', ''], refs.filter(r => match(r.name, r.email)).map(r => `<tr><td><b>${h(r.name)}</b><br><small class="dim">${h(r.email)}</small></td><td>${h(r.plan)}</td><td>${money(r.amount)}</td><td>${money(r.amount * affiliateRate)}</td><td>${badge(r.status, tone(r.status))}</td><td>${r.paid ? badge('Pago', 'green') : '—'}</td><td class="right">${btn('Editar', 'edit-record', `data-key="referrals" data-id="${r.id}"`)}</td></tr>`), empty('Nenhuma indicação cadastrada', 'Adicione as empresas que se registraram utilizando seu link.'))}</div>`;
-    if (sub === 'payment') return `<div class="page">${pageHead}${tabs('affiliate')}<form class="surface padded settings-form" data-ag-form="affiliate-payout"><h2>Dados de pagamento</h2><div class="field-grid"><label>Método de recebimento<select name="method">${['Transferência bancária', 'PayPal', 'Wise', 'Pix'].map(m => `<option ${aff.payout.method === m ? 'selected' : ''}>${m}</option>`).join('')}</select></label><label>E-mail ou chave de recebimento<input name="email" type="email" value="${h(aff.payout.email)}"></label></div><button class="primary">Salvar dados</button><p class="form-status" role="alert"></p></form></div>`;
-    if (sub === 'history') return `<div class="page">${pageHead}${tabs('affiliate')}<div class="page-head"><h2>Histórico de pagamentos</h2>${btn('Registrar pagamento de comissões', 'affiliate-pay', '', 'primary')}</div>${table(['Data', 'Valor', 'Indicações', 'Método'], [...aff.payments].reverse().map(p => `<tr><td>${day(p.at, true)}</td><td>${money(p.amount)}</td><td>${p.referrals.length}</td><td>${h(p.method)}</td></tr>`), empty('Nenhum pagamento registrado', 'Os pagamentos de comissões registrados aparecerão aqui.'))}</div>`;
-    return `<div class="page">${pageHead}${tabs('affiliate')}<div class="metrics">${metric('Indicações ativas', active.length)}${metric('Comissão mensal', money(active.reduce((s, r) => s + r.amount * affiliateRate, 0)))}${metric('Comissão a receber', money(O().totals.affiliateDue))}${metric('Total pago até hoje', money(paid))}</div>
-      <div class="surface padded"><h2>Seu link de indicação</h2><div class="ag-copy"><input readonly value="${h(link)}" aria-label="Link de indicação">${btn('Copiar link', 'copy', `data-text="${h(link)}"`)}</div></div></div>`;
+    if (sub === 'reports') return `<div class="page">${pageHead}${tabCard('affiliate', `<div class="page-head"><h2>Indicações</h2>${primary('Adicionar indicação', 'new-record', 'data-key="referrals"')}</div>${table(['Empresa', 'Plano', 'Valor da assinatura', 'Comissão mensal', 'Status', 'Pago', ''], refs.filter(r => match(r.name, r.email)).map(r => `<tr><td><b>${h(r.name)}</b><br><small class="dim">${h(r.email)}</small></td><td>${h(r.plan)}</td><td>${money(r.amount)}</td><td>${money(r.amount * affiliateRate)}</td><td>${badge(r.status, tone(r.status))}</td><td>${r.paid ? badge('Pago', 'green') : '—'}</td><td class="right">${btn('Editar', 'edit-record', `data-key="referrals" data-id="${r.id}"`)}</td></tr>`), empty('Nenhuma indicação cadastrada', 'Adicione as empresas que se registraram utilizando seu link.'))}`, 'Seções de afiliados')}</div>`;
+    if (sub === 'payment') return `<div class="page">${pageHead}${tabCard('affiliate', `<form class="surface padded settings-form" data-ag-form="affiliate-payout"><h2>Dados de pagamento</h2><div class="field-grid"><label>Método de recebimento<select name="method">${['Transferência bancária', 'PayPal', 'Wise', 'Pix'].map(m => `<option ${aff.payout.method === m ? 'selected' : ''}>${m}</option>`).join('')}</select></label><label>E-mail ou chave de recebimento<input name="email" type="email" value="${h(aff.payout.email)}"></label></div><button class="primary">Salvar dados</button><p class="form-status" role="alert"></p></form>`, 'Seções de afiliados')}</div>`;
+    if (sub === 'history') return `<div class="page">${pageHead}${tabCard('affiliate', `<div class="page-head"><h2>Histórico de pagamentos</h2>${btn('Registrar pagamento de comissões', 'affiliate-pay', '', 'primary')}</div>${table(['Data', 'Valor', 'Indicações', 'Método'], [...aff.payments].reverse().map(p => `<tr><td>${day(p.at, true)}</td><td>${money(p.amount)}</td><td>${p.referrals.length}</td><td>${h(p.method)}</td></tr>`), empty('Nenhum pagamento registrado', 'Os pagamentos de comissões registrados aparecerão aqui.'))}`, 'Seções de afiliados')}</div>`;
+    return `<div class="page">${pageHead}${tabCard('affiliate', `<div class="metrics">${metric('Indicações ativas', active.length)}${metric('Comissão mensal', money(active.reduce((s, r) => s + r.amount * affiliateRate, 0)))}${metric('Comissão a receber', money(O().totals.affiliateDue))}${metric('Total pago até hoje', money(paid))}</div>
+      <div class="surface padded"><h2>Seu link de indicação</h2><div class="ag-copy"><input readonly value="${h(link)}" aria-label="Link de indicação">${btn('Copiar link', 'copy', `data-text="${h(link)}"`)}</div></div>`, 'Seções de afiliados')}</div>`;
   };
 
   pages.templates = () => {
     const sub = A.sub || 'all';
     const cats = [...new Set([...templateCatalog.map(t => t[2]), ...D().templates.map(t => t.category)])].sort();
-    if (sub === 'installs') return `<div class="page">${head('Biblioteca de templates', 'Modelos instalados nas subcontas.')}${tabs('templates')}${table(['Template', 'Subconta', 'Data da instalação'], [...D().templateInstalls].reverse().map(t => `<tr><td><b>${h(t.name)}</b></td><td>${h(t.account)}</td><td>${day(t.at, true)}</td></tr>`), empty('Nenhuma instalação realizada', 'Instale um template em uma subconta para registrá-lo aqui.'))}</div>`;
+    if (sub === 'installs') return `<div class="page">${head('Biblioteca de templates', 'Modelos instalados nas subcontas.')}${tabCard('templates', table(['Template', 'Subconta', 'Data da instalação'], [...D().templateInstalls].reverse().map(t => `<tr><td><b>${h(t.name)}</b></td><td>${h(t.account)}</td><td>${day(t.at, true)}</td></tr>`), empty('Nenhuma instalação realizada', 'Instale um template em uma subconta para registrá-lo aqui.')), 'Seções de templates')}</div>`;
     const list = sub === 'mine' ? D().templates.map(t => ({ ...t, mine: true })) : templateCatalog.map(([id, name, category, headline, body, button]) => ({ id, name, category, headline, body, button }));
     const shown = list.filter(t => match(t.name, t.category, t.headline) && (!A.category || t.category === A.category));
-    return `<div class="page">${head('Biblioteca de templates', 'Visualize modelos de páginas prontos e instale-os nas subcontas como funis de rascunho.', primary('Criar template', 'new-record', 'data-key="templates"'))}${tabs('templates')}
-      <div class="toolbar">${search('Buscar templates…')}<select data-ag-category aria-label="Categoria"><option value="">Todas as categorias</option>${cats.map(c => `<option value="${c}" ${A.category === c ? 'selected' : ''}>${h(tr(c))}</option>`).join('')}</select></div>
-      <div class="card-grid">${shown.map(t => `<article class="surface resource ag-template"><div class="ag-thumb"><small>${h(tr(t.category))}</small><b>${h(t.headline)}</b><span>${h(t.button || 'Saiba mais')}</span></div><div class="padded"><h2>${h(t.name)}</h2><div class="inline-gap">${btn('Visualizar', 'template-preview', `data-id="${t.id}"`)}${btn('Instalar', 'template-install', `data-id="${t.id}"`, 'primary')}${t.mine ? btn('Editar', 'edit-record', `data-key="templates" data-id="${t.id}"`) : ''}</div></div></article>`).join('') || empty(sub === 'mine' ? 'Nenhum template próprio' : 'Nenhum template encontrado', sub === 'mine' ? 'Crie um template para reutilizá-lo em múltiplas subcontas.' : 'Tente outros filtros ou termos de busca.')}</div></div>`;
+    const body = `<div class="toolbar">${search('Buscar templates…')}<select data-ag-category aria-label="Categoria"><option value="">Todas as categorias</option>${cats.map(c => `<option value="${c}" ${A.category === c ? 'selected' : ''}>${h(tr(c))}</option>`).join('')}</select></div>
+      <div class="card-grid">${shown.map(t => `<article class="surface resource ag-template"><div class="ag-thumb"><small>${h(tr(t.category))}</small><b>${h(t.headline)}</b><span>${h(t.button || 'Saiba mais')}</span></div><div class="padded"><h2>${h(t.name)}</h2><div class="inline-gap">${btn('Visualizar', 'template-preview', `data-id="${t.id}"`)}${btn('Instalar', 'template-install', `data-id="${t.id}"`, 'primary')}${t.mine ? btn('Editar', 'edit-record', `data-key="templates" data-id="${t.id}"`) : ''}</div></div></article>`).join('') || empty(sub === 'mine' ? 'Nenhum template próprio' : 'Nenhum template encontrado', sub === 'mine' ? 'Crie um template para reutilizá-lo em múltiplas subcontas.' : 'Tente outros filtros ou termos de busca.')}</div>`;
+    return `<div class="page">${head('Biblioteca de templates', 'Visualize modelos de páginas prontos e instale-os nas subcontas como funis de rascunho.', primary('Criar template', 'new-record', 'data-key="templates"'))}${tabCard('templates', body, 'Seções de templates')}</div>`;
   };
   const findTemplate = id => { const t = templateCatalog.find(x => x[0] === id); return t ? { id, name: t[1], category: t[2], headline: t[3], body: t[4], button: t[5] } : D().templates.find(x => x.id === id); };
 
@@ -398,9 +407,10 @@ export function startAgency(env) {
   pages.ideas = () => {
     const sub = A.sub || 'all';
     const list = D().ideas.filter(x => (sub === 'all' || x.status === sub) && match(x.title, x.body, x.category)).sort((a, b) => b.votes - a.votes);
-    return `<div class="page">${head('Ideias e sugestões', 'Compartilhe melhorias e vote nas funcionalidades mais desejadas para a plataforma.', primary('Enviar sugestão', 'new-record', 'data-key="ideas"'))}${tabs('ideas')}<div class="toolbar">${search('Buscar ideias…')}</div>
+    const body = `<div class="toolbar">${search('Buscar ideias…')}</div>
       <div class="ag-ideas">${list.map(x => `<article class="surface padded ag-idea"><button class="ag-vote ${x.voted ? 'on' : ''}" data-ag="idea-vote" data-id="${x.id}" aria-pressed="${x.voted}" aria-label="Votar em ${h(x.title)}">${i('arrow', 15)}<b>${x.votes}</b></button><div><h2>${h(x.title)}</h2><p>${h(x.body)}</p><div class="inline-gap">${badge(x.category)}${badge(x.status, tone(x.status))}<small class="dim">${day(x.created)}</small></div></div>
-        <div class="inline-gap">${btn(`Comentários (${x.comments.length})`, 'idea-comments', `data-id="${x.id}"`)}<select data-ag-idea-status="${x.id}" aria-label="Status">${['Under review', 'Planned', 'In progress', 'Completed', 'Declined'].map(s => `<option value="${s}" ${x.status === s ? 'selected' : ''}>${tr(s)}</option>`).join('')}</select></div></article>`).join('') || empty('Nenhuma ideia nesta categoria', 'Envie uma sugestão para abrir a discussão no quadro.')}</div></div>`;
+        <div class="inline-gap">${btn(`Comentários (${x.comments.length})`, 'idea-comments', `data-id="${x.id}"`)}<select data-ag-idea-status="${x.id}" aria-label="Status">${['Under review', 'Planned', 'In progress', 'Completed', 'Declined'].map(s => `<option value="${s}" ${x.status === s ? 'selected' : ''}>${tr(s)}</option>`).join('')}</select></div></article>`).join('') || empty('Nenhuma ideia nesta categoria', 'Envie uma sugestão para abrir a discussão no quadro.')}</div>`;
+    return `<div class="page">${head('Ideias e sugestões', 'Compartilhe melhorias e vote nas funcionalidades mais desejadas para a plataforma.', primary('Enviar sugestão', 'new-record', 'data-key="ideas"'))}${tabCard('ideas', body, 'Seções de ideias')}</div>`;
   };
 
   pages['mobile-app'] = () => {
@@ -436,18 +446,18 @@ export function startAgency(env) {
     }
     const sub = A.sub || 'overview', inSaas = accounts().filter(a => s.accounts.includes(a.id));
     const pageHead = head('Configurador SaaS', `Modo SaaS ativo desde ${day(s.enabledAt)}.`, btn('Desativar modo SaaS', 'saas-mode', 'data-on=""'));
-    if (sub === 'plans') return `<div class="page">${pageHead}${tabs('saas')}<div class="page-head"><h2>Planos SaaS</h2>${primary('Novo plano', 'new-record', 'data-key="plans"')}</div>
+    if (sub === 'plans') return `<div class="page">${pageHead}${tabCard('saas', `<div class="page-head"><h2>Planos SaaS</h2>${primary('Novo plano', 'new-record', 'data-key="plans"')}</div>
       ${table(['Plano', 'Preço', 'Período de teste', 'Recursos inclusos', 'Subcontas assinantes', ''], D().plans.map(p => `<tr><td><b>${h(p.name)}</b></td><td>${money(p.price)}/mês</td><td>${p.trialDays ? `${p.trialDays} dias` : '—'}</td><td><small>${h((p.features || '').split('\n').filter(Boolean).join(' · ') || '—')}</small></td><td>${accounts().filter(a => a.plan === p.name).length}</td><td class="right">${btn('Editar', 'edit-record', `data-key="plans" data-id="${p.id}"`)}</td></tr>`), empty('Nenhum plano SaaS cadastrado', 'Os planos definem o valor mensal utilizado no cálculo de receita recorrente.'))}
-      <h2 class="section-heading">Plano por subconta</h2>${table(['Subconta', 'Status', 'Plano', ''], accounts().map(a => `<tr><td>${h(a.name)}</td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td class="right">${btn('Alterar', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), '')}</div>`;
-    if (sub === 'rebilling') return `<div class="page">${pageHead}${tabs('saas')}<form class="surface padded settings-form" data-ag-form="saas-rebilling"><h2>Rebilling da carteira</h2><p class="dim">Multiplicador aplicado ao custo de uso cobrado das subcontas SaaS. 1× repassa o custo sem margem; o máximo é ${maxMarkup}×.</p>
+      <h2 class="section-heading">Plano por subconta</h2>${table(['Subconta', 'Status', 'Plano', ''], accounts().map(a => `<tr><td>${h(a.name)}</td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td class="right">${btn('Alterar', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), '')}`, 'Seções do configurador SaaS')}</div>`;
+    if (sub === 'rebilling') return `<div class="page">${pageHead}${tabCard('saas', `<form class="surface padded settings-form" data-ag-form="saas-rebilling"><h2>Rebilling da carteira</h2><p class="dim">Multiplicador aplicado ao custo de uso cobrado das subcontas SaaS. 1× repassa o custo sem margem; o máximo é ${maxMarkup}×.</p>
       <div class="field-grid">${rebillProducts.map(([key, label]) => `<label>${h(tr(label))}<input name="${key}" type="number" min="1" max="${maxMarkup}" step="0.01" required value="${s.rebilling[key]}"></label>`).join('')}</div><button class="primary">Salvar markups</button><p class="form-status" role="alert"></p></form>
-      <p class="dim ag-hint">Exemplo: com markup 1,5× um SMS de R$0,0079 custa R$0,0119 para o cliente e deixa R$0,0040 de margem para a agência.</p></div>`;
-    if (sub === 'accounts') return `<div class="page">${pageHead}${tabs('saas')}<div class="toolbar">${search('Buscar subcontas…')}</div>${table(['Subconta', 'Status', 'Plano', 'Valor mensal', 'Modo SaaS', ''], accounts().filter(a => match(a.name)).map(a => `<tr><td><b>${h(a.name)}</b></td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td>${a.planPrice ? `${money(a.planPrice)}/mês` : '—'}</td><td>${sw(`Modo SaaS em ${a.name}`, s.accounts.includes(a.id), `data-ag-saas-account="${a.id}"`)}</td><td class="right">${btn('Alterar plano', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), empty('Nenhuma subconta', 'Crie uma subconta para ativar o modo SaaS nela.'))}</div>`;
+      <p class="dim ag-hint">Exemplo: com markup 1,5× um SMS de R$0,0079 custa R$0,0119 para o cliente e deixa R$0,0040 de margem para a agência.</p>`, 'Seções do configurador SaaS')}</div>`;
+    if (sub === 'accounts') return `<div class="page">${pageHead}${tabCard('saas', `<div class="toolbar">${search('Buscar subcontas…')}</div>${table(['Subconta', 'Status', 'Plano', 'Valor mensal', 'Modo SaaS', ''], accounts().filter(a => match(a.name)).map(a => `<tr><td><b>${h(a.name)}</b></td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td>${a.planPrice ? `${money(a.planPrice)}/mês` : '—'}</td><td>${sw(`Modo SaaS em ${a.name}`, s.accounts.includes(a.id), `data-ag-saas-account="${a.id}"`)}</td><td class="right">${btn('Alterar plano', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), empty('Nenhuma subconta', 'Crie uma subconta para ativar o modo SaaS nela.'))}`, 'Seções do configurador SaaS')}</div>`;
     const mrr = inSaas.filter(a => a.status === 'Active').reduce((t, a) => t + a.planPrice, 0);
     const avg = rebillProducts.reduce((t, [k]) => t + s.rebilling[k], 0) / rebillProducts.length;
     const steps = [['Criar planos SaaS', D().plans.length, 'saas/plans'], ['Definir markups da carteira', rebillProducts.some(([k]) => s.rebilling[k] > 1), 'saas/rebilling'], ['Colocar subcontas no modo SaaS', inSaas.length, 'saas/accounts'], ['Conectar o Stripe', D().stripe.connected, 'settings/stripe']];
-    return `<div class="page">${pageHead}${tabs('saas')}<div class="metrics">${metric('Subcontas no modo SaaS', `${inSaas.length} <small>/ ${accounts().length}</small>`)}${metric('MRR das subcontas SaaS', money(mrr), 'Planos de subcontas ativas')}${metric('Planos SaaS', D().plans.length)}${metric('Markup médio da carteira', `${avg.toFixed(2).replace('.', ',')}×`)}</div>
-      <section class="surface padded"><h2>Configuração</h2>${steps.map(([label, done, page]) => `<a class="line-item" href="#agency/${page}"><span>${done ? badge('Concluído', 'green') : badge('Pendente')} ${h(label)}</span>${i('arrow', 15)}</a>`).join('')}</section></div>`;
+    return `<div class="page">${pageHead}${tabCard('saas', `<div class="metrics">${metric('Subcontas no modo SaaS', `${inSaas.length} <small>/ ${accounts().length}</small>`)}${metric('MRR das subcontas SaaS', money(mrr), 'Planos de subcontas ativas')}${metric('Planos SaaS', D().plans.length)}${metric('Markup médio da carteira', `${avg.toFixed(2).replace('.', ',')}×`)}</div>
+      <section class="surface padded"><h2>Configuração</h2>${steps.map(([label, done, page]) => `<a class="line-item" href="#agency/${page}"><span>${done ? badge('Concluído', 'green') : badge('Pendente')} ${h(label)}</span>${i('arrow', 15)}</a>`).join('')}</section>`, 'Seções do configurador SaaS')}</div>`;
   };
 
   // ---- App Marketplace ----------------------------------------------------
@@ -709,7 +719,7 @@ export function startAgency(env) {
         <button class="primary">Salvar dados da empresa</button><p class="form-status" role="alert"></p>
       </form>`;
     },
-    users: () => `<div class="page-head"><div><h2>Membros da equipe</h2><p class="dim">${A.data.access?.session ? 'Use o e-mail confirmado no Supabase para conceder acesso à equipe.' : 'Use “Agir como” para testar as permissões de um usuário.'}</p></div>${primary('Adicionar usuário', 'new-record', 'data-key="users"')}</div>${table(['Nome', 'Função', 'Acesso', 'Permissões de módulos', ''], D().users.map(u => `<tr><td><b>${h(`${u.first} ${u.last}`)}</b><br><small class="dim">${h(u.email)}</small></td><td>${badge(u.role, u.role.startsWith('Agency') ? 'pink' : 'blue')}</td><td><small>${u.role.startsWith('Agency') ? 'Todas as subcontas' : h(u.accounts.map(accountName).join(', ') || 'Nenhuma subconta')}</small></td><td><small>${u.permissions.length ? `${u.permissions.length} módulos permitidos` : 'Todos os módulos'}</small></td><td class="right inline-gap">${A.data.access?.session ? '' : btn('Agir como', 'act-as', `data-id="${u.id}"`)}${btn('Editar', 'edit-record', `data-key="users" data-id="${u.id}"`)}</td></tr>`), empty('Nenhum membro cadastrado', 'Adicione usuários e defina permissões específicas por subconta e módulo.'))}`,
+    users: () => `<div class="page-head"><div><h2>Membros da equipe</h2><p class="dim">${A.data.access?.session ? 'Use o e-mail confirmado no Supabase para conceder acesso à equipe.' : 'Use “Agir como” para testar as permissões de um usuário.'}</p></div>${primary('Adicionar usuário', 'new-record', 'data-key="users"')}</div>${table(['Nome', 'Função', 'Acesso', 'Permissões de módulos', ''], D().users.map(u => `<tr><td><b>${h(`${u.first} ${u.last}`)}</b><br><small class="dim">${h(u.email)}</small></td><td>${badge(u.role, u.role.startsWith('Agency') ? 'pink' : 'blue')}</td><td><small>${u.role.startsWith('Agency') ? 'Todas as subcontas' : h(u.accounts.map(accountName).join(', ') || 'Nenhuma subconta')}</small></td><td><small>${u.permissionMode === 'none' ? 'Nenhum módulo' : u.permissionMode === 'inherit' ? 'Todos os módulos' : u.permissionMode === 'restricted' || u.permissions?.length ? `${u.permissions?.length || 0} módulos permitidos` : 'Todos os módulos'}</small></td><td class="right inline-gap">${A.data.access?.session ? '' : btn('Agir como', 'act-as', `data-id="${u.id}"`)}${btn('Editar', 'edit-record', `data-key="users" data-id="${u.id}"`)}</td></tr>`), empty('Nenhum membro cadastrado', 'Adicione usuários e defina permissões específicas por subconta e módulo.'))}`,
     billing: () => { const b = D().billing; const wallet = O().totals.wallet; return `<div class="ag-two"><form class="surface padded settings-form" data-ag-form="billing-plan"><h2>Plano da agência</h2><p class="dim">O plano é gravado localmente para cálculo de recursos; a alteração não gera cobrança automática no cartão.</p><div class="ag-plans">${agencyPlans.map(([name, price]) => `<label class="choice"><input type="radio" name="plan" value="${name}" ${b.plan === name ? 'checked' : ''}><strong>${name}</strong><span>${money(price)}/mês</span></label>`).join('')}</div><button class="primary">Alterar plano</button><p class="form-status" role="alert"></p></form>
       <form class="surface padded settings-form" data-ag-form="auto-recharge"><h2>Saldo da carteira</h2><p class="ag-big">${money(wallet)}</p><label class="check"><input type="checkbox" name="enabled" ${b.autoRecharge.enabled ? 'checked' : ''}> Notificar quando o saldo estiver baixo</label><div class="field-grid"><label>Saldo mínimo de alerta<input name="threshold" type="number" min="0" step="0.01" value="${b.autoRecharge.threshold}"></label><label>Valor sugerido de recarga<input name="amount" type="number" min="0" step="0.01" value="${b.autoRecharge.amount}"></label></div><div class="inline-gap"><button class="primary">Salvar regras</button>${btn('Registrar lançamento', 'wallet')}</div><p class="form-status" role="alert"></p></form></div>
       ${b.autoRecharge.enabled && wallet < b.autoRecharge.threshold ? `<p class="surface padded ag-warn">O saldo da carteira está abaixo de ${money(b.autoRecharge.threshold)}. Registre uma recarga de ${money(b.autoRecharge.amount)}.</p>` : ''}
@@ -751,7 +761,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     },
     storage: () => { const total = O().totals.storage, max = Math.max(1, ...accounts().map(a => a.storage)); return `<div class="metrics three">${metric('Total de arquivos armazenados', bytes(total))}${metric('Quantidade de arquivos', accounts().reduce((s, a) => s + a.files, 0))}${metric('Subcontas ativas', accounts().length)}</div>${table(['Subconta', 'Arquivos', 'Espaço utilizado', ''], [...accounts()].sort((a, b) => b.storage - a.storage).map(a => `<tr><td><b>${h(a.name)}</b></td><td>${a.files}</td><td>${bytes(a.storage)}</td><td>${bar((a.storage / max) * 100)}</td></tr>`), '')}`; }
   };
-  pages.settings = () => { const sub = A.sub || 'profile'; return `<div class="page">${head('Configurações', 'Gerencie dados da empresa, equipe, faturamento, integrações e conformidade.')}${tabs('settings')}<div class="ag-settings">${settingsPages[sub]()}</div></div>`; };
+  pages.settings = () => { const sub = A.sub || 'profile'; return `<div class="page">${head('Configurações', 'Gerencie dados da empresa, equipe, faturamento, integrações e conformidade.')}${tabCard('settings', `<div class="ag-settings">${settingsPages[sub]()}</div>`, 'Seções de configurações')}</div>`; };
 
   // ---- Render ------------------------------------------------------------
   function render() {

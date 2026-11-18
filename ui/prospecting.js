@@ -1,4 +1,5 @@
 import { icon } from './icons.js';
+import { pageShell } from './screens.js';
 import { auditAreas } from './agency-data.js';
 import { auditReport, escapeProspect as h, mapsAddress, offlineReportHtml, safeWebsite } from './prospect-report.js';
 import { folded, leadStatus, opportunityScore, prospectLeadStatus, prospectSearchText, prospectSections, prospectSources, prospectThemes } from './prospecting-data.js';
@@ -322,15 +323,20 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
       : key === 'manual' ? ['Adicionar prospect','search'] : key === 'migrate' ? ['Configurações','settings'] : ['Todas as contas','all'];
     const isNested = ['search','manual','detail','report','migrate'].includes(key);
     const existingRequired = ['detail','report'].includes(key) || (key === 'manual' && id);
-    return `<div class="pr-page">
-      <header class="pr-heading">
-        <div>${isNested ? `<a class="pr-back" href="${route(back[1],back[2])}">${ico('left',15)}${back[0]}</a>` : ''}
-          <h1>${h(titles[key])}</h1>${key === 'all' ? `<p>${active().length} ${active().length === 1 ? 'prospect ativo' : 'prospects ativos'} <span>·</span> ${reports().length} ${reports().length === 1 ? 'relatório gerado' : 'relatórios gerados'}</p>` : ''}</div>
-        ${key === 'all' ? `<div class="pr-actions">${btn('Categorizar','categories',{name:'tag'})}${link('Adicionar prospect','search',{primary:true,name:'plus'})}</div>` : ''}
-      </header>
-      <nav class="pr-tabs" aria-label="Prospecção">${tabs.map(([name,label]) => `<a href="${route(name)}"${selected === name ? ' aria-current="page"' : ''}>${h(label)}</a>`).join('')}</nav>
-      <div class="pr-content">${existingRequired && !row ? empty('inbox','Prospect indisponível','Abra a lista para localizar um prospect cadastrado.',link('Todas as contas','all')) : views[key]()}</div>
-    </div>`;
+    return pageShell({
+      title: h(titles[key]),
+      back: isNested ? `<a class="page-back" href="${route(back[1],back[2])}">${ico('left',15)}${back[0]}</a>` : '',
+      desc: key === 'all' ? `${active().length} ${active().length === 1 ? 'prospect ativo' : 'prospects ativos'} · ${reports().length} ${reports().length === 1 ? 'relatório gerado' : 'relatórios gerados'}` : 'Encontre, audite e converta novos clientes para sua agência.',
+      cta: key === 'all' ? `${btn('Categorizar','categories',{name:'tag'})}${link('Adicionar prospect','search',{primary:true,name:'plus'})}` : '',
+      className: 'pr-page',
+      tabs: {
+        key: 'agency-prospecting',
+        label: 'Seções de prospecção',
+        current: selected,
+        items: tabs.map(([name, label]) => ({ value: name, label, href: route(name) }))
+      },
+      content: `<div class="pr-content">${existingRequired && !row ? empty('inbox','Prospect indisponível','Abra a lista para localizar um prospect cadastrado.',link('Todas as contas','all')) : views[key]()}</div>`
+    });
   }
 
   async function copy(value,inputNode) {

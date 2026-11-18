@@ -1,5 +1,5 @@
 import { icon } from './icons.js';
-import { fmt, h } from './screens.js';
+import { fmt, h, pageShell, utabs } from './screens.js';
 
 const triggers = [
   ['', 'Selecione um gatilho'], ['Contact created', 'Contato criado'], ['Form submitted', 'Formulário enviado'],
@@ -111,8 +111,7 @@ function workflowList(c, tab, id) {
       <td>${date(c, row.updated || row.created)}</td>
       <td>${button('workflow-menu', 'Gerenciar', { id: row.id, cls: 'wf-text' })}</td></tr>`;
   };
-  return `<section class="wf-panel">${tabs(viewTabs, folder ? 'workflows' : tab)}
-    <div class="wf-toolbar"><label class="wf-search">${icon('search', 17)}
+  const body = `<div class="wf-toolbar"><label class="wf-search">${icon('search', 17)}
       <input data-wf-search aria-label="Buscar fluxos" placeholder="Buscar fluxos…" value="${h(filters.query)}"></label>
       ${deleted ? '' : `<select data-wf-filter="status" aria-label="Filtrar por status">${options(statuses, filters.status)}</select>`}
       <select data-wf-filter="sort" aria-label="Ordenar fluxos">${options([['updated', 'Mais recentes'], ['name', 'Nome de A a Z']], filters.sort)}</select>
@@ -125,7 +124,15 @@ function workflowList(c, tab, id) {
     ${folderCards ? `<div class="wf-folders">${folderCards}</div>` : ''}
     <div data-wf-rows>${rows.length ? paginate(rows, filters.page, 15, page => table(heads, page.map(drawRow))) :
       empty(deleted ? 'Nenhum fluxo excluído' : tab === 'review' ? 'Nenhum fluxo precisa de revisão' : 'Nenhum fluxo encontrado',
-        source.length ? '' : deleted || tab === 'review' ? '' : 'Crie um fluxo para automatizar tarefas do CRM.')}</div></section>`;
+        source.length ? '' : deleted || tab === 'review' ? '' : 'Crie um fluxo para automatizar tarefas do CRM.')}</div>`;
+  return utabs({
+    key: 'automation-list',
+    nested: true,
+    label: 'Filtros de fluxos',
+    current: folder ? 'workflows' : tab,
+    items: viewTabs.map(([k, label]) => ({ value: k, label, href: `#automation/${k}` })),
+    content: body
+  });
 }
 
 function history(c, runs, mode, showWorkflow) {
@@ -236,20 +243,48 @@ function editorScreen(c, tab, id) {
       ${live?.active ? button('unpublish', 'Voltar para rascunho') : button('publish', 'Publicar', { glyph: 'check', cls: 'primary' })}</div></div>
     <div class="wf-builder-meta">${stateBadge(live?.active)}<span class="wf-sub" data-wf-unsaved ${editor.dirty ? '' : 'hidden'}>Alterações pendentes</span>${navigation}</div></header>`;
   if (tab === 'builder') return `<div class="wf-editor wf-builder" data-wf-editor>${builderHeader}${canvas(c, editor)}</div>`;
-  return `<div class="wf-editor" data-wf-editor>${top}${navigation}
-    ${['builder', 'settings'].includes(tab) ? `<div class="wf-workflow-name">${name}</div>` : ''}
-    ${tab === 'settings' ? settings :
-      history(c, c.s.runs.filter(run => run.workflowId === id), tab, false)}</div>`;
+  const inner = `${['builder', 'settings'].includes(tab) ? `<div class="wf-workflow-name">${name}</div>` : ''}
+    ${tab === 'settings' ? settings : history(c, c.s.runs.filter(run => run.workflowId === id), tab, false)}`;
+  const cta = `<span class="wf-sub" data-wf-unsaved ${editor.dirty ? '' : 'hidden'}>Alterações pendentes</span>${stateBadge(live?.active)}
+    ${tab === 'enrollments' && live.active ? button('enroll', 'Inscrever contato', { glyph: 'plus', cls: 'primary', id }) : ''}
+    ${['builder', 'settings'].includes(tab) ? button('save-draft', live?.active ? 'Salvar alterações' : 'Salvar rascunho') +
+      (live?.active ? button('unpublish', 'Voltar para rascunho') : button('publish', 'Publicar', { glyph: 'check', cls: 'primary' })) : ''}`;
+  return pageShell({
+    title: live ? h(live.name) : 'Novo fluxo',
+    back: `<a class="page-back" href="#automation/workflows">${icon('left', 15)} Fluxos de trabalho</a>`,
+    cta,
+    className: 'wf-page',
+    attrs: 'data-wf-editor',
+    tabs: live ? {
+      key: 'automation-editor',
+      label: 'Seções do fluxo',
+      current: tab,
+      items: editorTabs.map(([key, label]) => ({ value: key, label, href: `#automation/${key}/${encodeURIComponent(id)}` }))
+    } : null,
+    content: inner
+  });
 }
 
 export function automationScreen(c) {
   const tab = c.tab || 'workflows', id = c.automationId;
-  if (editorTabs.some(([key]) => key === tab) && (id || tab === 'builder')) return `<div class="wf-page ${tab === 'builder' ? 'wf-builder-page' : ''}">${editorScreen(c, tab, id)}</div>`;
-  return `<div class="wf-page"><div class="wf-page-head"><div><h1>Automações</h1></div>
-    <div class="wf-head-actions">${button('folder-edit', 'Criar pasta', { glyph: 'folder' })}
-      ${link('builder', `${icon('plus', 17)} Criar fluxo`, tab === 'folder' ? id : '', 'primary')}</div></div>
-    ${tabs(routeTabs, tab === 'overview' || tab === 'logs' ? tab : 'workflows')}
-    ${tab === 'overview' ? overview(c) : tab === 'logs' ? history(c, c.s.runs, 'logs', true) : workflowList(c, tab, id)}</div>`;
+  if (editorTabs.some(([key]) => key === tab) && (id || tab === 'builder')) {
+    if (tab === 'builder') return `<div class="page wf-page wf-builder-page">${editorScreen(c, tab, id)}</div>`;
+    return editorScreen(c, tab, id);
+  }
+  const activeRoute = tab === 'overview' || tab === 'logs' ? tab : 'workflows';
+  return pageShell({
+    title: 'Automações',
+    desc: 'Automatize processos do CRM, organize fluxos em pastas e acompanhe o histórico de execuções.',
+    cta: `${button('folder-edit', 'Criar pasta', { glyph: 'folder' })}${link('builder', `${icon('plus', 17)} Criar fluxo`, tab === 'folder' ? id : '', 'primary')}`,
+    className: 'wf-page',
+    tabs: {
+      key: 'automation',
+      label: 'Seções de automação',
+      current: activeRoute,
+      items: routeTabs.map(([key, label]) => ({ value: key, label, href: `#automation/${key}` }))
+    },
+    content: tab === 'overview' ? overview(c) : tab === 'logs' ? history(c, c.s.runs, 'logs', true) : workflowList(c, tab, id)
+  });
 }
 
 const resultLabels = {

@@ -33,7 +33,8 @@
   background: var(--g-surface);
 }
 .dw-header h1 { min-width: 0; font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
-.dw-header .secondary, .dw-header .primary { min-height: 32px; padding: 4px 10px; border-radius: 6px; font-size: 12px; }
+.dw-header .secondary { min-height: 32px; padding: 4px 10px; border-radius: 6px; font-size: 12px; }
+.dw-header .primary { min-height: 32px; padding: 4px 14px; border-radius: 9999px; font-size: 12px; }
 .dw-header .icon-btn { width: 32px; height: 32px; }
 .dw-header [aria-pressed=true] { color: var(--dw-accent); background: var(--dw-selected); }
 .dw-columns {

@@ -10,7 +10,7 @@ import {agentsScreen} from './agents.js';
 import {sitesScreen} from './sites.js';
 import { formsScreen } from './forms.js';
 import {automationScreen} from './automation.js';
-import {portalAdminScreen, portalNav} from './client-portal.js';
+import {portalAdminScreen, portalTabs} from './client-portal.js';
 import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
 import {opportunityStatuses} from './dashboard-data.js';
 
@@ -26,6 +26,25 @@ const primary=(label,key,extra='')=>`<button class="primary" data-edit="${key}" 
 const action=(label,action,ico='')=>`<button class="secondary" data-act="${action}">${ico?i(ico,16):''}${label}</button>`;
 const link=(label,view)=>`<a class="text-link" href="#${view}">${label} ${i('arrow',15)}</a>`;
 export const tabs=(values,current)=>`<div class="tabs" aria-label="Seção">${values.map(([value,label])=>`<button data-tab="${value}" class="${value===current?'selected':''}" aria-pressed="${value===current}">${label}</button>`).join('')}</div>`;
+export function utabs({ key, items, current, content = '', label = 'Seções', nested = false, flush = false, fill = false, className = '' }) {
+  const buttons = items.map(entry => {
+    const item = Array.isArray(entry) ? { value: entry[0], label: entry[1] } : entry;
+    const on = item.value === current;
+    const glyph = item.icon ? i(item.icon, 15) : '';
+    const text = item.rawLabel ?? h(item.label);
+    if (item.href !== undefined) {
+      return `<a class="g-utabs-tab${on ? ' selected' : ''}" href="${h(item.href)}"${on ? ' aria-current="page"' : ''}${item.attrs ? ` ${item.attrs}` : ''}>${glyph}${text}</a>`;
+    }
+    const attrs = item.attrs ?? `data-tab="${h(item.value)}"`;
+    return `<button type="button" role="tab" class="g-utabs-tab${on ? ' selected' : ''}" ${attrs} aria-selected="${on}">${glyph}${text}</button>`;
+  }).join('');
+  return `<section class="g-utabs${nested ? ' is-nested' : ''}${flush ? ' is-flush' : ''}${fill ? ' is-fill' : ''}${className ? ` ${className}` : ''}" data-utabs="${h(key)}" data-utabs-active="${h(current)}"><div class="g-utabs-head"><div class="g-utabs-list" role="tablist" aria-label="${h(label)}"><div class="g-utabs-track">${buttons}</div></div></div><div class="g-utabs-panel${flush ? ' is-flush' : ''}" role="tabpanel">${content}</div></section>`;
+}
+export function pageShell({ title, desc = '', cta = '', back = '', className = '', attrs = '', tabs: tabCfg = null, content = '' }) {
+  const header = `<header class="page-head"><div>${back}<h1>${title}</h1>${desc ? `<p>${desc}</p>` : ''}</div><div class="head-actions">${cta}</div></header>`;
+  const body = tabCfg ? utabs({ ...tabCfg, content }) : content;
+  return `<div class="page${className ? ` ${className}` : ''}"${attrs ? ` ${attrs}` : ''}>${header}${body}</div>`;
+}
 const head=(title,desc='',cta='',sub='')=>`<header class="page-head"><div><h1>${title}</h1>${desc?`<p>${desc}</p>`:''}</div><div class="head-actions">${cta}</div></header>${sub}`;
 const empty=(title,desc,icon='inbox',cta='')=>`<div class="empty">${i(icon,26)}<strong>${title}</strong><p>${desc}</p>${cta}</div>`;
 const search=(v,label='Buscar…')=>`<label class="search">${i('search',16)}<input id="page-search" value="${h(v)}" placeholder="${label}" aria-label="${label}" autocomplete="off"></label>`;
@@ -53,7 +72,14 @@ function contacts(c){
   if(['bulk','fields','companies'].includes(c.tab)) return contactsTab(c,c.tab);
   const tab=c.tab||'all', list=tab==='tasks'?top(c.s.tasks,c.query,['title']):top(c.s.contacts,c.query,['name','email','phone','company','tags']);
   const tag=c.tag, tags=[...new Set(c.s.contacts.flatMap(x=>x.tags))].sort();
-  return wrap(head('Contatos','',tab==='tasks'?primary('Adicionar tarefa','tasks'):`${action('Importar','import','upload')}${primary('Adicionar contato','contacts')}`,tabs(crmTabs.contacts,tab))+`<div class="toolbar">${search(c.query,tab==='tasks'?'Buscar tarefas…':'Busca rápida…')}${tab==='all'?`<label class="tag-filter">${i('filter',15)}<select id="tag-filter" aria-label="Filtrar contatos por tag"><option value="">Todas as tags</option>${tags.map(t=>`<option ${t===tag?'selected':''}>${h(t)}</option>`).join('')}</select></label>`:''}</div>`+(tab==='tasks'?table(['Tarefa','Contato','Prazo','Status',''],list.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),date(r.due,c),`<button class="pill-button ${r.done?'completed':''}" data-task="${r.id}">${r.done?'Concluída':'Em aberto'}</button>`],'tasks',r.id)),empty('Nenhuma tarefa encontrada','Adicione uma tarefa para acompanhar os retornos.','check')):(()=>{const shown=list.filter(r=>!tag||r.tags.includes(tag));return bulkBar(c,'contacts')+table([pickHead('contacts',shown.map(r=>r.id)),'Nome','Telefone','E-mail','Empresa','Tags',''],shown.map(r=>row([pickBox('contacts',r.id),`<button class="identity" data-edit="contacts" data-id="${r.id}">${avatar(r.name)}<strong>${h(r.name)}</strong></button>`,h(r.phone||'—'),h(r.email||'—'),h(r.company||'—'),r.tags.map(t=>badge(t,'blue')).join(' ')||'—'],'contacts',r.id)),empty('Nenhum contato encontrado','Crie um contato ou tente outro filtro.','contacts'))})()));
+  const body = `<div class="toolbar">${search(c.query,tab==='tasks'?'Buscar tarefas…':'Busca rápida…')}${tab==='all'?`<label class="tag-filter">${i('filter',15)}<select id="tag-filter" aria-label="Filtrar contatos por tag"><option value="">Todas as tags</option>${tags.map(t=>`<option ${t===tag?'selected':''}>${h(t)}</option>`).join('')}</select></label>`:''}</div>`+(tab==='tasks'?table(['Tarefa','Contato','Prazo','Status',''],list.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),date(r.due,c),`<button class="pill-button ${r.done?'completed':''}" data-task="${r.id}">${r.done?'Concluída':'Em aberto'}</button>`],'tasks',r.id)),empty('Nenhuma tarefa encontrada','Adicione uma tarefa para acompanhar os retornos.','check')):(()=>{const shown=list.filter(r=>!tag||r.tags.includes(tag));return bulkBar(c,'contacts')+table([pickHead('contacts',shown.map(r=>r.id)),'Nome','Telefone','E-mail','Empresa','Tags',''],shown.map(r=>row([pickBox('contacts',r.id),`<button class="identity" data-edit="contacts" data-id="${r.id}">${avatar(r.name)}<strong>${h(r.name)}</strong></button>`,h(r.phone||'—'),h(r.email||'—'),h(r.company||'—'),r.tags.map(t=>badge(t,'blue')).join(' ')||'—'],'contacts',r.id)),empty('Nenhum contato encontrado','Crie um contato ou tente outro filtro.','contacts'))})());
+  return pageShell({
+    title: 'Contatos',
+    desc: 'Gerencie leads, tarefas, campos personalizados e empresas deste workspace.',
+    cta: tab==='tasks'?primary('Adicionar tarefa','tasks'):`${action('Importar','import','upload')}${primary('Adicionar contato','contacts')}`,
+    tabs: { key: 'contacts', items: crmTabs.contacts, current: tab, label: 'Seções de contatos' },
+    content: body
+  });
 }
 function conversations(c) {
   return conversationPage(c,inboxPage);
@@ -63,7 +89,14 @@ function calendars(c){
   const keyFor=n=>`${y}-${String(m+1).padStart(2,'0')}-${String(n).padStart(2,'0')}`;
   const dates=new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit',timeZone:c.s.profile.timezone});
   const cells=Array.from({length:Math.ceil((shift+len)/7)*7},(_,j)=>{const n=j+1-shift;if(n<1||n>len)return `<div class="day off" aria-hidden="true"></div>`;const k=keyFor(n), apps=c.s.appointments.filter(a=>dates.format(new Date(a.start))===k);return `<div class="day ${dates.format(new Date())===k?'today':''}"><button class="day-number" data-edit="appointments" data-date="${k}" aria-label="Agendar em ${k}">${n}</button>${apps.map(a=>`<button class="appointment ${a.status==='Canceled'?'cancelled':''}" data-edit="appointments" data-id="${a.id}">${h(a.title)}</button>`).join('')}</div>`;}).join('');
-  return wrap(head('Calendários','',primary('Novo agendamento','appointments'),tabs([['calendar','Calendário'],['appointments','Agendamentos']],tab))+(tab==='calendar'?`<div class="surface calendar"><div class="calendar-head"><button class="icon-btn" data-act="prev-month" aria-label="Mês anterior">${i('left')}</button><b>${title}</b><button class="icon-btn" data-act="next-month" aria-label="Próximo mês">${i('right')}</button><div class="spacer"></div>${action('Hoje','this-month')}</div><div class="weekdays">${['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(a=>`<span>${a}</span>`).join('')}</div><div class="calendar-grid">${cells}</div></div>`:table(['Agendamento','Contato','Início','Fim','Status',''],[...c.s.appointments].sort((a,b)=>a.start.localeCompare(b.start)).map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),date(r.start,c,true),date(r.end,c,true),badge(r.status,r.status==='Canceled'?'red':'blue')],'appointments',r.id)),empty('Nenhum agendamento','Marque um agendamento para começar.','cal'))));
+  const body = tab==='calendar'?`<div class="surface calendar"><div class="calendar-head"><button class="icon-btn" data-act="prev-month" aria-label="Mês anterior">${i('left')}</button><b>${title}</b><button class="icon-btn" data-act="next-month" aria-label="Próximo mês">${i('right')}</button><div class="spacer"></div>${action('Hoje','this-month')}</div><div class="weekdays">${['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(a=>`<span>${a}</span>`).join('')}</div><div class="calendar-grid">${cells}</div></div>`:table(['Agendamento','Contato','Início','Fim','Status',''],[...c.s.appointments].sort((a,b)=>a.start.localeCompare(b.start)).map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),date(r.start,c,true),date(r.end,c,true),badge(r.status,r.status==='Canceled'?'red':'blue')],'appointments',r.id)),empty('Nenhum agendamento','Marque um agendamento para começar.','cal'));
+  return pageShell({
+    title: 'Calendários',
+    desc: 'Organize sua agenda e acompanhe os agendamentos deste workspace.',
+    cta: primary('Novo agendamento','appointments'),
+    tabs: { key: 'calendars', items: [['calendar','Calendário'],['appointments','Agendamentos']], current: tab, label: 'Seções de calendários' },
+    content: body
+  });
 }
 function opportunities(c){
   const {s} = c;
@@ -74,13 +107,19 @@ function opportunities(c){
   const local = opportunityResults(s,pipeline.id,c.query,c.opportunityFilters,c.opportunitySort);
   const filters = c.opportunityFilters || { status:'Open' };
   const filterCount = Object.values(filters).filter(Boolean).length;
-  const sections = tabs(crmTabs.opportunities.filter(([key]) => key !== 'list'),view === 'list' ? 'pipeline' : view);
+  const tabCfg = { key: 'opportunities', items: crmTabs.opportunities.filter(([key]) => key !== 'list'), current: view === 'list' ? 'pipeline' : view, label: 'Seções de oportunidades' };
   if (view === 'pipelines') {
-    return wrap(head('Oportunidades','',action('Novo pipeline','new-pipeline','plus'),sections) + `<div class="card-grid">${s.pipelines.map(item => `
-      <article class="surface padded resource"><div class="section-heading"><h2>${h(item.name)}</h2><button class="icon-btn" data-pipeline-edit="${item.id}" aria-label="Renomear ${h(item.name)}">${i('edit',15)}</button></div>
-        ${s.stages.filter(stage => stage.pipelineId === item.id).map(stage => `<div class="line-item"><span>${h(stage.name)}${stage.visible === false ? ' · Oculta nos relatórios' : ''}</span>
-          <button class="icon-btn" data-stage-edit="${stage.id}" aria-label="Editar ${h(stage.name)}">${i('edit',15)}</button></div>`).join('')}
-        <button class="secondary" data-stage-new="${item.id}">${i('plus',15)} Adicionar etapa</button></article>`).join('')}</div>`);
+    return pageShell({
+      title: 'Oportunidades',
+      desc: 'Configure pipelines e etapas do seu funil de vendas.',
+      cta: action('Novo pipeline','new-pipeline','plus'),
+      tabs: tabCfg,
+      content: `<div class="card-grid">${s.pipelines.map(item => `
+        <article class="surface padded resource"><div class="section-heading"><h2>${h(item.name)}</h2><button class="icon-btn" data-pipeline-edit="${item.id}" aria-label="Renomear ${h(item.name)}">${i('edit',15)}</button></div>
+          ${s.stages.filter(stage => stage.pipelineId === item.id).map(stage => `<div class="line-item"><span>${h(stage.name)}${stage.visible === false ? ' · Oculta nos relatórios' : ''}</span>
+            <button class="icon-btn" data-stage-edit="${stage.id}" aria-label="Editar ${h(stage.name)}">${i('edit',15)}</button></div>`).join('')}
+          <button class="secondary" data-stage-new="${item.id}">${i('plus',15)} Adicionar etapa</button></article>`).join('')}</div>`
+    });
   }
   const stageNames = new Map(stages.map(stage => [stage.id,stage.name]));
   const contacts = new Map(s.contacts.map(contact => [contact.id,contact]));
@@ -117,9 +156,12 @@ function opportunities(c){
       <div class="kanban-cards">${matches.map(card).join('')}</div></section>`;
   }).join('')}</div>${local.length ? '' : nothing}`;
   const quickStatus = [['','Todos os status'],...opportunityStatuses.map(status => [status,tr(status)])];
-  return wrap(head('Oportunidades','',action('Importar','opportunity-import','upload') +
-    action('Exportar','opportunity-export','download') + primary('Adicionar oportunidade','opportunities'),sections) +
-    `<div class="toolbar opportunity-toolbar">
+  return pageShell({
+    title: 'Oportunidades',
+    desc: 'Acompanhe negócios no pipeline, previsões de receita e etapas de vendas.',
+    cta: action('Importar','opportunity-import','upload') + action('Exportar','opportunity-export','download') + primary('Adicionar oportunidade','opportunities'),
+    tabs: tabCfg,
+    content: `<div class="toolbar opportunity-toolbar">
       <label class="tag-filter"><select data-opportunity-pipeline aria-label="Pipeline">${s.pipelines.map(item => `<option value="${item.id}" ${item.id === pipeline.id ? 'selected' : ''}>${h(item.name)}</option>`).join('')}</select></label>
       <span class="dim" role="status">${local.length} ${local.length === 1 ? 'oportunidade' : 'oportunidades'}</span>
       <div class="spacer"></div>
@@ -134,34 +176,60 @@ function opportunities(c){
       ${action('Ordenar','opportunity-sort','sort')}
       <div class="spacer"></div>${search(c.query,'Buscar oportunidades…')}
       ${view === 'pipeline' ? action('Personalizar cartões','opportunity-fields','sliders') : ''}
-    </div>${bulkBar(c,'opportunities')}${view === 'list' ? list : board}`);
+    </div>${bulkBar(c,'opportunities')}${view === 'list' ? list : board}`
+  });
 }
 function payments(c){
   if((c.tab||'invoices')!=='invoices') return paymentsTab(c,c.tab);
   const s=c.s, records=top(s.invoices,c.query,['title','status']);
-  return wrap(head('Pagamentos','Acompanhe as faturas registradas neste workspace.',primary('Nova fatura','invoices'),tabs(crmTabs.payments,c.tab||'invoices'))+`<div class="metrics three"><div class="surface metric"><span>Saldo em aberto</span><b>${mt(s.invoices.filter(x=>x.status==='Open').reduce((a,r)=>a+r.value,0),c)}</b></div><div class="surface metric"><span>Pagamentos registrados</span><b>${mt(c.m.invoicesPaid,c)}</b></div><div class="surface metric"><span>Total de faturas</span><b>${s.invoices.length}</b></div></div><div class="toolbar">${search(c.query,'Buscar faturas…')}</div>`+table(['Fatura','Contato','Valor','Vencimento','Status',''],records.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),mt(r.value,c),date(r.due,c),badge(r.status,r.status==='Paid'?'green':'blue')],'invoices',r.id)),empty('Nenhuma fatura registrada','Crie uma fatura em rascunho. Os pagamentos podem ser marcados manualmente aqui.','pay')));
+  return pageShell({
+    title: 'Pagamentos',
+    desc: 'Acompanhe as faturas registradas neste workspace.',
+    cta: primary('Nova fatura','invoices'),
+    tabs: { key: 'payments', items: crmTabs.payments, current: c.tab||'invoices', label: 'Seções de pagamentos' },
+    content: `<div class="metrics three"><div class="surface metric"><span>Saldo em aberto</span><b>${mt(s.invoices.filter(x=>x.status==='Open').reduce((a,r)=>a+r.value,0),c)}</b></div><div class="surface metric"><span>Pagamentos registrados</span><b>${mt(c.m.invoicesPaid,c)}</b></div><div class="surface metric"><span>Total de faturas</span><b>${s.invoices.length}</b></div></div><div class="toolbar">${search(c.query,'Buscar faturas…')}</div>`+table(['Fatura','Contato','Valor','Vencimento','Status',''],records.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),mt(r.value,c),date(r.due,c),badge(r.status,r.status==='Paid'?'green':'blue')],'invoices',r.id)),empty('Nenhuma fatura registrada','Crie uma fatura em rascunho. Os pagamentos podem ser marcados manualmente aqui.','pay'))
+  });
 }
 function marketing(c){
   const t=c.tab||'social';
-  if(t==='social') return socialPlanner(c,{head,tabsHtml:tabs([['social','Planejador social'],['email','E-mails']],t)});
+  const marketingTabs = [['social','Planejador social'],['email','E-mails']];
+  if(t==='social') return socialPlanner(c,{ pageShell, utabs, marketingTabs });
   const channel='Email', records=top(c.s.campaigns.filter(x=>x.channel===channel),c.query,['name','body','status']);
-  return wrap(head('Marketing','Rascunhe e organize campanhas. Publique ou envie pelo seu provedor quando estiver pronto.',primary(t==='social'?'Nova publicação':'Nova campanha','campaigns',`data-channel="${channel}"`),tabs([['social','Planejador social'],['email','E-mails']],t))+`<div class="toolbar">${search(c.query,'Buscar campanhas…')}</div>`+table(['Campanha','Conteúdo','Data planejada','Status',''],records.map(r=>row([`<b>${h(r.name)}</b>`,`<span class="ellipsis">${h(r.body)}</span>`,date(r.date,c),badge(r.status,r.status==='Planned'?'blue':'')],'campaigns',r.id)),empty('Nenhuma campanha','Crie seu primeiro rascunho para planejar o conteúdo.','send')));
+  return pageShell({
+    title: 'Marketing',
+    desc: 'Rascunhe e organize campanhas. Publique ou envie pelo seu provedor quando estiver pronto.',
+    cta: primary('Nova campanha','campaigns',`data-channel="${channel}"`),
+    tabs: { key: 'marketing', items: marketingTabs, current: t, label: 'Seções de marketing' },
+    content: `<div class="toolbar">${search(c.query,'Buscar campanhas…')}</div>`+table(['Campanha','Conteúdo','Data planejada','Status',''],records.map(r=>row([`<b>${h(r.name)}</b>`,`<span class="ellipsis">${h(r.body)}</span>`,date(r.date,c),badge(r.status,r.status==='Planned'?'blue':'')],'campaigns',r.id)),empty('Nenhuma campanha','Crie seu primeiro rascunho para planejar o conteúdo.','send'))
+  });
 }
 function sites(c){
   if(['forms','submissions','form-analytics','form'].includes(c.tab)) return formsScreen(c);
   if(!['forms','submissions'].includes(c.tab)) return sitesScreen(c);
   const t=c.tab||'funnels', p=t==='websites'?'Website':'Funnel', s=c.s;
-  return wrap(head('Sites','Crie páginas de captura locais e receba envios.',t==='submissions'?'':t==='forms'?primary('Novo formulário','forms'):primary(p==='Website'?'Novo site':'Novo funil','pages',`data-kind="${p}"`),tabs([['funnels','Funis'],['websites','Sites'],['forms','Formulários'],['submissions','Envios']],t))+(t==='submissions'?table(['Formulário','Nome','E-mail','Recebido'],[...s.submissions].reverse().map(r=>`<tr><td>${h(s.forms.find(f=>f.id===r.formId)?.name||'Formulário excluído')}</td><td>${h(r.name||'—')}</td><td>${h(r.email||'—')}</td><td>${date(r.created,c,true)}</td></tr>`),empty('Nenhum envio','Publique um formulário e use o link local para captar um lead.','inbox')):`<div class="card-grid">${[...(t==='forms'?s.forms:s.pages.filter(r=>r.kind===p))].reverse().map(r=>`<article class="surface padded resource"><span class="metric-icon">${i(t==='forms'?'list':'site')}</span><div><h2>${h(r.name)}</h2><p>${h(r.headline||r.description||'')}</p></div>${badge(r.active?'Publicado localmente':'Draft',r.active?'green':'')}<div class="inline-gap">${r.active?viewLink('Abrir',t==='forms'?'f':'p',r.id,c):''}<button class="secondary" data-edit="${t==='forms'?'forms':'pages'}" data-id="${r.id}">${i('edit',15)} Editar</button></div></article>`).join('')||empty(t==='forms'?'Nenhum formulário ainda':t==='websites'?'Nenhum site ainda':'Nenhum funil ainda','Crie um item para visualizá-lo ou publicá-lo localmente.','site')}</div>`));
+  return pageShell({
+    title: 'Sites',
+    desc: 'Crie páginas de captura locais e receba envios.',
+    cta: t==='submissions'?'':t==='forms'?primary('Novo formulário','forms'):primary(p==='Website'?'Novo site':'Novo funil','pages',`data-kind="${p}"`),
+    tabs: { key: 'sites', items: [['funnels','Funis'],['websites','Sites'],['forms','Formulários'],['submissions','Envios']], current: t, label: 'Seções de sites' },
+    content: t==='submissions'?table(['Formulário','Nome','E-mail','Recebido'],[...s.submissions].reverse().map(r=>`<tr><td>${h(s.forms.find(f=>f.id===r.formId)?.name||'Formulário excluído')}</td><td>${h(r.name||'—')}</td><td>${h(r.email||'—')}</td><td>${date(r.created,c,true)}</td></tr>`),empty('Nenhum envio','Publique um formulário e use o link local para captar um lead.','inbox')):`<div class="card-grid">${[...(t==='forms'?s.forms:s.pages.filter(r=>r.kind===p))].reverse().map(r=>`<article class="surface padded resource"><span class="metric-icon">${i(t==='forms'?'list':'site')}</span><div><h2>${h(r.name)}</h2><p>${h(r.headline||r.description||'')}</p></div>${badge(r.active?'Publicado localmente':'Draft',r.active?'green':'')}<div class="inline-gap">${r.active?viewLink('Abrir',t==='forms'?'f':'p',r.id,c):''}<button class="secondary" data-edit="${t==='forms'?'forms':'pages'}" data-id="${r.id}">${i('edit',15)} Editar</button></div></article>`).join('')||empty(t==='forms'?'Nenhum formulário ainda':t==='websites'?'Nenhum site ainda':'Nenhum funil ainda','Crie um item para visualizá-lo ou publicá-lo localmente.','site')}</div>`
+  });
 }
 function memberships(c){
   if (c.tab !== 'courses') return portalAdminScreen(c);
-  return `<section class="cp-admin"><h1>Assinaturas</h1>${portalNav('courses')}
-    <div class="cp-section-title"><div><h2>Cursos</h2><p>Publique aulas para os clientes com acesso ao portal.</p></div>${primary('Novo curso','courses')}</div>
-    <div class="card-grid">${c.s.courses.map(r=>`<article class="surface padded resource"><span class="metric-icon">${i('play')}</span>
-      <div><h2>${h(r.name)}</h2><p>${h(r.description)}</p></div>${badge(r.active?(r.portalOnly?'No portal':'Publicado'):'Rascunho',r.active?'green':'')}
-      <div class="inline-gap">${r.active&&!r.portalOnly?viewLink('Abrir aula','course',r.id,c):''}
-        <button class="secondary" data-edit="courses" data-id="${h(r.id)}">${i('edit',15)} Editar</button></div></article>`).join('')
-      ||empty('Nenhum curso','Adicione um curso e publique a primeira aula.','play')}</div></section>`;
+  return pageShell({
+    title: 'Assinaturas',
+    desc: 'Gerencie o portal do cliente, permissões de acesso e cursos deste workspace.',
+    cta: primary('Novo curso','courses'),
+    className: 'cp-admin',
+    tabs: { key: 'memberships', items: portalTabs(), current: 'courses', label: 'Seções de assinaturas' },
+    content: `<div class="cp-section-title"><div><h2>Cursos</h2><p>Publique aulas para os clientes com acesso ao portal.</p></div></div>
+      <div class="card-grid">${c.s.courses.map(r=>`<article class="surface padded resource"><span class="metric-icon">${i('play')}</span>
+        <div><h2>${h(r.name)}</h2><p>${h(r.description)}</p></div>${badge(r.active?(r.portalOnly?'No portal':'Publicado'):'Rascunho',r.active?'green':'')}
+        <div class="inline-gap">${r.active&&!r.portalOnly?viewLink('Abrir aula','course',r.id,c):''}
+          <button class="secondary" data-edit="courses" data-id="${h(r.id)}">${i('edit',15)} Editar</button></div></article>`).join('')
+        ||empty('Nenhum curso','Adicione um curso e publique a primeira aula.','play')}</div>`
+  });
 }
 function media(c){
   return wrap(head('Mídia Drive','Guarde imagens e PDFs no drive local.',action('Enviar arquivo','upload','upload'))+`<div class="toolbar">${search(c.query,'Buscar arquivos…')}</div><div class="card-grid">${top(c.s.files,c.query,['name']).map(r=>`<article class="surface resource media-card"><div class="media-preview">${r.data.startsWith('data:image/')?`<img src="${h(r.data)}" alt="">`:`${i('folder',44)} <b>PDF</b>`}</div><div class="media-name"><h2>${h(r.name)}</h2><button class="icon-btn" data-file="${r.id}" title="Baixar" aria-label="Baixar ${h(r.name)}">${i('download',16)}</button><button class="icon-btn" data-delete="files" data-id="${r.id}" title="Remover" aria-label="Remover ${h(r.name)}">${i('trash',16)}</button></div></article>`).join('')||empty('Nenhum arquivo enviado','Adicione uma imagem ou PDF do seu computador.','folder')}</div>`);
@@ -171,11 +239,22 @@ function reputation(c){
 }
 function reporting(c){
   const view=c.tab || 'overview';
-  const sections=tabs([['overview','Visão geral'],['snapshots','Relatórios do painel']],view);
-  if (view==='snapshots') return wrap(head('Relatórios','', '', sections) + table(['Nome','Painel','Salvo em','Período',''],[...c.s.dashboardReports].reverse().map(report =>
-    `<tr><td><b>${h(report.name)}</b></td><td>${h(tr(report.dashboard))}</td><td>${date(report.created,c,true)}</td><td>${h(report.start ? `${report.start} – ${report.end}` : 'Todo o período')}</td><td><button class="secondary" data-dashboard-report="${report.id}">Abrir relatório</button></td></tr>`),empty('Nenhum relatório do painel','Use “Enviar como relatório” em um painel para salvar uma cópia aqui.','chart')));
+  const tabCfg = { key: 'reporting', items: [['overview','Visão geral'],['snapshots','Relatórios do painel']], current: view, label: 'Seções de relatórios' };
+  if (view==='snapshots') return pageShell({
+    title: 'Relatórios',
+    desc: 'Cópias salvas a partir dos seus painéis de métricas.',
+    tabs: tabCfg,
+    content: table(['Nome','Painel','Salvo em','Período',''],[...c.s.dashboardReports].reverse().map(report =>
+      `<tr><td><b>${h(report.name)}</b></td><td>${h(tr(report.dashboard))}</td><td>${date(report.created,c,true)}</td><td>${h(report.start ? `${report.start} – ${report.end}` : 'Todo o período')}</td><td><button class="secondary" data-dashboard-report="${report.id}">Abrir relatório</button></td></tr>`),empty('Nenhum relatório do painel','Use “Enviar como relatório” em um painel para salvar uma cópia aqui.','chart'))
+  });
   const cols=['Módulo','Registros','Observações'], values=[['Contatos',c.m.contacts,'Todos os contatos salvos'],['Oportunidades',c.m.open,`Em aberto · ${mt(c.m.openValue,c)}`],['Negócios ganhos',c.m.won,`Ganhos · ${mt(c.m.wonValue,c)}`],['Agendamentos',c.m.appointments,'Não inclui agendamentos cancelados'],['Faturas',c.s.invoices.length,`${mt(c.m.invoicesPaid,c)} marcados como pagos`],['Envios de formulário',c.s.submissions.length,'Todos os envios recebidos'],['Fluxos',c.s.runs.length,'Execuções registradas']];
-  return wrap(head('Relatórios','Resumo do workspace com base nos registros atuais.',action('Exportar relatório','export','download'),sections)+table(cols,values.map(r=>`<tr>${r.map((x,j)=>`<td>${j===0?`<b>${x}</b>`:x}</td>`).join('')}</tr>`),''));
+  return pageShell({
+    title: 'Relatórios',
+    desc: 'Resumo do workspace com base nos registros atuais.',
+    cta: action('Exportar relatório','export','download'),
+    tabs: tabCfg,
+    content: table(cols,values.map(r=>`<tr>${r.map((x,j)=>`<td>${j===0?`<b>${x}</b>`:x}</td>`).join('')}</tr>`),'')
+  });
 }
 function marketplace(c){
   const cards=[['Stripe','stripe','Receba pagamentos de faturas e checkout.'],['Google Agenda','google-calendar','Sincronize disponibilidade e agendamentos.'],['Twilio','twilio','Ative SMS e voz nas conversas.'],['Perfil da Empresa no Google','gbp','Sincronize avaliações e dados da empresa.'],['Meta','meta','Conecte Facebook e Instagram para publicar nas redes.'],['Provedor de e-mail','email','Envie campanhas e e-mails para clientes.']];
@@ -243,7 +322,15 @@ function whatsappSubView(c){
 function settings(c){
   if(c.tab&&!['business','workspaces','whatsapp'].includes(c.tab)) return settingsTab(c,c.tab);
   const p=c.s.profile;
-  return wrap(head('Configurações','Gerencie o workspace ativo.',action('Novo workspace','new-workspace','plus'),tabs(crmTabs.settings,c.tab||'business'))+(c.tab==='whatsapp'?whatsappSubView(c):c.tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" value="${h(p.phone)}" type="tel"></label><label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label></div><button class="primary">Salvar alterações</button></form>`));
+  const tab = c.tab || 'business';
+  const body = tab==='whatsapp'?whatsappSubView(c):tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" value="${h(p.phone)}" type="tel"></label><label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label></div><button class="primary">Salvar alterações</button></form>`;
+  return pageShell({
+    title: 'Configurações',
+    desc: 'Gerencie o workspace ativo.',
+    cta: action('Novo workspace','new-workspace','plus'),
+    tabs: { key: 'settings', items: crmTabs.settings, current: tab, label: 'Seções de configurações' },
+    content: body
+  });
 }
 export const screens={'ask-ai':dashboard,dashboard,conversations,calendars,contacts,opportunities,automation:automationScreen,payments,marketing,sites,memberships,media,reputation,reporting,settings,studio,'ai-agents':agentsScreen};
 export { date, empty, name, primary, row, search, table };

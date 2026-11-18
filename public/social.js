@@ -187,7 +187,7 @@ function csvView(c) {
     ${history ? `<div class="surface table-shell"><table><thead><tr><th>Arquivo</th><th>Quando</th><th>Criados</th><th>Resultado</th></tr></thead><tbody>${history}</tbody></table></div>` : ''}`;
 }
 
-export function socialPlanner(c, { head, tabsHtml }) {
+export function socialPlanner(c, { pageShell, utabs, marketingTabs }) {
   if (plannerWorkspace !== c.workspace) {
     plannerWorkspace = c.workspace;
     csv = freshCsv(); ui.account = ''; ui.status = 'all'; ui.picked.clear();
@@ -195,12 +195,33 @@ export function socialPlanner(c, { head, tabsHtml }) {
   const hasAccounts = c.s.socialAccounts.length > 0;
   const actions = { categories: `<button class="primary" data-sp-edit="socialCategories">${i('plus', 16)} Nova categoria</button>`, hashtags: `<button class="primary" data-sp-edit="socialHashtags">${i('plus', 16)} Novo grupo</button>`,
     rss: `<button class="primary" data-sp-edit="socialFeeds" ${hasAccounts ? '' : 'disabled'}>${i('plus', 16)} Novo feed</button>` };
-  const header = head('Marketing', 'Planeje, aprove e publique nas suas redes sociais a partir de um só lugar.', actions[ui.view] || newPost(), tabsHtml);
-  if (!hasAccounts && !c.s.socialPosts.length && ['calendar', 'list'].includes(ui.view)) return `<div class="page sp">${header}${segmented(views.map(([v, l, ico]) => [v, l, ico]), ui.view, 'data-sp-view')}${onboarding(c)}</div>`;
-  const review = c.s.socialPosts.filter(p => p.status === 'in_review').length, failed = c.s.socialPosts.filter(p => p.status === 'failed').length;
-  const notes = `${review ? `<div class="sp-note">${i('bell', 15)} ${review} post(s) aguardando aprovação. <button class="text-link" data-sp-status-pick="in_review">Ver</button></div>` : ''}${failed ? `<div class="sp-note bad">${i('alert', 15)} ${failed} post(s) falharam. <button class="text-link" data-sp-status-pick="failed">Ver</button></div>` : ''}`;
-  const content = { calendar: () => filters(c) + calendar(c), list: () => filters(c) + postList(c), accounts: () => accountsView(c), categories: () => categoriesView(c), hashtags: () => hashtagsView(c), rss: () => rssView(c), csv: () => csvView(c) }[ui.view]();
-  return `<div class="page sp">${header}${segmented(views, ui.view, 'data-sp-view')}${notes}${content}</div>`;
+  const viewItems = views.map(([v, label, ico]) => ({ value: v, label, icon: ico, attrs: `data-sp-view="${v}" aria-pressed="${v === ui.view}"` }));
+  const isEmptyStart = !hasAccounts && !c.s.socialPosts.length && ['calendar', 'list'].includes(ui.view);
+  let inner;
+  if (isEmptyStart) {
+    inner = onboarding(c);
+  } else {
+    const review = c.s.socialPosts.filter(p => p.status === 'in_review').length, failed = c.s.socialPosts.filter(p => p.status === 'failed').length;
+    const notes = `${review ? `<div class="sp-note">${i('bell', 15)} ${review} post(s) aguardando aprovação. <button class="text-link" data-sp-status-pick="in_review">Ver</button></div>` : ''}${failed ? `<div class="sp-note bad">${i('alert', 15)} ${failed} post(s) falharam. <button class="text-link" data-sp-status-pick="failed">Ver</button></div>` : ''}`;
+    const content = { calendar: () => filters(c) + calendar(c), list: () => filters(c) + postList(c), accounts: () => accountsView(c), categories: () => categoriesView(c), hashtags: () => hashtagsView(c), rss: () => rssView(c), csv: () => csvView(c) }[ui.view]();
+    inner = `${notes}${content}`;
+  }
+  const plannerCard = utabs({
+    key: 'social-views',
+    nested: true,
+    label: 'Visualizações do planejador social',
+    items: viewItems,
+    current: ui.view,
+    content: inner
+  });
+  return pageShell({
+    title: 'Marketing',
+    desc: 'Planeje, aprove e publique nas suas redes sociais a partir de um só lugar.',
+    cta: actions[ui.view] || newPost(),
+    className: 'sp',
+    tabs: { key: 'marketing', items: marketingTabs, current: 'social', label: 'Seções de marketing' },
+    content: plannerCard
+  });
 }
 
 // ---- Composer ------------------------------------------------------------------------------------

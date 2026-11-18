@@ -1,7 +1,7 @@
 // Sites → Funis e Sites. Each funnel or website is an AI Studio project (multi-page HTML site),
 // so pages are built, edited and published with the same engine, including AI generation.
 import { icon } from './icons.js';
-import { h, tabs } from './screens.js';
+import { h, pageShell } from './screens.js';
 import { studioTemplates } from './studio-data.js';
 import { startBuild } from './studio-builder.js';
 
@@ -54,18 +54,26 @@ function list(c) {
   const w = words(kind);
   const rows = listRows(c, kind);
   const any = c.s.studioProjects.some(project => kindOf(project) === kind);
-  return `<div class="page sites-page">
-    <header class="page-head"><div><h1>Sites</h1><p>Crie funis e sites com IA, publique e acompanhe visitas e conversões.</p></div>
-      <div class="head-actions"><button class="secondary" data-site-new="ai" data-kind="${kind}">${icon('spark', 16)} Construir com IA</button>
-        <button class="primary" data-site-new="blank" data-kind="${kind}">${icon('plus', 16)} ${w.New}</button></div></header>
-    ${tabs([['funnels', 'Funis'], ['websites', 'Sites'], ['forms', 'Formulários']], c.tab || 'funnels')}
-    ${any ? `<div class="toolbar"><label class="search">${icon('search', 15)}<input type="search" data-site-search value="${h(view.query)}" placeholder="Buscar ${w.many}" aria-label="Buscar ${w.many}"></label></div>` : ''}
+  const content = `${any ? `<div class="toolbar"><label class="search">${icon('search', 15)}<input type="search" data-site-search value="${h(view.query)}" placeholder="Buscar ${w.many}" aria-label="Buscar ${w.many}"></label></div>` : ''}
     ${rows ? `<div class="surface table-shell"><table class="site-table"><thead><tr><th scope="col">Nome</th><th scope="col">Última atualização</th><th scope="col">${w.Steps}</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
       : any ? `<div class="surface empty"><strong>Nenhum ${w.one} encontrado</strong><p>Tente outro nome.</p></div>`
       : `<div class="surface empty site-empty">${icon(kind === 'funnel' ? 'flow' : 'site', 26)}<strong>Nenhum ${w.one} ainda</strong>
         <p>${kind === 'funnel' ? 'Monte uma sequência de páginas: captura, oferta e obrigado. O formulário de cada etapa leva o visitante para a próxima.' : 'Monte um site com várias páginas, menu entre elas e formulário de contato.'}</p>
         <div class="inline-gap"><button class="primary" data-site-new="ai" data-kind="${kind}">${icon('spark', 16)} Construir com IA</button><button class="secondary" data-site-new="blank" data-kind="${kind}">Começar em branco</button></div></div>`}
-    ${legacyPages(c, kind)}</div>`;
+    ${legacyPages(c, kind)}`;
+  return pageShell({
+    title: 'Sites',
+    desc: 'Crie funis, sites e formulários com IA, publique e acompanhe visitas e conversões.',
+    cta: `<button class="secondary" data-site-new="ai" data-kind="${kind}">${icon('spark', 16)} Construir com IA</button><button class="primary" data-site-new="blank" data-kind="${kind}">${icon('plus', 16)} ${w.New}</button>`,
+    className: 'sites-page',
+    tabs: {
+      key: 'sites',
+      label: 'Seções de sites',
+      current: c.tab || 'funnels',
+      items: [['funnels', 'Funis'], ['websites', 'Sites'], ['forms', 'Formulários']]
+    },
+    content
+  });
 }
 
 /* ───────── Detalhe ───────── */
@@ -158,15 +166,25 @@ function detail(c) {
   const body = !doc ? '<div class="surface empty"><strong>Carregando…</strong></div>'
     : view.section === 'stats' ? statsSection(c, project, doc, w) : view.section === 'seo' ? seoSection(c, project, doc, w)
     : view.section === 'settings' ? settingsSection(c, project, w) : stepsSection(c, project, doc, w);
-  return `<div class="page site-detail" data-site-detail="${project.id}">
-    <a class="text-link site-back" href="#sites/${w.list}">${icon('left', 15)} ${kind === 'funnel' ? 'Funis' : 'Sites'}</a>
-    <header class="page-head site-head"><div><h1>${h(project.name)}</h1><p class="inline-gap">${badge([w.One, 'pink'])}${badge(status(project))}<span class="dim">${project.pages?.length || 1} ${(project.pages?.length || 1) === 1 ? w.step : w.steps}</span></p></div>
-      <div class="head-actions">${project.publishedAt ? `<a class="secondary" href="${siteBase(c, project)}" target="_blank" rel="noopener">${icon('external', 15)} Ver publicado</a>` : ''}
-        <a class="secondary" href="#studio/project/${project.id}" data-site-edit-page="${doc ? view.page || doc.pages[0].id : ''}">${icon('studio', 15)} Abrir no AI Studio</a>
-        ${publishLabel === 'Despublicar' ? '<button class="secondary" data-site-publish="off">Despublicar</button>' : `<button class="primary" data-site-publish="on">${publishLabel}</button>`}
-        ${publishLabel === 'Publicar alterações' ? '<button class="secondary" data-site-publish="off">Despublicar</button>' : ''}</div></header>
-    <nav class="tabs site-tabs" aria-label="Seções">${sections.map(([key, text]) => `<button data-site-section="${key}" class="${view.section === key ? 'selected' : ''}" aria-pressed="${view.section === key}">${text}</button>`).join('')}</nav>
-    ${body}</div>`;
+  const cta = `${project.publishedAt ? `<a class="secondary" href="${siteBase(c, project)}" target="_blank" rel="noopener">${icon('external', 15)} Ver publicado</a>` : ''}
+    <a class="secondary" href="#studio/project/${project.id}" data-site-edit-page="${doc ? view.page || doc.pages[0].id : ''}">${icon('studio', 15)} Abrir no AI Studio</a>
+    ${publishLabel === 'Despublicar' ? '<button class="secondary" data-site-publish="off">Despublicar</button>' : `<button class="primary" data-site-publish="on">${publishLabel}</button>`}
+    ${publishLabel === 'Publicar alterações' ? '<button class="secondary" data-site-publish="off">Despublicar</button>' : ''}`;
+  return pageShell({
+    title: h(project.name),
+    back: `<a class="page-back" href="#sites/${w.list}">${icon('left', 15)} ${kind === 'funnel' ? 'Funis' : 'Sites'}</a>`,
+    desc: `<span class="inline-gap">${badge([w.One, 'pink'])}${badge(status(project))}<span class="dim">${project.pages?.length || 1} ${(project.pages?.length || 1) === 1 ? w.step : w.steps}</span></span>`,
+    cta,
+    className: 'site-detail',
+    attrs: `data-site-detail="${project.id}"`,
+    tabs: {
+      key: `site-detail:${project.id}`,
+      label: 'Seções',
+      current: view.section,
+      items: sections.map(([key, text]) => ({ value: key, label: text, attrs: `data-site-section="${key}" aria-pressed="${view.section === key}"` }))
+    },
+    content: body
+  });
 }
 
 export function sitesScreen(c) {

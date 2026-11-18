@@ -241,7 +241,172 @@ document.addEventListener('pointerover', e => { const el = tipTarget(e); if (el 
 document.addEventListener('focusin', e => { const el = tipTarget(e); if (el && el.matches(':focus-visible')) showTip(el); else hideTip(); });
 for (const type of ['pointerdown', 'scroll', 'hashchange', 'blur']) addEventListener(type, hideTip, true);
 
-/* Sliding Underline Tabs for link-based sub-navigation */
+/* Sliding Underline Tabs (microkit.co): bordered card + sliding pill underline + content panel enter */
+const utabLast = new Map();   // key -> { x, w }
+const utabScroll = new Map(); // key -> scrollLeft
+const utabActive = new Map(); // key -> active tab id
+
+function mountSlidingUnderline({ host, list, track, panel = null, key, activeValue = null }) {
+  if (!(host instanceof HTMLElement) || !(track instanceof HTMLElement)) return;
+  host._gUtabsCleanup?.();
+
+  const scroller = list || host;
+  const syncFade = () => {
+    const overflow = scroller.scrollWidth - scroller.clientWidth;
+    scroller.toggleAttribute('data-fade-left', overflow > 4 && scroller.scrollLeft > 4);
+    scroller.toggleAttribute('data-fade-right', overflow > 4 && scroller.scrollLeft < overflow - 4);
+  };
+  if (utabScroll.has(key)) scroller.scrollLeft = utabScroll.get(key);
+  const onScroll = () => { utabScroll.set(key, scroller.scrollLeft); syncFade(); };
+  scroller.addEventListener('scroll', onScroll, { passive: true });
+
+  let bar = track.querySelector(':scope > .g-utabs-indicator');
+  if (!bar) {
+    bar = document.createElement('span');
+    bar.className = 'g-utabs-indicator';
+    bar.setAttribute('aria-hidden', 'true');
+    track.append(bar);
+  }
+
+  let animated = false;
+  let rafId = 0;
+
+  const findActive = () =>
+    track.querySelector(':scope > .selected, :scope > .current, :scope > [aria-selected="true"], :scope > [aria-current="page"], :scope > [aria-current="true"], :scope > [aria-pressed="true"]');
+
+  const reveal = on => {
+    if (!on || scroller.scrollWidth <= scroller.clientWidth + 2) return;
+    const left = on.offsetLeft;
+    const right = left + on.offsetWidth;
+    const pad = 20;
+    if (left < scroller.scrollLeft + pad) {
+      scroller.scrollLeft = Math.max(0, left - pad);
+    } else if (right > scroller.scrollLeft + scroller.clientWidth - pad) {
+      scroller.scrollLeft = Math.min(scroller.scrollWidth - scroller.clientWidth, right - scroller.clientWidth + pad);
+    }
+    utabScroll.set(key, scroller.scrollLeft);
+  };
+
+  const place = (instant = false) => {
+    if (!track.isConnected) return;
+    if (!bar.isConnected) track.append(bar);
+    const on = findActive();
+    if (!on || on.offsetWidth <= 0) {
+      delete bar.dataset.visible;
+      return;
+    }
+    const inset = Math.min(6, Math.max(2, Math.floor(on.offsetWidth * 0.1)));
+    const x = Math.round((on.offsetLeft + inset) * 10) / 10;
+    const w = Math.max(14, Math.round((on.offsetWidth - inset * 2) * 10) / 10);
+    const prev = utabLast.get(key);
+    const same = prev && Math.abs(prev.x - x) < 0.5 && Math.abs(prev.w - w) < 0.5;
+
+    if (!animated && !instant && !reduce && prev && !same) {
+      bar.style.transition = 'none';
+      bar.style.transform = `translateX(${prev.x}px)`;
+      bar.style.width = `${prev.w}px`;
+      bar.dataset.visible = '';
+      void bar.offsetWidth;
+      bar.style.transition = '';
+    } else if ((!animated && !prev) || instant || reduce) {
+      bar.style.transition = 'none';
+      bar.style.transform = `translateX(${x}px)`;
+      bar.style.width = `${w}px`;
+      bar.dataset.visible = '';
+      void bar.offsetWidth;
+      bar.style.transition = '';
+    }
+
+    bar.style.transform = `translateX(${x}px)`;
+    bar.style.width = `${w}px`;
+    bar.dataset.visible = '';
+    utabLast.set(key, { x, w });
+    if (!animated) reveal(on);
+    syncFade();
+
+    if (!animated) {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => { animated = true; });
+    }
+  };
+
+  place(false);
+
+  if (panel instanceof HTMLElement) {
+    const activeId = activeValue ?? findActive()?.textContent?.trim() ?? '';
+    const prevActive = utabActive.get(key);
+    utabActive.set(key, activeId);
+    if (prevActive !== undefined && prevActive !== activeId && !reduce) {
+      panel.classList.remove('is-entering');
+      void panel.offsetWidth;
+      panel.classList.add('is-entering');
+      setTimeout(() => panel.classList.remove('is-entering'), 700);
+    }
+  }
+
+  const mo = new MutationObserver(records => {
+    const onlyBar = records.every(rec =>
+      rec.target === bar ||
+      (rec.type === 'childList' && rec.addedNodes.length === 1 && rec.addedNodes[0] === bar && rec.removedNodes.length === 0)
+    );
+    if (onlyBar) return;
+    place(false);
+  });
+  mo.observe(track, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['class', 'aria-selected', 'aria-current', 'aria-pressed']
+  });
+
+  let ro = null;
+  if (typeof ResizeObserver !== 'undefined') {
+    ro = new ResizeObserver(() => {
+      if (!track.isConnected) { cleanup(); return; }
+      place(true);
+    });
+    ro.observe(track);
+    if (scroller !== track) ro.observe(scroller);
+  }
+
+  const cleanup = () => {
+    cancelAnimationFrame(rafId);
+    mo.disconnect();
+    ro?.disconnect();
+    scroller.removeEventListener('scroll', onScroll);
+  };
+  host._gUtabsCleanup = cleanup;
+}
+
+function slidingUnderlineTabs(host) {
+  const list = host.querySelector(':scope > .g-utabs-head > .g-utabs-list');
+  const track = list?.querySelector(':scope > .g-utabs-track');
+  const panel = host.querySelector(':scope > .g-utabs-panel');
+  if (!track) return;
+  const items = [...track.querySelectorAll(':scope > button, :scope > a')];
+  const key = `utabs:${host.dataset.utabs || keyOf(track, items, 'utabs')}`;
+  mountSlidingUnderline({ host, list, track, panel, key, activeValue: host.dataset.utabsActive ?? null });
+}
+
+function slidingUnderlineBar(bar) {
+  const items = [...bar.querySelectorAll(':scope > button, :scope > a')];
+  if (!items.length) return;
+  bar.classList.add('g-utabs-bar');
+  let track = bar.querySelector(':scope > .g-utabs-track');
+  if (!track) {
+    track = document.createElement('div');
+    track.className = 'g-utabs-track';
+    for (const item of items) {
+      item.classList.add('g-utabs-tab');
+      track.append(item);
+    }
+    bar.append(track);
+  }
+  const key = `ubar:${bar.dataset.utabs || keyOf(track, items, bar.className)}`;
+  mountSlidingUnderline({ host: bar, list: bar, track, panel: null, key });
+}
+
+/* Legacy fallback underline for any remaining link-based sub-navigation */
 function underline(nav) {
   const on = nav.querySelector(':scope > a[aria-current]');
   if (!on) return;
@@ -816,7 +981,9 @@ document.addEventListener('reset', e => {
 
 function enhance(root) {
   const fresh = (sel, fn) => root.querySelectorAll(sel).forEach(el => { if (el.dataset.g) return; el.dataset.g = '1'; fn(el); });
-  fresh('.tabs', pillTabs);
+  fresh('.g-utabs', slidingUnderlineTabs);
+  fresh('.thread-list .tabs, .ags-tabs, .wf-builder-meta .wf-tabs', slidingUnderlineBar);
+  fresh('.tabs:not(.g-utabs-bar)', pillTabs);
   fresh('.shell', shellMotion);
   fresh('.g-side .side-nav', n => {
     const kind = n.closest('.ag-shell') ? 'agency' : 'app';
@@ -1023,8 +1190,12 @@ let shownRoute = routeKey();
 // Switching tabs inside a screen keeps the page in place; only a new screen plays the entrance.
 addEventListener('hashchange', () => {
   closeSelectMenu(false);
-  if (routeKey() !== shownRoute) { shownRoute = routeKey(); resetCountUps(); }
-  if (section() !== shownSection) { shownSection = section(); entering = true; }
+  const nextSection = section();
+  const nextRoute = routeKey();
+  const pageChanged = nextSection !== shownSection || (nextSection === 'agency' && nextRoute !== shownRoute);
+  if (nextRoute !== shownRoute) { shownRoute = nextRoute; resetCountUps(); }
+  if (nextSection !== shownSection) { shownSection = nextSection; entering = true; }
+  if (pageChanged) { utabLast.clear(); utabActive.clear(); }
 });
 
 let queued = false;
@@ -1058,9 +1229,10 @@ document.addEventListener('pointermove', e => {
 // Indicators measured before web fonts finished loading are re-measured once they land.
 document.fonts?.ready.then(() => document.querySelectorAll('[data-g]').forEach(el => {
   el._gSpotCleanup?.();
-  el.querySelectorAll(':scope > .g-indicator, :scope > .g-spot, :scope > .g-underline, :scope > .g-glide').forEach(n => n.remove());
+  el._gUtabsCleanup?.();
+  el.querySelectorAll(':scope > .g-indicator, :scope > .g-spot, :scope > .g-underline, :scope > .g-glide, .g-utabs-indicator').forEach(n => n.remove());
   delete el.dataset.g;
-})).then(() => { last.clear(); spotLast.clear(); run(); });
+})).then(() => { last.clear(); spotLast.clear(); utabLast.clear(); run(); });
 
 /* Theme toggle: microkit diagonal wipe via View Transitions API */
 let themeBusy = null;
