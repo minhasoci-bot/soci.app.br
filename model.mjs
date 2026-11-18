@@ -13,6 +13,7 @@ import { blogBeforeDelete, blogCollections, blogFields, blogView } from './blog-
 import { storeAfterSave, storeBeforeDelete, storeCheckout, storeCollections, storeFields } from './store-model.mjs';
 import { webinarBeforeDelete, webinarCollections, webinarCommand, webinarFields } from './webinar-model.mjs';
 import { qrCollections, qrFields, qrScan } from './qr-model.mjs';
+import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 
 export const defaults = {
   profile: { name: 'Demo Workspace', email: 'hello@example.test', phone: '', timezone: 'America/Sao_Paulo', currency: 'BRL' },
@@ -64,7 +65,7 @@ const percent = value => {
   if (value === '' || value == null) return null;
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0 || n > 100) fail('Probability must be between 0 and 100.');
-  return Math.round(n);
+  return Math.round(n * 100) / 100;
 };
 const tags = value => [...new Set((Array.isArray(value) ? value : str(value).split(',')).map(a => str(a, 48)).filter(Boolean))].slice(0, 20);
 export const triggers = ['Contact created', 'Form submitted', 'Opportunity stage changed', 'Appointment booked', 'Trigger link clicked'];
@@ -427,7 +428,7 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
     const stage = find(s,'stages',d.stage);
     if (!stage) fail('Selecione uma etapa válida.');
     if (record.stage !== stage.id) {
-      Object.assign(record,{ stage:stage.id, pipelineId:stage.pipelineId, updated:now() });
+      Object.assign(record,{ stage:stage.id, pipelineId:stage.pipelineId, updated:now(), stageChangedAt:now() });
       run(s,'Opportunity stage changed',record);
     }
     return id;
@@ -444,7 +445,10 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
       row.revision = uid();
       if (prior.published) row.active = true;
     }
-    if (key === 'opportunities') row.statusChangedAt = !prior || row.status !== prior.status ? now() : prior.statusChangedAt || prior.created;
+    if (key === 'opportunities') {
+      row.statusChangedAt = !prior || row.status !== prior.status ? now() : prior.statusChangedAt || prior.created;
+      row.stageChangedAt = !prior || row.stage !== prior.stage ? now() : prior.stageChangedAt || prior.created;
+    }
     if (key === 'studioProjects' && !prior) row.viewedAt = row.created;
     if (['bulkActions','imports'].includes(key)) fail('Unknown record type.');
     afterSave(s, key, prior, row, add);
@@ -613,10 +617,13 @@ function other(s, command, type, key, id, d, workspace) {
     const previous = id && find(s,'stages',id);
     if (id && !previous) fail('Stage not found.',404);
     const name = req(d.name,'Stage name',50), probability = percent(d.probability);
-    if (previous) { previous.name = name; previous.visible = d.visible !== false; previous.probability = probability; return previous.id; }
+    const color = stageColors.includes(d.color) ? d.color : '';
+    if (previous) { Object.assign(previous,{ name, visible:d.visible !== false, probability, ...('color' in d ? { color } : {}) }); return previous.id; }
     const pipelineId = exists(s,'pipelines',d.pipelineId || salesPipeline,'pipeline');
-    return add(s,'stages',{ name, pipelineId, visible:d.visible !== false, probability }).id;
+    return add(s,'stages',{ name, pipelineId, visible:d.visible !== false, probability, color }).id;
   }
+  const piped = pipelineCommand(s, type, id, d, { add, uid, now });
+  if (piped !== undefined) return piped;
   fail('Unknown operation.');
 }
 export function seed() {

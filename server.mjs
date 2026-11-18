@@ -59,7 +59,7 @@ const staticFiles = new Map([
   ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],
   ['/prospect-report.js','text/javascript; charset=utf-8'], ['/prospecting.css','text/css; charset=utf-8'],
   ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
-  ['/opportunity-data.js','text/javascript; charset=utf-8'], ['/opportunities.css','text/css; charset=utf-8'],
+  ['/opportunity-data.js','text/javascript; charset=utf-8'], ['/opportunity-filters.js','text/javascript; charset=utf-8'], ['/opportunities.js','text/javascript; charset=utf-8'], ['/opportunities.css','text/css; charset=utf-8'],
   ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'],
   ['/social-connect.js','text/javascript; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
@@ -1275,7 +1275,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
               (agencyId, workspace) => accountIsActive(agencyId, workspace, 'conversations'));
           }
         }
-        if (!privateSpace.test(id) && ['save','delete','import','opportunity-import','opportunity-move','pipeline','profile','bulk','workflow-enroll','workflow-restore','workflow-move'].includes(command.type)) {
+        if (!privateSpace.test(id) && ['save','delete','import','opportunity-import','opportunity-move','pipeline','pipeline-settings','pipeline-duplicate','pipeline-delete','stage-delete','smart-tag','smart-tag-delete','profile','bulk','workflow-enroll','workflow-restore','workflow-move'].includes(command.type)) {
           const account = (await listWorkspaces(who.agencyId)).find(w => w.id === id)?.name || id;
           const label = command.type === 'bulk' ? `Bulk ${command.data?.operation || ''} on ${command.data?.object || ''}`.trim() : '';
           await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);

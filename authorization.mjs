@@ -31,6 +31,9 @@ const commandModules = {
   'manual-action': 'conversations', 'conversation-sla': 'conversations', 'dismiss-sla': 'conversations',
   pipeline: 'opportunities', stage: 'opportunities', import: 'contacts',
   'opportunity-import': 'opportunities', 'opportunity-move': 'opportunities',
+  'opportunity-close': 'opportunities', 'pipeline-settings': 'opportunities', 'pipeline-order': 'opportunities',
+  'pipeline-duplicate': 'opportunities', 'pipeline-delete': 'opportunities', 'stage-order': 'opportunities',
+  'stage-delete': 'opportunities', 'smart-tag': 'opportunities', 'smart-tag-delete': 'opportunities',
   'studio-visit': 'sites', 'studio-star': 'sites', 'studio-meta': 'sites',
   onboarding: 'dashboard', profile: 'settings',
   'workflow-enroll': 'automation', 'workflow-restore': 'automation', 'workflow-move': 'automation'

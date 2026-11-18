@@ -6,7 +6,8 @@ import { dashboardPreferences, installDashboardControls, reportGrid } from './da
 import { drawDashboardGauges } from './dashboard.js';
 import { opportunityStatuses } from './dashboard-data.js';
 import { tr } from './i18n.js';
-import { cardFields, cardLayouts, opportunityCsv, opportunityCsvColumns, opportunityPreferences, opportunityResults, opportunitySorts } from './opportunity-data.js';
+import { cardFields, cardLayouts, opportunityCsv, opportunityCsvColumns, opportunityPreferences, opportunityResults, opportunitySorts, quickActions } from './opportunity-data.js';
+import { opportunityEvents } from './opportunities.js';
 import { parseCsv } from './social-data.js';
 import { afterStudioRender, exportStudioProject, installStudio, studioBlock } from './studio.js';
 import { studioTemplates } from './studio-data.js';
@@ -396,7 +397,7 @@ async function useWorkspace(id, view='dashboard', name){
   const cover=switchingCover(name||c.workspaces.find(w=>w.id===id)?.name);
   try { await enterWorkspace(id, view); } finally { cover.remove(); }
 }
-async function enterWorkspace(id, view){ leaveAgentEditor();stopSubWaPoll();c.workspace=id;c.wa=null;c.waPairOpen=false;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go(view); }
+async function enterWorkspace(id, view){ leaveAgentEditor();stopSubWaPoll();c.workspace=id;c.wa=null;c.waPairOpen=false;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.opportunityList='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go(view); }
 function downloads(name,content,type='text/csv;charset=utf-8'){
   const data=typeof content==='string'?new Blob([content],{type}):content, a=document.createElement('a'), u=URL.createObjectURL(data);
   a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),3000);
@@ -422,27 +423,20 @@ async function move(id,stage){
 
 function opportunityDialog(action) {
   const pipelineId = c.s.pipelines.find(item => item.id === c.pipeline)?.id || c.s.pipelines[0].id;
-  const filters = c.opportunityFilters || { status:'Open' };
   const cancel = '<button class="secondary" type="button" data-act="close">Cancelar</button>';
   const apply = cancel + '<button class="primary">Aplicar</button>';
-  if (action === 'opportunity-filters') {
-    const status = option('Status','status',filters.status,[['','Todos'],...opportunityStatusChoices()],false);
-    const stage = option('Etapa','stage',filters.stage,[['','Todas'],...stageChoices(pipelineId)],false);
-    dialog('Filtros avançados', `<div class="field-grid">${status}${stage}</div>
-      <div class="field-grid">${input('Responsável','owner',filters.owner)}${input('Origem','source',filters.source)}</div>
-      ${input('Tag','tag',filters.tag)}<div class="field-grid">
-      ${input('Valor mínimo','minValue',filters.minValue,false,'number')}${input('Valor máximo','maxValue',filters.maxValue,false,'number')}</div>`,
-      {form:action,buttons:'<button class="secondary" type="button" data-act="opportunity-clear">Limpar filtros</button><span class="spacer"></span>'+apply});
-  } else if (action === 'opportunity-sort') {
+  if (action === 'opportunity-sort') {
     const sort = c.opportunitySort || {};
     dialog('Ordenar oportunidades',option('Campo','field',sort.field || 'created',Object.entries(opportunitySorts))+
       option('Direção','direction',sort.direction || 'desc',[['desc','Decrescente'],['asc','Crescente']]),{form:action,buttons:apply});
   } else if (action === 'opportunity-fields') {
-    const {layout,fields} = c.opportunityCard || opportunityPreferences(c.workspace,c.access?.session?.id);
+    const {layout,fields,actions} = c.opportunityCard || opportunityPreferences(c.workspace,c.access?.session?.id);
+    const ordered = (all,chosen) => [...chosen,...Object.keys(all).filter(key=>!chosen.includes(key))];
+    const rows = (all,chosen,name) => ordered(all,chosen).map(key=>`<li class="card-pref" data-card-pref><label class="check"><input type="checkbox" name="${name}" value="${key}" ${chosen.includes(key)?'checked':''}> ${all[key]}</label>
+      <span class="inline-gap"><button type="button" class="icon-btn" data-card-pref-move="-1" aria-label="Mover ${h(all[key])} para cima">${i('arrowUp',14)}</button><button type="button" class="icon-btn" data-card-pref-move="1" aria-label="Mover ${h(all[key])} para baixo">${i('arrowDown',14)}</button></span></li>`).join('');
     dialog('Personalizar cartões',option('Layout','layout',layout,Object.entries(cardLayouts))+
-      '<fieldset class="opportunity-fieldset"><legend>Campos exibidos</legend>'+
-      Object.entries(cardFields).map(([key,label])=>`<label class="check"><input type="checkbox" name="field" value="${key}" ${fields.includes(key)?'checked':''}> ${label}</label>`).join('')+
-      '</fieldset>',{form:action,buttons:apply});
+      `<fieldset class="opportunity-fieldset"><legend>Campos (${fields.length} de ${Object.keys(cardFields).length})</legend><ul class="card-prefs">${rows(cardFields,fields,'field')}</ul></fieldset>`+
+      `<fieldset class="opportunity-fieldset"><legend>Ações rápidas</legend><p class="dim">A contagem de cada ação aparece no cartão quando houver.</p><ul class="card-prefs">${rows(quickActions,actions,'action')}</ul></fieldset>`,{form:action,buttons:apply});
   } else if (action === 'opportunity-import') {
     const history = c.s.imports.filter(row=>row.object === 'opportunities').slice(-5).reverse();
     dialog('Importar oportunidades',option('Pipeline padrão','pipelineId',pipelineId,pipelineChoices())+
@@ -694,8 +688,8 @@ document.addEventListener('click',async ev=>{
       case 'reload':await load();render();flash('Workspace atualizado.');break;
       case 'import':dialog('Importar contatos',`<p>Escolha um arquivo CSV com a coluna <b>name</b>. Opcional: email, phone, company, tags e notes. Até 500 contatos.</p><label>Arquivo CSV<input name="file" type="file" accept=".csv,text/csv" required></label>`,{form:'import',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Importar contatos</button>'});break;
       case 'opportunity-clear':
-        c.opportunityFilters={};c.query='';close();render();G('[data-act="opportunity-filters"]')?.focus();break;
-      case 'opportunity-filters': case 'opportunity-sort': case 'opportunity-fields': case 'opportunity-import':
+        c.opportunityFilters={};c.opportunityList='';c.query='';close();render();G('[data-opp="filters"]')?.focus();break;
+      case 'opportunity-sort': case 'opportunity-fields': case 'opportunity-import':
         opportunityDialog(d.act);break;
       case 'opportunity-template':
         downloads('modelo-oportunidades.csv',opportunityCsvColumns.join(',')+'\r\n');break;
@@ -875,13 +869,9 @@ document.addEventListener('submit',async ev=>{
       const n=await mutate({type:name,data:{pipelineId:data.pipelineId,rows:parseCsv(await data.file.text()),file:data.file.name}});
       msg=n===1?'1 oportunidade importada.':`${n} oportunidades importadas.`;
     }
-    else if(name==='opportunity-filters' || name==='opportunity-sort' || name==='opportunity-fields') {
-      if(name==='opportunity-filters') {
-        if(data.minValue && data.maxValue && Number(data.minValue)>Number(data.maxValue)) throw Error('O valor máximo deve ser maior ou igual ao mínimo.');
-        c.opportunityFilters=Object.fromEntries(Object.entries(data).map(([key,value])=>[key,value.trim()]));
-      }
+    else if(name==='opportunity-sort' || name==='opportunity-fields') {
       if(name==='opportunity-sort') c.opportunitySort={field:data.field,direction:data.direction};
-      if(name==='opportunity-fields') c.opportunityCard=opportunityPreferences(c.workspace,c.access?.session?.id,{layout:data.layout,fields:fd.getAll('field')});
+      if(name==='opportunity-fields') c.opportunityCard=opportunityPreferences(c.workspace,c.access?.session?.id,{layout:data.layout,fields:fd.getAll('field'),actions:fd.getAll('action')});
       close();render();G(`[data-act="${name}"]`)?.focus();return;
     }
     else if(name==='upload'){ const file=data.file;if(file.size>700000)throw Error('Choose a file under 700 KB.');const encoded=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('File could not be read.'));reader.readAsDataURL(file);});await mutate({type:'save',key:'files',data:{name:file.name,data:encoded}});msg='File uploaded.';}
@@ -943,6 +933,7 @@ if(viewPath){
   installAutomation({ c, mutate, render, flash, dialog, close });
   mountClientPortal = installClientPortal({ c, api, flash, dialog, close });
   crmEvents({ G, mutate, render, flash, dialog, close });
+  opportunityEvents({ c, G, mutate, render, flash, dialog, close });
   socialEvents({ c, G, api, url, mutate, render, flash, dialog, close, load });
   window.addEventListener('hashchange',route);
   setInterval(() => {

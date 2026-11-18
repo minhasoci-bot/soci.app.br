@@ -167,7 +167,7 @@ export function bulk(s, d, { add, remove, actor = '', tags, stageOf, moved }) {
     if (operation === 'delete') remove(s, object, id);
     else if (operation === 'add-tag') row.tags = tags([...row.tags, value]);
     else if (operation === 'remove-tag') row.tags = row.tags.filter(t => !same(t, value));
-    else if (operation === 'move-stage' && row.stage !== value) { const stage = stageOf(value); row.stage = stage.id; row.pipelineId = stage.pipelineId; row.updated = started; moved?.(row); }
+    else if (operation === 'move-stage' && row.stage !== value) { const stage = stageOf(value); row.stage = stage.id; row.pipelineId = stage.pipelineId; row.updated = started; row.stageChangedAt = started; moved?.(row); }
     else if (operation === 'status' && row.status !== value) { row.status = value; row.statusChangedAt = started; row.updated = started; }
     done++;
   }

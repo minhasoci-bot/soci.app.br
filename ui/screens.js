@@ -19,6 +19,7 @@ import {automationScreen} from './automation.js';
 import {portalAdminScreen, portalTabs} from './client-portal.js';
 import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
 import {opportunityStatuses} from './dashboard-data.js';
+import {cardContext, filterButton, forecastView, listTabs, moreMenu, pipelinesView, quickActionBar, smartTagChips, stageStyle} from './opportunities.js';
 
 export const nav=[['dashboard','Painel de controle','grid','Dashboard'],['conversations','Conversas','chat','Conversations'],['calendars','Calendários','cal','Calendars'],['contacts','Contatos','contacts','Contacts'],['opportunities','Oportunidades','leads','Opportunities'],['payments','Pagamentos','pay','Payments'],['ai-agents','Agentes de IA','spark','AI Agents'],['marketing','Marketing','send','Marketing'],['automation','Automações','flow','Automation'],['sites','Sites','site','Sites'],['memberships','Assinaturas','play','Memberships'],['media','Mídia Drive','folder','Media Storage'],['reputation','Reputação','award','Reputation'],['reporting','Relatórios','chart','Reporting'],['settings','Configurações','gear','Settings']];
 export const h=x=>String(x??'').replace(/[&<>"']/g,v=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[v]);
@@ -107,26 +108,15 @@ function calendars(c){
 function opportunities(c){
   const {s} = c;
   const view = c.tab || 'pipeline';
-  if (['forecast','bulk'].includes(view)) return opportunitiesTab(c,view);
+  if (view === 'bulk') return opportunitiesTab(c,view);
   const pipeline = s.pipelines.find(item => item.id === c.pipeline) || s.pipelines[0];
   const stages = s.stages.filter(stage => stage.pipelineId === pipeline.id);
   const local = opportunityResults(s,pipeline.id,c.query,c.opportunityFilters,c.opportunitySort);
   const filters = c.opportunityFilters || { status:'Open' };
-  const filterCount = Object.values(filters).filter(Boolean).length;
+  const filterCount = Object.entries(filters).filter(([key,value]) => key === 'rules' ? value?.length : Boolean(value)).length;
   const tabCfg = { key: 'opportunities', items: crmTabs.opportunities.filter(([key]) => key !== 'list'), current: view === 'list' ? 'pipeline' : view, label: 'Seções de oportunidades' };
-  if (view === 'pipelines') {
-    return pageShell({
-      title: 'Oportunidades',
-      desc: 'Configure pipelines e etapas do seu funil de vendas.',
-      cta: action('Novo pipeline','new-pipeline','plus'),
-      tabs: tabCfg,
-      content: `<div class="card-grid">${s.pipelines.map(item => `
-        <article class="surface padded resource"><div class="section-heading"><h2>${h(item.name)}</h2><button class="icon-btn" data-pipeline-edit="${item.id}" aria-label="Renomear ${h(item.name)}">${i('edit',15)}</button></div>
-          ${s.stages.filter(stage => stage.pipelineId === item.id).map(stage => `<div class="line-item"><span>${h(stage.name)}${stage.visible === false ? ' · Oculta nos relatórios' : ''}</span>
-            <button class="icon-btn" data-stage-edit="${stage.id}" aria-label="Editar ${h(stage.name)}">${i('edit',15)}</button></div>`).join('')}
-          <button class="secondary" data-stage-new="${item.id}">${i('plus',15)} Adicionar etapa</button></article>`).join('')}</div>`
-    });
-  }
+  if (view === 'pipelines') return pipelinesView(c,tabCfg);
+  if (view === 'forecast') return forecastView(c,tabCfg);
   const stageNames = new Map(stages.map(stage => [stage.id,stage.name]));
   const contacts = new Map(s.contacts.map(contact => [contact.id,contact]));
   const colors = status => status === 'Won' ? 'green' : ['Lost','Abandoned'].includes(status) ? 'red' : 'blue';
@@ -138,7 +128,8 @@ function opportunities(c){
     title(item,'text-link'),h(contacts.get(item.contactId)?.name || '—'),h(stageNames.get(item.stage)),mt(item.value,c),
     badge(item.status,colors(item.status)),h(item.owner || '—'),h(item.source || '—')
   ],'opportunities',item.id)),nothing);
-  const { layout, fields } = c.opportunityCard || opportunityPreferences(c.workspace,c.access?.session?.id);
+  const extras = cardContext(c,pipeline.id);
+  const { layout, fields } = extras.prefs;
   const card = item => {
     const contact = contacts.get(item.contactId);
     const values = {
@@ -146,16 +137,19 @@ function opportunities(c){
       value:mt(item.value,c), status:badge(item.status,colors(item.status)), closeDate:item.closeDate ? date(`${item.closeDate}T12:00:00Z`,c) : '',
       tags:item.tags?.map(tag => badge(tag)).join(' '), lostReason:item.status === 'Lost' ? h(item.lostReason) : ''
     };
+    const chips = fields.includes('smartTags') ? smartTagChips(item,extras) : '';
     return `<article class="deal opportunity-card layout-${layout}" draggable="true" data-drag="${item.id}">
       <div class="opportunity-card-title">${title(item,'deal-title')}${pickBox('opportunities',item.id)}</div>
+      ${chips ? `<div class="smart-tags">${chips}</div>` : ''}
       <dl>${fields.filter(field => values[field]).map(field => `<div><dt${layout === 'unlabeled' ? ' class="sr-only"' : ''}>${cardFields[field]}</dt><dd>${values[field]}</dd></div>`).join('')}</dl>
+      ${quickActionBar(item,extras,c)}
       <label><span class="sr-only">Mover ${h(item.title)} para a etapa</span><select data-move="${item.id}">
       ${stages.map(stage => `<option value="${stage.id}" ${stage.id === item.stage ? 'selected' : ''}>${h(stage.name)}</option>`).join('')}</select></label>
     </article>`;
   };
   const board = `<div class="kanban">${stages.map((stage,index) => {
     const matches = local.filter(item => item.stage === stage.id);
-    return `<section class="kanban-col tone-${index%4}" data-drop="${stage.id}"><div class="kanban-head">
+    return `<section class="kanban-col tone-${index%4}${stageStyle(pipeline,stage)}" data-drop="${stage.id}"><div class="kanban-head">
       <h2>${h(stage.name)} <button class="icon-btn" data-edit="opportunities" data-stage="${stage.id}" aria-label="Adicionar em ${h(stage.name)}">${i('plus',15)}</button></h2>
       <div class="opportunity-stage-totals"><span>${matches.length} ${matches.length === 1 ? 'oportunidade' : 'oportunidades'}</span>
       <b>${mt(matches.reduce((sum,item) => sum + item.value,0),c)}</b></div></div>
@@ -165,9 +159,9 @@ function opportunities(c){
   return pageShell({
     title: 'Oportunidades',
     desc: 'Acompanhe negócios no pipeline, previsões de receita e etapas de vendas.',
-    cta: action('Importar','opportunity-import','upload') + action('Exportar','opportunity-export','download') + primary('Adicionar oportunidade','opportunities'),
+    cta: action('Importar','opportunity-import','upload') + primary('Adicionar oportunidade','opportunities') + moreMenu(),
     tabs: tabCfg,
-    content: `<div class="toolbar opportunity-toolbar">
+    content: `${listTabs(c)}<div class="toolbar opportunity-toolbar">
       <label class="tag-filter"><select data-opportunity-pipeline aria-label="Pipeline">${s.pipelines.map(item => `<option value="${item.id}" ${item.id === pipeline.id ? 'selected' : ''}>${h(item.name)}</option>`).join('')}</select></label>
       <span class="dim" role="status">${local.length} ${local.length === 1 ? 'oportunidade' : 'oportunidades'}</span>
       <div class="spacer"></div>
@@ -178,7 +172,7 @@ function opportunities(c){
     </div><div class="toolbar opportunity-toolbar">
       <label class="tag-filter"><select data-opportunity-status aria-label="Status das oportunidades">${quickStatus.map(([value,label]) =>
         `<option value="${value}" ${value === (filters.status || '') ? 'selected' : ''}>${h(label)}</option>`).join('')}</select></label>
-      ${action(`Filtros avançados${filterCount ? ` (${filterCount})` : ''}`,'opportunity-filters','filter')}
+      ${filterButton(c)}
       ${action('Ordenar','opportunity-sort','sort')}
       <div class="spacer"></div>${search(c.query,'Buscar oportunidades…')}
       ${view === 'pipeline' ? action('Personalizar cartões','opportunity-fields','sliders') : ''}

@@ -166,7 +166,8 @@ test('Opportunity imports are atomic and stage moves preserve opportunity detail
   const next = state.stages.find(stage => stage.pipelineId === pipeline && stage.name === 'Proposal');
   const moved = await local.act({ type:'opportunity-move', id:record.id, data:{ stage:next.id } });
   assert.equal(moved.status,200);
-  assert.deepEqual(moved.body.state.opportunities[0],{ ...record, stage:next.id, updated:moved.body.state.opportunities[0].updated });
+  const after = moved.body.state.opportunities[0];
+  assert.deepEqual(after,{ ...record, stage:next.id, updated:after.updated, stageChangedAt:after.updated });
   const [exported] = parseCsv(opportunityCsv(moved.body.state,moved.body.state.opportunities));
   assert.equal(exported.stage,'Proposal');
   assert.equal(exported.email,'lucia@example.test');
