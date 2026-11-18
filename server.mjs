@@ -374,7 +374,7 @@ export function makeServer({
   // ---- AI Studio sites ----
   async function studioGuard(req, res, workspace) {
     if (!spaceId.test(workspace) && !privateSpace.test(workspace)) throw error('Workspace not found.',404);
-    return workspaceAccess(req, res, workspace, { modules: ['studio'] });
+    return workspaceAccess(req, res, workspace, { modules: ['sites'] });
   }
   async function siteDoc(workspace, projectId, create = true) {
     if (!/^[0-9a-f-]{36}$/.test(String(projectId))) throw error('Project not found.',404);
@@ -1231,7 +1231,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const { agency, who: actor } = await accessContext(req,await verifiedUser(req,res));
         const isPersonal = privateSpace.test(id);
         const who = await requireWorkspaceAccess(agency, actor, id, { support: true });
-        const studio = hasModule(who, 'studio'), agents = hasModule(who, 'ai-agents');
+        const studio = hasModule(who, 'sites'), agents = hasModule(who, 'ai-agents');
         const [state, workspaces, aiStatus] = await Promise.all([
           store.load(id), visibleWorkspaces(who), !who.support && (studio || agents) ? openAI.status(who.session) : null
         ]);
@@ -1437,13 +1437,13 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (site) {
         await ready;
         const [, workspace, projectId, slug = 'index'] = site;
-        const active = await publicAccountPolicy(workspace, method === 'POST', 'studio');
+        const active = await publicAccountPolicy(workspace, method === 'POST', 'sites');
         const base = `/s/${workspace}/${projectId}`;
         const doc = await siteDoc(workspace, projectId, false).catch(() => null);
         if (!doc?.published) throw error('This site is not published.',404);
         if (method === 'POST') {
           const fields = await formFields(req);
-          await publicAccountPolicy(workspace, true, 'studio');
+          await publicAccountPolicy(workspace, true, 'sites');
           const back = fields._page && fields._page !== 'index' ? `${base}/${encodeURIComponent(fields._page)}` : base;
           const project = (await store.load(workspace)).studioProjects.find(item => item.id === projectId);
           try {

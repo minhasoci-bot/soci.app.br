@@ -4,6 +4,7 @@ import { icon } from './icons.js';
 import { h, pageShell } from './screens.js';
 import { studioTemplates } from './studio-data.js';
 import { startBuild } from './studio-builder.js';
+import { studio } from './studio.js';
 import { siteTabs } from './forms.js';
 
 const view = { doc: null, docFor: '', loading: '', section: 'steps', page: '', query: '', busy: false };
@@ -168,7 +169,7 @@ function detail(c) {
     : view.section === 'stats' ? statsSection(c, project, doc, w) : view.section === 'seo' ? seoSection(c, project, doc, w)
     : view.section === 'settings' ? settingsSection(c, project, w) : stepsSection(c, project, doc, w);
   const cta = `${project.publishedAt ? `<a class="secondary" href="${siteBase(c, project)}" target="_blank" rel="noopener">${icon('external', 15)} Ver publicado</a>` : ''}
-    <a class="secondary" href="#studio/project/${project.id}" data-site-edit-page="${doc ? view.page || doc.pages[0].id : ''}">${icon('studio', 15)} Abrir no AI Studio</a>
+    <a class="secondary" href="#sites/editor/${project.id}" data-site-edit-page="${doc ? view.page || doc.pages[0].id : ''}">${icon('edit', 15)} Abrir editor</a>
     ${publishLabel === 'Despublicar' ? '<button class="secondary" data-site-publish="off">Despublicar</button>' : `<button class="primary" data-site-publish="on">${publishLabel}</button>`}
     ${publishLabel === 'Publicar alterações' ? '<button class="secondary" data-site-publish="off">Despublicar</button>' : ''}`;
   return pageShell({
@@ -189,6 +190,7 @@ function detail(c) {
 }
 
 export function sitesScreen(c) {
+  if (c.tab === 'editor' || c.tab === 'build') return studio(c);
   if (c.tab === 'funnel') return detail(c);
   return list(c);
 }
@@ -268,8 +270,7 @@ export function installSites(environment) {
   function openEditor(pageId) {
     c.studio.page = pageId;
     c.studio.docFor = '';
-    c.studio.fromSites = c.studio.project;
-    location.hash = `#studio/project/${c.studio.project}`;
+    location.hash = `#sites/editor/${c.studio.project}`;
   }
 
   document.addEventListener('input', event => {

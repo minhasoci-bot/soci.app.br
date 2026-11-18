@@ -5,11 +5,11 @@ import { afterBuilderRender, builderView } from './studio-builder.js';
 import { designStage, mountDesignStage, resizeDesignStage } from './design-workspace.js';
 
 const templateName = key => studioTemplates.find(template => template[0] === key)?.[1] || 'Projeto';
-const projectLink = (id,label) => `<a href="#studio/project/${id}" data-studio-open="${id}">${h(label)}</a>`;
+const projectLink = (id,label) => `<a href="#sites/editor/${id}" data-studio-open="${id}">${h(label)}</a>`;
 
 function tile(c, project) {
   const pages = project.pages?.length || 1;
-  return `<article class="studio-tile"><a class="studio-thumb theme-${project.theme}" href="#studio/project/${project.id}" data-studio-open="${project.id}" aria-label="Abrir ${h(project.name)}"><i></i><i></i><i></i></a>
+  return `<article class="studio-tile"><a class="studio-thumb theme-${project.theme}" href="#sites/editor/${project.id}" data-studio-open="${project.id}" aria-label="Abrir ${h(project.name)}"><i></i><i></i><i></i></a>
     <div class="studio-tile-label"><div><h3>${projectLink(project.id,project.name)}</h3><p>${h(templateName(project.template))} · ${pages} página${pages === 1 ? '' : 's'}${project.publishedAt ? ' · <span class="studio-live">Publicado</span>' : ''}</p></div>
     <button class="icon-btn ${project.starred ? 'studio-selected-star' : ''}" data-studio-star="${project.id}" aria-label="${project.starred ? 'Remover dos favoritos' : 'Favoritar'} ${h(project.name)}" aria-pressed="${Boolean(project.starred)}">${icon('star',17)}</button></div></article>`;
 }
@@ -145,12 +145,11 @@ const panelContent = (c, project, doc) => S().panel === 'versions' ? versionsPan
 function editor(c, project) {
   const st = S();
   const doc = st.docFor === project.id ? st.doc : null;
-  if (!doc) { if (st.loadError?.id !== project.id) queueMicrotask(() => env?.loadDoc(project.id)); return `<section class="studio-editor padded"><a class="secondary" href="#studio/projects">${icon('left',15)} Projetos</a><p class="dim">${st.loadError?.id === project.id ? h(st.loadError.message) : `Abrindo ${h(project.name)}…`}</p>${st.loadError?.id === project.id ? '<button class="secondary" data-studio-retry>Tentar novamente</button>' : ''}</section>`; }
+  if (!doc) { if (st.loadError?.id !== project.id) queueMicrotask(() => env?.loadDoc(project.id)); return `<section class="studio-editor padded"><a class="secondary" href="#sites/funnels">${icon('left',15)} Sites</a><p class="dim">${st.loadError?.id === project.id ? h(st.loadError.message) : `Abrindo ${h(project.name)}…`}</p>${st.loadError?.id === project.id ? '<button class="secondary" data-studio-retry>Tentar novamente</button>' : ''}</section>`; }
   const page = doc.pages.find(item => item.id === st.page) || doc.pages[0];
   st.page = page.id;
   const panel = st.panel;
-  const fromSites = st.fromSites === project.id;
-  return `<section class="studio-editor sx dw-workspace"><header class="studio-editor-head dw-header"><a href="${fromSites ? `#sites/funnel/${project.id}` : '#studio/projects'}" class="secondary">${icon('left',15)} ${fromSites ? (project.kind === 'funnel' ? 'Funil' : 'Site') : 'Projetos'}</a>
+  return `<section class="studio-editor sx dw-workspace"><header class="studio-editor-head dw-header"><a href="#sites/funnel/${project.id}" class="secondary">${icon('left',15)} ${project.kind === 'funnel' ? 'Funil' : 'Site'}</a>
     <h1>${h(project.name)}</h1>
     <span class="dim sx-dirty" data-studio-dirty role="status" hidden>Alterações não salvas</span>
     <div class="spacer"></div>
@@ -166,7 +165,7 @@ function editor(c, project) {
 
 export function studio(c) {
   if (c.tab === 'build') return `<div class="studio-shell">${builderView(c)}</div>`;
-  const project = c.tab === 'project' && c.s.studioProjects.find(item => item.id === c.studio.project);
+  const project = ['project', 'editor'].includes(c.tab) && c.s.studioProjects.find(item => item.id === c.studio.project);
   return `<div class="studio-shell"><section class="studio-main">${project ? editor(c,project) : home(c)}</section></div>`;
 }
 

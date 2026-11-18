@@ -16,7 +16,7 @@ const tips = [
 ];
 
 const kindWord = kind => kind === 'funnel' ? 'funil' : 'site';
-const active = () => env && env.c.view === 'studio' && env.c.tab === 'build';
+const active = () => env && env.c.view === 'sites' && env.c.tab === 'build';
 const refresh = () => { if (active()) env.render(); };
 
 function loadFonts(questions) {
@@ -32,7 +32,7 @@ export function startBuild(environment, { brief, kind = 'website', template = 'l
   env = environment;
   Object.assign(B, { run: B.run + 1, phase: 'discovering', brief, kind, template, reference, ai, intro: '', questions: [], index: 0, answers: {}, notes: {},
     design: null, plan: null, tasks: [], projectId: '', previewPage: '', rev: 0, summary: '', error: '', busy: false, viewport: {} });
-  location.hash = '#studio/build';
+  location.hash = '#sites/build';
   discover(B.run);
 }
 
@@ -152,11 +152,11 @@ function chat(c) {
     ${B.phase === 'building' ? `<p class="vb-thinking"><span class="vb-spin"></span> ${B.ai ? 'A IA está escrevendo as páginas. Cada uma leva de 1 a 3 minutos.' : 'Montando as páginas…'}</p>` : ''}</div>`);
   if (B.phase === 'done') {
     parts.push(`<div class="vb-msg ai vb-summary">${h(B.summary).replace(/\n/g, '<br>')}</div>
-      <div class="vb-actions"><a class="primary" href="#studio/project/${B.projectId}">${icon('edit', 15)} Abrir no editor</a>
+      <div class="vb-actions"><a class="primary" href="#sites/editor/${B.projectId}">${icon('edit', 15)} Abrir no editor</a>
         ${B.kind === 'funnel' ? `<a class="secondary" href="#sites/funnel/${B.projectId}">${icon('flow', 15)} Ver etapas do funil</a>` : `<a class="secondary" href="#sites/funnel/${B.projectId}">${icon('site', 15)} Ver em Sites</a>`}</div>`);
   }
   if (B.phase === 'error') parts.push(`<div class="vb-msg ai vb-error">${icon('alert', 15)} ${h(B.error)}<div class="vb-actions"><button class="secondary" data-vb-retry>Tentar de novo</button>
-    ${B.projectId ? `<a class="text-link" href="#studio/project/${B.projectId}">Abrir o que já foi criado</a>` : ''}</div></div>`);
+    ${B.projectId ? `<a class="text-link" href="#sites/editor/${B.projectId}">Abrir o que já foi criado</a>` : ''}</div></div>`);
   return parts.join('');
 }
 
@@ -176,10 +176,10 @@ export function afterBuilderRender() {
 
 export function builderView(c) {
   if (B.phase === 'idle') {
-    return `<section class="vb vb-empty"><div><h1>Nenhuma construção em andamento</h1><p class="dim">Descreva o que você quer criar na página inicial do AI Studio.</p><a class="primary" href="#studio">Ir para o AI Studio</a></div></section>`;
+    return `<section class="vb vb-empty"><div><h1>Nenhuma construção em andamento</h1><p class="dim">Em Sites, use “Construir com IA” e descreva o funil ou o site.</p><a class="primary" href="#sites/funnels">Ir para Sites</a></div></section>`;
   }
   return `<section class="vb" aria-label="Construtor com IA">
-    <aside class="vb-chat"><header class="vb-head"><a class="icon-btn" href="#studio" aria-label="Voltar ao AI Studio">${icon('left', 16)}</a>
+    <aside class="vb-chat"><header class="vb-head"><a class="icon-btn" href="#sites/${B.kind === 'funnel' ? 'funnels' : 'websites'}" aria-label="Voltar para Sites">${icon('left', 16)}</a>
       <b>${h(B.plan?.name || `Novo ${kindWord(B.kind)}`)}</b><span class="badge ${B.ai ? 'pink' : ''}">${B.ai ? 'IA' : 'Gerador local'}</span></header>
       <div class="vb-log" role="log" aria-live="polite">${chat(c)}</div></aside>
     <section class="vb-preview" aria-label="Prévia">${preview(c)}</section></section>`;
@@ -203,7 +203,7 @@ export function installBuilder(environment) {
     if ('vbSkip' in d) { B.notes = {}; for (const question of B.questions) B.answers[question.id] = question.options[0].id; }
     if ('vbSkip' in d || 'vbSubmit' in d) { B.design = designFromAnswers(); build(B.run); return; }
     if ('vbRetry' in d) {
-      if (B.projectId) { location.hash = `#studio/project/${B.projectId}`; return; }
+      if (B.projectId) { location.hash = `#sites/editor/${B.projectId}`; return; }
       if (B.design) { B.tasks = []; B.error = ''; build(B.run); } else { B.phase = 'discovering'; refresh(); discover(B.run); }
     }
   });

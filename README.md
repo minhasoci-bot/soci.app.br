@@ -97,11 +97,11 @@ Os outros gatilhos disponíveis são criação de contato, mudança de etapa da 
 | Pagamentos | Faturas, produtos de pagamento único ou recorrente, assinaturas, links de pagamento, transações (a fatura marcada como paga gera a transação uma vez) e cupons percentuais ou de valor fixo com período e limite. Tudo como registro manual, sem gateway |
 | Marketing | Rascunhos e planejamento de conteúdo para redes sociais e e-mail |
 | Automações | Gatilhos de CRM, ações em sequência, publicação local, histórico de execuções e pausa em etapas manuais |
-| Sites | Funis e sites de várias páginas construídos com o AI Studio (em branco, com IA ou por modelo), etapas com caminho e ordem, edição com IA, SEO, estatísticas de visitas e envios, formulários e submissões |
+| Sites | Funis e sites de várias páginas (em branco, com IA ou por modelo), com o editor visual, de código e por IA do antigo AI Studio, etapas com caminho e ordem, edição com IA, SEO, estatísticas de visitas e envios, formulários e submissões |
 | Assinaturas | Cadastro de cursos com uma aula publicada por curso e visualização local |
 | Mídia | Upload e download de imagens e PDFs |
 | Reputação | Registro de avaliações, respostas locais e cálculo da nota média |
-| AI Studio | Geração de páginas HTML, edição visual e de código, revisão por IA, histórico de versões, publicação com formulário ligado ao CRM e exportação HTML |
+| Editor de páginas (em Sites) | Geração de páginas HTML, edição visual e de código, revisão por IA, histórico de versões, publicação com formulário ligado ao CRM e exportação HTML. Antes era o menu AI Studio; agora fica em Sites |
 | Agentes de IA | Estúdio de agentes por subconta: criação por descrição ou por modelo, editor com gatilhos, subagentes, recursos, conhecimento e instruções, construtor por chat, conversa de teste, atividade, memória, pastas e publicação de versões |
 | Marketplace e Configurações | Catálogo indicativo de provedores, perfil, moeda, fuso e workspaces locais. Configurações com usuários com acesso, campos personalizados (contato, oportunidade, empresa; chave `{{contact.x}}`), valores personalizados (`{{custom_values.x}}`), tags (renomear atualiza os contatos), objetos, histórico de importação e log de auditoria do workspace |
 
@@ -113,7 +113,7 @@ O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, pu
 - Em **Editar painel**, a biblioteca à esquerda reúne 88 widgets prontos em 12 categorias (contatos, agendamentos, oportunidades, conversas, pagamentos, campanhas, Social Planner, reputação, formulários, tarefas, integrações e geral), com busca e recomendados. Há widgets de número, de distribuição por grupo e de evolução no tempo (por dia, semana ou mês, conforme o período), todos calculados com os dados do workspace. A aba **Elementos** adiciona nota adesiva, título, caixa de texto, imagem e conteúdo incorporado (só endereços https). A aba **Temas** troca a cor dos gráficos do painel entre 9 opções. Cada widget pode ser movido, duplicado, removido e redimensionado. **Send as report** guarda uma cópia das métricas filtradas em **Reporting → Dashboard reports**. Os períodos e o painel selecionado ficam no navegador. As versões, notas e relatórios ficam no workspace.
 - O período tem 21 opções (de hoje e amanhã até trimestres, ano que vem e "até hoje") e compara com o período anterior ou com o mesmo período do ano anterior. Em **Mais ações** ficam duplicar, definir como padrão, fuso horário do painel, exportar e importar modelo (JSON), histórico de versões e excluir. Ficam de fora em relação ao HighLevel: métricas personalizadas, duplicar para outra subconta, controle de acesso por painel e insights de IA por widget.
 - Em **Visão da agência → Configurações → OpenAI**, conecte a chave de API do seu projeto. Cada usuário usa sua própria chave, criptografada no servidor com uma chave derivada de `GO_STORAGE_KEY`. A configuração permite substituir ou desconectar a chave. Sem uma conexão, o AI Studio continua criando páginas com modelos locais.
-- Em **AI Studio**, descreva o site e clique em **Gerar** para criar uma página com IA e formulário de leads. Ao informar um site de referência, o servidor usa os títulos e a ordem das seções públicas como referência de layout. Endereços locais e de rede privada são recusados.
+- Em **Sites → Funis** ou **Sites → Sites**, use **Construir com IA** e descreva o site para criar as páginas com IA e formulário de leads. Ao informar um site de referência, o servidor usa os títulos e a ordem das seções públicas como referência de layout. Endereços locais e de rede privada são recusados.
 - O **editor** tem páginas à esquerda, a prévia no centro e um painel com **AI**, **Versions** e **Publish**:
   - **Visual edit:** clique num elemento para selecioná-lo e dê duplo clique num texto para editá-lo. **Save changes** grava a página.
   - **Code:** edita o HTML da página. Scripts, `<iframe>`, eventos `on…` e links `javascript:` são removidos ao salvar.
@@ -126,7 +126,7 @@ O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, pu
 
 ## Construtor com IA (estilo vibe)
 
-Ao descrever um site na página inicial do **AI Studio**, ou escolher **Construir com IA** em **Sites**, a soci abre o construtor (`#studio/build`), com a conversa à esquerda e a prévia à direita:
+Ao escolher **Construir com IA** em **Sites**, a soci abre o construtor (`#sites/build`), com a conversa à esquerda e a prévia à direita:
 
 1. **Direção visual.** Antes de construir, três perguntas: paleta (4 opções com as cores), par de fontes do Google Fonts e estrutura da página (tela dividida, seções empilhadas, centralizado ou conteúdo com coluna). Cada pergunta aceita uma resposta escrita. Há revisão das respostas e **Pular todas**. Com a OpenAI conectada, a IA propõe paletas e fontes para o negócio descrito.
 2. **Plano.** A IA (ou o gerador local) define as páginas em ordem. Um funil sempre termina numa página de obrigado.
@@ -138,7 +138,9 @@ No editor, a aba **IA** guarda a conversa do projeto. Cada alteração feita pel
 
 ## Funis e sites
 
-Em **Sites → Funis** e **Sites → Sites**, cada item é um projeto do AI Studio com várias páginas. O mesmo projeto aparece no AI Studio, onde fica a edição visual, de código e por IA.
+Em **Sites → Funis** e **Sites → Sites**, cada item é um projeto com várias páginas. **Abrir editor** leva ao editor (`#sites/editor/<id>`), com a edição visual, de código e por IA, as versões e a publicação.
+
+O antigo menu **AI Studio** foi unificado em Sites: ele saiu do menu lateral, links antigos `#studio/...` redirecionam para Sites, e a permissão “AI Studio” virou parte de “Sites e Funis” (usuários e planos que tinham AI Studio continuam com acesso, agora por Sites).
 
 - **Criar.** **Novo funil** e **Construir com IA** abrem três caminhos: em branco (só o nome), com IA (descrição e site de referência opcional, usando a chave da OpenAI conectada) ou a partir de um dos modelos do AI Studio. Um funil novo já nasce com uma página de captura e uma página de obrigado.
 - **Etapas** (`#sites/funnel/<id>`). Lista as etapas em ordem, com prévia, nome e caminho de cada uma. Dá para reordenar (a primeira etapa fica sempre no endereço principal), mudar o caminho (os links `page:` das outras páginas acompanham), duplicar, excluir, adicionar uma etapa em branco ou criada pela IA no estilo da primeira e pedir mudanças à IA. **Editar página** abre a etapa no editor do AI Studio.

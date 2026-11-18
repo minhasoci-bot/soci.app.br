@@ -6,7 +6,7 @@ export const agencyLevel = role => role.startsWith('Agency');
 
 export const subAccountModules = [
   ['dashboard', 'Painel'], ['conversations', 'Conversas'], ['calendars', 'Calendários'], ['contacts', 'Contatos'],
-  ['opportunities', 'Oportunidades'], ['payments', 'Pagamentos'], ['studio', 'AI Studio'], ['ai-agents', 'Agentes de IA'],
+  ['opportunities', 'Oportunidades'], ['payments', 'Pagamentos'], ['ai-agents', 'Agentes de IA'],
   ['marketing', 'Marketing'], ['automation', 'Automação'], ['sites', 'Sites e Funis'], ['memberships', 'Área de Membros'],
   ['media', 'Arquivos e Mídia'], ['reputation', 'Reputação'], ['reporting', 'Relatórios'],
   ['settings', 'Configurações']
@@ -18,7 +18,7 @@ export const moduleOfRecord = {
   workflowFolders: 'automation', workflowLists: 'automation',
   invoices: 'payments', campaigns: 'marketing', pages: 'sites', forms: 'sites', chatWidgets: 'sites', chatSessions: 'sites', blogs: 'sites', blogPosts: 'sites', blogAuthors: 'sites', blogCategories: 'sites', stores: 'sites', orders: 'payments', webinars: 'sites', webinarRegistrations: 'sites', qrCodes: 'sites', courses: 'memberships', reviews: 'reputation',
   agents: 'ai-agents', agentRuns: 'ai-agents', files: 'media', snippetFolders: 'conversations', snippets: 'conversations', triggerLinks: 'conversations',
-  studioProjects: 'studio', pipelines: 'opportunities', stages: 'opportunities',
+  studioProjects: 'sites', pipelines: 'opportunities', stages: 'opportunities',
   customFields: 'settings', customValues: 'settings', tags: 'contacts', companies: 'contacts',
   products: 'payments', paymentLinks: 'payments', subscriptions: 'payments', transactions: 'payments', coupons: 'payments',
   socialCategories: 'marketing', socialHashtags: 'marketing', socialFeeds: 'marketing'

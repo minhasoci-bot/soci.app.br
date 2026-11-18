@@ -110,7 +110,7 @@ const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -165,6 +165,8 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
     return;
   }
   if (key === 'ask-ai' || key === 'marketplace') { location.hash = '#dashboard'; return; }
+  // The AI Studio now lives inside Sites: old links keep working.
+  if (key === 'studio') { location.replace(tab === 'project' && project ? `#sites/editor/${project}` : tab === 'build' ? '#sites/build' : '#sites/funnels'); return; }
   const view = key === 'link' && allowedView('conversations') ? 'link'
     : Object.hasOwn(screens,key) && allowedView(key) ? key
       : nav.find(([item]) => allowedView(item))?.[0];
@@ -245,7 +247,7 @@ function render(){
     const board = G('.kanban');
     if(board) board.scrollLeft = kanbanScroll;
   }
-  if(c.view==='studio') afterStudioRender();
+  if(c.view==='studio' || (c.view==='sites' && ['editor','build'].includes(c.tab))) afterStudioRender();
   if(c.view==='sites') { afterSitesRender(); afterFormsRender(); }
   if(c.view==='memberships') mountClientPortal?.();
   const agentScreen = G('[data-agent-screen]');

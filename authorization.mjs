@@ -31,7 +31,7 @@ const commandModules = {
   'manual-action': 'conversations', 'conversation-sla': 'conversations', 'dismiss-sla': 'conversations',
   pipeline: 'opportunities', stage: 'opportunities', import: 'contacts',
   'opportunity-import': 'opportunities', 'opportunity-move': 'opportunities',
-  'studio-visit': 'studio', 'studio-star': 'studio', 'studio-meta': 'studio',
+  'studio-visit': 'sites', 'studio-star': 'sites', 'studio-meta': 'sites',
   onboarding: 'dashboard', profile: 'settings',
   'workflow-enroll': 'automation', 'workflow-restore': 'automation', 'workflow-move': 'automation'
 };
@@ -60,10 +60,14 @@ export function requireCapability(access, capability, message) {
 }
 
 // Identity and membership come from the verified session. Only structured plan modules restrict legacy accounts.
-export function effectiveAccess(agency, actor, workspaceId, personal = false) {
+// The AI Studio became part of Sites: users and plans saved with "studio" keep their access as "sites".
+const merged = modules => Array.isArray(modules) ? [...new Set(modules.map(module => module === 'studio' ? 'sites' : module))] : modules;
+
+export function effectiveAccess(agency, rawActor, workspaceId, personal = false) {
+  const actor = { ...rawActor, modules: merged(rawActor.modules) };
   const account = personal ? { status: 'Active' } : accountLifecycle(agency, workspaceId);
   const plan = personal ? null : agency.plans?.find(row => row.id === agency.accounts?.[workspaceId]?.plan);
-  const planModules = Array.isArray(plan?.modules) ? plan.modules.filter(module => moduleKeys.has(module)) : null;
+  const planModules = Array.isArray(plan?.modules) ? merged(plan.modules).filter(module => moduleKeys.has(module)) : null;
   const modules = planModules === null ? actor.modules : planModules.filter(module => hasModule(actor, module));
   return { ...actor, modules, account, support: account.status !== 'Active' && actor.settings === true };
 }
