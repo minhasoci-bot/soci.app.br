@@ -58,7 +58,7 @@ function list(c) {
     <header class="page-head"><div><h1>Sites</h1><p>Crie funis e sites com IA, publique e acompanhe visitas e conversões.</p></div>
       <div class="head-actions"><button class="secondary" data-site-new="ai" data-kind="${kind}">${icon('spark', 16)} Construir com IA</button>
         <button class="primary" data-site-new="blank" data-kind="${kind}">${icon('plus', 16)} ${w.New}</button></div></header>
-    ${tabs([['funnels', 'Funis'], ['websites', 'Sites'], ['forms', 'Formulários'], ['submissions', 'Envios']], c.tab || 'funnels')}
+    ${tabs([['funnels', 'Funis'], ['websites', 'Sites'], ['forms', 'Formulários']], c.tab || 'funnels')}
     ${any ? `<div class="toolbar"><label class="search">${icon('search', 15)}<input type="search" data-site-search value="${h(view.query)}" placeholder="Buscar ${w.many}" aria-label="Buscar ${w.many}"></label></div>` : ''}
     ${rows ? `<div class="surface table-shell"><table class="site-table"><thead><tr><th scope="col">Nome</th><th scope="col">Última atualização</th><th scope="col">${w.Steps}</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
       : any ? `<div class="surface empty"><strong>Nenhum ${w.one} encontrado</strong><p>Tente outro nome.</p></div>`

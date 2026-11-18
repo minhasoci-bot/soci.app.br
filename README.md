@@ -149,6 +149,17 @@ Em **Sites → Funis** e **Sites → Sites**, cada item é um projeto do AI Stud
 
 **Fica de fora em relação ao HighLevel:** domínio próprio, abas de vendas, segurança e eventos, importação de ClickFunnels, pastas e visitantes únicos. As páginas simples criadas antes deste construtor continuam listadas em **Páginas simples**.
 
+## Formulários
+
+Em **Sites → Formulários** há três abas: **Todos os formulários**, **Análises** e **Envios**. Um formulário novo começa em branco ou de um modelo (contato, pedido de orçamento, agendar consultoria, pesquisa de satisfação, newsletter) e abre no construtor (`#sites/form/<id>`):
+
+- **Editar.** Paleta à esquerda com dados pessoais, endereço, texto, escolhas (lista, seleção múltipla, caixas, opção única), avaliação de 1 a 5, data, número, valor em R$, bloco de texto, termos e um campo oculto de origem. A aba **Campos do contato** traz os campos personalizados de contato, e a resposta vai para o campo do contato. Clique para adicionar ou arraste para a posição; arraste os campos para reordenar. À direita ficam as propriedades do campo: rótulo, placeholder, opções, chave de consulta, texto de ajuda, largura inteira ou metade, obrigatório e oculto. Sem campo selecionado, o painel edita nome, descrição, texto do botão e cor.
+- **Configurações.** Ao enviar, mostrar uma mensagem ou redirecionar para um endereço; tags para adicionar ao contato; período de respostas com mensagem para quando estiver fechado.
+- **Integrar.** Link direto (`/form/<workspace>/<id>`) e código para incorporar em qualquer site, com altura automática. Parâmetros no link preenchem campos pela chave, por exemplo `?email=ana@exemplo.com`.
+- **Envios e Análises.** Respostas completas de cada envio, busca e exportação em CSV; visitas, envios e conversão em 7, 30 ou 90 dias.
+
+Cada envio cria o contato ou atualiza o existente (pelo e-mail ou telefone) e dispara os fluxos com o gatilho **Formulário enviado**. O servidor valida cada resposta pelo tipo do campo e devolve a página com os erros. Ainda não existem upload de arquivo, assinatura, pagamento no formulário nem notificação por e-mail.
+
 ## Estúdio de agentes
 
 Em **Agentes de IA** (`#ai-agents`), o estúdio tem três áreas: a lista de agentes com busca, filtro por pasta e ordenação, a área central e o painel do agente selecionado.

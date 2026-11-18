@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { changeDashboard } from './dashboard-model.mjs';
 import { validDesign } from './ui/studio-design.js';
+import { formOpen, readAnswers, validFields } from './ui/form-fields.js';
 import { changeReport } from './report-model.mjs';
 import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashboard-data.js';
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
@@ -66,6 +67,28 @@ const manualTypes = ['Manual Call', 'Manual SMS'];
 const actionTypes = ['Add tag', 'Create task', 'Create opportunity', 'Log message', ...manualTypes];
 const messageChannels = ['Note', 'Email', 'SMS', 'WhatsApp'];
 export const find = (state, key, id) => state[key].find(a => a.id === id);
+const webAddress = value => { const v = str(value, 600); if (v && !/^https?:\/\/[^\s/]+\.[^\s]+$/i.test(v)) fail('Use um endereço que comece com https://'); return v; };
+const when = (value, label) => { if (!value) return ''; const t = Date.parse(value); if (Number.isNaN(t)) fail(`Use uma data válida em ${label}.`); return new Date(t).toISOString(); };
+// Forms: the builder sends fields and settings; older callers send only name, description and askPhone.
+function formRecord(s, d) {
+  const row = { name: req(d.name,'Form name'), description: str(d.description,1500), askPhone: Boolean(d.askPhone), active: Boolean(d.active) };
+  if (d.fields !== undefined) row.fields = validFields(d.fields, s.customFields || []);
+  if (d.button !== undefined) row.button = str(d.button, 60) || 'Enviar';
+  if (d.accent !== undefined) row.accent = /^#[0-9a-f]{6}$/i.test(d.accent || '') ? d.accent.toLowerCase() : '#155eef';
+  if (d.showTitle !== undefined) row.showTitle = Boolean(d.showTitle);
+  if (d.addTags !== undefined) row.addTags = tags(d.addTags);
+  if (d.onSubmit !== undefined) {
+    const action = d.onSubmit?.action === 'redirect' ? 'redirect' : 'message';
+    row.onSubmit = { action, message: str(d.onSubmit?.message, 500), url: action === 'redirect' ? req(webAddress(d.onSubmit?.url), 'Endereço de redirecionamento') : webAddress(d.onSubmit?.url) };
+  }
+  if (d.schedule !== undefined) {
+    const start = when(d.schedule?.start, 'início'), end = when(d.schedule?.end, 'fim');
+    if (start && end && end <= start) fail('O fim do período precisa ser depois do início.');
+    row.schedule = { start, end, closedMessage: str(d.schedule?.closedMessage, 300) };
+  }
+  return row;
+}
+const digits = value => String(value || '').replace(/\D/g, '');
 const exists = (state, key, value, label, optional = false) => (!value && optional) ? '' : find(state, key, value)?.id ?? fail(`Choose a valid ${label}.`);
 function add(state, key, data) { const row = { id: uid(), created: now(), ...data }; state[key].push(row); return row; }
 const contactId = (s,v,optional = false) => exists(s, 'contacts', v, 'contact', optional);
@@ -113,7 +136,7 @@ const fields = {
   invoices: (s,d) => ({ title: req(d.title,'Invoice name'), contactId: contactId(s,d.contactId), value: amount(d.value), due: date(d.due), status: one(d.status || 'Draft',['Draft','Open','Paid','Void'],'status') }),
   campaigns: (s,d) => ({ name: req(d.name,'Campaign name'), channel: one(d.channel,['Email','Social'],'channel'), body: req(d.body,'Content',5000), date: d.date ? date(d.date) : '', status: one(d.status || 'Draft',['Draft','Planned','Archived'],'status') }),
   pages: (s,d) => ({ name: req(d.name,'Page name'), headline: req(d.headline,'Headline'), body: str(d.body,5000), button: str(d.button,80), formId: exists(s,'forms',d.formId,'form',true), kind: one(d.kind,['Website','Funnel'],'page type'), active: Boolean(d.active) }),
-  forms: (s,d) => ({ name: req(d.name,'Form name'), description: str(d.description,1500), askPhone: Boolean(d.askPhone), active: Boolean(d.active) }),
+  forms: (s,d) => formRecord(s,d),
   courses: (s,d) => ({ name: req(d.name,'Course name'), description: str(d.description,2500), lesson: req(d.lesson,'Lesson title'), body: str(d.body,5000),
     active: Boolean(d.active), portalOnly: typeof d.portalOnly === 'boolean' ? d.portalOnly : (d.id ? Boolean(find(s,'courses',d.id)?.portalOnly) : true) }),
   reviews: (s,d) => ({ author: req(d.author,'Author'), score: one(Number(d.score),[1,2,3,4,5],'rating'), text: req(d.text,'Review',2500), reply: str(d.reply,2500) }),
@@ -520,13 +543,35 @@ function other(s, command, type, key, id, d, workspace) {
   if (type === 'submit') {
     const form = find(s,'forms',id);
     if (!form?.active) fail('Form not found.',404);
-    const mail = req(email(d.email),'Email');
-    const name = req(d.name,'Name'), phone = form.askPhone ? str(d.phone,48) : '';
-    let c = s.contacts.find(r=>r.email===mail);
-    if (!c) { c=add(s,'contacts',{ name,email:mail,phone,tags:[],company:'',notes:'' }); run(s,'Contact created',{contactId:c.id}); }
-    const submission=add(s,'submissions',{ formId:id, contactId:c.id, name, email:mail });
+    if (!formOpen(form)) fail(form.schedule?.closedMessage || 'Este formulário não está recebendo respostas agora.',403);
+    const read = readAnswers(form, d, s.customFields || []);
+    if (!read.ok) fail(Object.entries(read.errors).map(([key, text]) => key === '_form' ? text : `${form.fields?.find(f => f.key === key)?.label || key}: ${text}`)[0]);
+    const info = read.contact, addTags = form.addTags || [];
+    let c = (info.email && s.contacts.find(r=>r.email===info.email)) || (info.phone && s.contacts.find(r=>digits(r.phone) && digits(r.phone)===digits(info.phone)));
+    if (!c) {
+      c=add(s,'contacts',{ name:info.name || 'Contato do formulário', email:info.email, phone:info.phone, tags:addTags, company:info.company, notes:'', custom:customData(s,'Contact',{ custom:read.custom }) });
+      run(s,'Contact created',{contactId:c.id});
+    } else {
+      if (!c.phone && info.phone) c.phone = info.phone;
+      if (!c.email && info.email) c.email = info.email;
+      if (!c.company && info.company) c.company = info.company;
+      if (Object.keys(read.custom).length) c.custom = customData(s,'Contact',{ custom:{ ...(c.custom || {}), ...read.custom } });
+      if (addTags.length) c.tags = tags([...(c.tags || []), ...addTags]);
+      c.updated = now();
+    }
+    const submission=add(s,'submissions',{ formId:id, contactId:c.id, name:info.name || c.name, email:info.email, phone:info.phone, answers:read.answers, source:str(d._source,40) || 'Link' });
+    if (s.submissions.length > 5000) s.submissions.splice(0, s.submissions.length - 5000);
     run(s,'Form submitted',{contactId:c.id,formId:id});
     return submission.id;
+  }
+  if (type === 'form-view') {
+    const form = find(s,'forms',id);
+    if (!form?.active) fail('Form not found.',404);
+    const day = now().slice(0,10), byDay = { ...(form.viewsByDay || {}) };
+    byDay[day] = (byDay[day] || 0) + 1;
+    form.viewsByDay = Object.fromEntries(Object.entries(byDay).sort(([a],[b]) => a.localeCompare(b)).slice(-120));
+    form.views = (form.views || 0) + 1;
+    return form.views;
   }
   if (type === 'onboarding') {
     const kind=one(d.kind,['small','agency','saas','other'],'business type');

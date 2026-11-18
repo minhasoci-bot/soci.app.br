@@ -13,6 +13,7 @@ import { createOpenAI, openAIModel } from './openai.mjs';
 import { agentBuildRequest, agentPreview, applyAgentDesign, editAgent, recordAgentRun } from './agent-model.mjs';
 import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
+import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
@@ -34,7 +35,7 @@ const staticFiles = new Map([
   ['/screens.js','text/javascript; charset=utf-8'], ['/conversations.js','text/javascript; charset=utf-8'],
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
-  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
+  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'],
   ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
@@ -67,6 +68,7 @@ const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
 const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course)(?:/([0-9a-f-]{36}))?$`);
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
+const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
 const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialInvitePath = new RegExp(`^/social-connect/${workspaceSegment}/?$`);
@@ -74,7 +76,7 @@ const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{
 const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,48}))?$`);
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
-const commandModule = { 'social-post':'marketing', 'social-reschedule':'marketing', 'social-review':'marketing', 'social-duplicate':'marketing', 'social-delete':'marketing', 'social-bulk-delete':'marketing', 'social-retry':'marketing', 'social-csv':'marketing', 'social-account-remove':'marketing', message:'conversations', thread:'conversations', 'manual-action':'conversations', 'conversation-sla':'conversations', 'dismiss-sla':'conversations',
+const commandModule = { 'form-view':'sites', 'social-post':'marketing', 'social-reschedule':'marketing', 'social-review':'marketing', 'social-duplicate':'marketing', 'social-delete':'marketing', 'social-bulk-delete':'marketing', 'social-retry':'marketing', 'social-csv':'marketing', 'social-account-remove':'marketing', message:'conversations', thread:'conversations', 'manual-action':'conversations', 'conversation-sla':'conversations', 'dismiss-sla':'conversations',
   pipeline:'opportunities', stage:'opportunities', import:'contacts', 'opportunity-import':'opportunities', 'opportunity-move':'opportunities',
   'studio-visit':'studio', 'studio-star':'studio', profile:'settings',
   'workflow-enroll':'automation', 'workflow-restore':'automation', 'workflow-move':'automation',
@@ -380,6 +382,15 @@ export function makeServer({
       return changeSite(project.id, d => publish(d, Boolean(input.publish)));
     }
     throw error('Unknown AI Studio request.',404);
+  }
+  // Every field of a public form post, keeping repeated keys (checkboxes, multiple choice) as lists.
+  async function formBody(req) {
+    if (!/^application\/x-www-form-urlencoded/i.test(req.headers['content-type'] || '')) throw error('Envie os campos do formulário.',415);
+    let size = 0; const chunks = [];
+    for await (const part of req) { size += part.length; if (size > 60000) throw error('Formulário muito longo.',413); chunks.push(part); }
+    const params = new URLSearchParams(Buffer.concat(chunks).toString('utf8')), out = {};
+    for (const key of new Set(params.keys())) { if (key.length > 60) continue; const all = params.getAll(key).slice(0,50).map(v => v.slice(0,5000)); out[key] = all.length > 1 ? all : all[0]; }
+    return out;
   }
   async function formFields(req) {
     if (!/^application\/x-www-form-urlencoded/i.test(req.headers['content-type'] || '')) throw error('Send the form fields.',415);
@@ -1270,7 +1281,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const project = (await store.load(workspace)).studioProjects.find(item => item.id === projectId);
           try {
             if (!project?.formId) throw error('This site is not accepting submissions.',404);
-            await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone } });
+            await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _source:'Site' } });
             const order = doc.published.pages;
             const from = order.findIndex(item => item.slug === (fields._page || 'index'));
             if (from >= 0) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, order[from].id, 'optins'))).catch(() => {});
@@ -1290,6 +1301,37 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           : url.searchParams.has('error') ? { ok:false, text:pt ? 'Não foi possível enviar. Confira o nome e o e-mail e tente de novo.' : es ? 'No se pudo enviar. Revisa el nombre y el correo e inténtalo de nuevo.' : 'Your details could not be sent. Check the name and email and try again.' } : '';
         res.writeHead(200, publicHeaders);
         return res.end(renderPublic(page,{ base, notice }));
+      }
+      const formRoute = p.match(formPath);
+      if (formRoute) {
+        await ready;
+        const [, workspace, formId] = formRoute;
+        const embed = url.searchParams.get('embed') === '1', preview = url.searchParams.get('preview') === '1';
+        const state = await store.load(workspace);
+        const form = state.forms.find(item => item.id === formId);
+        const signedIn = localAccess || auth?.hasSession(req);
+        if (!form || (!form.active && !(preview && signedIn))) throw error('Este formulário não está publicado.',404);
+        const redirects = form.onSubmit?.action === 'redirect' && form.onSubmit.url;
+        const page = (status, options) => {
+          res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
+            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; object-src 'none'; form-action 'self'${redirects ? ' https: http:' : ''}; frame-ancestors *` });
+          return res.end(method === 'HEAD' ? undefined : formPage(form, { action:`/form/${workspace}/${formId}${embed ? '?embed=1' : preview ? '?preview=1' : ''}`, target:embed && redirects ? '_top' : '',
+            customFields:state.customFields || [], embed, brand:state.profile?.name || '', ...options }));
+        };
+        if (!formOpen(form)) return page(200, { notice:{ title:'Formulário encerrado', text:form.schedule?.closedMessage || 'Este formulário não está recebendo respostas agora.' } });
+        if (method === 'GET' || method === 'HEAD') {
+          if (method === 'GET' && !preview && form.active) await Promise.resolve().then(() => change(workspace,{ type:'form-view', id:formId })).catch(() => {});
+          const values = Object.fromEntries([...url.searchParams].filter(([key]) => !['embed','preview','__path'].includes(key)).map(([key, value]) => [key, value.slice(0,500)]));
+          return page(200, { values });
+        }
+        if (!form.active) throw error('Publique o formulário para receber respostas.',403);
+        const input = await formBody(req);
+        const read = readAnswers(form, input, state.customFields || []);
+        if (!read.ok) return page(422, { values:read.values, errors:read.errors });
+        try { await change(workspace,{ type:'submit', id:formId, data:{ ...input, _source:embed ? 'Incorporado' : 'Link' } }); }
+        catch (failure) { return page(failure.status && failure.status < 500 ? 422 : 500, { values:read.values, errors:{ _form:failure.status && failure.status < 500 ? failure.message : 'Não foi possível enviar agora. Tente de novo.' } }); }
+        if (redirects) { res.writeHead(303, { Location:form.onSubmit.url }); return res.end(); }
+        return page(200, { notice:{ title:'Obrigado!', text:form.onSubmit?.message || 'Recebemos suas respostas.' } });
       }
       const redirect = p.match(redirectPath);
       if (redirect && method === 'GET') {
@@ -1312,6 +1354,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const form=kind==='p' && row.formId ? find(state,'forms',row.formId) : null;
         return json({kind,row,form:form?.active?form:null,brand:state.profile.name});
       }
+      const legacyForm = method === 'GET' && p.match(paths);
+      if (legacyForm && legacyForm[1] === 'f') { res.writeHead(302, { Location:`/form/${legacyForm[2]}/${legacyForm[3]}` }); return res.end(); }
       if (p === '/privacidade' || p === '/privacidade/') p = '/privacidade.html';
       if ((method==='GET'||method==='HEAD') && (p==='/' || p==='/login' || ['/app','/app/','/painel','/painel/'].includes(p) || paths.test(p) || staticFiles.has(p))) {
         const hostHeader = (req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
