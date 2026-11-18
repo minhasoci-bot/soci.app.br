@@ -1,6 +1,7 @@
 import { icon } from './icons.js';
 import { h } from './screens.js';
 import { studioTemplates, studioThemes } from './studio-data.js';
+import { builderView } from './studio-builder.js';
 
 const templateName = key => studioTemplates.find(template => template[0] === key)?.[1] || 'Projeto';
 const projectLink = (id,label) => `<a href="#studio/project/${id}" data-studio-open="${id}">${h(label)}</a>`;
@@ -97,9 +98,10 @@ function pagesColumn(doc, page) {
 }
 
 function aiPanel(c) {
-  const log = S().log.filter(item => item.project === S().project);
+  const log = (S().doc?.chat || []).slice(-30);
   return `<div class="sx-selection" id="sx-selection">${selectionHtml()}</div>
-    <div class="sx-log" aria-live="polite">${log.length ? log.map(item => `<p class="sx-you">${h(item.ask)}</p><p class="sx-ai">${h(item.reply)}</p>`).join('') :
+    <div class="sx-log" aria-live="polite">${log.length ? log.map(item => `<div class="sx-entry${item.undone ? ' undone' : ''}"><p class="sx-you">${h(item.ask)}</p><p class="sx-ai">${h(item.reply).replace(/\n/g, '<br>')}</p>
+      <div class="sx-entry-tools"><small>${fmt(item.at)}${item.page ? ` · ${h(item.page)}` : ''}${item.undone ? ' · desfeita' : ''}</small>${item.before && !item.undone ? `<button class="text-link" data-studio-undo="${item.id}" title="Volta o site para antes desta alteração">${icon('refresh',13)} Desfazer</button>` : ''}</div></div>`).join('') :
       `<p class="dim">Descreva uma alteração. Para editar uma parte específica, selecione um elemento no modo de edição visual.</p>`}</div>
     ${c.features?.studioAI ? `<form class="sx-ask" data-studio-form="revise"><label class="sr-only" for="sx-instruction">Alteração desejada</label><textarea id="sx-instruction" name="instruction" required maxlength="2000" placeholder="Peça à IA uma alteração nesta página…"></textarea>
       <p class="form-status" role="alert"></p><button class="primary">${icon('spark',15)} Aplicar com IA</button></form>`
@@ -154,6 +156,7 @@ function editor(c, project) {
 }
 
 export function studio(c) {
+  if (c.tab === 'build') return `<div class="studio-shell">${builderView(c)}</div>`;
   const project = c.tab === 'project' && c.s.studioProjects.find(item => item.id === c.studio.project);
   return `<div class="studio-shell"><section class="studio-main">${project ? editor(c,project) : home(c)}</section></div>`;
 }
@@ -283,6 +286,7 @@ export function installStudio(environment) {
         document.querySelector('.sx-panel-body').innerHTML = d.studioPanel === 'versions' ? versionsPanel(S().doc) : d.studioPanel === 'publish' ? publishPanel(c, c.s.studioProjects.find(p => p.id === S().project), S().doc) : aiPanel(c); return; }
         render(); return; }
       if (d.studioPage) { if (blocked()) return; S().page = d.studioPage; render(); return; }
+      if (d.studioUndo) { if (blocked()) return; button.disabled = true; await call('chat-undo', { entryId: d.studioUndo }); render(); flash('Alteração desfeita. As mudanças feitas depois dela também foram desfeitas.'); return; }
       if ('studioAddPage' in d) { if (blocked()) return;
         modal('Adicionar página', `<label>Nome da página<input name="name" required maxlength="60" placeholder="Sobre nós"></label><label>O que a página deve conter?<textarea name="description" maxlength="1500"></textarea></label>${c.features?.studioAI ? '<label class="check"><input type="checkbox" name="ai" checked> Gerar com IA no mesmo estilo da página inicial</label>' : ''}`, 'add-page', 'Adicionar página'); return; }
       if (d.studioRenamePage) { const page = S().doc.pages.find(item => item.id === d.studioRenamePage);

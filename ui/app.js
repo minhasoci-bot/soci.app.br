@@ -16,6 +16,8 @@ import { topbar } from './topbar.js';
 import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm.js';
 import { socialEvents } from './social.js';
 import { mountAgentScreen } from './agents.js';
+import { afterSitesRender, installSites } from './sites.js';
+import { installBuilder, startBuild } from './studio-builder.js';
 import { installAutomation } from './automation.js';
 import { installClientPortal } from './client-portal.js';
 import { applyBrandColor, setThemeAccount } from './graao.js';
@@ -88,7 +90,7 @@ const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions','funnel'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -196,6 +198,7 @@ function render(){
     if(board) board.scrollLeft = kanbanScroll;
   }
   if(c.view==='studio') afterStudioRender();
+  if(c.view==='sites') afterSitesRender();
   if(c.view==='memberships') mountClientPortal?.();
   const agentScreen = G('[data-agent-screen]');
   if (agentScreen?.dataset.agentId && editor?.id === agentScreen.dataset.agentId && editor.workspace === c.workspace) {
@@ -826,9 +829,9 @@ document.addEventListener('submit',async ev=>{
         if (status) { status.classList.add('pending'); status.textContent='Generating your project. This can take up to a minute.'; }
       }
       try {
-        const created=await api(url('/api/studio'),{brief:data.brief,template:data.template,mode:data.engine || 'starter',reference:data.engine==='model' ? (data.reference || '').trim() : ''});
-        c.s=created.state; c.m=created.metrics; c.studio.brief='';
-        location.hash=`#studio/project/${created.id}`; flash('Project created.'); return;
+        c.studio.brief='';
+        startBuild({ c, api, url, flash, render },{ brief:data.brief.trim(), kind:'website', template:data.template, reference:(data.reference || '').trim(), ai:data.engine==='model' && Boolean(c.features?.studioAI) });
+        return;
       } finally {
         buttons.forEach(button=>{button.disabled=false;});
         f.removeAttribute('aria-busy');
@@ -862,6 +865,8 @@ if(viewPath){
     c.features.agentModel = connection.configured && allowedView('ai-agents') ? connection.model : '';
   } });
   installStudio({ c, api, url, flash, render });
+  installSites({ c, api, url, mutate, flash, render });
+  installBuilder({ c, api, url, flash, render });
   installAutomation({ c, mutate, render, flash, dialog, close });
   mountClientPortal = installClientPortal({ c, api, flash, dialog, close });
   crmEvents({ G, mutate, render, flash, dialog, close });

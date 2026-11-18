@@ -97,7 +97,7 @@ Os outros gatilhos disponíveis são criação de contato, mudança de etapa da 
 | Pagamentos | Faturas, produtos de pagamento único ou recorrente, assinaturas, links de pagamento, transações (a fatura marcada como paga gera a transação uma vez) e cupons percentuais ou de valor fixo com período e limite. Tudo como registro manual, sem gateway |
 | Marketing | Rascunhos e planejamento de conteúdo para redes sociais e e-mail |
 | Automações | Gatilhos de CRM, ações em sequência, publicação local, histórico de execuções e pausa em etapas manuais |
-| Sites | Edição de páginas por campos, páginas locais, formulários vinculados e submissões |
+| Sites | Funis e sites de várias páginas construídos com o AI Studio (em branco, com IA ou por modelo), etapas com caminho e ordem, edição com IA, SEO, estatísticas de visitas e envios, formulários e submissões |
 | Assinaturas | Cadastro de cursos com uma aula publicada por curso e visualização local |
 | Mídia | Upload e download de imagens e PDFs |
 | Reputação | Registro de avaliações, respostas locais e cálculo da nota média |
@@ -123,6 +123,31 @@ O catálogo ainda é informativo. Cobrança, mensageria e telefonia externas, pu
   - **Publish:** publica em `http://127.0.0.1:4317/s/{workspace}/{projeto}` e cria em **Sites → Forms** um formulário que recebe os leads. Cada envio vira contato e dispara workflows com o gatilho **Form submitted**. O painel avisa quando há mudanças não publicadas.
 - As páginas são servidas, na prévia e publicadas, com uma política de segurança que bloqueia qualquer script. Cada site fica numa linha própria do armazenamento (`studio-{projeto}`), fora do estado do workspace. Projetos antigos, feitos por seções, abrem como uma página montada a partir delas.
 - **Fora do escopo local:** domínio próprio (exige um servidor público) e sincronização com o GitHub.
+
+## Construtor com IA (estilo vibe)
+
+Ao descrever um site na página inicial do **AI Studio**, ou escolher **Construir com IA** em **Sites**, o soci abre o construtor (`#studio/build`), com a conversa à esquerda e a prévia à direita:
+
+1. **Direção visual.** Antes de construir, três perguntas: paleta (4 opções com as cores), par de fontes do Google Fonts e estrutura da página (tela dividida, seções empilhadas, centralizado ou conteúdo com coluna). Cada pergunta aceita uma resposta escrita. Há revisão das respostas e **Pular todas**. Com a OpenAI conectada, a IA propõe paletas e fontes para o negócio descrito.
+2. **Plano.** A IA (ou o gerador local) define as páginas em ordem. Um funil sempre termina numa página de obrigado.
+3. **Construção.** Uma lista de tarefas acompanha cada página, que é criada na ordem do plano e aparece na prévia. No fim, um resumo lista as rotas criadas, com links para o editor e para as etapas em Sites.
+
+Sem a chave da OpenAI, o construtor funciona com o gerador local: as páginas seguem a paleta, as fontes e a estrutura escolhidas e trazem marcadores `[[...]]` para os textos reais.
+
+No editor, a aba **IA** guarda a conversa do projeto. Cada alteração feita pela IA tem **Desfazer**, que volta o site para a versão anterior a ela (as mudanças posteriores também saem).
+
+## Funis e sites
+
+Em **Sites → Funis** e **Sites → Sites**, cada item é um projeto do AI Studio com várias páginas. O mesmo projeto aparece no AI Studio, onde fica a edição visual, de código e por IA.
+
+- **Criar.** **Novo funil** e **Construir com IA** abrem três caminhos: em branco (só o nome), com IA (descrição e site de referência opcional, usando a chave da OpenAI conectada) ou a partir de um dos modelos do AI Studio. Um funil novo já nasce com uma página de captura e uma página de obrigado.
+- **Etapas** (`#sites/funnel/<id>`). Lista as etapas em ordem, com prévia, nome e caminho de cada uma. Dá para reordenar (a primeira etapa fica sempre no endereço principal), mudar o caminho (os links `page:` das outras páginas acompanham), duplicar, excluir, adicionar uma etapa em branco ou criada pela IA no estilo da primeira e pedir mudanças à IA. **Editar página** abre a etapa no editor do AI Studio.
+- **Comportamento de funil.** No funil publicado, quem envia o formulário de uma etapa vai para a etapa seguinte. Na última etapa, e em sites, o visitante vê a confirmação na própria página. Cada envio cria ou atualiza o contato e dispara os workflows de **Form submitted**.
+- **Estatísticas.** Visitas e envios de formulário por etapa, taxa de conversão e total, com botão para zerar. A contagem acontece nas páginas publicadas e não separa visitantes únicos.
+- **SEO.** Título e descrição por página, com geração por IA. Valem no site publicado depois de publicar de novo.
+- **Configurações.** Nome, tipo (funil ou site), endereço publicado, formulário que recebe os leads e exclusão.
+
+**Fica de fora em relação ao HighLevel:** domínio próprio, abas de vendas, segurança e eventos, importação de ClickFunnels, pastas e visitantes únicos. As páginas simples criadas antes deste construtor continuam listadas em **Páginas simples**.
 
 ## Estúdio de agentes
 

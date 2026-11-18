@@ -7,6 +7,7 @@ import {studio} from './studio.js';
 import {bulkBar, contactsTab, crmTabs, opportunitiesTab, paymentsTab, pickBox, pickHead, settingsTab} from './crm.js';
 import {socialPlanner} from './social.js';
 import {agentsScreen} from './agents.js';
+import {sitesScreen} from './sites.js';
 import {automationScreen} from './automation.js';
 import {portalAdminScreen, portalNav} from './client-portal.js';
 import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
@@ -146,6 +147,7 @@ function marketing(c){
   return wrap(head('Marketing','Rascunhe e organize campanhas. Publique ou envie pelo seu provedor quando estiver pronto.',primary(t==='social'?'Nova publicação':'Nova campanha','campaigns',`data-channel="${channel}"`),tabs([['social','Planejador social'],['email','E-mails']],t))+`<div class="toolbar">${search(c.query,'Buscar campanhas…')}</div>`+table(['Campanha','Conteúdo','Data planejada','Status',''],records.map(r=>row([`<b>${h(r.name)}</b>`,`<span class="ellipsis">${h(r.body)}</span>`,date(r.date,c),badge(r.status,r.status==='Planned'?'blue':'')],'campaigns',r.id)),empty('Nenhuma campanha','Crie seu primeiro rascunho para planejar o conteúdo.','send')));
 }
 function sites(c){
+  if(!['forms','submissions'].includes(c.tab)) return sitesScreen(c);
   const t=c.tab||'funnels', p=t==='websites'?'Website':'Funnel', s=c.s;
   return wrap(head('Sites','Crie páginas de captura locais e receba envios.',t==='submissions'?'':t==='forms'?primary('Novo formulário','forms'):primary(p==='Website'?'Novo site':'Novo funil','pages',`data-kind="${p}"`),tabs([['funnels','Funis'],['websites','Sites'],['forms','Formulários'],['submissions','Envios']],t))+(t==='submissions'?table(['Formulário','Nome','E-mail','Recebido'],[...s.submissions].reverse().map(r=>`<tr><td>${h(s.forms.find(f=>f.id===r.formId)?.name||'Formulário excluído')}</td><td>${h(r.name||'—')}</td><td>${h(r.email||'—')}</td><td>${date(r.created,c,true)}</td></tr>`),empty('Nenhum envio','Publique um formulário e use o link local para captar um lead.','inbox')):`<div class="card-grid">${[...(t==='forms'?s.forms:s.pages.filter(r=>r.kind===p))].reverse().map(r=>`<article class="surface padded resource"><span class="metric-icon">${i(t==='forms'?'list':'site')}</span><div><h2>${h(r.name)}</h2><p>${h(r.headline||r.description||'')}</p></div>${badge(r.active?'Publicado localmente':'Draft',r.active?'green':'')}<div class="inline-gap">${r.active?viewLink('Abrir',t==='forms'?'f':'p',r.id,c):''}<button class="secondary" data-edit="${t==='forms'?'forms':'pages'}" data-id="${r.id}">${i('edit',15)} Editar</button></div></article>`).join('')||empty(t==='forms'?'Nenhum formulário ainda':t==='websites'?'Nenhum site ainda':'Nenhum funil ainda','Crie um item para visualizá-lo ou publicá-lo localmente.','site')}</div>`));
 }

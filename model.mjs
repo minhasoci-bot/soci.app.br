@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { changeDashboard } from './dashboard-model.mjs';
+import { validDesign } from './ui/studio-design.js';
 import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashboard-data.js';
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
 import { afterSave, beforeDelete, bulk, crmCollections, crmFields, customData } from './crm-model.mjs';
@@ -138,7 +139,7 @@ const fields = {
     return { name, headline:str(d.headline,140) || name, summary:str(d.summary,1500),
       brief:req(d.brief,'Brief',4000), theme:one(d.theme,studioThemes,'theme'), template:one(d.template,studioTemplates.map(item => item[0]),'template'),
       blocks:blocks.map(block => ({ title:req(block?.title,'Section title',100),body:str(block?.body,2200) })),
-      reference:str(d.reference,500) };
+      reference:str(d.reference,500), design:d.design ? validDesign(d.design) : find(s,'studioProjects',d.id)?.design || null, kind:one(d.kind || find(s,'studioProjects',d.id)?.kind || 'website',['website','funnel'],'site type') };
   }
 };
 // Metadata mirrored from the project's site row: page list, publication and the form that receives its leads.
@@ -146,6 +147,7 @@ function studioMeta(s, id, d) {
   const project = find(s,'studioProjects',id);
   if (!project) fail('Project not found.',404);
   if (d.name !== undefined) project.name = req(d.name,'Project name',80);
+  if (d.kind !== undefined) project.kind = one(d.kind,['website','funnel'],'site type');
   if (Array.isArray(d.pages)) project.pages = d.pages.slice(0,8).map(p => ({ id:str(p?.id,40), name:str(p?.name,60), slug:str(p?.slug,48) }));
   if (d.publishedAt !== undefined) project.publishedAt = d.publishedAt ? date(d.publishedAt) : '';
   if (d.formId !== undefined) project.formId = exists(s,'forms',d.formId,'form',true);
