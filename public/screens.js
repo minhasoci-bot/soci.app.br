@@ -11,6 +11,10 @@ import {sitesScreen} from './sites.js';
 import { formsScreen, formTabs } from './forms.js';
 import { chatScreen, chatTabs } from './chat-widgets.js';
 import { blogScreen, blogTabs } from './blogs.js';
+import { storeScreen, storeTabs } from './stores.js';
+import { webinarScreen, webinarTabs } from './webinars.js';
+import { qrScreen, qrTabs } from './qr-codes.js';
+import { analyticsScreen, analyticsTabs } from './sites-analytics.js';
 import {automationScreen} from './automation.js';
 import {portalAdminScreen, portalTabs} from './client-portal.js';
 import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
@@ -209,6 +213,10 @@ function sites(c){
   if(formTabs.includes(c.tab)) return formsScreen(c);
   if(chatTabs.includes(c.tab)) return chatScreen(c);
   if(blogTabs.includes(c.tab)) return blogScreen(c);
+  if(storeTabs.includes(c.tab)) return storeScreen(c);
+  if(webinarTabs.includes(c.tab)) return webinarScreen(c);
+  if(qrTabs.includes(c.tab)) return qrScreen(c);
+  if(analyticsTabs.includes(c.tab)) return analyticsScreen(c);
   if(!['forms','submissions'].includes(c.tab)) return sitesScreen(c);
   const t=c.tab||'funnels', p=t==='websites'?'Website':'Funnel', s=c.s;
   return pageShell({

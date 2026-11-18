@@ -34,6 +34,10 @@ import { chatHistory } from './chat-model.mjs';
 import { chatPage, demoPage, loaderScript } from './ui/chat-widget-data.js';
 import { blogHome, blogPost, blogRss, isLive } from './ui/blog-data.js';
 import { localDraft, postSeo, writePost } from './blog-ai.mjs';
+import { catalog, methodLabel, storeCart, storeHome, storeProduct } from './ui/store-data.js';
+import { quoteOrder } from './store-model.mjs';
+import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
+import { deviceOf, qrTarget } from './qr-model.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const staticFiles = new Map([
@@ -41,7 +45,7 @@ const staticFiles = new Map([
   ['/screens.js','text/javascript; charset=utf-8'], ['/conversations.js','text/javascript; charset=utf-8'],
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
-  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
+  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'],
   ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'],
@@ -77,6 +81,11 @@ const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|hom
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const chatPath = new RegExp(`^/chat/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js|demo))?/?$`);
 const chatApi = new RegExp(`^/api/chat/${workspaceSegment}/([0-9a-f-]{36})/(start|send|messages)$`);
+const webinarPath = new RegExp(`^/w/${workspaceSegment}/([0-9a-f-]{36})(?:/(sala|agenda\\.ics))?/?$`);
+const webinarApi = new RegExp(`^/api/webinar/${workspaceSegment}/([0-9a-f-]{36})/register$`);
+const qrPath = new RegExp(`^/q/${workspaceSegment}/([0-9a-f-]{36})$`);
+const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
+const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout)$`);
 const blogPath = new RegExp(`^/b/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,80}|rss\\.xml))?/?$`);
 const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
 const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
@@ -858,10 +867,22 @@ export function makeServer({
     if (Object.keys(refreshed).length) await socialSecrets(workspace, row => { for (const [k, v] of Object.entries(refreshed)) if (v) row.tokens[k] = seal(v); });
     return completed;
   }
+  // Webinar reminders that fell due are written to Conversas; WhatsApp ones are also sent when the sub-account has WhatsApp connected.
+  async function runWebinarReminders(workspace, base, at = Date.now()) {
+    const state = await store.load(workspace);
+    if (!state.webinarRegistrations?.length) return 0;
+    const result = await change(workspace,{ type:'webinar-reminders', data:{ base, workspace, at:new Date(at).toISOString() } });
+    const sent = Array.isArray(result.id) ? result.id : [];
+    if (!privateSpace.test(workspace)) for (const item of sent.filter(row => row.channel === 'WhatsApp' && row.phone)) {
+      await whatsapp.sendWorkspaceText(state.agencyId || AGENCY_ID, workspace, item.phone, item.body, (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
+    }
+    return sent.length;
+  }
   async function runAllSocial(base) {
     let total = 0;
     for (const w of (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id))) {
       try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
+      try { await runWebinarReminders(w.id, base); } catch (e) { console.error(`Webinar reminders (${w.id}): ${e.message}`); }
     }
     return total;
   }
@@ -1447,6 +1468,96 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           : url.searchParams.has('error') ? { ok:false, text:pt ? 'Não foi possível enviar. Confira o nome e o e-mail e tente de novo.' : es ? 'No se pudo enviar. Revisa el nombre y el correo e inténtalo de nuevo.' : 'Your details could not be sent. Check the name and email and try again.' } : '';
         res.writeHead(200, publicHeaders);
         return res.end(renderPublic(page,{ base, notice }));
+      }
+      // Webinars: registration, watch room (attendance when the room is open) and calendar file.
+      const webinarRoute = p.match(webinarPath);
+      if (webinarRoute && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, webinarId, part] = webinarRoute;
+        const state = await store.load(workspace);
+        const webinar = state.webinars?.find(item => item.id === webinarId);
+        const preview = url.searchParams.get('preview') === '1' && (localAccess || auth?.hasSession(req));
+        if (!webinar || (!webinar.active && !preview)) throw error('Este webinar não está disponível.',404);
+        const zone = state.profile?.timezone || 'America/Sao_Paulo';
+        const page = body => { res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer',
+          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }); return res.end(method === 'HEAD' ? undefined : body); };
+        if (!part) return page(registrationPage(webinar, { workspace, zone }));
+        const registration = state.webinarRegistrations.find(item => item.webinarId === webinarId && item.token === String(url.searchParams.get('t') || ''));
+        if (!registration) throw error('Inscrição não encontrada. Use o link que você recebeu.',404);
+        const session = webinar.sessions.find(item => item.id === registration.sessionId);
+        if (part === 'agenda.ics') {
+          if (!session) throw error('Sessão não encontrada.',404);
+          res.writeHead(200, { 'Content-Type':'text/calendar; charset=utf-8', 'Content-Disposition':'attachment; filename="webinar.ics"' });
+          return res.end(calendarFile(webinar, session, `${publicBase(req)}/w/${workspace}/${webinarId}/sala?t=${registration.token}`));
+        }
+        const now = Date.now();
+        if (session && webinar.active && method === 'GET' && now >= Date.parse(session.start) - webinar.openBefore * 60000 && now < Date.parse(session.start) + session.duration * 60000)
+          await Promise.resolve().then(() => change(workspace,{ type:'webinar-attend', id:webinarId, data:{ token:registration.token } })).catch(() => {});
+        return page(roomPage(webinar, registration, { workspace, zone, at:now }));
+      }
+      const webinarCall = p.match(webinarApi);
+      if (webinarCall) {
+        await ready;
+        if (method !== 'POST') throw error('Method not allowed.',405);
+        const [, workspace, webinarId] = webinarCall;
+        const input = await payload(req);
+        const result = await change(workspace,{ type:'webinar-register', id:webinarId, data:{ name:input.name, email:input.email, phone:input.phone, sessionId:input.sessionId } });
+        const registration = result.state.webinarRegistrations.find(item => item.id === result.id);
+        return json({ room:`/w/${workspace}/${webinarId}/sala?t=${registration.token}` },201);
+      }
+      // QR Codes: count the scan and send the visitor on. The destination can change after printing.
+      const qrRoute = p.match(qrPath);
+      if (qrRoute && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, qrId] = qrRoute;
+        const state = await store.load(workspace);
+        const qr = state.qrCodes?.find(item => item.id === qrId);
+        const target = qr?.active ? qrTarget(state, qr, { base:publicBase(req), workspace }) : '';
+        if (!target) {
+          res.writeHead(404, { 'Content-Type':'text/html; charset=utf-8', 'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'" });
+          return res.end(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR Code indisponível</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;color:#101828;background:#f2f4f7}main{max-width:420px;padding:32px;border-radius:18px;background:#fff;text-align:center}</style></head><body><main><h1 style="font-size:22px;margin:0 0 8px">Este QR Code não está ativo</h1><p style="margin:0;color:#475467">O destino foi pausado ou removido por quem criou o código.</p></main></body></html>`);
+        }
+        if (method === 'GET') {
+          const visitor = `${req.headers['x-forwarded-for'] || req.socket?.remoteAddress || ''}|${req.headers['user-agent'] || ''}`;
+          await Promise.resolve().then(() => change(workspace,{ type:'qr-scan', id:qrId, data:{ visitor, device:deviceOf(String(req.headers['user-agent'] || '')) } })).catch(() => {});
+        }
+        res.writeHead(302, { Location:target, 'Cache-Control':'no-store' });
+        return res.end();
+      }
+      // Stores: catalog, product page and cart. Totals always come from quoteOrder on the server.
+      const storeRoute = p.match(storePath);
+      if (storeRoute && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, storeId, cart, slug] = storeRoute;
+        const state = await store.load(workspace);
+        const shop = state.stores?.find(item => item.id === storeId);
+        const preview = url.searchParams.get('preview') === '1' && (localAccess || auth?.hasSession(req));
+        if (!shop || (!shop.active && !preview)) throw error('Esta loja não está aberta.',404);
+        const base = `/loja/${workspace}/${storeId}`;
+        let body;
+        if (cart) body = storeCart(state, shop, { base, workspace });
+        else if (slug) { const item = catalog(state, shop).find(row => row.slug === slug); if (!item) throw error('Produto não encontrado.',404); body = storeProduct(state, shop, item, { base }); }
+        else body = storeHome(state, shop, { base, category:String(url.searchParams.get('categoria') || '').slice(0,40) });
+        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin',
+          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" });
+        return res.end(method === 'HEAD' ? undefined : body);
+      }
+      const storeCall = p.match(storeApi);
+      if (storeCall) {
+        await ready;
+        if (method !== 'POST') throw error('Method not allowed.',405);
+        const [, workspace, storeId, op] = storeCall;
+        const input = await payload(req);
+        if (op === 'quote') {
+          const state = await store.load(workspace);
+          const shop = state.stores?.find(item => item.id === storeId && item.active);
+          if (!shop) throw error('Esta loja não está aberta.',404);
+          const { coupon_, ...quote } = quoteOrder(state, shop, input);
+          return json(quote);
+        }
+        const result = await change(workspace,{ type:'store-checkout', id:storeId, data:input });
+        const order = result.state.orders.find(item => item.id === result.id), shop = result.state.stores.find(item => item.id === storeId);
+        return json({ number:order.number, total:order.total, method:methodLabel[shop.payment.method] || shop.payment.method, instructions:shop.payment.instructions, thanks:shop.thanks },201);
       }
       // Blogs: home with categories and pages, posts with SEO tags, and RSS. Drafts open with ?preview=1 when signed in.
       const blogRoute = p.match(blogPath);

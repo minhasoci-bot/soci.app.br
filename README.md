@@ -189,6 +189,32 @@ Em **Sites → Blogs** ficam os blogs do workspace, com o total de artigos, os b
 - **IA.** **Escrever com IA** recebe tema, título, palavras-chave, tom e tamanho e cria o rascunho completo (título, resumo, texto e SEO) com a OpenAI conectada. Sem a chave, cria um roteiro com marcadores `[[...]]`. **Gerar com IA** no painel de SEO escreve o título e a descrição a partir do texto.
 - **Páginas públicas.** `/b/<workspace>/<blog>` mostra os artigos em cartões, com filtro por categoria (`?categoria=`) e páginas; `/b/<workspace>/<blog>/<caminho>` mostra o artigo com título e descrição de SEO, Open Graph, link canônico, autor e “Leia também”; `/b/<workspace>/<blog>/rss.xml` é o feed. Rascunhos e agendados ficam fora do ar até a data, e a equipe vê a prévia com `?preview=1`. O texto é convertido de Markdown com todo HTML escapado e só links `http(s)`.
 
+## Lojas
+
+Em **Sites → Lojas** você monta lojas com os produtos de pagamento único de **Pagamentos → Produtos**. Cada loja tem uma lista de configuração em seis passos (produtos, pagamento, frete, impostos, personalizar, publicar) e três abas:
+
+- **Produtos.** Adiciona produtos de Pagamentos ou cria um novo ali mesmo. Para cada item: categoria, estoque (vazio = sem controle), foto `https://` e opção de ocultar da vitrine. Nome, preço e descrição continuam vindo de Pagamentos.
+- **Pedidos.** Pedidos com filtro por status, itens, endereço ou retirada, totais e andamento. **Pago** fecha a fatura do pedido e registra a transação; **Enviado / entregue** guarda o código de rastreio; **Cancelado** devolve o estoque e anula a fatura (um pedido cancelado não reabre).
+- **Configurações.** Frete (sem entrega, valor fixo ou fixo com frete grátis acima de um valor), retirada na loja, imposto em %, forma de pagamento com instruções (Pix, transferência, dinheiro na retirada), telefone obrigatório, tags do contato e mensagem depois do pedido.
+
+A vitrine pública fica em `/loja/<workspace>/<loja>`, com filtro por categoria, página de produto (`/p/<caminho>`) e carrinho (`/carrinho`). O carrinho fica no navegador do cliente, mas preço, estoque, cupom (os mesmos cupons de Pagamentos), frete, imposto e total são sempre recalculados no servidor. Ao finalizar, a soci cria ou encontra o contato, cria o pedido e uma **fatura em aberto** em Pagamentos, baixa o estoque e conta o uso do cupom. A cobrança acontece fora da soci: o cliente vê as instruções de pagamento e a equipe marca o pedido como pago. Ainda não existem cobrança por cartão, cálculo de frete por CEP nem lembrete de carrinho abandonado.
+
+## Webinars
+
+Em **Sites → Webinars** cada webinar tem sessões (data, hora e duração), link da transmissão (Meet, Zoom, YouTube…), link da gravação, tags para o contato e lembretes.
+
+- **Inscrição** em `/w/<workspace>/<webinar>`: escolha da sessão (só as futuras), nome, e-mail e WhatsApp. Cria ou encontra o contato e leva à **sala** (`/sala?t=…`), um link pessoal com contagem regressiva, botão **Adicionar à agenda** (arquivo `.ics` com alarme) e, a partir do horário de abertura (por padrão 15 minutos antes), o botão **Entrar no webinar**. Abrir a sala nesse horário marca presença. Depois do fim, a sala mostra a gravação.
+- **Lembretes.** Até seis, por exemplo 1 dia, 1 hora e 10 minutos antes, por e-mail, SMS ou WhatsApp, com `{{nome}}`, `{{webinar}}`, `{{data}}` e `{{link}}`. O agendador da soci (o mesmo que publica as redes sociais, a cada minuto) registra cada lembrete na conversa do inscrito em **Conversas** no horário certo, uma vez só. Lembretes de WhatsApp também são enviados quando o WhatsApp da subconta está conectado; e-mail e SMS ficam registrados para envio pelo seu provedor.
+- **Inscritos.** Sessão, data de inscrição, lembretes registrados, presença e exportação em CSV.
+
+## QR Codes
+
+Em **Sites → QR Codes** você cria QR Codes para site, formulário, loja, blog, webinar, WhatsApp (com mensagem pronta), ligação, SMS ou e-mail, com cor do código e do fundo e download em PNG ou SVG. Todo código é dinâmico: aponta para `/q/<workspace>/<id>`, que conta a leitura e redireciona, então o destino pode mudar depois de impresso. O painel mostra leituras totais, únicas por dia, leituras por dia e dispositivo; quem lê é guardado só como hash, nunca o endereço ou o navegador. Um código pausado (ou que aponta para algo não publicado) mostra um aviso no lugar do destino. O QR é gerado pela própria soci (`ui/qr.js`, modo byte, correção M, versões 1 a 10), sem biblioteca externa.
+
+## Análises de Sites
+
+**Sites → Análises** junta, em 7, 30 ou 90 dias: visitas (formulários, artigos de blog e leituras de QR Code), opt-ins (envios de formulários, pesquisas e questionários, inscrições em webinars e chats iniciados), vendas pagas das lojas e a conversão dos formulários, com visitas por dia, um quadro por origem e os itens mais acessados. Funis e sites do AI Studio mantêm as estatísticas próprias em cada funil. Navegador, país e origem do tráfego ainda não são coletados.
+
 ## Estúdio de agentes
 
 Em **Agentes de IA** (`#ai-agents`), o estúdio tem três áreas: a lista de agentes com busca, filtro por pasta e ordenação, a área central e o painel do agente selecionado.

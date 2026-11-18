@@ -10,6 +10,9 @@ import { inboxRule } from './ui/inbox-data.js';
 import { socialBeforeDelete, socialCollections, socialCommand, socialFields } from './social-model.mjs';
 import { chatBeforeDelete, chatCollections, chatCommand, chatFields } from './chat-model.mjs';
 import { blogBeforeDelete, blogCollections, blogFields, blogView } from './blog-model.mjs';
+import { storeAfterSave, storeBeforeDelete, storeCheckout, storeCollections, storeFields } from './store-model.mjs';
+import { webinarBeforeDelete, webinarCollections, webinarCommand, webinarFields } from './webinar-model.mjs';
+import { qrCollections, qrFields, qrScan } from './qr-model.mjs';
 
 export const defaults = {
   profile: { name: 'Demo Workspace', email: 'hello@example.test', phone: '', timezone: 'America/Sao_Paulo', currency: 'BRL' },
@@ -22,7 +25,7 @@ export const defaults = {
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[],
-  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections].map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections].map(key => [key, []])),
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
 export const blank = name => ({ ...structuredClone(defaults), profile: { ...defaults.profile, ...(name ? { name } : {}) } });
@@ -30,7 +33,7 @@ export function hydrateWorkspace(state) {
   const fresh = blank();
   state.customReports ??= [];
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -114,6 +117,9 @@ const fields = {
   ...socialFields,
   ...chatFields,
   ...blogFields,
+  ...storeFields,
+  ...webinarFields,
+  ...qrFields,
   appointments: (s, d) => {
     const start = date(d.start), end = date(d.end);
     if (end <= start) fail('End time must be after start time.');
@@ -344,6 +350,9 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
   if (typeof type === 'string' && type.startsWith('social-')) return socialCommand(s, { ...command, data:d }, { add, now });
   if (type === 'chat-start' || type === 'chat-send') return chatCommand(s, { ...command, data:d }, { add, now, run });
   if (type === 'blog-view') return blogView(s, id);
+  if (type === 'store-checkout') return storeCheckout(s, { ...command, data:d }, { add, run });
+  if (['webinar-register','webinar-attend','webinar-reminders'].includes(type)) return webinarCommand(s, { ...command, data:d }, { add, run, now });
+  if (type === 'qr-scan') return qrScan(s, id, d);
   if (type === 'studio-meta') return studioMeta(s, id, d);
   if (type === 'studio-visit' || type === 'studio-star') {
     const project = find(s,'studioProjects',id);
@@ -439,6 +448,7 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
     if (key === 'studioProjects' && !prior) row.viewedAt = row.created;
     if (['bulkActions','imports'].includes(key)) fail('Unknown record type.');
     afterSave(s, key, prior, row, add);
+    storeAfterSave(s, key, prior, row, add);
     if (prior) s[key] = s[key].map(r=>r.id===id ? row : r);
     if (!prior && key==='contacts') run(s,'Contact created',{ contactId:row.id });
     if (!prior && key==='appointments') run(s,'Appointment booked',row);
@@ -462,6 +472,8 @@ function remove(s, key, id) {
     socialBeforeDelete(s, key, id);
     chatBeforeDelete(s, key, id);
     blogBeforeDelete(s, key, id);
+    storeBeforeDelete(s, key, id);
+    webinarBeforeDelete(s, key, id);
     if (key==='contacts') {
       for (const related of ['tasks','opportunities','messages','appointments','invoices','threads']) s[related] = s[related].filter(r=>r.contactId!==id);
       for (const row of s.submissions.filter(r=>r.contactId===id)) { row.contactId=''; row.name=''; row.email=''; }

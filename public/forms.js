@@ -11,7 +11,7 @@ const KINDS = {
   survey: { list: 'surveys', analytics: 'survey-analytics', subs: 'survey-submissions', one: 'pesquisa', One: 'Pesquisa', many: 'pesquisas', Many: 'Pesquisas', New: 'Nova pesquisa', all: 'Todas as pesquisas', icon: 'chart', fem: true },
   quiz: { list: 'quizzes', analytics: 'quiz-analytics', subs: 'quiz-submissions', one: 'questionário', One: 'Questionário', many: 'questionários', Many: 'Questionários', New: 'Novo questionário', all: 'Todos os questionários', icon: 'award', fem: false }
 };
-export const siteTabs = [['funnels', 'Funis'], ['websites', 'Sites'], ['blogs', 'Blogs'], ['forms', 'Formulários'], ['surveys', 'Pesquisas'], ['quizzes', 'Questionários'], ['chat-widget', 'Chat']];
+export const siteTabs = [['funnels', 'Funis'], ['websites', 'Sites'], ['blogs', 'Blogs'], ['stores', 'Lojas'], ['forms', 'Formulários'], ['surveys', 'Pesquisas'], ['quizzes', 'Questionários'], ['chat-widget', 'Chat'], ['webinars', 'Webinars'], ['qr-codes', 'QR Codes'], ['analytics', 'Análises']];
 export const formTabs = Object.values(KINDS).flatMap(k => [k.list, k.analytics, k.subs]).concat('form');
 const kindOf = form => KINDS[form?.kind] ? form.kind : 'form';
 const kindForTab = tab => Object.keys(KINDS).find(kind => [KINDS[kind].list, KINDS[kind].analytics, KINDS[kind].subs].includes(tab)) || 'form';
