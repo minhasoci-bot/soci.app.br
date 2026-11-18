@@ -1,7 +1,8 @@
 export const prospectSources = { Manual:'Manual', Maps:'Google Maps', AI:'Prospect AI', Widget:'Widget' };
 export const prospectLeadStatus = { Open:'Lead aberto', Won:'Ganho', Lost:'Perdido' };
 export const prospectSections = {
-  address:'Endereço', summary:'Pontuação geral', business:'Dados da empresa', website:'Site e tecnologia',
+  address:'Endereço', summary:'Pontuação geral', business:'Dados da empresa', website:'Site',
+  health:'Saúde do site', stack:'Tecnologias e redes sociais',
   listings:'Perfil no Google e presença local', reputation:'Avaliações e reputação', next:'Próximos passos'
 };
 export const prospectThemes = { blue:'Azul', pink:'Pink soci', teal:'Verde', graphite:'Grafite' };

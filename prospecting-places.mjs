@@ -1,6 +1,6 @@
 const key = process.env.PROSPECTING_GOOGLE_PLACES_KEY?.trim();
 const embedKey = process.env.PROSPECTING_GOOGLE_MAPS_EMBED_KEY?.trim();
-const fieldMask = ['id','displayName','formattedAddress','primaryTypeDisplayName','location'].map(field => `places.${field}`).join(',');
+const fieldMask = ['id','displayName','formattedAddress','primaryTypeDisplayName','location','rating','userRatingCount'].map(field => `places.${field}`).join(',');
 export const placesConfigured = Boolean(key);
 export const mapsEmbedKey = embedKey && embedKey !== key ? embedKey : '';
 
@@ -18,6 +18,26 @@ function distance(center,other) {
   const dLat = rad(other.latitude-center.latitude), dLon = rad(other.longitude-center.longitude);
   const part = Math.sin(dLat/2)**2+Math.cos(rad(center.latitude))*Math.cos(rad(other.latitude))*Math.sin(dLon/2)**2;
   return 12742000*Math.asin(Math.min(1,Math.sqrt(part)));
+}
+
+const detailMask = ['id','businessStatus','nationalPhoneNumber','websiteUri','rating','userRatingCount','regularOpeningHours','photos','primaryType'].join(',');
+
+// Live read for the audit only. The caller keeps derived checks, never this content.
+export async function placeDetails(placeId) {
+  if (!placesConfigured) unavailable('Configure a chave do Google Maps.',503);
+  if (typeof placeId !== 'string' || !/^[\w-]{1,220}$/.test(placeId)) unavailable('Identificador do Maps inválido.',400);
+  return readJson(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=pt-BR`,{
+    headers:{'X-Goog-Api-Key':key,'X-Goog-FieldMask':detailMask}
+  });
+}
+
+export async function findPlace(name,location) {
+  if (!placesConfigured) return '';
+  const result = await readJson('https://places.googleapis.com/v1/places:searchText',{
+    method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':'places.id'},
+    body:JSON.stringify({textQuery:`${name} ${location}`.slice(0,300),languageCode:'pt-BR',pageSize:1})
+  });
+  return result.places?.[0]?.id || '';
 }
 
 export async function placesSearch(keywords,location,km) {
@@ -39,6 +59,6 @@ export async function placesSearch(keywords,location,km) {
     });
   }));
   return responses.flatMap(response => response.places || []).filter(place => place.id && place.displayName?.text && place.location && distance(center,place.location) <= radius).map(place => ({
-    placeId:place.id, name:place.displayName.text, address:place.formattedAddress || '', category:place.primaryTypeDisplayName?.text || ''
+    placeId:place.id, name:place.displayName.text, address:place.formattedAddress || '', category:place.primaryTypeDisplayName?.text || '', rating:Number.isFinite(place.rating) ? place.rating : null, reviews:Number.isFinite(place.userRatingCount) ? place.userRatingCount : null
   }));
 }

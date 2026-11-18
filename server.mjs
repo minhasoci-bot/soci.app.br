@@ -17,6 +17,7 @@ import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
+import { collectProspectAudit } from './prospect-audit.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { folded, prospectSearchText } from './ui/prospecting-data.js';
 import { shareReportHtml, widgetHtml } from './ui/prospect-report.js';
@@ -122,7 +123,7 @@ export function makeServer({
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, designAgentConfig=designAgent,
   openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, wahaRequest=fetch, whatsappRequest=fetch,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
-  portalOptions={},
+  portalOptions={}, prospectAudit=collectProspectAudit,
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
 }={}) {
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
@@ -547,11 +548,25 @@ export function makeServer({
     if (op === 'prospecting-action') {
       if (['brand','sections','widget'].includes(input.op)) requireCapability(who, 'settings', 'Somente administradores podem alterar essas configurações.');
       const data = input.data && typeof input.data === 'object' && !Array.isArray(input.data) ? input.data : {};
-      return changeAgency(who.agencyId, agency => {
-        const result = runProspectingAction(agency,{...input,data});
-        logTo(agency,who,`Prospecting: ${input.op}`,typeof input.id === 'string' ? input.id : '');
+      const apply = (command,trusted) => changeAgency(who.agencyId, agency => {
+        const result = runProspectingAction(agency,command,trusted);
+        logTo(agency,who,`Prospecting: ${command.op}`,typeof command.id === 'string' ? command.id : '');
         return result;
       });
+      // The automated audit reaches the network, so it runs outside the agency write and is applied afterwards.
+      const audited = async (id,manual = {}) => {
+        const row = (await loadAgency(who.agencyId)).prospects.find(item => item.id === id);
+        if (!row) throw error('Registro não encontrado.',404);
+        const audit = await prospectAudit({ ...row }).catch(() => null);
+        return apply({ op:'audit',id,data:manual },{ audit });
+      };
+      if (input.op === 'audit' && typeof input.id === 'string') return audited(input.id,data);
+      if (input.op === 'save' && !input.id && [true,'true','on'].includes(data.audit)) {
+        const id = await apply({ ...input,data:{ ...data,audit:false } });
+        await audited(id);
+        return id;
+      }
+      return apply({ ...input,data });
     }
     if (op === 'action') {
       const workspaces = await listWorkspaces(who.agencyId);

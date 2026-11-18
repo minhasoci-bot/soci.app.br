@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { auditAreas } from './ui/agency-data.js';
+import { auditSignals } from './prospect-audit.mjs';
 import { blankProspecting, folded, normalizeProspectTheme, prospectLeadStatus, prospectSections, prospectSources, prospectThemes } from './ui/prospecting-data.js';
 
 const now = () => new Date().toISOString();
@@ -44,15 +45,16 @@ function validCategories(agency, input) {
   return [...new Set(ids.filter(id => allowed.has(id)))];
 }
 
-function signals(row) {
-  const values = Object.fromEntries(auditAreas.map(([key]) => [key,row[`score_${key}`] ?? null]));
+function signals(row,audit) {
+  const automatic = audit ? auditSignals(audit) : {};
+  const values = Object.fromEntries(auditAreas.map(([key]) => [key,row[`score_${key}`] ?? automatic[key] ?? null]));
   if (values.reviews === null && Number.isFinite(row.rating)) values.reviews = row.rating*2;
   return values;
 }
 
-function buildProspectReport(agency,row) {
-  const summary = signals(row);
-  return { generated:now(), signals:summary, brand:structuredClone(agency.prospecting.brand),
+function buildProspectReport(agency,row,audit = null) {
+  const summary = signals(row,audit);
+  return { generated:now(), signals:summary, ...(audit ? { audit } : {}), brand:structuredClone(agency.prospecting.brand),
     sections:structuredClone(agency.prospecting.sections), business:{ name:row.name,website:row.website || '',city:row.city || '',
       address:row.address || '',region:row.region || '',postal:row.postal || '',country:row.country || '',category:row.category || '',
       rating:row.rating ?? null,reviews:row.reviews ?? null,placeId:row.placeId || '' } };
@@ -63,6 +65,18 @@ export function hydrateProspecting(agency) {
   agency.prospecting = { ...defaults,...agency.prospecting };
   agency.prospecting.brand = { ...defaults.brand,...agency.prospecting.brand };
   agency.prospecting.brand.theme = normalizeProspectTheme(agency.prospecting.brand.theme);
+  // Keep saved section order and add sections introduced later next to their neighbours.
+  const known = agency.prospecting.sections.filter(item => Object.hasOwn(prospectSections,item.key));
+  const order = Object.keys(prospectSections);
+  const missing = order.filter(key => !known.some(item => item.key === key));
+  if (missing.length || known.length !== agency.prospecting.sections.length) {
+    const rows = [...known];
+    for (const key of missing) {
+      const before = order.slice(0,order.indexOf(key)).reverse().find(prev => rows.some(item => item.key === prev));
+      rows.splice(before ? rows.findIndex(item => item.key === before)+1 : 0,0,{ key,visible:true });
+    }
+    agency.prospecting.sections = rows;
+  }
   for (const widget of agency.prospecting.widgets) widget.theme = normalizeProspectTheme(widget.theme);
   for (const row of agency.prospects) {
     row.source ||= 'Manual';
@@ -130,7 +144,8 @@ function saveAgent(agency,id,data) {
   return agent.id;
 }
 
-export function runProspectingAction(agency,command) {
+// trusted carries server-collected data (the automated audit); clients cannot supply it.
+export function runProspectingAction(agency,command,trusted = {}) {
   const { op,id,data:d = {} } = command;
   if (op === 'save') return saveProspect(agency,id,d);
   if (op === 'category') return saveCategory(agency,id,d);
@@ -187,7 +202,8 @@ export function runProspectingAction(agency,command) {
     row.entries.unshift({ id:randomUUID(),text:required(d.text,'a nota',2400),created:now() });
   } else if (op === 'audit') {
     for (const [key] of auditAreas) if (Object.hasOwn(d,`score_${key}`)) row[`score_${key}`]=number(d[`score_${key}`],10);
-    row.report=buildProspectReport(agency,row);
+    if (trusted.audit?.placeId && !row.placeId) row.placeId = trusted.audit.placeId;
+    row.report=buildProspectReport(agency,row,trusted.audit || null);
   } else if (op === 'share') {
     if (!row.report) bad('Gere uma auditoria primeiro.');
     row.shareId ||= randomUUID();

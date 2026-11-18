@@ -19,8 +19,45 @@ export function mapsAddress(business) {
   return address || business.placeId ? `https://www.google.com/maps/search/?${new URLSearchParams({api:'1',query:address || business.name,...(business.placeId ? {query_place_id:business.placeId} : {})})}` : '';
 }
 
+const tone = value => !Number.isFinite(value) ? '' : value >= 80 ? 'good' : value >= 50 ? 'fair' : 'poor';
+const gauge = (value,label) => `<div class="pr-gauge ${tone(value)}"><b>${Number.isFinite(value) ? value : '—'}</b><span>${h(label)}</span></div>`;
+const checklist = (rows = []) => `<ul class="pr-checks">${rows.map(row => `<li class="${row.ok === null ? 'na' : row.ok ? 'ok' : 'fail'}"><span aria-hidden="true">${row.ok === null ? '–' : row.ok ? '✓' : '✕'}</span>
+  <span>${h(row.label)}${row.detail ? ` <small>${h(row.detail)}</small>` : ''}</span><em class="sr-only">${row.ok === null ? 'Não se aplica' : row.ok ? 'Aprovado' : 'Reprovado'}</em></li>`).join('')}</ul>`;
+const refresh = '<p class="dim">Atualize a auditoria para gerar esta seção.</p>';
+const stackGroups = { analytics:'Análise de dados', ads:'Rastreamento de anúncios', crm:'Automação e CRM', chat:'Atendimento', conversion:'Conversão', seo:'SEO', cms:'Plataforma do site' };
+
+function healthBody(audit) {
+  const site = audit?.website;
+  if (!audit) return refresh;
+  if (!site) return '<p>Nenhum site informado ou encontrado no perfil do Google.</p>';
+  if (!site.reachable) return `<p>Não conseguimos acessar ${h(site.url)}${site.status ? ` (código ${h(site.status)})` : ''}. Um site fora do ar afasta clientes e prejudica o Google.</p>`;
+  const health = site.health || {};
+  const perf = health.performance || {};
+  const parts = health.parts || {};
+  return `<div class="pr-gauges">${gauge(health.score,'Nota geral')}${gauge(parts.performance,'Velocidade (40%)')}${gauge(parts.seo,'SEO on-page (20%)')}${gauge(parts.security,'Segurança (20%)')}${gauge(parts.compliance,'LGPD e consentimento (20%)')}</div>
+    <p class="dim">${perf.source === 'pagespeed' ? `Velocidade pelo Google PageSpeed: celular ${perf.mobile ?? '—'}, computador ${perf.desktop ?? '—'} (celular pesa 70%)${perf.lcp ? ` · maior conteúdo em ${h(perf.lcp)} no celular` : ''}.`
+      : perf.source === 'estimate' ? `Velocidade estimada pelo tempo de resposta${Number.isFinite(perf.ttfb) ? ` (${perf.ttfb} ms)` : ''}; o PageSpeed não respondeu.` : ''}</p>
+    <details class="pr-check-group" open><summary>SEO on-page</summary>${checklist(health.seo)}</details>
+    <details class="pr-check-group"><summary>Segurança</summary>${checklist(health.security)}${health.securityInfo?.length ? `<p class="dim">Cabeçalhos avançados (não pontuam):</p>${checklist(health.securityInfo)}` : ''}</details>
+    <details class="pr-check-group"><summary>LGPD e consentimento</summary>${checklist(health.compliance)}</details>`;
+}
+
+function stackBody(audit) {
+  if (!audit) return refresh;
+  if (!audit.website?.reachable) return '<p>Sem site acessível para analisar as tecnologias.</p>';
+  const found = audit.stack || [];
+  const missing = [['ga4','Google Analytics ou Tag Manager',['ga4','gtm']],['metaPixel','Meta Pixel',['metaPixel']],['chat','Chat ou WhatsApp no site',['chatWidget','whatsapp']]]
+    .filter(([, ,keys]) => !keys.some(key => found.some(item => item.key === key)));
+  const groups = Object.entries(stackGroups).map(([group,label]) => [label,found.filter(item => item.group === group)]).filter(([,items]) => items.length);
+  const social = audit.social || [];
+  return `${groups.length ? `<dl class="pr-stack">${groups.map(([label,items]) => `<div><dt>${h(label)}</dt><dd>${items.map(item => `<span class="pr-chip">${h(item.label)}</span>`).join('')}</dd></div>`).join('')}</dl>` : '<p>Nenhuma ferramenta de marketing detectada no site.</p>'}
+    ${missing.length ? `<p><strong>Oportunidades:</strong> ${missing.map(([,label]) => h(label)).join(', ')} não encontrado(s).</p>` : ''}
+    <p><strong>Redes sociais no site:</strong> ${social.length ? social.map(item => `<a href="${h(safeWebsite(item.url))}" target="_blank" rel="noopener noreferrer">${h(item.label)}</a>`).join(' · ') : 'nenhum link encontrado.'}</p>`;
+}
+
 export function auditReport(report,{navigation = true} = {}) {
   const business = report.business;
+  const audit = report.audit || null;
   const map = mapsAddress(business);
   const website = safeWebsite(business.website);
   const score = opportunityScore(report.signals);
@@ -31,9 +68,16 @@ export function auditReport(report,{navigation = true} = {}) {
     address:`<p>${h(address || 'Endereço indisponível.')}</p>${map ? `<a class="text-link" href="${h(map)}" target="_blank" rel="noopener noreferrer">Abrir no Maps</a>` : ''}`,
     summary:`<div class="pr-report-score"><div><b>${score === null ? '—' : `${100-score}%`}</b><span>Presença online</span></div><div><b>${score === null ? '—' : `${score}%`}</b><span>Oportunidade de melhoria</span></div></div><p class="dim">${available} de ${auditAreas.length} pilares avaliados. O índice resume os sinais disponíveis.</p>`,
     business:`<dl><div><dt>Empresa</dt><dd>${h(business.name)}</dd></div><div><dt>Nicho</dt><dd>${h(business.category || 'Não informado')}</dd></div></dl>`,
-    website:`<p>${website ? `<a href="${h(website)}" target="_blank" rel="noopener noreferrer">${h(website)}</a>` : 'Site não informado.'}</p>`,
-    listings:`<p>${business.placeId ? 'Empresa identificada no Google Maps.' : 'Perfil no Google ainda não verificado.'}</p>${map ? `<a class="text-link" href="${h(map)}" target="_blank" rel="noopener noreferrer">Consultar perfil e endereço</a>` : ''}`,
-    reputation:`<p>${business.rating === null ? 'Nota pública não disponível.' : `${h(business.rating)} de 5${business.reviews == null ? '' : ` · ${h(business.reviews)} avaliações`}`}</p>`,
+    website:(() => {
+      const url = safeWebsite(audit?.website?.url) || website;
+      if (!url) return '<p>Site não informado.</p>';
+      const state = !audit?.website ? '' : audit.website.reachable ? `<p class="dim">Site no ar${audit.website.title ? ` · “${h(audit.website.title)}”` : ''}.</p>` : '<p class="dim">O site não respondeu durante a auditoria.</p>';
+      return `<p><a href="${h(url)}" target="_blank" rel="noopener noreferrer">${h(url)}</a></p>${state}`;
+    })(),
+    health:healthBody(audit),
+    stack:stackBody(audit),
+    listings:`${audit?.profile ? `${gauge(audit.profile.score,'Perfil completo')}${checklist(audit.profile.checks)}` : `<p>${business.placeId ? 'Empresa identificada no Google Maps.' : 'Perfil no Google ainda não verificado.'}</p>`}${map ? `<a class="text-link" href="${h(map)}" target="_blank" rel="noopener noreferrer">Consultar perfil e endereço</a>` : ''}`,
+    reputation:`<p>${business.rating === null ? (audit?.reputation?.source === 'google' ? 'Nota calculada a partir das avaliações públicas no Google no momento da auditoria.' : 'Nota pública não disponível.') : `${h(business.rating)} de 5${business.reviews == null ? '' : ` · ${h(business.reviews)} avaliações`}`}</p>${Number.isFinite(audit?.reputation?.score) ? `<p><strong>Índice de reputação:</strong> ${h(audit.reputation.score)}/10 <span class="dim">(nota média e volume de avaliações)</span></p>` : ''}`,
     next:`<div class="pr-report-grades">${auditAreas.map(([key,label]) => `<div><span>${h(label)}</span>${Number.isFinite(report.signals[key]) ? `<meter min="0" max="10" value="${report.signals[key]}" aria-label="${h(label)}"></meter><b>${report.signals[key]}/10</b>` : '<small>Não avaliado</small>'}</div>`).join('')}</div>`
   };
   return `<article class="pr-audit pr-theme-${h(normalizeProspectTheme(report.brand.theme))}"><header class="pr-audit-hero"><p>${h(report.brand.title)}</p><h1>${h(business.name)}</h1><small>Gerado em ${h(displayDate(report.generated))}</small>${report.brand.intro ? `<p>${h(report.brand.intro)}</p>` : ''}</header>

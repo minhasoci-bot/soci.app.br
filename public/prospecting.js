@@ -347,8 +347,11 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
     }
   }
   function auditDialog(row) {
-    openForm('audit','Auditoria de marketing',`<p>Informe as notas de 0 a 10 para os pilares avaliados. Campos vazios ficam sem nota manual.</p>
-      <div class="pr-field-grid">${auditAreas.map(([key,label]) => input(`score_${key}`,label,row[`score_${key}`] ?? '', 'type="number" step="0.1" min="0" max="10"')).join('')}</div>`,{id:row.id,label:'Gerar relatório'});
+    const manual = auditAreas.some(([key]) => Number.isFinite(row[`score_${key}`]));
+    openForm('audit','Auditoria de marketing',`<p>A soci analisa o site (velocidade pelo Google PageSpeed, SEO, segurança e LGPD), as ferramentas de marketing, as redes sociais e o perfil no Google. Leva até um minuto.</p>
+      ${row.website ? '' : '<p class="pr-muted">Sem site cadastrado: usaremos o site do perfil no Google, se houver.</p>'}
+      <details class="pr-contact"${manual ? ' open' : ''}><summary>Ajustes manuais (opcional)</summary><p class="pr-muted">Uma nota de 0 a 10 substitui a nota automática do pilar. Deixe em branco para usar a automática.</p>
+      <div class="pr-field-grid">${auditAreas.map(([key,label]) => input(`score_${key}`,label,row[`score_${key}`] ?? '', 'type="number" step="0.1" min="0" max="10"')).join('')}</div></details>`,{id:row.id,label:'Gerar auditoria'});
   }
   function widgetDialog(id) {
     const item = config().widgets.find(row => row.id === id) || {};
@@ -498,7 +501,7 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
     const status = node.querySelector('.form-status');
     node.dataset.pending = 'true';
     if (button) button.disabled = true;
-    if (status) status.textContent = '';
+    if (status) status.textContent = type === 'audit' || (type === 'save' && fd.has('audit')) ? 'Analisando o site e o perfil no Google… isso pode levar até um minuto.' : '';
     try {
       if (type === 'search') { await runSearch(body); return; }
       let result;
