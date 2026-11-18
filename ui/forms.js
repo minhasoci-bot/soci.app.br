@@ -2,6 +2,7 @@
 // (palette of fields, live canvas, field properties, settings, embed, per-form results).
 import { icon } from './icons.js';
 import { h, tabs } from './screens.js';
+import { designStage, mountDesignStage } from './design-workspace.js';
 import { fieldCatalog, fieldKinds, fieldMarkup, formCss, formFields, formTemplates, inputOf, newField, validFields } from './form-fields.js';
 
 const fb = { id: '', draft: null, selected: '', dirty: false, section: 'edit', palette: 'quick', query: '', formFilter: '', open: '', range: 30, busy: false, drag: null };
@@ -109,7 +110,8 @@ function loadDraft(c) {
   const form = c.s.forms.find(item => item.id === c.studio.project);
   if (!form) return null;
   if (fb.id !== form.id || (!fb.dirty && fb.rev !== (form.updated || form.created))) {
-    Object.assign(fb, { id: form.id, rev: form.updated || form.created, dirty: false, selected: fb.id === form.id ? fb.selected : '', section: fb.id === form.id ? fb.section : 'edit', open: '' });
+    const sameForm = fb.id === form.id;
+    Object.assign(fb, { id: form.id, rev: form.updated || form.created, dirty: false, selected: sameForm ? fb.selected : '', section: sameForm ? fb.section : 'edit', palette: sameForm ? fb.palette : 'layers', viewport: sameForm ? fb.viewport : {}, open: '' });
     fb.draft = { name: form.name, description: form.description || '', active: form.active, fields: structuredClone(formFields(form)), ...structuredClone(settingsOf(form)) };
   }
   return form;
@@ -120,20 +122,25 @@ function paletteHtml(c) {
   const used = new Set(fb.draft.fields.map(field => field.type === 'custom' ? `custom:${field.customId}` : field.type));
   const fixed = type => Boolean(fieldKinds[type].key) && type !== 'source';
   const tile = (type, label, extra = '') => `<button type="button" class="fb-tile" draggable="true" data-fb-add="${type}"${extra}${fixed(type) && used.has(type) ? ' disabled title="Já está no formulário"' : ''}><span aria-hidden="true">${icon(tileIcon(type), 18)}</span>${h(label)}</button>`;
-  return `<aside class="fb-palette surface" aria-label="Elementos do formulário"><div class="fb-palette-tabs" role="tablist">
-      <button role="tab" aria-selected="${fb.palette === 'quick'}" data-fb-palette="quick">Adição rápida</button><button role="tab" aria-selected="${fb.palette === 'contact'}" data-fb-palette="contact">Campos do contato</button></div>
-    <div class="fb-palette-body">${fb.palette === 'quick'
+  return `<aside class="fb-palette dw-panel" aria-label="Estrutura do formulário"><div class="fb-palette-tabs" role="tablist">
+      ${[['layers','Camadas'],['quick','Adicionar'],['contact','Contato']].map(([id,label]) => `<button role="tab" aria-selected="${fb.palette === id}" data-fb-palette="${id}">${label}</button>`).join('')}</div>
+    <div class="fb-palette-body">${fb.palette === 'layers' ? `<ul class="dw-layer-list" data-fb-layers>${formLayers()}</ul>` : fb.palette === 'quick'
       ? fieldCatalog.map(([group, types]) => `<section><h3>${h(group)}</h3><div class="fb-tiles">${types.map(type => tile(type, fieldKinds[type].label)).join('')}</div></section>`).join('')
       : custom.length ? `<section><h3>Campos personalizados do contato</h3><div class="fb-tiles">${custom.map(field => `<button type="button" class="fb-tile" draggable="true" data-fb-add="custom" data-custom="${field.id}"${used.has(`custom:${field.id}`) ? ' disabled title="Já está no formulário"' : ''}><span aria-hidden="true">${icon('contacts', 18)}</span>${h(field.name)}</button>`).join('')}</div></section><p class="dim">A resposta é gravada no campo do contato.</p>`
       : `<p class="dim">Nenhum campo personalizado de contato. Crie em <a href="#settings/fields">Configurações → Campos personalizados</a> e ele aparece aqui.</p>`}</div>
-    <p class="fb-palette-hint dim">Clique para adicionar ao fim ou arraste para a posição.</p></aside>`;
+    ${fb.palette !== 'layers' ? '<p class="fb-palette-hint dim">Clique para adicionar ao fim ou arraste para a posição.</p>' : ''}</aside>`;
 }
 const tileIcon = type => ({ name: 'contacts', first_name: 'contacts', last_name: 'contacts', email: 'mail', phone: 'phone', birthday: 'cal', address: 'pin', city: 'pin', state: 'pin', country: 'pin', postal_code: 'pin', organization: 'box', website: 'site',
   text: 'edit', textarea: 'note', select: 'chevron', multiselect: 'list', checkbox: 'check', radio: 'check', rating: 'star', date: 'cal', number: 'sort', monetary: 'pay', heading: 'note', terms: 'lock', source: 'link' })[type] || 'edit';
 
+function formLayers() {
+  return `<li><button class="dw-layer" data-fb-select="" aria-pressed="${!fb.selected}">${icon('list',14)} <span>Formulário</span></button></li>${fb.draft.fields.map(field =>
+    `<li><button class="dw-layer" data-fb-layer="${field.id}" aria-pressed="${fb.selected === field.id}" style="--dw-depth:1">${icon(tileIcon(field.type),14)}<span>${h(field.label || fieldKinds[field.type].label)}</span></button></li>`).join('')}`;
+}
+
 function canvasItems(c) {
   const custom = c.s.customFields || [];
-  if (!fb.draft.fields.length) return '<p class="fb-empty">Adicione campos pela paleta à esquerda.</p>';
+  if (!fb.draft.fields.length) return '<button class="fb-empty" data-fb-palette="quick">Adicionar campo</button>';
   return fb.draft.fields.map((field, index) => `<div class="fb-item${fb.selected === field.id ? ' selected' : ''}${field.width === 50 ? ' half' : ''}" data-fb-item="${field.id}" draggable="true" tabindex="0" role="button" aria-label="${h(field.label)}: editar campo" aria-pressed="${fb.selected === field.id}">
       ${field.hidden ? `<span class="fb-flag">${icon('lock', 12)} Oculto</span>` : ''}
       ${fieldMarkup(field, { customFields: custom, disabled: true })}
@@ -153,17 +160,16 @@ const check = (name, label, value, attrs = '') => `<label class="check"><input t
 function propsHtml(c) {
   const field = fb.draft.fields.find(item => item.id === fb.selected);
   const d = fb.draft;
-  if (!field) return `<aside class="fb-props surface" aria-label="Estilo do formulário"><h2>Estilo do formulário</h2>
+  if (!field) return `<aside class="fb-props dw-panel" aria-label="Propriedades do formulário"><h2>Propriedades do formulário</h2>
     <label>Nome<input data-fb-form="name" value="${h(d.name)}" maxlength="120"></label>
     <label>Descrição<textarea data-fb-form="description" rows="2" maxlength="1500">${h(d.description)}</textarea></label>
     <label class="check"><input type="checkbox" data-fb-form="showTitle"${d.showTitle ? ' checked' : ''}> Mostrar nome e descrição no topo</label>
     <label>Texto do botão<input data-fb-form="button" value="${h(d.button)}" maxlength="60"></label>
-    <label>Cor de destaque<span class="fb-color"><input type="color" data-fb-form="accent" value="${h(d.accent)}"><code>${h(d.accent)}</code></span></label>
-    <p class="dim">Selecione um campo no formulário para editar as propriedades dele.</p></aside>`;
+    <label>Cor de destaque<span class="fb-color"><input type="color" data-fb-form="accent" value="${h(d.accent)}"><code>${h(d.accent)}</code></span></label></aside>`;
   const kind = fieldKinds[field.type], type = inputOf(field, c.s.customFields || []);
   const isStatic = type === 'static', isHidden = type === 'hidden';
   const custom = field.type === 'custom' ? (c.s.customFields || []).find(item => item.id === field.customId) : null;
-  return `<aside class="fb-props surface" aria-label="Propriedades do campo"><div class="fb-props-head"><button type="button" class="icon-btn" data-fb-select="" aria-label="Voltar ao estilo do formulário">${icon('left', 16)}</button><h2>${h(custom ? custom.name : kind.label)}</h2></div>
+  return `<aside class="fb-props dw-panel" aria-label="Propriedades do campo"><div class="fb-props-head"><button type="button" class="icon-btn" data-fb-select="" aria-label="Voltar às propriedades do formulário">${icon('left', 16)}</button><h2>${h(custom ? custom.name : kind.label)}</h2></div>
     <label>${isStatic ? 'Título' : 'Rótulo'}<input data-fb-prop="label" value="${h(field.label)}" maxlength="200"></label>
     ${isStatic || type === 'consent' ? `<label>${isStatic ? 'Texto' : 'Texto do consentimento'}<textarea data-fb-prop="text" rows="3" maxlength="2000">${h(field.text)}</textarea></label>` : ''}
     ${['text', 'email', 'tel', 'url', 'number', 'money', 'textarea', 'select'].includes(type) ? `<label>Placeholder<input data-fb-prop="placeholder" value="${h(field.placeholder)}" maxlength="120"></label>` : ''}
@@ -212,10 +218,11 @@ function builderView(c) {
   const body = fb.section === 'settings' ? settingsHtml() : fb.section === 'integrate' ? integrateHtml(c, form)
     : fb.section === 'results' ? `<div class="fb-results">${submissionsTable(c, form.id)}</div>`
     : fb.section === 'analytics' ? `<div class="fb-results">${stats(c, form.id)}</div>`
-    : `<div class="fb-edit">${paletteHtml(c)}${canvasHtml(c)}${propsHtml(c)}</div>`;
-  return `<div class="fb">
-    <header class="fb-top"><a class="secondary fb-back" href="#sites/forms">${icon('left', 15)} Voltar</a>
-      <div class="fb-title"><b>${h(d.name)}</b>${form.active ? badge('Publicado', 'green') : badge('Rascunho')}${fb.dirty ? badge('Alterações não salvas', 'blue') : ''}</div>
+    : `<div class="fb-edit dw-columns">${paletteHtml(c)}${designStage({ label: '<span data-fb-board-name>' + h(d.name) + '</span>', width: 640, content: canvasHtml(c),
+      tools: `<button type="button" data-fb-palette="quick" aria-pressed="${fb.palette === 'quick'}" title="Adicionar campos">${icon('plus',15)} Campos</button>` })}${propsHtml(c)}</div>`;
+  return `<div class="fb dw-workspace">
+    <header class="fb-top dw-header"><a class="secondary fb-back" href="#sites/forms">${icon('left', 15)} Formulários</a>
+      <div class="fb-title"><h1>${h(d.name)}</h1>${form.active ? badge('Publicado', 'green') : badge('Rascunho')}${fb.dirty ? badge('Alterações não salvas', 'blue') : ''}</div>
       <div class="fb-top-actions">${form.active ? `<a class="secondary" href="${formUrl(c, form)}" target="_blank" rel="noopener">${icon('external', 14)} Ver publicado</a>` : `<a class="secondary" href="${formUrl(c, form)}?preview=1" target="_blank" rel="noopener">${icon('external', 14)} Prévia</a>`}
         <button class="secondary" data-fb-publish="${form.active ? 'off' : 'on'}">${form.active ? 'Despublicar' : 'Publicar'}</button>
         <button class="primary" data-fb-save${fb.dirty ? '' : ' disabled'}>Salvar</button><button class="icon-btn" data-fb-delete aria-label="Excluir formulário" title="Excluir formulário">${icon('trash', 16)}</button></div></header>
@@ -228,6 +235,10 @@ export function formsScreen(c) {
   if (c.tab === 'form-analytics') return analyticsView(c);
   if (c.tab === 'submissions') return `<div class="page sites-page fm-page">${head(c)}${submissionsTable(c, '')}</div>`;
   return listView(c);
+}
+
+export function afterFormsRender() {
+  mountDesignStage(document.querySelector('.fb .dw-stage'), fb.viewport);
 }
 
 /* ───────── Ações ───────── */
@@ -308,7 +319,7 @@ export function installForms(environment) {
   }
 
   document.addEventListener('click', async event => {
-    const target = event.target.closest('[data-fm-new],[data-fm-close],[data-fm-range],[data-fm-open],[data-fm-csv],[data-fm-contact],[data-fb-add],[data-fb-palette],[data-fb-section],[data-fb-item],[data-fb-select],[data-fb-move],[data-fb-dup],[data-fb-del],[data-fb-save],[data-fb-publish],[data-fb-delete],[data-fb-copy]');
+    const target = event.target.closest('[data-fm-new],[data-fm-close],[data-fm-range],[data-fm-open],[data-fm-csv],[data-fm-contact],[data-fb-add],[data-fb-palette],[data-fb-section],[data-fb-item],[data-fb-select],[data-fb-layer],[data-fb-move],[data-fb-dup],[data-fb-del],[data-fb-save],[data-fb-publish],[data-fb-delete],[data-fb-copy]');
     if (!target || !(c.view === 'sites' || target.closest('#overlay'))) return;
     const d = target.dataset;
     try {
@@ -334,7 +345,7 @@ export function installForms(environment) {
       if ('fmCsv' in d) { csv(c, d.fmCsv); return; }
       if (d.fmContact) { event.preventDefault(); location.hash = '#contacts'; return; }
       if (!inBuilder()) return;
-      if (d.fbPalette) { fb.palette = d.fbPalette; render(); return; }
+      if (d.fbPalette) { fb.palette = d.fbPalette; render(); document.querySelector(`.fb-palette [data-fb-palette="${d.fbPalette}"]`)?.focus({ preventScroll: true }); return; }
       if (d.fbSection) {
         if (d.fbSection === fb.section) return;
         fb.section = d.fbSection; fb.open = ''; render(); return;
@@ -353,6 +364,12 @@ export function installForms(environment) {
       }
       if (d.fbDel) { fb.draft.fields = fb.draft.fields.filter(f => f.id !== d.fbDel); if (fb.selected === d.fbDel) fb.selected = ''; fb.dirty = true; render(); return; }
       if ('fbSelect' in d) { fb.selected = d.fbSelect; render(); return; }
+      if (d.fbLayer) {
+        fb.selected = d.fbLayer; render();
+        document.querySelector(`[data-fb-layer="${CSS.escape(d.fbLayer)}"]`)?.focus({ preventScroll: true });
+        document.querySelector(`[data-fb-item="${CSS.escape(d.fbLayer)}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+        return;
+      }
       if (d.fbItem) { if (event.target.closest('.fb-tools')) return; fb.selected = d.fbItem; render(); return; }
       if (d.fbCopy) { await navigator.clipboard.writeText(d.fbCopy); flash('Copiado.'); return; }
       if ('fbSave' in d) { target.disabled = true; await save(); render(); flash('Formulário salvo.'); return; }
@@ -395,12 +412,14 @@ export function installForms(environment) {
       else if (el.type === 'checkbox') { field[prop] = el.checked; if (prop === 'hidden' && el.checked) field.required = false; }
       else field[prop] = el.value;
       repaintCanvas(); touch();
+      const layers = document.querySelector('[data-fb-layers]'); if (layers) layers.innerHTML = formLayers();
       if (el.type === 'checkbox' || el.type === 'radio') { render(); document.querySelector(el.type === 'radio' ? `[data-fb-prop="${prop}"][value="${el.value}"]` : `[data-fb-prop="${prop}"]`)?.focus(); }
       return;
     }
     if (el.dataset.fbForm) {
       const key = el.dataset.fbForm;
       fb.draft[key] = el.type === 'checkbox' ? el.checked : el.value;
+      if (key === 'name') for (const title of document.querySelectorAll('.fb-title h1, [data-fb-board-name]')) title.textContent = el.value;
       if (key === 'accent') el.nextElementSibling.textContent = el.value;
       if (['showTitle', 'name', 'description', 'button'].includes(key)) { const sheet = document.querySelector('.fb-canvas'); if (sheet) sheet.outerHTML = canvasHtml(c); }
       else repaintCanvas();

@@ -3,6 +3,7 @@
 import { icon } from './icons.js';
 import { h } from './screens.js';
 import { designSummary, layoutOptions, validDesign } from './studio-design.js';
+import { designStage, mountDesignStage } from './design-workspace.js';
 
 const B = { run: 0, phase: 'idle', brief: '', kind: 'website', template: 'landing', reference: '', ai: false, intro: '', questions: [], index: 0, answers: {}, notes: {},
   design: null, plan: null, tasks: [], projectId: '', previewPage: '', rev: 0, summary: '', error: '', busy: false };
@@ -30,7 +31,7 @@ function loadFonts(questions) {
 export function startBuild(environment, { brief, kind = 'website', template = 'landing', reference = '', ai = false }) {
   env = environment;
   Object.assign(B, { run: B.run + 1, phase: 'discovering', brief, kind, template, reference, ai, intro: '', questions: [], index: 0, answers: {}, notes: {},
-    design: null, plan: null, tasks: [], projectId: '', previewPage: '', rev: 0, summary: '', error: '', busy: false });
+    design: null, plan: null, tasks: [], projectId: '', previewPage: '', rev: 0, summary: '', error: '', busy: false, viewport: {} });
   location.hash = '#studio/build';
   discover(B.run);
 }
@@ -161,12 +162,16 @@ function chat(c) {
 
 function preview(c) {
   const page = B.previewPage && B.projectId ? c.s.studioProjects.find(item => item.id === B.projectId)?.pages?.find(item => item.id === B.previewPage) : null;
+  if (page) return designStage({ label: `${h(page.name)} <span>/${page.slug === 'index' ? '' : h(page.slug)}</span>`, width: 1280,
+    content: `<iframe title="Prévia de ${h(page.name)}" sandbox="allow-same-origin" src="/studio-preview/${c.workspace}/${B.projectId}/${B.previewPage}?r=${B.rev}"></iframe>`,
+    tools: `<a href="/studio-preview/${c.workspace}/${B.projectId}/${B.previewPage}" target="_blank" rel="noopener" aria-label="Abrir prévia em nova aba" title="Abrir prévia em nova aba">${icon('external', 15)}</a>` });
   const tip = tips[Math.floor(Date.now() / 6000) % tips.length];
-  return `<div class="vb-preview-bar"><span class="vb-address">${icon('monitor', 14)} /${page && page.slug !== 'index' ? h(page.slug) : ''}</span>
-      ${B.projectId ? `<a class="icon-btn" href="/studio-preview/${c.workspace}/${B.projectId}/${B.previewPage}" target="_blank" rel="noopener" aria-label="Abrir prévia em nova aba">${icon('external', 15)}</a>` : ''}</div>
-    ${page ? `<iframe class="vb-frame" title="Prévia de ${h(page.name)}" sandbox="allow-same-origin" src="/studio-preview/${c.workspace}/${B.projectId}/${B.previewPage}?r=${B.rev}"></iframe>`
-      : `<div class="vb-waiting"><span class="vb-getting">${['done', 'error'].includes(B.phase) ? 'Sem prévia' : '<span class="vb-spin"></span> Preparando…'}</span>
-        <div class="vb-tip"><b>${h(tip[0])}</b><p>${h(tip[1])}</p></div></div>`}`;
+  return `<div class="vb-waiting"><span class="vb-getting">${['done', 'error'].includes(B.phase) ? 'Sem prévia' : '<span class="vb-spin"></span> Preparando…'}</span>
+    <div class="vb-tip"><b>${h(tip[0])}</b><p>${h(tip[1])}</p></div></div>`;
+}
+
+export function afterBuilderRender() {
+  mountDesignStage(document.querySelector('.vb .dw-stage'), B.viewport);
 }
 
 export function builderView(c) {

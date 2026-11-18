@@ -249,6 +249,7 @@ export function installSites(environment) {
   function openEditor(pageId) {
     c.studio.page = pageId;
     c.studio.docFor = '';
+    c.studio.fromSites = c.studio.project;
     location.hash = `#studio/project/${c.studio.project}`;
   }
 

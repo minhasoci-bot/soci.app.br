@@ -1,7 +1,8 @@
 import { icon } from './icons.js';
 import { h } from './screens.js';
 import { studioTemplates, studioThemes } from './studio-data.js';
-import { builderView } from './studio-builder.js';
+import { afterBuilderRender, builderView } from './studio-builder.js';
+import { designStage, mountDesignStage, resizeDesignStage } from './design-workspace.js';
 
 const templateName = key => studioTemplates.find(template => template[0] === key)?.[1] || 'Projeto';
 const projectLink = (id,label) => `<a href="#studio/project/${id}" data-studio-open="${id}">${h(label)}</a>`;
@@ -80,21 +81,24 @@ export function studioBlock(item = { title:'', body:'' }) {
 // Visual editing runs on the same-origin preview.
 
 let env = null;
-let selected = null, dirty = false;
+let selected = null, dirty = false, saving = false;
 const S = () => {
   const st = env.c.studio;
-  st.log ??= []; st.device ??= 'desktop'; st.panel ??= 'ai'; st.visual ??= false; st.code ??= false;
+  st.log ??= []; st.device ??= 'desktop'; st.panel ??= 'design'; st.visual ??= true; st.code ??= false;
   return st;
 };
-const devices = [['desktop','Desktop','monitor'],['tablet','Tablet','grid'],['mobile','Celular','mobile']];
+const devices = [['desktop','Desktop','monitor',1280],['tablet','Tablet','tablet',768],['mobile','Celular','mobile',390]];
+const deviceWidth = () => devices.find(([id]) => id === S().device)[3];
 const fmt = iso => iso ? new Intl.DateTimeFormat('pt-BR',{ day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }).format(new Date(iso)) : '';
 
-function pagesColumn(doc, page) {
-  return `<aside class="sx-pages" aria-label="Páginas"><h2>Páginas</h2><ul>${doc.pages.map(item => `<li class="${item.id === page.id ? 'current' : ''}">
+function pagesColumn(doc, page, funnel) {
+  const label = funnel ? 'Etapas' : 'Páginas';
+  return `<aside class="sx-pages dw-panel" aria-label="Estrutura"><section class="dw-panel-section"><h2>${label}</h2><ul>${doc.pages.map(item => `<li class="${item.id === page.id ? 'current' : ''}">
     <button class="sx-page" data-studio-page="${item.id}" aria-current="${item.id === page.id}">${icon('site',15)}<span>${h(item.name)}</span><small>/${item.slug === 'index' ? '' : h(item.slug)}</small></button>
     <span class="sx-page-tools"><button class="icon-btn" data-studio-rename-page="${item.id}" aria-label="Renomear ${h(item.name)}">${icon('edit',14)}</button>${item.slug === 'index' ? '' :
       `<button class="icon-btn" data-studio-delete-page="${item.id}" aria-label="Excluir ${h(item.name)}">${icon('trash',14)}</button>`}</span></li>`).join('')}</ul>
-    <button class="secondary" data-studio-add-page ${doc.pages.length >= 8 ? 'disabled' : ''}>${icon('plus',15)} Adicionar página</button></aside>`;
+    <button class="secondary" data-studio-add-page ${doc.pages.length >= 8 ? 'disabled' : ''}>${icon('plus',15)} ${funnel ? 'Adicionar etapa' : 'Adicionar página'}</button></section>
+    <section class="dw-panel-section"><h2>Camadas</h2><div data-studio-layers><p class="dim">${S().visual ? 'Carregando página…' : 'Disponíveis na edição visual.'}</p></div></section></aside>`;
 }
 
 function aiPanel(c) {
@@ -128,31 +132,39 @@ function canvas(c, project, doc, page) {
   if (st.code) return `<form class="sx-code" data-studio-form="code"><label class="sr-only" for="sx-code">HTML de ${h(page.name)}</label>
     <textarea id="sx-code" name="html" spellcheck="false" autocomplete="off">${h(page.html)}</textarea>
     <div class="inline-gap"><button class="primary">Aplicar código</button><span class="dim">Scripts e manipuladores de eventos são removidos ao salvar.</span></div><p class="form-status" role="alert"></p></form>`;
-  return `${st.visual ? `<div class="sx-visualbar" role="status"><span>Clique para selecionar um elemento. Dê um clique duplo para editar o texto.</span><div class="spacer"></div>
-      <button class="secondary" data-studio-discard disabled>Descartar</button><button class="primary" data-studio-save-visual disabled>Salvar alterações</button></div>` : ''}
-    <div class="sx-frame-wrap device-${st.device}"><iframe id="studio-frame" title="Prévia de ${h(page.name)}" sandbox="allow-same-origin"
-      src="/studio-preview/${c.workspace}/${project.id}/${page.id}?r=${doc.rev}"></iframe></div>`;
+  return designStage({
+    label: `${h(page.name)} <span data-studio-width>${deviceWidth()} px</span>`, width: deviceWidth(),
+    content: `<iframe id="studio-frame" title="Prévia de ${h(page.name)}" sandbox="allow-same-origin" src="/studio-preview/${c.workspace}/${project.id}/${page.id}?r=${doc.rev}"></iframe>`,
+    tools: `<button type="button" data-studio-visual aria-pressed="${st.visual}" title="Selecionar e editar" aria-label="Selecionar e editar">${icon('cursor',16)}</button>
+      <button type="button" data-studio-preview aria-pressed="${!st.visual}" title="Navegar na prévia" aria-label="Navegar na prévia">${icon('play',16)}</button>
+      ${st.visual ? `<details class="sx-insert"><summary title="Inserir elemento" aria-label="Inserir elemento">${icon('plus',16)}</summary>
+        <div>${[['h2','Título'],['p','Parágrafo'],['section','Seção']].map(([tag,label]) => `<button type="button" data-studio-insert="${tag}">${label}</button>`).join('')}</div></details>` : ''}
+      <div class="sx-devices" role="group" aria-label="Tamanho da prévia">${devices.map(([id,label,ico]) => `<button type="button" data-studio-device="${id}" aria-pressed="${st.device === id}" aria-label="${label}" title="${label}">${icon(ico,16)}</button>`).join('')}</div>`
+  });
 }
+
+const panelContent = (c, project, doc) => S().panel === 'versions' ? versionsPanel(doc) : S().panel === 'publish' ? publishPanel(c, project, doc) : S().panel === 'ai' ? aiPanel(c) : inspectorHtml();
 
 function editor(c, project) {
   const st = S();
   const doc = st.docFor === project.id ? st.doc : null;
-  if (!doc) { queueMicrotask(() => env?.loadDoc(project.id)); return `<section class="studio-editor"><p class="dim">Abrindo ${h(project.name)}…</p></section>`; }
+  if (!doc) { if (st.loadError?.id !== project.id) queueMicrotask(() => env?.loadDoc(project.id)); return `<section class="studio-editor padded"><a class="secondary" href="#studio/projects">${icon('left',15)} Projetos</a><p class="dim">${st.loadError?.id === project.id ? h(st.loadError.message) : `Abrindo ${h(project.name)}…`}</p>${st.loadError?.id === project.id ? '<button class="secondary" data-studio-retry>Tentar novamente</button>' : ''}</section>`; }
   const page = doc.pages.find(item => item.id === st.page) || doc.pages[0];
   st.page = page.id;
-  const panel = st.panel || 'ai';
-  return `<section class="studio-editor sx"><div class="studio-editor-head"><a href="#studio/projects" class="secondary">${icon('left',15)} Projetos</a>
+  const panel = st.panel;
+  const fromSites = st.fromSites === project.id;
+  return `<section class="studio-editor sx dw-workspace"><header class="studio-editor-head dw-header"><a href="${fromSites ? `#sites/funnel/${project.id}` : '#studio/projects'}" class="secondary">${icon('left',15)} ${fromSites ? (project.kind === 'funnel' ? 'Funil' : 'Site') : 'Projetos'}</a>
     <h1>${h(project.name)}</h1>
-    <div class="sx-devices" role="group" aria-label="Tamanho da prévia">${devices.map(([id,label,ico]) => `<button class="icon-btn" data-studio-device="${id}" aria-pressed="${st.device === id}" aria-label="${label}" title="${label}">${icon(ico,16)}</button>`).join('')}</div>
+    <span class="dim sx-dirty" data-studio-dirty role="status" hidden>Alterações não salvas</span>
     <div class="spacer"></div>
-    <button class="secondary" data-studio-visual aria-pressed="${st.visual}">${icon('edit',15)} Edição visual</button>
+    ${st.visual ? '<button class="secondary" data-studio-discard disabled>Descartar</button><button class="primary" data-studio-save-visual disabled>Salvar</button>' : ''}
     <button class="secondary" data-studio-code aria-pressed="${st.code}">${icon('list',15)} Código</button>
-    <button class="secondary" data-studio-star="${project.id}" aria-pressed="${Boolean(project.starred)}">${icon('star',16)} ${project.starred ? 'Favorito' : 'Favoritar'}</button>
-    <button class="secondary" data-studio-download>${icon('download',16)} Exportar HTML</button></div>
-    <div class="sx-columns">${pagesColumn(doc,page)}<div class="sx-canvas">${canvas(c,project,doc,page)}</div>
-    <aside class="sx-panel"><div class="sx-tabs" role="tablist">${[['ai','IA'],['versions','Versões'],['publish','Publicação']].map(([id,label]) =>
+    <button class="icon-btn" data-studio-star="${project.id}" aria-pressed="${Boolean(project.starred)}" title="Favorito" aria-label="Favorito">${icon('star',16)}</button>
+    <button class="icon-btn" data-studio-download title="Exportar HTML" aria-label="Exportar HTML">${icon('download',16)}</button></header>
+    <div class="sx-columns dw-columns">${pagesColumn(doc,page,project.kind === 'funnel')}<div class="sx-canvas">${canvas(c,project,doc,page)}</div>
+    <aside class="sx-panel dw-panel"><div class="sx-tabs" role="tablist" aria-label="Painel lateral">${[['design','Design'],['ai','IA'],['versions','Versões'],['publish','Publicação']].map(([id,label]) =>
       `<button role="tab" data-studio-panel="${id}" aria-selected="${panel === id}">${label}</button>`).join('')}</div>
-      <div class="sx-panel-body">${panel === 'versions' ? versionsPanel(doc) : panel === 'publish' ? publishPanel(c,project,doc) : aiPanel(c)}</div></aside></div></section>`;
+      <div class="sx-panel-body">${panelContent(c,project,doc)}</div></aside></div></section>`;
 }
 
 export function studio(c) {
@@ -165,6 +177,47 @@ export function studio(c) {
 
 const frame = () => document.getElementById('studio-frame');
 const editStyle = '[data-go-hover]{outline:2px dashed #a00070!important;outline-offset:2px}[data-go-selected]{outline:3px solid #a00070!important;outline-offset:2px}[contenteditable]{cursor:text}';
+const layerSelector = 'header, nav, main, section, article, aside, footer, div[id], h1, h2, h3, h4, h5, h6, p, a, img, ul, ol, form, label, input:not([type=hidden]), button, select, textarea';
+const textSelector = 'h1, h2, h3, h4, h5, h6, p, a, button, label, span, small, strong, em, li, blockquote, figcaption, div';
+const canEditText = element => element?.matches(textSelector) && !element.querySelector('input, textarea, select, button, form, img, svg, video, iframe, div, section, p, ul, ol');
+const styles = [['color','Cor do texto','color'], ['background-color','Fundo','color'], ['font-size','Tamanho do texto (px)','number'],
+  ['padding','Espaçamento interno (px)','number'], ['border-radius','Arredondamento (px)','number']];
+function colorHex(value) {
+  const rgb = value.match(/^rgba?\((\d+), (\d+), (\d+)/)?.slice(1);
+  return rgb ? `#${rgb.map(channel => Number(channel).toString(16).padStart(2,'0')).join('')}` : '#000000';
+}
+
+function inspectorHtml() {
+  if (!S().visual) return '<p class="dim">Ative a edição visual para ajustar os elementos.</p>';
+  if (!selected?.isConnected) return '<p class="dim">Selecione um elemento na página ou em Camadas para editar suas propriedades.</p>';
+  const computed = selected.ownerDocument.defaultView.getComputedStyle(selected);
+  return `<section class="sx-inspector"><div class="sx-inspector-head"><h2>&lt;${h(selected.localName)}&gt;</h2><button class="icon-btn" data-studio-unselect aria-label="Limpar seleção">${icon('close',14)}</button></div>
+    ${canEditText(selected) ? '<button class="secondary" data-studio-edit-text>Editar texto</button>' : ''}
+    ${styles.map(([name, label, type]) => {
+      const value = selected.style.getPropertyValue(name) || computed.getPropertyValue(name);
+      const match = value.match(/^(\d+(?:\.\d+)?)px$/);
+      return `<label>${label}<input type="${type}" data-studio-style="${name}" value="${type === 'color' ? colorHex(computed.getPropertyValue(name)) : match?.[1] ?? ''}" ${type === 'number' ? 'min="0" max="1000" step="any"' : ''}></label>`;
+    }).join('')}
+    <details><summary>Redefinir estilos</summary><div>${styles.map(([name,label]) => `<button class="secondary" data-studio-reset-style="${name}">${label}</button>`).join('')}</div></details>
+    <button class="secondary sx-remove" data-studio-remove-el>${icon('trash',14)} Excluir elemento</button></section>`;
+}
+
+let layers = [];
+function showLayers() {
+  const panel = document.querySelector('[data-studio-layers]');
+  if (!panel || !S().visual) return;
+  const body = frame()?.contentDocument?.body;
+  if (!body) return;
+  layers = [...body.querySelectorAll(layerSelector)].filter(element => !element.closest('[hidden]') && element.getClientRects().length);
+  const indices = new Map(layers.map((element, index) => [element, index]));
+  panel.innerHTML = layers.length ? `<ul class="dw-layer-list">${layers.map((element, index) => {
+    let depth = 0;
+    for (let parent = element.parentElement; parent && parent !== body; parent = parent.parentElement) if (indices.has(parent)) depth++;
+    const text = (element.getAttribute('aria-label') || element.getAttribute('alt') || element.getAttribute('placeholder') ||
+      [...element.childNodes].filter(node => node.nodeType === 3).map(node => node.textContent).join(' ')).trim();
+    return `<li><button class="dw-layer" data-studio-layer="${index}" aria-pressed="${element === selected}" style="--dw-depth:${Math.min(5,depth)}"><small>${h(element.localName)}</small>${text ? `<span>${h(text.slice(0,80))}</span>` : ''}</button></li>`;
+  }).join('')}</ul>` : '<p class="dim">Esta página está vazia.</p>';
+}
 function clean(node) {
   node.querySelectorAll('#go-edit-style').forEach(item => item.remove());
   for (const item of [node, ...node.querySelectorAll('[data-go-hover],[data-go-selected],[data-go-ready],[contenteditable]')]) {
@@ -179,52 +232,98 @@ function selectionHtml() {
   return `<div class="sx-chip"><span><b>&lt;${h(selected.tagName.toLowerCase())}&gt;</b> ${h(text || 'elemento')}</span>
     <span class="inline-gap"><button class="secondary" data-studio-edit-text>Editar texto</button><button class="secondary" data-studio-remove-el>Excluir</button><button class="icon-btn" data-studio-unselect aria-label="Limpar seleção">${icon('close',14)}</button></span></div>`;
 }
-const showSelection = () => { const box = document.getElementById('sx-selection'); if (box) box.innerHTML = selectionHtml(); };
+function showSelection() {
+  const box = document.getElementById('sx-selection');
+  if (box) box.innerHTML = selectionHtml();
+  if (S().panel === 'design') document.querySelector('.sx-panel-body').innerHTML = inspectorHtml();
+  document.querySelectorAll('[data-studio-layer]').forEach((button, index) => button.setAttribute('aria-pressed', String(layers[index] === selected)));
+}
 function select(element) {
+  if (selected !== element) selected?.removeAttribute('contenteditable');
   selected?.removeAttribute('data-go-selected');
-  selected = element && !['HTML','BODY','HEAD'].includes(element.tagName) ? element : null;
+  selected = element?.ownerDocument.body.contains(element) && element !== element.ownerDocument.body ? element : null;
   selected?.setAttribute('data-go-selected','');
   showSelection();
 }
 function setDirty(value) {
   dirty = value;
-  for (const button of document.querySelectorAll('[data-studio-save-visual],[data-studio-discard]')) button.disabled = !value;
+  for (const button of document.querySelectorAll('[data-studio-save-visual],[data-studio-discard]')) button.disabled = !value || saving;
+  const status = document.querySelector('[data-studio-dirty]');
+  if (status) status.hidden = !value;
 }
 const preparedDocs = new WeakSet();
 function prepareFrame() {
   const doc = frame()?.contentDocument;
-  if (!doc?.body || preparedDocs.has(doc)) return;
+  if (!doc?.body || doc.URL === 'about:blank' || preparedDocs.has(doc)) return;
   preparedDocs.add(doc);
   selected = null; setDirty(false); showSelection();
   doc.addEventListener('submit', event => event.preventDefault(), true);
   doc.addEventListener('click', event => {
     const link = event.target.closest('a');
-    if (link || event.target.closest('button,form')) event.preventDefault();
+    if (link || event.target.closest('button') || (S().visual && !event.target.isContentEditable)) event.preventDefault();
     if (!S().visual) {
-      const slug = link?.getAttribute('href')?.match(/^page:([a-z0-9-]+)$/)?.[1];
+      const href = link?.getAttribute('href') || '';
+      const slug = href.match(/^page:([a-z0-9-]+)$/)?.[1];
       const target = slug && S().doc.pages.find(item => item.slug === slug);
       if (target) { S().page = target.id; env.render(); }
+      if (href.startsWith('#')) doc.getElementById(href.slice(1))?.scrollIntoView({ block: 'start', behavior: 'instant' });
       return;
     }
     if (event.target.isContentEditable) return;
-    select(event.target);
+    select(event.target.closest('a, button') || event.target.closest(layerSelector) || event.target);
   }, true);
   if (!S().visual) return;
   const style = doc.createElement('style'); style.id = 'go-edit-style'; style.textContent = editStyle; doc.head.append(style);
   doc.addEventListener('mouseover', event => { if (event.target !== doc.body) event.target.setAttribute('data-go-hover',''); });
   doc.addEventListener('mouseout', event => event.target.removeAttribute?.('data-go-hover'));
-  doc.addEventListener('dblclick', event => { event.preventDefault(); editText(event.target); });
+  doc.addEventListener('dblclick', event => { event.preventDefault(); editText(selected); });
   doc.addEventListener('input', () => setDirty(true));
+  doc.addEventListener('focusout', event => {
+    if (!event.target.hasAttribute('contenteditable')) return;
+    event.target.removeAttribute('contenteditable');
+    showLayers();
+  });
+  doc.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    select(null);
+    frame()?.closest('.dw-scroll')?.focus({ preventScroll: true });
+  });
+  showLayers();
 }
 function editText(element) {
-  if (!element || ['HTML','BODY'].includes(element.tagName)) return;
+  if (!canEditText(element)) return;
   select(element);
-  element.setAttribute('contenteditable','true');
+  element.setAttribute('contenteditable','plaintext-only');
   element.focus();
+}
+
+function insertElement(tag) {
+  const doc = frame()?.contentDocument;
+  if (!doc?.body || !preparedDocs.has(doc)) return;
+  const container = selected?.closest('main') || doc.querySelector('main') || doc.body;
+  const element = doc.createElement(tag);
+  if (tag === 'section') {
+    const title = doc.createElement('h2');
+    title.textContent = 'Nova seção';
+    element.append(title);
+  } else element.textContent = tag === 'h2' ? 'Novo título' : 'Novo parágrafo';
+  const textAnchor = tag !== 'section' && selected?.closest('h1,h2,h3,h4,h5,h6,p');
+  if (textAnchor && !textAnchor.closest('header,nav,form,footer')) textAnchor.after(element);
+  else {
+    let block = selected;
+    while (block && block.parentElement !== container) block = block.parentElement;
+    if (block && !block.matches('footer')) block.after(element);
+    else container.insertBefore(element, container.querySelector(':scope > footer'));
+  }
+  select(element);
+  showLayers();
+  element.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+  setDirty(true);
 }
 export function afterStudioRender() {
   const iframe = frame();
-  if (!iframe) return;
+  if (!iframe) { afterBuilderRender(); return; }
+  mountDesignStage(iframe.closest('.dw-stage'), S().viewport ??= {});
   iframe.addEventListener('load', prepareFrame);
   if (iframe.contentDocument?.readyState === 'complete' && iframe.contentDocument.URL !== 'about:blank') prepareFrame();
 }
@@ -256,9 +355,13 @@ export function installStudio(environment) {
   const { c, api, url, flash, render } = env;
   const currentPage = () => S().doc.pages.find(item => item.id === S().page);
   async function call(op, body) {
-    const result = await api(url(`/api/studio/${op}`), { id: S().project, ...body });
-    c.s = result.state; c.m = result.metrics;
-    Object.assign(S(), { doc: result.doc, docFor: S().project });
+    const { workspace } = c;
+    const { project } = S();
+    const result = await api(url(`/api/studio/${op}`), { id: project, ...body });
+    if (c.workspace === workspace) {
+      c.s = result.state; c.m = result.metrics;
+      if (S().project === project) Object.assign(S(), { doc: result.doc, docFor: project });
+    }
     return result.result;
   }
   env.loadDoc = async projectId => {
@@ -267,31 +370,46 @@ export function installStudio(environment) {
     try {
       const { doc } = await api(`${url('/api/studio/doc')}&id=${encodeURIComponent(projectId)}`);
       if (S().project !== projectId) return;
-      Object.assign(S(), { doc, docFor: projectId, page: doc.pages.some(item => item.id === S().page) ? S().page : doc.pages[0].id, visual: false, code: false });
+      Object.assign(S(), { doc, docFor: projectId, page: doc.pages.some(item => item.id === S().page) ? S().page : doc.pages[0].id, visual: true, code: false, panel: 'design', viewport: {} });
       render();
-    } catch (error) { flash(error.message, true); }
+    } catch (error) { if (S().project === projectId) { S().loadError = { id: projectId, message: error.message }; render(); } }
     finally { S().loading = ''; }
   };
 
   document.addEventListener('click', async event => {
     const button = event.target.closest('button');
-    if (!button || !button.closest('.sx, #dialog')) return;
+    if (!button || !button.closest('.studio-editor, #dialog')) return;
     const d = button.dataset;
     try {
-      if (d.studioDevice) { S().device = d.studioDevice; for (const b of document.querySelectorAll('[data-studio-device]')) b.setAttribute('aria-pressed', String(b === button));
-        document.querySelector('.sx-frame-wrap')?.setAttribute('class', `sx-frame-wrap device-${d.studioDevice}`); return; }
-      if ('studioVisual' in d) { if (blocked()) return; S().visual = !S().visual; S().code = false; render(); return; }
-      if ('studioCode' in d) { if (blocked()) return; S().code = !S().code; S().visual = false; render(); return; }
-      if (d.studioPanel) { S().panel = d.studioPanel; if (S().visual) { document.querySelectorAll('[data-studio-panel]').forEach(b => b.setAttribute('aria-selected', String(b === button)));
-        document.querySelector('.sx-panel-body').innerHTML = d.studioPanel === 'versions' ? versionsPanel(S().doc) : d.studioPanel === 'publish' ? publishPanel(c, c.s.studioProjects.find(p => p.id === S().project), S().doc) : aiPanel(c); return; }
-        render(); return; }
-      if (d.studioPage) { if (blocked()) return; S().page = d.studioPage; render(); return; }
+      if ('studioRetry' in d) { S().loadError = null; render(); return; }
+      if (d.studioDevice) {
+        S().device = d.studioDevice;
+        document.querySelectorAll('[data-studio-device]').forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+        document.querySelector('[data-studio-width]').textContent = `${deviceWidth()} px`;
+        resizeDesignStage(button.closest('.dw-stage'), deviceWidth());
+        return;
+      }
+      if ('studioVisual' in d || 'studioPreview' in d) {
+        const visual = 'studioVisual' in d;
+        if (S().visual === visual || blocked()) return;
+        S().visual = visual; render(); return;
+      }
+      if ('studioCode' in d) { if (blocked()) return; S().code = !S().code; S().visual = !S().code; render(); return; }
+      if (d.studioPanel) {
+        S().panel = d.studioPanel;
+        document.querySelectorAll('[data-studio-panel]').forEach(b => b.setAttribute('aria-selected', String(b === button)));
+        document.querySelector('.sx-panel-body').innerHTML = panelContent(c, c.s.studioProjects.find(p => p.id === S().project), S().doc);
+        return;
+      }
+      if ('studioLayer' in d) { const element = layers[Number(d.studioLayer)]; select(element); element?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' }); return; }
+      if (d.studioInsert) { insertElement(d.studioInsert); const menu = button.closest('details'); menu.open = false; menu.querySelector('summary').focus(); return; }
+      if (d.studioPage) { if (d.studioPage === S().page || blocked()) return; S().page = d.studioPage; S().viewport = {}; render(); return; }
       if (d.studioUndo) { if (blocked()) return; button.disabled = true; await call('chat-undo', { entryId: d.studioUndo }); render(); flash('Alteração desfeita. As mudanças feitas depois dela também foram desfeitas.'); return; }
       if ('studioAddPage' in d) { if (blocked()) return;
         modal('Adicionar página', `<label>Nome da página<input name="name" required maxlength="60" placeholder="Sobre nós"></label><label>O que a página deve conter?<textarea name="description" maxlength="1500"></textarea></label>${c.features?.studioAI ? '<label class="check"><input type="checkbox" name="ai" checked> Gerar com IA no mesmo estilo da página inicial</label>' : ''}`, 'add-page', 'Adicionar página'); return; }
-      if (d.studioRenamePage) { const page = S().doc.pages.find(item => item.id === d.studioRenamePage);
+      if (d.studioRenamePage) { if (blocked()) return; const page = S().doc.pages.find(item => item.id === d.studioRenamePage);
         modal('Renomear página', `<input type="hidden" name="pageId" value="${page.id}"><label>Nome da página<input name="name" required maxlength="60" value="${h(page.name)}"></label>`, 'rename-page', 'Renomear'); return; }
-      if (d.studioDeletePage) { const page = S().doc.pages.find(item => item.id === d.studioDeletePage);
+      if (d.studioDeletePage) { if (blocked()) return; const page = S().doc.pages.find(item => item.id === d.studioDeletePage);
         modal('Excluir página?', `<input type="hidden" name="pageId" value="${page.id}"><p>“${h(page.name)}” será removida. Você pode restaurá-la em Versões.</p>`, 'delete-page', 'Excluir'); return; }
       if (d.studioRestore) { if (blocked()) return; await call('restore', { versionId: d.studioRestore }); render(); flash('Versão restaurada.'); return; }
       if (d.studioPublish) { if (blocked()) return; button.disabled = true; await call('publish', { publish: d.studioPublish === 'on' }); render(); flash(d.studioPublish === 'on' ? 'Site publicado.' : 'Site despublicado.'); return; }
@@ -302,11 +420,30 @@ export function installStudio(environment) {
         setTimeout(() => URL.revokeObjectURL(link.href), 1000); return;
       }
       if ('studioEditText' in d) { editText(selected); return; }
-      if ('studioRemoveEl' in d) { selected?.remove(); select(null); setDirty(true); return; }
+      if (d.studioResetStyle && selected?.style.getPropertyValue(d.studioResetStyle)) { selected.style.removeProperty(d.studioResetStyle); setDirty(true); showSelection(); return; }
+      if ('studioRemoveEl' in d && selected) { selected.remove(); select(null); showLayers(); setDirty(true); return; }
       if ('studioUnselect' in d) { select(null); return; }
       if ('studioDiscard' in d) { setDirty(false); render(); return; }
-      if ('studioSaveVisual' in d) { button.disabled = true; await call('save', { pageId: S().page, html: serialize(), label: 'Edição visual' }); setDirty(false); render(); flash('Alterações salvas.'); return; }
-    } catch (error) { flash(error.message, true); render(); }
+      if ('studioSaveVisual' in d) {
+        if (saving) return;
+        const html = serialize();
+        saving = true; setDirty(true);
+        try { await call('save', { pageId: S().page, html, label: 'Edição visual' }); }
+        finally { saving = false; setDirty(dirty); }
+        if (button.isConnected && serialize() === html) { setDirty(false); render(); }
+        else if (button.isConnected) button.disabled = false;
+        flash('Alterações salvas.'); return;
+      }
+    } catch (error) { flash(error.message, true); if (dirty) setDirty(true); else render(); }
+  });
+
+  document.addEventListener('input', event => {
+    const input = event.target;
+    const name = input.dataset?.studioStyle;
+    if (!name || !selected?.isConnected || !input.validity.valid) return;
+    if (!input.value) selected.style.removeProperty(name);
+    else selected.style.setProperty(name, input.type === 'number' ? `${input.value}px` : input.value);
+    setDirty(true);
   });
 
   document.addEventListener('submit', async event => {
@@ -323,7 +460,7 @@ export function installStudio(environment) {
       if (name === 'revise') {
         const instruction = data.instruction.trim();
         const selection = selected?.isConnected ? clean(selected.cloneNode(true)).outerHTML : '';
-        if (dirty) await call('save', { pageId: S().page, html: serialize(), label: 'Edição visual' });
+        if (dirty) { await call('save', { pageId: S().page, html: serialize(), label: 'Edição visual' }); setDirty(false); }
         if (status) { status.classList.add('pending'); status.textContent = 'Aplicando a alteração…'; }
         const result = await call('revise', { pageId: S().page, instruction, selection });
         S().log.push({ project: S().project, ask: instruction, reply: result?.change || 'Concluído.' });
@@ -346,5 +483,11 @@ export function installStudio(environment) {
       if (form.isConnected) buttons.forEach(b => { b.disabled = false; });
     }
   });
+  window.addEventListener('hashchange', event => {
+    if (!dirty || !frame()) return;
+    if (confirm('Descartar as alterações não salvas desta página?')) { setDirty(false); return; }
+    event.stopImmediatePropagation();
+    history.replaceState(null, '', event.oldURL);
+  }, true);
   window.addEventListener('beforeunload', event => { if (dirty) event.preventDefault(); });
 }

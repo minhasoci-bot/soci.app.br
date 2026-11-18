@@ -17,7 +17,8 @@ import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm
 import { socialEvents } from './social.js';
 import { mountAgentScreen } from './agents.js';
 import { afterSitesRender, installSites } from './sites.js';
-import { installForms } from './forms.js';
+import { afterFormsRender, installForms } from './forms.js';
+import { unmountDesignStage } from './design-workspace.js';
 import { installBuilder, startBuild } from './studio-builder.js';
 import { installAutomation } from './automation.js';
 import { installClientPortal } from './client-portal.js';
@@ -179,6 +180,7 @@ function appTopbar(){
 }
 function render(){
   if(viewPath||c.mode==='agency')return;
+  unmountDesignStage(G('.dw-stage'));
   const viewKey = `${c.workspace}:${c.view}:${c.tab}:${c.studio.project}`;
   const previousScroll = renderedView === viewKey ? G('#screen')?.scrollTop || 0 : 0;
   const kanbanScroll = renderedView === viewKey ? G('.kanban')?.scrollLeft || 0 : 0;
@@ -199,7 +201,7 @@ function render(){
     if(board) board.scrollLeft = kanbanScroll;
   }
   if(c.view==='studio') afterStudioRender();
-  if(c.view==='sites') afterSitesRender();
+  if(c.view==='sites') { afterSitesRender(); afterFormsRender(); }
   if(c.view==='memberships') mountClientPortal?.();
   const agentScreen = G('[data-agent-screen]');
   if (agentScreen?.dataset.agentId && editor?.id === agentScreen.dataset.agentId && editor.workspace === c.workspace) {
@@ -559,7 +561,6 @@ document.addEventListener('click',async ev=>{
       await mutate({type:'studio-star',id:project.id,data:{starred:!project.starred}});
       if (c.tab === 'project') {
         b.setAttribute('aria-pressed',String(!project.starred));
-        b.innerHTML=`${i('star',16)} ${project.starred ? 'Star' : 'Starred'}`;
       } else render();
       return;
     }
