@@ -1,0 +1,644 @@
+/* soci — lucide-animated motion system (vanilla port of https://lucide-animated.com, MIT).
+   All icons inherit currentColor and adapt seamlessly to light mode, dark mode (:root[data-theme=dark]),
+   and custom agency brand colors ([data-custom-brand] / --g-brand / --g-brand-2). */
+
+:root {
+  --la-spring: cubic-bezier(.22, 1, .36, 1);
+  --la-bounce: cubic-bezier(.34, 1.56, .64, 1);
+  --la-ease: cubic-bezier(.4, 0, .2, 1);
+}
+
+.la-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+  overflow: visible;
+  color: inherit;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: color .22s var(--la-ease);
+}
+.la-icon.la-whatsapp {
+  stroke: none;
+  fill: currentColor;
+}
+.la-icon * {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Prevent generic parent SVG scale/translate/fill rules from fighting lucide-animated choreography */
+.g-side .nav-link:hover svg.la-icon,
+.text-link:hover svg.la-icon {
+  transform: none;
+}
+:root[data-theme=dark] .spark-tile svg.la-icon {
+  color: var(--g-grad-on, #fff);
+  stroke: var(--g-grad-on, #fff);
+  fill: none;
+}
+:root[data-theme=dark] .spark-tile svg.la-icon.la-whatsapp {
+  fill: var(--g-grad-on, #fff);
+  stroke: none;
+}
+.la-icon.la-sparkles .la-spark {
+  fill: transparent;
+  transition: fill .3s var(--la-ease);
+}
+
+/* Shorthand selectors:
+   - Stateful transitions respond directly to parent hover / focus-visible / .la-active
+   - One-shot keyframes run via .la-active (managed by graao.js so animations finish cleanly even on quick hover)
+     and also fall back to :hover on standalone pages without graao.js (:root:not(.g-ready)). */
+
+/* ── 1. Sun (rays illuminate sequentially) ───────────────────────────────── */
+.la-sun.la-active .la-ray,
+:root:not(.g-ready) :is(a, button, .la-sun):hover .la-sun .la-ray,
+:root:not(.g-ready) .la-sun:hover .la-ray {
+  animation: la-sun-ray .38s var(--la-ease) both;
+}
+.la-sun .la-r1 { animation-delay: 0ms; }
+.la-sun .la-r2 { animation-delay: 45ms; }
+.la-sun .la-r3 { animation-delay: 90ms; }
+.la-sun .la-r4 { animation-delay: 135ms; }
+.la-sun .la-r5 { animation-delay: 180ms; }
+.la-sun .la-r6 { animation-delay: 225ms; }
+.la-sun .la-r7 { animation-delay: 270ms; }
+.la-sun .la-r8 { animation-delay: 315ms; }
+@keyframes la-sun-ray {
+  0% { opacity: .15; transform: scale(.7); }
+  65% { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* ── 2. Moon (gentle celestial rock) ─────────────────────────────────────── */
+.la-moon.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-moon .la-body,
+:root:not(.g-ready) .la-moon:hover .la-body {
+  animation: la-moon-rock .85s var(--la-ease);
+}
+@keyframes la-moon-rock {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-12deg); }
+  42% { transform: rotate(10deg); }
+  64% { transform: rotate(-6deg); }
+  82% { transform: rotate(4deg); }
+}
+
+/* ── 3. Chevrons Up/Down (expand outward on hover) ───────────────────────── */
+.la-chevrons-up-down .la-up,
+.la-chevrons-up-down .la-down {
+  transition: transform .35s var(--la-bounce);
+}
+:is(a, button, [role="button"]):hover .la-chevrons-up-down .la-up,
+:is(a, button, [role="button"]):focus-visible .la-chevrons-up-down .la-up,
+.la-chevrons-up-down.la-active .la-up {
+  transform: translateY(-2px);
+}
+:is(a, button, [role="button"]):hover .la-chevrons-up-down .la-down,
+:is(a, button, [role="button"]):focus-visible .la-chevrons-up-down .la-down,
+.la-chevrons-up-down.la-active .la-down {
+  transform: translateY(2px);
+}
+
+/* ── 4. Panel Left Open / Close ──────────────────────────────────────────── */
+.la-panel-left-open.la-active .la-chev,
+:root:not(.g-ready) :is(a, button):hover .la-panel-left-open .la-chev {
+  animation: la-nudge-r .48s var(--la-spring);
+}
+.la-panel-left-close.la-active .la-chev,
+:root:not(.g-ready) :is(a, button):hover .la-panel-left-close .la-chev {
+  animation: la-nudge-l .48s var(--la-spring);
+}
+@keyframes la-nudge-r { 0%, 100% { transform: translateX(0); } 45% { transform: translateX(2.2px); } }
+@keyframes la-nudge-l { 0%, 100% { transform: translateX(0); } 45% { transform: translateX(-2.2px); } }
+
+/* ── 5. Menu (staggered line wave) ───────────────────────────────────────── */
+.la-menu.la-active line,
+:root:not(.g-ready) :is(a, button):hover .la-menu line {
+  animation: la-menu-line .46s var(--la-spring);
+}
+.la-menu .la-l2 { animation-delay: 55ms; }
+.la-menu .la-l3 { animation-delay: 110ms; }
+@keyframes la-menu-line {
+  0%, 100% { transform: scaleX(1); }
+  45% { transform: scaleX(.72); }
+}
+
+/* ── 6. Sparkles (main star floats + twinkles blink) ─────────────────────── */
+.la-sparkles.la-active .la-spark,
+:root:not(.g-ready) :is(a, button, .metric):hover .la-sparkles .la-spark {
+  animation: la-spark-float .72s var(--la-bounce);
+}
+.la-sparkles.la-active .la-twinkle,
+:root:not(.g-ready) :is(a, button, .metric):hover .la-sparkles .la-twinkle {
+  animation: la-spark-blink .78s var(--la-ease);
+}
+@keyframes la-spark-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-1.4px) scale(1.08); }
+}
+@keyframes la-spark-blink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  25% { opacity: .2; transform: scale(.65); }
+  55% { opacity: 1; transform: scale(1.15); }
+  75% { opacity: .35; transform: scale(.8); }
+}
+
+/* ── 7. Layout Grid (quadrants rotate clockwise and settle) ──────────────── */
+.la-layout-grid.la-active .la-q1,
+:root:not(.g-ready) :is(a, button):hover .la-layout-grid .la-q1 { animation: la-grid-1 .72s var(--la-spring); }
+.la-layout-grid.la-active .la-q2,
+:root:not(.g-ready) :is(a, button):hover .la-layout-grid .la-q2 { animation: la-grid-2 .72s var(--la-spring); }
+.la-layout-grid.la-active .la-q3,
+:root:not(.g-ready) :is(a, button):hover .la-layout-grid .la-q3 { animation: la-grid-3 .72s var(--la-spring); }
+.la-layout-grid.la-active .la-q4,
+:root:not(.g-ready) :is(a, button):hover .la-layout-grid .la-q4 { animation: la-grid-4 .72s var(--la-spring); }
+@keyframes la-grid-1 { 0%, 100% { transform: translate(0, 0); } 45%, 58% { transform: translate(11px, 0); } }
+@keyframes la-grid-2 { 0%, 100% { transform: translate(0, 0); } 45%, 58% { transform: translate(0, 11px); } }
+@keyframes la-grid-3 { 0%, 100% { transform: translate(0, 0); } 45%, 58% { transform: translate(-11px, 0); } }
+@keyframes la-grid-4 { 0%, 100% { transform: translate(0, 0); } 45%, 58% { transform: translate(0, -11px); } }
+
+/* ── 8. Message Circle (playful bubble tilt) ─────────────────────────────── */
+.la-message-circle.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-message-circle .la-body {
+  animation: la-chat-wiggle .52s var(--la-spring);
+}
+@keyframes la-chat-wiggle {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  30% { transform: scale(1.06) rotate(-7deg); }
+  65% { transform: scale(1.06) rotate(7deg); }
+}
+
+/* ── 9. Message Circle Dashed (segments chase) ───────────────────────────── */
+.la-message-circle-dashed.la-active .la-seg,
+:root:not(.g-ready) :is(a, button):hover .la-message-circle-dashed .la-seg {
+  animation: la-seg-pulse .42s var(--la-ease) both;
+}
+.la-message-circle-dashed .la-s1 { animation-delay: 0ms; }
+.la-message-circle-dashed .la-s2 { animation-delay: 40ms; }
+.la-message-circle-dashed .la-s3 { animation-delay: 80ms; }
+.la-message-circle-dashed .la-s4 { animation-delay: 120ms; }
+.la-message-circle-dashed .la-s5 { animation-delay: 160ms; }
+.la-message-circle-dashed .la-s6 { animation-delay: 200ms; }
+.la-message-circle-dashed .la-s7 { animation-delay: 240ms; }
+.la-message-circle-dashed .la-s8 { animation-delay: 280ms; }
+@keyframes la-seg-pulse { 0%, 100% { opacity: 1; } 45% { opacity: .2; } }
+
+/* ── 10. Calendar Days (dots cascade) ────────────────────────────────────── */
+.la-calendar-days.la-active .la-dot,
+:root:not(.g-ready) :is(a, button):hover .la-calendar-days .la-dot {
+  animation: la-dot-wave .42s var(--la-ease) both;
+}
+.la-calendar-days .la-d1 { animation-delay: 0ms; }
+.la-calendar-days .la-d2 { animation-delay: 55ms; }
+.la-calendar-days .la-d3 { animation-delay: 110ms; }
+.la-calendar-days .la-d4 { animation-delay: 165ms; }
+.la-calendar-days .la-d5 { animation-delay: 220ms; }
+.la-calendar-days .la-d6 { animation-delay: 275ms; }
+@keyframes la-dot-wave {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  45% { opacity: .25; transform: scale(.65); }
+}
+
+/* ── 11. Path-Draw Family (id-card, git-fork, receipt, workflow, chart-column,
+       zap, languages, check, x, box, link, file-text, attach-file) ──────── */
+.la-icon .la-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+:is(.la-id-card, .la-git-fork, .la-receipt, .la-workflow, .la-chart-column, .la-zap, .la-languages, .la-check, .la-x, .la-box, .la-link, .la-file-text, .la-attach-file).la-active .la-draw,
+:root:not(.g-ready) :is(a, button):hover :is(.la-id-card, .la-git-fork, .la-receipt, .la-workflow, .la-chart-column, .la-zap, .la-languages, .la-check, .la-x, .la-box, .la-link, .la-file-text, .la-attach-file) .la-draw {
+  animation: la-path-draw .52s var(--la-spring) both;
+}
+.la-id-card .la-d1, .la-git-fork .la-d1, .la-receipt .la-d1, .la-workflow .la-d1, .la-languages .la-d1, .la-box .la-d1, .la-chart-column .la-b1, .la-x .la-x1, .la-file-text .la-l1, .la-link .la-c1 { animation-delay: 0ms; }
+.la-id-card .la-d2, .la-git-fork .la-d2, .la-workflow .la-d2, .la-languages .la-d2, .la-box .la-d2, .la-chart-column .la-b2, .la-file-text .la-l2 { animation-delay: 90ms; }
+.la-id-card .la-d3, .la-git-fork .la-d3, .la-workflow .la-d3, .la-languages .la-d3, .la-box .la-d3, .la-chart-column .la-b3, .la-file-text .la-l3 { animation-delay: 170ms; }
+.la-id-card .la-d4, .la-languages .la-d4 { animation-delay: 240ms; }
+.la-receipt .la-d2 { animation-delay: 160ms; }
+.la-x .la-x2 { animation-delay: 140ms; }
+.la-link .la-c2 { animation-delay: 110ms; }
+@keyframes la-path-draw {
+  0% { stroke-dashoffset: 1; opacity: .25; }
+  20% { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 1; }
+}
+.la-file-text.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-file-text .la-body {
+  animation: la-soft-pop .45s var(--la-spring);
+}
+@keyframes la-soft-pop { 0%, 100% { transform: scale(1); } 45% { transform: scale(1.05); } }
+
+/* ── 12. Layers (Studio — stacked lift & settle) ─────────────────────────── */
+.la-layers.la-active .la-mid,
+:root:not(.g-ready) :is(a, button):hover .la-layers .la-mid { animation: la-layer-mid .58s var(--la-bounce); }
+.la-layers.la-active .la-bot,
+:root:not(.g-ready) :is(a, button):hover .la-layers .la-bot { animation: la-layer-bot .58s var(--la-bounce); }
+@keyframes la-layer-mid { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-3.5px); } }
+@keyframes la-layer-bot { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-6.5px); } }
+
+/* ── 13. Send (paper plane takeoff + dashed flight trail) ────────────────── */
+.la-send .la-plane { transition: transform .42s var(--la-spring); }
+.la-send .la-trail { opacity: 0; stroke-dashoffset: 1; transition: opacity .25s ease; }
+:is(a, button):hover .la-send .la-plane,
+:is(a, button):focus-visible .la-send .la-plane,
+.la-send.la-active .la-plane {
+  transform: translate(2.2px, -2.2px) scale(.86);
+}
+:is(a, button):hover .la-send .la-trail,
+:is(a, button):focus-visible .la-send .la-trail,
+.la-send.la-active .la-trail {
+  opacity: .85;
+  animation: la-path-draw .45s var(--la-spring) .06s both;
+}
+
+/* ── 14. Layout Panel Top (Sites — panels glide into place) ──────────────── */
+.la-layout-panel-top.la-active .la-top,
+:root:not(.g-ready) :is(a, button):hover .la-layout-panel-top .la-top { animation: la-panel-top .5s var(--la-spring); }
+.la-layout-panel-top.la-active .la-left,
+:root:not(.g-ready) :is(a, button):hover .la-layout-panel-top .la-left { animation: la-panel-left .52s var(--la-spring) .08s both; }
+.la-layout-panel-top.la-active .la-right,
+:root:not(.g-ready) :is(a, button):hover .la-layout-panel-top .la-right { animation: la-panel-right .52s var(--la-spring) .12s both; }
+@keyframes la-panel-top { 0% { opacity: .2; transform: translateY(-3.5px); } 100% { opacity: 1; transform: translateY(0); } }
+@keyframes la-panel-left { 0% { opacity: .2; transform: translateX(-4px); } 100% { opacity: 1; transform: translateX(0); } }
+@keyframes la-panel-right { 0% { opacity: .2; transform: translateX(4px); } 100% { opacity: 1; transform: translateX(0); } }
+
+/* ── 15. Play, Folder, Award ─────────────────────────────────────────────── */
+.la-play.la-active .la-tri,
+:root:not(.g-ready) :is(a, button):hover .la-play .la-tri {
+  animation: la-play-kick .48s var(--la-bounce);
+}
+@keyframes la-play-kick {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  30% { transform: translateX(-1.5px) rotate(-6deg); }
+  65% { transform: translateX(2px) rotate(0deg); }
+}
+
+.la-folder-open.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-folder-open .la-body {
+  animation: la-folder-rock .55s var(--la-ease);
+}
+@keyframes la-folder-rock {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-7deg); }
+  55% { transform: rotate(5deg); }
+  80% { transform: rotate(-3deg); }
+}
+
+.la-award.la-active .la-medal,
+:root:not(.g-ready) :is(a, button):hover .la-award .la-medal { animation: la-award-pop .52s var(--la-bounce); }
+.la-award.la-active .la-ribbon,
+:root:not(.g-ready) :is(a, button):hover .la-award .la-ribbon { animation: la-award-sway .52s var(--la-ease); transform-origin: 50% 0%; }
+@keyframes la-award-pop { 0%, 100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-1.6px) scale(1.08); } }
+@keyframes la-award-sway { 0%, 100% { transform: rotate(0deg); } 35% { transform: rotate(-6deg); } 70% { transform: rotate(5deg); } }
+
+/* ── 16. Blocks (Apps — corner cube snaps in) ────────────────────────────── */
+.la-blocks .la-block { transition: transform .36s var(--la-bounce); }
+:is(a, button):hover .la-blocks .la-block,
+:is(a, button):focus-visible .la-blocks .la-block,
+.la-blocks.la-active .la-block {
+  transform: translate(-1.8px, 1.8px);
+}
+
+/* ── 17. Settings, Plus, Refresh, Rotate (spring rotations) ──────────────── */
+.la-settings .la-spin { transition: transform .62s var(--la-bounce); }
+:is(a, button):hover .la-settings .la-spin,
+:is(a, button):focus-visible .la-settings .la-spin,
+.la-settings.la-active .la-spin {
+  transform: rotate(180deg);
+}
+
+.la-plus .la-spin { transition: transform .48s var(--la-bounce); }
+:is(a, button):hover .la-plus .la-spin,
+:is(a, button):focus-visible .la-plus .la-spin,
+.la-plus.la-active .la-spin {
+  transform: rotate(90deg);
+}
+
+.la-refresh-cw .la-spin { transition: transform .48s var(--la-spring); }
+:is(a, button):hover .la-refresh-cw .la-spin,
+:is(a, button):focus-visible .la-refresh-cw .la-spin,
+.la-refresh-cw.la-active .la-spin {
+  transform: rotate(55deg);
+}
+
+.la-rotate-ccw .la-spin { transition: transform .48s var(--la-spring); }
+:is(a, button):hover .la-rotate-ccw .la-spin,
+:is(a, button):focus-visible .la-rotate-ccw .la-spin,
+.la-rotate-ccw.la-active .la-spin {
+  transform: rotate(-55deg);
+}
+
+/* ── 18. Search, Map Pin, Phone, Bell, Radio Tower, Circle Help, Lock ────── */
+.la-search.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-search .la-body {
+  animation: la-search-scan .68s var(--la-spring);
+}
+@keyframes la-search-scan {
+  0%, 100% { transform: translate(0, 0); }
+  35% { transform: translate(0, -2.6px); }
+  70% { transform: translate(-2.2px, 0); }
+}
+
+.la-map-pin.la-active .la-pin,
+:root:not(.g-ready) :is(a, button):hover .la-map-pin .la-pin {
+  animation: la-pin-drop .52s var(--la-bounce);
+}
+.la-map-pin.la-active .la-draw,
+:root:not(.g-ready) :is(a, button):hover .la-map-pin .la-draw {
+  animation: la-path-draw .45s var(--la-spring) .14s both;
+}
+@keyframes la-pin-drop {
+  0%, 100% { transform: translateY(0); }
+  45% { transform: translateY(-3.5px); }
+  75% { transform: translateY(-1px); }
+}
+
+.la-phone.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-phone .la-body {
+  animation: la-phone-ring .55s var(--la-ease);
+}
+@keyframes la-phone-ring {
+  0%, 100% { transform: rotate(0deg); }
+  18% { transform: rotate(-11deg) scale(1.04); }
+  36% { transform: rotate(11deg) scale(1.04); }
+  54% { transform: rotate(-8deg); }
+  72% { transform: rotate(6deg); }
+}
+
+.la-bell .la-body { transform-origin: 50% 15%; }
+.la-bell.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-bell .la-body {
+  animation: la-bell-ring .58s var(--la-ease);
+}
+@keyframes la-bell-ring {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-12deg); }
+  45% { transform: rotate(10deg); }
+  70% { transform: rotate(-8deg); }
+  88% { transform: rotate(4deg); }
+}
+
+.la-radio-tower.la-active .la-w1,
+:root:not(.g-ready) :is(a, button):hover .la-radio-tower .la-w1 { animation: la-wave-out .45s var(--la-ease); }
+.la-radio-tower.la-active .la-w2,
+:root:not(.g-ready) :is(a, button):hover .la-radio-tower .la-w2 { animation: la-wave-out .45s var(--la-ease) .14s; }
+@keyframes la-wave-out { 0%, 100% { opacity: 1; } 45% { opacity: .2; } }
+
+.la-circle-help.la-active .la-q,
+:root:not(.g-ready) :is(a, button):hover .la-circle-help .la-q {
+  animation: la-q-tilt .52s var(--la-ease);
+}
+@keyframes la-q-tilt {
+  0%, 100% { transform: rotate(0deg); }
+  28% { transform: rotate(-11deg); }
+  58% { transform: rotate(11deg); }
+  82% { transform: rotate(-5deg); }
+}
+
+.la-lock .la-shackle { stroke-dasharray: 1; stroke-dashoffset: 0; transition: stroke-dashoffset .3s var(--la-ease); }
+.la-lock.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-lock .la-body { animation: la-lock-jiggle .55s var(--la-ease); }
+:is(a, button):hover .la-lock .la-shackle,
+.la-lock.la-active .la-shackle { stroke-dashoffset: .26; }
+@keyframes la-lock-jiggle {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-4deg) scale(.96); }
+  55% { transform: rotate(3deg) scale(1.04); }
+  80% { transform: rotate(-2deg) scale(.99); }
+}
+
+/* ── 19. Arrows, Chevrons, Download, Upload, External Link, Sort ─────────── */
+.la-arrow-right.la-active .la-head, .la-arrow-right.la-active .la-shaft,
+:root:not(.g-ready) :is(a, button):hover .la-arrow-right :is(.la-head, .la-shaft) { animation: la-arrow-r .42s var(--la-spring); }
+.la-arrow-up.la-active .la-head, .la-arrow-up.la-active .la-shaft,
+:root:not(.g-ready) :is(a, button):hover .la-arrow-up :is(.la-head, .la-shaft) { animation: la-arrow-u .42s var(--la-spring); }
+.la-arrow-down.la-active .la-head, .la-arrow-down.la-active .la-shaft,
+:root:not(.g-ready) :is(a, button):hover .la-arrow-down :is(.la-head, .la-shaft) { animation: la-arrow-d .42s var(--la-spring); }
+@keyframes la-arrow-r { 0%, 100% { transform: translateX(0); } 45% { transform: translateX(2.4px); } }
+@keyframes la-arrow-u { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-2.4px); } }
+@keyframes la-arrow-d { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(2.4px); } }
+
+.la-chevron-down.la-active .la-chev,
+:root:not(.g-ready) :is(a, button):hover .la-chevron-down .la-chev { animation: la-chev-d .42s var(--la-spring); }
+.la-chevron-left.la-active .la-chev,
+:root:not(.g-ready) :is(a, button):hover .la-chevron-left .la-chev { animation: la-nudge-l .42s var(--la-spring); }
+.la-chevron-right.la-active .la-chev,
+:root:not(.g-ready) :is(a, button):hover .la-chevron-right .la-chev { animation: la-nudge-r .42s var(--la-spring); }
+@keyframes la-chev-d { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(2.2px); } }
+
+.la-download .la-arrow, .la-upload .la-arrow, .la-external-link .la-arrow {
+  transition: transform .34s var(--la-bounce);
+}
+:is(a, button):hover .la-download .la-arrow,
+.la-download.la-active .la-arrow { transform: translateY(2.2px); }
+:is(a, button):hover .la-upload .la-arrow,
+.la-upload.la-active .la-arrow { transform: translateY(-2.2px); }
+:is(a, button):hover .la-external-link .la-arrow,
+.la-external-link.la-active .la-arrow { transform: translate(1.8px, -1.8px) scale(1.05); }
+
+.la-sort .la-up, .la-sort .la-down { transition: transform .35s var(--la-bounce); }
+:is(a, button):hover .la-sort .la-up, .la-sort.la-active .la-up { transform: translateY(1.8px); }
+:is(a, button):hover .la-sort .la-down, .la-sort.la-active .la-down { transform: translateY(-1.8px); }
+
+/* ── 20. Dots, Star, Filter, Mail, Align Left, Square Pen, Mailbox, Delete ─ */
+.la-dots.la-active .la-dot,
+:root:not(.g-ready) :is(a, button):hover .la-dots .la-dot {
+  animation: la-dot-bounce .48s var(--la-bounce);
+}
+.la-dots .la-d2 { animation-delay: 80ms; }
+.la-dots .la-d3 { animation-delay: 160ms; }
+@keyframes la-dot-bounce { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-2.4px); } }
+
+.la-star.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-star .la-body {
+  animation: la-star-pop .52s var(--la-bounce);
+}
+@keyframes la-star-pop {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  45% { transform: scale(1.14) rotate(14deg); }
+}
+
+.la-filter.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-filter .la-body {
+  animation: la-filter-dip .46s var(--la-spring);
+}
+@keyframes la-filter-dip { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(1.8px) scale(.96); } }
+
+.la-mail.la-active .la-flap,
+:root:not(.g-ready) :is(a, button):hover .la-mail .la-flap {
+  transform-origin: 50% 0%;
+  animation: la-mail-flap .48s var(--la-spring);
+}
+@keyframes la-mail-flap { 0%, 100% { transform: scaleY(1); } 45% { transform: scaleY(.72); } }
+
+.la-align-left line { transform-origin: left center; transition: transform .36s var(--la-bounce); }
+:is(a, button):hover .la-align-left .la-l2, .la-align-left.la-active .la-l2 { transform: scaleX(1.25); }
+:is(a, button):hover .la-align-left .la-l3, .la-align-left.la-active .la-l3 { transform: scaleX(.76); }
+
+.la-square-pen.la-active .la-pen,
+:root:not(.g-ready) :is(a, button):hover .la-square-pen .la-pen {
+  animation: la-pen-write .58s var(--la-ease);
+}
+@keyframes la-pen-write {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(-1.2px, 1.2px) rotate(-6deg); }
+  55% { transform: translate(1px, -1px) rotate(4deg); }
+  80% { transform: translate(-.6px, .6px) rotate(-3deg); }
+}
+
+.la-mailbox .la-flag { transform-origin: 18px 11px; transform-box: view-box; transition: transform .4s var(--la-bounce); }
+:is(a, button):hover .la-mailbox .la-flag,
+.la-mailbox.la-active .la-flag { transform: rotate(-28deg); }
+
+.la-delete .la-lid, .la-delete .la-bin { transition: transform .34s var(--la-bounce); }
+:is(a, button):hover .la-delete .la-lid,
+:is(a, button):focus-visible .la-delete .la-lid,
+.la-delete.la-active .la-lid { transform: translateY(-1.8px) rotate(-6deg); }
+:is(a, button):hover .la-delete .la-bin,
+:is(a, button):focus-visible .la-delete .la-bin,
+.la-delete.la-active .la-bin { transform: translateY(.8px); }
+
+/* ── 21. Clock, Cursor Click, Hand, Devices, Sliders, Users, Tag, Gift, Book, Bulb, Alert, Key, Pipette ─ */
+.la-clock .la-hour, .la-clock .la-min {
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+  transition: transform .58s var(--la-ease);
+}
+:is(a, button):hover .la-clock .la-hour, .la-clock.la-active .la-hour { transform: rotate(360deg); }
+:is(a, button):hover .la-clock .la-min, .la-clock.la-active .la-min { transform: rotate(45deg); }
+
+.la-cursor-click.la-active .la-ptr,
+:root:not(.g-ready) :is(a, button):hover .la-cursor-click .la-ptr { animation: la-cursor-tap .55s var(--la-spring); }
+.la-cursor-click.la-active .la-ray,
+:root:not(.g-ready) :is(a, button):hover .la-cursor-click .la-ray { animation: la-cursor-burst .55s var(--la-spring); }
+@keyframes la-cursor-tap { 0%, 100% { transform: translate(0, 0); } 40% { transform: translate(-1.5px, -1.5px); } 65% { transform: translate(.8px, .8px); } }
+@keyframes la-cursor-burst { 0%, 100% { opacity: 1; transform: scale(1); } 45% { opacity: .25; transform: scale(1.25); } }
+
+.la-hand .la-body { transform-origin: 50% 90%; }
+.la-hand.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-hand .la-body { animation: la-hand-wave .68s var(--la-ease); }
+@keyframes la-hand-wave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-14deg); }
+  55% { transform: rotate(10deg); }
+  80% { transform: rotate(-5deg); }
+}
+
+.la-device.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-device .la-body { animation: la-vibe .46s var(--la-ease); }
+@keyframes la-vibe {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-6deg); }
+  55% { transform: rotate(6deg); }
+  80% { transform: rotate(-3deg); }
+}
+
+.la-monitor.la-active .la-screen,
+:root:not(.g-ready) :is(a, button):hover .la-monitor .la-screen { animation: la-soft-pop .44s var(--la-spring); }
+
+.la-sliders-horizontal .la-k1,
+.la-sliders-horizontal .la-k2,
+.la-sliders-horizontal .la-k3 { transition: transform .38s var(--la-bounce); }
+:is(a, button):hover .la-sliders-horizontal .la-k1, .la-sliders-horizontal.la-active .la-k1 { transform: translateX(-3px); }
+:is(a, button):hover .la-sliders-horizontal .la-k2, .la-sliders-horizontal.la-active .la-k2 { transform: translateX(3.5px); }
+:is(a, button):hover .la-sliders-horizontal .la-k3, .la-sliders-horizontal.la-active .la-k3 { transform: translateX(-4px); }
+
+.la-users .la-second { transition: transform .38s var(--la-bounce); }
+:is(a, button):hover .la-users .la-second, .la-users.la-active .la-second { transform: translateX(1.6px); }
+
+.la-tag .la-body { transform-origin: 25% 25%; }
+.la-tag.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-tag .la-body { animation: la-tag-swing .56s var(--la-ease); }
+@keyframes la-tag-swing { 0%, 100% { transform: rotate(0deg); } 30% { transform: rotate(-10deg); } 65% { transform: rotate(6deg); } }
+
+.la-gift .la-lid { transition: transform .38s var(--la-bounce); }
+:is(a, button):hover .la-gift .la-lid, .la-gift.la-active .la-lid { transform: translateY(-2.2px) rotate(-4deg); }
+
+.la-book-text.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-book-text .la-body { animation: la-book-rock .56s var(--la-ease); }
+@keyframes la-book-rock {
+  0%, 100% { transform: scale(1) rotate(0deg) translateY(0); }
+  25% { transform: scale(1.04) rotate(-7deg) translateY(-1.5px); }
+  55% { transform: scale(1.04) rotate(7deg) translateY(-1.5px); }
+  80% { transform: scale(1.02) rotate(-4deg) translateY(0); }
+}
+
+.la-bulb.la-active .la-glow,
+:root:not(.g-ready) :is(a, button):hover .la-bulb .la-glow { animation: la-bulb-pulse .56s var(--la-ease); }
+@keyframes la-bulb-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  35% { transform: scale(1.08); opacity: .55; }
+  70% { transform: scale(1.04); opacity: 1; }
+}
+
+.la-badge-alert.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-badge-alert .la-body { animation: la-alert-shake .52s var(--la-ease); }
+@keyframes la-alert-shake {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-8deg) scale(1.06); }
+  55% { transform: rotate(8deg) scale(1.06); }
+  80% { transform: rotate(-4deg) scale(1.02); }
+}
+
+.la-key .la-body { transform-origin: 30% 70%; }
+.la-key.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-key .la-body { animation: la-key-turn .6s var(--la-spring); }
+@keyframes la-key-turn {
+  0%, 100% { transform: rotate(0deg); }
+  45% { transform: rotate(-28deg); }
+  72% { transform: rotate(-18deg); }
+}
+
+.la-pipette .la-body { transform-origin: 15% 85%; }
+.la-pipette.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-pipette .la-body { animation: la-pipette-dip .48s var(--la-spring); }
+@keyframes la-pipette-dip { 0%, 100% { transform: rotate(0deg); } 45% { transform: rotate(-12deg) translate(-.5px, .5px); } }
+
+/* ── 22. Chat, Audio, Copy, Vote, WhatsApp ───────────────────────────────── */
+.la-mic.la-active .la-cap,
+:root:not(.g-ready) :is(a, button):hover .la-mic .la-cap { animation: la-mic-bob .56s var(--la-ease); }
+@keyframes la-mic-bob {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-2.6px); }
+  60% { transform: translateY(0); }
+  80% { transform: translateY(-1.4px); }
+}
+
+.la-audio-lines.la-active .la-bar,
+:is(a, button):hover .la-audio-lines .la-bar { animation: la-eq-bar .65s var(--la-ease) infinite; }
+.la-audio-lines .la-b1 { animation-duration: .8s; }
+.la-audio-lines .la-b2 { animation-duration: .58s; animation-delay: 80ms; }
+.la-audio-lines .la-b3 { animation-duration: .5s; animation-delay: 140ms; }
+.la-audio-lines .la-b4 { animation-duration: .72s; animation-delay: 40ms; }
+@keyframes la-eq-bar { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.45); } }
+
+.la-stop .la-body { transition: transform .26s var(--la-bounce); }
+:is(a, button):hover .la-stop .la-body, .la-stop.la-active .la-body { transform: scale(.86); }
+
+.la-copy .la-front, .la-copy .la-back { transition: transform .36s var(--la-spring); }
+:is(a, button):hover .la-copy .la-front, .la-copy.la-active .la-front { transform: translate(-2.2px, -2.2px); }
+:is(a, button):hover .la-copy .la-back, .la-copy.la-active .la-back { transform: translate(2.2px, 2.2px); }
+
+.la-upvote .la-body, .la-downvote .la-body { transition: transform .34s var(--la-bounce); }
+:is(a, button):hover .la-upvote .la-body, .la-upvote.la-active .la-body { transform: translate(-1px, -1.8px) rotate(-12deg); }
+:is(a, button):hover .la-downvote .la-body, .la-downvote.la-active .la-body { transform: translate(-1px, 1.8px) rotate(-12deg); }
+
+.la-volume.la-active .la-w1,
+:root:not(.g-ready) :is(a, button):hover .la-volume .la-w1 { animation: la-wave-out .45s var(--la-ease); }
+.la-volume.la-active .la-w2,
+:root:not(.g-ready) :is(a, button):hover .la-volume .la-w2 { animation: la-wave-out .45s var(--la-ease) .14s; }
+
+.la-whatsapp.la-active .la-body,
+:root:not(.g-ready) :is(a, button):hover .la-whatsapp .la-body { animation: la-chat-wiggle .52s var(--la-spring); }
+
+/* ── Reduced Motion Accessibility ────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .la-icon,
+  .la-icon * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

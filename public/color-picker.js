@@ -1,3 +1,5 @@
+import { icon } from './icons.js';
+
 const clamp = value => Math.max(0, Math.min(1, value));
 
 function hexToHsv(hex, previousHue = 0) {
@@ -45,7 +47,7 @@ export function colorPicker(value, {
       </div>
       <div class="ag-color-controls">
         <button type="button" class="icon-btn ag-color-dropper" data-color-dropper title="Conta-gotas" aria-label="Selecionar cor da tela" hidden>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 7 3 3M5 19l4-1 10-10a2.1 2.1 0 0 0-3-3L6 15l-1 4Z"/></svg>
+          ${icon('pipette', 17)}
         </button>
         <label for="${hueId}"><span class="sr-only">Matiz</span><input id="${hueId}" data-color-hue type="range" min="0" max="360"></label>
       </div>
