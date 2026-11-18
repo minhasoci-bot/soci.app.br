@@ -889,8 +889,16 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
             : '<p class="dim">Você não tem acesso a Agentes de IA.</p>');
           break;
         }
-        case 'open-personal-workspace': close(); await openWorkspace(A.data.personalWorkspace.id, d.view === 'ai-agents' ? d.view : undefined); break;
-        case 'open-account': close(); await act('account-open', { id }); await openWorkspace(id, d.view === 'ai-agents' ? d.view : undefined); break;
+        case 'open-personal-workspace': close(); await openWorkspace(A.data.personalWorkspace.id, d.view === 'ai-agents' ? d.view : undefined, A.data.personalWorkspace.name); break;
+        case 'open-account': {
+          close();
+          const name = accountName(id);
+          // Stamp "último acesso" in the background; the switch no longer waits on it.
+          const meta = accounts().find(a => a.id === id); if (meta) meta.lastLogin = new Date().toISOString();
+          api('/api/agency/action', { type: 'account-open', id }).catch(() => {});
+          await openWorkspace(id, d.view === 'ai-agents' ? d.view : undefined, name);
+          break;
+        }
         case 'new-account': dialog('Criar nova subconta', accountForm(), { form: 'account', submit: 'Criar subconta' }); break;
         case 'edit-account': {
           const a = accounts().find(x => x.id === id), meta = D().accounts[id] || {};

@@ -36,7 +36,7 @@ function widgetInput(state,input) {
   };
 }
 
-function boardWidgets(state, list) {
+export function boardWidgets(state, list) {
   if (!Array.isArray(list) || list.length > 48) invalid('Um painel pode ter até 48 widgets.');
   const result = list.map(input => widgetInput(state,input));
   if (new Set(result.map(item => item.id)).size !== result.length) invalid('Os widgets precisam ter IDs diferentes.');

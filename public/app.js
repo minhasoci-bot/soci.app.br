@@ -335,7 +335,18 @@ function workspaces(){
   const create = c.access?.agency ? `<button class="secondary" data-act="new-workspace">${i('plus',16)} Novo workspace</button>` : '';
   dialog('Trocar de workspace', `${agency}${choices}${create}`);
 }
-async function useWorkspace(id, view='dashboard'){ leaveAgentEditor();stopSubWaPoll();c.workspace=id;c.wa=null;c.waPairOpen=false;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go(view); }
+function switchingCover(name){
+  const cover=document.createElement('div');
+  cover.className='switch-cover';
+  cover.innerHTML=bootScreen(`Abrindo ${h(name||'a subconta')}…`);
+  document.body.append(cover);
+  return cover;
+}
+async function useWorkspace(id, view='dashboard', name){
+  const cover=switchingCover(name||c.workspaces.find(w=>w.id===id)?.name);
+  try { await enterWorkspace(id, view); } finally { cover.remove(); }
+}
+async function enterWorkspace(id, view){ leaveAgentEditor();stopSubWaPoll();c.workspace=id;c.wa=null;c.waPairOpen=false;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);close();go(view); }
 function downloads(name,content,type='text/csv;charset=utf-8'){
   const data=typeof content==='string'?new Blob([content],{type}):content, a=document.createElement('a'), u=URL.createObjectURL(data);
   a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),3000);

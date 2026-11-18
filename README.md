@@ -172,6 +172,10 @@ O chat de teste e o construtor usam a chave da OpenAI conectada pelo usuário qu
 
 Marketing → Planejador social recria o Social Planner do GoHighLevel: conectar redes, escrever uma vez com prévia e limite de caracteres por rede, publicar agora/agendar/rascunho, recorrência, aprovação, calendário (mês/semana, arrastar para reagendar), lista com filtros, categorias com fila evergreen, grupos de hashtags, feeds RSS e agendamento em massa por CSV. Arquivos: `social-model.mjs` (registros e agendador), `social-providers.mjs` (OAuth e publicação), `ui/social.js`, `ui/social-data.js`, `ui/social.css`.
 
+- **Publicações em lote:** carregue o CSV, escolha as contas e revise o resultado de cada linha antes de importar. A Soci oferece modelos básico e avançado com campos de data, texto, mídia, tipo, tags, categoria e primeiro comentário. Linhas sem data entram como rascunhos. O importador aceita CSV de até 1 MB e 300 linhas.
+- **Convite para conectar:** em Contas, gere e copie um link válido de 1 hora a 7 dias. O cliente autoriza as novas contas na página do convite sem acessar o workspace. Gerar outro link ou revogar o atual invalida o anterior; o convite não permite editar ou desconectar contas existentes. Para compartilhá-lo, use uma instância da Soci acessível ao cliente.
+- **Referência:** o navegador interno mostrou o onboarding sem redes conectadas, o formulário de convite e a etapa inicial da importação do HighLevel. O REA capturou a [referência pública de campos CSV](https://help.gohighlevel.com/support/solutions/articles/155000005411) sob a evidência `ev_caa6f36a970902259cc68c38c287c588a47efcf20ed65ef7c0da7e54c7678042`. No navegador local, um lote com uma linha válida e outra inválida gravou apenas o rascunho válido.
+
 Os tokens das contas ficam cifrados (AES-256-GCM) na linha `social-<subconta>` e nunca vão ao navegador. Chaves por rede (variáveis de ambiente) e URL de retorno a cadastrar em cada app (`<origem>/api/social/callback/<rede>`):
 
 | Rede | Variáveis | Callback |

@@ -20,7 +20,7 @@ import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-plac
 import { folded, prospectSearchText } from './ui/prospecting-data.js';
 import { shareReportHtml, widgetHtml } from './ui/prospect-report.js';
 import { moduleOfRecord, snapshotAssets } from './ui/agency-data.js';
-import { attachAccounts, claimDue, evergreenDue, settle } from './social-model.mjs';
+import { attachAccounts, claimDue, evergreenDue, reviewSocialCsv, settle } from './social-model.mjs';
 import { authUrl, availability, blueskyLogin, exchange as socialExchange, publish as socialPublish, seal, unseal } from './social-providers.mjs';
 import { network } from './ui/social-data.js';
 import { createAskHandler } from './soci-chat.mjs';
@@ -48,6 +48,7 @@ const staticFiles = new Map([
   ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
   ['/opportunity-data.js','text/javascript; charset=utf-8'], ['/opportunities.css','text/css; charset=utf-8'],
   ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'],
+  ['/social-connect.js','text/javascript; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
@@ -68,12 +69,14 @@ const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|hom
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
+const socialInvitePath = new RegExp(`^/social-connect/${workspaceSegment}/?$`);
 const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{36})/([0-9a-f-]{36})$`);
 const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,48}))?$`);
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 const commandModule = { 'social-post':'marketing', 'social-reschedule':'marketing', 'social-review':'marketing', 'social-duplicate':'marketing', 'social-delete':'marketing', 'social-bulk-delete':'marketing', 'social-retry':'marketing', 'social-csv':'marketing', 'social-account-remove':'marketing', message:'conversations', thread:'conversations', 'manual-action':'conversations', 'conversation-sla':'conversations', 'dismiss-sla':'conversations',
-  pipeline:'opportunities', stage:'opportunities', import:'contacts', 'opportunity-import':'opportunities', 'opportunity-move':'opportunities', 'studio-visit':'studio', 'studio-star':'studio', profile:'settings',
+  pipeline:'opportunities', stage:'opportunities', import:'contacts', 'opportunity-import':'opportunities', 'opportunity-move':'opportunities',
+  'studio-visit':'studio', 'studio-star':'studio', profile:'settings',
   'workflow-enroll':'automation', 'workflow-restore':'automation', 'workflow-move':'automation',
   'dashboard-create':'dashboard', 'dashboard-save':'dashboard', 'dashboard-restore':'dashboard', 'dashboard-report':'dashboard',
   'studio-meta':'studio', 'dashboard-default':'dashboard', 'dashboard-timezone':'dashboard', 'dashboard-delete':'dashboard' };
@@ -627,6 +630,31 @@ export function makeServer({
   const socialSecrets = async (workspace, mutate) => { await socialRow(`social-${workspace}`); return store.change(`social-${workspace}`, mutate); };
   const publicBase = req => process.env.SOCIAL_PUBLIC_URL || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
   const callbackPath = provider => `/api/social/callback/${provider === 'instagram' ? 'facebook' : provider}`;
+  const validateInvite = (row, key) => {
+    const invite = row.invite;
+    if (!key || invite?.hash !== key || invite.expires <= Date.now()) throw error('Este convite expirou ou foi revogado.',404);
+    return invite;
+  };
+  async function startSocialOAuth(req, workspace, provider, inviteKey = '') {
+    const nonce = uid();
+    const target = authUrl(provider, { redirectUri: publicBase(req) + callbackPath(provider), state: nonce });
+    await socialRow('social-oauth');
+    await store.change('social-oauth', row => {
+      for (const [k, v] of Object.entries(row.states)) if (Date.parse(v.at) < Date.now() - 15 * 60_000) delete row.states[k];
+      row.states[nonce] = { workspace, provider, at: stamp(), inviteKey };
+    });
+    return target;
+  }
+  async function inviteAttach(workspace, key, chosen) {
+    validateInvite(await store.load(`social-${workspace}`), key);
+    const ids = await store.change(workspace, s => {
+      const fresh = chosen.filter(x => !s.socialAccounts.some(a => a.provider === x.provider && a.externalId === x.externalId));
+      if (fresh.length !== chosen.length) throw error('Uma das contas já está conectada. Selecione somente novas contas.',409);
+      return attachAccounts(s, fresh, { uid, now: stamp });
+    });
+    await socialSecrets(workspace, row => ids.forEach((id, n) => { row.tokens[id] = seal(chosen[n].secret); }));
+    return { connected: ids.length };
+  }
   const fileBytes = data => { const [, mime, b64] = String(data).match(/^data:([^;]+);base64,(.*)$/) || []; return { mime, bytes: Buffer.from(b64 || '', 'base64') }; };
   const socialMedia = (state, workspace, base, post) => (post.media || []).map(m => {
     if (m.fileId) {
@@ -895,18 +923,47 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         return res.end(bytes);
       }
       const socialStart = p.match(/^\/api\/social\/connect\/([a-z]+)$/);
+      if (socialInvitePath.test(p) && method === 'GET') {
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/social-connect.html')));
+      }
+      if (p === '/api/social/invited' && method === 'POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Convite inválido.',404);
+        const input = await payload(req);
+        if (typeof input.token !== 'string' || !/^[a-f0-9]{64}$/.test(input.token)) throw error('Convite inválido.',404);
+        const key = hash(input.token);
+        const row = await store.load(`social-${id}`);
+        const invite = validateInvite(row, key);
+        if (input.action === 'info') return json({ expires: invite.expires, providers: availability() });
+        if (input.action === 'start') return json({ url: await startSocialOAuth(req, id, input.provider, key) });
+        if (input.action === 'bluesky') {
+          const candidates = await blueskyLogin(input.identifier, input.password);
+          return json(await inviteAttach(id, key, candidates));
+        }
+        if (input.action === 'candidates' || input.action === 'attach') {
+          const requestId = String(input.requestId || ''), pending = row.pending[requestId];
+          if (!pending || pending.inviteKey !== key || Date.parse(pending.at) < Date.now() - 30 * 60_000) throw error('Esta autorização expirou.',404);
+          const candidates = unseal(pending.candidates) || [];
+          const state = await store.load(id);
+          if (input.action === 'candidates') return json({ candidates: candidates.map((c, index) => ({ index, provider: c.provider, name: c.name }))
+            .filter((_, n) => !state.socialAccounts.some(a => a.provider === candidates[n].provider && a.externalId === candidates[n].externalId)) });
+          const picks = [...new Set(Array.isArray(input.picks) ? input.picks : [])].filter(n => Number.isInteger(n) && candidates[n]);
+          if (!picks.length) throw error('Escolha ao menos uma conta.',400);
+          await socialSecrets(id, current => {
+            validateInvite(current, key);
+            if (current.pending[requestId]?.inviteKey !== key) throw error('Esta autorização expirou.',404);
+            delete current.pending[requestId];
+          });
+          return json(await inviteAttach(id, key, picks.map(n => candidates[n])));
+        }
+        throw error('Ação inválida para este convite.',400);
+      }
       if (socialStart && method === 'GET') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
         if (localAccess) req.localSocialUser = url.searchParams.get('user');
         const who = await access(req,res);
         if (!await canOpen(who,id) || (who.modules && !who.modules.includes('marketing'))) throw error('Your user cannot connect accounts in this sub-account.',403);
-        const provider = socialStart[1], nonce = uid();
-        const target = authUrl(provider, { redirectUri: publicBase(req) + callbackPath(provider), state: nonce });
-        await socialRow('social-oauth');
-        await store.change('social-oauth', row => {
-          for (const [k, v] of Object.entries(row.states)) if (Date.parse(v.at) < Date.now() - 15 * 60_000) delete row.states[k];
-          row.states[nonce] = { workspace: id, provider, at: stamp() };
-        });
+        const target = await startSocialOAuth(req, id, socialStart[1]);
         res.writeHead(302, { Location: target }); return res.end();
       }
       const socialBack = p.match(/^\/api\/social\/callback\/([a-z]+)$/);
@@ -918,14 +975,16 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           await socialRow('social-oauth');
           const nonce = url.searchParams.get('state') || '';
           const pending = await store.change('social-oauth', row => { const v = row.states[nonce]; delete row.states[nonce]; return v; });
-          if (!pending || callbackPath(pending.provider) !== p) throw error('Este login expirou. Tente conectar de novo.',400);
+          if (!pending || Date.parse(pending.at) < Date.now() - 15 * 60_000 || callbackPath(pending.provider) !== p) throw error('Este login expirou. Tente conectar de novo.',400);
+          if (pending.inviteKey) validateInvite(await store.load(`social-${pending.workspace}`), pending.inviteKey);
           provider = pending.provider;
           if (url.searchParams.get('error')) throw error(url.searchParams.get('error_description') || 'A autorização foi cancelada.',400);
           const candidates = await socialExchange(provider, { code: url.searchParams.get('code') || '', redirectUri: base + callbackPath(provider) });
           const requestId = uid();
           await socialSecrets(pending.workspace, row => {
             for (const [k, v] of Object.entries(row.pending)) if (Date.parse(v.at) < Date.now() - 30 * 60_000) delete row.pending[k];
-            row.pending[requestId] = { provider, at: stamp(), candidates: seal(candidates) };
+            if (pending.inviteKey) validateInvite(row, pending.inviteKey);
+            row.pending[requestId] = { provider, at: stamp(), candidates: seal(candidates), inviteKey: pending.inviteKey || '' };
           });
           return send(200,'text/html; charset=utf-8',socialPopup(base, { requestId, provider }));
         } catch (e) {
@@ -937,13 +996,29 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const who = await access(req,res);
         if (!await canOpen(who,id) || (who.modules && !who.modules.includes('marketing'))) throw error('Your user does not have permission for this module.',403);
         const input = await payload(req), op = p.slice('/api/social/'.length);
+        if (op === 'csv-preview') return json({ rows: reviewSocialCsv(await store.load(id), input).map(({ index, fields, error }) =>
+          fields ? { index, status: fields.status, date: fields.scheduleDate, accounts: fields.accountIds.length } : { index, error }) });
+        if (op === 'invite') {
+          if (input.action === 'status') {
+            const invite = (await socialRow(`social-${id}`)).invite;
+            return json({ expires: invite?.expires > Date.now() ? invite.expires : null });
+          }
+          if (input.action === 'revoke') {
+            await socialSecrets(id, row => { delete row.invite; });
+            return json({ expires: null });
+          }
+          if (input.action !== 'create' || ![1, 24, 72, 168].includes(input.hours)) throw error('Escolha um prazo para o convite.',400);
+          const token = (uid() + uid()).replaceAll('-', ''), expires = Date.now() + input.hours * 3_600_000;
+          await socialSecrets(id, row => { row.invite = { hash: hash(token), expires }; });
+          return json({ url: `${publicBase(req)}/social-connect/${id}#${token}`, expires });
+        }
         const withState = async extra => {
           const state = await store.load(id);
           return json({ state: visibleState(who, state), metrics: metrics(state), ...extra });
         };
         if (op === 'candidates' || op === 'attach') {
           const row = await socialRow(`social-${id}`), pending = row.pending[String(input.requestId || '')];
-          if (!pending) throw error('Esta autorização expirou. Conecte a conta de novo.',404);
+          if (!pending || pending.inviteKey || Date.parse(pending.at) < Date.now() - 30 * 60_000) throw error('Esta autorização expirou. Conecte a conta de novo.',404);
           const candidates = unseal(pending.candidates) || [];
           if (op === 'candidates') {
             const state = await store.load(id);
@@ -974,15 +1049,18 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p==='/api/state' && method!=='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
         const { agency, who } = await accessContext(req,await verifiedUser(req,res));
-        if (!await canOpen(who,id)) throw error('Your user cannot open this sub-account.',403);
         const isPersonal = privateSpace.test(id);
-        const state = await store.load(id);
-        const workspaces = await visibleWorkspaces(who);
+        // Run the independent reads in parallel; nothing is returned unless canOpen passes.
+        const [allowed, loaded, workspaces, aiStatus] = await Promise.allSettled([() => canOpen(who,id), () => store.load(id), () => visibleWorkspaces(who), () => openAI.status(who.session)].map(async read => read()));
+        if (allowed.status === 'rejected') throw allowed.reason;
+        if (!allowed.value) throw error('Your user cannot open this sub-account.',403);
+        for (const r of [loaded, workspaces, aiStatus]) if (r.status === 'rejected') throw r.reason;
+        const state = loaded.value;
         // Settings → Audit Logs of the sub-account: the agency audit entries written against this account.
-        const account = workspaces.find(w => w.id === id)?.name || id;
+        const account = workspaces.value.find(w => w.id === id)?.name || id;
         const audit = !isPersonal && (!who.modules || who.modules.includes('settings')) ? agency.audit.filter(a => a.target === account).slice(-200) : [];
-        const studioAI = (await openAI.status(who.session)).configured;
-        return json({state:visibleState(who,state),metrics:metrics(state),workspaces,features:{studioAI,social:availability(),agentModel:studioAI && canUseAgents(who) ? agentModel : ''},
+        const studioAI = aiStatus.value.configured;
+        return json({state:visibleState(who,state),metrics:metrics(state),workspaces:workspaces.value,features:{studioAI,social:availability(),agentModel:studioAI && canUseAgents(who) ? agentModel : ''},
           agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id),
           access:{agency:who.agency,modules:who.modules,name:who.name,session:who.session},audit});
       }
@@ -1016,7 +1094,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/agency/') && method==='POST') {
         const who = await access(req,res);
         if (!who.agency) throw error('Your user cannot open the agency view.',403);
-        const result = await agencyRequest(p.slice('/api/agency/'.length), who, await payload(req));
+        const op = p.slice('/api/agency/'.length), body = await payload(req);
+        const result = await agencyRequest(op, who, body);
+        // Opening a sub-account only stamps lastLogin; skip rebuilding the full agency payload (it loads every sub-account).
+        if (op === 'action' && body?.type === 'account-open') return json({ result });
         return json(await agencyPayload(req,res, { result }, who));
       }
       if (p.startsWith('/api/whatsapp/webhook/') && method === 'POST') {

@@ -164,11 +164,11 @@ function metricBody(c, config, ctx, comparison) {
   return trendChart(metric,metricTrend(metric,c.s,ctx));
 }
 
-function elementBody(config) {
+function elementBody(config, report = false) {
   if (config.kind === 'heading') return `<div class="dash-heading-body"><h2>${h(config.title)}</h2>${config.note ? `<p>${h(config.note)}</p>` : ''}</div>`;
   if (config.kind === 'text') return `<p class="dash-note">${h(config.note)}</p>`;
   if (config.kind === 'image') return config.url ? `<img class="dash-image" src="${h(config.url)}" alt="${h(config.title)}" loading="lazy" referrerpolicy="no-referrer">` : emptyMessage('Informe o endereço da imagem','edit');
-  return config.url ? `<iframe class="dash-embed" src="${h(config.url)}" title="${h(config.title)}" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+  return config.url ? `<iframe class="dash-embed" src="${h(config.url)}" title="${h(config.title)}" loading="lazy" referrerpolicy="no-referrer" sandbox="${report ? 'allow-scripts' : 'allow-scripts allow-same-origin allow-forms allow-popups'}"></iframe>
     <a class="text-link dash-widget-link" href="${h(config.url)}" target="_blank" rel="noopener noreferrer">Abrir em nova aba ${icon('external',14)}</a>` : emptyMessage('Informe o endereço da página','edit');
 }
 
@@ -176,7 +176,7 @@ function widgetBody(c, config, range, comparison, ctx) {
   const definition = widgets[config.kind];
   if (definition.provider) return emptyMessage(`${definition.provider} não está conectado`,'external','<a href="#settings" class="text-link">Ver integrações</a>');
   if (config.kind === 'note') return `<p class="dash-note">${h(config.note)}</p>`;
-  if (definition.element) return elementBody(config);
+  if (definition.element) return elementBody(config,ctx.report);
   if (definition.metric) return metricBody(c,config,ctx,comparison);
   if (config.kind === 'manual') return manual(c,config,range);
   if (config.kind === 'tasks') return tasks(c,config,range);
@@ -238,6 +238,12 @@ function widgetCard(c, entry, index, count, range, comparison, ctx) {
   const header = heading && !editor ? '' : `<header ${editor ? `draggable="true" data-dash-drag="${entry.id}"` : ''}><div><h2>${h(heading ? 'Título' : title)}</h2>${note ? `<p>${h(note)}</p>` : ''}</div>${editTools}${cardSettings}</header>`;
   return `<section class="${classes}" data-dashboard-card="${entry.id}">${header}
     <div class="dash-card-body">${pipeline}${widgetBody(c,config,range,comparison,ctx)}</div></section>`;
+}
+
+export function reportWidget(state, widget, range, period) {
+  const config = effectiveWidget(state,widget);
+  const context = { report:true, range, zone:state.profile.timezone, today:dayAt(new Date(),state.profile.timezone), tag:'' };
+  return widgetBody({ s:state, dash:{ range:{ period } } },config,range,null,context);
 }
 
 function libraryItem(kind, board) {

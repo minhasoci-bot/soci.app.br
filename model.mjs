@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { changeDashboard } from './dashboard-model.mjs';
 import { validDesign } from './ui/studio-design.js';
+import { changeReport } from './report-model.mjs';
 import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashboard-data.js';
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
 import { afterSave, beforeDelete, bulk, crmCollections, crmFields, customData } from './crm-model.mjs';
@@ -17,13 +18,14 @@ export const defaults = {
   campaigns: [], pages: [], forms: [], submissions: [], courses: [], files: [], reviews: [], agents: [], agentRuns: [], integrations: [],
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
-  dashboards:[defaultDashboard()], dashboardReports:[], studioProjects:[],
+  dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[],
   ...Object.fromEntries([...crmCollections, ...socialCollections].map(key => [key, []])),
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
 export const blank = name => ({ ...structuredClone(defaults), profile: { ...defaults.profile, ...(name ? { name } : {}) } });
 export function hydrateWorkspace(state) {
   const fresh = blank();
+  state.customReports ??= [];
   state.profile.currency = defaults.profile.currency;
   const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections];
   for (const key of additions) state[key] ??= fresh[key];
@@ -294,6 +296,7 @@ export function execute(s, command, { workspace = 'demo' } = {}) {
   if (['dashboard-create','dashboard-save','dashboard-restore','dashboard-report','dashboard-default','dashboard-timezone','dashboard-delete'].includes(type)) {
     return changeDashboard(s,{ ...command,data:d },uid,now());
   }
+  if (['report-create','report-save','report-delete'].includes(type)) return changeReport(s,{ ...command,data:d },uid,now());
   if (typeof type === 'string' && type.startsWith('social-')) return socialCommand(s, { ...command, data:d }, { add, now });
   if (type === 'studio-meta') return studioMeta(s, id, d);
   if (type === 'studio-visit' || type === 'studio-star') {

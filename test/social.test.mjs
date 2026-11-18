@@ -103,6 +103,61 @@ test('CSV reader handles quotes, semicolons and the template columns', () => {
   assert.deepEqual(rows, [{ date: '2026-12-01 09:00', content: 'Olá; mundo "bom"', accounts: 'todas' }]);
 });
 
+test('CSV preview does not import posts and confirmation revalidates the batch', async t => {
+  const local = await start(); t.after(local.close);
+  const preview = data => local.call(local.q('/api/social/csv-preview'), data);
+  const rows = parseCsv('postAtSpecificTime,content,imageUrls,tags,followUpComment\n,"Rascunho",https://example.com/foto.jpg,"novidade,soci",Olá\n2030-02-31 12:00,Data inválida,,,');
+  const data = { rows, file: 'lote.csv', accountIds: [], asDraft: true, requireValid: true };
+  const result = await preview(data);
+  assert.deepEqual(result.body.rows[0], { index: 0, status: 'draft', date: '', accounts: 0 });
+  assert.match(result.body.rows[1].error, /Data ou horário inválido/);
+  assert.equal((await local.state()).socialPosts.length, 0);
+  assert.equal((await local.act({ type: 'social-csv', data })).status, 409);
+  assert.equal((await local.state()).socialPosts.length, 0);
+  const imported = await local.act({ type: 'social-csv', data: { ...data, includeIndices: [0] } });
+  assert.equal(imported.body.id.created, 1);
+  const { socialPosts: [post], socialImports: [log] } = await local.state();
+  assert.equal(post.firstComment, 'Olá');
+  assert.deepEqual(post.tags, ['novidade', 'soci']);
+  assert.equal(post.media[0].url, 'https://example.com/foto.jpg');
+  assert.equal(log.count, 1);
+  assert.equal(log.total, 2);
+  assert.match(log.errors[0], /Linha 3/);
+  assert.ok(Number.isFinite(Date.parse(log.created)));
+});
+
+test('Social connect invites are scoped to a workspace, add-only and revocable', async t => {
+  process.env.META_APP_ID = 'app-id'; process.env.META_APP_SECRET = 'app-secret';
+  t.after(() => { delete process.env.META_APP_ID; delete process.env.META_APP_SECRET; });
+  fakeNetworks();
+  const local = await start(); t.after(local.close);
+  const invite = action => local.call(local.q('/api/social/invite'), action);
+  const generated = await invite({ action: 'create', hours: 1 });
+  assert.equal(generated.status, 200);
+  const link = new URL(generated.body.url), token = link.hash.slice(1);
+  assert.match(link.pathname, new RegExp(`^/social-connect/${local.workspace}$`));
+  assert.match((await local.call(link.pathname)).text, /Conecte suas redes sociais/);
+  const call = (action, extra = {}) => local.call(local.q('/api/social/invited'), { action, token, ...extra });
+  assert.equal((await local.call('/api/social/invited?workspace=demo', { action: 'info', token })).status, 404);
+  const info = await call('info');
+  assert.deepEqual(Object.keys(info.body).sort(), ['expires', 'providers']);
+  assert.equal((await call('disconnect')).status, 400);
+
+  const authorization = await call('start', { provider: 'instagram' });
+  const nonce = new URL(authorization.body.url).searchParams.get('state');
+  const callback = await local.call(`/api/social/callback/facebook?code=good&state=${nonce}`);
+  const requestId = callback.text.match(/"requestId":"([^"]+)"/)[1];
+  assert.equal((await local.call(local.q('/api/social/candidates'), { requestId })).status, 404);
+  const candidates = await call('candidates', { requestId });
+  assert.deepEqual(candidates.body.candidates.map(x => x.provider), ['facebook', 'instagram']);
+  assert.deepEqual((await call('attach', { requestId, picks: [1] })).body, { connected: 1 });
+  assert.equal((await call('attach', { requestId, picks: [1] })).status, 404);
+  assert.deepEqual((await local.state()).socialAccounts.map(x => x.provider), ['instagram']);
+  await invite({ action: 'revoke' });
+  assert.equal((await call('info')).status, 404);
+  assert.equal((await invite({ action: 'status' })).body.expires, null);
+});
+
 test('Tokens are sealed so stored rows never hold them in clear text', () => {
   const box = seal({ token: 'secret-token' });
   assert.ok(!box.includes('secret-token'));
