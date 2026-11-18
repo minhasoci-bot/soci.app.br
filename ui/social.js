@@ -1,7 +1,7 @@
 // Marketing → Social Planner: connect networks, compose once and publish everywhere, calendar and list
 // of posts, approvals, categories with an evergreen queue, hashtag groups, RSS feeds and CSV bulk upload.
 // screens.js renders socialPlanner(c); app.js calls socialEvents once with its helpers.
-import { icon as i } from './icons.js';
+import { brandHighlight, brandIcon, icon as i, shcLayers } from './icons.js';
 import { badge, h, fmt } from './screens.js';
 import { bulkCsvColumns, mediaKind, network, networks, occurrencesBetween, parseCsv, postIssues, postTypes, recurrences, statusLabel, statusTone, textFor, weekdays } from './social-data.js';
 
@@ -14,7 +14,7 @@ const zoneOf = c => c.s.profile.timezone || 'America/Sao_Paulo';
 
 // ---- Small pieces --------------------------------------------------------------------------------
 const logo = (id, size = 34) => { const n = network(id) || { color: '#64748b', glyph: '?' };
-  return `<span class="sp-logo" style="--net:${n.color};--size:${size}px" aria-hidden="true">${h(n.glyph)}</span>`; };
+  return `<span class="sp-logo" style="--net:${n.color};--size:${size}px" aria-hidden="true">${brandIcon(id, Math.max(10, Math.round(size * 0.62)))}</span>`; };
 const accountChip = (a, extra = '') => `<span class="sp-acct" title="${h(`${a.name} · ${network(a.provider)?.name}`)}" ${extra}>${a.avatar ? `<img src="${h(a.avatar)}" alt="" referrerpolicy="no-referrer">` : `<b>${h(a.name.slice(0, 1).toUpperCase())}</b>`}${logo(a.provider, 15)}</span>`;
 const status = s => badge(statusLabel[s] || s, statusTone[s] || '');
 const wall = (iso, zone) => {
@@ -42,8 +42,16 @@ function connectGrid(c) {
   const ready = c.features?.social || {};
   const card = n => {
     const count = c.s.socialAccounts.filter(a => a.provider === n.id).length;
-    return `<button type="button" class="sp-net" data-sp-connect="${n.id}">${logo(n.id, 40)}<b>${n.name}</b>
-      <span class="sp-net-cta ${ready[n.id] ? '' : 'off'}">${count ? `${count} conectada${count > 1 ? 's' : ''} · ` : ''}${ready[n.id] ? '+ Conectar' : 'Configurar chaves'}</span></button>`;
+    const hl = brandHighlight(n.id);
+    return `<button type="button" class="sp-net shc-card${count ? ' is-connected' : ''}" data-sp-connect="${n.id}" style="--shc-highlight:${hl}">
+      ${shcLayers()}
+      <span class="shc-icon" aria-hidden="true">${brandIcon(n.id, 34)}</span>
+      <b>${n.name}</b>
+      <span class="sp-net-foot">
+        ${count ? `<span class="sp-net-connected">${count} conectada${count > 1 ? 's' : ''}</span>` : ''}
+        <span class="sp-net-cta${ready[n.id] ? '' : ' off'}">${ready[n.id] ? '+ Conectar' : 'Configurar chaves'}</span>
+      </span>
+    </button>`;
   };
   return `<div class="sp-connect"><h3>Redes principais</h3><div class="sp-net-grid">${networks.filter(n => n.group === 'major').map(card).join('')}</div>
     <h3>Também disponíveis</h3><div class="sp-net-grid">${networks.filter(n => n.group === 'more').map(card).join('')}</div></div>`;

@@ -1,4 +1,11 @@
+import { brandHighlight, brandIcon, shcLayers } from './icons.js';
 import { network, networks } from './social-data.js';
+
+try {
+  const saved = localStorage.getItem('soci.theme');
+  const dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+} catch {}
 
 const token = location.hash.slice(1);
 const workspace = location.pathname.split('/')[2];
@@ -70,8 +77,12 @@ try {
   const available = networks.filter(n => providers[n.id]);
   get('networks').replaceChildren(...available.map(n => {
     const button = document.createElement('button');
-    button.type = 'button'; button.className = 'secondary'; button.dataset.provider = n.id;
-    button.textContent = `Conectar ${n.name}`;
+    button.type = 'button';
+    button.className = 'sp-net shc-card';
+    button.dataset.provider = n.id;
+    button.style.setProperty('--shc-highlight', brandHighlight(n.id));
+    button.innerHTML = `${shcLayers()}<span class="shc-icon" aria-hidden="true">${brandIcon(n.id, 34)}</span><b></b><span class="sp-net-foot"><span class="sp-net-cta">+ Conectar</span></span>`;
+    button.querySelector('b').textContent = n.name;
     return button;
   }));
   show(available.length ? 'Escolha uma rede para começar.' : 'Nenhuma rede está disponível neste momento.');

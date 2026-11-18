@@ -1,4 +1,4 @@
-import { icon } from './icons.js';
+import { brandHighlight, brandIcon, icon, shcLayers } from './icons.js';
 import { h, money, fmt } from './screens.js';
 import { tr } from './i18n.js';
 import { comparisonMode, conversionTotals, dashboardPeriods, dashboardThemes, dateFields, dateMatches, dayAt, effectiveWidget, priorDates,
@@ -44,7 +44,8 @@ function moneyOrNumber(value, useMoney) { return useMoney ? formatMoney(value) :
 function delta(change, show, suffix = 'vs. comparação') {
   if (change === null || change === undefined || Number.isNaN(change)) return '';
   const direction = change > 0 ? 'up' : change < 0 ? 'down' : 'flat';
-  return `<small class="dash-delta ${direction}">${change > 0 ? '+' : ''}${show(change)} ${suffix}</small>`;
+  const sign = change > 0 ? '+' : '';
+  return `<small class="dash-delta ${direction}"><span class="dash-delta-num">${sign}${show(change)}</span>${suffix ? `<span class="dash-delta-label">${suffix}</span>` : ''}</small>`;
 }
 
 function metricStatus(c, widget, deals, previous) {
@@ -57,11 +58,11 @@ function metricStatus(c, widget, deals, previous) {
     meters(statusTotals(deals),row => moneyOrNumber(row[key],isValue),row => row[key]);
 }
 
-function conversion(c, deals, previous) {
+function conversion(c, config, deals, previous) {
   const value = conversionTotals(deals);
   const change = previous ? value.rate - conversionTotals(previous).rate : null;
-  return `<div class="dash-conversion"><div class="dash-gauge"><canvas width="240" height="240" data-dash-gauge="${value.rate}" aria-hidden="true"></canvas><b>${pct(value.rate)}</b></div>
-    <small>Receita ganha</small><strong>${formatMoney(value.revenue)}</strong>${delta(change,amount => `${amount.toFixed(1).replace('.',',')} p.p.`)}</div>`;
+  return `<div class="dash-conversion"><div class="dash-gauge"><canvas width="240" height="240" data-dash-gauge="${value.rate}" data-dash-gauge-key="${h(config.id || 'conversion')}" aria-hidden="true"></canvas><b>${pct(value.rate)}</b></div>
+    <small class="dash-conversion-label">Receita ganha</small><strong class="dash-conversion-value">${formatMoney(value.revenue)}</strong>${delta(change,amount => `${amount.toFixed(1).replace('.',',')} p.p.`)}</div>`;
 }
 
 function funnel(c, rows) {
@@ -164,19 +165,22 @@ function metricBody(c, config, ctx, comparison) {
   return trendChart(metric,metricTrend(metric,c.s,ctx));
 }
 
-function elementBody(config) {
+function elementBody(config, report = false) {
   if (config.kind === 'heading') return `<div class="dash-heading-body"><h2>${h(config.title)}</h2>${config.note ? `<p>${h(config.note)}</p>` : ''}</div>`;
   if (config.kind === 'text') return `<p class="dash-note">${h(config.note)}</p>`;
   if (config.kind === 'image') return config.url ? `<img class="dash-image" src="${h(config.url)}" alt="${h(config.title)}" loading="lazy" referrerpolicy="no-referrer">` : emptyMessage('Informe o endereço da imagem','edit');
-  return config.url ? `<iframe class="dash-embed" src="${h(config.url)}" title="${h(config.title)}" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+  return config.url ? `<iframe class="dash-embed" src="${h(config.url)}" title="${h(config.title)}" loading="lazy" referrerpolicy="no-referrer" sandbox="${report ? 'allow-scripts' : 'allow-scripts allow-same-origin allow-forms allow-popups'}"></iframe>
     <a class="text-link dash-widget-link" href="${h(config.url)}" target="_blank" rel="noopener noreferrer">Abrir em nova aba ${icon('external',14)}</a>` : emptyMessage('Informe o endereço da página','edit');
 }
 
 function widgetBody(c, config, range, comparison, ctx) {
   const definition = widgets[config.kind];
-  if (definition.provider) return emptyMessage(`${definition.provider} não está conectado`,'external','<a href="#settings" class="text-link">Ver integrações</a>');
+  if (definition.provider) {
+    const hl = brandHighlight(definition.provider);
+    return `<div class="shc-card shc-widget" style="--shc-highlight:${hl}">${shcLayers()}<span class="shc-icon" aria-hidden="true">${brandIcon(definition.provider, 32)}</span><strong>${h(definition.provider)}</strong><p class="dim">Integração não conectada neste workspace.</p><a href="#settings" class="shc-widget-cta">Ver integrações</a></div>`;
+  }
   if (config.kind === 'note') return `<p class="dash-note">${h(config.note)}</p>`;
-  if (definition.element) return elementBody(config);
+  if (definition.element) return elementBody(config,ctx.report);
   if (definition.metric) return metricBody(c,config,ctx,comparison);
   if (config.kind === 'manual') return manual(c,config,range);
   if (config.kind === 'tasks') return tasks(c,config,range);
@@ -197,7 +201,7 @@ function widgetBody(c, config, range, comparison, ctx) {
   const deals = scopedDeals(c.s,config,range,{owner:config.owner});
   const before = comparison ? scopedDeals(c.s,config,comparison,{owner:config.owner}) : null;
   if (config.kind === 'status' || config.kind === 'value') return metricStatus(c,config,deals,before);
-  if (config.kind === 'conversion') return conversion(c,deals,before);
+  if (config.kind === 'conversion') return conversion(c,config,deals,before);
   if (config.kind === 'source') return sources(c,deals);
   if (config.kind === 'efficiency') return sales(c,deals);
   const stage = stageTotals(c.s,config.pipeline,deals);
@@ -238,6 +242,12 @@ function widgetCard(c, entry, index, count, range, comparison, ctx) {
   const header = heading && !editor ? '' : `<header ${editor ? `draggable="true" data-dash-drag="${entry.id}"` : ''}><div><h2>${h(heading ? 'Título' : title)}</h2>${note ? `<p>${h(note)}</p>` : ''}</div>${editTools}${cardSettings}</header>`;
   return `<section class="${classes}" data-dashboard-card="${entry.id}">${header}
     <div class="dash-card-body">${pipeline}${widgetBody(c,config,range,comparison,ctx)}</div></section>`;
+}
+
+export function reportWidget(state, widget, range, period) {
+  const config = effectiveWidget(state,widget);
+  const context = { report:true, range, zone:state.profile.timezone, today:dayAt(new Date(),state.profile.timezone), tag:'' };
+  return widgetBody({ s:state, dash:{ range:{ period } } },config,range,null,context);
 }
 
 function libraryItem(kind, board) {
@@ -309,7 +319,7 @@ export function dashboard(c) {
   const tags = [...new Set(c.s.contacts.flatMap(contact => contact.tags))].sort();
   const grid = `<div class="dashboard-grid" aria-label="Widgets do painel">${board.widgets.map((entry,index) => widgetCard(view,entry,index,board.widgets.length,range,comparison,ctx)).join('') ||
     `<div class="dash-card dash-w12">${emptyMessage(editing ? 'Escolha widgets na biblioteca à esquerda' : 'Este painel ainda não tem widgets','grid',editing ? '' : tool('edit','Editar painel','plus'))}</div>`}</div>`;
-  return `<div class="dashboard-page ${editing ? 'editing' : ''}" style="--dash-accent:${accent}"><div class="dashboard-toolbar" aria-label="Cabeçalho do painel"><div class="dash-switch">
+  return `<div class="dashboard-page ${editing ? 'editing' : ''}" data-dashboard-id="${h(board.id)}" style="--dash-accent:${accent}"><div class="dashboard-toolbar" aria-label="Cabeçalho do painel"><div class="dash-switch">
     <h1>${tool(editing ? 'rename' : 'switch',`${h(tr(board.name))} ${icon(editing ? 'edit' : 'chevron',15)}`)}</h1>${editing ? '' : tool('new','Novo','plus')}</div>${toolbar}</div>
     <div class="dash-quick"><button data-dash-act="quick" ${compatible ? '' : 'disabled'} title="${compatible ? 'Filtrar widgets de contatos por tag' : 'Nenhum widget deste painel aceita filtros rápidos'}">Filtros rápidos</button>
     ${compatible && c.dash.showQuick ? selectMarkup('Tag do contato','data-dash-quick',c.dash.quickTag,tags.map(label => [label,label]),'Todas as tags') : ''}
@@ -317,25 +327,85 @@ export function dashboard(c) {
     ${editing ? `<div class="dash-edit-layout">${library(c,board)}${grid}</div>` : grid}</div>`;
 }
 
-export function drawDashboardGauges(root) {
+const gaugeValues = new Map();
+
+export function resetDashboardGauges() {
+  gaugeValues.clear();
+}
+
+function paintGaugeFrame(canvas, paint, rate) {
+  const start = -Math.PI / 2;
+  paint.clearRect(0, 0, 240, 240);
+  paint.lineWidth = 16;
+  const styles = getComputedStyle(canvas);
+  const brand = styles.color || styles.getPropertyValue('--dash-accent').trim() || styles.getPropertyValue('--g-brand').trim() || '#ff00bb';
+  paint.strokeStyle = styles.getPropertyValue('--g-gauge-track').trim() || '#e4eaf7';
+  paint.beginPath(); paint.arc(120, 120, 110, 0, Math.PI * 2); paint.stroke();
+  paint.lineCap = 'round';
+  paint.strokeStyle = brand;
+  if (rate > 0.05) {
+    paint.beginPath(); paint.arc(120, 120, 110, start, start + Math.PI * 2 * Math.min(rate, 100) / 100); paint.stroke();
+  } else {
+    paint.fillStyle = brand;
+    paint.beginPath(); paint.arc(120, 10, 8, 0, Math.PI * 2); paint.fill();
+  }
+}
+
+export function drawDashboardGauges(root, { instant = false } = {}) {
+  if (!root) return;
+  const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const boardId = root.querySelector?.('.dashboard-page')?.dataset.dashboardId || location?.hash || 'dash';
   for (const canvas of root.querySelectorAll('[data-dash-gauge]')) {
     const paint = canvas.getContext('2d');
     if (!paint) continue;
-    const value = Number(canvas.dataset.dashGauge);
-    const start = -Math.PI/2;
-    paint.clearRect(0,0,240,240);
-    paint.lineWidth = 16;
-    const styles = getComputedStyle(canvas);
-    const brand = styles.getPropertyValue('--dash-accent').trim() || styles.getPropertyValue('--g-brand').trim() || '#ff00bb';
-    paint.strokeStyle = styles.getPropertyValue('--g-gauge-track').trim() || '#e4eaf7';
-    paint.beginPath(); paint.arc(120,120,110,0,Math.PI*2); paint.stroke();
-    paint.lineCap = 'round';
-    paint.strokeStyle = brand;
-    if (value > 0) {
-      paint.beginPath(); paint.arc(120,120,110,start,start+Math.PI*2*Math.min(value,100)/100); paint.stroke();
+    const target = Math.max(0, Number(canvas.dataset.dashGauge) || 0);
+    const key = `${boardId}:${canvas.dataset.dashGaugeKey || 'gauge'}`;
+    const from = instant || reduced ? target : (gaugeValues.get(key) ?? 0);
+    gaugeValues.set(key, target);
+
+    if (canvas._gGaugeRaf) { cancelAnimationFrame(canvas._gGaugeRaf); canvas._gGaugeRaf = 0; }
+    if (canvas._gGaugeIo) { canvas._gGaugeIo.disconnect(); canvas._gGaugeIo = null; }
+
+    if (instant || reduced || Math.abs(target - from) < 0.01) {
+      paintGaugeFrame(canvas, paint, target);
+      continue;
+    }
+
+    paintGaugeFrame(canvas, paint, from);
+    const animate = () => {
+      const start = performance.now(), length = 1800;
+      const step = now => {
+        if (!canvas.isConnected) return;
+        const p = Math.min(1, (now - start) / length);
+        const eased = p === 1 ? 1 : 1 - Math.pow(2, -10 * p);
+        const cur = from + (target - from) * eased;
+        gaugeValues.set(key, cur);
+        paintGaugeFrame(canvas, paint, cur);
+        if (p < 1) canvas._gGaugeRaf = requestAnimationFrame(step);
+        else { canvas._gGaugeRaf = 0; gaugeValues.set(key, target); }
+      };
+      canvas._gGaugeRaf = requestAnimationFrame(step);
+    };
+
+    if (typeof IntersectionObserver === 'function') {
+      const io = new IntersectionObserver(([entry]) => {
+        if (!entry.isIntersecting) return;
+        io.disconnect();
+        canvas._gGaugeIo = null;
+        animate();
+      }, { threshold: 0.25 });
+      canvas._gGaugeIo = io;
+      io.observe(canvas);
     } else {
-      paint.fillStyle = brand;
-      paint.beginPath(); paint.arc(120,10,8,0,Math.PI*2); paint.fill();
+      animate();
     }
   }
+}
+
+if (typeof window !== 'undefined' && !window._sociGaugeThemeBound) {
+  window._sociGaugeThemeBound = true;
+  window.addEventListener('soci:theme-change', () => {
+    const host = document.getElementById('app');
+    if (host) drawDashboardGauges(host, { instant: true });
+  });
 }

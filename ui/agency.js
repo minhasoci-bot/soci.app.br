@@ -1,4 +1,4 @@
-import { icon as i, logo, brandName, bootScreen } from './icons.js';
+import { brandHighlight, brandIcon, icon as i, logo, brandName, bootScreen, shcLayers } from './icons.js';
 import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { applyBrandColor } from './graao.js';
@@ -218,15 +218,22 @@ export function startAgency(env) {
 
   pages.accounts = () => {
     const list = accounts().filter(a => match(a.name, a.address, a.phone, a.email) && (!A.status || a.status === A.status));
-    const plans = Object.fromEntries(D().plans.map(p => [p.id, p.name]));
+    const canManage = A.data.access?.settings;
     return `<div class="page">${head('Subcontas', `${accounts().length} subconta(s) cadastradas`, primary('Criar subconta', 'new-account'))}
       <div class="toolbar">${search('Buscar subcontas…')}<select data-ag-status aria-label="Filtrar por status"><option value="">Todos os status</option>${['Active', 'Paused', 'Closed'].map(s => `<option value="${s}" ${A.status === s ? 'selected' : ''}>${tr(s)}</option>`).join('')}</select>
       <label class="check"><input type="checkbox" data-ag-all ${list.length && list.every(a => A.selected.has(a.id)) ? 'checked' : ''}> Selecionar todas</label>
-      ${A.selected.size ? `<span class="badge blue">${A.selected.size} selecionada(s)</span>${btn('Alterar status', 'bulk-status')}${btn('Carregar setup', 'bulk-snapshot')}` : ''}</div>
-      <div class="ag-accounts">${list.map(a => `<article class="surface padded ag-account"><label class="check ag-pick"><input type="checkbox" data-ag-pick="${a.id}" ${A.selected.has(a.id) ? 'checked' : ''} aria-label="Selecionar ${h(a.name)}"></label>
+      ${A.selected.size ? `<span class="badge blue">${A.selected.size} selecionada(s)</span>${canManage ? btn('Alterar status', 'bulk-status') : ''}${btn('Carregar setup', 'bulk-snapshot')}` : ''}</div>
+      <div class="ag-accounts">${list.map(a => {
+        const active = a.status === 'Active';
+        const reason = D().accounts[a.id]?.suspendedReason;
+        return `<article class="surface padded ag-account"><label class="check ag-pick"><input type="checkbox" data-ag-pick="${a.id}" ${A.selected.has(a.id) ? 'checked' : ''} aria-label="Selecionar ${h(a.name)}"></label>
         <div class="ag-account-main"><h2>${h(a.name)}</h2><div class="inline-gap">${badge(a.status, tone(a.status))}${a.plan ? badge(a.plan, 'blue') : ''}</div><p class="dim">${h(a.address || 'Sem endereço')} · ${h(a.phone || 'Sem telefone')}</p></div>
         <dl class="ag-facts"><div><dt>Criada em</dt><dd>${day(a.created)}</dd></div><div><dt>Último acesso</dt><dd>${a.lastLogin ? day(a.lastLogin, true) : 'N/A'}</dd></div><div><dt>Contatos</dt><dd>${a.contacts}</dd></div><div><dt>Negócios abertos</dt><dd>${a.open}</dd></div></dl>
-        <div class="inline-gap">${btn('Acessar subconta', 'open-account', `data-id="${a.id}"`, 'primary')}${btn('Editar', 'edit-account', `data-id="${a.id}"`)}</div></article>`).join('') || empty('Nenhuma subconta encontrada', 'Tente outros termos de busca ou limpe os filtros.')}</div>
+        ${!active && reason ? `<p class="dim">${h(reason)}</p>` : ''}
+        <div class="inline-gap">${active || canManage ? btn(active ? 'Acessar subconta' : 'Abrir suporte', 'open-account', `data-id="${a.id}"`, 'primary') : ''}
+        ${canManage ? btn('Editar', 'edit-account', `data-id="${a.id}"`) : ''}
+        ${canManage && !active ? btn('Reativar', 'reactivate-account', `data-id="${a.id}"`) : ''}</div></article>`;
+      }).join('') || empty('Nenhuma subconta encontrada', 'Tente outros termos de busca ou limpe os filtros.')}</div>
       ${D().plans.length ? '' : `<p class="dim ag-hint">Dica: crie planos SaaS no Configurador SaaS para atribuir um plano e precificação a cada subconta.</p>`}</div>`;
   };
 
@@ -453,12 +460,14 @@ export function startAgency(env) {
   const isOpenAIPage = () => A.page === 'settings' && A.sub === 'openai';
   function openAISettings() {
     const connection = A.openAI;
-    const title = '<h2>Chave de API da OpenAI</h2>';
-    if (A.data && !A.data.access.session) return `<section class="surface padded">${title}<p>Entre na sua conta para conectar uma chave.</p></section>`;
-    if (!connection) return `<section class="surface padded">${title}<p role="status">Carregando conexão…</p></section>`;
-    if (connection.error) return `<section class="surface padded">${title}<p role="alert">${h(connection.error)}</p>${btn('Tentar novamente', 'openai-retry')}</section>`;
-    return `<form class="surface padded settings-form" data-ag-form="openai-connect">
-      ${title}
+    const hl = brandHighlight('openai');
+    const headHtml = `<div class="shc-panel-head"><span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('openai', 24)}</span></span><h2>Chave de API da OpenAI</h2></div>`;
+    if (A.data && !A.data.access.session) return `<section class="surface padded shc-card shc-panel" style="--shc-highlight:${hl}">${shcLayers()}${headHtml}<p>Entre na sua conta para conectar uma chave.</p></section>`;
+    if (!connection) return `<section class="surface padded shc-card shc-panel" style="--shc-highlight:${hl}">${shcLayers()}${headHtml}<p role="status">Carregando conexão…</p></section>`;
+    if (connection.error) return `<section class="surface padded shc-card shc-panel" style="--shc-highlight:${hl}">${shcLayers()}${headHtml}<p role="alert">${h(connection.error)}</p>${btn('Tentar novamente', 'openai-retry')}</section>`;
+    return `<form class="surface padded settings-form shc-card shc-panel${connection.configured ? ' is-connected' : ''}" data-ag-form="openai-connect" style="--shc-highlight:${hl}">
+      ${shcLayers()}
+      ${headHtml}
       <p class="dim">Use a chave do seu projeto da OpenAI para gerar páginas no AI Studio e testar agentes. O uso é cobrado no seu projeto.</p>
       <p>${connection.configured ? `Chave conectada · final <code>${h(connection.last4)}</code> · ${h(connection.model)}` : 'Nenhuma chave conectada'}</p>
       <label>${connection.configured ? 'Nova chave de API' : 'Chave de API'}<input name="apiKey" type="password" autocomplete="off" spellcheck="false" maxlength="512" placeholder="sk-…" required></label>
@@ -614,9 +623,12 @@ export function startAgency(env) {
       </tr>`;
     });
 
+    const waHl = brandHighlight('whatsapp');
+    const waActive = Boolean(w?.configured || (w?.managed && !w?.hasCustomServer));
     return `
-      <div class="surface padded ag-notice">
-        <span class="ag-waha-icon" aria-hidden="true">${i('whatsapp', 20)}</span>
+      <div class="surface padded ag-notice shc-card shc-panel${waActive ? ' is-connected' : ''}" style="--shc-highlight:${waHl}">
+        ${shcLayers()}
+        <span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('whatsapp', 22)}</span></span>
         <div>
           <div class="inline-gap"><b>Integração com WhatsApp (UAZAPI)</b>${statusBannerBadge}</div>
           <p>Conecte sua conta <a class="text-link" href="https://uazapi.com" target="_blank" rel="noopener">UAZAPI</a> uma única vez para que <b>cada subconta</b> conecte o próprio número apenas lendo o QR Code. Markup SaaS atual: <b>${h(markup)}×</b>.</p>
@@ -714,9 +726,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       ${table(['Nome', 'Escopos autorizados', 'Token', 'Criada em', 'Último uso', ''], D().privateIntegrations.map(k => `<tr><td><b>${h(k.name)}</b><br><small class="dim">${h(k.description)}</small></td><td><small>${h(k.scopes.join(', '))}</small></td><td><code>pit_…${h(k.last4)}</code></td><td>${day(k.created, true)}</td><td>${k.lastUsed ? day(k.lastUsed, true) : 'Nunca'}</td><td class="right">${btn('Excluir', 'private-integration-delete', `data-id="${k.id}"`)}</td></tr>`), empty('Nenhuma integração privada', 'Crie uma integração privada para scripts que exigem apenas permissões pontuais.'))}`,
     whatsapp: whatsappSettings,
     phone: whatsappSettings,
-    'email-services': () => { const e = D().emailServices; return `${e.domain ? `<div class="surface padded ag-notice">${i('mail', 20)}<div><b>Domínio dedicado: ${h(e.domain)}</b><p>Adicionado em ${day(e.added)}. A verificação de DNS e o aquecimento do domínio dependem do provedor de envio, que não está conectado neste projeto local.</p></div>${btn('Remover domínio', 'email-domain-remove')}</div>
+    'email-services': () => { const e = D().emailServices, hl = brandHighlight('email'); return `${e.domain ? `<div class="surface padded ag-notice shc-card shc-panel is-connected" style="--shc-highlight:${hl}">${shcLayers()}<span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('email', 22)}</span></span><div><b>Domínio dedicado: ${h(e.domain)}</b><p>Adicionado em ${day(e.added)}. A verificação de DNS e o aquecimento do domínio dependem do provedor de envio, que não está conectado neste projeto local.</p></div>${btn('Remover domínio', 'email-domain-remove')}</div>
       <form class="surface padded settings-form ag-gap" data-ag-form="email-domain-accounts"><h2>Subcontas que enviam pelo domínio dedicado</h2>${pickAccounts('accounts', e.accounts)}<button class="primary">Salvar</button><p class="form-status" role="alert"></p></form>`
-      : `<div class="surface padded ag-notice">${i('mail', 20)}<div><b>Você está usando um domínio compartilhado</b><p>As subcontas enviam pelo domínio compartilhado da plataforma porque nenhum domínio da agência está conectado. Um domínio dedicado dá controle sobre a reputação de envio.</p></div></div>
+      : `<div class="surface padded ag-notice shc-card shc-panel" style="--shc-highlight:${hl}">${shcLayers()}<span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('email', 22)}</span></span><div><b>Você está usando um domínio compartilhado</b><p>As subcontas enviam pelo domínio compartilhado da plataforma porque nenhum domínio da agência está conectado. Um domínio dedicado dá controle sobre a reputação de envio.</p></div></div>
       <form class="surface padded settings-form ag-gap" data-ag-form="email-domain"><h2>Criar domínio dedicado</h2><label>Domínio de envio<input name="domain" required placeholder="mail.suaagencia.com.br" maxlength="200"></label><button class="primary">Adicionar domínio</button><p class="form-status" role="alert"></p></form>`}
       <h2 class="section-heading">Desempenho das subcontas</h2>${table(['Subconta', 'Domínio de envio', 'Status'], accounts().map(a => `<tr><td><b>${h(a.name)}</b></td><td>${e.accounts.includes(a.id) ? h(e.domain) : 'Compartilhado'}</td><td>${badge(a.status, tone(a.status))}</td></tr>`), empty('Nenhuma subconta', 'As subcontas que enviam e-mails aparecem aqui.'))}`; },
     'workflow-premium': () => featureTable('workflow-premium'),
@@ -724,7 +736,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     'domain-purchase': () => featureTable('domain-purchase'),
     affiliates: () => { const aff = D().affiliate, link = `${location.origin}/?ref=${aff.code}`; return `<div class="surface padded"><h2>Configurações de afiliado</h2>${aff.accepted ? `<p>Este é o seu link de afiliado. Quem se cadastrar por ele gera ${Math.round(affiliateRate * 100)}% de comissão recorrente para você.</p><div class="ag-copy"><input readonly value="${h(link)}" aria-label="Link de afiliado">${btn('Copiar link', 'copy', `data-text="${h(link)}"`)}</div><p class="dim">Acrescente <code>?ref=${h(aff.code)}</code> ao final de qualquer URL do seu site.</p>` : `<p class="dim">Aceite os termos no Portal de afiliados para gerar seu link.</p><a class="secondary" href="#agency/affiliate">Abrir Portal de afiliados</a>`}</div>
       <form class="surface padded settings-form ag-gap" data-ag-form="affiliate-pixel"><h2>Configurações da página</h2><label>ID do Pixel do Facebook<input name="pixelId" inputmode="numeric" maxlength="20" placeholder="ID do Pixel" value="${h(aff.pixelId || '')}"></label><button class="primary">Salvar</button><p class="form-status" role="alert"></p></form>`; },
-    stripe: () => `<div class="surface padded"><h2>Integração com o Stripe</h2><p>Conectar uma conta Stripe libera cobrança de assinaturas, rebilling, revenda e modo SaaS com pagamentos reais.</p>
+    stripe: () => `<div class="surface padded shc-card shc-panel${D().stripe.connected ? ' is-connected' : ''}" style="--shc-highlight:${brandHighlight('stripe')}">${shcLayers()}<div class="shc-panel-head"><span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('stripe', 24)}</span></span><h2>Integração com o Stripe</h2></div><p>Conectar uma conta Stripe libera cobrança de assinaturas, rebilling, revenda e modo SaaS com pagamentos reais.</p>
       <p class="surface padded ag-warn">Depois de conectada, a conta Stripe não pode ser trocada. Use uma conta dedicada aos ganhos da agência.</p>
       <p>${D().stripe.connected ? badge('Conectado', 'green') : badge('Não conectado')}</p><p class="dim">A conexão usa o fluxo OAuth do Stripe Connect, que exige um endereço público e credenciais da plataforma. Neste projeto local, planos, carteira e revendas ficam registrados sem cobrança.</p></div>`,
     announcements: () => `<div class="page-head"><div><h2>Comunicados gerais</h2><p class="dim">Comunicados ativos são exibidos em banner de destaque no topo das subcontas selecionadas.</p></div>${primary('Novo comunicado', 'new-record', 'data-key="announcements"')}</div>${table(['Título', 'Estilo', 'Público-alvo', 'Status', ''], [...D().announcements].reverse().map(a => `<tr><td><b>${h(a.title)}</b><br><small class="dim">${h(a.body.slice(0, 90))}</small></td><td>${h(tr(a.tone))}</td><td><small>${a.accounts.length ? h(a.accounts.map(accountName).join(', ')) : 'Todas as subcontas'}</small></td><td>${badge(a.published ? 'Publicado' : 'Rascunho', a.published ? 'green' : '')}</td><td class="right">${btn('Editar', 'edit-record', `data-key="announcements" data-id="${a.id}"`)}</td></tr>`), empty('Nenhum comunicado', 'Crie comunicados informativos ou alertas para os clientes da agência.'))}`,
@@ -894,18 +906,25 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           close();
           const name = accountName(id);
           // Stamp "último acesso" in the background; the switch no longer waits on it.
-          const meta = accounts().find(a => a.id === id); if (meta) meta.lastLogin = new Date().toISOString();
-          api('/api/agency/action', { type: 'account-open', id }).catch(() => {});
+          const meta = accounts().find(a => a.id === id);
+          if (meta?.status === 'Active') {
+            meta.lastLogin = new Date().toISOString();
+            api('/api/agency/action', { type: 'account-open', id }).catch(() => {});
+          }
           await openWorkspace(id, d.view === 'ai-agents' ? d.view : undefined, name);
           break;
         }
         case 'new-account': dialog('Criar nova subconta', accountForm(), { form: 'account', submit: 'Criar subconta' }); break;
         case 'edit-account': {
           const a = accounts().find(x => x.id === id), meta = D().accounts[id] || {};
-          dialog(`Editar ${a.name}`, `<div class="field-grid"><label>Status<select name="status">${['Active', 'Paused', 'Closed'].map(s => `<option value="${s}" ${a.status === s ? 'selected' : ''}>${tr(s)}</option>`).join('')}</select></label><label>Plano SaaS<select name="plan"><option value="">Sem plano</option>${D().plans.map(p => `<option value="${p.id}" ${meta.plan === p.id ? 'selected' : ''}>${h(p.name)}</option>`).join('')}</select></label><label>Endereço<input name="address" value="${h(meta.address)}"></label><label>Telefone<input name="phone" value="${h(meta.phone)}"></label><label>Site<input name="website" type="url" value="${h(meta.website)}"></label></div>`, { form: 'account-meta', id, submit: 'Salvar alterações' });
+          dialog(`Editar ${a.name}`, `<div class="field-grid"><label>Status<select name="status">${['Active', 'Paused', 'Closed'].map(s => `<option value="${s}" ${a.status === s ? 'selected' : ''}>${tr(s)}</option>`).join('')}</select></label><label>Plano SaaS<select name="plan"><option value="">Sem plano</option>${D().plans.map(p => `<option value="${p.id}" ${meta.plan === p.id ? 'selected' : ''}>${h(p.name)}</option>`).join('')}</select></label><label>Endereço<input name="address" value="${h(meta.address)}"></label><label>Telefone<input name="phone" value="${h(meta.phone)}"></label><label>Site<input name="website" type="url" value="${h(meta.website)}"></label></div>
+            <label>Motivo da suspensão ou encerramento<textarea name="suspendedReason" maxlength="500">${h(meta.suspendedReason || '')}</textarea><small class="dim">Visível para usuários da subconta enquanto o acesso estiver bloqueado.</small></label>`, { form: 'account-meta', id, submit: 'Salvar alterações' });
           break;
         }
-        case 'bulk-status': dialog(`Alterar status de ${A.selected.size} subconta(s)`, `<label>Novo status<select name="status">${['Active', 'Paused', 'Closed'].map(s => `<option value="${s}">${tr(s)}</option>`).join('')}</select></label>`, { form: 'bulk-status', submit: 'Atualizar status' }); break;
+        case 'reactivate-account':
+          dialog(`Reativar ${accountName(id)}`, '<p>Os usuários recuperam o acesso permitido. Publicações pendentes poderão voltar a ser processadas.</p>', { form: 'account-reactivate', id, submit: 'Reativar subconta' });
+          break;
+        case 'bulk-status': dialog(`Alterar status de ${A.selected.size} subconta(s)`, `<label>Novo status<select name="status">${['Active', 'Paused', 'Closed'].map(s => `<option value="${s}">${tr(s)}</option>`).join('')}</select></label><label>Motivo visível para usuários com acesso bloqueado<textarea name="suspendedReason" maxlength="500"></textarea></label>`, { form: 'bulk-status', submit: 'Atualizar status' }); break;
         case 'bulk-snapshot': if (!D().snapshots.length) { flash('Crie um setup primeiro.', true); break; } dialog(`Carregar setup em ${A.selected.size} subconta(s)`, `<label>Setup<select name="id">${D().snapshots.map(s => `<option value="${s.id}">${h(s.name)}</option>`).join('')}</select></label>${loadMode()}`, { form: 'bulk-snapshot', submit: 'Carregar setup' }); break;
         case 'new-record': editRecord(d.key); break;
         case 'edit-record': editRecord(d.key, id); break;
@@ -1120,7 +1139,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         }
         case 'account': { const newId = await call('accounts', data); msg = 'Subconta criada.'; close(); dialog('Subconta criada com sucesso', `<p><b>${h(data.name)}</b> está pronta para uso.</p><div class="inline-gap">${btn('Acessar subconta agora', 'open-account', `data-id="${newId}"`, 'primary')}</div>`); keepOpen = true; break; }
         case 'account-meta': await act('account-meta', { id, data }); msg = 'Dados da subconta atualizados.'; break;
-        case 'bulk-status': for (const x of A.selected) { const meta = D().accounts[x]; await act('account-meta', { id: x, data: { ...meta, status: data.status } }); } A.selected.clear(); msg = 'Status das subcontas atualizado.'; break;
+        case 'account-reactivate': await act('account-reactivate', { id }); msg = 'Subconta reativada.'; break;
+        case 'bulk-status': for (const x of A.selected) { const meta = D().accounts[x]; await act('account-meta', { id: x, data: { ...meta, status: data.status, suspendedReason: data.suspendedReason } }); } A.selected.clear(); msg = 'Status das subcontas atualizado.'; break;
         case 'bulk-snapshot': await call('snapshot-load', { id: data.id, workspaces: [...A.selected], mode: data.mode }); A.selected.clear(); msg = 'Setup carregado com sucesso.'; break;
         case 'prospect-convert': { const newId = await call('prospect-convert', { id, snapshotId: data.snapshotId }); msg = 'Subconta criada.'; close(); dialog('Subconta criada com sucesso', `<div class="inline-gap">${btn('Acessar subconta agora', 'open-account', `data-id="${newId}"`, 'primary')}</div>`); keepOpen = true; break; }
         case 'snapshot-create': await call('snapshot-create', data); msg = 'Setup criado com sucesso.'; break;

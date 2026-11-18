@@ -1,4 +1,4 @@
-import {icon as i} from './icons.js';
+import {brandHighlight, brandIcon, icon as i, shcLayers} from './icons.js';
 import {tr} from './i18n.js';
 import {conversationPage} from './conversations.js';
 import {inboxPage} from './inbox.js';
@@ -178,19 +178,21 @@ function reporting(c){
   return wrap(head('Relatórios','Resumo do workspace com base nos registros atuais.',action('Exportar relatório','export','download'),sections)+table(cols,values.map(r=>`<tr>${r.map((x,j)=>`<td>${j===0?`<b>${x}</b>`:x}</td>`).join('')}</tr>`),''));
 }
 function marketplace(c){
-  const cards=[['Stripe','pay','Receba pagamentos de faturas e checkout.'],['Google Agenda','cal','Sincronize disponibilidade e agendamentos.'],['Twilio','chat','Ative SMS e voz nas conversas.'],['Perfil da Empresa no Google','award','Sincronize avaliações e dados da empresa.'],['Meta','send','Conecte Facebook e Instagram para publicar nas redes.'],['Provedor de e-mail','mail','Envie campanhas e e-mails para clientes.']];
-  return wrap(head('Apps do marketplace','Conheça integrações que ampliariam este workspace.')+`<div class="toolbar">${search(c.query,'Buscar integrações…')}</div><div class="card-grid">${cards.filter(a=>a.join(' ').toLowerCase().includes(c.query.toLowerCase())).map(([n,ico,desc])=>`<article class="surface padded resource"><span class="metric-icon">${i(ico)}</span><div><h2>${n}</h2><p>${desc}</p></div>${badge('Não conectado')}<button class="secondary" data-provider="${n}">Ver requisitos</button></article>`).join('')||empty('Nenhuma integração encontrada','Tente outra busca.','apps')}</div>`);
+  const cards=[['Stripe','stripe','Receba pagamentos de faturas e checkout.'],['Google Agenda','google-calendar','Sincronize disponibilidade e agendamentos.'],['Twilio','twilio','Ative SMS e voz nas conversas.'],['Perfil da Empresa no Google','gbp','Sincronize avaliações e dados da empresa.'],['Meta','meta','Conecte Facebook e Instagram para publicar nas redes.'],['Provedor de e-mail','email','Envie campanhas e e-mails para clientes.']];
+  return wrap(head('Apps do marketplace','Conheça integrações que ampliariam este workspace.')+`<div class="toolbar">${search(c.query,'Buscar integrações…')}</div><div class="card-grid">${cards.filter(a=>a.join(' ').toLowerCase().includes(c.query.toLowerCase())).map(([n,brand,desc])=>`<article class="surface padded resource shc-card" style="--shc-highlight:${brandHighlight(brand)}">${shcLayers()}<span class="shc-icon" aria-hidden="true">${brandIcon(brand,32)}</span><div><h2>${n}</h2><p>${desc}</p></div>${badge('Não conectado')}<button class="secondary" data-provider="${n}">Ver requisitos</button></article>`).join('')||empty('Nenhuma integração encontrada','Tente outra busca.','apps')}</div>`);
 }
 function whatsappSubView(c){
-  const w=c.wa;
-  if(!w) return `<div class="surface padded sub-wa-card"><span class="ag-waha-icon" aria-hidden="true">${i('whatsapp',22)}</span><h2>WhatsApp</h2><p class="dim">Verificando conexão do WhatsApp desta subconta…</p></div>`;
-  if(w.error) return `<div class="surface padded sub-wa-card"><span class="ag-waha-icon" aria-hidden="true">${i('whatsapp',22)}</span><h2>WhatsApp</h2><p class="form-status">${h(w.error)}</p><button class="secondary" data-act="wa-refresh">Tentar novamente</button></div>`;
-  if(!w.available) return `<div class="surface padded sub-wa-card"><span class="ag-waha-icon" aria-hidden="true">${i('whatsapp',22)}</span><h2>WhatsApp ainda não disponível</h2><p class="dim">Peça ao administrador da agência para ativar a integração de WhatsApp nas configurações da agência.</p>${c.access?.agency?'<a class="primary" href="#agency/settings/whatsapp">Configurar na agência</a>':''}</div>`;
-  if(!w.enabled) return `<div class="surface padded sub-wa-card"><span class="ag-waha-icon" aria-hidden="true">${i('whatsapp',22)}</span><h2>WhatsApp desativado nesta subconta</h2><p class="dim">O recurso de WhatsApp não está habilitado para este workspace no momento.</p></div>`;
+  const w=c.wa, waHl=brandHighlight('whatsapp');
+  const waCard=(body,connected=false)=>`<div class="surface padded sub-wa-card shc-card shc-panel${connected?' is-connected':''}" style="--shc-highlight:${waHl}">${shcLayers()}${body}</div>`;
+  const waIcon=(size=24)=>`<span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('whatsapp',size)}</span></span>`;
+  if(!w) return waCard(`${waIcon(22)}<h2>WhatsApp</h2><p class="dim">Verificando conexão do WhatsApp desta subconta…</p>`);
+  if(w.error) return waCard(`${waIcon(22)}<h2>WhatsApp</h2><p class="form-status">${h(w.error)}</p><button class="secondary" data-act="wa-refresh">Tentar novamente</button>`);
+  if(!w.available) return waCard(`${waIcon(22)}<h2>WhatsApp ainda não disponível</h2><p class="dim">Peça ao administrador da agência para ativar a integração de WhatsApp nas configurações da agência.</p>${c.access?.agency?'<a class="primary" href="#agency/settings/whatsapp">Configurar na agência</a>':''}`);
+  if(!w.enabled) return waCard(`${waIcon(22)}<h2>WhatsApp desativado nesta subconta</h2><p class="dim">O recurso de WhatsApp não está habilitado para este workspace no momento.</p>`);
   if(w.status==='connected'){
     return `<div class="ag-two">
-      <div class="surface padded sub-wa-card">
-        <span class="ag-waha-icon" aria-hidden="true">${i('whatsapp',24)}</span>
+      ${waCard(`
+        ${waIcon(24)}
         <div class="inline-gap"><h2>${h(w.profileName||'WhatsApp conectado')}</h2>${badge('Conectado','green')}</div>
         <p class="dim">${w.phone?`Número conectado: <b>+${h(w.phone)}</b><br>`:''}Mensagens recebidas chegam automaticamente em <b>Conversas</b> e respostas pelo canal WhatsApp são enviadas por este número.</p>
         <div class="inline-gap">
@@ -198,7 +200,7 @@ function whatsappSubView(c){
           <button class="secondary" data-act="wa-refresh">Atualizar status</button>
           <button class="secondary" data-act="wa-disconnect">Desconectar</button>
         </div>
-      </div>
+      `,true)}
       <form class="surface padded settings-form" data-form="wa-test">
         <h2>Enviar mensagem de teste</h2>
         <p class="dim">Teste o disparo real pelo WhatsApp conectado nesta subconta.</p>
@@ -210,7 +212,8 @@ function whatsappSubView(c){
     </div>`;
   }
   if(w.status==='connecting'){
-    return `<div class="surface padded sub-wa-card">
+    return waCard(`
+      ${waIcon(22)}
       <div class="inline-gap"><h2>Escaneie o QR Code</h2>${badge('Aguardando leitura','blue')}</div>
       ${w.qrcode
         ? `<div class="ag-waha-qr-frame"><img src="${h(w.qrcode)}" alt="QR Code para conectar o WhatsApp"></div>
@@ -224,10 +227,10 @@ function whatsappSubView(c){
         <button class="primary" data-act="wa-connect">Atualizar QR Code</button>
         <button class="secondary" data-act="wa-disconnect">Cancelar</button>
       </div>
-    </div>`;
+    `);
   }
-  return `<div class="surface padded sub-wa-card">
-    <span class="ag-waha-icon" aria-hidden="true">${i('whatsapp',24)}</span>
+  return waCard(`
+    ${waIcon(24)}
     <div class="inline-gap"><h2>Conectar WhatsApp</h2>${badge('Desconectado')}</div>
     <p class="dim">Conecte o número desta subconta em segundos: basta clicar abaixo e apontar a câmera do WhatsApp para o QR Code.</p>
     <div class="inline-gap">
@@ -235,7 +238,7 @@ function whatsappSubView(c){
       <button class="secondary" data-act="wa-toggle-pair">${c.waPairOpen?'Ocultar opção por número':'Conectar por número de telefone'}</button>
     </div>
     ${c.waPairOpen?`<form class="settings-form sub-wa-pair" data-form="wa-pair"><label>Seu número de WhatsApp (com DDI e DDD)<input name="phone" required inputmode="numeric" placeholder="5511999999999"></label><button class="secondary">Gerar código de 8 dígitos</button><p class="form-status" role="alert"></p></form>`:''}
-  </div>`;
+  `);
 }
 function settings(c){
   if(c.tab&&!['business','workspaces','whatsapp'].includes(c.tab)) return settingsTab(c,c.tab);
