@@ -196,8 +196,9 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-brand);outline-of
 .side-nav{position:relative;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px 10px 12px 12px;scrollbar-width:none;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 10px,#000 calc(100% - 18px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 10px,#000 calc(100% - 18px),transparent 100%)}
 .side-nav::-webkit-scrollbar{width:0}
 .side-group{display:flex;flex-direction:column;gap:2px}
-.side-group+.side-group{margin-top:14px}
+.side-group+.side-group{margin-top:10px;padding-top:12px;border-top:1px solid var(--g-line)}
 .side-label{margin:0;padding:0 10px 4px;font-size:12px;font-weight:650;letter-spacing:.01em;color:var(--g-faint)}
+.shell:not(.wide) .side-group+.side-group{margin-top:14px;padding-top:0;border-top:0}
 .shell:not(.wide) .side-label{height:1px;width:24px;margin:0 auto 10px;padding:0;background:var(--g-line)}
 .shell:not(.wide) .side-group:first-child .side-label{display:none}
 
