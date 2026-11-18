@@ -47,22 +47,22 @@ html,body{height:111.111111dvh;min-height:111.111111dvh;margin:0}
   --g-spot-icon-opacity:.46;
   --g-spot-icon-hover-opacity:.84;
   --g-spot-icon-active:var(--g-brand);
-  /* Cursor Edge Glow Button tokens (Light mode: sculpted obsidian-brand pill + luminous brand orb) */
-  --g-eb-bg:linear-gradient(135deg,color-mix(in srgb,var(--g-brand) 18%,#14161c) 0%,color-mix(in srgb,var(--g-brand-2) 14%,#1b1c23) 100%);
-  --g-eb-border:color-mix(in srgb,var(--g-brand-2) 34%,rgba(255,255,255,.28));
-  --g-eb-text:#ffffff;
-  --g-eb-text-shadow:0 1px 3px rgba(10,12,16,.58);
-  --g-eb-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 2px 6px rgba(15,19,26,.14),0 10px 22px -10px color-mix(in srgb,var(--g-brand) 48%,transparent);
-  --g-eb-core:radial-gradient(50% 50% at 50% 50%,color-mix(in srgb,var(--g-brand-2) 72%,var(--g-brand)) 4%,color-mix(in srgb,var(--g-brand-2) 55%,var(--g-brand)) 28%,var(--g-brand) 48%,color-mix(in srgb,var(--g-brand) 40%,transparent) 64%,transparent 92.5%);
-  --g-eb-bloom:radial-gradient(43.3% 44.23% at 50% 49.51%,color-mix(in srgb,var(--g-brand-2) 65%,var(--g-brand)) 16%,color-mix(in srgb,var(--g-brand) 52%,transparent) 50%,color-mix(in srgb,var(--g-brand) 20%,transparent) 72%,transparent 100%);
-  --g-eb-track-opacity:.74;
-  --g-eb-outer:linear-gradient(91.88deg,color-mix(in srgb,var(--g-brand) 16%,transparent) 46.45%,color-mix(in srgb,var(--g-brand) 82%,transparent) 98.59%);
-  --g-eb-inner:linear-gradient(97.68deg,transparent 38.1%,color-mix(in srgb,var(--g-brand-2) 30%,transparent) 80%,color-mix(in srgb,var(--g-brand) 56%,var(--g-brand-2)) 93.3%);
-  --g-eb-rim:linear-gradient(103.7deg,color-mix(in srgb,var(--g-brand) 14%,transparent) 38.66%,color-mix(in srgb,var(--g-brand-2) 30%,transparent) 68.55%,var(--g-brand-2) 85.01%,color-mix(in srgb,var(--g-brand-2) 35%,#ffffff) 93%);
-  --g-eb-rim-glow:linear-gradient(91.96deg,transparent 6.11%,color-mix(in srgb,var(--g-brand-2) 28%,transparent) 53.57%,var(--g-brand) 93.6%);
-  --g-eb-outer-blur:11px;
-  --g-eb-rim-blur:5px;
-  --g-eb-glow-gain:.78;
+  /* Cursor Edge Glow Button tokens (Light mode: vibrant brand gradient + subtle specular track + refined glow) */
+  --g-eb-bg:var(--g-grad-brand);
+  --g-eb-border:rgba(255,255,255,.38);
+  --g-eb-text:var(--g-grad-on,#ffffff);
+  --g-eb-text-shadow:none;
+  --g-eb-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 2px 4px rgba(15,19,26,.08),0 8px 18px -6px color-mix(in srgb,var(--g-brand) 38%,transparent);
+  --g-eb-core:radial-gradient(50% 50% at 50% 50%,rgba(255,255,255,.85) 4%,rgba(255,255,255,.4) 28%,rgba(255,255,255,.12) 50%,transparent 88%);
+  --g-eb-bloom:radial-gradient(43.3% 44.23% at 50% 49.51%,rgba(255,255,255,.55) 16%,rgba(255,255,255,.18) 50%,transparent 100%);
+  --g-eb-track-opacity:.58;
+  --g-eb-outer:linear-gradient(91.88deg,color-mix(in srgb,var(--g-brand) 12%,transparent) 46.45%,color-mix(in srgb,var(--g-brand) 64%,transparent) 98.59%);
+  --g-eb-inner:linear-gradient(97.68deg,transparent 38.1%,color-mix(in srgb,var(--g-brand-2) 22%,transparent) 80%,color-mix(in srgb,var(--g-brand) 45%,var(--g-brand-2)) 93.3%);
+  --g-eb-rim:linear-gradient(103.7deg,rgba(255,255,255,.2) 38.66%,rgba(255,255,255,.5) 68.55%,#ffffff 85.01%,#ffffff 92.12%);
+  --g-eb-rim-glow:linear-gradient(91.96deg,transparent 6.11%,color-mix(in srgb,var(--g-brand-2) 22%,transparent) 53.57%,var(--g-brand) 93.6%);
+  --g-eb-outer-blur:9px;
+  --g-eb-rim-blur:4px;
+  --g-eb-glow-gain:.62;
   /* Social & Platform Highlight Cards tokens (Microkit × Soci — light mode) */
   --shc-bg:#ffffff;
   --shc-bg-hover:#f0f2f5;
@@ -591,22 +591,22 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
   --g-spot-icon-opacity:.42;
   --g-spot-icon-hover-opacity:.82;
   --g-spot-icon-active:var(--g-brand);
-  /* Cursor Edge Glow Button tokens (Dark mode: Microkit luminous ceramic pill + fiery brand halo) */
-  --g-eb-bg:linear-gradient(135deg,color-mix(in srgb,var(--g-brand) 14%,#dcdfe6) 0%,color-mix(in srgb,var(--g-brand-2) 18%,#e5e1dc) 100%);
-  --g-eb-border:rgba(255,255,255,.72);
-  --g-eb-text:color-mix(in srgb,var(--g-brand) 26%,#101014);
+  /* Cursor Edge Glow Button tokens (Dark mode: vibrant brand gradient + subtle specular track + refined glow) */
+  --g-eb-bg:var(--g-grad-brand);
+  --g-eb-border:rgba(255,255,255,.32);
+  --g-eb-text:var(--g-grad-on,#ffffff);
   --g-eb-text-shadow:none;
-  --g-eb-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 4px 16px -6px rgba(0,0,0,.65);
-  --g-eb-core:radial-gradient(50% 50% at 50% 50%,#ffffff 4%,color-mix(in srgb,var(--g-brand-2) 82%,#ffffff) 26.5%,color-mix(in srgb,var(--g-brand) 70%,#ffffff) 40%,color-mix(in srgb,var(--g-brand) 44%,transparent) 54%,transparent 92.5%);
-  --g-eb-bloom:radial-gradient(43.3% 44.23% at 50% 49.51%,#ffffff 24%,color-mix(in srgb,var(--g-brand-2) 56%,#ffffff) 48.5%,color-mix(in srgb,var(--g-brand) 30%,#ffffff) 63%,transparent 100%);
-  --g-eb-track-opacity:1;
-  --g-eb-outer:linear-gradient(91.88deg,color-mix(in srgb,var(--g-brand) 24%,transparent) 46.45%,var(--g-brand) 98.59%);
-  --g-eb-inner:linear-gradient(97.68deg,transparent 38.1%,color-mix(in srgb,var(--g-brand-2) 28%,transparent) 80%,color-mix(in srgb,var(--g-brand) 52%,var(--g-brand-2)) 93.3%);
-  --g-eb-rim:linear-gradient(103.7deg,color-mix(in srgb,var(--g-brand) 12%,transparent) 38.66%,color-mix(in srgb,var(--g-brand-2) 22%,transparent) 68.55%,color-mix(in srgb,var(--g-brand-2) 82%,#ffffff) 85.01%,#ffffff 92.12%);
-  --g-eb-rim-glow:linear-gradient(91.96deg,transparent 6.11%,color-mix(in srgb,var(--g-brand-2) 28%,transparent) 53.57%,var(--g-brand-2) 93.6%);
-  --g-eb-outer-blur:15px;
-  --g-eb-rim-blur:7px;
-  --g-eb-glow-gain:1;
+  --g-eb-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 4px 16px -6px color-mix(in srgb,var(--g-brand) 45%,transparent);
+  --g-eb-core:radial-gradient(50% 50% at 50% 50%,rgba(255,255,255,.9) 4%,rgba(255,255,255,.5) 28%,color-mix(in srgb,var(--g-brand-2) 45%,transparent) 52%,transparent 90%);
+  --g-eb-bloom:radial-gradient(43.3% 44.23% at 50% 49.51%,rgba(255,255,255,.6) 20%,color-mix(in srgb,var(--g-brand-2) 35%,transparent) 50%,transparent 100%);
+  --g-eb-track-opacity:.62;
+  --g-eb-outer:linear-gradient(91.88deg,color-mix(in srgb,var(--g-brand) 18%,transparent) 46.45%,var(--g-brand) 98.59%);
+  --g-eb-inner:linear-gradient(97.68deg,transparent 38.1%,color-mix(in srgb,var(--g-brand-2) 22%,transparent) 80%,color-mix(in srgb,var(--g-brand) 42%,var(--g-brand-2)) 93.3%);
+  --g-eb-rim:linear-gradient(103.7deg,rgba(255,255,255,.15) 38.66%,rgba(255,255,255,.35) 68.55%,rgba(255,255,255,.85) 85.01%,#ffffff 92.12%);
+  --g-eb-rim-glow:linear-gradient(91.96deg,transparent 6.11%,color-mix(in srgb,var(--g-brand-2) 22%,transparent) 53.57%,var(--g-brand-2) 93.6%);
+  --g-eb-outer-blur:12px;
+  --g-eb-rim-blur:5px;
+  --g-eb-glow-gain:.8;
   /* Social & Platform Highlight Cards tokens (Microkit × Soci — dark mode) */
   --shc-bg:#16171d;
   --shc-bg-hover:#181920;
@@ -1404,8 +1404,8 @@ dialog::backdrop{background:rgba(15,19,26,.38);-webkit-backdrop-filter:blur(2px)
   z-index:-2;
   left:50%;
   top:50%;
-  width:calc(100% + 11px);
-  height:calc(100% + 11px);
+  width:calc(100% + 9px);
+  height:calc(100% + 9px);
   box-sizing:border-box;
   border:3px solid transparent;
   border-radius:9999px;
