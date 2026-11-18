@@ -180,6 +180,15 @@ Em **Sites → Chat** você cria bolhas de chat para colocar em qualquer site. O
 
 Instalação: `<script src="https://<seu-soci>/chat/<workspace>/<id>/widget.js" async></script>`. O script cria a bolha num shadow root e abre o painel num iframe servido pela soci, então o CSS do site não interfere. O visitante guarda só um token aleatório; o servidor guarda apenas o hash dele e devolve somente as mensagens do chat daquela sessão. Facebook, Instagram, WhatsApp e IA de voz dentro do widget dependem de integrações externas e não foram incluídos.
 
+## Blogs
+
+Em **Sites → Blogs** ficam os blogs do workspace, com o total de artigos, os blogs publicados e as visitas da semana. **Autores e categorias** são compartilhados por todos os blogs, como no HighLevel.
+
+- **Blog.** Lista de artigos com busca e filtro por status (Publicado, Agendado, Rascunho) e visitas de cada um. Em **Configurações**: nome, descrição, cor, artigos por página, feed RSS e SEO da página inicial.
+- **Artigo.** Editor em Markdown com barra de formatação (títulos, negrito, itálico, link, lista, citação, imagem) e aba de pré-visualização. Ao lado: publicar agora ou agendar por data, caminho do endereço, resumo, imagem de capa, autor, categorias e SEO com contador de caracteres e prévia do resultado no Google.
+- **IA.** **Escrever com IA** recebe tema, título, palavras-chave, tom e tamanho e cria o rascunho completo (título, resumo, texto e SEO) com a OpenAI conectada. Sem a chave, cria um roteiro com marcadores `[[...]]`. **Gerar com IA** no painel de SEO escreve o título e a descrição a partir do texto.
+- **Páginas públicas.** `/b/<workspace>/<blog>` mostra os artigos em cartões, com filtro por categoria (`?categoria=`) e páginas; `/b/<workspace>/<blog>/<caminho>` mostra o artigo com título e descrição de SEO, Open Graph, link canônico, autor e “Leia também”; `/b/<workspace>/<blog>/rss.xml` é o feed. Rascunhos e agendados ficam fora do ar até a data, e a equipe vê a prévia com `?preview=1`. O texto é convertido de Markdown com todo HTML escapado e só links `http(s)`.
+
 ## Estúdio de agentes
 
 Em **Agentes de IA** (`#ai-agents`), o estúdio tem três áreas: a lista de agentes com busca, filtro por pasta e ordenação, a área central e o painel do agente selecionado.

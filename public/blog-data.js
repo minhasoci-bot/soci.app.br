@@ -69,7 +69,7 @@ main{max-width:1040px;margin:0 auto;padding:40px 20px 72px}.bl-hero{margin-botto
 .bl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:28px}
 .bl-card{display:flex;flex-direction:column;border-radius:14px;overflow:hidden;background:#fff;border:1px solid #ece8df;transition:transform .15s ease,box-shadow .15s ease}
 .bl-card:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(29,36,51,.08)}
-.bl-card a{color:inherit;text-decoration:none}.bl-cover{aspect-ratio:16/9;background:linear-gradient(135deg,${hex(color)}22,${hex(color)}55);object-fit:cover;width:100%;display:block}
+.bl-card a{color:inherit;text-decoration:none}.bl-card>a{display:block}.bl-cover{aspect-ratio:16/9;background:linear-gradient(135deg,${hex(color)}22,${hex(color)}55);object-fit:cover;width:100%;display:block}
 .bl-card div{padding:18px 20px 22px;display:grid;gap:8px}.bl-card h2{margin:0;font-size:22px;line-height:1.25}.bl-card p{margin:0;color:#5b6475;font-size:15.5px;line-height:1.55}
 .bl-meta{font:13px/1.4 system-ui,sans-serif;color:#7a8394}.bl-tags{display:flex;flex-wrap:wrap;gap:6px}.bl-tags a{padding:2px 10px;border-radius:99px;background:${hex(color)}14;color:${hex(color)};font:600 12.5px/1.8 system-ui,sans-serif;text-decoration:none}
 .bl-pages{display:flex;justify-content:space-between;margin-top:36px;font:15px system-ui,sans-serif}

@@ -49,5 +49,5 @@ export function localDraft(input) {
     '## Erros comuns', '[[Liste os erros que você mais vê e como evitá-los.]]',
     '## Conclusão', `[[Resuma a ideia principal e convide o leitor a falar com você.]]${keywords ? `\n\n> Palavras-chave para usar no texto: ${keywords}` : ''}`
   ].join('\n\n');
-  return { title, slug: slugify(title), summary: `[[Resumo de uma ou duas frases sobre ${topic}.]]`, body, seoTitle: title.slice(0, 60), seoDescription: `Entenda ${topic} e veja como aplicar no seu negócio.`.slice(0, 155) };
+  return { title, slug: slugify(title), summary: `[[Resumo de uma ou duas frases sobre ${topic.charAt(0).toLowerCase() + topic.slice(1)}.]]`, body, seoTitle: title.slice(0, 60), seoDescription: `Entenda ${topic.charAt(0).toLowerCase() + topic.slice(1)} e veja como aplicar no seu negócio.`.slice(0, 155) };
 }
