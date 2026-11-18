@@ -299,3 +299,8 @@
 .pr-chip { display:inline-block; margin:0 5px 4px 0; padding:2px 8px; border-radius:999px; background:var(--pr-report-soft); color:var(--pr-report); font-size:12.5px; }
 #audit-health { grid-column:1/-1; border-right:0; }
 @media (max-width:700px) { .pr-audit-box .pr-stack > div { grid-template-columns:1fr; } }
+
+/* OpenStreetMap search results */
+.pr-osm-map { height:340px; margin:10px 0 12px; border:1px solid var(--pr-line); border-radius:12px; overflow:hidden; z-index:0; }
+.pr-result-contacts { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; color:var(--pr-dim); font-size:12.5px; }
+.pr-result-contacts svg { margin-right:3px; }

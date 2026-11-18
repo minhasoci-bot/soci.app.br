@@ -32,6 +32,18 @@ const form = (type,body,id = '') => `<form class="pr-form" data-pr-form="${type}
 const panel = (title,body) => `<section class="pr-panel"><h2>${h(title)}</h2>${body}</section>`;
 const empty = (name,title,desc,actions = '') => `<div class="pr-empty"><span>${ico(name,25)}</span><h2>${h(title)}</h2><p>${h(desc)}</p>${actions ? `<div class="pr-actions">${actions}</div>` : ''}</div>`;
 const radii = [2,5,10,20,30].map(n => [n,`${n} km`]);
+const leafletBase = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/';
+let leaflet;
+function loadLeaflet() {
+  if (window.L?.map) return Promise.resolve(window.L);
+  leaflet ||= new Promise((resolve,reject) => {
+    const css = Object.assign(document.createElement('link'),{rel:'stylesheet',href:leafletBase+'leaflet.css',crossOrigin:'anonymous'});
+    const js = Object.assign(document.createElement('script'),{src:leafletBase+'leaflet.js',crossOrigin:'anonymous',onload:() => resolve(window.L),
+      onerror:() => { leaflet = null; reject(new Error('Leaflet indisponível')); }});
+    document.head.append(css,js);
+  });
+  return leaflet;
+}
 
 export function createProspecting({data,accounts,call,render,dialog,close,flash,download}) {
   const agency = () => data().agency;
@@ -145,30 +157,54 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
       </section>${gettingStarted()}</div>`;
   }
 
+  function osmMap() {
+    const box = document.getElementById('pr-osm-map');
+    const result = S.search.result;
+    if (!box || box.dataset.ready || result?.provider !== 'osm' || !result.center) return;
+    box.dataset.ready = '1';
+    loadLeaflet().then(L => {
+      if (!box.isConnected) return;
+      const map = L.map(box,{scrollWheelZoom:false}).setView([result.center.lat,result.center.lon],13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© colaboradores do <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'}).addTo(map);
+      L.circle([result.center.lat,result.center.lon],{radius:(result.radius || S.search.radius)*1000,color:'#e0007a',weight:1,fillOpacity:.04}).addTo(map);
+      const points = result.rows.filter(row => Number.isFinite(row.lat) && Number.isFinite(row.lon));
+      for (const row of points) {
+        L.circleMarker([row.lat,row.lon],{radius:7,color:'#fff',weight:2,fillColor:row.saved ? '#0e7a43' : '#e0007a',fillOpacity:1})
+          .addTo(map).bindPopup(`<strong>${h(row.name)}</strong><br>${h([row.category,row.address].filter(Boolean).join(' · '))}`);
+      }
+      if (points.length) map.fitBounds(points.map(row => [row.lat,row.lon]),{padding:[24,24],maxZoom:15});
+    }).catch(() => { box.innerHTML = '<p class="pr-muted">Não foi possível carregar o mapa.</p>'; });
+  }
+
   function search() {
     const s = S.search;
     const maps = data().features.prospectingMaps;
     const query = [s.keyword,s.location].filter(Boolean).join(' em ');
-    const google = `https://www.google.com/maps/search/?${new URLSearchParams({api:'1',query})}`;
     const rows = s.result?.rows || [];
-    const hasResults = s.result?.provider === 'maps';
+    const provider = s.result?.provider;
+    const hasResults = provider === 'maps' || provider === 'osm';
     const formBody = `<div class="pr-search-grid">${input('keyword','Empresa ou nicho',s.keyword,'placeholder="Ex.: dentistas" required maxlength="120"')}
       ${input('location','Localização',s.location,'placeholder="Ex.: São Paulo, SP" required maxlength="140"')}
       ${select('radius','Raio',radii,s.radius)}${submit('Buscar empresas')}</div>`;
+    const details = row => [row.category,address(row)].filter(Boolean).join(' · ') + (Number.isFinite(row.rating) ? ` · ★ ${row.rating}${row.reviews ? ` (${row.reviews})` : ''}` : '');
+    const contacts = row => [row.phone ? `${ico('phone',13)}${h(row.phone)}` : '', safeWebsite(row.website) ? `${ico('site',13)}${h(new URL(safeWebsite(row.website)).hostname.replace(/^www\./,''))}` : ''].filter(Boolean).join(' ');
+    if (provider === 'osm') setTimeout(osmMap);
     return `${panel('Buscar uma empresa',`${form('search',formBody)}<div class="pr-between">
-      <p class="pr-muted">${maps ? 'Resultados do Google Maps dentro do raio selecionado.' : 'A busca consulta prospects já salvos. A integração com Google Maps está desativada.'}</p>
-      <div class="pr-actions">${s.result && embed() ? btn(s.showMap ? 'Ocultar mapa' : 'Ver mapa','map-search',{name:'pin',attrs:`aria-expanded="${s.showMap}"`}) : ''}
-        ${!maps && s.result && s.keyword && !embed() ? external(google,'Pesquisar no Google Maps') : ''}${link('Adicionar manualmente','manual',{name:'plus'})}</div></div>`)}
-      ${s.showMap && embed() ? panel('Mapa da região',mapFrame('search',query,'Google Maps da região pesquisada')) : ''}
-      ${s.result ? panel(`${rows.length} ${rows.length === 1 ? 'empresa encontrada' : 'empresas encontradas'}`,
-        (hasResults ? '<p class="pr-maps-attribution" translate="no">Google Maps</p>' : '')+(
-        rows.length ? `<div class="pr-items">${rows.map(row => `<div class="pr-item">
-          ${row.saved ? '' : `<input type="checkbox" value="${h(row.placeId)}" data-pr-map ${s.selected.has(row.placeId) ? 'checked' : ''} aria-label="Selecionar ${h(row.name)}">`}
-          <div><strong>${h(row.name)}</strong><p>${h([row.category,address(row)].filter(Boolean).join(' · '))}${Number.isFinite(row.rating) ? ` · ★ ${row.rating}` : ''}</p></div>
+      <p class="pr-muted">${maps ? 'Resultados do Google Maps dentro do raio selecionado.' : 'Resultados do OpenStreetMap dentro do raio selecionado.'}</p>
+      <div class="pr-actions">${s.result && embed() && provider === 'maps' ? btn(s.showMap ? 'Ocultar mapa' : 'Ver mapa','map-search',{name:'pin',attrs:`aria-expanded="${s.showMap}"`}) : ''}
+        ${link('Adicionar manualmente','manual',{name:'plus'})}</div></div>`)}
+      ${s.showMap && embed() && provider === 'maps' ? panel('Mapa da região',mapFrame('search',query,'Google Maps da região pesquisada')) : ''}
+      ${s.result ? `<section class="pr-panel"><div class="pr-between"><h2>${rows.length} ${rows.length === 1 ? 'empresa encontrada' : 'empresas encontradas'}</h2>
+        ${hasResults && rows.some(row => !row.saved) ? `<div class="pr-actions">${btn('Selecionar todas','select-all',{name:'check'})}${form('save-maps',submit(`Salvar selecionados (${s.selected.size})`))}</div>` : ''}</div>
+        ${provider === 'osm' && s.result.center ? '<div id="pr-osm-map" class="pr-osm-map" role="region" aria-label="Mapa dos resultados"></div>' : ''}
+        ${provider === 'maps' ? '<p class="pr-maps-attribution" translate="no">Google Maps</p>' : ''}
+        ${rows.length ? `<div class="pr-items">${rows.map(row => `<div class="pr-item">
+          ${row.saved ? `<span class="pr-item-icon" title="Já salvo">${ico('check',14)}</span>` : `<input type="checkbox" value="${h(row.placeId)}" data-pr-map ${s.selected.has(row.placeId) ? 'checked' : ''} aria-label="Selecionar ${h(row.name)}">`}
+          <div><strong>${h(row.name)}</strong><p>${h(details(row))}</p>${contacts(row) ? `<p class="pr-result-contacts">${contacts(row)}</p>` : ''}</div>
           ${row.saved ? link('Abrir prospect','detail',{id:row.saved}) : external(mapsAddress(row),'Abrir no Maps')}
         </div>`).join('')}</div>
-        ${hasResults && rows.some(row => !row.saved) ? `<div class="pr-between"><p class="pr-muted">O cadastro guarda o vínculo do Maps. Complete os dados comerciais no prospect.</p>${form('save-maps',submit('Salvar selecionados'))}</div>` : ''}`
-          : '<p class="pr-muted">Nenhuma empresa corresponde à busca.</p>')) : ''}`;
+        <p class="pr-muted">${provider === 'osm' ? 'Os dados do OpenStreetMap (nome, endereço, telefone e site, quando existirem) são salvos no prospect.' : provider === 'maps' ? 'O cadastro guarda o vínculo do Maps. Complete os dados comerciais no prospect.' : ''}</p>`
+          : `<p class="pr-muted">Nenhuma empresa corresponde à busca. Tente outro termo (ex.: "odontologia") ou aumente o raio.</p>`}</section>` : ''}`;
   }
 
   function businessForm(row = {}) {
@@ -401,6 +437,10 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
           render();
           document.querySelector('[data-pr="map-search"]')?.focus();
           break;
+        case 'select-all':
+          for (const row of S.search.result?.rows || []) if (!row.saved) S.search.selected.add(row.placeId);
+          render();
+          break;
         case 'map-place':
           if (row && embed()) {
             const query = row.placeId ? 'place_id:' + row.placeId : address(row);
@@ -477,6 +517,8 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
     } else if (node.hasAttribute('data-pr-map')) {
       if (node.checked) S.search.selected.add(node.value);
       else S.search.selected.delete(node.value);
+      const save = document.querySelector('[data-pr-form="save-maps"] button');
+      if (save) save.textContent = `Salvar selecionados (${S.search.selected.size})`;
     }
   });
   document.addEventListener('input', event => {

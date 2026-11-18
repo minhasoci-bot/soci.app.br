@@ -188,6 +188,18 @@ export function runProspectingAction(agency,command,trusted = {}) {
     for (const placeId of placeIds) {
       if (typeof placeId !== 'string' || !/^[\w-]{1,220}$/.test(placeId)) bad('O identificador do Maps é inválido.');
       if (agency.prospects.some(row => row.placeId === placeId)) continue;
+      if (placeId.startsWith('osm-')) {
+        // OpenStreetMap (ODbL) details may be stored; they come from the server lookup, never the client.
+        const place = trusted.places?.find(item => item.placeId === placeId);
+        if (!place) continue;
+        const website = /^https?:\/\//i.test(place.website) || /^[\w-]+(\.[\w-]+)+/.test(place.website) ? place.website : '';
+        const fields = { ...place,country:'Brasil',email:/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(place.email) ? place.email : '' };
+        let row;
+        try { row = createProspect(agency,{ ...fields,website },d.fromAI === true ? 'AI' : 'OSM'); }
+        catch { row = createProspect(agency,{ ...fields,website:'' },d.fromAI === true ? 'AI' : 'OSM'); }
+        created.push(row.id);
+        continue;
+      }
       created.push(createProspect(agency,{ name:'Prospect do Maps', placeId },d.fromAI === true ? 'AI' : 'Maps').id);
     }
     return created;

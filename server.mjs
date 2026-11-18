@@ -19,6 +19,7 @@ import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMark
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
 import { collectProspectAudit } from './prospect-audit.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
+import { osmLookup, osmSearch } from './prospecting-osm.mjs';
 import { folded, prospectSearchText } from './ui/prospecting-data.js';
 import { shareReportHtml, widgetHtml } from './ui/prospect-report.js';
 import { snapshotAssets } from './ui/agency-data.js';
@@ -487,14 +488,13 @@ export function makeServer({
     const location = agent?.location || (typeof input.location === 'string' ? input.location.trim().slice(0,140) : '');
     const radius = agent?.radius || ([2,5,10,20,30].includes(Number(input.radius)) ? Number(input.radius) : 5);
     if (!keywords.length || !location) throw error('Informe a empresa ou nicho e a região.',400);
+    const saved = new Map(agency.prospects.filter(row => row.placeId).map(row => [row.placeId,row.id]));
     if (!placesConfigured) {
-      const matches = agency.prospects.filter(row => !row.archived && folded(prospectSearchText(row)).includes(folded(location)) &&
-        keywords.some(word => folded(prospectSearchText(row)).includes(folded(word))));
-      return { provider:'local', rows:matches.slice(0,20).map(row => ({...row,saved:row.id})) };
+      const { center,rows } = await osmSearch(keywords,location,radius);
+      return { provider:'osm',center,radius,rows:rows.map(row => ({...row,saved:saved.get(row.placeId) || ''})) };
     }
     const results = await placesSearch(keywords,location,radius);
     const items = new Map(results.map(row => [row.placeId,row]));
-    const saved = new Map(agency.prospects.filter(row => row.placeId).map(row => [row.placeId,row.id]));
     return { provider:'maps',rows:[...items.values()].slice(0,20).map(row => ({...row,saved:saved.get(row.placeId) || ''})) };
   }
 
@@ -561,6 +561,11 @@ export function makeServer({
         return apply({ op:'audit',id,data:manual },{ audit });
       };
       if (input.op === 'audit' && typeof input.id === 'string') return audited(input.id,data);
+      if (input.op === 'save-maps' && Array.isArray(data.placeIds) && data.placeIds.some(id => typeof id === 'string' && id.startsWith('osm-'))) {
+        // OpenStreetMap details are re-read here so the saved prospect never trusts client-supplied fields.
+        const ids = data.placeIds.filter(id => typeof id === 'string' && id.startsWith('osm-')).slice(0,20);
+        return apply({ ...input,data },{ places:await osmLookup(ids) });
+      }
       if (input.op === 'save' && !input.id && [true,'true','on'].includes(data.audit)) {
         const id = await apply({ ...input,data:{ ...data,audit:false } });
         await audited(id);
