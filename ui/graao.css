@@ -2039,7 +2039,14 @@ button.shc-card:active{
 }
 .page.wf-builder-page{
   max-width:none;
-  padding:14px clamp(12px,1.6vw,24px) 18px;
+  height:100%;
+  min-height:0;
+  padding:12px clamp(12px,1.6vw,22px) 12px;
+  overflow:hidden;
+}
+.screen:has(.wf-builder-page){
+  overflow:hidden;
+  height:100%;
 }
 .page.conversations-page.is-inbox{
   height:100%;
