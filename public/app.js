@@ -31,6 +31,7 @@ import { installBuilder, startBuild } from './studio-builder.js';
 import { installAutomation } from './automation.js';
 import { installClientPortal } from './client-portal.js';
 import { installCourses } from './courses.js';
+import { installCommunities } from './communities.js';
 import { applyBrandColor, setThemeAccount } from './graao.js';
 import './phone-input.js';
 
@@ -80,7 +81,7 @@ async function refreshSubWa(){
 c.dash = dashboardPreferences(c.workspace);
 c.pipeline = '';
 c.studio = { brief:'',template:'landing',project:'' };
-let toastTimer, modalReturn, busy=false, renderedView='', editor, mountClientPortal;
+let toastTimer, modalReturn, busy=false, renderedView='', editor, mountClientPortal, mountCommunities;
 const G=s=>document.querySelector(s);
 const url=path=>`${path}?workspace=${encodeURIComponent(c.workspace)}`;
 function flash(msg,isError=false){ clearTimeout(toastTimer);toast.className=isError?'issue':'success';toast.textContent=msg;toastTimer=setTimeout(()=>{toast.className='';toast.textContent='';},4600); }
@@ -120,7 +121,7 @@ const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses','course'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -263,7 +264,7 @@ function render(){
   }
   if(c.view==='studio' || (c.view==='sites' && ['editor','build'].includes(c.tab))) afterStudioRender();
   if(c.view==='sites') { afterSitesRender(); afterFormsRender(); }
-  if(c.view==='memberships') mountClientPortal?.();
+  if(c.view==='memberships') { mountClientPortal?.(); mountCommunities?.(); }
   const agentScreen = G('[data-agent-screen]');
   if (agentScreen?.dataset.agentId && editor?.id === agentScreen.dataset.agentId && editor.workspace === c.workspace) {
     agentScreen.replaceWith(editor.root);
@@ -974,6 +975,7 @@ if(viewPath){
   installAutomation({ c, mutate, render, flash, dialog, close });
   mountClientPortal = installClientPortal({ c, api, flash, dialog, close });
   installCourses({ c, mutate, flash, dialog, close, render });
+  mountCommunities = installCommunities({ c, api, mutate, flash, dialog, close, render });
   crmEvents({ G, mutate, render, flash, dialog, close });
   opportunityEvents({ c, G, mutate, render, flash, dialog, close });
   socialEvents({ c, G, api, url, mutate, render, flash, dialog, close, load });

@@ -32,6 +32,7 @@ import { createWahaHandler } from './waha.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
 import { createAbacatePayHandler } from './abacatepay.mjs';
 import { makeClientPortal, portalCookie } from './client-portal.mjs';
+import { makeCommunity } from './community.mjs';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { chatHistory } from './chat-model.mjs';
 import { chatPage, demoPage, loaderScript } from './ui/chat-widget-data.js';
@@ -53,7 +54,7 @@ const staticFiles = new Map([
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
@@ -82,7 +83,7 @@ const privateSpace = /^user-[0-9a-f-]{36}$/;
 const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
-const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress)(?:/([0-9a-f-]{36}))?$`);
+const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community)(?:/([0-9a-f-]{36}))?$`);
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const chatPath = new RegExp(`^/chat/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js|demo))?/?$`);
 const chatApi = new RegExp(`^/api/chat/${workspaceSegment}/([0-9a-f-]{36})/(start|send|messages)$`);
@@ -140,6 +141,7 @@ export function makeServer({
     store, secret: openAISecret, request: whatsappRequest, envBaseUrl: uazapiBaseUrl, envAdminToken: uazapiAdminToken
   });
   const clientPortal = makeClientPortal({ ...portalOptions, store });
+  const community = makeCommunity({ store });
   const ready = Promise.all([store.insert('demo', seed()), store.insert(AGENCY_ID, blankAgency())]);
   ready.catch(() => {});
   const workspaceOwner = id => id === AGENCY_ID ? null : id;
@@ -1026,7 +1028,23 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       const portalMatch = p.match(portalApi);
       if (portalMatch) {
         const [, workspace, operation, courseId] = portalMatch;
-        if (Boolean(courseId) !== ['course','progress'].includes(operation)) throw error('Página do portal não encontrada.',404);
+        if (operation !== 'community-admin' && Boolean(courseId) !== ['course','progress','community'].includes(operation)) throw error('Página do portal não encontrada.',404);
+        if (operation === 'community-admin') {
+          const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'] });
+          const input = method === 'POST' ? await payload(req) : null;
+          await requireActiveAccount(who.agencyId, workspace, true);
+          const state = await store.load(workspace);
+          return json(await community.admin(workspace, state, await clientPortal.directory(workspace), courseId, input));
+        }
+        if (operation === 'community') {
+          const input = method === 'POST' ? await payload(req) : null;
+          await publicAccountPolicy(workspace, method === 'POST', 'memberships');
+          const { doc, member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,proto === 'https'));
+          const state = await store.load(workspace);
+          const result = input ? await community.act(workspace, state, doc, member, courseId, input)
+            : await community.read(workspace, state, doc, member, courseId, { channelId: String(url.searchParams.get('channel') || '').slice(0, 60), period: url.searchParams.get('period') || '30' });
+          return json({ community: result });
+        }
         if (operation === 'admin') {
           const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'] });
           const input = method === 'POST' ? await payload(req) : null;
@@ -1057,7 +1075,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         await publicAccountPolicy(workspace, false, 'memberships');
         const state = await store.load(workspace);
         const lessonId = String(url.searchParams.get('lesson') || '').slice(0, 60);
-        return json(await clientPortal.content(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId, lessonId));
+        const page = await clientPortal.content(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId, lessonId);
+        if (operation === 'home' && page.signedIn) {
+          const { member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,secure));
+          page.communities = await community.home(workspace, state, member);
+        }
+        return json(page);
       }
       const portal = p.match(portalPage);
       if (portal && method !== 'POST') {

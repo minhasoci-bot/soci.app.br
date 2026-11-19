@@ -8,7 +8,7 @@ export function workspaceMissing() {
   return Object.assign(new Error('Workspace not found.'), { status: 404 });
 }
 
-export const isDocument = id => id === 'agency' || /^(agency|studio|social|openai|chat|portal|waha|whatsapp|abacatepay|marketplace)-/.test(id);
+export const isDocument = id => id === 'agency' || /^(agency|studio|social|openai|chat|portal|community|waha|whatsapp|abacatepay|marketplace)-/.test(id);
 
 function containsJson(value, expected) {
   if (Array.isArray(expected)) return Array.isArray(value) && expected.every(item => value.some(entry => containsJson(entry, item)));

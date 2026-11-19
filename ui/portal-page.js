@@ -1,4 +1,5 @@
 import { icon } from './icons.js';
+import { communityCards, communityPage } from './portal-community.js';
 
 const root = document.querySelector('#portal');
 const workspace = location.pathname.split('/')[2];
@@ -71,19 +72,20 @@ function player(course) {
       </article></div></div>`;
 }
 
-let portal, course;
+let portal, course, community = null;
+const cmUi = { tab: 'discussion', channel: '', period: '30' };
 function draw(message = '') {
   const { title, introduction, color, signedIn, courses, member } = portal || { title: 'Portal do cliente' };
-  document.title = course ? `${course.name} · ${title}` : title;
+  document.title = community ? `${community.group.name} · ${title}` : course ? `${course.name} · ${title}` : title;
   if (/^#[\da-f]{6}$/i.test(color)) document.body.style.setProperty('--portal-color',color);
-  root.innerHTML = `<div class="cp-public-shell ${course ? 'cp-wide' : ''}"><header class="cp-public-header">
+  root.innerHTML = `<div class="cp-public-shell ${course || community ? 'cp-wide' : ''}"><header class="cp-public-header">
       <div class="cp-public-brand">${icon('lock',20)}<span>${h(title)}</span></div>
       ${signedIn ? '<button type="button" class="cp-public-link" data-portal-public="logout">Sair</button>' : ''}
     </header>
     ${message ? `<p class="cp-public-error" role="alert">${h(message)}</p>` : ''}
-    ${signedIn ? (course ? player(course) : `<section class="cp-public-welcome">
+    ${signedIn ? (community ? communityPage(community, cmUi) : course ? player(course) : `<section class="cp-public-welcome">
       <h1>${member?.name ? `Olá, ${h(member.name)}` : 'Bem-vindo ao portal'}</h1>
-      ${introduction ? `<p>${h(introduction)}</p>` : ''}</section>${library(courses)}`) :
+      ${introduction ? `<p>${h(introduction)}</p>` : ''}</section>${library(courses)}${communityCards(portal?.communities)}`) :
       `<section class="cp-public-card cp-signin"><div class="cp-course-icon">${icon('key',24)}</div>
         <h1>Acesse seu portal</h1>
         ${access ? '<p>Confirme para entrar com o seu link de acesso.</p><button type="button" class="cp-public-primary" data-portal-public="enter">Entrar no portal</button>' :
@@ -91,13 +93,21 @@ function draw(message = '') {
   </div>`;
 }
 
+const loadCommunity = async id => {
+  const query = new URLSearchParams({ channel: cmUi.channel, period: cmUi.period });
+  community = (await api(`community/${encodeURIComponent(id)}?${query}`)).community;
+};
+const communityAction = async body => {
+  community = (await api(`community/${encodeURIComponent(community.group.id)}`, { ...body, channelFilter: cmUi.channel })).community;
+};
+
 const openCourse = async (id, lesson = '') => {
   course = (await api(`course/${encodeURIComponent(id)}${lesson ? `?lesson=${encodeURIComponent(lesson)}` : ''}`)).course;
 };
 
 root.addEventListener('click', async event => {
   const button = event.target.closest('button');
-  if (!button) return;
+  if (!button || button.type === 'submit') return;
   const action = button.dataset.portalPublic;
   button.disabled = true;
   let focus = '';
@@ -112,6 +122,7 @@ root.addEventListener('click', async event => {
       portal = await api('home');
     } else if (action === 'back') {
       course = null;
+      community = null;
       portal = await api('home');
     } else if (action === 'toggle') {
       const lessonId = course.lesson.id, done = !course.modules.flatMap(module => module.lessons).find(lesson => lesson.id === lessonId).done;
@@ -120,6 +131,20 @@ root.addEventListener('click', async event => {
     } else if (button.dataset.lesson) {
       await openCourse(course.id, button.dataset.lesson);
       focus = '.cp-lesson-title';
+    } else if (button.dataset.community) {
+      Object.assign(cmUi, { tab: 'discussion', channel: '', period: '30' });
+      await loadCommunity(button.dataset.community);
+      focus = '.cp-community-head h1';
+    } else if (button.dataset.cmPublic) {
+      const { cmPublic: verb, value, post, comment, option } = button.dataset;
+      if (verb === 'tab') { cmUi.tab = value; focus = `[data-cm-public="tab"][data-value="${value}"]`; }
+      else if (verb === 'channel') { cmUi.channel = value; await loadCommunity(community.group.id); focus = `[data-cm-public="channel"][data-value="${value}"]`; }
+      else if (verb === 'period') { cmUi.period = value; await loadCommunity(community.group.id); focus = `[data-cm-public="period"][data-value="${value}"]`; }
+      else if (verb === 'delete' && !confirmDelete(button)) return;
+      else if (['join','leave','like','vote','delete'].includes(verb)) {
+        await communityAction({ action: verb, postId: post, commentId: comment, optionId: option });
+        if (verb === 'join' || verb === 'leave') { portal = await api('home'); focus = '.cp-community-head h1'; }
+      }
     } else if (button.dataset.course) {
       await openCourse(button.dataset.course);
       focus = '.cp-lesson-title';
@@ -130,11 +155,44 @@ root.addEventListener('click', async event => {
     if (error.status === 401) {
       access = null;
       course = null;
+      community = null;
       if (portal) portal.signedIn = false;
     }
     draw(error.message);
   } finally {
     button.disabled = false;
+  }
+});
+
+// Deleting asks twice: the first click turns the button into a confirmation.
+function confirmDelete(button) {
+  if (button.dataset.armed) return true;
+  button.dataset.armed = 'yes';
+  button.textContent = 'Confirmar exclusão';
+  button.classList.add('cp-danger');
+  setTimeout(() => { if (button.isConnected) { delete button.dataset.armed; draw(); } }, 4000);
+  return false;
+}
+
+root.addEventListener('submit', async event => {
+  const form = event.target.closest('[data-cm-public-form]');
+  if (!form || !community) return;
+  event.preventDefault();
+  const fields = new FormData(form), submit = form.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  try {
+    if (form.dataset.cmPublicForm === 'post') {
+      await communityAction({ action: 'post', channelId: fields.get('channelId'), title: fields.get('title'), body: fields.get('body'), link: fields.get('link'),
+        poll: String(fields.get('poll') || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean) });
+    } else {
+      await communityAction({ action: 'comment', postId: form.dataset.post, body: fields.get('body') });
+    }
+    draw();
+  } catch (error) {
+    if (error.status === 401) { community = null; if (portal) portal.signedIn = false; draw(error.message); return; }
+    submit.disabled = false;
+    form.querySelector('.cp-public-error')?.remove();
+    form.insertAdjacentHTML('afterbegin', `<p class="cp-public-error" role="alert">${h(error.message)}</p>`);
   }
 });
 
