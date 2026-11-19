@@ -56,6 +56,12 @@ function startSubWaPoll(){
     }catch{}
   },3000);
 }
+async function refreshPay(){
+  const ws=c.workspace;
+  try{ const live=await api(url('/api/abacatepay/workspace/status')); if(c.workspace===ws) c.pay=live; }
+  catch(e){ if(c.workspace===ws) c.pay={error:e.message}; }
+  if(c.workspace===ws&&c.mode!=='agency'&&(c.view==='payments'||c.view==='settings'&&c.tab==='abacatepay')) render();
+}
 async function refreshSubWa(){
   const ws=c.workspace;
   try{
@@ -189,6 +195,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(view==='launchpad'){ render(); if(allowedView('settings')) void refreshSubWa(); return; }
   if(view==='settings'&&nextTab==='whatsapp'){ render(); void refreshSubWa(); return; }
   stopSubWaPoll();
+  if(view==='payments'&&!nextTab||view==='settings'&&nextTab==='abacatepay'){ render(); void refreshPay(); return; }
   render(); }
 const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${label}" title="${label}" ${attributes}>${i(name,17)}</button>`;
 const navItem=([id,pt,ico])=>({href:`#${id}`,label:pt,icon:ico,current:c.view===id});
@@ -400,7 +407,7 @@ async function useWorkspace(id, view='launchpad', name){
   const cover=switchingCover(name||c.workspaces.find(w=>w.id===id)?.name);
   try { await enterWorkspace(id, view); } finally { cover.remove(); }
 }
-async function enterWorkspace(id, view){ leaveAgentEditor();stopSubWaPoll();c.workspace=id;c.launchpadReturn='';c.wa=null;c.waPairOpen=false;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.opportunityList='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);const address=new URL(location.href);address.searchParams.set('workspace',id);history.replaceState(null,'',address);close();go(view); }
+async function enterWorkspace(id, view){ leaveAgentEditor();stopSubWaPoll();c.workspace=id;c.launchpadReturn='';c.wa=null;c.pay=null;c.waPairOpen=false;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.opportunityList='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);const address=new URL(location.href);address.searchParams.set('workspace',id);history.replaceState(null,'',address);close();go(view); }
 function downloads(name,content,type='text/csv;charset=utf-8'){
   const data=typeof content==='string'?new Blob([content],{type}):content, a=document.createElement('a'), u=URL.createObjectURL(data);
   a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),3000);
@@ -732,6 +739,21 @@ document.addEventListener('click',async ev=>{
         else if(live.status==='connected') flash('WhatsApp conectado!');
         break;
       }
+      case 'abacate-refresh': c.pay=null; render(); await refreshPay(); break;
+      case 'abacate-copy': await navigator.clipboard.writeText(d.url); flash('Link de pagamento copiado.'); break;
+      case 'abacate-charge': {
+        const r=await api(url('/api/abacatepay/workspace/charge'),{invoiceId:d.id});
+        c.s=r.state;c.m=r.metrics;render();
+        await navigator.clipboard?.writeText(r.payment.url).catch(()=>{});
+        flash('Link de pagamento gerado e copiado.');
+        break;
+      }
+      case 'abacate-disconnect': {
+        if(!confirm('Desconectar o AbacatePay deste workspace? Links já enviados continuam valendo, mas as baixas automáticas param.')) break;
+        c.pay=await api(url('/api/abacatepay/workspace/disconnect'),{});
+        render(); flash('AbacatePay desconectado.');
+        break;
+      }
       case 'wa-disconnect': {
         stopSubWaPoll();
         c.wa=await api(url('/api/whatsapp/workspace/disconnect'),{});
@@ -848,6 +870,10 @@ document.addEventListener('submit',async ev=>{
       c.wa=live;
       if(live.status==='connecting') startSubWaPoll();
       msg=live.paircode?'Código de pareamento gerado!':'Conexão iniciada.';
+    }
+    else if(name==='abacate-connect'){
+      c.pay=await api(url('/api/abacatepay/workspace/connect'),{apiKey:data.apiKey});
+      render(); flash(`AbacatePay conectado${c.pay.storeName?`: ${c.pay.storeName}`:''}.`); return;
     }
     else if(name==='wa-test'){
       await api(url('/api/whatsapp/workspace/test'),{phone:data.phone,text:data.text});
