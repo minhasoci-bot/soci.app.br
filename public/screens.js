@@ -120,7 +120,7 @@ function opportunities(c){
   const tabCfg = { key: 'opportunities', items: crmTabs.opportunities.filter(([key]) => key !== 'list'), current: view === 'list' ? 'pipeline' : view, label: 'Seções de oportunidades' };
   if (view === 'pipelines') return pipelinesView(c,tabCfg);
   if (view === 'forecast') return forecastView(c,tabCfg);
-  const stageNames = new Map(stages.map(stage => [stage.id,stage.name]));
+  const stageNames = new Map(stages.map(stage => [stage.id,tr(stage.name)]));
   const contacts = new Map(s.contacts.map(contact => [contact.id,contact]));
   const colors = status => status === 'Won' ? 'green' : ['Lost','Abandoned'].includes(status) ? 'red' : 'blue';
   const nothing = filterCount || c.query
@@ -147,13 +147,13 @@ function opportunities(c){
       <dl>${fields.filter(field => values[field]).map(field => `<div><dt${layout === 'unlabeled' ? ' class="sr-only"' : ''}>${cardFields[field]}</dt><dd>${values[field]}</dd></div>`).join('')}</dl>
       ${quickActionBar(item,extras,c)}
       <label><span class="sr-only">Mover ${h(item.title)} para a etapa</span><select data-move="${item.id}">
-      ${stages.map(stage => `<option value="${stage.id}" ${stage.id === item.stage ? 'selected' : ''}>${h(stage.name)}</option>`).join('')}</select></label>
+      ${stages.map(stage => `<option value="${stage.id}" ${stage.id === item.stage ? 'selected' : ''}>${h(tr(stage.name))}</option>`).join('')}</select></label>
     </article>`;
   };
   const board = `<div class="kanban">${stages.map((stage,index) => {
     const matches = local.filter(item => item.stage === stage.id);
     return `<section class="kanban-col tone-${index%4}${stageStyle(pipeline,stage)}" data-drop="${stage.id}"><div class="kanban-head">
-      <h2>${h(stage.name)} <button class="icon-btn" data-edit="opportunities" data-stage="${stage.id}" aria-label="Adicionar em ${h(stage.name)}">${i('plus',15)}</button></h2>
+      <h2>${h(tr(stage.name))} <button class="icon-btn" data-edit="opportunities" data-stage="${stage.id}" aria-label="Adicionar em ${h(tr(stage.name))}">${i('plus',15)}</button></h2>
       <div class="opportunity-stage-totals"><span>${matches.length} ${matches.length === 1 ? 'oportunidade' : 'oportunidades'}</span>
       <b>${mt(matches.reduce((sum,item) => sum + item.value,0),c)}</b></div></div>
       <div class="kanban-cards">${matches.map(card).join('')}</div></section>`;
@@ -165,7 +165,7 @@ function opportunities(c){
     cta: action('Importar','opportunity-import','upload') + primary('Adicionar oportunidade','opportunities') + moreMenu(),
     tabs: tabCfg,
     content: `${listTabs(c)}<div class="toolbar opportunity-toolbar">
-      <label class="tag-filter"><select data-opportunity-pipeline aria-label="Pipeline">${s.pipelines.map(item => `<option value="${item.id}" ${item.id === pipeline.id ? 'selected' : ''}>${h(item.name)}</option>`).join('')}</select></label>
+      <label class="tag-filter"><select data-opportunity-pipeline aria-label="Pipeline">${s.pipelines.map(item => `<option value="${item.id}" ${item.id === pipeline.id ? 'selected' : ''}>${h(tr(item.name))}</option>`).join('')}</select></label>
       <span class="dim" role="status">${local.length} ${local.length === 1 ? 'oportunidade' : 'oportunidades'}</span>
       <div class="spacer"></div>
       <div class="opportunity-views" aria-label="Visualização">

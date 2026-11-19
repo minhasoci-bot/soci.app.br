@@ -87,6 +87,7 @@ const S = () => {
 const devices = [['desktop','Desktop','monitor',1280],['tablet','Tablet','tablet',768],['mobile','Celular','mobile',390]];
 const deviceWidth = () => devices.find(([id]) => id === S().device)[3];
 const fmt = iso => iso ? new Intl.DateTimeFormat('pt-BR',{ day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }).format(new Date(iso)) : '';
+const currentPage = () => S().doc?.pages?.find(item => item.id === S().page) || S().doc?.pages?.[0];
 
 function pagesColumn(doc, page, funnel) {
   const label = funnel ? 'Etapas' : 'Páginas';
@@ -203,7 +204,26 @@ function showLayers() {
   const panel = document.querySelector('[data-studio-layers]');
   if (!panel || !S().visual) return;
   const body = frame()?.contentDocument?.body;
-  if (!body) return;
+  if (!body) {
+    const cur = currentPage();
+    if (cur?.html && !panel.querySelector('.dw-layer-list')) {
+      try {
+        const parsed = new DOMParser().parseFromString(cur.html, 'text/html');
+        const parsedElements = [...parsed.body.querySelectorAll(layerSelector)].filter(el => !el.closest('[hidden]'));
+        if (parsedElements.length) {
+          const parsedIndices = new Map(parsedElements.map((el, idx) => [el, idx]));
+          panel.innerHTML = `<ul class="dw-layer-list">${parsedElements.map((el, idx) => {
+            let depth = 0;
+            for (let parent = el.parentElement; parent && parent !== parsed.body; parent = parent.parentElement) if (parsedIndices.has(parent)) depth++;
+            const text = (el.getAttribute('aria-label') || el.getAttribute('alt') || el.getAttribute('placeholder') ||
+              [...el.childNodes].filter(node => node.nodeType === 3).map(node => node.textContent).join(' ')).trim();
+            return `<li><button class="dw-layer" data-studio-layer-preview="${idx}" style="--dw-depth:${Math.min(5,depth)}"><small>${h(el.localName)}</small>${text ? `<span>${h(text.slice(0,80))}</span>` : ''}</button></li>`;
+          }).join('')}</ul>`;
+        }
+      } catch {}
+    }
+    return;
+  }
   layers = [...body.querySelectorAll(layerSelector)].filter(element => !element.closest('[hidden]') && element.getClientRects().length);
   const indices = new Map(layers.map((element, index) => [element, index]));
   panel.innerHTML = layers.length ? `<ul class="dw-layer-list">${layers.map((element, index) => {
@@ -320,6 +340,7 @@ export function afterStudioRender() {
   const iframe = frame();
   if (!iframe) { afterBuilderRender(); return; }
   mountDesignStage(iframe.closest('.dw-stage'), S().viewport ??= {});
+  showLayers();
   iframe.addEventListener('load', prepareFrame);
   if (iframe.contentDocument?.readyState === 'complete' && iframe.contentDocument.URL !== 'about:blank') prepareFrame();
 }
@@ -331,8 +352,8 @@ function blocked() {
 }
 function modal(title, body, form, submit) {
   const overlay = document.getElementById('overlay');
-  overlay.innerHTML = `<dialog id="dialog" aria-labelledby="modal-title"><header><div><h2 id="modal-title">${h(title)}</h2></div><button class="icon-btn" aria-label="Close dialog" data-close-dialog>${icon('close',17)}</button></header>
-    <form data-studio-form="${form}"><div class="modal-body">${body}<p class="form-status" role="alert"></p></div><footer><button type="button" class="secondary" data-close-dialog>Cancel</button><button class="primary">${h(submit)}</button></footer></form></dialog>`;
+  overlay.innerHTML = `<dialog id="dialog" aria-labelledby="modal-title"><header><div><h2 id="modal-title">${h(title)}</h2></div><button class="icon-btn" aria-label="Fechar" data-close-dialog>${icon('close',17)}</button></header>
+    <form data-studio-form="${form}"><div class="modal-body">${body}<p class="form-status" role="alert"></p></div><footer><button type="button" class="secondary" data-close-dialog>Cancelar</button><button class="primary">${h(submit)}</button></footer></form></dialog>`;
   const dialog = document.getElementById('dialog'); dialog.showModal();
   dialog.addEventListener('cancel', event => { event.preventDefault(); overlay.innerHTML = ''; });
   let downTarget = null; dialog.addEventListener('mousedown', ev => { downTarget = ev.target; });

@@ -322,18 +322,18 @@ function toInstant(wall,zone){
   if(localTime(guess,zone)!==wall)throw Error('This local time is not valid in the workspace time zone.');
   return new Date(guess).toISOString();
 }
-const contactChoices=()=>[['','Select a contact'],...c.s.contacts.map(r=>[r.id,r.name])];
+const contactChoices=()=>[['','Selecione um contato'],...c.s.contacts.map(r=>[r.id,r.name])];
 const option=(label,key,value,choices,required=true)=>field(label,key,value,'select',required,choices);
 const opportunityStatusChoices=()=>opportunityStatuses.map(status=>[status,tr(status)]);
-const pipelineChoices=()=>c.s.pipelines.map(item=>[item.id,item.name]);
-const stageChoices=pipelineId=>c.s.stages.filter(stage=>stage.pipelineId===pipelineId).map(stage=>[stage.id,stage.name]);
+const pipelineChoices=()=>c.s.pipelines.map(item=>[item.id,tr(item.name)]);
+const stageChoices=pipelineId=>c.s.stages.filter(stage=>stage.pipelineId===pipelineId).map(stage=>[stage.id,tr(stage.name)]);
 const input=(label,key,value,required=false,type='text')=>field(label,key,value,type,required);
 const area=(label,key,value,required=false)=>field(label,key,value,'textarea',required);
 const check=(label,key,value)=>field(label,key,value,'check');
 const zones=()=>c.s.profile.timezone;
-const entityNames={contacts:'Contato',tasks:'Tarefa',opportunities:'Oportunidade',appointments:'Agendamento',workflows:'Fluxo',invoices:'Fatura',campaigns:'Campanha',pages:'Página',forms:'Formulário',courses:'Curso',reviews:'Avaliação',snippets:'Snippet',snippetFolders:'Pasta',triggerLinks:'Link de rastreamento',...crmEntityNames};
+const entityNames={contacts:'Contato',tasks:'Tarefa',opportunities:'Oportunidade',appointments:'Agendamento',workflows:'Fluxo',invoices:'Fatura',campaigns:'Campanha',pages:'Página',forms:'Formulário',courses:'Curso',reviews:'Avaliação',snippets:'Resposta rápida',snippetFolders:'Pasta',triggerLinks:'Link de rastreamento',...crmEntityNames};
 // Grammatical gender of each record name, so titles read "Nova tarefa" and "Novo contato".
-const feminine=new Set(['tasks','opportunities','invoices','campaigns','pages','reviews','snippetFolders','companies','subscriptions','transactions']);
+const feminine=new Set(['tasks','opportunities','invoices','campaigns','pages','reviews','snippetFolders','snippets','companies','subscriptions','transactions']);
 const lowerName=key=>{const n=entityNames[key]||'';return key==='tags'?n:n.charAt(0).toLowerCase()+n.slice(1);};
 const newTitle=key=>`${feminine.has(key)?'Nova':'Novo'} ${lowerName(key)}`;
 const optionalGroup = (attribute, visible, content) => `<fieldset ${attribute} ${visible ? '' : 'hidden disabled'}>${content}</fieldset>`;
@@ -362,22 +362,22 @@ function edit(key,id,preset={}){
       break;
     }
     case 'appointments':body=input('Título','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices(),false)+`<p class="dim">Horários no fuso ${h(zones())}.</p><div class="field-grid">${input('Início','start',localTime(r.start,zones())||(r.date?`${r.date}T09:00`:''),true,'datetime-local')}${input('Fim','end',localTime(r.end,zones())||(r.date?`${r.date}T09:30`:''),true,'datetime-local')}</div>`+option('Status','status',r.status||'Confirmed',['Confirmed','Completed','Canceled'])+area('Notas','notes',r.notes);break;
-    case 'snippetFolders': body = input('Folder name','name',r.name,true); break;
+    case 'snippetFolders': body = input('Nome da pasta','name',r.name,true); break;
     case 'snippets': {
       const type = r.type || r.kind || 'Text';
-      body = input('Snippet name','name',r.name,true) + option('Type','type',type,['Text','Email']) +
-        option('Folder','folderId',r.folderId || c.conversationFilters.folder || '',[['','No folder'],...c.s.snippetFolders.map(folder => [folder.id,folder.name])],false) +
-        optionalGroup('data-snippet-subject',type === 'Email',input('Subject','subject',r.subject,true)) +
-        area('Body','body',r.body,true) + '<p class="dim">Use {{contact.first_name}}, {{contact.name}}, {{contact.email}} or {{location.name}} to personalize the message.</p>';
+      body = input('Nome da resposta rápida','name',r.name,true) + option('Tipo','type',type,[['Text','Texto'],['Email','E-mail']]) +
+        option('Pasta','folderId',r.folderId || c.conversationFilters.folder || '',[['','Nenhuma pasta'],...c.s.snippetFolders.map(folder => [folder.id,folder.name])],false) +
+        optionalGroup('data-snippet-subject',type === 'Email',input('Assunto','subject',r.subject,true)) +
+        area('Mensagem','body',r.body,true) + '<p class="dim">Use {{contact.first_name}}, {{contact.name}}, {{contact.email}} ou {{location.name}} para personalizar a mensagem.</p>';
       break;
     }
-    case 'triggerLinks': body = input('Name','name',r.name,true) + input('Link URL','url',r.url,true,'url'); break;
+    case 'triggerLinks': body = input('Nome','name',r.name,true) + input('URL do link','url',r.url,true,'url'); break;
     case 'invoices':body=input('Nome da fatura','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices())+`<div class="field-grid">${input(`Valor (${c.s.profile.currency})`,'value',r.value??0,true,'number')}${input('Vencimento','due',r.due?.slice(0,10),true,'date')}</div>`+option('Status','status',r.status||'Draft',['Draft','Open','Paid','Void']);break;
-    case 'campaigns':body=input('Campaign name','name',r.name,true)+option('Channel','channel',r.channel||'Social',['Social','Email'])+area('Content','body',r.body,true)+input('Planned date','date',r.date?.slice(0,10),false,'date')+option('Status','status',r.status||'Draft',['Draft','Planned','Archived']);break;
-    case 'pages':body=input('Page name','name',r.name,true)+option('Type','kind',r.kind||'Funnel',['Funnel','Website'])+input('Headline','headline',r.headline,true)+area('Page copy','body',r.body)+input('Button label','button',r.button)+option('Form','formId',r.formId,[['','No form'],...c.s.forms.map(a=>[a.id,`${a.name}${a.active?'':' (Draft)'}`])],false)+check('Publish locally','active',r.active);break;
-    case 'forms':body=input('Form name','name',r.name,true)+area('Description','description',r.description)+check('Ask for phone number','askPhone',r.askPhone)+check('Publish locally','active',r.active);break;
+    case 'campaigns':body=input('Nome da campanha','name',r.name,true)+option('Canal','channel',r.channel||'Social',[['Social','Social'],['Email','E-mail']])+area('Conteúdo','body',r.body,true)+input('Data prevista','date',r.date?.slice(0,10),false,'date')+option('Status','status',r.status||'Draft',[['Draft','Rascunho'],['Planned','Planejado'],['Archived','Arquivado']]);break;
+    case 'pages':body=input('Nome da página','name',r.name,true)+option('Tipo','kind',r.kind||'Funnel',[['Funnel','Funil'],['Website','Site']])+input('Título principal','headline',r.headline,true)+area('Texto da página','body',r.body)+input('Texto do botão','button',r.button)+option('Formulário','formId',r.formId,[['','Nenhum formulário'],...c.s.forms.map(a=>[a.id,`${a.name}${a.active?'':' (Rascunho)'}`])],false)+check('Publicar localmente','active',r.active);break;
+    case 'forms':body=input('Nome do formulário','name',r.name,true)+area('Descrição','description',r.description)+check('Pedir número de telefone','askPhone',r.askPhone)+check('Publicar localmente','active',r.active);break;
     case 'courses':body=input('Nome do curso','name',r.name,true)+area('Descrição','description',r.description)+input('Título da aula','lesson',r.lesson,true)+area('Conteúdo da aula','body',r.body)+check('Apenas no portal do cliente','portalOnly',r.portalOnly ?? !id)+check('Publicar curso','active',r.active);break;
-    case 'reviews':body=input('Reviewer','author',r.author,true)+option('Rating','score',r.score||5,[5,4,3,2,1])+area('Review','text',r.text,true)+area('Reply','reply',r.reply);break;
+    case 'reviews':body=input('Autor da avaliação','author',r.author,true)+option('Nota','score',r.score||5,[5,4,3,2,1])+area('Avaliação','text',r.text,true)+area('Resposta','reply',r.reply);break;
     default:body=crmForm(c,key,r,preset);if(!body)return;
   }
   dialog(id?`Editar ${lowerName(key)}`:newTitle(key),body,{form:'record',key,id:id||'',buttons:`${id?`<button class="danger plain" type="button" data-delete="${key}" data-id="${id}">${i('trash',16)} Excluir</button>`:''}<span class="spacer"></span><button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">${id?'Salvar alterações':`Criar ${lowerName(key)}`}</button>`});
@@ -455,19 +455,19 @@ function manualDetails(id, queueMode = false) {
   const item = c.s.manualActions.find(entry => entry.id === id);
   if (!item) return;
   const contact = c.s.contacts.find(entry => entry.id === item.contactId);
-  const details = `<div class="manual-details"><b>${h(contact?.name || 'Contact removed')}</b>
-    ${contact?.phone ? `<p>Phone · ${h(contact.phone)}</p>` : ''}
-    <p>${h(item.workflowName)} · ${h(item.assignee || 'Unassigned')}</p>
+  const details = `<div class="manual-details"><b>${h(contact?.name || 'Contato removido')}</b>
+    ${contact?.phone ? `<p>Telefone · ${h(contact.phone)}</p>` : ''}
+    <p>${h(item.workflowName)} · ${h(item.assignee || 'Não atribuído')}</p>
     <p class="pre-wrap">${h(item.instructions)}</p>
     ${item.note ? `<p class="pre-wrap">${h(item.note)}</p>` : ''}
-    ${contact ? `<button type="button" class="secondary" data-start-thread="${contact.id}">${i('chat',16)} Open conversation</button>` : ''}
+    ${contact ? `<button type="button" class="secondary" data-start-thread="${contact.id}">${i('chat',16)} Abrir conversa</button>` : ''}
   </div>`;
   if (item.status !== 'Pending') {
-    dialog(item.type, details, { description:item.status });
+    dialog(tr(item.type), details, { description: tr(item.status) });
     return;
   }
-  dialog(item.type, details + area('Outcome note','note',''), { form:'manual-action', id,
-    buttons:'<button type="button" class="secondary" data-act="close">Cancel</button><button class="secondary" name="status" value="Skipped">Skip</button><button class="primary" name="status" value="Completed">Mark completed</button>' });
+  dialog(tr(item.type), details + area('Observação do resultado','note',''), { form:'manual-action', id,
+    buttons:'<button type="button" class="secondary" data-act="close">Cancelar</button><button class="secondary" name="status" value="Skipped">Pular</button><button class="primary" name="status" value="Completed">Marcar como concluído</button>' });
   G('form[data-form="manual-action"]').dataset.queue = String(queueMode);
 }
 
@@ -508,15 +508,15 @@ function useSnippet(id) {
 function pickComposerItem(kind) {
   const snippets = kind === 'snippet';
   const collection = snippets ? c.s.snippets : c.s.triggerLinks;
-  const label = snippets ? 'snippet' : 'trigger link';
+  const label = snippets ? 'resposta rápida' : 'link de rastreamento';
   const editor = snippets ? '#conversations/snippets' : '#conversations/trigger-links';
   if (!collection.length) {
-    dialog(`Insert ${label}`, `<p>No ${label}s have been created yet.</p><a href="${editor}" class="secondary" data-close-dialog>Open ${snippets ? 'Snippets' : 'Trigger Links'}</a>`);
+    dialog(`Inserir ${label}`, `<p>${snippets ? 'Nenhuma resposta rápida foi criada ainda.' : 'Nenhum link de rastreamento foi criado ainda.'}</p><a href="${editor}" class="secondary" data-close-dialog>Abrir ${snippets ? 'Respostas Rápidas' : 'Links de Rastreamento'}</a>`);
     return;
   }
-  dialog(`Insert ${label}`, `<label>Search<input id="composer-search" autocomplete="off"></label><div class="composer-options">${collection.map(item =>
+  dialog(`Inserir ${label}`, `<label>Buscar<input id="composer-search" placeholder="Buscar…" autocomplete="off"></label><div class="composer-options">${collection.map(item =>
     `<button type="button" class="choice" data-composer-item ${snippets ? 'data-use-snippet' : 'data-use-link'}="${item.id}">
-      <strong>${h(item.name)}</strong>${snippets ? `<span>${h(item.type)} · ${h(item.body.slice(0,120))}</span>` : `<span>${h(item.url)}</span>`}</button>`).join('')}</div>`);
+      <strong>${h(item.name)}</strong>${snippets ? `<span>${h(tr(item.type))} · ${h(item.body.slice(0,120))}</span>` : `<span>${h(item.url)}</span>`}</button>`).join('')}</div>`);
 }
 
 async function copyLink(path) {
@@ -538,16 +538,16 @@ function showFieldset(fieldset, visible) {
 
 function editStage(id, pipelineId) {
   const stage = c.s.stages.find(item => item.id === id);
-  dialog(stage ? 'Edit stage' : 'Add stage',input('Stage name','name',stage?.name,true) +
+  dialog(stage ? 'Editar etapa' : 'Adicionar etapa',input('Nome da etapa','name',stage ? tr(stage.name) : '',true) +
     `<input type="hidden" name="pipelineId" value="${h(stage?.pipelineId || pipelineId)}">` +
-    input('Win probability (%) for the forecast','probability',stage?.probability ?? '',false,'number') +
-    check('Show in funnel and stage distribution','visible',stage?.visible !== false),{ form:'stage',id:stage?.id || '' });
+    input('Probabilidade de ganho (%) para a previsão','probability',stage?.probability ?? '',false,'number') +
+    check('Mostrar no funil e na distribuição por etapa','visible',stage?.visible !== false),{ form:'stage',id:stage?.id || '' });
 }
 
 function viewReport(id) {
   const report = c.s.dashboardReports.find(item => item.id === id);
   if (!report) return;
-  dialog(report.name,reportGrid(report.rows) + `<button class="secondary" data-report-download="${id}">${i('download',15)} Download CSV</button>`);
+  dialog(report.name,reportGrid(report.rows) + `<button class="secondary" data-report-download="${id}">${i('download',15)} Baixar CSV</button>`);
 }
 
 function downloadReport(id) {
@@ -576,7 +576,7 @@ function conversationFormControls(element) {
     label.querySelector('select').disabled = label.hidden;
   }
 }
-function assistant(prompt){const q=prompt.toLowerCase(), m=c.m;if(/deal|pipeline|opportun|lead|venda|funil/.test(q))return `There are ${m.open} open opportunities worth ${money(m.openValue)}, and ${m.won} won deals. Open Opportunities to review the current stages.`;if(/agenda|appointment|book|calendar/.test(q))return `There are ${m.appointments} appointments that haven’t been canceled. Open Calendars for dates and details.`;if(/contact|contat/.test(q))return `You have ${m.contacts} contacts. Open Contacts to search, filter, or import more.`;if(/invoice|pagamento|payment/.test(q))return `${money(m.invoicesPaid)} has been marked paid. Open Payments to see the invoices and balances.`;return `This workspace has ${m.contacts} contacts, ${m.open} open opportunities and ${m.unread} unread messages. I can summarize contacts, opportunities, appointments, or invoices.`;}
+function assistant(prompt){const q=prompt.toLowerCase(), m=c.m;if(/deal|pipeline|opportun|lead|venda|funil/.test(q))return `Há ${m.open} oportunidade(s) aberta(s) no valor de ${money(m.openValue)}, e ${m.won} ganha(s). Abra Oportunidades para ver as etapas.`;if(/agenda|appointment|book|calendar/.test(q))return `Há ${m.appointments} agendamento(s) ativos. Abra Calendários para ver datas e detalhes.`;if(/contact|contat/.test(q))return `Você tem ${m.contacts} contato(s). Abra Contatos para buscar, filtrar ou importar mais.`;if(/invoice|pagamento|payment/.test(q))return `${money(m.invoicesPaid)} foi marcado como pago. Abra Pagamentos para ver as faturas e saldos.`;return `Este workspace possui ${m.contacts} contato(s), ${m.open} oportunidade(s) aberta(s) e ${m.unread} mensage(ns) não lida(s). Posso resumir contatos, oportunidades, agendamentos ou faturas.`;}
 
 document.addEventListener('click',async ev=>{
   const setupLink = ev.target.closest('a[data-launchpad-start]');
@@ -653,15 +653,15 @@ document.addEventListener('click',async ev=>{
     if(d.thread||d.startThread){await thread(d.thread||d.startThread);return;}
     if(d.task){const r=c.s.tasks.find(a=>a.id===d.task);await mutate({type:'save',key:'tasks',id:r.id,data:{...r,done:!r.done}});render();return;}
     if(d.file){const f=c.s.files.find(a=>a.id===d.file);const [header,body]=f.data.split(',');const data=new Blob([Uint8Array.from(atob(body),x=>x.charCodeAt(0))],{type:header.slice(5).split(';')[0]});downloads(f.name,data);return;}
-    if(d.provider){dialog(d.provider,'<p>This integration is unavailable in the local workspace. A provider account and an authorized connection are required.</p>');return;}
-    if(d.delete){dialog('Delete this record?',`<p>${d.delete==='contacts'?'This will also delete associated messages, tasks, opportunities, appointments, and invoices.':'This removes the record from this workspace.'}</p>`,{form:'delete',key:d.delete,id:d.id,buttons:'<button class="secondary" type="button" data-act="close">Cancel</button><button class="danger">Delete</button>'});return;}
+    if(d.provider){dialog(d.provider,'<p>Esta integração não está disponível no workspace local. Uma conta de provedor e uma conexão autorizada são necessárias.</p>');return;}
+    if(d.delete){dialog('Excluir este registro?',`<p>${d.delete==='contacts'?'Isso também excluirá mensagens, tarefas, oportunidades, agendamentos e faturas associadas.':'Isso remove o registro deste workspace.'}</p>`,{form:'delete',key:d.delete,id:d.id,buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="danger">Excluir</button>'});return;}
     switch(d.act){
       case 'start-manual': {
         const first = manualQueue(c).find(item => item.status === 'Pending');
         if (first) manualDetails(first.id,true);
         break;
       }
-      case 'new-snippet': dialog('New Snippet', '<div class="quick-list"><button class="secondary" data-edit="snippets" data-kind="Text">Add Text Snippet</button><button class="secondary" data-edit="snippets" data-kind="Email">Add Email Snippet</button></div>'); break;
+      case 'new-snippet': dialog('Nova resposta rápida', '<div class="quick-list"><button class="secondary" data-edit="snippets" data-kind="Text">Adicionar resposta em texto</button><button class="secondary" data-edit="snippets" data-kind="Email">Adicionar resposta por e-mail</button></div>'); break;
       case 'insert-snippet': pickComposerItem('snippet'); break;
       case 'insert-link': pickComposerItem('link'); break;
       case 'close':close();break;

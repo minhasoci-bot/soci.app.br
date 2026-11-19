@@ -33,7 +33,7 @@ function choiceOptions(field) {
   if (field === 'stage') {
     const s = current?.s; if (!s) return [];
     return s.pipelines.flatMap(pipeline => s.stages.filter(stage => stage.pipelineId === pipeline.id)
-      .map(stage => [stage.id, s.pipelines.length > 1 ? `${pipeline.name} · ${stage.name}` : stage.name]));
+      .map(stage => [stage.id, s.pipelines.length > 1 ? `${tr(pipeline.name)} · ${tr(stage.name)}` : tr(stage.name)]));
   }
   return [];
 }
@@ -163,14 +163,14 @@ export function pipelinesView(c, tabCfg) {
     cta: `<button class="primary" data-act="new-pipeline">${i('plus', 16)} Criar pipeline</button>`, tabs: tabCfg,
     content: `<div class="toolbar"><label class="search">${i('search', 16)}<input data-pipeline-search value="${h(ui.pipelineQuery)}" placeholder="Buscar pipelines…" aria-label="Buscar pipelines" autocomplete="off"></label></div>
       <div class="surface table-shell"><table><thead><tr><th scope="col">#</th><th scope="col">Pipeline</th><th scope="col">Etapas</th><th scope="col">Oportunidades</th><th scope="col">Atualizado em</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead><tbody>
-      ${rows.map(({ item, index }) => `<tr><td>${index + 1}</td><td><button class="text-link" data-opp-pipeline="${item.id}">${h(item.name)}</button>${item.smartTags?.length ? ` <small class="dim">${item.smartTags.length} smart tag(s)</small>` : ''}</td>
+      ${rows.map(({ item, index }) => `<tr><td>${index + 1}</td><td><button class="text-link" data-opp-pipeline="${item.id}">${h(tr(item.name))}</button>${item.smartTags?.length ? ` <small class="dim">${item.smartTags.length} smart tag(s)</small>` : ''}</td>
         <td>${s.stages.filter(stage => stage.pipelineId === item.id).length}</td><td>${s.opportunities.filter(deal => deal.pipelineId === item.id).length}</td><td>${day(item.updated || item.created, c)}</td>
         <td class="right"><div class="inline-gap row-actions">
-          <button class="icon-btn" data-opp-pipeline="${item.id}" aria-label="Editar ${h(item.name)}" title="Editar">${i('edit', 15)}</button>
-          <button class="icon-btn" data-opp-pipeline-dup="${item.id}" aria-label="Duplicar ${h(item.name)}" title="Duplicar">${i('copy', 15)}</button>
-          <button class="icon-btn" data-opp-pipeline-move="${item.id}" data-dir="-1" aria-label="Mover ${h(item.name)} para cima" title="Mover para cima" ${index === 0 ? 'disabled' : ''}>${i('arrowUp', 15)}</button>
-          <button class="icon-btn" data-opp-pipeline-move="${item.id}" data-dir="1" aria-label="Mover ${h(item.name)} para baixo" title="Mover para baixo" ${index === last ? 'disabled' : ''}>${i('arrowDown', 15)}</button>
-          <button class="icon-btn" data-opp-pipeline-delete="${item.id}" aria-label="Excluir ${h(item.name)}" title="Excluir" ${s.pipelines.length === 1 ? 'disabled' : ''}>${i('trash', 15)}</button>
+          <button class="icon-btn" data-opp-pipeline="${item.id}" aria-label="Editar ${h(tr(item.name))}" title="Editar">${i('edit', 15)}</button>
+          <button class="icon-btn" data-opp-pipeline-dup="${item.id}" aria-label="Duplicar ${h(tr(item.name))}" title="Duplicar">${i('copy', 15)}</button>
+          <button class="icon-btn" data-opp-pipeline-move="${item.id}" data-dir="-1" aria-label="Mover ${h(tr(item.name))} para cima" title="Mover para cima" ${index === 0 ? 'disabled' : ''}>${i('arrowUp', 15)}</button>
+          <button class="icon-btn" data-opp-pipeline-move="${item.id}" data-dir="1" aria-label="Mover ${h(tr(item.name))} para baixo" title="Mover para baixo" ${index === last ? 'disabled' : ''}>${i('arrowDown', 15)}</button>
+          <button class="icon-btn" data-opp-pipeline-delete="${item.id}" aria-label="Excluir ${h(tr(item.name))}" title="Excluir" ${s.pipelines.length === 1 ? 'disabled' : ''}>${i('trash', 15)}</button>
         </div></td></tr>`).join('')}</tbody></table>${rows.length ? '' : `<div class="empty">${i('search', 26)}<strong>Nenhum pipeline encontrado</strong><p>Tente outro termo de busca.</p></div>`}</div>`
   });
 }
@@ -179,7 +179,7 @@ function pipelineEditor(c, pipeline, tabCfg) {
   const mode = pipeline.colorMode || 'none';
   const sub = [['stages', 'Etapas'], ['smart-tags', 'Smart tags']];
   const subTabs = `<div class="opportunity-subtabs" role="group" aria-label="Seções do pipeline">${sub.map(([key, label]) => `<button type="button" class="${ui.pipelineTab === key ? 'selected' : ''}" aria-pressed="${ui.pipelineTab === key}" data-opp-pipeline-tab="${key}">${label}</button>`).join('')}</div>`;
-  const head = `<div class="pipeline-editor-head"><button class="icon-btn" data-opp-pipeline="" aria-label="Voltar para pipelines">${i('left', 17)}</button><h2>${h(pipeline.name)}</h2>
+  const head = `<div class="pipeline-editor-head"><button class="icon-btn" data-opp-pipeline="" aria-label="Voltar para pipelines">${i('left', 17)}</button><h2>${h(tr(pipeline.name))}</h2>
     <button class="icon-btn" data-pipeline-edit="${pipeline.id}" aria-label="Renomear pipeline">${i('edit', 15)}</button></div>${subTabs}`;
   let body;
   if (ui.pipelineTab === 'smart-tags') {
@@ -201,13 +201,13 @@ function pipelineEditor(c, pipeline, tabCfg) {
         ${modes.map(([key, label]) => `<label class="color-mode${mode === key ? ' selected' : ''}"><input type="radio" name="colorMode" data-opp-setting="colorMode" value="${key}" ${mode === key ? 'checked' : ''}><span class="color-mode-sample mode-${key}">Etapa</span>${label}</label>`).join('')}</div></fieldset>
       <div class="toolbar"><span class="spacer"></span>${btn('Adicionar etapa', `data-stage-new="${pipeline.id}"`, 'plus', 'primary')}</div>
       <div class="surface table-shell"><table><thead><tr><th scope="col">Ordem</th><th scope="col">Etapa</th><th scope="col">Probabilidade</th><th scope="col">Nos relatórios</th><th scope="col">Cor</th><th scope="col">Oportunidades</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead><tbody>
-      ${stages.map((stage, index) => `<tr><td><div class="inline-gap row-actions"><button class="icon-btn" data-opp-stage-move="${stage.id}" data-dir="-1" aria-label="Mover ${h(stage.name)} para cima" ${index === 0 ? 'disabled' : ''}>${i('arrowUp', 15)}</button><button class="icon-btn" data-opp-stage-move="${stage.id}" data-dir="1" aria-label="Mover ${h(stage.name)} para baixo" ${index === stages.length - 1 ? 'disabled' : ''}>${i('arrowDown', 15)}</button></div></td>
-        <td><b>${h(stage.name)}</b></td>
-        <td><label class="inline-input"><span class="sr-only">Probabilidade de ${h(stage.name)}</span><input type="number" min="0" max="100" step="0.01" data-opp-stage-chance="${stage.id}" value="${h(stage.probability ?? '')}" placeholder="—"> %</label></td>
-        <td><label class="check"><input type="checkbox" data-opp-stage-visible="${stage.id}" ${stage.visible !== false ? 'checked' : ''}> <span class="sr-only">Mostrar ${h(stage.name)} no funil e na distribuição por etapa</span>Funil e distribuição</label></td>
-        <td><label><span class="sr-only">Cor de ${h(stage.name)}</span><select data-opp-stage-color="${stage.id}">${opts(['', 'blue', 'green', 'orange', 'red', 'purple', 'pink', 'teal', 'gray'].map(key => [key, colorName[key]]), stage.color || '')}</select></label></td>
+      ${stages.map((stage, index) => `<tr><td><div class="inline-gap row-actions"><button class="icon-btn" data-opp-stage-move="${stage.id}" data-dir="-1" aria-label="Mover ${h(tr(stage.name))} para cima" ${index === 0 ? 'disabled' : ''}>${i('arrowUp', 15)}</button><button class="icon-btn" data-opp-stage-move="${stage.id}" data-dir="1" aria-label="Mover ${h(tr(stage.name))} para baixo" ${index === stages.length - 1 ? 'disabled' : ''}>${i('arrowDown', 15)}</button></div></td>
+        <td><b>${h(tr(stage.name))}</b></td>
+        <td><label class="inline-input"><span class="sr-only">Probabilidade de ${h(tr(stage.name))}</span><input type="number" min="0" max="100" step="0.01" data-opp-stage-chance="${stage.id}" value="${h(stage.probability ?? '')}" placeholder="—"> %</label></td>
+        <td><label class="check"><input type="checkbox" data-opp-stage-visible="${stage.id}" ${stage.visible !== false ? 'checked' : ''}> <span class="sr-only">Mostrar ${h(tr(stage.name))} no funil e na distribuição por etapa</span>Funil e distribuição</label></td>
+        <td><label><span class="sr-only">Cor de ${h(tr(stage.name))}</span><select data-opp-stage-color="${stage.id}">${opts(['', 'blue', 'green', 'orange', 'red', 'purple', 'pink', 'teal', 'gray'].map(key => [key, colorName[key]]), stage.color || '')}</select></label></td>
         <td>${s.opportunities.filter(deal => deal.stage === stage.id).length}</td>
-        <td class="right"><div class="inline-gap row-actions"><button class="icon-btn" data-stage-edit="${stage.id}" aria-label="Editar ${h(stage.name)}">${i('edit', 15)}</button><button class="icon-btn" data-opp-stage-delete="${stage.id}" aria-label="Excluir ${h(stage.name)}" ${stages.length === 1 ? 'disabled' : ''}>${i('trash', 15)}</button></div></td></tr>`).join('')}</tbody></table></div>`;
+        <td class="right"><div class="inline-gap row-actions"><button class="icon-btn" data-stage-edit="${stage.id}" aria-label="Editar ${h(tr(stage.name))}">${i('edit', 15)}</button><button class="icon-btn" data-opp-stage-delete="${stage.id}" aria-label="Excluir ${h(tr(stage.name))}" ${stages.length === 1 ? 'disabled' : ''}>${i('trash', 15)}</button></div></td></tr>`).join('')}</tbody></table></div>`;
   }
   return pageShell({ title: 'Oportunidades', desc: 'Configure etapas, probabilidades, cores e smart tags do pipeline.', tabs: tabCfg, content: head + body });
 }
@@ -230,8 +230,8 @@ export function forecastView(c, tabCfg) {
   const ctx = ruleContext(s), rules = cleanRules(f.rules);
   const match = rules.length ? deal => matchesRules(deal, rules, ctx) : undefined;
   const data = forecast(s, { pipelineId: f.pipelineId, match, risk, groupBy: f.groupBy });
-  const stageName = id => s.stages.find(st => st.id === id)?.name || '—';
-  const filters = `<label class="tag-filter"><span class="sr-only">Pipeline</span><select data-opp-forecast="pipelineId" aria-label="Pipeline"><option value="">Todos os pipelines</option>${opts(s.pipelines.map(p => [p.id, p.name]), f.pipelineId)}</select></label>
+  const stageName = id => tr(s.stages.find(st => st.id === id)?.name || '—');
+  const filters = `<label class="tag-filter"><span class="sr-only">Pipeline</span><select data-opp-forecast="pipelineId" aria-label="Pipeline"><option value="">Todos os pipelines</option>${opts(s.pipelines.map(p => [p.id, tr(p.name)]), f.pipelineId)}</select></label>
     <div class="opportunity-subtabs" role="group" aria-label="Visão da previsão">${[['summary', 'Resumo', 'chart'], ['timeline', 'Linha do tempo', 'cal']].map(([key, label, ico]) => `<button type="button" class="${f.view === key ? 'selected' : ''}" aria-pressed="${f.view === key}" data-opp-forecast-view="${key}">${i(ico, 14)} ${label}</button>`).join('')}</div>
     <span class="spacer"></span>${btn(`Filtros avançados${rules.length ? ` (${ruleCount(rules)})` : ''}`, 'data-opp="forecast-filters"', 'filter', rules.length ? 'secondary is-active' : 'secondary')}`;
   const metric = (title, value, note, tone = '') => `<div class="surface metric"><span>${title}</span><b class="${tone}">${value}</b><small class="dim">${note}</small></div>`;
@@ -279,7 +279,7 @@ function forecastTimeline(c, data) {
   const label = column => !column.from ? 'Sem data de fechamento' : column.quarter
     ? `${Math.floor((Number(column.from.slice(5)) - 1) / 3) + 1}º tri ${column.from.slice(0, 4)}`
     : new Intl.DateTimeFormat('pt-BR', { month: 'long', year: column.from.slice(0, 4) === today.slice(0, 4) ? undefined : 'numeric', timeZone: 'UTC' }).format(new Date(`${column.from}-01T12:00:00Z`));
-  const stageName = id => c.s.stages.find(st => st.id === id)?.name || '';
+  const stageName = id => tr(c.s.stages.find(st => st.id === id)?.name || '');
   const card = deal => `<article class="deal opportunity-card" draggable="true" data-forecast-drag="${deal.id}"><button class="deal-title" data-edit="opportunities" data-id="${deal.id}">${h(deal.title)}</button>
     <dl><div><dt>Valor</dt><dd>${mt(deal.value)}</dd></div><div><dt>Etapa</dt><dd>${h(stageName(deal.stage))}</dd></div><div><dt>Status</dt><dd>${badge(statusLabel[deal.status] || deal.status, deal.status === 'Won' ? 'green' : deal.status === 'Open' ? 'blue' : 'red')}</dd></div>${deal.closeDate ? `<div><dt>Fechamento</dt><dd>${day(deal.closeDate, c)}</dd></div>` : ''}</dl>
     <label><span class="sr-only">Mudar a previsão de fechamento de ${h(deal.title)}</span><input type="date" data-forecast-date="${deal.id}" value="${h(deal.closeDate || '')}"></label></article>`;
@@ -386,7 +386,7 @@ export function opportunityEvents({ c, G, mutate, render, flash, dialog, close }
     // Pipelines
     if ('oppPipeline' in d) { ui.editing = d.oppPipeline; ui.pipelineTab = 'stages'; refocus(d.oppPipeline ? '.pipeline-editor-head h2' : '[data-pipeline-search]'); return; }
     if (d.oppPipelineTab) { ui.pipelineTab = d.oppPipelineTab; refocus(`[data-opp-pipeline-tab="${d.oppPipelineTab}"]`); return; }
-    if (d.oppPipelineDup) { const name = c.s.pipelines.find(p => p.id === d.oppPipelineDup)?.name; await run({ type: 'pipeline-duplicate', id: d.oppPipelineDup }, `${name} duplicado.`); return; }
+    if (d.oppPipelineDup) { const name = tr(c.s.pipelines.find(p => p.id === d.oppPipelineDup)?.name); await run({ type: 'pipeline-duplicate', id: d.oppPipelineDup }, `${name} duplicado.`); return; }
     if (d.oppPipelineMove || d.oppStageMove) {
       const stageMode = Boolean(d.oppStageMove), id = d.oppPipelineMove || d.oppStageMove;
       const stage = stageMode && c.s.stages.find(st => st.id === id);
@@ -401,7 +401,7 @@ export function opportunityEvents({ c, G, mutate, render, flash, dialog, close }
     }
     if (d.oppPipelineDelete || d.oppStageDelete) {
       const stageMode = Boolean(d.oppStageDelete), id = d.oppPipelineDelete || d.oppStageDelete;
-      const name = (stageMode ? c.s.stages : c.s.pipelines).find(row => row.id === id)?.name;
+      const name = tr((stageMode ? c.s.stages : c.s.pipelines).find(row => row.id === id)?.name);
       dialog(`Excluir ${stageMode ? 'a etapa' : 'o pipeline'} “${name}”?`, `<p>${stageMode ? 'Só é possível excluir uma etapa sem oportunidades.' : 'O pipeline e suas etapas serão excluídos. Só é possível excluir um pipeline sem oportunidades.'} Fluxos que começam ${stageMode ? 'nesta etapa' : 'nessas etapas'} serão despublicados.</p>
         <div class="inline-gap"><span class="spacer"></span><button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary danger" type="button" data-opp-confirm-delete="${id}" data-kind="${stageMode ? 'stage' : 'pipeline'}">Excluir</button></div>`);
       return;

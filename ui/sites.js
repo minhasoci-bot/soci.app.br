@@ -89,7 +89,7 @@ function stepPanel(c, project, doc, page, w) {
       <div class="inline-gap">${project.publishedAt && project.pages?.some(item => item.id === page.id) ? `<a class="secondary" href="${pageUrl(c, project, page)}" target="_blank" rel="noopener">${icon('external', 14)} Ver publicada</a>` : ''}
         <button class="primary" data-site-edit-page="${page.id}">${icon('edit', 15)} Editar página</button></div></header>
     <div class="site-step-grid">
-      <div class="site-preview"><iframe title="Prévia de ${h(page.name)}" src="/studio-preview/${c.workspace}/${project.id}/${page.id}?v=${doc.rev}" loading="lazy" tabindex="-1"></iframe></div>
+      <div class="site-preview"><iframe title="Prévia de ${h(page.name)}" src="/studio-preview/${c.workspace}/${project.id}/${page.id}?v=${doc.rev}" tabindex="-1"></iframe></div>
       <div class="site-step-fields">
         <form data-site-form="rename"><label>Nome<input name="name" required maxlength="60" value="${h(page.name)}"></label><button class="secondary">Renomear</button></form>
         <form data-site-form="slug"><label>Caminho
@@ -202,10 +202,16 @@ export function afterSitesRender() {
   const project = c.s.studioProjects.find(item => item.id === id);
   if (!project || view.loading === id) return;
   if (view.docFor === id && (!project.rev || view.doc?.rev === project.rev)) return;
+  if (c.studio.docFor === id && c.studio.doc && (!project.rev || c.studio.doc.rev === project.rev)) {
+    Object.assign(view, { doc: c.studio.doc, docFor: id, page: c.studio.doc.pages.some(item => item.id === view.page) ? view.page : c.studio.doc.pages[0].id });
+    return;
+  }
   view.loading = id;
   env.api(`${env.url('/api/studio/doc')}&id=${encodeURIComponent(id)}`)
     .then(({ doc }) => {
       Object.assign(view, { doc, docFor: id, page: doc.pages.some(item => item.id === view.page) ? view.page : doc.pages[0].id });
+      c.studio.doc = doc;
+      c.studio.docFor = id;
       if (c.view === 'sites' && c.studio.project === id) env.render();
     })
     .catch(error => env.flash(error.message, true))
@@ -264,12 +270,17 @@ export function installSites(environment) {
     const result = await api(url(`/api/studio/${op}`), { id: c.studio.project, ...body });
     c.s = result.state; c.m = result.metrics;
     Object.assign(view, { doc: result.doc, docFor: c.studio.project });
+    c.studio.doc = result.doc;
+    c.studio.docFor = c.studio.project;
     return result.result;
   }
 
   function openEditor(pageId) {
     c.studio.page = pageId;
-    c.studio.docFor = '';
+    if (view.doc && view.docFor === c.studio.project) {
+      c.studio.doc = view.doc;
+      c.studio.docFor = c.studio.project;
+    }
     location.hash = `#sites/editor/${c.studio.project}`;
   }
 

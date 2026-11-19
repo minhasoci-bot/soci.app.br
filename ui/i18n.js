@@ -5,6 +5,9 @@ const PT = {
   Open: 'Em aberto', Won: 'Ganha', Lost: 'Perdida', Abandoned: 'Abandonada',
   Confirmed: 'Confirmado', Completed: 'Concluído', Canceled: 'Cancelado', Cancelled: 'Cancelado',
   Draft: 'Rascunho', Paid: 'Pago', Void: 'Anulada', Planned: 'Planejado', Archived: 'Arquivado', Published: 'Publicado',
+  // Etapas e pipelines padrão
+  'New Lead': 'Novo lead', 'New lead': 'Novo lead', Qualified: 'Qualificado', qualified: 'Qualificado',
+  Proposal: 'Proposta', proposal: 'Proposta', 'Sales Pipeline': 'Pipeline de vendas',
   // Canais e mensagens
   Social: 'Social', Email: 'E-mail', SMS: 'SMS', Note: 'Nota', 'Live chat': 'Chat ao vivo', Outbound: 'Enviada', Inbound: 'Recebida', Text: 'Texto',
   // Páginas e agentes
@@ -14,9 +17,18 @@ const PT = {
   'Add tag': 'Adicionar tag', 'Create task': 'Criar tarefa', 'Create opportunity': 'Criar oportunidade', 'Log message': 'Registrar mensagem',
   'Contact created': 'Contato criado', 'Form submitted': 'Formulário enviado', 'Opportunity stage changed': 'Etapa da oportunidade alterada',
   'Appointment booked': 'Agendamento marcado', 'Trigger link clicked': 'Link de rastreamento clicado',
+  Unassigned: 'Não atribuído', 'Contact removed': 'Contato removido', 'Good Work!': 'Bom trabalho!',
   // SLA
   Met: 'Cumprido', Breached: 'Estourado', Overdue: 'Atrasado', 'Due soon': 'Vence em breve', Waiting: 'Aguardando', Dismissed: 'Dispensado',
-  All: 'Todos',
+  All: 'Todos', 'Waiting for reply': 'Aguardando resposta', 'Average response': 'Tempo médio de resposta',
+  // Filtros e opções comuns
+  'All workflows': 'Todos os fluxos', 'All assignees': 'Todos os responsáveis', 'All statuses': 'Todos os status',
+  'Any type': 'Qualquer tipo', 'All channels': 'Todos os canais', 'All pipelines': 'Todos os pipelines',
+  'All folders': 'Todas as pastas', 'No folder': 'Nenhuma pasta',
+  // Snippets e links
+  Snippets: 'Respostas rápidas', Snippet: 'Resposta rápida', 'All Snippets': 'Todas as respostas',
+  Folders: 'Pastas', 'Snippet folders': 'Pastas de respostas rápidas',
+  'Trigger Links': 'Links de rastreamento', 'Trigger links': 'Links de rastreamento',
   // Painel (títulos padrão dos widgets já salvos)
   Dashboard: 'Painel', 'Opportunity status': 'Status das oportunidades', 'Opportunity value': 'Valor das oportunidades',
   'Conversion rate': 'Taxa de conversão', 'Stages distribution': 'Distribuição por etapa', Tasks: 'Tarefas', 'Manual actions': 'Ações manuais',

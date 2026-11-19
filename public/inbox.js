@@ -233,7 +233,7 @@ function panelBody(c, st, t) {
       return items(events.map(e => `<li><span>${h(e.text)}</span><small>${date(e.at,c,true)}</small></li>`), 'Nenhuma atividade registrada.');
     }
     case 'opportunities': return add('Oportunidade','opportunities',id) + items(c.s.opportunities.filter(r => r.contactId === id).map(r =>
-      `<li><button class="identity" data-edit="opportunities" data-id="${r.id}"><b>${h(r.title)}</b></button><small>${h(c.s.stages.find(s => s.id === r.stage)?.name || '—')} · ${money(r.value)}</small>${badge(r.status, r.status === 'Won' ? 'green' : '')}</li>`), 'Nenhuma oportunidade.');
+      `<li><button class="identity" data-edit="opportunities" data-id="${r.id}"><b>${h(r.title)}</b></button><small>${h(tr(c.s.stages.find(s => s.id === r.stage)?.name) || '—')} · ${money(r.value)}</small>${badge(r.status, r.status === 'Won' ? 'green' : '')}</li>`), 'Nenhuma oportunidade.');
     case 'tasks': return add('Tarefa','tasks',id) + items(c.s.tasks.filter(r => r.contactId === id).map(r =>
       `<li><b>${h(r.title)}</b><small>${r.due ? date(r.due,c) : 'Sem prazo'}</small><button class="pill-button ${r.done ? 'completed' : ''}" data-task="${r.id}">${r.done ? 'Concluída' : 'Em aberto'}</button></li>`), 'Nenhuma tarefa.');
     case 'notes': return `<button class="secondary" data-edit="contacts" data-id="${id}">${i('edit',14)} Editar notas</button>${x.notes ? `<p class="panel-notes">${h(x.notes)}</p>` : '<p class="panel-empty">Nenhuma nota.</p>'}`;

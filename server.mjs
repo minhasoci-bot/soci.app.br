@@ -142,8 +142,22 @@ export function makeServer({
   ready.catch(() => {});
   const workspaceOwner = id => id === AGENCY_ID ? null : id;
   const listWorkspaces = async agencyId => (await store.list(workspaceOwner(agencyId))).filter(w => spaceId.test(w.id));
-  const loadAgency = async id => hydrateAgency(await store.load(id));
-  const changeAgency = (id, mutate) => store.change(id, state => mutate(hydrateAgency(state)));
+  const agencyCache = new Map();
+  const AGENCY_CACHE_TTL = 30000;
+  const loadAgency = async id => {
+    const cached = agencyCache.get(id);
+    const now = Date.now();
+    if (cached && cached.expiresAt > now) return structuredClone(cached.data);
+    const fresh = hydrateAgency(await store.load(id));
+    agencyCache.set(id, { data: structuredClone(fresh), expiresAt: now + AGENCY_CACHE_TTL });
+    return fresh;
+  };
+  const changeAgency = async (id, mutate) => {
+    agencyCache.delete(id);
+    const result = await store.change(id, state => mutate(hydrateAgency(state)));
+    agencyCache.delete(id);
+    return result;
+  };
   async function loadMarketplace() {
     try { return hydrateMarketplace(await store.load(MARKETPLACE_DOC_ID)); }
     catch (e) {
@@ -239,10 +253,18 @@ export function makeServer({
   }
   const access = async (req,res) => (await accessContext(req,await verifiedUser(req,res))).who;
   const canOpenPersonal = (who,id) => Boolean(who.owner && who.session && personalId(who.session) === id);
+  const belongsCache = new Map();
+  const BELONGS_CACHE_TTL = 60000;
   async function canOpen(who,id) {
     if (privateSpace.test(id)) return canOpenPersonal(who,id);
     if (who.accounts && !who.accounts.includes(id)) return false;
-    return store.belongsToAgency(id,workspaceOwner(who.agencyId));
+    const cacheKey = `${who.agencyId}:${id}`;
+    const cached = belongsCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && cached.expiresAt > now) return cached.result;
+    const result = await store.belongsToAgency(id,workspaceOwner(who.agencyId));
+    belongsCache.set(cacheKey, { result, expiresAt: now + BELONGS_CACHE_TTL });
+    return result;
   }
   const pausedError = (lifecycle, showReason = false) => Object.assign(
     error(lifecycle.status === 'Closed' ? 'Esta subconta foi encerrada.' : 'Esta subconta está pausada.', 403),
@@ -314,7 +336,7 @@ export function makeServer({
   }
   async function agencyPayload(req, res, extra = {}) {
     const { agency, who } = await accessContext(req,await verifiedUser(req,res));
-    requireCapability(who, 'agency', 'Your user cannot open the agency view.');
+    requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
     const [workspaces, personalWorkspace, marketplaceDoc] = await Promise.all([
       listWorkspaces(who.agencyId),
       existingPersonalWorkspace(who),
@@ -334,17 +356,17 @@ export function makeServer({
   }
   async function createAccount(who, input) {
     const name = typeof input.name === 'string' ? input.name.trim().slice(0,70) : '';
-    if (!name) throw error('Sub-account name is required.',400);
+    if (!name) throw error('O nome da subconta é obrigatório.',400);
     const state = blank(name);
     if (who.agencyId !== AGENCY_ID) state.agencyId = who.agencyId;
     const mail = typeof input.email === 'string' ? input.email.trim().toLowerCase().slice(0,240) : '';
-    if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) throw error('Enter a valid email address.',400);
+    if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) throw error('Informe um endereço de e-mail válido.',400);
     Object.assign(state.profile, { email: mail, phone: String(input.phone || '').slice(0,48) });
     if (['America/Sao_Paulo','America/New_York','Europe/London','UTC'].includes(input.timezone)) state.profile.timezone = input.timezone;
     const agency = await loadAgency(who.agencyId);
     if (input.plan) {
       requireCapability(who, 'settings', 'Somente administradores podem atribuir um plano à subconta.');
-      if (!agency.plans.some(p => p.id === input.plan)) throw error('Choose a valid plan.',400);
+      if (!agency.plans.some(p => p.id === input.plan)) throw error('Escolha um plano válido.',400);
     }
     const newId = uid();
     let loaded = null;
@@ -386,18 +408,35 @@ export function makeServer({
     if (!spaceId.test(workspace) && !privateSpace.test(workspace)) throw error('Workspace not found.',404);
     return workspaceAccess(req, res, workspace, { modules: ['sites'] });
   }
+  const siteDocCache = new Map();
+  const SITE_DOC_CACHE_TTL = 300000;
   async function siteDoc(workspace, projectId, create = true) {
     if (!/^[0-9a-f-]{36}$/.test(String(projectId))) throw error('Project not found.',404);
+    const cached = siteDocCache.get(projectId);
+    const now = Date.now();
+    if (cached && cached.expiresAt > now && cached.doc.workspace === workspace) {
+      return structuredClone(cached.doc);
+    }
     let doc = await Promise.resolve().then(() => store.load(siteRowId(projectId))).catch(e => { if (e.status === 404) return null; throw e; });
     if (doc && doc.workspace !== workspace) throw error('Project not found.',404);
-    if (doc || !create) return doc;
+    if (doc || !create) {
+      if (doc) siteDocCache.set(projectId, { doc: structuredClone(doc), expiresAt: now + SITE_DOC_CACHE_TTL });
+      return doc;
+    }
     const project = (await store.load(workspace)).studioProjects.find(item => item.id === projectId);
     if (!project) throw error('Project not found.',404);
     doc = newSiteDoc({ workspace, project, pages:[{ name:'Home', slug:'index', html:pageFromStructure(project) }] });
     await store.insert(siteRowId(projectId), doc);
-    return store.load(siteRowId(projectId));
+    const loaded = await store.load(siteRowId(projectId));
+    siteDocCache.set(projectId, { doc: structuredClone(loaded), expiresAt: now + SITE_DOC_CACHE_TTL });
+    return loaded;
   }
-  const changeSite = (projectId, mutate) => store.change(siteRowId(projectId), mutate);
+  const changeSite = async (projectId, mutate) => {
+    siteDocCache.delete(projectId);
+    const result = await store.change(siteRowId(projectId), mutate);
+    siteDocCache.delete(projectId);
+    return result;
+  };
   const syncMeta = (workspace, projectId, doc) => change(workspace,{ type:'studio-meta', id:projectId, data:{
     pages:doc.pages.map(({ id:pageId, name, slug }) => ({ id:pageId, name, slug })), rev:doc.rev,
     publishedAt:doc.published?.at || '', publishedRev:doc.published?.rev || 0 } });
@@ -1329,7 +1368,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (p.startsWith('/api/agency/') && method==='POST') {
         const who = await access(req,res);
-        requireCapability(who, 'agency', 'Your user cannot open the agency view.');
+        requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
         const op = p.slice('/api/agency/'.length), body = await payload(req);
         const result = await agencyRequest(op, who, body);
         // Opening a sub-account only stamps lastLogin; skip rebuilding the full agency payload (it loads every sub-account).
@@ -1487,8 +1526,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const [, workspace, projectId, pageId] = preview;
         await studioGuard(req,res,workspace);
         const doc = await siteDoc(workspace, projectId);
-        res.writeHead(200, previewHeaders);
-        return res.end(findPage(doc, pageId).html);
+        const page = findPage(doc, pageId);
+        const etag = `W/"${projectId}-${pageId}-${doc.rev || 0}"`;
+        if (req.headers['if-none-match'] === etag) {
+          res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'private, no-cache' });
+          return res.end();
+        }
+        res.writeHead(200, { ...previewHeaders, 'ETag': etag, 'Cache-Control': 'private, no-cache' });
+        return res.end(page.html);
       }
       const site = p.match(sitePath);
       if (site) {

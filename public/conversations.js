@@ -1,9 +1,10 @@
 import { icon } from './icons.js';
+import { tr } from './i18n.js';
 import { badge, date, empty, h, name, pageShell, primary, row, search, table, utabs } from './screens.js';
 
 export const conversationSections = ['manual-actions', 'snippets', 'folders', 'trigger-links', 'link-analysis', 'analytics', 'settings'];
 const sections = [
-  ['','Conversas'], ['manual-actions','Ações manuais'], ['snippets','Snippets'],
+  ['','Conversas'], ['manual-actions','Ações manuais'], ['snippets','Respostas rápidas'],
   ['trigger-links','Links de rastreamento'], ['analytics','Análises'], ['settings','Configurações']
 ];
 
@@ -14,7 +15,7 @@ export function conversationPage(c, inbox) {
   const isInbox = !panel;
   return pageShell({
     title: 'Conversas',
-    desc: 'Gerencie atendimentos, ações manuais, snippets, links de rastreamento e metas de SLA.',
+    desc: 'Gerencie atendimentos, ações manuais, respostas rápidas, links de rastreamento e metas de SLA.',
     className: isInbox ? 'conversations-page is-inbox' : 'conversations-page',
     tabs: {
       key: 'conversations',
@@ -56,23 +57,23 @@ function manualActions(c) {
   const workflows = new Map(c.s.workflows.map(item => [item.id, item.name]));
   for (const item of c.s.manualActions) if (!workflows.has(item.workflowId)) workflows.set(item.workflowId, item.workflowName);
   const assignees = [...new Set(c.s.manualActions.map(item => item.assignee).filter(Boolean))].sort();
-  const start = `<button class="primary" data-act="start-manual" ${queue.some(item => item.status === 'Pending') ? '' : 'disabled'}>Let's Start</button>`;
+  const start = `<button class="primary" data-act="start-manual" ${queue.some(item => item.status === 'Pending') ? '' : 'disabled'}>Começar</button>`;
 
-  return headline('Manual Actions', 'Work through calls and SMS follow-ups queued by workflows.', start) +
+  return headline('Ações manuais', 'Execute chamadas e acompanhamentos de SMS na fila dos fluxos de trabalho.', start) +
     `<div class="surface padded"><div class="toolbar conversation-filters">
-      ${selectFilter('workflow','Workflow',filters.workflow || '',[['','All workflows'], ...workflows])}
-      ${selectFilter('assignment','Assigned to',filters.assignment || '',[['','All assignees'], ...assignees])}
-      ${selectFilter('manualType','Type',filters.manualType || '',[['','Any type'], 'Manual Call', 'Manual SMS'])}
-      ${selectFilter('status','Status',filters.status ?? 'Pending',[['','All statuses'], 'Pending', 'Completed', 'Skipped', 'Canceled'])}
-    </div>${table(['Contacts','Workflow','Assigned To','Type','Status','Date Added',''], items.map(item => `<tr>
-      <td><b>${h(name(item.contactId,c))}</b></td><td>${h(item.workflowName)}</td><td>${h(item.assignee || 'Unassigned')}</td>
-      <td>${h(item.type)}</td><td>${badge(item.status, item.status === 'Completed' ? 'green' : item.status === 'Pending' ? 'blue' : '')}</td>
-      <td>${date(item.created,c,true)}</td><td class="right">${secondary(item.status === 'Pending' ? 'Open' : 'Details', `data-manual="${item.id}"`)}</td>
-    </tr>`), empty((filters.status ?? 'Pending') === 'Pending' ? 'Good Work!' : 'No matching actions',
-      (filters.status ?? 'Pending') === 'Pending' ? 'You have no pending tasks matching these filters.' : 'Try a different filter.', 'check'))}
-      <div class="conversation-pagination"><span>${queue.length ? `${page * pageSize + 1}–${page * pageSize + items.length}` : '0'} of ${queue.length}</span>
-        ${secondary('Previous', `data-manual-page="${page - 1}" ${page === 0 ? 'disabled' : ''}`)}
-        ${secondary('Next', `data-manual-page="${page + 1}" ${page === pages - 1 ? 'disabled' : ''}`)}
+      ${selectFilter('workflow','Fluxo de trabalho',filters.workflow || '',[['','Todos os fluxos'], ...workflows])}
+      ${selectFilter('assignment','Atribuído a',filters.assignment || '',[['','Todos os responsáveis'], ...assignees])}
+      ${selectFilter('manualType','Tipo',filters.manualType || '',[['','Qualquer tipo'], ['Manual Call', 'Ligação manual'], ['Manual SMS', 'SMS manual']])}
+      ${selectFilter('status','Status',filters.status ?? 'Pending',[['','Todos os status'], ['Pending', 'Pendente'], ['Completed', 'Concluído'], ['Skipped', 'Ignorada'], ['Canceled', 'Cancelada']])}
+    </div>${table(['Contatos','Fluxo de trabalho','Atribuído a','Tipo','Status','Data de adição',''], items.map(item => `<tr>
+      <td><b>${h(name(item.contactId,c))}</b></td><td>${h(item.workflowName)}</td><td>${h(item.assignee || 'Não atribuído')}</td>
+      <td>${h(tr(item.type))}</td><td>${badge(item.status, item.status === 'Completed' ? 'green' : item.status === 'Pending' ? 'blue' : '')}</td>
+      <td>${date(item.created,c,true)}</td><td class="right">${secondary(item.status === 'Pending' ? 'Abrir' : 'Detalhes', `data-manual="${item.id}"`)}</td>
+    </tr>`), empty((filters.status ?? 'Pending') === 'Pending' ? 'Bom trabalho!' : 'Nenhuma ação encontrada',
+      (filters.status ?? 'Pending') === 'Pending' ? 'Você não tem tarefas pendentes correspondentes a esses filtros.' : 'Tente um filtro diferente.', 'check'))}
+      <div class="conversation-pagination"><span>${queue.length ? `${page * pageSize + 1}–${page * pageSize + items.length}` : '0'} de ${queue.length}</span>
+        ${secondary('Anterior', `data-manual-page="${page - 1}" ${page === 0 ? 'disabled' : ''}`)}
+        ${secondary('Próximo', `data-manual-page="${page + 1}" ${page === pages - 1 ? 'disabled' : ''}`)}
       </div>
     </div>`;
 }
@@ -80,21 +81,21 @@ function manualActions(c) {
 function snippets(c) {
   const isFolders = c.tab === 'folders';
   const folder = c.conversationFilters.folder || '';
-  const create = primary('New Folder','snippetFolders') + `<button class="primary" data-act="new-snippet">${icon('plus',16)} New Snippet</button>`;
+  const create = primary('Nova pasta','snippetFolders') + `<button class="primary" data-act="new-snippet">${icon('plus',16)} Nova resposta rápida</button>`;
   const folders = c.s.snippetFolders.filter(item => matches(c.query, item.name));
   const list = c.s.snippets.filter(item => (!folder || item.folderId === folder) && matches(c.query, item.name, item.body, item.subject));
-  const subBody = `<div class="toolbar">${search(c.query, isFolders ? 'Search folders…' : 'Search snippets…')}
-    ${isFolders ? '' : selectFilter('folder','Folder',folder,[['','All folders'], ...c.s.snippetFolders.map(item => [item.id,item.name])])}</div>` +
-    (isFolders ? table(['Folder','Snippets','Date Updated',''], folders.map(item => row([
+  const subBody = `<div class="toolbar">${search(c.query, isFolders ? 'Buscar pastas…' : 'Buscar respostas rápidas…')}
+    ${isFolders ? '' : selectFilter('folder','Pasta',folder,[['','Todas as pastas'], ...c.s.snippetFolders.map(item => [item.id,item.name])])}</div>` +
+    (isFolders ? table(['Pasta','Respostas rápidas','Data de atualização',''], folders.map(item => row([
       `<button class="identity" data-open-folder="${item.id}">${icon('folder',16)}<strong>${h(item.name)}</strong></button>`,
       String(c.s.snippets.filter(snippet => snippet.folderId === item.id).length), date(item.updated || item.created,c,true)
-    ], 'snippetFolders', item.id)), empty('No folders','Create a folder to organize snippets.','folder')) :
-      table(['Name','Body','Folder','Type','Date Updated',''], list.map(item => row([
+    ], 'snippetFolders', item.id)), empty('Nenhuma pasta encontrada','Crie uma pasta para organizar respostas rápidas.','folder')) :
+      table(['Nome','Conteúdo','Pasta','Tipo','Data de atualização',''], list.map(item => row([
         `<b>${h(item.name)}</b>`, `<span class="ellipsis">${h(item.body)}</span>`, h(findLabel(c.s.snippetFolders,item.folderId)),
         badge(item.type,'blue'), date(item.updated || item.created,c,true)
-      ], 'snippets', item.id)), empty('No snippets','Create a text or email snippet to use in the inbox.','chat')));
-  return headline('Snippets', 'Save reusable text and email replies.', create) +
-    utabs({ key: 'conversations-snippets', nested: true, items: [['snippets','All Snippets'],['folders','Folders']], current: c.tab, label: 'Snippets', content: subBody });
+      ], 'snippets', item.id)), empty('Nenhuma resposta rápida encontrada','Crie uma resposta de texto ou e-mail para usar na caixa de entrada.','chat')));
+  return headline('Respostas rápidas', 'Salve respostas reutilizáveis de texto e e-mail.', create) +
+    utabs({ key: 'conversations-snippets', nested: true, items: [['snippets','Todas as respostas'],['folders','Pastas']], current: c.tab, label: 'Respostas rápidas', content: subBody });
 }
 
 function triggerLinks(c) {
@@ -108,15 +109,15 @@ function triggerLinks(c) {
     clickCounts.set(click.linkId, count);
   }
   const links = c.s.triggerLinks.filter(item => matches(c.query,item.name,item.url));
-  const content = analyzing ? table(['Name','Total clicks','Identified contacts','Last click'],links.map(item => {
+  const content = analyzing ? table(['Nome','Total de cliques','Contatos identificados','Último clique'],links.map(item => {
     const count = clickCounts.get(item.id);
     return `<tr><td><b>${h(item.name)}</b></td><td>${count?.total || 0}</td><td>${count?.contacts.size || 0}</td><td>${date(count?.recent,c,true)}</td></tr>`;
-  }),empty('No links available','Add a trigger link to view its clicks.','external')) : table(['Name','Link URL','Link Key','Date Added',''],links.map(item => row([
+  }),empty('Nenhum link disponível','Adicione um link de rastreamento para ver seus cliques.','external')) : table(['Nome','URL do link','Chave do link','Data de adição',''],links.map(item => row([
     `<b>${h(item.name)}</b>`, `<span class="ellipsis" title="${h(item.url)}">${h(item.url)}</span>`,
-    secondary('Copy link', `data-copy-path="/r/${c.workspace}/${item.id}"`, 'external'), date(item.created,c,true)
-  ],'triggerLinks',item.id)),empty('No links available','Create a link to track clicks on local messages.','external'));
-  return headline('Trigger Links','Track link clicks and use them to start workflows.',primary('Add Link','triggerLinks')) +
-    utabs({ key: 'conversations-links', nested: true, items: [['trigger-links','Link'],['link-analysis','Analyze']], current: c.tab, label: 'Trigger Links', content: `<div class="toolbar">${search(c.query,'Search links…')}</div>${content}` });
+    secondary('Copiar link', `data-copy-path="/r/${c.workspace}/${item.id}"`, 'external'), date(item.created,c,true)
+  ],'triggerLinks',item.id)),empty('Nenhum link disponível','Crie um link para rastrear cliques em mensagens locais.','external'));
+  return headline('Links de rastreamento','Rastreie cliques em links e use para iniciar automações.',primary('Adicionar link','triggerLinks')) +
+    utabs({ key: 'conversations-links', nested: true, items: [['trigger-links','Links'],['link-analysis','Análise']], current: c.tab, label: 'Links de rastreamento', content: `<div class="toolbar">${search(c.query,'Buscar links…')}</div>${content}` });
 }
 
 export function slaRecords(state, clock = Date.now()) {
@@ -170,49 +171,49 @@ function analytics(c) {
   const waiting = filtered.filter(item => ['Waiting','Due soon','Overdue'].includes(item.state)).length;
   const answered = filtered.filter(item => item.answered);
   const average = answered.length ? `${(answered.reduce((sum,item) => sum + item.elapsed,0) / answered.length).toFixed(1)} min` : '—';
-  let body = empty('Response tracking is off','Turn on SLA tracking to measure how quickly you reply.', 'chart',
-    '<a href="#conversations/settings" class="primary">Turn on SLA settings</a>');
+  let body = empty('Rastreamento de respostas desativado','Ative o rastreamento de SLA para medir a rapidez com que você responde.', 'chart',
+    '<a href="#conversations/settings" class="primary">Ativar configurações de SLA</a>');
   if (c.s.conversationSla.enabled) {
-    body = `<div class="toolbar conversation-filters">${selectFilter('period','Period',period,[['7','Last 7 days'],['30','Last 30 days'],['90','Last 90 days'],['all','All time']])}
-      ${selectFilter('slaChannel','Channel',channel,[['','All channels'],'Email','SMS'])}</div>
-      <div class="metrics">${[['Met',met],['Breached',missed],['Waiting for reply',waiting],['Average response',average]].map(([label,value]) =>
+    body = `<div class="toolbar conversation-filters">${selectFilter('period','Período',period,[['7','Últimos 7 dias'],['30','Últimos 30 dias'],['90','Últimos 90 dias'],['all','Todo o período']])}
+      ${selectFilter('slaChannel','Canal',channel,[['','Todos os canais'],['Email','E-mail'],['SMS','SMS']])}</div>
+      <div class="metrics">${[['Cumprido',met],['Estourado',missed],['Aguardando resposta',waiting],['Tempo médio de resposta',average]].map(([label,value]) =>
         `<div class="surface metric"><span>${label}</span><b>${value}</b></div>`).join('')}</div>` +
-      table(['Contact','Channel','First message','Time elapsed','Result'],[...filtered].reverse().map(item => `<tr>
+      table(['Contato','Canal','Primeira mensagem','Tempo decorrido','Resultado'],[...filtered].reverse().map(item => `<tr>
         <td><button class="identity" data-start-thread="${item.contactId}"><strong>${h(name(item.contactId,c))}</strong></button></td>
-        <td>${item.channel}</td><td>${date(item.started,c,true)}</td><td>${item.elapsed.toFixed(1)} min</td>
+        <td>${h(tr(item.channel))}</td><td>${date(item.started,c,true)}</td><td>${item.elapsed.toFixed(1)} min</td>
         <td>${badge(item.state,item.state === 'Met' ? 'green' : ['Breached','Overdue'].includes(item.state) ? 'red' : 'blue')}</td></tr>`),
-      empty('No SLA activity in this period','Log an incoming SMS or email to start timing a response.','chart'));
+      empty('Nenhuma atividade de SLA neste período','Registre um SMS ou e-mail recebido para começar a cronometrar a resposta.','chart'));
   }
-  return headline('SLA overview','Monitor response times and see which conversations meet your targets.') + body;
+  return headline('Visão geral de SLA','Monitore tempos de resposta e veja quais conversas atingem suas metas.') + body;
 }
 
 function targetInputs(group, values) {
-  return `<div class="field-grid"><label>Due soon (minutes)<input type="number" min="1" max="10079" name="${group}Soon" value="${values.soon}" required></label>
-    <label>Overdue (minutes)<input type="number" min="2" max="10080" name="${group}Overdue" value="${values.overdue}" required></label></div>`;
+  return `<div class="field-grid"><label>Vence em breve (minutos)<input type="number" min="1" max="10079" name="${group}Soon" value="${values.soon}" required></label>
+    <label>Atrasado (minutos)<input type="number" min="2" max="10080" name="${group}Overdue" value="${values.overdue}" required></label></div>`;
 }
 
 function slaSettings(c) {
   const settings = c.s.conversationSla;
-  return headline('SLA Settings','Set response time targets for incoming emails and SMS.') +
+  return headline('Configurações de SLA','Defina metas de tempo de resposta para e-mails e SMS recebidos.') +
     `<form class="surface padded settings-form sla-form" data-form="conversation-sla">
-      <label class="check"><input type="checkbox" name="enabled" role="switch" ${settings.enabled ? 'checked' : ''}> Enable SLA tracking</label>
-      <fieldset><legend>Targets across channels</legend>
-        <label class="check"><input type="radio" name="mode" value="common" ${settings.mode === 'common' ? 'checked' : ''}> Common SLA</label>
-        <label class="check"><input type="radio" name="mode" value="channel" ${settings.mode === 'channel' ? 'checked' : ''}> Channel-specific SLA</label>
+      <label class="check"><input type="checkbox" name="enabled" role="switch" ${settings.enabled ? 'checked' : ''}> Ativar rastreamento de SLA</label>
+      <fieldset><legend>Metas por canais</legend>
+        <label class="check"><input type="radio" name="mode" value="common" ${settings.mode === 'common' ? 'checked' : ''}> SLA comum</label>
+        <label class="check"><input type="radio" name="mode" value="channel" ${settings.mode === 'channel' ? 'checked' : ''}> SLA específico por canal</label>
       </fieldset>
-      <fieldset data-sla-mode="common" ${settings.mode !== 'common' ? 'hidden disabled' : ''}><legend>Common targets</legend>${targetInputs('common',settings.common)}</fieldset>
-      <fieldset data-sla-mode="channel" ${settings.mode !== 'channel' ? 'hidden disabled' : ''}><legend>Targets by channel</legend>
-        ${['SMS','Email'].map(channel => `<b>${channel}</b>${targetInputs(channel,settings.channels[channel] || settings.common)}`).join('')}
+      <fieldset data-sla-mode="common" ${settings.mode !== 'common' ? 'hidden disabled' : ''}><legend>Metas gerais</legend>${targetInputs('common',settings.common)}</fieldset>
+      <fieldset data-sla-mode="channel" ${settings.mode !== 'channel' ? 'hidden disabled' : ''}><legend>Metas por canal</legend>
+        ${['SMS','Email'].map(channel => `<b>${h(tr(channel))}</b>${targetInputs(channel,settings.channels[channel] || settings.common)}`).join('')}
       </fieldset>
-      <fieldset><legend>Which automation messages count as a reply?</legend>
-        ${[['none','None'],['all','All workflow messages'],['selected','Only selected workflows']].map(([value,label]) =>
+      <fieldset><legend>Quais mensagens de automação contam como resposta?</legend>
+        ${[['none','Nenhuma'],['all','Todas as mensagens de fluxos de trabalho'],['selected','Apenas fluxos de trabalho selecionados']].map(([value,label]) =>
           `<label class="check"><input type="radio" name="automation" value="${value}" ${settings.automation === value ? 'checked' : ''}> ${label}</label>`).join('')}
-        <label data-sla-workflows ${settings.automation !== 'selected' ? 'hidden' : ''}>Workflows
+        <label data-sla-workflows ${settings.automation !== 'selected' ? 'hidden' : ''}>Fluxos de trabalho
           <select name="workflows" multiple ${settings.automation !== 'selected' ? 'disabled' : ''}>${c.s.workflows.map(workflow =>
             `<option value="${workflow.id}" ${settings.workflows.includes(workflow.id) ? 'selected' : ''}>${h(workflow.name)}</option>`).join('')}</select>
         </label>
       </fieldset>
-      <p class="form-status" role="alert"></p><button class="primary">Save</button>
+      <p class="form-status" role="alert"></p><button class="primary">Salvar</button>
     </form>`;
 }
 

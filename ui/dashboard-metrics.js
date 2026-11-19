@@ -1,5 +1,6 @@
 // Catálogo de widgets de métrica do painel. Cada métrica é calculada só com os dados do workspace.
 // type: number (um valor), breakdown (valores por grupo) ou trend (valores ao longo do tempo).
+import { tr } from './i18n.js';
 
 export function dayAt(instant, timezone) {
   if (!instant) return '';
@@ -40,7 +41,7 @@ const invoices = list('invoices'), transactions = list('transactions'), subscrip
 const posts = list('socialPosts'), reviews = list('reviews'), submissions = list('submissions'), tasks = list('tasks');
 const dealDate = r => r.statusChangedAt || r.created;
 const postDate = r => r.publishedAt || r.scheduleDate || r.created;
-const stageName = s => r => s.stages.find(stage => stage.id === r.stage)?.name || 'Sem etapa';
+const stageName = s => r => tr(s.stages.find(stage => stage.id === r.stage)?.name) || 'Sem etapa';
 const formName = s => r => s.forms.find(form => form.id === r.formId)?.name || 'Formulário removido';
 
 export const metricWidgets = [

@@ -1,5 +1,6 @@
 // Workflows: the catalog shared by the engine (server) and the builder (browser) — triggers with their
 // filters, actions with their fields, condition subjects and operators, and template variables.
+import { tr } from './i18n.js';
 
 // Field kinds: text, textarea, number, select (static options), ref (options from workspace records), tags, time, datetime, conditions.
 const f = (key, label, kind = 'text', extra = {}) => ({ key, label, kind, ...extra });
@@ -9,8 +10,8 @@ export const refSources = {
   surveys: s => s.forms.filter(row => row.kind === 'survey').map(row => [row.id, row.name]),
   quizzes: s => s.forms.filter(row => row.kind === 'quiz').map(row => [row.id, row.name]),
   links: s => s.triggerLinks.map(row => [row.id, row.name]),
-  stages: s => s.stages.map(stage => [stage.id, [s.pipelines.find(p => p.id === stage.pipelineId)?.name, stage.name].filter(Boolean).join(' / ')]),
-  pipelines: s => s.pipelines.map(row => [row.id, row.name]),
+  stages: s => s.stages.map(stage => [stage.id, [s.pipelines.find(p => p.id === stage.pipelineId)?.name, stage.name].filter(Boolean).map(tr).join(' / ')]),
+  pipelines: s => s.pipelines.map(row => [row.id, tr(row.name)]),
   workflows: s => s.workflows.map(row => [row.id, row.name]),
   chats: s => (s.chatWidgets || []).map(row => [row.id, row.name]),
   webinars: s => (s.webinars || []).map(row => [row.id, row.name]),

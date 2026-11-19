@@ -49,7 +49,7 @@ export function bulkBar(c, object) {
   const choices = object === 'contacts'
     ? `<select name="operation" aria-label="Ação">${bulkOperations.contacts.map(([k, l]) => `<option value="${k}">${{ 'add-tag': 'Adicionar tag', 'remove-tag': 'Remover tag', delete: 'Excluir' }[k] || l}</option>`).join('')}</select>
        <input name="value" list="crm-tags" placeholder="Tag" maxlength="48" aria-label="Tag"><datalist id="crm-tags">${tagList.map(t => `<option value="${h(t)}">`).join('')}</datalist>`
-    : `<select name="operation" aria-label="Ação">${c.s.pipelines.map(p => `<optgroup label="Mover para · ${h(p.name)}">${c.s.stages.filter(st => st.pipelineId === p.id).map(st => `<option value="move-stage|${st.id}">${h(st.name)}</option>`).join('')}</optgroup>`).join('')}
+    : `<select name="operation" aria-label="Ação">${c.s.pipelines.map(p => `<optgroup label="Mover para · ${h(tr(p.name))}">${c.s.stages.filter(st => st.pipelineId === p.id).map(st => `<option value="move-stage|${st.id}">${h(tr(st.name))}</option>`).join('')}</optgroup>`).join('')}
        <optgroup label="Alterar status">${['Open', 'Won', 'Lost', 'Abandoned'].map(st => `<option value="status|${st}">${h(tr(st))}</option>`).join('')}</optgroup><option value="delete|">Excluir</option></select>`;
   return `<form class="surface crm-bulk" data-crm-bulk="${object}">${badge(`${set.size} selecionado(s)`, 'blue')}${choices}<button class="primary">Aplicar</button><button type="button" class="secondary" data-crm-clear="${object}">Limpar seleção</button></form>`;
 }
@@ -95,14 +95,14 @@ export function opportunitiesTab(c, tab) {
   const desc = 'Acompanhe negócios no pipeline, previsões de receita e etapas de vendas.';
   if (tab === 'bulk') return pageShell({ title: 'Oportunidades', desc, tabs: tabCfg, content: bulkLog(c, 'opportunities') });
   const f = forecast(c.s, { pipelineId: forecastPipeline });
-  const stageName = id => c.s.stages.find(st => st.id === id)?.name || '—';
+  const stageName = id => tr(c.s.stages.find(st => st.id === id)?.name || '—');
   const riskRows = ['High', 'Medium', 'Low'].flatMap(level => f.risk[level].map(x => `<tr><td>${badge({ High: 'Alto', Medium: 'Médio', Low: 'Baixo' }[level], { High: 'red', Medium: 'gold', Low: '' }[level])}</td><td><button class="text-link" data-edit="opportunities" data-id="${x.deal.id}">${h(x.deal.title)}</button></td><td>${date(x.deal.closeDate, c)}</td><td>${x.deal.slips || 0}</td><td>${x.late ? `${x.late} dia(s)` : '—'}</td><td>${mt(x.deal.value, c)}</td></tr>`));
   const quality = (title, list, note) => `<section class="surface padded"><h2>${title} <span class="dim">${list.length}</span></h2><p class="dim">${note}</p>${list.slice(0, 6).map(d => `<div class="line-item"><span>${h(d.title)} <small class="dim">${h(stageName(d.stage))}</small></span><button class="secondary" data-edit="opportunities" data-id="${d.id}">Corrigir</button></div>`).join('')}</section>`;
   return pageShell({
     title: 'Oportunidades',
     desc,
     tabs: tabCfg,
-    content: `<div class="toolbar"><label class="tag-filter"><span class="sr-only">Pipeline</span><select data-crm-forecast-pipeline><option value="">Todos os pipelines</option>${c.s.pipelines.map(p => `<option value="${p.id}" ${p.id === forecastPipeline ? 'selected' : ''}>${h(p.name)}</option>`).join('')}</select></label></div>
+    content: `<div class="toolbar"><label class="tag-filter"><span class="sr-only">Pipeline</span><select data-crm-forecast-pipeline><option value="">Todos os pipelines</option>${c.s.pipelines.map(p => `<option value="${p.id}" ${p.id === forecastPipeline ? 'selected' : ''}>${h(tr(p.name))}</option>`).join('')}</select></label></div>
       <div class="metrics">${metric('Receita potencial máxima', mt(f.potential, c), 'Se todas as oportunidades abertas fecharem')}${metric('Receita esperada', mt(f.expected, c), 'Pela probabilidade da oportunidade ou da etapa')}${metric('Receita ganha', mt(f.won, c), 'Oportunidades ganhas')}${metric('Oportunidades abertas', f.open, 'Em andamento')}</div>
       <h2 class="section-heading">Linha do tempo da previsão</h2>${table(['Mês de fechamento', 'Oportunidades', 'Valor', 'Receita esperada'], f.timeline.map(m => `<tr><td><b>${new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${m.month}-01T12:00:00Z`))}</b></td><td>${m.count}</td><td>${mt(m.value, c)}</td><td>${mt(m.expected, c)}</td></tr>`), empty('Sem datas de fechamento', 'Informe a data prevista de fechamento nas oportunidades abertas.', 'chart'))}
       <h2 class="section-heading">Oportunidades em risco</h2><p class="dim crm-intro">Alto: adiada 2+ vezes ou atrasada 14+ dias · Médio: adiada 1 vez ou atrasada 7+ dias · Baixo: atrasada 1+ dia.</p>${table(['Risco', 'Oportunidade', 'Fechamento previsto', 'Adiamentos', 'Atraso', 'Valor'], riskRows, empty('Nenhuma oportunidade em risco', 'As datas de fechamento das oportunidades abertas estão em dia.', 'check'))}
@@ -194,9 +194,65 @@ export function settingsTab(c, tab) {
   }
   if (tab === 'import') return wrapIt(`<button class="primary" data-act="import">${i('upload', 16)} Importar CSV</button>`, `<div class="surface padded crm-intro"><h2>Importar registros de CSV</h2><p class="dim">Envie um arquivo CSV de contatos com nome, e-mail, telefone, empresa e tags. Contatos com e-mail já cadastrado são ignorados.</p></div>
     <h2 class="section-heading">Histórico de importações</h2>${table(['Data', 'Origem', 'Arquivo', 'Status', 'Importado por', 'Registros encontrados', 'Importados', 'Ignorados'], [...s.imports].reverse().map(x => `<tr><td>${date(x.created, c, true)}</td><td>${h(x.source)}</td><td>${h(x.file || '—')}</td><td>${badge('Concluído', 'green')}</td><td>${h(x.user || '—')}</td><td>${x.found}</td><td>${x.added}</td><td>${x.skipped}</td></tr>`), empty('Nenhuma importação', 'As importações de CSV aparecem aqui com o resultado.', 'upload'))}`);
-  const rows = [...(c.audit || [])].reverse().filter(a => match(c, a.actor, a.action, a.details));
+  const auditModules = {
+    blogPosts: 'Blogs', blogs: 'Blogs', contacts: 'Contatos', companies: 'Empresas',
+    opportunities: 'Oportunidades', pipelines: 'Oportunidades', stages: 'Oportunidades',
+    workflows: 'Automações', customFields: 'Campos personalizados', tags: 'Tags',
+    tasks: 'Tarefas', forms: 'Formulários', chats: 'Sites', webinars: 'Sites',
+    qrs: 'Sites', stores: 'Sites', pages: 'Sites', agents: 'Agentes de IA',
+    agentRuns: 'Agentes de IA', integrations: 'Integrações', invoices: 'Pagamentos',
+    appointments: 'Calendários', snippets: 'Conversas', snippetFolders: 'Conversas',
+    triggerLinks: 'Conversas', messages: 'Conversas', manualActions: 'Conversas',
+    files: 'Mídia Drive', courses: 'Assinaturas', reviews: 'Reputação',
+    profile: 'Perfil', subaccounts: 'Subcontas', snapshots: 'Snapshots',
+    marketplace: 'Marketplace', prospecting: 'Prospecção'
+  };
+  const auditLabels = {
+    'Sub-account created': ['Subconta criada', 'Subcontas'],
+    'Sub-account support viewed': ['Suporte à subconta acessado', 'Suporte'],
+    'Snapshot created': ['Snapshot criado', 'Snapshots'],
+    'Snapshot refreshed': ['Snapshot atualizado', 'Snapshots'],
+    'Snapshot loaded': ['Snapshot carregado', 'Snapshots'],
+    'Setup published to marketplace': ['Setup publicado no marketplace', 'Marketplace'],
+    'Setup updated on marketplace': ['Setup atualizado no marketplace', 'Marketplace'],
+    'Setup unpublished from marketplace': ['Setup despublicado do marketplace', 'Marketplace'],
+    'Setup installed from marketplace': ['Setup instalado do marketplace', 'Marketplace'],
+    'Template installed': ['Modelo instalado', 'Modelos'],
+    'Prospects sent to CRM': ['Prospects enviados ao CRM', 'Prospecção']
+  };
+  const entityNamesSingular = {
+    blogPosts: 'Post de blog', blogs: 'Blog', contacts: 'Contato', companies: 'Empresa',
+    opportunities: 'Oportunidade', pipelines: 'Pipeline', stages: 'Etapa',
+    workflows: 'Fluxo de trabalho', customFields: 'Campo personalizado', tags: 'Tag',
+    tasks: 'Tarefa', forms: 'Formulário', chats: 'Chat', webinars: 'Webinar',
+    qrs: 'QR code', stores: 'Loja', pages: 'Página', agents: 'Agente de IA',
+    integrations: 'Integração', invoices: 'Fatura', appointments: 'Agendamento',
+    snippets: 'Resposta rápida', snippetFolders: 'Pasta de respostas',
+    triggerLinks: 'Link de rastreamento', files: 'Arquivo', courses: 'Curso',
+    reviews: 'Avaliação'
+  };
+  const formatAudit = action => {
+    if (!action) return { title: '—', module: '—' };
+    if (auditLabels[action]) return { title: auditLabels[action][0], module: auditLabels[action][1] };
+    if (action.startsWith('Deleted ')) {
+      const key = action.slice(8).trim();
+      const noun = entityNamesSingular[key] || key;
+      return { title: `${noun} excluído(a)`, module: auditModules[key] || key };
+    }
+    if (action.startsWith('Saved ')) {
+      const key = action.slice(6).trim();
+      const noun = entityNamesSingular[key] || key;
+      return { title: `${noun} salvo(a)`, module: auditModules[key] || key };
+    }
+    if (action.startsWith('Bulk ')) return { title: action.replace('Bulk ', 'Ação em massa: '), module: 'Ações em massa' };
+    if (action.startsWith('Prospecting:')) return { title: `Prospecção: ${action.slice(12).trim()}`, module: 'Prospecção' };
+    if (action.startsWith('Ran ')) return { title: `Execução: ${action.slice(4).trim()}`, module: 'Automações' };
+    return { title: tr(action), module: auditModules[action] || action.split(' ').slice(1).join(' ') || '—' };
+  };
+  const rows = [...(c.audit || [])].reverse().map(a => ({ ...a, ...formatAudit(a.action) }))
+    .filter(a => match(c, a.actor, a.action, a.details, a.title, a.module));
   return wrapIt('', `<p class="dim crm-intro">Ações de usuários e alterações de dados neste workspace.</p><div class="toolbar">${search(c, 'Buscar no log…')}</div>` +
-    table(['Ação', 'Módulo', 'Feito por', 'Data e hora'], rows.map(a => `<tr><td><b>${h(a.action)}</b>${a.details ? `<br><small class="dim">${h(a.details)}</small>` : ''}</td><td>${h(a.action.split(' ').slice(1).join(' ') || '—')}</td><td>${h(a.actor)}</td><td>${date(a.at, c, true)}</td></tr>`),
+    table(['Ação', 'Módulo', 'Feito por', 'Data e hora'], rows.map(a => `<tr><td><b>${h(a.title)}</b>${a.details ? `<br><small class="dim">${h(a.details)}</small>` : ''}</td><td>${h(a.module)}</td><td>${h(a.actor)}</td><td>${date(a.at, c, true)}</td></tr>`),
       empty('Nenhuma atividade registrada', c.audit ? 'As gravações feitas neste workspace aparecem aqui.' : 'Seu usuário não tem acesso às configurações.', 'list')));
 }
 
