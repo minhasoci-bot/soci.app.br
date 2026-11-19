@@ -217,7 +217,7 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     const invoice = state.invoices.find(item => (checkoutId && item.payment?.checkoutId === checkoutId) || (invoiceId && item.id === invoiceId));
     if (!invoice) return false;
     invoice.payment = { ...(invoice.payment || { provider: 'abacatepay', checkoutId }), status: 'PAID', paidAt: stamp(), method, receiptUrl: receiptUrl || '' };
-    if (invoice.status === 'Paid') return true;
+    if (invoice.status === 'Paid') return invoice;
     invoice.paidMethod = method;
     const order = state.orders?.find(item => item.invoiceId === invoice.id && item.status === 'Pending');
     if (order) {
@@ -226,7 +226,7 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     } else {
       execute(state, { type: 'save', key: 'invoices', id: invoice.id, data: { title: invoice.title, contactId: invoice.contactId, value: invoice.value, due: invoice.due, status: 'Paid' } });
     }
-    return true;
+    return state.invoices.find(item => item.id === invoice.id);
   }
   function refundedInvoice(state, checkoutId) {
     const invoice = state.invoices.find(item => item.payment?.checkoutId === checkoutId);
@@ -287,7 +287,7 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
   }
 
   // ---- Webhook ------------------------------------------------------------------------------
-  async function handleWebhook({ req, url, json, listWorkspaces, changeAgency, onSubscription }) {
+  async function handleWebhook({ req, url, json, listWorkspaces, changeAgency, onSubscription, onInvoicePaid }) {
     const match = resolvePath(url).match(/^\/api\/abacatepay\/webhook\/([^/]+)\/([^/]+)$/);
     if (!match) throw fail('Webhook inválido.', 404);
     const agencyId = decodeURIComponent(match[1]), scope = decodeURIComponent(match[2]);
@@ -318,7 +318,10 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
       const checkoutId = String(charge.id || '');
       const method = methodNames[data.payerInformation?.method] || 'Pix';
       if ((event === 'checkout.completed' && charge.frequency !== 'SUBSCRIPTION') || event === 'transparent.completed') {
-        await store.change(scope, state => { handled = paidInvoice(state, { checkoutId, invoiceId: charge.metadata?.invoiceId, method, receiptUrl: charge.receiptUrl }); });
+        let invoice = null;
+        await store.change(scope, state => { invoice = paidInvoice(state, { checkoutId, invoiceId: charge.metadata?.invoiceId, method, receiptUrl: charge.receiptUrl }); });
+        handled = Boolean(invoice);
+        if (invoice && onInvoicePaid) await onInvoicePaid(scope, structuredClone(invoice)).catch(() => {});
       } else if (event === 'checkout.refunded' || event === 'transparent.refunded') {
         await store.change(scope, state => { handled = refundedInvoice(state, checkoutId); });
       }

@@ -40,6 +40,7 @@ import { blogHome, blogPost, blogRss, isLive } from './ui/blog-data.js';
 import { localDraft, postSeo, writePost } from './blog-ai.mjs';
 import { catalog, methodLabel, storeCart, storeHome, storeProduct } from './ui/store-data.js';
 import { quoteOrder } from './store-model.mjs';
+import { renderOfferPage, offerPageCsp } from './offer-page.mjs';
 import { deliverWebhook } from './workflow-delivery.mjs';
 import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
 import { deviceOf, qrTarget } from './qr-model.mjs';
@@ -54,7 +55,7 @@ const staticFiles = new Map([
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/offers.js','text/javascript; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
@@ -83,7 +84,7 @@ const privateSpace = /^user-[0-9a-f-]{36}$/;
 const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
-const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community)(?:/([0-9a-f-]{36}))?$`);
+const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community|offer-grant)(?:/([0-9a-f-]{36}))?$`);
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const chatPath = new RegExp(`^/chat/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js|demo))?/?$`);
 const chatApi = new RegExp(`^/api/chat/${workspaceSegment}/([0-9a-f-]{36})/(start|send|messages)$`);
@@ -91,6 +92,8 @@ const webinarPath = new RegExp(`^/w/${workspaceSegment}/([0-9a-f-]{36})(?:/(sala
 const webinarApi = new RegExp(`^/api/webinar/${workspaceSegment}/([0-9a-f-]{36})/register$`);
 const qrPath = new RegExp(`^/q/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
+const offerPath = new RegExp(`^/oferta/${workspaceSegment}/([0-9a-f-]{36})/?$`);
+const offerApi = new RegExp(`^/api/offer/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout)$`);
 const blogPath = new RegExp(`^/b/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,80}|rss\\.xml))?/?$`);
 const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
@@ -142,6 +145,22 @@ export function makeServer({
   });
   const clientPortal = makeClientPortal({ ...portalOptions, store });
   const community = makeCommunity({ store });
+  // Gives an offer's courses and communities to the contact who bought it (once per invoice).
+  async function grantOffer(workspace, offerId, contactId, invoiceId = '') {
+    const state = await store.load(workspace);
+    const offer = state.offers.find(row => row.id === offerId);
+    const contact = state.contacts.find(row => row.id === contactId);
+    if (!offer || !contact?.email) throw error('Oferta ou contato não encontrado.',404);
+    if (invoiceId && state.invoices.find(row => row.id === invoiceId)?.offerGrantedAt) return { enrolled: true, alreadyGranted: true, emailed: false };
+    const { memberId, emailed } = await clientPortal.enroll(workspace, state, { email: contact.email, name: contact.name, contactId }, offer.courseIds);
+    if (!memberId) throw error('O acesso deste cliente ao portal foi revogado. Reative-o na aba Clientes.',409);
+    await community.enroll(workspace, memberId, offer.communityIds);
+    if (invoiceId) await store.change(workspace, current => {
+      const invoice = current.invoices.find(row => row.id === invoiceId);
+      if (invoice) invoice.offerGrantedAt = new Date().toISOString();
+    });
+    return { enrolled: true, emailed };
+  }
   const ready = Promise.all([store.insert('demo', seed()), store.insert(AGENCY_ID, blankAgency())]);
   ready.catch(() => {});
   const workspaceOwner = id => id === AGENCY_ID ? null : id;
@@ -1028,6 +1047,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       const portalMatch = p.match(portalApi);
       if (portalMatch) {
         const [, workspace, operation, courseId] = portalMatch;
+        if (operation === 'offer-grant') {
+          if (method !== 'POST' || !courseId) throw error('Método indisponível.',405);
+          const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'] });
+          await requireActiveAccount(who.agencyId, workspace, true);
+          const invoice = (await store.load(workspace)).invoices.find(row => row.id === courseId && row.offerId);
+          if (!invoice) throw error('Venda não encontrada.',404);
+          return json(await grantOffer(workspace, invoice.offerId, invoice.contactId, invoice.id));
+        }
         if (operation !== 'community-admin' && Boolean(courseId) !== ['course','progress','community'].includes(operation)) throw error('Página do portal não encontrada.',404);
         if (operation === 'community-admin') {
           const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'] });
@@ -1418,7 +1445,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (p.startsWith('/api/abacatepay/webhook/') && method === 'POST') {
         await ready;
-        return await abacate.handleWebhook({ req, url, json, listWorkspaces, changeAgency });
+        return await abacate.handleWebhook({ req, url, json, listWorkspaces, changeAgency,
+          onInvoicePaid: async (workspace, invoice) => { if (invoice.offerId && !invoice.offerGrantedAt) await grantOffer(workspace, invoice.offerId, invoice.contactId, invoice.id); } });
       }
       if (p.startsWith('/api/abacatepay/agency/')) {
         const who = await access(req, res);
@@ -1749,6 +1777,40 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin',
           'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" });
         return res.end(method === 'HEAD' ? undefined : body);
+      }
+      const offerRoute = p.match(offerPath);
+      if (offerRoute && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, offerId] = offerRoute;
+        await publicAccountPolicy(workspace, false, 'memberships');
+        const state = await store.load(workspace);
+        const offer = state.offers?.find(row => row.id === offerId && row.status === 'published');
+        if (!offer) throw error('Esta oferta não está disponível.',404);
+        const color = (await clientPortal.directory(workspace)).settings?.color || '';
+        const status = ['pago','voltou'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : '';
+        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Content-Security-Policy':offerPageCsp });
+        return res.end(method === 'HEAD' ? undefined : renderOfferPage(state, offer, { workspace, status, color }));
+      }
+      const offerCall = p.match(offerApi);
+      if (offerCall) {
+        await ready;
+        if (method !== 'POST') throw error('Method not allowed.',405);
+        const [, workspace, offerId] = offerCall;
+        const input = await payload(req);
+        await publicAccountPolicy(workspace, true, 'memberships');
+        const current = await store.load(workspace);
+        const offer = current.offers?.find(row => row.id === offerId && row.status === 'published');
+        if (!offer) throw error('Esta oferta não está disponível.',404);
+        const agencyId = current.agencyId || AGENCY_ID;
+        if (offer.type !== 'free' && !(await abacate.connected(agencyId, workspace))) throw error('O pagamento online desta oferta ainda não está disponível. Fale com a equipe.',409);
+        const result = await change(workspace,{ type:'offer-checkout', id:offerId, data:{ name:input.name, email:input.email } });
+        if (offer.type === 'free') {
+          const { emailed } = await grantOffer(workspace, offerId, result.id);
+          return json({ enrolled:true, emailed });
+        }
+        const origin = publicBase(req), page = `${origin}/oferta/${workspace}/${offerId}`;
+        const payment = await abacate.chargeInvoice(agencyId, workspace, result.id, origin, { returnUrl:`${page}?status=voltou`, completionUrl:`${page}?status=pago` });
+        return json({ payUrl:payment.url });
       }
       const storeCall = p.match(storeApi);
       if (storeCall) {
