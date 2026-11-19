@@ -393,12 +393,87 @@ function overview(c) {
     <h2>Execuções recentes</h2>${history(c, runs.slice(-10), 'logs', true)}`;
 }
 
+function recordFieldSnapshot(el) {
+  if (!el || !('value' in el)) return;
+  el._undoStack ||= [];
+  el._redoStack ||= [];
+  const state = { value: el.value, start: el.selectionStart ?? el.value.length, end: el.selectionEnd ?? el.value.length };
+  const last = el._undoStack[el._undoStack.length - 1];
+  if (last && last.value === state.value) return;
+  el._undoStack.push(state);
+  if (el._undoStack.length > 50) el._undoStack.shift();
+  el._redoStack = [];
+}
+
+function undoField(el) {
+  if (!el || !el._undoStack || el._undoStack.length <= 1) return false;
+  el._redoStack ||= [];
+  const current = el._undoStack.pop();
+  el._redoStack.push(current);
+  const prev = el._undoStack[el._undoStack.length - 1];
+  el.value = prev.value;
+  el.setSelectionRange(prev.start, prev.end);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  return true;
+}
+
+function redoField(el) {
+  if (!el || !el._redoStack || !el._redoStack.length) return false;
+  el._undoStack ||= [];
+  const next = el._redoStack.pop();
+  el._undoStack.push(next);
+  el.value = next.value;
+  el.setSelectionRange(next.start, next.end);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  return true;
+}
+
+function pushHistory(editor) {
+  if (!editor) return;
+  editor.history ||= [];
+  if (editor.historyIndex == null) editor.historyIndex = 0;
+  const currentJson = JSON.stringify(editor.row);
+  const lastJson = JSON.stringify(editor.history[editor.historyIndex]);
+  if (currentJson === lastJson) return;
+  editor.history = editor.history.slice(0, editor.historyIndex + 1);
+  editor.history.push(structuredClone(editor.row));
+  if (editor.history.length > 50) editor.history.shift();
+  editor.historyIndex = editor.history.length - 1;
+}
+
+function undoWorkflow(editor) {
+  if (!editor || !editor.history || editor.historyIndex <= 0) return false;
+  editor.historyIndex--;
+  editor.row = structuredClone(editor.history[editor.historyIndex]);
+  if (editor.node !== null && editor.node !== 'trigger' && editor.node >= editor.row.actions.length) {
+    editor.node = editor.row.actions.length ? editor.row.actions.length - 1 : null;
+  }
+  editor.dirty = true;
+  return true;
+}
+
+function redoWorkflow(editor) {
+  if (!editor || !editor.history || editor.historyIndex >= editor.history.length - 1) return false;
+  editor.historyIndex++;
+  editor.row = structuredClone(editor.history[editor.historyIndex]);
+  if (editor.node !== null && editor.node !== 'trigger' && editor.node >= editor.row.actions.length) {
+    editor.node = editor.row.actions.length ? editor.row.actions.length - 1 : null;
+  }
+  editor.dirty = true;
+  return true;
+}
+
 function draft(c, id) {
   const row = c.s.workflows.find(item => item.id === id);
   const folderId = c.s.workflowFolders.some(folder => folder.id === id) ? id : '';
   if (c.workflowDraft?.workspace !== c.workspace || c.workflowDraft?.key !== id) {
-    c.workflowDraft = { workspace: c.workspace, key: id, row: row ? structuredClone(row) :
-      { name: '', folderId, trigger: '', actions: [], active: false, allowReentry: true }, node: null, zoom: 1, panX: 0, panY: 0, dirty: false };
+    const initialRow = row ? structuredClone(row) :
+      { name: '', folderId, trigger: '', actions: [], active: false, allowReentry: true };
+    c.workflowDraft = {
+      workspace: c.workspace, key: id, row: initialRow,
+      node: null, zoom: 1, panX: 0, panY: 0, dirty: false,
+      history: [structuredClone(initialRow)], historyIndex: 0
+    };
   }
   return c.workflowDraft;
 }
@@ -407,6 +482,10 @@ function canvas(c, editor) {
   const { row, node } = editor;
   const selected = row.actions[node];
   const atLimit = row.actions.length >= maxActions;
+  const canUndo = (editor.historyIndex || 0) > 0;
+  const canRedo = (editor.historyIndex || 0) < ((editor.history?.length || 1) - 1);
+  const undoControl = button('undo', `<span class="sr-only">Desfazer (Ctrl+Z)</span>`, { cls: 'wf-canvas-tool', glyph: 'undo', disabled: !canUndo });
+  const redoControl = button('redo', `<span class="sr-only">Refazer (Ctrl+Y)</span>`, { cls: 'wf-canvas-tool', glyph: 'redo', disabled: !canRedo });
   const control = (op, label, glyph) => button(op, `<span class="sr-only">${label}</span>`, { cls: 'wf-canvas-tool', glyph });
   const add = position => `<div class="wf-connector">${button('node-add', `<span class="sr-only">${position < row.actions.length ? `Inserir antes da ação ${position + 1}` : 'Adicionar ao fim do fluxo'}</span>`,
     { id: position, glyph: 'plus', cls: 'wf-add', disabled: atLimit })}</div>`;
@@ -472,7 +551,9 @@ function canvas(c, editor) {
     ${card('trigger', triggerLabels[row.trigger] || 'Adicionar gatilho', '', 'bolt')}
     ${row.actions.map((step, index) => add(index) + card(index, actions[step.type]?.[0] || step.type, step.value, actions[step.type]?.[1] || 'flow')).join('')}
     ${add(row.actions.length)}</div></div></div>
-    <div class="wf-canvas-controls" role="group" aria-label="Zoom do canvas">
+    <div class="wf-canvas-controls" role="group" aria-label="Controles do canvas">
+      ${undoControl}${redoControl}
+      <span class="wf-canvas-sep" aria-hidden="true"></span>
       ${control('zoom-in', 'Aproximar', 'plus')}${button('zoom-out', '<span aria-hidden="true">−</span><span class="sr-only">Afastar</span>', { cls: 'wf-canvas-tool' })}
       ${control('zoom-fit', 'Enquadrar fluxo', 'monitor')}
     </div>
@@ -731,6 +812,7 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
       const editor = c.workflowDraft;
       const record = input.name === 'name' ? editor.row : editor.row.actions[editor.node];
       record[input.name] = input.value;
+      recordFieldSnapshot(input);
       if (input.name === 'value') {
         const node = document.querySelector(`.wf-node[data-wf-id="${editor.node}"]`);
         if (node) {
@@ -748,6 +830,8 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
         }
       }
       markDirty();
+      clearTimeout(historyTimer);
+      historyTimer = setTimeout(() => pushHistory(editor), 400);
     }
   });
   document.addEventListener('change', event => {
@@ -763,12 +847,13 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
     const record = ['type', 'channel'].includes(input.name) ? editor.row.actions[editor.node] : editor.row;
     record[input.name] = value;
     markDirty();
+    pushHistory(editor);
     if (['trigger', 'type'].includes(input.name)) {
       renderCanvas(`[data-wf-editor] select[name="${input.name}"]`);
     }
   });
 
-  let pendingSave = false;
+  let pendingSave = false, historyTimer;
   document.addEventListener('click', async event => {
     const varBtn = event.target.closest('[data-wf-insert-var]');
     if (varBtn && c.view === 'automation') {
@@ -776,14 +861,46 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
       const targetInput = document.querySelector('.wf-inspector [name="value"]');
       if (targetInput) {
         targetInput.focus();
+        recordFieldSnapshot(targetInput);
+
         const start = targetInput.selectionStart ?? targetInput.value.length;
         const end = targetInput.selectionEnd ?? targetInput.value.length;
         const current = targetInput.value;
-        const next = current.slice(0, start) + token + current.slice(end);
-        targetInput.value = next;
-        const nextPos = start + token.length;
-        targetInput.setSelectionRange(nextPos, nextPos);
-        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+        // If cursor is inside an existing {{ ... }} tag, replace that tag rather than nesting
+        let repStart = start;
+        let repEnd = end;
+        if (start === end) {
+          const before = current.slice(0, start);
+          const after = current.slice(start);
+          const lastOpen = before.lastIndexOf('{{');
+          const lastClose = before.lastIndexOf('}}');
+          const nextClose = after.indexOf('}}');
+          const nextOpen = after.indexOf('{{');
+          if (lastOpen !== -1 && (lastClose === -1 || lastClose < lastOpen) && nextClose !== -1 && (nextOpen === -1 || nextOpen > nextClose)) {
+            repStart = lastOpen;
+            repEnd = start + nextClose + 2;
+            targetInput.setSelectionRange(repStart, repEnd);
+          }
+        }
+
+        let inserted = false;
+        try {
+          inserted = document.execCommand('insertText', false, token);
+        } catch {}
+
+        if (!inserted) {
+          if (typeof targetInput.setRangeText === 'function') {
+            targetInput.setRangeText(token, repStart, repEnd, 'end');
+          } else {
+            targetInput.value = current.slice(0, repStart) + token + current.slice(repEnd);
+            targetInput.setSelectionRange(repStart + token.length, repStart + token.length);
+          }
+          targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        recordFieldSnapshot(targetInput);
+        if (c.workflowDraft) pushHistory(c.workflowDraft);
       }
       return;
     }
@@ -797,6 +914,22 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
     try {
       if (op.startsWith('zoom-')) {
         zoomCanvas(op);
+      } else if (op === 'undo') {
+        const activeEl = document.activeElement;
+        if (activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName) && activeEl.closest('[data-wf-editor]') && undoField(activeEl)) {
+          return;
+        }
+        if (undoWorkflow(editor)) {
+          renderCanvas();
+        }
+      } else if (op === 'redo') {
+        const activeEl = document.activeElement;
+        if (activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName) && activeEl.closest('[data-wf-editor]') && redoField(activeEl)) {
+          return;
+        }
+        if (redoWorkflow(editor)) {
+          renderCanvas();
+        }
       } else if (op === 'node-add') {
         if (editor.row.actions.length < maxActions) actionPicker(Number(id));
       } else if (op.startsWith('node')) {
@@ -814,13 +947,16 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
             editor.node = Number(btn.closest('.wf-picker').dataset.wfInsert);
             steps.splice(editor.node, 0, { type: id, value: '' });
             close();
+            pushHistory(editor);
           } else if (op === 'node-delete') {
             steps.splice(index, 1);
             editor.node = steps.length ? Math.min(index, steps.length - 1) : 'trigger';
+            pushHistory(editor);
           } else {
             const target = index + (op === 'node-up' ? -1 : 1);
             [steps[index], steps[target]] = [steps[target], steps[index]];
             editor.node = target;
+            pushHistory(editor);
           }
           markDirty();
         }
@@ -1039,6 +1175,59 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
       problem.textContent = error.message;
     } finally {
       input.disabled = pendingSave = false;
+    }
+  });
+
+  document.addEventListener('focusin', event => {
+    const input = event.target;
+    if (input && ['INPUT', 'TEXTAREA'].includes(input.tagName) && input.closest('[data-wf-editor]')) {
+      if (!input._undoStack || !input._undoStack.length) {
+        recordFieldSnapshot(input);
+      }
+    }
+  });
+
+  document.addEventListener('keydown', event => {
+    if (c.view !== 'automation' || !c.workflowDraft) return;
+    const isCtrl = event.ctrlKey || event.metaKey;
+    if (!isCtrl) return;
+
+    const key = event.key.toLowerCase();
+    const isUndo = key === 'z' && !event.shiftKey;
+    const isRedo = (key === 'z' && event.shiftKey) || key === 'y';
+
+    if (!isUndo && !isRedo) return;
+
+    const activeEl = document.activeElement;
+    const isTextInput = activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName) && activeEl.closest('[data-wf-editor]');
+
+    if (isTextInput) {
+      if (isUndo) {
+        if (undoField(activeEl)) {
+          event.preventDefault();
+          return;
+        }
+      } else if (isRedo) {
+        if (redoField(activeEl)) {
+          event.preventDefault();
+          return;
+        }
+      }
+    }
+
+    const editor = c.workflowDraft;
+    if (isUndo) {
+      if (undoWorkflow(editor)) {
+        event.preventDefault();
+        renderCanvas();
+        flash('Ação desfeita (Ctrl+Z)');
+      }
+    } else if (isRedo) {
+      if (redoWorkflow(editor)) {
+        event.preventDefault();
+        renderCanvas();
+        flash('Ação refeita (Ctrl+Y)');
+      }
     }
   });
 }

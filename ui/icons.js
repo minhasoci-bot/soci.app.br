@@ -233,6 +233,14 @@ const defs = {
     k: 'chevron-right',
     body: `<path class="la-chev" d="m9 18 6-6-6-6"/>`
   },
+  undo: {
+    k: 'undo',
+    body: `<path class="la-chev" d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>`
+  },
+  redo: {
+    k: 'redo',
+    body: `<path class="la-chev" d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/>`
+  },
   dots: {
     k: 'dots',
     body: `<circle class="la-dot la-d1" cx="5" cy="12" r="1.25" fill="currentColor" stroke="none"/>`
