@@ -78,48 +78,91 @@ function card({ key, kind, label, detail, glyph, current, footer, trigger = fals
     <span class="wf-node-footer"><span>${h(footer)}</span><span data-wf-node-status>${icon(detail || trigger ? 'check' : 'sliders', 13)}</span></span></button>`;
 }
 
-const addButton = (key, index, full) => `<div class="wfb-link">${btn('node-add', `<span class="sr-only">Adicionar ação aqui</span>`,
-  { cls: 'wf-add', glyph: 'plus', disabled: full, data: `data-wf-list="${h(key)}" data-wf-index="${index}"` })}</div>`;
+// Layout: every card gets x/y coordinates, and the connections are SVG curves from the right port of one card to the
+// left port of the next. Branches (Se/Senão, Roteador) stack their paths vertically and merge back into the next step.
+const CARD_W = 232, CARD_H = 112, GAP_X = 96, GAP_Y = 40, PILL = 30;
 
-function drawList(c, editor, steps, key, numbering) {
-  const full = count(editor.row) >= MAX_STEPS;
-  let out = '';
-  steps.forEach((step, index) => {
-    const spec = actionSpec(step.type);
-    const number = `${numbering}${index + 1}`;
-    out += addButton(key, index, full);
-    out += card({ key: step.id, kind: spec?.group || 'Ação', label: spec?.label || step.type, detail: stepSummary(step, c.s), glyph: spec?.icon || 'flow',
-      current: editor.node === step.id, footer: `#${number}`, ran: tested(editor, step.id)?.result || '', variant: spec?.branch ? 'wfb-branch-node' : step.type === 'goal' ? 'wfb-goal' : step.type === 'end' || step.type === 'goto' ? 'wfb-stop' : '' });
-    if (step.type === 'if_else') {
-      out += `<div class="wfb-branches">${[['yes', 'Sim'], ['no', 'Não']].map(([part, label]) =>
-        `<div class="wfb-col"><span class="wfb-branch-label ${part}">${label}</span>${drawList(c, editor, step[part] || [], `${step.id}:${part}`, `${number}.${part === 'yes' ? 'S' : 'N'}`)}</div>`).join('')}</div>`;
-    }
-    if (step.type === 'router') {
-      out += `<div class="wfb-branches">${(step.routes || []).map((route, r) =>
-        `<div class="wfb-col"><span class="wfb-branch-label">${h(route.label)}</span>${drawList(c, editor, route.steps || [], `${step.id}:route.${route.id}`, `${number}.${r + 1}`)}</div>`).join('')}
-        <div class="wfb-col"><span class="wfb-branch-label no">Caso contrário</span>${drawList(c, editor, step.otherwise || [], `${step.id}:otherwise`, `${number}.C`)}</div></div>`;
-    }
-    if (step.type === 'end' || step.type === 'goto') { out += `<span class="wfb-stop-mark">${step.type === 'end' ? 'Fim' : 'Salta'}</span>`; }
+function layoutFlow(c, editor) {
+  const nodes = [], edges = [], pills = [], full = count(editor.row) >= MAX_STEPS;
+  const mid = CARD_H / 2;
+  // Lays out one list of steps starting at (x, y). `incoming` are the ports that flow into its first element.
+  const sequence = (steps, key, x, y, incoming, numbering) => {
+    let ports = incoming, bottom = y + CARD_H;
+    steps.forEach((step, index) => {
+      const spec = actionSpec(step.type), number = `${numbering}${index + 1}`;
+      ports.forEach((port, i) => edges.push({ from: port, to: { x, y: y + mid }, label: port.label, tone: port.tone, add: i === 0 ? { key, index } : null }));
+      nodes.push({ x, y, html: card({ key: step.id, kind: spec?.group || 'Ação', label: spec?.label || step.type, detail: stepSummary(step, c.s), glyph: spec?.icon || 'flow',
+        current: editor.node === step.id, footer: `#${number}`, ran: tested(editor, step.id)?.result || '',
+        variant: spec?.branch ? 'wfb-branch-node' : step.type === 'goal' ? 'wfb-goal' : step.type === 'end' || step.type === 'goto' ? 'wfb-stop' : '' }) });
+      const right = { x: x + CARD_W, y: y + mid };
+      if (step.type === 'if_else' || step.type === 'router') {
+        const paths = step.type === 'if_else'
+          ? [['Sim', 'yes', step.yes || [], `${step.id}:yes`, `${number}.S`], ['Não', 'no', step.no || [], `${step.id}:no`, `${number}.N`]]
+          : [...(step.routes || []).map((route, r) => [route.label, '', route.steps || [], `${step.id}:route.${route.id}`, `${number}.${r + 1}`]), ['Caso contrário', 'no', step.otherwise || [], `${step.id}:otherwise`, `${number}.C`]];
+        let by = y, endX = x, merged = [];
+        for (const [label, tone, list, listKey, num] of paths) {
+          const out = sequence(list, listKey, x + CARD_W + GAP_X + 60, by, [{ ...right, label, tone }], `${num}.`);
+          merged = merged.concat(out.ports); endX = Math.max(endX, out.endX); by = out.bottom + GAP_Y; bottom = Math.max(bottom, out.bottom);
+        }
+        ports = merged; x = endX + GAP_X;
+      } else if (step.type === 'end' || step.type === 'goto') {
+        ports = []; x += CARD_W + GAP_X;
+      } else { ports = [right]; x += CARD_W + GAP_X; }
+    });
+    // End of the list: a "+" that adds at the end; the following step (after a merge) connects from here.
+    const pill = { x, y: y + mid - PILL / 2 };
+    ports.forEach(port => edges.push({ from: port, to: { x, y: y + mid }, label: port.label, tone: port.tone }));
+    if (ports.length || !steps.length) pills.push({ ...pill, html: btn('node-add', '<span class="sr-only">Adicionar ação no fim deste caminho</span>', { cls: 'wf-add wfb-pill', glyph: 'plus', disabled: full, data: `data-wf-list="${h(key)}" data-wf-index="${steps.length}"` }) });
+    return { ports: ports.length || !steps.length ? [{ x: x + PILL, y: y + mid }] : [], endX: x + PILL, bottom };
+  };
+  // Triggers stacked on the left; all of them flow into the first step.
+  const triggers = editor.row.triggers;
+  const triggerX = 0, firstX = CARD_W + GAP_X + 20;
+  const triggerPorts = [];
+  triggers.forEach((trigger, index) => {
+    const spec = triggerSpec(trigger.type), ty = index * (CARD_H + 20);
+    nodes.push({ x: triggerX, y: ty, html: card({ key: `t:${trigger.id}`, kind: 'Gatilho', label: spec?.label || trigger.type, detail: triggerSummary(trigger, c.s), glyph: spec?.icon || 'bolt',
+      current: editor.node === `t:${trigger.id}`, footer: `Gatilho ${index + 1}`, trigger: true }) });
+    triggerPorts.push({ x: triggerX + CARD_W, y: ty + mid });
   });
-  out += addButton(key, steps.length, full);
-  return `<div class="wfb-list">${out}</div>`;
+  const addY = triggers.length * (CARD_H + 20);
+  nodes.push({ x: triggerX, y: addY, html: `<button type="button" class="wfb-add-trigger" data-wf="trigger-add">${icon('plus', 16)}<span><b>Adicionar gatilho</b><small>${triggers.length ? 'Qualquer gatilho inscreve o contato' : 'O que faz o contato entrar no fluxo'}</small></span></button>` });
+  const flow = sequence(editor.row.steps, 'root', firstX, 0, triggerPorts.length ? triggerPorts : [], '');
+  const end = flow.ports[0];
+  if (end) nodes.push({ x: end.x + 14, y: end.y - 13, html: '<span class="wfb-end">Fim do fluxo</span>' });
+  const width = Math.max(flow.endX + 140, CARD_W), height = Math.max(flow.bottom, addY + 64) + 20;
+  return { nodes, edges, pills, width, height };
+}
+
+const curve = ({ from, to }) => { const dx = Math.max(36, (to.x - from.x) / 2); return [from, { x: from.x + dx, y: from.y }, { x: to.x - dx, y: to.y }, to]; };
+const along = (edge, t) => { const [a, b, c, d] = curve(edge), u = 1 - t;
+  return { x: u ** 3 * a.x + 3 * u * u * t * b.x + 3 * u * t * t * c.x + t ** 3 * d.x, y: u ** 3 * a.y + 3 * u * u * t * b.y + 3 * u * t * t * c.y + t ** 3 * d.y }; };
+
+function edgeSvg(edges) {
+  return edges.map(edge => { const [a, b, c, d] = curve(edge); return `<path class="wfb-edge ${edge.tone || ''}" d="M${a.x},${a.y} C${b.x},${b.y} ${c.x},${c.y} ${d.x},${d.y}"/>`; }).join('');
+}
+
+function edgeControls(edges, full) {
+  return edges.map(edge => {
+    const label = edge.label ? (pt => `<span class="wfb-edge-label ${edge.tone || ''}" style="left:${pt.x}px;top:${pt.y}px">${h(edge.label)}</span>`)(along(edge, 0.42)) : '';
+    const add = edge.add ? (pt => `<span class="wfb-edge-add" style="left:${pt.x}px;top:${pt.y}px">${btn('node-add', '<span class="sr-only">Adicionar ação aqui</span>',
+      { cls: 'wf-add', glyph: 'plus', disabled: full, data: `data-wf-list="${h(edge.add.key)}" data-wf-index="${edge.add.index}"` })}</span>`)(along(edge, edge.label ? 0.84 : 0.5)) : '';
+    return label + add;
+  }).join('');
 }
 
 export function builderCanvas(c, editor, controls) {
   const { row } = editor;
-  const triggers = row.triggers.map((trigger, index) => {
-    const spec = triggerSpec(trigger.type);
-    return card({ key: `t:${trigger.id}`, kind: 'Gatilho', label: spec?.label || trigger.type, detail: triggerSummary(trigger, c.s), glyph: spec?.icon || 'bolt',
-      current: editor.node === `t:${trigger.id}`, footer: `Gatilho ${index + 1}`, trigger: true });
-  }).join('');
-  const addTrigger = `<button type="button" class="wfb-add-trigger" data-wf="trigger-add" title="${row.triggers.length ? 'Qualquer um dos gatilhos inscreve o contato' : 'O que faz o contato entrar no fluxo'}"><span class="wfb-add-hex">${icon('plus', 18)}</span><b>Adicionar gatilho</b></button>`;
+  const layout = layoutFlow(c, editor), full = count(row) >= MAX_STEPS;
   const panX = editor.panX || 0, panY = editor.panY || 0, zoom = editor.zoom || 1;
   const steps = count(row);
+  const place = item => `<div class="wfb-place" style="left:${item.x}px;top:${item.y}px">${item.html}</div>`;
   return `<div class="wf-workbench"><div class="wf-stage" style="background-position:calc(50% + ${panX}px) calc(50% + ${panY}px)">
     <div class="wf-canvas" tabindex="0" role="region" aria-label="Canvas do fluxo"><div class="wf-canvas-space"><div class="wf-track wfb-track" style="--wf-zoom:${zoom};transform:translate3d(${panX}px,${panY}px,0) scale(${zoom})">
-      <div class="wfb-triggers">${triggers}${addTrigger}</div>
-      ${drawList(c, editor, row.steps, 'root', '')}
-      <span class="wfb-end">Fim do fluxo</span>
+      <div class="wfb-graph" style="width:${layout.width}px;height:${layout.height}px">
+        <svg class="wfb-edges" width="${layout.width}" height="${layout.height}" aria-hidden="true">${edgeSvg(layout.edges)}</svg>
+        ${layout.nodes.map(place).join('')}${layout.pills.map(place).join('')}${edgeControls(layout.edges, full)}
+      </div>
     </div></div></div>
     ${controls}
     <div class="wf-dock">${btn('node-add', 'Adicionar ação', { glyph: 'plus', cls: 'wf-dock-add', disabled: steps >= MAX_STEPS, data: `data-wf-list="root" data-wf-index="${row.steps.length}"` })}

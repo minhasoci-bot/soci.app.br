@@ -194,59 +194,37 @@ dialog:has(.wf-picker)>header{position:sticky;top:0;z-index:3;background:var(--g
 .wf-picker>.wf-search svg{left:28px}
 
 
-/* Construtor horizontal (como o FiqOn): o fluxo corre da esquerda para a direita, cada etapa é um hexágono
-   com o nome embaixo, e os ramos de Se/Senão e Roteador ficam empilhados um sobre o outro. */
-.wf-canvas-space:has(.wfb-track){place-items:center start;padding:40px 80px 90px 60px}
-.wfb-track{flex-direction:row;align-items:flex-start;transform-origin:left center}
-.wfb-triggers{display:flex;flex-direction:column;gap:10px;padding:10px 8px;border:1px dashed var(--g-line-2);border-radius:14px}
-.wfb-list{display:flex;flex-direction:row;align-items:flex-start}
-.wfb-node{width:128px;min-height:0;border:0;border-radius:12px;background:transparent;box-shadow:none;align-items:center;padding:0 0 4px}
-.wfb-node::before,.wfb-node::after{display:none}
-.wfb-node .wf-node-body{flex-direction:column;justify-content:flex-start;gap:5px;height:auto;padding:0}
-.wfb-node .wf-node-icon{position:relative;width:58px;height:56px;border:0;border-radius:0;clip-path:polygon(25% 2%,75% 2%,100% 50%,75% 98%,25% 98%,0 50%);background:var(--g-line-2);color:var(--g-ink)}
-.wfb-node .wf-node-icon::before{content:"";position:absolute;inset:2px;clip-path:inherit;background:color-mix(in srgb,var(--g-ink) 9%,var(--g-surface))}
-.wfb-node .wf-node-icon svg{position:relative;z-index:1}
-.wfb-node .wf-node-icon svg{width:22px;height:22px}
-.wfb-node.wf-node-trigger .wf-node-icon{background:var(--g-brand);color:#fff}
-.wfb-node.wf-node-trigger .wf-node-icon::before{background:var(--g-brand)}
-.wfb-node.wfb-branch-node .wf-node-icon{background:var(--g-brand-line);color:var(--g-brand-text)}
-.wfb-node.wfb-branch-node .wf-node-icon::before{background:color-mix(in srgb,var(--g-brand) 22%,var(--g-surface))}
-.wfb-node.wfb-goal .wf-node-icon{background:#d97706;color:#f59e0b}
-.wfb-node.wfb-goal .wf-node-icon::before{background:color-mix(in srgb,#f59e0b 18%,var(--g-surface))}
-.wfb-node.wfb-stop .wf-node-icon::before{background:color-mix(in srgb,#64748b 30%,var(--g-surface))}
-.wfb-node.wf-node-trigger .wf-node-footer{display:none}
-.wfb-node .wf-node-copy{display:grid;justify-items:center;text-align:center;max-width:124px}
-.wfb-node .wf-node-kind{font-size:10px}
-.wfb-node strong{font-size:12px;line-height:1.25;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.wfb-node small{font-size:10.5px;max-width:124px}
-.wfb-node .wf-node-footer{position:absolute;top:-4px;left:calc(50% + 18px);width:auto;min-height:0;padding:1px 6px;border:1px solid var(--g-line);border-radius:999px;background:var(--g-surface);font-size:10px;line-height:1.4}
-.wfb-node .wf-node-footer [data-wf-node-status]{display:none}
-.wfb-node:hover .wf-node-icon,.wfb-node.current .wf-node-icon{background:var(--g-brand)}
-.wfb-node.current .wf-node-icon{color:var(--g-brand-text)}
-.wfb-node.wf-node-trigger:hover .wf-node-icon,.wfb-node.wf-node-trigger.current .wf-node-icon{background:var(--g-brand-text)}
-.wfb-node.current strong{color:var(--g-brand-text)}
-.wfb-node.wfb-ran .wf-node-icon::after{content:"";position:absolute;inset:auto 9px 6px auto;width:9px;height:9px;border-radius:50%;background:#22c55e}
-.wfb-ran{box-shadow:none}
-.wfb-triggers .wfb-add-trigger{display:flex;flex-direction:column;align-items:center;gap:5px;width:128px;min-height:0;padding:2px 0 4px;border:0;background:transparent;color:var(--g-brand-text);text-align:center;cursor:pointer;box-shadow:none}
-.wfb-add-hex{display:grid;place-items:center;width:46px;height:44px;clip-path:polygon(25% 2%,75% 2%,100% 50%,75% 98%,25% 98%,0 50%);background:var(--g-brand-line)}
-.wfb-add-hex svg{width:18px;height:18px}
-.wfb-triggers .wfb-add-trigger:hover .wfb-add-hex{background:var(--g-brand);color:#fff}
-.wfb-triggers .wfb-add-trigger b{font-size:11.5px}
-.wfb-link{display:grid;place-items:center;width:46px;height:56px;margin:0 -14px;background:linear-gradient(var(--g-dim),var(--g-dim)) no-repeat center / 100% 1px;position:relative;z-index:1}
-.wfb-link .wf-add{width:24px;height:24px}
-.wfb-link .wf-add svg{width:13px;height:13px}
-.wfb-triggers+.wfb-list>.wfb-link:first-child{margin-left:0;width:56px}
-.wfb-branches{display:flex;flex-direction:column;gap:18px;padding:6px 0 6px 22px;margin-left:-14px;position:relative}
-.wfb-branches::before{content:"";position:absolute;left:0;top:34px;bottom:34px;border-left:1px solid var(--g-dim)}
-.wfb-branches::after{content:"";position:absolute;left:-12px;top:28px;width:12px;border-top:1px solid var(--g-dim)}
-.wfb-col{display:flex;flex-direction:row;align-items:flex-start;position:relative}
-.wfb-col::before{content:"";position:absolute;left:-22px;top:28px;width:22px;border-top:1px solid var(--g-dim)}
-.wfb-branch-label{align-self:flex-start;margin:18px 0 0;padding:2px 9px;font-size:11px;max-width:120px}
-.wfb-branch-label.yes{border-color:color-mix(in srgb,#16a34a 45%,transparent);color:#16a34a}
-.wfb-branch-label.no{border-color:color-mix(in srgb,#dc2626 40%,transparent);color:#dc2626}
-.wfb-stop-mark,.wfb-end{display:inline-block;align-self:flex-start;margin-top:18px;padding:3px 10px;border-radius:999px;background:var(--g-surface-2);border:1px solid var(--g-line);color:var(--g-dim);font-size:11px;font-weight:650;white-space:nowrap}
-.wfb-stop-mark+.wfb-link{display:none}
-.wfb-end{margin-left:6px}
+/* Construtor horizontal: cards posicionados por coordenadas e conexões em curva (SVG) da saída de um card
+   para a entrada do próximo; os ramos de Se/Senão e Roteador ficam empilhados e voltam a se unir. */
+.wf-canvas-space:has(.wfb-track){place-items:center start;padding:48px 80px 96px 56px}
+.wfb-track{transform-origin:left center}
+.wfb-graph{position:relative}
+.wfb-edges{position:absolute;inset:0;overflow:visible;pointer-events:none}
+.wfb-edge{fill:none;stroke:color-mix(in srgb,var(--g-dim) 80%,transparent);stroke-width:1.6}
+.wfb-edge.yes{stroke:color-mix(in srgb,#16a34a 75%,transparent)}
+.wfb-edge.no{stroke:color-mix(in srgb,#dc2626 65%,transparent)}
+.wfb-place{position:absolute}
+.wfb-node{width:232px;height:112px;min-height:0}
+.wfb-node .wf-node-body{height:78px}
+.wfb-node.wfb-branch-node{border-color:var(--g-brand-line)}
+.wfb-node.wfb-branch-node .wf-node-icon{background:var(--g-brand-surface);color:var(--g-brand-text);border-color:var(--g-brand-line)}
+.wfb-node.wfb-goal .wf-node-icon{background:color-mix(in srgb,#f59e0b 16%,var(--g-surface));color:#d97706;border-color:color-mix(in srgb,#f59e0b 35%,transparent)}
+.wfb-node.wfb-stop::after{display:none}
+.wfb-ran{box-shadow:0 0 0 2px color-mix(in srgb,#16a34a 55%,transparent),0 3px 12px rgb(0 0 0 / .08)}
+.wfb-ran .wf-node-footer [data-wf-node-status]{color:#16a34a}
+.wfb-triggers-gap{display:none}
+.wfb-add-trigger{display:flex;align-items:center;gap:10px;width:232px;min-height:56px;padding:10px 12px;border:1px dashed var(--g-brand-line);border-radius:11px;background:var(--g-surface);color:var(--g-brand-text);text-align:left;cursor:pointer}
+.wfb-add-trigger:hover{border-color:var(--g-brand);background:var(--g-brand-surface)}
+.wfb-add-trigger b{display:block;font-size:13px}
+.wfb-add-trigger small{display:block;margin-top:2px;color:var(--g-dim);font-size:11.5px;font-weight:500}
+.wfb-pill{width:30px;height:30px}
+.wfb-edge-add{position:absolute;transform:translate(-50%,-50%);z-index:2}
+.wfb-edge-add .wf-add{width:24px;height:24px;box-shadow:0 1px 4px rgb(0 0 0 / .18)}
+.wfb-edge-add .wf-add svg{width:13px;height:13px}
+.wfb-edge-label{position:absolute;z-index:2;transform:translate(-50%,-50%);padding:2px 8px;border:1px solid var(--g-line-2);border-radius:999px;background:var(--g-surface);font-size:11px;font-weight:650;color:var(--g-ink);white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.wfb-edge-label.yes{border-color:color-mix(in srgb,#16a34a 45%,transparent);color:#16a34a}
+.wfb-edge-label.no{border-color:color-mix(in srgb,#dc2626 40%,transparent);color:#dc2626}
+.wfb-end{display:inline-block;padding:4px 11px;border-radius:999px;background:var(--g-surface-2);border:1px solid var(--g-line);color:var(--g-dim);font-size:11.5px;font-weight:650;white-space:nowrap}
 .wfb-req{color:var(--g-danger,#dc2626)}
 
 /* Editor da etapa em modal de três colunas: Entrada | Configuração | Saída. */
