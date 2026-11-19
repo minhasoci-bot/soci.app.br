@@ -1,7 +1,7 @@
 // Pergunte à Soci — backend de conversas com árvore de ramos, streaming SSE,
 // contexto vivo da agência e integração com OpenAI / provedores compatíveis.
 import { randomUUID } from 'node:crypto';
-import { searchGoogleBusinesses, searchInstagramBusinesses, getInstagramProfile, tregConfigured } from './treg.mjs';
+import { searchGoogleBusinesses, searchInstagramBusinesses, getInstagramProfile, tregConfigured, tregToken, verifyTregToken } from './treg.mjs';
 
 export const DEFAULT_TITLE = 'Novo chat';
 const OPENAI_URL = 'https://api.openai.com/v1';
@@ -99,6 +99,31 @@ function sanitizeUserMessage(raw, conv) {
   };
 }
 
+export function parseSkillMd(raw) {
+  const text = String(raw || '').trim();
+  const match = text.match(/^---\s*[\r\n]+([\s\S]*?)[\r\n]+---\s*[\r\n]+([\s\S]*)$/);
+  if (!match) {
+    return {
+      name: 'Habilidade Importada',
+      description: text.slice(0, 150),
+      instructions: text
+    };
+  }
+  const frontmatter = match[1];
+  const instructions = match[2].trim();
+  let name = 'Nova Habilidade';
+  let description = '';
+  for (const line of frontmatter.split('\n')) {
+    const colon = line.indexOf(':');
+    if (colon < 0) continue;
+    const key = line.slice(0, colon).trim().toLowerCase();
+    const val = line.slice(colon + 1).trim().replace(/^["']|["']$/g, '');
+    if (key === 'name') name = val;
+    if (key === 'description') description = val;
+  }
+  return { name, description, instructions };
+}
+
 // ---------- Persistência via store da Soci ----------
 
 function createChatStore(store) {
@@ -129,10 +154,20 @@ function createChatStore(store) {
       if (!row.profile?.name) row.profile = { name: 'Pergunte à Soci', ...(row.profile || {}) };
       if (typeof row.instructions !== 'string') row.instructions = '';
       if (!Array.isArray(row.conversations)) row.conversations = [];
+      if (!row.connectors || typeof row.connectors !== 'object') {
+        row.connectors = { treg: { enabled: true, token: '', googleMaps: true, instagram: true } };
+      }
+      if (!Array.isArray(row.skills)) row.skills = [];
       return row;
     } catch (err) {
       if (err.status !== 404) throw err;
-      await store.insert(id, { profile: { name: 'Pergunte à Soci' }, instructions: '', conversations: [] });
+      await store.insert(id, {
+        profile: { name: 'Pergunte à Soci' },
+        instructions: '',
+        conversations: [],
+        connectors: { treg: { enabled: true, token: '', googleMaps: true, instagram: true } },
+        skills: []
+      });
       return store.load(id);
     }
   }
@@ -143,6 +178,10 @@ function createChatStore(store) {
       if (!row.profile?.name) row.profile = { name: 'Pergunte à Soci', ...(row.profile || {}) };
       if (typeof row.instructions !== 'string') row.instructions = '';
       if (!Array.isArray(row.conversations)) row.conversations = [];
+      if (!row.connectors || typeof row.connectors !== 'object') {
+        row.connectors = { treg: { enabled: true, token: '', googleMaps: true, instagram: true } };
+      }
+      if (!Array.isArray(row.skills)) row.skills = [];
       return mutate(row);
     });
   }
@@ -170,6 +209,64 @@ function createChatStore(store) {
       return changeRow(agencyId, row => {
         row.instructions = clean;
         return { instructions: row.instructions };
+      });
+    },
+
+    async getConnectors(agencyId) {
+      const row = await ensureRow(agencyId);
+      return row.connectors || {
+        treg: { enabled: true, token: '', googleMaps: true, instagram: true }
+      };
+    },
+
+    async setConnectors(agencyId, patch) {
+      return changeRow(agencyId, row => {
+        row.connectors = {
+          ...(row.connectors || {}),
+          treg: {
+            enabled: true,
+            token: '',
+            googleMaps: true,
+            instagram: true,
+            ...(row.connectors?.treg || {}),
+            ...(patch.treg || {})
+          }
+        };
+        return row.connectors;
+      });
+    },
+
+    async getSkills(agencyId) {
+      const row = await ensureRow(agencyId);
+      return Array.isArray(row.skills) ? row.skills : [];
+    },
+
+    async saveSkill(agencyId, skillData) {
+      return changeRow(agencyId, row => {
+        row.skills = Array.isArray(row.skills) ? row.skills : [];
+        const id = skillData.id || randomUUID();
+        const existingIdx = row.skills.findIndex(s => s.id === id);
+        const skill = {
+          id,
+          name: String(skillData.name || '').trim().slice(0, 100) || 'Nova Habilidade',
+          description: String(skillData.description || '').trim().slice(0, 500),
+          instructions: String(skillData.instructions || '').trim().slice(0, 10000),
+          enabled: skillData.enabled !== false,
+          updatedAt: new Date().toISOString()
+        };
+        if (existingIdx >= 0) {
+          row.skills[existingIdx] = { ...row.skills[existingIdx], ...skill };
+        } else {
+          row.skills.push({ ...skill, createdAt: new Date().toISOString() });
+        }
+        return row.skills;
+      });
+    },
+
+    async deleteSkill(agencyId, skillId) {
+      return changeRow(agencyId, row => {
+        row.skills = (Array.isArray(row.skills) ? row.skills : []).filter(s => s.id !== skillId);
+        return row.skills;
       });
     },
 

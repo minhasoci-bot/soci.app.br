@@ -38,7 +38,7 @@ const trend = (kind, category, title, text, spec) => ({ kind, category, title, t
 
 const contacts = list('contacts'), appointments = list('appointments'), deals = list('opportunities'), messages = list('messages');
 const invoices = list('invoices'), transactions = list('transactions'), subscriptions = list('subscriptions'), campaigns = list('campaigns');
-const posts = list('socialPosts'), reviews = list('reviews'), submissions = list('submissions'), tasks = list('tasks');
+const posts = list('socialPosts'), competitors = list('socialCompetitors'), reviews = list('reviews'), submissions = list('submissions'), tasks = list('tasks');
 const dealDate = r => r.statusChangedAt || r.created;
 const postDate = r => r.publishedAt || r.scheduleDate || r.created;
 const stageName = s => r => tr(s.stages.find(stage => stage.id === r.stage)?.name) || 'Sem etapa';
@@ -115,6 +115,8 @@ export const metricWidgets = [
   number('m-posts-review', 'social', 'Posts aguardando aprovação', 'Posts em revisão', { items: posts, date: postDate, where: r => r.status === 'in_review', fixed: 'all' }),
   breakdown('m-posts-status', 'social', 'Posts por status', 'Compare posts por status', { items: posts, date: postDate, by: r => ({ draft: 'Rascunho', scheduled: 'Agendado', published: 'Publicado', failed: 'Com erro', in_review: 'Em revisão' })[r.status] || r.status }),
   trend('m-posts-trend', 'social', 'Posts ao longo do tempo', 'Posts publicados e agendados por período', { items: posts, date: postDate }),
+  number('m-competitors-count', 'social', 'Concorrentes monitorados', 'Perfis de concorrentes cadastrados', { items: competitors, fixed: 'all' }),
+  number('m-social-inbox', 'social', 'SAC Social (Instagram e Facebook)', 'Mensagens recebidas por redes sociais', { items: messages, date: created, where: r => ['Instagram', 'Facebook'].includes(r.channel) && r.direction === 'Inbound' }),
 
   // Reputação
   number('m-reviews-count', 'reputation', 'Avaliações recebidas', 'Avaliações registradas no período', { items: reviews, date: created }),
