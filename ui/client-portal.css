@@ -81,6 +81,10 @@
 .cp-members th{background:var(--g-surface-2);color:var(--g-dim);font-size:12px}
 .cp-members td small{display:block;margin-top:3px;color:var(--g-dim)}
 .cp-members td:last-child{text-align:right}
+.cp-learning{display:inline-grid;gap:4px;min-width:110px}
+.cp-mini-bar{display:block;height:5px;border-radius:5px;background:var(--g-line);overflow:hidden}
+.cp-mini-bar>span{display:block;height:100%;background:var(--g-brand)}
+.cp-muted{color:var(--g-dim)}
 .cp-empty{display:flex;justify-content:center;align-items:center;gap:9px;padding:34px 18px;text-align:center;color:var(--g-dim)}
 .cp-form,.cp-modal,.cp-link-dialog{display:grid;gap:14px}
 .cp-form{padding:19px;max-width:650px}
@@ -110,7 +114,7 @@
 .cp-public h3{font-size:18px;margin:9px 0 5px}
 .cp-public p{margin:8px 0;color:var(--portal-muted)}
 .cp-public-card{background:white;border:1px solid var(--portal-border);border-radius:15px;padding:19px;min-width:0;overflow-wrap:anywhere}
-.cp-course-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));gap:12px}
+.cp-course-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:14px}
 .cp-course-icon{background:color-mix(in srgb,var(--portal-color) 10%,white);color:var(--portal-color);border-radius:10px;width:45px;height:45px;display:grid;place-items:center}
 .cp-public button{font:inherit;font-weight:700;cursor:pointer;border-radius:8px}
 .cp-public button:disabled{opacity:.65;cursor:wait}
@@ -121,9 +125,55 @@
 .cp-signin{max-width:450px;margin:48px auto 0;padding:27px}
 .cp-signin h1{font-size:28px;margin-top:13px}
 .cp-signin button{margin-top:9px}
-.cp-lesson{margin-top:25px;padding:clamp(18px,4vw,36px)}
-.cp-lesson-body{white-space:pre-wrap;line-height:1.75;margin-top:15px}
+.cp-lesson{min-width:0;padding:clamp(18px,3.5vw,32px)}
+.cp-lesson-body{white-space:pre-wrap;line-height:1.75;margin-top:18px;overflow-wrap:anywhere}
+.cp-public-shell.cp-wide{width:min(1180px,100%)}
+.cp-course-card{display:flex;flex-direction:column;padding:0;overflow:hidden}
+.cp-cover{display:grid;place-items:center;aspect-ratio:16/9;background:color-mix(in srgb,var(--portal-color) 8%,white)}
+.cp-cover img{width:100%;height:100%;object-fit:cover}
+.cp-course-text{display:flex;flex-direction:column;gap:4px;flex:1;padding:16px 18px 18px}
+.cp-course-text h3{margin:0}
+.cp-course-text .cp-public-primary{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;margin-top:10px}
+.cp-course-progress{display:grid;gap:5px;margin-top:6px}
+.cp-course-progress small{color:var(--portal-muted);font-size:12.5px}
+.cp-bar{display:block;height:7px;border-radius:7px;background:var(--portal-border);overflow:hidden}
+.cp-bar>span{display:block;height:100%;border-radius:inherit;background:var(--portal-color);transition:width .3s}
+.cp-player{padding:22px 0 10px}
+.cp-player-top{display:grid;gap:10px;margin-bottom:16px}
+.cp-player-top .cp-public-link{justify-self:start}
+.cp-player-title{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.cp-player-title h1{font-size:clamp(22px,3.4vw,30px)}
+.cp-player-title .cp-course-progress{width:min(260px,100%)}
+.cp-player-grid{display:grid;grid-template-columns:minmax(230px,300px) minmax(0,1fr);gap:16px;align-items:start}
+.cp-outline{position:sticky;top:12px;max-height:calc(100dvh - 24px);overflow:auto;padding:12px}
+.cp-outline section+section{margin-top:12px}
+.cp-public .cp-outline h2{margin:4px 8px 6px;font-size:12px;letter-spacing:.02em;text-transform:none;color:var(--portal-muted)}
+.cp-outline ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.cp-outline button{display:flex;align-items:flex-start;gap:9px;width:100%;padding:8px;border:0;border-radius:8px;background:none;text-align:left;font-weight:600;color:var(--portal-ink)}
+.cp-outline button:hover:not(:disabled){background:color-mix(in srgb,var(--portal-color) 7%,white)}
+.cp-outline button[aria-current]{background:color-mix(in srgb,var(--portal-color) 12%,white)}
+.cp-outline button:disabled{opacity:.6;cursor:not-allowed}
+.cp-outline small{display:block;font-weight:500;font-size:12px;color:var(--portal-muted)}
+.cp-state-icon{display:grid;place-items:center;flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--portal-border);color:var(--portal-muted)}
+.cp-state-icon.done{border-color:var(--portal-color);background:var(--portal-color);color:#fff}
+.cp-lesson-kicker{margin:0!important;font-size:12.5px;font-weight:700;color:color-mix(in srgb,var(--portal-color) 70%,#151015)!important}
+.cp-public h2.cp-lesson-title{font-size:clamp(21px,3vw,27px);margin:4px 0 16px;outline:none}
+.cp-video{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#111}
+.cp-video iframe,.cp-video video{position:absolute;inset:0;width:100%;height:100%;border:0}
+.cp-file{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:14px;border:1px solid var(--portal-border);border-radius:12px}
+.cp-file>img{width:64px;height:64px;object-fit:cover;border-radius:9px}
+.cp-file small{display:block;color:var(--portal-muted);font-size:12.5px}
+.cp-file a{display:inline-flex;align-items:center;gap:5px;text-decoration:none;border-radius:8px;font-weight:700}
+.cp-lesson-actions{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:26px;padding-top:18px;border-top:1px solid var(--portal-border)}
+.cp-lesson-actions button{display:inline-flex;align-items:center;gap:6px}
+.cp-public-ghost{background:color-mix(in srgb,var(--portal-color) 10%,white);color:color-mix(in srgb,var(--portal-color) 62%,#151015);border:0;padding:10px 15px}
 .cp-public p.cp-public-error{padding:10px 12px;border:1px solid #edc7d1;background:#fff5f7;color:#921c42;border-radius:9px}
+@media(max-width:820px){
+  .cp-player-grid{grid-template-columns:1fr}
+  .cp-outline{position:static;max-height:none;order:2}
+  .cp-file{grid-template-columns:auto minmax(0,1fr)}
+  .cp-file a{grid-column:1/-1;justify-self:start}
+}
 @media(max-width:620px){
   .cp-hero{grid-template-columns:1fr;padding:20px}
   .cp-hero-art{display:none}

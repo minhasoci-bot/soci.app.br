@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { memberCourse, memberCourseCard } from './course-model.mjs';
 
 const fail = (message, status = 400) => { throw Object.assign(Error(message), { status }); };
 const text = (value, limit) => typeof value === 'string' ? value.trim().slice(0, limit) : '';
@@ -32,6 +33,13 @@ function courseIds(state, input) {
     fail('Selecione cursos desta subconta.');
   }
   return [...new Set(input)];
+}
+
+// Remembers when each course was granted, so drip lessons count days from that moment.
+function grant(member, ids) {
+  const at = new Date().toISOString(), previous = new Set(member.courseIds || []);
+  member.grantedAt = Object.fromEntries(ids.map(id => [id, previous.has(id) && member.grantedAt?.[id] || at]));
+  member.courseIds = ids;
 }
 
 function recipient(state, input, action) {
@@ -135,7 +143,7 @@ export function makeClientPortal({
           member.contactId = address.contactId;
           member.name ||= address.name;
         }
-        if (grants !== undefined) member.courseIds = grants;
+        if (grants !== undefined) grant(member, grants);
         if (action === 'invite') member.invitedAt = created;
         doc.links = doc.links.filter(link => link.expires > now);
         if (doc.links.filter(link => link.memberId === member.id).length >= 20) {
@@ -162,7 +170,7 @@ export function makeClientPortal({
       } else if (['permissions', 'revoke', 'reactivate'].includes(action)) {
         const member = doc.members.find(row => row.id === input.id);
         if (!member) fail('Cliente não encontrado.', 404);
-        if (action === 'permissions') member.courseIds = courseIds(state, input.courseIds);
+        if (action === 'permissions') grant(member, courseIds(state, input.courseIds));
         if (action === 'reactivate') delete member.revokedAt;
         if (action === 'revoke') {
           member.revokedAt = new Date().toISOString();
@@ -203,30 +211,58 @@ export function makeClientPortal({
     catch (error) { if (error.status !== 404) throw error; }
   }
 
-  async function content(workspace, state, token, courseId) {
+  function signedMember(doc, token) {
+    const fingerprint = validToken(token) && digest(token);
+    const session = fingerprint && doc.sessions.find(row => row.fingerprint === fingerprint && row.expires > Date.now());
+    return session && doc.members.find(row => row.id === session.memberId && !row.revokedAt);
+  }
+
+  function grantedCourse(state, member, courseId) {
+    const course = state.courses.find(row => row.id === courseId && row.active && member.courseIds.includes(row.id));
+    if (!course) fail('Curso indisponível para este cliente.', 404);
+    return course;
+  }
+
+  async function content(workspace, state, token, courseId, lessonId = '') {
     const doc = await load(workspace);
     if (!doc && !courseId) return { ...view(workspace, blankPortal(), { profile: { name: 'Portal do cliente' } }), signedIn: false };
     if (!doc) fail('Entre no portal para acessar sua aula.', 401);
     requireEnabled(doc);
-    const fingerprint = validToken(token) && digest(token);
-    const session = fingerprint && doc.sessions.find(row => row.fingerprint === fingerprint && row.expires > Date.now());
-    const member = session && doc.members.find(row => row.id === session.memberId && !row.revokedAt);
+    const member = signedMember(doc, token);
     const base = view(workspace, doc, state);
     if (!member) {
       if (courseId) fail('Entre no portal para acessar sua aula.', 401);
       return { ...base, signedIn: false };
     }
-    const courses = state.courses.filter(course => course.active && member.courseIds.includes(course.id));
     if (courseId) {
-      const course = courses.find(row => row.id === courseId);
-      if (!course) fail('Curso indisponível para este cliente.', 404);
-      return { ...base, signedIn: true, member: { name: member.name }, course: {
-        id: course.id, name: course.name, description: course.description, lesson: course.lesson, body: course.body
-      } };
+      return { ...base, signedIn: true, member: { name: member.name }, course: memberCourse(state, grantedCourse(state, member, courseId), member, { lessonId }) };
     }
-    return { ...base, signedIn: true, member: { name: member.name },
-      courses: courses.map(({ id, name, description, lesson }) => ({ id, name, description, lesson })) };
+    const courses = state.courses.filter(course => course.active && member.courseIds.includes(course.id));
+    return { ...base, signedIn: true, member: { name: member.name }, courses: courses.map(course => memberCourseCard(state, course, member)) };
   }
 
-  return { admin, exchange, signOut, content };
+  // Marks one lesson as done (or not) for the signed-in member and returns the refreshed course.
+  async function progress(workspace, state, token, courseId, input) {
+    if (typeof input?.lessonId !== 'string' || typeof input.done !== 'boolean') fail('Informe a aula.', 400);
+    try {
+      return await store.change(portalId(workspace), doc => {
+        requireEnabled(doc);
+        const member = signedMember(doc, token);
+        if (!member) fail('Entre no portal para acessar sua aula.', 401);
+        const course = grantedCourse(state, member, courseId);
+        memberCourse(state, course, member, { lessonId: input.lessonId });
+        member.progress ||= {};
+        const done = member.progress[courseId] ||= {};
+        if (input.done) done[input.lessonId] ||= new Date().toISOString();
+        else delete done[input.lessonId];
+        return { ...view(workspace, doc, state), signedIn: true, member: { name: member.name },
+          course: memberCourse(state, course, member, { lessonId: input.lessonId }) };
+      });
+    } catch (error) {
+      if (error.status === 404 && error.message === 'Workspace not found.') fail('Entre no portal para acessar sua aula.', 401);
+      throw error;
+    }
+  }
+
+  return { admin, exchange, signOut, content, progress };
 }

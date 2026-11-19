@@ -81,9 +81,23 @@ test('Client portal invites, single-use login and course permissions persist in 
   const home = await read('/home');
   assert.deepEqual(home.body.courses.map(row => row.id),[assigned]);
   assert.equal(home.body.courses[0].body,undefined);
-  assert.equal((await read(`/course/${assigned}`)).body.course.body,'Conteúdo privado');
+  const opened = (await read(`/course/${assigned}`)).body.course;
+  assert.equal(opened.lesson.body,'Conteúdo privado');
   assert.equal((await read(`/course/${other}`)).status,404);
   assert.equal((await admin()).body.stats.users,1);
+  assert.equal(typeof invitation.members[0].grantedAt[assigned],'string');
+
+  const lessonId = opened.modules[0].lessons[0].id;
+  assert.equal((await read(`/course/${assigned}?lesson=${lessonId}`)).body.course.lesson.id,lessonId);
+  const progress = (body, headers = { Cookie:cookie }) => call(`${api}/progress/${assigned}`,body,headers);
+  const marked = await progress({ lessonId, done:true });
+  assert.equal(marked.status,200);
+  assert.deepEqual(marked.body.course.progress,{ done:1, total:1, percent:100 });
+  assert.equal((await read('/home')).body.courses[0].progress.percent,100);
+  assert.equal((await progress({ lessonId:'nao-existe', done:true })).status,404);
+  assert.equal((await progress({ lessonId, done:true },{})).status,401);
+  assert.equal(typeof (await admin()).body.members[0].progress[assigned][lessonId],'string');
+  assert.equal((await progress({ lessonId, done:false })).body.course.progress.done,0);
 
   const foreign = await call('/api/workspaces',{ name:'Outra subconta' });
   const foreignApi = `/api/client-portal/${foreign.body.id}`;

@@ -18,6 +18,7 @@ import { qrScreen, qrTabs } from './qr-codes.js';
 import { analyticsScreen, analyticsTabs } from './sites-analytics.js';
 import {automationScreen} from './automation.js';
 import {portalAdminScreen, portalTabs} from './client-portal.js';
+import {coursesScreen} from './courses.js';
 import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
 import {opportunityStatuses} from './dashboard-data.js';
 import {cardContext, filterButton, forecastView, listTabs, moreMenu, pipelinesView, quickActionBar, smartTagChips, stageStyle} from './opportunities.js';
@@ -249,20 +250,7 @@ function sites(c){
   });
 }
 function memberships(c){
-  if (c.tab !== 'courses') return portalAdminScreen(c);
-  return pageShell({
-    title: 'Assinaturas',
-    desc: 'Gerencie o portal do cliente, permissões de acesso e cursos deste workspace.',
-    cta: primary('Novo curso','courses'),
-    className: 'cp-admin',
-    tabs: { key: 'memberships', items: portalTabs(), current: 'courses', label: 'Seções de assinaturas' },
-    content: `<div class="cp-section-title"><div><h2>Cursos</h2><p>Publique aulas para os clientes com acesso ao portal.</p></div></div>
-      <div class="card-grid">${c.s.courses.map(r=>`<article class="surface padded resource"><span class="metric-icon">${i('play')}</span>
-        <div><h2>${h(r.name)}</h2><p>${h(r.description)}</p></div>${badge(r.active?(r.portalOnly?'No portal':'Publicado'):'Rascunho',r.active?'green':'')}
-        <div class="inline-gap">${r.active&&!r.portalOnly?viewLink('Abrir aula','course',r.id,c):''}
-          <button class="secondary" data-edit="courses" data-id="${h(r.id)}">${i('edit',15)} Editar</button></div></article>`).join('')
-        ||empty('Nenhum curso','Adicione um curso e publique a primeira aula.','play')}</div>`
-  });
+  return ['courses','course'].includes(c.tab) ? coursesScreen(c) : portalAdminScreen(c);
 }
 function media(c){
   return wrap(head('Mídia Drive','Guarde imagens e PDFs no drive local.',action('Enviar arquivo','upload','upload'))+`<div class="toolbar">${search(c.query,'Buscar arquivos…')}</div><div class="card-grid">${top(c.s.files,c.query,['name']).map(r=>`<article class="surface resource media-card"><div class="media-preview">${r.data.startsWith('data:image/')?`<img src="${h(r.data)}" alt="">`:`${i('folder',44)} <b>PDF</b>`}</div><div class="media-name"><h2>${h(r.name)}</h2><button class="icon-btn" data-file="${r.id}" title="Baixar" aria-label="Baixar ${h(r.name)}">${i('download',16)}</button><button class="icon-btn" data-delete="files" data-id="${r.id}" title="Remover" aria-label="Remover ${h(r.name)}">${i('trash',16)}</button></div></article>`).join('')||empty('Nenhum arquivo enviado','Adicione uma imagem ou PDF do seu computador.','folder')}</div>`);

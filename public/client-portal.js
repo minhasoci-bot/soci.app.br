@@ -1,6 +1,7 @@
 import { icon } from './icons.js';
 import { h, fmt, pageShell } from './screens.js';
 import { qrSvg } from './qr.js';
+import { outline } from './courses.js';
 
 const pathOf = workspace => `/api/client-portal/${encodeURIComponent(workspace)}/admin`;
 const navigation = [['portal','Portal do cliente'], ['portal-members','Clientes'], ['portal-settings','Configurações'], ['courses','Cursos']];
@@ -72,6 +73,18 @@ function overview(portal) {
     </div>`;
 }
 
+// Lessons finished across the member's courses, e.g. "2 cursos · 45%".
+function learning(c, member) {
+  const courses = c.s.courses.filter(course => member.courseIds.includes(course.id));
+  if (!courses.length) return '<span class="cp-muted">Nenhum</span>';
+  const ids = courses.map(course => new Set(outline(course).flatMap(module => module.lessons.map(lesson => lesson.id))));
+  const total = ids.reduce((sum, set) => sum + set.size, 0);
+  const done = courses.reduce((sum, course, index) => sum + Object.keys(member.progress?.[course.id] || {}).filter(id => ids[index].has(id)).length, 0);
+  const percent = total ? Math.round(done / total * 100) : 0;
+  return `<span class="cp-learning" title="${done} de ${total} aulas concluídas">${courses.length} ${courses.length === 1 ? 'curso' : 'cursos'} · ${percent}%
+    <span class="cp-mini-bar"><span style="width:${percent}%"></span></span></span>`;
+}
+
 function members(portal, c, query) {
   const results = portal.members.filter(row => `${row.name} ${row.email}`.toLowerCase().includes(query.trim().toLowerCase()));
   return `<div class="cp-section-title"><div><h2>Clientes</h2><p>Gerencie permissões e acompanhe quem já entrou no portal.</p></div>
@@ -79,10 +92,10 @@ function members(portal, c, query) {
     <div class="cp-card cp-members"><div class="cp-members-toolbar">
       <input type="search" data-portal-search aria-label="Buscar clientes" placeholder="Buscar nome ou e-mail…" value="${h(query)}">
     </div>
-    ${results.length ? `<div class="cp-table-scroll"><table><thead><tr><th scope="col">Cliente</th><th scope="col">Acesso</th><th scope="col">Cursos</th><th scope="col">Primeiro acesso</th><th scope="col"><span class="sr-only">Gerenciar</span></th></tr></thead>
+    ${results.length ? `<div class="cp-table-scroll"><table><thead><tr><th scope="col">Cliente</th><th scope="col">Acesso</th><th scope="col">Cursos e progresso</th><th scope="col">Primeiro acesso</th><th scope="col"><span class="sr-only">Gerenciar</span></th></tr></thead>
       <tbody>${results.map(member => `<tr><td><strong>${h(member.name || member.email)}</strong>${member.name ? `<small>${h(member.email)}</small>` : ''}</td>
       <td><span class="cp-state ${memberStatus(member) === 'Ativo' ? 'active' : ''}">${memberStatus(member)}</span></td>
-      <td>${c.s.courses.filter(course => member.courseIds.includes(course.id)).length}</td>
+      <td>${learning(c, member)}</td>
       <td>${h(fmt(member.joinedAt,c.s.profile.timezone))}</td>
       <td>${button('manage','Gerenciar','gear',member.id)}</td></tr>`).join('')}</tbody></table></div>` :
       `<div class="cp-empty">${icon('users',22)}${query ? 'Nenhum cliente encontrado.' : 'Convide o primeiro cliente para começar.'}</div>`}</div>`;
