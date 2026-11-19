@@ -67,11 +67,11 @@
 .wf-builder-meta .wf-tab{padding:6px 0;font-size:12px}
 .wf-workbench{display:grid;grid-template-columns:minmax(0,1fr);min-height:0;flex:1;height:100%;border:1px solid var(--g-line);border-radius:14px;background:var(--g-surface);overflow:clip}
 .wf-workbench:has(.wf-inspector){grid-template-columns:minmax(0,1fr) minmax(260px,320px)}
-.wf-stage{position:relative;display:grid;min-width:0;min-height:0;height:100%;background:radial-gradient(circle,var(--g-line-2) 1px,transparent 1px) var(--g-bg,var(--g-surface-2));background-size:20px 20px}
-.wf-canvas{overflow:auto;overscroll-behavior-x:contain;min-height:0;height:100%;cursor:grab;scrollbar-width:thin;scroll-behavior:auto}
-.wf-canvas.is-panning{cursor:grabbing;user-select:none}
-.wf-canvas-space{display:grid;place-items:center;width:max-content;min-width:100%;min-height:100%;padding:54px 32px 64px}
-.wf-track{display:flex;align-items:center;width:max-content;zoom:var(--wf-zoom,1)}
+.wf-stage{position:relative;display:grid;min-width:0;min-height:0;height:100%;background:radial-gradient(circle,var(--g-line-2) 1px,transparent 1px) var(--g-bg,var(--g-surface-2));background-size:20px 20px;overflow:hidden}
+.wf-canvas{overflow:hidden;touch-action:none;min-height:0;height:100%;cursor:grab;user-select:none}
+.wf-canvas.is-panning,.wf-canvas.is-panning *{cursor:grabbing!important;user-select:none!important}
+.wf-canvas-space{display:grid;place-items:center;width:100%;height:100%;position:relative}
+.wf-track{display:flex;align-items:center;width:max-content;transform:translate3d(var(--wf-pan-x,0px),var(--wf-pan-y,0px),0) scale(var(--wf-zoom,1));transform-origin:center center;will-change:transform}
 .wf-node{position:relative;display:flex;flex-direction:column;justify-content:space-between;width:222px;min-height:110px;text-align:left;border:1px solid var(--g-line-2);border-radius:11px;background:var(--g-surface);color:var(--g-ink);padding:0;cursor:pointer;box-shadow:0 3px 12px rgb(0 0 0 / .08)}
 .wf-node::before,.wf-node::after{content:"";position:absolute;top:50%;width:9px;height:9px;transform:translateY(-50%);border:2px solid var(--g-dim);background:var(--g-surface);border-radius:50%;z-index:1}
 .wf-node::before{left:-5px}

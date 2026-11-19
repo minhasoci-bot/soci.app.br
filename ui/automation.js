@@ -388,7 +388,7 @@ function draft(c, id) {
   const folderId = c.s.workflowFolders.some(folder => folder.id === id) ? id : '';
   if (c.workflowDraft?.workspace !== c.workspace || c.workflowDraft?.key !== id) {
     c.workflowDraft = { workspace: c.workspace, key: id, row: row ? structuredClone(row) :
-      { name: '', folderId, trigger: '', actions: [], active: false, allowReentry: true }, node: null, zoom: 1, dirty: false };
+      { name: '', folderId, trigger: '', actions: [], active: false, allowReentry: true }, node: null, zoom: 1, panX: 0, panY: 0, dirty: false };
   }
   return c.workflowDraft;
 }
@@ -427,8 +427,9 @@ function canvas(c, editor) {
     : `${select('trigger', 'Evento que inicia o fluxo', triggers, row.trigger)}
       ${ref ? select(ref[0], ref[1], ref[2], row[ref[0]]) : ''}
       ${row.trigger === 'Customer replied' ? field('keyword', 'Palavra-chave (ex: QUERO, PRECO - opcional)', row.keyword || '', 100, false) : ''}`;
-  return `<div class="wf-workbench"><div class="wf-stage">
-    <div class="wf-canvas" tabindex="0" role="region" aria-label="Canvas do fluxo"><div class="wf-canvas-space"><div class="wf-track" style="--wf-zoom:${editor.zoom}">
+  const panX = editor.panX || 0, panY = editor.panY || 0, zoom = editor.zoom || 1;
+  return `<div class="wf-workbench"><div class="wf-stage" style="--wf-pan-x:${panX}px;--wf-pan-y:${panY}px;background-position:calc(50% + ${panX}px) calc(50% + ${panY}px)">
+    <div class="wf-canvas" tabindex="0" role="region" aria-label="Canvas do fluxo"><div class="wf-canvas-space"><div class="wf-track" style="--wf-zoom:${zoom};--wf-pan-x:${panX}px;--wf-pan-y:${panY}px;transform:translate3d(${panX}px,${panY}px,0) scale(${zoom});transform-origin:center center">
     ${card('trigger', triggerLabels[row.trigger] || 'Adicionar gatilho', '', 'bolt')}
     ${row.actions.map((step, index) => add(index) + card(index, actions[step.type]?.[0] || step.type, step.value, actions[step.type]?.[1] || 'flow')).join('')}
     ${add(row.actions.length)}</div></div></div>
@@ -554,16 +555,24 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
     document.querySelector(focus)?.focus({ preventScroll: !revealNode });
   };
   const zoomCanvas = op => {
-    const viewport = canvasElement(), track = viewport.querySelector('.wf-track');
+    const viewport = canvasElement(), track = viewport?.querySelector('.wf-track'), stage = viewport?.closest('.wf-stage');
     const editor = c.workflowDraft;
-    const bounds = viewport.getBoundingClientRect(), before = track.getBoundingClientRect();
-    const center = (bounds.left + bounds.width / 2 - before.left) / before.width;
-    editor.zoom = op === 'zoom-fit' ? Math.min(1, (viewport.clientWidth - 64) / track.offsetWidth) :
-      Math.max(.08, Math.min(1.6, editor.zoom * (op === 'zoom-in' ? 1.25 : .8)));
+    if (!viewport || !track || !editor) return;
+    if (op === 'zoom-fit') {
+      editor.panX = 0;
+      editor.panY = 0;
+      const availWidth = viewport.clientWidth - 96;
+      editor.zoom = track.offsetWidth > availWidth && track.offsetWidth > 0 ? Math.min(1, Math.max(0.25, Number((availWidth / track.offsetWidth).toFixed(2)))) : 1;
+    } else {
+      editor.zoom = Math.max(0.15, Math.min(2.0, Number(((editor.zoom || 1) * (op === 'zoom-in' ? 1.25 : 0.8)).toFixed(2))));
+    }
+    track.style.transform = `translate3d(${editor.panX || 0}px, ${editor.panY || 0}px, 0) scale(${editor.zoom || 1})`;
     track.style.setProperty('--wf-zoom', editor.zoom);
-    const after = track.getBoundingClientRect();
-    if (op === 'zoom-fit') viewport.scrollLeft = 0;
-    else viewport.scrollLeft += (after.left + center * after.width - bounds.left - bounds.width / 2) * viewport.clientWidth / bounds.width;
+    track.style.setProperty('--wf-pan-x', `${editor.panX || 0}px`);
+    track.style.setProperty('--wf-pan-y', `${editor.panY || 0}px`);
+    if (stage) {
+      stage.style.backgroundPosition = `calc(50% + ${editor.panX || 0}px) calc(50% + ${editor.panY || 0}px)`;
+    }
   };
   const actionPicker = position => {
     dialog('Adicionar ação ao fluxo', `<div class="wf-picker" data-wf-insert="${position}">
@@ -583,24 +592,77 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
 
   let pan = null;
   document.addEventListener('pointerdown', event => {
-    const viewport = event.target.closest('.wf-canvas');
-    if (!viewport || event.pointerType === 'touch' || event.button !== 0 || event.target.closest('button')) return;
-    if (viewport.scrollWidth <= viewport.clientWidth) return;
-    pan = { viewport, id: event.pointerId, x: event.clientX, left: viewport.scrollLeft,
-      scale: viewport.clientWidth / viewport.getBoundingClientRect().width };
-    viewport.setPointerCapture(event.pointerId);
-    viewport.classList.add('is-panning');
+    const canvas = event.target.closest('.wf-canvas');
+    if (!canvas) return;
+    const isMiddle = event.button === 1;
+    if (event.button !== 0 && !isMiddle) return;
+    if (!isMiddle && event.target.closest('button, input, select, textarea, a, .wf-inspector, .wf-canvas-controls, .wf-dock')) return;
+    const editor = c.workflowDraft;
+    if (!editor) return;
+    if (isMiddle) event.preventDefault();
+    pan = {
+      id: event.pointerId,
+      canvas,
+      startX: event.clientX,
+      startY: event.clientY,
+      initialPanX: editor.panX || 0,
+      initialPanY: editor.panY || 0,
+      track: canvas.querySelector('.wf-track'),
+      stage: canvas.closest('.wf-stage')
+    };
+    canvas.setPointerCapture(event.pointerId);
+    canvas.classList.add('is-panning');
   });
+
   document.addEventListener('pointermove', event => {
-    if (pan?.id === event.pointerId) pan.viewport.scrollLeft = pan.left + (pan.x - event.clientX) * pan.scale;
+    if (!pan || pan.id !== event.pointerId) return;
+    const editor = c.workflowDraft;
+    if (!editor) return;
+    const dx = event.clientX - pan.startX;
+    const dy = event.clientY - pan.startY;
+    editor.panX = Math.round(pan.initialPanX + dx);
+    editor.panY = Math.round(pan.initialPanY + dy);
+    if (pan.track) {
+      pan.track.style.transform = `translate3d(${editor.panX}px, ${editor.panY}px, 0) scale(${editor.zoom || 1})`;
+      pan.track.style.setProperty('--wf-pan-x', `${editor.panX}px`);
+      pan.track.style.setProperty('--wf-pan-y', `${editor.panY}px`);
+    }
+    if (pan.stage) {
+      pan.stage.style.backgroundPosition = `calc(50% + ${editor.panX}px) calc(50% + ${editor.panY}px)`;
+    }
   });
+
   for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     document.addEventListener(name, event => {
-      if (pan?.id !== event.pointerId) return;
-      pan.viewport.classList.remove('is-panning');
+      if (!pan || pan.id !== event.pointerId) return;
+      pan.canvas.classList.remove('is-panning');
       pan = null;
     });
   }
+
+  document.addEventListener('wheel', event => {
+    const canvas = event.target.closest('.wf-canvas');
+    if (!canvas) return;
+    const editor = c.workflowDraft;
+    if (!editor) return;
+    const track = canvas.querySelector('.wf-track'), stage = canvas.closest('.wf-stage');
+    if (!track) return;
+    event.preventDefault();
+    if (event.ctrlKey || event.metaKey) {
+      const factor = event.deltaY < 0 ? 1.1 : 0.9;
+      editor.zoom = Math.max(0.15, Math.min(2.0, Number(((editor.zoom || 1) * factor).toFixed(3))));
+    } else {
+      editor.panX = Math.round((editor.panX || 0) - event.deltaX);
+      editor.panY = Math.round((editor.panY || 0) - event.deltaY);
+    }
+    track.style.transform = `translate3d(${editor.panX || 0}px, ${editor.panY || 0}px, 0) scale(${editor.zoom || 1})`;
+    track.style.setProperty('--wf-zoom', editor.zoom || 1);
+    track.style.setProperty('--wf-pan-x', `${editor.panX || 0}px`);
+    track.style.setProperty('--wf-pan-y', `${editor.panY || 0}px`);
+    if (stage) {
+      stage.style.backgroundPosition = `calc(50% + ${editor.panX || 0}px) calc(50% + ${editor.panY || 0}px)`;
+    }
+  }, { passive: false });
   const updateList = input => {
     const start = input.selectionStart, end = input.selectionEnd;
     const selector = input.matches('[data-wf-search]') ? '[data-wf-search]' : `[data-wf-filter="${input.dataset.wfFilter}"]`;
@@ -786,6 +848,8 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
             },
             node: null,
             zoom: 1,
+            panX: 0,
+            panY: 0,
             dirty: true
           };
           show('builder');
@@ -888,6 +952,8 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
           row: parsed,
           node: null,
           zoom: 1,
+          panX: 0,
+          panY: 0,
           dirty: true
         };
         close();
