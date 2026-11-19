@@ -1025,7 +1025,8 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
         editor.test = { ...body.result, contact: c.s.contacts.find(row => row.id === data.contactId)?.name };
         close();
         renderCanvas();
-        dialog('Resultado do teste', testReport(editor, c.s));
+        if (editor.node) flash(`Teste concluído com ${editor.test.contact || 'o contato'}: veja a saída de cada etapa.`);
+        else dialog('Resultado do teste', testReport(editor, c.s));
         return;
       }
       if (op === 'enroll' && !data.contactId) throw Error('Selecione um contato.');
@@ -1055,6 +1056,12 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
   });
 
   document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && c.view === 'automation' && c.workflowDraft?.node && !document.querySelector('dialog[open]')) {
+      const key = c.workflowDraft.node;
+      c.workflowDraft.node = null;
+      renderCanvas(`.wfb-node[data-wf-id="${CSS.escape(key)}"]`);
+      return;
+    }
     if (c.view !== 'automation' || !c.workflowDraft) return;
     const isCtrl = event.ctrlKey || event.metaKey;
     if (!isCtrl) return;

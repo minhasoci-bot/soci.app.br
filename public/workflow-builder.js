@@ -112,7 +112,7 @@ export function builderCanvas(c, editor, controls) {
     return card({ key: `t:${trigger.id}`, kind: 'Gatilho', label: spec?.label || trigger.type, detail: triggerSummary(trigger, c.s), glyph: spec?.icon || 'bolt',
       current: editor.node === `t:${trigger.id}`, footer: `Gatilho ${index + 1}`, trigger: true });
   }).join('');
-  const addTrigger = `<button type="button" class="wfb-add-trigger" data-wf="trigger-add">${icon('plus', 18)}<span><b>Adicionar gatilho</b><small>${row.triggers.length ? 'Qualquer um dos gatilhos inscreve o contato' : 'O que faz o contato entrar no fluxo'}</small></span></button>`;
+  const addTrigger = `<button type="button" class="wfb-add-trigger" data-wf="trigger-add" title="${row.triggers.length ? 'Qualquer um dos gatilhos inscreve o contato' : 'O que faz o contato entrar no fluxo'}"><span class="wfb-add-hex">${icon('plus', 18)}</span><b>Adicionar gatilho</b></button>`;
   const panX = editor.panX || 0, panY = editor.panY || 0, zoom = editor.zoom || 1;
   const steps = count(row);
   return `<div class="wf-workbench"><div class="wf-stage" style="background-position:calc(50% + ${panX}px) calc(50% + ${panY}px)">
@@ -124,7 +124,8 @@ export function builderCanvas(c, editor, controls) {
     ${controls}
     <div class="wf-dock">${btn('node-add', 'Adicionar ação', { glyph: 'plus', cls: 'wf-dock-add', disabled: steps >= MAX_STEPS, data: `data-wf-list="root" data-wf-index="${row.steps.length}"` })}
       <span>${row.triggers.length} ${row.triggers.length === 1 ? 'gatilho' : 'gatilhos'} · ${steps} ${steps === 1 ? 'etapa' : 'etapas'}</span></div></div>
-    ${editor.node ? `<aside class="wf-inspector" aria-label="Configuração do bloco">${inspector(c, editor)}</aside>` : ''}</div>`;
+    ${editor.node ? `<div class="wfb-modal"><button type="button" class="wfb-modal-backdrop" data-wf="node-close" tabindex="-1" aria-label="Fechar"></button>
+      <section class="wf-inspector" role="dialog" aria-modal="true" aria-label="Configuração da etapa">${inspector(c, editor)}</section></div>` : ''}</div>`;
 }
 
 /* ───────── Inspector ───────── */
@@ -194,10 +195,14 @@ function inspector(c, editor) {
       ? `<label>Endereço do webhook (POST, JSON)<input readonly value="${h(`${location.origin}/hooks/${c.workspace}/${editor.key}/${trigger.id}?key=${trigger.config.secret}`)}" data-wf-copy></label>
         <p class="wf-sub">Envie <code>email</code> ou <code>phone</code> para o contato ser encontrado ou criado. Os outros campos ficam em <code>{{trigger.campo}}</code>.</p>`
       : '<p class="wf-sub">Salve o fluxo para gerar o endereço do webhook.</p>') : '';
-    return `<div class="wf-inspector-head"><h2>${h(spec?.label || 'Gatilho')}</h2>${close}</div>
+    const delivers = [['contact', 'Contato (nome, e-mail, telefone, tags, campos)'], ...(triggerData[trigger.type] || []).map(([key, label]) => [`trigger.${key}`, label]), ...(trigger.type === 'inbound_webhook' ? [['trigger.campo', 'Cada campo do JSON recebido']] : [])];
+    return `<div class="wf-inspector-head"><h2>${icon(spec?.icon || 'bolt', 18)} ${h(spec?.label || 'Gatilho')}</h2>${close}</div>
+      <div class="wfb-modal-cols two"><div class="wfb-config">
       <p class="wf-action-desc">${spec?.scheduled ? 'Verificado a cada minuto; dispara uma vez por dia para cada contato que se encaixa.' : 'Filtros vazios aceitam qualquer valor.'}</p>
       ${fields(c, editor, spec, trigger.config, editor.node)}${hook}
-      <div class="wf-node-tools">${btn('trigger-delete', 'Remover gatilho', { cls: 'wf-text', glyph: 'trash', id: trigger.id })}</div>`;
+      <div class="wf-node-tools">${btn('trigger-delete', 'Remover gatilho', { cls: 'wf-text', glyph: 'trash', id: trigger.id })}</div></div>
+      <aside class="wfb-exit" aria-label="Saída do gatilho"><h3>Saída</h3><p class="wf-sub">O que este gatilho entrega para as etapas seguintes:</p>
+      <pre>${delivers.map(([key, label]) => `{{${h(key)}}}  ${h(label)}`).join('\n')}</pre></aside></div>`;
   }
   const step = findStep(editor.row, editor.node);
   if (!step) return '';
@@ -215,16 +220,21 @@ function inspector(c, editor) {
   if (step.type === 'goal') body += '<p class="wf-sub">Se a meta acontecer enquanto o contato está em qualquer etapa anterior, ele pula direto para cá.</p>';
   if (['manual_call', 'manual_sms'].includes(step.type)) body += '<p class="wf-sub">O fluxo pausa até alguém concluir ou dispensar a ação na fila de ações manuais.</p>';
   const run = tested(editor, step.id), outputs = editor.test?.outputs?.[step.id];
-  const exit = editor.test ? `<section class="wfb-exit" aria-label="Saída do último teste"><h3>${icon(run ? 'check' : 'clock', 14)} Saída do teste</h3>
-    ${run ? `<p><b>${h(run.result)}</b></p>${outputs ? `<pre>${h(JSON.stringify(outputs, null, 2))}</pre>` : ''}` : '<p class="wf-sub">O último teste não passou por esta etapa.</p>'}</section>` : '';
+  const failed = run && /^(erro|sem |campo |e-mail inválido|contato em não perturbe|não passou)/.test(run.result);
+  const exit = `<aside class="wfb-exit" aria-label="Saída"><div class="wfb-exit-status"><h3>Saída</h3>${btn('test-run', editor.test ? 'Re-testar' : 'Testar', { glyph: 'play', cls: 'secondary' })}</div>
+    ${!editor.test ? '<span class="wfb-exit-badge off">Sem teste ainda</span><p class="wf-sub">Rode um teste com um contato para ver aqui o resultado desta etapa e os dados que ela gera.</p>'
+      : run ? `<span class="wfb-exit-badge ${failed ? 'fail' : ''}">${icon(failed ? 'alert' : 'check', 13)} ${failed ? 'Falhou' : 'Sucesso!'}</span><p><b>${h(run.result)}</b></p>
+        ${outputs ? `<pre>${h(JSON.stringify(outputs, null, 2))}</pre>` : '<p class="wf-sub">Esta etapa não gera dados para as próximas.</p>'}
+        ${editor.test.contact ? `<p class="wf-sub">Teste com ${h(editor.test.contact)}. Nada foi salvo nem enviado.</p>` : ''}`
+      : '<span class="wfb-exit-badge off">Não executada</span><p class="wf-sub">O último teste não passou por esta etapa (outro ramo, filtro ou fim do fluxo).</p>'}</aside>`;
   const stop = spec?.branch || ['goto', 'end', 'wait', 'goal', 'filter'].includes(step.type) ? '' : `<label class="wf-check wfb-stop"><input type="checkbox" data-wf-stop="${h(step.id)}" ${step.config.stopOnError ? 'checked' : ''}>
     <span><b>Erro interrompe o fluxo</b><small>Se esta etapa falhar, a execução para e fica marcada como “Falhou”.</small></span></label>`;
-  return `<div class="wf-inspector-head"><h2>${h(spec?.label || 'Ação')}</h2>${close}</div>
-    <div class="wfb-editor-cols">${entry(c, editor, step.id)}<div class="wfb-config">${spec?.description ? `<p class="wf-action-desc">${h(spec.description)}</p>` : ''}${body}${stop}${exit}
-    <div class="wf-node-tools">${btn('node-up', 'Subir', { glyph: 'left', disabled: !place || place.index === 0 })}
-      ${btn('node-down', 'Descer', { glyph: 'right', disabled: !place || place.index === place.list.length - 1 })}
+  return `<div class="wf-inspector-head"><h2>${icon(spec?.icon || 'flow', 18)} ${h(spec?.label || 'Ação')}</h2>${close}</div>
+    <div class="wfb-modal-cols">${entry(c, editor, step.id)}<div class="wfb-config">${spec?.description ? `<p class="wf-action-desc">${h(spec.description)}</p>` : ''}${body}${stop}
+    <div class="wf-node-tools">${btn('node-up', 'Antes', { glyph: 'left', disabled: !place || place.index === 0 })}
+      ${btn('node-down', 'Depois', { glyph: 'right', disabled: !place || place.index === place.list.length - 1 })}
       ${btn('node-duplicate', 'Duplicar', { glyph: 'copy' })}
-      ${btn('node-delete', step.type === 'if_else' || step.type === 'router' ? 'Remover com os ramos' : 'Remover', { cls: 'wf-text', glyph: 'trash' })}</div></div></div>`;
+      ${btn('node-delete', step.type === 'if_else' || step.type === 'router' ? 'Remover com os ramos' : 'Remover', { cls: 'wf-text', glyph: 'trash' })}</div></div>${exit}</div>`;
 }
 
 /* ───────── Entrada: dados e funções disponíveis para a etapa ───────── */
