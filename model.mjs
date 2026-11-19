@@ -14,7 +14,7 @@ import { storeAfterSave, storeBeforeDelete, storeCheckout, storeCollections, sto
 import { webinarBeforeDelete, webinarCollections, webinarCommand, webinarFields } from './webinar-model.mjs';
 import { qrCollections, qrFields, qrScan } from './qr-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
-import { buildWorkflowContext, resolveTemplate } from './expressions.mjs';
+import { createEngine, workflowRecord } from './workflow-engine.mjs';
 
 export const defaults = {
   profile: { name: 'Demo Workspace', email: 'hello@example.test', phone: '', timezone: 'America/Sao_Paulo', currency: 'BRL' },
@@ -70,8 +70,6 @@ const percent = value => {
 };
 const tags = value => [...new Set((Array.isArray(value) ? value : str(value).split(',')).map(a => str(a, 48)).filter(Boolean))].slice(0, 20);
 export const triggers = ['Contact created', 'Form submitted', 'Opportunity stage changed', 'Appointment booked', 'Trigger link clicked', 'Customer replied'];
-const manualTypes = ['Manual Call', 'Manual SMS'];
-const actionTypes = ['Add tag', 'Remove tag', 'Create task', 'Create opportunity', 'Log message', 'Send WhatsApp', 'Send SMS', ...manualTypes];
 const messageChannels = ['Note', 'Email', 'SMS', 'WhatsApp', 'Live chat'];
 export const find = (state, key, id) => state[key].find(a => a.id === id);
 const webAddress = value => { const v = str(value, 600); if (v && !/^https?:\/\/[^\s/]+\.[^\s]+$/i.test(v)) fail('Use um endereço que comece com https://'); return v; };
@@ -104,7 +102,7 @@ const exists = (state, key, value, label, optional = false) => (!value && option
 function add(state, key, data) { const row = { id: uid(), created: now(), ...data }; state[key].push(row); return row; }
 const contactId = (s,v,optional = false) => exists(s, 'contacts', v, 'contact', optional);
 const fields = {
-  contacts: (s, d) => ({ name: req(d.name, 'Name'), email: email(d.email), phone: str(d.phone, 48), company: str(d.company), tags: tags(d.tags), notes: str(d.notes, 5000), custom: customData(s, 'Contact', d) }),
+  contacts: (s, d) => ({ name: req(d.name, 'Name'), email: email(d.email), phone: str(d.phone, 48), company: str(d.company), tags: tags(d.tags), notes: str(d.notes, 5000), custom: customData(s, 'Contact', d), ...(d.dnd !== undefined ? { dnd: Boolean(d.dnd) } : {}) }),
   tasks: (s, d) => ({ title: req(d.title, 'Title'), contactId: contactId(s,d.contactId,true), due: d.due ? date(d.due) : '', done: Boolean(d.done), owner:str(d.owner,80), notes:str(d.notes,2500) }),
   opportunities: (s, d) => {
     const stage = find(s,'stages',d.stage);
@@ -129,23 +127,8 @@ const fields = {
     return { title: req(d.title, 'Title'), contactId: contactId(s,d.contactId,true), start, end, status: one(d.status || 'Confirmed',['Confirmed','Completed','Canceled'],'status'), notes: str(d.notes, 3000) };
   },
   workflows: (s, d) => {
-    const actions = Array.isArray(d.actions) ? d.actions.slice(0,10).map(a => {
-      const type = one(a?.type, actionTypes, 'action');
-      const action = { type, value: req(a.value, 'Action value', 500) };
-      if (manualTypes.includes(type)) action.assignee = str(a.assignee, 80);
-      if (type === 'Log message') action.channel = one(a.channel || 'Note', messageChannels, 'channel');
-      return action;
-    }) : [];
-    const active = Boolean(d.active);
-    if (active && (!actions.length || !d.trigger)) fail('Defina um gatilho e pelo menos uma ação para publicar.');
-    const trigger = d.trigger ? one(d.trigger,triggers,'trigger') : '';
-    const linkId = trigger === 'Trigger link clicked' ? exists(s, 'triggerLinks', d.linkId, 'trigger link', true) : '';
-    const formId = trigger === 'Form submitted' ? exists(s, 'forms', d.formId, 'form', true) : '';
-    const stageId = trigger === 'Opportunity stage changed' ? exists(s, 'stages', d.stageId, 'stage', true) : '';
-    const channel = trigger === 'Customer replied' && d.channel ? one(d.channel, messageChannels, 'channel') : '';
-    const keyword = trigger === 'Customer replied' ? str(d.keyword, 100) : '';
-    return { name: req(d.name,'Nome'), trigger, linkId, formId, stageId, channel, keyword, actions, active,
-      folderId: exists(s, 'workflowFolders', d.folderId, 'folder', true), allowReentry: d.allowReentry !== false };
+    const record = workflowRecord(s, d);
+    return { ...record, folderId: exists(s, 'workflowFolders', record.folderId, 'folder', true) };
   },
   workflowFolders: (s, d) => ({ name: req(d.name, 'Nome da pasta', 100) }),
   workflowLists: (s, d) => ({ name: req(d.name, 'Nome da lista', 100), query: str(d.query, 200),
@@ -208,97 +191,24 @@ function linkDestination(value) {
   fail('Enter an HTTP or HTTPS URL without credentials.');
 }
 
-function continueRun(state, run) {
-  const contact = find(state, 'contacts', run.contactId);
-  const context = buildWorkflowContext(state, run, contact);
-  for (; run.nextAction < run.actions.length; run.nextAction++) {
-    const action = run.actions[run.nextAction];
-    if (!contact && action.type !== 'Create task') {
-      run.results.push(`${action.type}: no linked contact`);
-      continue;
-    }
-    const resolvedValue = typeof action.value === 'string' ? resolveTemplate(action.value, context) : action.value;
-    if (manualTypes.includes(action.type)) {
-      add(state, 'manualActions', {
-        runId: run.id, workflowId: run.workflowId, workflowName: run.name, contactId: contact.id,
-        type: action.type, instructions: resolvedValue, assignee: action.assignee || '', status: 'Pending'
-      });
-      run.status = 'Waiting';
-      run.results.push(`${action.type}: waiting for a manual action`);
-      run.nextAction++;
-      return;
-    }
-    if (action.type === 'Add tag') contact.tags = tags([...contact.tags, resolvedValue]);
-    if (action.type === 'Remove tag') contact.tags = contact.tags.filter(t => t.toLowerCase() !== String(resolvedValue).toLowerCase().trim());
-    if (action.type === 'Create task') add(state, 'tasks', { title: resolvedValue, contactId: contact?.id || '', done: false, due: '' });
-    if (action.type === 'Create opportunity') {
-      const firstStage = state.stages[0];
-      add(state,'opportunities',{ title:resolvedValue, contactId:contact.id, stage:firstStage.id, pipelineId:firstStage.pipelineId,
-        value:0, status:'Open', statusChangedAt:now(), source:'Workflow', owner:'' });
-    }
-    if (action.type === 'Log message') {
-      add(state, 'messages', {
-        contactId: contact.id, body: resolvedValue, direction: 'Outbound', channel: action.channel || 'Note', read: true,
-        starred: false, origin: 'workflow', workflowId: run.workflowId
-      });
-    }
-    if (action.type === 'Send WhatsApp') {
-      add(state, 'messages', {
-        contactId: contact.id, body: resolvedValue, direction: 'Outbound', channel: 'WhatsApp', read: true,
-        starred: false, origin: 'workflow', workflowId: run.workflowId
-      });
-    }
-    if (action.type === 'Send SMS') {
-      add(state, 'messages', {
-        contactId: contact.id, body: resolvedValue, direction: 'Outbound', channel: 'SMS', read: true,
-        starred: false, origin: 'workflow', workflowId: run.workflowId
-      });
-    }
-    run.results.push(`${action.type}: done`);
-  }
-  run.status = 'Completed';
-}
-
-function run(state, event, context) {
-  for (const workflow of state.workflows) {
-    if (!workflow.active || workflow.trigger !== event || (workflow.linkId && workflow.linkId !== context.linkId)
-      || (workflow.formId && workflow.formId !== context.formId) || (workflow.stageId && workflow.stageId !== context.stage)
-      || (workflow.channel && context.channel && workflow.channel !== context.channel)
-      || (workflow.keyword && (!context.body || !context.body.toLowerCase().includes(workflow.keyword.toLowerCase().trim())))
-    ) continue;
-    enroll(state, workflow, event, context.contactId);
+// Workflows run on workflow-engine.mjs. The old event names are still accepted here.
+const engine = createEngine({ add, now });
+const legacyEvents = { 'Contact created': 'contact_created', 'Form submitted': 'form_submitted', 'Opportunity stage changed': 'pipeline_stage_changed',
+  'Appointment booked': 'appointment_booked', 'Trigger link clicked': 'trigger_link_clicked', 'Customer replied': 'customer_replied' };
+function run(state, event, context = {}) {
+  const type = legacyEvents[event] || event;
+  const ctx = { ...context, contactId: context.contactId || '' };
+  if (type === 'pipeline_stage_changed') ctx.stageId = context.stageId || context.stage;
+  if (type === 'appointment_booked') { engine.emit(state, type, { contactId: ctx.contactId }); return; }
+  engine.emit(state, type, ctx);
+  if (type === 'form_submitted') {
+    const form = find(state, 'forms', ctx.formId);
+    if (form?.kind === 'survey') engine.emit(state, 'survey_submitted', ctx);
+    if (form?.kind === 'quiz') engine.emit(state, 'quiz_submitted', ctx);
   }
 }
-
-function enroll(state, workflow, event, contactId = '') {
-  if (contactId && workflow.allowReentry === false && state.runs.some(run => run.workflowId === workflow.id && run.contactId === contactId)) return;
-  const execution = add(state, 'runs', {
-    name: workflow.name, workflowId: workflow.id, event, contactId,
-    actions: structuredClone(workflow.actions), nextAction: 0, results: [], status: 'Running'
-  });
-  continueRun(state, execution);
-  return execution.id;
-}
-
-function finishManualAction(state, id, data) {
-  const item = find(state, 'manualActions', id);
-  if (!item) fail('Manual action not found.', 404);
-  if (item.status === data.status && ['Completed','Skipped'].includes(item.status)) return id;
-  if (item.status !== 'Pending') fail('Manual action is no longer pending.', 409);
-  const execution = find(state, 'runs', item.runId);
-  if (execution?.status !== 'Waiting') fail('This workflow is no longer waiting.', 409);
-
-  item.status = one(data.status, ['Completed', 'Skipped'], 'outcome');
-  item.finished = now();
-  item.note = str(data.note, 2500);
-  if (item.status === 'Completed' && item.note) {
-    add(state, 'messages', { contactId: item.contactId, direction: 'Outbound', channel: 'Note', read: true,
-      starred: false, origin: 'internal', body: `${item.type}: ${item.note}` });
-  }
-  execution.results.push(`${item.type}: ${item.status.toLowerCase()}`);
-  continueRun(state, execution);
-  return id;
-}
+const enroll = (state, workflow, event, contactId = '') => engine.enroll(state, workflow, { contactId, depth: 1 }, event);
+const finishManualAction = (state, id, data) => engine.finishManual(state, id, data, one, str);
 
 function saveSla(state, data) {
   function target(settings) {
@@ -347,8 +257,19 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'workflow-enroll') {
     const workflow = find(s, 'workflows', id);
     if (!workflow?.active) fail('Publique o fluxo antes de inscrever contatos.', 409);
-    return enroll(s, workflow, 'Manual enrollment', contactId(s, d.contactId))
+    return enroll(s, workflow, 'Inscrição manual', contactId(s, d.contactId))
       || fail('Este contato já foi inscrito neste fluxo.', 409);
+  }
+  // Server-internal (not accepted from /api/action): the per-minute tick, inbound webhooks and the delivery queue.
+  if (type === 'workflow-tick') return engine.tick(s, d.at ? Date.parse(d.at) : Date.now());
+  if (type === 'workflow-hook') return engine.inbound(s, str(d.workflowId, 40), str(d.triggerId, 40), d.payload && typeof d.payload === 'object' ? d.payload : {});
+  if (type === 'workflow-outbox-take') { const items = s.workflowOutbox || []; s.workflowOutbox = []; return items; }
+  if (type === 'workflow-outbox-result') {
+    for (const item of Array.isArray(d.results) ? d.results.slice(0, 500) : []) {
+      const target = find(s, 'runs', item?.runId);
+      if (target) target.results.push(`${item.kind === 'whatsapp' ? 'WhatsApp' : 'Webhook'}: ${str(item.text, 120)}`);
+    }
+    return true;
   }
   if (type === 'workflow-restore') {
     const workflow = find(s, 'deletedWorkflows', id);
@@ -475,9 +396,7 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
     afterSave(s, key, prior, row, add);
     storeAfterSave(s, key, prior, row, add);
     if (prior) s[key] = s[key].map(r=>r.id===id ? row : r);
-    if (!prior && key==='contacts') run(s,'Contact created',{ contactId:row.id });
-    if (!prior && key==='appointments') run(s,'Appointment booked',row);
-    if (prior && key==='opportunities' && row.stage!==prior.stage) run(s,'Opportunity stage changed',row);
+    engine.recordChange(s, key, prior, row);
     return row.id;
   }
   if (type === 'delete') {
@@ -560,6 +479,7 @@ function other(s, command, type, key, id, d, workspace) {
     const msgId = add(s, 'messages', { contactId: c, body, subject: channel === 'Email' ? str(d.subject, 240) : '',
       channel, direction, read: direction !== 'Inbound', starred: false, origin: 'human' }).id;
     if (direction === 'Inbound') run(s, 'Customer replied', { contactId: c, channel, body });
+    if (channel === 'Note') run(s, 'note_added', { contactId: c, body });
     return msgId;
   }
   if (type === 'manual-action') return finishManualAction(s, id, d);
@@ -613,7 +533,7 @@ function other(s, command, type, key, id, d, workspace) {
     }
     const submission=add(s,'submissions',{ formId:id, contactId:c.id, name:info.name || c.name, email:info.email, phone:info.phone, answers:read.answers, source:str(d._source,40) || 'Link', ...(read.result ? { result:{ score:read.result.score, max:read.result.max, percent:read.result.percent, tier:read.result.tier, categories:read.result.categories } } : {}) });
     if (s.submissions.length > 5000) s.submissions.splice(0, s.submissions.length - 5000);
-    run(s,'Form submitted',{contactId:c.id,formId:id});
+    run(s,'Form submitted',{contactId:c.id,formId:id,tier:read.result?.tier || ''});
     return submission.id;
   }
   if (type === 'form-view') {

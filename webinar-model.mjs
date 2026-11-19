@@ -63,6 +63,7 @@ export function webinarCommand(s, command, { add, run, now }) {
     if (existing) { existing.sessionId = session.id; existing.sent = {}; existing.updated = now(); return existing.id; }
     const registration = add(s, 'webinarRegistrations', { webinarId: webinar.id, sessionId: session.id, contactId: contact.id, name, email, phone, token: randomBytes(18).toString('hex'), sent: {}, attendedAt: '' });
     if (s.webinarRegistrations.length > 50000) s.webinarRegistrations.splice(0, s.webinarRegistrations.length - 50000);
+    run(s, 'webinar_registered', { contactId: contact.id, webinarId: webinar.id });
     return registration.id;
   }
   if (type === 'webinar-attend') {

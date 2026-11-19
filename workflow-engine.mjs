@@ -1,0 +1,475 @@
+// Workflow engine: several triggers with filters, a tree of steps (if/else, router, wait, goal, goto…)
+// compiled into a graph when a contact enrolls, runs that pause and resume, scheduled triggers, and an
+// outbox for the calls the server makes after saving (outbound webhooks, WhatsApp).
+import { randomBytes } from 'node:crypto';
+import { buildWorkflowContext, resolveTemplate } from './expressions.mjs';
+import { actionSpec, allActions, allTriggers, eachStep, triggerSpec, upgradeWorkflow } from './ui/workflow-data.js';
+
+const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
+const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value) : '';
+const lower = value => String(value ?? '').trim().toLowerCase();
+const tagList = list => [...new Set((list || []).map(tag => str(tag, 48)).filter(Boolean))].slice(0, 20);
+const MAX_STEPS = 120, MAX_DEPTH = 4, CONDITIONS = ['tag', 'field', 'dnd', 'stage', 'opportunity_status', 'replied', 'submitted', 'trigger'];
+const scheduledTypes = allTriggers.filter(item => item.scheduled).map(item => item.type);
+
+/* ───────── Validação ───────── */
+
+function cleanConfig(s, spec, raw = {}, { publishing, label }) {
+  const out = {};
+  for (const field of spec?.fields || []) {
+    if (field.kind === 'conditions') continue;
+    let value = raw[field.key];
+    if (field.kind === 'number') {
+      value = value === '' || value === undefined || value === null ? (field.value ?? '') : Number(value);
+      if (value !== '' && (!Number.isFinite(value) || (field.min !== undefined && value < field.min) || (field.max !== undefined && value > field.max))) fail(`${label}: “${field.label}” fora do intervalo permitido.`);
+    } else if (field.kind === 'select') {
+      value = str(String(value ?? field.value ?? field.options[0]?.[0] ?? ''), 40);
+      if (!field.options.some(([key]) => key === value)) value = field.options[0]?.[0] ?? '';
+    } else if (field.kind === 'time') {
+      value = /^\d{2}:\d{2}$/.test(value || '') ? value : field.value || '09:00';
+    } else if (field.kind === 'datetime') {
+      value = value && !Number.isNaN(Date.parse(value)) ? new Date(value).toISOString() : '';
+    } else value = str(value ?? field.value ?? '', field.kind === 'textarea' ? 4000 : 600);
+    if (field.kind === 'ref' && field.required && !value && field.source === 'stages') value = s.stages?.[0]?.id || '';
+    const shown = !field.when || Object.entries(field.when).every(([key, expected]) => (raw[key] ?? '') === expected || out[key] === expected);
+    if (publishing && shown && field.required && (value === '' || value === undefined)) fail(`${label}: preencha “${field.label}”.`);
+    out[field.key] = value;
+  }
+  return out;
+}
+
+function cleanConditions(raw) {
+  return (Array.isArray(raw) ? raw : []).slice(0, 10).map(item => ({
+    subject: CONDITIONS.includes(item?.subject) ? item.subject : 'tag', op: str(item?.op, 20) || 'has', key: str(item?.key, 80), value: str(item?.value, 200)
+  }));
+}
+
+export function workflowRecord(s, d) {
+  const row = upgradeWorkflow(d);
+  const publishing = Boolean(d.active);
+  const ids = new Set();
+  const uniqueId = value => { let id = /^[a-z0-9]{6,40}$/i.test(value || '') ? value : `n${randomBytes(5).toString('hex')}`; while (ids.has(id)) id = `n${randomBytes(5).toString('hex')}`; ids.add(id); return id; };
+  const prior = d.id ? s.workflows.find(item => item.id === d.id) : null;
+  const triggers = (row.triggers || []).slice(0, 10).map(raw => {
+    const spec = triggerSpec(raw?.type) || fail('Gatilho desconhecido.');
+    const config = cleanConfig(s, spec, raw.config, { publishing, label: spec.label });
+    const id = uniqueId(raw.id);
+    if (spec.type === 'inbound_webhook') config.secret = /^[0-9a-f]{32}$/.test(raw.config?.secret || '') ? raw.config.secret : prior?.triggers?.find(t => t.id === id)?.config?.secret || randomBytes(16).toString('hex');
+    return { id, type: spec.type, config };
+  });
+  let count = 0;
+  const list = (steps, depth) => {
+    if (depth > 6) fail('Use no máximo 6 níveis de ramificação.');
+    return (Array.isArray(steps) ? steps : []).map(raw => {
+      if (++count > MAX_STEPS) fail(`Um fluxo aceita até ${MAX_STEPS} etapas.`);
+      const spec = actionSpec(raw?.type) || fail('Ação desconhecida.');
+      const step = { id: uniqueId(raw.id), type: spec.type, config: cleanConfig(s, spec, raw.config, { publishing, label: spec.label }) };
+      if (spec.type === 'if_else') { step.config.conditions = cleanConditions(raw.config?.conditions); step.config.match = raw.config?.match === 'any' ? 'any' : 'all'; step.yes = list(raw.yes, depth + 1); step.no = list(raw.no, depth + 1); }
+      if (spec.type === 'router') {
+        step.routes = (Array.isArray(raw.routes) ? raw.routes : []).slice(0, 6).map((route, index) => ({ id: uniqueId(route?.id), label: str(route?.label, 60) || `Caminho ${index + 1}`, match: route?.match === 'any' ? 'any' : 'all', conditions: cleanConditions(route?.conditions), steps: list(route?.steps, depth + 1) }));
+        step.otherwise = list(raw.otherwise, depth + 1);
+      }
+      if (spec.type === 'webhook' && step.config.url && !/^https:\/\/[^\s/]+\.[^\s]+$/i.test(step.config.url)) fail('O webhook precisa de um endereço https://');
+      return step;
+    });
+  };
+  const steps = list(row.steps, 0);
+  const all = new Set();
+  eachStep(steps, step => all.add(step.id));
+  eachStep(steps, step => { if (step.type === 'goto' && step.config.target && !all.has(step.config.target)) step.config.target = ''; });
+  if (publishing) {
+    if (!steps.length) fail('Adicione pelo menos uma ação para publicar.');
+    eachStep(steps, step => { if (step.type === 'goto' && !step.config.target) fail('“Ir para outra etapa”: escolha a etapa de destino.'); });
+    if (triggers.some(t => t.type === 'scheduler') && triggers.find(t => t.type === 'scheduler').config.tag === '') fail('Agendador: informe a tag dos contatos que entram.');
+  }
+  return { name: str(d.name, 240) || fail('Dê um nome ao fluxo.'), triggers, steps, active: publishing, folderId: d.folderId || '', allowReentry: d.allowReentry !== false, fired: prior?.fired || {} };
+}
+
+/* ───────── Grafo ───────── */
+
+export function compile(steps) {
+  const nodes = {};
+  const chain = (items, after) => {
+    for (let i = items.length - 1; i >= 0; i--) {
+      const step = items[i], node = { type: step.type, config: step.config || {}, next: after };
+      if (step.type === 'if_else') { node.yes = chain(step.yes || [], after); node.no = chain(step.no || [], after); }
+      if (step.type === 'router') { node.routes = (step.routes || []).map(route => ({ label: route.label, match: route.match, conditions: route.conditions || [], first: chain(route.steps || [], after) })); node.otherwise = chain(step.otherwise || [], after); }
+      nodes[step.id] = node;
+      after = step.id;
+    }
+    return after;
+  };
+  const first = chain(steps || [], '');
+  return { nodes, first };
+}
+
+/* ───────── Motor ───────── */
+
+export function createEngine({ add, now }) {
+  const contactOf = (s, id) => s.contacts.find(row => row.id === id);
+  const fieldValue = (s, contact, key) => {
+    if (!contact) return '';
+    if (key?.startsWith('custom:')) return contact.custom?.[key.slice(7)] ?? '';
+    return contact[key] ?? '';
+  };
+  // Templates use the shared expression engine: {{contact.first_name}}, {{upper(contact.name)}}, {{trigger.body}}…
+  const merge = (text, s, contact, run = {}) => {
+    const context = { ...buildWorkflowContext(s, run, contact), workspace: { name: s.profile?.name || '' }, trigger: { ...(run.context || {}), ...(run.context?.payload || {}) } };
+    const out = resolveTemplate(String(text ?? ''), context);
+    return out == null ? '' : typeof out === 'object' ? JSON.stringify(out) : String(out);
+  };
+  const outbox = (s, item) => { s.workflowOutbox ??= []; s.workflowOutbox.push({ id: randomBytes(8).toString('hex'), created: now(), ...item }); if (s.workflowOutbox.length > 500) s.workflowOutbox.splice(0, s.workflowOutbox.length - 500); };
+
+  function test(s, run, cond) {
+    const contact = contactOf(s, run.contactId);
+    const opportunities = contact ? s.opportunities.filter(row => row.contactId === contact.id) : [];
+    const latest = [...opportunities].sort((a, b) => String(b.updated || b.created).localeCompare(String(a.updated || a.created)))[0];
+    const value = cond.value;
+    switch (cond.subject) {
+      case 'tag': { const has = (contact?.tags || []).some(tag => lower(tag) === lower(value)); return cond.op === 'not_has' ? !has : has; }
+      case 'dnd': return cond.op === 'on' ? Boolean(contact?.dnd) : !contact?.dnd;
+      case 'stage': { const has = opportunities.some(row => row.stage === value); return cond.op === 'not_in' ? !has : has; }
+      case 'opportunity_status': return cond.op === 'is_not' ? latest?.status !== value : latest?.status === value;
+      case 'replied': { const yes = s.messages.some(row => row.contactId === run.contactId && row.direction === 'Inbound' && row.created >= run.created); return cond.op === 'no' ? !yes : yes; }
+      case 'submitted': { const yes = s.submissions.some(row => row.contactId === run.contactId && (!value || row.formId === value)); return cond.op === 'no' ? !yes : yes; }
+      case 'field': case 'trigger': {
+        const actual = cond.subject === 'field' ? fieldValue(s, contact, cond.key) : run.context?.[cond.key] ?? '';
+        const a = lower(Array.isArray(actual) ? actual.join(',') : actual), b = lower(value);
+        switch (cond.op) {
+          case 'equals': return a === b; case 'not_equals': return a !== b; case 'contains': return a.includes(b); case 'not_contains': return !a.includes(b);
+          case 'empty': return a === ''; case 'not_empty': return a !== '';
+          case 'gt': return Number(actual) > Number(value); case 'lt': return Number(actual) < Number(value);
+          default: return false;
+        }
+      }
+      default: return false;
+    }
+  }
+  const passes = (s, run, conditions = [], match = 'all') => !conditions.length || (match === 'any' ? conditions.some(c => test(s, run, c)) : conditions.every(c => test(s, run, c)));
+
+  const eventMatches = (type, value, event, ctx, s) => {
+    if (type !== event) return false;
+    if (event === 'opportunity_status_changed' && !value) return ctx.status === 'Won';
+    if (!value) return true;
+    const v = lower(value);
+    if (event === 'contact_tag') return ctx.change !== 'removed' && lower(ctx.tag) === v;
+    if (event === 'form_submitted') { const form = s.forms.find(row => row.id === ctx.formId); return ctx.formId === value || lower(form?.name) === v; }
+    if (event === 'customer_replied') return lower(ctx.body).includes(v);
+    return true;
+  };
+
+  function matchTrigger(trigger, type, ctx) {
+    if (trigger.type !== type) return false;
+    const c = trigger.config || {};
+    switch (type) {
+      case 'contact_changed': return !c.field || (ctx.fields || []).includes(c.field);
+      case 'contact_tag': return (c.change || 'added') === ctx.change && (!c.tag || lower(c.tag) === lower(ctx.tag));
+      case 'contact_dnd': return (c.state || 'on') === ctx.state;
+      case 'customer_replied': return (!c.channel || c.channel === ctx.channel) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
+      case 'form_submitted': case 'survey_submitted': return !c.formId || c.formId === ctx.formId;
+      case 'quiz_submitted': return (!c.formId || c.formId === ctx.formId) && (!c.tier || lower(c.tier) === lower(ctx.tier));
+      case 'trigger_link_clicked': return !c.linkId || c.linkId === ctx.linkId;
+      case 'chat_started': return !c.widgetId || c.widgetId === ctx.widgetId;
+      case 'webinar_registered': return !c.webinarId || c.webinarId === ctx.webinarId;
+      case 'review_received': return !c.maxScore || Number(ctx.score) <= Number(c.maxScore);
+      case 'appointment_status': return !c.status || c.status === ctx.status;
+      case 'opportunity_created': return !c.pipelineId || c.pipelineId === ctx.pipelineId;
+      case 'opportunity_status_changed': return !c.status || c.status === ctx.status;
+      case 'pipeline_stage_changed': return !c.stageId || c.stageId === ctx.stageId;
+      case 'invoice_status': return !c.status || c.status === ctx.status;
+      case 'order_submitted': case 'order_paid': return !c.storeId || c.storeId === ctx.storeId;
+      case 'inbound_webhook': return ctx.triggerId === trigger.id;
+      default: return scheduledTypes.includes(type) ? ctx.triggerId === trigger.id : true;
+    }
+  }
+
+  function enroll(s, workflow, ctx = {}, event = '') {
+    const contactId = ctx.contactId || '';
+    if (contactId && workflow.allowReentry === false && s.runs.some(row => row.workflowId === workflow.id && row.contactId === contactId)) return '';
+    if (contactId && s.runs.some(row => row.workflowId === workflow.id && row.contactId === contactId && ['Running', 'Waiting'].includes(row.status))) return '';
+    const graph = compile(upgradeWorkflow(workflow).steps);
+    const context = Object.fromEntries(Object.entries(ctx).filter(([key, value]) => !['depth'].includes(key) && (typeof value !== 'object' || key === 'payload')).map(([key, value]) => [key, key === 'payload' ? JSON.parse(JSON.stringify(value).slice(0, 8000) || '{}') : String(value).slice(0, 500)]));
+    const run = add(s, 'runs', { name: workflow.name, workflowId: workflow.id, event, contactId, context, graph, at: graph.first, results: [], steps: 0, status: 'Running', nextAction: 0, actions: [] });
+    if (s.runs.length > 20000) s.runs.splice(0, s.runs.length - 20000);
+    proceed(s, run, (ctx.depth || 0) + 1);
+    return run.id;
+  }
+
+  function perform(s, run, node, depth) {
+    const contact = contactOf(s, run.contactId), c = node.config || {}, text = value => merge(value, s, contact, run);
+    const needsContact = !['internal_notification', 'webhook', 'create_task'].includes(node.type);
+    if (needsContact && !contact) return 'sem contato';
+    const message = (channel, body, subject = '') => add(s, 'messages', { contactId: contact.id, body: text(body).slice(0, 5000), subject, channel, direction: 'Outbound', read: true, starred: false, origin: 'workflow', workflowId: run.workflowId });
+    switch (node.type) {
+      case 'add_tag': case 'remove_tag': {
+        const tag = text(c.tag).trim(), has = (contact.tags || []).some(t => lower(t) === lower(tag));
+        if (node.type === 'add_tag' && !has) { contact.tags = tagList([...(contact.tags || []), tag]); emit(s, 'contact_tag', { contactId: contact.id, change: 'added', tag, depth }); }
+        if (node.type === 'remove_tag' && has) { contact.tags = contact.tags.filter(t => lower(t) !== lower(tag)); emit(s, 'contact_tag', { contactId: contact.id, change: 'removed', tag, depth }); }
+        return 'concluída';
+      }
+      case 'update_field': {
+        const value = text(c.value);
+        if (c.field?.startsWith('custom:')) {
+          const field = (s.customFields || []).find(row => row.id === c.field.slice(7));
+          if (!field) return 'campo removido';
+          contact.custom = { ...(contact.custom || {}), [field.id]: ['Number', 'Monetary'].includes(field.type) ? Number(value) || 0 : field.type === 'Checkbox' ? ['sim', 'true', '1', 'yes'].includes(lower(value)) : value.slice(0, 5000) };
+        } else if (['name', 'email', 'phone', 'company'].includes(c.field)) {
+          if (c.field === 'email' && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'e-mail inválido';
+          contact[c.field] = c.field === 'email' ? value.toLowerCase() : value.slice(0, 240);
+        } else return 'campo inválido';
+        contact.updated = now();
+        return 'concluída';
+      }
+      case 'assign_user': case 'remove_user': {
+        let meta = s.threads.find(row => row.contactId === contact.id);
+        if (!meta) meta = add(s, 'threads', { contactId: contact.id, assignee: '', followers: [] });
+        meta.assignee = node.type === 'assign_user' ? text(c.user).slice(0, 80) : '';
+        meta.updated = now();
+        return 'concluída';
+      }
+      case 'set_dnd': {
+        const on = c.state !== 'off';
+        if (Boolean(contact.dnd) !== on) { contact.dnd = on; contact.updated = now(); emit(s, 'contact_dnd', { contactId: contact.id, state: on ? 'on' : 'off', depth }); }
+        return 'concluída';
+      }
+      case 'add_note': message('Note', c.body); return 'concluída';
+      case 'send_email': if (contact.dnd) return 'contato em não perturbe'; message('Email', c.body, text(c.subject).slice(0, 240)); return 'registrada em Conversas';
+      case 'send_sms': if (contact.dnd) return 'contato em não perturbe'; message('SMS', c.body); return 'registrada em Conversas';
+      case 'send_live_chat': message('Live chat', c.body); return 'enviada ao chat';
+      case 'send_whatsapp': case 'review_request': {
+        const channel = node.type === 'review_request' ? c.channel || 'WhatsApp' : 'WhatsApp';
+        if (contact.dnd) return 'contato em não perturbe';
+        const row = message(channel, c.body, channel === 'Email' ? 'Sua opinião importa' : '');
+        if (channel === 'WhatsApp' && contact.phone) outbox(s, { kind: 'whatsapp', runId: run.id, phone: contact.phone, body: row.body });
+        return channel === 'WhatsApp' ? 'registrada e na fila de envio' : 'registrada em Conversas';
+      }
+      case 'internal_notification': add(s, 'teamMessages', { author: 'Automação', body: `${run.name}: ${text(c.body)}`.slice(0, 2000) }); return 'enviada ao chat interno';
+      case 'create_task': {
+        const due = new Date(Date.now() + (Number(c.dueDays) || 0) * 864e5).toISOString();
+        add(s, 'tasks', { title: text(c.title).slice(0, 240) || 'Tarefa do fluxo', contactId: contact?.id || '', due, done: false, owner: text(c.owner).slice(0, 80), notes: '' });
+        return 'concluída';
+      }
+      case 'create_opportunity': {
+        const stage = s.stages.find(row => row.id === c.stageId) || s.stages[0];
+        const open = s.opportunities.find(row => row.contactId === contact.id && row.pipelineId === stage.pipelineId && row.status === 'Open');
+        if (open) {
+          const moved = open.stage !== stage.id;
+          Object.assign(open, { stage: stage.id, value: Number(c.value) || open.value, updated: now() });
+          if (moved) emit(s, 'pipeline_stage_changed', { contactId: contact.id, stageId: stage.id, depth });
+          return 'atualizada';
+        }
+        add(s, 'opportunities', { title: text(c.title).slice(0, 240) || contact.name, contactId: contact.id, stage: stage.id, pipelineId: stage.pipelineId, value: Number(c.value) || 0, status: 'Open', statusChangedAt: now(), source: 'Workflow', owner: '', tags: [], followers: [], company: '', closeDate: '', probability: 0, lostReason: '', custom: {} });
+        emit(s, 'opportunity_created', { contactId: contact.id, pipelineId: stage.pipelineId, depth });
+        return 'criada';
+      }
+      case 'opportunity_status': {
+        const latest = s.opportunities.filter(row => row.contactId === contact.id).sort((a, b) => String(b.updated || b.created).localeCompare(String(a.updated || a.created)))[0];
+        if (!latest) return 'sem oportunidade';
+        if (latest.status !== c.status) { latest.status = c.status; latest.statusChangedAt = now(); latest.updated = now(); emit(s, 'opportunity_status_changed', { contactId: contact.id, status: c.status, depth }); }
+        return 'concluída';
+      }
+      case 'create_invoice': {
+        const due = new Date(Date.now() + (Number(c.dueDays) || 0) * 864e5).toISOString().slice(0, 10);
+        add(s, 'invoices', { title: text(c.title).slice(0, 240), contactId: contact.id, value: Math.max(0, Math.round((Number(c.value) || 0) * 100) / 100), due, status: 'Open' });
+        return 'criada';
+      }
+      case 'math': {
+        const field = (s.customFields || []).find(row => `custom:${row.id}` === c.field);
+        if (!field) return 'campo removido';
+        const current = Number(contact.custom?.[field.id]) || 0, n = Number(c.number) || 0;
+        const result = { add: current + n, subtract: current - n, multiply: current * n, divide: n ? current / n : current, set: n }[c.op] ?? current;
+        contact.custom = { ...(contact.custom || {}), [field.id]: Math.round(result * 100) / 100 };
+        return `= ${contact.custom[field.id]}`;
+      }
+      case 'text_format': {
+        const value = String(fieldValue(s, contact, c.field));
+        const out = { upper: value.toUpperCase(), lower: value.toLowerCase(), trim: value.trim(), title: value.toLowerCase().replace(/(^|\s)\p{L}/gu, ch => ch.toUpperCase()) }[c.op] ?? value;
+        if (c.field?.startsWith('custom:')) contact.custom = { ...(contact.custom || {}), [c.field.slice(7)]: out }; else contact[c.field] = out;
+        return 'concluída';
+      }
+      case 'webhook': {
+        outbox(s, { kind: 'webhook', runId: run.id, url: c.url, method: c.method || 'POST', body: { workflow: { id: run.workflowId, name: run.name }, trigger: run.event, context: run.context,
+          contact: contact ? { id: contact.id, name: contact.name, email: contact.email, phone: contact.phone, company: contact.company, tags: contact.tags, custom: contact.custom || {} } : null } });
+        return 'na fila de envio';
+      }
+      default: return 'ignorada';
+    }
+  }
+
+  function proceed(s, run, depth = 1) {
+    if (!run.graph) { // runs saved before the engine: continue the remaining linear actions
+      run.graph = compile(upgradeWorkflow({ actions: (run.actions || []).slice(run.nextAction || 0) }).steps);
+      run.at = run.graph.first;
+    }
+    let jumps = 0;
+    while (run.at) {
+      if (++run.steps > 300) { run.status = 'Failed'; run.results.push('Fluxo interrompido: etapas demais (possível repetição infinita)'); return; }
+      const id = run.at, node = run.graph.nodes[id];
+      if (!node) { run.at = ''; break; }
+      const label = actionSpec(node.type)?.label || node.type, c = node.config || {};
+      if (node.type === 'wait') {
+        run.at = node.next;
+        run.status = 'Waiting';
+        if (c.mode === 'until') { if (!c.until || Date.parse(c.until) <= Date.now()) { run.status = 'Running'; run.results.push(`${label}: data já passou, seguindo`); continue; } run.wakeAt = c.until; }
+        else if (c.mode === 'event') { run.waitFor = { type: c.event, value: c.eventValue || '' }; run.wakeAt = new Date(Date.now() + (Number(c.timeoutDays) || 3) * 864e5).toISOString(); }
+        else run.wakeAt = new Date(Date.now() + (Number(c.amount) || 1) * ({ minutes: 6e4, hours: 36e5, days: 864e5 }[c.unit] || 864e5)).toISOString();
+        run.results.push(`${label}: aguardando ${run.waitFor ? 'o evento' : `até ${new Date(run.wakeAt).toISOString()}`}`);
+        return;
+      }
+      if (node.type === 'if_else') { const ok = passes(s, run, c.conditions, c.match); run.results.push(`${label}: ${ok ? 'sim' : 'não'}`); run.at = ok ? node.yes : node.no; continue; }
+      if (node.type === 'router') { const route = node.routes.find(item => passes(s, run, item.conditions, item.match)); run.results.push(`${label}: ${route ? route.label : 'caso contrário'}`); run.at = route ? route.first : node.otherwise; continue; }
+      if (node.type === 'goal') {
+        if (c.otherwise === 'end') { run.results.push(`${label}: meta não alcançada, fluxo encerrado`); run.at = ''; break; }
+        if (c.otherwise === 'wait') { run.status = 'Waiting'; run.waitFor = { type: c.event, value: c.eventValue || '', goal: id }; run.wakeAt = ''; run.at = node.next; run.results.push(`${label}: aguardando a meta`); return; }
+        run.results.push(`${label}: seguindo`); run.at = node.next; continue;
+      }
+      if (node.type === 'goto') { if (++jumps > 25) { run.status = 'Failed'; run.results.push(`${label}: repetições demais`); return; } run.results.push(`${label}: ok`); run.at = c.target; continue; }
+      if (node.type === 'end') { run.results.push(`${label}: ok`); run.at = ''; break; }
+      if (node.type === 'add_to_workflow') {
+        const other = s.workflows.find(row => row.id === c.workflowId);
+        const enrolled = other?.active && depth < MAX_DEPTH ? enroll(s, other, { contactId: run.contactId, depth }, 'Adicionado por outro fluxo') : '';
+        run.results.push(`${label}: ${enrolled ? `inscrito em ${other.name}` : other?.active ? 'já estava no fluxo' : 'fluxo não publicado'}`);
+        run.at = node.next; continue;
+      }
+      if (node.type === 'remove_from_workflow') {
+        const target = c.workflowId || run.workflowId;
+        for (const other of s.runs) if (other.id !== run.id && other.workflowId === target && other.contactId === run.contactId && ['Running', 'Waiting'].includes(other.status)) Object.assign(other, { status: 'Removed', at: '', waitFor: null, wakeAt: '' });
+        run.results.push(`${label}: ok`);
+        if (target === run.workflowId) { run.at = ''; break; }
+        run.at = node.next; continue;
+      }
+      if (node.type === 'manual_sms' || node.type === 'manual_call') {
+        const contact = contactOf(s, run.contactId);
+        if (!contact) { run.results.push(`${label}: sem contato`); run.at = node.next; continue; }
+        add(s, 'manualActions', { runId: run.id, workflowId: run.workflowId, workflowName: run.name, contactId: contact.id, type: node.type === 'manual_sms' ? 'Manual SMS' : 'Manual Call', instructions: merge(c.body, s, contact, run), assignee: c.assignee || '', status: 'Pending' });
+        run.status = 'Waiting'; run.at = node.next; run.wakeAt = ''; run.results.push(`${label}: aguardando ação manual`);
+        return;
+      }
+      let result;
+      try { result = perform(s, run, node, depth); } catch (error) { result = `erro: ${error.message}`; }
+      run.results.push(`${label}: ${result}`);
+      run.at = node.next;
+    }
+    run.status = 'Completed';
+    run.finished = now();
+    run.wakeAt = ''; run.waitFor = null;
+  }
+
+  function resume(s, run, note) {
+    run.status = 'Running'; run.wakeAt = ''; run.waitFor = null;
+    if (note) run.results.push(note);
+    proceed(s, run);
+  }
+
+  // An event: resume waits, reach goals, and enroll the workflows whose triggers match.
+  function emit(s, type, ctx = {}) {
+    const depth = ctx.depth || 0;
+    if (depth > MAX_DEPTH) return;
+    if (ctx.contactId) {
+      for (const run of s.runs.filter(row => row.contactId === ctx.contactId && ['Running', 'Waiting'].includes(row.status) && row.graph)) {
+        if (run.status === 'Waiting' && run.waitFor && eventMatches(run.waitFor.type, run.waitFor.value, type, ctx, s)) { resume(s, run, run.waitFor.goal ? 'Meta alcançada' : 'Evento aconteceu: seguindo'); continue; }
+        const goal = Object.entries(run.graph.nodes).find(([, node]) => node.type === 'goal' && eventMatches(node.config.event, node.config.eventValue, type, ctx, s));
+        if (goal && run.status !== 'Running') { run.at = goal[1].next; s.manualActions.filter(item => item.runId === run.id && item.status === 'Pending').forEach(item => { item.status = 'Skipped'; item.finished = now(); }); resume(s, run, 'Meta alcançada: pulando para a meta'); }
+      }
+    }
+    for (const workflow of s.workflows.filter(row => row.active)) {
+      const flow = upgradeWorkflow(workflow);
+      if ((flow.triggers || []).some(trigger => matchTrigger(trigger, type, ctx))) enroll(s, workflow, { ...ctx, depth }, triggerSpec(type)?.label || type);
+    }
+  }
+
+  // What changed in a saved record, as workflow events.
+  function recordChange(s, key, prior, row) {
+    const base = { contactId: row.contactId || '' };
+    if (key === 'contacts') {
+      if (!prior) { emit(s, 'contact_created', { contactId: row.id }); for (const tag of row.tags || []) emit(s, 'contact_tag', { contactId: row.id, change: 'added', tag }); return; }
+      const fields = ['name', 'email', 'phone', 'company'].filter(field => (prior[field] || '') !== (row[field] || ''));
+      for (const id of new Set([...Object.keys(prior.custom || {}), ...Object.keys(row.custom || {})])) if (JSON.stringify(prior.custom?.[id] ?? '') !== JSON.stringify(row.custom?.[id] ?? '')) fields.push(`custom:${id}`);
+      if (fields.length) emit(s, 'contact_changed', { contactId: row.id, fields });
+      const before = (prior.tags || []).map(lower), after = (row.tags || []).map(lower);
+      for (const tag of row.tags || []) if (!before.includes(lower(tag))) emit(s, 'contact_tag', { contactId: row.id, change: 'added', tag });
+      for (const tag of prior.tags || []) if (!after.includes(lower(tag))) emit(s, 'contact_tag', { contactId: row.id, change: 'removed', tag });
+      if (Boolean(prior.dnd) !== Boolean(row.dnd)) emit(s, 'contact_dnd', { contactId: row.id, state: row.dnd ? 'on' : 'off' });
+    }
+    if (key === 'tasks') { if (!prior) emit(s, 'task_added', base); else if (!prior.done && row.done) emit(s, 'task_completed', base); }
+    if (key === 'appointments') { if (!prior) emit(s, 'appointment_booked', base); else if (prior.status !== row.status) emit(s, 'appointment_status', { ...base, status: row.status }); }
+    if (key === 'opportunities') {
+      if (!prior) emit(s, 'opportunity_created', { ...base, pipelineId: row.pipelineId });
+      else {
+        if (prior.stage !== row.stage) emit(s, 'pipeline_stage_changed', { ...base, stageId: row.stage });
+        if (prior.status !== row.status) emit(s, 'opportunity_status_changed', { ...base, status: row.status });
+        emit(s, 'opportunity_changed', base);
+      }
+    }
+    if (key === 'invoices' && (!prior || prior.status !== row.status)) emit(s, 'invoice_status', { ...base, status: row.status, total: row.value });
+    if (key === 'transactions' && !prior) emit(s, 'payment_received', { ...base, total: row.amount });
+    if (key === 'reviews' && !prior) emit(s, 'review_received', { contactId: '', score: row.score });
+    if (key === 'orders' && prior && prior.status !== row.status && row.status === 'Paid') emit(s, 'order_paid', { ...base, storeId: row.storeId, total: row.total });
+  }
+
+  // Every minute: wake runs whose time came, and fire scheduled triggers once per day.
+  function tick(s, at = Date.now()) {
+    let woke = 0;
+    for (const run of s.runs.filter(row => row.status === 'Waiting' && row.wakeAt && Date.parse(row.wakeAt) <= at && row.graph)) {
+      resume(s, run, run.waitFor ? 'Tempo de espera esgotado: seguindo' : 'Espera concluída'); woke++;
+    }
+    const zone = s.profile?.timezone || 'America/Sao_Paulo';
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short', hourCycle: 'h23' }).formatToParts(new Date(at)).map(p => [p.type, p.value]));
+    const today = `${parts.year}-${parts.month}-${parts.day}`, clock = `${parts.hour}:${parts.minute}`, weekday = String(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(parts.weekday));
+    const shift = (day, days) => new Date(Date.parse(`${day}T12:00:00Z`) + days * 864e5).toISOString().slice(0, 10);
+    let fired = 0;
+    for (const workflow of s.workflows.filter(row => row.active)) {
+      for (const trigger of upgradeWorkflow(workflow).triggers.filter(t => scheduledTypes.includes(t.type))) {
+        const c = trigger.config || {};
+        if (clock < (c.time || '09:00') && trigger.type !== 'stale_opportunity') continue;
+        workflow.fired ??= {};
+        if (workflow.fired[trigger.id] === today) continue;
+        if (trigger.type === 'scheduler' && c.frequency === 'weekly' && c.weekday !== weekday) continue;
+        workflow.fired[trigger.id] = today;
+        let contacts = [];
+        if (trigger.type === 'scheduler') contacts = s.contacts.filter(row => c.tag && (row.tags || []).some(tag => lower(tag) === lower(c.tag)));
+        if (trigger.type === 'birthday_reminder') { const target = shift(today, Number(c.days) || 0).slice(5); contacts = s.contacts.filter(row => String(row.custom?.[c.field] || '').slice(5, 10) === target); }
+        if (trigger.type === 'custom_date_reminder') { const target = shift(today, -(Number(c.offset) || 0)); contacts = s.contacts.filter(row => String(row.custom?.[c.field] || '').slice(0, 10) === target); }
+        if (trigger.type === 'stale_opportunity') {
+          const limit = at - (Number(c.days) || 7) * 864e5;
+          const stale = s.opportunities.filter(row => row.status === 'Open' && (!c.stageId || row.stage === c.stageId) && Date.parse(row.updated || row.created) <= limit);
+          contacts = [...new Set(stale.map(row => row.contactId))].map(id => contactOf(s, id)).filter(Boolean);
+        }
+        for (const contact of contacts.slice(0, 500)) { if (enroll(s, workflow, { contactId: contact.id, triggerId: trigger.id, depth: 1 }, triggerSpec(trigger.type).label)) fired++; }
+      }
+    }
+    return { woke, fired };
+  }
+
+  function finishManual(s, id, data, one, str2) {
+    const item = s.manualActions.find(row => row.id === id);
+    if (!item) fail('Manual action not found.', 404);
+    if (item.status === data.status && ['Completed', 'Skipped'].includes(item.status)) return id;
+    if (item.status !== 'Pending') fail('Manual action is no longer pending.', 409);
+    const run = s.runs.find(row => row.id === item.runId);
+    if (run?.status !== 'Waiting') fail('This workflow is no longer waiting.', 409);
+    item.status = one(data.status, ['Completed', 'Skipped'], 'outcome');
+    item.finished = now();
+    item.note = str2(data.note, 2500);
+    if (item.status === 'Completed' && item.note) add(s, 'messages', { contactId: item.contactId, direction: 'Outbound', channel: 'Note', read: true, starred: false, origin: 'internal', body: `${item.type}: ${item.note}` });
+    resume(s, run, `${item.type}: ${item.status === 'Completed' ? 'concluída manualmente' : 'ignorada manualmente'}`);
+    return id;
+  }
+
+  function inbound(s, workflowId, triggerId, payload) {
+    const workflow = s.workflows.find(row => row.id === workflowId && row.active);
+    const trigger = workflow && upgradeWorkflow(workflow).triggers.find(t => t.id === triggerId && t.type === 'inbound_webhook');
+    if (!trigger) fail('Webhook não encontrado.', 404);
+    const flat = Object.fromEntries(Object.entries(payload || {}).filter(([, v]) => ['string', 'number', 'boolean'].includes(typeof v)).slice(0, 60).map(([k, v]) => [str(k, 40), str(String(v), 500)]));
+    const email = lower(flat.email || ''), phone = str(flat.phone || '', 48);
+    let contact = (email && s.contacts.find(row => row.email === email)) || (phone && s.contacts.find(row => String(row.phone || '').replace(/\D/g, '') === phone.replace(/\D/g, '')));
+    if (!contact && (email || phone)) {
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail('E-mail inválido no webhook.');
+      contact = add(s, 'contacts', { name: str(flat.name || flat.full_name || email || phone, 120), email, phone, tags: [], company: str(flat.company || '', 160), notes: '', custom: {} });
+      emit(s, 'contact_created', { contactId: contact.id });
+    }
+    return enroll(s, workflow, { contactId: contact?.id || '', triggerId, payload: flat, depth: 1 }, 'Webhook de entrada') || 'already-enrolled';
+  }
+
+  return { emit, enroll, recordChange, tick, finishManual, inbound, proceed };
+}

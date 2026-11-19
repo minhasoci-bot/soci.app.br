@@ -72,6 +72,8 @@ export function chatCommand(s, command, { add, now, run }) {
     if (s.chatSessions.length > 5000) s.chatSessions.splice(0, s.chatSessions.length - 5000);
     const channel = widget.type === 'live' ? 'Live chat' : phone ? 'SMS' : 'Email';
     add(s, 'messages', { contactId: contact.id, body, subject: channel === 'Email' ? `Mensagem pelo chat: ${widget.name}` : '', channel, direction: 'Inbound', read: false, starred: false, origin: 'human', widgetId: widget.id });
+    run(s, 'chat_started', { contactId: contact.id, widgetId: widget.id });
+    run(s, 'Customer replied', { contactId: contact.id, channel, body });
     return session.id;
   }
   if (type === 'chat-send') {
@@ -80,7 +82,9 @@ export function chatCommand(s, command, { add, now, run }) {
     if (session.messages >= 300) fail('Esta conversa atingiu o limite de mensagens. Aguarde nossa resposta.', 429);
     const body = str(d.body, 2000) || fail('Escreva sua mensagem.');
     session.messages += 1; session.last = now();
-    return add(s, 'messages', { contactId: session.contactId, body, subject: '', channel: 'Live chat', direction: 'Inbound', read: false, starred: false, origin: 'human', widgetId: widget.id }).id;
+    const message = add(s, 'messages', { contactId: session.contactId, body, subject: '', channel: 'Live chat', direction: 'Inbound', read: false, starred: false, origin: 'human', widgetId: widget.id });
+    run(s, 'Customer replied', { contactId: session.contactId, channel: 'Live chat', body });
+    return message.id;
   }
   fail('Unknown chat command.');
 }

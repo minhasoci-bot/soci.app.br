@@ -96,7 +96,7 @@ Os outros gatilhos disponíveis são criação de contato, mudança de etapa da 
 | Oportunidades | Vários pipelines em colunas ou lista, cadastro e edição de etapas, origem e responsável, movimentação por arraste ou seletor e data da última alteração de status. Data prevista de fechamento, probabilidade por oportunidade ou etapa, previsão (receita potencial, esperada e ganha, linha do tempo, risco por adiamento ou atraso, dados faltantes) e ações em massa (mover etapa, mudar status, excluir). Filtros avançados com grupos E/OU e operadores por tipo (texto, número, lista, datas relativas no fuso do workspace), listas salvas, cartões com ordem de campos, smart tags e ações rápidas com contagem. Pipelines em tabela (reordenar, duplicar, excluir vazios), etapas com cor, probabilidade decimal e ordem, probabilidade só por etapa opcional, smart tags por regra (prontas ou próprias, por pipeline ou em todos). Previsão com resumo (risco configurável, dados faltantes, vencidas, agrupamento por status, responsável ou mês) e linha do tempo por mês ou trimestre com arrastar para mudar a data |
 | Pagamentos | Faturas, produtos de pagamento único ou recorrente, assinaturas, links de pagamento, transações (a fatura marcada como paga gera a transação uma vez) e cupons percentuais ou de valor fixo com período e limite. Tudo como registro manual, sem gateway |
 | Marketing | Rascunhos e planejamento de conteúdo para redes sociais e e-mail |
-| Automações | Gatilhos de CRM, ações em sequência, publicação local, histórico de execuções e pausa em etapas manuais |
+| Automações | Construtor visual em árvore com vários gatilhos (cada um com filtros), Se/senão, Roteador, Aguardar (tempo, data ou evento), Evento de meta, Ir para etapa, Adicionar/Remover de fluxo, matemática, formatação de texto e webhooks de entrada e saída. Cerca de 30 gatilhos nativos (contato, tags, DND, aniversários, datas, formulários, pesquisas, quizzes, chat, webinar, agendamentos, oportunidades, faturas, pedidos, avaliações, agendador) e 30 ações. Execução pelo agendador a cada minuto, histórico por etapa e pausa em ações manuais |
 | Sites | Funis e sites de várias páginas (em branco, com IA ou por modelo), com o editor visual, de código e por IA do antigo AI Studio, etapas com caminho e ordem, edição com IA, SEO, estatísticas de visitas e envios, formulários e submissões |
 | Assinaturas | Cadastro de cursos com uma aula publicada por curso e visualização local |
 | Mídia | Upload e download de imagens e PDFs |
@@ -233,6 +233,9 @@ O chat de teste e o construtor usam a chave da OpenAI conectada pelo usuário qu
 
 - Em **Automações**, adicione **Manual Call** ou **Manual SMS** a um workflow publicado. Quando o gatilho rodar, o contato espera em **Conversas → Manual Actions** até a conclusão ou o salto da etapa.
 - Crie um snippet em **Conversas → Snippets** e insira-o no compositor de uma conversa. Os campos como `{{contact.first_name}}` são preenchidos para o contato ativo. Os e-mails usam assunto e corpo em texto simples.
+- **Webhook de entrada.** Adicione o gatilho **Webhook de entrada**, salve e copie o endereço exibido no painel (`POST /hooks/<subconta>/<fluxo>/<gatilho>?key=<segredo>`, corpo JSON). Com `email` ou `phone`, o contato é encontrado ou criado; os outros campos ficam disponíveis como `{{trigger.campo}}`.
+- **Esperas e gatilhos agendados.** O servidor verifica a cada minuto as execuções em **Aguardar** e os gatilhos de aniversário, data personalizada, agendador e oportunidade parada. Em produção, chame `/api/social/cron` periodicamente se o processo não ficar ativo.
+- Fluxos criados antes do novo motor (um gatilho e ações em sequência) abrem e rodam no formato novo sem migração manual.
 - Crie um link em **Conversas → Trigger Links** e insira-o em uma mensagem de saída. O primeiro clique no link daquela mensagem aciona os workflows correspondentes. A aba **Analyze** conta os cliques, incluindo repetições. Os links da prévia usam a URL local do servidor.
 - Ative o acompanhamento em **Conversas → Settings**. Registre um e-mail ou SMS de entrada e uma resposta para verificar o resultado em **Analytics**. As regras de SLA podem considerar apenas respostas manuais, todas as respostas de workflow ou uma lista de workflows.
 
@@ -276,6 +279,8 @@ Outras: `SOCIAL_TOKEN_KEY` (chave de cifra dos tokens; padrão derivado de `GO_S
 
 - `server.mjs`: servidor local, API, armazenamento e páginas publicadas.
 - `model.mjs`: validação, regras de domínio e execução de workflows.
+- `workflow-engine.mjs`: motor de automações. Valida o fluxo, compila a árvore de etapas em um grafo quando o contato entra (assim **Ir para etapa** funciona e edições não afetam execuções em andamento), escuta os eventos do CRM, retoma esperas e metas e dispara os gatilhos agendados uma vez por dia. `ui/workflow-data.js` é o catálogo compartilhado com o construtor (`ui/workflow-builder.js`).
+- `workflow-delivery.mjs`: envio dos webhooks de saída (apenas `https://`, bloqueia redes internas, limite de 8 s). WhatsApp sai pela conexão da subconta, quando houver.
 - `ui/`: telas, navegação e estilos.
 - `test/platform.test.mjs`: testes de integração HTTP e SQLite.
 - `agency-model.mjs`, `ui/agency-data.js`: regras, catálogos e validação da agência.

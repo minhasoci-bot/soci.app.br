@@ -115,7 +115,7 @@ test('Published lead form creates a contact, tags it and creates a deal in the s
   assert.deepEqual(state.contacts[0].tags,['Website']);
   assert.equal(state.opportunities[0].contactId,state.contacts[0].id);
   assert.equal(state.tasks[0].contactId,state.contacts[0].id);
-  assert.equal(state.runs[0].event,'Form submitted');
+  assert.equal(state.runs[0].event,'Formulário enviado');
   assert.equal(state.submissions[0].formId,form);
   assert.equal(metrics.open,1);
   assert.equal((await local.call('/api/state')).body.state.runs.length,0);
@@ -207,7 +207,7 @@ test('Trigger links count each click and automate once for the contact who recei
   const {state} = (await local.call('/api/state')).body;
   assert.equal(state.linkClicks.length,3);
   assert.equal(state.linkClicks.filter(item => item.contactId === contactId).length,2);
-  assert.equal(state.runs.filter(item => item.event === 'Trigger link clicked').length,1);
+  assert.equal(state.runs.filter(item => item.event === 'Link de rastreamento clicado').length,1);
   assert.ok(state.contacts.find(item => item.id === contactId).tags.includes('Viewed offer'));
 });
 

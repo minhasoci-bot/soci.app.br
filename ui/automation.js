@@ -1,15 +1,6 @@
 import { icon } from './icons.js';
 import { fmt, h, pageShell, utabs } from './screens.js';
-import { buildWorkflowContext, resolveTemplate } from './expressions.js';
-
-const commonVariables = [
-  { token: '{{contact.first_name}}', label: 'Primeiro nome', desc: 'Ex: Lucas' },
-  { token: '{{contact.name}}', label: 'Nome completo', desc: 'Ex: Lucas Silva' },
-  { token: '{{contact.phone}}', label: 'WhatsApp / Telefone', desc: 'Ex: +55 11 98765-4321' },
-  { token: '{{contact.email}}', label: 'E-mail', desc: 'Ex: lucas@exemplo.com' },
-  { token: '{{contact.company}}', label: 'Empresa', desc: 'Ex: Acme Corp' },
-  { token: '{{account.name}}', label: 'Sua empresa', desc: 'Nome do seu workspace / agência' }
-];
+import { asTree, blankWorkflow, builderCanvas, builderClick, builderInput, nodeExists, pickerHtml, workflowTriggerText } from './workflow-builder.js';
 
 const triggers = [
   ['', 'Selecione um gatilho'],
@@ -31,22 +22,9 @@ const actions = {
   'Manual Call': ['Ligação manual', 'phone', 'Instruções da ligação'],
   'Manual SMS': ['SMS manual', 'mail', 'Instruções do SMS']
 };
-const actionOptions = Object.entries(actions).map(([type, [label]]) => [type, label]);
-const actionDescriptions = {
-  'Send WhatsApp': 'Envia uma mensagem direta automática no WhatsApp do contato (estilo ManyChat).',
-  'Send SMS': 'Envia uma mensagem SMS direta automática para o contato.',
-  'Add tag': 'Aplica uma tag ao contato.',
-  'Remove tag': 'Remove uma tag existente do contato.',
-  'Create task': 'Cria uma tarefa vinculada ao contato.',
-  'Create opportunity': 'Abre uma oportunidade para o contato.',
-  'Log message': 'Registra uma nota, um e-mail ou um SMS no CRM.',
-  'Manual Call': 'Pausa o fluxo até a conclusão ou dispensa da ligação.',
-  'Manual SMS': 'Pausa o fluxo até a conclusão ou dispensa do SMS.'
-};
-const maxActions = 10;
 const triggerLabels = Object.fromEntries([...triggers, ['Manual enrollment', 'Inscrição manual']]);
 const statuses = [['all', 'Todos os status'], ['draft', 'Rascunho'], ['published', 'Publicado']];
-const runStatuses = { Running: 'Em execução', Waiting: 'Aguardando ação', Completed: 'Concluída', Canceled: 'Cancelada' };
+const runStatuses = { Running: 'Em execução', Waiting: 'Aguardando', Completed: 'Concluída', Canceled: 'Cancelada', Failed: 'Falhou', Removed: 'Removido do fluxo' };
 
 const workflowRecipes = [
   {
@@ -253,11 +231,6 @@ function parseAiWorkflowPrompt(text, folderId = '') {
   };
 }
 
-const actionCategories = [
-  { title: 'Automação ManyChat & WhatsApp', keys: ['Send WhatsApp', 'Send SMS', 'Log message'] },
-  { title: 'CRM & Pipeline', keys: ['Add tag', 'Remove tag', 'Create task', 'Create opportunity'] },
-  { title: 'Transbordo & Ações Manuais', keys: ['Manual Call', 'Manual SMS'] }
-];
 const records = rows => rows.map(row => [row.id, row.name]);
 const folders = (s, label) => [['', label], ...records(s.workflowFolders)];
 const options = (entries, value) => entries.map(([id, label]) =>
@@ -277,7 +250,7 @@ const date = (c, value) => h(fmt(value, c.s.profile.timezone, true));
 const stateBadge = active => `<span class="wf-status ${active ? 'published' : ''}">${active ? 'Publicado' : 'Rascunho'}</span>`;
 const empty = (title, label = '', glyph = 'flow') =>
   `<div class="wf-empty">${icon(glyph, 24)}<strong>${title}</strong>${label ? `<p>${label}</p>` : ''}</div>`;
-const problem = run => run.results?.some(result => result.endsWith(': no linked contact'));
+const problem = run => run.status === 'Failed' || run.results?.some(result => /: (no linked contact|sem contato|erro: .*|campo removido|campo inválido)$/.test(result));
 const pending = run => ['Running', 'Waiting'].includes(run.status);
 const routeTabs = [['workflows', 'Fluxos de trabalho'], ['overview', 'Visão geral'], ['logs', 'Histórico de execuções']];
 const editorTabs = [['builder', 'Construtor'], ['settings', 'Configurações'], ['enrollments', 'Inscrições'], ['logs', 'Registros de execução']];
@@ -337,7 +310,7 @@ function workflowList(c, tab, id) {
     const statusToggle = `<button type="button" class="wf-toggle-btn ${row.active ? 'active' : ''}" data-wf="quick-toggle" data-wf-id="${h(row.id)}" role="switch" aria-checked="${row.active}" title="${row.active ? 'Publicado (clique para pausar)' : 'Rascunho (clique para publicar)'}"><span class="wf-toggle-track"><span class="wf-toggle-thumb"></span></span><span class="wf-toggle-text">${row.active ? 'Publicado' : 'Rascunho'}</span></button>`;
     const openGlyph = `<svg class="wf-external-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h7v7M13 3L7 9"/></svg>`;
     return `<tr><td>${link('builder', `<strong>${h(row.name)}</strong>${openGlyph}`, row.id, 'wf-name')}
-      <span class="wf-sub">${h(triggerLabels[row.trigger] || 'Gatilho pendente')}</span></td>
+      <span class="wf-sub">${h(workflowTriggerText(row, s))}</span></td>
       <td>${statusToggle}</td>
       <td>${link('enrollments', summary?.total || '0', row.id, 'wf-count')}</td>
       <td>${summary?.active || '0'}</td>
@@ -445,9 +418,7 @@ function undoWorkflow(editor) {
   if (!editor || !editor.history || editor.historyIndex <= 0) return false;
   editor.historyIndex--;
   editor.row = structuredClone(editor.history[editor.historyIndex]);
-  if (editor.node !== null && editor.node !== 'trigger' && editor.node >= editor.row.actions.length) {
-    editor.node = editor.row.actions.length ? editor.row.actions.length - 1 : null;
-  }
+  if (!nodeExists(editor, editor.node)) editor.node = null;
   editor.dirty = true;
   return true;
 }
@@ -456,9 +427,7 @@ function redoWorkflow(editor) {
   if (!editor || !editor.history || editor.historyIndex >= editor.history.length - 1) return false;
   editor.historyIndex++;
   editor.row = structuredClone(editor.history[editor.historyIndex]);
-  if (editor.node !== null && editor.node !== 'trigger' && editor.node >= editor.row.actions.length) {
-    editor.node = editor.row.actions.length ? editor.row.actions.length - 1 : null;
-  }
+  if (!nodeExists(editor, editor.node)) editor.node = null;
   editor.dirty = true;
   return true;
 }
@@ -467,8 +436,7 @@ function draft(c, id) {
   const row = c.s.workflows.find(item => item.id === id);
   const folderId = c.s.workflowFolders.some(folder => folder.id === id) ? id : '';
   if (c.workflowDraft?.workspace !== c.workspace || c.workflowDraft?.key !== id) {
-    const initialRow = row ? structuredClone(row) :
-      { name: '', folderId, trigger: '', actions: [], active: false, allowReentry: true };
+    const initialRow = row ? asTree(row) : blankWorkflow(folderId);
     c.workflowDraft = {
       workspace: c.workspace, key: id, row: initialRow,
       node: null, zoom: 1, panX: 0, panY: 0, dirty: false,
@@ -479,89 +447,16 @@ function draft(c, id) {
 }
 
 function canvas(c, editor) {
-  const { row, node } = editor;
-  const selected = row.actions[node];
-  const atLimit = row.actions.length >= maxActions;
   const canUndo = (editor.historyIndex || 0) > 0;
   const canRedo = (editor.historyIndex || 0) < ((editor.history?.length || 1) - 1);
-  const undoControl = button('undo', `<span class="sr-only">Desfazer (Ctrl+Z)</span>`, { cls: 'wf-canvas-tool', glyph: 'undo', disabled: !canUndo });
-  const redoControl = button('redo', `<span class="sr-only">Refazer (Ctrl+Y)</span>`, { cls: 'wf-canvas-tool', glyph: 'redo', disabled: !canRedo });
-  const control = (op, label, glyph) => button(op, `<span class="sr-only">${label}</span>`, { cls: 'wf-canvas-tool', glyph });
-  const add = position => `<div class="wf-connector">${button('node-add', `<span class="sr-only">${position < row.actions.length ? `Inserir antes da ação ${position + 1}` : 'Adicionar ao fim do fluxo'}</span>`,
-    { id: position, glyph: 'plus', cls: 'wf-add', disabled: atLimit })}</div>`;
-  const card = (key, label, detail, glyph) => {
-    const trigger = key === 'trigger';
-    const configured = trigger ? Boolean(row.trigger) : Boolean(detail?.trim());
-    return `<button type="button" class="wf-node ${trigger ? 'wf-node-trigger' : ''} ${key === node ? 'current' : ''}"
-      data-wf="node" data-wf-id="${key}" aria-expanded="${key === node}">
-      <span class="wf-node-body"><span class="wf-node-icon">${icon(glyph, 21)}</span><span class="wf-node-copy">
-      <span class="wf-node-kind">${trigger ? 'Gatilho' : 'Ação'}</span><strong>${h(label)}</strong><small ${detail?.trim() ? '' : 'hidden'}>${h(detail)}</small></span></span>
-      <span class="wf-node-footer"><span>${trigger ? 'Entrada' : `# ${key + 1}`}</span><span data-wf-node-status>${icon(configured ? 'check' : 'sliders', 13)} ${configured ? 'Configurado' : 'Configurar'}</span></span></button>`;
-  };
-  const refs = {
-    'Trigger link clicked': ['linkId', 'Link de rastreamento', [['', 'Qualquer link'], ...records(c.s.triggerLinks)]],
-    'Form submitted': ['formId', 'Formulário', [['', 'Qualquer formulário'], ...records(c.s.forms)]],
-    'Opportunity stage changed': ['stageId', 'Etapa de destino', [['', 'Qualquer etapa'], ...c.s.stages.map(stage =>
-      [stage.id, [c.s.pipelines.find(pipeline => pipeline.id === stage.pipelineId)?.name, stage.name].filter(Boolean).join(' / ')])]],
-    'Customer replied': ['channel', 'Canal da mensagem', [['', 'Qualquer canal'], ['WhatsApp', 'WhatsApp'], ['SMS', 'SMS'], ['Email', 'E-mail'], ['Live chat', 'Chat']]]
-  };
-  const ref = refs[row.trigger];
-  const isMessageAction = selected && ['Send WhatsApp', 'Send SMS', 'Log message', 'Manual SMS'].includes(selected.type);
-  const sampleContact = c.s.contacts?.[0] || { name: 'Lucas Silva', email: 'lucas@exemplo.com', phone: '+55 11 98765-4321', company: 'Acme Corp', tags: ['vip'] };
-  const sampleContext = buildWorkflowContext(c.s, row, sampleContact);
-  const previewText = selected ? resolveTemplate(selected.value || '', sampleContext) : '';
-
-  const varShelf = selected ? `<div class="wf-var-shelf">
-      <div class="wf-var-shelf-head">
-        <span class="wf-var-title">Variáveis dinâmicas</span>
-        <span class="wf-var-hint">Clique para inserir</span>
-      </div>
-      <div class="wf-var-pills">
-        ${commonVariables.map(v => `<button type="button" class="wf-var-pill" data-wf-insert-var="${h(v.token)}" title="${h(v.desc)}"><span class="wf-var-token">${h(v.token)}</span><span class="wf-var-desc">${h(v.label)}</span></button>`).join('')}
-      </div>
-    </div>` : '';
-
-  const valueInput = selected ? (isMessageAction
-    ? `<label><span>${h(actions[selected.type]?.[2] || 'Mensagem')}</span><textarea name="value" rows="4" maxlength="1000" placeholder="Digite a mensagem com variáveis, ex: Oi, {{contact.first_name}}! Tudo bem?">${h(selected.value || '')}</textarea></label>`
-    : field('value', actions[selected.type]?.[2] || 'Conteúdo da ação', selected.value, 500)) : '';
-
-  const previewBox = isMessageAction
-    ? `<div class="wf-var-preview-box">
-        <span class="wf-var-preview-label">Pré-visualização (exemplo: ${h(sampleContact.name || 'contato')}):</span>
-        <div class="wf-var-preview" data-wf-preview>${h(previewText || '(Mensagem vazia)')}</div>
-       </div>`
-    : '';
-
-  const panel = selected ? `${select('type', 'Ação', actionOptions, selected.type)}
-      ${actionDescriptions[selected.type] ? `<p class="wf-action-desc">${h(actionDescriptions[selected.type])}</p>` : ''}
-      ${valueInput}
-      ${varShelf}
-      ${previewBox}
-      ${['Manual Call', 'Manual SMS'].includes(selected.type) ? field('assignee', 'Responsável', selected.assignee, 80, false) : ''}
-      ${selected.type === 'Log message' ? select('channel', 'Canal do registro', [['Note', 'Nota interna'], ['Email', 'E-mail'], ['SMS', 'SMS']], selected.channel || 'Note') : ''}
-      <div class="wf-node-tools">${button('node-up', 'Mover antes', { glyph: 'left', disabled: node === 0 })}
-        ${button('node-down', 'Mover depois', { glyph: 'right', disabled: node === row.actions.length - 1 })}
-        ${button('node-delete', 'Remover ação', { cls: 'wf-text', glyph: 'trash' })}</div>`
-    : `${select('trigger', 'Evento que inicia o fluxo', triggers, row.trigger)}
-      ${ref ? select(ref[0], ref[1], ref[2], row[ref[0]]) : ''}
-      ${row.trigger === 'Customer replied' ? field('keyword', 'Palavra-chave (ex: QUERO, PRECO - opcional)', row.keyword || '', 100, false) : ''}`;
-  const panX = editor.panX || 0, panY = editor.panY || 0, zoom = editor.zoom || 1;
-  return `<div class="wf-workbench"><div class="wf-stage" style="--wf-pan-x:${panX}px;--wf-pan-y:${panY}px;background-position:calc(50% + ${panX}px) calc(50% + ${panY}px)">
-    <div class="wf-canvas" tabindex="0" role="region" aria-label="Canvas do fluxo"><div class="wf-canvas-space"><div class="wf-track" style="--wf-zoom:${zoom};--wf-pan-x:${panX}px;--wf-pan-y:${panY}px;transform:translate3d(${panX}px,${panY}px,0) scale(${zoom});transform-origin:center center">
-    ${card('trigger', triggerLabels[row.trigger] || 'Adicionar gatilho', '', 'bolt')}
-    ${row.actions.map((step, index) => add(index) + card(index, actions[step.type]?.[0] || step.type, step.value, actions[step.type]?.[1] || 'flow')).join('')}
-    ${add(row.actions.length)}</div></div></div>
-    <div class="wf-canvas-controls" role="group" aria-label="Controles do canvas">
-      ${undoControl}${redoControl}
+  const control = (op, label, glyph, disabled = false) => button(op, `<span class="sr-only">${label}</span>`, { cls: 'wf-canvas-tool', glyph, disabled });
+  const controls = `<div class="wf-canvas-controls" role="group" aria-label="Controles do canvas">
+      ${control('undo', 'Desfazer (Ctrl+Z)', 'undo', !canUndo)}${control('redo', 'Refazer (Ctrl+Y)', 'redo', !canRedo)}
       <span class="wf-canvas-sep" aria-hidden="true"></span>
       ${control('zoom-in', 'Aproximar', 'plus')}${button('zoom-out', '<span aria-hidden="true">−</span><span class="sr-only">Afastar</span>', { cls: 'wf-canvas-tool' })}
       ${control('zoom-fit', 'Enquadrar fluxo', 'monitor')}
-    </div>
-    <div class="wf-dock">${button('node-add', 'Adicionar ação', { id: row.actions.length, glyph: 'plus', cls: 'wf-dock-add', disabled: atLimit })}
-      <span>${atLimit ? 'Limite de 10 ações' : `${row.actions.length} ${row.actions.length === 1 ? 'ação' : 'ações'}`}</span>
-    </div></div>
-    ${node !== null ? `<aside class="wf-inspector" aria-label="Configuração do bloco"><div class="wf-inspector-head">
-      <h2>${selected ? 'Configurar ação' : 'Configurar gatilho'}</h2>${control('node-close', 'Fechar configuração', 'close')}</div>${panel}</aside>` : ''}</div>`;
+    </div>`;
+  return builderCanvas(c, editor, controls);
 }
 
 function editorScreen(c, tab, id) {
@@ -694,19 +589,8 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
       stage.style.backgroundPosition = `calc(50% + ${editor.panX || 0}px) calc(50% + ${editor.panY || 0}px)`;
     }
   };
-  const actionPicker = position => {
-    dialog('Adicionar ação ao fluxo', `<div class="wf-picker" data-wf-insert="${position}">
-      <label class="wf-search">${icon('search', 17)}<span class="sr-only">Buscar ação</span><input type="search" placeholder="Buscar ação..." data-wf-action-search autofocus></label>
-      ${actionCategories.map(cat => `
-        <div class="wf-picker-category">
-          <h3 class="wf-picker-category-title">${cat.title}</h3>
-          <div class="wf-picker-grid">${cat.keys.filter(type => actions[type]).map(type => {
-            const [label, glyph] = actions[type];
-            return button('node-insert', `<span class="wf-node-icon">${icon(glyph, 20)}</span><span><strong>${label}</strong><small>${actionDescriptions[type]}</small></span>`,
-              { id: type, cls: 'wf-picker-option' });
-          }).join('')}</div>
-        </div>`).join('')}
-      <p data-wf-no-actions hidden role="status">Nenhuma ação encontrada.</p></div>`);
+  const picker = (kind, data) => {
+    dialog(kind === 'trigger' ? 'Adicionar gatilho' : 'Adicionar ação ao fluxo', pickerHtml(kind, data));
     document.querySelector('[data-wf-action-search]')?.focus();
   };
 
@@ -808,27 +692,16 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
     } else if (input.matches('[data-wf-search]')) {
       Object.assign(listing(c), { query: input.value, page: 0 });
       updateList(input);
-    } else if (input.closest('[data-wf-editor]') && ['name', 'value', 'assignee', 'keyword'].includes(input.name)) {
+    } else if (input.closest('[data-wf-editor]') && c.workflowDraft && builderInput(input, c.workflowDraft, c, false)) {
+      recordFieldSnapshot(input);
+      markDirty();
+      clearTimeout(historyTimer);
+      historyTimer = setTimeout(() => pushHistory(c.workflowDraft), 400);
+    } else if (input.closest('[data-wf-editor]') && input.name === 'name') {
       const editor = c.workflowDraft;
-      const record = input.name === 'name' ? editor.row : editor.row.actions[editor.node];
+      const record = editor.row;
       record[input.name] = input.value;
       recordFieldSnapshot(input);
-      if (input.name === 'value') {
-        const node = document.querySelector(`.wf-node[data-wf-id="${editor.node}"]`);
-        if (node) {
-          const detail = node.querySelector('small'), configured = Boolean(input.value.trim());
-          detail.textContent = input.value;
-          detail.hidden = !configured;
-          node.querySelector('[data-wf-node-status]').innerHTML = `${icon(configured ? 'check' : 'sliders', 13)} ${configured ? 'Configurado' : 'Configurar'}`;
-        }
-        const previewEl = document.querySelector('[data-wf-preview]');
-        if (previewEl) {
-          const sampleContact = c.s.contacts?.[0] || { name: 'Lucas Silva', email: 'lucas@exemplo.com', phone: '+55 11 98765-4321', company: 'Acme Corp', tags: ['vip'] };
-          const ctx = buildWorkflowContext(c.s, editor.row, sampleContact);
-          const previewText = resolveTemplate(input.value || '', ctx);
-          previewEl.textContent = previewText || '(Mensagem vazia)';
-        }
-      }
       markDirty();
       clearTimeout(historyTimer);
       historyTimer = setTimeout(() => pushHistory(editor), 400);
@@ -841,24 +714,35 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
       updateList(input);
       return;
     }
-    if (!input.closest('[data-wf-editor]') || !input.matches('select,input[type="checkbox"]')) return;
+    if (!input.closest('[data-wf-editor]') || !c.workflowDraft) return;
+    const handled = builderInput(input, c.workflowDraft, c, true);
+    if (handled) {
+      markDirty();
+      pushHistory(c.workflowDraft);
+      if (handled === 'render') {
+        const d = input.dataset;
+        const selector = d.wfCfg ? `.wf-inspector [data-wf-cfg="${CSS.escape(d.wfCfg)}"]`
+          : d.wfCond ? `.wf-inspector [data-wf-cond="${CSS.escape(d.wfCond)}"][data-wf-cond-index="${d.wfCondIndex}"][data-wf-cond-prop="${d.wfCondProp}"]`
+          : d.wfMatch ? `.wf-inspector [data-wf-match="${CSS.escape(d.wfMatch)}"]` : '';
+        renderCanvas(selector);
+      }
+      return;
+    }
+    if (!input.matches('select,input[type="checkbox"]') || !['folderId', 'allowReentry'].includes(input.name)) return;
     const editor = c.workflowDraft;
     const value = input.type === 'checkbox' ? input.checked : input.value;
-    const record = ['type', 'channel'].includes(input.name) ? editor.row.actions[editor.node] : editor.row;
-    record[input.name] = value;
+    editor.row[input.name] = value;
     markDirty();
     pushHistory(editor);
-    if (['trigger', 'type'].includes(input.name)) {
-      renderCanvas(`[data-wf-editor] select[name="${input.name}"]`);
-    }
   });
 
-  let pendingSave = false, historyTimer;
+  let pendingSave = false, historyTimer, lastVarField = null;
+  document.addEventListener('focusin', event => { if (event.target.matches?.('.wf-inspector [data-wf-var-target]')) lastVarField = event.target; });
   document.addEventListener('click', async event => {
     const varBtn = event.target.closest('[data-wf-insert-var]');
     if (varBtn && c.view === 'automation') {
       const token = varBtn.dataset.wfInsertVar;
-      const targetInput = document.querySelector('.wf-inspector [name="value"]');
+      const targetInput = lastVarField?.isConnected ? lastVarField : document.querySelector('.wf-inspector [data-wf-var-target]');
       if (targetInput) {
         targetInput.focus();
         recordFieldSnapshot(targetInput);
@@ -911,6 +795,7 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
     const editor = c.workflowDraft;
     const row = find('workflows', id);
     const workspace = c.workspace;
+    let built = null;
     try {
       if (op.startsWith('zoom-')) {
         zoomCanvas(op);
@@ -930,50 +815,18 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
         if (redoWorkflow(editor)) {
           renderCanvas();
         }
-      } else if (op === 'node-add') {
-        if (editor.row.actions.length < maxActions) actionPicker(Number(id));
-      } else if (op.startsWith('node')) {
-        if (op === 'node-close') {
-          const key = editor.node;
-          editor.node = null;
-          renderCanvas(`.wf-node[data-wf-id="${key}"]`);
-          return;
-        }
-        if (op === 'node') editor.node = id === 'trigger' ? id : Number(id);
-        else {
-          const steps = editor.row.actions, index = editor.node;
-          if (op === 'node-insert') {
-            if (steps.length >= maxActions || !Object.hasOwn(actions, id)) return;
-            editor.node = Number(btn.closest('.wf-picker').dataset.wfInsert);
-            steps.splice(editor.node, 0, { type: id, value: '' });
-            close();
-            pushHistory(editor);
-          } else if (op === 'node-delete') {
-            steps.splice(index, 1);
-            editor.node = steps.length ? Math.min(index, steps.length - 1) : 'trigger';
-            pushHistory(editor);
-          } else {
-            const target = index + (op === 'node-up' ? -1 : 1);
-            [steps[index], steps[target]] = [steps[target], steps[index]];
-            editor.node = target;
-            pushHistory(editor);
-          }
-          markDirty();
-        }
-        renderCanvas(op === 'node-insert' ? '.wf-inspector [name="value"]' : '.wf-inspector select', true);
+      } else if (op === 'node' || op === 'node-close') {
+        const key = editor.node;
+        editor.node = op === 'node' ? id : null;
+        renderCanvas(op === 'node' ? '.wf-inspector [data-wf-cfg], .wf-inspector [data-wf-cond], .wf-inspector [data-wf]' : `.wfb-node[data-wf-id="${CSS.escape(key || '')}"]`, op === 'node');
+      } else if (editor && (built = builderClick(op, btn, editor, { pick: picker }))) {
+        if (built.closePicker) close();
+        if (built.changed) { markDirty(); pushHistory(editor); renderCanvas(built.focus, built.reveal); }
       } else if (['save-draft', 'publish', 'unpublish'].includes(op)) {
         const record = editor.row, active = op === 'publish' || (op === 'save-draft' && Boolean(record.active));
         if (!record.name.trim()) {
           document.querySelector('[data-wf-editor] [name="name"]')?.focus();
           throw Error('Dê um nome ao fluxo antes de salvar.');
-        }
-        const incomplete = record.actions.findIndex(step => !step.value?.trim());
-        if (incomplete !== -1) {
-          if (c.tab === 'builder') {
-            editor.node = incomplete;
-            renderCanvas('.wf-inspector [name="value"]', true);
-          }
-          throw Error('Preencha o conteúdo de todas as ações.');
         }
         pendingSave = true;
         btn.disabled = true;
@@ -985,9 +838,6 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
       } else if (op === 'quick-toggle') {
         if (!row) return;
         const nextActive = !row.active;
-        if (nextActive && (!row.trigger || !row.actions?.length)) {
-          throw Error('Defina um gatilho e pelo menos uma ação para publicar.');
-        }
         pendingSave = true;
         btn.disabled = true;
         await mutate({ type: 'save', key: 'workflows', id: row.id, data: { ...row, active: nextActive } });
@@ -1038,14 +888,7 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
           c.workflowDraft = {
             workspace: c.workspace,
             key: '',
-            row: {
-              name: recipeItem.recipe.name,
-              folderId,
-              trigger: recipeItem.recipe.trigger,
-              actions: structuredClone(recipeItem.recipe.actions),
-              active: false,
-              allowReentry: true
-            },
+            row: asTree({ ...recipeItem.recipe, folderId, active: false, allowReentry: true }),
             node: null,
             zoom: 1,
             panX: 0,
@@ -1149,7 +992,7 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
         c.workflowDraft = {
           workspace: c.workspace,
           key: '',
-          row: parsed,
+          row: asTree(parsed),
           node: null,
           zoom: 1,
           panX: 0,

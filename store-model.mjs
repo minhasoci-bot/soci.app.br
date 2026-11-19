@@ -137,5 +137,6 @@ export function storeCheckout(s, command, { add, run }) {
   const { coupon_, ...totals } = quote;
   const order = add(s, 'orders', { storeId: store.id, number, contactId: contact.id, name, email, phone, ...totals, items: quote.lines, address, note: str(d.note, 500), status: 'Pending', invoiceId: invoice.id, tracking: '' });
   if (s.orders.length > 20000) s.orders.splice(0, s.orders.length - 20000);
+  run(s, 'order_submitted', { contactId: contact.id, storeId: store.id, total: quote.total });
   return order.id;
 }
