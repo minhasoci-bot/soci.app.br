@@ -1,3 +1,4 @@
+import { tr } from './i18n.js';
 // soci icon system — vanilla ports of lucide-animated (https://lucide-animated.com, MIT).
 // Every icon inherits currentColor so light mode, dark mode and user brand colors work everywhere.
 // Sub-elements carry semantic classes animated by lucide-animated.css + the delegated trigger in graao.js.
@@ -589,4 +590,7 @@ const quips = [
   'Polindo a caveira pra você…'
 ];
 const quip = quips[Math.floor(Math.random() * quips.length)];
-export const bootScreen = title => `<div class="boot boot-live" role="status">${logo.replace('class="g-mark" width="36" height="36"', 'class="g-mark boot-mark" width="96" height="96"')}<strong class="boot-title">${title}</strong><small class="boot-quip">${quip}</small></div>`;
+export const bootScreen = title => {
+  const quip = quips[Math.floor(Math.random() * quips.length)];
+  return `<div class="boot boot-live" role="status">${logo.replace('class="g-mark" width="36" height="36"', 'class="g-mark boot-mark" width="96" height="96"')}<strong class="boot-title">${tr(title)}</strong><small class="boot-quip">${tr(quip)}</small></div>`;
+};
