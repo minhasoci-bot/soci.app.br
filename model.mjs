@@ -14,6 +14,7 @@ import { storeAfterSave, storeBeforeDelete, storeCheckout, storeCollections, sto
 import { webinarBeforeDelete, webinarCollections, webinarCommand, webinarFields } from './webinar-model.mjs';
 import { qrCollections, qrFields, qrScan } from './qr-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
+import { buildWorkflowContext, resolveTemplate } from './expressions.mjs';
 
 export const defaults = {
   profile: { name: 'Demo Workspace', email: 'hello@example.test', phone: '', timezone: 'America/Sao_Paulo', currency: 'BRL' },
@@ -209,45 +210,47 @@ function linkDestination(value) {
 
 function continueRun(state, run) {
   const contact = find(state, 'contacts', run.contactId);
+  const context = buildWorkflowContext(state, run, contact);
   for (; run.nextAction < run.actions.length; run.nextAction++) {
     const action = run.actions[run.nextAction];
     if (!contact && action.type !== 'Create task') {
       run.results.push(`${action.type}: no linked contact`);
       continue;
     }
+    const resolvedValue = typeof action.value === 'string' ? resolveTemplate(action.value, context) : action.value;
     if (manualTypes.includes(action.type)) {
       add(state, 'manualActions', {
         runId: run.id, workflowId: run.workflowId, workflowName: run.name, contactId: contact.id,
-        type: action.type, instructions: action.value, assignee: action.assignee || '', status: 'Pending'
+        type: action.type, instructions: resolvedValue, assignee: action.assignee || '', status: 'Pending'
       });
       run.status = 'Waiting';
       run.results.push(`${action.type}: waiting for a manual action`);
       run.nextAction++;
       return;
     }
-    if (action.type === 'Add tag') contact.tags = tags([...contact.tags, action.value]);
-    if (action.type === 'Remove tag') contact.tags = contact.tags.filter(t => t.toLowerCase() !== action.value.toLowerCase().trim());
-    if (action.type === 'Create task') add(state, 'tasks', { title: action.value, contactId: contact?.id || '', done: false, due: '' });
+    if (action.type === 'Add tag') contact.tags = tags([...contact.tags, resolvedValue]);
+    if (action.type === 'Remove tag') contact.tags = contact.tags.filter(t => t.toLowerCase() !== String(resolvedValue).toLowerCase().trim());
+    if (action.type === 'Create task') add(state, 'tasks', { title: resolvedValue, contactId: contact?.id || '', done: false, due: '' });
     if (action.type === 'Create opportunity') {
       const firstStage = state.stages[0];
-      add(state,'opportunities',{ title:action.value, contactId:contact.id, stage:firstStage.id, pipelineId:firstStage.pipelineId,
+      add(state,'opportunities',{ title:resolvedValue, contactId:contact.id, stage:firstStage.id, pipelineId:firstStage.pipelineId,
         value:0, status:'Open', statusChangedAt:now(), source:'Workflow', owner:'' });
     }
     if (action.type === 'Log message') {
       add(state, 'messages', {
-        contactId: contact.id, body: action.value, direction: 'Outbound', channel: action.channel || 'Note', read: true,
+        contactId: contact.id, body: resolvedValue, direction: 'Outbound', channel: action.channel || 'Note', read: true,
         starred: false, origin: 'workflow', workflowId: run.workflowId
       });
     }
     if (action.type === 'Send WhatsApp') {
       add(state, 'messages', {
-        contactId: contact.id, body: action.value, direction: 'Outbound', channel: 'WhatsApp', read: true,
+        contactId: contact.id, body: resolvedValue, direction: 'Outbound', channel: 'WhatsApp', read: true,
         starred: false, origin: 'workflow', workflowId: run.workflowId
       });
     }
     if (action.type === 'Send SMS') {
       add(state, 'messages', {
-        contactId: contact.id, body: action.value, direction: 'Outbound', channel: 'SMS', read: true,
+        contactId: contact.id, body: resolvedValue, direction: 'Outbound', channel: 'SMS', read: true,
         starred: false, origin: 'workflow', workflowId: run.workflowId
       });
     }

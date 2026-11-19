@@ -316,3 +316,52 @@ test('ManyChat workflow triggers on inbound message keywords and executes WhatsA
   assert.equal(outbound.channel, 'WhatsApp');
   assert.equal(outbound.body, 'Olá! Segue o link com a sua proposta: https://soci.app');
 });
+
+test('Workflow resolves dynamic expressions and template variables like Trama (contact.first_name, account.name, functions)', async t => {
+  const local = await start();
+  t.after(local.close);
+  const action = async (type, data = {}, id, key) => {
+    const response = await local.call('/api/action', { type, key, id, data });
+    assert.equal(response.status, 200, response.body.error);
+    return response.body.id;
+  };
+  const save = (key, data, id) => action('save', data, id, key);
+  const contactId = await save('contacts', { name: 'Lucas Gabriel da Silva', email: 'lucas@example.test', phone: '+5511999997777', company: 'Acme Brasil' });
+  const wfId = await save('workflows', {
+    name: 'Boas-vindas com variáveis',
+    trigger: 'Contact created',
+    active: true,
+    actions: [
+      { type: 'Add tag', value: 'cliente-{{contact.first_name}}' },
+      { type: 'Send WhatsApp', value: 'Oi, {{contact.first_name}}! Tudo bem? Vi seu interesse na {{account.name}}.' },
+      { type: 'Send SMS', value: 'Olá {{upper(contact.first_name)}}, seu e-mail cadastrado é {{contact.email}}' },
+      { type: 'Create task', value: 'Follow-up para {{contact.name}} da empresa {{contact.company}}' },
+      { type: 'Create opportunity', value: 'Oportunidade - {{contact.first_name}} ({{contact.company}})' }
+    ]
+  });
+
+  await action('workflow-enroll', { contactId }, wfId);
+  const state = (await local.call('/api/state')).body.state;
+  const runs = state.runs.filter(r => r.workflowId === wfId && r.contactId === contactId);
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].status, 'Completed');
+
+  const contact = state.contacts.find(c => c.id === contactId);
+  assert.ok(contact.tags.includes('cliente-Lucas'));
+
+  const waMessage = state.messages.find(m => m.contactId === contactId && m.channel === 'WhatsApp' && m.origin === 'workflow');
+  assert.ok(waMessage);
+  assert.equal(waMessage.body, 'Oi, Lucas! Tudo bem? Vi seu interesse na Demo Workspace.');
+
+  const smsMessage = state.messages.find(m => m.contactId === contactId && m.channel === 'SMS' && m.origin === 'workflow');
+  assert.ok(smsMessage);
+  assert.equal(smsMessage.body, 'Olá LUCAS, seu e-mail cadastrado é lucas@example.test');
+
+  const task = state.tasks.find(t => t.contactId === contactId);
+  assert.ok(task);
+  assert.equal(task.title, 'Follow-up para Lucas Gabriel da Silva da empresa Acme Brasil');
+
+  const opp = state.opportunities.find(o => o.contactId === contactId);
+  assert.ok(opp);
+  assert.equal(opp.title, 'Oportunidade - Lucas (Acme Brasil)');
+});

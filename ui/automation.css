@@ -106,6 +106,21 @@
 .wf-inspector-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
 .wf-inspector-head h2{margin:0}
 .wf-inspector label,.wf-modal label{margin-bottom:12px}
+.wf-inspector textarea[name="value"]{width:100%;min-height:92px;padding:9px 11px;border-radius:8px;border:1px solid var(--g-line);background:var(--g-surface-2);color:var(--g-ink);font:400 13px/1.5 var(--g-font,inherit);resize:vertical;outline:none}
+.wf-inspector textarea[name="value"]:focus{border-color:var(--g-brand);box-shadow:0 0 0 2px var(--g-brand-line)}
+.wf-action-desc{font-size:12px;color:var(--g-dim);margin:-6px 0 12px;line-height:1.4}
+.wf-var-shelf{margin-bottom:12px;padding:10px;background:var(--g-surface-2);border:1px solid var(--g-line);border-radius:8px}
+.wf-var-shelf-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
+.wf-var-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--g-dim)}
+.wf-var-hint{font-size:11px;color:var(--g-dim);opacity:.8}
+.wf-var-pills{display:flex;flex-wrap:wrap;gap:6px}
+.wf-var-pill{display:inline-flex;align-items:center;gap:5px;background:var(--g-surface);border:1px solid var(--g-line);border-radius:6px;padding:3px 7px;font-size:11px;cursor:pointer;color:var(--g-ink);transition:all .15s ease}
+.wf-var-pill:hover{border-color:var(--g-brand);background:var(--g-brand-surface);color:var(--g-brand-text)}
+.wf-var-token{font-family:var(--g-code, monospace);font-weight:600;color:var(--g-brand-text)}
+.wf-var-desc{color:var(--g-dim);font-size:10px}
+.wf-var-preview-box{margin-bottom:12px;padding:10px;background:var(--g-surface-2);border:1px dashed var(--g-line-2);border-radius:8px}
+.wf-var-preview-label{display:block;font-size:11px;font-weight:600;color:var(--g-dim);margin-bottom:4px}
+.wf-var-preview{font-size:12px;line-height:1.45;color:var(--g-ink);white-space:pre-wrap;word-break:break-word;min-height:18px}
 .wf-node-tools{margin-top:15px}
 #dialog:has(.wf-picker){width:min(660px,calc(100% - 24px))}
 .wf-picker input[data-wf-action-search]{padding-left:36px}

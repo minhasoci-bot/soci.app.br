@@ -1,5 +1,15 @@
 import { icon } from './icons.js';
 import { fmt, h, pageShell, utabs } from './screens.js';
+import { buildWorkflowContext, resolveTemplate } from './expressions.js';
+
+const commonVariables = [
+  { token: '{{contact.first_name}}', label: 'Primeiro nome', desc: 'Ex: Lucas' },
+  { token: '{{contact.name}}', label: 'Nome completo', desc: 'Ex: Lucas Silva' },
+  { token: '{{contact.phone}}', label: 'WhatsApp / Telefone', desc: 'Ex: +55 11 98765-4321' },
+  { token: '{{contact.email}}', label: 'E-mail', desc: 'Ex: lucas@exemplo.com' },
+  { token: '{{contact.company}}', label: 'Empresa', desc: 'Ex: Acme Corp' },
+  { token: '{{account.name}}', label: 'Sua empresa', desc: 'Nome do seu workspace / agência' }
+];
 
 const triggers = [
   ['', 'Selecione um gatilho'],
@@ -141,9 +151,9 @@ const workflowRecipes = [
       channel: 'WhatsApp',
       actions: [
         { type: 'Add tag', value: 'Interessado via WhatsApp' },
-        { type: 'Send WhatsApp', value: 'Olá! Recebi seu interesse. Aqui está o link com os detalhes da proposta: https://soci.app' },
-        { type: 'Create opportunity', value: 'Lead WhatsApp - Oferta' },
-        { type: 'Create task', value: 'Acompanhar resposta no WhatsApp em até 30min' }
+        { type: 'Send WhatsApp', value: 'Oi, {{contact.first_name}}! Recebi seu interesse. Aqui está o link com os detalhes: https://soci.app' },
+        { type: 'Create opportunity', value: 'Lead WhatsApp - {{contact.name}}' },
+        { type: 'Create task', value: 'Acompanhar resposta de {{contact.first_name}} em até 30min' }
       ]
     }
   },
@@ -160,8 +170,8 @@ const workflowRecipes = [
       channel: 'WhatsApp',
       actions: [
         { type: 'Add tag', value: 'Solicitou Atendente' },
-        { type: 'Send WhatsApp', value: 'Perfeito! Já transferi seu atendimento para um de nossos especialistas. Aguarde um instante.' },
-        { type: 'Manual Call', value: 'Atendimento prioritário solicitado via WhatsApp' }
+        { type: 'Send WhatsApp', value: 'Perfeito, {{contact.first_name}}! Já transferi seu atendimento para um de nossos especialistas. Aguarde um instante.' },
+        { type: 'Manual Call', value: 'Atendimento prioritário solicitado por {{contact.name}} via WhatsApp' }
       ]
     }
   }
@@ -417,8 +427,37 @@ function canvas(c, editor) {
     'Customer replied': ['channel', 'Canal da mensagem', [['', 'Qualquer canal'], ['WhatsApp', 'WhatsApp'], ['SMS', 'SMS'], ['Email', 'E-mail'], ['Live chat', 'Chat']]]
   };
   const ref = refs[row.trigger];
+  const isMessageAction = selected && ['Send WhatsApp', 'Send SMS', 'Log message', 'Manual SMS'].includes(selected.type);
+  const sampleContact = c.s.contacts?.[0] || { name: 'Lucas Silva', email: 'lucas@exemplo.com', phone: '+55 11 98765-4321', company: 'Acme Corp', tags: ['vip'] };
+  const sampleContext = buildWorkflowContext(c.s, row, sampleContact);
+  const previewText = selected ? resolveTemplate(selected.value || '', sampleContext) : '';
+
+  const varShelf = selected ? `<div class="wf-var-shelf">
+      <div class="wf-var-shelf-head">
+        <span class="wf-var-title">Variáveis dinâmicas</span>
+        <span class="wf-var-hint">Clique para inserir</span>
+      </div>
+      <div class="wf-var-pills">
+        ${commonVariables.map(v => `<button type="button" class="wf-var-pill" data-wf-insert-var="${h(v.token)}" title="${h(v.desc)}"><span class="wf-var-token">${h(v.token)}</span><span class="wf-var-desc">${h(v.label)}</span></button>`).join('')}
+      </div>
+    </div>` : '';
+
+  const valueInput = selected ? (isMessageAction
+    ? `<label><span>${h(actions[selected.type]?.[2] || 'Mensagem')}</span><textarea name="value" rows="4" maxlength="1000" placeholder="Digite a mensagem com variáveis, ex: Oi, {{contact.first_name}}! Tudo bem?">${h(selected.value || '')}</textarea></label>`
+    : field('value', actions[selected.type]?.[2] || 'Conteúdo da ação', selected.value, 500)) : '';
+
+  const previewBox = isMessageAction
+    ? `<div class="wf-var-preview-box">
+        <span class="wf-var-preview-label">Pré-visualização (exemplo: ${h(sampleContact.name || 'contato')}):</span>
+        <div class="wf-var-preview" data-wf-preview>${h(previewText || '(Mensagem vazia)')}</div>
+       </div>`
+    : '';
+
   const panel = selected ? `${select('type', 'Ação', actionOptions, selected.type)}
-      ${field('value', actions[selected.type]?.[2] || 'Conteúdo da ação', selected.value, 500)}
+      ${actionDescriptions[selected.type] ? `<p class="wf-action-desc">${h(actionDescriptions[selected.type])}</p>` : ''}
+      ${valueInput}
+      ${varShelf}
+      ${previewBox}
       ${['Manual Call', 'Manual SMS'].includes(selected.type) ? field('assignee', 'Responsável', selected.assignee, 80, false) : ''}
       ${selected.type === 'Log message' ? select('channel', 'Canal do registro', [['Note', 'Nota interna'], ['Email', 'E-mail'], ['SMS', 'SMS']], selected.channel || 'Note') : ''}
       <div class="wf-node-tools">${button('node-up', 'Mover antes', { glyph: 'left', disabled: node === 0 })}
@@ -700,6 +739,13 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
           detail.hidden = !configured;
           node.querySelector('[data-wf-node-status]').innerHTML = `${icon(configured ? 'check' : 'sliders', 13)} ${configured ? 'Configurado' : 'Configurar'}`;
         }
+        const previewEl = document.querySelector('[data-wf-preview]');
+        if (previewEl) {
+          const sampleContact = c.s.contacts?.[0] || { name: 'Lucas Silva', email: 'lucas@exemplo.com', phone: '+55 11 98765-4321', company: 'Acme Corp', tags: ['vip'] };
+          const ctx = buildWorkflowContext(c.s, editor.row, sampleContact);
+          const previewText = resolveTemplate(input.value || '', ctx);
+          previewEl.textContent = previewText || '(Mensagem vazia)';
+        }
       }
       markDirty();
     }
@@ -724,6 +770,24 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
 
   let pendingSave = false;
   document.addEventListener('click', async event => {
+    const varBtn = event.target.closest('[data-wf-insert-var]');
+    if (varBtn && c.view === 'automation') {
+      const token = varBtn.dataset.wfInsertVar;
+      const targetInput = document.querySelector('.wf-inspector [name="value"]');
+      if (targetInput) {
+        targetInput.focus();
+        const start = targetInput.selectionStart ?? targetInput.value.length;
+        const end = targetInput.selectionEnd ?? targetInput.value.length;
+        const current = targetInput.value;
+        const next = current.slice(0, start) + token + current.slice(end);
+        targetInput.value = next;
+        const nextPos = start + token.length;
+        targetInput.setSelectionRange(nextPos, nextPos);
+        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      return;
+    }
+
     const btn = event.target.closest('button[data-wf]');
     if (!btn || c.view !== 'automation' || pendingSave) return;
     const op = btn.dataset.wf, id = btn.dataset.wfId;
@@ -760,7 +824,7 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
           }
           markDirty();
         }
-        renderCanvas(op === 'node-insert' ? '.wf-inspector input[name="value"]' : '.wf-inspector select', true);
+        renderCanvas(op === 'node-insert' ? '.wf-inspector [name="value"]' : '.wf-inspector select', true);
       } else if (['save-draft', 'publish', 'unpublish'].includes(op)) {
         const record = editor.row, active = op === 'publish' || (op === 'save-draft' && Boolean(record.active));
         if (!record.name.trim()) {
@@ -771,7 +835,7 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
         if (incomplete !== -1) {
           if (c.tab === 'builder') {
             editor.node = incomplete;
-            renderCanvas('.wf-inspector input[name="value"]', true);
+            renderCanvas('.wf-inspector [name="value"]', true);
           }
           throw Error('Preencha o conteúdo de todas as ações.');
         }
