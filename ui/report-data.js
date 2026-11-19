@@ -3,7 +3,8 @@ import { dashboardPeriods, newWidget, reportRows, resolveDates, widgets } from '
 export const reportTemplates = {
   sales: { title:'Desempenho comercial', kinds:['status','value','conversion','funnel','source'] },
   activity: { title:'Atividade do workspace', kinds:['m-contacts-count','m-appointments-count','tasks','manual'] },
-  revenue: { title:'Receita e pagamentos', kinds:['m-revenue-trend','invoices','value'] }
+  revenue: { title:'Receita e pagamentos', kinds:['m-revenue-trend','invoices','value'] },
+  social: { title:'Desempenho de Redes Sociais', kinds:['m-posts-published','m-posts-scheduled','m-posts-review','m-posts-status','m-posts-trend'] }
 };
 export const newPage = (id, number = 1) => ({ id, name:`Página ${number}`, widgets:[] });
 export const reportRange = (state, report) => resolveDates(report,state.profile.timezone);

@@ -5,7 +5,8 @@ import { createSqliteStore } from '../storage.mjs';
 import { useFetch, seal, unseal } from '../social-providers.mjs';
 import { blank, execute } from '../model.mjs';
 import { evergreenDue, settle } from '../social-model.mjs';
-import { nextOccurrence, occurrencesBetween, parseCsv, postIssues } from '../ui/social-data.js';
+import { bestTimes, nextOccurrence, occurrencesBetween, parseCsv, postIssues } from '../ui/social-data.js';
+import { writeCaption } from '../social-ai.mjs';
 
 const reply = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
 
@@ -335,6 +336,82 @@ test('Bluesky connects with an app password and publishes with link facets', asy
   assert.equal(calls.find(c => c.url.endsWith('createRecord')).auth, 'Bearer a2', 'the session is refreshed before posting');
 });
 
+test('Clients approve or ask for changes from a revocable approval link without logging in', async t => {
+  fakeNetworks();
+  const local = await start(); t.after(local.close);
+  const account = (await local.call(local.q('/api/social/bluesky'), { identifier: 'me.bsky.social', password: 'abcd-efgh-ijkl-mnop' })).body.state.socialAccounts[0];
+  const later = new Date(Date.now() + 86_400_000).toISOString();
+  const post = data => local.act({ type: 'social-post', data: { accountIds: [account.id], mode: 'schedule', scheduleDate: later, needsApproval: true, ...data } });
+  const first = (await post({ summary: 'Lançamento de verão', media: [{ url: 'https://example.com/verao.jpg' }] })).body.id;
+  const second = (await post({ summary: 'Promoção da semana' })).body.id;
+
+  const link = action => local.call(local.q('/api/social/approval-link'), action);
+  assert.equal((await link({ action: 'create', hours: 5 })).status, 400, 'only the offered validity periods are accepted');
+  const created = (await link({ action: 'create', hours: 168 })).body;
+  const page = new URL(created.url), token = page.hash.slice(1);
+  assert.equal(page.pathname, `/aprovar/${local.workspace}`);
+  const html = await local.call(page.pathname);
+  assert.match(html.text, /Posts aguardando sua aprovação/);
+  assert.equal((await link({ action: 'status' })).body.expires, created.expires);
+  assert.equal((await link({ action: 'send-whatsapp' })).status, 400, 'phone is required');
+  assert.equal((await link({ action: 'send-whatsapp', phone: '11999998888', url: created.url })).status, 400, 'reports when whatsapp is not connected');
+
+  const call = (action, extra = {}) => local.call(local.q('/api/social/approval'), { action, token, ...extra });
+  assert.equal((await local.call('/api/social/approval?workspace=demo', { action: 'list', token })).status, 404, 'a token only opens its own workspace');
+  assert.equal((await local.call(local.q('/api/social/approval'), { action: 'list', token: 'f'.repeat(64) })).status, 404);
+  const listed = (await call('list')).body;
+  assert.deepEqual(listed.posts.map(p => p.summary), ['Lançamento de verão', 'Promoção da semana']);
+  assert.deepEqual(listed.posts[0].media, [{ type: 'image', src: 'https://example.com/verao.jpg' }]);
+  assert.deepEqual(listed.posts[0].accounts, [{ name: 'Eu no Bluesky', provider: 'bluesky', network: 'Bluesky' }]);
+  assert.equal(JSON.stringify(listed).includes(account.id), false, 'internal ids of accounts stay private');
+
+  assert.equal((await call('decide', { postId: first, decision: 'approved' })).status, 400, 'the reviewer must say who they are');
+  assert.equal((await call('decide', { postId: second, decision: 'rejected', name: 'Ana' })).status, 400, 'asking for changes needs a comment');
+  await call('decide', { postId: first, decision: 'approved', name: 'Ana' });
+  const after = (await call('decide', { postId: second, decision: 'rejected', name: 'Ana', note: 'Trocar a foto' })).body;
+  assert.equal(after.posts.length, 0);
+  assert.deepEqual(after.reviewed.map(r => [r.approval, r.by]).sort(), [['approved', 'Ana'], ['rejected', 'Ana']]);
+  assert.equal((await call('decide', { postId: first, decision: 'approved', name: 'Ana' })).status, 409, 'a post is decided once');
+
+  const state = await local.state();
+  const byId = id => state.socialPosts.find(p => p.id === id);
+  assert.deepEqual([byId(first).status, byId(first).reviewedBy], ['scheduled', 'Ana (cliente)']);
+  assert.deepEqual([byId(second).status, byId(second).approval, byId(second).reviewNote], ['draft', 'rejected', 'Trocar a foto']);
+
+  await link({ action: 'revoke' });
+  assert.equal((await call('list')).status, 404);
+  assert.equal((await link({ action: 'status' })).body.expires, null);
+});
+
+test('Caption AI explains how to connect OpenAI and keeps hashtags apart from the text', async t => {
+  const local = await start(); t.after(local.close);
+  assert.equal((await local.call(local.q('/api/social/ai'), { brief: '' })).status, 400);
+  const missing = await local.call(local.q('/api/social/ai'), { brief: 'Cardápio de verão' });
+  assert.equal(missing.status, 409);
+  assert.match(missing.body.error, /OpenAI/);
+
+  let sent;
+  const request = async (_url, init) => {
+    sent = JSON.parse(init.body);
+    return reply({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ caption: 'Chegou o verão! [[preço]]', hashtags: ['#verao', 'cardápio', 'promo!', 'verao', 'comida boa'] }) }] }] });
+  };
+  const result = await writeCaption({ apiKey: 'sk-test', model: 'test-model', request }, { brief: 'Cardápio de verão', providers: ['bluesky', 'instagram'], tone: 'divertido' });
+  assert.deepEqual(result, { caption: 'Chegou o verão! [[preço]]', hashtags: ['verao', 'cardápio', 'comidaboa'] });
+  assert.match(sent.instructions, /Bluesky, Instagram/);
+  assert.match(sent.instructions, /divertido/);
+  assert.match(sent.instructions, /at most 200 characters/, 'the shortest network limit drives the caption size');
+});
+
+test('Best posting times favour slots shared by the chosen networks and skip busy times', () => {
+  const wednesday = bestTimes(['instagram', 'facebook'], 3, { busy: ['11:10'] });
+  assert.ok(wednesday.some(s => s.time === '13:00' && s.networks === 2), 'a slot good for both networks is suggested');
+  assert.ok(!wednesday.some(s => s.time === '11:00'), 'a slot next to another post is skipped');
+  assert.deepEqual(wednesday.map(s => s.time), [...wednesday.map(s => s.time)].sort(), 'suggestions read in time order');
+  assert.deepEqual(bestTimes(['linkedin'], 0), [], 'no forced suggestion for a network whose audience is away on weekends');
+  assert.equal(bestTimes(['tiktok'], 2, { history: ['19:20'] }).find(s => s.time === '19:00').habit, true, 'slots near past publishing times are marked');
+  assert.ok(bestTimes([], 1).length > 0, 'without accounts there are still general suggestions');
+});
+
 test('Social secret rows satisfy the Supabase rule that every row has profile.name', async t => {
   process.env.META_APP_ID = 'app-id'; process.env.META_APP_SECRET = 'app-secret';
   t.after(() => { delete process.env.META_APP_ID; delete process.env.META_APP_SECRET; });
@@ -347,4 +424,157 @@ test('Social secret rows satisfy the Supabase rule that every row has profile.na
   const r = await fetch(`http://${host}:${server.address().port}/api/social/connect/facebook?workspace=demo`, { redirect: 'manual' });
   assert.equal(r.status, 302);
   assert.match(r.headers.get('location'), /facebook\.com/);
+});
+
+test('Social webhooks save and validate outbound URLs and event triggers', async t => {
+  const store = createSqliteStore(':memory:');
+  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, store, socialScheduler: false });
+  await new Promise(resolve => server.listen(0, host, resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+
+  const base = `http://${host}:${server.address().port}`;
+  const res = await fetch(`${base}/api/action?workspace=demo`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      type: 'save',
+      key: 'socialWebhooks',
+      data: {
+        name: 'Notificações n8n',
+        url: 'https://webhook.site/test-uuid',
+        events: ['post.published', 'post.failed'],
+        active: true
+      }
+    })
+  });
+  assert.equal(res.status, 200);
+  const { id } = await res.json();
+  assert.ok(id, 'webhook created with id');
+
+  const state = await store.load('demo');
+  const wh = state.socialWebhooks.find(w => w.id === id);
+  assert.equal(wh.name, 'Notificações n8n');
+  assert.equal(wh.url, 'https://webhook.site/test-uuid');
+  assert.deepEqual(wh.events, ['post.published', 'post.failed']);
+  assert.equal(wh.active, true);
+});
+
+test('Social interactions ingest into Conversations inbox as Instagram/Facebook messages and create leads', async t => {
+  const store = createSqliteStore(':memory:');
+  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, store, socialScheduler: false });
+  await new Promise(resolve => server.listen(0, host, resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+
+  const base = `http://${host}:${server.address().port}`;
+
+  // 1. Simula chegada de comentário do Instagram
+  const res = await fetch(`${base}/api/social/interactions?workspace=demo`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      network: 'instagram',
+      kind: 'comment',
+      handle: 'luiz.caramelo',
+      authorName: 'Luiz Caramelo',
+      body: 'Qual o valor desse serviço?'
+    })
+  });
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.ok, true);
+  assert.ok(data.contactId, 'created lead in CRM');
+  assert.ok(data.msgId, 'created inbound message in conversations');
+
+  // 2. Valida o contato criado e a mensagem no Inbox
+  const state = await store.load('demo');
+  const contact = state.contacts.find(c => c.id === data.contactId);
+  assert.equal(contact.name, 'Luiz Caramelo');
+  assert.ok(contact.tags.includes('Instagram'));
+
+  const msg = state.messages.find(m => m.id === data.msgId);
+  assert.equal(msg.channel, 'Instagram');
+  assert.equal(msg.direction, 'Inbound');
+  assert.equal(msg.body, 'Qual o valor desse serviço?');
+
+  // 3. Atendente responde pelo canal Instagram
+  const replyRes = await fetch(`${base}/api/action?workspace=demo`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      type: 'message',
+      data: {
+        contactId: contact.id,
+        channel: 'Instagram',
+        direction: 'Outbound',
+        body: 'Olá Luiz! Te mandamos os detalhes por mensagem privada.'
+      }
+    })
+  });
+  assert.equal(replyRes.status, 200);
+  const replyJson = await replyRes.json();
+  assert.ok(replyJson.id);
+
+  const updatedState = await store.load('demo');
+  const replyMsg = updatedState.messages.find(m => m.id === replyJson.id);
+  assert.equal(replyMsg.channel, 'Instagram');
+  assert.equal(replyMsg.direction, 'Outbound');
+});
+
+test('Competitor benchmarking records and post location/userTags metadata persist', async t => {
+  const store = createSqliteStore(':memory:');
+  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, store, socialScheduler: false });
+  await new Promise(resolve => server.listen(0, host, resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+
+  const base = `http://${host}:${server.address().port}`;
+
+  // 1. Cadastra um concorrente
+  const compRes = await fetch(`${base}/api/action?workspace=demo`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      type: 'save',
+      key: 'socialCompetitors',
+      data: {
+        name: 'Agência Rival',
+        handle: 'agenciarival',
+        network: 'instagram',
+        followers: 45000,
+        postsPerWeek: 5,
+        notes: 'Forte presença em reels com ofertas diretas'
+      }
+    })
+  });
+  assert.equal(compRes.status, 200);
+  const compJson = await compRes.json();
+  assert.ok(compJson.id);
+
+  // 2. Cria post com localização e menções/marcações
+  const postRes = await fetch(`${base}/api/action?workspace=demo`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      type: 'social-post',
+      data: {
+        summary: 'Inauguração do novo escritório em BH!',
+        location: 'Belo Horizonte, MG',
+        userTags: '@caramelo.designer, @soci.app',
+        mode: 'draft'
+      }
+    })
+  });
+  assert.equal(postRes.status, 200);
+  const postJson = await postRes.json();
+  assert.ok(postJson.id);
+
+  const state = await store.load('demo');
+  const competitor = state.socialCompetitors.find(c => c.id === compJson.id);
+  assert.equal(competitor.name, 'Agência Rival');
+  assert.equal(competitor.handle, 'agenciarival');
+  assert.equal(competitor.followers, 45000);
+  assert.equal(competitor.postsPerWeek, 5);
+
+  const post = state.socialPosts.find(p => p.id === postJson.id);
+  assert.equal(post.location, 'Belo Horizonte, MG');
+  assert.equal(post.userTags, '@caramelo.designer, @soci.app');
 });

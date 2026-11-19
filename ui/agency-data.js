@@ -21,7 +21,8 @@ export const moduleOfRecord = {
   studioProjects: 'sites', pipelines: 'opportunities', stages: 'opportunities',
   customFields: 'settings', customValues: 'settings', tags: 'contacts', companies: 'contacts',
   products: 'payments', paymentLinks: 'payments', subscriptions: 'payments', transactions: 'payments', coupons: 'payments',
-  socialCategories: 'marketing', socialHashtags: 'marketing', socialFeeds: 'marketing'
+  socialCategories: 'marketing', socialHashtags: 'marketing', socialFeeds: 'marketing', socialWebhooks: 'marketing', socialCompetitors: 'marketing',
+  pranchetaFiles: 'marketing'
 };
 
 export const accountStatuses = ['Active', 'Paused', 'Closed'];

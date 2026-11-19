@@ -28,7 +28,7 @@ function editorState(c) {
   return c.reportDraft;
 }
 const activePage = draft => draft.report.pages.find(page => page.id === draft.page) || draft.report.pages[0];
-const editableSections = [['reports','Relatórios personalizados'],['overview','Visão geral'],['snapshots','Relatórios do painel']];
+export const reportingSections = [['reports','Relatórios'],['overview','Visão geral'],['snapshots','Relatórios do painel']];
 
 export function reportList(c) {
   const all = [...c.s.customReports].sort((a,b)=>b.updated.localeCompare(a.updated));
@@ -43,7 +43,7 @@ export function reportList(c) {
     `<section class="surface report-empty"><div class="report-empty-art" aria-hidden="true">${icon('chart',36)}${icon('list',26)}</div>
     <h2>Crie seu primeiro relatório</h2><p>Monte páginas com métricas e comentários do seu workspace.</p>
     <div class="report-actions">${link('Criar relatório','/new','primary')}<a class="secondary" href="#dashboard">Explorar painéis</a></div></section>`;
-  return `<div class="page"><header class="page-head"><div><h1>Relatórios</h1></div>${add}</header>${tabs(editableSections,'reports')}${results}</div>`;
+  return `<div class="page"><header class="page-head"><div><h1>Relatórios</h1></div>${add}</header>${tabs(reportingSections,'reports')}${results}</div>`;
 }
 
 export function reportSources(c) {

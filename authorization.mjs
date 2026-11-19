@@ -27,6 +27,8 @@ const commandModules = {
   'social-post': 'marketing', 'social-reschedule': 'marketing', 'social-review': 'marketing',
   'social-duplicate': 'marketing', 'social-delete': 'marketing', 'social-bulk-delete': 'marketing',
   'social-retry': 'marketing', 'social-csv': 'marketing', 'social-account-remove': 'marketing',
+  'prancheta-save': 'marketing', 'prancheta-delete': 'marketing', 'prancheta-duplicate': 'marketing',
+  'prancheta-export-media': 'marketing', 'prancheta-to-social': 'marketing', 'prancheta-template': 'marketing',
   message: 'conversations', thread: 'conversations', 'team-message': 'conversations',
   'manual-action': 'conversations', 'conversation-sla': 'conversations', 'dismiss-sla': 'conversations',
   pipeline: 'opportunities', stage: 'opportunities', import: 'contacts',

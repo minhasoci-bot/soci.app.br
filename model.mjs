@@ -18,6 +18,7 @@ import { communityCollections, communityFields } from './community.mjs';
 import { offerBeforeDelete, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
+import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
 
 export const defaults = {
   profile: { name: 'Demo Workspace', email: 'hello@example.test', phone: '', timezone: 'America/Sao_Paulo', currency: 'BRL' },
@@ -29,7 +30,7 @@ export const defaults = {
   campaigns: [], pages: [], forms: [], submissions: [], courses: [], files: [], reviews: [], agents: [], agentRuns: [], integrations: [],
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
-  dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[],
+  dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[], pranchetaFiles:[],
   ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...offerCollections].map(key => [key, []])),
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
@@ -38,7 +39,7 @@ export function hydrateWorkspace(state) {
   const fresh = blank();
   state.customReports ??= [];
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...offerCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...offerCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -73,7 +74,7 @@ const percent = value => {
 };
 const tags = value => [...new Set((Array.isArray(value) ? value : str(value).split(',')).map(a => str(a, 48)).filter(Boolean))].slice(0, 20);
 export const triggers = ['Contact created', 'Form submitted', 'Opportunity stage changed', 'Appointment booked', 'Trigger link clicked', 'Customer replied'];
-const messageChannels = ['Note', 'Email', 'SMS', 'WhatsApp', 'Live chat'];
+const messageChannels = ['Note', 'Email', 'SMS', 'WhatsApp', 'Live chat', 'Instagram', 'Facebook'];
 export const find = (state, key, id) => state[key].find(a => a.id === id);
 const webAddress = value => { const v = str(value, 600); if (v && !/^https?:\/\/[^\s/]+\.[^\s]+$/i.test(v)) fail('Use um endereço que comece com https://'); return v; };
 const when = (value, label) => { if (!value) return ''; const t = Date.parse(value); if (Number.isNaN(t)) fail(`Use uma data válida em ${label}.`); return new Date(t).toISOString(); };
@@ -123,6 +124,7 @@ const fields = {
   ...storeFields,
   ...webinarFields,
   ...qrFields,
+  pranchetaFiles: pranchetaFileRecord,
   appointments: (s, d) => {
     const start = date(d.start), end = date(d.end);
     if (end <= start) fail('End time must be after start time.');
@@ -298,7 +300,40 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
     return changeDashboard(s,{ ...command,data:d },uid,now());
   }
   if (['report-create','report-save','report-delete'].includes(type)) return changeReport(s,{ ...command,data:d },uid,now());
-  if (typeof type === 'string' && type.startsWith('social-')) return socialCommand(s, { ...command, data:d }, { add, now });
+  if (typeof type === 'string' && type.startsWith('social-')) {
+    if (type === 'social-interaction-trigger') {
+      const channel = d.network === 'facebook' ? 'Facebook' : 'Instagram';
+      let contact = d.contactId ? find(s, 'contacts', d.contactId) : null;
+      if (!contact && (d.authorName || d.handle)) {
+        const query = (d.handle || d.authorName).toLowerCase().replace(/^@/, '');
+        contact = s.contacts.find(c => (c.name || '').toLowerCase() === query || (c.company || '').toLowerCase() === query);
+        if (!contact) {
+          contact = add(s, 'contacts', {
+            name: d.authorName || (d.handle ? `@${d.handle.replace(/^@/, '')}` : 'Seguidor Social'),
+            tags: [channel],
+            source: channel
+          });
+        }
+      }
+      let msgId = '';
+      if (contact && d.body) {
+        msgId = add(s, 'messages', {
+          contactId: contact.id,
+          body: str(d.body, 5000),
+          channel,
+          direction: 'Inbound',
+          read: false,
+          starred: false,
+          origin: 'human'
+        }).id;
+        run(s, 'Customer replied', { contactId: contact.id, channel, body: d.body });
+      }
+      const event = d.kind === 'comment' ? 'social_comment_received' : 'social_dm_received';
+      run(s, event, { ...d, contactId: contact?.id || d.contactId || '' });
+      return { ok: true, contactId: contact?.id || '', msgId };
+    }
+    return socialCommand(s, { ...command, data:d }, { add, now });
+  }
   if (type === 'chat-start' || type === 'chat-send') return chatCommand(s, { ...command, data:d }, { add, now, run });
   if (type === 'blog-view') return blogView(s, id);
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
@@ -312,6 +347,82 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
     if (type === 'studio-visit') project.viewedAt=now();
     else project.starred=Boolean(d.starred);
     return id;
+  }
+  if (type === 'prancheta-save') {
+    const record = pranchetaFileRecord(s, d);
+    const existing = id ? find(s, 'pranchetaFiles', id) : null;
+    if (existing) {
+      Object.assign(existing, record, { updated: now() });
+      return existing.id;
+    }
+    const created = add(s, 'pranchetaFiles', { ...record, id: id || uid(), created: now(), updated: now() });
+    return created.id;
+  }
+  if (type === 'prancheta-delete') {
+    const existing = find(s, 'pranchetaFiles', id);
+    if (!existing) fail('Design não encontrado.', 404);
+    s.pranchetaFiles = s.pranchetaFiles.filter(item => item.id !== id);
+    return id;
+  }
+  if (type === 'prancheta-duplicate') {
+    const existing = find(s, 'pranchetaFiles', id);
+    if (!existing) fail('Design não encontrado.', 404);
+    const copy = structuredClone(existing);
+    copy.id = uid();
+    copy.name = `${existing.name} (Cópia)`.slice(0, 150);
+    copy.created = now();
+    copy.updated = now();
+    s.pranchetaFiles.unshift(copy);
+    return copy.id;
+  }
+  if (type === 'prancheta-export-media') {
+    const existing = id ? find(s, 'pranchetaFiles', id) : null;
+    const dataUri = d.data || existing?.thumbnail;
+    if (!dataUri || typeof dataUri !== 'string') fail('Imagem inválida para exportação.');
+    const fileName = str(d.name || existing?.name || 'Arte Prancheta', 120);
+    const savedFile = add(s, 'files', {
+      name: `${fileName.replace(/\.png$/i, '')}.png`,
+      data: dataUri,
+      size: Math.round(dataUri.length * 0.75),
+      type: 'image/png'
+    });
+    return savedFile.id;
+  }
+  if (type === 'prancheta-to-social') {
+    const existing = id ? find(s, 'pranchetaFiles', id) : null;
+    const dataUri = d.data || existing?.thumbnail;
+    if (!dataUri || typeof dataUri !== 'string') fail('Imagem inválida para o post.');
+    const fileName = str(d.name || existing?.name || 'Arte Prancheta', 120);
+    const file = add(s, 'files', {
+      name: `${fileName.replace(/\.png$/i, '')}.png`,
+      data: dataUri,
+      size: Math.round(dataUri.length * 0.75),
+      type: 'image/png'
+    });
+    const post = add(s, 'socialPosts', {
+      body: str(d.body || existing?.name || 'Arte criada na Prancheta soci', 2000),
+      channel: 'Instagram',
+      scheduledAt: d.scheduledAt || now(),
+      status: 'Draft',
+      media: [{ fileId: file.id, name: file.name, type: 'image' }]
+    });
+    return { fileId: file.id, postId: post.id };
+  }
+  if (type === 'prancheta-template') {
+    const templates = createCanonicalTemplates();
+    const tpl = templates.find(t => t.id === d.templateId) || templates[0];
+    const created = add(s, 'pranchetaFiles', {
+      name: tpl.name,
+      format: tpl.format,
+      width: tpl.width,
+      height: tpl.height,
+      pages: structuredClone(tpl.pages),
+      thumbnail: '',
+      tags: ['Template', tpl.format],
+      created: now(),
+      updated: now()
+    });
+    return created.id;
   }
   if (type === 'pipeline') {
     const name = req(d.name,'Pipeline name',80);

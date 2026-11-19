@@ -80,6 +80,43 @@ export function occurrencesBetween(post, start, end, max = 62) {
   return out;
 }
 
+// Times when each network's audience is usually most active, as starting points for testing. Keyed by
+// weekday group: wd = Mon–Fri, peak = Tue–Thu (extra slots on top of wd), we = Sat–Sun.
+const audienceWindows = {
+  facebook: { wd: ['09:00', '13:00', '15:00'], peak: ['11:00'], we: ['10:00', '12:00'] },
+  instagram: { wd: ['11:00', '13:00', '19:00'], peak: ['12:00', '18:00'], we: ['10:00', '17:00'] },
+  linkedin: { wd: ['08:00', '12:00', '17:00'], peak: ['10:00'], we: [] },
+  tiktok: { wd: ['12:00', '19:00', '21:00'], peak: ['17:00'], we: ['11:00', '20:00'] },
+  youtube: { wd: ['15:00', '18:00'], peak: ['17:00'], we: ['10:00', '14:00'] },
+  pinterest: { wd: ['14:00', '20:00', '21:00'], peak: [], we: ['16:00', '21:00'] },
+  threads: { wd: ['09:00', '12:00', '18:00'], peak: [], we: ['11:00'] },
+  bluesky: { wd: ['09:00', '12:00', '18:00'], peak: [], we: ['11:00'] },
+  gbp: { wd: ['09:00', '12:00'], peak: [], we: ['10:00'] }
+};
+const fallbackWindows = { wd: ['09:00', '12:00', '18:00'], peak: [], we: ['11:00'] };
+
+/**
+ * Suggested posting times for a day: slots recommended by the most of the chosen networks first,
+ * then the ones that fit the times this workspace already published at, earliest first.
+ * `day` is the weekday (0 = Sunday). `busy` lists HH:MM already taken; slots within 30 min are skipped.
+ */
+export function bestTimes(providers, day, { history = [], busy = [], limit = 4 } = {}) {
+  const ids = [...new Set(providers)].filter(id => network(id));
+  const score = new Map();
+  for (const id of ids.length ? ids : ['']) {
+    const w = audienceWindows[id] || fallbackWindows;
+    const slots = day === 0 || day === 6 ? w.we : [...w.wd, ...(day >= 2 && day <= 4 ? w.peak : [])];
+    for (const slot of slots) score.set(slot, (score.get(slot) || 0) + 1);
+  }
+  const minutes = t => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  const habit = slot => history.filter(t => Math.abs(minutes(t) - minutes(slot)) <= 60).length;
+  const clash = slot => busy.some(t => Math.abs(minutes(t) - minutes(slot)) < 30);
+  return [...score].filter(([slot]) => !clash(slot))
+    .sort((a, b) => b[1] - a[1] || habit(b[0]) - habit(a[0]) || a[0].localeCompare(b[0]))
+    .slice(0, limit).map(([time, votes]) => ({ time, networks: votes, habit: habit(time) > 0 }))
+    .sort((a, b) => a.time.localeCompare(b.time));
+}
+
 /** Minimal CSV reader (comma or semicolon) used by the bulk scheduler. */
 export function parseCsv(csv) {
   const source = String(csv || '').replace(/^﻿/, ''), sep = source.split(/\r?\n/, 1)[0].includes(';') ? ';' : ',';
