@@ -257,7 +257,8 @@ dialog:has(.wf-picker)>header{position:sticky;top:0;z-index:3;background:var(--g
 .wfb-fn:hover{border-color:var(--g-brand)}
 .wfb-entry-hint{margin:0;font-size:11px}
 .wfb-config{min-width:0}
-.wfb-stop{margin:4px 0 12px}
+.wfb-stop{display:flex;align-items:flex-start;gap:10px;margin:4px 0 12px}
+.wfb-stop input{flex:none;width:16px;height:16px;margin-top:2px}
 .wfb-exit{margin:6px 0 12px;padding:10px;border:1px solid var(--g-line);border-radius:10px;background:var(--g-surface-2)}
 .wfb-exit h3{display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .wfb-exit p{margin:0 0 6px;font-size:12.5px}
