@@ -2,7 +2,7 @@
 // "+" connectors between steps, and an inspector drawn from the shared catalog (ui/workflow-data.js).
 import { icon } from './icons.js';
 import { h } from './screens.js';
-import { buildWorkflowContext, resolveTemplate } from './expressions.js';
+import { FUNCTION_CATALOG, buildWorkflowContext, resolveTemplate } from './expressions.js';
 import { actionCatalog, actionSpec, conditionSubjects, eachStep, refSources, stepId, stepSummary, triggerCatalog, triggerSpec, triggerSummary, upgradeWorkflow, variables } from './workflow-data.js';
 
 const MAX_STEPS = 120;
@@ -69,8 +69,10 @@ export function newStep(type) {
 
 /* ───────── Canvas ───────── */
 
-function card({ key, kind, label, detail, glyph, current, footer, trigger = false, variant = '' }) {
-  return `<button type="button" class="wf-node wfb-node ${trigger ? 'wf-node-trigger' : ''} ${variant} ${current ? 'current' : ''}" data-wf="node" data-wf-id="${h(key)}" aria-expanded="${current}">
+const tested = (editor, id) => editor.test?.trace?.findLast?.(item => item.id === id) || [...(editor.test?.trace || [])].reverse().find(item => item.id === id);
+
+function card({ key, kind, label, detail, glyph, current, footer, trigger = false, variant = '', ran = '' }) {
+  return `<button type="button" class="wf-node wfb-node ${trigger ? 'wf-node-trigger' : ''} ${variant} ${current ? 'current' : ''} ${ran ? 'wfb-ran' : ''}" data-wf="node" data-wf-id="${h(key)}" aria-expanded="${current}" ${ran ? `title="Teste: ${h(ran)}"` : ''}>
     <span class="wf-node-body"><span class="wf-node-icon">${icon(glyph, 20)}</span><span class="wf-node-copy">
     <span class="wf-node-kind">${h(kind)}</span><strong>${h(label)}</strong><small data-wf-detail ${detail ? '' : 'hidden'}>${h(detail || '')}</small></span></span>
     <span class="wf-node-footer"><span>${h(footer)}</span><span data-wf-node-status>${icon(detail || trigger ? 'check' : 'sliders', 13)}</span></span></button>`;
@@ -87,7 +89,7 @@ function drawList(c, editor, steps, key, numbering) {
     const number = `${numbering}${index + 1}`;
     out += addButton(key, index, full);
     out += card({ key: step.id, kind: spec?.group || 'Ação', label: spec?.label || step.type, detail: stepSummary(step, c.s), glyph: spec?.icon || 'flow',
-      current: editor.node === step.id, footer: `#${number}`, variant: spec?.branch ? 'wfb-branch-node' : step.type === 'goal' ? 'wfb-goal' : step.type === 'end' || step.type === 'goto' ? 'wfb-stop' : '' });
+      current: editor.node === step.id, footer: `#${number}`, ran: tested(editor, step.id)?.result || '', variant: spec?.branch ? 'wfb-branch-node' : step.type === 'goal' ? 'wfb-goal' : step.type === 'end' || step.type === 'goto' ? 'wfb-stop' : '' });
     if (step.type === 'if_else') {
       out += `<div class="wfb-branches">${[['yes', 'Sim'], ['no', 'Não']].map(([part, label]) =>
         `<div class="wfb-col"><span class="wfb-branch-label ${part}">${label}</span>${drawList(c, editor, step[part] || [], `${step.id}:${part}`, `${number}.${part === 'yes' ? 'S' : 'N'}`)}</div>`).join('')}</div>`;
@@ -214,11 +216,83 @@ function inspector(c, editor) {
   }
   if (step.type === 'goal') body += '<p class="wf-sub">Se a meta acontecer enquanto o contato está em qualquer etapa anterior, ele pula direto para cá.</p>';
   if (['manual_call', 'manual_sms'].includes(step.type)) body += '<p class="wf-sub">O fluxo pausa até alguém concluir ou dispensar a ação na fila de ações manuais.</p>';
-  return `<div class="wf-inspector-head"><h2>${h(spec?.label || 'Ação')}</h2>${close}</div>${body}
+  const run = tested(editor, step.id), outputs = editor.test?.outputs?.[step.id];
+  const exit = editor.test ? `<section class="wfb-exit" aria-label="Saída do último teste"><h3>${icon(run ? 'check' : 'clock', 14)} Saída do teste</h3>
+    ${run ? `<p><b>${h(run.result)}</b></p>${outputs ? `<pre>${h(JSON.stringify(outputs, null, 2))}</pre>` : ''}` : '<p class="wf-sub">O último teste não passou por esta etapa.</p>'}</section>` : '';
+  const stop = spec?.branch || ['goto', 'end', 'wait', 'goal', 'filter'].includes(step.type) ? '' : `<label class="wf-check wfb-stop"><input type="checkbox" data-wf-stop="${h(step.id)}" ${step.config.stopOnError ? 'checked' : ''}>
+    <span><b>Erro interrompe o fluxo</b><small>Se esta etapa falhar, a execução para e fica marcada como “Falhou”.</small></span></label>`;
+  return `<div class="wf-inspector-head"><h2>${h(spec?.label || 'Ação')}</h2>${close}</div>
+    <div class="wfb-editor-cols">${entry(c, editor, step.id)}<div class="wfb-config">${spec?.description ? `<p class="wf-action-desc">${h(spec.description)}</p>` : ''}${body}${stop}${exit}
     <div class="wf-node-tools">${btn('node-up', 'Subir', { glyph: 'left', disabled: !place || place.index === 0 })}
       ${btn('node-down', 'Descer', { glyph: 'right', disabled: !place || place.index === place.list.length - 1 })}
       ${btn('node-duplicate', 'Duplicar', { glyph: 'copy' })}
-      ${btn('node-delete', step.type === 'if_else' || step.type === 'router' ? 'Remover com os ramos' : 'Remover', { cls: 'wf-text', glyph: 'trash' })}</div>`;
+      ${btn('node-delete', step.type === 'if_else' || step.type === 'router' ? 'Remover com os ramos' : 'Remover', { cls: 'wf-text', glyph: 'trash' })}</div></div></div>`;
+}
+
+/* ───────── Entrada: dados e funções disponíveis para a etapa ───────── */
+
+const triggerData = {
+  customer_replied: [['body', 'Mensagem recebida'], ['channel', 'Canal']], form_submitted: [['formId', 'Formulário']], survey_submitted: [['formId', 'Pesquisa']],
+  quiz_submitted: [['formId', 'Quiz'], ['tier', 'Faixa do resultado']], pipeline_stage_changed: [['stageId', 'Etapa']], opportunity_status_changed: [['status', 'Status']],
+  invoice_status: [['status', 'Status'], ['total', 'Valor']], payment_received: [['total', 'Valor pago']], order_submitted: [['storeId', 'Loja'], ['total', 'Total']], order_paid: [['storeId', 'Loja'], ['total', 'Total']],
+  review_received: [['score', 'Nota']], chat_started: [['widgetId', 'Chat']], webinar_registered: [['webinarId', 'Webinar']], trigger_link_clicked: [['linkId', 'Link']],
+  contact_tag: [['tag', 'Tag'], ['change', 'Adicionada ou removida']], contact_changed: [['fields', 'Campos alterados']], appointment_status: [['status', 'Status']]
+};
+const outputKeys = { create_task: [['id', 'ID'], ['title', 'Título'], ['due', 'Prazo']], create_opportunity: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['stage', 'Etapa']],
+  create_invoice: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['due', 'Vencimento']], math: [['value', 'Resultado']] };
+const functionGroups = [
+  ['Condicionais', ['if', 'ifempty', 'ifEmpty', 'switch']],
+  ['Texto', ['concat', 'upper', 'lower', 'capitalize', 'startcase', 'trim', 'replace', 'substring', 'split', 'length', 'toString', 'urlEncode', 'urlDecode', 'base64', 'ascii', 'stripHTML', 'escapeHTML', 'escapeMarkdown', 'replaceEmojiCharacters', 'indexOf', 'md5', 'sha1', 'sha256', 'sha512', 'toBinary']],
+  ['Números', ['parseInt', 'parseNumber', 'media', 'mediana', 'teto', 'piso', 'trunc', 'valorMaximo', 'valorMinimo', 'valorAbsoluto', 'valorArredondado', 'soma', 'desvioPadraoAmostral', 'desvioPadraoPopulacional', 'formatarNumero', 'random']],
+  ['Datas', ['now', 'formatDate', 'addSeconds', 'addMinutes', 'addHours', 'addDays', 'addMonths', 'addYears', 'setSeconds', 'setMinutes', 'setHours', 'setDays', 'setMonths', 'setYears']]
+];
+
+function entry(c, editor, target) {
+  const tab = editor.ioTab || 'vars';
+  const item = (token, label, sample = '') => `<button type="button" class="wfb-io-item" data-wf-insert-var="${h(token)}" title="${h(token)}"><span>${h(label)}</span>${sample !== '' && sample != null ? `<small>${h(String(sample).slice(0, 60))}</small>` : `<code>${h(token.replace(/^\{\{|\}\}$/g, ''))}</code>`}</button>`;
+  const group = (title, glyph, items) => items.length ? `<details class="wfb-io-group" open><summary>${icon(glyph, 14)} ${h(title)}</summary>${items.join('')}</details>` : '';
+  let content;
+  if (tab === 'fns') {
+    const known = new Set(functionGroups.flatMap(([, names]) => names));
+    const groups = [...functionGroups, ['Listas e objetos', FUNCTION_CATALOG.map(fn => fn.name).filter(name => !known.has(name))]];
+    content = groups.map(([title, names]) => {
+      const fns = names.map(name => FUNCTION_CATALOG.find(fn => fn.name === name)).filter(Boolean);
+      return fns.length ? `<div class="wfb-fn-group"><h4>${h(title)}</h4><div class="wfb-fn-chips">${fns.map(fn =>
+        `<button type="button" class="wfb-fn" data-wf-insert-var="{{${h(fn.example.replace(/\$IN\.BODY\.[\w.]+/g, 'contact.name'))}}}" title="${h(`${fn.label}: ${fn.signature}`)}">${h(fn.name)}</button>`).join('')}</div></div>` : '';
+    }).join('');
+  } else {
+    const sample = c.s.contacts?.[0];
+    const contactItems = [['first_name', 'Primeiro nome', sample?.name?.split(' ')[0]], ['name', 'Nome completo', sample?.name], ['email', 'E-mail', sample?.email], ['phone', 'Telefone', sample?.phone], ['company', 'Empresa', sample?.company], ['tags', 'Tags', sample?.tags?.join(', ')]]
+      .map(([key, label, value]) => item(`{{contact.${key}}}`, label, value))
+      .concat((c.s.customFields || []).filter(row => row.object === 'Contact').map(row => item(`{{contact.custom_fields.${row.id}}}`, row.name, sample?.custom?.[row.id])));
+    const triggerItems = [...new Map(editor.row.triggers.flatMap(t => [...(triggerData[t.type] || []), ...(t.type === 'inbound_webhook' ? [['campo', 'Campo do JSON recebido (troque “campo”)']] : [])])).entries()].map(([key, label]) => item(`{{trigger.${key}}}`, label));
+    const varItems = [], stepItems = [];
+    let n = 0;
+    eachStep(editor.row.steps, step => {
+      n++;
+      if (step.id === target) return;
+      if (step.type === 'set_variable' && step.config.name) varItems.push(item(`{{vars.${step.config.name}}}`, step.config.name, editor.test?.vars?.[step.config.name]));
+      for (const [key, label] of outputKeys[step.type] || []) stepItems.push(item(`{{steps.${step.id}.${key}}}`, `#${n} ${actionSpec(step.type).label} · ${label}`, editor.test?.outputs?.[step.id]?.[key]));
+    });
+    content = group('Contato', 'contacts', contactItems) + group('Gatilho', 'bolt', triggerItems) + group('Variáveis do fluxo', 'key', varItems)
+      + group('Etapas', 'flow', stepItems) + group('Workspace', 'gear', [item('{{workspace.name}}', 'Nome do workspace', c.s.profile?.name)]);
+  }
+  return `<div class="wfb-entry" aria-label="Dados disponíveis"><h3>Entrada</h3>
+    <div class="wfb-entry-tabs" role="tablist">${[['vars', 'Variáveis', 'code'], ['fns', 'Funções', 'gear']].map(([key, label]) =>
+      `<button type="button" role="tab" aria-selected="${tab === key}" class="${tab === key ? 'current' : ''}" data-wf="io-tab" data-wf-id="${key}">${h(label)}</button>`).join('')}</div>
+    <label class="wf-search wfb-entry-search">${icon('search', 15)}<span class="sr-only">Buscar dado ou função</span><input type="search" data-wf-io-search placeholder="Buscar…"></label>
+    <div class="wfb-entry-list">${content}</div><p class="wf-sub wfb-entry-hint">Clique para inserir no campo selecionado.</p></div>`;
+}
+
+export function testReport(editor, s) {
+  const result = editor.test;
+  if (!result) return '';
+  const label = id => { const step = findStep(editor.row, id); return step ? actionSpec(step.type)?.label || step.type : 'Etapa'; };
+  const ch = result.changes || {};
+  const list = (title, rows) => rows?.length ? `<li><b>${h(title)}</b> ${rows.map(row => h(typeof row === 'string' ? row : `${row.channel || row.kind}: ${row.body || row.url || row.phone || ''}`)).join(' · ')}</li>` : '';
+  return `<div class="wfb-test-report"><p>${result.status === 'Completed' ? 'Execução concluída' : result.status === 'Failed' ? 'Execução interrompida por erro' : result.status} com <b>${h(result.contact || 'o contato')}</b>. Nada foi salvo nem enviado.</p>
+    <ol>${result.trace.map(row => `<li><b>${h(label(row.id))}</b><span>${h(row.result)}</span></li>`).join('') || '<li>Nenhuma etapa executada.</li>'}</ol>
+    <h3>O que aconteceria</h3><ul>${list('Tags adicionadas:', ch.tagsAdded) + list('Tags removidas:', ch.tagsRemoved) + list('Mensagens:', ch.messages) + list('Tarefas:', ch.tasks) + list('Oportunidades:', ch.opportunities) + list('Faturas:', ch.invoices) + list('Envios externos (não feitos no teste):', ch.queued) || '<li>Nenhuma alteração no CRM.</li>'}</ul></div>`;
 }
 
 /* ───────── Seletores ───────── */
@@ -247,6 +321,7 @@ export function builderClick(op, target, editor, { pick }) {
   const row = editor.row, id = target.dataset.wfId;
   switch (op) {
     case 'trigger-add': pick('trigger', ''); return { picked: true };
+    case 'io-tab': editor.ioTab = id === 'fns' ? 'fns' : 'vars'; return { changed: false, render: true, focus: `.wfb-entry-tabs [data-wf-id="${id}"]` };
     case 'node-add': pick('action', `data-wf-list="${h(target.dataset.wfList)}" data-wf-index="${h(target.dataset.wfIndex)}"`); return { picked: true };
     case 'trigger-insert': {
       if (row.triggers.length >= 10) throw Error('Um fluxo aceita até 10 gatilhos.');
@@ -333,6 +408,12 @@ export function builderInput(input, editor, c, finalChange) {
       }
     }
     return input.tagName === 'SELECT' && finalChange ? 'render' : 'live';
+  }
+  if (input.dataset.wfStop) {
+    const step = findStep(row, input.dataset.wfStop);
+    if (!step) return null;
+    if (input.checked) step.config.stopOnError = true; else delete step.config.stopOnError;
+    return 'live';
   }
   if (input.dataset.wfRouteLabel) {
     const step = findStep(row, input.dataset.wfTarget), route = step?.routes?.find(item => item.id === input.dataset.wfRouteLabel);

@@ -1,6 +1,6 @@
 import { icon } from './icons.js';
 import { fmt, h, pageShell, utabs } from './screens.js';
-import { asTree, blankWorkflow, builderCanvas, builderClick, builderInput, nodeExists, pickerHtml, workflowTriggerText } from './workflow-builder.js';
+import { asTree, blankWorkflow, builderCanvas, builderClick, builderInput, nodeExists, pickerHtml, testReport, workflowTriggerText } from './workflow-builder.js';
 
 const triggers = [
   ['', 'Selecione um gatilho'],
@@ -480,7 +480,7 @@ function editorScreen(c, tab, id) {
   const builderHeader = `<header class="wf-builder-header"><div class="wf-builder-bar">
     ${link('workflows', `${icon('left', 18)}<span class="sr-only">Voltar para fluxos</span>`, '', 'wf-builder-back')}
     <div class="wf-builder-title">${name}</div>
-    <div class="wf-head-actions">${button('save-draft', live?.active ? 'Salvar alterações' : 'Salvar rascunho')}
+    <div class="wf-head-actions">${button('test-run', 'Testar', { glyph: 'play' })}${button('save-draft', live?.active ? 'Salvar alterações' : 'Salvar rascunho')}
       ${live?.active ? button('unpublish', 'Voltar para rascunho') : button('publish', 'Publicar', { glyph: 'check', cls: 'primary' })}</div></div>
     <div class="wf-builder-meta">${stateBadge(live?.active)}<span class="wf-sub" data-wf-unsaved ${editor.dirty ? '' : 'hidden'}>Alterações pendentes</span>${navigation}</div></header>`;
   if (tab === 'builder') return `<div class="wf-editor wf-builder" data-wf-editor>${builderHeader}${canvas(c, editor)}</div>`;
@@ -689,6 +689,10 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
         cat.hidden = !hasVisible;
       }
       picker.querySelector('[data-wf-no-actions]').hidden = found;
+    } else if (input.matches('[data-wf-io-search]')) {
+      const query = filterText(input.value.trim()), list = input.closest('.wfb-entry').querySelector('.wfb-entry-list');
+      for (const item of list.querySelectorAll('.wfb-io-item, .wfb-fn')) item.hidden = Boolean(query) && !filterText(`${item.textContent} ${item.title}`).includes(query);
+      for (const group of list.querySelectorAll('.wfb-io-group, .wfb-fn-group')) group.hidden = ![...group.querySelectorAll('.wfb-io-item, .wfb-fn')].some(item => !item.hidden);
     } else if (input.matches('[data-wf-search]')) {
       Object.assign(listing(c), { query: input.value, page: 0 });
       updateList(input);
@@ -822,6 +826,12 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
       } else if (editor && (built = builderClick(op, btn, editor, { pick: picker }))) {
         if (built.closePicker) close();
         if (built.changed) { markDirty(); pushHistory(editor); renderCanvas(built.focus, built.reveal); }
+        else if (built.render) renderCanvas(built.focus);
+      } else if (op === 'test-run') {
+        if (!c.s.contacts.length) throw Error('Cadastre um contato para testar o fluxo.');
+        const choices = c.s.contacts.slice(0, 500).map(contact => [contact.id, contact.email ? `${contact.name} · ${contact.email}` : contact.name]);
+        modal('Testar fluxo', `<p class="wf-sub">O fluxo roda agora com o contato escolhido, numa cópia dos dados: esperas e ações manuais são puladas e nada é salvo ou enviado.</p>
+          ${select('contactId', 'Contato', choices, editor.testContact || choices[0][0])}`, 'test-run', '', 'Rodar teste');
       } else if (['save-draft', 'publish', 'unpublish'].includes(op)) {
         const record = editor.row, active = op === 'publish' || (op === 'save-draft' && Boolean(record.active));
         if (!record.name.trim()) {
@@ -1002,6 +1012,20 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
         close();
         show('builder');
         flash('Fluxo gerado pela IA com sucesso! Revise e publique.');
+        return;
+      }
+      if (op === 'test-run') {
+        const editor = c.workflowDraft;
+        const headers = { 'Content-Type': 'application/json' };
+        if (!c.access?.session) { try { headers['X-Go-User'] = localStorage.getItem('go.user') || ''; } catch { /* sem armazenamento */ } }
+        const response = await fetch(`/api/workflow-test?workspace=${encodeURIComponent(c.workspace)}`, { method: 'POST', headers, body: JSON.stringify({ workflow: { ...editor.row, id: editor.key || '' }, contactId: data.contactId }) });
+        const body = await response.json();
+        if (!response.ok) throw Error(body.error || 'Não foi possível testar o fluxo.');
+        editor.testContact = data.contactId;
+        editor.test = { ...body.result, contact: c.s.contacts.find(row => row.id === data.contactId)?.name };
+        close();
+        renderCanvas();
+        dialog('Resultado do teste', testReport(editor, c.s));
         return;
       }
       if (op === 'enroll' && !data.contactId) throw Error('Selecione um contato.');
