@@ -56,11 +56,11 @@ export function pageShell({ title, desc = '', cta = '', back = '', className = '
   const body = tabCfg ? utabs({ ...tabCfg, content }) : content;
   return `<div class="page${className ? ` ${className}` : ''}"${attrs ? ` ${attrs}` : ''}>${header}${body}</div>`;
 }
-const head=(title,desc='',cta='',sub='')=>`<header class="page-head"><div><h1>${title}</h1>${desc?`<p>${desc}</p>`:''}</div><div class="head-actions">${cta}</div></header>${sub}`;
-const empty=(title,desc,icon='inbox',cta='')=>`<div class="empty">${i(icon,26)}<strong>${title}</strong><p>${desc}</p>${cta}</div>`;
-const search=(v,label='Buscar…')=>`<label class="search">${i('search',16)}<input id="page-search" value="${h(v)}" placeholder="${label}" aria-label="${label}" autocomplete="off"></label>`;
+const head=(title,desc='',cta='',sub='')=>`<header class="page-head"><div><h1>${tr(title)}</h1>${desc?`<p>${tr(desc)}</p>`:''}</div><div class="head-actions">${cta}</div></header>${sub}`;
+const empty=(title,desc,icon='inbox',cta='')=>`<div class="empty">${i(icon,26)}<strong>${tr(title)}</strong><p>${tr(desc)}</p>${cta}</div>`;
+const search=(v,label='Buscar…')=>`<label class="search">${i('search',16)}<input id="page-search" value="${h(v)}" placeholder="${tr(label)}" aria-label="${tr(label)}" autocomplete="off"></label>`;
 const wrap=content=>`<div class="page">${content}</div>`;
-const table=(columns,rows,nothing)=>`<div class="surface table-shell"><table><thead><tr>${columns.map(c=>`<th scope="col">${c}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length?'':nothing}</div>`;
+const table=(columns,rows,nothing)=>`<div class="surface table-shell"><table><thead><tr>${columns.map(c=>`<th scope="col">${tr(c)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length?'':nothing}</div>`;
 const row=(cells,key,id)=>`<tr>${cells.map(c=>`<td>${c}</td>`).join('')}<td class="right"><button class="icon-btn" title="Editar registro" aria-label="Editar registro" data-edit="${key}" data-id="${id}">${i('edit',16)}</button></td></tr>`;
 const date=(d,c,time=false)=>fmt(d,c.s.profile.timezone,time);
 const name=(id,c)=>c.s.contacts.find(r=>r.id===id)?.name||'—';

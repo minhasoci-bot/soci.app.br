@@ -2,7 +2,7 @@ import { brandHighlight, brandIcon, icon as i, logo, brandName, bootScreen, shcL
 import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { applyBrandColor } from './graao.js';
-import { tr } from './i18n.js';
+import { tr, translateDom, getLanguage } from './i18n.js';
 import { money, utabs } from './screens.js';
 import { colorPicker, mountColorPicker } from './color-picker.js';
 import { createProspecting, prospectRoutes } from './prospecting.js';
@@ -71,7 +71,7 @@ export function startAgency(env) {
   function close() { const d = G('#dialog'); if (d?.open) d.close(); overlay.innerHTML = ''; if (returnFocus?.isConnected) returnFocus.focus(); }
   function dialog(title, body, { form = '', id = '', submit = 'Salvar', wide = false, description = '' } = {}) {
     returnFocus = document.activeElement;
-    overlay.innerHTML = `<dialog id="dialog" class="${wide ? 'ag-wide' : ''}" aria-labelledby="modal-title"><header><div><h2 id="modal-title">${h(title)}</h2>${description ? `<p>${h(description)}</p>` : ''}</div><button class="icon-btn" aria-label="Fechar diálogo" data-close-dialog>${i('close', 17)}</button></header>${form
+    overlay.innerHTML = `<dialog id="dialog" class="${wide ? 'ag-wide' : ''}" aria-labelledby="modal-title"><header><div><h2 id="modal-title">${h(tr(title))}</h2>${description ? `<p>${h(tr(description))}</p>` : ''}</div><button class="icon-btn" aria-label="${h(tr('Fechar diálogo'))}" data-close-dialog>${i('close', 17)}</button></header>${form
       ? `<form data-ag-form="${form}" data-id="${h(id)}"><div class="modal-body">${body}<p class="form-status" role="alert"></p></div><footer><button type="button" class="secondary" data-close-dialog>Cancelar</button><button class="primary">${h(submit)}</button></footer></form>`
       : `<div class="modal-body">${body}</div>`}</dialog>`;
     const d = G('#dialog'); d.showModal(); d.addEventListener('cancel', ev => { ev.preventDefault(); close(); });
@@ -125,7 +125,7 @@ export function startAgency(env) {
   }
 
   // ---- Shell -------------------------------------------------------------
-  const head = (title, desc = '', actions = '') => `<header class="page-head"><div><h1>${h(title)}</h1>${desc ? `<p>${h(desc)}</p>` : ''}</div><div class="head-actions">${actions}</div></header>`;
+  const head = (title, desc = '', actions = '') => `<header class="page-head"><div><h1>${h(tr(title))}</h1>${desc ? `<p>${h(tr(desc))}</p>` : ''}</div><div class="head-actions">${actions}</div></header>`;
   const tabCard = (page, content, label = 'Seções') => utabs({
     key: `agency-${page}`,
     label,
@@ -133,12 +133,12 @@ export function startAgency(env) {
     items: subTabs[page].map(([key, text]) => ({ value: key, label: text, attrs: `data-ag="tab" data-sub="${key}"` })),
     content
   });
-  const btn = (label, ag, attrs = '', cls = 'secondary', ico = '') => `<button class="${cls}" data-ag="${ag}" ${attrs}>${ico ? i(ico, 15) : ''}${h(label)}</button>`;
+  const btn = (label, ag, attrs = '', cls = 'secondary', ico = '') => `<button class="${cls}" data-ag="${ag}" ${attrs}>${ico ? i(ico, 15) : ''}${h(tr(label))}</button>`;
   const primary = (label, ag, attrs = '') => btn(label, ag, attrs, 'primary', 'plus');
-  const empty = (title, text, cta = '') => `<div class="empty">${i('inbox', 26)}<strong>${h(title)}</strong><p>${h(text)}</p>${cta}</div>`;
-  const table = (cols, rows, nothing) => `<div class="surface table-shell"><table><thead><tr>${cols.map(c => `<th scope="col">${h(c)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length ? '' : nothing}</div>`;
-  const metric = (label, value, note = '') => `<div class="surface metric"><span>${h(label)}</span><b>${value}</b>${note ? `<small class="dim">${h(note)}</small>` : ''}</div>`;
-  const search = placeholder => `<label class="search">${i('search', 16)}<input data-ag-search value="${h(A.query)}" placeholder="${h(placeholder)}" aria-label="${h(placeholder)}" autocomplete="off"></label>`;
+  const empty = (title, text, cta = '') => `<div class="empty">${i('inbox', 26)}<strong>${h(tr(title))}</strong><p>${h(tr(text))}</p>${cta}</div>`;
+  const table = (cols, rows, nothing) => `<div class="surface table-shell"><table><thead><tr>${cols.map(c => `<th scope="col">${h(tr(c))}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length ? '' : nothing}</div>`;
+  const metric = (label, value, note = '') => `<div class="surface metric"><span>${h(tr(label))}</span><b>${value}</b>${note ? `<small class="dim">${h(tr(note))}</small>` : ''}</div>`;
+  const search = placeholder => `<label class="search">${i('search', 16)}<input data-ag-search value="${h(A.query)}" placeholder="${h(tr(placeholder))}" aria-label="${h(tr(placeholder))}" autocomplete="off"></label>`;
   const sw = (label, on, attrs, disabled = false) => `<label class="ag-sw"><input type="checkbox" role="switch" ${on ? 'checked' : ''} ${disabled ? 'disabled' : ''} ${attrs} aria-label="${h(label)}"><span aria-hidden="true"></span></label>`;
   const bar = (pct, cls = '') => `<span class="ag-bar ${cls}"><span data-w="${Math.max(0, Math.min(100, Math.round(pct)))}"></span></span>`;
 

@@ -45,6 +45,28 @@ test('i18n defaults to Portuguese (pt) and allows switching to Latin American Sp
   assert.equal(tr('Novo artigo'), 'Nuevo artículo');
   assert.equal(tr('Novo produto'), 'Nuevo producto');
 
+  // Agency settings and complete form fields translation
+  assert.equal(tr('Gerencie dados da empresa, equipe, faturamento, integrações e conformidade.'), 'Administre datos de la empresa, equipo, facturación, integraciones y cumplimiento.');
+  assert.equal(tr('Meu perfil'), 'Mi perfil');
+  assert.equal(tr('Empresa e marca'), 'Empresa y marca');
+  assert.equal(tr('Equipe'), 'Equipo');
+  assert.equal(tr('Faturamento e carteira'), 'Facturación y cartera');
+  assert.equal(tr('Serviços de e-mail'), 'Servicios de correo electrónico');
+  assert.equal(tr('E-mails do sistema'), 'Correos electrónicos del sistema');
+  assert.equal(tr('Workflow: recursos premium'), 'Flujos de trabajo: funciones prémium');
+  assert.equal(tr('Dados pessoais'), 'Datos personales');
+  assert.equal(tr('Nome'), 'Nombre');
+  assert.equal(tr('Sobrenome'), 'Apellido');
+  assert.equal(tr('Salvar perfil'), 'Guardar perfil');
+  assert.equal(tr('Dados da empresa'), 'Datos de la empresa');
+  assert.equal(tr('Nome da empresa'), 'Nombre de la empresa');
+  assert.equal(tr('Salvar dados da empresa'), 'Guardar datos de la empresa');
+  assert.equal(tr('Membros da equipe'), 'Miembros del equipo');
+  assert.equal(tr('Adicionar usuário'), 'Agregar usuario');
+  assert.equal(tr('Plano da agência'), 'Plan de la agencia');
+  assert.equal(tr('Saldo da carteira'), 'Saldo de la cartera');
+  assert.equal(tr('Seções de configurações'), 'Secciones de configuraciones');
+
   // Dynamic text translation in Spanish
   assert.equal(translateText('12 contatos'), '12 contactos');
   assert.equal(translateText('5 oportunidades'), '5 oportunidades');
