@@ -227,3 +227,8 @@
 .wfb-route legend{padding:0 4px;font-size:12px;font-weight:650}
 .wf-inspector code{font-size:11.5px;padding:1px 4px;border-radius:4px;background:var(--g-surface-2)}
 .wf-inspector input[readonly]{font:500 11.5px/1.4 ui-monospace,monospace}
+
+/* Seletor de gatilhos e ações: título e busca ficam fixos enquanto a lista rola. */
+dialog:has(.wf-picker)>header{position:sticky;top:0;z-index:3;background:var(--g-surface)}
+.wf-picker>.wf-search{position:sticky;top:59px;z-index:2;margin:-14px -17px 4px;padding:14px 17px 12px;background:var(--g-surface);border-bottom:1px solid var(--g-line)}
+.wf-picker>.wf-search svg{left:28px}
