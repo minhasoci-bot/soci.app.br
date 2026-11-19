@@ -124,7 +124,7 @@ export function afterSave(s, key, prior, row, add) {
   if (key === 'coupons' && prior) row.redemptions = prior.redemptions || 0;
   // A paid invoice books its payment once, the way a gateway would record the charge.
   if (key === 'invoices' && row.status === 'Paid' && prior?.status !== 'Paid' && !s.transactions.some(t => t.invoiceId === row.id))
-    add(s, 'transactions', { contactId: row.contactId, amount: row.value, date: new Date().toISOString().slice(0, 10), method: 'Manual', source: 'Invoice', status: 'Succeeded', note: row.title, invoiceId: row.id });
+    add(s, 'transactions', { contactId: row.contactId, amount: row.value, date: new Date().toISOString().slice(0, 10), method: row.paidMethod || 'Manual', source: 'Invoice', status: 'Succeeded', note: row.title, invoiceId: row.id });
   if (key === 'opportunities') {
     row.slips = prior?.slips || 0;
     if (prior?.closeDate && row.closeDate && row.closeDate > prior.closeDate && row.status === 'Open') row.slips++;

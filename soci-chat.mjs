@@ -387,7 +387,7 @@ export function localAgencyReply({ prompt, agency, overview, attachments = [] })
       const count = accounts.filter(a => a.status === 'Active' && a.plan === p.name).length;
       return `| ${p.name} | ${fmtMoney(p.price)} | ${count} | ${fmtMoney(count * (Number(p.price) || 0))} |`;
     });
-    return `### Receita recorrente mensal (MRR)\n\nO **MRR atual** dos planos SaaS é de **${fmtMoney(t.mrr)}** distribuído em **${t.active}** subconta(s) ativa(s).\n\n- **Saldo da carteira:** ${fmtMoney(t.wallet)}\n- **Planos cadastrados:** ${agency.plans?.length || 0}\n- **Stripe:** ${agency.stripe?.connected ? 'Conectado' : 'Não conectado (KPIs calculados por registros locais)'}\n\n${planRows.length ? `| Plano | Mensalidade | Subcontas ativas | MRR |\n|---|---|---:|---:|\n${planRows.join('\n')}` : '> Nenhum plano SaaS foi criado ainda. Configure o primeiro em **Configurador SaaS → Planos SaaS**.'}`;
+    return `### Receita recorrente mensal (MRR)\n\nO **MRR atual** dos planos SaaS é de **${fmtMoney(t.mrr)}** distribuído em **${t.active}** subconta(s) ativa(s).\n\n- **Saldo da carteira:** ${fmtMoney(t.wallet)}\n- **Planos cadastrados:** ${agency.plans?.length || 0}\n- **AbacatePay:** ${agency.abacatepay?.connected ? 'Conectado (assinaturas cobradas por Pix ou cartão)' : 'Não conectado (KPIs calculados por registros locais)'}\n\n${planRows.length ? `| Plano | Mensalidade | Subcontas ativas | MRR |\n|---|---|---:|---:|\n${planRows.join('\n')}` : '> Nenhum plano SaaS foi criado ainda. Configure o primeiro em **Configurador SaaS → Planos SaaS**.'}`;
   }
 
   if (/contato|contatos|contact|biggest|most|maior/.test(q)) {
@@ -433,7 +433,7 @@ export function localAgencyReply({ prompt, agency, overview, attachments = [] })
       !agency.snapshots?.length && '**Criar o primeiro setup** a partir da sua melhor subconta em *Setups de conta*',
       !agency.plans?.length && '**Definir planos SaaS** para estruturar cobrança recorrente em *Configurador SaaS → Planos SaaS*',
       !agency.users?.length && '**Convidar sua equipe** em *Configurações → Equipe*',
-      !agency.stripe?.connected && '**Conectar o Stripe** em *Configurações → Stripe* para cobrar assinaturas reais'
+      !agency.abacatepay?.connected && '**Conectar o AbacatePay** em *Configurações → AbacatePay* para cobrar as assinaturas por Pix ou cartão'
     ].filter(Boolean);
     if (!next.length) {
       return `### Próximos passos recomendados\n\nA estrutura base da sua agência (**marca, setups de conta, planos, equipe e faturamento**) já está configurada.\n\n**Foco sugerido agora:**\n1. Acompanhar subcontas com menos atividade no **Painel da agência**.\n2. Usar **Prospecção** para gerar auditorias e converter novos clientes em subcontas.\n3. Revisar oportunidades abertas (**${t.open}** no total).`;
