@@ -463,19 +463,23 @@ export function buildAgencyContext({ agency, overview }) {
   return lines.join('\n');
 }
 
-export async function localAgencyReply({ prompt, agency, overview, attachments = [] }) {
+export async function localAgencyReply({ prompt, agency, overview, attachments = [], connectors, token }) {
   const t = overview.totals;
   const accounts = overview.accounts || [];
   const q = String(prompt || '').toLowerCase();
   const files = attachments.filter(a => a.kind === 'file');
   const images = attachments.filter(a => a.kind === 'image');
 
-  if (tregConfigured && (/instagram|perfil|profile/i.test(q) || (/procur|busc|pesquis|encontr/i.test(q) && /google|maps|empresa|neg[oó]cio|loja/i.test(q)))) {
-    if (/instagram|profile|perfil/i.test(q)) {
+  const effectiveToken = token || tregToken;
+  const tregConn = connectors?.treg;
+  const tregActive = tregConn?.enabled !== false && Boolean(effectiveToken);
+
+  if (tregActive && (/instagram|perfil|profile/i.test(q) || (/procur|busc|pesquis|encontr/i.test(q) && /google|maps|empresa|neg[oó]cio|loja/i.test(q)))) {
+    if (tregConn?.instagram !== false && /instagram|profile|perfil/i.test(q)) {
       const userMatch = prompt.match(/@([a-zA-Z0-9._]{2,30})/) || prompt.match(/(?:perfil|profile|user|usuário|do)\s+([a-zA-Z0-9._]{2,30})/i);
       if (userMatch && !/procur|busc|pesquis|encontr/i.test(prompt.split(userMatch[0])[0])) {
         try {
-          const profile = await getInstagramProfile(userMatch[1]);
+          const profile = await getInstagramProfile(userMatch[1], { token: effectiveToken });
           return `### 👤 Perfil do Instagram: @${profile.username}\n\n- **Nome:** ${profile.name || '—'}\n- **Seguidores:** ${profile.followers ? profile.followers.toLocaleString('pt-BR') : '—'} | **Seguindo:** ${profile.following ? profile.following.toLocaleString('pt-BR') : '—'}\n- **Publicações:** ${profile.postsCount ?? '—'}\n- **Bio:** ${profile.bio || '—'}\n- **Link:** [instagram.com/${profile.username}](${profile.url})\n- **Conta profissional/comercial:** ${profile.isBusiness ? 'Sim' : 'Não'}`;
         } catch (err) {
           return `Não foi possível carregar o perfil @${userMatch[1]} via Treg: ${err.message}`;
@@ -483,7 +487,7 @@ export async function localAgencyReply({ prompt, agency, overview, attachments =
       }
       try {
         const cleanQuery = prompt.replace(/procur(e|ar)|busc(ar|a)|pesquis(e|ar)|encontr(e|ar)|no\s+instagram|do\s+instagram|perfis|neg[oó]cios|empresas|lojas/gi, '').trim() || 'negócios';
-        const users = await searchInstagramBusinesses(cleanQuery);
+        const users = await searchInstagramBusinesses(cleanQuery, { token: effectiveToken });
         if (users.length) {
           const rows = users.map(u => `| **[@${u.username}](${u.url})** | ${u.name} | ${u.followers ? u.followers.toLocaleString('pt-BR') : '—'} | ${u.bio ? u.bio.replace(/[\r\n]+/g, ' ') : '—'} |`).join('\n');
           return `### 📸 Negócios encontrados no Instagram via Treg ("${cleanQuery}")\n\n| Perfil | Nome | Seguidores | Bio / Destaques |\n| :--- | :--- | :---: | :--- |\n${rows}\n\n> 💡 *Dica:* Você pode abordar esses perfis para prospecção ativa de serviços da sua agência.`;
@@ -494,10 +498,10 @@ export async function localAgencyReply({ prompt, agency, overview, attachments =
       }
     }
 
-    if (/google|maps|lugar|estabelec/i.test(q) || (/procur|busc|pesquis|encontr/i.test(q) && /empresa|neg[oó]cio|loja/i.test(q))) {
+    if (tregConn?.googleMaps !== false && (/google|maps|lugar|estabelec/i.test(q) || (/procur|busc|pesquis|encontr/i.test(q) && /empresa|neg[oó]cio|loja/i.test(q)))) {
       try {
         const cleanQuery = prompt.replace(/procur(e|ar)|busc(ar|a)|pesquis(e|ar)|encontr(e|ar)|no\s+google|no\s+maps|empresas|neg[oó]cios/gi, '').trim() || 'empresas';
-        const places = await searchGoogleBusinesses(cleanQuery);
+        const places = await searchGoogleBusinesses(cleanQuery, { token: effectiveToken });
         if (places.length) {
           const rows = places.map(p => `| **${p.name}** | ${p.phone || '—'} | ${p.address || '—'} | ${p.rating ? `⭐ ${p.rating}` : '—'} (${p.reviewsCount || 0}) | ${p.website ? `[Site](${p.website})` : (p.instagram ? `[Instagram](${p.instagram})` : '—')} |`).join('\n');
           return `### 🔍 Negócios encontrados no Google Maps via Treg ("${cleanQuery}")\n\n| Empresa | Telefone | Endereço | Avaliação | Link |\n| :--- | :--- | :--- | :---: | :---: |\n${rows}\n\n> 💡 *Dica:* Salve esses contatos no módulo de **Prospecção** para auditar e enviar propostas.`;
@@ -708,7 +712,7 @@ function createOpenAICompatProvider({ baseUrl, apiKey, defaultModel, request, so
     }
   ];
 
-  async function executeTregTool(name, argsRaw) {
+  async function executeTregTool(name, argsRaw, { token } = {}) {
     let args = {};
     try {
       args = typeof argsRaw === 'string' ? JSON.parse(argsRaw) : (argsRaw || {});
@@ -717,24 +721,33 @@ function createOpenAICompatProvider({ baseUrl, apiKey, defaultModel, request, so
     }
     if (name === 'procurar_negocios_google') {
       const q = args.query || args.q || '';
-      return await searchGoogleBusinesses(q);
+      return await searchGoogleBusinesses(q, { token });
     }
     if (name === 'procurar_negocios_instagram') {
       const q = args.query || args.q || '';
-      return await searchInstagramBusinesses(q);
+      return await searchInstagramBusinesses(q, { token });
     }
     if (name === 'obter_perfil_instagram') {
       const u = args.username || args.user || '';
-      return await getInstagramProfile(u);
+      return await getInstagramProfile(u, { token });
     }
     return { error: `Ferramenta ${name} não encontrada.` };
   }
 
-  async function stream({ model, messages, signal, onDelta, onReasoning }) {
+  async function stream({ model, messages, signal, onDelta, onReasoning, connectors, token }) {
     const chosen = model && model !== 'local' ? model : defaultModel;
     const conversation = [...messages];
     let finish = 'stop';
     let rounds = 0;
+
+    const effectiveToken = token || tregToken;
+    const tregConn = connectors?.treg;
+    const tregActive = tregConn?.enabled !== false && Boolean(effectiveToken);
+    const availableTools = [];
+    if (tregActive) {
+      if (tregConn?.googleMaps !== false) availableTools.push(TREG_TOOLS[0]);
+      if (tregConn?.instagram !== false) availableTools.push(TREG_TOOLS[1], TREG_TOOLS[2]);
+    }
 
     while (rounds < 3) {
       rounds++;
@@ -742,7 +755,7 @@ function createOpenAICompatProvider({ baseUrl, apiKey, defaultModel, request, so
         model: chosen,
         messages: conversation,
         stream: true,
-        ...(tregConfigured ? { tools: TREG_TOOLS, tool_choice: 'auto' } : {})
+        ...(availableTools.length > 0 ? { tools: availableTools, tool_choice: 'auto' } : {})
       };
 
       let res;
@@ -821,7 +834,7 @@ function createOpenAICompatProvider({ baseUrl, apiKey, defaultModel, request, so
 
           let result;
           try {
-            result = await executeTregTool(fnName, tc.function.arguments);
+            result = await executeTregTool(fnName, tc.function.arguments, { token: effectiveToken });
           } catch (toolErr) {
             result = { error: toolErr.message || 'Falha ao executar ferramenta' };
           }
@@ -871,8 +884,8 @@ function createLocalProvider() {
     baseUrl: null,
     defaultModel: 'local',
     listModels: async () => ['local'],
-    async stream({ agency, overview, userText, attachments, signal, onDelta }) {
-      const reply = await localAgencyReply({ prompt: userText, agency, overview, attachments });
+    async stream({ agency, overview, userText, attachments, connectors, token, signal, onDelta }) {
+      const reply = await localAgencyReply({ prompt: userText, agency, overview, attachments, connectors, token });
       await sleep(160, signal);
       const chunks = reply.match(/\S+\s*|\s+/g) || [reply];
       for (const piece of chunks) {
@@ -903,18 +916,39 @@ async function* readSSELines(body) {
   if (buffer.startsWith('data:')) yield buffer.slice(5).trim();
 }
 
-function buildLLMHistory({ conv, leafId, agency, overview, customInstructions }) {
+function buildLLMHistory({ conv, leafId, agency, overview, customInstructions, connectors, skills, token }) {
   const today = new Date().toISOString().slice(0, 10);
   const agencyContext = buildAgencyContext({ agency, overview });
+
+  const effectiveToken = token || tregToken;
+  const tregConn = connectors?.treg;
+  const tregActive = tregConn?.enabled !== false && Boolean(effectiveToken);
+  const tregToolsDesc = [];
+  if (tregActive) {
+    if (tregConn?.googleMaps !== false) {
+      tregToolsDesc.push("- 'procurar_negocios_google': pesquisa em tempo real empresas, comércios e estabelecimentos locais no Google Maps (retorna nome, telefone, endereço, nota, total de avaliações, status e site).");
+    }
+    if (tregConn?.instagram !== false) {
+      tregToolsDesc.push("- 'procurar_negocios_instagram': pesquisa em tempo real perfis de empresas, lojas, prestadores de serviços e criadores no Instagram por nicho e cidade (retorna @handle, nome, bio, seguidores, contatos e link).");
+      tregToolsDesc.push("- 'obter_perfil_instagram': consulta o perfil público detalhado de uma conta ou empresa no Instagram pelo @handle.");
+    }
+  }
+
+  const tregSection = tregToolsDesc.length > 0 ? `Ferramentas de Inteligência Externa e Prospecção (Treg API):
+Você tem acesso a dados reais e atualizados do mundo externo em tempo real:
+${tregToolsDesc.join('\n')}
+Sempre que o usuário pedir para buscar, encontrar, listar ou prospectar negócios no Google ou no Instagram, acione a ferramenta correspondente imediatamente. Apresente os resultados sempre organizados em formato de tabela ou cartões em Markdown, destacando telefones, links/Instagram, endereços e notas, e sugira abordagens comerciais para a agência prospectar esses clientes.` : '';
+
+  const activeSkills = (skills || []).filter(s => s.enabled !== false);
+  const skillsSection = activeSkills.length > 0 ? `Habilidades especializadas ativas nesta agência (padrão agentskills.io):
+${activeSkills.map(s => `### ${s.name}
+${s.description ? `*${s.description}*\n` : ''}${s.instructions}`).join('\n\n')}` : '';
+
   const system = [
     `Você é a Soci, assistente executiva de IA integrada à plataforma de gestão de agências soci. Responda em português do Brasil ou espanhol latino (conforme a preferência ou idioma do usuário), de forma clara, direta, útil e usando Markdown bem estruturado (listas, tabelas, destaques, código quando pertinente). Todas as novas criações, templates, copies ou materiais devem nascer já prontos em português e espanhol latino, com alta qualidade e linguagem natural para ambos os mercados. Data atual: ${today}.`,
     `Dados atuais desta agência (trate como base factual da operação):\n${agencyContext}`,
-    tregConfigured ? `Ferramentas de Inteligência Externa e Prospecção (Treg API):
-Você tem acesso a dados reais e atualizados do mundo externo em tempo real:
-- 'procurar_negocios_google': pesquisa em tempo real empresas, comércios e estabelecimentos locais no Google Maps (retorna nome, telefone, endereço, nota, total de avaliações, status e site).
-- 'procurar_negocios_instagram': pesquisa em tempo real perfis de empresas, lojas, prestadores de serviços e criadores no Instagram por nicho e cidade (retorna @handle, nome, bio, seguidores, contatos e link).
-- 'obter_perfil_instagram': consulta o perfil público detalhado de uma conta ou empresa no Instagram pelo @handle.
-Sempre que o usuário pedir para buscar, encontrar, listar ou prospectar negócios no Google ou no Instagram, acione a ferramenta correspondente imediatamente. Apresente os resultados sempre organizados em formato de tabela ou cartões em Markdown, destacando telefones, links/Instagram, endereços e notas, e sugira abordagens comerciais para a agência prospectar esses clientes.` : '',
+    tregSection,
+    skillsSection,
     typeof customInstructions === 'string' && customInstructions.trim()
       ? `Instruções personalizadas do usuário:\n${customInstructions.trim().slice(0, 4000)}`
       : ''
@@ -1018,10 +1052,12 @@ export function createAskHandler({ store, openAI, openAIRequest = fetch }) {
 
     if (op === 'state' && method === 'GET') {
       const provider = await resolveProvider({ openAI, session: who.session, request: openAIRequest });
-      const [models, items, instructions] = await Promise.all([
+      const [models, items, instructions, connectors, skills] = await Promise.all([
         provider.listModels(),
         chatStore.list(agencyId),
-        chatStore.getInstructions(agencyId)
+        chatStore.getInstructions(agencyId),
+        chatStore.getConnectors(agencyId),
+        chatStore.getSkills(agencyId)
       ]);
       return json({
         config: {
@@ -1031,8 +1067,86 @@ export function createAskHandler({ store, openAI, openAIRequest = fetch }) {
           models
         },
         items,
-        instructions
+        instructions,
+        connectors: {
+          ...connectors,
+          treg: {
+            ...connectors.treg,
+            isConfigured: Boolean(connectors.treg?.token || tregConfigured),
+            serverDefaultAvailable: tregConfigured
+          }
+        },
+        skills
       });
+    }
+
+    if (op === 'connectors' && method === 'GET') {
+      const connectors = await chatStore.getConnectors(agencyId);
+      return json({
+        connectors: {
+          ...connectors,
+          treg: {
+            ...connectors.treg,
+            isConfigured: Boolean(connectors.treg?.token || tregConfigured),
+            serverDefaultAvailable: tregConfigured
+          }
+        }
+      });
+    }
+
+    if (op === 'connectors' && method === 'POST') {
+      const body = await readLargeJson(req);
+      if (body.action === 'verify') {
+        const tokenToVerify = body.token || (await chatStore.getConnectors(agencyId))?.treg?.token || tregToken;
+        const verification = await verifyTregToken(tokenToVerify);
+        return json(verification);
+      }
+      const updated = await chatStore.setConnectors(agencyId, body);
+      let verification = null;
+      if (body.verify !== false && updated.treg?.token) {
+        verification = await verifyTregToken(updated.treg.token);
+      }
+      return json({
+        connectors: {
+          ...updated,
+          treg: {
+            ...updated.treg,
+            isConfigured: Boolean(updated.treg?.token || tregConfigured),
+            serverDefaultAvailable: tregConfigured
+          }
+        },
+        verification
+      });
+    }
+
+    if (op === 'skills' && method === 'GET') {
+      return json({ skills: await chatStore.getSkills(agencyId) });
+    }
+
+    if (op === 'skills' && method === 'POST') {
+      const body = await readLargeJson(req);
+      if (body.action === 'delete') {
+        if (!body.id) throw fail('ID da habilidade não informado.', 400);
+        return json({ skills: await chatStore.deleteSkill(agencyId, body.id) });
+      }
+      let skillData = body;
+      if (body.rawMarkdown) {
+        const parsed = parseSkillMd(body.rawMarkdown);
+        skillData = {
+          ...parsed,
+          ...(body.name ? { name: body.name } : {}),
+          id: body.id,
+          enabled: body.enabled !== false
+        };
+      }
+      const skills = await chatStore.saveSkill(agencyId, skillData);
+      return json({ skills });
+    }
+
+    if (op === 'skills' && method === 'DELETE') {
+      const id = url.searchParams.get('id');
+      if (!id) throw fail('ID da habilidade não informado.', 400);
+      return json({ skills: await chatStore.deleteSkill(agencyId, id) });
     }
 
     if (op === 'settings' && method === 'POST') {
@@ -1145,8 +1259,22 @@ export function createAskHandler({ store, openAI, openAIRequest = fetch }) {
       const attachments = parent.metadata?.attachments || [];
 
       try {
-        const storedInstructions = typeof body.system_prompt === 'string' ? body.system_prompt : await chatStore.getInstructions(agencyId);
-        const history = buildLLMHistory({ conv, leafId: parent.id, agency, overview, customInstructions: storedInstructions });
+        const [storedInstructions, connectors, skills] = await Promise.all([
+          typeof body.system_prompt === 'string' ? body.system_prompt : chatStore.getInstructions(agencyId),
+          chatStore.getConnectors(agencyId),
+          chatStore.getSkills(agencyId)
+        ]);
+        const effectiveTregToken = connectors?.treg?.token || tregToken;
+        const history = buildLLMHistory({
+          conv,
+          leafId: parent.id,
+          agency,
+          overview,
+          customInstructions: storedInstructions,
+          connectors,
+          skills,
+          token: effectiveTregToken
+        });
         const result = await provider.stream({
           model,
           messages: history,
@@ -1154,6 +1282,8 @@ export function createAskHandler({ store, openAI, openAIRequest = fetch }) {
           overview,
           userText,
           attachments,
+          connectors,
+          token: effectiveTregToken,
           signal: controller.signal,
           onDelta: v => {
             text += v;

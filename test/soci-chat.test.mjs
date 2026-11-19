@@ -215,3 +215,83 @@ test('Pergunte à Soci persists conversations and custom instructions through Su
   assert.equal(chatRow.state.instructions, 'Responda sempre em tópicos objetivos.');
   assert.equal(chatRow.state.conversations.length, 1);
 });
+
+test('Pergunte à Soci manages agency connectors and custom skills (agentskills.io)', async t => {
+  const local = await start(); t.after(local.close);
+
+  // 1. Initial state returns default connectors and empty skills
+  const state0 = await local.call('/api/ask/state');
+  assert.equal(state0.status, 200);
+  assert.ok(state0.body.connectors);
+  assert.equal(state0.body.connectors.treg.enabled, true);
+  assert.deepEqual(state0.body.skills, []);
+
+  // 2. Configure agency Treg connector
+  const tregUpdate = await local.call('/api/ask/connectors', {
+    treg: { token: 'test-agency-token-xyz', googleMaps: true, instagram: false },
+    verify: false
+  });
+  assert.equal(tregUpdate.status, 200);
+  assert.equal(tregUpdate.body.connectors.treg.token, 'test-agency-token-xyz');
+  assert.equal(tregUpdate.body.connectors.treg.googleMaps, true);
+  assert.equal(tregUpdate.body.connectors.treg.instagram, false);
+
+  // 3. Verify GET /api/ask/connectors
+  const getConn = await local.call('/api/ask/connectors');
+  assert.equal(getConn.status, 200);
+  assert.equal(getConn.body.connectors.treg.token, 'test-agency-token-xyz');
+
+  // 4. Create a custom skill directly
+  const skillRes1 = await local.call('/api/ask/skills', {
+    name: 'Auditor de Copywriting',
+    description: 'Especialista em tom de voz e conversão',
+    instructions: 'Sempre avalie o contraste e o ritmo da copy.'
+  });
+  assert.equal(skillRes1.status, 200);
+  assert.equal(skillRes1.body.skills.length, 1);
+  assert.equal(skillRes1.body.skills[0].name, 'Auditor de Copywriting');
+  assert.equal(skillRes1.body.skills[0].enabled, true);
+
+  const skill1Id = skillRes1.body.skills[0].id;
+
+  // 5. Import a skill via agentskills.io SKILL.md format
+  const rawSkillMd = `---
+name: Lead Signals Hunter
+description: Identifica sinais de compra e dores em comentários
+---
+Você é um analista sênior de inteligência de vendas. Mapeie gatilhos imediatos de contratação.`;
+
+  const skillRes2 = await local.call('/api/ask/skills', { rawMarkdown: rawSkillMd });
+  assert.equal(skillRes2.status, 200);
+  assert.equal(skillRes2.body.skills.length, 2);
+  const imported = skillRes2.body.skills.find(s => s.name === 'Lead Signals Hunter');
+  assert.ok(imported);
+  assert.equal(imported.description, 'Identifica sinais de compra e dores em comentários');
+  assert.match(imported.instructions, /gatilhos imediatos de contratação/);
+
+  // 6. Toggle skill enabled
+  const toggleRes = await local.call('/api/ask/skills', {
+    id: skill1Id,
+    name: 'Auditor de Copywriting',
+    instructions: 'Sempre avalie o contraste e o ritmo da copy.',
+    enabled: false
+  });
+  assert.equal(toggleRes.status, 200);
+  const updatedSkill = toggleRes.body.skills.find(s => s.id === skill1Id);
+  assert.equal(updatedSkill.enabled, false);
+
+  // 7. Delete skill
+  const deleteRes = await local.call('/api/ask/skills', { action: 'delete', id: skill1Id });
+  assert.equal(deleteRes.status, 200);
+  assert.equal(deleteRes.body.skills.length, 1);
+  assert.equal(deleteRes.body.skills[0].name, 'Lead Signals Hunter');
+
+  // 8. Test conversation streaming with connectors and active skills
+  const convStream = await local.stream('/api/ask/conversation', {
+    action: 'next',
+    messages: [{ content: { content_type: 'text', parts: ['Como a agência deve prospectar leads hoje?'] } }]
+  });
+  assert.equal(convStream.status, 200);
+  const done = convStream.events.find(e => e.event === 'done')?.data;
+  assert.ok(done?.message?.id);
+});
