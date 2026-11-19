@@ -5,6 +5,7 @@ import { applyBrandColor } from './graao.js';
 import { tr, translateDom, getLanguage } from './i18n.js';
 import { money, utabs } from './screens.js';
 import { colorPicker, mountColorPicker } from './color-picker.js';
+import { phoneField } from './phone-input.js';
 import { createProspecting, prospectRoutes } from './prospecting.js';
 import { createSociChat } from './soci-chat.js';
 import {
@@ -249,7 +250,7 @@ export function startAgency(env) {
   function accountForm(preset = {}) {
     const snaps = D().snapshots;
     return `<div class="field-grid"><label>Nome da empresa<input name="name" required maxlength="70" value="${h(preset.name || '')}"></label><label>E-mail<input name="email" type="email" value="${h(preset.email || '')}"></label>
-      <label>Telefone<input name="phone" type="tel" value="${h(preset.phone || '')}"></label><label>Endereço<input name="address" value="${h(preset.address || '')}"></label>
+      ${phoneField({ name: 'phone', label: 'Telefone', value: preset.phone || '', id: 'ag-preset-phone' })}<label>Endereço<input name="address" value="${h(preset.address || '')}"></label>
       <label>Fuso horário<select name="timezone">${['America/Sao_Paulo', 'America/New_York', 'Europe/London', 'UTC'].map(z => `<option>${z}</option>`).join('')}</select></label>
       <label>Moeda<input readonly value="Real brasileiro (BRL)"></label>
       <label>Setup inicial<select name="snapshotId"><option value="">Começar em branco</option>${snaps.map(s => `<option value="${s.id}">${h(s.name)}</option>`).join('')}</select></label>
@@ -721,7 +722,7 @@ export function startAgency(env) {
   }
   const settingsPages = {
     openai: openAISettings,
-    profile: () => { const p = D().profile; return `<form class="surface padded settings-form" data-ag-form="profile"><h2>Dados pessoais</h2><div class="field-grid"><label>Nome<input name="first" required value="${h(p.first)}"></label><label>Sobrenome<input name="last" required value="${h(p.last)}"></label><label>E-mail<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" type="tel" value="${h(p.phone)}"></label></div><button class="primary">Salvar perfil</button><p class="form-status" role="alert"></p></form>`; },
+    profile: () => { const p = D().profile; return `<form class="surface padded settings-form" data-ag-form="profile"><h2>Dados pessoais</h2><div class="field-grid"><label>Nome<input name="first" required value="${h(p.first)}"></label><label>Sobrenome<input name="last" required value="${h(p.last)}"></label><label>E-mail<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'ag-profile-phone' })}</div><button class="primary">Salvar perfil</button><p class="form-status" role="alert"></p></form>`; },
     company: () => {
       const c = D().company;
       return `<form class="surface padded settings-form" data-ag-form="company">
@@ -729,7 +730,7 @@ export function startAgency(env) {
         <div class="field-grid">
           <label>Nome da empresa<input name="name" required maxlength="120" value="${h(c.name)}"></label>
           <label>Site institucional<input name="website" type="url" value="${h(c.website)}"></label>
-          <label>Telefone<input name="phone" type="tel" value="${h(c.phone)}"></label>
+          ${phoneField({ name: 'phone', label: 'Telefone', value: c.phone, id: 'ag-company-phone' })}
           <label>Endereço comercial<input name="address" value="${h(c.address)}"></label>
           <label>Fuso horário padrão<select name="timezone">${['America/Sao_Paulo', 'America/New_York', 'Europe/London', 'UTC'].map(z => `<option ${c.timezone === z ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
           <label>Moeda<input readonly value="Real brasileiro (BRL)"></label>
@@ -974,7 +975,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'new-account': dialog('Criar nova subconta', accountForm(), { form: 'account', submit: 'Criar subconta' }); break;
         case 'edit-account': {
           const a = accounts().find(x => x.id === id), meta = D().accounts[id] || {};
-          dialog(`Editar ${a.name}`, `<div class="field-grid"><label>Status<select name="status">${['Active', 'Paused', 'Closed'].map(s => `<option value="${s}" ${a.status === s ? 'selected' : ''}>${tr(s)}</option>`).join('')}</select></label><label>Plano SaaS<select name="plan"><option value="">Sem plano</option>${D().plans.map(p => `<option value="${p.id}" ${meta.plan === p.id ? 'selected' : ''}>${h(p.name)}</option>`).join('')}</select></label><label>Endereço<input name="address" value="${h(meta.address)}"></label><label>Telefone<input name="phone" value="${h(meta.phone)}"></label><label>Site<input name="website" type="url" value="${h(meta.website)}"></label></div>
+          dialog(`Editar ${a.name}`, `<div class="field-grid"><label>Status<select name="status">${['Active', 'Paused', 'Closed'].map(s => `<option value="${s}" ${a.status === s ? 'selected' : ''}>${tr(s)}</option>`).join('')}</select></label><label>Plano SaaS<select name="plan"><option value="">Sem plano</option>${D().plans.map(p => `<option value="${p.id}" ${meta.plan === p.id ? 'selected' : ''}>${h(p.name)}</option>`).join('')}</select></label><label>Endereço<input name="address" value="${h(meta.address)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: meta.phone || '', id: 'ag-meta-phone' })}<label>Site<input name="website" type="url" value="${h(meta.website)}"></label></div>
             <label>Motivo da suspensão ou encerramento<textarea name="suspendedReason" maxlength="500">${h(meta.suspendedReason || '')}</textarea><small class="dim">Visível para usuários da subconta enquanto o acesso estiver bloqueado.</small></label>`, { form: 'account-meta', id, submit: 'Salvar alterações' });
           break;
         }

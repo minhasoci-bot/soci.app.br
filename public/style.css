@@ -75,3 +75,23 @@ dialog{border:1px solid var(--line);border-radius:12px;color:var(--ink);width:mi
 .crm-custom legend{font-size:12.5px;font-weight:600;padding:0 4px}
 td .text-link{background:none;border:0;padding:0;cursor:pointer;font:inherit}
 .page>.table-shell,.page>.tabs,.page>.ag-settings>.table-shell{flex-shrink:0}
+
+/* Phone input: DDI, DDD e máscara internacional inteligente */
+.field-phone { display: grid; gap: 5px; width: 100%; font-size: 13px; font-weight: 600; color: #344054; }
+.phone-combo { display: flex; align-items: stretch; position: relative; border: 1px solid var(--g-line-2, #d6dce6); border-radius: 8px; background: #fff; transition: border-color .2s ease, box-shadow .2s ease; min-height: 38px; }
+.phone-combo:focus-within { border-color: var(--g-brand, #2563eb); box-shadow: 0 0 0 3px color-mix(in srgb, var(--g-brand, #2563eb) 20%, transparent); }
+.phone-country-wrap { position: relative; display: flex; align-items: center; flex: none; background: #f8fafc; border-right: 1px solid var(--g-line-2, #d6dce6); border-radius: 7px 0 0 7px; padding: 0 9px; cursor: pointer; user-select: none; }
+.phone-country-wrap:hover { background: #f1f5f9; }
+.phone-country-select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 2; font-size: 14px; }
+.phone-country-display { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: #1e293b; pointer-events: none; }
+.phone-flag { font-size: 15px; line-height: 1; }
+.phone-dial { font-family: inherit; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.phone-arrow { font-size: 9px; color: #64748b; margin-left: 2px; }
+.phone-number-input { flex: 1; min-width: 0; border: 0 !important; background: transparent !important; box-shadow: none !important; border-radius: 0 7px 7px 0 !important; padding: 7px 11px !important; font-size: 13.5px !important; color: #17243a !important; font-variant-numeric: tabular-nums; letter-spacing: .02em; outline: none !important; }
+.phone-number-input::placeholder { color: #94a3b8; }
+:root[data-theme=dark] .phone-combo { background: #0f1114; border-color: var(--g-line-2, #262a30); }
+:root[data-theme=dark] .phone-country-wrap { background: #16181d; border-right-color: var(--g-line-2, #262a30); }
+:root[data-theme=dark] .phone-country-wrap:hover { background: #1c2026; }
+:root[data-theme=dark] .phone-country-display { color: #f1f5f9; }
+:root[data-theme=dark] .phone-number-input { color: #f1f5f9 !important; }
+

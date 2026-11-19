@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getLanguage, setLanguage, tr, langToggle, PT, ES, PT_TO_ES, translateText } from '../ui/i18n.js';
+import { COUNTRIES, getCountry, formatLocalNumber, parsePhone, phoneField } from '../ui/phone-input.js';
 import { chatDefaults } from '../ui/chat-widget-data.js';
 import { studioTemplates, starterProject } from '../ui/studio-data.js';
 import { blank, execute } from '../model.mjs';
@@ -114,4 +115,71 @@ test('All new creations are born ready with Spanish and Portuguese support', () 
   const project = starterProject('Brief for startup', 'landing');
   assert.ok(project.name);
   assert.equal(project.blocks.length, 3);
+});
+
+test('Phone input detects country, DDI and formats DDD automatically', () => {
+  // Brazilian raw 11 digits (Luiz's number from settings: 31985869015)
+  const luiz = parsePhone('31985869015');
+  assert.equal(luiz.country.iso, 'BR');
+  assert.equal(luiz.country.dial, '+55');
+  assert.equal(luiz.formattedLocal, '(31) 98586-9015');
+  assert.equal(luiz.fullValue, '+55 (31) 98586-9015');
+
+  // Brazilian raw 10 digits landline (3132124000)
+  const landline = parsePhone('3132124000');
+  assert.equal(landline.country.iso, 'BR');
+  assert.equal(landline.formattedLocal, '(31) 3212-4000');
+
+  // International full E.164 with +55
+  const fullBr = parsePhone('+55 (31) 98586-9015');
+  assert.equal(fullBr.country.iso, 'BR');
+  assert.equal(fullBr.formattedLocal, '(31) 98586-9015');
+
+  // Prefix without plus (5531985869015)
+  const dial55 = parsePhone('5531985869015');
+  assert.equal(dial55.country.iso, 'BR');
+  assert.equal(dial55.formattedLocal, '(31) 98586-9015');
+
+  // Mexico (+52)
+  const mx = parsePhone('+52 55 1234 5678');
+  assert.equal(mx.country.iso, 'MX');
+  assert.equal(mx.country.dial, '+52');
+  assert.equal(mx.formattedLocal, '(55) 1234-5678');
+
+  // Argentina (+54)
+  const ar = parsePhone('+54 11 4321 5678');
+  assert.equal(ar.country.iso, 'AR');
+  assert.equal(ar.country.dial, '+54');
+  assert.equal(ar.formattedLocal, '(11) 4321-5678');
+
+  // United States (+1)
+  const us = parsePhone('+1 555 123 4567');
+  assert.equal(us.country.iso, 'US');
+  assert.equal(us.country.dial, '+1');
+  assert.equal(us.formattedLocal, '(555) 123-4567');
+
+  // Colombia (+57)
+  const co = parsePhone('+57 300 123 4567');
+  assert.equal(co.country.iso, 'CO');
+  assert.equal(co.formattedLocal, '300 123 4567');
+
+  // Chile (+56)
+  const cl = parsePhone('+56 9 1234 5678');
+  assert.equal(cl.country.iso, 'CL');
+  assert.equal(cl.formattedLocal, '9 1234 5678');
+
+  // phoneField HTML rendering
+  const html = phoneField({ name: 'phone', label: 'Telefone', value: '31985869015', id: 'test-phone' });
+  assert.match(html, /data-phone-field/);
+  assert.match(html, /data-phone-country/);
+  assert.match(html, /value="\+55" data-iso="BR" selected/);
+  assert.match(html, /value="\(31\) 98586-9015"/);
+  assert.match(html, /<input type="hidden" name="phone" data-phone-hidden value="\+55 \(31\) 98586-9015">/);
+
+  // Spanish translation of phoneField label and country selector
+  setLanguage('es');
+  const htmlEs = phoneField({ name: 'phone', label: 'Telefone', value: '31985869015', id: 'test-phone-es' });
+  assert.match(htmlEs, /<span>Teléfono<\/span>/);
+  assert.match(htmlEs, /aria-label="Código de país"/);
+  setLanguage('pt');
 });

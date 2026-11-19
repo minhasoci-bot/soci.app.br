@@ -1,5 +1,6 @@
 // Español Latino (es-419) translation catalog
 export default {
+  "Código do país": "Código de país",
   "?email=ana@exemplo.com": "?email=ana@exemplo.con",
   "(o link da sala).": "(o enlace da sala).",
   "(sem OpenAI: as páginas saem do gerador local)": "(sin OpenAI: as páginas saem do gerador local)",

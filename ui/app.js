@@ -32,6 +32,7 @@ import { installAutomation } from './automation.js';
 import { installClientPortal } from './client-portal.js';
 import { installCourses } from './courses.js';
 import { applyBrandColor, setThemeAccount } from './graao.js';
+import './phone-input.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay'), toast=document.querySelector('#toast');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
