@@ -19,13 +19,49 @@ export const tregConfigured = Boolean(tregToken);
 
 const TREG_BASE = 'https://treg.to';
 
-export async function callTregEndpoint(endpointId, payload, { method = 'POST', maxCost = 0.50 } = {}) {
-  const token = resolveTregToken();
-  if (!token) throw new Error('Token do Treg não configurado. Defina TREG_TOKEN em .env.local ou faça login no treg.');
+/**
+ * Valida um token do Treg e obtém os dados da conta / equipe / saldo
+ */
+export async function verifyTregToken(token) {
+  const candidate = String(token || resolveTregToken()).trim();
+  if (!candidate) return { valid: false, error: 'Token não informado.' };
+  try {
+    const res = await fetch(`${TREG_BASE}/home`, {
+      method: 'GET',
+      headers: {
+        'X-Treg-Token': candidate
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        return { valid: false, error: 'Token do Treg inválido ou expirado.' };
+      }
+      return { valid: false, error: `Treg respondeu HTTP ${res.status}` };
+    }
+    const data = await res.json();
+    const balanceUsd = typeof data.balance_micro === 'number' ? (data.balance_micro / 1e6).toFixed(2) : '0.00';
+    return {
+      valid: true,
+      account: data.account || '',
+      team: data.team || '',
+      role: data.role || '',
+      balanceUsd,
+      balanceMicro: data.balance_micro || 0,
+      toolsCount: data.catalog_tools || '4200+'
+    };
+  } catch (err) {
+    return { valid: false, error: err.message || 'Falha ao conectar com o Treg' };
+  }
+}
+
+export async function callTregEndpoint(endpointId, payload, { method = 'POST', maxCost = 0.50, token } = {}) {
+  const activeToken = String(token || resolveTregToken()).trim();
+  if (!activeToken) throw new Error('Token do Treg não configurado. Conecte sua chave em Configurações do chat → Conectores.');
 
   const headers = {
     'Content-Type': 'application/json',
-    'X-Treg-Token': token,
+    'X-Treg-Token': activeToken,
     'X-Treg-Route-Max-Cost': String(maxCost),
     'X-Treg-Meta': 'source=soci-agent'
   };
@@ -48,8 +84,8 @@ export async function callTregEndpoint(endpointId, payload, { method = 'POST', m
 /**
  * Pesquisa estabelecimentos e empresas no Google Maps via Treg
  */
-export async function searchGoogleBusinesses(query, { country = 'br', language = 'pt' } = {}) {
-  const data = await callTregEndpoint('treg.google.serp.maps', { q: query, country, language }, { maxCost: 0.10 });
+export async function searchGoogleBusinesses(query, { country = 'br', language = 'pt', token } = {}) {
+  const data = await callTregEndpoint('treg.google.serp.maps', { q: query, country, language }, { maxCost: 0.10, token });
   const rawPlaces = data?.output?.places || data?.places || [];
   const places = [];
 
@@ -78,8 +114,8 @@ export async function searchGoogleBusinesses(query, { country = 'br', language =
 /**
  * Pesquisa negócios, lojas e contas no Instagram por palavra-chave / cidade via Treg
  */
-export async function searchInstagramBusinesses(query) {
-  const data = await callTregEndpoint('treg.instagram.search.users', { q: query }, { maxCost: 0.10 });
+export async function searchInstagramBusinesses(query, { token } = {}) {
+  const data = await callTregEndpoint('treg.instagram.search.users', { q: query }, { maxCost: 0.10, token });
   const rawUsers = data?.output?.users || data?.users || [];
   const results = [];
 
@@ -103,14 +139,14 @@ export async function searchInstagramBusinesses(query) {
 /**
  * Consulta o perfil público detalhado de um usuário do Instagram via Treg
  */
-export async function getInstagramProfile(username) {
+export async function getInstagramProfile(username, { token } = {}) {
   const cleanUsername = String(username || '')
     .replace(/^@/, '')
     .replace(/^https?:\/\/(?:www\.)?instagram\.com\//, '')
     .replace(/\/+$/, '')
     .trim();
 
-  const data = await callTregEndpoint('treg.instagram.user.profile', { username: cleanUsername }, { maxCost: 0.10 });
+  const data = await callTregEndpoint('treg.instagram.user.profile', { username: cleanUsername }, { maxCost: 0.10, token });
   const out = data?.output || {};
 
   return {
@@ -128,7 +164,7 @@ export async function getInstagramProfile(username) {
 /**
  * Adaptador para o módulo de prospecção da Soci (compatível com placesSearch)
  */
-export async function placesSearchTreg(keywords, location) {
+export async function placesSearchTreg(keywords, location, { token } = {}) {
   const list = Array.isArray(keywords) ? keywords : [keywords];
   const allResults = [];
   const seen = new Set();
@@ -136,7 +172,7 @@ export async function placesSearchTreg(keywords, location) {
   for (const kw of list.slice(0, 3)) {
     const q = `${kw} em ${location}`;
     try {
-      const places = await searchGoogleBusinesses(q);
+      const places = await searchGoogleBusinesses(q, { token });
       for (const p of places) {
         if (!p.placeId || seen.has(p.placeId)) continue;
         seen.add(p.placeId);
