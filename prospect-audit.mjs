@@ -71,13 +71,13 @@ function requestOnce(url,{ method = 'GET',maxBytes = MAX_BYTES,timeout = PAGE_TI
     } },res => {
       const ttfb = Date.now()-started;
       const chunks = [];
-      let size = 0;
+      let size = 0, truncated = false;
       res.on('data',chunk => {
         size += chunk.length;
-        if (size > maxBytes) { res.destroy(); return; }
+        if (size > maxBytes) { truncated = true; res.destroy(); return; }
         chunks.push(chunk);
       });
-      res.on('close',() => resolve({ status:res.statusCode,headers:res.headers,body:Buffer.concat(chunks),ttfb,total:Date.now()-started,url:url.href }));
+      res.on('close',() => resolve({ status:res.statusCode,headers:res.headers,body:Buffer.concat(chunks),truncated,ttfb,total:Date.now()-started,url:url.href }));
       res.on('error',reject);
     });
     req.on('timeout',() => req.destroy(Object.assign(new Error('Tempo esgotado.'),{ code:'ETIMEDOUT' })));
