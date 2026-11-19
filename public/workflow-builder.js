@@ -147,8 +147,6 @@ function fieldInput(c, editor, field, config, target) {
     const sample = c.s.contacts?.[0] || { name: 'Lucas Silva', email: 'lucas@exemplo.com', phone: '+55 11 98765-4321', company: 'Acme' };
     const preview = resolveTemplate(String(value), { ...buildWorkflowContext(c.s, editor.row, sample), workspace: { name: c.s.profile?.name || '' } });
     return `<label>${label}<textarea rows="4" maxlength="4000" ${attrs} data-wf-var-target>${h(value)}</textarea></label>
-      <div class="wf-var-shelf"><div class="wf-var-shelf-head"><span class="wf-var-title">Variáveis</span><span class="wf-var-hint">Clique para inserir</span></div>
-      <div class="wf-var-pills">${variables.map(([token, name]) => `<button type="button" class="wf-var-pill" data-wf-insert-var="${h(token)}"><span class="wf-var-token">${h(token)}</span><span class="wf-var-desc">${h(name)}</span></button>`).join('')}</div></div>
       <div class="wf-var-preview-box"><span class="wf-var-preview-label">Exemplo com ${h(sample.name)}:</span><div class="wf-var-preview" data-wf-preview="${h(field.key)}">${h(typeof preview === 'string' ? preview : JSON.stringify(preview)) || '(vazio)'}</div></div>`;
   }
   const type = field.kind === 'number' ? 'number' : field.kind === 'time' ? 'time' : field.kind === 'datetime' ? 'datetime-local' : 'text';
