@@ -1,6 +1,79 @@
-// Rótulos em português para valores que ficam salvos em inglês nos registros
-// (status, canais, tipos, gatilhos). O valor salvo não muda; só o texto exibido.
-const PT = {
+// i18n: Suporte completo a Português (Brasil) e Espanhol Latinoamericano (es-419).
+// O idioma padrão é Português. O usuário escolhe o idioma via interface,
+// e a seleção persiste no localStorage ('soci_lang').
+// O catálogo de traduções é modular e fica centralizado em ui/locales/ (e public/locales/).
+
+import esLocale from './locales/es.js';
+
+let currentLang = 'pt';
+try {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem('soci_lang');
+    if (saved === 'es' || saved === 'pt') currentLang = saved;
+  }
+} catch {}
+
+export function getLanguage() {
+  return currentLang;
+}
+
+export const languages = [
+  { id: 'pt', label: 'Português', flag: 'PT' },
+  { id: 'es', label: 'Español Latino', flag: 'ES' }
+];
+
+// Registro dinâmico de novos idiomas (ex: en, fr, de)
+export const TRANSLATIONS = {
+  es: esLocale
+};
+
+export function registerLanguage(id, { label, flag, translations = {} }) {
+  if (!id) return;
+  if (!languages.some(l => l.id === id)) {
+    languages.push({ id, label: label || id, flag: flag || id.toUpperCase() });
+  }
+  TRANSLATIONS[id] = translations;
+}
+
+export function setLanguage(lang) {
+  if (lang !== 'es' && lang !== 'pt' && !TRANSLATIONS[lang]) return;
+  currentLang = lang;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('soci_lang', lang);
+    }
+  } catch {}
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = lang === 'es' ? 'es-419' : lang === 'pt' ? 'pt-BR' : lang;
+    document.querySelectorAll('[data-lang-choice]').forEach(btn => {
+      const isThis = btn.dataset.langChoice === lang;
+      btn.classList.toggle('active', isThis);
+      btn.setAttribute('aria-pressed', String(isThis));
+    });
+    document.querySelectorAll('[data-lang-choice-select]').forEach(sel => {
+      sel.value = lang;
+    });
+    if (lang === 'pt') {
+      restoreDom(document.body);
+    } else {
+      translateDom(document.body);
+    }
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('soci:languagechange', { detail: { lang } }));
+  }
+}
+
+export function langToggle() {
+  const lang = getLanguage();
+  return `<div class="lang-switcher" role="group" aria-label="${lang === 'es' ? 'Seleccionar idioma' : 'Selecionar idioma'}">
+    <button type="button" class="lang-btn ${lang === 'pt' ? 'active' : ''}" data-lang-choice="pt" data-tip="Português" data-tip-pos="bottom" aria-label="Português" aria-pressed="${lang === 'pt'}">PT</button>
+    <button type="button" class="lang-btn ${lang === 'es' ? 'active' : ''}" data-lang-choice="es" data-tip="Español Latino" data-tip-pos="bottom" aria-label="Español Latino" aria-pressed="${lang === 'es'}">ES</button>
+  </div>`;
+}
+
+// Rótulos em português para valores salvos em inglês no banco de dados
+export const PT = {
   // Oportunidades, faturas, agendamentos, campanhas
   Open: 'Em aberto', Won: 'Ganha', Lost: 'Perdida', Abandoned: 'Abandonada',
   Confirmed: 'Confirmado', Completed: 'Concluído', Canceled: 'Cancelado', Cancelled: 'Cancelado',
@@ -29,13 +102,13 @@ const PT = {
   Snippets: 'Respostas rápidas', Snippet: 'Resposta rápida', 'All Snippets': 'Todas as respostas',
   Folders: 'Pastas', 'Snippet folders': 'Pastas de respostas rápidas',
   'Trigger Links': 'Links de rastreamento', 'Trigger links': 'Links de rastreamento',
-  // Painel (títulos padrão dos widgets já salvos)
+  // Painel
   Dashboard: 'Painel', 'Opportunity status': 'Status das oportunidades', 'Opportunity value': 'Valor das oportunidades',
   'Conversion rate': 'Taxa de conversão', 'Stages distribution': 'Distribuição por etapa', Tasks: 'Tarefas', 'Manual actions': 'Ações manuais',
   'Lead source report': 'Relatório de origem dos leads', 'Google Analytics count': 'Contagem do Google Analytics',
   'Google Analytics chart': 'Gráfico do Google Analytics', 'Meta Ads report': 'Relatório do Meta Ads', 'Google Ads report': 'Relatório do Google Ads',
   'Email health report': 'Saúde do e-mail', 'Sales efficiency': 'Eficiência de vendas', 'Contacts created': 'Contatos criados',
-  Appointments: 'Agendamentos', 'Paid invoices': 'Faturas pagas', 'Sticky note': 'Nota adesiva', 'Sales Pipeline': 'Pipeline de vendas',
+  Appointments: 'Agendamentos', 'Paid invoices': 'Faturas pagas', 'Sticky note': 'Nota adesiva',
   // Agência
   Active: 'Ativa', Paused: 'Pausada', Closed: 'Encerrada', New: 'Novo', Contacted: 'Contatado', 'Proposal sent': 'Proposta enviada',
   Trial: 'Teste', Requested: 'Solicitado', Withdrawn: 'Retirado', 'In progress': 'Em andamento', Declined: 'Recusado', 'Under review': 'Em análise',
@@ -49,7 +122,7 @@ const PT = {
   Automotive: 'Automotivo', Beauty: 'Beleza', Creative: 'Criativo', Financial: 'Financeiro', Health: 'Saúde',
   'Home services': 'Serviços residenciais', Legal: 'Jurídico', 'Real estate': 'Imobiliário', Technology: 'Tecnologia',
   Calendars: 'Calendários', Phone: 'Telefone', Accounting: 'Contabilidade', Team: 'Equipe', Commerce: 'Comércio',
-  // Configurador SaaS e recursos por subconta
+  // Configurador SaaS
   'Phone calls and SMS': 'Ligações e SMS', 'Email sending': 'Envio de e-mails', 'Premium workflow actions': 'Ações premium de workflow',
   'Conversation and content AI': 'IA de conversas e conteúdo', 'WhatsApp messages': 'Mensagens de WhatsApp', 'Voice AI minutes': 'Minutos de IA de voz',
   'Contact enrichment': 'Enriquecimento de contatos', Cash: 'Dinheiro', Pix: 'Pix', Card: 'Cartão', Manual: 'Manual', 'Domain purchases': 'Compra de domínios',
@@ -60,4 +133,290 @@ const PT = {
   'Let sub-accounts buy domains from inside Sites settings.': 'Permite que as subcontas comprem domínios nas configurações de Sites.'
 };
 
-export const tr = value => PT[value] ?? value;
+// Rótulos em Espanhol Latino (es-419) para valores do banco
+export const ES = {
+  // Oportunidades, facturas, citas, campañas
+  Open: 'Abierta', Won: 'Ganada', Lost: 'Perdida', Abandoned: 'Abandonada',
+  Confirmed: 'Confirmado', Completed: 'Completado', Canceled: 'Cancelado', Cancelled: 'Cancelado',
+  Draft: 'Borrador', Paid: 'Pagado', Void: 'Anulada', Planned: 'Planificado', Archived: 'Archivado', Published: 'Publicado',
+  // Etapas y pipelines estándar
+  'New Lead': 'Nuevo lead', 'New lead': 'Nuevo lead', Qualified: 'Calificado', qualified: 'Calificado',
+  Proposal: 'Propuesta', proposal: 'Propuesta', 'Sales Pipeline': 'Pipeline de ventas',
+  // Canales y mensajes
+  Social: 'Social', Email: 'Correo electrónico', SMS: 'SMS', Note: 'Nota', 'Live chat': 'Chat en vivo', Outbound: 'Enviada', Inbound: 'Recibida', Text: 'Texto',
+  // Páginas y agentes
+  Funnel: 'Embudo', Website: 'Sitio web', Support: 'Soporte', Sales: 'Ventas', Scheduling: 'Agendamiento',
+  // Acciones manuales y automatizaciones
+  Pending: 'Pendiente', Skipped: 'Omitida', Running: 'En ejecución', 'Manual Call': 'Llamada manual', 'Manual SMS': 'SMS manual',
+  'Add tag': 'Agregar etiqueta', 'Create task': 'Crear tarea', 'Create opportunity': 'Crear oportunidad', 'Log message': 'Registrar mensaje',
+  'Contact created': 'Contacto creado', 'Form submitted': 'Formulario enviado', 'Opportunity stage changed': 'Etapa de oportunidad cambiada',
+  'Appointment booked': 'Cita agendada', 'Trigger link clicked': 'Enlace de rastreo clickeado',
+  Unassigned: 'Sin asignar', 'Contact removed': 'Contacto eliminado', 'Good Work!': '¡Buen trabajo!',
+  // SLA
+  Met: 'Cumplido', Breached: 'Incumplido', Overdue: 'Vencido', 'Due soon': 'Por vencer', Waiting: 'En espera', Dismissed: 'Descartado',
+  All: 'Todos', 'Waiting for reply': 'Esperando respuesta', 'Average response': 'Tiempo promedio de respuesta',
+  // Filtros y opciones comunes
+  'All workflows': 'Todos los flujos', 'All assignees': 'Todos los responsables', 'All statuses': 'Todos los estados',
+  'Any type': 'Cualquier tipo', 'All channels': 'Todos los canales', 'All pipelines': 'Todos los pipelines',
+  'All folders': 'Todas las carpetas', 'No folder': 'Sin carpeta',
+  // Snippets y enlaces
+  Snippets: 'Respuestas rápidas', Snippet: 'Respuesta rápida', 'All Snippets': 'Todas las respuestas',
+  Folders: 'Carpetas', 'Snippet folders': 'Carpetas de respuestas rápidas',
+  'Trigger Links': 'Enlaces de rastreo', 'Trigger links': 'Enlaces de rastreo',
+  // Panel
+  Dashboard: 'Panel de control', 'Opportunity status': 'Estado de las oportunidades', 'Opportunity value': 'Valor de las oportunidades',
+  'Conversion rate': 'Tasa de conversión', 'Stages distribution': 'Distribución por etapa', Tasks: 'Tareas', 'Manual actions': 'Acciones manuales',
+  'Lead source report': 'Informe de origen de leads', 'Google Analytics count': 'Conteo de Google Analytics',
+  'Google Analytics chart': 'Gráfico de Google Analytics', 'Meta Ads report': 'Informe de Meta Ads', 'Google Ads report': 'Informe de Google Ads',
+  'Email health report': 'Salud del correo electrónico', 'Sales efficiency': 'Eficiencia de ventas', 'Contacts created': 'Contactos creados',
+  Appointments: 'Citas', 'Paid invoices': 'Facturas pagadas', 'Sticky note': 'Nota adhesiva',
+  // Agencia
+  Active: 'Activa', Paused: 'Pausada', Closed: 'Cerrada', New: 'Nuevo', Contacted: 'Contactado', 'Proposal sent': 'Propuesta enviada',
+  Trial: 'Prueba', Requested: 'Solicitado', Withdrawn: 'Retirado', 'In progress': 'En progreso', Declined: 'Rechazado', 'Under review': 'En revisión',
+  'Agency Owner': 'Dueño de la agencia', 'Agency Admin': 'Admin de la agencia', 'Agency User': 'Usuario de la agencia',
+  'Account Admin': 'Admin de la cuenta', 'Account User': 'Usuario de la cuenta',
+  Design: 'Diseño', Development: 'Desarrollo', 'Paid ads': 'Anuncios pagados', Copywriting: 'Redacción', Consulting: 'Consultoría', Other: 'Otro',
+  Conversations: 'Conversaciones', Automation: 'Automatización', Payments: 'Pagos', Reporting: 'Informes', Mobile: 'Celular',
+  'New tab': 'Nueva pestaña', 'Inside the app': 'Dentro de la app', 'Sub-accounts': 'Subcuentas', Agency: 'Agencia', Both: 'Ambos',
+  Information: 'Información', Success: 'Éxito', Warning: 'Advertencia', Credit: 'Crédito', Charge: 'Cobro', 'Bank transfer': 'Transferencia bancaria',
+  Subscription: 'Suscripción', 'Subscription + usage': 'Suscripción + uso',
+  Automotive: 'Automotriz', Beauty: 'Belleza', Creative: 'Creativo', Financial: 'Financiero', Health: 'Salud',
+  'Home services': 'Servicios para el hogar', Legal: 'Legal', 'Real estate': 'Bienes raíces', Technology: 'Tecnología',
+  Calendars: 'Calendarios', Phone: 'Teléfono', Accounting: 'Contabilidad', Team: 'Equipo', Commerce: 'Comercio',
+  // Configurador SaaS
+  'Phone calls and SMS': 'Llamadas y SMS', 'Email sending': 'Envío de correos', 'Premium workflow actions': 'Acciones premium de workflow',
+  'Conversation and content AI': 'IA de conversaciones y contenido', 'WhatsApp messages': 'Mensajes de WhatsApp', 'Voice AI minutes': 'Minutos de IA de voz',
+  'Contact enrichment': 'Enriquecimiento de contactos', Cash: 'Efectivo', Pix: 'Pix', Card: 'Tarjeta', Manual: 'Manual', 'Domain purchases': 'Compra de dominios',
+  'Workflow - Premium Features': 'Workflow: funciones premium', 'Workflow - External AI Models': 'Workflow: modelos de IA externos', 'Domain Purchase': 'Compra de dominios',
+  'Look up the line type and carrier of phone numbers before sending SMS.': 'Consulta el tipo de línea y operadora del número antes de enviar SMS.',
+  'Premium triggers and actions in the workflow builder of each sub-account.': 'Disparadores y acciones premium en el constructor de workflows de cada subcuenta.',
+  'Workflow actions that call external AI models from a sub-account.': 'Acciones de workflow que invocan modelos de IA externos desde la subcuenta.',
+  'Let sub-accounts buy domains from inside Sites settings.': 'Permite a las subcuentas comprar dominios desde la configuración de Sitios.'
+};
+
+// Referência canônica exportada para compatibilidade total
+export const PT_TO_ES = esLocale;
+
+export const tr = (value, lang = getLanguage()) => {
+  if (typeof value !== 'string') return value;
+  if (lang === 'pt') {
+    return PT[value] ?? value;
+  }
+  // Lookup in active language dictionary
+  const dict = TRANSLATIONS[lang] || TRANSLATIONS.es;
+  if (dict[value]) return dict[value];
+  if (ES[value]) return ES[value];
+
+  // Try punctuation suffix
+  const puncMatch = value.match(/^(.+?)([:…\.\?!]+)$/);
+  if (puncMatch) {
+    const base = puncMatch[1].trim();
+    const punc = puncMatch[2];
+    const trans = dict[base] || ES[base];
+    if (trans) return trans + punc;
+  }
+
+  // Try dynamic patterns
+  for (const [pattern, replacement] of DYNAMIC_PATTERNS) {
+    if (pattern.test(value)) {
+      return value.replace(pattern, replacement);
+    }
+  }
+
+  const ptVal = PT[value];
+  if (ptVal && dict[ptVal]) return dict[ptVal];
+  return value;
+};
+
+// Regex de substituições dinâmicas para Espanhol Latino
+export const DYNAMIC_PATTERNS = [
+  [/^abrindo\s+(.+)$/i, 'Abriendo $1'],
+  [/^(\d+)\s+contatos?$/i, '$1 contactos'],
+  [/^(\d+)\s+oportunidades?$/i, '$1 oportunidades'],
+  [/^(\d+)\s+módulos?$/i, '$1 módulos'],
+  [/^(\d+)\s+aulas?$/i, '$1 lecciones'],
+  [/^(\d+)\s+cursos?$/i, '$1 cursos'],
+  [/^(\d+)\s+formulários?$/i, '$1 formularios'],
+  [/^(\d+)\s+pesquisas?$/i, '$1 encuestas'],
+  [/^(\d+)\s+questionários?$/i, '$1 cuestionarios'],
+  [/^atualizado em\s+(.+)$/i, 'actualizado el $1'],
+  [/^criado em\s+(.+)$/i, 'creado el $1'],
+  [/^agindo como\s+(.+)$/i, 'actuando como $1'],
+  [/^subconta\s+(.+)$/i, 'subcuenta $1'],
+  [/^(\d+)\s+de\s+(\d+)\s+aulas concluídas$/i, '$1 de $2 lecciones completadas'],
+  [/^(\d+)\s+pausada(s)\s+·\s+(\d+)\s+encerrada(s)$/i, '$1 pausada(s) · $2 cerrada(s)'],
+  [/^(\d+)\s+selecionada(s)$/i, '$1 seleccionada(s)'],
+  [/^(\d+)\s+subconta(s)\s+cadastradas$/i, '$1 subcuenta(s) registradas'],
+  [/^votar em\s+(.+)$/i, 'votar por $1'],
+  [/^comentários\s+\((\d+)\)$/i, 'comentarios ($1)'],
+  [/^boas-vindas,\s+(.+)\.\s+(.+)$/i, '¡Bienvenido(a), $1! $2']
+];
+
+export function translateText(text) {
+  if (!text || typeof text !== 'string') return text;
+  const trimmed = text.trim();
+  if (!trimmed) return text;
+
+  const dict = TRANSLATIONS[currentLang] || TRANSLATIONS.es;
+
+  // 1. Direct dictionary match
+  if (dict[trimmed]) {
+    return text.replace(trimmed, dict[trimmed]);
+  }
+  if (ES[trimmed]) {
+    return text.replace(trimmed, ES[trimmed]);
+  }
+
+  // 2. Trailing punctuation match (: … . ? !)
+  const puncMatch = trimmed.match(/^(.+?)([:…\.\?!]+)$/);
+  if (puncMatch) {
+    const base = puncMatch[1].trim();
+    const punc = puncMatch[2];
+    const trans = dict[base] || ES[base];
+    if (trans) {
+      return text.replace(trimmed, trans + punc);
+    }
+  }
+
+  // 3. Parentheses match
+  const parenMatch = trimmed.match(/^\((.+?)\)$/);
+  if (parenMatch) {
+    const base = parenMatch[1].trim();
+    const trans = dict[base] || ES[base];
+    if (trans) {
+      return text.replace(trimmed, `(${trans})`);
+    }
+  }
+
+  // 4. Dynamic patterns
+  for (const [pattern, replacement] of DYNAMIC_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return text.replace(trimmed, trimmed.replace(pattern, replacement));
+    }
+  }
+
+  return text;
+}
+
+const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'CODE', 'PRE', 'SVG', 'NOSCRIPT', 'TEXTAREA']);
+
+export function translateDom(root = document.body) {
+  if (!root || typeof document === 'undefined') return;
+  if (getLanguage() === 'pt') return;
+
+  const walker = document.createTreeWalker(
+    root,
+    NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          if (SKIP_TAGS.has(node.tagName) || node.dataset?.noTranslate) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        }
+        if (node.nodeType === Node.TEXT_NODE) {
+          if (node.parentElement && (SKIP_TAGS.has(node.parentElement.tagName) || node.parentElement.dataset?.noTranslate)) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        }
+        return NodeFilter.FILTER_SKIP;
+      }
+    }
+  );
+
+  let current = walker.nextNode();
+  while (current) {
+    if (current.nodeType === Node.TEXT_NODE) {
+      const val = current.nodeValue;
+      if (val && val.trim()) {
+        const translated = translateText(val);
+        if (translated !== val) {
+          if (current.__sociOrig === undefined) current.__sociOrig = val;
+          current.nodeValue = translated;
+        }
+      }
+    } else if (current.nodeType === Node.ELEMENT_NODE) {
+      const attrs = ['placeholder', 'title', 'aria-label', 'data-tip'];
+      for (const attr of attrs) {
+        const val = current.getAttribute(attr);
+        if (val && val.trim()) {
+          const translated = translateText(val);
+          if (translated !== val) {
+            current.__sociOrigAttrs ??= {};
+            if (current.__sociOrigAttrs[attr] === undefined) {
+              current.__sociOrigAttrs[attr] = val;
+            }
+            current.setAttribute(attr, translated);
+          }
+        }
+      }
+    }
+    current = walker.nextNode();
+  }
+}
+
+export function restoreDom(root = document.body) {
+  if (!root || typeof document === 'undefined') return;
+
+  const walker = document.createTreeWalker(
+    root,
+    NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+    null
+  );
+
+  let current = walker.nextNode();
+  while (current) {
+    if (current.nodeType === Node.TEXT_NODE && current.__sociOrig !== undefined) {
+      current.nodeValue = current.__sociOrig;
+      delete current.__sociOrig;
+    } else if (current.nodeType === Node.ELEMENT_NODE && current.__sociOrigAttrs) {
+      for (const [attr, val] of Object.entries(current.__sociOrigAttrs)) {
+        current.setAttribute(attr, val);
+      }
+      delete current.__sociOrigAttrs;
+    }
+    current = walker.nextNode();
+  }
+}
+
+let observer = null;
+export function initI18n() {
+  if (typeof document === 'undefined') return;
+
+  document.documentElement.lang = currentLang === 'es' ? 'es-419' : 'pt-BR';
+
+  if (!observer && typeof MutationObserver !== 'undefined') {
+    observer = new MutationObserver(mutations => {
+      if (getLanguage() === 'pt') return;
+      for (const m of mutations) {
+        if (m.type === 'childList') {
+          for (const node of m.addedNodes) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              translateDom(node);
+            }
+          }
+        }
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  document.addEventListener('click', e => {
+    const btn = e.target instanceof Element && e.target.closest('[data-lang-choice]');
+    if (!btn) return;
+    const choice = btn.dataset.langChoice;
+    if (choice) setLanguage(choice);
+  });
+
+  document.addEventListener('change', e => {
+    const sel = e.target instanceof Element && e.target.closest('[data-lang-choice-select]');
+    if (!sel) return;
+    if (sel.value) setLanguage(sel.value);
+  });
+
+  if (currentLang !== 'pt') {
+    translateDom(document.body);
+  }
+}

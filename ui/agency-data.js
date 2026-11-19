@@ -16,7 +16,7 @@ export const subAccountModules = [
 export const moduleOfRecord = {
   contacts: 'contacts', tasks: 'contacts', opportunities: 'opportunities', appointments: 'calendars', workflows: 'automation',
   workflowFolders: 'automation', workflowLists: 'automation',
-  invoices: 'payments', campaigns: 'marketing', pages: 'sites', forms: 'sites', chatWidgets: 'sites', chatSessions: 'sites', blogs: 'sites', blogPosts: 'sites', blogAuthors: 'sites', blogCategories: 'sites', stores: 'sites', orders: 'payments', webinars: 'sites', webinarRegistrations: 'sites', qrCodes: 'sites', courses: 'memberships', reviews: 'reputation',
+  invoices: 'payments', campaigns: 'marketing', pages: 'sites', forms: 'sites', chatWidgets: 'sites', chatSessions: 'sites', blogs: 'sites', blogPosts: 'sites', blogAuthors: 'sites', blogCategories: 'sites', stores: 'sites', orders: 'payments', webinars: 'sites', webinarRegistrations: 'sites', qrCodes: 'sites', courses: 'memberships', communities: 'memberships', reviews: 'reputation',
   agents: 'ai-agents', agentRuns: 'ai-agents', files: 'media', mediaFolders: 'media', snippetFolders: 'conversations', snippets: 'conversations', triggerLinks: 'conversations',
   studioProjects: 'sites', pipelines: 'opportunities', stages: 'opportunities',
   customFields: 'settings', customValues: 'settings', tags: 'contacts', companies: 'contacts',
@@ -100,7 +100,7 @@ export const addOns = [
 export const agencyPlans = [['Starter', 97], ['Unlimited', 297], ['Agency Pro', 497]];
 
 export const integrationCatalog = [
-  ['stripe', 'Stripe', 'pay', 'Payments', 'Collect invoices and SaaS subscriptions.'],
+  ['abacatepay', 'AbacatePay', 'pay', 'Payments', 'Collect invoices, store orders and SaaS subscriptions by Pix or card.'],
   ['google', 'Google Workspace', 'cal', 'Calendars', 'Calendar sync and Business Profile reviews.'],
   ['meta', 'Meta', 'send', 'Social', 'Facebook and Instagram messages, leads and posts.'],
   ['twilio', 'Twilio', 'chat', 'Phone', 'SMS and voice through your own carrier account.'],

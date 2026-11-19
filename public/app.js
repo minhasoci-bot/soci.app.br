@@ -6,7 +6,7 @@ import { dashboardPreferences, installDashboardControls, reportGrid } from './da
 import { drawDashboardGauges } from './dashboard.js';
 import { launchpadGuide } from './launchpad.js';
 import { opportunityStatuses } from './dashboard-data.js';
-import { tr } from './i18n.js';
+import { tr, initI18n, getLanguage, translateDom } from './i18n.js';
 import { cardFields, cardLayouts, opportunityCsv, opportunityCsvColumns, opportunityPreferences, opportunityResults, opportunitySorts, quickActions } from './opportunity-data.js';
 import { opportunityEvents } from './opportunities.js';
 import { parseCsv } from './social-data.js';
@@ -31,7 +31,10 @@ import { unmountDesignStage } from './design-workspace.js';
 import { installBuilder, startBuild } from './studio-builder.js';
 import { installAutomation } from './automation.js';
 import { installClientPortal } from './client-portal.js';
+import { installCourses } from './courses.js';
+import { installCommunities } from './communities.js';
 import { applyBrandColor, setThemeAccount } from './graao.js';
+import './phone-input.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay'), toast=document.querySelector('#toast');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
@@ -57,6 +60,12 @@ function startSubWaPoll(){
     }catch{}
   },3000);
 }
+async function refreshPay(){
+  const ws=c.workspace;
+  try{ const live=await api(url('/api/abacatepay/workspace/status')); if(c.workspace===ws) c.pay=live; }
+  catch(e){ if(c.workspace===ws) c.pay={error:e.message}; }
+  if(c.workspace===ws&&c.mode!=='agency'&&(c.view==='payments'||c.view==='settings'&&c.tab==='abacatepay')) render();
+}
 async function refreshSubWa(){
   const ws=c.workspace;
   try{
@@ -73,7 +82,7 @@ async function refreshSubWa(){
 c.dash = dashboardPreferences(c.workspace);
 c.pipeline = '';
 c.studio = { brief:'',template:'landing',project:'' };
-let toastTimer, modalReturn, busy=false, renderedView='', editor, mountClientPortal;
+let toastTimer, modalReturn, busy=false, renderedView='', editor, mountClientPortal, mountCommunities;
 const G=s=>document.querySelector(s);
 const url=path=>`${path}?workspace=${encodeURIComponent(c.workspace)}`;
 function flash(msg,isError=false){ clearTimeout(toastTimer);toast.className=isError?'issue':'success';toast.textContent=msg;toastTimer=setTimeout(()=>{toast.className='';toast.textContent='';},4600); }
@@ -113,7 +122,7 @@ const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -190,25 +199,26 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(view==='launchpad'){ render(); if(allowedView('settings')) void refreshSubWa(); return; }
   if(view==='settings'&&nextTab==='whatsapp'){ render(); void refreshSubWa(); return; }
   stopSubWaPoll();
+  if(view==='payments'&&!nextTab||view==='settings'&&nextTab==='abacatepay'){ render(); void refreshPay(); return; }
   render(); }
-const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${label}" title="${label}" ${attributes}>${i(name,17)}</button>`;
-const navItem=([id,pt,ico])=>({href:`#${id}`,label:pt,icon:ico,current:c.view===id});
+const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${tr(label)}" title="${tr(label)}" ${attributes}>${i(name,17)}</button>`;
+const navItem=([id,pt,ico])=>({href:`#${id}`,label:tr(pt),icon:ico,current:c.view===id});
 function appSidebar(brand){
   const items=nav.slice(0,-1).map((n,k)=>[n,k]).filter(([n])=>allowedView(n[0]));
-  const links=(c.agency?.menuLinks||[]).map(l=>l.openIn==='Inside the app'?{href:`#link/${l.id}`,label:l.title,icon:l.icon,current:c.view==='link'&&c.tab===l.id}:{href:l.url,label:l.title,icon:l.icon,external:true});
-  return sidebar({label:'Navegação',home:c.access?.agency?'#agency/dashboard':'#launchpad',brand,mark:c.agency?.logo?`<img class="ag-logo" src="${h(c.agency.logo)}" alt="">`:logo,
-    account:{name:c.s.profile.name,caption:'Subconta · trocar',attr:'data-act="workspaces"',tip:'Trocar de workspace'},
+  const links=(c.agency?.menuLinks||[]).map(l=>l.openIn==='Inside the app'?{href:`#link/${l.id}`,label:tr(l.title),icon:l.icon,current:c.view==='link'&&c.tab===l.id}:{href:l.url,label:tr(l.title),icon:l.icon,external:true});
+  return sidebar({label:tr('Navegação'),home:c.access?.agency?'#agency/dashboard':'#launchpad',brand,mark:c.agency?.logo?`<img class="ag-logo" src="${h(c.agency.logo)}" alt="">`:logo,
+    account:{name:c.s.profile.name,caption:tr('Subconta · trocar'),attr:'data-act="workspaces"',tip:tr('Trocar de workspace')},
     toggle:'data-act="nav"',open:c.navOpen,
-    groups:[{title:'Principal',items:items.filter(([,k])=>k<7).map(([n])=>navItem(n))},{title:'Crescimento',items:items.filter(([,k])=>k>=7).map(([n])=>navItem(n))},{title:'Atalhos',items:links}],
-    footer:[...(c.access?.agency?[{href:'#agency/dashboard',label:'Visão da agência',icon:'users'}]:[]),...(allowedView('settings')?[navItem(nav.at(-1))]:[])]});
+    groups:[{title:tr('Principal'),items:items.filter(([,k])=>k<7).map(([n])=>navItem(n))},{title:tr('Crescimento'),items:items.filter(([,k])=>k>=7).map(([n])=>navItem(n))},{title:tr('Atalhos'),items:links}],
+    footer:[...(c.access?.agency?[{href:'#agency/dashboard',label:tr('Visão da agência'),icon:'users'}]:[]),...(allowedView('settings')?[navItem(nav.at(-1))]:[])]});
 }
 function appTopbar(){
   const session = c.access?.session;
-  const active=nav.find(x=>x[0]===c.view), page=c.view==='link'?c.agency?.menuLinks.find(l=>l.id===c.tab)?.title||'Link':active?.[1];
-  const profileLabel = session?.name || 'Perfil do workspace';
+  const active=nav.find(x=>x[0]===c.view), page=c.view==='link'?c.agency?.menuLinks.find(l=>l.id===c.tab)?.title||'Link':tr(active?.[1]);
+  const profileLabel = session?.name || tr('Perfil do workspace');
   const profileText = session?.name?.slice(0, 2).toUpperCase() || 'gr';
   return topbar({crumbs:[{label:c.s.profile.name,href:'#launchpad'},{label:page}],search:'data-act="search"',
-    tools:[{icon:'bell',label:'Notificações',attr:'data-act="notifications"'}],
+    tools:[{icon:'bell',label:tr('Notificações'),attr:'data-act="notifications"'}],
     profile:{text:profileText,picture:session?.picture||'',label:profileLabel,attr:session?'data-act="account"':'data-go="settings"'}});
 }
 function renderAccountLifecycle() {
@@ -244,6 +254,7 @@ function render(){
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
   app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}${c.launchpadReturn && c.view!=='launchpad' ? `<div class="lp-return"><a href="#launchpad/${h(c.launchpadReturn)}">${i('left',14)} Voltar ao guia</a><span>Continue a configuração. Seu progresso será reconhecido ao voltar.</span><button class="icon-btn" aria-label="Fechar lembrete do guia" data-act="launchpad-dismiss">${i('close',14)}</button></div>` : ''}<main id="screen" class="screen">${screenHtml}</main></div></div>`;
+  if (getLanguage() === 'es') translateDom(app);
   if(c.view==='conversations'&&c.thread) {const area=G('.thread-messages');if(area)area.scrollTop=area.scrollHeight;}
   if(c.view==='dashboard') { G('#screen').scrollTop=previousScroll; }
   if(c.view==='dashboard' || c.view==='reporting') { drawDashboardGauges(app); }
@@ -254,7 +265,7 @@ function render(){
   }
   if(c.view==='studio' || (c.view==='sites' && ['editor','build'].includes(c.tab))) afterStudioRender();
   if(c.view==='sites') { afterSitesRender(); afterFormsRender(); }
-  if(c.view==='memberships') mountClientPortal?.();
+  if(c.view==='memberships') { mountClientPortal?.(); mountCommunities?.(); }
   const agentScreen = G('[data-agent-screen]');
   if (agentScreen?.dataset.agentId && editor?.id === agentScreen.dataset.agentId && editor.workspace === c.workspace) {
     agentScreen.replaceWith(editor.root);
@@ -401,7 +412,7 @@ async function useWorkspace(id, view='launchpad', name){
   const cover=switchingCover(name||c.workspaces.find(w=>w.id===id)?.name);
   try { await enterWorkspace(id, view); } finally { cover.remove(); }
 }
-async function enterWorkspace(id, view){ leaveAgentEditor();stopSubWaPoll();c.workspace=id;c.launchpadReturn='';c.wa=null;c.waPairOpen=false;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.opportunityList='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);const address=new URL(location.href);address.searchParams.set('workspace',id);history.replaceState(null,'',address);close();go(view); }
+async function enterWorkspace(id, view){ leaveAgentEditor();stopSubWaPoll();c.workspace=id;c.launchpadReturn='';c.wa=null;c.pay=null;c.waPairOpen=false;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.opportunityList='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);const address=new URL(location.href);address.searchParams.set('workspace',id);history.replaceState(null,'',address);close();go(view); }
 function downloads(name,content,type='text/csv;charset=utf-8'){
   const data=typeof content==='string'?new Blob([content],{type}):content, a=document.createElement('a'), u=URL.createObjectURL(data);
   a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),3000);
@@ -733,6 +744,21 @@ document.addEventListener('click',async ev=>{
         else if(live.status==='connected') flash('WhatsApp conectado!');
         break;
       }
+      case 'abacate-refresh': c.pay=null; render(); await refreshPay(); break;
+      case 'abacate-copy': await navigator.clipboard.writeText(d.url); flash('Link de pagamento copiado.'); break;
+      case 'abacate-charge': {
+        const r=await api(url('/api/abacatepay/workspace/charge'),{invoiceId:d.id});
+        c.s=r.state;c.m=r.metrics;render();
+        await navigator.clipboard?.writeText(r.payment.url).catch(()=>{});
+        flash('Link de pagamento gerado e copiado.');
+        break;
+      }
+      case 'abacate-disconnect': {
+        if(!confirm('Desconectar o AbacatePay deste workspace? Links já enviados continuam valendo, mas as baixas automáticas param.')) break;
+        c.pay=await api(url('/api/abacatepay/workspace/disconnect'),{});
+        render(); flash('AbacatePay desconectado.');
+        break;
+      }
       case 'wa-disconnect': {
         stopSubWaPoll();
         c.wa=await api(url('/api/whatsapp/workspace/disconnect'),{});
@@ -850,6 +876,10 @@ document.addEventListener('submit',async ev=>{
       if(live.status==='connecting') startSubWaPoll();
       msg=live.paircode?'Código de pareamento gerado!':'Conexão iniciada.';
     }
+    else if(name==='abacate-connect'){
+      c.pay=await api(url('/api/abacatepay/workspace/connect'),{apiKey:data.apiKey});
+      render(); flash(`AbacatePay conectado${c.pay.storeName?`: ${c.pay.storeName}`:''}.`); return;
+    }
     else if(name==='wa-test'){
       await api(url('/api/whatsapp/workspace/test'),{phone:data.phone,text:data.text});
       msg='Mensagem de teste enviada pelo WhatsApp!';
@@ -946,6 +976,8 @@ if(viewPath){
   installBuilder({ c, api, url, flash, render });
   installAutomation({ c, mutate, render, flash, dialog, close });
   mountClientPortal = installClientPortal({ c, api, flash, dialog, close });
+  installCourses({ c, mutate, flash, dialog, close, render });
+  mountCommunities = installCommunities({ c, api, mutate, flash, dialog, close, render });
   crmEvents({ G, mutate, render, flash, dialog, close });
   opportunityEvents({ c, G, mutate, render, flash, dialog, close });
   socialEvents({ c, G, api, url, mutate, render, flash, dialog, close, load });
@@ -970,5 +1002,7 @@ if(viewPath){
       (c.view === 'conversations' && ['analytics','link-analysis','manual-actions'].includes(c.tab));
     if (live) try { await load(); render(); } catch { /* The current view remains available. */ }
   });
+  initI18n();
+  window.addEventListener('soci:languagechange', () => { if (c.mode !== 'agency') render(); });
   route();
 }

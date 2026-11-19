@@ -2,9 +2,10 @@ import { brandHighlight, brandIcon, icon as i, logo, brandName, bootScreen, shcL
 import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { applyBrandColor } from './graao.js';
-import { tr } from './i18n.js';
+import { tr, translateDom, getLanguage } from './i18n.js';
 import { money, utabs } from './screens.js';
 import { colorPicker, mountColorPicker } from './color-picker.js';
+import { phoneField } from './phone-input.js';
 import { createProspecting, prospectRoutes } from './prospecting.js';
 import { createSociChat } from './soci-chat.js';
 import {
@@ -38,7 +39,7 @@ const subTabs = {
   settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'],
     ['whatsapp', 'WhatsApp'], ['email-services', 'Serviços de e-mail'], ['emails', 'E-mails do sistema'], ['announcements', 'Comunicados'],
     ['workflow-premium', 'Workflow: recursos premium'], ['external-ai', 'Workflow: IA externa'], ['domain-purchase', 'Compra de domínios'],
-    ['openai', 'OpenAI'], ['private-integrations', 'Integrações privadas'], ['affiliates', 'Afiliados'], ['menu-links', 'Links de menu'], ['stripe', 'Stripe'], ['api-keys', 'Chaves de API'],
+    ['openai', 'OpenAI'], ['private-integrations', 'Integrações privadas'], ['affiliates', 'Afiliados'], ['menu-links', 'Links de menu'], ['abacatepay', 'AbacatePay'], ['api-keys', 'Chaves de API'],
     ['compliance', 'Conformidade'], ['labs', 'Recursos experimentais'], ['audit', 'Logs de auditoria'], ['storage', 'Armazenamento de mídia']]
 };
 
@@ -71,7 +72,7 @@ export function startAgency(env) {
   function close() { const d = G('#dialog'); if (d?.open) d.close(); overlay.innerHTML = ''; if (returnFocus?.isConnected) returnFocus.focus(); }
   function dialog(title, body, { form = '', id = '', submit = 'Salvar', wide = false, description = '' } = {}) {
     returnFocus = document.activeElement;
-    overlay.innerHTML = `<dialog id="dialog" class="${wide ? 'ag-wide' : ''}" aria-labelledby="modal-title"><header><div><h2 id="modal-title">${h(title)}</h2>${description ? `<p>${h(description)}</p>` : ''}</div><button class="icon-btn" aria-label="Fechar diálogo" data-close-dialog>${i('close', 17)}</button></header>${form
+    overlay.innerHTML = `<dialog id="dialog" class="${wide ? 'ag-wide' : ''}" aria-labelledby="modal-title"><header><div><h2 id="modal-title">${h(tr(title))}</h2>${description ? `<p>${h(tr(description))}</p>` : ''}</div><button class="icon-btn" aria-label="${h(tr('Fechar diálogo'))}" data-close-dialog>${i('close', 17)}</button></header>${form
       ? `<form data-ag-form="${form}" data-id="${h(id)}"><div class="modal-body">${body}<p class="form-status" role="alert"></p></div><footer><button type="button" class="secondary" data-close-dialog>Cancelar</button><button class="primary">${h(submit)}</button></footer></form>`
       : `<div class="modal-body">${body}</div>`}</dialog>`;
     const d = G('#dialog'); d.showModal(); d.addEventListener('cancel', ev => { ev.preventDefault(); close(); });
@@ -125,7 +126,7 @@ export function startAgency(env) {
   }
 
   // ---- Shell -------------------------------------------------------------
-  const head = (title, desc = '', actions = '') => `<header class="page-head"><div><h1>${h(title)}</h1>${desc ? `<p>${h(desc)}</p>` : ''}</div><div class="head-actions">${actions}</div></header>`;
+  const head = (title, desc = '', actions = '') => `<header class="page-head"><div><h1>${h(tr(title))}</h1>${desc ? `<p>${h(tr(desc))}</p>` : ''}</div><div class="head-actions">${actions}</div></header>`;
   const tabCard = (page, content, label = 'Seções') => utabs({
     key: `agency-${page}`,
     label,
@@ -133,12 +134,12 @@ export function startAgency(env) {
     items: subTabs[page].map(([key, text]) => ({ value: key, label: text, attrs: `data-ag="tab" data-sub="${key}"` })),
     content
   });
-  const btn = (label, ag, attrs = '', cls = 'secondary', ico = '') => `<button class="${cls}" data-ag="${ag}" ${attrs}>${ico ? i(ico, 15) : ''}${h(label)}</button>`;
+  const btn = (label, ag, attrs = '', cls = 'secondary', ico = '') => `<button class="${cls}" data-ag="${ag}" ${attrs}>${ico ? i(ico, 15) : ''}${h(tr(label))}</button>`;
   const primary = (label, ag, attrs = '') => btn(label, ag, attrs, 'primary', 'plus');
-  const empty = (title, text, cta = '') => `<div class="empty">${i('inbox', 26)}<strong>${h(title)}</strong><p>${h(text)}</p>${cta}</div>`;
-  const table = (cols, rows, nothing) => `<div class="surface table-shell"><table><thead><tr>${cols.map(c => `<th scope="col">${h(c)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length ? '' : nothing}</div>`;
-  const metric = (label, value, note = '') => `<div class="surface metric"><span>${h(label)}</span><b>${value}</b>${note ? `<small class="dim">${h(note)}</small>` : ''}</div>`;
-  const search = placeholder => `<label class="search">${i('search', 16)}<input data-ag-search value="${h(A.query)}" placeholder="${h(placeholder)}" aria-label="${h(placeholder)}" autocomplete="off"></label>`;
+  const empty = (title, text, cta = '') => `<div class="empty">${i('inbox', 26)}<strong>${h(tr(title))}</strong><p>${h(tr(text))}</p>${cta}</div>`;
+  const table = (cols, rows, nothing) => `<div class="surface table-shell"><table><thead><tr>${cols.map(c => `<th scope="col">${h(tr(c))}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length ? '' : nothing}</div>`;
+  const metric = (label, value, note = '') => `<div class="surface metric"><span>${h(tr(label))}</span><b>${value}</b>${note ? `<small class="dim">${h(tr(note))}</small>` : ''}</div>`;
+  const search = placeholder => `<label class="search">${i('search', 16)}<input data-ag-search value="${h(A.query)}" placeholder="${h(tr(placeholder))}" aria-label="${h(tr(placeholder))}" autocomplete="off"></label>`;
   const sw = (label, on, attrs, disabled = false) => `<label class="ag-sw"><input type="checkbox" role="switch" ${on ? 'checked' : ''} ${disabled ? 'disabled' : ''} ${attrs} aria-label="${h(label)}"><span aria-hidden="true"></span></label>`;
   const bar = (pct, cls = '') => `<span class="ag-bar ${cls}"><span data-w="${Math.max(0, Math.min(100, Math.round(pct)))}"></span></span>`;
 
@@ -147,41 +148,41 @@ export function startAgency(env) {
     const users = D().users;
     const session = A.data.access?.session;
     const acting = localStorage.getItem('go.user') || '';
-    const item = ([key, label, ico]) => ({ href: `#agency/${key}`, label, icon: ico, current: A.page === key });
-    const currentPageLabel = agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência';
+    const item = ([key, label, ico]) => ({ href: `#agency/${key}`, label: tr(label), icon: ico, current: A.page === key });
+    const currentPageLabel = tr(agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência');
     return `<div class="shell ${A.navOpen ? 'wide' : ''} ag-shell">${sidebar({
-      label: 'Navegação da agência',
+      label: tr('Navegação da agência'),
       home: '#agency/dashboard',
       brand: brandName(),
       mark: logo,
-      account: { name: company.name || 'Minha Agência', logo: company.logo || '', caption: 'Agência · ir para subconta', attr: 'data-ag="switch-account"', tip: 'Trocar para uma subconta' },
+      account: { name: company.name || tr('Minha Agência'), logo: company.logo || '', caption: tr('Agência · ir para subconta'), attr: 'data-ag="switch-account"', tip: tr('Trocar para uma subconta') },
       toggle: 'data-ag="nav"',
       open: A.navOpen,
       groups: [
-        { title: 'Visão geral', items: agencyNav.slice(0, 5).map(item) },
-        { title: 'Subcontas', items: agencyNav.slice(5, 10).map(item) },
-        { title: 'Aprender e apps', items: agencyNav.slice(10, -1).map(item) },
-        { title: 'Atalhos', items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: l.title, icon: l.icon, external: true })) }
+        { title: tr('Visão geral'), items: agencyNav.slice(0, 5).map(item) },
+        { title: tr('Subcontas'), items: agencyNav.slice(5, 10).map(item) },
+        { title: tr('Aprender e apps'), items: agencyNav.slice(10, -1).map(item) },
+        { title: tr('Atalhos'), items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: tr(l.title), icon: l.icon, external: true })) }
       ],
       footer: [
-        { href: 'https://chat.whatsapp.com/IuU6twK8qf606ye5wvP638', label: 'Comunidade', icon: 'whatsapp', external: true },
+        { href: 'https://chat.whatsapp.com/IuU6twK8qf606ye5wvP638', label: tr('Comunidade'), icon: 'whatsapp', external: true },
         item(agencyNav.at(-1))
       ]
     })}
     <div class="workspace">${topbar({
       crumbs: [
-        { label: company.name || 'Agência', href: '#agency/dashboard' },
+        { label: company.name || tr('Agência'), href: '#agency/dashboard' },
         { label: currentPageLabel }
       ],
       search: 'data-act="search"',
       extra: session ? '' : `<div class="ag-acting">${i('users', 15)}<label class="sr-only" for="ag-user-select">Agindo como</label><select id="ag-user-select" data-ag-user aria-label="Agindo como"><option value="">${h(D().profile.name)} (Dono da agência)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(tr(u.role))})</option>`).join('')}</select></div>`,
       tools: [
-        { icon: 'bell', label: 'Notificações', attr: 'data-act="notifications"' }
+        { icon: 'bell', label: tr('Notificações'), attr: 'data-act="notifications"' }
       ],
       profile: {
         text: initials(session?.name || company.name || D().profile.name || 'AG'),
         picture: session?.picture,
-        label: session?.name || 'Configurações da agência',
+        label: session?.name || tr('Configurações da agência'),
         attr: session ? 'data-act="account"' : 'data-ag="go-profile"'
       }
     })}<main id="screen" class="screen${A.page === 'ask' ? ' screen-ask-chat' : ''}">${content}</main></div></div>`;
@@ -206,7 +207,7 @@ export function startAgency(env) {
     const t = O().totals, growth = O().growth, max = Math.max(1, ...growth.map(g => g.total));
     const top = [...accounts()].sort((a, b) => b.contacts - a.contacts).slice(0, 8);
     return `<div class="page">${head('Painel da agência', `Boas-vindas, ${D().profile.first}. Métricas consolidadas das suas subcontas e registros da agência.`, primary('Criar subconta', 'new-account'))}
-      ${D().stripe.connected ? '' : `<div class="surface padded ag-notice">${i('pay', 20)}<div><b>Os KPIs de faturamento usam registros locais</b><p>A receita dos planos é calculada a partir do plano SaaS atribuído a cada subconta. Uma conexão com o Stripe é necessária para processar pagamentos reais.</p></div><a class="secondary" href="#agency/settings/stripe">Configurar Stripe</a></div>`}
+      ${D().abacatepay?.connected ? '' : `<div class="surface padded ag-notice">${i('pay', 20)}<div><b>Os KPIs de faturamento usam registros locais</b><p>A receita dos planos é calculada a partir do plano SaaS atribuído a cada subconta. Conecte o AbacatePay para cobrar as assinaturas por Pix ou cartão.</p></div><a class="secondary" href="#agency/settings/abacatepay">Conectar AbacatePay</a></div>`}
       <div class="metrics">${metric('Receita recorrente mensal (MRR)', money(t.mrr), 'Dos planos SaaS de contas ativas')}${metric('Subcontas ativas', `${t.active} <small>/ ${t.accounts}</small>`, `${t.paused} pausada(s) · ${t.closed} encerrada(s)`)}${metric('Novas neste mês', t.newThisMonth)}${metric('Planos SaaS cadastrados', D().plans.length, 'Disponíveis no Configurador SaaS')}</div>
       <div class="metrics">${metric('Contatos', t.contacts)}${metric('Oportunidades abertas', t.open)}${metric('Execuções de automação', t.runs)}${metric('Saldo da carteira', money(t.wallet))}</div>
       <div class="ag-two"><section class="surface padded"><h2>Crescimento de subcontas</h2><p class="dim">Total de subcontas acumuladas no final de cada mês</p><div class="ag-chart">${growth.map(g => `<div class="ag-col"><b>${g.total}</b><span class="ag-colbar"><span data-h="${(g.total / max) * 100}"></span></span><small>${h(g.month.slice(5))}/${h(g.month.slice(2, 4))}</small></div>`).join('')}</div></section>
@@ -249,7 +250,7 @@ export function startAgency(env) {
   function accountForm(preset = {}) {
     const snaps = D().snapshots;
     return `<div class="field-grid"><label>Nome da empresa<input name="name" required maxlength="70" value="${h(preset.name || '')}"></label><label>E-mail<input name="email" type="email" value="${h(preset.email || '')}"></label>
-      <label>Telefone<input name="phone" type="tel" value="${h(preset.phone || '')}"></label><label>Endereço<input name="address" value="${h(preset.address || '')}"></label>
+      ${phoneField({ name: 'phone', label: 'Telefone', value: preset.phone || '', id: 'ag-preset-phone' })}<label>Endereço<input name="address" value="${h(preset.address || '')}"></label>
       <label>Fuso horário<select name="timezone">${['America/Sao_Paulo', 'America/New_York', 'Europe/London', 'UTC'].map(z => `<option>${z}</option>`).join('')}</select></label>
       <label>Moeda<input readonly value="Real brasileiro (BRL)"></label>
       <label>Setup inicial<select name="snapshotId"><option value="">Começar em branco</option>${snaps.map(s => `<option value="${s.id}">${h(s.name)}</option>`).join('')}</select></label>
@@ -441,7 +442,7 @@ export function startAgency(env) {
         ['pay', 'Aumente suas margens', `A carteira repassa o uso de telefone, e-mail, automações, IA e outros produtos com markup de até ${maxMarkup}×.`]
       ];
       return `<div class="page">${head('Configurador SaaS', 'Venda a plataforma com a sua marca, em planos mensais.')}<section class="surface padded ag-hero"><div><h2>Transforme a agência em um software com receita recorrente</h2><ul class="ag-points">${points.map(([ico, t, x]) => `<li><span class="metric-icon">${i(ico)}</span><div><b>${h(t)}</b><p class="dim">${h(x)}</p></div></li>`).join('')}</ul>
-        ${btn('Ativar o modo SaaS', 'saas-mode', 'data-on="1"', 'primary', 'spark')}<p class="dim">A cobrança dos planos fica registrada localmente. Pagamentos reais exigem a conexão com o Stripe.</p></div>
+        ${btn('Ativar o modo SaaS', 'saas-mode', 'data-on="1"', 'primary', 'spark')}<p class="dim">Os planos são cobrados como assinaturas mensais no AbacatePay, por Pix ou cartão.</p></div>
         <div class="ag-hero-art" aria-hidden="true"><div class="ag-hero-card"><small>Plano mensal</small><b>${money(D().plans[0]?.price || 297)}</b></div><div class="ag-hero-card"><small>Markup da carteira</small><b>até ${maxMarkup}×</b></div><div class="ag-hero-card"><small>Subcontas</small><b>${accounts().length}</b></div></div></section></div>`;
     }
     const sub = A.sub || 'overview', inSaas = accounts().filter(a => s.accounts.includes(a.id));
@@ -452,13 +453,26 @@ export function startAgency(env) {
     if (sub === 'rebilling') return `<div class="page">${pageHead}${tabCard('saas', `<form class="surface padded settings-form" data-ag-form="saas-rebilling"><h2>Rebilling da carteira</h2><p class="dim">Multiplicador aplicado ao custo de uso cobrado das subcontas SaaS. 1× repassa o custo sem margem; o máximo é ${maxMarkup}×.</p>
       <div class="field-grid">${rebillProducts.map(([key, label]) => `<label>${h(tr(label))}<input name="${key}" type="number" min="1" max="${maxMarkup}" step="0.01" required value="${s.rebilling[key]}"></label>`).join('')}</div><button class="primary">Salvar markups</button><p class="form-status" role="alert"></p></form>
       <p class="dim ag-hint">Exemplo: com markup 1,5× um SMS de R$0,0079 custa R$0,0119 para o cliente e deixa R$0,0040 de margem para a agência.</p>`, 'Seções do configurador SaaS')}</div>`;
-    if (sub === 'accounts') return `<div class="page">${pageHead}${tabCard('saas', `<div class="toolbar">${search('Buscar subcontas…')}</div>${table(['Subconta', 'Status', 'Plano', 'Valor mensal', 'Modo SaaS', ''], accounts().filter(a => match(a.name)).map(a => `<tr><td><b>${h(a.name)}</b></td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td>${a.planPrice ? `${money(a.planPrice)}/mês` : '—'}</td><td>${sw(`Modo SaaS em ${a.name}`, s.accounts.includes(a.id), `data-ag-saas-account="${a.id}"`)}</td><td class="right">${btn('Alterar plano', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), empty('Nenhuma subconta', 'Crie uma subconta para ativar o modo SaaS nela.'))}`, 'Seções do configurador SaaS')}</div>`;
+    if (sub === 'accounts') return `<div class="page">${pageHead}${tabCard('saas', `<div class="toolbar">${search('Buscar subcontas…')}</div>${table(['Subconta', 'Status', 'Plano', 'Valor mensal', 'Modo SaaS', 'Assinatura', ''], accounts().filter(a => match(a.name)).map(a => `<tr><td><b>${h(a.name)}</b></td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td>${a.planPrice ? `${money(a.planPrice)}/mês` : '—'}</td><td>${sw(`Modo SaaS em ${a.name}`, s.accounts.includes(a.id), `data-ag-saas-account="${a.id}"`)}</td><td>${billingCell(a)}</td><td class="right">${btn('Alterar plano', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), empty('Nenhuma subconta', 'Crie uma subconta para ativar o modo SaaS nela.'))}`, 'Seções do configurador SaaS')}</div>`;
     const mrr = inSaas.filter(a => a.status === 'Active').reduce((t, a) => t + a.planPrice, 0);
     const avg = rebillProducts.reduce((t, [k]) => t + s.rebilling[k], 0) / rebillProducts.length;
-    const steps = [['Criar planos SaaS', D().plans.length, 'saas/plans'], ['Definir markups da carteira', rebillProducts.some(([k]) => s.rebilling[k] > 1), 'saas/rebilling'], ['Colocar subcontas no modo SaaS', inSaas.length, 'saas/accounts'], ['Conectar o Stripe', D().stripe.connected, 'settings/stripe']];
+    const steps = [['Criar planos SaaS', D().plans.length, 'saas/plans'], ['Definir markups da carteira', rebillProducts.some(([k]) => s.rebilling[k] > 1), 'saas/rebilling'], ['Colocar subcontas no modo SaaS', inSaas.length, 'saas/accounts'], ['Conectar o AbacatePay', D().abacatepay?.connected, 'settings/abacatepay']];
     return `<div class="page">${pageHead}${tabCard('saas', `<div class="metrics">${metric('Subcontas no modo SaaS', `${inSaas.length} <small>/ ${accounts().length}</small>`)}${metric('MRR das subcontas SaaS', money(mrr), 'Planos de subcontas ativas')}${metric('Planos SaaS', D().plans.length)}${metric('Markup médio da carteira', `${avg.toFixed(2).replace('.', ',')}×`)}</div>
       <section class="surface padded"><h2>Configuração</h2>${steps.map(([label, done, page]) => `<a class="line-item" href="#agency/${page}"><span>${done ? badge('Concluído', 'green') : badge('Pendente')} ${h(label)}</span>${i('arrow', 15)}</a>`).join('')}</section>`, 'Seções do configurador SaaS')}</div>`;
   };
+
+  const billingTone = { Pending: 'blue', Trial: 'gold', Active: 'green', Cancelled: 'red' };
+  const billingLabel = { Pending: 'Aguardando pagamento', Trial: 'Em teste', Active: 'Ativa', Cancelled: 'Cancelada' };
+  function billingCell(a) {
+    const b = D().accounts[a.id]?.billing;
+    const live = b?.provider === 'abacatepay' && b.status !== 'Cancelled';
+    const parts = live ? [badge(billingLabel[b.status] || b.status, billingTone[b.status] || '')] : [];
+    if (live && b.status === 'Pending') parts.push(`<a class="text-link" href="${h(b.url)}" target="_blank" rel="noopener">Abrir link</a>`, btn('Copiar', 'abacate-copy', `data-url="${h(b.url)}"`));
+    if (live && ['Active', 'Trial'].includes(b.status) && b.lastPaidAt) parts.push(`<small class="dim">Último pagamento ${day(b.lastPaidAt)}</small>`);
+    if (live) parts.push(btn('Cancelar', 'abacate-cancel', `data-id="${a.id}"`));
+    else parts.push(btn('Gerar assinatura', 'abacate-subscribe', `data-id="${a.id}" ${D().abacatepay?.connected && a.plan ? '' : 'disabled title="Conecte o AbacatePay e atribua um plano"'}`));
+    return `<div class="inline-gap">${parts.join('')}</div>`;
+  }
 
   // ---- App Marketplace ----------------------------------------------------
   pages.marketplace = () => {
@@ -496,6 +510,27 @@ export function startAgency(env) {
       if (currentVisit === visit) A.openAI = { error: error.message };
     }
     if (currentVisit === visit && isOpenAIPage()) render();
+  }
+  const isAbacatePage = () => A.page === 'settings' && A.sub === 'abacatepay';
+  async function refreshAbacate() {
+    const currentVisit = visit;
+    try { const data = await api('/api/abacatepay/agency/status'); if (currentVisit === visit) A.abacate = data; }
+    catch (error) { if (currentVisit === visit) A.abacate = { error: error.message }; }
+    if (currentVisit === visit && isAbacatePage()) render();
+  }
+  function abacateSettings() {
+    const g = A.abacate, hl = brandHighlight('abacatepay');
+    const head = title => `<div class="shc-panel-head"><span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('abacatepay', 24)}</span></span><h2>${h(title)}</h2></div>`;
+    const card = (body, on = false) => `<div class="surface padded shc-card shc-panel${on ? ' is-connected' : ''}" style="--shc-highlight:${hl}">${shcLayers()}${body}</div>`;
+    if (!g) return card(`${head('AbacatePay')}<p class="dim">Verificando a conexão…</p>`);
+    if (g.error) return card(`${head('AbacatePay')}<p class="form-status">${h(g.error)}</p>${btn('Tentar novamente', 'abacate-refresh')}`);
+    if (!g.connected) return card(`${head('Conectar o AbacatePay')}<p>O AbacatePay é o meio de pagamento da agência: cobra os planos SaaS das subcontas como assinaturas mensais por Pix ou cartão e confirma cada pagamento sozinho.</p>
+      <p class="dim">Crie uma chave de API v2 com permissão de leitura e escrita em <a class="text-link" href="https://app.abacatepay.com/api-keys" target="_blank" rel="noopener">app.abacatepay.com</a>. Use a chave do modo teste para experimentar sem dinheiro real. Cada subconta conecta a própria conta em Configurações → AbacatePay para receber as suas faturas.</p>
+      <form class="settings-form" data-ag-form="abacate-connect"><label>Chave de API v2<input name="apiKey" required autocomplete="off" spellcheck="false" maxlength="400"></label><button class="primary">Conectar</button><p class="form-status" role="alert"></p></form>`);
+    const hook = g.webhookStatus === 'registered' ? `<p>${badge('Webhook cadastrado automaticamente', 'green')}</p>`
+      : `<p class="surface padded ag-warn">${h(g.webhookError || 'Cadastre o webhook no painel do AbacatePay.')} Use os dados abaixo em app.abacatepay.com/webhooks.</p>`;
+    return card(`${head(g.storeName || 'AbacatePay')}<p>${badge('Conectado', 'green')} ${g.devMode ? badge('Modo teste', 'gold') : ''}</p><p class="dim">Chave terminada em <b>${h(g.last4)}</b>, conectada em ${day(g.connectedAt)}. Gere as assinaturas em <a class="text-link" href="#agency/saas/accounts">Configurador SaaS → Subcontas SaaS</a>.</p><div class="inline-gap">${btn('Desconectar', 'abacate-disconnect')}</div>`, true)
+      + `<section class="surface padded settings-form ag-gap"><h2>Webhook de assinaturas</h2>${hook}<label>URL<input readonly value="${h(g.webhookUrl)}"></label><label>Secret<input readonly value="${h(g.webhookSecret || '')}"></label><p class="dim"><small>Eventos: ${h(g.events.join(', '))}</small></p></section>`;
   }
   const isWhatsAppPage = () => A.page === 'settings' && A.sub === 'whatsapp';
   async function refreshWhatsApp() {
@@ -687,7 +722,7 @@ export function startAgency(env) {
   }
   const settingsPages = {
     openai: openAISettings,
-    profile: () => { const p = D().profile; return `<form class="surface padded settings-form" data-ag-form="profile"><h2>Dados pessoais</h2><div class="field-grid"><label>Nome<input name="first" required value="${h(p.first)}"></label><label>Sobrenome<input name="last" required value="${h(p.last)}"></label><label>E-mail<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" type="tel" value="${h(p.phone)}"></label></div><button class="primary">Salvar perfil</button><p class="form-status" role="alert"></p></form>`; },
+    profile: () => { const p = D().profile; return `<form class="surface padded settings-form" data-ag-form="profile"><h2>Dados pessoais</h2><div class="field-grid"><label>Nome<input name="first" required value="${h(p.first)}"></label><label>Sobrenome<input name="last" required value="${h(p.last)}"></label><label>E-mail<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'ag-profile-phone' })}</div><button class="primary">Salvar perfil</button><p class="form-status" role="alert"></p></form>`; },
     company: () => {
       const c = D().company;
       return `<form class="surface padded settings-form" data-ag-form="company">
@@ -695,7 +730,7 @@ export function startAgency(env) {
         <div class="field-grid">
           <label>Nome da empresa<input name="name" required maxlength="120" value="${h(c.name)}"></label>
           <label>Site institucional<input name="website" type="url" value="${h(c.website)}"></label>
-          <label>Telefone<input name="phone" type="tel" value="${h(c.phone)}"></label>
+          ${phoneField({ name: 'phone', label: 'Telefone', value: c.phone, id: 'ag-company-phone' })}
           <label>Endereço comercial<input name="address" value="${h(c.address)}"></label>
           <label>Fuso horário padrão<select name="timezone">${['America/Sao_Paulo', 'America/New_York', 'Europe/London', 'UTC'].map(z => `<option ${c.timezone === z ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
           <label>Moeda<input readonly value="Real brasileiro (BRL)"></label>
@@ -746,9 +781,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     'domain-purchase': () => featureTable('domain-purchase'),
     affiliates: () => { const aff = D().affiliate, link = `${location.origin}/?ref=${aff.code}`; return `<div class="surface padded"><h2>Configurações de afiliado</h2>${aff.accepted ? `<p>Este é o seu link de afiliado. Quem se cadastrar por ele gera ${Math.round(affiliateRate * 100)}% de comissão recorrente para você.</p><div class="ag-copy"><input readonly value="${h(link)}" aria-label="Link de afiliado">${btn('Copiar link', 'copy', `data-text="${h(link)}"`)}</div><p class="dim">Acrescente <code>?ref=${h(aff.code)}</code> ao final de qualquer URL do seu site.</p>` : `<p class="dim">Aceite os termos no Portal de afiliados para gerar seu link.</p><a class="secondary" href="#agency/affiliate">Abrir Portal de afiliados</a>`}</div>
       <form class="surface padded settings-form ag-gap" data-ag-form="affiliate-pixel"><h2>Configurações da página</h2><label>ID do Pixel do Facebook<input name="pixelId" inputmode="numeric" maxlength="20" placeholder="ID do Pixel" value="${h(aff.pixelId || '')}"></label><button class="primary">Salvar</button><p class="form-status" role="alert"></p></form>`; },
-    stripe: () => `<div class="surface padded shc-card shc-panel${D().stripe.connected ? ' is-connected' : ''}" style="--shc-highlight:${brandHighlight('stripe')}">${shcLayers()}<div class="shc-panel-head"><span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('stripe', 24)}</span></span><h2>Integração com o Stripe</h2></div><p>Conectar uma conta Stripe libera cobrança de assinaturas, rebilling, revenda e modo SaaS com pagamentos reais.</p>
-      <p class="surface padded ag-warn">Depois de conectada, a conta Stripe não pode ser trocada. Use uma conta dedicada aos ganhos da agência.</p>
-      <p>${D().stripe.connected ? badge('Conectado', 'green') : badge('Não conectado')}</p><p class="dim">A conexão usa o fluxo OAuth do Stripe Connect, que exige um endereço público e credenciais da plataforma. Neste projeto local, planos, carteira e revendas ficam registrados sem cobrança.</p></div>`,
+    abacatepay: abacateSettings,
     announcements: () => `<div class="page-head"><div><h2>Comunicados gerais</h2><p class="dim">Comunicados ativos são exibidos em banner de destaque no topo das subcontas selecionadas.</p></div>${primary('Novo comunicado', 'new-record', 'data-key="announcements"')}</div>${table(['Título', 'Estilo', 'Público-alvo', 'Status', ''], [...D().announcements].reverse().map(a => `<tr><td><b>${h(a.title)}</b><br><small class="dim">${h(a.body.slice(0, 90))}</small></td><td>${h(tr(a.tone))}</td><td><small>${a.accounts.length ? h(a.accounts.map(accountName).join(', ')) : 'Todas as subcontas'}</small></td><td>${badge(a.published ? 'Publicado' : 'Rascunho', a.published ? 'green' : '')}</td><td class="right">${btn('Editar', 'edit-record', `data-key="announcements" data-id="${a.id}"`)}</td></tr>`), empty('Nenhum comunicado', 'Crie comunicados informativos ou alertas para os clientes da agência.'))}`,
     emails: () => `<h2>E-mails do sistema</h2><p class="dim ag-hint">Modelos de e-mail disparados pela plataforma. O envio em produção requer um provedor de e-mail conectado.</p>${systemEmailKeys.map(([key, label]) => { const e = D().systemEmails[key]; return `<form class="surface padded settings-form ag-gap" data-ag-form="system-email" data-id="${key}"><h2>${h(tr(label))}</h2><label class="ag-full">Assunto<input name="subject" required value="${h(e.subject)}"></label><label class="ag-full">Mensagem<textarea name="body" required>${h(e.body)}</textarea></label><button class="primary">Salvar modelo</button><p class="form-status" role="alert"></p></form>`; }).join('')}`,
     labs: () => `<form class="surface padded settings-form" data-ag-form="labs"><h2>Recursos experimentais (Labs)</h2><p class="dim">Ative antecipadamente funcionalidades e comportamentos em fase de experimentação.</p>${labFeatures.map(([key, label, text]) => `<label class="check ag-lab"><input type="checkbox" name="${key}" ${D().labs[key] ? 'checked' : ''}><span><b>${h(label)}</b><br><small class="dim">${h(text)}</small></span></label>`).join('')}<button class="primary">Salvar preferências</button><p class="form-status" role="alert"></p></form>`,
@@ -793,7 +826,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const nextPage = pages[page] ? page : 'dashboard';
     if (nextPage !== A.page) { A.query = ''; A.status = ''; A.category = ''; A.selected.clear(); A.auditPage = 0; }
     A.page = nextPage;
-    const normalizedSub = A.page === 'settings' && sub === 'phone' ? 'whatsapp' : sub;
+    const normalizedSub = A.page === 'settings' && sub === 'phone' ? 'whatsapp' : A.page === 'settings' && sub === 'stripe' ? 'abacatepay' : sub;
     A.sub = A.page === 'ask'
       ? (sub && /^[\w-]{4,80}$/.test(sub) ? sub : '')
       : (subTabs[A.page]?.some(t => t[0] === normalizedSub) ? normalizedSub : '');
@@ -802,6 +835,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       render();
       if (isOpenAIPage() && A.data.access.session && !A.openAI) await refreshOpenAI();
       if (isWhatsAppPage() && !A.wa) await refreshWhatsApp();
+      if (isAbacatePage() && !A.abacate) await refreshAbacate();
       return;
     }
     if (loading) return;
@@ -817,6 +851,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       render();
       if (isOpenAIPage() && data.access.session && !A.openAI) await refreshOpenAI();
       if (isWhatsAppPage() && !A.wa) await refreshWhatsApp();
+      if (isAbacatePage() && !A.abacate) await refreshAbacate();
     } catch (e) {
       if (currentVisit !== visit || !active()) return;
       if (e.status === 403 && isOpenAIPage()) {
@@ -865,6 +900,19 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'openai-retry': A.openAI = null; render(); await refreshOpenAI(); break;
         case 'openai-disconnect': confirmBox('Desconectar a chave da OpenAI?', 'Você precisará conectar outra chave para voltar a usar os recursos de IA.', 'openai-disconnect', '', 'Desconectar'); break;
         case 'wa-refresh': await refreshWhatsApp(); flash('Status do WhatsApp atualizado.'); break;
+        case 'abacate-refresh': A.abacate = null; render(); await refreshAbacate(); break;
+        case 'abacate-disconnect': confirmBox('Desconectar o AbacatePay?', 'As assinaturas já contratadas continuam no AbacatePay, mas a agência deixa de receber as confirmações de pagamento aqui.', 'abacate-disconnect', '', 'Desconectar'); break;
+        case 'abacate-copy': await navigator.clipboard.writeText(d.url); flash('Link da assinatura copiado.'); break;
+        case 'abacate-subscribe': {
+          b.disabled = true;
+          A.data = await api('/api/abacatepay/agency/subscribe', { workspace: id });
+          const url = A.data.result?.url;
+          render();
+          if (url) await navigator.clipboard?.writeText(url).catch(() => {});
+          flash(`Link da assinatura de ${accountName(id)} gerado e copiado. Envie ao cliente para ele pagar por Pix ou cartão.`);
+          break;
+        }
+        case 'abacate-cancel': confirmBox(`Cancelar a assinatura de ${accountName(id)}?`, 'A cobrança recorrente é cancelada no AbacatePay. A subconta continua ativa até você mudar o status.', 'abacate-cancel', id, 'Cancelar assinatura'); break;
         case 'wa-disconnect-server': confirmBox('Remover servidor UAZAPI próprio?', 'A URL e o admintoken cadastrados pela agência serão removidos.', 'wa-disconnect-server', '', 'Remover'); break;
         case 'wa-focus-close': stopWaPoll(); A.waFocus = null; render(); break;
         case 'wa-sub-open': {
@@ -927,7 +975,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'new-account': dialog('Criar nova subconta', accountForm(), { form: 'account', submit: 'Criar subconta' }); break;
         case 'edit-account': {
           const a = accounts().find(x => x.id === id), meta = D().accounts[id] || {};
-          dialog(`Editar ${a.name}`, `<div class="field-grid"><label>Status<select name="status">${['Active', 'Paused', 'Closed'].map(s => `<option value="${s}" ${a.status === s ? 'selected' : ''}>${tr(s)}</option>`).join('')}</select></label><label>Plano SaaS<select name="plan"><option value="">Sem plano</option>${D().plans.map(p => `<option value="${p.id}" ${meta.plan === p.id ? 'selected' : ''}>${h(p.name)}</option>`).join('')}</select></label><label>Endereço<input name="address" value="${h(meta.address)}"></label><label>Telefone<input name="phone" value="${h(meta.phone)}"></label><label>Site<input name="website" type="url" value="${h(meta.website)}"></label></div>
+          dialog(`Editar ${a.name}`, `<div class="field-grid"><label>Status<select name="status">${['Active', 'Paused', 'Closed'].map(s => `<option value="${s}" ${a.status === s ? 'selected' : ''}>${tr(s)}</option>`).join('')}</select></label><label>Plano SaaS<select name="plan"><option value="">Sem plano</option>${D().plans.map(p => `<option value="${p.id}" ${meta.plan === p.id ? 'selected' : ''}>${h(p.name)}</option>`).join('')}</select></label><label>Endereço<input name="address" value="${h(meta.address)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: meta.phone || '', id: 'ag-meta-phone' })}<label>Site<input name="website" type="url" value="${h(meta.website)}"></label></div>
             <label>Motivo da suspensão ou encerramento<textarea name="suspendedReason" maxlength="500">${h(meta.suspendedReason || '')}</textarea><small class="dim">Visível para usuários da subconta enquanto o acesso estiver bloqueado.</small></label>`, { form: 'account-meta', id, submit: 'Salvar alterações' });
           break;
         }
@@ -1120,6 +1168,23 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           msg = connect ? 'Chave da OpenAI conectada.' : 'Chave da OpenAI desconectada.';
           break;
         }
+        case 'abacate-connect': {
+          A.abacate = await api('/api/abacatepay/agency/connect', { apiKey: data.apiKey });
+          A.data = await api('/api/agency');
+          msg = `AbacatePay conectado${A.abacate.storeName ? `: ${A.abacate.storeName}` : ''}.`;
+          break;
+        }
+        case 'abacate-disconnect': {
+          A.abacate = await api('/api/abacatepay/agency/disconnect', {});
+          A.data = await api('/api/agency');
+          msg = 'AbacatePay desconectado.';
+          break;
+        }
+        case 'abacate-cancel': {
+          A.data = await api('/api/abacatepay/agency/cancel', { workspace: id });
+          msg = 'Assinatura cancelada.';
+          break;
+        }
         case 'wa-config': {
           stopWaPoll();
           A.waFocus = null;
@@ -1221,5 +1286,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       try { return { 'X-Go-User': localStorage.getItem('go.user') || '' }; } catch { return {}; }
     }
   });
+  window.addEventListener('soci:languagechange', () => { if (active()) render(); });
   return { show, leave, session: () => A.data?.access?.session };
 }

@@ -14,6 +14,8 @@ import { storeAfterSave, storeBeforeDelete, storeCheckout, storeCollections, sto
 import { webinarBeforeDelete, webinarCollections, webinarCommand, webinarFields } from './webinar-model.mjs';
 import { qrCollections, qrFields, qrScan } from './qr-model.mjs';
 import { mediaBeforeDelete, mediaCollections, mediaCommand, mediaCommandTypes, mediaFields } from './media-model.mjs';
+import { courseFields } from './course-model.mjs';
+import { communityCollections, communityFields } from './community.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
 
@@ -28,7 +30,7 @@ export const defaults = {
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[],
-  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...mediaCollections].map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...mediaCollections].map(key => [key, []])),
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
 export const blank = name => ({ ...structuredClone(defaults), profile: { ...defaults.profile, ...(name ? { name } : {}) } });
@@ -36,7 +38,7 @@ export function hydrateWorkspace(state) {
   const fresh = blank();
   state.customReports ??= [];
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...mediaCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...mediaCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -138,8 +140,8 @@ const fields = {
   campaigns: (s,d) => ({ name: req(d.name,'Campaign name'), channel: one(d.channel,['Email','Social'],'channel'), body: req(d.body,'Content',5000), date: d.date ? date(d.date) : '', status: one(d.status || 'Draft',['Draft','Planned','Archived'],'status') }),
   pages: (s,d) => ({ name: req(d.name,'Page name'), headline: req(d.headline,'Headline'), body: str(d.body,5000), button: str(d.button,80), formId: exists(s,'forms',d.formId,'form',true), kind: one(d.kind,['Website','Funnel'],'page type'), active: Boolean(d.active) }),
   forms: (s,d) => formRecord(s,d),
-  courses: (s,d) => ({ name: req(d.name,'Course name'), description: str(d.description,2500), lesson: req(d.lesson,'Lesson title'), body: str(d.body,5000),
-    active: Boolean(d.active), portalOnly: typeof d.portalOnly === 'boolean' ? d.portalOnly : (d.id ? Boolean(find(s,'courses',d.id)?.portalOnly) : true) }),
+  ...courseFields,
+  ...communityFields,
   reviews: (s,d) => ({ author: req(d.author,'Author'), score: one(Number(d.score),[1,2,3,4,5],'rating'), text: req(d.text,'Review',2500), reply: str(d.reply,2500) }),
   ...mediaFields,
   agents: (s,d) => ({ name: req(d.name,'Agent name'), role: one(d.role,['Support','Sales','Scheduling'],'role'), instructions: str(d.instructions,5000), active: Boolean(d.active) }),

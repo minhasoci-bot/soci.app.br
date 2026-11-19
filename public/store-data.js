@@ -4,7 +4,7 @@
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const hex = value => /^#[0-9a-f]{6}$/i.test(value || '') ? value : '#155eef';
 export const brl = value => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
-export const methodLabel = { Pix: 'Pix', 'Bank transfer': 'Transferência bancária', Cash: 'Dinheiro na retirada', Manual: 'Combinar com a loja' };
+export const methodLabel = { AbacatePay: 'Pix ou cartão online', Pix: 'Pix', 'Bank transfer': 'Transferência bancária', Cash: 'Dinheiro na retirada', Manual: 'Combinar com a loja' };
 export const statusLabel = { Pending: 'Aguardando pagamento', Paid: 'Pago', Fulfilled: 'Enviado / entregue', Cancelled: 'Cancelado' };
 
 // What the storefront may show: visible items with an active one-time product.
@@ -100,7 +100,7 @@ export function storeCart(state, store, { base, workspace }) {
       ${pickup && ship.pickupNote ? `<p data-st-pickup style="margin:0;color:#475467;font-size:14px"${shipping ? ' hidden' : ''}>${esc(ship.pickupNote)}</p>` : ''}
       <label>Observações<textarea name="note" rows="2" maxlength="500"></textarea></label>
       <p class="st-error" data-st-error role="alert" hidden></p><button class="st-add" type="submit" data-st-submit>Finalizar pedido</button>
-      <p style="margin:0;color:#667085;font-size:13px">Pagamento: ${esc(methodLabel[store.payment.method] || store.payment.method)}. As instruções aparecem ao finalizar.</p></form>
+      <p style="margin:0;color:#667085;font-size:13px">Pagamento: ${esc(methodLabel[store.payment.method] || store.payment.method)}. ${store.payment.method === 'AbacatePay' ? 'Ao finalizar, você vai para a página segura de pagamento.' : 'As instruções aparecem ao finalizar.'}</p></form>
     <aside class="st-box" aria-label="Resumo do pedido"><h2>Resumo</h2><div data-st-lines></div>
       <div class="st-coupon"><label style="flex:1" class="sr-label"><span style="position:absolute;left:-9999px">Cupom</span><input name="coupon" form="st-none" placeholder="Cupom de desconto" data-st-coupon maxlength="30"></label><button type="button" data-st-apply>Aplicar</button></div>
       <div class="st-sum" data-st-sum></div></aside></div></div>`;
@@ -126,7 +126,7 @@ form.addEventListener('change',e=>{if(e.target.name==='delivery'){const a=docume
 form.addEventListener('submit',async e=>{e.preventDefault();for(const el of form.elements){if(el.willValidate&&!el.checkValidity()){el.reportValidity();return}}
  const f=Object.fromEntries(new FormData(form)),b=form.querySelector('[data-st-submit]');b.disabled=true;err.hidden=true;
  try{const o=await call('/checkout',{items:readCart(),coupon,delivery:f.delivery,name:f.name,email:f.email,phone:f.phone,note:f.note,address:{zip:f.zip,street:f.street,number:f.number,complement:f.complement,district:f.district,city:f.city,state:f.state}});
-  writeCart([]);document.querySelector('[data-st-checkout]').innerHTML='<div class="st-done"><span aria-hidden="true">✓</span><h1 style="margin:0">Pedido #'+o.number+' recebido</h1><p>Total: <b>'+brl(o.total)+'</b>. Guarde o número do pedido; a loja fala com você por '+esc(f.email)+'.</p>'+(o.instructions?'<div class="st-pay"><b>Como pagar ('+esc(o.method)+')</b>\\n'+esc(o.instructions)+'</div>':'')+(o.thanks?'<p>'+esc(o.thanks)+'</p>':'')+'<a href="'+base+'">Continuar comprando</a></div>';window.scrollTo(0,0)}
+  writeCart([]);document.querySelector('[data-st-checkout]').innerHTML='<div class="st-done"><span aria-hidden="true">✓</span><h1 style="margin:0">Pedido #'+o.number+' recebido</h1><p>Total: <b>'+brl(o.total)+'</b>. Guarde o número do pedido; a loja fala com você por '+esc(f.email)+'.</p>'+(o.payUrl?'<p><a class="st-paynow" href="'+esc(o.payUrl)+'" style="display:inline-block;padding:12px 20px;border-radius:10px;background:currentColor;font-weight:600;text-decoration:none"><span style="color:#fff">Pagar agora com Pix ou cartão</span></a></p>':'')+(o.instructions?'<div class="st-pay"><b>Como pagar ('+esc(o.method)+')</b>\\n'+esc(o.instructions)+'</div>':'')+(o.thanks?'<p>'+esc(o.thanks)+'</p>':'')+'<a href="'+base+'">Continuar comprando</a></div>';window.scrollTo(0,0)}
  catch(x){err.textContent=x.message;err.hidden=false;b.disabled=false}});
 draw();`;
   return layout(store, base, `Carrinho · ${store.name}`, body, script);

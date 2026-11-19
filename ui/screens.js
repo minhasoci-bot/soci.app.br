@@ -1,5 +1,6 @@
 import {brandHighlight, brandIcon, icon as i, shcLayers} from './icons.js';
-import {tr} from './i18n.js';
+import {tr, getLanguage} from './i18n.js';
+import {phoneField} from './phone-input.js';
 import {conversationPage} from './conversations.js';
 import {inboxPage} from './inbox.js';
 import {dashboard} from './dashboard.js';
@@ -19,6 +20,8 @@ import { analyticsScreen, analyticsTabs } from './sites-analytics.js';
 import {automationScreen} from './automation.js';
 import {portalAdminScreen, portalTabs} from './client-portal.js';
 import {mediaScreen} from './media.js';
+import {coursesScreen} from './courses.js';
+import {communitiesScreen} from './communities.js';
 import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
 import {opportunityStatuses} from './dashboard-data.js';
 import {cardContext, filterButton, forecastView, listTabs, moreMenu, pipelinesView, quickActionBar, smartTagChips, stageStyle} from './opportunities.js';
@@ -56,11 +59,11 @@ export function pageShell({ title, desc = '', cta = '', back = '', className = '
   const body = tabCfg ? utabs({ ...tabCfg, content }) : content;
   return `<div class="page${className ? ` ${className}` : ''}"${attrs ? ` ${attrs}` : ''}>${header}${body}</div>`;
 }
-const head=(title,desc='',cta='',sub='')=>`<header class="page-head"><div><h1>${title}</h1>${desc?`<p>${desc}</p>`:''}</div><div class="head-actions">${cta}</div></header>${sub}`;
-const empty=(title,desc,icon='inbox',cta='')=>`<div class="empty">${i(icon,26)}<strong>${title}</strong><p>${desc}</p>${cta}</div>`;
-const search=(v,label='Buscar…')=>`<label class="search">${i('search',16)}<input id="page-search" value="${h(v)}" placeholder="${label}" aria-label="${label}" autocomplete="off"></label>`;
+const head=(title,desc='',cta='',sub='')=>`<header class="page-head"><div><h1>${tr(title)}</h1>${desc?`<p>${tr(desc)}</p>`:''}</div><div class="head-actions">${cta}</div></header>${sub}`;
+const empty=(title,desc,icon='inbox',cta='')=>`<div class="empty">${i(icon,26)}<strong>${tr(title)}</strong><p>${tr(desc)}</p>${cta}</div>`;
+const search=(v,label='Buscar…')=>`<label class="search">${i('search',16)}<input id="page-search" value="${h(v)}" placeholder="${tr(label)}" aria-label="${tr(label)}" autocomplete="off"></label>`;
 const wrap=content=>`<div class="page">${content}</div>`;
-const table=(columns,rows,nothing)=>`<div class="surface table-shell"><table><thead><tr>${columns.map(c=>`<th scope="col">${c}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length?'':nothing}</div>`;
+const table=(columns,rows,nothing)=>`<div class="surface table-shell"><table><thead><tr>${columns.map(c=>`<th scope="col">${tr(c)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length?'':nothing}</div>`;
 const row=(cells,key,id)=>`<tr>${cells.map(c=>`<td>${c}</td>`).join('')}<td class="right"><button class="icon-btn" title="Editar registro" aria-label="Editar registro" data-edit="${key}" data-id="${id}">${i('edit',16)}</button></td></tr>`;
 const date=(d,c,time=false)=>fmt(d,c.s.profile.timezone,time);
 const name=(id,c)=>c.s.contacts.find(r=>r.id===id)?.name||'—';
@@ -183,6 +186,30 @@ function opportunities(c){
     </div>${bulkBar(c,'opportunities')}${view === 'list' ? list : board}`
   });
 }
+function invoicePayCell(r,c){
+  const p=r.payment;
+  if(r.status==='Paid') return p?.receiptUrl?`<a class="text-link" href="${h(p.receiptUrl)}" target="_blank" rel="noopener">Comprovante</a>`:(p?.method?h(tr(p.method)):'');
+  if(r.status==='Void') return '';
+  if(p?.provider==='abacatepay'&&p.status==='PENDING'&&p.url&&p.amount===r.value) return `<span class="inline-gap"><a class="secondary" href="${h(p.url)}" target="_blank" rel="noopener">Abrir</a><button class="secondary" data-act="abacate-copy" data-url="${h(p.url)}">Copiar link</button></span>`;
+  return c.pay?.connected?`<button class="secondary" data-act="abacate-charge" data-id="${r.id}">${i('pay',15)} Cobrar</button>`:'';
+}
+function gatewayStrip(c){
+  const g=c.pay;
+  if(!g||g.error) return '';
+  if(g.connected) return `<p class="dim">${badge('AbacatePay conectado','green')} ${g.devMode?badge('Modo teste','gold'):''} Use <b>Cobrar</b> para gerar o link de Pix ou cartão. A fatura é marcada como paga sozinha quando o cliente paga.</p>`;
+  return `<div class="surface padded ag-notice">${i('pay',20)}<div><b>Receba as faturas por Pix ou cartão</b><p>Conecte a conta AbacatePay deste workspace para gerar links de pagamento e dar baixa automática.</p></div><a class="secondary" href="#settings/abacatepay">Conectar AbacatePay</a></div>`;
+}
+function abacateSubView(c){
+  const g=c.pay, hl=brandHighlight('abacatepay');
+  const tile=`<span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('abacatepay',22)}</span></span>`;
+  const card=(body,on=false)=>`<div class="surface padded shc-card shc-panel${on?' is-connected':''}" style="--shc-highlight:${hl}">${shcLayers()}${body}</div>`;
+  if(!g) return card(`${tile}<h2>AbacatePay</h2><p class="dim">Verificando a conexão…</p>`);
+  if(g.error) return card(`${tile}<h2>AbacatePay</h2><p class="form-status">${h(g.error)}</p><button class="secondary" data-act="abacate-refresh">Tentar novamente</button>`);
+  if(!g.connected) return card(`${tile}<h2>Conectar AbacatePay</h2><p class="dim">Receba faturas e pedidos da loja por Pix ou cartão. Crie uma chave de API v2 com permissão de leitura e escrita em <a class="text-link" href="https://app.abacatepay.com/api-keys" target="_blank" rel="noopener">app.abacatepay.com</a>. Para experimentar sem dinheiro real, use a chave do modo teste.</p><form class="settings-form" data-form="abacate-connect"><label>Chave de API v2<input name="apiKey" required autocomplete="off" spellcheck="false" maxlength="400"></label><button class="primary">Conectar</button><p class="form-status" role="alert"></p></form>`);
+  const hook=g.webhookStatus==='registered'?`<p>${badge('Webhook cadastrado automaticamente','green')}</p>`:`<p class="ag-warn surface padded">${h(g.webhookError||'Cadastre o webhook no painel do AbacatePay.')} Use os dados abaixo em app.abacatepay.com/webhooks.</p>`;
+  return card(`${tile}<div class="inline-gap"><h2>${h(g.storeName||'AbacatePay')}</h2>${badge('Conectado','green')}${g.devMode?badge('Modo teste','gold'):''}</div><p class="dim">Chave terminada em <b>${h(g.last4)}</b>. Faturas e pedidos da loja são cobrados por Pix ou cartão, e o pagamento é confirmado automaticamente.</p><div class="inline-gap"><a class="primary" href="#payments">Abrir faturas</a><button class="secondary" data-act="abacate-disconnect">Desconectar</button></div>`,true)
+    +`<section class="surface padded settings-form ag-gap"><h2>Webhook de pagamentos</h2>${hook}<label>URL<input readonly value="${h(g.webhookUrl)}"></label>${g.webhookSecret?`<label>Secret<input readonly value="${h(g.webhookSecret)}"></label>`:''}<p class="dim"><small>Eventos: ${h(g.events.join(', '))}</small></p></section>`;
+}
 function payments(c){
   if((c.tab||'invoices')!=='invoices') return paymentsTab(c,c.tab);
   const s=c.s, records=top(s.invoices,c.query,['title','status']);
@@ -191,7 +218,7 @@ function payments(c){
     desc: 'Acompanhe as faturas registradas neste workspace.',
     cta: primary('Nova fatura','invoices'),
     tabs: { key: 'payments', items: crmTabs.payments, current: c.tab||'invoices', label: 'Seções de pagamentos' },
-    content: `<div class="metrics three"><div class="surface metric"><span>Saldo em aberto</span><b>${mt(s.invoices.filter(x=>x.status==='Open').reduce((a,r)=>a+r.value,0),c)}</b></div><div class="surface metric"><span>Pagamentos registrados</span><b>${mt(c.m.invoicesPaid,c)}</b></div><div class="surface metric"><span>Total de faturas</span><b>${s.invoices.length}</b></div></div><div class="toolbar">${search(c.query,'Buscar faturas…')}</div>`+table(['Fatura','Contato','Valor','Vencimento','Status',''],records.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),mt(r.value,c),date(r.due,c),badge(r.status,r.status==='Paid'?'green':'blue')],'invoices',r.id)),empty('Nenhuma fatura registrada','Crie uma fatura em rascunho. Os pagamentos podem ser marcados manualmente aqui.','pay'))
+    content: `<div class="metrics three"><div class="surface metric"><span>Saldo em aberto</span><b>${mt(s.invoices.filter(x=>x.status==='Open').reduce((a,r)=>a+r.value,0),c)}</b></div><div class="surface metric"><span>Pagamentos registrados</span><b>${mt(c.m.invoicesPaid,c)}</b></div><div class="surface metric"><span>Total de faturas</span><b>${s.invoices.length}</b></div></div>${gatewayStrip(c)}<div class="toolbar">${search(c.query,'Buscar faturas…')}</div>`+table(['Fatura','Contato','Valor','Vencimento','Status','Cobrança',''],records.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),mt(r.value,c),date(r.due,c),badge(r.status,r.status==='Paid'?'green':'blue'),invoicePayCell(r,c)],'invoices',r.id)),empty('Nenhuma fatura registrada','Crie uma fatura e cobre por Pix ou cartão com o AbacatePay, ou marque o pagamento manualmente.','pay'))
   });
 }
 function marketing(c){
@@ -226,20 +253,7 @@ function sites(c){
   });
 }
 function memberships(c){
-  if (c.tab !== 'courses') return portalAdminScreen(c);
-  return pageShell({
-    title: 'Assinaturas',
-    desc: 'Gerencie o portal do cliente, permissões de acesso e cursos deste workspace.',
-    cta: primary('Novo curso','courses'),
-    className: 'cp-admin',
-    tabs: { key: 'memberships', items: portalTabs(), current: 'courses', label: 'Seções de assinaturas' },
-    content: `<div class="cp-section-title"><div><h2>Cursos</h2><p>Publique aulas para os clientes com acesso ao portal.</p></div></div>
-      <div class="card-grid">${c.s.courses.map(r=>`<article class="surface padded resource"><span class="metric-icon">${i('play')}</span>
-        <div><h2>${h(r.name)}</h2><p>${h(r.description)}</p></div>${badge(r.active?(r.portalOnly?'No portal':'Publicado'):'Rascunho',r.active?'green':'')}
-        <div class="inline-gap">${r.active&&!r.portalOnly?viewLink('Abrir aula','course',r.id,c):''}
-          <button class="secondary" data-edit="courses" data-id="${h(r.id)}">${i('edit',15)} Editar</button></div></article>`).join('')
-        ||empty('Nenhum curso','Adicione um curso e publique a primeira aula.','play')}</div>`
-  });
+  return ['courses','course'].includes(c.tab) ? coursesScreen(c) : ['communities','community'].includes(c.tab) ? communitiesScreen(c) : portalAdminScreen(c);
 }
 const media = c => mediaScreen(c);
 function reputation(c){
@@ -265,8 +279,8 @@ function reporting(c){
   });
 }
 function marketplace(c){
-  const cards=[['Stripe','stripe','Receba pagamentos de faturas e checkout.'],['Google Agenda','google-calendar','Sincronize disponibilidade e agendamentos.'],['Twilio','twilio','Ative SMS e voz nas conversas.'],['Perfil da Empresa no Google','gbp','Sincronize avaliações e dados da empresa.'],['Meta','meta','Conecte Facebook e Instagram para publicar nas redes.'],['Provedor de e-mail','email','Envie campanhas e e-mails para clientes.']];
-  return wrap(head('Apps do marketplace','Conheça integrações que ampliariam este workspace.')+`<div class="toolbar">${search(c.query,'Buscar integrações…')}</div><div class="card-grid">${cards.filter(a=>a.join(' ').toLowerCase().includes(c.query.toLowerCase())).map(([n,brand,desc])=>`<article class="surface padded resource shc-card" style="--shc-highlight:${brandHighlight(brand)}">${shcLayers()}<span class="shc-icon" aria-hidden="true">${brandIcon(brand,32)}</span><div><h2>${n}</h2><p>${desc}</p></div>${badge('Não conectado')}<button class="secondary" data-provider="${n}">Ver requisitos</button></article>`).join('')||empty('Nenhuma integração encontrada','Tente outra busca.','apps')}</div>`);
+  const cards=[['AbacatePay','abacatepay','Receba faturas, pedidos e assinaturas por Pix ou cartão.'],['Google Agenda','google-calendar','Sincronize disponibilidade e agendamentos.'],['Twilio','twilio','Ative SMS e voz nas conversas.'],['Perfil da Empresa no Google','gbp','Sincronize avaliações e dados da empresa.'],['Meta','meta','Conecte Facebook e Instagram para publicar nas redes.'],['Provedor de e-mail','email','Envie campanhas e e-mails para clientes.']];
+  return wrap(head('Apps do marketplace','Conheça integrações que ampliariam este workspace.')+`<div class="toolbar">${search(c.query,'Buscar integrações…')}</div><div class="card-grid">${cards.filter(a=>a.join(' ').toLowerCase().includes(c.query.toLowerCase())).map(([n,brand,desc])=>`<article class="surface padded resource shc-card" style="--shc-highlight:${brandHighlight(brand)}">${shcLayers()}<span class="shc-icon" aria-hidden="true">${brandIcon(brand,32)}</span><div><h2>${n}</h2><p>${desc}</p></div>${badge('Não conectado')}${brand==='abacatepay'?'<a class="primary" href="#settings/abacatepay">Conectar</a>':`<button class="secondary" data-provider="${n}">Ver requisitos</button>`}</article>`).join('')||empty('Nenhuma integração encontrada','Tente outra busca.','apps')}</div>`);
 }
 function whatsappSubView(c){
   const w=c.wa, waHl=brandHighlight('whatsapp');
@@ -328,15 +342,15 @@ function whatsappSubView(c){
   `);
 }
 function settings(c){
-  if(c.tab&&!['business','workspaces','whatsapp'].includes(c.tab)) return settingsTab(c,c.tab);
+  if(c.tab&&!['business','workspaces','whatsapp','abacatepay'].includes(c.tab)) return settingsTab(c,c.tab);
   const p=c.s.profile;
   const tab = c.tab || 'business';
-  const body = tab==='whatsapp'?whatsappSubView(c):tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label><label>Telefone<input name="phone" value="${h(p.phone)}" type="tel"></label><label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label></div><button class="primary">Salvar alterações</button></form>`;
+  const body = tab==='abacatepay'?abacateSubView(c):tab==='whatsapp'?whatsappSubView(c):tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'sub-profile-phone' })}<label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label><label>${tr('Idioma da plataforma')}<select data-lang-choice-select><option value="pt" ${getLanguage()==='pt'?'selected':''}>Português (Brasil)</option><option value="es" ${getLanguage()==='es'?'selected':''}>Español (Latinoamérica)</option></select></label></div><button class="primary">Salvar alterações</button></form>`;
   return pageShell({
-    title: 'Configurações',
-    desc: 'Gerencie o workspace ativo.',
-    cta: action('Novo workspace','new-workspace','plus'),
-    tabs: { key: 'settings', items: crmTabs.settings, current: tab, label: 'Seções de configurações' },
+    title: tr('Configurações'),
+    desc: tr('Gerencie o workspace ativo.'),
+    cta: action(tr('Novo workspace'),'new-workspace','plus'),
+    tabs: { key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: tab, label: tr('Seções de configurações') },
     content: body
   });
 }
@@ -345,6 +359,6 @@ export { date, empty, name, primary, row, search, table };
 
 export function publicView(data,workspace){
   const {kind,row:r,form,brand}=data;
-  const formHtml=f=>`<form class="surface padded settings-form lead-form" data-form="lead" data-id="${f.id}" data-workspace="${workspace}"><h2>${h(f.name)}</h2><p>${h(f.description)}</p><label>Nome<input name="name" required maxlength="240" autocomplete="name"></label><label>E-mail<input name="email" type="email" required autocomplete="email"></label>${f.askPhone?'<label>Telefone<input name="phone" type="tel" autocomplete="tel"></label>':''}<button class="primary">Enviar ${i('arrow',16)}</button><p class="form-status" role="status"></p></form>`;
+  const formHtml=f=>`<form class="surface padded settings-form lead-form" data-form="lead" data-id="${f.id}" data-workspace="${workspace}"><h2>${h(f.name)}</h2><p>${h(f.description)}</p><label>Nome<input name="name" required maxlength="240" autocomplete="name"></label><label>E-mail<input name="email" type="email" required autocomplete="email"></label>${f.askPhone?phoneField({ name: 'phone', label: 'Telefone', id: `lead-phone-${f.id}` }):''}<button class="primary">Enviar ${i('arrow',16)}</button><p class="form-status" role="status"></p></form>`;
   return `<div class="public-page"><header>${h(brand)} ${badge('Prévia local')}</header><main>${kind==='f'?formHtml(r):kind==='course'?`<article class="surface padded"><p class="dim">${h(r.name)}</p><h1>${h(r.lesson)}</h1><p>${h(r.description)}</p><div class="public-body">${h(r.body)}</div></article>`:`<section class="public-hero"><p>${h(r.name)}</p><h1>${h(r.headline)}</h1><p>${h(r.body)}</p>${r.button&&form?`<a class="primary" href="#lead">${h(r.button)} ${i('arrow',16)}</a>`:''}</section>${form?`<div id="lead" class="surface padded lead-frame"><iframe src="/form/${h(workspace)}/${h(form.id)}?embed=1" title="${h(form.name)}" data-form-frame="${h(form.id)}" style="width:100%;border:0;min-height:380px"></iframe></div>`:''}`}</main></div>`;
 }

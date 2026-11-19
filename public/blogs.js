@@ -169,7 +169,7 @@ export function installBlogs(environment) {
   };
   const savePost = async () => { await mutate({ type: 'save', key: 'blogPosts', id: bv.postId, data: bv.draft }); bv.dirty = false; bv.rev = ''; };
   const newPost = async (blog, data = {}) => {
-    const id = await mutate({ type: 'save', key: 'blogPosts', data: { blogId: blog.id, title: 'Novo artigo', body: '', status: 'draft', ...data } });
+    const id = await mutate({ type: 'save', key: 'blogPosts', data: { blogId: blog.id, title: 'Novo artigo / Nuevo artículo', body: '', status: 'draft', ...data } });
     bv.postId = ''; location.hash = `#sites/post/${id}`;
   };
 

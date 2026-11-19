@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "abacatepay": {
+      "type": "http",
+      "url": "https://mcp.abacatepay.com/mcp"
+    }
+  }
+}

@@ -10,11 +10,11 @@ export const chatTypes = [
 ];
 export const fieldModes = [['off', 'Não pedir'], ['optional', 'Opcional'], ['required', 'Obrigatório']];
 
-export function chatDefaults(name = 'Chat do site') {
-  return { name, type: 'live', active: false, color: '#155eef', position: 'right', agentName: 'Equipe', heading: 'Fale com a gente',
-    subheading: 'Respondemos em poucos minutos no horário comercial.', prompt: 'Olá! Posso ajudar?', promptDelay: 5,
-    welcome: 'Oi! Conte o que você precisa e já te respondemos por aqui.', thanks: 'Recebemos sua mensagem. Vamos responder pelo contato informado.',
-    legal: 'Ao enviar, você concorda em ser contatado sobre este assunto.', askName: 'required', askEmail: 'required', askPhone: 'optional', tags: [] };
+export function chatDefaults(name = 'Chat do site / Chat del sitio') {
+  return { name, type: 'live', active: false, color: '#155eef', position: 'right', agentName: 'Equipe / Equipo', heading: 'Fale com a gente / Contáctenos',
+    subheading: 'Respondemos em poucos minutos no horário comercial. / Respondemos en pocos minutos en horario laboral.', prompt: 'Olá! Posso ajudar? / ¡Hola! ¿Puedo ayudarte?', promptDelay: 5,
+    welcome: 'Oi! Conte o que você precisa e já te respondemos por aqui. / ¡Hola! Cuéntanos lo que necesitas y te responderemos por aquí.', thanks: 'Recebemos sua mensagem. Vamos responder pelo contato informado. / Recibimos tu mensaje. Responderemos por el contacto informado.',
+    legal: 'Ao enviar, você concorda em ser contatado sobre este assunto. / Al enviar, aceptas ser contactado sobre este tema.', askName: 'required', askEmail: 'required', askPhone: 'optional', tags: [] };
 }
 
 /* ───────── Painel do visitante ───────── */

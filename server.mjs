@@ -31,7 +31,9 @@ import { network } from './ui/social-data.js';
 import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
+import { createAbacatePayHandler } from './abacatepay.mjs';
 import { makeClientPortal, portalCookie } from './client-portal.mjs';
+import { makeCommunity } from './community.mjs';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { chatHistory } from './chat-model.mjs';
 import { chatPage, demoPage, loaderScript } from './ui/chat-widget-data.js';
@@ -53,7 +55,7 @@ const staticFiles = new Map([
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
@@ -82,7 +84,7 @@ const privateSpace = /^user-[0-9a-f-]{36}$/;
 const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
-const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course)(?:/([0-9a-f-]{36}))?$`);
+const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community)(?:/([0-9a-f-]{36}))?$`);
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const chatPath = new RegExp(`^/chat/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js|demo))?/?$`);
 const chatApi = new RegExp(`^/api/chat/${workspaceSegment}/([0-9a-f-]{36})/(start|send|messages)$`);
@@ -112,7 +114,7 @@ function publicAgency(agency, who) {
     for (const key of ['profile', 'users', 'billing', 'apiKeys', 'privateIntegrations', 'audit', 'emailServices', 'systemEmails', 'compliance']) {
       if (Object.hasOwn(empty, key)) view[key] = empty[key];
     }
-    view.accounts = Object.fromEntries(Object.entries(agency.accounts).map(([id, { statusHistory, ignoredWebhooks, suspendedReason, ...meta }]) => [id, meta]));
+    view.accounts = Object.fromEntries(Object.entries(agency.accounts).map(([id, { statusHistory, ignoredWebhooks, suspendedReason, billing, ...meta }]) => [id, meta]));
   }
   if (who.modules !== null || !who.settings) view.snapshots = view.snapshots.map(({ assets, shareCode, ...snap }) => snap);
   return view;
@@ -126,7 +128,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 export function makeServer({
   dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, designAgentConfig=designAgent,
-  openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch,
+  openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
   portalOptions={}, prospectAudit=collectProspectAudit,
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
@@ -135,10 +137,12 @@ export function makeServer({
   const openAI = createOpenAI({ store, model: agentModel, secret: openAISecret, request: openAIRequest });
   const handleAsk = createAskHandler({ store, openAI, openAIRequest });
   const waha = createWahaHandler({ store, secret: openAISecret, request: wahaRequest });
+  const abacate = createAbacatePayHandler({ store, secret: openAISecret, request: abacatePayRequest });
   const whatsapp = createWhatsAppHandler({
     store, secret: openAISecret, request: whatsappRequest, envBaseUrl: uazapiBaseUrl, envAdminToken: uazapiAdminToken
   });
   const clientPortal = makeClientPortal({ ...portalOptions, store });
+  const community = makeCommunity({ store });
   const ready = Promise.all([store.insert('demo', seed()), store.insert(AGENCY_ID, blankAgency())]);
   ready.catch(() => {});
   const workspaceOwner = id => id === AGENCY_ID ? null : id;
@@ -345,7 +349,8 @@ export function makeServer({
     ]);
     ensureAccounts(agency, workspaces);
     const states = await agencyWorkspaceViews(agency, who, workspaces);
-    return { agency: publicAgency(agency, who), overview: agencyOverview(agency, states), marketplace: publicMarketplaceList(marketplaceDoc, who.agencyId), workspaces, personalWorkspace, access: who,
+    const gateway = await abacate.status(who.agencyId, abacate.AGENCY_SCOPE, publicBase(req));
+    return { agency: { ...publicAgency(agency, who), abacatepay: { connected: gateway.connected, storeName: gateway.storeName || '', devMode: Boolean(gateway.devMode) } }, overview: agencyOverview(agency, states), marketplace: publicMarketplaceList(marketplaceDoc, who.agencyId), workspaces, personalWorkspace, access: who,
       features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, ...extra };
   }
   const agencyWorkspaceViews = (agency, who, workspaces) => Promise.all(workspaces.map(async w => ({
@@ -1024,7 +1029,23 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       const portalMatch = p.match(portalApi);
       if (portalMatch) {
         const [, workspace, operation, courseId] = portalMatch;
-        if (Boolean(courseId) !== (operation === 'course')) throw error('Página do portal não encontrada.',404);
+        if (operation !== 'community-admin' && Boolean(courseId) !== ['course','progress','community'].includes(operation)) throw error('Página do portal não encontrada.',404);
+        if (operation === 'community-admin') {
+          const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'] });
+          const input = method === 'POST' ? await payload(req) : null;
+          await requireActiveAccount(who.agencyId, workspace, true);
+          const state = await store.load(workspace);
+          return json(await community.admin(workspace, state, await clientPortal.directory(workspace), courseId, input));
+        }
+        if (operation === 'community') {
+          const input = method === 'POST' ? await payload(req) : null;
+          await publicAccountPolicy(workspace, method === 'POST', 'memberships');
+          const { doc, member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,proto === 'https'));
+          const state = await store.load(workspace);
+          const result = input ? await community.act(workspace, state, doc, member, courseId, input)
+            : await community.read(workspace, state, doc, member, courseId, { channelId: String(url.searchParams.get('channel') || '').slice(0, 60), period: url.searchParams.get('period') || '30' });
+          return json({ community: result });
+        }
         if (operation === 'admin') {
           const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'] });
           const input = method === 'POST' ? await payload(req) : null;
@@ -1045,16 +1066,28 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           portalCookie(req,res,workspace,'',secure);
           return json({ ok:true });
         }
+        if (method === 'POST' && operation === 'progress') {
+          const input = await payload(req);
+          await publicAccountPolicy(workspace, true, 'memberships');
+          const state = await store.load(workspace);
+          return json(await clientPortal.progress(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId, input));
+        }
         if (method === 'POST' || !['home','course'].includes(operation)) throw error('Método indisponível.',405);
         await publicAccountPolicy(workspace, false, 'memberships');
         const state = await store.load(workspace);
-        return json(await clientPortal.content(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId));
+        const lessonId = String(url.searchParams.get('lesson') || '').slice(0, 60);
+        const page = await clientPortal.content(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId, lessonId);
+        if (operation === 'home' && page.signedIn) {
+          const { member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,secure));
+          page.communities = await community.home(workspace, state, member);
+        }
+        return json(page);
       }
       const portal = p.match(portalPage);
       if (portal && method !== 'POST') {
         await ready;
         await publicAccountPolicy(portal[1], false, 'memberships');
-        res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; form-action 'self'");
+        res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; form-action 'self'");
         return send(200,'text/html; charset=utf-8',method==='HEAD' ? undefined : readFileSync(resolve(root,'ui','client-portal.html')));
       }
       if (p === '/favicon.ico') { res.writeHead(302, { Location: '/favicon.svg' }); return res.end(); }
@@ -1398,6 +1431,67 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (op === 'action' && body?.type === 'account-open') return json({ result });
         return json(await agencyPayload(req,res, { result }));
       }
+      if (p.startsWith('/api/abacatepay/webhook/') && method === 'POST') {
+        await ready;
+        return await abacate.handleWebhook({ req, url, json, listWorkspaces, changeAgency });
+      }
+      if (p.startsWith('/api/abacatepay/agency/')) {
+        const who = await access(req, res);
+        requireCapability(who, 'settings', 'Seu usuário não pode gerenciar a cobrança da agência.');
+        const op = p.slice('/api/abacatepay/agency/'.length).replace(/\/+$/, ''), origin = publicBase(req), scope = abacate.AGENCY_SCOPE;
+        if (op === 'status' && method === 'GET') return json(await abacate.status(who.agencyId, scope, origin));
+        if (method !== 'POST') throw error('Method not allowed.', 405);
+        const body = await payload(req);
+        if (op === 'connect') {
+          const view = await abacate.connect(who.agencyId, scope, body.apiKey, origin);
+          await recordAudit(who, 'AbacatePay conectado', view.storeName || 'Agência');
+          return json(view);
+        }
+        if (op === 'disconnect') {
+          const view = await abacate.disconnect(who.agencyId, scope, origin);
+          await recordAudit(who, 'AbacatePay desconectado', 'Agência');
+          return json(view);
+        }
+        if (op === 'subscribe' || op === 'cancel') {
+          const workspace = String(body.workspace || '');
+          if (!(await listWorkspaces(who.agencyId)).some(w => w.id === workspace)) throw error('Subconta não encontrada.', 404);
+          const agency = await loadAgency(who.agencyId);
+          const meta = agency.accounts[workspace] || {};
+          if (op === 'subscribe') {
+            if (meta.billing?.provider === 'abacatepay' && ['Active', 'Trial'].includes(meta.billing.status)) throw error('Esta subconta já tem uma assinatura ativa. Cancele antes de gerar outra.', 409);
+            const billing = await abacate.subscribe(who.agencyId, workspace, agency.plans.find(plan => plan.id === meta.plan), origin);
+            await changeAgency(who.agencyId, current => { current.accounts[workspace] = { ...(current.accounts[workspace] || {}), billing }; });
+            await recordAudit(who, 'Assinatura AbacatePay gerada', meta.name || workspace, billing.planName);
+            return json(await agencyPayload(req, res, { result: billing }));
+          }
+          await abacate.cancelSubscription(who.agencyId, meta.billing);
+          await changeAgency(who.agencyId, current => {
+            const billing = current.accounts[workspace]?.billing;
+            if (billing) Object.assign(billing, { status: 'Cancelled', cancelledAt: stamp(), updatedAt: stamp() });
+          });
+          await recordAudit(who, 'Assinatura AbacatePay cancelada', meta.name || workspace);
+          return json(await agencyPayload(req, res));
+        }
+        throw error('Not found.', 404);
+      }
+      if (p.startsWith('/api/abacatepay/workspace/')) {
+        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
+        const op = p.slice('/api/abacatepay/workspace/'.length).replace(/\/+$/, ''), origin = publicBase(req);
+        const who = await workspaceAccess(req, res, id, { modules: op === 'connect' || op === 'disconnect' ? ['settings', 'payments'] : ['payments'] });
+        if (op === 'status' && method === 'GET') {
+          const view = await abacate.status(who.agencyId, id, origin);
+          return json(hasModule(who, 'settings') ? view : { ...view, webhookSecret: undefined });
+        }
+        if (method !== 'POST') throw error('Method not allowed.', 405);
+        const body = await payload(req);
+        if (op === 'connect') return json(await abacate.connect(who.agencyId, id, body.apiKey, origin));
+        if (op === 'disconnect') return json(await abacate.disconnect(who.agencyId, id, origin));
+        if (op === 'charge') {
+          const payment = await abacate.chargeInvoice(who.agencyId, id, String(body.invoiceId || ''), origin);
+          return json({ payment, ...workspaceView(who, await store.load(id)) });
+        }
+        throw error('Not found.', 404);
+      }
       if (p.startsWith('/api/whatsapp/webhook/') && method === 'POST') {
         return await whatsapp.handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json });
       }
@@ -1436,7 +1530,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
             const workspaces = await listWorkspaces(who.agencyId);
             ensureAccounts(agency, workspaces);
             const states = await agencyWorkspaceViews(agency, who, workspaces);
-            return { agency: publicAgency(agency, who), overview: agencyOverview(agency, states) };
+            return { agency: { ...publicAgency(agency, who), abacatepay: { connected: await abacate.connected(who.agencyId, abacate.AGENCY_SCOPE) } }, overview: agencyOverview(agency, states) };
           }
         });
       }
@@ -1688,7 +1782,13 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         const result = await change(workspace,{ type:'store-checkout', id:storeId, data:input });
         const order = result.state.orders.find(item => item.id === result.id), shop = result.state.stores.find(item => item.id === storeId);
-        return json({ number:order.number, total:order.total, method:methodLabel[shop.payment.method] || shop.payment.method, instructions:shop.payment.instructions, thanks:shop.thanks },201);
+        let payUrl = '';
+        if (shop.payment.method === 'AbacatePay') {
+          const origin = publicBase(req), back = `${origin}/loja/${workspace}/${storeId}`;
+          payUrl = await abacate.chargeInvoice(result.state.agencyId || AGENCY_ID, workspace, order.invoiceId, origin, { returnUrl: back, completionUrl: back })
+            .then(payment => payment.url).catch(() => '');
+        }
+        return json({ number:order.number, total:order.total, method:methodLabel[shop.payment.method] || shop.payment.method, instructions:shop.payment.instructions, thanks:shop.thanks, payUrl },201);
       }
       // Blogs: home with categories and pages, posts with SEO tags, and RSS. Drafts open with ?preview=1 when signed in.
       const blogRoute = p.match(blogPath);

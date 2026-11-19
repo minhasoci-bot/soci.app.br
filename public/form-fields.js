@@ -55,12 +55,12 @@ const newId = () => `f${Date.now().toString(36)}${(counter++).toString(36)}${Mat
 export function newField(type, extra = {}) {
   const kind = fieldKinds[type] || fieldKinds.text;
   const field = { id: newId(), type: fieldKinds[type] ? type : 'text', label: kind.label, placeholder: kind.placeholder || '', key: kind.key || '', required: false, hidden: false, width: 100, options: [], help: '', text: '', value: '' };
-  if (kind.choices) field.options = ['Opção 1', 'Opção 2', 'Opção 3'];
+  if (kind.choices) field.options = ['Opção 1 / Opción 1', 'Opção 2 / Opción 2', 'Opção 3 / Opción 3'];
   if (type === 'email') field.required = true;
-  if (type === 'heading') { field.label = 'Fale com a gente'; field.text = 'Preencha os campos e retornamos em até 1 dia útil.'; }
-  if (type === 'terms') { field.required = true; field.label = 'Consentimento'; field.text = 'Concordo em receber contatos sobre este assunto e aceito a política de privacidade.'; }
+  if (type === 'heading') { field.label = 'Fale com a gente / Contáctenos'; field.text = 'Preencha os campos e retornamos em até 1 dia útil. / Complete los campos y responderemos en 1 día hábil.'; }
+  if (type === 'terms') { field.required = true; field.label = 'Consentimento'; field.text = 'Concordo em receber contatos sobre este assunto e aceito a política de privacidade. / Acepto recibir comunicaciones sobre este asunto y acepto la política de privacidad.'; }
   if (type === 'source') { field.hidden = true; field.value = 'Formulário'; }
-  if (type === 'rating') field.label = 'Como você avalia?';
+  if (type === 'rating') field.label = 'Como você avalia? / ¿Cómo evalúas?';
   if (type === 'break') field.label = '';
   return { ...field, ...extra };
 }
