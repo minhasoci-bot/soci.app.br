@@ -100,7 +100,7 @@ export const addOns = [
 export const agencyPlans = [['Starter', 97], ['Unlimited', 297], ['Agency Pro', 497]];
 
 export const integrationCatalog = [
-  ['stripe', 'Stripe', 'pay', 'Payments', 'Collect invoices and SaaS subscriptions.'],
+  ['abacatepay', 'AbacatePay', 'pay', 'Payments', 'Collect invoices, store orders and SaaS subscriptions by Pix or card.'],
   ['google', 'Google Workspace', 'cal', 'Calendars', 'Calendar sync and Business Profile reviews.'],
   ['meta', 'Meta', 'send', 'Social', 'Facebook and Instagram messages, leads and posts.'],
   ['twilio', 'Twilio', 'chat', 'Phone', 'SMS and voice through your own carrier account.'],
