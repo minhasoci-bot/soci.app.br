@@ -1,5 +1,6 @@
 import { icon } from './icons.js';
 import { h, fmt, pageShell } from './screens.js';
+import { qrSvg } from './qr.js';
 
 const pathOf = workspace => `/api/client-portal/${encodeURIComponent(workspace)}/admin`;
 const navigation = [['portal','Portal do cliente'], ['portal-members','Clientes'], ['portal-settings','Configurações'], ['courses','Cursos']];
@@ -21,28 +22,54 @@ const portalUrl = portal => new URL(portal.path, portal.mailOrigin || location.o
 const enabledStatus = portal => portal.settings.enabled ? 'Ativo' : 'Desativado';
 const memberStatus = member => member.revokedAt ? 'Revogado' : member.joinedAt ? 'Ativo' : member.invitedAt ? 'Convidado' : 'Aguardando acesso';
 
+const phone = (variant, lines) => `<span class="cp-phone cp-phone-${variant}"><span class="cp-phone-bar"></span>
+  <span class="cp-phone-media"></span>${lines.map(width => `<span class="cp-phone-line" style="width:${width}%"></span>`).join('')}
+  <span class="cp-phone-button"></span></span>`;
+
 function overview(portal) {
+  const url = portalUrl(portal), off = !portal.settings.enabled;
   const actions = [
-    ['magic','Gerar link mágico','Crie um link de uso único para um contato. Validade de 15 minutos.','key','Gerar link'],
-    ['invite','Convidar para o portal','Convide um contato da Soci ou informe outro e-mail.','users','Convidar'],
-    ['login','Enviar e-mail de acesso',portal.emailConfigured ? 'Envie um novo link de acesso por e-mail.' : 'O envio automático de e-mail está indisponível até configurar um remetente.','mail','Enviar e-mail']
+    ['magic','Gerar link mágico','link','Gerar'],
+    ['invite','Convidar para o portal','users','Convidar'],
+    ['login','Enviar e-mail de acesso','send','Enviar', portal.emailConfigured ? '' : 'Configure um remetente de e-mail para usar.']
   ];
-  return `<div class="cp-section-title"><div><h2>Painel do portal</h2><p>Gerencie o acesso dos clientes aos seus cursos.</p></div>
-    <a class="secondary" href="${h(portalUrl(portal))}" target="_blank" rel="noopener">${icon('external',15)} Abrir portal</a></div>
-    <div class="cp-overview"><div class="cp-card cp-address">
-      <div class="cp-address-icon">${icon('lock',23)}</div>
-      <div><span class="cp-state ${portal.settings.enabled ? 'active' : ''}">${enabledStatus(portal)}</span>
-        <h3>${h(portal.title)}</h3><p>Endereço do portal</p></div>
-      <div class="cp-address-link"><a href="${h(portalUrl(portal))}" target="_blank" rel="noopener">${h(portalUrl(portal))}</a>
-        ${button('copy-address','Copiar','link')}</div>
-    </div><div class="cp-counters">
-      <a class="cp-card" href="#memberships/portal-members">${icon('mail',17)}<span>Convidados</span><strong>${portal.stats.invited}</strong></a>
-      <a class="cp-card" href="#memberships/portal-members">${icon('users',17)}<span>Usuários ativos</span><strong>${portal.stats.users}</strong></a>
-    </div></div>
-    <section class="cp-card cp-action-panel"><h3>Ações</h3>
-      ${actions.map(([action, title, description, glyph, label]) =>
-        `<div class="cp-action-row"><span class="cp-action-icon">${icon(glyph,19)}</span><div><strong>${title}</strong><p>${description}</p></div>
-        ${button(action,label,glyph,'','secondary',!portal.settings.enabled || (action === 'login' && !portal.emailConfigured))}</div>`).join('')}</section>`;
+  return `<section class="cp-hero" aria-labelledby="cp-hero-title">
+      <div class="cp-hero-copy"><h2 id="cp-hero-title">Sua marca. Seu app.</h2>
+        <p>Leve cursos e o acesso dos seus clientes para o celular, com a identidade do seu negócio.</p></div>
+      <div class="cp-hero-art" aria-hidden="true">${phone('a',[78,52,64])}${phone('b',[60,84])}${phone('c',[70,46,58])}</div>
+      <button type="button" class="cp-hero-cta" data-portal-action="app">Saiba mais</button>
+    </section>
+    <div class="cp-section-title cp-dashboard-title"><div><h2>Painel</h2><p>Gerencie as atividades do portal do cliente</p></div>
+      <a class="secondary" href="${h(url)}" target="_blank" rel="noopener">${icon('external',15)} Abrir portal</a></div>
+    <section class="cp-card cp-gateway" aria-labelledby="cp-gateway-title">
+      <h3 id="cp-gateway-title">Um acesso protegido para interagir com seus clientes</h3>
+      <div class="cp-gateway-grid">
+        <div class="cp-explainer">
+          <h4>O que é o portal do cliente?</h4>
+          <p>Seus clientes entram quando quiserem para acessar os cursos que você liberou para cada um.</p>
+          <h4>Endereço do portal <span class="cp-state ${off ? '' : 'active'}">${enabledStatus(portal)}</span></h4>
+          <div class="cp-url"><a href="${h(url)}" target="_blank" rel="noopener">${h(url)}</a>
+            <button type="button" class="icon-btn" data-portal-action="copy-address" aria-label="Copiar endereço do portal" title="Copiar">${icon('copy',16)}</button></div>
+        </div>
+        <div class="cp-stats">
+          <a class="cp-stat" href="#memberships/portal-members"><span>Convidados</span><strong>${portal.stats.invited}</strong></a>
+          <a class="cp-stat" href="#memberships/portal-members"><span>Usuários</span><strong>${portal.stats.users}</strong></a>
+        </div>
+      </div>
+    </section>
+    <div class="cp-bottom">
+      <section class="cp-card cp-actions" aria-labelledby="cp-actions-title"><h3 id="cp-actions-title">Ações</h3>
+        <ul>${actions.map(([action, title, glyph, label, note = '']) => `<li class="cp-action-row">
+          <span class="cp-action-icon">${icon(glyph,17)}</span><span><strong>${title}</strong>${note ? `<small>${note}</small>` : ''}</span>
+          <button type="button" class="cp-tint" data-portal-action="${action}" aria-label="${title}" ${off || note ? 'disabled' : ''}>${label}</button></li>`).join('')}</ul>
+      </section>
+      <section class="cp-card cp-app" id="cp-app" tabindex="-1" aria-labelledby="cp-app-title">
+        <h3 id="cp-app-title"><span class="cp-app-mark">${icon('mobile',18)}</span>App do portal do cliente</h3>
+        <div class="cp-app-body"><div class="cp-qr">${qrSvg(url,{ size:148, margin:2, label:'QR Code do endereço do portal' })}</div>
+          <div><strong>Abra no celular</strong><p>Aponte a câmera para o código. No navegador do celular, toque em “Adicionar à tela inicial” para usar o portal como app.</p></div>
+        </div>
+      </section>
+    </div>`;
 }
 
 function members(portal, c, query) {
@@ -99,24 +126,50 @@ export function installClientPortal({ c, api, flash, dialog, close }) {
       else showLink(value);
     }
   };
-  const showLink = (value, expires) => dialog(expires ? 'Link de acesso pronto' : 'Endereço do portal', `<div class="cp-link-dialog">
+  const showLink = (value, expires, title) => dialog(title || (expires ? 'Link de acesso pronto' : 'Endereço do portal'), `<div class="cp-link-dialog">
     ${expires ? `<p>Compartilhe com o destinatário. O link pode ser usado uma vez e vale até ${h(fmt(new Date(expires),c.s.profile.timezone,true))}.</p>` : ''}
+    ${!expires && title ? '<p>Use este link em menus e botões. Ele abre o app escolhido no portal; quem ainda não entrou vê a tela de acesso.</p>' : ''}
     <label>Link<input data-portal-link readonly value="${h(value)}"></label>
-    ${button('copy-link','Copiar link','link','','primary')}</div>`);
-  const modal = (title, action, fields, label, id = '') => dialog(title, `
-    <form data-portal-form="${action}" data-portal-id="${h(id)}" class="cp-modal">
+    ${button('copy-link','Copiar link','copy','','primary')}</div>`);
+  // Header icon tile above the title, as in the reference dialogs.
+  const modal = (title, action, fields, label, { id = '', glyph = '', description = '' } = {}) => {
+    dialog(title, `<form data-portal-form="${action}" data-portal-id="${h(id)}" class="cp-modal" novalidate>
       ${fields}<p role="alert" data-portal-error hidden></p>
       <div class="cp-form-actions"><button class="secondary" type="button" data-close-dialog>Cancelar</button>
-      <button class="primary" type="submit">${label}</button></div></form>`);
-  const picker = action => {
+      <button class="primary" type="submit">${label}</button></div></form>`, { description });
+    const header = document.querySelector('#dialog header > div'), form = document.querySelector('#dialog [data-portal-form]');
+    if (glyph && header) header.insertAdjacentHTML('afterbegin', `<span class="cp-modal-icon">${icon(glyph,18)}</span>`);
+    if (form) ready(form);
+  };
+  const ready = form => {
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit && !form.dataset.pending) submit.disabled = !form.checkValidity();
+  };
+  const contactOptions = action => {
     const mapped = new Set(current.members.map(member => member.contactId));
     const contacts = c.s.contacts.filter(contact => contact.email && (action !== 'login' || !mapped.has(contact.id))).map(contact =>
       `<option value="contact:${h(contact.id)}">${h(contact.name)} · ${h(contact.email)}</option>`);
     const clients = action === 'login' ? current.members.filter(member => !member.revokedAt).map(member =>
       `<option value="member:${h(member.id)}">${h(member.name || member.email)}${member.name ? ` · ${h(member.email)}` : ''}</option>`) : [];
-    return `<label>${action === 'login' ? 'Destinatário' : 'Contato'}<select name="recipient" ${action === 'invite' ? '' : 'required'}>
-      <option value="">Selecione um contato</option>${[...clients,...contacts].join('')}</select></label>`;
+    return [...clients,...contacts].join('');
   };
+  const picker = (action, label = 'Contato') => `<label>${label}<select name="recipient" required aria-label="${label}">
+      <option value="">Buscar por nome ou e-mail</option>${contactOptions(action)}</select></label>`;
+  const emailToggle = (name, text, checked) => current.emailConfigured
+    ? `<label class="cp-checkbox"><input name="${name}" type="checkbox" ${checked ? 'checked' : ''}> ${text}</label>`
+    : `<label class="cp-checkbox cp-unavailable"><input type="checkbox" disabled> <span>${text}<small>Configure um remetente de e-mail para enviar.</small></span></label>`;
+  const magicFields = () => `<fieldset class="cp-choice"><legend>Selecione o tipo de link mágico</legend>
+      <label><input type="radio" name="kind" value="contact" checked><span>Contato</span></label>
+      <label><input type="radio" name="kind" value="menu"><span>Menu personalizado</span></label></fieldset>
+    <fieldset class="cp-kind" data-kind="contact">${picker('magic')}${emailToggle('sendEmail','Enviar e-mail',false)}</fieldset>
+    <fieldset class="cp-kind" data-kind="menu" disabled hidden>
+      <label>Selecionar app<select name="app" required aria-label="Selecionar app">
+        <option value="courses">Cursos</option><option value="home">Início do portal</option></select></label></fieldset>`;
+  const inviteFields = () => `<label>Escolha um contato ou informe um e-mail
+      <input name="email" type="email" maxlength="254" required list="cp-invite-contacts" autocomplete="off" placeholder="Digite nome ou e-mail"></label>
+    <datalist id="cp-invite-contacts">${c.s.contacts.filter(contact => contact.email).map(contact =>
+      `<option value="${h(contact.email)}" label="${h(contact.name)}"></option>`).join('')}</datalist>
+    ${emailToggle('sendEmail','Enviar convite por e-mail',true)}`;
 
   document.addEventListener('input', event => {
     if (!event.target.matches('[data-portal-search]')) return;
@@ -133,36 +186,58 @@ export function installClientPortal({ c, api, flash, dialog, close }) {
     const { portalAction: action, portalId: id } = control.dataset;
     if (action === 'copy-address') void copy(portalUrl(current));
     if (action === 'copy-link') void copy(document.querySelector('[data-portal-link]').value);
-    if (action === 'magic') modal('Gerar link mágico',action,picker(action) + '<p>O link expira em 15 minutos.</p>','Gerar link');
-    if (action === 'invite') modal('Convidar para o portal',action,picker(action) +
-      '<label>Ou informe um e-mail<input name="email" type="email" maxlength="254"></label>' +
-      (current.emailConfigured ? '<label class="cp-checkbox"><input name="sendEmail" type="checkbox" checked> Enviar convite por e-mail</label>' :
-        '<p>Gere um link de convite para compartilhar diretamente com o cliente.</p>'), 'Criar convite');
-    if (action === 'login') modal('Enviar e-mail de acesso',action,picker(action),'Enviar e-mail');
+    if (action === 'app') { const card = root.querySelector('#cp-app'); card?.scrollIntoView({ behavior:'smooth', block:'center' }); card?.focus({ preventScroll:true }); }
+    if (action === 'magic') modal('Gerar links mágicos para seus apps',action,magicFields(),'Gerar',
+      { glyph:'link', description:'O link de contato pode ser usado uma vez e expira em 15 minutos.' });
+    if (action === 'invite') modal('Selecione um contato ou informe um e-mail para convidar ao portal do cliente',action,inviteFields(),
+      current.emailConfigured ? 'Enviar convite' : 'Criar convite', { glyph:'users' });
+    if (action === 'login') modal('Selecione o contato para enviar o e-mail de acesso',action,picker(action),'Enviar e-mail',
+      { glyph:'send', description:'Escolha um contato para receber o link mágico por e-mail.' });
     if (action === 'manage') {
       const member = current.members.find(row => row.id === id);
       const courses = c.s.courses.map(course => `<label class="cp-checkbox"><input type="checkbox" name="courseIds" value="${h(course.id)}"
         ${member.courseIds.includes(course.id) ? 'checked' : ''}><span>${h(course.name)}${course.active ? '' : ' · Rascunho'}</span></label>`).join('');
       modal(member.name || member.email,'permissions',`<fieldset class="cp-permissions"><legend>Cursos com acesso</legend>
         ${courses || '<p>Cadastre um curso na aba Cursos.</p>'}</fieldset>` +
-        (member.revokedAt ? button('reactivate','Reativar acesso','refresh',id) : button('revoke','Revogar acesso','lock',id)), 'Salvar permissões',id);
+        (member.revokedAt ? button('reactivate','Reativar acesso','refresh',id) : button('revoke','Revogar acesso','lock',id)), 'Salvar permissões',{ id });
     }
     if (action === 'revoke' || action === 'reactivate') {
       close();
       modal(action === 'revoke' ? 'Revogar acesso' : 'Reativar acesso',action,
         action === 'revoke' ? '<p>Os links e sessões deste cliente serão invalidados.</p>' : '<p>Gere um novo link para o cliente voltar a entrar.</p>',
-        action === 'revoke' ? 'Revogar acesso' : 'Reativar acesso', id);
+        action === 'revoke' ? 'Revogar acesso' : 'Reativar acesso', { id });
     }
   });
+  const refresh = event => {
+    const form = event.target.closest?.('[data-portal-form]');
+    if (!form) return;
+    if (event.target.name === 'kind') form.querySelectorAll('.cp-kind').forEach(panel => {
+      panel.hidden = panel.disabled = panel.dataset.kind !== event.target.value;
+    });
+    ready(form);
+  };
+  document.addEventListener('change', refresh);
+  document.addEventListener('input', refresh);
   document.addEventListener('submit', async event => {
     const form = event.target, action = form.dataset.portalForm;
     if (!action) return;
     event.preventDefault();
     if (form.dataset.pending) return;
     const fields = new FormData(form);
-    const input = { ...Object.fromEntries(fields), action, id: form.dataset.portalId };
+    if (action === 'magic' && fields.get('kind') === 'menu') {
+      close();
+      showLink(portalUrl(current) + (fields.get('app') === 'courses' ? '#cursos' : ''), 0, 'Link para menu personalizado');
+      return;
+    }
+    const { kind, app, ...values } = Object.fromEntries(fields);
+    const input = { ...values, action, id: form.dataset.portalId };
     if (action === 'settings') input.enabled = fields.has('enabled');
-    if (action === 'invite') input.sendEmail = fields.has('sendEmail');
+    if (action === 'invite' || action === 'magic') input.sendEmail = fields.has('sendEmail');
+    if (action === 'invite') {
+      const email = String(input.email).trim().toLowerCase();
+      const contact = c.s.contacts.find(row => row.email?.trim().toLowerCase() === email);
+      if (contact) input.contactId = contact.id;
+    }
     if (action === 'permissions') input.courseIds = fields.getAll('courseIds');
     if (input.recipient) {
       const [kind, id] = input.recipient.split(':');

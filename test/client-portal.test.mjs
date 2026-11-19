@@ -92,6 +92,16 @@ test('Client portal invites, single-use login and course permissions persist in 
   const member = invitation.members[0];
   assert.equal((await admin({ action:'login',memberId:member.id })).body.sent,true);
   const renewed = deliveries[1].text.match(/#access=([\w-]+)/)[1];
+  assert.match(deliveries[1].text,/expira em 24 horas/);
+
+  const contact = await call('/api/action',{ type:'save', key:'contacts', data:{ name:'Aluna Magia', email:'magia@example.test' } });
+  const magic = await admin({ action:'magic', contactId:contact.body.id, sendEmail:true });
+  assert.equal(magic.body.sent,true);
+  assert.equal(magic.body.accessPath,undefined);
+  assert.deepEqual(deliveries[2].to,['magia@example.test']);
+  assert.match(deliveries[2].text,/expira em 15 minutos/);
+  assert.equal(typeof (await admin({ action:'magic', contactId:contact.body.id })).body.accessPath,'string');
+  assert.equal(deliveries.length,3);
   await admin({ action:'revoke', id:member.id });
   assert.equal((await read('/home')).body.signedIn,false);
   assert.equal((await call(`${api}/exchange`,{token:renewed})).status,401);

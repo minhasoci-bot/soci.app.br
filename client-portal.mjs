@@ -8,6 +8,7 @@ const digest = token => createHash('sha256').update(token).digest('hex');
 const validToken = value => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value);
 const sessionSeconds = 8 * 60 * 60;
 const linkSeconds = { magic: 15 * 60, login: 24 * 60 * 60, invite: 7 * 24 * 60 * 60 };
+const linkLifetime = { magic: '15 minutos', login: '24 horas', invite: '7 dias' };
 const portalId = workspace => `portal-${workspace}`;
 const portalPath = workspace => `/portal/${workspace}`;
 const blankPortal = () => ({
@@ -106,7 +107,7 @@ export function makeClientPortal({
         method: 'POST', redirect: 'error', signal: AbortSignal.timeout(8000),
         headers: { Authorization: `Bearer ${mailKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': `portal-${fingerprint}` },
         body: JSON.stringify({ from, to: [to], subject,
-          text: `${subject} de ${title}.\n\nAcesse: ${url}\n\nO link pode ser usado uma vez. Ele expira em ${invite ? '7 dias' : '24 horas'}.` })
+          text: `${subject} de ${title}.\n\nAcesse: ${url}\n\nO link pode ser usado uma vez. Ele expira em ${linkLifetime[action]}.` })
       });
     } catch { fail('O serviço de e-mail não confirmou o envio. Você pode gerar um link para compartilhar.', 502); }
     if (!response.ok) fail('O serviço de e-mail recusou o envio. Verifique a configuração do remetente.', 502);
@@ -116,7 +117,7 @@ export function makeClientPortal({
     if (!input) return dashboard(workspace, await load(workspace) || blankPortal(), state);
     const { action } = input;
     if (['magic', 'invite', 'login'].includes(action)) {
-      const sendEmail = action !== 'magic' && (action === 'login' || input.sendEmail === true);
+      const sendEmail = action === 'login' || input.sendEmail === true;
       if (sendEmail && !emailConfigured) fail('O envio por e-mail ainda não foi configurado.', 503);
       const address = action === 'login' && input.memberId ? null : recipient(state, input, action);
       const grants = input.courseIds === undefined ? undefined : courseIds(state, input.courseIds);
