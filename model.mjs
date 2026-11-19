@@ -261,6 +261,10 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
       || fail('Este contato já foi inscrito neste fluxo.', 409);
   }
   // Server-internal (not accepted from /api/action): the per-minute tick, inbound webhooks and the delivery queue.
+  if (type === 'workflow-test') {
+    if (!d.workflow || typeof d.workflow !== 'object') fail('Envie o fluxo para testar.');
+    return engine.test(s, d.workflow, contactId(s, d.contactId));
+  }
   if (type === 'workflow-tick') return engine.tick(s, d.at ? Date.parse(d.at) : Date.now());
   if (type === 'workflow-hook') return engine.inbound(s, str(d.workflowId, 40), str(d.triggerId, 40), d.payload && typeof d.payload === 'object' ? d.payload : {});
   if (type === 'workflow-outbox-take') { const items = s.workflowOutbox || []; s.workflowOutbox = []; return items; }

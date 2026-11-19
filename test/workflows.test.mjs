@@ -207,3 +207,54 @@ test('Inbound webhook: the secret is required, the contact is found or created, 
   const resaved = await post('/api/action', { type: 'save', key: 'workflows', id: row.id, data: { ...row, name: 'Entrada 2' } });
   assert.equal(resaved.body.state.workflows.find(item => item.id === row.id).triggers[0].config.secret, trigger.config.secret, 'the secret survives edits');
 });
+
+test('Filter ends the run when the condition fails; variables and step outputs feed later steps; errors can stop the flow', () => {
+  const s = blank('W');
+  const id = flow(s, { triggers: [{ type: 'contact_created' }], steps: [
+    { type: 'filter', config: { match: 'all', conditions: [{ subject: 'tag', op: 'has', value: 'lead' }] } },
+    { type: 'set_variable', config: { name: 'cupom', value: '{{upper(contact.first_name)}}10' } },
+    { id: 'deal01', type: 'create_opportunity', config: { title: 'Negócio {{vars.cupom}}', value: 50 } },
+    { type: 'add_note', config: { body: 'Criado {{steps.deal01.title}} de {{steps.deal01.value}}' } }
+  ] });
+  const blocked = contact(s, { tags: [] });
+  assert.equal(runsOf(s, id).find(row => row.contactId === blocked).status, 'Completed');
+  assert.ok(!s.opportunities.some(row => row.contactId === blocked), 'the filter stopped the flow');
+  const passed = contact(s, { tags: ['lead'] });
+  const run = runsOf(s, id).find(row => row.contactId === passed);
+  assert.equal(run.vars.cupom, 'ANA10');
+  assert.equal(s.opportunities.find(row => row.contactId === passed).title, 'Negócio ANA10');
+  assert.ok(s.messages.some(row => row.contactId === passed && row.body === 'Criado Negócio ANA10 de 50'));
+
+  const strict = flow(s, { name: 'Estrito', triggers: [{ type: 'contact_tag', config: { change: 'added', tag: 'estrito' } }], steps: [
+    { type: 'math', config: { field: 'none', op: 'add', number: 1, stopOnError: true } }, { type: 'add_tag', config: { tag: 'nao-chega' } }] });
+  const c = contact(s, { tags: ['estrito'] });
+  const failed = runsOf(s, strict)[0];
+  assert.equal(failed.status, 'Failed');
+  assert.ok(!s.contacts.find(row => row.id === c).tags.includes('nao-chega'));
+});
+
+test('Testing a draft runs it on a copy: waits are skipped and nothing is saved', async t => {
+  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, dbPath: ':memory:', port: 0 });
+  await new Promise((resolve, reject) => { server.on('error', reject); server.listen(0, host, resolve); });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const base = `http://${host}:${server.address().port}`;
+  const post = async (path, body) => { const r = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); return { status: r.status, body: await r.json() }; };
+  const saved = await post('/api/action', { type: 'save', key: 'contacts', data: { name: 'Dora Lima', email: 'dora@example.test', tags: ['vip'] } });
+  const contactId = saved.body.id;
+  const draft = { name: 'Rascunho', triggers: [], steps: [
+    { type: 'wait', config: { mode: 'delay', amount: 3, unit: 'days' } },
+    { type: 'if_else', config: { match: 'all', conditions: [{ subject: 'tag', op: 'has', value: 'vip' }] }, yes: [{ type: 'add_tag', config: { tag: 'testado' } }], no: [] },
+    { type: 'send_sms', config: { body: 'Oi {{contact.first_name}}' } }
+  ] };
+  const result = await post('/api/workflow-test', { workflow: draft, contactId });
+  assert.equal(result.status, 200, result.body.error);
+  const out = result.body.result;
+  assert.equal(out.status, 'Completed');
+  assert.deepEqual(out.changes.tagsAdded, ['testado']);
+  assert.deepEqual(out.changes.messages, [{ channel: 'SMS', body: 'Oi Dora' }]);
+  assert.ok(out.trace.some(item => item.result === 'pulada no teste'));
+  const state = (await fetch(base + '/api/state').then(r => r.json())).state;
+  assert.ok(!state.contacts.find(row => row.id === contactId).tags.includes('testado'), 'nothing was saved');
+  assert.equal(state.runs.length, 0);
+  assert.equal((await post('/api/action', { type: 'workflow-test', data: { workflow: draft, contactId } })).status, 400, 'not a public command');
+});

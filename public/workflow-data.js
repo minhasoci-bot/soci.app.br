@@ -115,6 +115,8 @@ export const actionCatalog = [
       f('eventValue', 'Tag ou formulário (opcional)', 'text', { when: { mode: 'event' } }),
       f('timeoutDays', 'Desistir de esperar após (dias)', 'number', { min: 1, max: 365, value: 3, when: { mode: 'event' } })] },
     { type: 'if_else', label: 'Se / senão', icon: 'flow', branch: true, fields: [conditions] },
+    { type: 'filter', label: 'Filtro', icon: 'filter', description: 'Só continua se a condição for verdadeira', fields: [conditions] },
+    { type: 'set_variable', label: 'Definir variável', icon: 'key', description: 'Guarda um valor para usar depois como {{vars.nome}}', fields: [f('name', 'Nome da variável', 'text', { required: true, placeholder: 'ex.: cupom' }), f('value', 'Valor (texto ou expressão)', 'text', { required: true, placeholder: '{{upper(contact.first_name)}}' })] },
     { type: 'router', label: 'Roteador', icon: 'flow', branch: true, fields: [] },
     { type: 'goal', label: 'Evento de meta', icon: 'award', fields: [f('event', 'Meta alcançada quando', 'select', { options: [['contact_tag', 'Receber uma tag'], ['customer_replied', 'Cliente responder'], ['form_submitted', 'Enviar um formulário'], ['appointment_booked', 'Fazer um agendamento'], ['order_paid', 'Pagar um pedido'], ['opportunity_status_changed', 'Oportunidade ganha']] }), f('eventValue', 'Tag ou formulário (opcional)', 'text'),
       f('otherwise', 'Ao chegar aqui sem a meta', 'select', { options: [['continue', 'Seguir o fluxo'], ['wait', 'Esperar a meta'], ['end', 'Encerrar o fluxo']] })] },
@@ -176,7 +178,8 @@ export function stepSummary(step, s) {
     case 'update_field': return `${ref('contactFields', c.field) || 'Campo'} = ${c.value || ''}`;
     case 'send_email': return c.subject;
     case 'wait': return c.mode === 'until' ? (c.until ? new Date(c.until).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Data a definir') : c.mode === 'event' ? `Até: ${(actionSpec('wait').fields.find(x => x.key === 'event').options.find(([k]) => k === c.event) || [])[1] || 'evento'}${c.timeoutDays ? ` (até ${c.timeoutDays} d)` : ''}` : `${c.amount || 1} ${({ minutes: 'min', hours: 'h', days: 'dia(s)' })[c.unit || 'days']}`;
-    case 'if_else': return `${(step.config?.conditions || []).length || 0} condição(ões)`;
+    case 'if_else': case 'filter': return `${(step.config?.conditions || []).length || 0} condição(ões)`;
+    case 'set_variable': return c.name ? `vars.${c.name}` : '';
     case 'router': return `${(step.routes || []).length} caminho(s)`;
     case 'create_task': case 'create_opportunity': case 'create_invoice': return c.title;
     case 'add_to_workflow': case 'remove_from_workflow': return ref('workflows', c.workflowId) || (step.type === 'remove_from_workflow' ? 'Este fluxo' : '');

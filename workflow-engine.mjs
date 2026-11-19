@@ -9,6 +9,7 @@ const fail = (message, status = 400) => { throw Object.assign(new Error(message)
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value) : '';
 const lower = value => String(value ?? '').trim().toLowerCase();
 const tagList = list => [...new Set((list || []).map(tag => str(tag, 48)).filter(Boolean))].slice(0, 20);
+const FAILURES = /^(erro|sem contato|sem nome|sem oportunidade|campo removido|campo inválido|e-mail inválido|contato em não perturbe)/;
 const MAX_STEPS = 120, MAX_DEPTH = 4, CONDITIONS = ['tag', 'field', 'dnd', 'stage', 'opportunity_status', 'replied', 'submitted', 'trigger'];
 const scheduledTypes = allTriggers.filter(item => item.scheduled).map(item => item.type);
 
@@ -64,6 +65,8 @@ export function workflowRecord(s, d) {
       if (++count > MAX_STEPS) fail(`Um fluxo aceita até ${MAX_STEPS} etapas.`);
       const spec = actionSpec(raw?.type) || fail('Ação desconhecida.');
       const step = { id: uniqueId(raw.id), type: spec.type, config: cleanConfig(s, spec, raw.config, { publishing, label: spec.label }) };
+      if (raw.config?.stopOnError === true) step.config.stopOnError = true;
+      if (spec.type === 'filter') { step.config.conditions = cleanConditions(raw.config?.conditions); step.config.match = raw.config?.match === 'any' ? 'any' : 'all'; }
       if (spec.type === 'if_else') { step.config.conditions = cleanConditions(raw.config?.conditions); step.config.match = raw.config?.match === 'any' ? 'any' : 'all'; step.yes = list(raw.yes, depth + 1); step.no = list(raw.no, depth + 1); }
       if (spec.type === 'router') {
         step.routes = (Array.isArray(raw.routes) ? raw.routes : []).slice(0, 6).map((route, index) => ({ id: uniqueId(route?.id), label: str(route?.label, 60) || `Caminho ${index + 1}`, match: route?.match === 'any' ? 'any' : 'all', conditions: cleanConditions(route?.conditions), steps: list(route?.steps, depth + 1) }));
@@ -113,8 +116,10 @@ export function createEngine({ add, now }) {
     return contact[key] ?? '';
   };
   // Templates use the shared expression engine: {{contact.first_name}}, {{upper(contact.name)}}, {{trigger.body}}…
+  const output = (run, id, data) => { run.outputs = { ...(run.outputs || {}), [id]: data }; };
+  const mergeContext = (s, contact, run = {}) => ({ ...buildWorkflowContext(s, run, contact), workspace: { name: s.profile?.name || '' }, trigger: { ...(run.context || {}), ...(run.context?.payload || {}) }, vars: run.vars || {}, steps: run.outputs || {} });
   const merge = (text, s, contact, run = {}) => {
-    const context = { ...buildWorkflowContext(s, run, contact), workspace: { name: s.profile?.name || '' }, trigger: { ...(run.context || {}), ...(run.context?.payload || {}) } };
+    const context = { ...buildWorkflowContext(s, run, contact), workspace: { name: s.profile?.name || '' }, trigger: { ...(run.context || {}), ...(run.context?.payload || {}) }, vars: run.vars || {}, steps: run.outputs || {} };
     const out = resolveTemplate(String(text ?? ''), context);
     return out == null ? '' : typeof out === 'object' ? JSON.stringify(out) : String(out);
   };
@@ -195,7 +200,7 @@ export function createEngine({ add, now }) {
     return run.id;
   }
 
-  function perform(s, run, node, depth) {
+  function perform(s, run, node, depth, id) {
     const contact = contactOf(s, run.contactId), c = node.config || {}, text = value => merge(value, s, contact, run);
     const needsContact = !['internal_notification', 'webhook', 'create_task'].includes(node.type);
     if (needsContact && !contact) return 'sem contato';
@@ -246,7 +251,8 @@ export function createEngine({ add, now }) {
       case 'internal_notification': add(s, 'teamMessages', { author: 'Automação', body: `${run.name}: ${text(c.body)}`.slice(0, 2000) }); return 'enviada ao chat interno';
       case 'create_task': {
         const due = new Date(Date.now() + (Number(c.dueDays) || 0) * 864e5).toISOString();
-        add(s, 'tasks', { title: text(c.title).slice(0, 240) || 'Tarefa do fluxo', contactId: contact?.id || '', due, done: false, owner: text(c.owner).slice(0, 80), notes: '' });
+        const task = add(s, 'tasks', { title: text(c.title).slice(0, 240) || 'Tarefa do fluxo', contactId: contact?.id || '', due, done: false, owner: text(c.owner).slice(0, 80), notes: '' });
+        output(run, id, { id: task.id, title: task.title, due: task.due });
         return 'concluída';
       }
       case 'create_opportunity': {
@@ -256,9 +262,11 @@ export function createEngine({ add, now }) {
           const moved = open.stage !== stage.id;
           Object.assign(open, { stage: stage.id, value: Number(c.value) || open.value, updated: now() });
           if (moved) emit(s, 'pipeline_stage_changed', { contactId: contact.id, stageId: stage.id, depth });
+          output(run, id, { id: open.id, title: open.title, value: open.value, stage: stage.name });
           return 'atualizada';
         }
-        add(s, 'opportunities', { title: text(c.title).slice(0, 240) || contact.name, contactId: contact.id, stage: stage.id, pipelineId: stage.pipelineId, value: Number(c.value) || 0, status: 'Open', statusChangedAt: now(), source: 'Workflow', owner: '', tags: [], followers: [], company: '', closeDate: '', probability: 0, lostReason: '', custom: {} });
+        const deal = add(s, 'opportunities', { title: text(c.title).slice(0, 240) || contact.name, contactId: contact.id, stage: stage.id, pipelineId: stage.pipelineId, value: Number(c.value) || 0, status: 'Open', statusChangedAt: now(), source: 'Workflow', owner: '', tags: [], followers: [], company: '', closeDate: '', probability: 0, lostReason: '', custom: {} });
+        output(run, id, { id: deal.id, title: deal.title, value: deal.value, stage: stage.name });
         emit(s, 'opportunity_created', { contactId: contact.id, pipelineId: stage.pipelineId, depth });
         return 'criada';
       }
@@ -270,7 +278,8 @@ export function createEngine({ add, now }) {
       }
       case 'create_invoice': {
         const due = new Date(Date.now() + (Number(c.dueDays) || 0) * 864e5).toISOString().slice(0, 10);
-        add(s, 'invoices', { title: text(c.title).slice(0, 240), contactId: contact.id, value: Math.max(0, Math.round((Number(c.value) || 0) * 100) / 100), due, status: 'Open' });
+        const invoice = add(s, 'invoices', { title: text(c.title).slice(0, 240), contactId: contact.id, value: Math.max(0, Math.round((Number(c.value) || 0) * 100) / 100), due, status: 'Open' });
+        output(run, id, { id: invoice.id, title: invoice.title, value: invoice.value, due });
         return 'criada';
       }
       case 'math': {
@@ -279,6 +288,7 @@ export function createEngine({ add, now }) {
         const current = Number(contact.custom?.[field.id]) || 0, n = Number(c.number) || 0;
         const result = { add: current + n, subtract: current - n, multiply: current * n, divide: n ? current / n : current, set: n }[c.op] ?? current;
         contact.custom = { ...(contact.custom || {}), [field.id]: Math.round(result * 100) / 100 };
+        output(run, id, { value: contact.custom[field.id] });
         return `= ${contact.custom[field.id]}`;
       }
       case 'text_format': {
@@ -286,6 +296,14 @@ export function createEngine({ add, now }) {
         const out = { upper: value.toUpperCase(), lower: value.toLowerCase(), trim: value.trim(), title: value.toLowerCase().replace(/(^|\s)\p{L}/gu, ch => ch.toUpperCase()) }[c.op] ?? value;
         if (c.field?.startsWith('custom:')) contact.custom = { ...(contact.custom || {}), [c.field.slice(7)]: out }; else contact[c.field] = out;
         return 'concluída';
+      }
+      case 'set_variable': {
+        const name = String(c.name || '').trim().replace(/[^\w]/g, '_').slice(0, 40);
+        if (!name) return 'sem nome';
+        const value = c.value?.trim().match(/^\{\{[\s\S]*\}\}$/) ? resolveTemplate(c.value, mergeContext(s, contact, run)) : text(c.value);
+        run.vars = { ...(run.vars || {}), [name]: typeof value === 'string' ? value.slice(0, 4000) : value };
+        output(run, id, { [name]: run.vars[name] });
+        return `${name} = ${typeof value === 'string' ? value.slice(0, 60) : JSON.stringify(value).slice(0, 60)}`;
       }
       case 'webhook': {
         outbox(s, { kind: 'webhook', runId: run.id, url: c.url, method: c.method || 'POST', body: { workflow: { id: run.workflowId, name: run.name }, trigger: run.event, context: run.context,
@@ -307,6 +325,16 @@ export function createEngine({ add, now }) {
       const id = run.at, node = run.graph.nodes[id];
       if (!node) { run.at = ''; break; }
       const label = actionSpec(node.type)?.label || node.type, c = node.config || {};
+      const trace = text => { (run.trace ??= []).push({ id, type: node.type, result: text }); if (run.trace.length > 300) run.trace.shift(); };
+      if (run.test && (node.type === 'wait' || node.type === 'manual_sms' || node.type === 'manual_call' || (node.type === 'goal' && c.otherwise === 'wait'))) {
+        run.results.push(`${label}: (teste) pulada`); trace('pulada no teste'); run.at = node.next; continue;
+      }
+      if (node.type === 'filter') {
+        const ok = passes(s, run, c.conditions, c.match);
+        run.results.push(`${label}: ${ok ? 'passou' : 'não passou, fluxo encerrado'}`); trace(ok ? 'passou' : 'não passou');
+        if (!ok) { run.at = ''; break; }
+        run.at = node.next; continue;
+      }
       if (node.type === 'wait') {
         run.at = node.next;
         run.status = 'Waiting';
@@ -316,8 +344,8 @@ export function createEngine({ add, now }) {
         run.results.push(`${label}: aguardando ${run.waitFor ? 'o evento' : `até ${new Date(run.wakeAt).toISOString()}`}`);
         return;
       }
-      if (node.type === 'if_else') { const ok = passes(s, run, c.conditions, c.match); run.results.push(`${label}: ${ok ? 'sim' : 'não'}`); run.at = ok ? node.yes : node.no; continue; }
-      if (node.type === 'router') { const route = node.routes.find(item => passes(s, run, item.conditions, item.match)); run.results.push(`${label}: ${route ? route.label : 'caso contrário'}`); run.at = route ? route.first : node.otherwise; continue; }
+      if (node.type === 'if_else') { const ok = passes(s, run, c.conditions, c.match); run.results.push(`${label}: ${ok ? 'sim' : 'não'}`); trace(ok ? 'sim' : 'não'); run.at = ok ? node.yes : node.no; continue; }
+      if (node.type === 'router') { const route = node.routes.find(item => passes(s, run, item.conditions, item.match)); run.results.push(`${label}: ${route ? route.label : 'caso contrário'}`); trace(route ? route.label : 'caso contrário'); run.at = route ? route.first : node.otherwise; continue; }
       if (node.type === 'goal') {
         if (c.otherwise === 'end') { run.results.push(`${label}: meta não alcançada, fluxo encerrado`); run.at = ''; break; }
         if (c.otherwise === 'wait') { run.status = 'Waiting'; run.waitFor = { type: c.event, value: c.eventValue || '', goal: id }; run.wakeAt = ''; run.at = node.next; run.results.push(`${label}: aguardando a meta`); return; }
@@ -346,8 +374,10 @@ export function createEngine({ add, now }) {
         return;
       }
       let result;
-      try { result = perform(s, run, node, depth); } catch (error) { result = `erro: ${error.message}`; }
+      try { result = perform(s, run, node, depth, id); } catch (error) { result = `erro: ${error.message}`; }
       run.results.push(`${label}: ${result}`);
+      trace(result);
+      if (c.stopOnError && FAILURES.test(result)) { run.status = 'Failed'; run.at = ''; run.results.push('Fluxo interrompido: a etapa falhou e está marcada para parar em caso de erro'); run.finished = now(); return; }
       run.at = node.next;
     }
     run.status = 'Completed';
@@ -471,5 +501,26 @@ export function createEngine({ add, now }) {
     return enroll(s, workflow, { contactId: contact?.id || '', triggerId, payload: flat, depth: 1 }, 'Webhook de entrada') || 'already-enrolled';
   }
 
-  return { emit, enroll, recordChange, tick, finishManual, inbound, proceed };
+  // Runs a draft against one contact on a throwaway copy of the state: waits and manual steps are skipped.
+  function testRun(s, draft, contactId) {
+    const workflow = { ...workflowRecord(s, { ...draft, active: false }), id: draft.id || 'rascunho', active: false };
+    const before = { messages: s.messages.length, tasks: s.tasks.length, opportunities: s.opportunities.length, invoices: s.invoices.length, outbox: (s.workflowOutbox || []).length };
+    const contact = contactOf(s, contactId);
+    const tagsBefore = [...(contact?.tags || [])];
+    const graph = compile(workflow.steps);
+    const run = add(s, 'runs', { name: workflow.name, workflowId: workflow.id, event: 'Teste', contactId: contact?.id || '', context: {}, graph, at: graph.first, results: [], steps: 0, status: 'Running', test: true });
+    proceed(s, run, 1);
+    const after = contactOf(s, contactId);
+    return {
+      status: run.status, results: run.results, trace: run.trace || [], outputs: run.outputs || {}, vars: run.vars || {},
+      changes: {
+        tagsAdded: (after?.tags || []).filter(tag => !tagsBefore.includes(tag)), tagsRemoved: tagsBefore.filter(tag => !(after?.tags || []).includes(tag)),
+        messages: s.messages.slice(before.messages).map(row => ({ channel: row.channel, body: row.body })),
+        tasks: s.tasks.slice(before.tasks).map(row => row.title), opportunities: s.opportunities.slice(before.opportunities).map(row => row.title),
+        invoices: s.invoices.slice(before.invoices).map(row => row.title), queued: (s.workflowOutbox || []).slice(before.outbox).map(row => ({ kind: row.kind, url: row.url || '', phone: row.phone ? 'contato' : '' }))
+      }
+    };
+  }
+
+  return { emit, enroll, recordChange, tick, finishManual, inbound, proceed, test: testRun };
 }

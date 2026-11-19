@@ -1340,6 +1340,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
             ignoredWebhooks: agency.accounts[id]?.ignoredWebhooks || {} } }),
           access:{agency:who.agency,modules:who.modules,name:who.name,session:who.session},audit});
       }
+      // Dry run of a workflow draft for one contact, on a copy of the workspace: nothing is saved or sent.
+      if (p==='/api/workflow-test' && method==='POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
+        const body = await payload(req);
+        await workspaceAccess(req, res, id, { modules: ['automation'] });
+        const copy = structuredClone(await store.load(id));
+        return json({ result: execute(copy, { type: 'workflow-test', data: body }) });
+      }
       if (p==='/api/action' && method==='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
         const command = await payload(req);
