@@ -264,5 +264,18 @@ export function makeClientPortal({
     }
   }
 
-  return { admin, exchange, signOut, content, progress };
+  // The signed-in member and the portal document, for features that build on the portal session.
+  async function session(workspace, token) {
+    const doc = await load(workspace);
+    if (!doc) fail('Entre no portal para acessar a comunidade.', 401);
+    requireEnabled(doc);
+    const member = signedMember(doc, token);
+    if (!member) fail('Entre no portal para acessar a comunidade.', 401);
+    return { doc, member };
+  }
+
+  // The portal document for staff screens (empty when the portal was never used).
+  const directory = async workspace => await load(workspace) || blankPortal();
+
+  return { admin, exchange, signOut, content, progress, session, directory };
 }
