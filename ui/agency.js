@@ -147,41 +147,41 @@ export function startAgency(env) {
     const users = D().users;
     const session = A.data.access?.session;
     const acting = localStorage.getItem('go.user') || '';
-    const item = ([key, label, ico]) => ({ href: `#agency/${key}`, label, icon: ico, current: A.page === key });
-    const currentPageLabel = agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência';
+    const item = ([key, label, ico]) => ({ href: `#agency/${key}`, label: tr(label), icon: ico, current: A.page === key });
+    const currentPageLabel = tr(agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência');
     return `<div class="shell ${A.navOpen ? 'wide' : ''} ag-shell">${sidebar({
-      label: 'Navegação da agência',
+      label: tr('Navegação da agência'),
       home: '#agency/dashboard',
       brand: brandName(),
       mark: logo,
-      account: { name: company.name || 'Minha Agência', logo: company.logo || '', caption: 'Agência · ir para subconta', attr: 'data-ag="switch-account"', tip: 'Trocar para uma subconta' },
+      account: { name: company.name || tr('Minha Agência'), logo: company.logo || '', caption: tr('Agência · ir para subconta'), attr: 'data-ag="switch-account"', tip: tr('Trocar para uma subconta') },
       toggle: 'data-ag="nav"',
       open: A.navOpen,
       groups: [
-        { title: 'Visão geral', items: agencyNav.slice(0, 5).map(item) },
-        { title: 'Subcontas', items: agencyNav.slice(5, 10).map(item) },
-        { title: 'Aprender e apps', items: agencyNav.slice(10, -1).map(item) },
-        { title: 'Atalhos', items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: l.title, icon: l.icon, external: true })) }
+        { title: tr('Visão geral'), items: agencyNav.slice(0, 5).map(item) },
+        { title: tr('Subcontas'), items: agencyNav.slice(5, 10).map(item) },
+        { title: tr('Aprender e apps'), items: agencyNav.slice(10, -1).map(item) },
+        { title: tr('Atalhos'), items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: tr(l.title), icon: l.icon, external: true })) }
       ],
       footer: [
-        { href: 'https://chat.whatsapp.com/IuU6twK8qf606ye5wvP638', label: 'Comunidade', icon: 'whatsapp', external: true },
+        { href: 'https://chat.whatsapp.com/IuU6twK8qf606ye5wvP638', label: tr('Comunidade'), icon: 'whatsapp', external: true },
         item(agencyNav.at(-1))
       ]
     })}
     <div class="workspace">${topbar({
       crumbs: [
-        { label: company.name || 'Agência', href: '#agency/dashboard' },
+        { label: company.name || tr('Agência'), href: '#agency/dashboard' },
         { label: currentPageLabel }
       ],
       search: 'data-act="search"',
       extra: session ? '' : `<div class="ag-acting">${i('users', 15)}<label class="sr-only" for="ag-user-select">Agindo como</label><select id="ag-user-select" data-ag-user aria-label="Agindo como"><option value="">${h(D().profile.name)} (Dono da agência)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(tr(u.role))})</option>`).join('')}</select></div>`,
       tools: [
-        { icon: 'bell', label: 'Notificações', attr: 'data-act="notifications"' }
+        { icon: 'bell', label: tr('Notificações'), attr: 'data-act="notifications"' }
       ],
       profile: {
         text: initials(session?.name || company.name || D().profile.name || 'AG'),
         picture: session?.picture,
-        label: session?.name || 'Configurações da agência',
+        label: session?.name || tr('Configurações da agência'),
         attr: session ? 'data-act="account"' : 'data-ag="go-profile"'
       }
     })}<main id="screen" class="screen${A.page === 'ask' ? ' screen-ask-chat' : ''}">${content}</main></div></div>`;
@@ -1285,5 +1285,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       try { return { 'X-Go-User': localStorage.getItem('go.user') || '' }; } catch { return {}; }
     }
   });
+  window.addEventListener('soci:languagechange', () => { if (active()) render(); });
   return { show, leave, session: () => A.data?.access?.session };
 }

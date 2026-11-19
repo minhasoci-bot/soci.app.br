@@ -606,7 +606,7 @@ function buildLLMHistory({ conv, leafId, agency, overview, customInstructions })
   const today = new Date().toISOString().slice(0, 10);
   const agencyContext = buildAgencyContext({ agency, overview });
   const system = [
-    `Você é a Soci, assistente executiva de IA integrada à plataforma de gestão de agências soci. Responda em português do Brasil (a menos que o usuário peça outro idioma), de forma clara, direta, útil e usando Markdown bem estruturado (listas, tabelas, destaques, código quando pertinente). Data atual: ${today}.`,
+    `Você é a Soci, assistente executiva de IA integrada à plataforma de gestão de agências soci. Responda em português do Brasil ou espanhol latino (conforme a preferência ou idioma do usuário), de forma clara, direta, útil e usando Markdown bem estruturado (listas, tabelas, destaques, código quando pertinente). Todas as novas criações, templates, copies ou materiais devem nascer já prontos em português e espanhol latino, com alta qualidade e linguagem natural para ambos os mercados. Data atual: ${today}.`,
     `Dados atuais desta agência (trate como base factual da operação):\n${agencyContext}`,
     typeof customInstructions === 'string' && customInstructions.trim()
       ? `Instruções personalizadas do usuário:\n${customInstructions.trim().slice(0, 4000)}`

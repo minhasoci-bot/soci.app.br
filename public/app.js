@@ -6,7 +6,7 @@ import { dashboardPreferences, installDashboardControls, reportGrid } from './da
 import { drawDashboardGauges } from './dashboard.js';
 import { launchpadGuide } from './launchpad.js';
 import { opportunityStatuses } from './dashboard-data.js';
-import { tr } from './i18n.js';
+import { tr, initI18n, getLanguage } from './i18n.js';
 import { cardFields, cardLayouts, opportunityCsv, opportunityCsvColumns, opportunityPreferences, opportunityResults, opportunitySorts, quickActions } from './opportunity-data.js';
 import { opportunityEvents } from './opportunities.js';
 import { parseCsv } from './social-data.js';
@@ -198,24 +198,24 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   stopSubWaPoll();
   if(view==='payments'&&!nextTab||view==='settings'&&nextTab==='abacatepay'){ render(); void refreshPay(); return; }
   render(); }
-const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${label}" title="${label}" ${attributes}>${i(name,17)}</button>`;
-const navItem=([id,pt,ico])=>({href:`#${id}`,label:pt,icon:ico,current:c.view===id});
+const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${tr(label)}" title="${tr(label)}" ${attributes}>${i(name,17)}</button>`;
+const navItem=([id,pt,ico])=>({href:`#${id}`,label:tr(pt),icon:ico,current:c.view===id});
 function appSidebar(brand){
   const items=nav.slice(0,-1).map((n,k)=>[n,k]).filter(([n])=>allowedView(n[0]));
-  const links=(c.agency?.menuLinks||[]).map(l=>l.openIn==='Inside the app'?{href:`#link/${l.id}`,label:l.title,icon:l.icon,current:c.view==='link'&&c.tab===l.id}:{href:l.url,label:l.title,icon:l.icon,external:true});
-  return sidebar({label:'Navegação',home:c.access?.agency?'#agency/dashboard':'#launchpad',brand,mark:c.agency?.logo?`<img class="ag-logo" src="${h(c.agency.logo)}" alt="">`:logo,
-    account:{name:c.s.profile.name,caption:'Subconta · trocar',attr:'data-act="workspaces"',tip:'Trocar de workspace'},
+  const links=(c.agency?.menuLinks||[]).map(l=>l.openIn==='Inside the app'?{href:`#link/${l.id}`,label:tr(l.title),icon:l.icon,current:c.view==='link'&&c.tab===l.id}:{href:l.url,label:tr(l.title),icon:l.icon,external:true});
+  return sidebar({label:tr('Navegação'),home:c.access?.agency?'#agency/dashboard':'#launchpad',brand,mark:c.agency?.logo?`<img class="ag-logo" src="${h(c.agency.logo)}" alt="">`:logo,
+    account:{name:c.s.profile.name,caption:tr('Subconta · trocar'),attr:'data-act="workspaces"',tip:tr('Trocar de workspace')},
     toggle:'data-act="nav"',open:c.navOpen,
-    groups:[{title:'Principal',items:items.filter(([,k])=>k<7).map(([n])=>navItem(n))},{title:'Crescimento',items:items.filter(([,k])=>k>=7).map(([n])=>navItem(n))},{title:'Atalhos',items:links}],
-    footer:[...(c.access?.agency?[{href:'#agency/dashboard',label:'Visão da agência',icon:'users'}]:[]),...(allowedView('settings')?[navItem(nav.at(-1))]:[])]});
+    groups:[{title:tr('Principal'),items:items.filter(([,k])=>k<7).map(([n])=>navItem(n))},{title:tr('Crescimento'),items:items.filter(([,k])=>k>=7).map(([n])=>navItem(n))},{title:tr('Atalhos'),items:links}],
+    footer:[...(c.access?.agency?[{href:'#agency/dashboard',label:tr('Visão da agência'),icon:'users'}]:[]),...(allowedView('settings')?[navItem(nav.at(-1))]:[])]});
 }
 function appTopbar(){
   const session = c.access?.session;
-  const active=nav.find(x=>x[0]===c.view), page=c.view==='link'?c.agency?.menuLinks.find(l=>l.id===c.tab)?.title||'Link':active?.[1];
-  const profileLabel = session?.name || 'Perfil do workspace';
+  const active=nav.find(x=>x[0]===c.view), page=c.view==='link'?c.agency?.menuLinks.find(l=>l.id===c.tab)?.title||'Link':tr(active?.[1]);
+  const profileLabel = session?.name || tr('Perfil do workspace');
   const profileText = session?.name?.slice(0, 2).toUpperCase() || 'gr';
   return topbar({crumbs:[{label:c.s.profile.name,href:'#launchpad'},{label:page}],search:'data-act="search"',
-    tools:[{icon:'bell',label:'Notificações',attr:'data-act="notifications"'}],
+    tools:[{icon:'bell',label:tr('Notificações'),attr:'data-act="notifications"'}],
     profile:{text:profileText,picture:session?.picture||'',label:profileLabel,attr:session?'data-act="account"':'data-go="settings"'}});
 }
 function renderAccountLifecycle() {
@@ -996,5 +996,7 @@ if(viewPath){
       (c.view === 'conversations' && ['analytics','link-analysis','manual-actions'].includes(c.tab));
     if (live) try { await load(); render(); } catch { /* The current view remains available. */ }
   });
+  initI18n();
+  window.addEventListener('soci:languagechange', () => { if (c.mode !== 'agency') render(); });
   route();
 }

@@ -249,6 +249,10 @@ a.crumb:hover{color:var(--g-ink)}
 .g-side .nav-link:hover .whatsapp-icon,.g-side .nav-link:focus-visible .whatsapp-icon{color:#128046;opacity:1}
 :root[data-theme=dark] .g-side .nav-link:hover .whatsapp-icon,:root[data-theme=dark] .g-side .nav-link:focus-visible .whatsapp-icon{color:#25d366;opacity:1}
 .theme-toggle,.tool-btn{position:relative;flex:none;width:36px;height:36px;display:grid;place-items:center;padding:0;border-radius:10px;color:var(--g-dim);transition:color .2s var(--ease-std),background .2s,border-color .2s,transform .16s var(--ease-out)}
+.lang-switcher{position:relative;display:inline-flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--g-line-2);border-radius:13px;background:var(--g-surface);user-select:none;flex:none}
+.lang-btn{z-index:1;border:0;border-radius:9px;background:transparent;color:var(--g-dim);font-family:inherit;font-size:11px;font-weight:700;padding:5px 8px;cursor:pointer;line-height:1;transition:all .18s var(--ease-std)}
+.lang-btn:hover{color:var(--g-ink);background:var(--g-surface-2)}
+.lang-btn.active{background:var(--g-brand);color:#fff;box-shadow:0 1px 3px rgba(255,0,187,.28)}
 .tool-group{position:relative;display:flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--g-line-2);border-radius:13px;background:var(--g-surface)}
 .tool-btn{z-index:1;width:32px;height:32px;border:0;border-radius:9px;background:transparent}
 .tool-btn:hover{color:var(--g-ink)}

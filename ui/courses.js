@@ -2,6 +2,7 @@
 import { icon } from './icons.js';
 import { h, fmt, pageShell, search } from './screens.js';
 import { portalTabs } from './client-portal.js';
+import { tr } from './i18n.js';
 
 const kinds = [['text','Texto','note'],['video','Vídeo','play'],['file','Arquivo','paperclip']];
 const sorts = [['newest','Mais recentes'],['oldest','Mais antigos'],['az','Nome: A a Z'],['za','Nome: Z a A']];
@@ -168,7 +169,7 @@ export function installCourses({ c, mutate, flash, dialog, close, render }) {
     if (focusSelector) document.querySelector(focusSelector)?.focus();
   };
   const move = (rows, index, delta) => { const [row] = rows.splice(index, 1); rows.splice(index + delta, 0, row); };
-  const newLesson = () => ({ id: newId(), title: 'Nova aula', kind: 'text', body: '', videoUrl: '', fileId: '', dripDays: 0 });
+  const newLesson = () => ({ id: newId(), title: 'Nova aula / Nueva lección', kind: 'text', body: '', videoUrl: '', fileId: '', dripDays: 0 });
   const confirmForm = (title, text, label, action, id) => dialog(title, `<form class="co-form" data-co-form="${action}" data-id="${h(id)}"><p>${text}</p>
     <p class="form-status" role="alert" data-co-error></p><div class="co-form-actions"><button type="button" class="secondary" data-act="close">Cancelar</button>
     <button class="danger" type="submit">${label}</button></div></form>`);
@@ -206,7 +207,7 @@ export function installCourses({ c, mutate, flash, dialog, close, render }) {
       if (!draft) return;
       if (action === 'select') { current.sel = { type, id }; repaint(`[data-co="select"][data-type="${type}"]${id ? `[data-id="${CSS.escape(id)}"]` : ''}`); }
       if (action === 'add-module') {
-        const module = { id: newId(), title: `Módulo ${draft.modules.length + 1}`, lessons: [newLesson()] };
+        const module = { id: newId(), title: `Módulo ${draft.modules.length + 1} / Módulo ${draft.modules.length + 1}`, lessons: [newLesson()] };
         draft.modules.push(module); current.sel = { type: 'module', id: module.id }; markDirty(); repaint('[data-co-set="module.title"]');
       }
       if (action === 'add-lesson') {
@@ -292,7 +293,7 @@ export function installCourses({ c, mutate, flash, dialog, close, render }) {
     try {
       if (form.dataset.coForm === 'create') {
         const id = await mutate({ type: 'save', key: 'courses', data: { name: data.name, description: data.description, active: false,
-          modules: [{ title: 'Módulo 1', lessons: [{ title: 'Aula 1', kind: 'text', body: '' }] }] } });
+          modules: [{ title: 'Módulo 1 / Módulo 1', lessons: [{ title: 'Aula 1 / Lección 1', kind: 'text', body: '' }] }] } });
         close(); location.hash = `#memberships/course/${encodeURIComponent(id)}`; flash('Curso criado. Monte os módulos e aulas.');
       }
       if (form.dataset.coForm === 'delete') {

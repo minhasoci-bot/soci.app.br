@@ -13,7 +13,7 @@ async function respond(connection, { instructions, input, name, schema }) {
   try { return JSON.parse(content.text); } catch { throw Object.assign(new Error('A OpenAI retornou o artigo em formato inválido.'), { status: 502 }); }
 }
 
-const rules = `Write in the language of the brief (Brazilian Portuguese by default). Use Markdown only with: ## and ### headings, paragraphs, - lists, 1. lists, > quotes, **bold**, *italic* and [links](https://...).
+const rules = `Write in the language of the brief (Brazilian Portuguese and Latin American Spanish supported; all new creations are born ready in Portuguese and Spanish). Use Markdown only with: ## and ### headings, paragraphs, - lists, 1. lists, > quotes, **bold**, *italic* and [links](https://...).
 Never use HTML. Never invent statistics, studies, prices, quotes, client names, awards or personal experiences. When a fact the owner must supply is needed, write a placeholder in double brackets, like [[dado real do negócio]].
 The seoTitle has up to 60 characters and the seoDescription up to 155 characters. The summary has one or two sentences.`;
 

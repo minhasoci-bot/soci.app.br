@@ -424,10 +424,10 @@ export function installForms(environment) {
             const name = data.name?.trim() || template?.name;
             if (!name) throw new Error(`Dê um nome ${k.fem ? 'à' : 'ao'} ${k.one}.`);
             const fields = template ? template.build() : kind === 'quiz'
-              ? [newField('radio', { label: 'Primeira pergunta', key: 'pergunta_1', required: true, options: ['Resposta A', 'Resposta B', 'Resposta C'], scores: { 'Resposta A': 0, 'Resposta B': 5, 'Resposta C': 10 } }), newField('break', { label: 'Seus dados' }), newField('name', { required: true }), newField('email')]
-              : kind === 'survey' ? [newField('radio', { label: 'Primeira pergunta', key: 'pergunta_1', required: true }), newField('break', { label: 'Seus dados' }), newField('name', { required: true }), newField('email')]
+              ? [newField('radio', { label: 'Primeira pergunta / Primera pregunta', key: 'pergunta_1', required: true, options: ['Resposta A / Respuesta A', 'Resposta B / Respuesta B', 'Resposta C / Respuesta C'], scores: { 'Resposta A / Respuesta A': 0, 'Resposta B / Respuesta B': 5, 'Resposta C / Respuesta C': 10 } }), newField('break', { label: 'Seus dados / Tus datos' }), newField('name', { required: true }), newField('email')]
+              : kind === 'survey' ? [newField('radio', { label: 'Primeira pergunta / Primera pregunta', key: 'pergunta_1', required: true }), newField('break', { label: 'Seus dados / Tus datos' }), newField('name', { required: true }), newField('email')]
               : [newField('name', { required: true }), newField('email')];
-            const id = await mutate({ type: 'save', key: 'forms', data: { name, description: '', active: false, kind, fields, button: kind === 'quiz' ? 'Ver meu resultado' : 'Enviar',
+            const id = await mutate({ type: 'save', key: 'forms', data: { name, description: '', active: false, kind, fields, button: kind === 'quiz' ? 'Ver meu resultado / Ver mi resultado' : 'Enviar / Enviar',
               ...(kind === 'quiz' ? { tiers: defaultTiers } : {}) } });
             Object.assign(fb, { id: '', section: 'edit', selected: '' });
             location.hash = `#sites/form/${id}`; flash(`${k.One} criad${k.fem ? 'a' : 'o'}. Ajuste e publique.`);

@@ -9,7 +9,7 @@ const rules = `Rules for every page:
 - Do not use <img> with remote URLs. Create visuals with CSS (gradients, shapes) or small inline SVG.
 - Include one lead form marked with the attribute data-go-lead, with inputs named name (required), email (type email, required) and phone (optional), and a submit button.
 - Link to other pages of the site only with href="page:SLUG" (the home page is page:index). Use #ids for links within the page.
-- Write all copy in the language of the brief.
+- Write all copy in the language of the brief (Brazilian Portuguese or Latin American Spanish; ensure all new creations are born ready in Portuguese and Spanish).
 - Never invent testimonials, client names, prices, ratings, statistics, awards, addresses or contact details. Write a clearly marked placeholder in double brackets, for example [[Real customer testimonial]], for the owner to replace.`;
 
 async function respond(connection, { instructions, input, name, schema }) {

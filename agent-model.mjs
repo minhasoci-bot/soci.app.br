@@ -81,9 +81,9 @@ function created(state, input) {
   if (input.template && !template) fail('Modelo de agente não encontrado.', 404);
   const base = template ? validDraft(agentDraft(template)) : {
     ...validDraft({
-      name: requiredText(input.name || 'Novo agente', agentLimits.name, 'o nome'),
+      name: requiredText(input.name || 'Novo agente / Nuevo agente', agentLimits.name, 'o nome'),
       description: input.description,
-      instructions: text(input.instructions) || 'Ajude o usuário com clareza. Faça perguntas quando precisar de mais contexto e informe quando não souber uma resposta.',
+      instructions: text(input.instructions) || 'Ajude o usuário com clareza em português e espanhol latino. / Ayude al usuario con claridad en portugués y español latino.',
       knowledge: []
     })
   };
