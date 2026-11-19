@@ -114,7 +114,7 @@ export const actionCatalog = [
       f('event', 'Evento', 'select', { when: { mode: 'event' }, options: [['customer_replied', 'Cliente responder'], ['contact_tag', 'Receber uma tag'], ['form_submitted', 'Enviar um formulário'], ['appointment_booked', 'Fazer um agendamento'], ['order_paid', 'Pagar um pedido']] }),
       f('eventValue', 'Tag ou formulário (opcional)', 'text', { when: { mode: 'event' } }),
       f('timeoutDays', 'Desistir de esperar após (dias)', 'number', { min: 1, max: 365, value: 3, when: { mode: 'event' } })] },
-    { type: 'if_else', label: 'Se / senão', icon: 'flow', branch: true, fields: [conditions] },
+    { type: 'if_else', label: 'Se / Senão', icon: 'flow', branch: true, fields: [conditions] },
     { type: 'filter', label: 'Filtro', icon: 'filter', description: 'Só continua se a condição for verdadeira', fields: [conditions] },
     { type: 'set_variable', label: 'Definir variável', icon: 'key', description: 'Guarda um valor para usar depois como {{vars.nome}}', fields: [f('name', 'Nome da variável', 'text', { required: true, placeholder: 'ex.: cupom' }), f('value', 'Valor (texto ou expressão)', 'text', { required: true, placeholder: '{{upper(contact.first_name)}}' })] },
     { type: 'router', label: 'Roteador', icon: 'flow', branch: true, fields: [] },
