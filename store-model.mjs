@@ -31,7 +31,7 @@ export const storeFields = {
       return { productId: product.id, slug, imageUrl: image, stock, category: str(raw.category, 40), hidden: Boolean(raw.hidden) };
     });
     const mode = ['none', 'flat', 'free-over'].includes(d.shipping?.mode) ? d.shipping.mode : 'none';
-    const method = ['Pix', 'Bank transfer', 'Cash', 'Manual'].includes(d.payment?.method) ? d.payment.method : 'Pix';
+    const method = ['AbacatePay', 'Pix', 'Bank transfer', 'Cash', 'Manual'].includes(d.payment?.method) ? d.payment.method : 'Pix';
     const tax = Number(d.taxPercent || 0);
     if (!Number.isFinite(tax) || tax < 0 || tax > 50) fail('O imposto precisa ficar entre 0% e 50%.');
     return { name: str(d.name, 80) || fail('Dê um nome à loja.'), description: str(d.description, 400), active: Boolean(d.active),
@@ -63,7 +63,7 @@ export function storeAfterSave(s, key, prior, row, add) {
   const store = s.stores.find(item => item.id === row.storeId);
   if (row.status === 'Paid' || (row.status === 'Fulfilled' && prior.status === 'Pending')) {
     if (invoice && invoice.status !== 'Paid') invoice.status = 'Paid';
-    if (!s.transactions.some(item => item.invoiceId === row.invoiceId && row.invoiceId)) add(s, 'transactions', { contactId: row.contactId, amount: row.total, date: today(), method: store?.payment?.method || 'Manual', source: 'Invoice', status: 'Succeeded', note: `Pedido #${row.number}`, invoiceId: row.invoiceId || '' });
+    if (!s.transactions.some(item => item.invoiceId === row.invoiceId && row.invoiceId)) add(s, 'transactions', { contactId: row.contactId, amount: row.total, date: today(), method: row.paidMethod || (store?.payment?.method === 'AbacatePay' ? 'Pix' : store?.payment?.method) || 'Manual', source: 'Invoice', status: 'Succeeded', note: `Pedido #${row.number}`, invoiceId: row.invoiceId || '' });
     row.paidAt ||= new Date().toISOString();
   }
   if (row.status === 'Fulfilled') row.fulfilledAt ||= new Date().toISOString();

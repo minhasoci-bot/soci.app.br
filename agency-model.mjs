@@ -58,7 +58,6 @@ export function blankAgency() {
     systemEmails: Object.fromEntries(systemEmailKeys.map(([key, , subject, body]) => [key, { subject, body }])),
     labs: Object.fromEntries(labFeatures.map(([key]) => [key, false])),
     compliance: { retentionDays: 365, consent: 'By submitting, you agree to receive messages from this business.', cookieBanner: true, hipaa: false },
-    stripe: { connected: false },
     saas: { enabled: false, enabledAt: '', rebilling: Object.fromEntries(rebillProducts.map(([key]) => [key, 1])), accounts: [] },
     workflowSettings: { builder: 'Standard', overrides: {} },
     subFeatures: Object.fromEntries(subFeatures.map(([key]) => [key, { on: {}, rebill: [] }])),
@@ -84,6 +83,7 @@ export function hydrateAgency(state) {
     if (state[key] === undefined) state[key] = value;
     else if (value && typeof value === 'object' && !Array.isArray(value) && !['accounts', 'integrations', 'reselling', 'systemEmails', 'labs'].includes(key)) state[key] = { ...value, ...state[key] };
   }
+  delete state.stripe;
   state.profile.language = platformLanguage;
   state.company.brand = platformBrand;
   state.company.currency = defaults.profile.currency;
