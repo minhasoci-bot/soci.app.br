@@ -29,7 +29,7 @@ function draw(message = '') {
   const { title, introduction, color, signedIn, courses, member } = portal || { title: 'Portal do cliente' };
   document.title = title;
   if (/^#[\da-f]{6}$/i.test(color)) document.body.style.setProperty('--portal-color',color);
-  const library = `<section class="cp-library"><h2>Meus cursos</h2>
+  const library = `<section class="cp-library" id="cursos"><h2>Meus cursos</h2>
     ${courses?.length ? `<div class="cp-course-grid">${courses.map(item => `<article class="cp-public-card">
       <div class="cp-course-icon">${icon('book',24)}</div><h3>${h(item.name)}</h3>
       ${item.description ? `<p>${h(item.description)}</p>` : ''}
@@ -97,6 +97,7 @@ try {
   portal = await api('home');
   if (access !== null) portal.signedIn = false;
   draw();
+  if (location.hash === '#cursos') root.querySelector('#cursos')?.scrollIntoView();
 } catch (error) {
   access = null;
   draw(error.message);
