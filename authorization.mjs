@@ -25,6 +25,7 @@ const commandModules = {
   'report-create': 'reporting', 'report-save': 'reporting', 'report-delete': 'reporting',
   'report-share': 'reporting', 'report-schedule': 'reporting',
   'form-view': 'sites', submit: 'sites', 'link-click': 'conversations',
+  'media-trash': 'media', 'media-restore': 'media', 'media-empty-trash': 'media',
   'social-post': 'marketing', 'social-reschedule': 'marketing', 'social-review': 'marketing',
   'social-duplicate': 'marketing', 'social-delete': 'marketing', 'social-bulk-delete': 'marketing',
   'social-retry': 'marketing', 'social-csv': 'marketing', 'social-account-remove': 'marketing',
@@ -130,6 +131,10 @@ export function requireRecordEffects(access, state, command) {
   }
   if (type === 'delete' && key === 'files' && state.socialPosts.some(post => post.media?.some(item => item.fileId === id))) {
     requireModule(access, 'marketing');
+  }
+  if (type === 'media-empty-trash') {
+    const trashed = new Set(state.files.filter(file => file.trashedAt).map(file => file.id));
+    if (state.socialPosts.some(post => post.media?.some(item => trashed.has(item.fileId)))) requireModule(access, 'marketing');
   }
   if (type === 'delete' && key === 'customFields') {
     for (const collection of ['contacts', 'companies', 'opportunities']) {

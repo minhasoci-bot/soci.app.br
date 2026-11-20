@@ -19,6 +19,7 @@ import { qrScreen, qrTabs } from './qr-codes.js';
 import { analyticsScreen, analyticsTabs } from './sites-analytics.js';
 import {automationScreen} from './automation.js';
 import {portalAdminScreen, portalTabs} from './client-portal.js';
+import {mediaScreen} from './media.js';
 import {coursesScreen} from './courses.js';
 import {communitiesScreen} from './communities.js';
 import {offersScreen} from './offers.js';
@@ -258,9 +259,7 @@ function sites(c){
 function memberships(c){
   return ['courses','course'].includes(c.tab) ? coursesScreen(c) : ['communities','community'].includes(c.tab) ? communitiesScreen(c) : c.tab === 'offers' ? offersScreen(c) : portalAdminScreen(c);
 }
-function media(c){
-  return wrap(head('Mídia Drive','Guarde imagens e PDFs no drive local.',action('Enviar arquivo','upload','upload'))+`<div class="toolbar">${search(c.query,'Buscar arquivos…')}</div><div class="card-grid">${top(c.s.files,c.query,['name']).map(r=>`<article class="surface resource media-card"><div class="media-preview">${r.data.startsWith('data:image/')?`<img src="${h(r.data)}" alt="">`:`${i('folder',44)} <b>PDF</b>`}</div><div class="media-name"><h2>${h(r.name)}</h2><button class="icon-btn" data-file="${r.id}" title="Baixar" aria-label="Baixar ${h(r.name)}">${i('download',16)}</button><button class="icon-btn" data-delete="files" data-id="${r.id}" title="Remover" aria-label="Remover ${h(r.name)}">${i('trash',16)}</button></div></article>`).join('')||empty('Nenhum arquivo enviado','Adicione uma imagem ou PDF do seu computador.','folder')}</div>`);
-}
+const media = c => mediaScreen(c);
 function reputation(c){
   return wrap(head('Reputação','Leia e responda às avaliações guardadas neste workspace.',primary('Adicionar avaliação','reviews'))+`<div class="metrics three"><div class="surface metric"><span>Nota média</span><b>${c.m.average.toFixed(1)} <small> / 5</small></b></div><div class="surface metric"><span>Total de avaliações</span><b>${c.m.reviews}</b></div><div class="surface metric"><span>Aguardando resposta</span><b>${c.s.reviews.filter(x=>!x.reply).length}</b></div></div>`+table(['Avaliador','Nota','Avaliação','Resposta',''],[...c.s.reviews].reverse().map(r=>row([`<b>${h(r.author)}</b>`,badge(`${r.score} / 5`,'pink'),`<span class="ellipsis">${h(r.text)}</span>`,`<span class="ellipsis">${h(r.reply||'—')}</span>`],'reviews',r.id)),empty('Nenhuma avaliação registrada','Adicione uma avaliação para acompanhar o feedback localmente.','award')));
 }

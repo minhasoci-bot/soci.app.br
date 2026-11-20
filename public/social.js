@@ -3,13 +3,13 @@
 // screens.js renders socialPlanner(c); app.js calls socialEvents once with its helpers.
 import { brandHighlight, brandIcon, icon as i, shcLayers } from './icons.js';
 import { badge, h, fmt } from './screens.js';
-import { bulkCsvColumns, mediaKind, network, networks, occurrencesBetween, parseCsv, postIssues, postTypes, recurrences, statusLabel, statusTone, textFor, weekdays } from './social-data.js';
+import { bestTimes, bulkCsvColumns, mediaKind, network, networks, occurrencesBetween, parseCsv, postIssues, postTypes, recurrences, statusLabel, statusTone, textFor, weekdays } from './social-data.js';
 
 const ui = { view: 'calendar', mode: 'month', cursor: new Date(), status: 'all', account: '', draft: null, picked: new Set() };
 const freshCsv = () => ({ step: 1, file: '', rows: [], accountIds: [], asDraft: false, needsApproval: false, review: [] });
 let csv = freshCsv();
 let plannerWorkspace;
-const views = [['calendar', 'Calendário', 'cal'], ['list', 'Lista', 'note'], ['accounts', 'Contas', 'users'], ['categories', 'Categorias', 'tag'], ['hashtags', 'Hashtags', 'link'], ['rss', 'RSS', 'refresh'], ['csv', 'CSV em massa', 'upload']];
+const views = [['calendar', 'Calendário', 'cal'], ['list', 'Lista', 'note'], ['accounts', 'Contas', 'users'], ['categories', 'Categorias', 'tag'], ['hashtags', 'Hashtags', 'link'], ['rss', 'RSS', 'refresh'], ['csv', 'CSV em massa', 'upload'], ['competitors', 'Concorrentes', 'eye'], ['mcp', 'IA & MCP', 'spark']];
 const zoneOf = c => c.s.profile.timezone || 'America/Sao_Paulo';
 
 // ---- Small pieces --------------------------------------------------------------------------------
@@ -118,7 +118,7 @@ function postList(c) {
     const thumb = p.media[0] ? (mediaKind(p.media[0]) === 'video' ? `<span class="sp-thumb vid">${i('play', 16)}</span>` : `<img class="sp-thumb" src="${h(mediaSrc(c, p.media[0]))}" alt="">`) : '';
     const links = (p.results || []).filter(r => r.url).map(r => `<a class="text-link" href="${h(r.url)}" target="_blank" rel="noopener">${logo(c.s.socialAccounts.find(a => a.id === r.accountId)?.provider, 14)} ver</a>`).join(' ');
     return `<tr><td class="crm-pick"><input type="checkbox" data-sp-pick value="${p.id}" ${ui.picked.has(p.id) ? 'checked' : ''} aria-label="Selecionar post"></td>
-      <td><div class="sp-row">${thumb}<div><b class="sp-row-text">${h((p.summary || '(sem texto)').slice(0, 120))}</b>${p.error ? `<small class="sp-err">${h(p.error.slice(0, 160))}</small>` : ''}${links ? `<small>${links}</small>` : ''}</div></div></td>
+      <td><div class="sp-row">${thumb}<div><b class="sp-row-text">${h((p.summary || '(sem texto)').slice(0, 120))}</b>${p.status === 'draft' && p.approval === 'rejected' && p.reviewNote ? `<small class="dim">${i('note', 12)} Ajuste pedido${p.reviewedBy ? ` por ${h(p.reviewedBy)}` : ''}: ${h(p.reviewNote.slice(0, 160))}</small>` : ''}${p.error ?`<small class="sp-err">${h(p.error.slice(0, 160))}</small>` : ''}${links ? `<small>${links}</small>` : ''}</div></div></td>
       <td><div class="sp-accts">${accountsOf(c, p).slice(0, 5).map(a => accountChip(a)).join('')}</div></td>
       <td>${p.scheduleDate ? `${fmt(p.status === 'published' ? p.publishedAt || p.scheduleDate : p.scheduleDate, zone, true)}${p.recurrence?.freq ? ` ${i('refresh', 12)}` : ''}` : '—'}</td>
       <td>${status(p.status)}${p.source !== 'post' ? ` <span class="dim">${h({ csv: 'CSV', rss: 'RSS', recurring: 'recorrente', queue: 'evergreen' }[p.source] || '')}</span>` : ''}</td>
@@ -126,7 +126,8 @@ function postList(c) {
         <button class="icon-btn" data-sp-open="${p.id}" aria-label="Abrir post">${i('edit', 16)}</button><button class="icon-btn" data-sp-dup="${p.id}" aria-label="Duplicar post" title="Duplicar">${i('box', 16)}</button></td></tr>`;
   });
   const bulk = ui.picked.size ? `<div class="surface crm-bulk">${badge(`${ui.picked.size} selecionado(s)`, 'blue')}<button class="danger" data-sp-bulk-delete>${i('trash', 15)} Excluir</button><button class="secondary" data-sp-clear>Limpar seleção</button></div>` : '';
-  return `${bulk}<div class="surface table-shell"><table><thead><tr><th></th><th>Post</th><th>Contas</th><th>Data</th><th>Status</th><th></th></tr></thead><tbody>${body.join('')}</tbody></table>
+  const share = `<div class="toolbar"><span class="dim">Peça a aprovação do cliente sem que ele precise de login.</span><span class="spacer"></span><button class="secondary" data-sp-approval>${i('link', 15)} Link de aprovação do cliente</button></div>`;
+  return `${share}${bulk}<div class="surface table-shell"><table><thead><tr><th></th><th>Post</th><th>Contas</th><th>Data</th><th>Status</th><th></th></tr></thead><tbody>${body.join('')}</tbody></table>
     ${rows.length ? '' : emptyBox('Nenhum post aqui', 'Crie um post ou mude os filtros.', newPost())}</div>`;
 }
 function filters(c) {
@@ -187,6 +188,167 @@ function csvView(c) {
     ${history ? `<div class="surface table-shell"><table><thead><tr><th>Arquivo</th><th>Quando</th><th>Criados</th><th>Resultado</th></tr></thead><tbody>${history}</tbody></table></div>` : ''}`;
 }
 
+function mcpView(c) {
+  const mcpUrl = `${location.origin}/api/mcp?workspace=${encodeURIComponent(c.workspace)}`;
+  const webhooks = c.s.socialWebhooks || [];
+  const webhooksList = webhooks.map(wh => {
+    const eventsBadges = (wh.events || []).map(ev => `<span class="badge" style="background:var(--g-surface-2,#f1f5f9);font-family:monospace;font-size:11px;">${h(ev)}</span>`).join(' ') || '<span class="dim">Nenhum evento</span>';
+    return `<article class="surface sp-card">
+      <div class="sp-card-head">
+        <b>${h(wh.name)}</b>
+        ${wh.active ? badge('Ativo', 'green') : badge('Pausado')}
+      </div>
+      <p class="dim sp-break" style="font-family:monospace;font-size:12px;">${h(wh.url)}</p>
+      <div style="margin:6px 0;display:flex;gap:4px;flex-wrap:wrap;">${eventsBadges}</div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="secondary" data-sp-edit="socialWebhooks" data-id="${wh.id}">${i('edit', 15)} Editar</button>
+      </div>
+    </article>`;
+  }).join('');
+
+  return `<div class="sp-mcp-view" style="display:flex;flex-direction:column;gap:20px;">
+    <section class="surface padded sp-section">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+        <div>
+          <h2 style="display:flex;align-items:center;gap:8px;margin:0 0 6px;">
+            ${i('spark', 20)} Servidor MCP Nativo (Model Context Protocol)
+            <span class="badge green">2024-11-05</span>
+          </h2>
+          <p class="dim" style="max-width:720px;margin:0;">
+            Conecte o Claude Desktop, Claude Code, Cursor, Windsurf, ChatGPT ou agentes de IA autônomos ao Social Planner da Soci.
+            A IA ganha autonomia para agendar publicações com mídia, consultar o calendário de posts, extrair relatórios e acionar aprovações de clientes.
+          </p>
+        </div>
+        <button type="button" class="primary" data-sp-copy-mcp data-url="${h(mcpUrl)}">
+          ${i('copy', 15)} Copiar URL do Servidor MCP
+        </button>
+      </div>
+
+      <div style="margin-top:16px;padding:12px 14px;background:var(--g-surface-2,#f8fafc);border:1px solid var(--line);border-radius:9px;">
+        <label style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;" class="dim">Endpoint MCP desta subconta</label>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+          <input type="text" readonly value="${h(mcpUrl)}" style="font-family:monospace;font-size:12.5px;background:var(--g-surface,#fff);cursor:pointer;" onclick="this.select()" aria-label="URL do Servidor MCP">
+        </div>
+      </div>
+
+      <div style="margin-top:18px;">
+        <h3 style="font-size:14px;margin:0 0 8px;">Configuração no Claude Desktop (<code>claude_desktop_config.json</code>)</h3>
+        <pre style="background:var(--g-surface-2,#1e293b);color:#f8fafc;padding:12px;border-radius:8px;font-size:12px;overflow-x:auto;margin:0;"><code>{
+  "mcpServers": {
+    "soci-planner": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch", "${mcpUrl}"]
+    }
+  }
+}</code></pre>
+      </div>
+
+      <div style="margin-top:20px;">
+        <h3 style="font-size:14px;margin:0 0 10px;">Ferramentas MCP Ativas</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;">
+          <div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--g-surface,#fff);">
+            <strong style="color:var(--primary);font-family:monospace;font-size:13px;">list_social_accounts</strong>
+            <p class="dim" style="margin:4px 0 0;font-size:12px;">Lista todas as redes sociais ativas (Instagram, Facebook, LinkedIn, TikTok, Bluesky, etc.) e seus IDs.</p>
+          </div>
+          <div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--g-surface,#fff);">
+            <strong style="color:var(--primary);font-family:monospace;font-size:13px;">list_scheduled_posts</strong>
+            <p class="dim" style="margin:4px 0 0;font-size:12px;">Consulta posts agendados, rascunhos, revisões e publicados, com filtro de status e período.</p>
+          </div>
+          <div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--g-surface,#fff);">
+            <strong style="color:var(--primary);font-family:monospace;font-size:13px;">create_social_post</strong>
+            <p class="dim" style="margin:4px 0 0;font-size:12px;">Cria e agenda publicações automaticamente com legendas, hashtags, mídias e data.</p>
+          </div>
+          <div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--g-surface,#fff);">
+            <strong style="color:var(--primary);font-family:monospace;font-size:13px;">get_social_analytics</strong>
+            <p class="dim" style="margin:4px 0 0;font-size:12px;">Retorna indicadores de desempenho, taxa de sucesso de publicação e histórico analítico.</p>
+          </div>
+          <div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--g-surface,#fff);">
+            <strong style="color:var(--primary);font-family:monospace;font-size:13px;">list_crm_contacts</strong>
+            <p class="dim" style="margin:4px 0 0;font-size:12px;">Acessa contatos da subconta para direcionamento de links de aprovação de conteúdo.</p>
+          </div>
+          <div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--g-surface,#fff);">
+            <strong style="color:var(--primary);font-family:monospace;font-size:13px;">send_social_message</strong>
+            <p class="dim" style="margin:4px 0 0;font-size:12px;">Envia ou responde mensagens no Inbox em canais como Instagram, Facebook ou WhatsApp.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="surface padded sp-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+        <div>
+          <h2 style="margin:0 0 4px;">Webhooks Outbound (Integrações n8n, Make e Zapier)</h2>
+          <p class="dim" style="margin:0;">Dispara eventos HTTP instantâneos quando posts forem publicados com sucesso, apresentarem erro ou quando contas precisarem de reconexão.</p>
+        </div>
+        <button class="primary" data-sp-edit="socialWebhooks">${i('plus', 16)} Novo Webhook</button>
+      </div>
+      <div class="sp-cards">
+        ${webhooksList || emptyBox('Nenhum webhook cadastrado', 'Adicione URLs para receber notificações em tempo real das suas publicações.')}
+      </div>
+    </section>
+  </div>`;
+}
+
+function competitorsView(c) {
+  const competitors = c.s.socialCompetitors || [];
+  const publishedLast7Days = c.s.socialPosts.filter(p => p.status === 'published' && p.publishedAt && Date.parse(p.publishedAt) > Date.now() - 7 * 86_400_000).length;
+  const avgCompetitorPosts = competitors.length ? (competitors.reduce((acc, cur) => acc + (cur.postsPerWeek || 0), 0) / competitors.length).toFixed(1) : 0;
+
+  const cards = competitors.map(comp => {
+    return `<article class="surface sp-card">
+      <div class="sp-card-head">
+        <span style="display:flex;align-items:center;gap:6px;">
+          ${logo(comp.network, 20)}
+          <b>${h(comp.name)}</b>
+        </span>
+        <span class="badge" style="font-family:monospace;font-size:11px;">@${h(comp.handle)}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0;padding:8px 10px;background:var(--g-surface-2,#f8fafc);border-radius:7px;font-size:12.5px;">
+        <div><small class="dim" style="display:block;">Seguidores</small><strong>${comp.followers ? Number(comp.followers).toLocaleString('pt-BR') : '—'}</strong></div>
+        <div><small class="dim" style="display:block;">Posts/Semana</small><strong>${comp.postsPerWeek || '—'}</strong></div>
+      </div>
+      ${comp.notes ? `<p class="dim" style="font-size:12px;margin:4px 0 8px;line-height:1.4;">${h(comp.notes)}</p>` : ''}
+      <div style="display:flex;gap:8px;margin-top:auto;">
+        <button class="secondary" data-sp-edit="socialCompetitors" data-id="${comp.id}">${i('edit', 14)} Editar</button>
+      </div>
+    </article>`;
+  }).join('');
+
+  return `<div class="sp-competitors-view" style="display:flex;flex-direction:column;gap:18px;">
+    <section class="surface padded sp-section">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+        <div>
+          <h2 style="margin:0 0 4px;">Benchmarking & Concorrentes</h2>
+          <p class="dim" style="max-width:720px;margin:0;">
+            Cadastre perfis de referência e concorrentes diretos para acompanhar frequência de postagens, estimativa de audiência e identificar oportunidades de conteúdo que seus rivais estão ignorando.
+          </p>
+        </div>
+        <button class="primary" data-sp-edit="socialCompetitors">${i('plus', 16)} Novo concorrente</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:16px;">
+        <div style="padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:var(--g-surface,#fff);">
+          <small class="dim" style="display:block;font-size:11.5px;text-transform:uppercase;font-weight:600;">Sua Marca (Últimos 7 dias)</small>
+          <strong style="font-size:22px;display:block;margin-top:2px;">${publishedLast7Days} posts</strong>
+          <span class="dim" style="font-size:12px;">Publicações realizadas com sucesso</span>
+        </div>
+        <div style="padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:var(--g-surface,#fff);">
+          <small class="dim" style="display:block;font-size:11.5px;text-transform:uppercase;font-weight:600;">Média Concorrentes</small>
+          <strong style="font-size:22px;display:block;margin-top:2px;">${avgCompetitorPosts} posts/sem</strong>
+          <span class="dim" style="font-size:12px;">Frequência semanal combinada</span>
+        </div>
+        <div style="padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:var(--g-surface,#fff);">
+          <small class="dim" style="display:block;font-size:11.5px;text-transform:uppercase;font-weight:600;">Perfis Monitorados</small>
+          <strong style="font-size:22px;display:block;margin-top:2px;">${competitors.length} contas</strong>
+          <span class="dim" style="font-size:12px;">Mapeados para benchmarking</span>
+        </div>
+      </div>
+    </section>
+    <div class="sp-cards">
+      ${cards || emptyBox('Nenhum concorrente cadastrado', 'Adicione perfis concorrentes para comparar frequência e posicionamento de conteúdo.')}
+    </div>
+  </div>`;
+}
+
 export function socialPlanner(c, { pageShell, utabs, marketingTabs }) {
   if (plannerWorkspace !== c.workspace) {
     plannerWorkspace = c.workspace;
@@ -194,7 +356,9 @@ export function socialPlanner(c, { pageShell, utabs, marketingTabs }) {
   }
   const hasAccounts = c.s.socialAccounts.length > 0;
   const actions = { categories: `<button class="primary" data-sp-edit="socialCategories">${i('plus', 16)} Nova categoria</button>`, hashtags: `<button class="primary" data-sp-edit="socialHashtags">${i('plus', 16)} Novo grupo</button>`,
-    rss: `<button class="primary" data-sp-edit="socialFeeds" ${hasAccounts ? '' : 'disabled'}>${i('plus', 16)} Novo feed</button>` };
+    rss: `<button class="primary" data-sp-edit="socialFeeds" ${hasAccounts ? '' : 'disabled'}>${i('plus', 16)} Novo feed</button>`,
+    competitors: `<button class="primary" data-sp-edit="socialCompetitors">${i('plus', 16)} Novo concorrente</button>`,
+    mcp: `<button class="primary" data-sp-edit="socialWebhooks">${i('plus', 16)} Novo webhook</button>` };
   const viewItems = views.map(([v, label, ico]) => ({ value: v, label, icon: ico, attrs: `data-sp-view="${v}" aria-pressed="${v === ui.view}"` }));
   const isEmptyStart = !hasAccounts && !c.s.socialPosts.length && ['calendar', 'list'].includes(ui.view);
   let inner;
@@ -202,8 +366,9 @@ export function socialPlanner(c, { pageShell, utabs, marketingTabs }) {
     inner = onboarding(c);
   } else {
     const review = c.s.socialPosts.filter(p => p.status === 'in_review').length, failed = c.s.socialPosts.filter(p => p.status === 'failed').length;
-    const notes = `${review ? `<div class="sp-note">${i('bell', 15)} ${review} post(s) aguardando aprovação. <button class="text-link" data-sp-status-pick="in_review">Ver</button></div>` : ''}${failed ? `<div class="sp-note bad">${i('alert', 15)} ${failed} post(s) falharam. <button class="text-link" data-sp-status-pick="failed">Ver</button></div>` : ''}`;
-    const content = { calendar: () => filters(c) + calendar(c), list: () => filters(c) + postList(c), accounts: () => accountsView(c), categories: () => categoriesView(c), hashtags: () => hashtagsView(c), rss: () => rssView(c), csv: () => csvView(c) }[ui.view]();
+    const changes = c.s.socialPosts.filter(p => p.status === 'draft' && p.approval === 'rejected').length;
+    const notes = `${review ? `<div class="sp-note">${i('bell', 15)} ${review} post(s) aguardando aprovação. <button class="text-link" data-sp-status-pick="in_review">Ver</button> · <button class="text-link" data-sp-approval>Enviar link de aprovação ao cliente</button></div>` : ''}${changes ? `<div class="sp-note">${i('note', 15)} ${changes} post(s) com ajustes pedidos na revisão. <button class="text-link" data-sp-status-pick="draft">Ver rascunhos</button></div>` : ''}${failed ?`<div class="sp-note bad">${i('alert', 15)} ${failed} post(s) falharam. <button class="text-link" data-sp-status-pick="failed">Ver</button></div>` : ''}`;
+    const content = { calendar: () => filters(c) + calendar(c), list: () => filters(c) + postList(c), accounts: () => accountsView(c), categories: () => categoriesView(c), hashtags: () => hashtagsView(c), rss: () => rssView(c), csv: () => csvView(c), competitors: () => competitorsView(c), mcp: () => mcpView(c) }[ui.view]();
     inner = `${notes}${content}`;
   }
   const plannerCard = utabs({
@@ -217,7 +382,7 @@ export function socialPlanner(c, { pageShell, utabs, marketingTabs }) {
   return pageShell({
     title: 'Marketing',
     desc: 'Planeje, aprove e publique nas suas redes sociais a partir de um só lugar.',
-    cta: actions[ui.view] || newPost(),
+    cta: actions[ui.view] || `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><a class="secondary" href="#reporting" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;padding:7px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-weight:600;background:var(--g-surface,#fff);">${i('chart', 15)} Relatórios em PDF</a>${newPost()}</div>`,
     className: 'sp',
     tabs: { key: 'marketing', items: marketingTabs, current: 'social', label: 'Seções de marketing' },
     content: plannerCard
@@ -228,31 +393,50 @@ export function socialPlanner(c, { pageShell, utabs, marketingTabs }) {
 const blankDraft = (c, day) => {
   const connected = c.s.socialAccounts.filter(a => a.status === 'connected');
   return { id: '', type: 'post', summary: '', overrides: {}, accountIds: connected.length === 1 ? [connected[0].id] : [],
-    media: [], link: '', firstComment: '', categoryId: '', tags: [], needsApproval: false, recurrence: null, mode: connected.length ? 'schedule' : 'draft',
+    media: [], link: '', firstComment: '', location: '', userTags: '', categoryId: '', tags: [], needsApproval: false, recurrence: null, mode: connected.length ? 'schedule' : 'draft',
     when: day ? `${day}T09:00` : wall(new Date(Date.now() + 3_600_000).toISOString(), zoneOf(c)), preview: '' };
 };
 function composerHtml(c) {
   const d = ui.draft, zone = zoneOf(c), locked = d.status === 'published';
   const accts = c.s.socialAccounts.map(a => `<label class="sp-pick ${d.accountIds.includes(a.id) ? 'on' : ''}"><input type="checkbox" name="account" value="${a.id}" ${d.accountIds.includes(a.id) ? 'checked' : ''} ${locked ? 'disabled' : ''}>${accountChip(a)}<span>${h(a.name)}</span></label>`).join('')
     || `<p class="dim">Nenhuma conta conectada. O post ficará como rascunho. <button type="button" class="text-link" data-sp-goto="accounts">Conectar contas</button></p>`;
-  const drive = c.s.files.filter(f => f.data.startsWith('data:image/'));
+  const drive = c.s.files.filter(f => f.data.startsWith('data:image/') && !f.trashedAt);
   return `<form class="sp-composer" data-sp-form="post"><div class="sp-compose-main">
     <fieldset class="sp-block"><legend>Publicar em</legend><div class="sp-picks">${accts}</div></fieldset>
     <div class="field-grid"><label>Tipo<select name="type" ${locked ? 'disabled' : ''}>${postTypes.map(([v, l]) => `<option value="${v}" ${d.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label>Categoria<select name="categoryId"><option value="">Sem categoria</option>${c.s.socialCategories.map(x => `<option value="${x.id}" ${d.categoryId === x.id ? 'selected' : ''}>${h(x.name)}</option>`).join('')}</select></label></div>
+    ${locked ? '' : `<details class="sp-block sp-ai"><summary>${i('spark', 14)} Escrever legenda com IA</summary>
+      ${c.features?.socialAI ? '' : '<p class="dim">Conecte sua chave da OpenAI em Visão da agência → Configurações → OpenAI para usar este recurso.</p>'}
+      <label>Sobre o que é o post?<textarea name="aiBrief" rows="2" maxlength="1500" placeholder="Ex.: lançamento do cardápio de verão, com entrega grátis no bairro"></textarea></label>
+      <div class="sp-ai-row"><label>Tom<select name="aiTone">${['profissional', 'descontraído', 'inspirador', 'divertido', 'urgente', 'educativo'].map(t => `<option value="${t}">${t[0].toUpperCase() + t.slice(1)}</option>`).join('')}</select></label>
+        <label>Chamada para ação (opcional)<input name="aiCta" maxlength="200" placeholder="Peça pelo link da bio"></label></div>
+      <div class="sp-ai-row"><label class="check"><input type="checkbox" name="aiHashtags" checked> Sugerir hashtags</label><span class="spacer"></span>
+        <button type="button" class="secondary" data-sp-ai>${i('spark', 15)} Gerar legenda</button></div>
+      <p class="dim">A IA usa o texto atual como rascunho, se houver, e adapta o tamanho às redes escolhidas. Revise antes de publicar.</p></details>`}
     <label>Texto<textarea name="summary" rows="6" placeholder="O que você quer compartilhar?" ${locked ? 'readonly' : ''}>${h(d.summary)}</textarea></label>
     <div class="sp-tools">${c.s.socialHashtags.length ? `<select data-sp-hashtags aria-label="Inserir hashtags"><option value="">#  Inserir grupo de hashtags</option>${c.s.socialHashtags.map(g => `<option value="${g.id}">${h(g.name)}</option>`).join('')}</select>` : ''}<span id="sp-counters" class="sp-counters"></span></div>
     <details class="sp-block" ${Object.keys(d.overrides).length ? 'open' : ''}><summary>Personalizar texto por rede</summary><div id="sp-overrides"></div></details>
     <fieldset class="sp-block"><legend>Mídia</legend><div id="sp-media" class="sp-media"></div>
+      <div class="sp-media-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;">
+        <label class="secondary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;font-weight:600;background:var(--g-surface,#fff);">
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-sp-file-upload hidden>
+          ${i('upload', 14)} Enviar do computador
+        </label>
+        <button type="button" class="secondary" data-sp-canva style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;font-weight:600;">
+          ${i('spark', 14)} Criar no Canva
+        </button>
+      </div>
       ${drive.length ? `<details><summary>Escolher do Mídia Drive (${drive.length})</summary><div class="sp-drive">${drive.map(f => `<button type="button" class="sp-drive-item" data-sp-file="${f.id}" title="${h(f.name)}"><img src="${h(f.data)}" alt="${h(f.name)}"></button>`).join('')}</div></details>` : '<p class="dim">Envie imagens no Mídia Drive para usar aqui.</p>'}
       <div class="sp-url"><input type="url" name="mediaUrl" placeholder="https://… (imagem ou vídeo público)" aria-label="URL da mídia"><button type="button" class="secondary" data-sp-add-url>Adicionar URL</button></div></fieldset>
     <div class="field-grid"><label>Link<input type="url" name="link" value="${h(d.link)}" placeholder="https://"></label><label>Primeiro comentário<input name="firstComment" value="${h(d.firstComment)}" maxlength="2200"></label></div>
+    <div class="field-grid"><label>Localização (Check-in)<input name="location" value="${h(d.location || '')}" maxlength="120" placeholder="Ex.: Belo Horizonte, MG"></label><label>Marcar pessoas (@usuários)<input name="userTags" value="${h(d.userTags || '')}" maxlength="240" placeholder="@usuario1, @usuario2"></label></div>
     <label>Tags internas<input name="tags" value="${h(d.tags.join(', '))}" placeholder="lançamento, promoção"></label>
     <fieldset class="sp-block"><legend>Quando publicar</legend><div class="sp-seg sp-when">${[['now', 'Publicar agora'], ['schedule', 'Agendar'], ['draft', 'Rascunho']].map(([v, l]) => `<label class="${d.mode === v ? 'on' : ''}"><input type="radio" name="mode" value="${v}" ${d.mode === v ? 'checked' : ''}>${l}</label>`).join('')}</div>
       <div class="field-grid" ${d.mode === 'schedule' ? '' : 'hidden'} data-sp-schedule><label>Data e hora (${h(zone)})<input type="datetime-local" name="when" value="${h(d.when)}"></label>
         <label>Repetir<select name="freq">${recurrences.map(([v, l]) => `<option value="${v}" ${(d.recurrence?.freq || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label ${d.recurrence?.freq ? '' : 'hidden'} data-sp-rec>A cada<input type="number" name="interval" min="1" max="30" value="${d.recurrence?.interval || 1}"></label>
-        <label ${d.recurrence?.freq ? '' : 'hidden'} data-sp-rec>Até (opcional)<input type="date" name="until" value="${h((d.recurrence?.until || '').slice(0, 10))}"></label></div>
+        <label ${d.recurrence?.freq ? '' : 'hidden'} data-sp-rec>Até (opcional)<input type="date" name="until" value="${h((d.recurrence?.until || '').slice(0, 10))}"></label>
+        <div class="sp-best" id="sp-best" aria-live="polite"></div></div>
       <label class="check"><input type="checkbox" name="needsApproval" ${d.needsApproval ? 'checked' : ''}> Exigir aprovação antes de publicar</label></fieldset>
     <ul id="sp-issues" class="sp-issues"></ul>
     ${d.results?.length ? `<fieldset class="sp-block"><legend>Resultado</legend>${d.results.map(r => { const a = c.s.socialAccounts.find(x => x.id === r.accountId); return `<p>${a ? accountChip(a) : ''} ${r.ok ? badge('Publicado', 'green') : badge('Falhou', 'red')} ${r.url ? `<a class="text-link" href="${h(r.url)}" target="_blank" rel="noopener">Abrir</a>` : ''} <small class="sp-err">${h(r.error || '')}</small></p>`; }).join('')}</fieldset>` : ''}
@@ -269,7 +453,7 @@ function previewHtml(c) {
   const text = textFor(d, d.preview), media = d.media.map(m => ({ ...m, src: mediaSrc(c, m) }));
   const mediaGrid = media.length ? `<div class="sp-pv-media n${Math.min(media.length, 4)}">${media.slice(0, 4).map(m => mediaKind(m) === 'video' ? `<div class="sp-pv-vid">${i('play', 28)}</div>` : `<img src="${h(m.src)}" alt="">`).join('')}</div>` : '';
   const limit = n ? n.limit : 0, cut = d.preview === 'instagram' || d.preview === 'facebook' ? 220 : 400;
-  const card = a ? `<div class="sp-pv sp-pv-${d.preview}"><div class="sp-pv-head">${accountChip(a)}<div><b>${h(a.name)}</b><small>agora · ${n.name}</small></div></div>
+  const card = a ? `<div class="sp-pv sp-pv-${d.preview}"><div class="sp-pv-head">${accountChip(a)}<div><b>${h(a.name)}</b><small>agora · ${n.name}${d.location ? ` · 📍 ${h(d.location)}` : ''}</small>${d.userTags ? `<small class="dim" style="font-size:11px;display:block;">com ${h(d.userTags)}</small>` : ''}</div></div>
     ${d.preview === 'instagram' || d.preview === 'tiktok' ? mediaGrid : ''}<p class="sp-pv-text">${h(text.slice(0, cut))}${text.length > cut ? '<span class="dim">… ver mais</span>' : ''}</p>
     ${d.preview !== 'instagram' && d.preview !== 'tiktok' ? mediaGrid : ''}${d.link && !media.length ? `<div class="sp-pv-link">${i('link', 14)} ${h(d.link)}</div>` : ''}
     ${d.firstComment ? `<p class="sp-pv-comment"><b>${h(a.name)}</b> ${h(d.firstComment)}</p>` : ''}${text.length > limit ? `<p class="sp-err">Passa do limite de ${limit} caracteres.</p>` : ''}</div>`
@@ -290,6 +474,17 @@ function refreshComposer(c) {
   const issues = d.mode === 'draft' ? [] : postIssues(d, c.s.socialAccounts);
   document.querySelector('#sp-issues').innerHTML = issues.map(x => `<li>${i('alert', 14)} ${h(x)}</li>`).join('');
   document.querySelector('#sp-preview').innerHTML = previewHtml(c);
+  const best = document.querySelector('#sp-best');
+  if (best) {
+    const day = /^\d{4}-\d\d-\d\d/.test(d.when || '') ? d.when.slice(0, 10) : '', zone = zoneOf(c);
+    const history = c.s.socialPosts.filter(p => p.status === 'published' && p.publishedAt).slice(-200).map(p => clock(p.publishedAt, zone));
+    const busy = c.s.socialPosts.filter(p => p.id !== d.id && ['scheduled', 'in_review'].includes(p.status) && p.scheduleDate && dayKey(p.scheduleDate, zone) === day
+      && p.accountIds.some(id => d.accountIds.includes(id))).map(p => clock(p.scheduleDate, zone));
+    const slots = day ? bestTimes(providers, new Date(`${day}T12:00:00Z`).getUTCDay(), { history, busy }) : [];
+    best.innerHTML = slots.length ? `${i('clock', 14)} Melhores horários para ${h(weekdays[new Date(`${day}T12:00:00Z`).getUTCDay()])}:
+      ${slots.map(s => `<button type="button" data-sp-time="${s.time}" class="${s.habit ? 'habit' : ''}" title="${s.networks > 1 ? `Bom horário para ${s.networks} das redes escolhidas` : 'Horário de maior atividade do público'}${s.habit ? ' · perto dos horários em que você já publica' : ''}">${s.time}</button>`).join('')}
+      <span>Picos de atividade do público em cada rede, sem conflito com seus outros posts do dia.</span>` : '';
+  }
   const submit = document.querySelector('#sp-submit');
   if (submit) submit.textContent = d.mode === 'draft' ? 'Salvar rascunho' : d.needsApproval && d.approval !== 'approved' ? 'Enviar para aprovação' : d.mode === 'now' ? 'Publicar agora' : 'Agendar';
 }
@@ -298,6 +493,7 @@ function readComposer(c, form) {
   d.accountIds = [...form.querySelectorAll('[name="account"]:checked')].map(x => x.value);
   form.querySelectorAll('.sp-pick').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
   Object.assign(d, { type: f.type.value, summary: f.summary.value, categoryId: f.categoryId.value, link: f.link.value.trim(), firstComment: f.firstComment.value,
+    location: (f.location?.value || '').trim(), userTags: (f.userTags?.value || '').trim(),
     tags: f.tags.value.split(',').map(t => t.trim()).filter(Boolean), needsApproval: f.needsApproval.checked, mode: f.mode.value, when: f.when.value });
   d.recurrence = f.freq.value ? { freq: f.freq.value, interval: Number(f.interval.value) || 1, until: f.until.value } : null;
   for (const n of networks) { const t = f[`override-${n.id}`]; if (t) { if (t.value.trim()) d.overrides[n.id] = t.value; else delete d.overrides[n.id]; } }
@@ -338,9 +534,27 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
       socialFeeds: () => `<label>Nome<input name="name" value="${h(r?.name || '')}" required maxlength="80"></label><label>URL do feed (RSS ou Atom)<input type="url" name="url" value="${h(r?.url || '')}" required></label>
         <label>Modelo do texto<textarea name="template" rows="3">${h(r?.template || '{{title}}\n\n{{link}}')}</textarea></label><p class="dim">Use {{title}}, {{link}} e {{summary}}.</p>
         <label>Ao encontrar item novo<select name="mode"><option value="draft">Criar rascunho para revisar</option><option value="schedule" ${r?.mode === 'schedule' ? 'selected' : ''}>Publicar automaticamente</option></select></label>
-        <label class="check"><input type="checkbox" name="active" ${!r || r.active ? 'checked' : ''}> Ativo</label><fieldset class="sp-block"><legend>Contas</legend>${acctBoxes(r?.accountIds || [])}</fieldset>`
+        <label class="check"><input type="checkbox" name="active" ${!r || r.active ? 'checked' : ''}> Ativo</label><fieldset class="sp-block"><legend>Contas</legend>${acctBoxes(r?.accountIds || [])}</fieldset>`,
+      socialWebhooks: () => `<label>Nome da integração<input name="name" value="${h(r?.name || '')}" required maxlength="80" placeholder="Ex.: Webhook n8n ou Zapier"></label>
+        <label>URL do Webhook (HTTPS)<input type="url" name="url" value="${h(r?.url || '')}" placeholder="https://seu-servidor.com/webhook" required></label>
+        <fieldset class="sp-block"><legend>Eventos disparados</legend>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;padding:4px 0;">
+            <label class="check"><input type="checkbox" name="events" value="post.published" ${!r || r.events?.includes('post.published') ? 'checked' : ''}> <strong>post.published</strong> — Quando uma publicação for concluída com sucesso</label>
+            <label class="check"><input type="checkbox" name="events" value="post.failed" ${!r || r.events?.includes('post.failed') ? 'checked' : ''}> <strong>post.failed</strong> — Quando houver erro de publicação em uma rede</label>
+            <label class="check"><input type="checkbox" name="events" value="account.disconnected" ${!r || r.events?.includes('account.disconnected') ? 'checked' : ''}> <strong>account.disconnected</strong> — Quando o token de autorização da rede expirar</label>
+          </div>
+        </fieldset>
+        <label class="check"><input type="checkbox" name="active" ${!r || r.active ? 'checked' : ''}> Ativo</label>`,
+      socialCompetitors: () => `<label>Nome do concorrente<input name="name" value="${h(r?.name || '')}" required maxlength="80" placeholder="Ex.: Marca Concorrente"></label>
+        <label>Perfil (@handle)<input name="handle" value="${h(r?.handle || '')}" required maxlength="80" placeholder="concorrente"></label>
+        <label>Rede social<select name="network">${['instagram', 'facebook', 'tiktok', 'linkedin', 'youtube'].map(net => `<option value="${net}" ${(r?.network || 'instagram') === net ? 'selected' : ''}>${network(net)?.name || net}</option>`).join('')}</select></label>
+        <div class="field-grid">
+          <label>Seguidores estimados<input type="number" name="followers" min="0" value="${r?.followers || 0}"></label>
+          <label>Posts por semana<input type="number" name="postsPerWeek" min="0" max="100" value="${r?.postsPerWeek || 0}"></label>
+        </div>
+        <label>Notas de estratégia / Observações<textarea name="notes" rows="3" placeholder="Ex.: Foco forte em reels curtos, sem carrosséis educativos.">${h(r?.notes || '')}</textarea></label>`
     }[key]();
-    const names = { socialCategories: 'categoria', socialHashtags: 'grupo de hashtags', socialFeeds: 'feed RSS' };
+    const names = { socialCategories: 'categoria', socialHashtags: 'grupo de hashtags', socialFeeds: 'feed RSS', socialWebhooks: 'webhook outbound', socialCompetitors: 'concorrente' };
     dialog(`${r ? 'Editar' : 'Novo'} ${names[key]}`, `<form data-sp-record="${key}" data-id="${id || ''}">${body}<p class="form-status" role="alert"></p><footer class="sp-foot">${r ? `<button type="button" class="danger plain" data-sp-remove="${key}" data-id="${id}">${i('trash', 16)} Excluir</button>` : ''}<span class="spacer"></span><button type="button" class="secondary" data-act="close">Cancelar</button><button class="primary">Salvar</button></footer></form>`);
   };
   const slotRow = (s = { day: 1, time: '09:00' }) => `<div class="sp-slot"><select name="slotDay">${weekdays.map((w, n) => `<option value="${n}" ${s.day === n ? 'selected' : ''}>${w}</option>`).join('')}</select><input type="time" name="slotTime" value="${h(s.time)}" required><button type="button" class="icon-btn" data-sp-unslot aria-label="Remover horário">${i('trash', 14)}</button></div>`;
@@ -382,12 +596,151 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
       <p class="form-status" role="alert"></p><footer class="sp-foot">${expires ? '<button type="button" class="secondary" data-sp-revoke-invite>Revogar convite</button>' : ''}<span class="spacer"></span><button class="primary">Gerar link</button></footer></form>`);
     if (link) G('input[name="inviteUrl"]').value = link;
   };
+  const compressImage = async file => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        const maxDim = 1600;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = Math.round((height * maxDim) / width); width = maxDim; }
+          else { width = Math.round((width * maxDim) / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        let quality = 0.88;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        if (dataUrl.length > 880000) dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+        resolve(dataUrl);
+      };
+      img.onerror = () => resolve(e.target.result);
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const uploadAndAttach = async file => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { flash('Selecione uma imagem válida (PNG, JPG, WebP ou GIF).', true); return; }
+    flash('Processando imagem…');
+    try {
+      const encoded = await compressImage(file);
+      const fileId = await mutate({ type: 'save', key: 'files', data: { name: file.name || 'upload-social.jpg', data: encoded } });
+      if (ui.draft) {
+        ui.draft.media.push({ fileId, type: 'image' });
+        refreshComposer(c);
+        flash('Imagem anexada com sucesso!');
+      }
+    } catch (err) {
+      flash(err.message || 'Erro ao anexar imagem.', true);
+    }
+  };
+
+  const canvaDialog = () => {
+    dialog('Criar ou editar no Canva', `<div class="sp-canva-modal" style="display:flex;flex-direction:column;gap:14px;">
+      <p>Crie sua arte no Canva com as dimensões oficiais recomendadas. Ao concluir, exporte a imagem ou simplesmente copie e cole com <kbd>Ctrl+V</kbd> diretamente no compositor.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+        <a class="secondary" href="https://www.canva.com/create/instagram-posts/" target="_blank" rel="noopener" style="display:flex;flex-direction:column;padding:12px;text-decoration:none;border:1px solid var(--line);border-radius:9px;text-align:center;gap:4px;">
+          <strong>${i('monitor', 18)} Post Quadrado</strong>
+          <small class="dim">1080 × 1080 px (Feed)</small>
+        </a>
+        <a class="secondary" href="https://www.canva.com/create/instagram-stories/" target="_blank" rel="noopener" style="display:flex;flex-direction:column;padding:12px;text-decoration:none;border:1px solid var(--line);border-radius:9px;text-align:center;gap:4px;">
+          <strong>${i('play', 18)} Story / Reels / TikTok</strong>
+          <small class="dim">1080 × 1920 px (Vertical 9:16)</small>
+        </a>
+        <a class="secondary" href="https://www.canva.com/create/banners/" target="_blank" rel="noopener" style="display:flex;flex-direction:column;padding:12px;text-decoration:none;border:1px solid var(--line);border-radius:9px;text-align:center;gap:4px;">
+          <strong>${i('link', 18)} Banner / Capa</strong>
+          <small class="dim">1200 × 630 px (Paisagem)</small>
+        </a>
+      </div>
+      <div style="padding:12px 14px;background:var(--g-surface-2,#f8fafc);border:1px dashed var(--line);border-radius:9px;font-size:13px;">
+        <strong>${i('spark', 15)} Atalho Instantâneo:</strong>
+        <p class="dim" style="margin:4px 0 0;">Copie a imagem gerada e dê <code>Ctrl + V</code> dentro do formulário do post para anexá-la sem precisar baixar para o disco.</p>
+      </div>
+      <footer class="sp-foot"><span class="spacer"></span><button type="button" class="primary" data-act="close">Entendi</button></footer>
+    </div>`, { description: 'Modelos e atalhos rápidos do Canva' });
+  };
+
+  const approvalDialog = ({ expires, url: link }) => {
+    const pending = c.s.socialPosts.filter(p => p.status === 'in_review').length, brand = c.s.profile?.name || '';
+    const of = brand ? ` de ${brand}` : '';
+    const message = link ? `Olá! ${pending ? `Há ${pending} post(s)${of} aguardando sua aprovação.` : `Os próximos posts${of} para aprovar vão aparecer neste link.`} Revise, aprove ou peça ajustes por aqui: ${link}` : '';
+    const contactsWithPhone = (c.s.contacts || []).filter(ct => ct.phone && ct.phone.trim());
+    dialog('Aprovação do cliente', `<form data-sp-approval-form>
+      <p>Envie este link ao cliente para ele revisar os posts “Em revisão”, aprovar ou pedir ajustes com um comentário, sem precisar de login. Posts aprovados entram na agenda automaticamente.</p>
+      <p class="dim">${pending ? `${pending} post(s) aguardando aprovação agora.` : 'Nenhum post em revisão agora. Marque “Exigir aprovação antes de publicar” no post para enviá-lo ao cliente.'}</p>
+      ${expires ? `<p class="dim">Link ativo até ${h(fmt(new Date(expires).toISOString(), zoneOf(c), true))}. Gerar outro invalida o link anterior.</p>` : ''}
+      ${link ? `<label>Link de aprovação<input name="approvalUrl" readonly></label>
+        <div class="sp-approval-share"><button type="button" class="secondary" data-sp-copy-approval>${i('copy', 15)} Copiar link</button>
+        <a class="secondary" href="https://wa.me/?text=${encodeURIComponent(message)}" target="_blank" rel="noopener">${i('whatsapp', 15)} Abrir no WhatsApp</a>
+        <a class="secondary" href="mailto:?subject=${encodeURIComponent(`Posts para aprovar${brand ? ` · ${brand}` : ''}`)}&body=${encodeURIComponent(message)}">${i('mail', 15)} Enviar por e-mail</a></div>
+        <div class="sp-approval-wa-card" style="margin-top:14px;padding:12px;background:var(--g-surface-2,#f8fafc);border:1px solid var(--line);border-radius:9px;">
+          <strong style="display:flex;align-items:center;gap:6px;font-size:13px;">${i('whatsapp', 16)} Disparo Automático pelo WhatsApp da Subconta (UAZAPI)</strong>
+          <p class="dim" style="margin:4px 0 8px;font-size:12px;">Dispara o link diretamente pelo número de WhatsApp conectado nesta subconta sem você precisar abrir o celular.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            ${contactsWithPhone.length ? `<select name="waContactSelect" style="flex:1;min-width:160px;"><option value="">-- Escolher dos contatos --</option>${contactsWithPhone.map(ct => `<option value="${h(ct.phone)}">${h(ct.name)} (${h(ct.phone)})</option>`).join('')}</select>` : ''}
+            <input type="tel" name="waCustomPhone" placeholder="Ou digite o número (DDD + número)" style="flex:1;min-width:140px;">
+            <button type="button" class="primary" data-sp-send-wa style="white-space:nowrap;">${i('send', 14)} Enviar WhatsApp</button>
+          </div>
+        </div>` : ''}
+      <label style="margin-top:10px;">Validade do link<select name="hours"><option value="24">1 dia</option><option value="72">3 dias</option><option value="168" selected>7 dias</option><option value="720">30 dias</option></select></label>
+      <p class="form-status" role="alert"></p><footer class="sp-foot">${expires ? '<button type="button" class="secondary" data-sp-revoke-approval>Revogar link</button>' : ''}<span class="spacer"></span><button class="primary">${expires ? 'Gerar novo link' : 'Gerar link'}</button></footer></form>`,
+      { description: 'Aprovação de posts por WhatsApp ou e-mail' });
+    if (link) G('input[name="approvalUrl"]').value = link;
+  };
+  const writeWithAI = async button => {
+    const form = button.closest('form'), f = form.elements;
+    readComposer(c, form);
+    const providers = [...new Set(c.s.socialAccounts.filter(a => ui.draft.accountIds.includes(a.id)).map(a => a.provider))];
+    button.disabled = true; const label = button.innerHTML; button.innerHTML = `${i('spark', 15)} Gerando…`;
+    try {
+      const result = await api(url('/api/social/ai'), { brief: f.aiBrief.value, tone: f.aiTone.value, cta: f.aiCta.value, hashtags: f.aiHashtags.checked,
+        current: f.summary.value, providers, language: document.documentElement.lang?.startsWith('es') ? 'es' : 'pt' });
+      if (!form.isConnected) return;
+      f.summary.value = `${result.caption}${result.hashtags.length ? `\n\n${result.hashtags.map(t => `#${t}`).join(' ')}` : ''}`;
+      readComposer(c, form); refreshComposer(c); f.summary.focus();
+      flash('Legenda gerada. Revise antes de publicar.');
+    } finally { button.disabled = false; button.innerHTML = label; }
+  };
 
   document.addEventListener('click', async ev => {
-    const t = ev.target.closest('[data-sp-view],[data-sp-mode],[data-sp-move],[data-sp-new],[data-sp-open],[data-sp-dup],[data-sp-retry],[data-sp-review],[data-sp-connect],[data-sp-disconnect],[data-sp-edit],[data-sp-remove],[data-sp-delete],[data-sp-preview],[data-sp-file],[data-sp-add-url],[data-sp-unmedia],[data-sp-goto],[data-sp-zoom],[data-sp-status-pick],[data-sp-bulk-delete],[data-sp-clear],[data-sp-template],[data-sp-slot],[data-sp-unslot],[data-sp-decide],[data-sp-csv-back],[data-sp-invite],[data-sp-copy-invite],[data-sp-revoke-invite]');
+    const t = ev.target.closest('[data-sp-view],[data-sp-mode],[data-sp-move],[data-sp-new],[data-sp-open],[data-sp-dup],[data-sp-retry],[data-sp-review],[data-sp-connect],[data-sp-disconnect],[data-sp-edit],[data-sp-remove],[data-sp-delete],[data-sp-preview],[data-sp-file],[data-sp-add-url],[data-sp-unmedia],[data-sp-goto],[data-sp-zoom],[data-sp-status-pick],[data-sp-bulk-delete],[data-sp-clear],[data-sp-template],[data-sp-slot],[data-sp-unslot],[data-sp-decide],[data-sp-csv-back],[data-sp-invite],[data-sp-copy-invite],[data-sp-revoke-invite],[data-sp-approval],[data-sp-copy-approval],[data-sp-revoke-approval],[data-sp-send-wa],[data-sp-canva],[data-sp-ai],[data-sp-time],[data-sp-copy-mcp]');
     if (!t) return;
     const ds = t.dataset;
     try {
+      if (t.hasAttribute('data-sp-copy-mcp') || ds.spCopyMcp !== undefined) {
+        const copyUrl = ds.url || `${location.origin}/api/mcp?workspace=${encodeURIComponent(c.workspace)}`;
+        navigator.clipboard?.writeText(copyUrl).then(() => flash('URL do servidor MCP copiada!')).catch(() => flash('URL copiada!'));
+        return;
+      }
+      if (t.hasAttribute('data-sp-canva') || ds.spCanva !== undefined) { canvaDialog(); return; }
+      if (t.hasAttribute('data-sp-send-wa') || ds.spSendWa !== undefined) {
+        const form = t.closest('form');
+        const phone = (form.elements.waContactSelect?.value || form.elements.waCustomPhone?.value || '').trim();
+        if (!phone) { flash('Escolha um contato ou digite o número com DDD.', true); return; }
+        const urlField = form.elements.approvalUrl;
+        const btn = t, originalLabel = btn.innerHTML;
+        btn.disabled = true; btn.innerHTML = `${i('refresh', 14)} Enviando…`;
+        try {
+          const res = await api(url('/api/social/approval-link'), {
+            action: 'send-whatsapp',
+            phone,
+            url: urlField?.value || '',
+            hours: Number(form.elements.hours.value)
+          });
+          flash(`Notificação de aprovação enviada com sucesso para ${res.phone}!`);
+          if (res.url && urlField) urlField.value = res.url;
+        } catch (err) {
+          flash(err.message || 'Falha ao enviar pelo WhatsApp.', true);
+        } finally {
+          btn.disabled = false; btn.innerHTML = originalLabel;
+        }
+        return;
+      }
       if (ds.spView) { ui.view = ds.spView; c.query = ''; render(); return; }
       if (ds.spCsvBack !== undefined) { csv.step = Math.max(1, csv.step - 1); render(); return; }
       if (ds.spInvite !== undefined) { inviteDialog(await api(url('/api/social/invite'), { action: 'status' })); return; }
@@ -398,6 +751,20 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
         return;
       }
       if (ds.spRevokeInvite !== undefined) { inviteDialog(await api(url('/api/social/invite'), { action: 'revoke' })); flash('Convite revogado.'); return; }
+      if (ds.spApproval !== undefined) { approvalDialog(await api(url('/api/social/approval-link'), { action: 'status' })); return; }
+      if (ds.spCopyApproval !== undefined) {
+        const field = t.form.elements.approvalUrl;
+        field.select();
+        try { await navigator.clipboard.writeText(field.value); flash('Link copiado.'); } catch { flash('Link selecionado para copiar.'); }
+        return;
+      }
+      if (ds.spRevokeApproval !== undefined) { approvalDialog(await api(url('/api/social/approval-link'), { action: 'revoke' })); flash('Link de aprovação revogado.'); return; }
+      if (ds.spAi !== undefined) { await writeWithAI(t); return; }
+      if (ds.spTime) {
+        const form = t.closest('form'), day = (ui.draft.when || '').slice(0, 10);
+        if (!day) return;
+        form.elements.when.value = `${day}T${ds.spTime}`; readComposer(c, form); refreshComposer(c); return;
+      }
       if (ds.spGoto) { close(); ui.view = ds.spGoto; render(); return; }
       if (ds.spMode) { ui.mode = ds.spMode; render(); return; }
       if (ds.spMove !== undefined) {
@@ -463,6 +830,11 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
 
   document.addEventListener('change', ev => {
     const el = ev.target;
+    if (el.matches('[data-sp-file-upload]')) {
+      const file = el.files?.[0];
+      if (file) { uploadAndAttach(file); el.value = ''; }
+      return;
+    }
     if (el.matches('[data-sp-status]')) { ui.status = el.value; render(); return; }
     if (el.matches('[data-sp-account]')) { ui.account = el.value; render(); return; }
     if (el.matches('[data-sp-pick]')) { if (el.checked) ui.picked.add(el.value); else ui.picked.delete(el.value); render(); return; }
@@ -474,6 +846,22 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
     if (el.closest('[data-sp-form="post"]')) { readComposer(c, el.form); refreshComposer(c); }
     if (el.closest('.sp-picks')) el.closest('.sp-pick')?.classList.toggle('on', el.checked);
   });
+  document.addEventListener('paste', async ev => {
+    const composer = ev.target.closest('[data-sp-form="post"]');
+    if (!composer || !ui.draft) return;
+    const items = ev.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          ev.preventDefault();
+          await uploadAndAttach(file);
+          break;
+        }
+      }
+    }
+  });
   document.addEventListener('input', ev => {
     const form = ev.target.closest('[data-sp-form="post"]'); if (!form || ev.target.name === 'mediaUrl') return;
     readComposer(c, form); refreshComposer(c);
@@ -481,7 +869,7 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
 
   document.addEventListener('submit', async ev => {
     const form = ev.target;
-    if (!form.matches('[data-sp-form],[data-sp-record],[data-sp-bluesky],[data-sp-attach],[data-sp-csv],[data-sp-invite-form]')) return;
+    if (!form.matches('[data-sp-form],[data-sp-record],[data-sp-bluesky],[data-sp-attach],[data-sp-csv],[data-sp-invite-form],[data-sp-approval-form]')) return;
     ev.preventDefault(); if (form.dataset.pending) return; form.dataset.pending = '1';
     const button = form.querySelector('.primary'); button?.setAttribute('disabled', '');
     try {
@@ -500,6 +888,14 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
           slots: [...form.querySelectorAll('.sp-slot')].map(r => ({ day: Number(r.querySelector('select').value), time: r.querySelector('input').value })) });
         if (key === 'socialHashtags') data.tags = f.tags.value;
         if (key === 'socialFeeds') Object.assign(data, { url: f.url.value, template: f.template.value, mode: f.mode.value, active: f.active.checked, accountIds: [...form.querySelectorAll('[name="accountIds"]:checked')].map(x => x.value) });
+        if (key === 'socialWebhooks') Object.assign(data, { url: f.url.value, active: f.active.checked, events: [...form.querySelectorAll('[name="events"]:checked')].map(x => x.value) });
+        if (key === 'socialCompetitors') Object.assign(data, {
+          handle: f.handle.value,
+          network: f.network.value,
+          followers: Number(f.followers.value) || 0,
+          postsPerWeek: Number(f.postsPerWeek.value) || 0,
+          notes: f.notes.value
+        });
         await mutate({ type: 'save', key, id: form.dataset.id || '', data }); close(); render(); flash('Salvo.');
         if (key === 'socialFeeds') { withState(await api(url('/api/social/run'), {})); render(); }
       } else if (form.dataset.spBluesky !== undefined) {
@@ -511,6 +907,9 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
       } else if (form.dataset.spInviteForm !== undefined) {
         const workspace = c.workspace, result = await api(url('/api/social/invite'), { action: 'create', hours: Number(form.elements.hours.value) });
         if (c.workspace === workspace && form.isConnected) inviteDialog(result);
+      } else if (form.dataset.spApprovalForm !== undefined) {
+        const workspace = c.workspace, result = await api(url('/api/social/approval-link'), { action: 'create', hours: Number(form.elements.hours.value) });
+        if (c.workspace === workspace && form.isConnected) approvalDialog(result);
       } else if (form.dataset.spCsv !== undefined) {
         const batch = csv, workspace = c.workspace;
         const current = () => csv === batch && c.workspace === workspace;

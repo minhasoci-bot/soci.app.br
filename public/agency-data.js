@@ -17,11 +17,12 @@ export const moduleOfRecord = {
   contacts: 'contacts', tasks: 'contacts', opportunities: 'opportunities', appointments: 'calendars', workflows: 'automation',
   workflowFolders: 'automation', workflowLists: 'automation',
   invoices: 'payments', campaigns: 'marketing', pages: 'sites', forms: 'sites', chatWidgets: 'sites', chatSessions: 'sites', blogs: 'sites', blogPosts: 'sites', blogAuthors: 'sites', blogCategories: 'sites', stores: 'sites', orders: 'payments', webinars: 'sites', webinarRegistrations: 'sites', qrCodes: 'sites', courses: 'memberships', communities: 'memberships', offers: 'memberships', reviews: 'reputation',
-  agents: 'ai-agents', agentRuns: 'ai-agents', files: 'media', snippetFolders: 'conversations', snippets: 'conversations', triggerLinks: 'conversations',
+  agents: 'ai-agents', agentRuns: 'ai-agents', files: 'media', mediaFolders: 'media', snippetFolders: 'conversations', snippets: 'conversations', triggerLinks: 'conversations',
   studioProjects: 'sites', pipelines: 'opportunities', stages: 'opportunities',
   customFields: 'settings', customValues: 'settings', tags: 'contacts', companies: 'contacts',
   products: 'payments', paymentLinks: 'payments', subscriptions: 'payments', transactions: 'payments', coupons: 'payments',
-  socialCategories: 'marketing', socialHashtags: 'marketing', socialFeeds: 'marketing'
+  socialCategories: 'marketing', socialHashtags: 'marketing', socialFeeds: 'marketing', socialWebhooks: 'marketing', socialCompetitors: 'marketing',
+  pranchetaFiles: 'marketing'
 };
 
 export const accountStatuses = ['Active', 'Paused', 'Closed'];
