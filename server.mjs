@@ -30,6 +30,8 @@ import { network } from './ui/social-data.js';
 import { captionRequest, writeCaption } from './social-ai.mjs';
 import { findSharedReport, reportMailer, sharedReportPage } from './report-share.mjs';
 import { reportsDue } from './report-model.mjs';
+import { brandGroupData } from './ui/brand-group-data.js';
+import { brandGroupPage } from './brand-group-page.mjs';
 import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
@@ -72,7 +74,7 @@ const staticFiles = new Map([
   ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
   ['/opportunity-data.js','text/javascript; charset=utf-8'], ['/opportunity-filters.js','text/javascript; charset=utf-8'], ['/opportunities.js','text/javascript; charset=utf-8'], ['/opportunities.css','text/css; charset=utf-8'],
   ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'],
-  ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'],
+  ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
@@ -108,6 +110,7 @@ const hookPath = new RegExp(`^/hooks/${workspaceSegment}/([0-9a-f-]{36})/([a-z0-
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialInvitePath = new RegExp(`^/social-connect/${workspaceSegment}/?$`);
 const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
+const brandGroupRoute = /^\/marcas\/([0-9a-f]{64})\/?$/;
 const sharedReportRoute = new RegExp(`^/relatorio/${workspaceSegment}/([0-9a-f]{64})/?$`);
 const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{36})/([0-9a-f-]{36})$`);
 const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,48}))?$`);
@@ -379,6 +382,12 @@ export function makeServer({
     const gateway = await abacate.status(who.agencyId, abacate.AGENCY_SCOPE, publicBase(req));
     return { agency: { ...publicAgency(agency, who), abacatepay: { connected: gateway.connected, storeName: gateway.storeName || '', devMode: Boolean(gateway.devMode) } }, overview: agencyOverview(agency, states), marketplace: publicMarketplaceList(marketplaceDoc, who.agencyId), workspaces, personalWorkspace, access: who,
       features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, ...extra };
+  }
+  // Sub-accounts of a brand group that still belong to the agency and are not closed, with their state.
+  async function brandWorkspaces(agency, agencyId, group) {
+    const wanted = new Set(group.accountIds);
+    const rows = (await listWorkspaces(agencyId)).filter(w => wanted.has(w.id) && agency.accounts?.[w.id]?.status !== 'Closed');
+    return Promise.all(rows.map(async w => ({ id: w.id, name: w.name, state: await store.load(w.id) })));
   }
   const agencyWorkspaceViews = (agency, who, workspaces) => Promise.all(workspaces.map(async w => ({
     ...w, ...workspaceView(effectiveAccess(agency, who, w.id), await store.load(w.id))
@@ -671,6 +680,12 @@ export function makeServer({
         }
         return result;
       });
+    }
+    if (op === 'brand-group-report') {
+      const agency = await loadAgency(who.agencyId);
+      const group = agency.brandGroups?.find(row => row.id === input.id);
+      if (!group) throw error('Grupo de marcas não encontrado.',404);
+      return brandGroupData(group, await brandWorkspaces(agency, who.agencyId, group));
     }
     if (op === 'accounts') return createAccount(who, input);
     if (op === 'snapshot-create' || op === 'snapshot-refresh') {
@@ -2119,6 +2134,22 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         return json({ number:order.number, total:order.total, method:methodLabel[shop.payment.method] || shop.payment.method, instructions:shop.payment.instructions, thanks:shop.thanks, payUrl },201);
       }
       // Blogs: home with categories and pages, posts with SEO tags, and RSS. Drafts open with ?preview=1 when signed in.
+      // Brand group reports shared by link: the token finds the agency, so no agency id is exposed.
+      const brandGroupShare = p.match(brandGroupRoute);
+      if (brandGroupShare && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const token = brandGroupShare[1];
+        const match = await store.findAgency({ brandGroups: [{ share: { id: token } }] });
+        const agency = match && hydrateAgency(match.state);
+        const group = agency?.brandGroups.find(row => row.share?.id === token);
+        if (!group || (group.share.expires && Date.parse(group.share.expires) <= Date.now())) throw error('Este relatório não está mais compartilhado.',404);
+        const asked = url.searchParams.get('lang');
+        const lang = ['pt', 'es'].includes(asked) ? asked : group.share.lang;
+        const data = brandGroupData(group, await brandWorkspaces(agency, match.id, group));
+        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer', 'X-Robots-Tag':'noindex',
+          'Content-Security-Policy':"default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" });
+        return res.end(method === 'HEAD' ? undefined : brandGroupPage(data, { lang, path: p, agency: agency.company }));
+      }
       // Shared reports: read-only, rendered here so the page never receives the workspace state.
       const sharedReport = p.match(sharedReportRoute);
       if (sharedReport && (method === 'GET' || method === 'HEAD')) {

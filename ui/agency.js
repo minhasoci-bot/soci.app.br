@@ -8,6 +8,7 @@ import { colorPicker, mountColorPicker } from './color-picker.js';
 import { phoneField } from './phone-input.js';
 import { createProspecting, prospectRoutes } from './prospecting.js';
 import { createSociChat } from './soci-chat.js';
+import { brandGroupCsv, brandGroupHtml, groupPeriods } from './brand-group-data.js';
 import {
   affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, labFeatures, learningTracks,
   marketplaceCategories, mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
@@ -24,7 +25,7 @@ const initials = s => (s || '').split(/\s+/).slice(0, 2).map(p => p[0] || '').jo
 
 export const agencyNav = [
   ['ask', 'Pergunte à Soci', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['saas', 'Configurador SaaS', 'chart'], ['prospecting', 'Prospecção', 'search'],
-  ['accounts', 'Subcontas', 'users'], ['snapshots', 'Setups de conta', 'box'],
+  ['accounts', 'Subcontas', 'users'], ['brand-groups', 'Grupos de marcas', 'chart'], ['snapshots', 'Setups de conta', 'box'],
   ['affiliate', 'Portal de afiliados', 'link'], ['templates', 'Biblioteca de templates', 'site'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
   ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'],
   ['settings', 'Configurações', 'gear']
@@ -160,8 +161,8 @@ export function startAgency(env) {
       open: A.navOpen,
       groups: [
         { title: tr('Visão geral'), items: agencyNav.slice(0, 5).map(item) },
-        { title: tr('Subcontas'), items: agencyNav.slice(5, 10).map(item) },
-        { title: tr('Aprender e apps'), items: agencyNav.slice(10, -1).map(item) },
+        { title: tr('Subcontas'), items: agencyNav.slice(5, 11).map(item) },
+        { title: tr('Aprender e apps'), items: agencyNav.slice(11, -1).map(item) },
         { title: tr('Atalhos'), items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: tr(l.title), icon: l.icon, external: true })) }
       ],
       footer: [
@@ -192,6 +193,51 @@ export function startAgency(env) {
   const pages = {};
 
   pages.ask = () => `<div class="sc-host" data-soci-chat-host></div>`;
+
+  // ---- Brand groups: one report over several sub-accounts ----------------
+  const groups = () => D().brandGroups || [];
+  const groupLink = g => g.share?.id && (!g.share.expires || Date.parse(g.share.expires) > Date.now()) ? `${location.origin}/marcas/${g.share.id}` : '';
+  pages['brand-groups'] = () => {
+    const open = A.bg?.id && groups().find(g => g.id === A.bg.id);
+    if (open) {
+      const body = A.bg.error ? `<p class="form-status">${h(A.bg.error)}</p>` : A.bg.data ? brandGroupHtml(A.bg.data) : `<p class="dim">${h(tr('Consolidando as subcontas…'))}</p>`;
+      return `<div class="page">${head(open.name, `${tr(groupPeriods[open.period] || groupPeriods[30])} · ${open.accountIds.length} subconta(s)`)}
+        <div class="bg-toolbar">${btn('Voltar aos grupos', 'bg-back', '', 'secondary', 'left')}<span class="spacer"></span>${btn('Editar grupo', 'bg-edit', `data-id="${open.id}"`, 'secondary', 'edit')}
+        ${btn('Compartilhar', 'bg-share', `data-id="${open.id}"`, 'secondary', 'link')}${btn('Exportar CSV', 'bg-csv', A.bg.data ? '' : 'disabled', 'secondary', 'download')}${btn('Imprimir / PDF', 'bg-print', A.bg.data ? '' : 'disabled', 'secondary', 'download')}</div>
+        <section class="bg-report">${body}</section></div>`;
+    }
+    const card = g => `<article class="surface bg-group"><h2>${h(g.name)}</h2>
+      <p class="dim">${h(tr(groupPeriods[g.period] || groupPeriods[30]))} · ${g.accountIds.length} subconta(s)${groupLink(g) ? ` · ${badge('Link ativo', 'green')}` : ''}</p>
+      <p class="dim">${h(g.accountIds.map(accountName).slice(0, 6).join(', '))}${g.accountIds.length > 6 ? '…' : ''}</p>
+      <div class="inline-gap">${btn('Ver relatório', 'bg-open', `data-id="${g.id}"`, 'primary', 'chart')}${btn('Editar', 'bg-edit', `data-id="${g.id}"`, 'secondary', 'edit')}${btn('Compartilhar', 'bg-share', `data-id="${g.id}"`, 'secondary', 'link')}${btn('Excluir', 'bg-delete', `data-id="${g.id}"`, 'secondary danger', 'trash')}</div></article>`;
+    return `<div class="page">${head('Grupos de marcas', 'Consolide em um relatório os resultados das subcontas de um mesmo cliente, rede ou holding.', primary('Novo grupo', 'bg-new'))}
+      ${groups().length ? `<div class="bg-groups">${groups().map(card).join('')}</div>` : empty('Nenhum grupo de marcas', 'Crie um grupo para comparar posts, contatos e vendas de várias subcontas lado a lado.', primary('Criar primeiro grupo', 'bg-new'))}</div>`;
+  };
+  function editGroup(id = '') {
+    const g = id ? groups().find(row => row.id === id) : null;
+    dialog(g ? 'Editar grupo de marcas' : 'Novo grupo de marcas', `<label>Nome do grupo<input name="name" value="${h(g?.name || '')}" maxlength="80" required placeholder="Ex.: Rede Padaria Sol"></label>
+      <label>Período do relatório<select name="period">${Object.entries(groupPeriods).map(([v, label]) => `<option value="${v}" ${(g?.period || '30') === v ? 'selected' : ''}>${h(tr(label))}</option>`).join('')}</select></label>
+      ${pickAccounts('accountIds', g?.accountIds || [])}`, { form: 'bg-save', id, submit: g ? 'Salvar grupo' : 'Criar grupo' });
+  }
+  function shareGroup(id) {
+    const g = groups().find(row => row.id === id); if (!g) return;
+    const link = groupLink(g), message = `Segue o relatório consolidado “${g.name}”, com os dados atualizados: ${link}`;
+    dialog('Compartilhar grupo de marcas', `<div class="bg-share"><p>Quem tiver o link vê o relatório consolidado deste grupo, com dados atuais, sem login e sem acesso às subcontas.</p>
+      ${link ? `<label>Link do relatório<input name="shareUrl" value="${h(link)}" readonly></label>
+        <p class="dim">${g.share.expires ? `Válido até ${new Date(g.share.expires).toLocaleString(getLanguage() === 'es' ? 'es-419' : 'pt-BR')}` : 'Sem data de validade'}. Gerar outro invalida o link anterior.</p>
+        <div class="inline-gap">${btn('Copiar link', 'copy', `data-text="${h(link)}"`, 'secondary', 'copy')}<a class="secondary" href="${h(link)}" target="_blank" rel="noopener">${i('site', 15)}Abrir</a>
+        <a class="secondary" href="https://wa.me/?text=${encodeURIComponent(message)}" target="_blank" rel="noopener">${i('whatsapp', 15)}WhatsApp</a>
+        <a class="secondary" href="mailto:?subject=${encodeURIComponent(g.name)}&body=${encodeURIComponent(message)}">${i('mail', 15)}E-mail</a>${btn('Revogar link', 'bg-revoke', `data-id="${g.id}"`, 'secondary danger', 'close')}</div>` : ''}
+      <div class="field-grid"><label>Validade<select name="days"><option value="7">7 dias</option><option value="30" selected>30 dias</option><option value="90">90 dias</option><option value="0">Sem validade</option></select></label>
+      <label>Idioma<select name="lang"><option value="pt">Português</option><option value="es" ${g.share?.lang === 'es' ? 'selected' : ''}>Español</option></select></label></div></div>`,
+      { form: 'bg-share', id, submit: link ? 'Gerar novo link' : 'Gerar link' });
+  }
+  async function openGroup(id) {
+    A.bg = { id, data: null, error: '' }; render();
+    try { const data = await call('brand-group-report', { id }); if (A.bg?.id === id) A.bg.data = data; }
+    catch (e) { if (A.bg?.id === id) A.bg.error = e.message; }
+    if (A.page === 'brand-groups') render();
+  }
 
   pages['ai-suite'] = () => {
     const tools = [
@@ -824,7 +870,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
 
   async function show(page, sub) {
     const nextPage = pages[page] ? page : 'dashboard';
-    if (nextPage !== A.page) { A.query = ''; A.status = ''; A.category = ''; A.selected.clear(); A.auditPage = 0; }
+    if (nextPage !== A.page) { A.query = ''; A.status = ''; A.category = ''; A.selected.clear(); A.auditPage = 0; A.bg = null; }
     A.page = nextPage;
     const normalizedSub = A.page === 'settings' && sub === 'phone' ? 'whatsapp' : A.page === 'settings' && sub === 'stripe' ? 'abacatepay' : sub;
     A.sub = A.page === 'ask'
@@ -897,6 +943,15 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const d = b.dataset, id = d.id;
     try {
       switch (d.ag) {
+        case 'bg-new': editGroup(); break;
+        case 'bg-edit': editGroup(id); break;
+        case 'bg-open': await openGroup(id); break;
+        case 'bg-back': A.bg = null; render(); break;
+        case 'bg-share': shareGroup(id); break;
+        case 'bg-delete': confirmBox('Excluir este grupo de marcas?', 'O relatório e o link compartilhado deixam de existir. As subcontas não são alteradas.', 'bg-delete', id, 'Excluir grupo'); break;
+        case 'bg-revoke': await act('brand-group-share', { id, data: { action: 'revoke' } }); render(); shareGroup(id); flash('Link revogado.'); break;
+        case 'bg-csv': if (A.bg?.data) download(`grupo-de-marcas-${A.bg.data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'relatorio'}.csv`, brandGroupCsv(A.bg.data), 'text/csv;charset=utf-8'); break;
+        case 'bg-print': window.print(); break;
         case 'openai-retry': A.openAI = null; render(); await refreshOpenAI(); break;
         case 'openai-disconnect': confirmBox('Desconectar a chave da OpenAI?', 'Você precisará conectar outra chave para voltar a usar os recursos de IA.', 'openai-disconnect', '', 'Desconectar'); break;
         case 'wa-refresh': await refreshWhatsApp(); flash('Status do WhatsApp atualizado.'); break;
@@ -1213,6 +1268,14 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           break;
         }
         case 'account': { const newId = await call('accounts', data); msg = 'Subconta criada.'; close(); dialog('Subconta criada com sucesso', `<p><b>${h(data.name)}</b> está pronta para uso.</p><div class="inline-gap">${btn('Acessar subconta agora', 'open-account', `data-id="${newId}"`, 'primary')}</div>`); keepOpen = true; break; }
+        case 'bg-save': {
+          const saved = await act('brand-group-save', { id, data: { name: data.name, period: data.period, accountIds: data.accountIds || [] } });
+          msg = id ? 'Grupo atualizado.' : 'Grupo criado.';
+          if (A.bg?.id === saved || !id) { close(); keepOpen = true; render(); await openGroup(saved); }
+          break;
+        }
+        case 'bg-share': await act('brand-group-share', { id, data: { action: 'create', days: Number(data.days), lang: data.lang } }); close(); render(); shareGroup(id); keepOpen = true; msg = 'Link gerado.'; break;
+        case 'bg-delete': await act('brand-group-delete', { id }); if (A.bg?.id === id) A.bg = null; msg = 'Grupo excluído.'; break;
         case 'account-meta': await act('account-meta', { id, data }); msg = 'Dados da subconta atualizados.'; break;
         case 'account-reactivate': await act('account-reactivate', { id }); msg = 'Subconta reativada.'; break;
         case 'bulk-status': for (const x of A.selected) { const meta = D().accounts[x]; await act('account-meta', { id: x, data: { ...meta, status: data.status, suspendedReason: data.suspendedReason } }); } A.selected.clear(); msg = 'Status das subcontas atualizado.'; break;

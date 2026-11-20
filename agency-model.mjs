@@ -47,7 +47,7 @@ export function blankAgency() {
     profile: { name: 'Agency', first: 'Agency', last: 'Owner', email: '', phone: '', language: platformLanguage },
     company: { name: 'My Agency', brand: platformBrand, domain: '', website: '', phone: '', address: '', primary: defaultPrimary, secondary: defaultSecondary, logo: '', timezone: 'America/Sao_Paulo', currency: defaults.profile.currency },
     accounts: {}, plans: [], snapshots: [], snapshotLoads: [], prospects: [], partners: [], ideas: [], menuLinks: [], announcements: [],
-    users: [], templates: [], templateInstalls: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], audit: [],
+    users: [], templates: [], templateInstalls: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], audit: [], brandGroups: [],
     reselling: Object.fromEntries(resellProducts.map(p => [p.key, { price: p.base, disabled: [] }])),
     affiliate: { accepted: false, steps: {}, code: '', payout: { method: 'PayPal', email: '' }, payments: [] },
     learning: { completed: [] },
@@ -191,6 +191,41 @@ export function executeAgency(state, command, { accountIds, actor, sharedSnapsho
       state[key] = state[key].filter(item => item.id !== id);
       if (key === 'plans') for (const meta of Object.values(state.accounts)) if (meta.plan === id) meta.plan = '';
       log(`${collections[key].label} deleted`, row.name || row.title || row.first || id);
+      return id;
+    }
+    // Brand groups: consolidated reports over several sub-accounts, with an optional public link.
+    case 'brand-group-save': {
+      const name = str(d.name, 80) || fail('Informe o nome do grupo.');
+      const chosen = [...new Set((Array.isArray(d.accountIds) ? d.accountIds : [d.accountIds]).filter(x => typeof x === 'string' && x))];
+      if (!chosen.length) fail('Escolha ao menos uma subconta para o grupo.');
+      if (chosen.length > 100) fail('Um grupo pode ter até 100 subcontas.');
+      if (chosen.some(x => !accountIds.includes(x))) fail('Uma das subcontas escolhidas não existe mais.');
+      const period = ['7', '30', '90'].includes(String(d.period)) ? String(d.period) : '30';
+      if (id) {
+        const row = pick(state, 'brandGroups', id);
+        Object.assign(row, { name, accountIds: chosen, period, updated: now() });
+        log('Brand group updated', name);
+        return row.id;
+      }
+      if (state.brandGroups.length >= 50) fail('A agência pode ter até 50 grupos de marcas.');
+      const row = { id: uid(), created: now(), name, accountIds: chosen, period };
+      state.brandGroups.push(row);
+      log('Brand group created', name, `${chosen.length} subconta(s)`);
+      return row.id;
+    }
+    case 'brand-group-delete': {
+      const row = pick(state, 'brandGroups', id);
+      state.brandGroups = state.brandGroups.filter(item => item.id !== id);
+      log('Brand group deleted', row.name);
+      return id;
+    }
+    case 'brand-group-share': {
+      const row = pick(state, 'brandGroups', id);
+      if (d.action === 'revoke') { delete row.share; log('Brand group link revoked', row.name); return id; }
+      const days = Number(d.days);
+      if (![7, 30, 90, 0].includes(days)) fail('Escolha a validade do link.');
+      row.share = { id: randomBytes(32).toString('hex'), created: now(), expires: days ? new Date(Date.now() + days * 86_400_000).toISOString() : '', lang: d.lang === 'es' ? 'es' : 'pt' };
+      log('Brand group link created', row.name, days ? `${days} dias` : 'sem validade');
       return id;
     }
     case 'account-meta': {
