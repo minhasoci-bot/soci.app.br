@@ -1,7 +1,9 @@
+import { tregConfigured, placesSearchTreg } from './treg.mjs';
+
 const key = process.env.PROSPECTING_GOOGLE_PLACES_KEY?.trim();
 const embedKey = process.env.PROSPECTING_GOOGLE_MAPS_EMBED_KEY?.trim();
 const fieldMask = ['id','displayName','formattedAddress','primaryTypeDisplayName','location','rating','userRatingCount'].map(field => `places.${field}`).join(',');
-export const placesConfigured = Boolean(key);
+export const placesConfigured = Boolean(key) || tregConfigured;
 export const mapsEmbedKey = embedKey && embedKey !== key ? embedKey : '';
 
 function unavailable(message,status) { throw Object.assign(new Error(message),{status}); }
@@ -41,6 +43,9 @@ export async function findPlace(name,location) {
 }
 
 export async function placesSearch(keywords,location,km) {
+  if (tregConfigured && !key) {
+    return await placesSearchTreg(keywords, location);
+  }
   if (!placesConfigured) unavailable('Configure a chave do Google Maps para buscar novas empresas.',503);
   const geo = new URL('https://maps.googleapis.com/maps/api/geocode/json');
   geo.search = new URLSearchParams({address:location,key,language:'pt-BR'});

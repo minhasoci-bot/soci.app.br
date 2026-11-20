@@ -28,12 +28,14 @@ import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, re
 import { attachAccounts, claimDue, evergreenDue, reviewSocialCsv, settle } from './social-model.mjs';
 import { authUrl, availability, blueskyLogin, exchange as socialExchange, publish as socialPublish, seal, unseal } from './social-providers.mjs';
 import { network } from './ui/social-data.js';
+import { captionRequest, writeCaption } from './social-ai.mjs';
 import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
 import { createAbacatePayHandler } from './abacatepay.mjs';
 import { makeClientPortal, portalCookie } from './client-portal.mjs';
 import { makeCommunity } from './community.mjs';
+import { createMcpHandler } from './mcp-server.mjs';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { chatHistory } from './chat-model.mjs';
 import { chatPage, demoPage, loaderScript } from './ui/chat-widget-data.js';
@@ -53,6 +55,7 @@ const staticFiles = new Map([
   ['/screens.js','text/javascript; charset=utf-8'], ['/conversations.js','text/javascript; charset=utf-8'],
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
+  ['/reports.js','text/javascript; charset=utf-8'], ['/report-data.js','text/javascript; charset=utf-8'], ['/reports.css','text/css; charset=utf-8'],
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
@@ -68,7 +71,8 @@ const staticFiles = new Map([
   ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
   ['/opportunity-data.js','text/javascript; charset=utf-8'], ['/opportunity-filters.js','text/javascript; charset=utf-8'], ['/opportunities.js','text/javascript; charset=utf-8'], ['/opportunities.css','text/css; charset=utf-8'],
   ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'],
-  ['/social-connect.js','text/javascript; charset=utf-8'],
+  ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'],
+  ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
@@ -102,6 +106,7 @@ const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
 const hookPath = new RegExp(`^/hooks/${workspaceSegment}/([0-9a-f-]{36})/([a-z0-9]{6,40})$`, 'i');
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialInvitePath = new RegExp(`^/social-connect/${workspaceSegment}/?$`);
+const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
 const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{36})/([0-9a-f-]{36})$`);
 const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,48}))?$`);
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
@@ -310,6 +315,7 @@ export function makeServer({
     if (lifecycle.status !== 'Active') throw pausedError(lifecycle, showReason);
     if (module) requireModule(access, module);
   }
+  const mcp = createMcpHandler({ store, change, accountIsActive });
   async function webhookBlockReason(agencyId, id, provider) {
     const access = await systemWorkspaceAccess(id, agencyId);
     if (access.account.status === 'Active') return hasModule(access, 'conversations') ? null : 'MODULE_DISABLED';
@@ -833,6 +839,28 @@ export function makeServer({
     if (!key || invite?.hash !== key || invite.expires <= Date.now()) throw error('Este convite expirou ou foi revogado.',404);
     return invite;
   };
+  const validateApproval = (row, key) => {
+    const link = row.approval;
+    if (!key || link?.hash !== key || link.expires <= Date.now()) throw error('Este link de aprovação expirou ou foi revogado.',404);
+    return link;
+  };
+  // What the client sees on the approval page: posts waiting for review, with media inlined so Mídia
+  // Drive images (private until published) can be shown without opening the file route.
+  const approvalView = state => {
+    const zone = state.profile?.timezone || 'America/Sao_Paulo';
+    const posts = state.socialPosts.filter(post => post.status === 'in_review')
+      .sort((a, b) => (a.scheduleDate || a.created || '').localeCompare(b.scheduleDate || b.created || '')).slice(0, 40)
+      .map(post => ({ id: post.id, type: post.type, summary: post.summary, link: post.link || '', firstComment: post.firstComment || '', scheduleDate: post.scheduleDate || '',
+        overrides: Object.entries(post.overrides || {}).map(([provider, text]) => ({ network: network(provider)?.name || provider, text })),
+        accounts: post.accountIds.map(accountId => state.socialAccounts.find(a => a.id === accountId)).filter(Boolean)
+          .map(a => ({ name: a.name, provider: a.provider, network: network(a.provider)?.name || a.provider })),
+        media: (post.media || []).slice(0, 6).map(m => ({ type: m.type || 'image',
+          src: m.fileId ? state.files.find(f => f.id === m.fileId)?.data || '' : m.url })).filter(m => m.src) }));
+    const reviewed = state.socialPosts.filter(post => /\(cliente\)$/.test(post.reviewedBy || '') && Date.parse(post.updated || 0) > Date.now() - 14 * 86_400_000)
+      .map(post => ({ id: post.id, summary: String(post.summary || '').slice(0, 140), approval: post.approval, by: post.reviewedBy.replace(/ \(cliente\)$/, ''), note: post.reviewNote || '', at: post.updated }))
+      .sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20);
+    return { brand: state.profile?.name || '', zone, posts, reviewed };
+  };
   const socialActor = who => who.session?.id || who.userId || 'local-owner';
   async function startSocialOAuth(req, workspace, provider, inviteKey = '', actor = null) {
     const nonce = uid();
@@ -950,11 +978,27 @@ export function makeServer({
           results.push({ accountId, ok: false, error: `${network(account.provider)?.name}: ${e.message}`.slice(0, 500) });
         }
       }
+      const publishedOk = results.filter(r => r.ok);
+      const publishedFail = results.filter(r => !r.ok);
       await store.change(workspace, s => {
         settle(s, post.id, results, { uid, now: stamp });
         for (const [accountId, message] of Object.entries(broken)) { const a = s.socialAccounts.find(x => x.id === accountId); if (a) Object.assign(a, { status: 'expired', error: message }); }
       });
       completed++;
+      const activeWebhooks = (state.socialWebhooks || []).filter(w => w.active);
+      if (activeWebhooks.length) {
+        for (const wh of activeWebhooks) {
+          if (publishedOk.length && wh.events?.includes('post.published')) {
+            deliverWebhook({ url: wh.url, method: 'POST', body: { event: 'post.published', workspace, postId: post.id, postType: post.type, summary: post.summary, results: publishedOk, timestamp: stamp } }).catch(() => null);
+          }
+          if (publishedFail.length && wh.events?.includes('post.failed')) {
+            deliverWebhook({ url: wh.url, method: 'POST', body: { event: 'post.failed', workspace, postId: post.id, summary: post.summary, results: publishedFail, timestamp: stamp } }).catch(() => null);
+          }
+          if (Object.keys(broken).length && wh.events?.includes('account.disconnected')) {
+            deliverWebhook({ url: wh.url, method: 'POST', body: { event: 'account.disconnected', workspace, brokenAccounts: broken, timestamp: stamp } }).catch(() => null);
+          }
+        }
+      }
     }
     if (Object.keys(refreshed).length) await socialSecrets(workspace, row => { for (const [k, v] of Object.entries(refreshed)) if (v) row.tokens[k] = seal(v); });
     return completed;
@@ -1255,6 +1299,32 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/social-connect.html')));
       }
+      const approvePage = p.match(socialApprovePath);
+      if (approvePage && method === 'GET') {
+        await ready;
+        await publicAccountPolicy(approvePage[1], false, 'marketing');
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; media-src https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/social-approve.html')));
+      }
+      if (p === '/api/social/approval' && method === 'POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Link de aprovação inválido.',404);
+        const input = await payload(req);
+        if (typeof input.token !== 'string' || !/^[a-f0-9]{64}$/.test(input.token)) throw error('Link de aprovação inválido.',404);
+        const key = hash(input.token);
+        const link = validateApproval(await socialRow(`social-${id}`), key);
+        await publicAccountPolicy(id, input.action === 'decide', 'marketing');
+        if (input.action === 'list') return json({ expires: link.expires, ...approvalView(await store.load(id)) });
+        if (input.action === 'decide') {
+          const name = String(input.name || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+          if (!name) throw error('Informe seu nome para registrar a decisão.',400);
+          if (!['approved', 'rejected'].includes(input.decision)) throw error('Escolha aprovar ou pedir ajustes.',400);
+          if (input.decision === 'rejected' && !String(input.note || '').trim()) throw error('Conte o que precisa mudar neste post.',400);
+          await change(id, { type: 'social-review', id: String(input.postId || ''), data: { decision: input.decision, note: input.note }, actor: `${name} (cliente)` });
+          return json({ expires: link.expires, ...approvalView(await store.load(id)) });
+        }
+        throw error('Ação inválida para este link.',400);
+      }
       if (p === '/api/social/invited' && method === 'POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Convite inválido.',404);
         const input = await payload(req);
@@ -1347,6 +1417,59 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           await socialSecrets(id, row => { row.invite = { hash: hash(token), expires }; });
           return json({ url: `${publicBase(req)}/social-connect/${id}#${token}`, expires });
         }
+        if (op === 'interactions' || op === 'incoming-interaction') {
+          const result = await change(id, { type: 'social-interaction-trigger', data: input }, who);
+          return json({ ok: true, ...(typeof result?.id === 'object' ? result.id : { result: result?.id }) });
+        }
+        if (op === 'approval-link') {
+          const current = (await socialRow(`social-${id}`)).approval;
+          if (input.action === 'status') return json({ expires: current?.expires > Date.now() ? current.expires : null });
+          if (input.action === 'revoke') {
+            await socialSecrets(id, row => { delete row.approval; });
+            return json({ expires: null });
+          }
+          if (input.action === 'send-whatsapp') {
+            const rawPhone = String(input.phone || '').trim();
+            if (!rawPhone) throw error('Informe o número de WhatsApp para envio.', 400);
+            const hours = [24, 72, 168, 720].includes(Number(input.hours)) ? Number(input.hours) : 168;
+            let token = '';
+            let expires = current?.expires > Date.now() ? current.expires : 0;
+            if (!expires || !input.url) {
+              token = (uid() + uid()).replaceAll('-', '');
+              expires = Date.now() + hours * 3_600_000;
+              await socialSecrets(id, row => { row.approval = { hash: hash(token), expires }; });
+            }
+            const approvalUrl = token ? `${publicBase(req)}/aprovar/${id}#${token}` : input.url;
+            const state = await store.load(id);
+            const pending = state.socialPosts.filter(p => p.status === 'in_review').length;
+            const brand = state.profile?.name || '';
+            const defaultMsg = `Olá! ${pending ? `Há ${pending} post(s)` : 'Os próximos posts'}${brand ? ` da marca *${brand}*` : ''} aguardando sua aprovação.\n\nRevise, aprove ou solicite ajustes com um comentário por este link:\n${approvalUrl}`;
+            const message = String(input.message || '').trim() || defaultMsg;
+            const agencyId = state.agencyId || who.agencyId || AGENCY_ID;
+            const sent = await whatsapp.sendWorkspaceText(
+              agencyId, id, rawPhone, message,
+              (agId, ws) => accountIsActive(agId, ws, 'conversations')
+            ).catch(err => {
+              throw error(err.message || 'Erro ao enviar pelo WhatsApp.', err.status || 502);
+            });
+            if (!sent?.sent) {
+              if (sent?.reason === 'not-connected') throw error('O WhatsApp desta subconta não está conectado na UAZAPI. Conecte em Conversas para disparar.', 400);
+              if (sent?.reason === 'invalid-phone') throw error('Número de WhatsApp inválido. Digite com DDD (ex.: 11999999999).', 400);
+              throw error('Não foi possível enviar a mensagem por WhatsApp.', 502);
+            }
+            return json({ ok: true, sent: true, phone: rawPhone, expires, url: approvalUrl });
+          }
+          if (input.action !== 'create' || ![24, 72, 168, 720].includes(input.hours)) throw error('Escolha um prazo para o link de aprovação.',400);
+          const token = (uid() + uid()).replaceAll('-', ''), expires = Date.now() + input.hours * 3_600_000;
+          await socialSecrets(id, row => { row.approval = { hash: hash(token), expires }; });
+          return json({ url: `${publicBase(req)}/aprovar/${id}#${token}`, expires });
+        }
+        if (op === 'ai') {
+          captionRequest(input);
+          const status = who.session ? await openAI.status(who.session) : { configured: false };
+          if (!status.configured) throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para gerar legendas com IA.',409);
+          return json(await writeCaption(await openAI.requireConnection(who.session), input));
+        }
         const withState = async extra => {
           const state = await store.load(id);
           return json({ ...workspaceView(who, state), ...extra });
@@ -1387,15 +1510,15 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const { agency, who: actor } = await accessContext(req,await verifiedUser(req,res));
         const isPersonal = privateSpace.test(id);
         const who = await requireWorkspaceAccess(agency, actor, id, { support: true });
-        const studio = hasModule(who, 'sites'), agents = hasModule(who, 'ai-agents');
+        const studio = hasModule(who, 'sites'), agents = hasModule(who, 'ai-agents'), marketing = hasModule(who, 'marketing');
         const [state, workspaces, aiStatus] = await Promise.all([
-          store.load(id), visibleWorkspaces(who), !who.support && (studio || agents) ? openAI.status(who.session) : null
+          store.load(id), visibleWorkspaces(who), !who.support && (studio || agents || marketing) ? openAI.status(who.session) : null
         ]);
         const account = workspaces.find(w => w.id === id)?.name || id;
         const audit = !isPersonal && (who.support || hasModule(who, 'settings')) ? agency.audit.filter(a => a.target === account || a.target === id).slice(-200) : [];
         if (who.support) await changeAgency(who.agencyId, current => logTo(current, who, 'Sub-account support viewed', id, who.account.status));
         return json({ ...workspaceView(who, state), workspaces,
-          features:{studioAI: Boolean(aiStatus?.configured && studio), social: hasModule(who, 'marketing') ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
+          features:{studioAI: Boolean(aiStatus?.configured && studio), socialAI: Boolean(aiStatus?.configured && marketing), social: marketing ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
           agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id,who.settings),
           ...(who.support && { account: { ...who.account, support: true, statusHistory: agency.accounts[id]?.statusHistory || [],
             ignoredWebhooks: agency.accounts[id]?.ignoredWebhooks || {} } }),
@@ -1549,6 +1672,45 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           req, res, url, method, who, payload, publicOrigin: publicBase(req), listWorkspaces, requireActiveAccount, json
         });
       }
+      if (p === '/api/mcp' || p.startsWith('/api/mcp/')) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Workspace');
+        if (method === 'OPTIONS') return send(204, 'text/plain', '');
+        if (method === 'GET') {
+          return json({
+            name: 'soci-mcp-server',
+            version: '1.0.0',
+            description: 'Model Context Protocol (MCP) Server for Soci platform',
+            tools: mcp.listTools().map(t => t.name),
+            status: 'online'
+          });
+        }
+        if (method === 'POST') {
+          const wsParam = url.searchParams.get('workspace') || req.headers['x-workspace'] || id;
+          if (!spaceId.test(wsParam) && !privateSpace.test(wsParam)) {
+            throw error('Subconta não informada ou inválida. Informe ?workspace=<id> ou header X-Workspace.', 400);
+          }
+          let actor = 'MCP Agent';
+          const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim() || url.searchParams.get('token') || '';
+          if (auth) {
+            try {
+              const who = await access(req, res);
+              actor = who.user?.name || who.session?.id || 'MCP User';
+            } catch {
+              if (!token) throw error('Autenticação necessária para o servidor MCP da Soci (Bearer token).', 401);
+              actor = `MCP Key (${token.slice(0, 8)}…)`;
+            }
+          }
+          await publicAccountPolicy(wsParam, false, 'marketing');
+          const state = await store.load(wsParam);
+          const body = await payload(req);
+          const response = await mcp.handleMcpRequest(body, { state, workspace: wsParam, actor });
+          if (!response) return send(204, 'text/plain', '');
+          return json(response);
+        }
+        throw error('Método não permitido.', 405);
+      }
       if (p.startsWith('/api/ask/')) {
         const { agency, who } = await accessContext(req, await verifiedUser(req, res));
         requireCapability(who, 'agency', 'Seu usuário não pode acessar o Pergunte à Soci.');
@@ -1590,6 +1752,104 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           await recordAudit(who, labels[operation], account, agent?.name || '');
         }
         return json({ agent }, operation === 'create' ? 201 : 200);
+      }
+      if (p.startsWith('/api/prancheta/')) {
+        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
+        await requireActiveAccount(who.agencyId, id, true);
+        const action = p.slice('/api/prancheta/'.length);
+        const formatPranchetaMeta = (f) => ({
+          id: f.id,
+          name: f.name,
+          size_bytes: f.size_bytes || (f.document ? JSON.stringify(f.document).length : JSON.stringify(f).length),
+          thumbnail: f.thumbnail || null,
+          created_at: f.created_at || f.created,
+          updated_at: f.updated_at || f.updated || f.created,
+          format: f.format || 'custom',
+          width: f.width || 1080,
+          height: f.height || 1080,
+          pages: f.pages || []
+        });
+
+        if (action === 'files') {
+          if (method === 'GET') {
+            const state = await store.load(id);
+            const raw = state.pranchetaFiles || [];
+            return json({ files: raw.map(formatPranchetaMeta) });
+          }
+          if (method === 'POST') {
+            const input = await payload(req);
+            const saved = await change(id, { type: 'prancheta-save', data: input, id: input.id });
+            const state = await store.load(id);
+            const raw = state.pranchetaFiles || [];
+            return json({ id: saved.id, files: raw.map(formatPranchetaMeta) });
+          }
+        }
+        if (action === 'file') {
+          const fileId = url.searchParams.get('id') || url.searchParams.get('fileId');
+          const state = await store.load(id);
+          const raw = state.pranchetaFiles || [];
+          const found = raw.find(f => f.id === fileId);
+          if (method === 'GET') {
+            if (!found) throw error('Arquivo da prancheta não encontrado.', 404);
+            const { sociToDocument } = await import('./prancheta-model.mjs');
+            const document = found.document || sociToDocument(found);
+            return json({
+              ...formatPranchetaMeta(found),
+              document
+            });
+          }
+          if (method === 'POST') {
+            const input = await payload(req);
+            const targetId = input.id || fileId;
+            const saved = await change(id, { type: 'prancheta-save', data: input, id: targetId });
+            const nextState = await store.load(id);
+            const nextFound = (nextState.pranchetaFiles || []).find(f => f.id === saved.id);
+            return json({ id: saved.id, file: nextFound ? formatPranchetaMeta(nextFound) : null });
+          }
+        }
+        if (action === 'save' && method === 'POST') {
+          const input = await payload(req);
+          const saved = await change(id, { type: 'prancheta-save', data: input, id: input.id });
+          const state = await store.load(id);
+          const raw = state.pranchetaFiles || [];
+          const found = raw.find(f => f.id === saved.id);
+          return json({ id: saved.id, file: found ? formatPranchetaMeta(found) : null, files: raw.map(formatPranchetaMeta) });
+        }
+        if (action === 'templates' && method === 'GET') {
+          const { createCanonicalTemplates, pranchetaPresets } = await import('./prancheta-model.mjs');
+          return json({ templates: createCanonicalTemplates(), presets: pranchetaPresets });
+        }
+        if (action === 'template-use' && method === 'POST') {
+          const input = await payload(req);
+          const saved = await change(id, { type: 'prancheta-template', data: input });
+          const state = await store.load(id);
+          return json({ id: saved.id, files: state.pranchetaFiles || [] }, 201);
+        }
+        if (action === 'delete' && method === 'POST') {
+          const input = await payload(req);
+          await change(id, { type: 'prancheta-delete', id: input.id });
+          const state = await store.load(id);
+          return json({ ok: true, files: state.pranchetaFiles || [] });
+        }
+        if (action === 'duplicate' && method === 'POST') {
+          const input = await payload(req);
+          const copy = await change(id, { type: 'prancheta-duplicate', id: input.id });
+          const state = await store.load(id);
+          return json({ id: copy.id, files: state.pranchetaFiles || [] }, 201);
+        }
+        if (action === 'export-media' && method === 'POST') {
+          const input = await payload(req);
+          const file = await change(id, { type: 'prancheta-export-media', id: input.id, data: input });
+          const state = await store.load(id);
+          return json({ ok: true, fileId: file.id, files: state.files || [] });
+        }
+        if (action === 'to-social' && method === 'POST') {
+          const input = await payload(req);
+          const result = await change(id, { type: 'prancheta-to-social', id: input.id, data: input });
+          const state = await store.load(id);
+          return json({ ok: true, ...(result.id || {}), posts: state.socialPosts || [] });
+        }
+        throw error('Rota da prancheta não encontrada.', 404);
       }
       if (p==='/api/studio' && method==='POST') {
         const who = await studioGuard(req,res,id);

@@ -34,7 +34,9 @@ import { installClientPortal } from './client-portal.js';
 import { installCourses } from './courses.js';
 import { installCommunities } from './communities.js';
 import { installOffers } from './offers.js';
+import { installPrancheta } from './prancheta.js';
 import { applyBrandColor, setThemeAccount } from './graao.js';
+import { installReports } from './reports.js';
 import './phone-input.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay'), toast=document.querySelector('#toast');
@@ -117,13 +119,13 @@ async function load(){
     if (workspace === c.workspace) Object.assign(c,{s:null,m:null,account:e.account,audit:[]});
   }
 }
-const allowedView = id => id === 'launchpad' ? !c.access?.modules || c.access.modules.length > 0 : !c.access?.modules || c.access.modules.includes(id);
+const allowedView = id => id === 'launchpad' ? !c.access?.modules || c.access.modules.length > 0 : !c.access?.modules || c.access.modules.includes(id) || (id === 'prancheta' && (!c.access?.modules || c.access.modules.includes('marketing') || c.access.modules.includes('prancheta')));
 let agencyUI, openingWorkspace;
 const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social','email'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers'],reporting:['overview','snapshots'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:crmTabs.payments.map(t=>t[0]),sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social','email','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers'],reporting:['reports','overview','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -188,7 +190,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
     app.innerHTML = `<main class="boot boot-error"><h1>Nenhum módulo disponível</h1><p>Seu acesso a esta subconta está ativo. Solicite as permissões necessárias à sua agência.</p><div class="inline-gap"><button class="secondary" data-act="workspaces">Trocar de workspace</button>${c.access?.agency ? '<a class="secondary" href="#agency/dashboard">Visão da agência</a>' : ''}</div></main>`;
     return;
   }
-  const nextTab=view==='link'?tab||'':validTabs[view]?.includes(tab)?tab:'';
+  const nextTab=view==='link'?tab||'':view==='reporting'?(validTabs.reporting.includes(tab)?tab:'reports'):validTabs[view]?.includes(tab)?tab:'';
   const automationId = view === 'automation' ? project || '' : '';
   const opportunityViews = ['', 'pipeline', 'list'];
   const switchingOpportunityView = c.view === 'opportunities' && view === c.view &&
@@ -196,6 +198,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if((c.view!==view||c.tab!==nextTab) && !switchingOpportunityView){c.query='';c.tag='';}
   if(view==='automation' && (c.view!==view || c.tab!==nextTab || c.automationId!==automationId)) c.workflowList=null;
   c.view=view;c.tab=nextTab;c.automationId=automationId;c.studio.project=project||'';
+  c.reportId=view==='reporting'&&nextTab==='editor'?project||'':'';
   c.agentId=view==='ai-agents'&&['agent','edit'].includes(nextTab)?project:'';
   if(view==='launchpad'){ render(); if(allowedView('settings')) void refreshSubWa(); return; }
   if(view==='settings'&&nextTab==='whatsapp'){ render(); void refreshSubWa(); return; }
@@ -413,7 +416,7 @@ async function useWorkspace(id, view='launchpad', name){
   const cover=switchingCover(name||c.workspaces.find(w=>w.id===id)?.name);
   try { await enterWorkspace(id, view); } finally { cover.remove(); }
 }
-async function enterWorkspace(id, view){ leaveAgentEditor();stopSubWaPoll();c.workspace=id;c.launchpadReturn='';c.wa=null;c.pay=null;c.waPairOpen=false;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.opportunityList='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);const address=new URL(location.href);address.searchParams.set('workspace',id);history.replaceState(null,'',address);close();go(view); }
+async function enterWorkspace(id, view){ leaveAgentEditor();stopSubWaPoll();c.reportDraft=null;c.workspace=id;c.launchpadReturn='';c.wa=null;c.pay=null;c.waPairOpen=false;c.choice='';c.thread='';c.chat=[];c.query='';c.tag='';c.conversationFilters={};c.inbox=undefined;c.dash=dashboardPreferences(id);c.pipeline='';c.opportunityFilters=undefined;c.opportunitySort=undefined;c.opportunityCard=undefined;c.opportunityList='';c.studio={brief:'',template:'landing',project:''};await load(); localStorage.setItem('go.workspace',id);const address=new URL(location.href);address.searchParams.set('workspace',id);history.replaceState(null,'',address);close();go(view); }
 function downloads(name,content,type='text/csv;charset=utf-8'){
   const data=typeof content==='string'?new Blob([content],{type}):content, a=document.createElement('a'), u=URL.createObjectURL(data);
   a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),3000);
@@ -857,7 +860,7 @@ document.addEventListener('drop',async ev=>{const el=ev.target.closest('[data-dr
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&c.inbox?.sortOpen&&c.view==='conversations'){c.inbox.sortOpen=false;render();G('[data-inbox-sort]')?.focus();return;}if(!viewPath&&c.s&&c.mode!=='agency'&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();G('[data-act="search"]').click();}});
 
 document.addEventListener('submit',async ev=>{
-  const f=ev.target;if(!f.dataset.form)return;ev.preventDefault();if(f.dataset.pending)return;f.dataset.pending='true';
+  const f=ev.target;if(!f.dataset.form || f.dataset.form.startsWith('report:'))return;ev.preventDefault();if(f.dataset.pending)return;f.dataset.pending='true';
   const name=f.dataset.form, fd=new FormData(f,ev.submitter), data=Object.fromEntries(fd), status=f.querySelector('.form-status');
   if(status)status.textContent='';
   const btn=f.querySelector('button[type="submit"],button:not([type])');if(btn)btn.disabled=true;
@@ -980,6 +983,8 @@ if(viewPath){
   installCourses({ c, mutate, flash, dialog, close, render });
   mountCommunities = installCommunities({ c, api, mutate, flash, dialog, close, render });
   installOffers({ c, api, mutate, flash, dialog, close, render });
+  installPrancheta({ c, api, url, mutate, flash, render });
+  installReports({ c, dialog, close, render, mutate, flash, download:downloads });
   crmEvents({ G, mutate, render, flash, dialog, close });
   opportunityEvents({ c, G, mutate, render, flash, dialog, close });
   socialEvents({ c, G, api, url, mutate, render, flash, dialog, close, load });

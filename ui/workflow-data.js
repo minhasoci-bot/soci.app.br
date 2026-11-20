@@ -50,6 +50,16 @@ export const triggerCatalog = [
     { type: 'webinar_registered', label: 'Inscrição em webinar', icon: 'play', fields: [f('webinarId', 'Webinar', 'ref', { source: 'webinars', empty: 'Qualquer webinar' })] },
     { type: 'review_received', label: 'Nova avaliação recebida', icon: 'star', fields: [f('maxScore', 'Nota de no máximo', 'select', { options: [['', 'Qualquer nota'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4']] })] }
   ] },
+  { group: 'Redes Sociais', items: [
+    { type: 'social_comment_received', label: 'Comentário em post social (ManyChat)', icon: 'chat', fields: [
+      f('network', 'Rede', 'select', { options: [['', 'Qualquer rede'], ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['tiktok', 'TikTok']] }),
+      f('keyword', 'Palavra-chave no comentário', 'text', { placeholder: 'Ex.: QUERO, PREÇO, LINK' })
+    ] },
+    { type: 'social_dm_received', label: 'Mensagem direta / DM recebida', icon: 'send', fields: [
+      f('network', 'Rede', 'select', { options: [['', 'Qualquer rede'], ['instagram', 'Instagram Direct'], ['facebook', 'Messenger']] }),
+      f('keyword', 'Contém a palavra', 'text', { placeholder: 'Ex.: INFO, QUERO' })
+    ] }
+  ] },
   { group: 'Agendamentos', items: [
     { type: 'appointment_booked', label: 'Agendamento criado', icon: 'cal' },
     { type: 'appointment_status', label: 'Status do agendamento', icon: 'cal', fields: [f('status', 'Novo status', 'select', { options: [any('Qualquer status'), ['Confirmed', 'Confirmado'], ['Completed', 'Concluído'], ['Canceled', 'Cancelado']] })] }
@@ -95,6 +105,8 @@ export const actionCatalog = [
     { type: 'send_email', label: 'Enviar e-mail', icon: 'mail', fields: [f('subject', 'Assunto', 'text', { required: true }), f('body', 'Mensagem', 'textarea', { required: true })] },
     { type: 'send_sms', label: 'Enviar SMS', icon: 'phone', fields: [f('body', 'Mensagem', 'textarea', { required: true })] },
     { type: 'send_whatsapp', label: 'Enviar WhatsApp', icon: 'chat', fields: [f('body', 'Mensagem', 'textarea', { required: true })] },
+    { type: 'send_instagram_dm', label: 'Enviar Direct no Instagram', icon: 'send', fields: [f('body', 'Mensagem privada', 'textarea', { required: true })] },
+    { type: 'reply_social_comment', label: 'Responder comentário público', icon: 'chat', fields: [f('body', 'Resposta pública no post', 'textarea', { required: true })] },
     { type: 'send_live_chat', label: 'Enviar mensagem no chat do site', icon: 'chat', fields: [f('body', 'Mensagem', 'textarea', { required: true })] },
     { type: 'internal_notification', label: 'Notificação interna', icon: 'bell', fields: [f('body', 'Mensagem para a equipe', 'textarea', { required: true })] },
     { type: 'review_request', label: 'Pedir avaliação', icon: 'star', fields: [f('channel', 'Canal', 'select', { options: [['WhatsApp', 'WhatsApp'], ['SMS', 'SMS'], ['Email', 'E-mail']] }), f('body', 'Mensagem', 'textarea', { required: true, value: 'Oi, {{contact.first_name}}! Como foi sua experiência com a {{workspace.name}}? Sua avaliação ajuda muito.' })] },

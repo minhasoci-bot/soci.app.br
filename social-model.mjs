@@ -3,7 +3,7 @@
 // evergreen queue, hashtag groups and RSS feeds. model.mjs routes `social-*` commands and saves here.
 import { network, networks, nextOccurrence, postIssues, postStatuses, postTypes } from './ui/social-data.js';
 
-export const socialCollections = ['socialAccounts', 'socialPosts', 'socialCategories', 'socialHashtags', 'socialFeeds', 'socialImports'];
+export const socialCollections = ['socialAccounts', 'socialPosts', 'socialCategories', 'socialHashtags', 'socialFeeds', 'socialImports', 'socialWebhooks', 'socialCompetitors'];
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value) : '';
@@ -60,6 +60,7 @@ function postFields(s, d, prior) {
   const post = {
     type, summary: str(d.summary, 63206), overrides: overrides(d.overrides), accountIds: accountIds(s, d.accountIds),
     media: media(s, d.media), link: web(d.link), firstComment: str(d.firstComment, 2200),
+    location: str(d.location, 120), userTags: str(d.userTags, 240),
     categoryId: d.categoryId ? (s.socialCategories.find(c => c.id === d.categoryId)?.id ?? fail('Escolha uma categoria válida.')) : '',
     tags: [...new Set(list(d.tags).map(t => str(t, 40)).filter(Boolean))].slice(0, 20),
     needsApproval: Boolean(d.needsApproval), source: prior?.source || one(d.source || 'post', ['post', 'csv', 'rss', 'recurring', 'queue'], 'uma origem')
@@ -95,6 +96,20 @@ export const socialFields = {
     accountIds: accountIds(s, d.accountIds).length ? accountIds(s, d.accountIds) : fail('Escolha ao menos uma conta para o feed.'),
     mode: one(d.mode || 'draft', ['draft', 'schedule'], 'o modo do feed'), template: str(d.template, 1000) || '{{title}}\n\n{{link}}',
     active: d.active === undefined ? true : Boolean(d.active)
+  }),
+  socialWebhooks: (s, d) => ({
+    name: req(d.name, 'Nome do webhook', 80),
+    url: web(req(d.url, 'URL do webhook', 2000), 'endereço do webhook'),
+    events: (Array.isArray(d.events) ? d.events : []).filter(e => ['post.published', 'post.failed', 'account.disconnected'].includes(e)),
+    active: d.active === undefined ? true : Boolean(d.active)
+  }),
+  socialCompetitors: (s, d) => ({
+    name: req(d.name, 'Nome do concorrente', 80),
+    handle: req(d.handle, 'Perfil (@usuario)', 80).replace(/^@/, ''),
+    network: one(d.network || 'instagram', ['instagram', 'facebook', 'tiktok', 'linkedin', 'youtube'], 'uma rede'),
+    followers: Math.max(0, Math.min(1e9, Math.round(Number(d.followers) || 0))),
+    postsPerWeek: Math.max(0, Math.min(100, Math.round(Number(d.postsPerWeek) || 0))),
+    notes: str(d.notes, 500)
   })
 };
 

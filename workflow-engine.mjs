@@ -171,6 +171,8 @@ export function createEngine({ add, now }) {
       case 'contact_tag': return (c.change || 'added') === ctx.change && (!c.tag || lower(c.tag) === lower(ctx.tag));
       case 'contact_dnd': return (c.state || 'on') === ctx.state;
       case 'customer_replied': return (!c.channel || c.channel === ctx.channel) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
+      case 'social_comment_received': return (!c.network || c.network === ctx.network) && (!c.keyword || lower(ctx.body || ctx.comment).includes(lower(c.keyword)));
+      case 'social_dm_received': return (!c.network || c.network === ctx.network) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
       case 'form_submitted': case 'survey_submitted': return !c.formId || c.formId === ctx.formId;
       case 'quiz_submitted': return (!c.formId || c.formId === ctx.formId) && (!c.tier || lower(c.tier) === lower(ctx.tier));
       case 'trigger_link_clicked': return !c.linkId || c.linkId === ctx.linkId;
@@ -241,6 +243,8 @@ export function createEngine({ add, now }) {
       case 'send_email': if (contact.dnd) return 'contato em não perturbe'; message('Email', c.body, text(c.subject).slice(0, 240)); return 'registrada em Conversas';
       case 'send_sms': if (contact.dnd) return 'contato em não perturbe'; message('SMS', c.body); return 'registrada em Conversas';
       case 'send_live_chat': message('Live chat', c.body); return 'enviada ao chat';
+      case 'send_instagram_dm': if (contact.dnd) return 'contato em não perturbe'; message('Instagram', c.body); return 'registrada em Conversas (Direct)';
+      case 'reply_social_comment': message('Instagram', `[Resposta ao comentário] ${c.body}`); return 'comentário respondido';
       case 'send_whatsapp': case 'review_request': {
         const channel = node.type === 'review_request' ? c.channel || 'WhatsApp' : 'WhatsApp';
         if (contact.dnd) return 'contato em não perturbe';

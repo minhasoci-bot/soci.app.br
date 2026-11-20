@@ -258,3 +258,19 @@ test('Testing a draft runs it on a copy: waits are skipped and nothing is saved'
   assert.equal(state.runs.length, 0);
   assert.equal((await post('/api/action', { type: 'workflow-test', data: { workflow: draft, contactId } })).status, 400, 'not a public command');
 });
+
+test('Social engagement automation: comment trigger with keyword executes Instagram DM and comment reply', () => {
+  const s = blank('W');
+  const id = flow(s, {
+    triggers: [{ type: 'social_comment_received', config: { network: 'instagram', keyword: 'QUERO' } }],
+    steps: [
+      { type: 'send_instagram_dm', config: { body: 'Oi {{contact.first_name}}! Link: https://soci.app/oferta' } },
+      { type: 'reply_social_comment', config: { body: 'Enviamos o link no seu Direct!' } }
+    ]
+  });
+  const c = contact(s, { name: 'Lucas Silva', tags: [] });
+  execute(s, { type: 'social-interaction-trigger', data: { kind: 'comment', network: 'instagram', comment: 'Eu QUERO saber mais!', contactId: c } });
+  assert.equal(runsOf(s, id).length, 1, 'social comment with keyword enrolls contact');
+  assert.ok(s.messages.some(m => m.channel === 'Instagram' && m.body.includes('https://soci.app/oferta')), 'sent DM');
+  assert.ok(s.messages.some(m => m.channel === 'Instagram' && m.body.includes('[Resposta ao comentário]')), 'replied to comment');
+});
