@@ -247,7 +247,7 @@ function widgetCard(c, entry, index, count, range, comparison, ctx) {
 export function reportWidget(state, widget, range, period) {
   const config = effectiveWidget(state,widget);
   const context = { report:true, range, zone:state.profile.timezone, today:dayAt(new Date(),state.profile.timezone), tag:'' };
-  return widgetBody({ s:state, dash:{ range:{ period } } },config,range,null,context);
+  return widgetBody({ s:state, dash:{ range:{ period }, view:{} } },config,range,null,context);
 }
 
 function libraryItem(kind, board) {

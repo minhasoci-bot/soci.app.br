@@ -299,7 +299,7 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
   if (['dashboard-create','dashboard-save','dashboard-restore','dashboard-report','dashboard-default','dashboard-timezone','dashboard-delete'].includes(type)) {
     return changeDashboard(s,{ ...command,data:d },uid,now());
   }
-  if (['report-create','report-save','report-delete'].includes(type)) return changeReport(s,{ ...command,data:d },uid,now());
+  if (['report-create','report-save','report-delete','report-share','report-schedule','report-sent'].includes(type)) return changeReport(s,{ ...command,data:d },uid,now());
   if (typeof type === 'string' && type.startsWith('social-')) {
     if (type === 'social-interaction-trigger') {
       const channel = d.network === 'facebook' ? 'Facebook' : 'Instagram';

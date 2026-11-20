@@ -2260,7 +2260,7 @@
   "Portal de afiliados": "Portal de afiliados",
   "Portal do cliente": "Portal del cliente",
   "Post excluído.": "Post eliminado.",
-  "Posts ao longo do tempo": "Posts ao longo do tiempo",
+  "Posts ao longo do tempo": "Publicaciones a lo largo del tiempo",
   "Posts esperando a data de publicação": "Posts esperando a fecha de publicação",
   "Prazo em dias": "Prazo em días",
   "Prazo mais próximo": "Prazo mais siguiente",
@@ -3154,5 +3154,12 @@
   "Workflow: recursos premium": "Flujos de trabajo: funciones prémium",
   "Workspace atualizado.": "Workspace actualizado.",
   "Workspaces": "Espacios de trabajo",
-  "YouTube, Vimeo e Loom aparecem com o player deles. Links diretos para .mp4 ou .webm tocam no próprio portal.": "YouTube, Vimeo e Loom aparecen con o player deles. Enlaces diretos para .mp4 ou .webm tocam no próprio portal."
+  "YouTube, Vimeo e Loom aparecem com o player deles. Links diretos para .mp4 ou .webm tocam no próprio portal.": "YouTube, Vimeo e Loom aparecen con o player deles. Enlaces diretos para .mp4 ou .webm tocam no próprio portal.",
+  "Posts publicados": "Publicaciones publicadas",
+  "Posts agendados": "Publicaciones programadas",
+  "Posts aguardando aprovação": "Publicaciones esperando aprobación",
+  "Posts por status": "Publicaciones por estado",
+  "Concorrentes monitorados": "Competidores monitoreados",
+  "SAC Social (Instagram e Facebook)": "Atención social (Instagram y Facebook)",
+  "Página": "Página"
 }

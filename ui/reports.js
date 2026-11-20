@@ -38,7 +38,7 @@ export function reportList(c) {
       placeholder="Buscar relatórios…" aria-label="Buscar relatórios" autocomplete="off"></label><span class="dim">${matches.length} relatório(s)</span></div>
     <div class="surface table-shell"><table><thead><tr><th>Nome</th><th>Páginas</th><th>Última edição</th><th>Ações</th></tr></thead>
     <tbody>${matches.map(item=>`<tr><td>${link(h(item.name),`/editor/${item.id}`,'text-link')}</td><td>${item.pages.length}</td><td>${fmt(item.updated,c.s.profile.timezone,true)}</td>
-    <td><div class="report-actions">${iconButton('clone','Duplicar','copy',`data-id="${item.id}"`)}${iconButton('delete','Excluir','trash',`data-id="${item.id}"`)}</div></td></tr>`).join('')}</tbody></table>
+    <td><div class="report-actions">${iconButton('share','Compartilhar e agendar envio','link',`data-id="${item.id}"`)}${item.share ? `<span class="badge ${item.schedule ? 'green' : 'blue'}">${item.schedule ? 'Envio agendado' : 'Link ativo'}</span>` : ''}${iconButton('clone','Duplicar','copy',`data-id="${item.id}"`)}${iconButton('delete','Excluir','trash',`data-id="${item.id}"`)}</div></td></tr>`).join('')}</tbody></table>
     ${matches.length ? '' : '<p class="report-no-results">Nenhum relatório corresponde à busca.</p>'}</div>` :
     `<section class="surface report-empty"><div class="report-empty-art" aria-hidden="true">${icon('chart',36)}${icon('list',26)}</div>
     <h2>Crie seu primeiro relatório</h2><p>Monte páginas com métricas e comentários do seu workspace.</p>
@@ -92,7 +92,7 @@ export function reportEditor(c) {
       ${preview ? '' : iconButton('properties','Editar relatório','edit')}</div>
       <div class="report-actions">${dirty ? '<span class="dim">Alterações pendentes</span>' : ''}
         ${button('preview',preview ? 'Editar' : 'Visualizar',preview ? 'edit' : 'site')}
-        ${button('export','Exportar CSV','download')}${button('print','Imprimir / PDF','download')}
+        ${button('share','Compartilhar','link',`data-id="${report.id}"`)}${button('export','Exportar CSV','download')}${button('print','Imprimir / PDF','download')}
         ${button('save','Salvar','check',dirty ? '' : 'disabled','primary')}
       </div></header>
     <div class="report-layout ${preview ? 'report-preview' : ''}">
@@ -109,8 +109,46 @@ export function reportEditor(c) {
       </div></div></div>`;
 }
 
+const weekdayNames = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+const shareActive = report => Boolean(report?.share?.id && (!report.share.expires || Date.parse(report.share.expires) > Date.now()));
+
+// Share link + e-mail schedule of one saved report. Both act on the saved record, not the draft.
+function shareMarkup(c, report) {
+  const zone = c.s.profile.timezone, active = shareActive(report), s = report.schedule;
+  const link = active ? `${location.origin}/relatorio/${c.workspace}/${report.share.id}` : '';
+  const message = `Segue o relatório “${report.name}”${c.s.profile.name ? ` de ${c.s.profile.name}` : ''}, com os dados atualizados: ${link}`;
+  const shareForm = `<form data-form="report:share" data-id="${h(report.id)}" class="report-share-form">
+    <h3>Link público</h3>
+    <p class="dim">Qualquer pessoa com o link vê este relatório com os dados atuais, sem login e sem acesso ao restante da conta. Edições salvas aparecem no link na hora.</p>
+    ${active ? `<label>Link do relatório<input name="shareUrl" value="${h(link)}" readonly></label>
+      <p class="dim">${report.share.expires ? `Válido até ${fmt(report.share.expires,zone,true)}` : 'Sem data de validade'} · idioma ${report.share.lang === 'es' ? 'espanhol' : 'português'}. Gerar outro invalida o link anterior.</p>
+      <div class="report-actions">${button('share-copy','Copiar link','copy')}<a class="secondary" href="${h(link)}" target="_blank" rel="noopener">${icon('site',16)}Abrir</a>
+        <a class="secondary" href="https://wa.me/?text=${encodeURIComponent(message)}" target="_blank" rel="noopener">${icon('whatsapp',16)}WhatsApp</a>
+        <a class="secondary" href="mailto:?subject=${encodeURIComponent(report.name)}&body=${encodeURIComponent(message)}">${icon('mail',16)}E-mail</a></div>` : ''}
+    <div class="field-grid">${select('Validade','days',[['7','7 dias'],['30','30 dias'],['90','90 dias'],['0','Sem validade']],'30')}${select('Idioma do relatório','lang',[['pt','Português'],['es','Español']],report.share?.lang || 'pt')}</div>
+    <p class="form-status" role="alert"></p>
+    <footer class="report-share-foot">${active ? button('share-revoke','Revogar link','close',`data-id="${h(report.id)}"`) : ''}<span class="spacer"></span><button class="primary">${active ? 'Gerar novo link' : 'Gerar link'}</button></footer></form>`;
+  const scheduleForm = `<form data-form="report:schedule" data-id="${h(report.id)}" class="report-share-form">
+    <h3>Envio automático por e-mail</h3>
+    <p class="dim">A Soci envia o link do relatório para os e-mails escolhidos, no fuso ${h(zone)}. Se ainda não houver link, um link sem validade é criado.</p>
+    ${c.features?.reportEmail ? '' : '<p class="report-share-warn">O envio por e-mail ainda não está configurado no servidor (RESEND_API_KEY, PORTAL_EMAIL_FROM e PORTAL_PUBLIC_ORIGIN). O agendamento fica salvo e começa a enviar quando a configuração existir.</p>'}
+    ${s ? `<p class="dim">${s.lastSent ? `Último envio: ${fmt(s.lastSent,zone,true)}.` : 'Ainda não enviado.'}${s.lastError ? ` <span class="report-share-error">Falha no último envio: ${h(s.lastError)}</span>` : ''}</p>` : ''}
+    <div class="field-grid">${select('Frequência','frequency',[['weekly','Toda semana'],['monthly','Todo mês']],s?.frequency || 'weekly')}
+      ${select('Dia da semana','weekday',weekdayNames.map((name,n)=>[String(n),name]),String(s?.weekday ?? 1))}
+      ${field('Dia do mês (1–28)','monthday',s?.monthday ?? 1,'type="number" min="1" max="28"')}${field('Horário','time',s?.time || '09:00','type="time" required')}</div>
+    <label>E-mails (até 10, separados por vírgula)<textarea name="recipients" rows="2" required placeholder="cliente@empresa.com, gerente@empresa.com">${h((s?.recipients || []).join(', '))}</textarea></label>
+    ${paragraph('Mensagem no e-mail (opcional)','message',s?.message || '',1000)}
+    <p class="form-status" role="alert"></p>
+    <footer class="report-share-foot">${s ? button('schedule-remove','Cancelar agendamento','trash',`data-id="${h(report.id)}"`) : ''}<span class="spacer"></span><button class="primary">${s ? 'Salvar agendamento' : 'Agendar envio'}</button></footer></form>`;
+  return `<div class="report-share">${shareForm}${scheduleForm}</div>`;
+}
+
 export function installReports({ c, dialog, close, render, mutate, flash, download }) {
   const open = (title,body,form,id='',submit='Aplicar') => dialog(title,body,{ form:`report:${form}`,id,buttons:formButtons(submit) });
+  const shareDialog = id => {
+    const report = c.s.customReports.find(item => item.id === id);
+    if (report) dialog('Compartilhar relatório', shareMarkup(c,report), { description: report.name });
+  };
   const redraw = () => render();
   const update = (draft,change) => { change(); draft.dirty=true; redraw(); };
   const nameInput = name => field('Nome do relatório','name',name,'required maxlength="100"');
@@ -162,6 +200,19 @@ export function installReports({ c, dialog, close, render, mutate, flash, downlo
     const {reportAct:action,id,source} = control.dataset;
     try {
       if (action === 'create' || action === 'clone') return pageChoice(source || 'clone',id);
+      if (action === 'share') return shareDialog(id || savedReport(c)?.id);
+      if (action === 'share-copy') {
+        const input = control.form.elements.shareUrl; input.select();
+        try { await navigator.clipboard.writeText(input.value); flash('Link copiado.'); } catch { flash('Link selecionado para copiar.'); }
+        return;
+      }
+      if (action === 'share-revoke') {
+        if (!confirm('Revogar o link? Quem tiver o link perde o acesso e o envio agendado é cancelado.')) return;
+        await mutate({ type:'report-share',id,data:{ action:'revoke' } }); redraw(); shareDialog(id); flash('Link revogado.'); return;
+      }
+      if (action === 'schedule-remove') {
+        await mutate({ type:'report-schedule',id,data:{ action:'remove' } }); redraw(); shareDialog(id); flash('Agendamento cancelado.'); return;
+      }
       if (action === 'delete') {
         const record = c.s.customReports.find(item=>item.id === id);
         if (record) open('Excluir relatório',`<p>Excluir “${h(record.name)}” deste workspace?</p><input type="hidden" name="version" value="${record.version}">`,'delete',id,'Excluir relatório');
@@ -228,6 +279,12 @@ export function installReports({ c, dialog, close, render, mutate, flash, downlo
       if (action === 'create') {
         const reportId=await mutate({ type:'report-create',data });
         close(); goToReport(reportId); return;
+      }
+      if (action === 'share' || action === 'schedule') {
+        await mutate(action === 'share' ? { type:'report-share',id,data:{ action:'create',days:Number(data.days),lang:data.lang } }
+          : { type:'report-schedule',id,data:{ ...data,weekday:Number(data.weekday),monthday:Number(data.monthday),lang:'pt' } });
+        redraw(); shareDialog(id);
+        flash(action === 'share' ? 'Link gerado.' : 'Envio agendado.'); return;
       }
       if (action === 'delete') {
         await mutate({ type:'report-delete',id,data:{version:Number(data.version)} });
