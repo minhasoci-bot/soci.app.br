@@ -20,6 +20,7 @@ import { captureProspectWidget, runProspectingAction } from './prospecting-model
 import { collectProspectAudit } from './prospect-audit.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
+import { exchangeGoogle, googleAuthUrl, googleConfigured, googleReports, revokeGoogle } from './google-integrations.mjs';
 import { folded, prospectSearchText } from './ui/prospecting-data.js';
 import { shareReportHtml, widgetHtml } from './ui/prospect-report.js';
 import { snapshotAssets } from './ui/agency-data.js';
@@ -1092,6 +1093,36 @@ export function makeServer({
 const m=${JSON.stringify({ type: 'soci-social', ...message }).replace(/</g, '\\u003c')};
 if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); window.close(); } else location.href='/app#marketing/social';
 </script>`;
+  // ---- Google Analytics + Business Profile (sub-account dashboard) ----------------------------
+  const googleCallbackPath = '/api/google/callback';
+  const googleCache = new Map();
+  const googlePopup = (base, message) => `<!doctype html><meta charset="utf-8"><title>soci</title><body style="font-family:system-ui;padding:24px">
+<p>${message.error ? 'Não foi possível conectar o Google.' : 'Conta Google conectada. Você pode fechar esta janela.'}</p><script>
+const m=${JSON.stringify({ type: 'soci-google', ...message }).replace(/</g, '\\u003c')};
+if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); window.close(); } else location.href='/app#settings/google';
+</script>`;
+  const googleView = (row, manage) => {
+    const g = row.google || {};
+    const pick = (list, value) => list?.find(item => item.id === value) || null;
+    return { configured: googleConfigured(), connected: Boolean(g.token), email: manage ? g.email || '' : '', connectedAt: g.connectedAt || '',
+      properties: manage ? g.properties || [] : [], locations: manage ? g.locations || [] : [], errors: manage ? g.errors || {} : {},
+      gaProperty: g.gaProperty || '', gbpLocation: g.gbpLocation || '',
+      gaName: pick(g.properties, g.gaProperty)?.name || '', gbpName: pick(g.locations, g.gbpLocation)?.name || '' };
+  };
+  async function googleData(workspace, row) {
+    const g = row.google;
+    if (!g?.token || (!g.gaProperty && !g.gbpLocation)) return { ga: null, gbp: null };
+    const key = `${g.gaProperty}|${g.gbpLocation}`;
+    const cached = googleCache.get(workspace);
+    if (cached && cached.key === key && cached.at > Date.now() - 15 * 60_000) return cached.data;
+    let secret = unseal(g.token);
+    if (!secret) return { ga: { error: 'A conexão com o Google precisa ser refeita.' }, gbp: null };
+    const report = await googleReports(secret, g).catch(e => ({ ga: g.gaProperty ? { error: e.message } : null, gbp: g.gbpLocation ? { error: e.message } : null }));
+    if (report.secret) await store.change(`google-${workspace}`, r => { if (r.google) r.google.token = seal(report.secret); });
+    const data = { ga: report.ga, gbp: report.gbp, at: stamp() };
+    if (!data.ga?.error && !data.gbp?.error) googleCache.set(workspace, { key, at: Date.now(), data });
+    return data;
+  }
   const payload = async request => {
     if (!/^application\/json(?:\s*;|$)/i.test(request.headers['content-type']||'')) throw error('Send a JSON request.',415);
     let size=0; const chunks=[];
@@ -1643,6 +1674,82 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           });
           await recordAudit(who, 'Assinatura AbacatePay cancelada', meta.name || workspace);
           return json(await agencyPayload(req, res));
+        }
+        throw error('Not found.', 404);
+      }
+      if (p === googleCallbackPath && method === 'GET') {
+        const base = publicBase(req);
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'");
+        try {
+          await socialRow('google-oauth');
+          const nonce = url.searchParams.get('state') || '';
+          const pending = await store.change('google-oauth', row => { const v = row.states[nonce]; delete row.states[nonce]; return v; });
+          if (!pending || Date.parse(pending.at) < Date.now() - 15 * 60_000) throw error('Este login expirou. Tente conectar de novo.',400);
+          if (localAccess && pending.actor !== 'local-owner') req.localSocialUser = pending.actor;
+          const who = await workspaceAccess(req, res, pending.workspace, { modules: ['settings'] });
+          if (pending.actor !== socialActor(who)) throw error('Esta autorização pertence a outra sessão.',403);
+          if (url.searchParams.get('error')) throw error(url.searchParams.get('error') === 'access_denied' ? 'A autorização foi cancelada.' : 'O Google recusou a autorização.',400);
+          const found = await exchangeGoogle({ code: url.searchParams.get('code') || '', redirectUri: base + googleCallbackPath });
+          await socialRow(`google-${pending.workspace}`);
+          await store.change(`google-${pending.workspace}`, row => {
+            const prior = row.google || {};
+            const keep = (list, value) => list.some(item => item.id === value) ? value : '';
+            row.google = { token: seal(found.secret), email: found.email, properties: found.properties, locations: found.locations, errors: found.errors,
+              connectedAt: stamp(), gaProperty: keep(found.properties, prior.gaProperty) || (found.properties.length === 1 ? found.properties[0].id : ''),
+              gbpLocation: keep(found.locations, prior.gbpLocation) || (found.locations.length === 1 ? found.locations[0].id : '') };
+          });
+          googleCache.delete(pending.workspace);
+          await recordAudit(who, 'Google conectado', found.email || pending.workspace).catch(() => {});
+          return send(200,'text/html; charset=utf-8',googlePopup(base, {}));
+        } catch (e) {
+          return send(200,'text/html; charset=utf-8',googlePopup(base, { error: e.message }));
+        }
+      }
+      if (p.startsWith('/api/google/workspace/')) {
+        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
+        const op = p.slice('/api/google/workspace/'.length).replace(/\/+$/, '');
+        const manage = ['connect', 'select', 'disconnect'].includes(op);
+        const who = await workspaceAccess(req, res, id, manage ? { modules: ['settings'] } : {});
+        const rowId = `google-${id}`;
+        if (op === 'connect' && method === 'GET') {
+          const nonce = uid();
+          const target = googleAuthUrl({ redirectUri: publicBase(req) + googleCallbackPath, state: nonce });
+          await socialRow('google-oauth');
+          await store.change('google-oauth', row => {
+            for (const [k, v] of Object.entries(row.states)) if (Date.parse(v.at) < Date.now() - 15 * 60_000) delete row.states[k];
+            row.states[nonce] = { workspace: id, at: stamp(), actor: socialActor(who) };
+          });
+          res.writeHead(302, { Location: target }); return res.end();
+        }
+        if (op === 'status' && method === 'GET') {
+          const row = await socialRow(rowId);
+          const view = googleView(row, hasModule(who, 'settings'));
+          if (url.searchParams.get('data') === '1' && view.connected) view.data = await googleData(id, row);
+          return json(view);
+        }
+        if (method !== 'POST') throw error('Method not allowed.', 405);
+        const body = await payload(req);
+        if (op === 'select') {
+          await socialRow(rowId);
+          await store.change(rowId, row => {
+            if (!row.google?.token) throw error('Conecte uma conta Google primeiro.', 409);
+            const pick = (list, value) => value === '' || list.some(item => item.id === value) ? value : null;
+            const ga = pick(row.google.properties, String(body.gaProperty ?? row.google.gaProperty ?? ''));
+            const gbp = pick(row.google.locations, String(body.gbpLocation ?? row.google.gbpLocation ?? ''));
+            if (ga === null || gbp === null) throw error('Escolha uma propriedade e um local desta conta Google.', 400);
+            Object.assign(row.google, { gaProperty: ga, gbpLocation: gbp });
+          });
+          googleCache.delete(id);
+          const row = await store.load(rowId);
+          return json({ ...googleView(row, true), data: await googleData(id, row) });
+        }
+        if (op === 'disconnect') {
+          const row = await socialRow(rowId);
+          if (row.google?.token) await revokeGoogle(unseal(row.google.token));
+          await store.change(rowId, r => { delete r.google; });
+          googleCache.delete(id);
+          await recordAudit(who, 'Google desconectado', id).catch(() => {});
+          return json(googleView(await store.load(rowId), true));
         }
         throw error('Not found.', 404);
       }

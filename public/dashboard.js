@@ -173,8 +173,42 @@ function elementBody(config, report = false) {
     <a class="text-link dash-widget-link" href="${h(config.url)}" target="_blank" rel="noopener noreferrer">Abrir em nova aba ${icon('external',14)}</a>` : emptyMessage('Informe o endereço da página','edit');
 }
 
+const googleKinds = { 'ga-count':'ga', 'ga-chart':'ga', business:'gbp' };
+const whole = value => new Intl.NumberFormat('pt-BR').format(Math.round(value || 0));
+const monthLabel = key => new Intl.DateTimeFormat('pt-BR',{ month:'short', timeZone:'UTC' }).format(new Date(`${key}-01T00:00:00Z`)).replace('.','');
+function googleBars(rows, valueKey, labelOf, title) {
+  const max = Math.max(1,...rows.map(row => row[valueKey]));
+  return `<div class="gw-bars" role="img" aria-label="${h(title)}">${rows.map(row => `<span class="gw-bar" title="${h(labelOf(row))}: ${whole(row[valueKey])}"><i style="height:${Math.max(2,Math.round(row[valueKey]/max*100))}%"></i>${labelOf.short ? `<small>${h(labelOf.short(row))}</small>` : ''}</span>`).join('')}</div>`;
+}
+function googleWidget(c, config, definition) {
+  const product = googleKinds[config.kind];
+  const g = c.google;
+  const hl = brandHighlight(definition.provider);
+  const placeholder = (text, cta = 'Ver integrações') => `<div class="shc-card shc-widget" style="--shc-highlight:${hl}">${shcLayers()}<span class="shc-icon" aria-hidden="true">${brandIcon(definition.provider, 32)}</span><strong>${h(definition.provider)}</strong><p class="dim">${h(text)}</p>${cta ? `<a href="#settings/google" class="shc-widget-cta">${h(cta)}</a>` : ''}</div>`;
+  if (!g || g.workspace !== c.workspace && g.workspace) return placeholder('Carregando dados do Google…','');
+  if (g.error) return placeholder(g.error,'Ver integração');
+  if (!g.connected) return placeholder('Integração não conectada neste workspace.','Conectar Google');
+  const chosen = product === 'ga' ? g.gaProperty : g.gbpLocation;
+  if (!chosen) return placeholder(product === 'ga' ? 'Escolha a propriedade do Google Analytics desta subconta.' : 'Escolha o local do Perfil da Empresa desta subconta.','Escolher');
+  const data = g.data?.[product];
+  if (!data) return placeholder('Carregando dados do Google…','');
+  if (data.error) return placeholder(data.error,'Ver integração');
+  const source = `<p class="gw-source">${brandIcon(definition.provider,14)} ${h(product === 'ga' ? g.gaName : g.gbpName)}</p>`;
+  if (config.kind === 'ga-count') {
+    return `<div class="gw-stats">${[['Sessões',data.totals.sessions],['Usuários',data.totals.users],['Visualizações',data.totals.views]].map(([label,value]) => `<div><b>${whole(value)}</b><span>${label}</span></div>`).join('')}</div>${source}`;
+  }
+  if (config.kind === 'ga-chart') {
+    const label = row => monthLabel(row.month); label.short = label;
+    return `${googleBars(data.months,'sessions',label,'Sessões por mês nos últimos 12 meses')}<p class="gw-legend">Sessões por mês · ${whole(data.totals.sessions)} no período</p>${source}`;
+  }
+  const label = row => new Intl.DateTimeFormat('pt-BR',{ day:'2-digit', month:'short', timeZone:'UTC' }).format(new Date(`${row.day}T00:00:00Z`));
+  return `<div class="gw-stats">${[['Visualizações no Google',data.totals.views],['Ligações',data.totals.calls],['Cliques no site',data.totals.website],['Pedidos de rota',data.totals.directions]].map(([name,value]) => `<div><b>${whole(value)}</b><span>${name}</span></div>`).join('')}</div>
+    ${googleBars(data.days,'views',label,'Visualizações por dia nos últimos 30 dias')}${source}`;
+}
+
 function widgetBody(c, config, range, comparison, ctx) {
   const definition = widgets[config.kind];
+  if (definition.provider && googleKinds[config.kind] && !ctx.report) return googleWidget(c, config, definition);
   if (definition.provider) {
     const hl = brandHighlight(definition.provider);
     return `<div class="shc-card shc-widget" style="--shc-highlight:${hl}">${shcLayers()}<span class="shc-icon" aria-hidden="true">${brandIcon(definition.provider, 32)}</span><strong>${h(definition.provider)}</strong><p class="dim">Integração não conectada neste workspace.</p><a href="#settings" class="shc-widget-cta">Ver integrações</a></div>`;

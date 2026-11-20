@@ -349,11 +349,30 @@ function whatsappSubView(c){
     ${c.waPairOpen?`<form class="settings-form sub-wa-pair" data-form="wa-pair"><label>Seu número de WhatsApp (com DDI e DDD)<input name="phone" required inputmode="numeric" placeholder="5511999999999"></label><button class="secondary">Gerar código de 8 dígitos</button><p class="form-status" role="alert"></p></form>`:''}
   `);
 }
+function googleSubView(c){
+  const g=c.google, hl=brandHighlight('Google Analytics');
+  const tile=`<span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('Google Analytics',22)}</span></span>`;
+  const card=(body,on=false)=>`<div class="surface padded shc-card shc-panel${on?' is-connected':''}" style="--shc-highlight:${hl}">${shcLayers()}${body}</div>`;
+  if(!g) return card(`${tile}<h2>Google</h2><p class="dim">Verificando a conexão…</p>`);
+  if(g.error) return card(`${tile}<h2>Google</h2><p class="form-status">${h(g.error)}</p><button class="secondary" data-act="google-refresh">Tentar novamente</button>`);
+  if(!g.configured) return card(`${tile}<h2>Google Analytics e Perfil da Empresa</h2><p class="dim">A conexão com o Google ainda não foi configurada nesta instalação da soci. Peça ao administrador da agência para definir <code>GOOGLE_CLIENT_ID</code> e <code>GOOGLE_CLIENT_SECRET</code>.</p>`);
+  if(!g.connected) return card(`${tile}<h2>Conectar Google Analytics e Perfil da Empresa</h2><p class="dim">Entre com a conta Google que tem acesso ao Google Analytics (GA4) e ao Perfil da Empresa deste cliente. A soci só lê os relatórios: sessões, usuários e visualizações do site, e visualizações, ligações, cliques no site e rotas no Google.</p><button class="primary" data-act="google-connect">${brandIcon('Google Business Profile',16)} Conectar com o Google</button>`);
+  const opt=(list,value,blank)=>`<option value="">${h(blank)}</option>`+list.map(item=>`<option value="${h(item.id)}" ${item.id===value?'selected':''}>${h(item.name)}${item.account?` · ${h(item.account)}`:''}${item.address?` · ${h(item.address)}`:''}</option>`).join('');
+  const note=key=>g.errors?.[key]?`<p class="ag-warn surface padded">${h(g.errors[key])}</p>`:'';
+  const status=(d,name)=>!d?'':d.error?`<p class="form-status">${h(d.error)}</p>`:`<p class="dim">${badge('Recebendo dados','green')} ${h(name)}</p>`;
+  return card(`${tile}<div class="inline-gap"><h2>Google</h2>${badge('Conectado','green')}</div><p class="dim">Conta <b>${h(g.email||'Google')}</b>. Escolha o que aparece no painel desta subconta.</p>
+    <form class="settings-form" data-form="google-select">
+      <label>Propriedade do Google Analytics (GA4)<select name="gaProperty">${opt(g.properties,g.gaProperty,g.properties.length?'Não mostrar':'Nenhuma propriedade encontrada')}</select></label>${note('analytics')}${status(g.data?.ga,g.gaName)}
+      <label>Local do Perfil da Empresa<select name="gbpLocation">${opt(g.locations,g.gbpLocation,g.locations.length?'Não mostrar':'Nenhum local encontrado')}</select></label>${note('business')}${status(g.data?.gbp,g.gbpName)}
+      <div class="inline-gap"><button class="primary">Salvar escolha</button><a class="secondary" href="#dashboard">Abrir painel</a></div><p class="form-status" role="alert"></p>
+    </form>
+    <div class="inline-gap"><button class="secondary" data-act="google-connect">Trocar conta Google</button><button class="secondary" data-act="google-disconnect">Desconectar</button></div>`,true);
+}
 function settings(c){
-  if(c.tab&&!['business','workspaces','whatsapp','abacatepay'].includes(c.tab)) return settingsTab(c,c.tab);
+  if(c.tab&&!['business','workspaces','whatsapp','abacatepay','google'].includes(c.tab)) return settingsTab(c,c.tab);
   const p=c.s.profile;
   const tab = c.tab || 'business';
-  const body = tab==='abacatepay'?abacateSubView(c):tab==='whatsapp'?whatsappSubView(c):tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'sub-profile-phone' })}<label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label><label>${tr('Idioma da plataforma')}<select data-lang-choice-select><option value="pt" ${getLanguage()==='pt'?'selected':''}>Português (Brasil)</option><option value="es" ${getLanguage()==='es'?'selected':''}>Español (Latinoamérica)</option></select></label></div><button class="primary">Salvar alterações</button></form>`;
+  const body = tab==='google'?googleSubView(c):tab==='abacatepay'?abacateSubView(c):tab==='whatsapp'?whatsappSubView(c):tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'sub-profile-phone' })}<label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label><label>${tr('Idioma da plataforma')}<select data-lang-choice-select><option value="pt" ${getLanguage()==='pt'?'selected':''}>Português (Brasil)</option><option value="es" ${getLanguage()==='es'?'selected':''}>Español (Latinoamérica)</option></select></label></div><button class="primary">Salvar alterações</button></form>`;
   return pageShell({
     title: tr('Configurações'),
     desc: tr('Gerencie o workspace ativo.'),

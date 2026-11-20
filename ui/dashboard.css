@@ -151,3 +151,15 @@
 @media (max-width: 1100px) { .dash-edit-layout { grid-template-columns: minmax(0, 1fr); } .dash-library { position: static; max-height: 420px; } }
 @media (max-width: 730px) { .dash-themes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .dash-square[data-dash-act=more] svg { stroke-width: 3.2; }
+
+/* Google Analytics + Business Profile widgets */
+.gw-stats { display:flex; flex-wrap:wrap; gap:10px 22px; }
+.gw-stats > div { display:grid; gap:2px; min-width:96px; }
+.gw-stats b { font-size:24px; line-height:1.15; letter-spacing:-.01em; }
+.gw-stats span { color:var(--dim); font-size:12.5px; }
+.gw-bars { display:flex; align-items:flex-end; gap:4px; height:132px; margin-top:14px; }
+.gw-bar { flex:1 1 0; min-width:0; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:4px; }
+.gw-bar i { display:block; width:100%; max-width:34px; border-radius:5px 5px 2px 2px; background:var(--dash-accent,#ea580c); opacity:.85; }
+.gw-bar:hover i { opacity:1; }
+.gw-bar small { color:var(--dim); font-size:11px; white-space:nowrap; }
+.gw-legend, .gw-source { margin:8px 0 0; color:var(--dim); font-size:12.5px; display:flex; align-items:center; gap:6px; }
