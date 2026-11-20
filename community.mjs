@@ -284,5 +284,17 @@ export function makeCommunity({ store }) {
     });
   }
 
-  return { home, read, act, admin };
+  // Adds a member to groups (for offers); banned members stay banned.
+  async function enroll(workspace, memberId, groupIds) {
+    if (!memberId || !groupIds.length) return;
+    await change(workspace, doc => {
+      for (const id of groupIds) {
+        const data = groupData(doc, id), row = data.members[memberId];
+        if (!row) data.members[memberId] = { role: 'member', status: 'active', joinedAt: new Date().toISOString() };
+        else if (row.status === 'requested') row.status = 'active';
+      }
+    });
+  }
+
+  return { home, read, act, admin, enroll };
 }

@@ -264,6 +264,34 @@ export function makeClientPortal({
     }
   }
 
+  // Enrolls a buyer: finds or creates the portal member by e-mail and adds courses, keeping earlier grants.
+  // Sends the login e-mail when delivery is configured.
+  async function enroll(workspace, state, { email, name = '', contactId = '' }, courses = []) {
+    const address = { email: emailOf(email), name: text(name, 120), contactId };
+    if (!/^[^\s@,<>]+@[^\s@,<>]+\.[^\s@,<>]+$/.test(address.email)) fail('Informe um e-mail válido.');
+    const memberId = await change(workspace, doc => {
+      const created = new Date().toISOString();
+      let member = person(doc, address);
+      if (!member) {
+        member = { id: randomUUID(), ...address, courseIds: [], created };
+        doc.members.push(member);
+      }
+      member.name ||= address.name;
+      member.contactId ||= address.contactId;
+      member.invitedAt ||= created;
+      const valid = courses.filter(id => state.courses.some(course => course.id === id));
+      grant(member, [...new Set([...(member.courseIds || []), ...valid])]);
+      return member.revokedAt ? '' : member.id;
+    });
+    if (!memberId) return { memberId: '', emailed: false };
+    let emailed = false;
+    if (emailConfigured) {
+      try { await admin(workspace, state, { action: 'login', memberId }); emailed = true; }
+      catch { /* The access stays granted; staff can resend the login e-mail from the portal. */ }
+    }
+    return { memberId, emailed };
+  }
+
   // The signed-in member and the portal document, for features that build on the portal session.
   async function session(workspace, token) {
     const doc = await load(workspace);
@@ -277,5 +305,5 @@ export function makeClientPortal({
   // The portal document for staff screens (empty when the portal was never used).
   const directory = async workspace => await load(workspace) || blankPortal();
 
-  return { admin, exchange, signOut, content, progress, session, directory };
+  return { admin, exchange, signOut, content, progress, session, directory, enroll };
 }

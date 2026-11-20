@@ -16,6 +16,7 @@ import { qrCollections, qrFields, qrScan } from './qr-model.mjs';
 import { mediaBeforeDelete, mediaCollections, mediaCommand, mediaCommandTypes, mediaFields } from './media-model.mjs';
 import { courseFields } from './course-model.mjs';
 import { communityCollections, communityFields } from './community.mjs';
+import { offerBeforeDelete, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
 
@@ -30,7 +31,7 @@ export const defaults = {
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[],
-  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...mediaCollections].map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...offerCollections, ...mediaCollections].map(key => [key, []])),
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
 export const blank = name => ({ ...structuredClone(defaults), profile: { ...defaults.profile, ...(name ? { name } : {}) } });
@@ -38,7 +39,7 @@ export function hydrateWorkspace(state) {
   const fresh = blank();
   state.customReports ??= [];
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...mediaCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...offerCollections,...mediaCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -142,6 +143,7 @@ const fields = {
   forms: (s,d) => formRecord(s,d),
   ...courseFields,
   ...communityFields,
+  ...offerFields,
   reviews: (s,d) => ({ author: req(d.author,'Author'), score: one(Number(d.score),[1,2,3,4,5],'rating'), text: req(d.text,'Review',2500), reply: str(d.reply,2500) }),
   ...mediaFields,
   agents: (s,d) => ({ name: req(d.name,'Agent name'), role: one(d.role,['Support','Sales','Scheduling'],'role'), instructions: str(d.instructions,5000), active: Boolean(d.active) }),
@@ -299,6 +301,7 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
   if (typeof type === 'string' && type.startsWith('social-')) return socialCommand(s, { ...command, data:d }, { add, now });
   if (type === 'chat-start' || type === 'chat-send') return chatCommand(s, { ...command, data:d }, { add, now, run });
   if (type === 'blog-view') return blogView(s, id);
+  if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
   if (type === 'store-checkout') return storeCheckout(s, { ...command, data:d }, { add, run });
   if (['webinar-register','webinar-attend','webinar-reminders'].includes(type)) return webinarCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'qr-scan') return qrScan(s, id, d);
@@ -426,6 +429,7 @@ function remove(s, key, id) {
     storeBeforeDelete(s, key, id);
     webinarBeforeDelete(s, key, id);
     mediaBeforeDelete(s, key, id);
+    offerBeforeDelete(s, key, id);
     if (key==='contacts') {
       for (const related of ['tasks','opportunities','messages','appointments','invoices','threads']) s[related] = s[related].filter(r=>r.contactId!==id);
       for (const row of s.submissions.filter(r=>r.contactId===id)) { row.contactId=''; row.name=''; row.email=''; }

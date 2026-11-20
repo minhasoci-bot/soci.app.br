@@ -22,6 +22,7 @@ import {portalAdminScreen, portalTabs} from './client-portal.js';
 import {mediaScreen} from './media.js';
 import {coursesScreen} from './courses.js';
 import {communitiesScreen} from './communities.js';
+import {offersScreen} from './offers.js';
 import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
 import {opportunityStatuses} from './dashboard-data.js';
 import {cardContext, filterButton, forecastView, listTabs, moreMenu, pipelinesView, quickActionBar, smartTagChips, stageStyle} from './opportunities.js';
@@ -253,7 +254,7 @@ function sites(c){
   });
 }
 function memberships(c){
-  return ['courses','course'].includes(c.tab) ? coursesScreen(c) : ['communities','community'].includes(c.tab) ? communitiesScreen(c) : portalAdminScreen(c);
+  return ['courses','course'].includes(c.tab) ? coursesScreen(c) : ['communities','community'].includes(c.tab) ? communitiesScreen(c) : c.tab === 'offers' ? offersScreen(c) : portalAdminScreen(c);
 }
 const media = c => mediaScreen(c);
 function reputation(c){
