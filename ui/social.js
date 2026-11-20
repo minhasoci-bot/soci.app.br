@@ -667,7 +667,8 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
 
   const approvalDialog = ({ expires, url: link }) => {
     const pending = c.s.socialPosts.filter(p => p.status === 'in_review').length, brand = c.s.profile?.name || '';
-    const message = link ? `Olá! ${pending ? `Há ${pending} post(s)` : 'Os próximos posts'}${brand ? ` de ${brand}` : ''} aguardando sua aprovação. Revise, aprove ou peça ajustes por aqui: ${link}` : '';
+    const of = brand ? ` de ${brand}` : '';
+    const message = link ? `Olá! ${pending ? `Há ${pending} post(s)${of} aguardando sua aprovação.` : `Os próximos posts${of} para aprovar vão aparecer neste link.`} Revise, aprove ou peça ajustes por aqui: ${link}` : '';
     const contactsWithPhone = (c.s.contacts || []).filter(ct => ct.phone && ct.phone.trim());
     dialog('Aprovação do cliente', `<form data-sp-approval-form>
       <p>Envie este link ao cliente para ele revisar os posts “Em revisão”, aprovar ou pedir ajustes com um comentário, sem precisar de login. Posts aprovados entram na agenda automaticamente.</p>
