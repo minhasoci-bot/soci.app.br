@@ -1,7 +1,7 @@
 // Documentos e contratos: the HTML of a sent document, shared by the server (public signing page, final
 // copy and its SHA-256) and the app (read-only view of sent documents). No inline styles: the public page
 // runs under a strict CSP, so colours and widths are classes and the accent is applied by script.
-import { documentFonts, fieldKinds, lineTotal, videoEmbed } from './document-data.js';
+import { documentFonts, fieldKinds, itemsSummary, lineTax, lineTotal, taxKey, videoEmbed } from './document-data.js';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const money = value => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -33,13 +33,20 @@ function fieldHtml(doc, block, { values, me, interactive, zone }) {
 export function productsHtml(block, selectable) {
   const items = block.items || [];
   if (!items.length) return '';
-  const total = items.filter(item => !item.optional || item.selected).reduce((n, item) => n + lineTotal(item), 0);
+  const sum = itemsSummary(items);
+  // Every tax that appears on a line gets a footer row (0 while its optional lines are unchecked), so the
+  // public estimate page can recompute subtotal, taxes and total when the client ticks optional items.
+  const taxes = [...new Map(items.filter(item => Number(item.taxRate) > 0).map(item => [taxKey(item), { key: taxKey(item), name: item.taxName || 'Imposto', rate: Number(item.taxRate) }])).values()];
+  const amount = key => sum.taxes.find(group => group.key === key)?.amount || 0;
+  const pct = rate => String(rate).replace('.', ',');
+  const foot = taxes.length ? `<tr class="dc-sub"><td colspan="4">Subtotal</td><td class="num" data-subtotal>${money(sum.subtotal)}</td></tr>${taxes.map(group =>
+    `<tr class="dc-sub"><td colspan="4">${esc(group.name)} (${esc(pct(group.rate))}%)</td><td class="num" data-tax-sum="${esc(group.key)}">${money(amount(group.key))}</td></tr>`).join('')}` : '';
   return `<table class="dc-products" data-products><thead><tr><th>Item</th><th class="num">Qtd.</th><th class="num">Preço</th><th class="num">Desc.</th><th class="num">Total</th></tr></thead>
-    <tbody>${items.map(item => `<tr class="${item.optional && !item.selected ? 'off' : ''}" data-line="${lineTotal(item)}"><td>${item.optional
+    <tbody>${items.map(item => `<tr class="${item.optional && !item.selected ? 'off' : ''}" data-line="${lineTotal(item) + lineTax(item)}" data-net="${lineTotal(item)}" data-tax="${lineTax(item)}" data-tax-key="${esc(taxKey(item))}"><td>${item.optional
       ? `<label class="dc-optional"><input type="checkbox" data-item="${esc(item.id)}" ${item.selected ? 'checked' : ''} ${selectable ? '' : 'disabled'}> <b>${esc(item.name)}</b> <small>(opcional)</small></label>` : `<b>${esc(item.name)}</b>`}
-      ${item.description ? `<small>${esc(item.description)}</small>` : ''}${item.interval ? `<small>Cobrança ${{ Weekly: 'semanal', Monthly: 'mensal', Yearly: 'anual' }[item.interval] || 'recorrente'}</small>` : ''}</td>
+      ${item.description ? `<small>${esc(item.description)}</small>` : ''}${item.interval ? `<small>Cobrança ${{ Weekly: 'semanal', Monthly: 'mensal', Yearly: 'anual' }[item.interval] || 'recorrente'}</small>` : ''}${Number(item.taxRate) > 0 ? `<small>+ ${esc(item.taxName || 'Imposto')} ${esc(pct(item.taxRate))}%</small>` : ''}</td>
       <td class="num">${esc(item.qty)}</td><td class="num">${money(item.price)}</td><td class="num">${item.discount ? `${esc(item.discount)}%` : '—'}</td><td class="num">${money(lineTotal(item))}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="4">Total</td><td class="num" data-total>${money(total)}</td></tr></tfoot></table>`;
+    <tfoot>${foot}<tr><td colspan="4">Total</td><td class="num" data-total>${money(sum.total)}</td></tr></tfoot></table>`;
 }
 
 function blockHtml(doc, block, opts) {

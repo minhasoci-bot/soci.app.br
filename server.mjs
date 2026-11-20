@@ -33,9 +33,12 @@ import { findSharedReport, reportMailer, sharedReportPage } from './report-share
 import { documentMailer, documentMessage } from './document-mail.mjs';
 import { tokenHash as documentTokenHash } from './document-model.mjs';
 import { estimateTokenHash } from './estimate-model.mjs';
+import { invoiceTokenHash } from './invoice-model.mjs';
+import { cartTokenHash, abandonedOf } from './checkout-model.mjs';
 import { reportsDue } from './report-model.mjs';
 import { brandGroupData } from './ui/brand-group-data.js';
 import { brandGroupPage } from './brand-group-page.mjs';
+import { presentationPageHtml } from './presentation-model.mjs';
 import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
@@ -66,9 +69,10 @@ const staticFiles = new Map([
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
+  ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
   ['/highlight.js','text/javascript; charset=utf-8'],
   ['/vendor/marked.js','text/javascript; charset=utf-8'], ['/vendor/purify.js','text/javascript; charset=utf-8'],
@@ -106,7 +110,7 @@ const qrPath = new RegExp(`^/q/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
 const offerPath = new RegExp(`^/oferta/${workspaceSegment}/([0-9a-f-]{36})/?$`);
 const offerApi = new RegExp(`^/api/offer/${workspaceSegment}/([0-9a-f-]{36})$`);
-const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout)$`);
+const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout|cart|restore|review)$`);
 const blogPath = new RegExp(`^/b/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,80}|rss\\.xml))?/?$`);
 const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
 const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
@@ -118,7 +122,10 @@ const signPagePath = new RegExp(`^/assinar/${workspaceSegment}/?$`);
 const signApiPath = new RegExp(`^/api/assinar/${workspaceSegment}$`);
 const estimatePagePath = new RegExp(`^/orcamento/${workspaceSegment}/?$`);
 const estimateApiPath = new RegExp(`^/api/orcamento/${workspaceSegment}$`);
+const invoicePagePath = new RegExp(`^/fatura/${workspaceSegment}/?$`);
+const invoiceApiPath = new RegExp(`^/api/fatura/${workspaceSegment}$`);
 const brandGroupRoute = /^\/marcas\/([0-9a-f]{64})\/?$/;
+const presentationRoute = /^\/apresentacao\/([0-9a-f]{64})\/?$/;
 const sharedReportRoute = new RegExp(`^/relatorio/${workspaceSegment}/([0-9a-f]{64})/?$`);
 const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{36})/([0-9a-f-]{36})$`);
 const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,48}))?$`);
@@ -1058,7 +1065,7 @@ export function makeServer({
       if (item.kind === 'document' || item.kind === 'document-owner') {
         const message = documentMessage(item, documentMail.linkOf(item)), outcomes = [];
         if (item.kind === 'document-owner' || item.channels?.includes('email')) {
-          outcomes.push(await documentMail.email(item.email, message, `doc-${workspace}-${item.docId || item.estimateId}-${item.recipientId || 'owner'}-${item.event || (item.final ? 'final' : 'request')}-${String(item.path || '').slice(-12)}`));
+          outcomes.push(await documentMail.email(item.email, message, `doc-${workspace}-${item.docId || item.estimateId || item.invoiceId || item.checkoutId || item.giftCardId}-${item.recipientId || 'owner'}-${item.event || (item.final ? 'final' : 'request')}-${String(item.path || '').slice(-12)}`, { fromName: item.fromName, replyTo: item.replyTo }));
         }
         if (item.kind === 'document' && item.channels?.includes('whatsapp')) {
           if (!item.phone) outcomes.push('WhatsApp: contato sem telefone');
@@ -1068,7 +1075,7 @@ export function makeServer({
             outcomes.push(sent?.sent ? 'WhatsApp enviado' : sent?.reason === 'not-connected' ? 'WhatsApp não conectado' : 'WhatsApp não enviado');
           }
         }
-        results.push({ docId: item.docId, estimateId: item.estimateId, kind: 'document', text: `${item.kind === 'document-owner' ? 'Aviso ao remetente' : item.name}${item.final ? ' (cópia final)' : ''}: ${outcomes.join(' · ')}` });
+        results.push({ docId: item.docId, estimateId: item.estimateId, invoiceId: item.invoiceId, checkoutId: item.checkoutId, giftCardId: item.giftCardId, kind: 'document', text: `${item.kind === 'document-owner' ? 'Aviso ao remetente' : item.name}${item.final ? ' (cópia final)' : ''}: ${outcomes.join(' · ')}` });
       }
       if (item.kind === 'whatsapp') {
         if (privateSpace.test(workspace)) { results.push({ runId: item.runId, kind: 'whatsapp', text: 'não enviado (conta pessoal)' }); continue; }
@@ -1088,6 +1095,27 @@ export function makeServer({
     const result = (await change(workspace, { type: 'workflow-tick', data: { at: new Date(at).toISOString() } })).id;
     await flushWorkflows(workspace);
     return result;
+  }
+  // Recurring invoices: every minute, issue what is due today and deliver the e-mails with the payment links.
+  async function runRecurringInvoices(workspace, at = Date.now()) {
+    const state = await store.load(workspace);
+    const day = new Intl.DateTimeFormat('en-CA', { timeZone: state.profile?.timezone || 'UTC' }).format(new Date(at));
+    if (!state.recurringInvoices?.some(row => row.status === 'active' && row.nextIssueOn && row.nextIssueOn <= day)) return [];
+    if (!privateSpace.test(workspace) && !(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'payments').catch(() => false))) return [];
+    const issued = (await change(workspace, { type: 'invoice-tick', data: { at: new Date(at).toISOString() } })).id || [];
+    if (issued.length) await flushWorkflows(workspace);
+    return issued;
+  }
+  // Abandoned checkouts: open carts idle for longer than the configured wait become abandoned (contact,
+  // workflow trigger and recovery e-mail).
+  async function runAbandonedCheckouts(workspace, at = Date.now()) {
+    const state = await store.load(workspace);
+    const limit = at - abandonedOf(state).afterMinutes * 60000;
+    if (!state.abandonedCheckouts?.some(row => row.status === 'open' && Date.parse(row.updated) <= limit)) return 0;
+    if (!privateSpace.test(workspace) && !(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'payments').catch(() => false))) return 0;
+    const count = (await change(workspace, { type: 'checkout-tick', data: { at: new Date(at).toISOString() } })).id || 0;
+    if (count) await flushWorkflows(workspace);
+    return count;
   }
   // Scheduled report e-mails: each due report is sent once per slot; failures are kept on the
   // schedule (lastError) and the slot is not retried, so a broken address does not resend all day.
@@ -1113,6 +1141,8 @@ export function makeServer({
       try { await runWebinarReminders(w.id, base); } catch (e) { console.error(`Webinar reminders (${w.id}): ${e.message}`); }
       try { await runWorkflows(w.id); } catch (e) { console.error(`Workflows (${w.id}): ${e.message}`); }
       try { await runReportMail(w.id); } catch (e) { console.error(`Report e-mail (${w.id}): ${e.message}`); }
+      try { await runRecurringInvoices(w.id); } catch (e) { console.error(`Recurring invoices (${w.id}): ${e.message}`); }
+      try { await runAbandonedCheckouts(w.id); } catch (e) { console.error(`Abandoned checkouts (${w.id}): ${e.message}`); }
     }
     return total;
   }
@@ -1470,6 +1500,39 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (result.id?.invoice) result.id.online = await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false);
         return json(result.id);
       }
+      const invoicePage = p.match(invoicePagePath);
+      if (invoicePage && method === 'GET') {
+        await ready;
+        await publicAccountPolicy(invoicePage[1], false, 'payments');
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        res.setHeader('X-Robots-Tag', 'noindex');
+        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/invoice-view.html')));
+      }
+      const invoiceCall = p.match(invoiceApiPath);
+      if (invoiceCall) {
+        await ready;
+        if (method !== 'POST') throw error('Method not allowed.',405);
+        const workspace = invoiceCall[1];
+        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
+        const input = await payload(req);
+        const action = ['open', 'pay'].includes(input.action) ? input.action : '';
+        if (!action) throw error('Ação inválida para este link.',400);
+        const digest = invoiceTokenHash(input.token);
+        if (!digest) throw error('Este link não é válido.',404);
+        await publicAccountPolicy(workspace, action !== 'open', 'payments');
+        if (action === 'pay') {
+          const due = (await change(workspace, { type: 'invoice-payable', data: { tokenHash: digest } })).id;
+          const current = await store.load(workspace), agencyId = current.agencyId || AGENCY_ID;
+          if (!(await abacate.connected(agencyId, workspace))) throw error('O pagamento online ainda não está disponível. Fale com quem enviou a fatura.',409);
+          const page = `${publicBase(req)}/fatura/${workspace}`;
+          return json({ url: (await abacate.chargeInvoice(agencyId, workspace, due.invoiceId, publicBase(req), { returnUrl: `${page}?pagamento=voltou`, completionUrl: `${page}?pagamento=ok` })).url });
+        }
+        const result = await change(workspace, { type: 'invoice-open', data: { tokenHash: digest } });
+        result.id.online = result.id.payable ? await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false) : false;
+        return json(result.id);
+      }
       const approvePage = p.match(socialApprovePath);
       if (approvePage && method === 'GET') {
         await ready;
@@ -1709,7 +1772,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const who = await workspaceAccess(req, res, id);
         requireWorkspaceCommand(who, command);
         command.actor = who.name;
-        if (['document-send', 'document-link', 'estimate-send', 'estimate-link'].includes(command.type)) command.data = { ...(command.data && typeof command.data === 'object' ? command.data : {}), origin: publicBase(req) };
+        if (['document-send', 'document-link', 'estimate-send', 'estimate-link', 'invoice-send', 'invoice-from-template', 'checkout-remind'].includes(command.type)) command.data = { ...(command.data && typeof command.data === 'object' ? command.data : {}), origin: publicBase(req) };
         const result = await change(id,command,who);
         let delivery = null;
         if (!privateSpace.test(id) && command.type === 'message' && command.data?.channel === 'WhatsApp' && command.data?.direction === 'Outbound') {
@@ -1742,7 +1805,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/abacatepay/webhook/') && method === 'POST') {
         await ready;
         return await abacate.handleWebhook({ req, url, json, listWorkspaces, changeAgency,
-          onInvoicePaid: async (workspace, invoice) => { if (invoice.offerId && !invoice.offerGrantedAt) await grantOffer(workspace, invoice.offerId, invoice.contactId, invoice.id); } });
+          onInvoicePaid: async (workspace, invoice) => { if (invoice.offerId && !invoice.offerGrantedAt) await grantOffer(workspace, invoice.offerId, invoice.contactId, invoice.id); flushLater(workspace); } });
       }
       if (p.startsWith('/api/abacatepay/agency/')) {
         const who = await access(req, res);
@@ -1988,8 +2051,15 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         return json({ agent }, operation === 'create' ? 201 : 200);
       }
       if (p.startsWith('/api/prancheta/')) {
-        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
-        await requireActiveAccount(who.agencyId, id, true);
+        const isAgencyTarget = id === 'agency' || !id;
+        const who = isAgencyTarget
+          ? await access(req, res)
+          : await workspaceAccess(req, res, id, { modules: ['marketing'] });
+        if (isAgencyTarget) {
+          requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
+        } else {
+          await requireActiveAccount(who.agencyId, id, true);
+        }
         const action = p.slice('/api/prancheta/'.length);
         const formatPranchetaMeta = (f) => ({
           id: f.id,
@@ -2004,23 +2074,32 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           pages: f.pages || []
         });
 
+        const loadTarget = async () => isAgencyTarget ? loadAgency(who.agencyId) : store.load(id);
+        const changeTarget = async (cmd) => {
+          if (isAgencyTarget) {
+            return changeAgency(who.agencyId, a => executeAgency(a, cmd, { actor: who.name }));
+          }
+          const res = await change(id, cmd);
+          return res.id;
+        };
+
         if (action === 'files') {
           if (method === 'GET') {
-            const state = await store.load(id);
+            const state = await loadTarget();
             const raw = state.pranchetaFiles || [];
             return json({ files: raw.map(formatPranchetaMeta) });
           }
           if (method === 'POST') {
             const input = await payload(req);
-            const saved = await change(id, { type: 'prancheta-save', data: input, id: input.id });
-            const state = await store.load(id);
+            const savedId = await changeTarget({ type: 'prancheta-save', data: input, id: input.id });
+            const state = await loadTarget();
             const raw = state.pranchetaFiles || [];
-            return json({ id: saved.id, files: raw.map(formatPranchetaMeta) });
+            return json({ id: savedId, files: raw.map(formatPranchetaMeta) });
           }
         }
         if (action === 'file') {
           const fileId = url.searchParams.get('id') || url.searchParams.get('fileId');
-          const state = await store.load(id);
+          const state = await loadTarget();
           const raw = state.pranchetaFiles || [];
           const found = raw.find(f => f.id === fileId);
           if (method === 'GET') {
@@ -2035,19 +2114,19 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (method === 'POST') {
             const input = await payload(req);
             const targetId = input.id || fileId;
-            const saved = await change(id, { type: 'prancheta-save', data: input, id: targetId });
-            const nextState = await store.load(id);
-            const nextFound = (nextState.pranchetaFiles || []).find(f => f.id === saved.id);
-            return json({ id: saved.id, file: nextFound ? formatPranchetaMeta(nextFound) : null });
+            const savedId = await changeTarget({ type: 'prancheta-save', data: input, id: targetId });
+            const nextState = await loadTarget();
+            const nextFound = (nextState.pranchetaFiles || []).find(f => f.id === savedId);
+            return json({ id: savedId, file: nextFound ? formatPranchetaMeta(nextFound) : null });
           }
         }
         if (action === 'save' && method === 'POST') {
           const input = await payload(req);
-          const saved = await change(id, { type: 'prancheta-save', data: input, id: input.id });
-          const state = await store.load(id);
+          const savedId = await changeTarget({ type: 'prancheta-save', data: input, id: input.id });
+          const state = await loadTarget();
           const raw = state.pranchetaFiles || [];
-          const found = raw.find(f => f.id === saved.id);
-          return json({ id: saved.id, file: found ? formatPranchetaMeta(found) : null, files: raw.map(formatPranchetaMeta) });
+          const found = raw.find(f => f.id === savedId);
+          return json({ id: savedId, file: found ? formatPranchetaMeta(found) : null, files: raw.map(formatPranchetaMeta) });
         }
         if (action === 'templates' && method === 'GET') {
           const { createCanonicalTemplates, pranchetaPresets } = await import('./prancheta-model.mjs');
@@ -2055,33 +2134,33 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         if (action === 'template-use' && method === 'POST') {
           const input = await payload(req);
-          const saved = await change(id, { type: 'prancheta-template', data: input });
-          const state = await store.load(id);
-          return json({ id: saved.id, files: state.pranchetaFiles || [] }, 201);
+          const savedId = await changeTarget({ type: 'prancheta-template', data: input });
+          const state = await loadTarget();
+          return json({ id: savedId, files: state.pranchetaFiles || [] }, 201);
         }
         if (action === 'delete' && method === 'POST') {
           const input = await payload(req);
-          await change(id, { type: 'prancheta-delete', id: input.id });
-          const state = await store.load(id);
+          await changeTarget({ type: 'prancheta-delete', id: input.id });
+          const state = await loadTarget();
           return json({ ok: true, files: state.pranchetaFiles || [] });
         }
         if (action === 'duplicate' && method === 'POST') {
           const input = await payload(req);
-          const copy = await change(id, { type: 'prancheta-duplicate', id: input.id });
-          const state = await store.load(id);
-          return json({ id: copy.id, files: state.pranchetaFiles || [] }, 201);
+          const copyId = await changeTarget({ type: 'prancheta-duplicate', id: input.id });
+          const state = await loadTarget();
+          return json({ id: copyId, files: state.pranchetaFiles || [] }, 201);
         }
         if (action === 'export-media' && method === 'POST') {
           const input = await payload(req);
-          const file = await change(id, { type: 'prancheta-export-media', id: input.id, data: input });
-          const state = await store.load(id);
-          return json({ ok: true, fileId: file.id, files: state.files || [] });
+          const fileId = await changeTarget({ type: 'prancheta-export-media', id: input.id, data: input });
+          const state = await loadTarget();
+          return json({ ok: true, fileId, files: state.files || [] });
         }
         if (action === 'to-social' && method === 'POST') {
           const input = await payload(req);
-          const result = await change(id, { type: 'prancheta-to-social', id: input.id, data: input });
+          const result = await changeTarget({ type: 'prancheta-to-social', id: input.id, data: input });
           const state = await store.load(id);
-          return json({ ok: true, ...(result.id || {}), posts: state.socialPosts || [] });
+          return json({ ok: true, ...(result || {}), posts: state.socialPosts || [] });
         }
         throw error('Rota da prancheta não encontrada.', 404);
       }
@@ -2282,7 +2361,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         let body;
         if (cart) body = storeCart(state, shop, { base, workspace });
         else if (slug) { const item = catalog(state, shop).find(row => row.slug === slug); if (!item) throw error('Produto não encontrado.',404); body = storeProduct(state, shop, item, { base }); }
-        else body = storeHome(state, shop, { base, category:String(url.searchParams.get('categoria') || '').slice(0,40) });
+        else body = storeHome(state, shop, { base, category:String(url.searchParams.get('categoria') || '').slice(0,40), collection:String(url.searchParams.get('colecao') || '').slice(0,80) });
         res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin',
           'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" });
         return res.end(method === 'HEAD' ? undefined : body);
@@ -2329,11 +2408,26 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const input = await payload(req);
         await publicAccountPolicy(workspace, true, 'sites');
         await publicAccountPolicy(workspace, true, 'payments');
+        if (op === 'cart') {
+          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+          if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
+          return json((await change(workspace,{ type:'store-cart', id:storeId, data:{ session:input.session, name:input.name, email:input.email, phone:input.phone, items:input.items, coupon:input.coupon, delivery:input.delivery } })).id);
+        }
+        if (op === 'review') {
+          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+          if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
+          return json((await change(workspace,{ type:'store-review', id:storeId, data:{ productId:input.productId, name:input.name, email:input.email, rating:input.rating, title:input.title, body:input.body, website:input.website } })).id,201);
+        }
+        if (op === 'restore') {
+          const digest = cartTokenHash(input.token);
+          if (!digest) throw error('Este link de recuperação não é válido.',404);
+          return json((await change(workspace,{ type:'store-cart-restore', id:storeId, data:{ tokenHash:digest } })).id);
+        }
         if (op === 'quote') {
           const state = await store.load(workspace);
           const shop = state.stores?.find(item => item.id === storeId && item.active);
           if (!shop) throw error('Esta loja não está aberta.',404);
-          const { coupon_, ...quote } = quoteOrder(state, shop, input);
+          const { coupon_, giftCard_, ...quote } = quoteOrder(state, shop, input);
           return json(quote);
         }
         const result = await change(workspace,{ type:'store-checkout', id:storeId, data:input });
@@ -2362,6 +2456,28 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer', 'X-Robots-Tag':'noindex',
           'Content-Security-Policy':"default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" });
         return res.end(method === 'HEAD' ? undefined : brandGroupPage(data, { lang, path: p, agency: agency.company }));
+      }
+      // Presentations shared by public link:
+      const presentationShare = p.match(presentationRoute);
+      if (presentationShare && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const token = presentationShare[1];
+        const match = await store.findAgency({ presentations: [{ share: { id: token } }] });
+        const agency = match && hydrateAgency(match.state);
+        const presentation = agency?.presentations?.find(row => row.share?.id === token);
+        if (!presentation || (presentation.share.expires && Date.parse(presentation.share.expires) <= Date.now())) throw error('Esta apresentação não está mais compartilhada.', 404);
+        const asked = url.searchParams.get('lang');
+        const lang = ['pt', 'es'].includes(asked) ? asked : (presentation.share.lang || 'pt');
+        const autoPrint = url.searchParams.has('print');
+        const html = presentationPageHtml(presentation, { lang, autoPrint, company: agency.company });
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'Referrer-Policy': 'no-referrer',
+          'X-Robots-Tag': 'noindex',
+          'Content-Security-Policy': "default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        });
+        return res.end(method === 'HEAD' ? undefined : html);
       }
       // Shared reports: read-only, rendered here so the page never receives the workspace state.
       const sharedReport = p.match(sharedReportRoute);

@@ -87,7 +87,11 @@
   .log{list-style:none;margin:0;padding:0}
   .log li{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;display:flex;gap:12px}
   .log li:last-child{border:0}
-  .log time{color:var(--muted);font-size:13px;min-width:86px;font-variant-numeric:tabular-nums}
+  .log time{color:var(--muted);font-size:13px;min-width:130px;font-variant-numeric:tabular-nums;flex-shrink:0;white-space:nowrap}
+  @media (max-width:480px){
+    .log li{flex-direction:column;gap:4px}
+    .log time{min-width:0;white-space:normal}
+  }
   .rules{margin:0;padding-left:18px;font-size:14px}
   .rules li{margin:4px 0}
   code{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:var(--surface-2);padding:1px 5px;border-radius:5px}
@@ -111,7 +115,40 @@
   var CORES={feito:'var(--done)',andamento:'var(--doing)',pendente:'var(--todo)',bloqueado:'var(--blocked)'};
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
   function chip(s){return '<span class="chip s-'+s+'">'+(NOMES[s]||s)+'</span>'}
-  function fmt(d){if(!d)return '';var p=d.split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:d}
+  function fmt(d){
+    if(!d)return '';
+    var p=String(d).split(/[- T]/);
+    if(p.length>=3){
+      var res=p[2]+'/'+p[1]+'/'+p[0];
+      if(p[3]) res+=' às '+p[3].slice(0,5);
+      return res;
+    }
+    return d;
+  }
+  function fmtLog(l){
+    if(!l)return '';
+    var d=l.data||'';
+    var h=l.hora||'';
+    if(!h && (d.indexOf(' ')>0 || d.indexOf('T')>0)){
+      var p=d.split(/[ T]/);
+      d=p[0];
+      h=p[1].slice(0,5);
+    }
+    var dp=d.split('-');
+    var dataFmt=dp.length===3?dp[2]+'/'+dp[1]+'/'+dp[0]:d;
+    return (dataFmt + (h ? ' ' + h : '')).trim();
+  }
+  function isoLog(l){
+    if(!l)return '';
+    var d=l.data||'';
+    var h=l.hora||'';
+    if(!h && (d.indexOf(' ')>0 || d.indexOf('T')>0)){
+      var p=d.split(/[ T]/);
+      d=p[0];
+      h=p[1].slice(0,5);
+    }
+    return (d + (h ? 'T' + h : '')).trim();
+  }
 
   var todos=[]; P.fases.forEach(function(f){f.itens.forEach(function(i){todos.push({f:f,i:i})})});
   var ativos=todos.filter(function(x){return x.i.status!=='fora'});
@@ -174,10 +211,13 @@
   });
 
   h+='<div class="two"><section class="card" aria-label="Histórico"><p class="label">Histórico</p><ul class="log">';
-  (P.historico||[]).forEach(function(l){h+='<li><time>'+fmt(l.data)+'</time><span>'+esc(l.texto)+'</span></li>'});
+  (P.historico||[]).forEach(function(l){
+    var dt=isoLog(l);
+    h+='<li><time'+(dt?' datetime="'+esc(dt)+'"':'')+'>'+esc(fmtLog(l))+'</time><span>'+esc(l.texto)+'</span></li>';
+  });
   h+='</ul></section><section class="card" aria-label="Regras"><p class="label">Regras para cada item</p><ul class="rules">';
   (P.regras||[]).forEach(function(r){h+='<li>'+esc(r)+'</li>'});
-  h+='</ul><p class="label" style="margin-top:16px">Como atualizar</p><p class="meta" style="margin:0">Edite <code>progresso.js</code>: mude o <code>status</code> do item, preencha <code>entrega</code> e <code>data</code>, aponte <code>etapaAtual</code> para o próximo item e registre no <code>historico</code>. Recarregue esta página.</p></section></div>';
+  h+='</ul><p class="label" style="margin-top:16px">Como atualizar</p><p class="meta" style="margin:0">Edite <code>progresso.js</code>: mude o <code>status</code> do item, preencha <code>entrega</code> e <code>data</code>, aponte <code>etapaAtual</code> para o próximo item e registre no <code>historico</code> (com <code>data</code>, <code>hora</code> e <code>texto</code>). Recarregue esta página.</p></section></div>';
 
   app.innerHTML=h;
 

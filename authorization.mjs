@@ -44,7 +44,8 @@ const commandModules = {
   onboarding: 'dashboard', profile: 'settings',
   'workflow-enroll': 'automation', 'workflow-restore': 'automation', 'workflow-move': 'automation',
   'document-send': 'payments', 'document-void': 'payments', 'document-link': 'payments',
-  'estimate-send': 'payments', 'estimate-link': 'payments', 'estimate-revise': 'payments', 'estimate-status': 'payments', 'estimate-invoice': 'payments'
+  'estimate-send': 'payments', 'estimate-link': 'payments', 'estimate-revise': 'payments', 'estimate-status': 'payments', 'estimate-invoice': 'payments',
+  'payment-settings': 'payments', 'catalog-inventory': 'payments', 'catalog-giftcard-products': 'payments', 'catalog-giftcard-send': 'payments', 'catalog-giftcard-adjust': 'payments', 'catalog-reviews': 'payments', 'checkout-settings': 'payments', 'checkout-remind': 'payments', 'invoice-from-template': 'payments', 'invoice-send': 'payments', 'invoice-recurring-start': 'payments', 'invoice-recurring-pause': 'payments', 'invoice-recurring-cancel': 'payments'
 };
 
 const agencySettingsCommands = new Set([
@@ -122,7 +123,7 @@ export function requireRecordEffects(access, state, command) {
     const requested = Array.isArray(data?.ids) ? data.ids.filter(value => typeof value === 'string') : [];
     const ids = new Set(type === 'delete' ? [id] : [...new Set(requested)].slice(0, 500));
     for (const collection of ['opportunities', 'messages', 'threads', 'linkTickets', 'linkClicks', 'appointments', 'invoices',
-      'subscriptions', 'transactions', 'submissions', 'manualActions', 'runs', 'documents', 'estimates']) {
+      'subscriptions', 'transactions', 'submissions', 'manualActions', 'runs', 'documents', 'estimates', 'recurringInvoices', 'abandonedCheckouts']) {
       if (state[collection]?.some(row => ids.has(row.contactId))) requireModule(access, readModules[collection]);
     }
   }

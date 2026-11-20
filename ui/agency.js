@@ -9,27 +9,15 @@ import { phoneField } from './phone-input.js';
 import { createProspecting, prospectRoutes } from './prospecting.js';
 import { createSociChat } from './soci-chat.js';
 import { brandGroupCsv, brandGroupHtml, groupPeriods } from './brand-group-data.js';
+import { presentationsHtml, attachPresentationListeners, closePresentationEditor } from './presentations.js';
+import { pranchetaScreen } from './prancheta.js';
 import {
   affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, labFeatures, learningTracks,
   marketplaceCategories, mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
-  appScopes, maxMarkup, rebillProducts, subFeatures
+  appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav
 } from './agency-data.js';
 
-const h = x => String(x ?? '').replace(/[&<>"']/g, v => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[v]);
-const day = (d, time = false) => d ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', ...(time ? { hour: '2-digit', minute: '2-digit' } : {}) }).format(new Date(d)) : '—';
-const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(2)} MB`;
-const badge = (text, tone = '') => `<span class="badge ${tone}">${h(tr(text))}</span>`;
-const statusTone = { Active: 'green', Paused: 'gold', Closed: 'red', Won: 'green', Lost: 'red', Trial: 'blue', Cancelled: 'red', Requested: 'blue', Withdrawn: '', Planned: 'blue', 'In progress': 'pink', Completed: 'green', Declined: 'red', 'Under review': '' };
-const tone = s => statusTone[s] || '';
-const initials = s => (s || '').split(/\s+/).slice(0, 2).map(p => p[0] || '').join('').toUpperCase() || 'AG';
-
-export const agencyNav = [
-  ['ask', 'Pergunte à Soci', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['saas', 'Configurador SaaS', 'chart'], ['prospecting', 'Prospecção', 'search'],
-  ['accounts', 'Subcontas', 'users'], ['brand-groups', 'Grupos de marcas', 'chart'], ['snapshots', 'Setups de conta', 'box'],
-  ['affiliate', 'Portal de afiliados', 'link'], ['templates', 'Biblioteca de templates', 'site'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
-  ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'],
-  ['settings', 'Configurações', 'gear']
-];
+export { agencyNav };
 const subTabs = {
   prospecting: prospectRoutes,
   snapshots: [['marketplace', 'Marketplace'], ['mine', 'Meus setups'], ['published', 'Publicados por mim'], ['history', 'Histórico de cargas']],
@@ -161,8 +149,8 @@ export function startAgency(env) {
       open: A.navOpen,
       groups: [
         { title: tr('Visão geral'), items: agencyNav.slice(0, 5).map(item) },
-        { title: tr('Subcontas'), items: agencyNav.slice(5, 11).map(item) },
-        { title: tr('Aprender e apps'), items: agencyNav.slice(11, -1).map(item) },
+        { title: tr('Subcontas e ferramentas'), items: agencyNav.slice(5, 13).map(item) },
+        { title: tr('Aprender e apps'), items: agencyNav.slice(13, -1).map(item) },
         { title: tr('Atalhos'), items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: tr(l.title), icon: l.icon, external: true })) }
       ],
       footer: [
@@ -238,6 +226,24 @@ export function startAgency(env) {
     catch (e) { if (A.bg?.id === id) A.bg.error = e.message; }
     if (A.page === 'brand-groups') render();
   }
+
+  pages.presentations = () => presentationsHtml(D(), {
+    agency: D(),
+    act,
+    dialog,
+    closeDialog: close,
+    flash
+  });
+
+  pages.prancheta = () => {
+    const pranchetaCtx = {
+      s: D(),
+      agency: D(),
+      query: A.query,
+      mode: 'agency'
+    };
+    return pranchetaScreen(pranchetaCtx);
+  };
 
   pages['ai-suite'] = () => {
     const tools = [
@@ -863,6 +869,15 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     for (const el of app.querySelectorAll('[data-w]')) el.style.width = `${el.dataset.w}%`;
     for (const el of app.querySelectorAll('[data-h]')) el.style.height = `${Math.max(3, Number(el.dataset.h))}%`;
     for (const el of app.querySelectorAll('[data-bg]')) el.style.background = el.dataset.bg;
+    if (A.page === 'presentations') {
+      attachPresentationListeners(app, {
+        agency: D(),
+        act,
+        dialog,
+        closeDialog: close,
+        flash
+      }, () => render());
+    }
     const screen = document.querySelector('#screen'); if (screen && renderKey === `${A.page}/${A.sub}`) screen.scrollTop = prev;
     renderKey = `${A.page}/${A.sub}`;
   }
@@ -870,12 +885,14 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
 
   async function show(page, sub) {
     const nextPage = pages[page] ? page : 'dashboard';
-    if (nextPage !== A.page) { A.query = ''; A.status = ''; A.category = ''; A.selected.clear(); A.auditPage = 0; A.bg = null; }
+    if (nextPage !== A.page) { A.query = ''; A.status = ''; A.category = ''; A.selected.clear(); A.auditPage = 0; A.bg = null; closePresentationEditor(); }
     A.page = nextPage;
     const normalizedSub = A.page === 'settings' && sub === 'phone' ? 'whatsapp' : A.page === 'settings' && sub === 'stripe' ? 'abacatepay' : sub;
     A.sub = A.page === 'ask'
       ? (sub && /^[\w-]{4,80}$/.test(sub) ? sub : '')
-      : (subTabs[A.page]?.some(t => t[0] === normalizedSub) ? normalizedSub : '');
+      : A.page === 'prancheta'
+        ? sub
+        : (subTabs[A.page]?.some(t => t[0] === normalizedSub) ? normalizedSub : '');
     if (A.data) {
       if (!isWhatsAppPage()) stopWaPoll();
       render();
@@ -923,6 +940,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     A.waFocus = null;
     A.waPairOpen = false;
     sociChat.reset();
+    closePresentationEditor();
   }
 
   // ---- Events -------------------------------------------------------------
@@ -1276,6 +1294,14 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         }
         case 'bg-share': await act('brand-group-share', { id, data: { action: 'create', days: Number(data.days), lang: data.lang } }); close(); render(); shareGroup(id); keepOpen = true; msg = 'Link gerado.'; break;
         case 'bg-delete': await act('brand-group-delete', { id }); if (A.bg?.id === id) A.bg = null; msg = 'Grupo excluído.'; break;
+        case 'pres-share-form': {
+          const days = Number(data.days);
+          await act('presentation-share', { id, data: { action: 'create', days } });
+          msg = 'Link público gerado com sucesso!';
+          close();
+          render();
+          break;
+        }
         case 'account-meta': await act('account-meta', { id, data }); msg = 'Dados da subconta atualizados.'; break;
         case 'account-reactivate': await act('account-reactivate', { id }); msg = 'Subconta reativada.'; break;
         case 'bulk-status': for (const x of A.selected) { const meta = D().accounts[x]; await act('account-meta', { id: x, data: { ...meta, status: data.status, suspendedReason: data.suspendedReason } }); } A.selected.clear(); msg = 'Status das subcontas atualizado.'; break;
@@ -1350,5 +1376,5 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     }
   });
   window.addEventListener('soci:languagechange', () => { if (active()) render(); });
-  return { show, leave, session: () => A.data?.access?.session };
+  return { show, leave, session: () => A.data?.access?.session, act, render, agency: () => D() };
 }

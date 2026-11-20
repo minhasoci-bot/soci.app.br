@@ -4,6 +4,14 @@
 export const agencyRoles = ['Agency Owner', 'Agency Admin', 'Agency User', 'Account Admin', 'Account User'];
 export const agencyLevel = role => role.startsWith('Agency');
 
+export const agencyNav = [
+  ['ask', 'Pergunte à Soci', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['saas', 'Configurador SaaS', 'chart'], ['prospecting', 'Prospecção', 'search'],
+  ['accounts', 'Subcontas', 'users'], ['brand-groups', 'Grupos de marcas', 'chart'], ['presentations', 'Apresentações', 'monitor'], ['prancheta', 'Prancheta', 'palette'], ['snapshots', 'Setups de conta', 'box'],
+  ['affiliate', 'Portal de afiliados', 'link'], ['templates', 'Biblioteca de templates', 'site'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
+  ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'],
+  ['settings', 'Configurações', 'gear']
+];
+
 export const subAccountModules = [
   ['dashboard', 'Painel'], ['conversations', 'Conversas'], ['calendars', 'Calendários'], ['contacts', 'Contatos'],
   ['opportunities', 'Oportunidades'], ['payments', 'Pagamentos'], ['ai-agents', 'Agentes de IA'],
@@ -21,7 +29,7 @@ export const moduleOfRecord = {
   studioProjects: 'sites', pipelines: 'opportunities', stages: 'opportunities',
   customFields: 'settings', customValues: 'settings', tags: 'contacts', companies: 'contacts',
   products: 'payments', paymentLinks: 'payments', subscriptions: 'payments', transactions: 'payments', coupons: 'payments',
-  documents: 'payments', documentTemplates: 'payments', contentBlocks: 'payments', estimates: 'payments',
+  documents: 'payments', documentTemplates: 'payments', contentBlocks: 'payments', estimates: 'payments', invoiceTemplates: 'payments', recurringInvoices: 'payments', abandonedCheckouts: 'payments', productCollections: 'payments', productReviews: 'payments', giftCards: 'payments', inventoryLog: 'payments',
   socialCategories: 'marketing', socialHashtags: 'marketing', socialFeeds: 'marketing', socialWebhooks: 'marketing', socialCompetitors: 'marketing',
   pranchetaFiles: 'marketing'
 };

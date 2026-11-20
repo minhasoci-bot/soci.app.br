@@ -213,7 +213,7 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     return payment;
   }
 
-  function paidInvoice(state, { checkoutId, invoiceId, method, receiptUrl }) {
+  function paidInvoice(state, { checkoutId, invoiceId, method, receiptUrl }, workspace = 'demo') {
     const invoice = state.invoices.find(item => (checkoutId && item.payment?.checkoutId === checkoutId) || (invoiceId && item.id === invoiceId));
     if (!invoice) return false;
     invoice.payment = { ...(invoice.payment || { provider: 'abacatepay', checkoutId }), status: 'PAID', paidAt: stamp(), method, receiptUrl: receiptUrl || '' };
@@ -222,9 +222,9 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     const order = state.orders?.find(item => item.invoiceId === invoice.id && item.status === 'Pending');
     if (order) {
       order.paidMethod = method;
-      execute(state, { type: 'save', key: 'orders', id: order.id, data: { id: order.id, status: 'Paid', note: order.note, tracking: order.tracking } });
+      execute(state, { type: 'save', key: 'orders', id: order.id, data: { id: order.id, status: 'Paid', note: order.note, tracking: order.tracking } }, { workspace });
     } else {
-      execute(state, { type: 'save', key: 'invoices', id: invoice.id, data: { title: invoice.title, contactId: invoice.contactId, value: invoice.value, due: invoice.due, status: 'Paid' } });
+      execute(state, { type: 'save', key: 'invoices', id: invoice.id, data: { title: invoice.title, contactId: invoice.contactId, value: invoice.value, due: invoice.due, status: 'Paid' } }, { workspace });
     }
     return state.invoices.find(item => item.id === invoice.id);
   }
@@ -338,7 +338,7 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
       const method = methodNames[data.payerInformation?.method] || 'Pix';
       if ((event === 'checkout.completed' && charge.frequency !== 'SUBSCRIPTION') || event === 'transparent.completed') {
         let invoice = null;
-        await store.change(scope, state => { invoice = paidInvoice(state, { checkoutId, invoiceId: charge.metadata?.invoiceId, method, receiptUrl: charge.receiptUrl }); });
+        await store.change(scope, state => { invoice = paidInvoice(state, { checkoutId, invoiceId: charge.metadata?.invoiceId, method, receiptUrl: charge.receiptUrl }, scope); });
         handled = Boolean(invoice);
         if (invoice && onInvoicePaid) await onInvoicePaid(scope, structuredClone(invoice)).catch(() => {});
       } else if (event === 'checkout.refunded' || event === 'transparent.refunded') {

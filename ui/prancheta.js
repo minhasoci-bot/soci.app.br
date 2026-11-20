@@ -44,8 +44,9 @@ const sociPalette = [
 export function pranchetaScreen(c) {
   const hash = location.hash.slice(1);
   const parts = hash.split('/');
-  const subview = parts[1] || 'files';
-  const fileId = parts[2] || '';
+  const isAgency = parts[0] === 'agency';
+  const subview = isAgency ? (parts[2] || 'files') : (parts[1] || 'files');
+  const fileId = isAgency ? (parts[3] || '') : (parts[2] || '');
 
   if (subview === 'editor' && fileId) {
     return renderEditor(c, fileId);
@@ -119,9 +120,12 @@ function renderGallery(c) {
     </div>
   `;
 
+  const isAgency = c.mode === 'agency' || location.hash.startsWith('#agency');
+  const orgName = isAgency ? (c.s.company?.name || c.agency?.company?.name || 'Agência') : (c.s.profile?.name || 'Subconta');
+
   const filesHtml = filtered.length ? `
     <section class="pr-section-title">
-      <h2>${i('folder', 16)} Artes desta Subconta <span class="pr-badge-pill">${filtered.length}</span></h2>
+      <h2>${i('folder', 16)} ${isAgency ? 'Artes da Agência' : 'Artes desta Subconta'} <span class="pr-badge-pill">${filtered.length}</span></h2>
     </section>
     <div class="pr-files-grid">
       ${filtered.map(f => {
@@ -150,12 +154,14 @@ function renderGallery(c) {
               <button type="button" class="primary-btn" data-act="pr-open-editor" data-id="${h(f.id)}" title="Abrir editor">
                 ${i('edit', 13)} Editar
               </button>
+              ${isAgency ? '' : `
               <button type="button" data-act="pr-export-drive" data-id="${h(f.id)}" title="Salvar no Mídia Drive da subconta">
                 ${i('folder', 13)}
               </button>
               <button type="button" data-act="pr-to-social" data-id="${h(f.id)}" title="Agendar post com esta arte">
                 ${i('send', 13)}
               </button>
+              `}
               <button type="button" data-act="pr-duplicate" data-id="${h(f.id)}" title="Duplicar">
                 ${i('copy', 13)}
               </button>
@@ -170,8 +176,8 @@ function renderGallery(c) {
   ` : `
     <div class="pr-empty-box">
       ${i('palette', 48)}
-      <h3>Nenhuma arte criada nesta subconta</h3>
-      <p>Crie sua primeira arte vetorial, escolha um modelo estratégico ou clique num formato acima para começar.</p>
+      <h3>${isAgency ? 'Nenhuma arte criada na agência' : 'Nenhuma arte criada nesta subconta'}</h3>
+      <p>${isAgency ? 'Crie sua primeira arte vetorial para a agência, escolha um modelo estratégico ou clique num formato acima.' : 'Crie sua primeira arte vetorial, escolha um modelo estratégico ou clique num formato acima para começar.'}</p>
       <button type="button" class="primary" data-act="pr-create-modal">${i('plus', 16)} Nova arte em branco</button>
     </div>
   `;
@@ -186,7 +192,9 @@ function renderGallery(c) {
 
   return pageShell({
     title: 'Prancheta Criativa',
-    desc: `Estúdio de design vetorial da subconta ${h(c.s.profile.name)}. Crie carrosséis, posts, stories e capas com visual oficial da soci.`,
+    desc: isAgency
+      ? 'Estúdio de design vetorial da agência. Crie carrosséis, posts, stories e capas com visual oficial da soci.'
+      : `Estúdio de design vetorial da subconta ${h(orgName)}. Crie carrosséis, posts, stories e capas com visual oficial da soci.`,
     cta: `
       <button type="button" class="secondary" data-act="pr-import-json">${i('upload', 15)} Importar JSON</button>
       <button type="button" class="primary" data-act="pr-create-modal">${i('plus', 15)} Nova Arte</button>
@@ -208,12 +216,13 @@ function renderGallery(c) {
  * Renders the Interactive Canvas Editor for a specific file
  */
 function renderEditor(c, fileId) {
+  const isAgency = c.mode === 'agency' || location.hash.startsWith('#agency');
   const file = (c.s.pranchetaFiles || []).find(f => f.id === fileId);
   if (!file) {
     return pageShell({
       title: 'Arte não encontrada',
-      desc: 'O arquivo solicitado não existe ou foi excluído desta subconta.',
-      cta: '<a class="secondary" href="#prancheta">Voltar para galeria</a>',
+      desc: isAgency ? 'O arquivo solicitado não existe ou foi excluído da agência.' : 'O arquivo solicitado não existe ou foi excluído desta subconta.',
+      cta: `<a class="secondary" href="${isAgency ? '#agency/prancheta' : '#prancheta'}">Voltar para galeria</a>`,
       content: empty('Design indisponível', 'Retorne à galeria de artes para selecionar outro projeto.', 'palette')
     });
   }
@@ -247,7 +256,7 @@ function renderEditor(c, fileId) {
           </button>
           <input type="text" class="pr-file-name-input" value="${h(file.name)}" data-act="pr-rename" title="Clique para renomear" maxlength="150" aria-label="Nome do design">
           <span class="pr-save-indicator ${saveStatus}">
-            ${saveStatus === 'saving' ? i('refresh', 12) + ' Salvando…' : saveStatus === 'dirty' ? 'Alterações pendentes' : '✓ Salvo na subconta'}
+            ${saveStatus === 'saving' ? i('refresh', 12) + ' Salvando…' : saveStatus === 'dirty' ? 'Alterações pendentes' : (isAgency ? '✓ Salvo na agência' : '✓ Salvo na subconta')}
           </span>
         </div>
 
@@ -261,12 +270,14 @@ function renderEditor(c, fileId) {
         </div>
 
         <div class="pr-topbar-right">
+          ${isAgency ? '' : `
           <button type="button" class="pr-back-btn" data-act="pr-save-drive" title="Salvar PNG de alta resolução no Mídia Drive da subconta">
             ${i('folder', 14)} <span>Salvar no Drive</span>
           </button>
           <button type="button" class="pr-back-btn" data-act="pr-post-social" title="Criar post no Planejador Social com esta arte">
             ${i('send', 14)} <span>Agendar Post</span>
           </button>
+          `}
           <button type="button" class="pr-back-btn" data-act="pr-download-png" title="Baixar imagem em PNG">
             ${i('download', 14)} <span>PNG</span>
           </button>
@@ -553,9 +564,50 @@ function renderSlideInspector(slide, file) {
 /**
  * Installs interactive event listeners and actions for Prancheta
  */
-export function installPrancheta({ c, api, url, mutate, flash, render }) {
+export function installPrancheta({ c, api, url, mutate, flash, render, getState }) {
+  const isAgencyRoute = () => location.hash.startsWith('#agency');
+  const getBaseHash = () => isAgencyRoute() ? '#agency/prancheta' : '#prancheta';
+  const getFiles = () => (getState ? getState() : c.s)?.pranchetaFiles || [];
+
   // Preset creation buttons
   document.addEventListener('click', async (e) => {
+    // Blank creation modal / button
+    const createModalBtn = e.target.closest('[data-act="pr-create-modal"]');
+    if (createModalBtn) {
+      const newId = await mutate({
+        type: 'prancheta-save',
+        data: {
+          name: `Arte em Branco #${(getFiles().length || 0) + 1}`,
+          format: 'instagram-feed',
+          width: 1080,
+          height: 1080,
+          pages: [
+            {
+              id: 'slide-1',
+              name: 'Lâmina 1',
+              background: '#101014',
+              nodes: [
+                {
+                  id: 'headline-1',
+                  type: 'TEXT',
+                  x: 108,
+                  y: 400,
+                  width: 864,
+                  height: 120,
+                  text: 'Seu título de impacto aqui',
+                  fontSize: 60,
+                  fontWeight: 800,
+                  fills: [{ type: 'SOLID', color: '#FFFFFF' }]
+                }
+              ]
+            }
+          ]
+        }
+      });
+      location.hash = `${getBaseHash()}/editor/${newId}`;
+      return;
+    }
+
     const chip = e.target.closest('[data-act="pr-create-preset"]');
     if (chip) {
       const format = chip.dataset.preset;
@@ -566,7 +618,7 @@ export function installPrancheta({ c, api, url, mutate, flash, render }) {
       const newId = await mutate({
         type: 'prancheta-save',
         data: {
-          name: `${formatName} #${(c.s.pranchetaFiles?.length || 0) + 1}`,
+          name: `${formatName} #${(getFiles().length || 0) + 1}`,
           format,
           width,
           height,
@@ -594,7 +646,7 @@ export function installPrancheta({ c, api, url, mutate, flash, render }) {
         }
       });
 
-      location.hash = `#prancheta/editor/${newId}`;
+      location.hash = `${getBaseHash()}/editor/${newId}`;
       return;
     }
 
@@ -607,7 +659,7 @@ export function installPrancheta({ c, api, url, mutate, flash, render }) {
         data: { templateId }
       });
       flash('Modelo criado com sucesso!');
-      location.hash = `#prancheta/editor/${newId}`;
+      location.hash = `${getBaseHash()}/editor/${newId}`;
       return;
     }
 
@@ -615,7 +667,7 @@ export function installPrancheta({ c, api, url, mutate, flash, render }) {
     const openBtn = e.target.closest('[data-act="pr-open-editor"]');
     if (openBtn) {
       const id = openBtn.dataset.id;
-      if (id) location.hash = `#prancheta/editor/${id}`;
+      if (id) location.hash = `${getBaseHash()}/editor/${id}`;
       return;
     }
 
@@ -635,7 +687,7 @@ export function installPrancheta({ c, api, url, mutate, flash, render }) {
     const delBtn = e.target.closest('[data-act="pr-delete"]');
     if (delBtn) {
       const id = delBtn.dataset.id;
-      if (id && confirm('Deseja excluir esta arte da subconta?')) {
+      if (id && confirm('Deseja excluir esta arte?')) {
         await mutate({ type: 'prancheta-delete', id });
         flash('Arte excluída.');
         render();
@@ -647,7 +699,7 @@ export function installPrancheta({ c, api, url, mutate, flash, render }) {
     const driveBtn = e.target.closest('[data-act="pr-export-drive"]');
     if (driveBtn) {
       const id = driveBtn.dataset.id;
-      const file = (c.s.pranchetaFiles || []).find(f => f.id === id);
+      const file = getFiles().find(f => f.id === id);
       if (file) {
         // Generate a clean PNG data URL from the first slide
         const dataUri = await renderFileToDataUri(file, 0);
@@ -666,7 +718,7 @@ export function installPrancheta({ c, api, url, mutate, flash, render }) {
     const socialBtn = e.target.closest('[data-act="pr-to-social"]');
     if (socialBtn) {
       const id = socialBtn.dataset.id;
-      const file = (c.s.pranchetaFiles || []).find(f => f.id === id);
+      const file = getFiles().find(f => f.id === id);
       if (file) {
         const dataUri = await renderFileToDataUri(file, 0);
         await mutate({
@@ -683,7 +735,7 @@ export function installPrancheta({ c, api, url, mutate, flash, render }) {
     // Editor: Back to gallery
     if (e.target.closest('[data-act="pr-back-gallery"]')) {
       if (activeFile) await saveActiveFile(mutate);
-      location.hash = '#prancheta';
+      location.hash = getBaseHash();
       return;
     }
 
@@ -993,7 +1045,7 @@ export function installPrancheta({ c, api, url, mutate, flash, render }) {
   // Keyboard Shortcuts: Delete, Arrows, Ctrl+Z
   document.addEventListener('keydown', (e) => {
     if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
-    if (location.hash.startsWith('#prancheta/editor') && activeFile) {
+    if ((location.hash.startsWith('#prancheta/editor') || location.hash.startsWith('#agency/prancheta/editor')) && activeFile) {
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedNodeId) {
           const slide = activeFile.pages[activeSlideIndex];

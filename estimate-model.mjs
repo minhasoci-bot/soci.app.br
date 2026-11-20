@@ -2,7 +2,7 @@
 // (choosing optional items) or declined online or by hand, and turned into an invoice that AbacatePay charges.
 // Statuses follow GoHighLevel's estimates: draft, sent, accepted, declined, invoiced (plus expired).
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { itemCounts, lineTotal, validItem } from './ui/document-data.js';
+import { itemsSummary, validItem } from './ui/document-data.js';
 import { renderEstimate } from './ui/estimate-render.js';
 
 export const estimateCollections = ['estimates'];
@@ -19,7 +19,7 @@ const day = (value, label) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || !Number.isFinite(Date.parse(`${v}T12:00:00Z`))) fail(`Use uma data válida em ${label}.`);
   return v;
 };
-export const estimateTotal = items => round2((items || []).filter(itemCounts).reduce((n, item) => n + lineTotal(item), 0));
+export const estimateTotal = items => itemsSummary(items).total;
 export const estimatePath = (workspace, token) => `/orcamento/${workspace}#${token}`;
 export const estimateTokenHash = token => /^[0-9a-f]{48}$/.test(String(token || '')) ? sha(token) : '';
 

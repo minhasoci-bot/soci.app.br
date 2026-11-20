@@ -9,7 +9,7 @@
  *      Outros valores: "bloqueado" (cite a decisão em `nota`) e "fora" (fora do escopo).
  *   2. Ao concluir, preencha `entrega` (arquivos, commit ou PR) e `data` ("AAAA-MM-DD").
  *   3. Aponte `etapaAtual` para o id do próximo item a fazer.
- *   4. Atualize `atualizadoEm` e acrescente uma linha NO TOPO de `historico`.
+ *   4. Atualize `atualizadoEm` e acrescente uma linha NO TOPO de `historico` com `data`, `hora` e `texto`.
  *   5. Decisão tomada pelo usuário: mude a decisão para status "decidida", registre a escolha em `resposta`
  *      e desbloqueie os itens que dependiam dela.
  * Siga a ordem das fases, salvo instrução do usuário. Não marque "feito" sem a entrega verificada.
@@ -17,8 +17,8 @@
  */
 window.PLANO_SOCI = {
   titulo: "Paridade Soci × GoHighLevel",
-  atualizadoEm: "2026-11-20",
-  etapaAtual: "1.6",
+  atualizadoEm: "2026-11-20 20:20",
+  etapaAtual: "2.1",
 
   regras: [
     "Front-end sempre em ui/ (nunca copiar public/ por cima de ui/).",
@@ -78,12 +78,20 @@ window.PLANO_SOCI = {
         { id: "1.5", titulo: "Orçamentos com status (rascunho, enviado, aceito, recusado, faturado)", status: "feito", ref: "04c §3 /payments/v2/estimates · 05 §10", data: "2026-11-20",
           entrega: "estimate-model.mjs, ui/estimates.js, ui/estimate-render.js, ui/estimate-view.*, ui/line-items.js, ui/estimates.css, test/estimates.test.mjs (sem commit)",
           nota: "Aba Orçamentos em Pagamentos com as subabas do GHL e contadores, numeração ORC-0001, editor com prévia, link pessoal /orcamento/<ws>#token, aprovação com itens opcionais ou recusa, Revisar, Faturar e fatura automática paga pelo AbacatePay. Gatilho Orçamento e ação Enviar orçamento. Falta o modelo de orçamento como item separado. 205 testes passando." },
-        { id: "1.6", titulo: "Faturas recorrentes e modelos de fatura", status: "pendente", ref: "04 §1 Pagamentos" },
-        { id: "1.7", titulo: "Configurações de recibo e impostos", status: "pendente", ref: "04c §3 /payments/settings/receipts" },
-        { id: "1.8", titulo: "Pedidos e checkouts abandonados como telas próprias", status: "pendente", ref: "04c §3" },
-        { id: "1.9", titulo: "Gift cards, coleções, estoque e avaliações de produto", status: "pendente", ref: "04c §3" },
-        { id: "1.10", titulo: "Gatilhos e ações de workflow da fase (contrato assinado, orçamento aceito, fatura paga…)", status: "andamento", ref: "04c §1.3 Payments",
-          nota: "Feito: gatilhos Documento ou contrato, Documento pago e Orçamento; ações Enviar documento ou contrato e Enviar orçamento. Faltam faturas recorrentes (1.6)." }
+        { id: "1.6", titulo: "Faturas recorrentes e modelos de fatura", status: "feito", ref: "04 §1 Pagamentos · 04c §3 /invoices/schedule e /invoices/template", data: "2026-11-20",
+          entrega: "invoice-model.mjs, ui/invoice-data.js, ui/invoice-render.js, ui/invoices.js, ui/invoices.css, ui/invoice-view.*, test/invoices.test.mjs (sem commit)",
+          nota: "Abas Faturas recorrentes (colunas do GHL: nome, cliente, última emissão, frequência, valor, status) e Modelos de fatura. Recorrência diária, semanal, mensal ou anual a cada N, com fim nunca, após N faturas ou numa data; mês curto cai no último dia. Emissão pelo relógio de cada minuto no fuso da subconta, numeração FAT-0001 e e-mail com link pessoal /fatura/<ws>#token para pagar pelo AbacatePay. Ciclos perdidos com o servidor parado não são cobrados depois. Em Faturas: Usar modelo e Enviar. 212 testes passando." },
+        { id: "1.7", titulo: "Configurações de recibo e impostos", status: "feito", ref: "04c §3 /payments/settings/receipts", data: "2026-11-20",
+          entrega: "invoice-model.mjs, ui/invoice-data.js, ui/payment-settings.js, ui/document-data.js, ui/document-render.js, ui/line-items.js, document-mail.mjs, abacatepay.mjs, test/invoices.test.mjs (sem commit)",
+          nota: "Aba Configurações em Pagamentos com os campos do GHL: título, prefixo e número inicial do recibo, nome do remetente, assunto e mensagem com variáveis e prévia. O e-mail do remetente do GHL virou Responder para: o envio usa o endereço da plataforma até o domínio próprio (2.1). Recibo numerado uma única vez quando a fatura é paga (AbacatePay, baixa manual ou pedido da loja) e enviado por e-mail com o link da fatura. Impostos somados por fora do preço, escolhidos por item em faturas, modelos, recorrentes e orçamentos, com subtotal e linha por imposto; a alíquota fica gravada no item. 215 testes passando." },
+        { id: "1.8", titulo: "Pedidos e checkouts abandonados como telas próprias", status: "feito", ref: "04c §3 /payments/v2/orders e abandoned-checkouts", data: "2026-11-20",
+          entrega: "checkout-model.mjs, ui/checkout-data.js, ui/orders.js, ui/store-data.js (carrinho), test/checkouts.test.mjs (sem commit)",
+          nota: "Pedidos em Pagamentos: pedidos das lojas e vendas de ofertas numa lista (cliente, origem, itens, data, valor, status), com período, busca, CSV e andamento do pedido. Checkouts abandonados: o carrinho envia nome, e-mail e itens quando o e-mail é preenchido; sem pedido no prazo (15 min a 72 h, padrão 60) vira abandonado, cria o contato, dispara o gatilho e manda o lembrete com link que devolve o carrinho; pedido feito depois marca Recuperado. Até 3 lembretes, notificações configuráveis e CSV. Gatilhos novos: Checkout abandonado e Pedido entregue. 219 testes passando." },
+        { id: "1.9", titulo: "Gift cards, coleções, estoque e avaliações de produto", status: "feito", ref: "04c §3 /payments/products/* e /payments/gift-cards", data: "2026-11-20",
+          entrega: "catalog-model.mjs, ui/catalog.js, ui/store-data.js, store-model.mjs, test/catalog.test.mjs (sem commit)",
+          nota: "Coleções viram filtro na loja (?colecao=). Estoque por produto com SKU, quantidade, vender sem estoque, alerta de estoque baixo e histórico; a loja confere e baixa, cancelamento devolve, e vale o menor entre o limite da loja e o estoque. Avaliações enviadas na página do produto (com antispam), moderadas em Pendentes/Aprovadas/Reprovadas/Lixeira, com resposta da loja e média de estrelas. Cartões-presente com código, saldo, validade, envio por e-mail, ajuste e histórico; usados no carrinho, estornados no cancelamento e vendidos como produto. Gatilho Avaliação de produto e ação Atualizar estoque. 228 testes passando." },
+        { id: "1.10", titulo: "Gatilhos e ações de workflow da fase (contrato assinado, orçamento aceito, fatura paga…)", status: "feito", ref: "04c §1.3 Payments", data: "2026-11-20",
+          nota: "Gatilhos Documento ou contrato, Documento pago, Orçamento, Fatura recorrente, Checkout abandonado, Pedido entregue e Avaliação de produto; ações Enviar documento ou contrato, Enviar orçamento, Enviar fatura, Iniciar fatura recorrente e Atualizar estoque. A cobrança avulsa do Stripe do GHL corresponde ao AbacatePay, que já cobra faturas e pedidos." }
       ]
     },
     {
@@ -175,11 +183,15 @@ window.PLANO_SOCI = {
   ],
 
   historico: [
-    { data: "2026-11-20", texto: "1.5 concluído: orçamentos numerados com aprovação online, itens opcionais, fatura automática e cobrança pelo AbacatePay; gatilho e ação de workflow. Próximo: 1.6 Faturas recorrentes e modelos de fatura." },
-    { data: "2026-11-20", texto: "1.4 concluído: cobrança após assinar (única, em parcelas ou assinatura mensal) com AbacatePay, baixa pelo webhook ou manual e gatilho Documento pago. Próximo: 1.5 Orçamentos." },
-    { data: "2026-11-20", texto: "1.3 concluído: envio para assinatura, página pública /assinar, ordem, recusa, anulação, certificado com SHA-256, gatilho e ação de workflow. Cópia final gerada do estado com conferência do hash (sem linha extra no banco; ver 05 §7.4). Próximo: 1.4 Cobrança após assinar." },
-    { data: "2026-11-20", texto: "1.2 concluído: editor de documentos em Pagamentos → Documentos e contratos, com modelos, biblioteca, variáveis e prévia. D4 e D5 decididas pela recomendação. Próximo: 1.3 Assinatura eletrônica." },
-    { data: "2026-11-20", texto: "1.1 concluído: especificação em 05-documentos-contratos.md. Novas decisões D4 (PDF sobreposto) e D5 (código de verificação), com recomendação. Próximo: 1.2 Editor de documentos." },
-    { data: "2026-11-20", texto: "Painel criado. Fase 0 (levantamento do GHL) concluída; próximo: 1.1 Especificação de Documentos e Contratos." }
+    { data: "2026-11-20", hora: "20:20", texto: "1.9 e 1.10 concluídos: coleções, estoque por produto, avaliações e cartões-presente, com gatilho Avaliação de produto e ação Atualizar estoque. Fase 1 completa. Próximo: 2.1 Email Services (domínio de envio)." },
+    { data: "2026-11-20", hora: "18:43", texto: "1.8 concluído: Pedidos (lojas e ofertas) e Checkouts abandonados em Pagamentos, com captura no carrinho, lembrete com link de recuperação, status Recuperado e gatilhos Checkout abandonado e Pedido entregue. Próximo: 1.9 Gift cards, coleções, estoque e avaliações." },
+    { data: "2026-11-20", hora: "18:27", texto: "1.7 concluído: configurações de recibo (numeração, remetente, assunto e mensagem com variáveis) com envio automático quando a fatura é paga, e lista de impostos aplicada por item com subtotal e impostos nos totais. Próximo: 1.8 Pedidos e checkouts abandonados." },
+    { data: "2026-11-20", hora: "18:17", texto: "1.6 concluído: faturas recorrentes com agenda, emissão automática, pausa, retomada e cancelamento; modelos de fatura; página pública /fatura com pagamento pelo AbacatePay; gatilho Fatura recorrente e ações Enviar fatura e Iniciar fatura recorrente. Próximo: 1.7 Configurações de recibo e impostos." },
+    { data: "2026-11-20", hora: "17:45", texto: "1.5 concluído: orçamentos numerados com aprovação online, itens opcionais, fatura automática e cobrança pelo AbacatePay; gatilho e ação de workflow. Próximo: 1.6 Faturas recorrentes e modelos de fatura." },
+    { data: "2026-11-20", hora: "17:31", texto: "1.4 concluído: cobrança após assinar (única, em parcelas ou assinatura mensal) com AbacatePay, baixa pelo webhook ou manual e gatilho Documento pago. Próximo: 1.5 Orçamentos." },
+    { data: "2026-11-20", hora: "17:20", texto: "1.3 concluído: envio para assinatura, página pública /assinar, ordem, recusa, anulação, certificado com SHA-256, gatilho e ação de workflow. Cópia final gerada do estado com conferência do hash (sem linha extra no banco; ver 05 §7.4). Próximo: 1.4 Cobrança após assinar." },
+    { data: "2026-11-20", hora: "17:05", texto: "1.2 concluído: editor de documentos em Pagamentos → Documentos e contratos, com modelos, biblioteca, variáveis e prévia. D4 e D5 decididas pela recomendação. Próximo: 1.3 Assinatura eletrônica." },
+    { data: "2026-11-20", hora: "16:55", texto: "1.1 concluído: especificação em 05-documentos-contratos.md. Novas decisões D4 (PDF sobreposto) e D5 (código de verificação), com recomendação. Próximo: 1.2 Editor de documentos." },
+    { data: "2026-11-20", hora: "16:39", texto: "Painel criado. Fase 0 (levantamento do GHL) concluída; próximo: 1.1 Especificação de Documentos e Contratos." }
   ]
 };

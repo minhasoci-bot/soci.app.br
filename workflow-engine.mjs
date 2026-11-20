@@ -108,7 +108,7 @@ export function compile(steps) {
 
 /* ───────── Motor ───────── */
 
-export function createEngine({ add, now, sendDocument = null, sendEstimate = null }) {
+export function createEngine({ add, now, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null }) {
   const contactOf = (s, id) => s.contacts.find(row => row.id === id);
   const fieldValue = (s, contact, key) => {
     if (!contact) return '';
@@ -185,9 +185,12 @@ export function createEngine({ add, now, sendDocument = null, sendEstimate = nul
       case 'pipeline_stage_changed': return !c.stageId || c.stageId === ctx.stageId;
       case 'invoice_status': return !c.status || c.status === ctx.status;
       case 'estimate_status': return !c.status || c.status === ctx.status;
+      case 'recurring_invoice_status': return !c.status || c.status === ctx.status;
       case 'document_paid': return !c.templateId || c.templateId === ctx.templateId;
       case 'document_status': return (!c.status || c.status === ctx.status) && (!c.templateId || c.templateId === ctx.templateId);
-      case 'order_submitted': case 'order_paid': return !c.storeId || c.storeId === ctx.storeId;
+      case 'order_submitted': case 'order_paid': case 'order_fulfilled': return !c.storeId || c.storeId === ctx.storeId;
+      case 'product_review': return (!c.storeId || c.storeId === ctx.storeId) && (!c.rating || Number(ctx.rating) <= Number(c.rating));
+      case 'abandoned_checkout': return (!c.storeId || c.storeId === ctx.storeId) && (!c.status || c.status === ctx.status);
       case 'inbound_webhook': return ctx.triggerId === trigger.id;
       default: return scheduledTypes.includes(type) ? ctx.triggerId === trigger.id : true;
     }
@@ -297,6 +300,30 @@ export function createEngine({ add, now, sendDocument = null, sendEstimate = nul
           const est = sendEstimate(s, contact, c, depth);
           output(run, id, { id: est.id, number: est.number, total: est.total });
           return 'enviado';
+        } catch (error) { return error.message; }
+      }
+      case 'send_invoice': {
+        if (!sendInvoice) return 'indisponível';
+        try {
+          const invoice = sendInvoice(s, contact, c, depth);
+          output(run, id, { id: invoice.id, number: invoice.number, value: invoice.value, due: invoice.due });
+          return 'enviada';
+        } catch (error) { return error.message; }
+      }
+      case 'update_inventory': {
+        if (!updateInventory) return 'indisponível';
+        try {
+          const product = updateInventory(s)(c);
+          output(run, id, { id: product.id, name: product.name, quantity: product.quantity });
+          return 'atualizado';
+        } catch (error) { return error.message; }
+      }
+      case 'start_recurring_invoice': {
+        if (!startRecurring) return 'indisponível';
+        try {
+          const rec = startRecurring(s, contact, c, depth);
+          output(run, id, { id: rec.id, name: rec.name, total: rec.total, next: rec.nextIssueOn });
+          return 'iniciada';
         } catch (error) { return error.message; }
       }
       case 'create_invoice': {
@@ -458,6 +485,7 @@ export function createEngine({ add, now, sendDocument = null, sendEstimate = nul
     if (key === 'transactions' && !prior) emit(s, 'payment_received', { ...base, total: row.amount });
     if (key === 'reviews' && !prior) emit(s, 'review_received', { contactId: '', score: row.score });
     if (key === 'orders' && prior && prior.status !== row.status && row.status === 'Paid') emit(s, 'order_paid', { ...base, storeId: row.storeId, total: row.total });
+    if (key === 'orders' && prior && prior.status !== row.status && row.status === 'Fulfilled') emit(s, 'order_fulfilled', { ...base, storeId: row.storeId, total: row.total });
   }
 
   // Every minute: wake runs whose time came, and fire scheduled triggers once per day.

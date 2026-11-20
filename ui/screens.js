@@ -24,13 +24,17 @@ import {communitiesScreen} from './communities.js';
 import {offersScreen} from './offers.js';
 import {documentsScreen} from './documents.js';
 import {estimatesScreen} from './estimates.js';
+import {invoicesScreen, invoiceTabs} from './invoices.js';
+import {paymentSettingsScreen} from './payment-settings.js';
+import {ordersScreenFor, orderTabsKeys} from './orders.js';
+import {catalogScreen, catalogTabs} from './catalog.js';
 import {pranchetaScreen} from './prancheta.js';
 import {reportEditor, reportList, reportSources} from './reports.js';
 import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
 import {opportunityStatuses} from './dashboard-data.js';
 import {cardContext, filterButton, forecastView, listTabs, moreMenu, pipelinesView, quickActionBar, smartTagChips, stageStyle} from './opportunities.js';
 
-export const nav=[['launchpad','Launchpad','sun','Setup guide'],['dashboard','Painel de controle','grid','Dashboard'],['conversations','Conversas','chat','Conversations'],['calendars','Calendários','cal','Calendars'],['contacts','Contatos','contacts','Contacts'],['opportunities','Oportunidades','leads','Opportunities'],['payments','Pagamentos','pay','Payments'],['ai-agents','Agentes de IA','spark','AI Agents'],['marketing','Marketing','send','Marketing'],['prancheta','Prancheta','palette','Design & Prancheta'],['automation','Automações','flow','Automation'],['sites','Sites','site','Sites'],['memberships','Assinaturas','play','Memberships'],['media','Mídia Drive','folder','Media Storage'],['reputation','Reputação','award','Reputation'],['reporting','Relatórios','chart','Reporting'],['settings','Configurações','gear','Settings']];
+export const nav=[['launchpad','Launchpad','sun','Setup guide'],['dashboard','Painel de controle','grid','Dashboard'],['conversations','Conversas','chat','Conversations'],['calendars','Calendários','cal','Calendars'],['contacts','Contatos','contacts','Contacts'],['opportunities','Oportunidades','leads','Opportunities'],['payments','Pagamentos','pay','Payments'],['ai-agents','Agentes de IA','spark','AI Agents'],['marketing','Marketing','send','Marketing'],['automation','Automações','flow','Automation'],['sites','Sites','site','Sites'],['memberships','Assinaturas','play','Memberships'],['media','Mídia Drive','folder','Media Storage'],['reputation','Reputação','award','Reputation'],['reporting','Relatórios','chart','Reporting'],['settings','Configurações','gear','Settings']];
 export const h=x=>String(x??'').replace(/[&<>"']/g,v=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[v]);
 const brl = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' });
 export function money(value) { return brl.format(value || 0); }
@@ -194,8 +198,9 @@ function invoicePayCell(r,c){
   const p=r.payment;
   if(r.status==='Paid') return p?.receiptUrl?`<a class="text-link" href="${h(p.receiptUrl)}" target="_blank" rel="noopener">Comprovante</a>`:(p?.method?h(tr(p.method)):'');
   if(r.status==='Void') return '';
-  if(p?.provider==='abacatepay'&&p.status==='PENDING'&&p.url&&p.amount===r.value) return `<span class="inline-gap"><a class="secondary" href="${h(p.url)}" target="_blank" rel="noopener">Abrir</a><button class="secondary" data-act="abacate-copy" data-url="${h(p.url)}">Copiar link</button></span>`;
-  return c.pay?.connected?`<button class="secondary" data-act="abacate-charge" data-id="${r.id}">${i('pay',15)} Cobrar</button>`:'';
+  const send=r.status==='Open'&&r.value>0?`<button class="secondary" data-iv-act="send-invoice" data-id="${r.id}">${i('send',15)} Enviar</button>`:'';
+  if(p?.provider==='abacatepay'&&p.status==='PENDING'&&p.url&&p.amount===r.value) return `<span class="inline-gap">${send}<a class="secondary" href="${h(p.url)}" target="_blank" rel="noopener">Abrir</a><button class="secondary" data-act="abacate-copy" data-url="${h(p.url)}">Copiar link</button></span>`;
+  return `<span class="inline-gap">${send}${c.pay?.connected?`<button class="secondary" data-act="abacate-charge" data-id="${r.id}">${i('pay',15)} Cobrar</button>`:''}</span>`;
 }
 function gatewayStrip(c){
   const g=c.pay;
@@ -217,21 +222,24 @@ function abacateSubView(c){
 function payments(c){
   if(['documents','document'].includes(c.tab)) return documentsScreen(c);
   if(['estimates','estimate'].includes(c.tab)) return estimatesScreen(c);
+  if(invoiceTabs.includes(c.tab)) return invoicesScreen(c);
+  if(c.tab==='payment-settings') return paymentSettingsScreen(c);
+  if(orderTabsKeys.includes(c.tab)) return ordersScreenFor(c);
+  if(catalogTabs.includes(c.tab)) return catalogScreen(c);
   if((c.tab||'invoices')!=='invoices') return paymentsTab(c,c.tab);
   const s=c.s, records=top(s.invoices,c.query,['title','status']);
   return pageShell({
     title: 'Pagamentos',
     desc: 'Acompanhe as faturas registradas neste workspace.',
-    cta: primary('Nova fatura','invoices'),
+    cta: `${(s.invoiceTemplates||[]).length?`<button type="button" class="secondary" data-iv-act="use">${i('copy',15)} Usar modelo</button>`:''}${primary('Nova fatura','invoices')}`,
     tabs: { key: 'payments', items: crmTabs.payments, current: c.tab||'invoices', label: 'Seções de pagamentos' },
     content: `<div class="metrics three"><div class="surface metric"><span>Saldo em aberto</span><b>${mt(s.invoices.filter(x=>x.status==='Open').reduce((a,r)=>a+r.value,0),c)}</b></div><div class="surface metric"><span>Pagamentos registrados</span><b>${mt(c.m.invoicesPaid,c)}</b></div><div class="surface metric"><span>Total de faturas</span><b>${s.invoices.length}</b></div></div>${gatewayStrip(c)}<div class="toolbar">${search(c.query,'Buscar faturas…')}</div>`+table(['Fatura','Contato','Valor','Vencimento','Status','Cobrança',''],records.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),mt(r.value,c),date(r.due,c),badge(r.status,r.status==='Paid'?'green':'blue'),invoicePayCell(r,c)],'invoices',r.id)),empty('Nenhuma fatura registrada','Crie uma fatura e cobre por Pix ou cartão com o AbacatePay, ou marque o pagamento manualmente.','pay'))
   });
 }
 function marketing(c){
   const t=c.tab||'social';
-  const marketingTabs = [['social','Planejador social'],['email','E-mails'],['prancheta','Prancheta']];
+  const marketingTabs = [['social','Planejador social'],['email','E-mails']];
   if(t==='social') return socialPlanner(c,{ pageShell, utabs, marketingTabs });
-  if(t==='prancheta') return pranchetaScreen(c);
   const channel='Email', records=top(c.s.campaigns.filter(x=>x.channel===channel),c.query,['name','body','status']);
   return pageShell({
     title: 'Marketing',
@@ -385,7 +393,7 @@ function settings(c){
     content: body
   });
 }
-export const screens={launchpad,'ask-ai':dashboard,dashboard,conversations,calendars,contacts,opportunities,automation:automationScreen,payments,marketing,sites,memberships,media,reputation,reporting,settings,studio,'ai-agents':agentsScreen,prancheta:pranchetaScreen};
+export const screens={launchpad,'ask-ai':dashboard,dashboard,conversations,calendars,contacts,opportunities,automation:automationScreen,payments,marketing,sites,memberships,media,reputation,reporting,settings,studio,'ai-agents':agentsScreen,prancheta:()=>pageShell({title:'Prancheta',desc:'A ferramenta de prancheta foi movida para a visão da agência.',cta:'<a class="primary" href="#agency/prancheta">Ir para Prancheta da Agência</a>',content:empty('Ferramenta da Agência','A Prancheta Criativa agora está centralizada no menu da sua agência.','palette')})};
 export { date, empty, name, primary, row, search, table };
 
 export function publicView(data,workspace){

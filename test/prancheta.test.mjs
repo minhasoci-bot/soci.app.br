@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { blank, execute, hydrateWorkspace } from '../model.mjs';
+import { blankAgency, executeAgency, hydrateAgency } from '../agency-model.mjs';
 import { createCanonicalTemplates, pranchetaPresets } from '../prancheta-model.mjs';
+import { nav as subaccountNav } from '../ui/screens.js';
+import { agencyNav } from '../ui/agency-data.js';
 
 test('Prancheta: Workspace initializes with empty pranchetaFiles array and hydrates cleanly', () => {
   const ws = blank('Subconta Teste');
@@ -296,3 +299,77 @@ test('Prancheta: HTTP API routes (/api/prancheta/*) work with subaccount isolati
   assert.equal(delRes.status, 200);
   assert.ok(!delRes.body.files.some(f => f.id === designId));
 });
+
+test('Prancheta: Located in Agency navigation and NOT in Subaccount navigation', () => {
+  // Subaccount nav must NOT contain prancheta
+  assert.equal(subaccountNav.some(item => item[0] === 'prancheta'), false, 'Subaccount nav must not contain prancheta');
+
+  // Agency nav MUST contain prancheta
+  const agencyPrancheta = agencyNav.find(item => item[0] === 'prancheta');
+  assert.ok(agencyPrancheta, 'Agency nav must contain prancheta');
+  assert.equal(agencyPrancheta[1], 'Prancheta');
+  assert.equal(agencyPrancheta[2], 'palette');
+});
+
+test('Prancheta: Agency initializes, hydrates and executes prancheta CRUD actions', () => {
+  const agency = blankAgency();
+  assert.ok(Array.isArray(agency.pranchetaFiles), 'Agency should have pranchetaFiles array');
+  assert.equal(agency.pranchetaFiles.length, 0);
+
+  const raw = { ...blankAgency() };
+  delete raw.pranchetaFiles;
+  const hydrated = hydrateAgency(raw);
+  assert.ok(Array.isArray(hydrated.pranchetaFiles));
+
+  // 1. Create artwork in agency
+  const fileId = executeAgency(agency, {
+    type: 'prancheta-save',
+    data: {
+      name: 'Carrossel Branding Agência',
+      format: 'instagram-carousel',
+      width: 1080,
+      height: 1350,
+      pages: [
+        {
+          id: 'slide-1',
+          name: 'Capa',
+          background: '#101014',
+          nodes: [
+            { id: 't1', type: 'TEXT', text: 'Identidade da Agência', x: 80, y: 200, fontSize: 50 }
+          ]
+        }
+      ]
+    }
+  });
+
+  assert.ok(fileId);
+  assert.equal(agency.pranchetaFiles.length, 1);
+  assert.equal(agency.pranchetaFiles[0].name, 'Carrossel Branding Agência');
+
+  // 2. Duplicate artwork
+  const copyId = executeAgency(agency, {
+    type: 'prancheta-duplicate',
+    id: fileId
+  });
+  assert.ok(copyId);
+  assert.equal(agency.pranchetaFiles.length, 2);
+  assert.equal(agency.pranchetaFiles[0].name, 'Carrossel Branding Agência (Cópia)');
+
+  // 3. Create from template
+  const tplId = executeAgency(agency, {
+    type: 'prancheta-template',
+    data: { templateId: 'template-head-carousel' }
+  });
+  assert.ok(tplId);
+  assert.equal(agency.pranchetaFiles.length, 3);
+  assert.equal(agency.pranchetaFiles[0].name, 'Carrossel Método HEAD');
+
+  // 4. Delete artwork
+  executeAgency(agency, {
+    type: 'prancheta-delete',
+    id: copyId
+  });
+  assert.equal(agency.pranchetaFiles.length, 2);
+  assert.ok(!agency.pranchetaFiles.some(f => f.id === copyId));
+});
+

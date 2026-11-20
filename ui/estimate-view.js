@@ -24,14 +24,22 @@ async function api(action, data = {}) {
 const notice = (text, tone = '') => { const box = $('notice'); box.textContent = text; box.className = `ds-notice ${tone}`; box.hidden = !text; };
 
 function recalc() {
-  let total = 0;
+  let total = 0, subtotal = 0;
+  const taxes = new Map();
   for (const row of document.querySelectorAll('#doc [data-products] tbody tr')) {
     const box = row.querySelector('[data-item]'), counts = !box || box.checked;
     row.classList.toggle('off', !counts);
-    if (counts) total += Number(row.dataset.line) || 0;
+    if (!counts) continue;
+    total += Number(row.dataset.line) || 0;
+    subtotal += Number(row.dataset.net) || 0;
+    const tax = Number(row.dataset.tax) || 0;
+    if (tax) taxes.set(row.dataset.taxKey, (taxes.get(row.dataset.taxKey) || 0) + tax);
   }
   const cell = document.querySelector('#doc [data-total]');
   if (cell) cell.textContent = money(total);
+  const sub = document.querySelector('#doc [data-subtotal]');
+  if (sub) sub.textContent = money(subtotal);
+  for (const line of document.querySelectorAll('#doc [data-tax-sum]')) line.textContent = money(taxes.get(line.dataset.taxSum) || 0);
   $('total').textContent = money(total);
 }
 

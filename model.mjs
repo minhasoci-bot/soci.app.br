@@ -20,6 +20,9 @@ import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
 import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
 import { documentAfterSave, documentBeforeDelete, documentCollections, documentCommand, documentFields, sendTemplateDocument } from './document-model.mjs';
+import { catalogAfterSave, catalogBeforeDelete, catalogCollections, catalogCommand, catalogFields, submitReview, workflowInventory } from './catalog-model.mjs';
+import { captureCart, checkoutBeforeDelete, checkoutCollections, checkoutCommand, checkoutConverted, checkoutFields, checkoutTick, restoreCart } from './checkout-model.mjs';
+import { invoiceAfterSave, paymentDefaults, savePaymentSettings, invoiceBeforeDelete, invoiceCollections, invoiceCommand, invoiceFields, invoiceTick, sendTemplateInvoice, startTemplateRecurring } from './invoice-model.mjs';
 import { estimateAfterSave, estimateBeforeDelete, estimateCollections, estimateCommand, estimateFields, sendEstimateCopy } from './estimate-model.mjs';
 
 export const defaults = {
@@ -33,15 +36,17 @@ export const defaults = {
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[], pranchetaFiles:[],
-  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...offerCollections, ...documentCollections, ...estimateCollections].map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...offerCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
+  paymentSettings: paymentDefaults(),
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
 export const blank = name => ({ ...structuredClone(defaults), profile: { ...defaults.profile, ...(name ? { name } : {}) } });
 export function hydrateWorkspace(state) {
   const fresh = blank();
   state.customReports ??= [];
+  state.paymentSettings ??= paymentDefaults();
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...offerCollections,...documentCollections,...estimateCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...checkoutCollections,...catalogCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -150,6 +155,9 @@ const fields = {
   ...offerFields,
   ...documentFields,
   ...estimateFields,
+  ...invoiceFields,
+  ...checkoutFields,
+  ...catalogFields,
   reviews: (s,d) => ({ author: req(d.author,'Author'), score: one(Number(d.score),[1,2,3,4,5],'rating'), text: req(d.text,'Review',2500), reply: str(d.reply,2500) }),
   files: (s,d) => ({ name: req(d.name,'File name'), data: file(d.data) }),
   agents: (s,d) => ({ name: req(d.name,'Agent name'), role: one(d.role,['Support','Sales','Scheduling'],'role'), instructions: str(d.instructions,5000), active: Boolean(d.active) }),
@@ -205,7 +213,10 @@ function linkDestination(value) {
 let engineWorkspace = 'demo';
 const engine = createEngine({ add, now, sendDocument: (state, contact, config, depth = 0) =>
   sendTemplateDocument(state, engineWorkspace, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })),
-  sendEstimate: (state, contact, config, depth = 0) => sendEstimateCopy(state, engineWorkspace, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })) });
+  sendEstimate: (state, contact, config, depth = 0) => sendEstimateCopy(state, engineWorkspace, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })),
+  sendInvoice: (state, contact, config, depth = 0) => sendTemplateInvoice(state, engineWorkspace, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })),
+  updateInventory: state => (config) => workflowInventory(state, config),
+  startRecurring: (state, contact, config, depth = 0) => startTemplateRecurring(state, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })) });
 const legacyEvents = { 'Contact created': 'contact_created', 'Form submitted': 'form_submitted', 'Opportunity stage changed': 'pipeline_stage_changed',
   'Appointment booked': 'appointment_booked', 'Trigger link clicked': 'trigger_link_clicked', 'Customer replied': 'customer_replied' };
 function run(state, event, context = {}) {
@@ -280,13 +291,15 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
     return engine.test(s, d.workflow, contactId(s, d.contactId));
   }
   if (type === 'workflow-tick') return engine.tick(s, d.at ? Date.parse(d.at) : Date.now());
+  if (type === 'payment-settings') return savePaymentSettings(s, d);
+  if (type === 'invoice-tick') return invoiceTick(s, d.at ? Date.parse(d.at) : Date.now(), { workspace, run });
   if (type === 'workflow-hook') return engine.inbound(s, str(d.workflowId, 40), str(d.triggerId, 40), d.payload && typeof d.payload === 'object' ? d.payload : {});
   if (type === 'workflow-outbox-take') { const items = s.workflowOutbox || []; s.workflowOutbox = []; return items; }
   if (type === 'workflow-outbox-result') {
     for (const item of Array.isArray(d.results) ? d.results.slice(0, 500) : []) {
       const target = find(s, 'runs', item?.runId);
       if (target) target.results.push(`${item.kind === 'whatsapp' ? 'WhatsApp' : 'Webhook'}: ${str(item.text, 120)}`);
-      const doc = item?.docId ? find(s, 'documents', item.docId) : item?.estimateId ? find(s, 'estimates', item.estimateId) : null;
+      const doc = item?.docId ? find(s, 'documents', item.docId) : item?.estimateId ? find(s, 'estimates', item.estimateId) : item?.invoiceId ? find(s, 'invoices', item.invoiceId) : item?.checkoutId ? (s.abandonedCheckouts || []).find(row => row.id === item.checkoutId) : item?.giftCardId ? (s.giftCards || []).find(row => row.id === item.giftCardId) : null;
       if (doc) (doc.audit ||= []).push({ at: now(), event: 'delivered', detail: str(item.text, 200) });
     }
     return true;
@@ -349,7 +362,14 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
   if (typeof type === 'string' && type.startsWith('document-')) return documentCommand(s, { ...command, data:d }, { workspace, run });
   if (typeof type === 'string' && type.startsWith('estimate-')) return estimateCommand(s, { ...command, data:d }, { workspace, run });
-  if (type === 'store-checkout') return storeCheckout(s, { ...command, data:d }, { add, run });
+  if (typeof type === 'string' && type.startsWith('invoice-')) return invoiceCommand(s, { ...command, data:d }, { workspace, run });
+  if (type === 'store-checkout') { const orderId = storeCheckout(s, { ...command, data:d }, { add, run }); checkoutConverted(s, d.session, find(s, 'orders', orderId), run); return orderId; }
+  if (type === 'store-cart') return captureCart(s, id, d);
+  if (type === 'store-review') return submitReview(s, id, d, run);
+  if (typeof type === 'string' && type.startsWith('catalog-')) return catalogCommand(s, { ...command, data:d }, { workspace });
+  if (type === 'store-cart-restore') return restoreCart(s, id, str(d.tokenHash, 64));
+  if (type === 'checkout-tick') return checkoutTick(s, d.at ? Date.parse(d.at) : Date.now(), { workspace, run, add });
+  if (typeof type === 'string' && type.startsWith('checkout-')) return checkoutCommand(s, { ...command, data:d }, { workspace });
   if (['webinar-register','webinar-attend','webinar-reminders'].includes(type)) return webinarCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'qr-scan') return qrScan(s, id, d);
   if (type === 'studio-meta') return studioMeta(s, id, d);
@@ -527,8 +547,10 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
     if (['bulkActions','imports'].includes(key)) fail('Unknown record type.');
     afterSave(s, key, prior, row, add);
     storeAfterSave(s, key, prior, row, add);
+    catalogAfterSave(s, key, prior, row, workspace);
     documentAfterSave(s, key, prior, row, run);
     estimateAfterSave(s, key, prior, row, run);
+    invoiceAfterSave(s, key, prior, row, workspace);
     if (prior) s[key] = s[key].map(r=>r.id===id ? row : r);
     engine.recordChange(s, key, prior, row);
     return row.id;
@@ -555,6 +577,9 @@ function remove(s, key, id) {
     offerBeforeDelete(s, key, id);
     documentBeforeDelete(s, key, id);
     estimateBeforeDelete(s, key, id);
+    invoiceBeforeDelete(s, key, id);
+    checkoutBeforeDelete(s, key, id);
+    catalogBeforeDelete(s, key, id);
     if (key==='contacts') {
       for (const related of ['tasks','opportunities','messages','appointments','invoices','threads']) s[related] = s[related].filter(r=>r.contactId!==id);
       for (const row of s.submissions.filter(r=>r.contactId===id)) { row.contactId=''; row.name=''; row.email=''; }

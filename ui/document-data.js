@@ -69,10 +69,26 @@ export function cleanHtml(value, limit = LIMITS.html) {
 
 export const lineTotal = item => round2(Math.max(0, Number(item.qty) || 0) * Math.max(0, Number(item.price) || 0) * (1 - Math.min(100, Math.max(0, Number(item.discount) || 0)) / 100));
 export const itemCounts = item => !item.optional || item.selected;
-/** Sum of every price list in the document (optional items count only when selected). */
+/** Tax of one line (added on top of the net line total, like GoHighLevel's exclusive taxes). */
+export const lineTax = item => { const rate = Math.min(100, Math.max(0, Number(item.taxRate) || 0)); return rate ? round2(lineTotal(item) * rate / 100) : 0; };
+export const taxKey = item => `${item.taxName || 'Imposto'}|${Number(item.taxRate) || 0}`;
+/** Subtotal, taxes grouped by name and rate, and total of a price list (optional items count only when selected). */
+export function itemsSummary(items = []) {
+  const groups = new Map();
+  let subtotal = 0, tax = 0;
+  for (const item of (items || []).filter(itemCounts)) {
+    const net = lineTotal(item), part = lineTax(item);
+    subtotal += net; tax += part;
+    if (!part) continue;
+    const key = taxKey(item), group = groups.get(key) || { key, name: item.taxName || 'Imposto', rate: Number(item.taxRate), amount: 0 };
+    group.amount = round2(group.amount + part);
+    groups.set(key, group);
+  }
+  return { subtotal: round2(subtotal), taxes: [...groups.values()], tax: round2(tax), total: round2(subtotal + tax) };
+}
+/** Sum of every price list in the document, taxes included. */
 export function documentTotal(blocks = []) {
-  return round2((blocks || []).filter(block => block?.type === 'products')
-    .reduce((sum, block) => sum + (block.items || []).filter(itemCounts).reduce((n, item) => n + lineTotal(item), 0), 0));
+  return round2((blocks || []).filter(block => block?.type === 'products').reduce((sum, block) => sum + itemsSummary(block.items).total, 0));
 }
 
 /* ───────── Vídeo ───────── */
@@ -139,9 +155,14 @@ export function validItem(state, raw) {
   const discount = Number(raw.discount || 0);
   if (!Number.isFinite(discount) || discount < 0 || discount > 100) fail(`O desconto de “${name}” precisa estar entre 0 e 100%.`);
   const optional = Boolean(raw.optional);
+  // A tax from Pagamentos → Configurações is copied onto the line (name and rate), so later changes to the
+  // tax list do not alter what was already sent or issued.
+  const taxId = text(raw.taxId, 60);
+  const tax = taxId ? (state.paymentSettings?.taxes || []).find(row => row.id === taxId) : null;
   return { id: validId(raw.id) ? raw.id : newId(), productId: product ? product.id : '', name, description: text(raw.description, 600),
     qty: round2(qty), price: money(raw.price ?? product?.price ?? 0, `“${name}”`), discount: round2(discount),
-    interval: product?.kind === 'Recurring' ? product.interval || '' : '', optional, selected: optional ? raw.selected !== false : true };
+    interval: product?.kind === 'Recurring' ? product.interval || '' : '', optional, selected: optional ? raw.selected !== false : true,
+    ...(tax ? { taxId: tax.id, taxName: tax.name, taxRate: tax.rate } : {}) };
 }
 
 function validFile(state, fileId, kind) {

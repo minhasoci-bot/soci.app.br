@@ -71,7 +71,7 @@ function draftView(c, row) {
       <div class="es-two">${field('Cliente', `<select data-es="contactId"><option value="">Escolha…</option>${c.s.contacts.map(row => option(row.id, row.name, d.contactId)).join('')}</select>`)}
         ${field('Oportunidade', `<select data-es="opportunityId"><option value="">Nenhuma</option>${opportunities.map(row => option(row.id, row.title, d.opportunityId)).join('')}</select>`)}</div>
       <div class="es-two">${field('Emissão', `<input type="date" data-es="issueDate" value="${h(d.issueDate)}">`)}${field('Válido até', `<input type="date" data-es="expiresAt" value="${h(d.expiresAt || '')}">`, 'Depois disso o cliente não consegue mais aprovar.')}</div>
-      <h2>Itens</h2>${lineItemsEditor(d.items, c.s.products)}
+      <h2>Itens</h2>${lineItemsEditor(d.items, c.s.products, { taxes: c.s.paymentSettings?.taxes || [] })}
       ${field('Observações', `<textarea data-es="notes" rows="3" maxlength="2000">${h(d.notes)}</textarea>`)}
       ${field('Condições', `<textarea data-es="terms" rows="3" maxlength="4000" placeholder="Ex.: pagamento em até 7 dias após a aprovação.">${h(d.terms)}</textarea>`)}
       <fieldset class="dc-channels"><legend>Ao aprovar</legend><label><input type="checkbox" data-es="autoInvoice" ${d.autoInvoice !== false ? 'checked' : ''}><span><b>Criar a fatura automaticamente</b><small>O cliente vê o botão de pagar logo depois de aprovar.</small></span></label>
@@ -148,7 +148,7 @@ export function installEstimates(environment) {
     const el = event.target;
     if (here() && el.matches('[data-es-period]')) { es.period = el.value; render(); return; }
     if (!editing()) return;
-    if (el.matches('[data-li], [data-li-add]')) { if (lineItemAction(es.draft.items, el, c.s.products)) { es.dirty = true; render(); } return; }
+    if (el.matches('[data-li], [data-li-add]')) { if (lineItemAction(es.draft.items, el, c.s.products, c.s.paymentSettings?.taxes || [])) { es.dirty = true; render(); } return; }
     if (el.matches('select[data-es], input[type=checkbox][data-es]')) {
       es.draft[el.dataset.es] = el.type === 'checkbox' ? el.checked : el.value;
       if (el.dataset.es === 'contactId' && es.draft.opportunityId && c.s.opportunities.find(row => row.id === es.draft.opportunityId)?.contactId !== el.value) es.draft.opportunityId = '';
@@ -162,7 +162,7 @@ export function installEstimates(environment) {
     try {
       if (ds.esStatus) { es.status = ds.esStatus; render(); return; }
       if ('esSave' in ds) { el.disabled = true; await save(); return; }
-      if (el.matches('[data-li-blank],[data-li-del],[data-li-move]')) { if (editing() && lineItemAction(es.draft.items, el, c.s.products)) { es.dirty = true; render(); } return; }
+      if (el.matches('[data-li-blank],[data-li-del],[data-li-move]')) { if (editing() && lineItemAction(es.draft.items, el, c.s.products, c.s.paymentSettings?.taxes || [])) { es.dirty = true; render(); } return; }
       const row = (c.s.estimates || []).find(item => item.id === ds.id);
       switch (ds.esAct) {
         case 'new':
