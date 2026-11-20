@@ -69,6 +69,19 @@ async function refreshPay(){
   catch(e){ if(c.workspace===ws) c.pay={error:e.message}; }
   if(c.workspace===ws&&c.mode!=='agency'&&(c.view==='payments'||c.view==='settings'&&c.tab==='abacatepay')) render();
 }
+// Google Analytics + Business Profile: status for Settings, report numbers for the dashboard widgets.
+async function refreshGoogle(){
+  const ws=c.workspace;
+  if(c.mode==='agency'||!/^[0-9a-f-]{36}$|^demo$/.test(ws)) return;
+  try{ const live=await api(url('/api/google/workspace/status')+'&data=1'); if(c.workspace===ws) c.google={...live,workspace:ws}; }
+  catch(e){ if(c.workspace===ws) c.google={error:e.message,workspace:ws}; }
+  if(c.workspace===ws&&c.mode!=='agency'&&(c.view==='dashboard'||c.view==='settings'&&c.tab==='google')) render();
+}
+window.addEventListener('message',ev=>{
+  if(ev.origin!==location.origin||ev.data?.type!=='soci-google') return;
+  if(ev.data.error){ flash(ev.data.error,true); return; }
+  flash('Conta Google conectada.'); c.google=null; render(); void refreshGoogle();
+});
 async function refreshSubWa(){
   const ws=c.workspace;
   try{
@@ -204,6 +217,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(view==='settings'&&nextTab==='whatsapp'){ render(); void refreshSubWa(); return; }
   stopSubWaPoll();
   if(view==='payments'&&!nextTab||view==='settings'&&nextTab==='abacatepay'){ render(); void refreshPay(); return; }
+  if(view==='dashboard'&&c.google?.workspace!==c.workspace||view==='settings'&&nextTab==='google'){ render(); void refreshGoogle(); return; }
   render(); }
 const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${tr(label)}" title="${tr(label)}" ${attributes}>${i(name,17)}</button>`;
 const navItem=([id,pt,ico])=>({href:`#${id}`,label:tr(pt),icon:ico,current:c.view===id});
@@ -749,6 +763,14 @@ document.addEventListener('click',async ev=>{
         break;
       }
       case 'abacate-refresh': c.pay=null; render(); await refreshPay(); break;
+      case 'google-refresh': c.google=null; render(); await refreshGoogle(); break;
+      case 'google-connect': window.open(url('/api/google/workspace/connect'),'soci-google','width=560,height=720'); break;
+      case 'google-disconnect': {
+        if(!confirm('Desconectar o Google desta subconta? Os widgets do Google Analytics e do Perfil da Empresa param de mostrar dados.')) break;
+        c.google={...await api(url('/api/google/workspace/disconnect'),{}),workspace:c.workspace};
+        render(); flash('Google desconectado.');
+        break;
+      }
       case 'abacate-copy': await navigator.clipboard.writeText(d.url); flash('Link de pagamento copiado.'); break;
       case 'abacate-charge': {
         const r=await api(url('/api/abacatepay/workspace/charge'),{invoiceId:d.id});
@@ -879,6 +901,10 @@ document.addEventListener('submit',async ev=>{
       c.wa=live;
       if(live.status==='connecting') startSubWaPoll();
       msg=live.paircode?'Código de pareamento gerado!':'Conexão iniciada.';
+    }
+    else if(name==='google-select'){
+      c.google={...await api(url('/api/google/workspace/select'),{gaProperty:data.gaProperty||'',gbpLocation:data.gbpLocation||''}),workspace:c.workspace};
+      render(); flash('Escolha salva. O painel já mostra os dados do Google.'); return;
     }
     else if(name==='abacate-connect'){
       c.pay=await api(url('/api/abacatepay/workspace/connect'),{apiKey:data.apiKey});
