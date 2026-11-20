@@ -23,11 +23,13 @@ import {mediaScreen} from './media.js';
 import {coursesScreen} from './courses.js';
 import {communitiesScreen} from './communities.js';
 import {offersScreen} from './offers.js';
+import {pranchetaScreen} from './prancheta.js';
+import {reportEditor, reportList, reportSources} from './reports.js';
 import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
 import {opportunityStatuses} from './dashboard-data.js';
 import {cardContext, filterButton, forecastView, listTabs, moreMenu, pipelinesView, quickActionBar, smartTagChips, stageStyle} from './opportunities.js';
 
-export const nav=[['launchpad','Launchpad','sun','Setup guide'],['dashboard','Painel de controle','grid','Dashboard'],['conversations','Conversas','chat','Conversations'],['calendars','Calendários','cal','Calendars'],['contacts','Contatos','contacts','Contacts'],['opportunities','Oportunidades','leads','Opportunities'],['payments','Pagamentos','pay','Payments'],['ai-agents','Agentes de IA','spark','AI Agents'],['marketing','Marketing','send','Marketing'],['automation','Automações','flow','Automation'],['sites','Sites','site','Sites'],['memberships','Assinaturas','play','Memberships'],['media','Mídia Drive','folder','Media Storage'],['reputation','Reputação','award','Reputation'],['reporting','Relatórios','chart','Reporting'],['settings','Configurações','gear','Settings']];
+export const nav=[['launchpad','Launchpad','sun','Setup guide'],['dashboard','Painel de controle','grid','Dashboard'],['conversations','Conversas','chat','Conversations'],['calendars','Calendários','cal','Calendars'],['contacts','Contatos','contacts','Contacts'],['opportunities','Oportunidades','leads','Opportunities'],['payments','Pagamentos','pay','Payments'],['ai-agents','Agentes de IA','spark','AI Agents'],['marketing','Marketing','send','Marketing'],['prancheta','Prancheta','palette','Design & Prancheta'],['automation','Automações','flow','Automation'],['sites','Sites','site','Sites'],['memberships','Assinaturas','play','Memberships'],['media','Mídia Drive','folder','Media Storage'],['reputation','Reputação','award','Reputation'],['reporting','Relatórios','chart','Reporting'],['settings','Configurações','gear','Settings']];
 export const h=x=>String(x??'').replace(/[&<>"']/g,v=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[v]);
 const brl = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' });
 export function money(value) { return brl.format(value || 0); }
@@ -224,8 +226,9 @@ function payments(c){
 }
 function marketing(c){
   const t=c.tab||'social';
-  const marketingTabs = [['social','Planejador social'],['email','E-mails']];
+  const marketingTabs = [['social','Planejador social'],['email','E-mails'],['prancheta','Prancheta']];
   if(t==='social') return socialPlanner(c,{ pageShell, utabs, marketingTabs });
+  if(t==='prancheta') return pranchetaScreen(c);
   const channel='Email', records=top(c.s.campaigns.filter(x=>x.channel===channel),c.query,['name','body','status']);
   return pageShell({
     title: 'Marketing',
@@ -261,8 +264,11 @@ function reputation(c){
   return wrap(head('Reputação','Leia e responda às avaliações guardadas neste workspace.',primary('Adicionar avaliação','reviews'))+`<div class="metrics three"><div class="surface metric"><span>Nota média</span><b>${c.m.average.toFixed(1)} <small> / 5</small></b></div><div class="surface metric"><span>Total de avaliações</span><b>${c.m.reviews}</b></div><div class="surface metric"><span>Aguardando resposta</span><b>${c.s.reviews.filter(x=>!x.reply).length}</b></div></div>`+table(['Avaliador','Nota','Avaliação','Resposta',''],[...c.s.reviews].reverse().map(r=>row([`<b>${h(r.author)}</b>`,badge(`${r.score} / 5`,'pink'),`<span class="ellipsis">${h(r.text)}</span>`,`<span class="ellipsis">${h(r.reply||'—')}</span>`],'reviews',r.id)),empty('Nenhuma avaliação registrada','Adicione uma avaliação para acompanhar o feedback localmente.','award')));
 }
 function reporting(c){
-  const view=c.tab || 'overview';
-  const tabCfg = { key: 'reporting', items: [['overview','Visão geral'],['snapshots','Relatórios do painel']], current: view, label: 'Seções de relatórios' };
+  const view=c.tab || 'reports';
+  if (view === 'reports') return reportList(c);
+  if (view === 'new') return reportSources(c);
+  if (view === 'editor') return reportEditor(c);
+  const tabCfg = { key: 'reporting', items: [['reports','Relatórios'],['overview','Visão geral'],['snapshots','Relatórios do painel']], current: view, label: 'Seções de relatórios' };
   if (view==='snapshots') return pageShell({
     title: 'Relatórios',
     desc: 'Cópias salvas a partir dos seus painéis de métricas.',
@@ -355,7 +361,7 @@ function settings(c){
     content: body
   });
 }
-export const screens={launchpad,'ask-ai':dashboard,dashboard,conversations,calendars,contacts,opportunities,automation:automationScreen,payments,marketing,sites,memberships,media,reputation,reporting,settings,studio,'ai-agents':agentsScreen};
+export const screens={launchpad,'ask-ai':dashboard,dashboard,conversations,calendars,contacts,opportunities,automation:automationScreen,payments,marketing,sites,memberships,media,reputation,reporting,settings,studio,'ai-agents':agentsScreen,prancheta:pranchetaScreen};
 export { date, empty, name, primary, row, search, table };
 
 export function publicView(data,workspace){

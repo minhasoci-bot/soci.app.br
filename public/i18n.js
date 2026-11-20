@@ -82,7 +82,7 @@ export const PT = {
   'New Lead': 'Novo lead', 'New lead': 'Novo lead', Qualified: 'Qualificado', qualified: 'Qualificado',
   Proposal: 'Proposta', proposal: 'Proposta', 'Sales Pipeline': 'Pipeline de vendas',
   // Canais e mensagens
-  Social: 'Social', Email: 'E-mail', SMS: 'SMS', Note: 'Nota', 'Live chat': 'Chat ao vivo', Outbound: 'Enviada', Inbound: 'Recebida', Text: 'Texto',
+  Social: 'Social', Email: 'E-mail', SMS: 'SMS', Note: 'Nota', 'Live chat': 'Chat ao vivo', Instagram: 'Instagram', Facebook: 'Facebook', Outbound: 'Enviada', Inbound: 'Recebida', Text: 'Texto',
   // Páginas e agentes
   Funnel: 'Funil', Website: 'Site', Support: 'Suporte', Sales: 'Vendas', Scheduling: 'Agendamento',
   // Ações manuais e automações
@@ -143,7 +143,7 @@ export const ES = {
   'New Lead': 'Nuevo lead', 'New lead': 'Nuevo lead', Qualified: 'Calificado', qualified: 'Calificado',
   Proposal: 'Propuesta', proposal: 'Propuesta', 'Sales Pipeline': 'Pipeline de ventas',
   // Canales y mensajes
-  Social: 'Social', Email: 'Correo electrónico', SMS: 'SMS', Note: 'Nota', 'Live chat': 'Chat en vivo', Outbound: 'Enviada', Inbound: 'Recibida', Text: 'Texto',
+  Social: 'Social', Email: 'Correo electrónico', SMS: 'SMS', Note: 'Nota', 'Live chat': 'Chat en vivo', Instagram: 'Instagram', Facebook: 'Facebook', Outbound: 'Enviada', Inbound: 'Recibida', Text: 'Texto',
   // Páginas y agentes
   Funnel: 'Embudo', Website: 'Sitio web', Support: 'Soporte', Sales: 'Ventas', Scheduling: 'Agendamiento',
   // Acciones manuales y automatizaciones
