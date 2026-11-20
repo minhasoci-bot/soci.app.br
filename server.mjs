@@ -29,6 +29,8 @@ import { attachAccounts, claimDue, evergreenDue, reviewSocialCsv, settle } from 
 import { authUrl, availability, blueskyLogin, exchange as socialExchange, publish as socialPublish, seal, unseal } from './social-providers.mjs';
 import { network } from './ui/social-data.js';
 import { captionRequest, writeCaption } from './social-ai.mjs';
+import { findSharedReport, reportMailer, sharedReportPage } from './report-share.mjs';
+import { reportsDue } from './report-model.mjs';
 import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
@@ -107,6 +109,7 @@ const hookPath = new RegExp(`^/hooks/${workspaceSegment}/([0-9a-f-]{36})/([a-z0-
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialInvitePath = new RegExp(`^/social-connect/${workspaceSegment}/?$`);
 const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
+const sharedReportRoute = new RegExp(`^/relatorio/${workspaceSegment}/([0-9a-f]{64})/?$`);
 const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{36})/([0-9a-f-]{36})$`);
 const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,48}))?$`);
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
@@ -138,7 +141,7 @@ export function makeServer({
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, designAgentConfig=designAgent,
   openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
-  portalOptions={}, prospectAudit=collectProspectAudit,
+  portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(),
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
 }={}) {
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
@@ -1041,12 +1044,30 @@ export function makeServer({
     await flushWorkflows(workspace);
     return result;
   }
+  // Scheduled report e-mails: each due report is sent once per slot; failures are kept on the
+  // schedule (lastError) and the slot is not retried, so a broken address does not resend all day.
+  async function runReportMail(workspace, at = new Date()) {
+    const state = await store.load(workspace);
+    if (!state.customReports?.some(report => report.schedule)) return 0;
+    const due = reportsDue(state, at);
+    if (!due.length) return 0;
+    if (!privateSpace.test(workspace) && !(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'reporting').catch(() => false))) return 0;
+    let sent = 0;
+    for (const { id: reportId, slot } of due) {
+      const report = state.customReports.find(row => row.id === reportId);
+      let problem = '';
+      try { await reportMail.send(workspace, state, report, slot); sent++; } catch (e) { problem = e.message; }
+      await change(workspace, { type: 'report-sent', id: reportId, data: { slot, error: problem } });
+    }
+    return sent;
+  }
   async function runAllSocial(base) {
     let total = 0;
     for (const w of (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id))) {
       try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
       try { await runWebinarReminders(w.id, base); } catch (e) { console.error(`Webinar reminders (${w.id}): ${e.message}`); }
       try { await runWorkflows(w.id); } catch (e) { console.error(`Workflows (${w.id}): ${e.message}`); }
+      try { await runReportMail(w.id); } catch (e) { console.error(`Report e-mail (${w.id}): ${e.message}`); }
     }
     return total;
   }
@@ -1518,7 +1539,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const audit = !isPersonal && (who.support || hasModule(who, 'settings')) ? agency.audit.filter(a => a.target === account || a.target === id).slice(-200) : [];
         if (who.support) await changeAgency(who.agencyId, current => logTo(current, who, 'Sub-account support viewed', id, who.account.status));
         return json({ ...workspaceView(who, state), workspaces,
-          features:{studioAI: Boolean(aiStatus?.configured && studio), socialAI: Boolean(aiStatus?.configured && marketing), social: marketing ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
+          features:{studioAI: Boolean(aiStatus?.configured && studio), socialAI: Boolean(aiStatus?.configured && marketing), reportEmail: reportMail.configured, social: marketing ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
           agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id,who.settings),
           ...(who.support && { account: { ...who.account, support: true, statusHistory: agency.accounts[id]?.statusHistory || [],
             ignoredWebhooks: agency.accounts[id]?.ignoredWebhooks || {} } }),
@@ -2113,6 +2134,21 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         return json({ number:order.number, total:order.total, method:methodLabel[shop.payment.method] || shop.payment.method, instructions:shop.payment.instructions, thanks:shop.thanks, payUrl },201);
       }
       // Blogs: home with categories and pages, posts with SEO tags, and RSS. Drafts open with ?preview=1 when signed in.
+      // Shared reports: read-only, rendered here so the page never receives the workspace state.
+      const sharedReport = p.match(sharedReportRoute);
+      if (sharedReport && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, shareId] = sharedReport;
+        await publicAccountPolicy(workspace, false, 'reporting');
+        const state = await store.load(workspace);
+        const report = findSharedReport(state, shareId);
+        if (!report) throw error('Este relatório não está mais compartilhado.',404);
+        const asked = url.searchParams.get('lang');
+        const html = sharedReportPage(state, report, { lang: ['pt', 'es'].includes(asked) ? asked : report.share.lang, path: p });
+        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer', 'X-Robots-Tag':'noindex',
+          'Content-Security-Policy':"default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" });
+        return res.end(method === 'HEAD' ? undefined : html);
+      }
       const blogRoute = p.match(blogPath);
       if (blogRoute && (method === 'GET' || method === 'HEAD')) {
         await ready;

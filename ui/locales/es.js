@@ -1,5 +1,12 @@
 // Español Latino (es-419) translation catalog
 export default {
+  "Página": "Página",
+  "SAC Social (Instagram e Facebook)": "Atención social (Instagram y Facebook)",
+  "Concorrentes monitorados": "Competidores monitoreados",
+  "Posts por status": "Publicaciones por estado",
+  "Posts aguardando aprovação": "Publicaciones esperando aprobación",
+  "Posts agendados": "Publicaciones programadas",
+  "Posts publicados": "Publicaciones publicadas",
   "Código do país": "Código de país",
   "?email=ana@exemplo.com": "?email=ana@exemplo.con",
   "(o link da sala).": "(o enlace da sala).",
@@ -2261,7 +2268,7 @@ export default {
   "Portal de afiliados": "Portal de afiliados",
   "Portal do cliente": "Portal del cliente",
   "Post excluído.": "Post eliminado.",
-  "Posts ao longo do tempo": "Posts ao longo do tiempo",
+  "Posts ao longo do tempo": "Publicaciones a lo largo del tiempo",
   "Posts esperando a data de publicação": "Posts esperando a fecha de publicação",
   "Prazo em dias": "Prazo em días",
   "Prazo mais próximo": "Prazo mais siguiente",

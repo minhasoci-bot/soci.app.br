@@ -23,6 +23,7 @@ const commandModules = {
   'dashboard-create': 'dashboard', 'dashboard-save': 'dashboard', 'dashboard-restore': 'dashboard',
   'dashboard-report': 'dashboard', 'dashboard-default': 'dashboard', 'dashboard-timezone': 'dashboard', 'dashboard-delete': 'dashboard',
   'report-create': 'reporting', 'report-save': 'reporting', 'report-delete': 'reporting',
+  'report-share': 'reporting', 'report-schedule': 'reporting',
   'form-view': 'sites', submit: 'sites', 'link-click': 'conversations',
   'media-trash': 'media', 'media-restore': 'media', 'media-empty-trash': 'media',
   'social-post': 'marketing', 'social-reschedule': 'marketing', 'social-review': 'marketing',
