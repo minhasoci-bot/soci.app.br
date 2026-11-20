@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <title>Assinar documento · Soci</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/graao.css">
+  <link rel="stylesheet" href="/documents.css">
+  <link rel="stylesheet" href="/document-sign.css">
+  <script type="module" src="/document-sign.js"></script>
+</head>
+<body class="ds-body">
+  <header class="ds-top">
+    <div class="ds-top-inner">
+      <div><p class="ds-sender" id="sender">Documento enviado pela Soci</p><h1 id="title">Abrindo documento…</h1></div>
+      <div class="ds-top-actions"><span id="lang"></span><button type="button" class="secondary" id="print" hidden>Imprimir ou salvar PDF</button></div>
+    </div>
+  </header>
+  <main class="ds-main">
+    <div id="notice" class="ds-notice" role="status">Abrindo documento…</div>
+    <ol id="people" class="ds-people" aria-label="Quem precisa assinar" hidden></ol>
+    <section id="pay" class="ds-pay" aria-label="Pagamento" hidden></section>
+    <div id="doc" class="ds-doc" data-no-translate="1"></div>
+    <div id="certificate" class="ds-doc" data-no-translate="1" hidden></div>
+  </main>
+  <footer class="ds-bar" id="bar" hidden>
+    <div class="ds-bar-inner">
+      <p class="ds-progress" id="progress"></p>
+      <label class="ds-accept"><input type="checkbox" id="accept"><span>Li o documento e concordo em assiná-lo eletronicamente. Esta assinatura tem validade entre as partes (MP 2.200-2/2001 e Lei 14.063/2020).</span></label>
+      <p class="form-status" id="error" role="alert"></p>
+      <div class="ds-bar-actions"><button type="button" class="secondary" id="decline">Recusar</button><button type="button" class="primary" id="sign">Assinar documento</button></div>
+    </div>
+  </footer>
+
+  <dialog id="pad" class="ds-dialog" aria-labelledby="pad-title">
+    <form method="dialog" class="ds-dialog-body">
+      <h2 id="pad-title">Sua assinatura</h2>
+      <div class="ds-tabs" role="tablist"><button type="button" role="tab" data-mode="draw" aria-selected="true">Desenhar</button><button type="button" role="tab" data-mode="type" aria-selected="false">Digitar</button></div>
+      <div data-panel="draw"><canvas id="canvas" width="720" height="240" aria-label="Área para desenhar a assinatura"></canvas><p class="dim">Use o dedo, a caneta ou o mouse.</p></div>
+      <div data-panel="type" hidden><label>Seu nome<input id="typed" maxlength="80" autocomplete="name"></label><canvas id="preview" width="720" height="240" aria-hidden="true"></canvas></div>
+      <div class="ds-dialog-actions"><button type="button" class="secondary" id="clear">Limpar</button><span></span><button type="button" class="secondary" value="cancel" id="pad-cancel">Cancelar</button><button type="button" class="primary" id="pad-ok">Usar assinatura</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="refuse" class="ds-dialog" aria-labelledby="refuse-title">
+    <form method="dialog" class="ds-dialog-body">
+      <h2 id="refuse-title">Recusar documento</h2>
+      <p>O remetente será avisado e o documento deixa de aceitar assinaturas.</p>
+      <label>Motivo (opcional)<textarea id="reason" rows="3" maxlength="500"></textarea></label>
+      <div class="ds-dialog-actions"><span></span><span></span><button type="button" class="secondary" id="refuse-cancel">Voltar</button><button type="button" class="danger" id="refuse-ok">Recusar documento</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

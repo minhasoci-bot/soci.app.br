@@ -21,6 +21,7 @@ export const moduleOfRecord = {
   studioProjects: 'sites', pipelines: 'opportunities', stages: 'opportunities',
   customFields: 'settings', customValues: 'settings', tags: 'contacts', companies: 'contacts',
   products: 'payments', paymentLinks: 'payments', subscriptions: 'payments', transactions: 'payments', coupons: 'payments',
+  documents: 'payments', documentTemplates: 'payments', contentBlocks: 'payments', estimates: 'payments',
   socialCategories: 'marketing', socialHashtags: 'marketing', socialFeeds: 'marketing', socialWebhooks: 'marketing', socialCompetitors: 'marketing',
   pranchetaFiles: 'marketing'
 };

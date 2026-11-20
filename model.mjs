@@ -19,6 +19,8 @@ import { offerBeforeDelete, offerCheckout, offerCollections, offerFields } from 
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
 import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
+import { documentAfterSave, documentBeforeDelete, documentCollections, documentCommand, documentFields, sendTemplateDocument } from './document-model.mjs';
+import { estimateAfterSave, estimateBeforeDelete, estimateCollections, estimateCommand, estimateFields, sendEstimateCopy } from './estimate-model.mjs';
 
 export const defaults = {
   profile: { name: 'Demo Workspace', email: 'hello@example.test', phone: '', timezone: 'America/Sao_Paulo', currency: 'BRL' },
@@ -31,7 +33,7 @@ export const defaults = {
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[], pranchetaFiles:[],
-  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...offerCollections].map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...offerCollections, ...documentCollections, ...estimateCollections].map(key => [key, []])),
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
 export const blank = name => ({ ...structuredClone(defaults), profile: { ...defaults.profile, ...(name ? { name } : {}) } });
@@ -39,7 +41,7 @@ export function hydrateWorkspace(state) {
   const fresh = blank();
   state.customReports ??= [];
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...offerCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...offerCollections,...documentCollections,...estimateCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -146,6 +148,8 @@ const fields = {
   ...courseFields,
   ...communityFields,
   ...offerFields,
+  ...documentFields,
+  ...estimateFields,
   reviews: (s,d) => ({ author: req(d.author,'Author'), score: one(Number(d.score),[1,2,3,4,5],'rating'), text: req(d.text,'Review',2500), reply: str(d.reply,2500) }),
   files: (s,d) => ({ name: req(d.name,'File name'), data: file(d.data) }),
   agents: (s,d) => ({ name: req(d.name,'Agent name'), role: one(d.role,['Support','Sales','Scheduling'],'role'), instructions: str(d.instructions,5000), active: Boolean(d.active) }),
@@ -198,7 +202,10 @@ function linkDestination(value) {
 }
 
 // Workflows run on workflow-engine.mjs. The old event names are still accepted here.
-const engine = createEngine({ add, now });
+let engineWorkspace = 'demo';
+const engine = createEngine({ add, now, sendDocument: (state, contact, config, depth = 0) =>
+  sendTemplateDocument(state, engineWorkspace, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })),
+  sendEstimate: (state, contact, config, depth = 0) => sendEstimateCopy(state, engineWorkspace, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })) });
 const legacyEvents = { 'Contact created': 'contact_created', 'Form submitted': 'form_submitted', 'Opportunity stage changed': 'pipeline_stage_changed',
   'Appointment booked': 'appointment_booked', 'Trigger link clicked': 'trigger_link_clicked', 'Customer replied': 'customer_replied' };
 function run(state, event, context = {}) {
@@ -246,6 +253,7 @@ export function metrics(s) {
 }
 export function execute(s, command, { workspace = 'demo', trackClick = true } = {}) {
   const { type, key, id, data:d = {} } = command;
+  engineWorkspace = workspace;
   if (!d || typeof d!=='object' || Array.isArray(d)) fail('Invalid record data.');
   if (type === 'link-click') {
     const ticket = find(s, 'linkTickets', id);
@@ -278,6 +286,8 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
     for (const item of Array.isArray(d.results) ? d.results.slice(0, 500) : []) {
       const target = find(s, 'runs', item?.runId);
       if (target) target.results.push(`${item.kind === 'whatsapp' ? 'WhatsApp' : 'Webhook'}: ${str(item.text, 120)}`);
+      const doc = item?.docId ? find(s, 'documents', item.docId) : item?.estimateId ? find(s, 'estimates', item.estimateId) : null;
+      if (doc) (doc.audit ||= []).push({ at: now(), event: 'delivered', detail: str(item.text, 200) });
     }
     return true;
   }
@@ -337,6 +347,8 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'chat-start' || type === 'chat-send') return chatCommand(s, { ...command, data:d }, { add, now, run });
   if (type === 'blog-view') return blogView(s, id);
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
+  if (typeof type === 'string' && type.startsWith('document-')) return documentCommand(s, { ...command, data:d }, { workspace, run });
+  if (typeof type === 'string' && type.startsWith('estimate-')) return estimateCommand(s, { ...command, data:d }, { workspace, run });
   if (type === 'store-checkout') return storeCheckout(s, { ...command, data:d }, { add, run });
   if (['webinar-register','webinar-attend','webinar-reminders'].includes(type)) return webinarCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'qr-scan') return qrScan(s, id, d);
@@ -515,6 +527,8 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
     if (['bulkActions','imports'].includes(key)) fail('Unknown record type.');
     afterSave(s, key, prior, row, add);
     storeAfterSave(s, key, prior, row, add);
+    documentAfterSave(s, key, prior, row, run);
+    estimateAfterSave(s, key, prior, row, run);
     if (prior) s[key] = s[key].map(r=>r.id===id ? row : r);
     engine.recordChange(s, key, prior, row);
     return row.id;
@@ -539,6 +553,8 @@ function remove(s, key, id) {
     storeBeforeDelete(s, key, id);
     webinarBeforeDelete(s, key, id);
     offerBeforeDelete(s, key, id);
+    documentBeforeDelete(s, key, id);
+    estimateBeforeDelete(s, key, id);
     if (key==='contacts') {
       for (const related of ['tasks','opportunities','messages','appointments','invoices','threads']) s[related] = s[related].filter(r=>r.contactId!==id);
       for (const row of s.submissions.filter(r=>r.contactId===id)) { row.contactId=''; row.name=''; row.email=''; }

@@ -16,6 +16,8 @@ export const refSources = {
   chats: s => (s.chatWidgets || []).map(row => [row.id, row.name]),
   webinars: s => (s.webinars || []).map(row => [row.id, row.name]),
   stores: s => (s.stores || []).map(row => [row.id, row.name]),
+  documentTemplates: s => (s.documentTemplates || []).map(row => [row.id, row.title]),
+  estimates: s => (s.estimates || []).map(row => [row.id, `${row.number} · ${row.title}`]),
   dateFields: s => (s.customFields || []).filter(row => row.object === 'Contact' && row.type === 'Date').map(row => [row.id, row.name]),
   contactFields: s => [['name', 'Nome'], ['email', 'E-mail'], ['phone', 'Telefone'], ['company', 'Empresa'], ...(s.customFields || []).filter(row => row.object === 'Contact').map(row => [`custom:${row.id}`, row.name])],
   numberFields: s => (s.customFields || []).filter(row => row.object === 'Contact' && ['Number', 'Monetary'].includes(row.type)).map(row => [`custom:${row.id}`, row.name]),
@@ -75,7 +77,13 @@ export const triggerCatalog = [
     { type: 'invoice_status', label: 'Fatura', icon: 'pay', fields: [f('status', 'Quando a fatura ficar', 'select', { options: [any('Qualquer status'), ['Open', 'Em aberto'], ['Paid', 'Paga'], ['Void', 'Anulada']] })] },
     { type: 'payment_received', label: 'Pagamento recebido', icon: 'pay' },
     { type: 'order_submitted', label: 'Pedido feito na loja', icon: 'box', fields: [f('storeId', 'Loja', 'ref', { source: 'stores', empty: 'Qualquer loja' })] },
-    { type: 'order_paid', label: 'Pedido pago', icon: 'box', fields: [f('storeId', 'Loja', 'ref', { source: 'stores', empty: 'Qualquer loja' })] }
+    { type: 'order_paid', label: 'Pedido pago', icon: 'box', fields: [f('storeId', 'Loja', 'ref', { source: 'stores', empty: 'Qualquer loja' })] },
+    { type: 'document_status', label: 'Documento ou contrato', icon: 'file', fields: [f('status', 'Quando o documento for', 'select', { options: [any('Qualquer mudança'), ['sent', 'Enviado'], ['viewed', 'Visualizado'],
+      ['signed', 'Assinado por um destinatário'], ['completed', 'Assinado por todos'], ['declined', 'Recusado'], ['expired', 'Vencido'], ['void', 'Anulado']] }),
+      f('templateId', 'Modelo', 'ref', { source: 'documentTemplates', empty: 'Qualquer modelo' })] },
+    { type: 'document_paid', label: 'Documento pago', icon: 'pay', fields: [f('templateId', 'Modelo', 'ref', { source: 'documentTemplates', empty: 'Qualquer modelo' })] },
+    { type: 'estimate_status', label: 'Orçamento', icon: 'pay', fields: [f('status', 'Quando o orçamento for', 'select', { options: [any('Qualquer mudança'), ['sent', 'Enviado'], ['viewed', 'Visualizado'],
+      ['accepted', 'Aceito'], ['declined', 'Recusado'], ['invoiced', 'Faturado'], ['paid', 'Pago'], ['expired', 'Vencido']] })] }
   ] }
 ];
 
@@ -117,6 +125,11 @@ export const actionCatalog = [
     { type: 'create_task', label: 'Criar tarefa', icon: 'check', fields: [f('title', 'Título', 'text', { required: true }), f('dueDays', 'Prazo em dias', 'number', { min: 0, max: 365, value: 1 }), f('owner', 'Responsável', 'text')] },
     { type: 'create_opportunity', label: 'Criar ou atualizar oportunidade', icon: 'leads', fields: [f('title', 'Nome', 'text', { required: true, value: '{{contact.name}}' }), f('stageId', 'Etapa', 'ref', { source: 'stages', required: true }), f('value', 'Valor (R$)', 'number', { min: 0, value: 0 })] },
     { type: 'opportunity_status', label: 'Mudar status da oportunidade', icon: 'leads', fields: [f('status', 'Status', 'select', { options: [['Won', 'Ganha'], ['Lost', 'Perdida'], ['Open', 'Aberta'], ['Abandoned', 'Abandonada']] })] },
+    { type: 'send_document', label: 'Enviar documento ou contrato', icon: 'file', fields: [f('templateId', 'Modelo', 'ref', { source: 'documentTemplates', required: true }),
+      f('title', 'Título do documento', 'text', { value: '' }), f('channel', 'Enviar por', 'select', { options: [['email', 'E-mail'], ['email_whatsapp', 'E-mail e WhatsApp']] }),
+      f('expiresDays', 'Validade em dias (0 = sem prazo)', 'number', { min: 0, max: 365, value: 15 })] },
+    { type: 'send_estimate', label: 'Enviar orçamento', icon: 'pay', fields: [f('estimateId', 'Orçamento modelo (é enviada uma cópia)', 'ref', { source: 'estimates', required: true }),
+      f('channel', 'Enviar por', 'select', { options: [['email', 'E-mail'], ['email_whatsapp', 'E-mail e WhatsApp']] }), f('expiresDays', 'Validade em dias (0 = sem prazo)', 'number', { min: 0, max: 365, value: 15 })] },
     { type: 'create_invoice', label: 'Criar fatura', icon: 'pay', fields: [f('title', 'Descrição', 'text', { required: true }), f('value', 'Valor (R$)', 'number', { min: 0, required: true }), f('dueDays', 'Vence em (dias)', 'number', { min: 0, max: 365, value: 7 })] }
   ] },
   { group: 'Fluxo', items: [

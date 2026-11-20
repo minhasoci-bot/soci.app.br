@@ -30,6 +30,9 @@ import { authUrl, availability, blueskyLogin, exchange as socialExchange, publis
 import { network } from './ui/social-data.js';
 import { captionRequest, writeCaption } from './social-ai.mjs';
 import { findSharedReport, reportMailer, sharedReportPage } from './report-share.mjs';
+import { documentMailer, documentMessage } from './document-mail.mjs';
+import { tokenHash as documentTokenHash } from './document-model.mjs';
+import { estimateTokenHash } from './estimate-model.mjs';
 import { reportsDue } from './report-model.mjs';
 import { brandGroupData } from './ui/brand-group-data.js';
 import { brandGroupPage } from './brand-group-page.mjs';
@@ -63,7 +66,7 @@ const staticFiles = new Map([
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/offers.js','text/javascript; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
@@ -111,6 +114,10 @@ const hookPath = new RegExp(`^/hooks/${workspaceSegment}/([0-9a-f-]{36})/([a-z0-
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialInvitePath = new RegExp(`^/social-connect/${workspaceSegment}/?$`);
 const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
+const signPagePath = new RegExp(`^/assinar/${workspaceSegment}/?$`);
+const signApiPath = new RegExp(`^/api/assinar/${workspaceSegment}$`);
+const estimatePagePath = new RegExp(`^/orcamento/${workspaceSegment}/?$`);
+const estimateApiPath = new RegExp(`^/api/orcamento/${workspaceSegment}$`);
 const brandGroupRoute = /^\/marcas\/([0-9a-f]{64})\/?$/;
 const sharedReportRoute = new RegExp(`^/relatorio/${workspaceSegment}/([0-9a-f]{64})/?$`);
 const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{36})/([0-9a-f-]{36})$`);
@@ -851,6 +858,14 @@ export function makeServer({
   };
   const socialSecrets = async (workspace, mutate) => { await socialRow(`social-${workspace}`); return store.change(`social-${workspace}`, mutate); };
   const publicBase = req => process.env.SOCIAL_PUBLIC_URL || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+  // Documentos e contratos: signing links by e-mail/WhatsApp, and a per-IP limit on the public signing API.
+  const documentMail = documentMailer();
+  const signHits = new Map();
+  const allowSign = ip => {
+    const at = Date.now(), hit = signHits.get(ip);
+    if (!hit || hit.reset < at) { if (signHits.size > 5000) signHits.clear(); signHits.set(ip, { count: 1, reset: at + 600000 }); return true; }
+    return ++hit.count <= 120;
+  };
   const callbackPath = provider => `/api/social/callback/${provider === 'instagram' ? 'facebook' : provider}`;
   const validateInvite = (row, key) => {
     const invite = row.invite;
@@ -1040,6 +1055,21 @@ export function makeServer({
     const results = [];
     for (const item of items) {
       if (item.kind === 'webhook') results.push({ runId: item.runId, kind: 'webhook', text: await deliverWebhook(item) });
+      if (item.kind === 'document' || item.kind === 'document-owner') {
+        const message = documentMessage(item, documentMail.linkOf(item)), outcomes = [];
+        if (item.kind === 'document-owner' || item.channels?.includes('email')) {
+          outcomes.push(await documentMail.email(item.email, message, `doc-${workspace}-${item.docId || item.estimateId}-${item.recipientId || 'owner'}-${item.event || (item.final ? 'final' : 'request')}-${String(item.path || '').slice(-12)}`));
+        }
+        if (item.kind === 'document' && item.channels?.includes('whatsapp')) {
+          if (!item.phone) outcomes.push('WhatsApp: contato sem telefone');
+          else if (privateSpace.test(workspace)) outcomes.push('WhatsApp não enviado (conta pessoal)');
+          else {
+            const sent = await whatsapp.sendWorkspaceText(state.agencyId || AGENCY_ID, workspace, item.phone, message.text, (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
+            outcomes.push(sent?.sent ? 'WhatsApp enviado' : sent?.reason === 'not-connected' ? 'WhatsApp não conectado' : 'WhatsApp não enviado');
+          }
+        }
+        results.push({ docId: item.docId, estimateId: item.estimateId, kind: 'document', text: `${item.kind === 'document-owner' ? 'Aviso ao remetente' : item.name}${item.final ? ' (cópia final)' : ''}: ${outcomes.join(' · ')}` });
+      }
       if (item.kind === 'whatsapp') {
         if (privateSpace.test(workspace)) { results.push({ runId: item.runId, kind: 'whatsapp', text: 'não enviado (conta pessoal)' }); continue; }
         const sent = await whatsapp.sendWorkspaceText(state.agencyId || AGENCY_ID, workspace, item.phone, item.body, (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
@@ -1365,6 +1395,81 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/social-connect.html')));
       }
+      const signPage = p.match(signPagePath);
+      if (signPage && method === 'GET') {
+        await ready;
+        await publicAccountPolicy(signPage[1], false, 'payments');
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        res.setHeader('X-Robots-Tag', 'noindex');
+        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/document-sign.html')));
+      }
+      const signCall = p.match(signApiPath);
+      if (signCall) {
+        await ready;
+        if (method !== 'POST') throw error('Method not allowed.',405);
+        const workspace = signCall[1];
+        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
+        const input = await payload(req);
+        const action = ['open', 'sign', 'decline', 'pay'].includes(input.action) ? input.action : '';
+        if (!action) throw error('Ação inválida para este link.',400);
+        const digest = documentTokenHash(input.token);
+        if (!digest) throw error('Este link não é válido.',404);
+        await publicAccountPolicy(workspace, action !== 'open', 'payments');
+        if (action === 'pay') {
+          const due = (await change(workspace, { type: 'document-payable', data: { tokenHash: digest } })).id;
+          const current = await store.load(workspace), agencyId = current.agencyId || AGENCY_ID;
+          if (!(await abacate.connected(agencyId, workspace))) throw error('O pagamento online ainda não está disponível. Fale com quem enviou o documento.',409);
+          const page = `${publicBase(req)}/assinar/${workspace}`;
+          const back = { returnUrl: `${page}?pagamento=voltou`, completionUrl: `${page}?pagamento=ok` };
+          if (due.kind === 'invoice') return json({ url: (await abacate.chargeInvoice(agencyId, workspace, due.invoiceId, publicBase(req), back)).url });
+          if (due.checkout) return json({ url: due.checkout.url });
+          const checkout = await abacate.subscribeWorkspace(agencyId, workspace, { reference: `doc-${due.docId}`, name: due.title, amount: due.amount, ...back, metadata: { workspace, documentId: due.docId } });
+          await change(workspace, { type: 'document-subscription-checkout', data: { docId: due.docId, checkout } });
+          return json({ url: checkout.url });
+        }
+        const result = await change(workspace, { type: `document-${action}`, data: { tokenHash: digest, ip, userAgent: String(req.headers['user-agent'] || ''), origin: publicBase(req),
+          values: input.values, items: input.items, accept: input.accept, reason: input.reason } });
+        if (result.state.workflowOutbox?.length) flushLater(workspace);
+        if (result.id?.payment) result.id.payment.online = await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false);
+        return json(result.id);
+      }
+      const estimatePage = p.match(estimatePagePath);
+      if (estimatePage && method === 'GET') {
+        await ready;
+        await publicAccountPolicy(estimatePage[1], false, 'payments');
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        res.setHeader('X-Robots-Tag', 'noindex');
+        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/estimate-view.html')));
+      }
+      const estimateCall = p.match(estimateApiPath);
+      if (estimateCall) {
+        await ready;
+        if (method !== 'POST') throw error('Method not allowed.',405);
+        const workspace = estimateCall[1];
+        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
+        const input = await payload(req);
+        const action = ['open', 'accept', 'decline', 'pay'].includes(input.action) ? input.action : '';
+        if (!action) throw error('Ação inválida para este link.',400);
+        const digest = estimateTokenHash(input.token);
+        if (!digest) throw error('Este link não é válido.',404);
+        await publicAccountPolicy(workspace, action !== 'open', 'payments');
+        if (action === 'pay') {
+          const due = (await change(workspace, { type: 'estimate-payable', data: { tokenHash: digest } })).id;
+          const current = await store.load(workspace), agencyId = current.agencyId || AGENCY_ID;
+          if (!(await abacate.connected(agencyId, workspace))) throw error('O pagamento online ainda não está disponível. Fale com quem enviou o orçamento.',409);
+          const page = `${publicBase(req)}/orcamento/${workspace}`;
+          return json({ url: (await abacate.chargeInvoice(agencyId, workspace, due.invoiceId, publicBase(req), { returnUrl: `${page}?pagamento=voltou`, completionUrl: `${page}?pagamento=ok` })).url });
+        }
+        const result = await change(workspace, { type: `estimate-${action}`, data: { tokenHash: digest, ip, userAgent: String(req.headers['user-agent'] || ''), origin: publicBase(req),
+          name: input.name, items: input.items, reason: input.reason } });
+        if (result.state.workflowOutbox?.length) flushLater(workspace);
+        if (result.id?.invoice) result.id.online = await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false);
+        return json(result.id);
+      }
       const approvePage = p.match(socialApprovePath);
       if (approvePage && method === 'GET') {
         await ready;
@@ -1604,6 +1709,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const who = await workspaceAccess(req, res, id);
         requireWorkspaceCommand(who, command);
         command.actor = who.name;
+        if (['document-send', 'document-link', 'estimate-send', 'estimate-link'].includes(command.type)) command.data = { ...(command.data && typeof command.data === 'object' ? command.data : {}), origin: publicBase(req) };
         const result = await change(id,command,who);
         let delivery = null;
         if (!privateSpace.test(id) && command.type === 'message' && command.data?.channel === 'WhatsApp' && command.data?.direction === 'Outbound') {

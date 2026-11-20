@@ -10,7 +10,7 @@ import { bulkOperations, couponKinds, couponStatus, customObjects, fieldTypes, f
 export const crmTabs = {
   contacts: [['all', 'Listas inteligentes'], ['bulk', 'Ações em massa'], ['fields', 'Campos personalizados'], ['tasks', 'Tarefas'], ['companies', 'Empresas']],
   opportunities: [['pipeline', 'Oportunidades'], ['list', 'Lista'], ['forecast', 'Previsão'], ['pipelines', 'Pipelines'], ['bulk', 'Ações em massa']],
-  payments: [['invoices', 'Faturas'], ['products', 'Produtos'], ['subscriptions', 'Assinaturas'], ['links', 'Links de pagamento'], ['transactions', 'Transações'], ['coupons', 'Cupons']],
+  payments: [['invoices', 'Faturas'], ['documents', 'Documentos e contratos'], ['estimates', 'Orçamentos'], ['products', 'Produtos'], ['subscriptions', 'Assinaturas'], ['links', 'Links de pagamento'], ['transactions', 'Transações'], ['coupons', 'Cupons']],
   settings: [['business', 'Perfil da empresa'], ['whatsapp', 'WhatsApp'], ['abacatepay', 'AbacatePay'], ['google', 'Google'], ['users', 'Usuários'], ['fields', 'Campos personalizados'], ['values', 'Valores personalizados'], ['tags', 'Tags'],
     ['objects', 'Objetos'], ['import', 'Importar dados'], ['audit', 'Logs de auditoria'], ['workspaces', 'Workspaces']]
 };

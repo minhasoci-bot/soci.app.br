@@ -108,7 +108,7 @@ export function compile(steps) {
 
 /* ───────── Motor ───────── */
 
-export function createEngine({ add, now }) {
+export function createEngine({ add, now, sendDocument = null, sendEstimate = null }) {
   const contactOf = (s, id) => s.contacts.find(row => row.id === id);
   const fieldValue = (s, contact, key) => {
     if (!contact) return '';
@@ -184,6 +184,9 @@ export function createEngine({ add, now }) {
       case 'opportunity_status_changed': return !c.status || c.status === ctx.status;
       case 'pipeline_stage_changed': return !c.stageId || c.stageId === ctx.stageId;
       case 'invoice_status': return !c.status || c.status === ctx.status;
+      case 'estimate_status': return !c.status || c.status === ctx.status;
+      case 'document_paid': return !c.templateId || c.templateId === ctx.templateId;
+      case 'document_status': return (!c.status || c.status === ctx.status) && (!c.templateId || c.templateId === ctx.templateId);
       case 'order_submitted': case 'order_paid': return !c.storeId || c.storeId === ctx.storeId;
       case 'inbound_webhook': return ctx.triggerId === trigger.id;
       default: return scheduledTypes.includes(type) ? ctx.triggerId === trigger.id : true;
@@ -279,6 +282,22 @@ export function createEngine({ add, now }) {
         if (!latest) return 'sem oportunidade';
         if (latest.status !== c.status) { latest.status = c.status; latest.statusChangedAt = now(); latest.updated = now(); emit(s, 'opportunity_status_changed', { contactId: contact.id, status: c.status, depth }); }
         return 'concluída';
+      }
+      case 'send_document': {
+        if (!sendDocument) return 'indisponível';
+        try {
+          const doc = sendDocument(s, contact, { ...c, title: text(c.title).slice(0, 160) }, depth);
+          output(run, id, { id: doc.id, title: doc.title, total: doc.total });
+          return 'enviado';
+        } catch (error) { return error.message; }
+      }
+      case 'send_estimate': {
+        if (!sendEstimate) return 'indisponível';
+        try {
+          const est = sendEstimate(s, contact, c, depth);
+          output(run, id, { id: est.id, number: est.number, total: est.total });
+          return 'enviado';
+        } catch (error) { return error.message; }
       }
       case 'create_invoice': {
         const due = new Date(Date.now() + (Number(c.dueDays) || 0) * 864e5).toISOString().slice(0, 10);

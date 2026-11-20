@@ -22,6 +22,8 @@ import {portalAdminScreen, portalTabs} from './client-portal.js';
 import {coursesScreen} from './courses.js';
 import {communitiesScreen} from './communities.js';
 import {offersScreen} from './offers.js';
+import {documentsScreen} from './documents.js';
+import {estimatesScreen} from './estimates.js';
 import {pranchetaScreen} from './prancheta.js';
 import {reportEditor, reportList, reportSources} from './reports.js';
 import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
@@ -213,6 +215,8 @@ function abacateSubView(c){
     +`<section class="surface padded settings-form ag-gap"><h2>Webhook de pagamentos</h2>${hook}<label>URL<input readonly value="${h(g.webhookUrl)}"></label>${g.webhookSecret?`<label>Secret<input readonly value="${h(g.webhookSecret)}"></label>`:''}<p class="dim"><small>Eventos: ${h(g.events.join(', '))}</small></p></section>`;
 }
 function payments(c){
+  if(['documents','document'].includes(c.tab)) return documentsScreen(c);
+  if(['estimates','estimate'].includes(c.tab)) return estimatesScreen(c);
   if((c.tab||'invoices')!=='invoices') return paymentsTab(c,c.tab);
   const s=c.s, records=top(s.invoices,c.query,['title','status']);
   return pageShell({
