@@ -59,16 +59,20 @@ export function reportMailer({ key = process.env.RESEND_API_KEY, from = process.
   const configured = Boolean(key && from && origin);
   return {
     configured,
-    async send(workspace, state, report, slot) {
+    /** `fromAddress`: the sub-account's verified sending domain (Serviços de e-mail), shown with the workspace name. */
+    async send(workspace, state, report, slot, { fromAddress = '' } = {}) {
       if (!configured) throw new Error('O envio por e-mail não está configurado (RESEND_API_KEY, PORTAL_EMAIL_FROM e PORTAL_PUBLIC_ORIGIN).');
       const link = origin + sharedReportPath(workspace, report), brand = state.profile?.name || 'Soci';
       const subject = `${report.name} · ${brand}`;
       const text = `${report.schedule.message ? `${report.schedule.message}\n\n` : ''}O relatório “${report.name}” de ${brand} está disponível com os dados mais recentes:\n\n${link}\n\nVocê recebe este e-mail porque ${brand} programou o envio deste relatório.`;
-      const response = await request('https://api.resend.com/emails', {
+      const post = (sender, idem) => request('https://api.resend.com/emails', {
         method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'Idempotency-Key': `report-${workspace}-${report.id}-${slot}` },
-        body: JSON.stringify({ from, to: report.schedule.recipients, subject, text })
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'Idempotency-Key': idem },
+        body: JSON.stringify({ from: sender, to: report.schedule.recipients, subject, text })
       }).catch(() => null);
+      const idem = `report-${workspace}-${report.id}-${slot}`;
+      let response = await post(fromAddress ? `${brand.replace(/[<>"\r\n]/g, '').trim() || 'Soci'} <${fromAddress}>` : from, idem);
+      if (fromAddress && response?.status === 403) response = await post(from, `${idem}-platform`);
       if (!response?.ok) throw new Error(`O serviço de e-mail não confirmou o envio${response ? ` (HTTP ${response.status})` : ''}.`);
     }
   };

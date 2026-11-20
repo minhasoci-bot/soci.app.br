@@ -95,3 +95,15 @@ td .text-link{background:none;border:0;padding:0;cursor:pointer;font:inherit}
 :root[data-theme=dark] .phone-country-display { color: #f1f5f9; }
 :root[data-theme=dark] .phone-number-input { color: #f1f5f9 !important; }
 
+
+/* Configurações → Serviços de e-mail */
+.email-services .email-dns{margin:14px 0 8px;box-shadow:none}
+.email-services .email-dns table{min-width:760px}
+.email-dns td:nth-child(3) code{white-space:nowrap;word-break:normal}
+.email-services .email-dns td{vertical-align:middle}
+.email-dns-value{display:flex;align-items:center;gap:6px;min-width:0}
+.email-dns-value code{font-size:12px;word-break:break-all;max-width:340px;background:transparent}
+.email-dns-value .icon-btn{flex:none;width:28px;height:28px}
+.email-local{display:flex;align-items:center;gap:8px}
+.email-local input{flex:1;min-width:0}
+.email-local .dim{white-space:nowrap}

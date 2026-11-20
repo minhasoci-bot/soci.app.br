@@ -82,6 +82,13 @@ async function refreshGoogle(){
   catch(e){ if(c.workspace===ws) c.google={error:e.message,workspace:ws}; }
   if(c.workspace===ws&&c.mode!=='agency'&&(c.view==='dashboard'||c.view==='settings'&&c.tab==='google')) render();
 }
+// Serviços de e-mail: the sub-account's sending domain and its DNS records (re-checked with Resend while pending).
+async function refreshEmail(){
+  const ws=c.workspace;
+  try{ const live=await api(url('/api/email/workspace/status')); if(c.workspace===ws) c.emailDomain={...live,workspace:ws}; }
+  catch(e){ if(c.workspace===ws) c.emailDomain={error:e.message,workspace:ws}; }
+  if(c.workspace===ws&&c.mode!=='agency'&&c.view==='settings'&&c.tab==='email') render();
+}
 window.addEventListener('message',ev=>{
   if(ev.origin!==location.origin||ev.data?.type!=='soci-google') return;
   if(ev.data.error){ flash(ev.data.error,true); return; }
@@ -223,6 +230,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   stopSubWaPoll();
   if(view==='payments'&&!nextTab||view==='settings'&&nextTab==='abacatepay'||view==='payments'&&nextTab==='document'&&!c.pay){ render(); void refreshPay(); return; }
   if(view==='dashboard'&&c.google?.workspace!==c.workspace||view==='settings'&&nextTab==='google'){ render(); void refreshGoogle(); return; }
+  if(view==='settings'&&nextTab==='email'){ if(c.emailDomain?.workspace!==c.workspace) c.emailDomain=null; render(); void refreshEmail(); return; }
   render(); }
 const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${tr(label)}" title="${tr(label)}" ${attributes}>${i(name,17)}</button>`;
 const navItem=([id,pt,ico])=>({href:`#${id}`,label:tr(pt),icon:ico,current:c.view===id});
@@ -770,6 +778,21 @@ document.addEventListener('click',async ev=>{
       }
       case 'abacate-refresh': c.pay=null; render(); await refreshPay(); break;
       case 'google-refresh': c.google=null; render(); await refreshGoogle(); break;
+      case 'email-refresh': c.emailDomain=null; render(); await refreshEmail(); break;
+      case 'email-copy': await navigator.clipboard.writeText(d.value); flash('Copiado.'); break;
+      case 'email-verify': {
+        c.emailDomain={...await api(url('/api/email/workspace/verify'),{}),workspace:c.workspace};
+        render();
+        const s=c.emailDomain.domain?.status;
+        flash(s==='verified'?'Domínio verificado. Os e-mails já saem por ele.':s==='failed'?'O serviço de e-mail não encontrou os registros. Confira o DNS e tente de novo.':'Verificação iniciada. Pode levar alguns minutos; volte a esta aba para ver o status.', s==='failed');
+        break;
+      }
+      case 'email-remove': {
+        if(!confirm('Remover o domínio de envio? Os e-mails desta subconta voltam a sair do endereço da plataforma.')) break;
+        c.emailDomain={...await api(url('/api/email/workspace/remove'),{}),workspace:c.workspace};
+        render(); flash('Domínio de envio removido.');
+        break;
+      }
       case 'google-connect': window.open(url('/api/google/workspace/connect'),'soci-google','width=560,height=720'); break;
       case 'google-disconnect': {
         if(!confirm('Desconectar o Google desta subconta? Os widgets do Google Analytics e do Perfil da Empresa param de mostrar dados.')) break;
@@ -911,6 +934,14 @@ document.addEventListener('submit',async ev=>{
     else if(name==='google-select'){
       c.google={...await api(url('/api/google/workspace/select'),{gaProperty:data.gaProperty||'',gbpLocation:data.gbpLocation||''}),workspace:c.workspace};
       render(); flash('Escolha salva. O painel já mostra os dados do Google.'); return;
+    }
+    else if(name==='email-domain-add'){
+      c.emailDomain={...await api(url('/api/email/workspace/add'),{domain:data.domain,localPart:data.localPart}),workspace:c.workspace};
+      render(); flash('Domínio adicionado. Agora publique os registros no DNS.'); return;
+    }
+    else if(name==='email-domain-save'){
+      c.emailDomain={...await api(url('/api/email/workspace/save'),{localPart:data.localPart}),workspace:c.workspace};
+      render(); flash('Remetente salvo.'); return;
     }
     else if(name==='abacate-connect'){
       c.pay=await api(url('/api/abacatepay/workspace/connect'),{apiKey:data.apiKey});

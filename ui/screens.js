@@ -26,6 +26,7 @@ import {documentsScreen} from './documents.js';
 import {estimatesScreen} from './estimates.js';
 import {invoicesScreen, invoiceTabs} from './invoices.js';
 import {paymentSettingsScreen} from './payment-settings.js';
+import {emailServicesView} from './email-services.js';
 import {ordersScreenFor, orderTabsKeys} from './orders.js';
 import {catalogScreen, catalogTabs} from './catalog.js';
 import {pranchetaScreen} from './prancheta.js';
@@ -381,10 +382,10 @@ function googleSubView(c){
     <div class="inline-gap"><button class="secondary" data-act="google-connect">Trocar conta Google</button><button class="secondary" data-act="google-disconnect">Desconectar</button></div>`,true);
 }
 function settings(c){
-  if(c.tab&&!['business','workspaces','whatsapp','abacatepay','google'].includes(c.tab)) return settingsTab(c,c.tab);
+  if(c.tab&&!['business','workspaces','whatsapp','abacatepay','google','email'].includes(c.tab)) return settingsTab(c,c.tab);
   const p=c.s.profile;
   const tab = c.tab || 'business';
-  const body = tab==='google'?googleSubView(c):tab==='abacatepay'?abacateSubView(c):tab==='whatsapp'?whatsappSubView(c):tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'sub-profile-phone' })}<label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label><label>${tr('Idioma da plataforma')}<select data-lang-choice-select><option value="pt" ${getLanguage()==='pt'?'selected':''}>Português (Brasil)</option><option value="es" ${getLanguage()==='es'?'selected':''}>Español (Latinoamérica)</option></select></label></div><button class="primary">Salvar alterações</button></form>`;
+  const body = tab==='email'?emailServicesView(c):tab==='google'?googleSubView(c):tab==='abacatepay'?abacateSubView(c):tab==='whatsapp'?whatsappSubView(c):tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'sub-profile-phone' })}<label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label><label>${tr('Idioma da plataforma')}<select data-lang-choice-select><option value="pt" ${getLanguage()==='pt'?'selected':''}>Português (Brasil)</option><option value="es" ${getLanguage()==='es'?'selected':''}>Español (Latinoamérica)</option></select></label></div><button class="primary">Salvar alterações</button></form>`;
   return pageShell({
     title: tr('Configurações'),
     desc: tr('Gerencie o workspace ativo.'),

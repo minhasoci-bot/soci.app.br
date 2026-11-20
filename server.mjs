@@ -31,6 +31,7 @@ import { network } from './ui/social-data.js';
 import { captionRequest, writeCaption } from './social-ai.mjs';
 import { findSharedReport, reportMailer, sharedReportPage } from './report-share.mjs';
 import { documentMailer, documentMessage } from './document-mail.mjs';
+import { applyDomainStatus, emailDomainView, emailDomains, normalizeLocalPart, workspaceSender } from './email-domain.mjs';
 import { tokenHash as documentTokenHash } from './document-model.mjs';
 import { estimateTokenHash } from './estimate-model.mjs';
 import { invoiceTokenHash } from './invoice-model.mjs';
@@ -69,7 +70,7 @@ const staticFiles = new Map([
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
@@ -158,7 +159,7 @@ export function makeServer({
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, designAgentConfig=designAgent,
   openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
-  portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(),
+  portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(),
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
 }={}) {
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
@@ -866,7 +867,8 @@ export function makeServer({
   const socialSecrets = async (workspace, mutate) => { await socialRow(`social-${workspace}`); return store.change(`social-${workspace}`, mutate); };
   const publicBase = req => process.env.SOCIAL_PUBLIC_URL || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
   // Documentos e contratos: signing links by e-mail/WhatsApp, and a per-IP limit on the public signing API.
-  const documentMail = documentMailer();
+  // Serviços de e-mail: the sub-account's verified sending domain, or '' to send from the platform address.
+  const sendingAddress = async workspace => { try { return workspaceSender(await store.load(`email-${workspace}`)); } catch { return ''; } };
   const signHits = new Map();
   const allowSign = ip => {
     const at = Date.now(), hit = signHits.get(ip);
@@ -1060,12 +1062,13 @@ export function makeServer({
     if (!state.workflowOutbox?.length) return 0;
     const items = (await change(workspace, { type: 'workflow-outbox-take' })).id || [];
     const results = [];
+    const fromAddress = items.some(item => item.kind === 'document' || item.kind === 'document-owner') ? await sendingAddress(workspace) : '';
     for (const item of items) {
       if (item.kind === 'webhook') results.push({ runId: item.runId, kind: 'webhook', text: await deliverWebhook(item) });
       if (item.kind === 'document' || item.kind === 'document-owner') {
         const message = documentMessage(item, documentMail.linkOf(item)), outcomes = [];
         if (item.kind === 'document-owner' || item.channels?.includes('email')) {
-          outcomes.push(await documentMail.email(item.email, message, `doc-${workspace}-${item.docId || item.estimateId || item.invoiceId || item.checkoutId || item.giftCardId}-${item.recipientId || 'owner'}-${item.event || (item.final ? 'final' : 'request')}-${String(item.path || '').slice(-12)}`, { fromName: item.fromName, replyTo: item.replyTo }));
+          outcomes.push(await documentMail.email(item.email, message, `doc-${workspace}-${item.docId || item.estimateId || item.invoiceId || item.checkoutId || item.giftCardId}-${item.recipientId || 'owner'}-${item.event || (item.final ? 'final' : 'request')}-${String(item.path || '').slice(-12)}`, { fromName: item.fromName || (fromAddress ? state.profile?.name || '' : ''), replyTo: item.replyTo, fromAddress }));
         }
         if (item.kind === 'document' && item.channels?.includes('whatsapp')) {
           if (!item.phone) outcomes.push('WhatsApp: contato sem telefone');
@@ -1126,10 +1129,11 @@ export function makeServer({
     if (!due.length) return 0;
     if (!privateSpace.test(workspace) && !(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'reporting').catch(() => false))) return 0;
     let sent = 0;
+    const fromAddress = await sendingAddress(workspace);
     for (const { id: reportId, slot } of due) {
       const report = state.customReports.find(row => row.id === reportId);
       let problem = '';
-      try { await reportMail.send(workspace, state, report, slot); sent++; } catch (e) { problem = e.message; }
+      try { await reportMail.send(workspace, state, report, slot, { fromAddress }); sent++; } catch (e) { problem = e.message; }
       await change(workspace, { type: 'report-sent', id: reportId, data: { slot, error: problem } });
     }
     return sent;
@@ -1919,6 +1923,66 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           googleCache.delete(id);
           await recordAudit(who, 'Google desconectado', id).catch(() => {});
           return json(googleView(await store.load(rowId), true));
+        }
+        throw error('Not found.', 404);
+      }
+      if (p.startsWith('/api/email/workspace/')) {
+        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
+        const op = p.slice('/api/email/workspace/'.length).replace(/\/+$/, '');
+        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
+        const rowId = `email-${id}`;
+        const view = row => emailDomainView(row, { configured: emailDomainApi.configured, platformFrom: process.env.PORTAL_EMAIL_FROM || '' });
+        // Copies Resend's view of the domain (status and per-record status) into the row.
+        const refresh = async () => {
+          const row = await socialRow(rowId), d = row.emailDomain;
+          if (!d) return row;
+          const live = await emailDomainApi.get(d.id);
+          await store.change(rowId, r => { if (r.emailDomain?.id === d.id) r.emailDomain = applyDomainStatus(r.emailDomain, live, stamp()); });
+          return store.load(rowId);
+        };
+        if (op === 'status' && method === 'GET') {
+          const row = await socialRow(rowId);
+          if (!row.emailDomain || row.emailDomain.status === 'verified' || !emailDomainApi.configured) return json(view(row));
+          try { return json(view(await refresh())); } catch (e) { return json({ ...view(row), problem: e.message }); }
+        }
+        if (method !== 'POST') throw error('Method not allowed.', 405);
+        const body = await payload(req);
+        if (op === 'add') {
+          if ((await socialRow(rowId)).emailDomain) throw error('Esta subconta já tem um domínio de envio. Remova o atual para trocar.', 409);
+          const localPart = normalizeLocalPart(body.localPart ?? 'contato');
+          const live = await emailDomainApi.add(body.domain);
+          let clash = false;
+          await store.change(rowId, r => {
+            if (r.emailDomain) { clash = true; return; }
+            r.emailDomain = { ...live, localPart, addedAt: stamp(), checkedAt: stamp(), verifiedAt: live.status === 'verified' ? stamp() : '' };
+          });
+          if (clash) { await emailDomainApi.remove(live.id).catch(() => {}); throw error('Esta subconta já tem um domínio de envio. Remova o atual para trocar.', 409); }
+          await recordAudit(who, 'Domínio de envio adicionado', live.name).catch(() => {});
+          return json(view(await store.load(rowId)));
+        }
+        if (op === 'verify') {
+          const row = await socialRow(rowId);
+          if (!row.emailDomain) throw error('Adicione um domínio de envio primeiro.', 409);
+          await emailDomainApi.verify(row.emailDomain.id);
+          return json(view(await refresh()));
+        }
+        if (op === 'save') {
+          const localPart = normalizeLocalPart(body.localPart);
+          await socialRow(rowId);
+          await store.change(rowId, r => {
+            if (!r.emailDomain) throw error('Adicione um domínio de envio primeiro.', 409);
+            r.emailDomain.localPart = localPart;
+          });
+          return json(view(await store.load(rowId)));
+        }
+        if (op === 'remove') {
+          const row = await socialRow(rowId);
+          if (row.emailDomain) {
+            await emailDomainApi.remove(row.emailDomain.id);
+            await store.change(rowId, r => { delete r.emailDomain; });
+            await recordAudit(who, 'Domínio de envio removido', row.emailDomain.name).catch(() => {});
+          }
+          return json(view(await store.load(rowId)));
         }
         throw error('Not found.', 404);
       }

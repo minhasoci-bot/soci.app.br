@@ -150,7 +150,7 @@ Marketplace de apps + App Studio. Soci: 🟡 `setup-marketplace.mjs`.
 | Users (papéis/permissões) | ✅ |
 | Opportunities & Pipelines | ✅ |
 | Calendars | 🟡 |
-| Email Services (SMTP/domínio de envio) | ❌ |
+| Email Services (SMTP/domínio de envio) | 🟡 domínio próprio (SPF/DKIM) |
 | Phone System | ❌ |
 | WhatsApp | ✅ |
 | Objects (objetos personalizados) | ✅ |

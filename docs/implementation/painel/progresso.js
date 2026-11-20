@@ -17,8 +17,8 @@
  */
 window.PLANO_SOCI = {
   titulo: "Paridade Soci × GoHighLevel",
-  atualizadoEm: "2026-11-20 20:20",
-  etapaAtual: "2.1",
+  atualizadoEm: "2026-11-20 20:52",
+  etapaAtual: "2.2",
 
   regras: [
     "Front-end sempre em ui/ (nunca copiar public/ por cima de ui/).",
@@ -97,7 +97,9 @@ window.PLANO_SOCI = {
     {
       id: "2", nome: "Comunicação", objetivo: "E-mail com domínio próprio, conversas completas e telefonia.",
       itens: [
-        { id: "2.1", titulo: "Email Services: domínio de envio (SPF/DKIM)", status: "pendente", ref: "04 §1 Configurações" },
+        { id: "2.1", titulo: "Email Services: domínio de envio (SPF/DKIM)", status: "feito", ref: "04 §1 Configurações", data: "2026-11-20",
+          entrega: "email-domain.mjs, ui/email-services.js, ui/app.js, ui/screens.js, ui/crm.js, ui/style.css, server.mjs, storage.mjs, document-mail.mjs, report-share.mjs, test/email-domain.test.mjs (sem commit)",
+          nota: "Aba Serviços de e-mail em Configurações: a subconta adiciona o domínio (de preferência um subdomínio) e o endereço do remetente; o domínio é criado na conta Resend da plataforma (região São Paulo), que devolve os registros SPF (MX + TXT) e DKIM, mostrados com botão de copiar, e o DMARC aparece como recomendado. Verificar agora consulta o Resend; enquanto não verifica, o status é reconsultado ao abrir a aba. Verificado, faturas, recibos, orçamentos, documentos para assinar, carrinhos, cartões-presente e relatórios agendados saem de nome <remetente@domínio>; se o Resend recusar o domínio depois (DNS removido), o envio volta ao endereço da plataforma. Exige RESEND_API_KEY com acesso total (chave só de envio não gerencia domínios). Validado com simulador do Resend nos testes e no navegador; falta testar com um domínio real. Sem gatilho novo: nenhum evento de cliente nasce daqui. 234 testes passando." },
         { id: "2.2", titulo: "Construtor de e-mail, campanhas com estatísticas e teste A/B", status: "pendente", ref: "04c §4 (E-mail)" },
         { id: "2.3", titulo: "Analytics de conversas; completar snippets, trigger links e ações manuais", status: "pendente", ref: "04 §1 Conversas" },
         { id: "2.4", titulo: "Telefonia: ligações, chamadas perdidas, relatório de chamadas", status: "bloqueado", ref: "04 §3 Fase 2", nota: "Depende da decisão D1." },
@@ -183,6 +185,7 @@ window.PLANO_SOCI = {
   ],
 
   historico: [
+    { data: "2026-11-20", hora: "20:52", texto: "2.1 concluído: domínio de envio próprio por subconta (SPF/DKIM via Resend), com verificação e retorno ao endereço da plataforma se o domínio cair. Próximo: 2.2 construtor de e-mail e campanhas." },
     { data: "2026-11-20", hora: "20:20", texto: "1.9 e 1.10 concluídos: coleções, estoque por produto, avaliações e cartões-presente, com gatilho Avaliação de produto e ação Atualizar estoque. Fase 1 completa. Próximo: 2.1 Email Services (domínio de envio)." },
     { data: "2026-11-20", hora: "18:43", texto: "1.8 concluído: Pedidos (lojas e ofertas) e Checkouts abandonados em Pagamentos, com captura no carrinho, lembrete com link de recuperação, status Recuperado e gatilhos Checkout abandonado e Pedido entregue. Próximo: 1.9 Gift cards, coleções, estoque e avaliações." },
     { data: "2026-11-20", hora: "18:27", texto: "1.7 concluído: configurações de recibo (numeração, remetente, assunto e mensagem com variáveis) com envio automático quando a fatura é paga, e lista de impostos aplicada por item com subtotal e impostos nos totais. Próximo: 1.8 Pedidos e checkouts abandonados." },

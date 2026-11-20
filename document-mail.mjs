@@ -58,13 +58,20 @@ export function documentMailer({ key = process.env.RESEND_API_KEY, from = proces
   return {
     configured: Boolean(key && from),
     linkOf: item => item.path ? `${httpsOrigin(item.origin) || fallback}${item.path}` : '',
-    async email(to, { subject, text }, idempotency, { fromName = '', replyTo = '' } = {}) {
+    /** `fromAddress` is the sub-account's verified domain (Serviços de e-mail); without it the platform address sends. */
+    async email(to, { subject, text }, idempotency, { fromName = '', replyTo = '', fromAddress = '' } = {}) {
       if (!key || !from) return 'e-mail não configurado (RESEND_API_KEY e PORTAL_EMAIL_FROM)';
-      const response = await request('https://api.resend.com/emails', {
+      const post = (sender, idem) => request('https://api.resend.com/emails', {
         method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'Idempotency-Key': idempotency },
-        body: JSON.stringify({ from: senderOf(from, fromName), to: [to], subject, text, ...(replyTo ? { reply_to: replyTo } : {}) })
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'Idempotency-Key': idem },
+        body: JSON.stringify({ from: senderOf(sender, fromName), to: [to], subject, text, ...(replyTo ? { reply_to: replyTo } : {}) })
       }).catch(() => null);
+      let response = await post(fromAddress || from, idempotency);
+      // Resend answers 403 when the domain stopped being verified (DNS records removed): fall back to the platform address.
+      if (fromAddress && response?.status === 403) {
+        response = await post(from, `${idempotency}-platform`);
+        if (response?.ok) return `e-mail enviado pelo endereço da plataforma (o domínio ${fromAddress.split('@')[1]} não está verificado)`;
+      }
       return response?.ok ? 'e-mail enviado' : `e-mail não enviado${response ? ` (HTTP ${response.status})` : ''}`;
     }
   };
