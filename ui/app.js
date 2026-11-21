@@ -1,6 +1,6 @@
 import {icon as i, logo, brandName, bootScreen} from './icons.js';
 import {nav,h,avatar,screens,publicView,money} from './screens.js';
-import { conversationSections, manualQueue, slaRecords } from './conversations.js';
+import { conversationSections, manualQueue, manualType, slaRecords, SLA_CHANNELS } from './conversations.js';
 import { inboxChange, inboxClick, inboxSubmit } from './inbox.js';
 import { dashboardPreferences, installDashboardControls, reportGrid } from './dashboard-controls.js';
 import { drawDashboardGauges } from './dashboard.js';
@@ -37,6 +37,7 @@ import { afterDocumentsRender, installDocuments } from './documents.js';
 import { installEstimates } from './estimates.js';
 import { installInvoices, invoiceTabs } from './invoices.js';
 import { installPaymentSettings } from './payment-settings.js';
+import { installEmailMarketing, emailTabs } from './email-marketing.js';
 import { installOrders } from './orders.js';
 import { installCatalog } from './catalog.js';
 import { installPrancheta } from './prancheta.js';
@@ -150,7 +151,7 @@ const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social','email','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers'],reporting:['reports','overview','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social',...emailTabs,'prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers'],reporting:['reports','overview','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -224,6 +225,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(view==='automation' && (c.view!==view || c.tab!==nextTab || c.automationId!==automationId)) c.workflowList=null;
   c.view=view;c.tab=nextTab;c.automationId=automationId;c.studio.project=project||'';
   c.reportId=view==='reporting'&&nextTab==='editor'?project||'':'';
+  c.emailId=view==='marketing'&&['email-campaign','email-template','email-report'].includes(nextTab)?project||'':'';
   c.agentId=view==='ai-agents'&&['agent','edit'].includes(nextTab)?project:'';
   if(view==='launchpad'){ render(); if(allowedView('settings')) void refreshSubWa(); return; }
   if(view==='settings'&&nextTab==='whatsapp'){ render(); void refreshSubWa(); return; }
@@ -412,7 +414,8 @@ function edit(key,id,preset={}){
       body = input('Nome da resposta rápida','name',r.name,true) + option('Tipo','type',type,[['Text','Texto'],['Email','E-mail']]) +
         option('Pasta','folderId',r.folderId || c.conversationFilters.folder || '',[['','Nenhuma pasta'],...c.s.snippetFolders.map(folder => [folder.id,folder.name])],false) +
         optionalGroup('data-snippet-subject',type === 'Email',input('Assunto','subject',r.subject,true)) +
-        area('Mensagem','body',r.body,true) + '<p class="dim">Use {{contact.first_name}}, {{contact.name}}, {{contact.email}} ou {{location.name}} para personalizar a mensagem.</p>';
+        area('Mensagem','body',r.body,true) + `<p class="dim snippet-fields">Campos: ${[...snippetFields, ...(c.s.customValues || []).filter(v => v.key).map(v => [`{{${v.key}}}`, v.name])]
+          .map(([token, label]) => `<code title="${h(label)}">${h(token)}</code>`).join(' ')}. Textos valem para WhatsApp, chat do site, SMS e redes; a conversa mantém o canal aberto.</p>`;
       break;
     }
     case 'triggerLinks': body = input('Nome','name',r.name,true) + input('URL do link','url',r.url,true,'url'); break;
@@ -499,19 +502,24 @@ function manualDetails(id, queueMode = false) {
   const item = c.s.manualActions.find(entry => entry.id === id);
   if (!item) return;
   const contact = c.s.contacts.find(entry => entry.id === item.contactId);
+  const tel = String(contact?.phone || '').replace(/[^\d+]/g, '');
+  const whatsapp = item.type === 'Manual WhatsApp', pending = item.status === 'Pending';
   const details = `<div class="manual-details"><b>${h(contact?.name || 'Contato removido')}</b>
-    ${contact?.phone ? `<p>Telefone · ${h(contact.phone)}</p>` : ''}
+    ${contact?.phone ? `<p>Telefone · ${h(contact.phone)}${tel && item.type === 'Manual Call' && pending ? ` <a class="secondary" href="tel:${h(tel)}">${i('phone',15)} Ligar</a>` : ''}</p>` : ''}
     <p>${h(item.workflowName)} · ${h(item.assignee || 'Não atribuído')}</p>
-    <p class="pre-wrap">${h(item.instructions)}</p>
+    ${whatsapp && pending ? '' : `<p class="pre-wrap">${h(item.instructions)}</p>`}
     ${item.note ? `<p class="pre-wrap">${h(item.note)}</p>` : ''}
     ${contact ? `<button type="button" class="secondary" data-start-thread="${contact.id}">${i('chat',16)} Abrir conversa</button>` : ''}
   </div>`;
   if (item.status !== 'Pending') {
-    dialog(tr(item.type), details, { description: tr(item.status) });
+    dialog(manualType(item.type), details, { description: tr(item.status) });
     return;
   }
-  dialog(tr(item.type), details + area('Observação do resultado','note',''), { form:'manual-action', id,
-    buttons:'<button type="button" class="secondary" data-act="close">Cancelar</button><button class="secondary" name="status" value="Skipped">Pular</button><button class="primary" name="status" value="Completed">Marcar como concluído</button>' });
+  // WhatsApp: the suggested message is editable and goes out through the sub-account's WhatsApp before completing.
+  const canSend = whatsapp && contact?.phone;
+  const draft = whatsapp ? area(contact?.phone ? 'Mensagem para enviar' : 'Mensagem sugerida (o contato não tem telefone)','whatsappBody',item.instructions) : '';
+  dialog(manualType(item.type), details + draft + area('Observação do resultado','note',''), { form:'manual-action', id,
+    buttons:`<button type="button" class="secondary" data-act="close">Cancelar</button><button class="secondary" name="status" value="Skipped">Pular</button>${canSend ? '<button class="primary" name="status" value="Sent">Enviar pelo WhatsApp e concluir</button>' : '<button class="primary" name="status" value="Completed">Marcar como concluído</button>'}` });
   G('form[data-form="manual-action"]').dataset.queue = String(queueMode);
 }
 
@@ -536,14 +544,30 @@ function insertIntoComposer(value) {
   body.focus();
 }
 
+// Fields a snippet can use: the contact, the business, the signed-in user and the custom values.
+const snippetFields = [['{{contact.first_name}}','Primeiro nome'],['{{contact.name}}','Nome completo'],['{{contact.email}}','E-mail'],['{{contact.phone}}','Telefone'],
+  ['{{contact.company}}','Empresa do contato'],['{{location.name}}','Nome do negócio'],['{{user.name}}','Seu nome']];
+function snippetValues(contact = {}) {
+  const values = { 'contact.name':contact.name || '', 'contact.first_name':String(contact.name || '').split(/\s+/)[0], 'contact.email':contact.email || '',
+    'contact.phone':contact.phone || '', 'contact.company':contact.company || '', 'location.name':c.s.profile.name, 'workspace.name':c.s.profile.name,
+    'user.name':c.access?.name || c.me?.name || '' };
+  for (const item of c.s.customValues || []) if (item.key) values[item.key] = item.value || '';
+  return values;
+}
 function useSnippet(id) {
   const snippet = c.s.snippets.find(item => item.id === id);
   const contact = c.s.contacts.find(item => item.id === c.thread);
-  const values = { 'contact.name':contact.name, 'contact.first_name':contact.name.split(/\s+/)[0],
-    'contact.email':contact.email, 'contact.phone':contact.phone, 'location.name':c.s.profile.name };
+  const values = snippetValues(contact);
   const merge = text => text.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (whole,key) => Object.hasOwn(values,key) ? values[key] || '' : whole);
   const form = composer();
-  form.elements.channel.value = snippet.type === 'Email' ? 'Email' : 'SMS';
+  // E-mail snippets switch to e-mail; text snippets keep the conversation's channel (WhatsApp, chat, SMS…),
+  // leaving e-mail and internal notes for the most recent channel the contact used.
+  const current = form.elements.channel.value;
+  if (snippet.type === 'Email') form.elements.channel.value = 'Email';
+  else if (['Email','Note'].includes(current)) {
+    const last = [...c.s.messages].reverse().find(m => m.contactId === c.thread && !['Email','Note'].includes(m.channel))?.channel;
+    form.elements.channel.value = [...form.elements.channel.options].some(o => o.value === last) ? last : 'WhatsApp';
+  }
   showEmailSubject(form);
   if (snippet.type === 'Email' && !form.elements.subject.value) form.elements.subject.value = merge(snippet.subject);
   insertIntoComposer(merge(snippet.body));
@@ -958,6 +982,16 @@ document.addEventListener('submit',async ev=>{
     else if(name==='workspace'){const d=await api('/api/workspaces',data);await useWorkspace(d.id);flash('Workspace created.');return;}
     else if(name==='message'){await mutate({type:'message',data:{...data,contactId:c.thread}});msg='Message logged.';}
     else if (name === 'manual-action') {
+      if (data.status === 'Sent') {
+        const item = c.s.manualActions.find(entry => entry.id === f.dataset.id);
+        const body = String(data.whatsappBody || '').trim();
+        if (!body) throw new Error('Escreva a mensagem antes de enviar.');
+        const result = await api(url('/api/action'), { type:'message', data:{ contactId:item.contactId, channel:'WhatsApp', direction:'Outbound', body } });
+        if (result.delivery && !result.delivery.sent) throw new Error(result.delivery.reason === 'not-connected' ? 'O WhatsApp da subconta não está conectado. A mensagem ficou registrada na conversa.' : 'O WhatsApp não confirmou o envio. A mensagem ficou registrada na conversa.');
+        data.status = 'Completed';
+        data.note = [data.note, 'Mensagem enviada pelo WhatsApp.'].filter(Boolean).join('\n');
+      }
+      delete data.whatsappBody;
       await mutate({ type:'manual-action', id:f.dataset.id, data });
       msg = data.status === 'Skipped' ? 'Action skipped.' : 'Action completed.';
       const next = f.dataset.queue === 'true' && manualQueue(c).find(item => item.status === 'Pending');
@@ -968,7 +1002,7 @@ document.addEventListener('submit',async ev=>{
     else if (name === 'conversation-sla') {
       const targets = key => ({ soon: data[`${key}Soon`], overdue: data[`${key}Overdue`] });
       await mutate({ type:'conversation-sla', data:{ enabled:f.elements.enabled.checked, mode:data.mode, automation:data.automation,
-        workflows:fd.getAll('workflows'), common:targets('common'), channels:{ SMS:targets('SMS'), Email:targets('Email') } } });
+        workflows:fd.getAll('workflows'), common:targets('common'), channels:Object.fromEntries(SLA_CHANNELS.map(channel => [channel, targets(channel)])) } });
       msg = 'SLA settings saved.';
     }
     else if(name==='assistant'){const q=data.prompt.trim();if(q){c.chat.push({self:true,body:q},{body:assistant(q)});render();G('.ask-composer input')?.focus();}return;}
@@ -1049,6 +1083,7 @@ if(viewPath){
   installEstimates({ c, api, mutate, flash, dialog, close, render });
   installInvoices({ c, api, mutate, flash, dialog, close, render });
   installPaymentSettings({ c, mutate, flash, render });
+  installEmailMarketing({ c, mutate, flash, dialog, close, render, api, url, load });
   installOrders({ c, mutate, flash, dialog, close, render });
   installCatalog({ c, mutate, flash, dialog, close, render });
   installPrancheta({

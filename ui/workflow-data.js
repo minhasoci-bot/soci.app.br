@@ -20,6 +20,7 @@ export const refSources = {
   documentTemplates: s => (s.documentTemplates || []).map(row => [row.id, row.title]),
   estimates: s => (s.estimates || []).map(row => [row.id, `${row.number} · ${row.title}`]),
   invoiceTemplates: s => (s.invoiceTemplates || []).map(row => [row.id, row.name]),
+  emailCampaigns: s => (s.emailCampaigns || []).map(row => [row.id, row.name]),
   dateFields: s => (s.customFields || []).filter(row => row.object === 'Contact' && row.type === 'Date').map(row => [row.id, row.name]),
   contactFields: s => [['name', 'Nome'], ['email', 'E-mail'], ['phone', 'Telefone'], ['company', 'Empresa'], ...(s.customFields || []).filter(row => row.object === 'Contact').map(row => [`custom:${row.id}`, row.name])],
   numberFields: s => (s.customFields || []).filter(row => row.object === 'Contact' && ['Number', 'Monetary'].includes(row.type)).map(row => [`custom:${row.id}`, row.name]),
@@ -49,6 +50,8 @@ export const triggerCatalog = [
     { type: 'form_submitted', label: 'Formulário enviado', icon: 'list', fields: [f('formId', 'Formulário', 'ref', { source: 'forms', empty: 'Qualquer formulário' })] },
     { type: 'survey_submitted', label: 'Pesquisa enviada', icon: 'chart', fields: [f('formId', 'Pesquisa', 'ref', { source: 'surveys', empty: 'Qualquer pesquisa' })] },
     { type: 'quiz_submitted', label: 'Questionário enviado', icon: 'award', fields: [f('formId', 'Questionário', 'ref', { source: 'quizzes', empty: 'Qualquer questionário' }), f('tier', 'Faixa do resultado', 'text', { placeholder: 'Qualquer faixa' })] },
+    { type: 'email_event', label: 'Evento de e-mail', icon: 'mail', fields: [f('event', 'Quando o contato', 'select', { options: [any('Abrir, clicar ou sair da lista'), ['opened', 'Abrir o e-mail'], ['clicked', 'Clicar em um link'], ['unsubscribed', 'Cancelar a inscrição']] }),
+      f('campaignId', 'Campanha', 'ref', { source: 'emailCampaigns', empty: 'Qualquer campanha' })] },
     { type: 'trigger_link_clicked', label: 'Link de rastreamento clicado', icon: 'link', fields: [f('linkId', 'Link', 'ref', { source: 'links', empty: 'Qualquer link' })] },
     { type: 'chat_started', label: 'Chat do site iniciado', icon: 'chat', fields: [f('widgetId', 'Chat', 'ref', { source: 'chats', empty: 'Qualquer chat' })] },
     { type: 'webinar_registered', label: 'Inscrição em webinar', icon: 'play', fields: [f('webinarId', 'Webinar', 'ref', { source: 'webinars', empty: 'Qualquer webinar' })] },
@@ -128,6 +131,7 @@ export const actionCatalog = [
     { type: 'internal_notification', label: 'Notificação interna', icon: 'bell', fields: [f('body', 'Mensagem para a equipe', 'textarea', { required: true })] },
     { type: 'review_request', label: 'Pedir avaliação', icon: 'star', fields: [f('channel', 'Canal', 'select', { options: [['WhatsApp', 'WhatsApp'], ['SMS', 'SMS'], ['Email', 'E-mail']] }), f('body', 'Mensagem', 'textarea', { required: true, value: 'Oi, {{contact.first_name}}! Como foi sua experiência com a {{workspace.name}}? Sua avaliação ajuda muito.' })] },
     { type: 'manual_sms', label: 'Ação manual: SMS', icon: 'phone', fields: [f('body', 'Instruções', 'textarea', { required: true }), f('assignee', 'Responsável', 'text')] },
+    { type: 'manual_whatsapp', label: 'Ação manual: WhatsApp', icon: 'whatsapp', fields: [f('body', 'Mensagem sugerida', 'textarea', { required: true, placeholder: 'Oi {{contact.first_name}}, …' }), f('assignee', 'Responsável', 'text')] },
     { type: 'manual_call', label: 'Ação manual: ligação', icon: 'phone', fields: [f('body', 'Instruções', 'textarea', { required: true }), f('assignee', 'Responsável', 'text')] }
   ] },
   { group: 'CRM e pagamentos', items: [

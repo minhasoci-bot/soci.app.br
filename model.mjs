@@ -23,6 +23,7 @@ import { documentAfterSave, documentBeforeDelete, documentCollections, documentC
 import { catalogAfterSave, catalogBeforeDelete, catalogCollections, catalogCommand, catalogFields, submitReview, workflowInventory } from './catalog-model.mjs';
 import { captureCart, checkoutBeforeDelete, checkoutCollections, checkoutCommand, checkoutConverted, checkoutFields, checkoutTick, restoreCart } from './checkout-model.mjs';
 import { invoiceAfterSave, paymentDefaults, savePaymentSettings, invoiceBeforeDelete, invoiceCollections, invoiceCommand, invoiceFields, invoiceTick, sendTemplateInvoice, startTemplateRecurring } from './invoice-model.mjs';
+import { emailBeforeDelete, emailCollections, emailCommand, emailFields } from './email-campaign-model.mjs';
 import { estimateAfterSave, estimateBeforeDelete, estimateCollections, estimateCommand, estimateFields, sendEstimateCopy } from './estimate-model.mjs';
 
 export const defaults = {
@@ -36,7 +37,7 @@ export const defaults = {
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[], pranchetaFiles:[],
-  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...offerCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...offerCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
   paymentSettings: paymentDefaults(),
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
@@ -46,7 +47,7 @@ export function hydrateWorkspace(state) {
   state.customReports ??= [];
   state.paymentSettings ??= paymentDefaults();
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...checkoutCollections,...catalogCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -82,6 +83,8 @@ const percent = value => {
 const tags = value => [...new Set((Array.isArray(value) ? value : str(value).split(',')).map(a => str(a, 48)).filter(Boolean))].slice(0, 20);
 export const triggers = ['Contact created', 'Form submitted', 'Opportunity stage changed', 'Appointment booked', 'Trigger link clicked', 'Customer replied'];
 const messageChannels = ['Note', 'Email', 'SMS', 'WhatsApp', 'Live chat', 'Instagram', 'Facebook'];
+// Channels whose inbound messages start an SLA timer (every conversation channel except internal notes).
+const slaChannels = messageChannels.filter(channel => channel !== 'Note');
 export const find = (state, key, id) => state[key].find(a => a.id === id);
 const webAddress = value => { const v = str(value, 600); if (v && !/^https?:\/\/[^\s/]+\.[^\s]+$/i.test(v)) fail('Use um endereço que comece com https://'); return v; };
 const when = (value, label) => { if (!value) return ''; const t = Date.parse(value); if (Number.isNaN(t)) fail(`Use uma data válida em ${label}.`); return new Date(t).toISOString(); };
@@ -156,6 +159,7 @@ const fields = {
   ...documentFields,
   ...estimateFields,
   ...invoiceFields,
+  ...emailFields,
   ...checkoutFields,
   ...catalogFields,
   reviews: (s,d) => ({ author: req(d.author,'Author'), score: one(Number(d.score),[1,2,3,4,5],'rating'), text: req(d.text,'Review',2500), reply: str(d.reply,2500) }),
@@ -253,7 +257,7 @@ function saveSla(state, data) {
   state.conversationSla = {
     enabled, mode, automation, workflows,
     common: mode === 'common' ? target(data.common) : current.common,
-    channels: mode === 'channel' ? Object.fromEntries(['Email','SMS'].map(channel => [channel, target(data.channels?.[channel])])) : current.channels,
+    channels: mode === 'channel' ? Object.fromEntries(slaChannels.map(channel => [channel, target(data.channels?.[channel] || data.common)])) : current.channels,
     startedAt: enabled ? current.enabled && current.startedAt ? current.startedAt : now() : current.startedAt
   };
   return enabled;
@@ -362,6 +366,7 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
   if (typeof type === 'string' && type.startsWith('document-')) return documentCommand(s, { ...command, data:d }, { workspace, run });
   if (typeof type === 'string' && type.startsWith('estimate-')) return estimateCommand(s, { ...command, data:d }, { workspace, run });
+  if (typeof type === 'string' && type.startsWith('email-')) return emailCommand(s, { ...command, data:d }, { run, add });
   if (typeof type === 'string' && type.startsWith('invoice-')) return invoiceCommand(s, { ...command, data:d }, { workspace, run });
   if (type === 'store-checkout') { const orderId = storeCheckout(s, { ...command, data:d }, { add, run }); checkoutConverted(s, d.session, find(s, 'orders', orderId), run); return orderId; }
   if (type === 'store-cart') return captureCart(s, id, d);
@@ -578,6 +583,7 @@ function remove(s, key, id) {
     documentBeforeDelete(s, key, id);
     estimateBeforeDelete(s, key, id);
     invoiceBeforeDelete(s, key, id);
+    emailBeforeDelete(s, key, id);
     checkoutBeforeDelete(s, key, id);
     catalogBeforeDelete(s, key, id);
     if (key==='contacts') {
@@ -631,11 +637,15 @@ function other(s, command, type, key, id, d, workspace) {
     const direction = one(d.direction, ['Outbound','Inbound'], 'direction');
     let body = req(d.body, 'Message', 5000);
     if (direction === 'Outbound') {
+      // Each trigger link becomes a per-contact ticket. The server passes its public origin so the link
+      // also works outside the app (WhatsApp, e-mail); without it the path stays relative.
       const tickets = new Map();
+      let base = '';
+      try { const url = new URL(String(d.origin || '')); if (['https:', 'http:'].includes(url.protocol)) base = url.origin; } catch { base = ''; }
       body = body.replace(/\{\{trigger_link\.([a-f0-9-]{36})\}\}/g, (_, linkId) => {
         exists(s, 'triggerLinks', linkId, 'trigger link');
-        if (!tickets.has(linkId)) tickets.set(linkId, add(s, 'linkTickets', { linkId, contactId: c }).id);
-        return `/r/${workspace}/${tickets.get(linkId)}`;
+        if (!tickets.has(linkId)) tickets.set(linkId, add(s, 'linkTickets', { linkId, contactId: c, channel }).id);
+        return `${base}/r/${workspace}/${tickets.get(linkId)}`;
       });
     }
     const msgId = add(s, 'messages', { contactId: c, body, subject: channel === 'Email' ? str(d.subject, 240) : '',
@@ -648,7 +658,7 @@ function other(s, command, type, key, id, d, workspace) {
   if (type === 'conversation-sla') return saveSla(s, d);
   if (type === 'dismiss-sla') {
     const message = find(s, 'messages', id);
-    if (!s.conversationSla.enabled || message?.direction !== 'Inbound' || !['Email','SMS'].includes(message.channel)) fail('SLA timer not found.', 404);
+    if (!s.conversationSla.enabled || message?.direction !== 'Inbound' || !slaChannels.includes(message.channel)) fail('SLA timer not found.', 404);
     message.slaDismissedAt ??= now();
     return id;
   }

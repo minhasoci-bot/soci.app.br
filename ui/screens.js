@@ -27,6 +27,7 @@ import {estimatesScreen} from './estimates.js';
 import {invoicesScreen, invoiceTabs} from './invoices.js';
 import {paymentSettingsScreen} from './payment-settings.js';
 import {emailServicesView} from './email-services.js';
+import {emailMarketingScreen} from './email-marketing.js';
 import {ordersScreenFor, orderTabsKeys} from './orders.js';
 import {catalogScreen, catalogTabs} from './catalog.js';
 import {pranchetaScreen} from './prancheta.js';
@@ -241,14 +242,7 @@ function marketing(c){
   const t=c.tab||'social';
   const marketingTabs = [['social','Planejador social'],['email','E-mails']];
   if(t==='social') return socialPlanner(c,{ pageShell, utabs, marketingTabs });
-  const channel='Email', records=top(c.s.campaigns.filter(x=>x.channel===channel),c.query,['name','body','status']);
-  return pageShell({
-    title: 'Marketing',
-    desc: 'Rascunhe e organize campanhas. Publique ou envie pelo seu provedor quando estiver pronto.',
-    cta: primary('Nova campanha','campaigns',`data-channel="${channel}"`),
-    tabs: { key: 'marketing', items: marketingTabs, current: t, label: 'Seções de marketing' },
-    content: `<div class="toolbar">${search(c.query,'Buscar campanhas…')}</div>`+table(['Campanha','Conteúdo','Data planejada','Status',''],records.map(r=>row([`<b>${h(r.name)}</b>`,`<span class="ellipsis">${h(r.body)}</span>`,date(r.date,c),badge(r.status,r.status==='Planned'?'blue':'')],'campaigns',r.id)),empty('Nenhuma campanha','Crie seu primeiro rascunho para planejar o conteúdo.','send'))
-  });
+  return emailMarketingScreen(c,{ marketingTabs });
 }
 function sites(c){
   if(formTabs.includes(c.tab)) return formsScreen(c);

@@ -19,10 +19,10 @@ Legenda: ✅ existe · 🟡 parcial / conferir · ❌ não encontrado · ⏭ nã
 | GHL | Soci |
 |---|---|
 | Conversations (Unread / All / Recent / Starred, caixa da equipe) | ✅ inbox |
-| Manual Actions | 🟡 |
-| Snippets | 🟡 |
-| Trigger Links | 🟡 |
-| Analytics | ❌ |
+| Manual Actions | ✅ ligação, SMS e WhatsApp manual |
+| Snippets | ✅ |
+| Trigger Links | ✅ com taxa de clique |
+| Analytics | ✅ visão geral + SLA |
 | Settings | 🟡 |
 | Compra / porte de número de telefone | ❌ (WhatsApp/WAHA no lugar) |
 
@@ -71,10 +71,10 @@ Soci: 🟡 `agents.js` / `agent-ai.mjs` existem. Conferir **Voice AI** (atendime
 | GHL | Soci |
 |---|---|
 | Social Planner (FB, IG, LinkedIn, TikTok, YouTube, Pinterest, Threads, Bluesky, GBP, Community; CSV, fila evergreen, post recorrente, RSS) | ✅ base; 🟡 evergreen, recorrente, RSS, Threads/Bluesky |
-| Emails (construtor, campanhas, estatísticas) | 🟡 |
-| Snippets | 🟡 |
+| Emails (construtor, campanhas, estatísticas) | ✅ blocos, campanhas, A/B do assunto (sem blocos avançados) |
+| Snippets | ✅ |
 | Countdown Timers | ❌ |
-| Trigger Links | 🟡 |
+| Trigger Links | ✅ com taxa de clique |
 | Affiliate Manager (dashboard, campanhas, afiliados, pagamentos, mídia, config.) | ❌ (só existe o portal de afiliados da agência) |
 | Brand Boards | ❌ |
 | Ad Manager | ❌ |

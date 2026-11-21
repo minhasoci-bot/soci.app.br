@@ -286,7 +286,7 @@ const triggerData = {
   customer_replied: [['body', 'Mensagem recebida'], ['channel', 'Canal']], form_submitted: [['formId', 'Formulário']], survey_submitted: [['formId', 'Pesquisa']],
   quiz_submitted: [['formId', 'Quiz'], ['tier', 'Faixa do resultado']], pipeline_stage_changed: [['stageId', 'Etapa']], opportunity_status_changed: [['status', 'Status']],
   invoice_status: [['status', 'Status'], ['total', 'Valor']], payment_received: [['total', 'Valor pago']], order_submitted: [['storeId', 'Loja'], ['total', 'Total']], order_paid: [['storeId', 'Loja'], ['total', 'Total']],
-  review_received: [['score', 'Nota']], chat_started: [['widgetId', 'Chat']], webinar_registered: [['webinarId', 'Webinar']], trigger_link_clicked: [['linkId', 'Link']],
+  review_received: [['score', 'Nota']], chat_started: [['widgetId', 'Chat']], webinar_registered: [['webinarId', 'Webinar']], trigger_link_clicked: [['linkId', 'Link']], email_event: [['event', 'Evento'], ['campaignId', 'Campanha']],
   contact_tag: [['tag', 'Tag'], ['change', 'Adicionada ou removida']], contact_changed: [['fields', 'Campos alterados']], appointment_status: [['status', 'Status']]
 };
 const outputKeys = { create_task: [['id', 'ID'], ['title', 'Título'], ['due', 'Prazo']], create_opportunity: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['stage', 'Etapa']],

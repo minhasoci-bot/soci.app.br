@@ -31,6 +31,8 @@ import { network } from './ui/social-data.js';
 import { captionRequest, writeCaption } from './social-ai.mjs';
 import { findSharedReport, reportMailer, sharedReportPage } from './report-share.mjs';
 import { documentMailer, documentMessage } from './document-mail.mjs';
+import { campaignMailer } from './email-campaign-send.mjs';
+import { mergeValues, normalizeDesign, renderEmail, fillText } from './ui/email-blocks.js';
 import { applyDomainStatus, emailDomainView, emailDomains, normalizeLocalPart, workspaceSender } from './email-domain.mjs';
 import { tokenHash as documentTokenHash } from './document-model.mjs';
 import { estimateTokenHash } from './estimate-model.mjs';
@@ -63,14 +65,14 @@ const root = dirname(fileURLToPath(import.meta.url));
 const staticFiles = new Map([
   ['/launchpad.js','text/javascript; charset=utf-8'], ['/launchpad-data.js','text/javascript; charset=utf-8'], ['/launchpad.css','text/css; charset=utf-8'],
   ['/app.js','text/javascript; charset=utf-8'], ['/icons.js','text/javascript; charset=utf-8'],
-  ['/screens.js','text/javascript; charset=utf-8'], ['/conversations.js','text/javascript; charset=utf-8'],
+  ['/screens.js','text/javascript; charset=utf-8'], ['/conversations.js','text/javascript; charset=utf-8'], ['/conversation-analytics.js','text/javascript; charset=utf-8'],
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
   ['/reports.js','text/javascript; charset=utf-8'], ['/report-data.js','text/javascript; charset=utf-8'], ['/reports.css','text/css; charset=utf-8'],
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
@@ -115,6 +117,8 @@ const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(qu
 const blogPath = new RegExp(`^/b/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,80}|rss\\.xml))?/?$`);
 const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
 const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
+const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const emailTrackPath = new RegExp(`^/e/(o|c|u)/${workspaceSegment}/([0-9a-f]{24})(?:/([0-9]{1,3}))?$`);
 const hookPath = new RegExp(`^/hooks/${workspaceSegment}/([0-9a-f-]{36})/([a-z0-9]{6,40})$`, 'i');
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialInvitePath = new RegExp(`^/social-connect/${workspaceSegment}/?$`);
@@ -159,7 +163,7 @@ export function makeServer({
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, designAgentConfig=designAgent,
   openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
-  portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(),
+  portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(), campaignMail=campaignMailer(),
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
 }={}) {
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
@@ -869,7 +873,7 @@ export function makeServer({
   // Documentos e contratos: signing links by e-mail/WhatsApp, and a per-IP limit on the public signing API.
   // Serviços de e-mail: the sub-account's verified sending domain, or '' to send from the platform address.
   const sendingAddress = async workspace => { try { return workspaceSender(await store.load(`email-${workspace}`)); } catch { return ''; } };
-  const signHits = new Map();
+  const signHits = new Map(), testHits = new Map();
   const allowSign = ip => {
     const at = Date.now(), hit = signHits.get(ip);
     if (!hit || hit.reset < at) { if (signHits.size > 5000) signHits.clear(); signHits.set(ip, { count: 1, reset: at + 600000 }); return true; }
@@ -1138,6 +1142,33 @@ export function makeServer({
     }
     return sent;
   }
+  // E-mail campaigns: start what is scheduled, pick the A/B winner when the test ends and send the queue
+  // in batches of 100 (at most 2.000 a minute per sub-account). One run per sub-account at a time.
+  const emailRuns = new Set();
+  async function runEmailCampaigns(workspace, at = Date.now()) {
+    const state = await store.load(workspace);
+    if (!state.emailCampaigns?.some(row => ['scheduled', 'sending', 'testing'].includes(row.status))) return 0;
+    if (!privateSpace.test(workspace) && !(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'marketing').catch(() => false))) return 0;
+    if (emailRuns.has(workspace)) return 0;
+    emailRuns.add(workspace);
+    try {
+      const queued = (await change(workspace, { type: 'email-tick', data: { at: new Date(at).toISOString() } })).id;
+      if (!queued) return 0;
+      const fromAddress = await sendingAddress(workspace);
+      let sent = 0;
+      for (let round = 0; round < 20; round++) {
+        const batch = (await change(workspace, { type: 'email-take', data: { limit: 100 } })).id;
+        if (!batch.items.length) break;
+        const results = await campaignMail.sendBatch({ workspace, ...batch, fromAddress });
+        if (!results) break;
+        const done = await change(workspace, { type: 'email-result', data: { results } });
+        sent += results.filter(row => row.ok).length;
+        if (done.state.workflowOutbox?.length) flushLater(workspace);
+      }
+      return sent;
+    } finally { emailRuns.delete(workspace); }
+  }
+  const emailLater = workspace => { Promise.resolve().then(() => runEmailCampaigns(workspace)).catch(e => console.error(`E-mail campaigns (${workspace}): ${e.message}`)); };
   async function runAllSocial(base) {
     let total = 0;
     for (const w of (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id))) {
@@ -1147,6 +1178,7 @@ export function makeServer({
       try { await runReportMail(w.id); } catch (e) { console.error(`Report e-mail (${w.id}): ${e.message}`); }
       try { await runRecurringInvoices(w.id); } catch (e) { console.error(`Recurring invoices (${w.id}): ${e.message}`); }
       try { await runAbandonedCheckouts(w.id); } catch (e) { console.error(`Abandoned checkouts (${w.id}): ${e.message}`); }
+      try { await runEmailCampaigns(w.id); } catch (e) { console.error(`E-mail campaigns (${w.id}): ${e.message}`); }
     }
     return total;
   }
@@ -1776,13 +1808,15 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const who = await workspaceAccess(req, res, id);
         requireWorkspaceCommand(who, command);
         command.actor = who.name;
-        if (['document-send', 'document-link', 'estimate-send', 'estimate-link', 'invoice-send', 'invoice-from-template', 'checkout-remind'].includes(command.type)) command.data = { ...(command.data && typeof command.data === 'object' ? command.data : {}), origin: publicBase(req) };
+        if (['document-send', 'document-link', 'estimate-send', 'estimate-link', 'invoice-send', 'invoice-from-template', 'checkout-remind', 'email-campaign-schedule', 'message'].includes(command.type)) command.data = { ...(command.data && typeof command.data === 'object' ? command.data : {}), origin: publicBase(req) };
         const result = await change(id,command,who);
         let delivery = null;
         if (!privateSpace.test(id) && command.type === 'message' && command.data?.channel === 'WhatsApp' && command.data?.direction === 'Outbound') {
           const contact = result.state.contacts.find(c => c.id === command.data.contactId);
           if (contact?.phone) {
-            delivery = await whatsapp.sendWorkspaceText(who.agencyId, id, contact.phone, command.data.body,
+            // The stored body: trigger links already replaced by this contact's tracked URLs.
+            const sentBody = result.state.messages.find(m => m.id === result.id)?.body || command.data.body;
+            delivery = await whatsapp.sendWorkspaceText(who.agencyId, id, contact.phone, sentBody,
               (agencyId, workspace) => accountIsActive(agencyId, workspace, 'conversations'));
           }
         }
@@ -1792,6 +1826,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);
         }
         if (result.state.workflowOutbox?.length) flushLater(id);
+        if (command.type === 'email-campaign-schedule') emailLater(id);
         return json({ id: result.id, ...workspaceView(who, result.state), ...(delivery ? { delivery } : {}) });
       }
       if (p==='/api/agency' && method!=='POST') {
@@ -1925,6 +1960,25 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           return json(googleView(await store.load(rowId), true));
         }
         throw error('Not found.', 404);
+      }
+      if (p === '/api/email/campaign/test' && method === 'POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.', 404);
+        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
+        const body = await payload(req);
+        const to = String(body.to || '').trim().toLowerCase();
+        if (!/^[^\s@<>"]{1,64}@[^\s@<>"]{1,190}\.[a-z0-9-]{2,}$/i.test(to)) throw error('Informe um e-mail válido para o teste.', 400);
+        const at = Date.now(), hits = (testHits.get(id) || []).filter(time => time > at - 3600_000);
+        if (hits.length >= 20) throw error('Limite de 20 e-mails de teste por hora atingido. Tente mais tarde.', 429);
+        testHits.set(id, [...hits, at]);
+        const state = await store.load(id), design = normalizeDesign(body);
+        if (!design.blocks.length) throw error('O e-mail está vazio.', 400);
+        const contact = state.contacts.find(row => row.email) || { name: 'Ana Souza', email: to, company: 'Exemplo' };
+        const values = mergeValues(contact, state.profile), business = state.profile?.name || '';
+        const { html, text } = renderEmail({ ...design, preheader: fillText(String(body.preheader || ''), values), business, values });
+        await campaignMail.sendTest({ to, subject: fillText(String(body.subject || '').slice(0, 200), values) || '(sem assunto)', html, text,
+          fromName: String(body.fromName || '').slice(0, 80) || business, replyTo: /^[^\s@<>"]+@[^\s@<>"]+$/.test(body.replyTo || '') ? body.replyTo : '', fromAddress: await sendingAddress(id) });
+        await recordAudit(who, 'E-mail de teste enviado', to).catch(() => {});
+        return json({ ok: true, to });
       }
       if (p.startsWith('/api/email/workspace/')) {
         if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
@@ -2688,6 +2742,42 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await change(workspace, { type: 'workflow-hook', data: { workflowId, triggerId, payload: body && typeof body === 'object' && !Array.isArray(body) ? body : {} } });
         if (result.state.workflowOutbox?.length) flushLater(workspace);
         return json({ ok: true, run: result.id === 'already-enrolled' ? null : result.id }, 202);
+      }
+      // E-mail campaigns: open pixel, click redirect and unsubscribe page of one recipient.
+      const tracked = p.match(emailTrackPath);
+      if (tracked && ['GET', 'HEAD', 'POST'].includes(method)) {
+        await ready;
+        const [, kind, workspace, token, index] = tracked;
+        const page = (status, title, body) => {
+          res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'" });
+          return res.end(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;color:#18181b;background:#f4f4f5}main{max-width:440px;margin:16px;padding:32px;border-radius:16px;background:#fff;text-align:center}h1{font-size:22px;margin:0 0 8px}p{margin:0 0 16px;color:#52525b}button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:12px 20px;background:#18181b;color:#fff;cursor:pointer}</style></head><body><main><h1>${esc(title)}</h1>${body}</main></body></html>`);
+        };
+        let active = false;
+        try { active = await publicAccountPolicy(workspace, false, 'marketing'); }
+        catch { if (kind !== 'o') return page(404, 'Link indisponível', '<p>Este e-mail não está mais disponível.</p>'); }
+        const track = async (event, write) => {
+          if (!write) return execute(await store.load(workspace), { type: 'email-track', data: { token, event: 'info' } });
+          const result = await change(workspace, { type: 'email-track', data: { token, event, index } });
+          if (result.state.workflowOutbox?.length) flushLater(workspace);
+          return result.id;
+        };
+        if (kind === 'o') {
+          res.writeHead(200, { 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, max-age=0' });
+          res.end(Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64'));
+          if (active && method === 'GET') { const seen = await track('info', false).catch(() => null); if (seen && !seen.opened) await track('open', true).catch(() => null); }
+          return;
+        }
+        if (kind === 'c') {
+          const found = active ? await track('click', true) : execute(await store.load(workspace), { type: 'email-track', data: { token, event: 'click', index } });
+          if (!found?.url) return page(404, 'Link indisponível', '<p>Este link não existe mais.</p>');
+          res.writeHead(302, { Location: found.url, 'Cache-Control': 'no-store' }); return res.end();
+        }
+        const info = await track('info', false);
+        if (!info) return page(404, 'Link indisponível', '<p>Não encontramos esta inscrição.</p>');
+        // POST is the confirmation button and the one-click unsubscribe of mail clients (RFC 8058). It works even while the account is paused.
+        if (method === 'POST') { await track('unsubscribe', true); return page(200, 'Inscrição cancelada', `<p>Você não vai mais receber e-mails de marketing de ${esc(info.business || 'esta empresa')}.</p>`); }
+        if (info.unsubscribed) return page(200, 'Inscrição cancelada', `<p>Você já saiu da lista de e-mails de ${esc(info.business || 'esta empresa')}.</p>`);
+        return page(200, 'Cancelar inscrição', `<p>Deixar de receber os e-mails de marketing de <b>${esc(info.business || 'esta empresa')}</b>?</p><form method="post"><button>Cancelar inscrição</button></form>`);
       }
       const redirect = p.match(redirectPath);
       if (redirect && method === 'GET') {

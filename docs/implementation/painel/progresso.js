@@ -17,8 +17,8 @@
  */
 window.PLANO_SOCI = {
   titulo: "Paridade Soci × GoHighLevel",
-  atualizadoEm: "2026-11-20 20:52",
-  etapaAtual: "2.2",
+  atualizadoEm: "2026-11-20 21:23",
+  etapaAtual: "2.5",
 
   regras: [
     "Front-end sempre em ui/ (nunca copiar public/ por cima de ui/).",
@@ -100,8 +100,12 @@ window.PLANO_SOCI = {
         { id: "2.1", titulo: "Email Services: domínio de envio (SPF/DKIM)", status: "feito", ref: "04 §1 Configurações", data: "2026-11-20",
           entrega: "email-domain.mjs, ui/email-services.js, ui/app.js, ui/screens.js, ui/crm.js, ui/style.css, server.mjs, storage.mjs, document-mail.mjs, report-share.mjs, test/email-domain.test.mjs (sem commit)",
           nota: "Aba Serviços de e-mail em Configurações: a subconta adiciona o domínio (de preferência um subdomínio) e o endereço do remetente; o domínio é criado na conta Resend da plataforma (região São Paulo), que devolve os registros SPF (MX + TXT) e DKIM, mostrados com botão de copiar, e o DMARC aparece como recomendado. Verificar agora consulta o Resend; enquanto não verifica, o status é reconsultado ao abrir a aba. Verificado, faturas, recibos, orçamentos, documentos para assinar, carrinhos, cartões-presente e relatórios agendados saem de nome <remetente@domínio>; se o Resend recusar o domínio depois (DNS removido), o envio volta ao endereço da plataforma. Exige RESEND_API_KEY com acesso total (chave só de envio não gerencia domínios). Validado com simulador do Resend nos testes e no navegador; falta testar com um domínio real. Sem gatilho novo: nenhum evento de cliente nasce daqui. 234 testes passando." },
-        { id: "2.2", titulo: "Construtor de e-mail, campanhas com estatísticas e teste A/B", status: "pendente", ref: "04c §4 (E-mail)" },
-        { id: "2.3", titulo: "Analytics de conversas; completar snippets, trigger links e ações manuais", status: "pendente", ref: "04 §1 Conversas" },
+        { id: "2.2", titulo: "Construtor de e-mail, campanhas com estatísticas e teste A/B", status: "feito", ref: "04c §4 (E-mail)", data: "2026-11-20",
+          entrega: "ui/email-blocks.js, ui/email-marketing.js, email-campaign-model.mjs, email-campaign-send.mjs, model.mjs, server.mjs, authorization.mjs, workflow-engine.mjs, ui/workflow-data.js, ui/workflow-builder.js, ui/agency-data.js, ui/launchpad-data.js, ui/app.js, ui/screens.js, ui/style.css, test/email-campaigns.test.mjs (sem commit)",
+          nota: "Marketing → E-mails com Estatísticas, Campanhas e Modelos. Construtor por blocos (título, texto com negrito/itálico/links, botão, imagem, divisor, espaçador), estilo (cores e fonte), campos do contato e prévia ao vivo em computador e celular; envio de teste. Campanha: público (todos ou por tags, sem e-mail inválido, não perturbe, descadastrados e endereços repetidos, até 2.000 por campanha), enviar agora ou agendar, cancelar e duplicar. Envio em lotes de 100 pelo Resend (endpoint batch), do domínio da subconta (2.1) ou da plataforma. Rastreio próprio de abertura (pixel), clique (redirecionamento só para os links do e-mail) e descadastro (página e um clique pelo cabeçalho List-Unsubscribe). Teste A/B do assunto: grupo de 10–50%, metade A e metade B, vencedor por aberturas ou cliques após 1–72 h vai para o restante. Relatório por campanha e estatísticas por período. Gatilho novo: Evento de e-mail (abriu, clicou, saiu da lista). Fora por ora: A/B de conteúdo, blocos avançados do GHL (produtos, RSS, countdown, vídeo, código), histórico de versões, reenvio para quem não abriu e webhooks de entrega/bounce do Resend. Validado com Resend simulado nos testes e no navegador. 239 testes passando." },
+        { id: "2.3", titulo: "Analytics de conversas; completar snippets, trigger links e ações manuais", status: "feito", ref: "04 §1 Conversas", data: "2026-11-20",
+          entrega: "ui/conversation-analytics.js, ui/conversations.js, ui/app.js, model.mjs, server.mjs, workflow-engine.mjs, ui/workflow-data.js, ui/style.css, test/conversations-analytics.test.mjs, test/platform.test.mjs (sem commit)",
+          nota: "Análises ganhou Visão geral (conversas, recebidas, enviadas, primeira resposta mediana e média, % respondida em até 1 h, mensagens por dia, por canal, quem respondeu e quem está esperando, com período e canal) ao lado do Desempenho de SLA. O SLA passou a cobrir WhatsApp, chat do site, Instagram e Facebook além de e-mail e SMS. Links de rastreamento: o link na mensagem agora é absoluto (antes era um caminho relativo, inútil fora do app) e o WhatsApp enviava o código {{trigger_link…}} cru: corrigido para enviar o link do contato; a Análise tem período, enviados, taxa de clique e quem clicou. Respostas rápidas de texto mantêm o canal da conversa (antes forçavam SMS) e ganharam empresa do contato, seu nome e os valores personalizados. Ações manuais: nova ação de fluxo WhatsApp manual (mensagem sugerida editável, enviada pelo WhatsApp da subconta ao concluir) e botão Ligar nas ligações. Telefonia/SMS reais seguem na 2.4 (decisão D1). 244 testes passando." },
         { id: "2.4", titulo: "Telefonia: ligações, chamadas perdidas, relatório de chamadas", status: "bloqueado", ref: "04 §3 Fase 2", nota: "Depende da decisão D1." },
         { id: "2.5", titulo: "Countdown timers para e-mails e páginas", status: "pendente", ref: "04c §4 (Countdown)" }
       ]
@@ -185,6 +189,8 @@ window.PLANO_SOCI = {
   ],
 
   historico: [
+    { data: "2026-11-20", hora: "21:23", texto: "2.3 concluído: análises de conversas, SLA em todos os canais, links de rastreamento absolutos com taxa de clique, respostas rápidas no canal da conversa e ação manual de WhatsApp. 2.4 segue bloqueado (D1). Próximo: 2.5 countdown timers." },
+    { data: "2026-11-20", hora: "21:13", texto: "2.2 concluído: construtor de e-mail por blocos, campanhas com envio em lote, rastreio de abertura, clique e descadastro, estatísticas e teste A/B do assunto, com gatilho Evento de e-mail. Próximo: 2.3 analytics de conversas." },
     { data: "2026-11-20", hora: "20:52", texto: "2.1 concluído: domínio de envio próprio por subconta (SPF/DKIM via Resend), com verificação e retorno ao endereço da plataforma se o domínio cair. Próximo: 2.2 construtor de e-mail e campanhas." },
     { data: "2026-11-20", hora: "20:20", texto: "1.9 e 1.10 concluídos: coleções, estoque por produto, avaliações e cartões-presente, com gatilho Avaliação de produto e ação Atualizar estoque. Fase 1 completa. Próximo: 2.1 Email Services (domínio de envio)." },
     { data: "2026-11-20", hora: "18:43", texto: "1.8 concluído: Pedidos (lojas e ofertas) e Checkouts abandonados em Pagamentos, com captura no carrinho, lembrete com link de recuperação, status Recuperado e gatilhos Checkout abandonado e Pedido entregue. Próximo: 1.9 Gift cards, coleções, estoque e avaliações." },

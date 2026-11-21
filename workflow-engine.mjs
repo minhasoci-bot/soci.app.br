@@ -189,6 +189,7 @@ export function createEngine({ add, now, sendDocument = null, sendEstimate = nul
       case 'document_paid': return !c.templateId || c.templateId === ctx.templateId;
       case 'document_status': return (!c.status || c.status === ctx.status) && (!c.templateId || c.templateId === ctx.templateId);
       case 'order_submitted': case 'order_paid': case 'order_fulfilled': return !c.storeId || c.storeId === ctx.storeId;
+      case 'email_event': return (!c.event || c.event === ctx.event) && (!c.campaignId || c.campaignId === ctx.campaignId);
       case 'product_review': return (!c.storeId || c.storeId === ctx.storeId) && (!c.rating || Number(ctx.rating) <= Number(c.rating));
       case 'abandoned_checkout': return (!c.storeId || c.storeId === ctx.storeId) && (!c.status || c.status === ctx.status);
       case 'inbound_webhook': return ctx.triggerId === trigger.id;
@@ -376,7 +377,7 @@ export function createEngine({ add, now, sendDocument = null, sendEstimate = nul
       if (!node) { run.at = ''; break; }
       const label = actionSpec(node.type)?.label || node.type, c = node.config || {};
       const trace = text => { (run.trace ??= []).push({ id, type: node.type, result: text }); if (run.trace.length > 300) run.trace.shift(); };
-      if (run.test && (node.type === 'wait' || node.type === 'manual_sms' || node.type === 'manual_call' || (node.type === 'goal' && c.otherwise === 'wait'))) {
+      if (run.test && (node.type === 'wait' || node.type === 'manual_sms' || node.type === 'manual_call' || node.type === 'manual_whatsapp' || (node.type === 'goal' && c.otherwise === 'wait'))) {
         run.results.push(`${label}: (teste) pulada`); trace('pulada no teste'); run.at = node.next; continue;
       }
       if (node.type === 'filter') {
@@ -416,10 +417,10 @@ export function createEngine({ add, now, sendDocument = null, sendEstimate = nul
         if (target === run.workflowId) { run.at = ''; break; }
         run.at = node.next; continue;
       }
-      if (node.type === 'manual_sms' || node.type === 'manual_call') {
+      if (node.type === 'manual_sms' || node.type === 'manual_call' || node.type === 'manual_whatsapp') {
         const contact = contactOf(s, run.contactId);
         if (!contact) { run.results.push(`${label}: sem contato`); run.at = node.next; continue; }
-        add(s, 'manualActions', { runId: run.id, workflowId: run.workflowId, workflowName: run.name, contactId: contact.id, type: node.type === 'manual_sms' ? 'Manual SMS' : 'Manual Call', instructions: merge(c.body, s, contact, run), assignee: c.assignee || '', status: 'Pending' });
+        add(s, 'manualActions', { runId: run.id, workflowId: run.workflowId, workflowName: run.name, contactId: contact.id, type: { manual_sms: 'Manual SMS', manual_whatsapp: 'Manual WhatsApp' }[node.type] || 'Manual Call', instructions: merge(c.body, s, contact, run), assignee: c.assignee || '', status: 'Pending' });
         run.status = 'Waiting'; run.at = node.next; run.wakeAt = ''; run.results.push(`${label}: aguardando ação manual`);
         return;
       }
