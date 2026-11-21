@@ -26,3 +26,7 @@
 .sc-contact summary{cursor:pointer;display:flex;align-items:center;gap:6px;font-weight:600}
 .sc-contact ul{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:6px}
 .sc-contact li{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+
+/* Central de preferências (6b.4) */
+.pf-topics{list-style:none;margin:0;padding:0;display:grid;gap:8px}.pf-topic{display:grid;grid-template-columns:1fr 1.5fr auto;gap:8px;align-items:center}
+.pf-contact{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:6px 0;padding:10px 12px;border:1px solid var(--line,#e3e8ef);border-radius:10px;font-size:13px}

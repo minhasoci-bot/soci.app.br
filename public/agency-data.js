@@ -22,11 +22,11 @@ export const subAccountModules = [
 
 // Record key of a sub-account mutation → module that must be permitted for the acting user.
 export const moduleOfRecord = {
-  contacts: 'contacts', tasks: 'contacts', opportunities: 'opportunities', appointments: 'calendars', workflows: 'automation',
+  contacts: 'contacts', tasks: 'contacts', opportunities: 'opportunities', appointments: 'calendars', services: 'calendars', resources: 'calendars', meetings: 'calendars', workflows: 'automation',
   workflowFolders: 'automation', workflowLists: 'automation',
-  invoices: 'payments', campaigns: 'marketing', emailTemplates: 'marketing', emailCampaigns: 'marketing', countdownTimers: 'marketing', pages: 'sites', forms: 'sites', chatWidgets: 'sites', chatSessions: 'sites', blogs: 'sites', blogPosts: 'sites', blogAuthors: 'sites', blogCategories: 'sites', stores: 'sites', orders: 'payments', webinars: 'sites', webinarRegistrations: 'sites', qrCodes: 'sites', courses: 'memberships', communities: 'memberships', communityEvents: 'memberships', credentialsIssued: 'memberships', certificateTemplates: 'memberships', offers: 'memberships', reviews: 'reputation',
+  invoices: 'payments', campaigns: 'marketing', emailTemplates: 'marketing', emailCampaigns: 'marketing', emailSequences: 'marketing', loyaltyRewards: 'marketing', loyaltyLedger: 'marketing', loyalty: 'marketing', preferences: 'settings', countdownTimers: 'marketing', pages: 'sites', forms: 'sites', chatWidgets: 'sites', chatSessions: 'sites', blogs: 'sites', blogPosts: 'sites', blogAuthors: 'sites', blogCategories: 'sites', stores: 'sites', orders: 'payments', webinars: 'sites', webinarRegistrations: 'sites', qrCodes: 'sites', courses: 'memberships', communities: 'memberships', communityEvents: 'memberships', credentialsIssued: 'memberships', certificateTemplates: 'memberships', offers: 'memberships', reviews: 'reputation',
   agents: 'ai-agents', agentRuns: 'ai-agents', knowledgeBases: 'ai-agents', agentTemplatesCustom: 'ai-agents', ai: 'ai-agents', brandBoards: 'marketing', affiliateSettings: 'marketing', affiliateCampaigns: 'marketing', affiliates: 'marketing', affiliateCommissions: 'marketing', affiliatePayouts: 'marketing',
-  reputation: 'reputation', listings: 'reputation', reviewRequests: 'reputation', reviewWidgets: 'reputation', videoCollectors: 'reputation', videoTestimonials: 'reputation', videoUploads: 'reputation', files: 'media', mediaFolders: 'media', snippetFolders: 'conversations', snippets: 'conversations', triggerLinks: 'conversations',
+  reputation: 'reputation', listings: 'reputation', reviewRequests: 'reputation', reviewWidgets: 'reputation', videoCollectors: 'reputation', videoTestimonials: 'reputation', videoUploads: 'reputation', files: 'media', mediaFolders: 'media', snippetFolders: 'conversations', tickets: 'conversations', contactTrash: 'contacts', snippets: 'conversations', triggerLinks: 'conversations',
   studioProjects: 'sites', pipelines: 'opportunities', stages: 'opportunities',
   customFields: 'settings', customValues: 'settings', tags: 'contacts', companies: 'contacts',
   scoringRules: 'settings', tracking: 'settings', trackingEvents: 'settings',
@@ -223,6 +223,13 @@ export const rebillProducts = [
   ['whatsapp', 'WhatsApp messages'], ['voice-ai', 'Voice AI minutes'], ['enrichment', 'Contact enrichment'], ['domains', 'Domain purchases']
 ];
 export const maxMarkup = 10;
+// Products whose usage is metered and charged to the sub-account wallets (7.1):
+// [key, label, unit of the agency's cost, default cost, unit charged].
+export const walletProducts = [
+  ['ai', 'IA (agentes, conteúdo, resumos)', 'R$ por US$ 1 de consumo da OpenAI', 5.8, 'US$ de consumo'],
+  ['email', 'E-mails enviados', 'R$ por 1.000 e-mails', 0.6, 'e-mail'],
+  ['whatsapp', 'Mensagens de WhatsApp enviadas', 'R$ por mensagem', 0, 'mensagem']
+];
 
 // Per-sub-account switches shown on Settings tabs: [key, title, description, enabled by default].
 export const subFeatures = [

@@ -288,3 +288,26 @@ dialog:has(.wf-picker)>header{position:sticky;top:0;z-index:3;background:var(--g
 .wfb-test-report ul{display:grid;gap:4px;margin:0;padding-left:18px;font-size:13px}
 @media (max-width:1180px){.wfb-modal-cols{grid-template-columns:230px minmax(0,1fr) 260px}.wfb-modal-cols>*{padding:12px}.wfb-cond{grid-template-columns:minmax(0,1fr) auto}}
 @media (max-width:860px){.wfb-modal-cols,.wfb-modal-cols.two{grid-template-columns:minmax(0,1fr);overflow-y:auto}.wfb-modal-cols>*{overflow:visible;border:0!important;border-top:1px solid var(--g-line)!important}.wfb-entry-list{flex:none;max-height:260px}}
+
+/* Marketing → E-mails → Sequências (6b.2) */
+.sq-form{display:grid;gap:14px;margin-top:10px}.sq-head{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.sq-head label{flex:1;min-width:200px}.sq-head h2{margin:0;flex:1}
+.sq-section{display:grid;gap:10px}.sq-section h2{margin:0}
+.sq-steps{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.sq-step{display:grid;gap:8px;padding:12px;border:1px solid var(--line,#e3e8ef);border-radius:12px}
+.sq-step-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.sq-delay{display:inline-flex;width:auto;align-items:center;gap:6px;font-size:13px}.sq-delay input{width:70px}
+.sq-move{margin-left:auto;display:flex;gap:4px}
+.sq-days{display:flex;gap:10px;flex-wrap:wrap;border:0;padding:0;margin:0}.sq-days legend{font-weight:600;margin-bottom:4px}.sq-days label{display:inline-flex;width:auto;align-items:center;gap:4px}
+.sq-funnel{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px;color:var(--muted,#59677a)}
+.sq-people{max-height:280px;overflow:auto}
+.sq-step .sq-step-head label.sq-delay{display:inline-flex;width:auto;align-items:center;gap:6px;font-size:13px}
+.sq-step .sq-step-head label.sq-delay input{width:70px}
+.sq-section .sq-days label{display:inline-flex;width:auto;align-items:center;gap:4px}
+
+/* Marketing → Fidelidade (6b.3) */
+.ly-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;margin:14px 0;align-items:start}
+.ly-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.ly-head h2{margin:0}
+.ly-tiers{display:grid;grid-template-columns:1fr 140px;gap:6px}
+.ly-rewards,.ly-ledger{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+.ly-rewards li{display:flex;gap:8px;align-items:center;padding:10px;border:1px solid var(--line,#e3e8ef);border-radius:10px}.ly-rewards li>div{flex:1;display:grid}.ly-rewards small{color:var(--muted,#59677a)}
+.ly-ledger li{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}.ly-ledger b{color:#146c2e}.ly-ledger b.neg{color:#b42318}
+@media (max-width:900px){.ly-grid{grid-template-columns:1fr}}

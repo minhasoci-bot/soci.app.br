@@ -1,5 +1,6 @@
 import { icon } from './icons.js';
 import { communityCards, communityPage } from './portal-community.js';
+import { loyaltyCard } from './portal-loyalty.js';
 import { assignmentBlock, certificateLink, coursePage, instructorCard, liveBlock, nextLessonCard, quizAnswers, quizBlock, themed } from './portal-course-extra.js';
 
 const root = document.querySelector('#portal');
@@ -83,7 +84,7 @@ function player(course) {
       </article></div></div>`;
 }
 
-let portal, course, community = null, courseView = 'lesson';
+let portal, course, community = null, courseView = 'lesson', redeemed = null;
 const cmUi = { tab: 'discussion', channel: '', period: '30' };
 function draw(message = '') {
   const { title, introduction, color, signedIn, courses, member } = portal || { title: 'Portal do cliente' };
@@ -96,7 +97,7 @@ function draw(message = '') {
     ${message ? `<p class="cp-public-error" role="alert">${h(message)}</p>` : ''}
     ${signedIn ? (community ? communityPage(community, cmUi) : course ? (courseView === 'page' ? coursePage(course, bar) : player(course)) : `<section class="cp-public-welcome">
       <h1>${member?.name ? `Olá, ${h(member.name)}` : 'Bem-vindo ao portal'}</h1>
-      ${introduction ? `<p>${h(introduction)}</p>` : ''}</section>${library(courses)}${communityCards(portal?.communities)}`) :
+      ${introduction ? `<p>${h(introduction)}</p>` : ''}</section>${library(courses)}${communityCards(portal?.communities)}${loyaltyCard(portal?.loyalty, redeemed)}`) :
       `<section class="cp-public-card cp-signin"><div class="cp-course-icon">${icon('key',24)}</div>
         <h1>Acesse seu portal</h1>
         ${access ? '<p>Confirme para entrar com o seu link de acesso.</p><button type="button" class="cp-public-primary" data-portal-public="enter">Entrar no portal</button>' :
@@ -142,6 +143,10 @@ root.addEventListener('click', async event => {
     } else if (button.dataset.courseRetake) {
       retake = button.dataset.courseRetake;
       focus = '.cp-quiz-form input';
+    } else if (button.dataset.loyaltyRedeem) {
+      const result = await api('loyalty', { rewardId: button.dataset.loyaltyRedeem });
+      portal.loyalty = result.loyalty; redeemed = result.redeemed;
+      focus = '.cp-loyalty-code';
     } else if (action === 'course-page') {
       courseView = 'page';
       focus = '.cp-course-hero h1';

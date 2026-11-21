@@ -5,8 +5,9 @@ import { h, pageShell } from './screens.js';
 import { qrSvg } from './qr.js';
 import { aiTool } from './content-ai.js';
 import { directories, hoursRows, listingStatuses } from './gbp-data.js';
+import { seoContent, visibilityContent } from './seo.js';
 
-export const reputationTabs = ['overview', 'reviews', 'requests', 'google', 'listings', 'widgets', 'videos', 'settings'];
+export const reputationTabs = ['overview', 'reviews', 'requests', 'google', 'listings', 'seo', 'visibility', 'widgets', 'videos', 'settings'];
 const layouts = [['carousel', 'Carrossel'], ['grid', 'Grade'], ['list', 'Lista'], ['badge', 'Selo com a nota']];
 const themes = [['auto', 'Automático (claro ou escuro, como o aparelho do visitante)'], ['light', 'Claro'], ['dark', 'Escuro']];
 const videoStatus = { pending: ['Aguardando aprovação', ''], approved: ['Aprovado', 'green'], hidden: ['Oculto', 'pink'] };
@@ -53,7 +54,8 @@ function shell(c, tab, content, cta = '') {
     tabs: { key: 'reputation', label: 'Seções de reputação', current: tab, items: [
       { value: 'overview', label: 'Visão geral', href: '#reputation/overview' }, { value: 'reviews', label: 'Avaliações', href: '#reputation/reviews' },
       { value: 'requests', label: 'Pedidos', href: '#reputation/requests' }, { value: 'google', label: 'Perfil no Google', href: '#reputation/google' },
-      { value: 'listings', label: 'Listagens', href: '#reputation/listings' }, { value: 'widgets', label: 'Widgets', href: '#reputation/widgets' },
+      { value: 'listings', label: 'Listagens', href: '#reputation/listings' }, { value: 'seo', label: 'SEO', href: '#reputation/seo' },
+      { value: 'visibility', label: 'Visibilidade na IA', href: '#reputation/visibility' }, { value: 'widgets', label: 'Widgets', href: '#reputation/widgets' },
       { value: 'videos', label: 'Vídeos', href: '#reputation/videos' }, { value: 'settings', label: 'Link e mensagens', href: '#reputation/settings' }] },
     content
   });
@@ -313,7 +315,8 @@ function collectorForm(row = {}) {
 
 export function reputationScreen(c) {
   const tab = reputationTabs.includes(c.tab) ? c.tab : 'overview';
-  return { overview, reviews, requests, google, listings, widgets, videos, settings }[tab](c);
+  const seo = c => shell(c, 'seo', seoContent(c), ' '), visibility = c => shell(c, 'visibility', visibilityContent(c), ' ');
+  return { overview, reviews, requests, google, listings, seo, visibility, widgets, videos, settings }[tab](c);
 }
 
 function requestDialog(c) {

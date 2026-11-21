@@ -1,0 +1,41 @@
+/* Calendários → Serviços, Recursos, Serviço em campo, Página de agendamento (6b.6) */
+.sch-bar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-bottom:14px}
+.sch-bar label{display:grid;gap:4px;width:auto;font-size:13px}
+.sch-bar a.secondary,.sch-link a.secondary{display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.sch-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:middle}
+.sch-empty{display:grid;justify-items:center;gap:8px;padding:36px 20px;text-align:center}
+.sch-empty p{max-width:520px;margin:0}
+.sch-form fieldset{border:0;margin:0;padding:0;display:grid;gap:8px}
+.sch-form legend{font-weight:700;margin-bottom:4px}
+.sch-form:not(:has(select[name="kind"] option[value="rental"]:checked)) .sch-rental{display:none}
+.sch-checks{display:flex;flex-wrap:wrap;gap:8px 16px}
+.sch-form .sch-checks label.sch-check,.sch-hours label.sch-check{display:flex;align-items:center;gap:8px;width:auto;font-weight:500}
+.sch-hours{display:grid;grid-template-columns:minmax(120px,auto) 1fr 1fr;gap:8px 10px;align-items:center;max-width:460px}
+.sch-staff{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-width:460px}
+.sch-staff li{display:flex;gap:8px;align-items:center}
+.sch-staff input{flex:1}
+.sch-link{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line,#e3e8ef);border-radius:10px}
+.sch-link code{flex:1;min-width:0;overflow-wrap:anywhere}
+.sch-route{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:10px}
+.sch-route li{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:14px 16px}
+.sch-stop{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--g-brand-surface,#fff0f6);color:var(--g-brand-text,#a00070);font-weight:700}
+.sch-job{flex:1;min-width:220px;display:grid;gap:2px}
+.sch-job a{display:inline-flex;align-items:center;gap:4px;font-size:13px}
+.sch-steps{display:flex;flex-wrap:wrap;gap:6px}
+@media (max-width:640px){.sch-hours{grid-template-columns:1fr 1fr}.sch-hours label.sch-check{grid-column:1/-1}}
+/* .switch-row loses to the global label rule (label:not(...)); keep it a row in settings forms. */
+.settings-form label.switch-row{display:flex}
+/* Calendários → Reuniões (6b.7) */
+.mt-title{margin:0 0 14px}.mt-title h2{margin:0 0 4px}.mt-title p{margin:0}
+.mt-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+.mt-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}.mt-head h2{margin:0;margin-right:auto}
+.mt-transcript textarea{width:100%;font-family:inherit;line-height:1.5}
+.mt-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.settings-form label.mt-file,.mt-file{display:inline-flex;flex-direction:row;align-items:center;gap:6px;cursor:pointer;width:auto;font-size:14px}
+.mt-actions label.mt-check{display:flex;flex-direction:row;align-items:flex-start;gap:8px}.mt-actions label.mt-check input{flex:none;margin-top:2px}
+.mt-clock{font-variant-numeric:tabular-nums}
+.mt-notes h3{font-size:14px;margin:16px 0 6px}.mt-notes ul{margin:0;padding-left:18px;display:grid;gap:4px}
+.mt-actions{list-style:none;padding-left:0!important}.mt-actions li{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mt-check{display:flex;align-items:flex-start;gap:8px;width:auto;font-weight:400}
+.mt-mail{border:1px solid var(--g-line);border-radius:10px;padding:12px;background:var(--g-surface-2)}.mt-mail p{margin:8px 0 10px;white-space:normal}
+@media (max-width:900px){.mt-grid{grid-template-columns:1fr}}
