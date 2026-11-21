@@ -252,7 +252,10 @@ function panelBody(c, st, t) {
       <dl class="panel-fields"><dt>E-mail</dt><dd>${h(x.email || '—')}</dd><dt>Telefone</dt><dd>${h(x.phone || '—')}</dd>
       <dt>Atribuída a</dt><dd>${h(t.assignee || 'Ninguém')}</dd><dt>Seguidores</dt><dd>${h(t.followers.join(', ') || '—')}</dd>
       <dt>Tags</dt><dd>${x.tags.map(tag => badge(tag,'blue')).join(' ') || '—'}</dd></dl>
-      <button class="secondary" data-edit="contacts" data-id="${id}">${i('edit',14)} Editar contato</button>`;
+      <button class="secondary" data-edit="contacts" data-id="${id}">${i('edit',14)} Editar contato</button>
+      ${(() => { const open = (c.s.tickets || []).filter(row => row.contactId === id && !['resolved', 'closed'].includes(row.status));
+        return open.length ? `<a class="text-link" href="#conversations/tickets">${i('inbox',14)} ${open.length} ${open.length === 1 ? 'ticket aberto' : 'tickets abertos'}: #${open.map(row => row.number).join(', #')}</a>` : ''; })()}
+      <button class="secondary" data-tk="new-from-thread" data-contact="${id}">${i('plus',14)} Criar ticket</button>`;
   }
 }
 function contactPanel(c, st, all) {

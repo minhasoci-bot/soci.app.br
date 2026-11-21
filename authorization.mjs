@@ -11,7 +11,8 @@ const readModules = {
   runs: 'automation', deletedWorkflows: 'automation', submissions: 'sites',
   socialAccounts: 'marketing', socialPosts: 'marketing', socialImports: 'marketing',
   dashboards: 'dashboard', defaultDashboard: 'dashboard', onboarding: 'dashboard',
-  dashboardReports: 'reporting', customReports: 'reporting', integrations: 'settings'
+  dashboardReports: 'reporting', customReports: 'reporting', integrations: 'settings',
+  seo: 'reputation', seoAudits: 'reputation', visibility: 'reputation', visibilityRuns: 'reputation', wallet: 'settings'
 };
 
 const writeModules = {
@@ -47,6 +48,7 @@ const commandModules = {
   'webinar-reminders': 'sites', 'qr-scan': 'sites',
   'community-event-ticket': 'memberships', 'community-event-joined': 'memberships', 'community-event-reminders': 'memberships',
   'community-plan-invoice': 'memberships', 'community-welcome': 'memberships', 'community-newsletter': 'memberships', 'course-activity': 'memberships', 'credential-issue': 'memberships', 'credential-revoke': 'memberships',
+  'ticket-create': 'conversations', 'ticket-update': 'conversations', 'ticket-note': 'conversations', 'ticket-reply': 'conversations', 'ticket-settings': 'conversations', 'sequence-enroll': 'marketing', 'sequence-remove': 'marketing', 'seo-settings': 'reputation', 'seo-audit': 'reputation', 'visibility-settings': 'reputation', 'visibility-run': 'reputation', 'meeting-transcript': 'calendars', 'meeting-summary': 'calendars', 'meeting-tasks': 'calendars', 'meeting-note': 'calendars', 'scheduling-settings': 'calendars', 'scheduling-book': 'calendars', 'field-status': 'calendars', 'loyalty-settings': 'marketing', 'loyalty-adjust': 'marketing', 'loyalty-redeem': 'marketing', 'preferences-settings': 'settings', 'preferences-link': 'contacts', 'preferences-save': 'contacts', 'contact-restore': 'contacts', 'contact-trash-purge': 'contacts', 'contact-trash-empty': 'contacts',
   onboarding: 'dashboard', profile: 'settings',
   'workflow-enroll': 'automation', 'workflow-restore': 'automation', 'workflow-move': 'automation',
   'document-send': 'payments', 'document-void': 'payments', 'document-link': 'payments',
@@ -55,7 +57,7 @@ const commandModules = {
 };
 
 const agencySettingsCommands = new Set([
-  'account-meta', 'account-reactivate', 'saas-mode', 'saas-rebilling', 'saas-account', 'workflow-builder',
+  'account-meta', 'account-reactivate', 'saas-mode', 'saas-rebilling', 'rebill-account', 'saas-account', 'workflow-builder',
   'sub-feature', 'email-domain', 'email-domain-accounts', 'email-domain-remove', 'affiliate-pixel', 'profile',
   'company', 'billing-plan', 'wallet', 'auto-recharge', 'system-email', 'labs', 'compliance',
   'api-key', 'api-key-delete', 'private-integration', 'private-integration-delete', 'resell',

@@ -35,6 +35,12 @@ import {countdownScreen} from './countdowns.js';
 import { affiliatesScreen } from './affiliates.js';
 import { adsReportScreen, adsScreen, reportingAdsTabs } from './ads.js';
 import { brandScreen } from './brand.js';
+import { loyaltyScreen } from './loyalty.js';
+import { preferencesScreen } from './preferences.js';
+import { walletScreen } from './wallet.js';
+import { trashView } from './contact-trash.js';
+import { schedulingScreen, schedulingTabs } from './scheduling.js';
+import { meetingsScreen } from './meetings.js';
 import { contactScoreCell, scoringScreen, trackingScreen } from './tracking.js';
 import {ordersScreenFor, orderTabsKeys} from './orders.js';
 import {catalogScreen, catalogTabs} from './catalog.js';
@@ -102,6 +108,7 @@ export function askAI(c){
 
 function contacts(c){
   if(['bulk','fields','companies'].includes(c.tab)) return contactsTab(c,c.tab);
+  if(c.tab==='trash') return pageShell({ title: 'Contatos', desc: 'Gerencie leads, tarefas, campos personalizados e empresas deste workspace.', tabs: { key: 'contacts', items: crmTabs.contacts, current: 'trash', label: 'Seções de contatos' }, content: trashView(c) });
   const tab=c.tab||'all', list=tab==='tasks'?top(c.s.tasks,c.query,['title']):top(c.s.contacts,c.query,['name','email','phone','company','tags']);
   const tag=c.tag, tags=[...new Set(c.s.contacts.flatMap(x=>x.tags))].sort();
   const body = `<div class="toolbar">${search(c.query,tab==='tasks'?'Buscar tarefas…':'Busca rápida…')}${tab==='all'?`<label class="tag-filter">${i('filter',15)}<select id="tag-filter" aria-label="Filtrar contatos por tag"><option value="">Todas as tags</option>${tags.map(t=>`<option ${t===tag?'selected':''}>${h(t)}</option>`).join('')}</select></label>`:''}</div>`+(tab==='tasks'?table(['Tarefa','Contato','Prazo','Status',''],list.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),date(r.due,c),`<button class="pill-button ${r.done?'completed':''}" data-task="${r.id}">${r.done?'Concluída':'Em aberto'}</button>`],'tasks',r.id)),empty('Nenhuma tarefa encontrada','Adicione uma tarefa para acompanhar os retornos.','check')):(()=>{const shown=list.filter(r=>!tag||r.tags.includes(tag));return bulkBar(c,'contacts')+table([pickHead('contacts',shown.map(r=>r.id)),'Nome','Telefone','E-mail','Empresa','Pontuação','Tags',''],shown.map(r=>row([pickBox('contacts',r.id),`<button class="identity" data-edit="contacts" data-id="${r.id}">${avatar(r.name)}<strong>${h(r.name)}</strong></button>`,h(r.phone||'—'),h(r.email||'—'),h(r.company||'—'),contactScoreCell(r),r.tags.map(t=>badge(t,'blue')).join(' ')||'—'],'contacts',r.id)),empty('Nenhum contato encontrado','Crie um contato ou tente outro filtro.','contacts'))})());
@@ -117,6 +124,9 @@ function conversations(c) {
   return conversationPage(c,inboxPage);
 }
 function calendars(c){
+  const calendarTabs = { key: 'calendars', items: [['calendar','Calendário'],['appointments','Agendamentos'],...schedulingTabs,['meetings','Reuniões']], current: c.tab||'calendar', label: 'Seções de calendários' };
+  if (schedulingTabs.some(([k]) => k === c.tab)) return schedulingScreen(c, calendarTabs);
+  if (c.tab === 'meetings') return meetingsScreen(c, calendarTabs);
   const y=c.month.getFullYear(), m=c.month.getMonth(), title=new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(c.month), shift=(new Date(y,m,1).getDay()+6)%7, len=new Date(y,m+1,0).getDate(), tab=c.tab||'calendar';
   const keyFor=n=>`${y}-${String(m+1).padStart(2,'0')}-${String(n).padStart(2,'0')}`;
   const dates=new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit',timeZone:c.s.profile.timezone});
@@ -126,7 +136,7 @@ function calendars(c){
     title: 'Calendários',
     desc: 'Organize sua agenda e acompanhe os agendamentos deste workspace.',
     cta: primary('Novo agendamento','appointments'),
-    tabs: { key: 'calendars', items: [['calendar','Calendário'],['appointments','Agendamentos']], current: tab, label: 'Seções de calendários' },
+    tabs: calendarTabs,
     content: body
   });
 }
@@ -248,10 +258,11 @@ function payments(c){
 }
 function marketing(c){
   const t=c.tab||'social';
-  const marketingTabs = [['social','Planejador social'],['email','E-mails'],['countdown','Contadores'],['affiliates','Afiliados'],['ads','Anúncios'],['brand','Marca']];
+  const marketingTabs = [['social','Planejador social'],['email','E-mails'],['countdown','Contadores'],['affiliates','Afiliados'],['ads','Anúncios'],['loyalty','Fidelidade'],['brand','Marca']];
   if(t==='affiliates') return affiliatesScreen(c,{ marketingTabs });
   if(t==='ads') return adsScreen(c,{ marketingTabs });
   if(t==='brand') return brandScreen(c,{ marketingTabs });
+  if(t==='loyalty') return loyaltyScreen(c,{ marketingTabs });
   if(t==='social') return socialPlanner(c,{ pageShell, utabs, marketingTabs });
   if(t==='countdown') return countdownScreen(c,{ marketingTabs });
   return emailMarketingScreen(c,{ marketingTabs });
@@ -371,7 +382,7 @@ function googleSubView(c){
   if(!g) return card(`${tile}<h2>Google</h2><p class="dim">Verificando a conexão…</p>`);
   if(g.error) return card(`${tile}<h2>Google</h2><p class="form-status">${h(g.error)}</p><button class="secondary" data-act="google-refresh">Tentar novamente</button>`);
   if(!g.configured) return card(`${tile}<h2>Google Analytics e Perfil da Empresa</h2><p class="dim">A conexão com o Google ainda não foi configurada nesta instalação da soci. Peça ao administrador da agência para definir <code>GOOGLE_CLIENT_ID</code> e <code>GOOGLE_CLIENT_SECRET</code>.</p>`);
-  if(!g.connected) return card(`${tile}<h2>Conectar Google Analytics e Perfil da Empresa</h2><p class="dim">Entre com a conta Google que tem acesso ao Google Analytics (GA4) e ao Perfil da Empresa deste cliente. A soci só lê os relatórios: sessões, usuários e visualizações do site, e visualizações, ligações, cliques no site e rotas no Google.</p><button class="primary" data-act="google-connect">${brandIcon('Google Business Profile',16)} Conectar com o Google</button>`);
+  if(!g.connected) return card(`${tile}<h2>Conectar Google Analytics, Perfil da Empresa e Search Console</h2><p class="dim">Entre com a conta Google que tem acesso ao Google Analytics (GA4), ao Perfil da Empresa e ao Search Console deste cliente. A soci lê os relatórios: sessões, usuários e visualizações do site; visualizações, ligações, cliques no site e rotas no Google; e cliques, impressões e posição das pesquisas do site.</p><button class="primary" data-act="google-connect">${brandIcon('Google Business Profile',16)} Conectar com o Google</button>`);
   const opt=(list,value,blank)=>`<option value="">${h(blank)}</option>`+list.map(item=>`<option value="${h(item.id)}" ${item.id===value?'selected':''}>${h(item.name)}${item.account?` · ${h(item.account)}`:''}${item.address?` · ${h(item.address)}`:''}</option>`).join('');
   const note=key=>g.errors?.[key]?`<p class="ag-warn surface padded">${h(g.errors[key])}</p>`:'';
   const status=(d,name)=>!d?'':d.error?`<p class="form-status">${h(d.error)}</p>`:`<p class="dim">${badge('Recebendo dados','green')} ${h(name)}</p>`;
@@ -379,12 +390,14 @@ function googleSubView(c){
     <form class="settings-form" data-form="google-select">
       <label>Propriedade do Google Analytics (GA4)<select name="gaProperty">${opt(g.properties,g.gaProperty,g.properties.length?'Não mostrar':'Nenhuma propriedade encontrada')}</select></label>${note('analytics')}${status(g.data?.ga,g.gaName)}
       <label>Local do Perfil da Empresa<select name="gbpLocation">${opt(g.locations,g.gbpLocation,g.locations.length?'Não mostrar':'Nenhum local encontrado')}</select></label>${note('business')}${status(g.data?.gbp,g.gbpName)}
+      <label>Site do Search Console (Reputação → SEO)<select name="gscSite">${opt(g.sites||[],g.gscSite,(g.sites||[]).length?'Não usar':'Nenhum site encontrado')}</select></label>${note('search')}${!(g.sites||[]).length&&!g.errors?.search?'<p class="dim">Nenhum site? Confira se o site está verificado no Search Console com esta conta. Se a conta foi conectada antes do SEO existir, use “Trocar conta Google” para dar a nova permissão.</p>':''}
       <div class="inline-gap"><button class="primary">Salvar escolha</button><a class="secondary" href="#dashboard">Abrir painel</a></div><p class="form-status" role="alert"></p>
     </form>
     <div class="inline-gap"><button class="secondary" data-act="google-connect">Trocar conta Google</button><button class="secondary" data-act="google-disconnect">Desconectar</button></div>`,true);
 }
 function settings(c){
-  if(['tracking','scoring'].includes(c.tab)){ const tabs={ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') }; return c.tab==='tracking'?trackingScreen(c,tabs):scoringScreen(c,tabs); }
+  if(c.tab==='wallet') return walletScreen(c,{ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') });
+  if(['tracking','scoring','preferences'].includes(c.tab)){ const tabs={ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') }; return c.tab==='tracking'?trackingScreen(c,tabs):c.tab==='preferences'?preferencesScreen(c,tabs):scoringScreen(c,tabs); }
   if(c.tab&&!['business','workspaces','whatsapp','abacatepay','google','email'].includes(c.tab)) return settingsTab(c,c.tab);
   const p=c.s.profile;
   const tab = c.tab || 'business';

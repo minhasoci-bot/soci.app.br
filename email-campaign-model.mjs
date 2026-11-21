@@ -1,9 +1,12 @@
+import { walletCharge } from './wallet-model.mjs';
 // Marketing → E-mails: templates and campaigns built with the block editor, sent to the contacts of a
 // sub-account through Resend, with opens, clicks and unsubscribes tracked per recipient and an A/B test
 // of the subject line (a test group gets A or B; after the wait, the rest gets the winner).
 import { randomBytes } from 'node:crypto';
 import { collectLinks, normalizeDesign } from './ui/email-blocks.js';
 import { normalizeTimer } from './ui/countdown-data.js';
+import { sequenceResults, sequenceTake, sequenceTick, sequenceTrack } from './sequence-model.mjs';
+import { canMessage } from './preference-model.mjs';
 
 // countdownTimers: Marketing → Contadores, used by the e-mail Contador block and embedded in pages.
 export const emailCollections = ['emailTemplates', 'emailCampaigns', 'countdownTimers'];
@@ -21,7 +24,7 @@ const origin = value => { try { const url = new URL(value); return ['https:', 'h
 function audienceOf(a = {}) {
   const mode = a?.mode === 'tags' ? 'tags' : 'all';
   const tags = mode === 'tags' ? [...new Set((Array.isArray(a.tags) ? a.tags : []).map(tag => str(tag, 60)).filter(Boolean))].slice(0, 30) : [];
-  return { mode, tags };
+  return { mode, tags, topicId: str(a?.topicId, 40) };
 }
 function abOf(ab = {}) {
   return { enabled: Boolean(ab?.enabled), subjectB: str(ab?.subjectB, 200), preheaderB: str(ab?.preheaderB, 200),
@@ -56,7 +59,7 @@ export function audienceContacts(s, audience) {
   const seen = new Set(), out = [];
   for (const contact of s.contacts) {
     const email = String(contact.email || '').trim().toLowerCase();
-    if (!isEmail(email) || contact.dnd || contact.emailUnsubscribed || seen.has(email)) continue;
+    if (!isEmail(email) || !canMessage(contact, 'Email', audience?.topicId) || seen.has(email)) continue;
     if (audience?.mode === 'tags' && !(contact.tags || []).some(tag => wanted.includes(String(tag).toLowerCase()))) continue;
     seen.add(email); out.push(contact);
   }
@@ -120,7 +123,7 @@ export function emailTick(s, at) {
     }
     if (['sending', 'testing'].includes(campaign.status)) queued += campaign.recipients.filter(r => r.st === 'queued' || (r.st === 'sending' && Date.parse(r.lease) < at - LEASE_MS)).length;
   }
-  return queued;
+  return queued + sequenceTick(s, at);
 }
 
 const variantOf = (campaign, v) => v === 'B' ? { subject: campaign.ab.subjectB || campaign.subject, preheader: campaign.ab.preheaderB || campaign.preheader } : { subject: campaign.subject, preheader: campaign.preheader };
@@ -141,6 +144,7 @@ export function emailTake(s, at, limit = 100) {
     }
     settle(campaign);
   }
+  sequenceTake(s, at, limit, items, campaigns);
   return { items, campaigns, business: s.profile?.name || '' };
 }
 
@@ -151,6 +155,7 @@ export function emailResults(s, results, at) {
     const r = campaign?.recipients.find(row => row.t === result.token);
     if (!r || r.st !== 'sending') continue;
     Object.assign(r, result.ok ? { st: 'sent', at: iso(at) } : { st: 'failed', at: iso(at), err: str(result.error, 200) || 'falha no envio' });
+    if (result.ok) walletCharge(s, 'email', 1, iso(at));
     delete r.lease;
     touched.add(campaign);
   }
@@ -165,7 +170,7 @@ export function emailTrack(s, { token: t, event, index }, { run, at }) {
     const r = campaign.recipients?.find(row => row.t === t);
     if (!r) continue;
     const fire = name => run(s, 'email_event', { contactId: r.c, campaignId: campaign.id, event: name });
-    const out = { campaign: campaign.name, business: s.profile?.name || '', unsubscribed: Boolean(r.u), opened: Boolean(r.o), url: '' };
+    const out = { campaign: campaign.name, business: s.profile?.name || '', unsubscribed: Boolean(r.u), opened: Boolean(r.o), url: '', contactId: r.c || '' };
     if (event === 'info') return out;
     if (event === 'click') {
       out.url = collectLinks(campaign.blocks)[Number(index)] || '';
@@ -187,7 +192,7 @@ export function emailTrack(s, { token: t, event, index }, { run, at }) {
     campaign.stats = statsOf(campaign.recipients);
     return out;
   }
-  return null;
+  return sequenceTrack(s, { token: t, event, index }, { run, at });
 }
 
 export function emailCommand(s, { type, id, data: d }, { run, add }) {
@@ -229,7 +234,7 @@ export function emailCommand(s, { type, id, data: d }, { run, add }) {
   }
   if (type === 'email-tick') return emailTick(s, d.at ? Date.parse(d.at) : at);
   if (type === 'email-take') return emailTake(s, d.at ? Date.parse(d.at) : at, Math.min(100, Math.max(1, Number(d.limit) || 100)));
-  if (type === 'email-result') return emailResults(s, d.results, d.at ? Date.parse(d.at) : at);
+  if (type === 'email-result') { sequenceResults(s, Array.isArray(d.results) ? d.results.slice(0, 1000) : [], d.at ? Date.parse(d.at) : at, run); return emailResults(s, d.results, d.at ? Date.parse(d.at) : at); }
   if (type === 'email-track') return emailTrack(s, { token: str(d.token, 24), event: d.event, index: d.index }, { run, at: d.at ? Date.parse(d.at) : at });
   fail('Unknown operation.', 400);
 }

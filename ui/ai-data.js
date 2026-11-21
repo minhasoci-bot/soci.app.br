@@ -20,6 +20,8 @@ export const usageKinds = [
   ['workflow', 'Automações (workflows)'],
   ['reputation', 'Respostas a avaliações'],
   ['brand', 'Marca (voz com IA)'],
+  ['meetings', 'Reuniões (transcrição e resumo)'],
+  ['visibility', 'Visibilidade na IA (perguntas com busca na web)'],
   ['other', 'Outros usos de IA']
 ];
 
@@ -28,7 +30,7 @@ export const usageKinds = [
 export const modelPrices = [
   ['gpt-5-nano', 0.05, 0.40], ['gpt-5-mini', 0.25, 2.00], ['gpt-5', 1.25, 10.00],
   ['gpt-4.1-nano', 0.10, 0.40], ['gpt-4.1-mini', 0.40, 1.60], ['gpt-4.1', 2.00, 8.00],
-  ['gpt-4o-mini', 0.15, 0.60], ['gpt-4o', 2.50, 10.00], ['o4-mini', 1.10, 4.40], ['o3', 2.00, 8.00]
+  ['gpt-4o-mini-transcribe', 1.25, 5.00], ['gpt-4o-transcribe', 2.50, 10.00], ['gpt-4o-mini', 0.15, 0.60], ['gpt-4o', 2.50, 10.00], ['o4-mini', 1.10, 4.40], ['o3', 2.00, 8.00]
 ];
 
 // Longest matching prefix, so dated snapshots ("gpt-4.1-mini-2025-04-14") use their family price.

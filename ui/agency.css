@@ -187,3 +187,4 @@ label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:no
 .dk-button{background:var(--btn);color:var(--btn-fg);border-radius:8px;padding:7px 10px;text-align:center;font-size:13px;font-weight:600}
 .dk-status{display:grid;gap:8px}.dk-steps{margin:0;padding-left:18px;display:grid;gap:4px}
 @media (max-width:980px){.dk-layout{grid-template-columns:1fr}.dk-aside{position:static}}
+.dk-presets .dk-preset{display:inline-flex;width:auto;gap:0}

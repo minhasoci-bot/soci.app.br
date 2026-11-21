@@ -38,6 +38,15 @@ import { installCourses } from './courses.js';
 import { installCommunities } from './communities.js';
 import { installOffers } from './offers.js';
 import { installCertificates } from './certificates.js';
+import { installTickets } from './tickets.js';
+import { installSequences } from './sequences.js';
+import { installLoyalty } from './loyalty.js';
+import { installScheduling } from './scheduling.js';
+import { installMeetings } from './meetings.js';
+import { installSeo } from './seo.js';
+import { installWallet } from './wallet.js';
+import { contactPreferences, installPreferences } from './preferences.js';
+import { installContactTrash } from './contact-trash.js';
 import { afterDocumentsRender, installDocuments } from './documents.js';
 import { installEstimates } from './estimates.js';
 import { installInvoices, invoiceTabs } from './invoices.js';
@@ -161,7 +170,7 @@ const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social',...emailTabs,'countdown','affiliates','ads','brand','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers','certificates'],reporting:['reports','attribution','google-ads','meta-ads','overview','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],reputation:reputationTabs,'ai-agents':['agent','edit','knowledge','base','templates','logs','usage'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments','services','resources','field','booking','meetings'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social',...emailTabs,'countdown','affiliates','ads','loyalty','brand','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers','certificates'],reporting:['reports','attribution','google-ads','meta-ads','overview','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],reputation:reputationTabs,'ai-agents':['agent','edit','knowledge','base','templates','logs','usage'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -411,7 +420,7 @@ function edit(key,id,preset={}){
   const entry=c.s[key]?.find(r=>r.id===id); if(id&&!entry)return;
   const r=entry||preset; let body='';
   switch(key){
-    case 'contacts':body=input('Nome completo','name',r.name,true)+`<div class="field-grid">${input('E-mail','email',r.email,false,'email')}${input('Telefone','phone',r.phone,false,'tel')}</div>`+`<label>Empresa<input name="company" list="crm-companies" value="${h(r.company||'')}"></label><datalist id="crm-companies">${c.s.companies.map(x=>`<option value="${h(x.name)}">`).join('')}</datalist>`+input('Tags (separadas por vírgula)','tags',r.tags?.join(', '))+area('Notas','notes',r.notes)+customInputs(c,'Contact',r)+contactScore(r)+(id?`<div class="inline-gap"><button type="button" class="secondary" data-start-thread="${id}">${i('chat',16)} Abrir conversa</button><button type="button" class="secondary" data-edit="tasks" data-contact="${id}">${i('plus',16)} Nova tarefa</button></div>`:'');break;
+    case 'contacts':body=input('Nome completo','name',r.name,true)+`<div class="field-grid">${input('E-mail','email',r.email,false,'email')}${input('Telefone','phone',r.phone,false,'tel')}</div>`+`<label>Empresa<input name="company" list="crm-companies" value="${h(r.company||'')}"></label><datalist id="crm-companies">${c.s.companies.map(x=>`<option value="${h(x.name)}">`).join('')}</datalist>`+input('Tags (separadas por vírgula)','tags',r.tags?.join(', '))+area('Notas','notes',r.notes)+customInputs(c,'Contact',r)+contactScore(r)+contactPreferences(c,r)+(id?`<div class="inline-gap"><button type="button" class="secondary" data-start-thread="${id}">${i('chat',16)} Abrir conversa</button><button type="button" class="secondary" data-edit="tasks" data-contact="${id}">${i('plus',16)} Nova tarefa</button></div>`:'');break;
     case 'tasks':body=input('Título','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices(),false)+input('Prazo','due',r.due?r.due.slice(0,10):'',false,'date')+input('Responsável','owner',r.owner)+area('Notas','notes',r.notes)+check('Concluída','done',r.done);break;
     case 'opportunities': {
       const pipelineId = c.s.stages.find(stage => stage.id === r.stage)?.pipelineId ||
@@ -431,7 +440,7 @@ function edit(key,id,preset={}){
         input('Tags (separadas por vírgula)','tags',r.tags?.join(', '))+customInputs(c,'Opportunity',r);
       break;
     }
-    case 'appointments':body=input('Título','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices(),false)+`<p class="dim">Horários no fuso ${h(zones())}.</p><div class="field-grid">${input('Início','start',localTime(r.start,zones())||(r.date?`${r.date}T09:00`:''),true,'datetime-local')}${input('Fim','end',localTime(r.end,zones())||(r.date?`${r.date}T09:30`:''),true,'datetime-local')}</div>`+option('Status','status',r.status||'Confirmed',['Confirmed','Completed','Canceled'])+area('Notas','notes',r.notes);break;
+    case 'appointments':body=input('Título','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices(),false)+`<p class="dim">Horários no fuso ${h(zones())}.</p><div class="field-grid">${input('Início','start',localTime(r.start,zones())||(r.date?`${r.date}T09:00`:''),true,'datetime-local')}${input('Fim','end',localTime(r.end,zones())||(r.date?`${r.date}T09:30`:''),true,'datetime-local')}</div>`+((c.s.services||[]).length||(c.s.scheduling?.staff||[]).length?`<div class="field-grid">${option('Serviço','serviceId',r.serviceId||'',[['','Nenhum'],...(c.s.services||[]).map(x=>[x.id,x.name])],false)}${option('Profissional','staffId',r.staffId||'',[['','Ninguém'],...(c.s.scheduling?.staff||[]).map(p=>[p.id,p.name])],false)}</div>`+input('Endereço (serviço em campo)','address',r.address||'',false):'')+option('Status','status',r.status||'Confirmed',['Confirmed','Completed','Canceled'])+area('Notas','notes',r.notes);break;
     case 'snippetFolders': body = input('Nome da pasta','name',r.name,true); break;
     case 'snippets': {
       const type = r.type || r.kind || 'Text';
@@ -746,7 +755,7 @@ document.addEventListener('click',async ev=>{
     if(d.task){const r=c.s.tasks.find(a=>a.id===d.task);await mutate({type:'save',key:'tasks',id:r.id,data:{...r,done:!r.done}});render();return;}
     if(d.file){const f=c.s.files.find(a=>a.id===d.file);const [header,body]=f.data.split(',');const data=new Blob([Uint8Array.from(atob(body),x=>x.charCodeAt(0))],{type:header.slice(5).split(';')[0]});downloads(f.name,data);return;}
     if(d.provider){dialog(d.provider,'<p>Esta integração não está disponível no workspace local. Uma conta de provedor e uma conexão autorizada são necessárias.</p>');return;}
-    if(d.delete){dialog('Excluir este registro?',`<p>${d.delete==='contacts'?'Isso também excluirá mensagens, tarefas, oportunidades, agendamentos e faturas associadas.':'Isso remove o registro deste workspace.'}</p>`,{form:'delete',key:d.delete,id:d.id,buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="danger">Excluir</button>'});return;}
+    if(d.delete){dialog('Excluir este registro?',`<p>${d.delete==='contacts'?'O contato vai para a Lixeira com mensagens, tarefas, oportunidades, agendamentos e faturas associadas. Você pode restaurá-lo por 60 dias.':'Isso remove o registro deste workspace.'}</p>`,{form:'delete',key:d.delete,id:d.id,buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="danger">Excluir</button>'});return;}
     switch(d.act){
       case 'start-manual': {
         const first = manualQueue(c).find(item => item.status === 'Pending');
@@ -980,7 +989,7 @@ document.addEventListener('submit',async ev=>{
       msg=live.paircode?'Código de pareamento gerado!':'Conexão iniciada.';
     }
     else if(name==='google-select'){
-      c.google={...await api(url('/api/google/workspace/select'),{gaProperty:data.gaProperty||'',gbpLocation:data.gbpLocation||''}),workspace:c.workspace};
+      c.google={...await api(url('/api/google/workspace/select'),{gaProperty:data.gaProperty||'',gbpLocation:data.gbpLocation||'',gscSite:data.gscSite||''}),workspace:c.workspace};
       render(); flash('Escolha salva. O painel já mostra os dados do Google.'); return;
     }
     else if(name==='email-domain-add'){
@@ -1105,12 +1114,21 @@ if(viewPath){
   mountCommunities = installCommunities({ c, api, mutate, flash, dialog, close, render });
   installOffers({ c, api, mutate, flash, dialog, close, render });
   installCertificates({ c, mutate, flash, dialog, close, render });
+  installTickets({ c, mutate, flash, dialog, close, render });
+  installSequences({ c, mutate, flash, dialog, close, render });
+  installLoyalty({ c, mutate, flash, dialog, close, render });
+  installScheduling({ c, mutate, flash, dialog, close, render });
+  installMeetings({ c, mutate, flash, dialog, close, render });
+  installPreferences({ c, mutate, flash, render });
+  installContactTrash({ c, mutate, flash, render });
   installDocuments({ c, api, mutate, flash, dialog, close, render });
   installEstimates({ c, api, mutate, flash, dialog, close, render });
   installInvoices({ c, api, mutate, flash, dialog, close, render });
   installPaymentSettings({ c, mutate, flash, render });
   installEmailMarketing({ c, mutate, flash, dialog, close, render, api, url, load });
   installReputation({ c, api, url, mutate, flash, dialog, close, render });
+  installSeo({ c, api, url, mutate, flash, dialog, close, render });
+  installWallet({ c, api, url, flash, render });
   installContentAI({ api, flash, workspace: () => c.workspace, enabled: kind => Boolean(c.features?.contentAI || (kind === 'gbp' && c.features?.reviewAI)) });
   installCountdowns({ c, mutate, flash, dialog, close, render });
   installAffiliates({ c, api, url, mutate, flash, dialog, close, render });

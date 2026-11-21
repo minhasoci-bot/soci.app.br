@@ -6,6 +6,7 @@ import { hydrateProspecting } from './prospecting-model.mjs';
 import { agentTemplate } from './agent-model.mjs';
 import { sanitizePresentation } from './presentation-model.mjs';
 import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
+import { walletKeys, walletProducts, walletSummary } from './wallet-model.mjs';
 import {
   accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog, labFeatures,
   mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
@@ -62,7 +63,8 @@ export function blankAgency() {
     systemEmails: Object.fromEntries(systemEmailKeys.map(([key, , subject, body]) => [key, { subject, body }])),
     labs: Object.fromEntries(labFeatures.map(([key]) => [key, false])),
     compliance: { retentionDays: 365, consent: 'By submitting, you agree to receive messages from this business.', cookieBanner: true, hipaa: false },
-    saas: { enabled: false, enabledAt: '', rebilling: Object.fromEntries(rebillProducts.map(([key]) => [key, 1])), accounts: [] },
+    saas: { enabled: false, enabledAt: '', rebilling: Object.fromEntries(rebillProducts.map(([key]) => [key, 1])), accounts: [],
+      unitCosts: Object.fromEntries(walletProducts.map(([key, , , cost]) => [key, cost])), rebill: {}, lowBalance: 20 },
     workflowSettings: { builder: 'Standard', overrides: {} },
     subFeatures: Object.fromEntries(subFeatures.map(([key]) => [key, { on: {}, rebill: [] }])),
     emailServices: { domain: '', added: '', accounts: [] },
@@ -95,6 +97,8 @@ export function hydrateAgency(state) {
   if (!/^#[0-9a-f]{6}$/i.test(state.company.secondary || '')) state.company.secondary = defaultSecondary;
   for (const product of resellProducts) state.reselling[product.key] ??= { price: product.base, disabled: [] };
   for (const [key] of rebillProducts) state.saas.rebilling[key] ??= 1;
+  state.saas.unitCosts ??= {}; state.saas.rebill ??= {}; state.saas.lowBalance ??= 20;
+  for (const [key, , , cost] of walletProducts) state.saas.unitCosts[key] ??= cost;
   for (const [key] of subFeatures) state.subFeatures[key] ??= { on: {}, rebill: [] };
   return hydrateProspecting(state);
 }
@@ -500,8 +504,23 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
         if (markup < 1) fail(`${label} markup must be between 1× and ${maxMarkup}×.`);
         state.saas.rebilling[key] = markup;
       }
+      for (const [key, label] of walletProducts) {
+        if (d[`cost_${key}`] === undefined || d[`cost_${key}`] === '') continue;
+        const cost = Number(String(d[`cost_${key}`]).replace(',', '.'));
+        if (!Number.isFinite(cost) || cost < 0 || cost > 1000) fail(`Informe o custo de ${label} entre 0 e 1.000.`);
+        state.saas.unitCosts[key] = Math.round(cost * 1e4) / 1e4;
+      }
+      if (d.lowBalance !== undefined && d.lowBalance !== '') state.saas.lowBalance = num(d.lowBalance, 'Low balance alert', 100000);
       log('Wallet rebilling updated');
       return 'rebilling';
+    }
+    case 'rebill-account': {
+      if (!accountIds.includes(id)) fail('Sub-account not found.', 404);
+      const wanted = new Set(Array.isArray(d.products) ? d.products : []);
+      const products = walletKeys.filter(key => wanted.has(key));
+      if (products.length) state.saas.rebill[id] = products; else delete state.saas.rebill[id];
+      log(products.length ? 'Wallet rebilling enabled for sub-account' : 'Wallet rebilling disabled for sub-account', id, products.join(', '));
+      return id;
     }
     case 'saas-account': {
       if (!accountIds.includes(id)) fail('Sub-account not found.', 404);
@@ -772,7 +791,7 @@ export function agencyOverview(agency, workspaces) {
       address: meta.address || '', phone: meta.phone || state.profile.phone || '', website: meta.website || '', email: state.profile.email,
       currency: state.profile.currency, contacts: m.contacts, open: m.open, openValue: m.openValue, won: m.won, wonValue: m.wonValue,
       invoicesPaid: m.invoicesPaid, appointments: m.appointments, workflows: state.workflows.length, runs: state.runs.length, files: state.files.length, storage,
-      aiCost: usageSummary(state.ai).cost, aiLimit: Number(state.ai?.limit) || 0,
+      aiCost: usageSummary(state.ai).cost, aiLimit: Number(state.ai?.limit) || 0, wallet: walletSummary(state),
       resold: resold.map(p => p.key)
     };
   });

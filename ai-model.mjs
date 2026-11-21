@@ -1,3 +1,4 @@
+import { requireCredit, walletCharge } from './wallet-model.mjs';
 import { randomUUID } from 'node:crypto';
 import { kbLimits, monthOf, retrieveKnowledge, sourceKinds, usageCost, usageKinds, usageSummary } from './ui/ai-data.js';
 import { agentDraft } from './ui/agents-data.js';
@@ -134,6 +135,7 @@ export function setAiLimit(state, input) {
 }
 
 export function checkAiBudget(state) {
+  requireCredit(state, 'ai');
   const summary = usageSummary(state.ai);
   if (summary.blocked) {
     fail(`O limite mensal de IA desta subconta (US$ ${summary.limit.toFixed(2)}) foi atingido. Aumente o limite em Estúdio de agentes → Uso de IA.`, 402);
@@ -156,6 +158,7 @@ export function recordAiUsage(state, { kind, agent = '', model = '', usage = {},
     ...(error && { error: String(error).slice(0, 200) })
   };
   state.ai.ledger.unshift(entry);
+  if (entry.cost > 0) walletCharge(state, 'ai', entry.cost, entry.at);
   // Keep the current month whole; trim only older entries past the cap.
   if (state.ai.ledger.length > ledgerMax) {
     const month = monthOf();

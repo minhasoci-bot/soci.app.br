@@ -4,6 +4,7 @@
 import { randomBytes } from 'node:crypto';
 import { buildWorkflowContext, resolveTemplate } from './expressions.mjs';
 import { scoreTriggerMatches } from './scoring-model.mjs';
+import { canMessage } from './preference-model.mjs';
 import { actionSpec, aiExtractFields, aiOptions, aiVariableName, allActions, allTriggers, eachStep, triggerSpec, upgradeWorkflow } from './ui/workflow-data.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
@@ -124,7 +125,7 @@ export function compile(steps) {
 
 /* ───────── Motor ───────── */
 
-export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, onEvent = null, adjustScore = null }) {
+export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null }) {
   const contactOf = (s, id) => s.contacts.find(row => row.id === id);
   const fieldValue = (s, contact, key) => {
     if (!contact) return '';
@@ -198,6 +199,12 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'trigger_link_clicked': return !c.linkId || c.linkId === ctx.linkId;
       case 'chat_started': return !c.widgetId || c.widgetId === ctx.widgetId;
       case 'webinar_registered': return !c.webinarId || c.webinarId === ctx.webinarId;
+      case 'loyalty_reward_redeemed': return !c.rewardId || c.rewardId === ctx.rewardId;
+      case 'loyalty_tier_changed': return !c.tier || String(c.tier).toLowerCase() === String(ctx.tier || '').toLowerCase();
+      case 'preferences_changed': return !c.all || c.all === ctx.all;
+      case 'email_sequence_completed': return !c.sequenceId || c.sequenceId === ctx.sequenceId;
+      case 'ticket_created': return (!c.priority || c.priority === ctx.priority) && (!c.category || c.category === ctx.category);
+      case 'ticket_status_changed': return (!c.status || c.status === ctx.status) && (!c.priority || c.priority === ctx.priority);
       case 'badge_issued': case 'certificate_issued': case 'course_completed': return !c.courseId || c.courseId === ctx.courseId;
       case 'course_quiz_submitted': return (!c.courseId || c.courseId === ctx.courseId) && (!c.passed || c.passed === ctx.passed);
       case 'course_assignment_submitted': return !c.courseId || c.courseId === ctx.courseId;
@@ -208,6 +215,8 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'video_testimonial': return !c.collectorId || c.collectorId === ctx.collectorId;
       case 'affiliate_created': case 'affiliate_lead': case 'affiliate_sale': return !c.affiliateId || c.affiliateId === ctx.affiliateId;
       case 'appointment_status': return !c.status || c.status === ctx.status;
+      case 'field_status_changed': return !c.status || c.status === ctx.status;
+      case 'meeting_summarized': return !c.sentiment || c.sentiment === ctx.sentiment;
       case 'opportunity_created': return !c.pipelineId || c.pipelineId === ctx.pipelineId;
       case 'opportunity_status_changed': return !c.status || c.status === ctx.status;
       case 'pipeline_stage_changed': return !c.stageId || c.stageId === ctx.stageId;
@@ -275,8 +284,8 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         return 'concluída';
       }
       case 'add_note': message('Note', c.body); return 'concluída';
-      case 'send_email': if (contact.dnd) return 'contato em não perturbe'; message('Email', c.body, text(c.subject).slice(0, 240)); return 'registrada em Conversas';
-      case 'send_sms': if (contact.dnd) return 'contato em não perturbe'; message('SMS', c.body); return 'registrada em Conversas';
+      case 'send_email': if (contact.dnd) return 'contato em não perturbe'; if (!canMessage(contact, 'Email', c.topicId)) return 'contato não aceita este e-mail (preferências)'; message('Email', c.body, text(c.subject).slice(0, 240)); return 'registrada em Conversas';
+      case 'send_sms': if (contact.dnd) return 'contato em não perturbe'; if (!canMessage(contact, 'SMS', c.topicId)) return 'contato não aceita SMS (preferências)'; message('SMS', c.body); return 'registrada em Conversas';
       case 'send_live_chat': message('Live chat', c.body); return 'enviada ao chat';
       case 'send_instagram_dm': if (contact.dnd) return 'contato em não perturbe'; message('Instagram', c.body); return 'registrada em Conversas (Direct)';
       case 'create_social_post': {
@@ -294,6 +303,21 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         const score = adjustScore(s, contact, Math.max(-1000, Math.min(1000, points)), `Automação: ${run.name}`, depth);
         output(run, id, { score });
         return `pontuação: ${score}`;
+      }
+      case 'loyalty_points': {
+        const points = Math.round(Number(text(c.points)));
+        if (!points || Math.abs(points) > 1000000) return 'erro: pontos inválidos';
+        if (!s.loyalty?.enabled) return 'programa de fidelidade desligado';
+        loyaltyAction?.(s, contact, points, text(c.reason) || `Automação: ${run.name}`, depth);
+        return `${points > 0 ? '+' : ''}${points} pontos`;
+      }
+      case 'add_to_sequence': case 'remove_from_sequence': return sequenceAction ? sequenceAction(s, contact, node.type, c.sequenceId) : 'erro: sequências indisponíveis';
+      case 'create_ticket': case 'update_ticket': {
+        if (node.type === 'create_ticket' && !text(c.subject)) return 'erro: informe o assunto do ticket';
+        const ticket = ticketAction?.(s, contact, node.type, { ...c, subject: text(c.subject), description: text(c.description) }, depth);
+        if (!ticket) return node.type === 'create_ticket' ? 'erro: tickets indisponíveis' : 'contato sem ticket aberto';
+        output(run, id, { number: ticket.number, ticketId: ticket.id });
+        return node.type === 'create_ticket' ? `ticket #${ticket.number} criado` : `ticket #${ticket.number}: ${ticket.status}`;
       }
       case 'issue_certificate': case 'issue_badge': {
         const kind = node.type === 'issue_badge' ? 'badge' : 'certificate';
@@ -318,6 +342,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'send_whatsapp': {
         const channel = 'WhatsApp';
         if (contact.dnd) return 'contato em não perturbe';
+        if (!canMessage(contact, 'WhatsApp', c.topicId)) return 'contato não aceita WhatsApp (preferências)';
         const row = message(channel, c.body, channel === 'Email' ? 'Sua opinião importa' : '');
         if (channel === 'WhatsApp' && contact.phone) outbox(s, { kind: 'whatsapp', runId: run.id, phone: contact.phone, body: row.body });
         return channel === 'WhatsApp' ? 'registrada e na fila de envio' : 'registrada em Conversas';

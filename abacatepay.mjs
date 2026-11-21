@@ -306,7 +306,7 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
   }
 
   // ---- Webhook ------------------------------------------------------------------------------
-  async function handleWebhook({ req, url, json, listWorkspaces, changeAgency, onSubscription, onInvoicePaid }) {
+  async function handleWebhook({ req, url, json, listWorkspaces, changeAgency, onSubscription, onInvoicePaid, onWalletTopup }) {
     const match = resolvePath(url).match(/^\/api\/abacatepay\/webhook\/([^/]+)\/([^/]+)$/);
     if (!match) throw fail('Webhook inválido.', 404);
     const agencyId = decodeURIComponent(match[1]), scope = decodeURIComponent(match[2]);
@@ -330,6 +330,10 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
         await changeAgency(agencyId, agency => { account = subscriptionEvent(agency, event, data); });
         handled = Boolean(account);
         if (account && onSubscription) await onSubscription(agencyId, account, event).catch(() => {});
+      } else if ((event === 'checkout.completed' || event === 'transparent.completed') && onWalletTopup) {
+        // A sub-account's wallet recharge, paid into the agency's AbacatePay account.
+        const charge = data.checkout || data.transparent || {};
+        if (charge.frequency !== 'SUBSCRIPTION' && charge.id) handled = Boolean(await onWalletTopup(agencyId, { workspace: String(charge.metadata?.walletTopup || ''), checkoutId: String(charge.id), method: methodNames[data.payerInformation?.method] || 'Pix' }));
       }
     } else {
       if (!(await listWorkspaces(agencyId)).some(w => w.id === scope)) throw fail('Subconta não encontrada.', 404);

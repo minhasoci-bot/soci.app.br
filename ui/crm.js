@@ -8,11 +8,11 @@ import { bulkOperations, couponKinds, couponStatus, customObjects, fieldTypes, f
   subscriptionStatuses, transactionSources, transactionStatuses } from './crm-data.js';
 
 export const crmTabs = {
-  contacts: [['all', 'Listas inteligentes'], ['bulk', 'Ações em massa'], ['fields', 'Campos personalizados'], ['tasks', 'Tarefas'], ['companies', 'Empresas']],
+  contacts: [['all', 'Listas inteligentes'], ['bulk', 'Ações em massa'], ['fields', 'Campos personalizados'], ['tasks', 'Tarefas'], ['companies', 'Empresas'], ['trash', 'Lixeira']],
   opportunities: [['pipeline', 'Oportunidades'], ['list', 'Lista'], ['forecast', 'Previsão'], ['pipelines', 'Pipelines'], ['bulk', 'Ações em massa']],
   payments: [['invoices', 'Faturas'], ['recurring', 'Faturas recorrentes'], ['invoice-templates', 'Modelos de fatura'], ['documents', 'Documentos e contratos'], ['estimates', 'Orçamentos'], ['orders', 'Pedidos'], ['abandoned-checkouts', 'Checkouts abandonados'], ['products', 'Produtos'], ['collections', 'Coleções'], ['inventory', 'Estoque'], ['reviews', 'Avaliações'], ['gift-cards', 'Cartões-presente'], ['subscriptions', 'Assinaturas'], ['links', 'Links de pagamento'], ['transactions', 'Transações'], ['coupons', 'Cupons'], ['payment-settings', 'Configurações']],
-  settings: [['business', 'Perfil da empresa'], ['whatsapp', 'WhatsApp'], ['abacatepay', 'AbacatePay'], ['google', 'Google'], ['email', 'Serviços de e-mail'], ['users', 'Usuários'], ['fields', 'Campos personalizados'], ['values', 'Valores personalizados'], ['tags', 'Tags'],
-    ['scoring', 'Pontuação de leads'], ['tracking', 'Rastreamento externo'], ['objects', 'Objetos'], ['import', 'Importar dados'], ['audit', 'Logs de auditoria'], ['workspaces', 'Workspaces']]
+  settings: [['business', 'Perfil da empresa'], ['whatsapp', 'WhatsApp'], ['abacatepay', 'AbacatePay'], ['google', 'Google'], ['email', 'Serviços de e-mail'], ['wallet', 'Carteira de créditos'], ['users', 'Usuários'], ['fields', 'Campos personalizados'], ['values', 'Valores personalizados'], ['tags', 'Tags'],
+    ['scoring', 'Pontuação de leads'], ['tracking', 'Rastreamento externo'], ['preferences', 'Preferências de comunicação'], ['objects', 'Objetos'], ['import', 'Importar dados'], ['audit', 'Logs de auditoria'], ['workspaces', 'Workspaces']]
 };
 export const crmEntityNames = { customFields: 'Campo personalizado', customValues: 'Valor personalizado', tags: 'Tag', companies: 'Empresa', products: 'Produto',
   paymentLinks: 'Link de pagamento', subscriptions: 'Assinatura', transactions: 'Transação', coupons: 'Cupom' };
@@ -336,7 +336,7 @@ export function crmEvents({ G, mutate, render, flash, dialog, close }) {
       : object === 'contacts' ? `${option.textContent} “${value}”` : `${option.parentElement.label || ''}: ${option.textContent}`.replace(/^Mover para · /, 'Mover para ');
     if (operation === 'delete') {
       pending = [object, operation, value, label];
-      dialog(`Excluir ${picked[object].size} registro(s)?`, `<p>Esta ação não pode ser desfeita.${object === 'contacts' ? ' Tarefas, oportunidades, mensagens, agendamentos e faturas desses contatos também serão excluídos.' : ''}</p><div class="inline-gap"><button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary danger" type="button" data-crm-confirm>Excluir</button></div>`);
+      dialog(`Excluir ${picked[object].size} registro(s)?`, `<p>${object === 'contacts' ? 'Os contatos vão para a Lixeira por 60 dias, junto com as tarefas, oportunidades, mensagens, agendamentos e faturas deles, e podem ser restaurados.' : 'Esta ação não pode ser desfeita.'}</p><div class="inline-gap"><button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary danger" type="button" data-crm-confirm>Excluir</button></div>`);
       return;
     }
     try { await run(object, operation, value, label); } catch (e) { flash(e.message, true); }

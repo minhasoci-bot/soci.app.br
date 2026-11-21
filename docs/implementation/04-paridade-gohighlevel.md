@@ -177,7 +177,7 @@ Ask AI ✅ (Pergunte a Soci) · Launchpad ✅ · Dashboard ✅
 | Launchpad · Dashboard | ✅ |
 | SaaS Configurator (planos, revenda de assinaturas para clientes) | 🟡 (`03-agencia-saas-snapshot.md`) |
 | Prospecting · Sub-accounts · Snapshots | ✅ |
-| Reselling (revenda de telefonia, e-mail, IA com margem) | ❌ |
+| Reselling (revenda de telefonia, e-mail, IA com margem) | 🟡 IA, e-mails e WhatsApp com carteira de créditos (7.1); telefonia depende da D1 |
 | Marketplace | 🟡 |
 | Affiliate Portal · Template Library · Partners · University · Ideas | ✅ |
 | SaaS Education | ⏭ (conteúdo) |
@@ -266,18 +266,18 @@ A ordem segue impacto para o cliente da Soci (agências e PMEs no Brasil) e depe
 - Branded mobile app (cliente final) e desktop white-label (agência).
 
 ### Fase 6.5: módulos ocultos (vindos do registro de micro-apps)
-- Ticketing/helpdesk ligado a Conversas.
-- Sequências de e-mail (drip).
-- Programa de fidelidade (loyalty), junto com gift cards.
-- Central de preferências de comunicação (opt-in/opt-out por canal).
-- Lixeira de contatos.
-- Agenda de serviços, locação de recursos e serviço em campo (nichos).
-- Meetings + Notes AI (resumo de reuniões e ligações).
-- SEO e Visibility AI (presença em buscadores e respostas de IA).
+- Ticketing/helpdesk ligado a Conversas. Feito em 2026-11-21.
+- Sequências de e-mail (drip). Feito em 2026-11-21.
+- Programa de fidelidade (loyalty), junto com gift cards. Fidelidade feita em 2026-11-21; gift cards ainda não.
+- Central de preferências de comunicação (opt-in/opt-out por canal). Feito em 2026-11-21.
+- Lixeira de contatos. Feito em 2026-11-21.
+- Agenda de serviços, locação de recursos e serviço em campo (nichos). Feito em 2026-11-21.
+- Meetings + Notes AI (resumo de reuniões e ligações). Feito em 2026-11-21.
+- SEO e Visibility AI (presença em buscadores e respostas de IA). Feito em 2026-11-21 (posições pelo Search Console; Visibility AI mede o ChatGPT).
 - Power dialer, depois da Fase 2.
 
 ### Fase 7: plataforma de agência
-- Reselling com margem (IA, mensagens, telefonia).
+- Reselling com margem (IA, mensagens, telefonia). Feito em 2026-11-22 para IA, e-mails e WhatsApp, com carteira de créditos por subconta e recarga por Pix; telefonia depende da D1.
 - AI Suite da agência, Labs (flags por conta), App Marketplace / App Studio aberto.
 
 ### Fora do escopo (⏭)

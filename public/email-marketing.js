@@ -2,13 +2,14 @@
 // report of each campaign (opens, clicks, unsubscribes and the A/B result). Follows GoHighLevel's
 // /marketing/emails (Statistics, Campaigns, Templates); the names, texts and look are Soci's.
 import { aiTool } from './content-ai.js';
+import { sequencesScreen } from './sequences.js';
 import { colorOf, defaultBoard } from './brand-data.js';
 import { contentTones } from './content-ai-data.js';
 import { icon } from './icons.js';
 import { h, pageShell, search } from './screens.js';
 import { BLOCK_TYPES, FONTS, MAX_BLOCKS, MERGE_FIELDS, mergeValues, newBlock, renderEmail, fillText, starterDesign } from './email-blocks.js';
 
-export const emailTabs = ['email', 'email-campaigns', 'email-templates', 'email-campaign', 'email-template', 'email-report'];
+export const emailTabs = ['email', 'email-campaigns', 'email-templates', 'email-campaign', 'email-template', 'email-report', 'email-sequences', 'email-sequence'];
 const ed = { key: '', draft: null, dirty: false, open: 0, device: 'desktop' };
 const STATUS = { draft: ['Rascunho', ''], scheduled: ['Agendada', 'blue'], testing: ['Teste A/B', 'blue'], sending: ['Enviando', 'blue'], sent: ['Enviada', 'green'], cancelled: ['Cancelada', 'red'] };
 const badge = (label, tone = '') => `<span class="badge ${tone}">${h(label)}</span>`;
@@ -21,7 +22,7 @@ let aiOn = false;
 const aiField = (label, control, target, hint = '') => aiOn ? `<div class="ai-wrap">${field(label, control, hint)}${aiTool(target, 'email', label)}</div>` : field(label, control, hint);
 const isEmail = value => /^[^\s@<>"]{1,64}@[^\s@<>"]{1,190}\.[a-z0-9-]{2,}$/i.test(value);
 
-const secondary = current => `<nav class="em-subtabs" aria-label="Seções de e-mail">${[['email', 'Estatísticas'], ['email-campaigns', 'Campanhas'], ['email-templates', 'Modelos']]
+const secondary = current => `<nav class="em-subtabs" aria-label="Seções de e-mail">${[['email', 'Estatísticas'], ['email-campaigns', 'Campanhas'], ['email-sequences', 'Sequências'], ['email-templates', 'Modelos']]
   .map(([key, label]) => `<a href="#marketing/${key}" class="${key === current ? 'active' : ''}"${key === current ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
 const shell = (c, ctx, current, content, cta = '') => pageShell({ title: 'Marketing', desc: 'Monte e-mails com blocos, envie para os seus contatos e acompanhe aberturas e cliques.', cta,
   tabs: { key: 'marketing', items: ctx.marketingTabs, current: 'email', label: 'Seções de marketing' }, content: secondary(current) + content });
@@ -32,7 +33,8 @@ function reach(c, audience) {
   let n = 0;
   for (const contact of c.s.contacts) {
     const email = String(contact.email || '').trim().toLowerCase();
-    if (!isEmail(email) || contact.dnd || contact.emailUnsubscribed || seen.has(email)) continue;
+    if (!isEmail(email) || contact.dnd || contact.emailUnsubscribed || contact.optOut?.email || seen.has(email)) continue;
+    if (audience?.topicId && contact.topics?.[audience.topicId] === false) continue;
     if (audience?.mode === 'tags' && !(contact.tags || []).some(tag => wanted.includes(String(tag).toLowerCase()))) continue;
     seen.add(email); n++;
   }
@@ -132,6 +134,7 @@ function editor(c, ctx, kind) {
   const audience = camp ? `<section class="surface padded em-section"><h2>Público</h2>
       <fieldset class="em-radios"><label><input type="radio" name="em-aud" data-em-aud="all"${d.audience.mode !== 'tags' ? ' checked' : ''}> Todos os contatos</label><label><input type="radio" name="em-aud" data-em-aud="tags"${d.audience.mode === 'tags' ? ' checked' : ''}> Contatos com as tags</label></fieldset>
       ${d.audience.mode === 'tags' ? (tags.length ? `<div class="em-tags">${tags.map(tag => `<label class="chip"><input type="checkbox" data-em-tag="${h(tag)}"${d.audience.tags.includes(tag) ? ' checked' : ''}> ${h(tag)}</label>`).join('')}</div>` : '<p class="dim">Nenhuma tag nos contatos ainda.</p>') : ''}
+      <label>Assunto (central de preferências)<select data-em-topic><option value="">Sem assunto: todos que aceitam e-mail</option>${(c.s.preferences?.topics || [{ id: 'novidades', name: 'Novidades' }, { id: 'promocoes', name: 'Promoções' }]).map(t => `<option value="${h(t.id)}"${d.audience.topicId === t.id ? ' selected' : ''}>${h(t.name)}</option>`).join('')}</select></label>
       <p class="em-reach" data-em-reach>${reachText(c)}</p></section>
     <section class="surface padded em-section"><div class="inline-gap"><h2>Teste A/B do assunto</h2><label class="switch-line"><input type="checkbox" data-em-ab="enabled"${d.ab.enabled ? ' checked' : ''}> Ativar</label></div>
       ${d.ab.enabled ? `<p class="dim">Uma parte do público recebe o assunto A ou o B. Depois da espera, o restante recebe o vencedor.</p>
@@ -198,6 +201,7 @@ export function emailMarketingScreen(c, ctx) {
   if (c.tab === 'email-campaign') return editor(c, ctx, 'campaign');
   if (c.tab === 'email-template') return editor(c, ctx, 'template');
   if (c.tab === 'email-report') return report(c, ctx);
+  if (c.tab === 'email-sequences' || c.tab === 'email-sequence') return sequencesScreen(c, body => shell(c, ctx, 'email-sequences', body));
   return statistics(c, ctx);
 }
 
@@ -266,6 +270,7 @@ export function installEmailMarketing({ c, mutate, flash, dialog, close, render,
     if (!editing()) return;
     const d = ed.draft;
     if (el.matches('[data-em-aud]')) { d.audience.mode = el.dataset.emAud; touch(true); }
+    if (el.matches('[data-em-topic]')) { d.audience.topicId = el.value; touch(true); }
     else if (el.matches('[data-em-tag]')) { const tag = el.dataset.emTag; d.audience.tags = el.checked ? [...new Set([...d.audience.tags, tag])] : d.audience.tags.filter(t => t !== tag); touch(); }
     else if (el.matches('[data-em-ab="enabled"]')) { d.ab.enabled = el.checked; touch(true); }
     else if (el.matches('select[data-em-b], select[data-em-style], select[data-em-ab]')) refresh();
