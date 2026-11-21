@@ -416,3 +416,12 @@
 .cp-card-credentials{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
 .cp-card-credentials a{text-decoration:none}
 @media (max-width:860px){.cp-course-hero,.cp-course-page-grid{grid-template-columns:1fr}}
+
+/* Fidelidade no portal (6b.3) */
+.cp-loyalty{display:grid;gap:12px}
+.cp-loyalty-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;padding:16px}
+.cp-loyalty-head>div{display:grid;gap:2px}.cp-loyalty-head b{font-size:26px}.cp-loyalty-head small b{font-size:inherit}
+.cp-loyalty-code{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px;background:#ecf8f0;border-color:#3aa66a}
+.cp-reward{display:grid;gap:8px;padding:14px;align-content:start}.cp-reward p{margin:0;font-size:13px;color:var(--portal-muted)}.cp-reward .cp-tag{justify-self:start}
+.cp-loyalty-history{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}.cp-loyalty-history li{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}
+.cp-loyalty-history b{color:#146c2e}.cp-loyalty-history b.neg{color:#b42318}

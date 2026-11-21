@@ -24,6 +24,15 @@ import { communityCommand } from './community-config.mjs';
 import { courseActivityCommand } from './course-learning.mjs';
 import { courseOfferBeforeDelete, credentialCollections } from './course-credentials.mjs';
 import { certificateBeforeDelete, certificateCollections, certificateFields, credentialCommand, issueFromTemplate } from './certificate-model.mjs';
+import { ticketCollections, ticketCommand, ticketInbound, ticketWorkflow } from './ticket-model.mjs';
+import { sequenceCollections, sequenceCommand, sequenceFields, sequenceInbound, sequenceWorkflow } from './sequence-model.mjs';
+import { addPoints, loyaltyCollections, loyaltyCommand, loyaltyEvent, loyaltyFields } from './loyalty-model.mjs';
+import { preferenceCommand } from './preference-model.mjs';
+import { trashCommand, trashContact } from './contact-trash.mjs';
+import { appointmentRecord, schedulingCollections, schedulingCommand, schedulingFields } from './scheduling-model.mjs';
+import { meetingCollections, meetingCommand, meetingFields } from './meeting-model.mjs';
+import { seoCommand, seoDefaults, visibilityDefaults } from './seo-model.mjs';
+import { walletCharge, walletDefaults } from './wallet-model.mjs';
 import { offerBeforeDelete, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
@@ -46,17 +55,18 @@ export const defaults = {
   pipelines:[{ id:salesPipeline, name:'Sales Pipeline' }],
   stages: [{ id: 'new', name: 'New Lead' }, { id: 'qualified', name: 'Qualified' }, { id: 'proposal', name: 'Proposal' }, { id: 'won', name: 'Won', visible:false }].map(stage => ({ ...stage, pipelineId:salesPipeline })),
   contacts: [], tasks: [], opportunities: [], messages: [], appointments: [], workflows: [], runs: [], invoices: [],
-  workflowFolders: [], workflowLists: [], deletedWorkflows: [],
+  workflowFolders: [], workflowLists: [], deletedWorkflows: [], contactTrash: [],
   campaigns: [], pages: [], forms: [], submissions: [], courses: [], files: [], reviews: [], agents: [], agentRuns: [], knowledgeBases: [], agentTemplatesCustom: [], integrations: [],
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[], pranchetaFiles:[],
-  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...credentialCollections, ...certificateCollections, ...offerCollections, ...driveCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...credentialCollections, ...certificateCollections, ...ticketCollections, ...sequenceCollections, ...loyaltyCollections, ...schedulingCollections, ...meetingCollections, ...offerCollections, ...driveCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
   paymentSettings: paymentDefaults(),
   ai: { limit: 0, alertAt: 0.8, ledger: [] },
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
   tracking: trackingDefaults(), trackingEvents: [], scoringRules: [],
   brandBoards: [], affiliateSettings: affiliateDefaults(), affiliateCampaigns: [], affiliates: [], affiliateCommissions: [], affiliatePayouts: [],
+  wallet: walletDefaults(), seo: seoDefaults(), seoAudits: [], visibility: visibilityDefaults(), visibilityRuns: [],
   reputation: reputationDefaults(), listings: {}, reviewRequests: [], reviewWidgets: [], videoCollectors: [], videoTestimonials: [], videoUploads: [],
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
@@ -69,11 +79,12 @@ export function hydrateWorkspace(state) {
   state.ai.ledger ??= [];
   reputationOf(state);
   state.listings ??= {};
+  state.wallet ??= walletDefaults(); state.seo ??= seoDefaults(); state.seoAudits ??= []; state.visibility ??= visibilityDefaults(); state.visibilityRuns ??= [];
   affiliateSettings(state);
   adSettingsOf(state);
   trackingOf(state);
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...driveCollections,...affiliateCollections,...adCollections,...trackingCollections,...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...credentialCollections,...certificateCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...driveCollections,...affiliateCollections,...adCollections,...trackingCollections,...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...credentialCollections,...certificateCollections,...ticketCollections,...sequenceCollections,...loyaltyCollections,...schedulingCollections,...meetingCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -138,7 +149,11 @@ function formRecord(s, d) {
 }
 const digits = value => String(value || '').replace(/\D/g, '');
 const exists = (state, key, value, label, optional = false) => (!value && optional) ? '' : find(state, key, value)?.id ?? fail(`Choose a valid ${label}.`);
-function add(state, key, data) { const row = { id: uid(), created: now(), ...data }; state[key].push(row); return row; }
+function add(state, key, data) {
+  const row = { id: uid(), created: now(), ...data }; state[key].push(row);
+  if (key === 'messages' && row.direction === 'Outbound' && ['Email', 'WhatsApp'].includes(row.channel) && ['human', 'workflow'].includes(row.origin)) walletCharge(state, row.channel === 'Email' ? 'email' : 'whatsapp', 1, row.created);
+  return row;
+}
 const contactId = (s,v,optional = false) => exists(s, 'contacts', v, 'contact', optional);
 const fields = {
   contacts: (s, d) => ({ name: req(d.name, 'Name'), email: email(d.email), phone: str(d.phone, 48), company: str(d.company), tags: tags(d.tags), notes: str(d.notes, 5000), custom: customData(s, 'Contact', d), ...(d.dnd !== undefined ? { dnd: Boolean(d.dnd) } : {}) }),
@@ -161,12 +176,9 @@ const fields = {
   ...webinarFields,
   ...qrFields,
   pranchetaFiles: pranchetaFileRecord,
-  appointments: (s, d) => {
-    const start = date(d.start), end = date(d.end);
-    if (end <= start) fail('End time must be after start time.');
-    if (s.appointments.some(a => a.id !== d.id && a.status !== 'Canceled' && d.status !== 'Canceled' && a.start < end && a.end > start)) fail('This time overlaps an existing appointment.');
-    return { title: req(d.title, 'Title'), contactId: contactId(s,d.contactId,true), start, end, status: one(d.status || 'Confirmed',['Confirmed','Completed','Canceled'],'status'), notes: str(d.notes, 3000) };
-  },
+  appointments: (s, d) => appointmentRecord(s, d, { date, contactId, req }),
+  ...schedulingFields,
+  ...meetingFields,
   workflows: (s, d) => {
     const record = workflowRecord(s, d);
     return { ...record, folderId: exists(s, 'workflowFolders', record.folderId, 'folder', true) };
@@ -183,6 +195,8 @@ const fields = {
   ...communityFields,
   ...communityEventFields,
   ...certificateFields,
+  ...sequenceFields,
+  ...loyaltyFields,
   ...offerFields,
   ...documentFields,
   ...estimateFields,
@@ -260,6 +274,12 @@ const engine = createEngine({ add, now,
   sendInvoice: (state, contact, config, depth = 0) => sendTemplateInvoice(state, engineWorkspace, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })),
   updateInventory: state => (config) => workflowInventory(state, config),
   createSocialPost: (state, config, text) => workflowPost(state, config, text, { add }),
+  // "Dar ou tirar pontos de fidelidade" in a workflow.
+  loyaltyAction: (state, contact, points, reason, depth = 0) => addPoints(state, contact.id, points, reason, { add, run: (st, event, ctx) => engine.emit(st, event, { ...ctx, depth: depth + 1 }), source: 'workflow' }),
+  // "Inscrever na sequência" / "Tirar da sequência" in a workflow.
+  sequenceAction: (state, contact, action, sequenceId) => sequenceWorkflow(state, contact, action, sequenceId),
+  // "Criar ticket" / "Mudar situação do ticket" in a workflow.
+  ticketAction: (state, contact, action, config, depth = 0) => ticketWorkflow(state, contact, action, config, { add, run: (st, event, ctx) => engine.emit(st, event, { ...ctx, depth: depth + 1 }) }),
   // "Emitir certificado/badge": one credential from a template for the workflow's contact.
   issueCredential: (state, contact, templateId, subject, kind, depth = 0) => {
     const template = (state.certificateTemplates || []).find(row => row.id === templateId && row.kind === kind);
@@ -267,7 +287,13 @@ const engine = createEngine({ add, now,
     return issueFromTemplate(state, template, contact, subject, { add, run: (st, event, ctx) => engine.emit(st, event, { ...ctx, depth: depth + 1 }), source: 'workflow' });
   },
   // Lead scoring: every event passes the scoring rules; workflows adjust the score through the same path.
-  onEvent: (state, type, ctx, { matches }) => applyScoring(state, type, ctx, { matches, emit: (st, event, c) => engine.emit(st, event, c) }),
+  // Every event: a customer message reaches their ticket, then the lead scoring rules run.
+  onEvent: (state, type, ctx, { matches }) => {
+    ticketInbound(state, type, ctx, { add, run: (st, event, c) => engine.emit(st, event, { ...c, depth: (ctx.depth || 0) + 1 }) });
+    sequenceInbound(state, type, ctx);
+    loyaltyEvent(state, type, ctx, { add, run: (st, event, c) => engine.emit(st, event, { ...c, depth: (ctx.depth || 0) + 1 }) });
+    applyScoring(state, type, ctx, { matches, emit: (st, event, c) => engine.emit(st, event, c) });
+  },
   adjustScore: (state, contact, delta, reason, depth = 0) => changeScore(state, contact, delta, reason, { emit: (st, event, c) => engine.emit(st, event, c), depth }),
   startRecurring: (state, contact, config, depth = 0) => startTemplateRecurring(state, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })) });
 const legacyEvents = { 'Contact created': 'contact_created', 'Form submitted': 'form_submitted', 'Opportunity stage changed': 'pipeline_stage_changed',
@@ -453,6 +479,14 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (['community-plan-invoice', 'community-welcome', 'community-newsletter'].includes(type)) return communityCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'course-activity') return courseActivityCommand(s, { ...command, data:d }, { add, run });
   if (type === 'credential-issue' || type === 'credential-revoke') return credentialCommand(s, { ...command, data:d }, { add, run });
+  if (['contact-restore', 'contact-trash-purge', 'contact-trash-empty'].includes(type)) return trashCommand(s, { ...command, data:d });
+  if (['seo-settings', 'seo-audit', 'visibility-settings', 'visibility-run'].includes(type)) return seoCommand(s, { ...command, data:d }, { now });
+  if (['meeting-transcript', 'meeting-summary', 'meeting-tasks', 'meeting-note'].includes(type)) return meetingCommand(s, { ...command, data:d }, { add, run, now });
+  if (['scheduling-settings', 'scheduling-book', 'field-status'].includes(type)) return schedulingCommand(s, { ...command, data:d }, { save: (key, data) => executeCommand(s, { type:'save', key, data }, { workspace }), run, now });
+  if (typeof type === 'string' && type.startsWith('preferences-')) return preferenceCommand(s, { ...command, data:d }, { run, now });
+  if (typeof type === 'string' && type.startsWith('loyalty-')) return loyaltyCommand(s, { ...command, data:d }, { add, run, actor: str(command.actor, 80) });
+  if (type === 'sequence-enroll' || type === 'sequence-remove') return sequenceCommand(s, { ...command, data:d });
+  if (typeof type === 'string' && type.startsWith('ticket-')) return ticketCommand(s, { ...command, data:d }, { add, run, actor: str(command.actor, 80) });
   if (typeof type === 'string' && type.startsWith('document-')) return documentCommand(s, { ...command, data:d }, { workspace, run });
   if (typeof type === 'string' && type.startsWith('estimate-')) return estimateCommand(s, { ...command, data:d }, { workspace, run });
   if (typeof type === 'string' && type.startsWith('email-')) return emailCommand(s, { ...command, data:d }, { run, add });
@@ -667,6 +701,7 @@ function remove(s, key, id) {
     chatBeforeDelete(s, key, id);
     blogBeforeDelete(s, key, id);
     storeBeforeDelete(s, key, id);
+    if (key === 'resources') for (const service of s.services || []) service.resourceIds = (service.resourceIds || []).filter(r => r !== id);
     webinarBeforeDelete(s, key, id);
     mediaBeforeDelete(s, key, id);
     offerBeforeDelete(s, key, id);
@@ -680,6 +715,7 @@ function remove(s, key, id) {
     checkoutBeforeDelete(s, key, id);
     catalogBeforeDelete(s, key, id);
     if (key==='contacts') {
+      trashContact(s, id);
       for (const related of ['tasks','opportunities','messages','appointments','invoices','threads']) s[related] = s[related].filter(r=>r.contactId!==id);
       for (const row of s.submissions.filter(r=>r.contactId===id)) { row.contactId=''; row.name=''; row.email=''; }
       for (const pending of s.manualActions.filter(item => item.contactId === id)) {

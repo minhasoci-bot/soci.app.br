@@ -1,0 +1,70 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { blank, execute } from '../model.mjs';
+import { makeServer } from '../server.mjs';
+import { createSqliteStore } from '../storage.mjs';
+import { loyaltyAccount } from '../loyalty-model.mjs';
+
+const save = (s, key, data, id) => execute(s, { type: 'save', key, id, data });
+
+test('Points for paid invoices, sign-up and workflows; levels; redeeming makes a one-use coupon', () => {
+  const s = blank();
+  const before = save(s, 'contacts', { name: 'Antes', email: 'antes@x.test', tags: [] });
+  assert.equal(loyaltyAccount(s, before).balance, 0, 'nothing while the program is off');
+  execute(s, { type: 'loyalty-settings', data: { enabled: true, perReal: 2, signup: 50, tiers: [{ name: 'Bronze', min: 0 }, { name: 'Ouro', min: 300 }] } });
+  assert.throws(() => execute(s, { type: 'loyalty-settings', data: { perReal: 500 } }), /de 0 a 100/);
+  const tier = save(s, 'workflows', { name: 'Subiu', active: true, triggers: [{ type: 'loyalty_tier_changed', config: { tier: 'ouro' } }], steps: [{ type: 'internal_notification', config: { body: 'Ouro' } }] });
+  const ana = save(s, 'contacts', { name: 'Ana', email: 'ana@x.test', tags: [] });
+  assert.equal(loyaltyAccount(s, ana).balance, 50, 'sign-up bonus');
+  const invoice = save(s, 'invoices', { title: 'Plano', contactId: ana, value: 150, due: '2026-12-01', status: 'Open' });
+  save(s, 'invoices', { ...s.invoices.find(row => row.id === invoice), status: 'Paid' }, invoice);
+  let account = loyaltyAccount(s, ana);
+  assert.deepEqual([account.balance, account.tier], [350, 'Ouro']);
+  assert.equal(s.runs.filter(row => row.workflowId === tier).length, 1);
+  assert.throws(() => save(s, 'loyaltyRewards', { name: 'X', cost: 0 }), /custo/);
+  assert.throws(() => save(s, 'loyaltyRewards', { name: 'X', cost: 10, kind: 'coupon_percent', amount: 150 }), /1% a 100%/);
+  const reward = save(s, 'loyaltyRewards', { name: '10% off', kind: 'coupon_percent', amount: 10, cost: 300, stock: 1 });
+  const out = execute(s, { type: 'loyalty-redeem', data: { contactId: ana, rewardId: reward } });
+  assert.match(out.code, /^PTS-[0-9A-F]{8}$/);
+  const coupon = s.coupons.find(row => row.code === out.code);
+  assert.deepEqual([coupon.kind, coupon.amount, coupon.limit, coupon.active], ['Percent', 10, 1, true]);
+  account = loyaltyAccount(s, ana);
+  assert.deepEqual([account.balance, account.tier], [50, 'Ouro'], 'spending points keeps the level');
+  assert.throws(() => execute(s, { type: 'loyalty-redeem', data: { contactId: ana, rewardId: reward } }), /esgotou/);
+  const big = save(s, 'loyaltyRewards', { name: 'Brinde', kind: 'custom', cost: 1000 });
+  assert.throws(() => execute(s, { type: 'loyalty-redeem', data: { contactId: ana, rewardId: big } }), /Faltam 950/);
+  assert.throws(() => execute(s, { type: 'loyalty-adjust', data: { contactId: ana, points: -100 } }), /negativo/);
+  execute(s, { type: 'loyalty-adjust', data: { contactId: ana, points: 25, reason: 'Indicação' } });
+  save(s, 'workflows', { name: 'Bônus', active: true, triggers: [{ type: 'contact_tag', config: { change: 'added', tag: 'vip' } }], steps: [{ type: 'loyalty_points', config: { points: '100', reason: 'VIP' } }] });
+  save(s, 'contacts', { ...s.contacts.find(row => row.id === ana), tags: ['vip'] }, ana);
+  for (let i = 0; i < 3; i++) execute(s, { type: 'workflow-tick', data: { at: new Date(Date.now() + i * 1000).toISOString() } });
+  assert.equal(loyaltyAccount(s, ana).balance, 175);
+  assert.equal(s.contacts.find(row => row.id === ana).loyaltyPoints, 175);
+});
+
+test('Portal shows the club and the member redeems a reward', async t => {
+  const store = createSqliteStore(':memory:');
+  const { server, host } = makeServer({ store, auth: null, allowLocalAccess: true, port: 0, socialScheduler: false });
+  await new Promise(resolve => server.listen(0, host, resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const base = `http://${host}:${server.address().port}`;
+  const call = async (path, body, headers = {}) => {
+    const r = await fetch(base + path, body === undefined ? { headers } : { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+    return { status: r.status, cookie: r.headers.get('set-cookie'), body: await r.json() };
+  };
+  const act = body => call('/api/action?workspace=demo', body);
+  await act({ type: 'loyalty-settings', data: { enabled: true, name: 'Clube Soci', pointsName: 'moedas' } });
+  const reward = (await act({ type: 'save', key: 'loyaltyRewards', data: { name: 'Brinde', kind: 'custom', cost: 100 } })).body.id;
+  const { body: invite } = await call('/api/client-portal/demo/admin', { action: 'invite', email: 'cliente@example.test' });
+  const cookie = (await call('/api/client-portal/demo/exchange', { token: invite.accessPath.split('#access=')[1] })).cookie.split(';')[0];
+  const home = (await call('/api/client-portal/demo/home', undefined, { Cookie: cookie })).body;
+  assert.deepEqual([home.loyalty.name, home.loyalty.pointsName, home.loyalty.balance, home.loyalty.rewards.map(r => r.name)], ['Clube Soci', 'moedas', 0, ['Brinde']]);
+  assert.equal((await call('/api/client-portal/demo/loyalty', { rewardId: reward }, { Cookie: cookie })).status, 409, 'no contact with points yet');
+  const contact = (await act({ type: 'save', key: 'contacts', data: { name: 'Cliente', email: 'cliente@example.test', tags: [] } })).body.id;
+  await act({ type: 'loyalty-adjust', data: { contactId: contact, points: 120 } });
+  const redeemed = await call('/api/client-portal/demo/loyalty', { rewardId: reward }, { Cookie: cookie });
+  assert.equal(redeemed.status, 200, JSON.stringify(redeemed.body));
+  assert.match(redeemed.body.redeemed.code, /^PTS-/);
+  assert.equal(redeemed.body.loyalty.balance, 20);
+  assert.equal(redeemed.body.loyalty.history[0].points, -100);
+});

@@ -1,11 +1,12 @@
-// Google integrations for the sub-account dashboard: Google Analytics (GA4) and Google Business Profile.
+// Google integrations for the sub-account dashboard: Google Analytics (GA4), Google Business Profile and,
+// for Reputação → SEO, Google Search Console (positions, clicks and impressions of the site's searches).
 // One OAuth consent per workspace reads both products. Tokens are sealed with the Social Planner key and
 // never reach the browser; only account labels, the chosen property/location and report numbers do.
 const env = name => process.env[name] || '';
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const form = data => new URLSearchParams(Object.entries(data).filter(([, v]) => v !== undefined && v !== ''));
 
-export const GOOGLE_SCOPES = ['openid', 'email', 'https://www.googleapis.com/auth/analytics.readonly', 'https://www.googleapis.com/auth/business.manage'];
+export const GOOGLE_SCOPES = ['openid', 'email', 'https://www.googleapis.com/auth/analytics.readonly', 'https://www.googleapis.com/auth/business.manage', 'https://www.googleapis.com/auth/webmasters.readonly'];
 
 let fetcher = (...args) => fetch(...args);
 export const useGoogleFetch = f => { fetcher = f; };
@@ -94,10 +95,55 @@ export async function exchangeGoogle({ code, redirectUri }) {
   if (granted.includes(GOOGLE_SCOPES[3])) {
     try { result.locations = await listLocations(secret.token); } catch (e) { result.errors.business = friendly(e, 'Perfil da Empresa'); }
   } else result.errors.business = 'A permissão do Perfil da Empresa não foi concedida.';
+  result.sites = [];
+  if (granted.includes(GOOGLE_SCOPES[4])) {
+    try { result.sites = await listSites(secret.token); } catch (e) { result.errors.search = friendly(e, 'Search Console'); }
+  } else result.errors.search = 'A permissão do Search Console não foi concedida.';
   return result;
 }
 
 const iso = day => day.toISOString().slice(0, 10);
+
+/* ───────── Search Console (Reputação → SEO) ───────── */
+
+export const validSite = value => /^(https?:\/\/[^\s/]+\.[^\s]*\/|sc-domain:[a-z0-9.-]+\.[a-z]{2,})$/i.test(value || '');
+export async function listSites(token) {
+  const data = await call('https://www.googleapis.com/webmasters/v3/sites', { token });
+  return (data.siteEntry || []).filter(row => row.permissionLevel !== 'siteUnverifiedUser' && validSite(row.siteUrl))
+    .map(row => ({ id: row.siteUrl, name: row.siteUrl.startsWith('sc-domain:') ? `${row.siteUrl.slice(10)} (domínio)` : row.siteUrl }))
+    .sort((a, b) => a.name.localeCompare(b.name)).slice(0, 200);
+}
+const one = value => Math.round(value * 10) / 10;
+const keywordKey = value => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+/** The last 28 days with data (Search Console lags ~3 days) against the 28 before: totals by day, the tracked keywords and the "almost there" searches. */
+export async function searchReport(token, site, keywords = [], now = new Date()) {
+  if (!validSite(site)) fail('Site do Search Console inválido. Escolha o site de novo em Configurações → Google.');
+  const day = 86_400_000;
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 3));
+  const start = new Date(end.getTime() - 27 * day), prevEnd = new Date(start.getTime() - day), prevStart = new Date(prevEnd.getTime() - 27 * day);
+  const query = (from, to, dimensions, rowLimit) => call(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`,
+    { method: 'POST', token, json: { startDate: iso(from), endDate: iso(to), dimensions, rowLimit, dataState: 'final' } }).then(data => data.rows || []);
+  const [current, previous, daily] = await Promise.all([query(start, end, ['query'], 5000), query(prevStart, prevEnd, ['query'], 5000), query(start, end, ['date'], 40)]);
+  const row = item => ({ keyword: item.keys[0], clicks: item.clicks || 0, impressions: item.impressions || 0, ctr: one((item.ctr || 0) * 100), position: one(item.position || 0) });
+  const now28 = new Map(current.map(item => [keywordKey(item.keys[0]), row(item)]));
+  const before = new Map(previous.map(item => [keywordKey(item.keys[0]), one(item.position || 0)]));
+  const tracked = keywords.map(keywordKey).filter(Boolean).map(keyword => {
+    const hit = now28.get(keyword), prior = before.get(keyword) ?? null;
+    return { keyword, clicks: hit?.clicks || 0, impressions: hit?.impressions || 0, ctr: hit?.ctr || 0, position: hit?.position ?? null, previous: prior,
+      change: hit && prior !== null ? one(prior - hit.position) : null };
+  });
+  const rows = [...now28.values()];
+  const clicks = daily.reduce((sum, item) => sum + (item.clicks || 0), 0), impressions = daily.reduce((sum, item) => sum + (item.impressions || 0), 0);
+  return {
+    range: { start: iso(start), end: iso(end) },
+    totals: { clicks, impressions, ctr: impressions ? one(clicks / impressions * 100) : 0, position: impressions ? one(daily.reduce((sum, item) => sum + (item.position || 0) * (item.impressions || 0), 0) / impressions) : null },
+    days: daily.map(item => ({ day: item.keys[0], clicks: item.clicks || 0, impressions: item.impressions || 0 })).sort((a, b) => a.day.localeCompare(b.day)),
+    keywords: tracked,
+    top: [...rows].sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions).slice(0, 20),
+    opportunities: rows.filter(item => item.position >= 4 && item.position <= 20).sort((a, b) => b.impressions - a.impressions).slice(0, 10)
+  };
+}
+export const searchError = error => Object.assign(new Error(friendly(error, 'Search Console')), { status: error.status === 401 ? 401 : 502 });
 const dateParts = day => ({ year: day.getUTCFullYear(), month: day.getUTCMonth() + 1, day: day.getUTCDate() });
 
 export async function analyticsReport(token, property, now = new Date()) {

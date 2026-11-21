@@ -17,6 +17,9 @@ export const refSources = {
   webinars: s => (s.webinars || []).map(row => [row.id, row.name]),
   communities: s => (s.communities || []).map(row => [row.id, row.name]),
   courses: s => (s.courses || []).map(row => [row.id, row.name]),
+  sequences: s => (s.emailSequences || []).map(row => [row.id, row.name]),
+  rewards: s => (s.loyaltyRewards || []).map(row => [row.id, row.name]),
+  topics: s => (s.preferences?.topics || [{ id: 'novidades', name: 'Novidades' }, { id: 'promocoes', name: 'Promoções' }]).map(row => [row.id, row.name]),
   certificateTemplates: s => (s.certificateTemplates || []).filter(row => row.kind === 'certificate').map(row => [row.id, row.name]),
   badgeTemplates: s => (s.certificateTemplates || []).filter(row => row.kind === 'badge').map(row => [row.id, row.name]),
   communityEvents: s => (s.communityEvents || []).map(row => [row.id, `${row.title} · ${(s.communities || []).find(group => group.id === row.communityId)?.name || 'Comunidade'}`]),
@@ -66,6 +69,16 @@ export const triggerCatalog = [
     { type: 'trigger_link_clicked', label: 'Link de rastreamento clicado', icon: 'link', fields: [f('linkId', 'Link', 'ref', { source: 'links', empty: 'Qualquer link' })] },
     { type: 'chat_started', label: 'Chat do site iniciado', icon: 'chat', fields: [f('widgetId', 'Chat', 'ref', { source: 'chats', empty: 'Qualquer chat' })] },
     { type: 'webinar_registered', label: 'Inscrição em webinar', icon: 'play', fields: [f('webinarId', 'Webinar', 'ref', { source: 'webinars', empty: 'Qualquer webinar' })] },
+    { type: 'preferences_changed', label: 'Preferências de comunicação mudaram', icon: 'lock', description: 'Quando o contato muda canais ou assuntos na central de preferências.', fields: [f('all', 'Saiu de tudo?', 'select', { options: [any('Qualquer mudança'), ['yes', 'Saiu de todas as comunicações'], ['no', 'Ajustou canais ou assuntos']] })] },
+    { type: 'loyalty_reward_redeemed', label: 'Recompensa de fidelidade resgatada', icon: 'gift', description: 'Quando um contato troca pontos por uma recompensa. Use {{trigger.code}} para o código.', fields: [f('rewardId', 'Recompensa', 'ref', { source: 'rewards', empty: 'Qualquer recompensa' })] },
+    { type: 'loyalty_tier_changed', label: 'Nível de fidelidade mudou', icon: 'gift', description: 'Quando o contato sobe de nível no programa de fidelidade. Use {{trigger.tier}}.', fields: [f('tier', 'Novo nível', 'text', { placeholder: 'Qualquer nível' })] },
+    { type: 'email_sequence_completed', label: 'Sequência de e-mail concluída', icon: 'mail', description: 'Quando um contato recebe o último e-mail de uma sequência.', fields: [f('sequenceId', 'Sequência', 'ref', { source: 'sequences', empty: 'Qualquer sequência' })] },
+    { type: 'ticket_created', label: 'Ticket criado', icon: 'inbox', description: 'Quando um ticket de atendimento é aberto (pela equipe, pelo portal, por automação ou por uma conversa nova). Use {{trigger.number}} e {{trigger.title}}.', fields: [
+      f('priority', 'Prioridade', 'select', { options: [any('Qualquer prioridade'), ...[['low', 'Baixa'], ['medium', 'Média'], ['high', 'Alta'], ['urgent', 'Urgente']]] }), f('category', 'Categoria', 'text', { placeholder: 'Qualquer categoria' })
+    ] },
+    { type: 'ticket_status_changed', label: 'Situação do ticket mudou', icon: 'inbox', description: 'Quando um ticket muda de situação, como resolvido ou aguardando cliente.', fields: [
+      f('status', 'Nova situação', 'select', { options: [any('Qualquer situação'), ...[['open', 'Aberto'], ['pending', 'Em andamento'], ['waiting', 'Aguardando cliente'], ['resolved', 'Resolvido'], ['closed', 'Fechado']]] }), f('priority', 'Prioridade', 'select', { options: [any('Qualquer prioridade'), ...[['low', 'Baixa'], ['medium', 'Média'], ['high', 'Alta'], ['urgent', 'Urgente']]] })
+    ] },
     { type: 'course_completed', label: 'Curso concluído', icon: 'award', description: 'Quando um aluno chega a 100% de um curso com certificado ligado. Use {{trigger.course}} para o nome do curso.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'certificate_issued', label: 'Certificado emitido', icon: 'award', description: 'Quando um certificado de conclusão é emitido. Use {{trigger.code}} para o código de verificação.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'badge_issued', label: 'Badge emitido', icon: 'star', description: 'Quando um aluno recebe o badge de matrícula de um curso.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
@@ -120,7 +133,9 @@ export const triggerCatalog = [
   ] },
   { group: 'Agendamentos', items: [
     { type: 'appointment_booked', label: 'Agendamento criado', icon: 'cal' },
-    { type: 'appointment_status', label: 'Status do agendamento', icon: 'cal', fields: [f('status', 'Novo status', 'select', { options: [any('Qualquer status'), ['Confirmed', 'Confirmado'], ['Completed', 'Concluído'], ['Canceled', 'Cancelado']] })] }
+    { type: 'appointment_status', label: 'Status do agendamento', icon: 'cal', fields: [f('status', 'Novo status', 'select', { options: [any('Qualquer status'), ['Confirmed', 'Confirmado'], ['Completed', 'Concluído'], ['Canceled', 'Cancelado']] })] },
+    { type: 'meeting_summarized', label: 'Resumo de reunião gerado', icon: 'note', fields: [f('sentiment', 'Clima do cliente', 'select', { options: [any('Qualquer clima'), ['positive', 'Positivo'], ['neutral', 'Neutro'], ['negative', 'Negativo']] })] },
+    { type: 'field_status_changed', label: 'Serviço em campo: situação mudou', icon: 'cal', fields: [f('status', 'Nova situação', 'select', { options: [any('Qualquer situação'), ['en_route', 'A caminho'], ['on_site', 'No local'], ['done', 'Concluído']] })] }
   ] },
   { group: 'Oportunidades', items: [
     { type: 'opportunity_created', label: 'Oportunidade criada', icon: 'leads', fields: [f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' })] },
@@ -175,10 +190,18 @@ export const actionCatalog = [
     { type: 'make_affiliate', label: 'Tornar afiliado', icon: 'users', description: 'Cadastra o contato como afiliado na campanha (precisa de e-mail).', fields: [f('campaignId', 'Campanha de afiliados', 'ref', { source: 'affiliateCampaigns', required: true })] }
   ] },
   { group: 'Comunicação', items: [
-    { type: 'send_email', label: 'Enviar e-mail', icon: 'mail', fields: [f('subject', 'Assunto', 'text', { required: true }), f('body', 'Mensagem', 'textarea', { required: true })] },
-    { type: 'send_sms', label: 'Enviar SMS', icon: 'phone', fields: [f('body', 'Mensagem', 'textarea', { required: true })] },
-    { type: 'send_whatsapp', label: 'Enviar WhatsApp', icon: 'chat', fields: [f('body', 'Mensagem', 'textarea', { required: true })] },
+    { type: 'send_email', label: 'Enviar e-mail', icon: 'mail', fields: [f('subject', 'Assunto', 'text', { required: true }), f('body', 'Mensagem', 'textarea', { required: true }), f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })] },
+    { type: 'send_sms', label: 'Enviar SMS', icon: 'phone', fields: [f('body', 'Mensagem', 'textarea', { required: true }), f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })] },
+    { type: 'send_whatsapp', label: 'Enviar WhatsApp', icon: 'chat', fields: [f('body', 'Mensagem', 'textarea', { required: true }), f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })] },
     { type: 'send_instagram_dm', label: 'Enviar Direct no Instagram', icon: 'send', fields: [f('body', 'Mensagem privada', 'textarea', { required: true })] },
+    { type: 'loyalty_points', label: 'Dar ou tirar pontos de fidelidade', icon: 'gift', description: 'Soma (ou subtrai, com número negativo) pontos no programa de fidelidade.', fields: [f('points', 'Pontos', 'number', { required: true, value: 50 }), f('reason', 'Motivo', 'text', { placeholder: 'Ex.: Indicação de amigo' })] },
+    { type: 'add_to_sequence', label: 'Inscrever em sequência de e-mail', icon: 'mail', description: 'Coloca o contato numa sequência ativa (uma vez enquanto estiver nela).', fields: [f('sequenceId', 'Sequência', 'ref', { source: 'sequences', required: true, empty: 'Escolha a sequência' })] },
+    { type: 'remove_from_sequence', label: 'Tirar de sequência de e-mail', icon: 'mail', description: 'Para os próximos e-mails da sequência para este contato.', fields: [f('sequenceId', 'Sequência', 'ref', { source: 'sequences', required: true, empty: 'Escolha a sequência' })] },
+    { type: 'create_ticket', label: 'Criar ticket', icon: 'inbox', description: 'Abre um ticket de atendimento para o contato. Use {{action.<etapa>.number}} para o número.', fields: [
+      f('subject', 'Assunto', 'text', { required: true, placeholder: 'Ex.: Retorno sobre o pedido {{trigger.total}}' }), f('description', 'Descrição', 'textarea'),
+      f('priority', 'Prioridade', 'select', { options: [['low', 'Baixa'], ['medium', 'Média'], ['high', 'Alta'], ['urgent', 'Urgente']], value: 'medium' }), f('category', 'Categoria', 'text')
+    ] },
+    { type: 'update_ticket', label: 'Mudar situação do ticket', icon: 'inbox', description: 'Muda a situação do ticket aberto mais recente do contato.', fields: [f('status', 'Nova situação', 'select', { options: [['open', 'Aberto'], ['pending', 'Em andamento'], ['waiting', 'Aguardando cliente'], ['resolved', 'Resolvido'], ['closed', 'Fechado']], required: true, value: 'resolved' })] },
     { type: 'issue_certificate', label: 'Emitir certificado', icon: 'award', description: 'Emite um certificado de um modelo para o contato, com página pública e código de verificação. Use {{action.<etapa>.code}} para o código.', fields: [
       f('templateId', 'Modelo', 'ref', { source: 'certificateTemplates', required: true, empty: 'Escolha o modelo' }),
       f('subject', 'Sobre o quê (curso, evento, conquista)', 'text', { required: true, placeholder: 'Ex.: Workshop de Vendas 2026' })

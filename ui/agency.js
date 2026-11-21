@@ -16,7 +16,7 @@ import { pranchetaScreen } from './prancheta.js';
 import {
   affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, labFeatures, learningTracks,
   marketplaceCategories, mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
-  appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav
+  appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav, walletProducts
 } from './agency-data.js';
 
 export { agencyNav };
@@ -403,9 +403,41 @@ export function startAgency(env) {
   };
 
   pages.reselling = () => {
-    location.replace('#agency/dashboard');
+    location.replace('#agency/saas/rebilling');
     return '';
   };
+
+  // SaaS → Rebilling da carteira (7.1): what the agency pays and the markup per metered product, which sub-accounts
+  // are rebilled, each wallet's balance, usage and profit this month, and a manual credit or debit.
+  const unitPrice = n => n >= 1 ? money(n) : `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+  function rebillingPage(s) {
+    const list = accounts().filter(a => match(a.name));
+    const rebilled = accounts().filter(a => (s.rebill?.[a.id] || []).length);
+    const sum = key => rebilled.reduce((t, a) => t + (key === 'balance' ? a.wallet?.balance || 0 : a.wallet?.month?.[key] || 0), 0);
+    const gateway = D().abacatepay?.connected;
+    const others = rebillProducts.filter(([key]) => !walletProducts.some(([k]) => k === key));
+    const prices = walletProducts.map(([key, label, unit, fallback, charged]) => {
+      const cost = s.unitCosts?.[key] ?? fallback, markup = s.rebilling[key] ?? 1;
+      return `<tr><th scope="row">${h(label)}</th><td><label class="ag-inline">R$ <input name="cost_${key}" type="number" min="0" max="1000" step="0.0001" required value="${cost}" aria-label="Custo de ${h(label)}"></label><small class="dim">${h(unit)}</small></td>
+        <td><label class="ag-inline"><input name="${key}" type="number" min="1" max="${maxMarkup}" step="0.01" required value="${markup}" aria-label="Markup de ${h(label)}"> ×</label></td>
+        <td>${unitPrice(cost * markup)} <small class="dim">${key === 'email' ? 'por 1.000 e-mails' : key === 'ai' ? 'por US$ 1 de consumo' : 'por mensagem'}</small></td></tr>`;
+    }).join('');
+    return `<div class="metrics">${metric('Subcontas com revenda', `${rebilled.length} <small>/ ${accounts().length}</small>`)}${metric('Saldo nas carteiras', money(sum('balance')))}${metric('Cobrado no mês', money(sum('amount')), `Custo ${money(sum('cost'))}`)}${metric('Lucro no mês', money(sum('profit')))}</div>
+      <form class="surface padded settings-form" data-ag-form="saas-rebilling"><h2>Preços de revenda</h2><p class="dim">Informe quanto a agência paga por unidade e o markup (1× repassa sem margem; até ${maxMarkup}×). O uso das subcontas com revenda ligada é descontado da carteira delas pelo preço final.</p>
+        <div class="table-shell"><table><thead><tr><th scope="col">Produto</th><th scope="col">Seu custo</th><th scope="col">Markup</th><th scope="col">Cliente paga</th></tr></thead><tbody>${prices}</tbody></table></div>
+        ${others.map(([key]) => `<input type="hidden" name="${key}" value="${s.rebilling[key]}">`).join('')}
+        <label>Avisar quando o saldo ficar abaixo de (R$)<input name="lowBalance" type="number" min="0" max="100000" step="1" value="${s.lowBalance ?? 20}"></label>
+        <p class="dim">Telefonia e Voice AI entram quando o provedor de telefonia for decidido (decisão D1). Com saldo zerado, a IA da subconta para; e-mails e WhatsApp continuam e o saldo fica negativo.</p>
+        <button class="primary">Salvar preços</button><p class="form-status" role="alert"></p></form>
+      <section class="surface padded"><div class="page-head"><div><h2>Carteiras das subcontas</h2><p class="dim">${gateway ? 'Os clientes podem recarregar por Pix ou cartão em Configurações → Carteira; o valor cai na conta AbacatePay da agência.' : 'Conecte o AbacatePay da agência para os clientes recarregarem por Pix. Até lá, lance os créditos aqui.'}</p></div>${gateway ? badge('Recarga por Pix ativa', 'green') : `<a class="secondary" href="#agency/settings/abacatepay">Conectar AbacatePay</a>`}</div>
+        <div class="toolbar">${search('Buscar subcontas…')}</div>
+        ${table(['Subconta', ...walletProducts.map(([, label]) => label.split(' (')[0]), 'Saldo', 'Cobrado no mês', 'Lucro no mês', ''], list.map(a => {
+          const on = s.rebill?.[a.id] || [], w = a.wallet || { balance: 0, month: { amount: 0, profit: 0 } };
+          return `<tr><td><b>${h(a.name)}</b></td>${walletProducts.map(([key, label]) => `<td>${sw(`Revender ${label} em ${a.name}`, on.includes(key), `data-ag-rebill="${a.id}" data-product="${key}"`)}</td>`).join('')}
+            <td>${on.length ? `<b class="${w.balance < 0 ? 'ag-negative' : ''}">${money(w.balance)}</b>${w.low ? ` ${badge('Saldo baixo', 'pink')}` : ''}` : '<span class="dim">—</span>'}</td><td>${on.length ? money(w.month.amount) : '—'}</td><td>${on.length ? money(w.month.profit) : '—'}</td>
+            <td class="right">${on.length ? btn('Lançar crédito', 'subwallet', `data-id="${a.id}"`) : ''}</td></tr>`;
+        }), empty('Nenhuma subconta', 'Crie uma subconta para revender o uso a ela.'))}</section>`;
+  }
 
   pages.addons = () => {
     location.replace('#agency/dashboard');
@@ -493,14 +525,16 @@ export function startAgency(env) {
   // ---- SaaS Configurator --------------------------------------------------
   pages.saas = () => {
     const s = D().saas;
+    // Reselling usage works with or without SaaS mode.
+    if (!s.enabled && A.sub === 'rebilling') return `<div class="page">${head('Revenda com margem', 'Cobre das subcontas o uso de IA, e-mails e WhatsApp com a sua margem.')}${rebillingPage(s)}</div>`;
     if (!s.enabled) {
       const points = [
         ['chart', 'Escale sua receita', 'O modo SaaS aumenta a retenção dos clientes e cria uma receita recorrente previsível.'],
         ['flow', 'Automatize a operação de receita', 'Cada subconta recebe um plano e a cobrança mensal entra no MRR do painel da agência.'],
-        ['pay', 'Aumente suas margens', `A carteira repassa o uso de telefone, e-mail, automações, IA e outros produtos com markup de até ${maxMarkup}×.`]
+        ['pay', 'Aumente suas margens', `A carteira repassa o uso de IA, e-mails e WhatsApp com markup de até ${maxMarkup}×. Dá para revender o uso mesmo sem o modo SaaS, em Revenda com margem.`]
       ];
       return `<div class="page">${head('Configurador SaaS', 'Venda a plataforma com a sua marca, em planos mensais.')}<section class="surface padded ag-hero"><div><h2>Transforme a agência em um software com receita recorrente</h2><ul class="ag-points">${points.map(([ico, t, x]) => `<li><span class="metric-icon">${i(ico)}</span><div><b>${h(t)}</b><p class="dim">${h(x)}</p></div></li>`).join('')}</ul>
-        ${btn('Ativar o modo SaaS', 'saas-mode', 'data-on="1"', 'primary', 'spark')}<p class="dim">Os planos são cobrados como assinaturas mensais no AbacatePay, por Pix ou cartão.</p></div>
+        <div class="inline-gap">${btn('Ativar o modo SaaS', 'saas-mode', 'data-on="1"', 'primary', 'spark')}<a class="secondary" href="#agency/saas/rebilling">Revenda com margem</a></div><p class="dim">Os planos são cobrados como assinaturas mensais no AbacatePay, por Pix ou cartão.</p></div>
         <div class="ag-hero-art" aria-hidden="true"><div class="ag-hero-card"><small>Plano mensal</small><b>${money(D().plans[0]?.price || 297)}</b></div><div class="ag-hero-card"><small>Markup da carteira</small><b>até ${maxMarkup}×</b></div><div class="ag-hero-card"><small>Subcontas</small><b>${accounts().length}</b></div></div></section></div>`;
     }
     const sub = A.sub || 'overview', inSaas = accounts().filter(a => s.accounts.includes(a.id));
@@ -508,9 +542,7 @@ export function startAgency(env) {
     if (sub === 'plans') return `<div class="page">${pageHead}${tabCard('saas', `<div class="page-head"><h2>Planos SaaS</h2>${primary('Novo plano', 'new-record', 'data-key="plans"')}</div>
       ${table(['Plano', 'Preço', 'Período de teste', 'Recursos inclusos', 'Subcontas assinantes', ''], D().plans.map(p => `<tr><td><b>${h(p.name)}</b></td><td>${money(p.price)}/mês</td><td>${p.trialDays ? `${p.trialDays} dias` : '—'}</td><td><small>${h((p.features || '').split('\n').filter(Boolean).join(' · ') || '—')}</small></td><td>${accounts().filter(a => a.plan === p.name).length}</td><td class="right">${btn('Editar', 'edit-record', `data-key="plans" data-id="${p.id}"`)}</td></tr>`), empty('Nenhum plano SaaS cadastrado', 'Os planos definem o valor mensal utilizado no cálculo de receita recorrente.'))}
       <h2 class="section-heading">Plano por subconta</h2>${table(['Subconta', 'Status', 'Plano', ''], accounts().map(a => `<tr><td>${h(a.name)}</td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td class="right">${btn('Alterar', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), '')}`, 'Seções do configurador SaaS')}</div>`;
-    if (sub === 'rebilling') return `<div class="page">${pageHead}${tabCard('saas', `<form class="surface padded settings-form" data-ag-form="saas-rebilling"><h2>Rebilling da carteira</h2><p class="dim">Multiplicador aplicado ao custo de uso cobrado das subcontas SaaS. 1× repassa o custo sem margem; o máximo é ${maxMarkup}×.</p>
-      <div class="field-grid">${rebillProducts.map(([key, label]) => `<label>${h(tr(label))}<input name="${key}" type="number" min="1" max="${maxMarkup}" step="0.01" required value="${s.rebilling[key]}"></label>`).join('')}</div><button class="primary">Salvar markups</button><p class="form-status" role="alert"></p></form>
-      <p class="dim ag-hint">Exemplo: com markup 1,5× um SMS de R$0,0079 custa R$0,0119 para o cliente e deixa R$0,0040 de margem para a agência.</p>`, 'Seções do configurador SaaS')}</div>`;
+    if (sub === 'rebilling') return `<div class="page">${pageHead}${tabCard('saas', rebillingPage(s), 'Seções do configurador SaaS')}</div>`;
     if (sub === 'accounts') return `<div class="page">${pageHead}${tabCard('saas', `<div class="toolbar">${search('Buscar subcontas…')}</div>${table(['Subconta', 'Status', 'Plano', 'Valor mensal', 'Modo SaaS', 'Assinatura', ''], accounts().filter(a => match(a.name)).map(a => `<tr><td><b>${h(a.name)}</b></td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td>${a.planPrice ? `${money(a.planPrice)}/mês` : '—'}</td><td>${sw(`Modo SaaS em ${a.name}`, s.accounts.includes(a.id), `data-ag-saas-account="${a.id}"`)}</td><td>${billingCell(a)}</td><td class="right">${btn('Alterar plano', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), empty('Nenhuma subconta', 'Crie uma subconta para ativar o modo SaaS nela.'))}`, 'Seções do configurador SaaS')}</div>`;
     const mrr = inSaas.filter(a => a.status === 'Active').reduce((t, a) => t + a.planPrice, 0);
     const avg = rebillProducts.reduce((t, [k]) => t + s.rebilling[k], 0) / rebillProducts.length;
@@ -722,7 +754,7 @@ export function startAgency(env) {
         <td>${waStatusBadge(cfg.status)}${cfg.phone ? `<br><small class="dim">+${h(cfg.phone)}</small>` : ''}</td>
         <td>${connectBtn}</td>
         <td>${sw(`WhatsApp em ${a.name}`, cfg.enabled, `data-ag-wa-sub="${a.id}" data-field="enabled"`)}</td>
-        <td>${sw(`Rebilling de WhatsApp em ${a.name}`, cfg.rebill, `data-ag-wa-sub="${a.id}" data-field="rebill"`, !cfg.enabled)}</td>
+        <td>${sw(`Rebilling de WhatsApp em ${a.name}`, (D().saas.rebill?.[a.id] || []).includes('whatsapp'), `data-ag-rebill="${a.id}" data-product="whatsapp"`, !cfg.enabled)}</td>
       </tr>`;
     });
 
@@ -1146,6 +1178,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'move-up': case 'move-down': { const li = b.closest('li'); if (d.ag === 'move-up' && li.previousElementSibling) li.parentNode.insertBefore(li, li.previousElementSibling); if (d.ag === 'move-down' && li.nextElementSibling) li.parentNode.insertBefore(li.nextElementSibling, li); b.focus(); break; }
         case 'integration': { const x = integrationCatalog.find(r => r[0] === id); dialog(`Disponibilidade: ${x[1]}`, `<p class="dim">As subcontas selecionadas verão este app disponível. Cada cliente precisará da sua própria conta de ${h(x[1])} para conectar.</p>${pickAccounts('accounts', D().integrations[id]?.accounts || [])}`, { form: 'integration', id, submit: 'Salvar disponibilidade' }); break; }
         case 'act-as': localStorage.setItem('go.user', id); flash('Navegando com as permissões do usuário selecionado.'); location.hash = '#dashboard'; location.reload(); break;
+        case 'subwallet': { const acc = accounts().find(a => a.id === id); dialog(`Carteira de ${acc?.name || 'subconta'}`, `<p class="dim">Saldo atual: <b>${money(acc?.wallet?.balance || 0)}</b>. Lance o crédito quando receber do cliente por fora (Pix, boleto, transferência).</p><div class="field-grid"><label>Tipo<select name="kind"><option value="credit">Crédito (recarga recebida)</option><option value="debit">Débito (ajuste)</option></select></label><label>Valor (R$)<input name="amount" type="number" min="0.01" max="100000" step="0.01" required></label></div><label>Observação<input name="note" maxlength="200" placeholder="Ex.: Pix de novembro"></label>`, { form: 'subwallet', id, submit: 'Lançar' }); break; }
         case 'wallet': dialog('Lançamento na carteira', `<div class="field-grid"><label>Tipo de operação<select name="kind"><option value="Credit">Crédito</option><option value="Charge">Débito</option></select></label><label>Valor (R$)<input name="amount" type="number" min="0.01" step="0.01" required></label></div><label>Observação<input name="note" maxlength="200"></label>`, { form: 'wallet', submit: 'Registrar lançamento' }); break;
         case 'api-key': dialog('Criar chave de API', '<label>Identificação da chave<input name="name" required maxlength="80"></label>', { form: 'api-key', submit: 'Criar chave' }); break;
         case 'api-key-delete': confirmBox('Revogar esta chave de API?', 'Sistemas ou integrações que utilizam esta chave deixarão de funcionar imediatamente.', 'api-key-delete', id, 'Revogar'); break;
@@ -1225,6 +1258,12 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         const ws = el.dataset.agWaSub, field = el.dataset.field;
         A.wa = await api('/api/whatsapp/agency/subaccount', { workspace: ws, [field]: el.checked });
         render(); G(`[data-ag-wa-sub="${ws}"][data-field="${field}"]`)?.focus(); flash('Configuração do WhatsApp salva.');
+      }
+      if (el.matches('[data-ag-rebill]')) {
+        const x = el.dataset.agRebill, product = el.dataset.product;
+        const now = new Set(D().saas.rebill?.[x] || []);
+        if (el.checked) now.add(product); else now.delete(product);
+        await act('rebill-account', { id: x, data: { products: [...now] } }); render(); G(`[data-ag-rebill="${x}"][data-product="${product}"]`)?.focus(); flash('Revenda atualizada.');
       }
       if (el.matches('[data-ag-saas-account]')) { const x = el.dataset.agSaasAccount; await act('saas-account', { id: x, data: { enabled: el.checked } }); render(); G(`[data-ag-saas-account="${x}"]`)?.focus(); flash(el.checked ? 'Subconta no modo SaaS.' : 'Modo SaaS desativado na subconta.'); }
       if (el.matches('[data-ag-idea-status]')) { await act('idea-status', { id: el.dataset.agIdeaStatus, data: { status: el.value } }); render(); flash('Status atualizado.'); }
@@ -1332,6 +1371,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'snapshot-delete': await act('snapshot-delete', { id }); msg = 'Setup excluído.'; break;
         case 'marketplace-publish': { const r = await call('marketplace-publish', { ...data, listingId: id }); msg = r.updated ? 'Publicação atualizada no marketplace.' : 'Setup publicado no marketplace!'; break; }
         case 'marketplace-unpublish': await call('marketplace-unpublish', { id }); msg = 'Setup retirado do marketplace.'; break;
+        case 'subwallet': await call('subaccount-wallet', { workspace: id, ...data }); msg = data.kind === 'debit' ? 'Débito lançado.' : 'Crédito lançado na carteira.'; break;
         case 'resell': await act('resell', { id, data: { price: data.price, enabled: data.enabled } }); msg = 'Configurações de revenda salvas.'; break;
         case 'addon-request': await act('addon-request', { id, data }); msg = 'Solicitação registrada com sucesso.'; break;
         case 'affiliate-accept': await act('affiliate-accept', { data }); msg = 'Boas-vindas ao programa de afiliados!'; break;

@@ -39,7 +39,7 @@ import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
-import { collectProspectAudit, fetchPage } from './prospect-audit.mjs';
+import { auditableUrl, collectProspectAudit, fetchPage } from './prospect-audit.mjs';
 import { importedFile, mediaLimitBytes } from './media-model.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
@@ -47,7 +47,7 @@ import { adsAuthUrl, adsConfigured, adsExchange, createMetaAd, freshAdsSecret, s
 import { hasPixels, injectPixels, originAllowed, pixelsScript, trackerScript, trackingOf, touchesFrom, widenCsp } from './tracking.mjs';
 import { adSettingsOf, markAdConnection, metaAdInput, patchAdCampaign, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
-import { exchangeGoogle, freshSecret, googleAuthUrl, googleConfigured, googleError, googleReports, listGoogleReviews, listLocations, locationDetails, replyGoogleReview, revokeGoogle, updateLocation } from './google-integrations.mjs';
+import { exchangeGoogle, freshSecret, googleAuthUrl, googleConfigured, googleError, googleReports, listGoogleReviews, listLocations, locationDetails, replyGoogleReview, revokeGoogle, searchError, searchReport, updateLocation } from './google-integrations.mjs';
 import { gbpChecklist, hoursPeriods } from './ui/gbp-data.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { affiliatePortal, portalTokenHash } from './affiliate-model.mjs';
@@ -110,6 +110,12 @@ import { makeClientPortal, portalCookie } from './client-portal.mjs';
 import { makeCommunity } from './community.mjs';
 import { fillWelcome } from './community-config.mjs';
 import { certificateCsp, certificatePage } from './course-credentials.mjs';
+import { loyaltyView } from './loyalty-model.mjs';
+import { preferenceCsp, preferencePage, preferenceView } from './preference-model.mjs';
+import { bookingCsp, bookingPage, bookingView, clockIn, zoneOf } from './scheduling-model.mjs';
+import { audioLimit, audioTypes, summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
+import { askAssistant } from './seo-ai.mjs';
+import { addTopup, paidTopup, pricingFor, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
 import { desktopCsp, desktopLaunchPage, desktopManifest, desktopOf, desktopWorker } from './agency-desktop.mjs';
 import { createMcpHandler } from './mcp-server.mjs';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
@@ -135,7 +141,7 @@ const staticFiles = new Map([
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
@@ -166,7 +172,7 @@ const privateSpace = /^user-[0-9a-f-]{36}$/;
 const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
-const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community|offer-grant)(?:/([0-9a-f-]{36}))?$`);
+const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community|offer-grant|loyalty)(?:/([0-9a-f-]{36}))?$`);
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const chatPath = new RegExp(`^/chat/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js|demo))?/?$`);
 const chatApi = new RegExp(`^/api/chat/${workspaceSegment}/([0-9a-f-]{36})/(start|send|messages)$`);
@@ -185,6 +191,8 @@ const affiliatePagePath = new RegExp(`^/afiliados/${workspaceSegment}(?:/([0-9a-
 const affiliateSignupApi = new RegExp(`^/api/afiliados/${workspaceSegment}/signup$`);
 const offerPath = new RegExp(`^/oferta/${workspaceSegment}/([0-9a-f-]{36})/?$`);
 const certificatePath = new RegExp(`^/certificado/${workspaceSegment}/([0-9A-F]{12})/?$`);
+const preferencePath = new RegExp(`^/preferencias/${workspaceSegment}/([0-9a-f]{32})/?$`);
+const bookingPath = new RegExp(`^/agendar/${workspaceSegment}/?$`);
 const desktopPath = /^\/desktop\/([\w-]{1,60})\/(manifest\.webmanifest|sw\.js|icon-(?:192|512|1024)\.png)?$/;
 const offerApi = new RegExp(`^/api/offer/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout|cart|restore|review)$`);
@@ -248,7 +256,7 @@ export function makeServer({
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
 }={}) {
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
-  const content = { transformText, writeEmail, writeReviewReply, writeBrandVoice, writeCaption, writePost, postSeo, ...contentAI };
+  const content = { transformText, writeEmail, writeReviewReply, writeBrandVoice, writeCaption, writePost, postSeo, transcribeAudio, summarizeMeeting, askAssistant, ...contentAI };
   // The default brand board's voice, added by the server to every AI writer (never taken from the browser).
   const brandVoiceOf = async workspace => brandVoicePrompt(defaultBoard((await store.load(workspace)).brandBoards));
   // One AI request for a sub-account: checks the monthly limit, meters every OpenAI call and books it.
@@ -538,6 +546,11 @@ export function makeServer({
   const agencyWorkspaceViews = (agency, who, workspaces) => Promise.all(workspaces.map(async w => ({
     ...w, ...workspaceView(effectiveAccess(agency, who, w.id), await store.load(w.id))
   })));
+  // Reselling: the agency's prices for each sub-account, copied into its wallet so every send can charge locally.
+  async function syncWallets(agencyId, workspaces) {
+    const agency = await loadAgency(agencyId);
+    for (const w of workspaces) await store.change(w.id, s => { setPricing(s, pricingFor(agency, w.id)); });
+  }
   async function recordAudit(who, action, target, details = '') {
     try { await changeAgency(who.agencyId, agency => logTo(agency, who, action, target, details)); }
     catch { /* Audit entries are best effort and never undo the action itself. */ }
@@ -808,12 +821,22 @@ export function makeServer({
       }
       return apply({ ...input,data });
     }
+    if (op === 'subaccount-wallet') {
+      requireCapability(who, 'settings', 'Seu usuário não pode lançar créditos nas carteiras.');
+      const workspace = String(input.workspace || '');
+      if (!(await listWorkspaces(who.agencyId)).some(w => w.id === workspace)) throw error('Subconta não encontrada.', 404);
+      const kind = input.kind === 'debit' ? 'debit' : 'credit';
+      const balance = await store.change(workspace, s => walletAdjust(s, { kind, amount: input.amount, note: input.note, by: who.name, method: 'Lançamento da agência' }));
+      await recordAudit(who, kind === 'credit' ? 'Crédito lançado na carteira' : 'Débito lançado na carteira', workspace, `R$ ${Number(input.amount).toFixed(2)}`);
+      flushLater(workspace);
+      return balance;
+    }
     if (op === 'action') {
       const workspaces = await listWorkspaces(who.agencyId);
       const shareCode = input.type === 'snapshot-import' && typeof input.data?.code === 'string' ? input.data.code.trim().toLowerCase() : '';
       const shared = /^[0-9a-f]{12}$/.test(shareCode) ? await store.findAgency({ snapshots: [{ shareCode, shared: true }] }) : null;
       const sharedSnapshot = shared?.state.snapshots.find(item => item.shareCode === shareCode && item.shared);
-      return changeAgency(who.agencyId, agency => {
+      const outcome = await changeAgency(who.agencyId, agency => {
         const currentActor = userAccess(agency, who.userId);
         if (!currentActor) throw error('The selected user no longer exists.',403);
         requireCapability(currentActor, 'agency', 'Your user cannot open the agency view.');
@@ -826,6 +849,9 @@ export function makeServer({
         }
         return result;
       });
+      // Reselling prices are copied into each sub-account's wallet.
+      if (['saas-rebilling', 'rebill-account'].includes(input.type)) await syncWallets(who.agencyId, workspaces);
+      return outcome;
     }
     if (op === 'brand-group-report') {
       const agency = await loadAgency(who.agencyId);
@@ -1375,7 +1401,7 @@ export function makeServer({
   const emailRuns = new Set();
   async function runEmailCampaigns(workspace, at = Date.now()) {
     const state = await store.load(workspace);
-    if (!state.emailCampaigns?.some(row => ['scheduled', 'sending', 'testing'].includes(row.status))) return 0;
+    if (!state.emailCampaigns?.some(row => ['scheduled', 'sending', 'testing'].includes(row.status)) && !state.emailSequences?.some(row => row.status === 'active' && row.enrolled?.some(item => item.status === 'active'))) return 0;
     if (!privateSpace.test(workspace) && !(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'marketing').catch(() => false))) return 0;
     if (emailRuns.has(workspace)) return 0;
     emailRuns.add(workspace);
@@ -1475,6 +1501,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   // ---- Google Analytics + Business Profile (sub-account dashboard) ----------------------------
   const googleCallbackPath = '/api/google/callback';
   const googleCache = new Map();
+  const searchCache = new Map();
   const googlePopup = (base, message) => `<!doctype html><meta charset="utf-8"><title>soci</title><body style="font-family:system-ui;padding:24px">
 <p>${message.error ? 'Não foi possível conectar o Google.' : 'Conta Google conectada. Você pode fechar esta janela.'}</p><script>
 const m=${JSON.stringify({ type: 'soci-google', ...message }).replace(/</g, '\\u003c')};
@@ -1485,8 +1512,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     const pick = (list, value) => list?.find(item => item.id === value) || null;
     return { configured: googleConfigured(), connected: Boolean(g.token), email: manage ? g.email || '' : '', connectedAt: g.connectedAt || '',
       properties: manage ? g.properties || [] : [], locations: manage ? g.locations || [] : [], errors: manage ? g.errors || {} : {},
-      gaProperty: g.gaProperty || '', gbpLocation: g.gbpLocation || '',
-      gaName: pick(g.properties, g.gaProperty)?.name || '', gbpName: pick(g.locations, g.gbpLocation)?.name || '' };
+      sites: manage ? g.sites || [] : [], gaProperty: g.gaProperty || '', gbpLocation: g.gbpLocation || '', gscSite: g.gscSite || '',
+      gaName: pick(g.properties, g.gaProperty)?.name || '', gbpName: pick(g.locations, g.gbpLocation)?.name || '', gscName: pick(g.sites, g.gscSite)?.name || '' };
   };
   async function googleData(workspace, row) {
     const g = row.google;
@@ -1601,6 +1628,19 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const days = [7, 30, 90, 365].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 30;
           return json(await community.admin(workspace, state, await clientPortal.directory(workspace), courseId, input, { days }));
         }
+        // Fidelidade: the member redeems a reward with their points (their contact is found by the portal access).
+        if (operation === 'loyalty') {
+          if (method !== 'POST') throw error('Método indisponível.',405);
+          const input = await payload(req);
+          await publicAccountPolicy(workspace, true, 'memberships');
+          const { member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,proto === 'https'));
+          const state = await store.load(workspace);
+          const contact = state.contacts.find(row => row.id === member.contactId) || state.contacts.find(row => (row.email || '').toLowerCase() === member.email);
+          if (!contact) throw error('Ainda não há pontos na sua conta.',409);
+          const result = await change(workspace, { type: 'loyalty-redeem', data: { contactId: contact.id, rewardId: String(input.rewardId || '') } });
+          flushLater(workspace);
+          return json({ redeemed: result.id, loyalty: loyaltyView(result.state, contact.id) });
+        }
         if (operation === 'community') {
           const input = method === 'POST' ? await payload(req) : null;
           await publicAccountPolicy(workspace, method === 'POST', 'memberships');
@@ -1666,6 +1706,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (operation === 'home' && page.signedIn) {
           const { member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,secure));
           page.communities = await community.home(workspace, state, member);
+          const contact = state.contacts.find(row => row.id === member.contactId) || state.contacts.find(row => (row.email || '').toLowerCase() === member.email);
+          page.loyalty = loyaltyView(state, contact?.id || '');
         }
         return json(page);
       }
@@ -2218,6 +2260,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/abacatepay/webhook/') && method === 'POST') {
         await ready;
         return await abacate.handleWebhook({ req, url, json, listWorkspaces, changeAgency,
+          onWalletTopup: async (agencyId, { workspace, checkoutId, method }) => {
+            const owned = (await listWorkspaces(agencyId)).map(w => w.id);
+            for (const candidate of workspace ? [workspace].filter(item => owned.includes(item)) : owned) {
+              const credited = await store.change(candidate, s => paidTopup(s, { checkoutId, method }));
+              if (credited) { flushLater(candidate); return credited; }
+            }
+            return false;
+          },
           onInvoicePaid: async (workspace, invoice) => {
             if (invoice.offerId && !invoice.offerGrantedAt) await grantOffer(workspace, invoice.offerId, invoice.contactId, invoice.id);
             if (invoice.eventTicket && !invoice.ticketGrantedAt) await grantEventTicket(workspace, invoice);
@@ -2398,11 +2448,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           await store.change(`google-${pending.workspace}`, row => {
             const prior = row.google || {};
             const keep = (list, value) => list.some(item => item.id === value) ? value : '';
-            row.google = { token: seal(found.secret), email: found.email, properties: found.properties, locations: found.locations, errors: found.errors,
+            row.google = { token: seal(found.secret), email: found.email, properties: found.properties, locations: found.locations, sites: found.sites || [], errors: found.errors,
+              gscSite: keep(found.sites || [], prior.gscSite) || (found.sites?.length === 1 ? found.sites[0].id : ''),
               connectedAt: stamp(), gaProperty: keep(found.properties, prior.gaProperty) || (found.properties.length === 1 ? found.properties[0].id : ''),
               gbpLocation: keep(found.locations, prior.gbpLocation) || (found.locations.length === 1 ? found.locations[0].id : '') };
           });
-          googleCache.delete(pending.workspace);
+          googleCache.delete(pending.workspace); searchCache.delete(pending.workspace);
           await recordAudit(who, 'Google conectado', found.email || pending.workspace).catch(() => {});
           return send(200,'text/html; charset=utf-8',googlePopup(base, {}));
         } catch (e) {
@@ -2440,10 +2491,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
             const pick = (list, value) => value === '' || list.some(item => item.id === value) ? value : null;
             const ga = pick(row.google.properties, String(body.gaProperty ?? row.google.gaProperty ?? ''));
             const gbp = pick(row.google.locations, String(body.gbpLocation ?? row.google.gbpLocation ?? ''));
-            if (ga === null || gbp === null) throw error('Escolha uma propriedade e um local desta conta Google.', 400);
-            Object.assign(row.google, { gaProperty: ga, gbpLocation: gbp });
+            const gsc = pick(row.google.sites || [], String(body.gscSite ?? row.google.gscSite ?? ''));
+            if (ga === null || gbp === null || gsc === null) throw error('Escolha uma propriedade, um local e um site desta conta Google.', 400);
+            Object.assign(row.google, { gaProperty: ga, gbpLocation: gbp, gscSite: gsc });
           });
-          googleCache.delete(id);
+          googleCache.delete(id); searchCache.delete(id);
           const row = await store.load(rowId);
           return json({ ...googleView(row, true), data: await googleData(id, row) });
         }
@@ -2451,7 +2503,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const row = await socialRow(rowId);
           if (row.google?.token) await revokeGoogle(unseal(row.google.token));
           await store.change(rowId, r => { delete r.google; });
-          googleCache.delete(id);
+          googleCache.delete(id); searchCache.delete(id);
           await recordAudit(who, 'Google desconectado', id).catch(() => {});
           return json(googleView(await store.load(rowId), true));
         }
@@ -2716,6 +2768,120 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para responder com IA.', 409);
         }
         return json(await meteredAI(who, id, 'reputation', connection => content.writeReviewReply(connection, request)));
+      }
+      // Meetings + Notes AI: transcribe a meeting's audio, or summarize its transcript (both metered as "meetings").
+      const meetingAction = p.match(/^\/api\/meetings\/(transcribe|summarize)$/);
+      if (meetingAction && method === 'POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
+        const who = await workspaceAccess(req, res, id, { modules: ['calendars'] });
+        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
+          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para usar as notas com IA.', 409);
+        }
+        const meetingId = String(url.searchParams.get('meeting') || '');
+        const meeting = ((await store.load(id)).meetings || []).find(row => row.id === meetingId);
+        if (!meeting) throw error('Reunião não encontrada.', 404);
+        const language = url.searchParams.get('lang') === 'es' ? 'es' : 'pt';
+        if (meetingAction[1] === 'transcribe') {
+          const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+          if (!audioTypes.includes(mime)) throw error('Envie um áudio em WebM, OGG, MP3, M4A ou WAV.', 415);
+          let size = 0; const chunks = [];
+          for await (const part of req) { size += part.length; if (size > audioLimit) throw error('O áudio pode ter até 4 MB. Grave em partes ou envie a transcrição.', 413); chunks.push(part); }
+          const { text } = await meteredAI(who, id, 'meetings', connection => content.transcribeAudio(connection, { buffer: Buffer.concat(chunks), mime, language }));
+          await change(id, { type: 'meeting-transcript', data: { id: meetingId, transcript: text, source: url.searchParams.get('source') === 'recording' ? 'recording' : 'audio' } }, who);
+          flushLater(id);
+          return json({ ok: true, length: text.length });
+        }
+        if (!meeting.transcript) throw error('Adicione a transcrição antes de resumir.', 409);
+        const today = new Date().toISOString().slice(0, 10);
+        const result = await meteredAI(who, id, 'meetings', connection => content.summarizeMeeting(connection, { title: meeting.title, participants: meeting.participants, transcript: meeting.transcript, language, today }));
+        await change(id, { type: 'meeting-summary', data: { id: meetingId, result, language } }, who);
+        flushLater(id);
+        return json({ ok: true });
+      }
+      // Reselling: the client recharges its wallet by Pix or card, paid to the agency's AbacatePay account.
+      if (p === '/api/wallet/topup' && method === 'POST') {
+        if (!spaceId.test(id)) throw error('Subconta não encontrada.',404);
+        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
+        const body = await payload(req);
+        const state = await store.load(id);
+        if (!Object.keys(state.wallet?.pricing || {}).length) throw error('Esta subconta não tem carteira de créditos ativa.', 409);
+        const amount = Math.round(Number(body.amount) * 100) / 100;
+        if (!(amount >= walletLimits.minTopup && amount <= walletLimits.maxTopup)) throw error(`A recarga vai de R$ ${walletLimits.minTopup} a R$ ${walletLimits.maxTopup.toLocaleString('pt-BR')}.`, 400);
+        if (!(await abacate.connected(who.agencyId, abacate.AGENCY_SCOPE))) throw error('A recarga por Pix ainda não foi ativada pela agência. Fale com ela para lançar os créditos.', 409);
+        const back = `${publicBase(req)}/app?workspace=${encodeURIComponent(id)}#settings/wallet`;
+        const payment = await abacate.createCheckout(who.agencyId, abacate.AGENCY_SCOPE, { reference: `wallet-${id}`, name: 'Recarga de créditos', amount, returnUrl: back, completionUrl: back, metadata: { walletTopup: id } });
+        await store.change(id, s => { addTopup(s, payment); });
+        flushLater(id);
+        return json({ url: payment.url, checkoutId: payment.checkoutId, amount: payment.amount });
+      }
+      // SEO (site audit and Search Console) and Visibility AI, in Reputação. The AI run is metered as "visibility".
+      if (p === '/api/seo/audit' && method === 'POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
+        const who = await workspaceAccess(req, res, id, { modules: ['reputation'] });
+        const body = await payload(req);
+        const state = await store.load(id);
+        const typed = String(body.url || state.seo?.siteUrl || '').trim();
+        if (!typed) throw error('Informe o endereço do site para auditar.', 400);
+        const target = auditableUrl(typed);
+        if (!target) throw error('Este endereço não pode ser auditado. Use o endereço público do site, por exemplo https://suaempresa.com.br.', 400);
+        const audit = await prospectAudit({ website: target.href }, { places: false }).catch(() => null);
+        if (!audit?.website) throw error('Não foi possível abrir o site. Confira o endereço e tente de novo.', 502);
+        if (!state.seo?.siteUrl) await change(id, { type: 'seo-settings', data: { siteUrl: target.href } }, who);
+        const auditId = await change(id, { type: 'seo-audit', data: audit.website }, who);
+        flushLater(id);
+        return json({ ok: true, id: auditId });
+      }
+      if (p === '/api/seo/search' && method === 'GET') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
+        await workspaceAccess(req, res, id, { modules: ['reputation'] });
+        const rowId = `google-${id}`;
+        const g = (await socialRow(rowId)).google;
+        if (!g?.token) return json({ connected: false, configured: googleConfigured() });
+        if (!g.gscSite) return json({ connected: true, site: '', sites: (g.sites || []).length, error: g.errors?.search || '' });
+        const keywords = (await store.load(id)).seo?.keywords || [];
+        const key = `${g.gscSite}|${keywords.join(',')}`;
+        const cached = searchCache.get(id);
+        if (cached?.key === key && cached.at > Date.now() - 15 * 60_000 && url.searchParams.get('fresh') !== '1') return json(cached.data);
+        const secret = unseal(g.token);
+        if (!secret) return json({ connected: true, site: g.gscSite, error: 'A conexão com o Google precisa ser refeita.' });
+        const fresh = await freshSecret(secret).catch(() => null);
+        if (!fresh) return json({ connected: true, site: g.gscSite, error: 'O acesso ao Google expirou. Conecte a conta de novo em Configurações → Google.' });
+        if (fresh.changed) await store.change(rowId, row => { if (row.google) row.google.token = seal(fresh.secret); });
+        try {
+          const data = { connected: true, site: g.gscSite, siteName: g.sites?.find(row => row.id === g.gscSite)?.name || g.gscSite, report: await searchReport(fresh.secret.token, g.gscSite, keywords), at: stamp() };
+          searchCache.set(id, { key, at: Date.now(), data });
+          return json(data);
+        } catch (problem) {
+          return json({ connected: true, site: g.gscSite, error: searchError(problem).message });
+        }
+      }
+      if (p === '/api/visibility/run' && method === 'POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
+        const who = await workspaceAccess(req, res, id, { modules: ['reputation'] });
+        const v = (await store.load(id)).visibility;
+        if (!v?.brand || !v.prompts?.length) throw error('Configure a marca e as perguntas antes de medir.', 409);
+        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
+          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para medir a visibilidade na IA.', 409);
+        }
+        const language = url.searchParams.get('lang') === 'es' ? 'es' : 'pt';
+        let model = '';
+        const answers = await meteredAI(who, id, 'visibility', async connection => {
+          const out = new Array(v.prompts.length);
+          let next = 0;
+          const worker = async () => {
+            while (next < v.prompts.length) {
+              const index = next++, prompt = v.prompts[index];
+              try { const reply = await content.askAssistant(connection, { prompt, language }); model ||= reply.model || ''; out[index] = { prompt, text: reply.text, sources: reply.sources }; }
+              catch (problem) { out[index] = { prompt, error: problem.message || 'A IA não respondeu.' }; }
+            }
+          };
+          await Promise.all([worker(), worker(), worker()]);
+          if (!out.some(row => row && !row.error)) throw error(out[0]?.error || 'A IA não respondeu. Tente de novo.', 502);
+          return out;
+        });
+        const runId = await change(id, { type: 'visibility-run', data: { answers, model } }, who);
+        flushLater(id);
+        return json({ ok: true, id: runId, failed: answers.filter(row => row.error).length });
       }
       const contentAction = p.match(/^\/api\/content-ai\/(transform|email)$/);
       if (contentAction && method === 'POST') {
@@ -3304,6 +3470,51 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         res.writeHead(200, offerHeaders);
         return res.end(method === 'HEAD' ? undefined : offerBody);
       }
+      // Agenda de serviços: the public booking page (choose a service, a day and a free time; no script).
+      const booking = p.match(bookingPath);
+      if (booking && ['GET', 'HEAD', 'POST'].includes(method)) {
+        await ready;
+        const [, workspace] = booking;
+        await publicAccountPolicy(workspace, method === 'POST', 'calendars');
+        const q = url.searchParams, base = `/agendar/${workspace}`;
+        let done = null, failure = '', status = 200, form = {};
+        if (method === 'POST') {
+          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+          if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.', 429);
+          form = await formBody(req);
+          const one = value => Array.isArray(value) ? value[0] : value;
+          try {
+            const result = await change(workspace, { type: 'scheduling-book', data: { serviceId: one(form.servico), start: one(form.inicio), name: one(form.nome), email: one(form.email), phone: one(form.telefone), address: one(form.endereco), notes: one(form.notas), units: one(form.unidades), quantity: one(form.qtd) } });
+            flushLater(workspace);
+            const zone = zoneOf(await store.load(workspace)), booked = result.id;
+            done = { service: booked.service, staff: booked.staff, when: `${new Intl.DateTimeFormat('pt-BR', { timeZone: zone, weekday: 'long', day: '2-digit', month: 'long' }).format(new Date(booked.start))} às ${clockIn(Date.parse(booked.start), zone)}` };
+          } catch (failed) {
+            if (!failed.status || failed.status >= 500) throw failed;
+            failure = failed.message; status = failed.status;
+          }
+        }
+        const view = bookingView(await store.load(workspace), { serviceId: String(form.servico || q.get('servico') || ''), day: String(q.get('dia') || ''), units: Number(form.unidades || q.get('unidades')) || 1, quantity: Number(form.qtd || q.get('qtd')) || 1 });
+        if (!view) throw error('O agendamento online desta empresa está desligado.', 404);
+        res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'same-origin', 'Content-Security-Policy':bookingCsp });
+        return res.end(method === 'HEAD' ? undefined : bookingPage(view, { base, done, error: failure, form }));
+      }
+      // Central de preferências: the contact's own page (link with a private token) to choose channels and topics.
+      const preference = p.match(preferencePath);
+      if (preference && ['GET', 'HEAD', 'POST'].includes(method)) {
+        await ready;
+        const [, workspace, token] = preference;
+        await publicAccountPolicy(workspace, method === 'POST', 'contacts');
+        let saved = false;
+        if (method === 'POST') {
+          const form = await formBody(req), list = value => [].concat(value || []);
+          await change(workspace, { type: 'preferences-save', data: { token, channels: list(form.channels), topics: list(form.topics), all: form.all === '1' } });
+          flushLater(workspace); saved = true;
+        }
+        const view = preferenceView(await store.load(workspace), token);
+        if (!view) throw error('Link de preferências inválido.',404);
+        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'same-origin', 'X-Robots-Tag':'noindex', 'Content-Security-Policy':preferenceCsp });
+        return res.end(method === 'HEAD' ? undefined : preferencePage(view, { saved }));
+      }
       // The agency's installable desktop app: the branded sign-in screen, its manifest, icons and service worker.
       const desktop = p.match(desktopPath);
       if (desktop && (method === 'GET' || method === 'HEAD')) {
@@ -3644,10 +3855,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         const info = await track('info', false);
         if (!info) return page(404, 'Link indisponível', '<p>Não encontramos esta inscrição.</p>');
+        // The contact's preference center: choose topics and channels instead of leaving everything.
+        let prefToken = '';
+        if (info.contactId) { try { prefToken = (await change(workspace, { type: 'preferences-link', data: { contactId: info.contactId } })).id; } catch { /* The page still works without the link. */ } }
+        const prefLink = prefToken ? `<p><a href="/preferencias/${workspace}/${prefToken}">Escolher o que quero receber</a></p>` : '';
         // POST is the confirmation button and the one-click unsubscribe of mail clients (RFC 8058). It works even while the account is paused.
-        if (method === 'POST') { await track('unsubscribe', true); return page(200, 'Inscrição cancelada', `<p>Você não vai mais receber e-mails de marketing de ${esc(info.business || 'esta empresa')}.</p>`); }
-        if (info.unsubscribed) return page(200, 'Inscrição cancelada', `<p>Você já saiu da lista de e-mails de ${esc(info.business || 'esta empresa')}.</p>`);
-        return page(200, 'Cancelar inscrição', `<p>Deixar de receber os e-mails de marketing de <b>${esc(info.business || 'esta empresa')}</b>?</p><form method="post"><button>Cancelar inscrição</button></form>`);
+        if (method === 'POST') { await track('unsubscribe', true); return page(200, 'Inscrição cancelada', `<p>Você não vai mais receber e-mails de marketing de ${esc(info.business || 'esta empresa')}.</p>${prefLink}`); }
+        if (info.unsubscribed) return page(200, 'Inscrição cancelada', `<p>Você já saiu da lista de e-mails de ${esc(info.business || 'esta empresa')}.</p>${prefLink}`);
+        return page(200, 'Cancelar inscrição', `<p>Deixar de receber os e-mails de marketing de <b>${esc(info.business || 'esta empresa')}</b>?</p><form method="post"><button>Cancelar inscrição</button></form>${prefLink}`);
       }
       const redirect = p.match(redirectPath);
       if (redirect && method === 'GET') {
