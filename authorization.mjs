@@ -20,6 +20,8 @@ const writeModules = {
 };
 
 const commandModules = {
+  'ad-settings': 'marketing', 'tracking-settings': 'settings', 'affiliate-settings': 'marketing', 'affiliate-portal-link': 'marketing', 'commission-review': 'marketing', 'affiliate-payout': 'marketing',
+  'reputation-settings': 'reputation', 'review-request': 'reputation', 'review-visibility': 'reputation', 'listing-save': 'reputation',
   'dashboard-create': 'dashboard', 'dashboard-save': 'dashboard', 'dashboard-restore': 'dashboard',
   'dashboard-report': 'dashboard', 'dashboard-default': 'dashboard', 'dashboard-timezone': 'dashboard', 'dashboard-delete': 'dashboard',
   'report-create': 'reporting', 'report-save': 'reporting', 'report-delete': 'reporting',
@@ -42,6 +44,8 @@ const commandModules = {
   'chat-start': 'sites', 'chat-send': 'sites', 'blog-view': 'sites',
   'store-checkout': 'payments', 'webinar-register': 'sites', 'webinar-attend': 'sites',
   'webinar-reminders': 'sites', 'qr-scan': 'sites',
+  'community-event-ticket': 'memberships', 'community-event-joined': 'memberships', 'community-event-reminders': 'memberships',
+  'community-plan-invoice': 'memberships', 'community-welcome': 'memberships', 'community-newsletter': 'memberships', 'course-activity': 'memberships', 'credential-issue': 'memberships', 'credential-revoke': 'memberships',
   onboarding: 'dashboard', profile: 'settings',
   'workflow-enroll': 'automation', 'workflow-restore': 'automation', 'workflow-move': 'automation',
   'document-send': 'payments', 'document-void': 'payments', 'document-link': 'payments',
@@ -54,7 +58,7 @@ const agencySettingsCommands = new Set([
   'sub-feature', 'email-domain', 'email-domain-accounts', 'email-domain-remove', 'affiliate-pixel', 'profile',
   'company', 'billing-plan', 'wallet', 'auto-recharge', 'system-email', 'labs', 'compliance',
   'api-key', 'api-key-delete', 'private-integration', 'private-integration-delete', 'resell',
-  'addon-request', 'addon-cancel', 'affiliate-pay', 'mobile-app', 'desktop-app', 'integration',
+  'addon-request', 'addon-cancel', 'affiliate-pay', 'mobile-app', 'desktop-app', 'desktop-app-publish', 'integration',
   'app-install', 'app-uninstall', 'app-resell'
 ]);
 const agencySettingsRecords = new Set(['users', 'plans', 'menuLinks', 'announcements']);

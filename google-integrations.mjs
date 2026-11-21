@@ -65,7 +65,7 @@ export async function listLocations(token) {
     const data = await call(`https://mybusinessbusinessinformation.googleapis.com/v1/${account.name}/locations?` + form({ readMask: 'name,title,storefrontAddress', pageSize: '100' }), { token });
     for (const location of data.locations || []) {
       const address = location.storefrontAddress;
-      out.push({ id: location.name, name: location.title || location.name, account: account.accountName || '',
+      out.push({ id: location.name, name: location.title || location.name, account: account.accountName || '', accountId: account.name || '',
         address: [address?.addressLines?.[0], address?.locality].filter(Boolean).join(', ') });
     }
   }
@@ -165,4 +165,53 @@ export async function googleReports(secret, { gaProperty, gbpLocation }) {
 export async function revokeGoogle(secret) {
   const token = secret?.refresh || secret?.token;
   if (token) await fetcher('https://oauth2.googleapis.com/revoke?' + form({ token }), { method: 'POST', signal: AbortSignal.timeout(10_000) }).catch(() => null);
+}
+
+/* ───────── Business Profile: profile, reviews and replies (Reputação → Perfil no Google) ───────── */
+
+export const googleError = error => Object.assign(new Error(friendly(error, 'Perfil da Empresa')), { status: error.status === 401 ? 401 : 502 });
+const locationId = value => (/^locations\/\d{1,30}$/.test(value || '') ? value : fail('Local do Perfil da Empresa inválido.'));
+const accountId = value => (/^accounts\/\d{1,30}$/.test(value || '') ? value : fail('Conta do Perfil da Empresa inválida. Escolha o local de novo em Configurações → Google.'));
+const detailMask = 'name,title,phoneNumbers,categories,storefrontAddress,websiteUri,regularHours,specialHours,serviceArea,profile,openInfo,metadata,serviceItems';
+
+export async function locationDetails(token, location) {
+  return call(`https://mybusinessbusinessinformation.googleapis.com/v1/${locationId(location)}?` + form({ readMask: detailMask }), { token });
+}
+
+// Only the fields the team edits in soci; Google rejects unknown or empty masks.
+export async function updateLocation(token, location, patch) {
+  const fields = Object.keys(patch);
+  if (!fields.length) fail('Nada para atualizar.');
+  const mask = fields.map(field => ({ description: 'profile.description', phone: 'phoneNumbers.primaryPhone', website: 'websiteUri', hours: 'regularHours' })[field] || fail('Campo inválido.')).join(',');
+  const body = {};
+  if ('description' in patch) body.profile = { description: patch.description };
+  if ('phone' in patch) body.phoneNumbers = { primaryPhone: patch.phone };
+  if ('website' in patch) body.websiteUri = patch.website;
+  if ('hours' in patch) body.regularHours = { periods: patch.hours };
+  return call(`https://mybusinessbusinessinformation.googleapis.com/v1/${locationId(location)}?` + form({ updateMask: mask }), { method: 'PATCH', token, json: body });
+}
+
+const starScore = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
+
+export async function listGoogleReviews(token, account, location) {
+  const out = [];
+  let pageToken = '';
+  for (let page = 0; page < 4; page++) {
+    const data = await call(`https://mybusiness.googleapis.com/v4/${accountId(account)}/${locationId(location)}/reviews?` + form({ pageSize: '50', pageToken }), { token });
+    for (const review of data.reviews || []) {
+      out.push({ googleName: review.name, author: review.reviewer?.isAnonymous ? 'Cliente do Google' : review.reviewer?.displayName || 'Cliente do Google',
+        score: starScore[review.starRating] || 0, text: String(review.comment || '').replace(/\(Translated by Google\)[\s\S]*$/, '').trim(),
+        reply: review.reviewReply?.comment || '', created: review.createTime || '', updated: review.updateTime || '' });
+    }
+    pageToken = data.nextPageToken || '';
+    if (!pageToken) break;
+  }
+  return out.filter(review => review.score);
+}
+
+export async function replyGoogleReview(token, reviewName, comment) {
+  if (!/^accounts\/\d{1,30}\/locations\/\d{1,30}\/reviews\/[\w-]{1,200}$/.test(reviewName || '')) fail('Avaliação do Google inválida.');
+  const text = String(comment || '').trim();
+  if (!text) return call(`https://mybusiness.googleapis.com/v4/${reviewName}/reply`, { method: 'DELETE', token });
+  return call(`https://mybusiness.googleapis.com/v4/${reviewName}/reply`, { method: 'PUT', token, json: { comment: text.slice(0, 4000) } });
 }

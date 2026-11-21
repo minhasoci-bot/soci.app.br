@@ -1,4 +1,6 @@
 import { brandHighlight, brandIcon, icon as i, logo, brandName, bootScreen, shcLayers } from './icons.js';
+import { desktopPage, desktopPreview, readDesktop } from './agency-desktop.js';
+import { formatUsd } from './ai-data.js';
 import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { applyBrandColor } from './graao.js';
@@ -18,6 +20,13 @@ import {
 } from './agency-data.js';
 
 export { agencyNav };
+const h = x => String(x ?? '').replace(/[&<>"']/g, v => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[v]);
+const day = (d, time = false) => d ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', ...(time ? { hour: '2-digit', minute: '2-digit' } : {}) }).format(new Date(d)) : '—';
+const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(2)} MB`;
+const badge = (text, tone = '') => `<span class="badge ${tone}">${h(tr(text))}</span>`;
+const statusTone = { Active: 'green', Paused: 'gold', Closed: 'red', Won: 'green', Lost: 'red', Trial: 'blue', Cancelled: 'red', Requested: 'blue', Withdrawn: '', Planned: 'blue', 'In progress': 'pink', Completed: 'green', Declined: 'red', 'Under review': '' };
+const tone = s => statusTone[s] || '';
+const initials = s => (s || '').split(/\s+/).slice(0, 2).map(p => p[0] || '').join('').toUpperCase() || 'AG';
 const subTabs = {
   prospecting: prospectRoutes,
   snapshots: [['marketplace', 'Marketplace'], ['mine', 'Meus setups'], ['published', 'Publicados por mim'], ['history', 'Histórico de cargas']],
@@ -29,7 +38,7 @@ const subTabs = {
     ['whatsapp', 'WhatsApp'], ['email-services', 'Serviços de e-mail'], ['emails', 'E-mails do sistema'], ['announcements', 'Comunicados'],
     ['workflow-premium', 'Workflow: recursos premium'], ['external-ai', 'Workflow: IA externa'], ['domain-purchase', 'Compra de domínios'],
     ['openai', 'OpenAI'], ['private-integrations', 'Integrações privadas'], ['affiliates', 'Afiliados'], ['menu-links', 'Links de menu'], ['abacatepay', 'AbacatePay'], ['api-keys', 'Chaves de API'],
-    ['compliance', 'Conformidade'], ['labs', 'Recursos experimentais'], ['audit', 'Logs de auditoria'], ['storage', 'Armazenamento de mídia']]
+    ['compliance', 'Conformidade'], ['labs', 'Recursos experimentais'], ['audit', 'Logs de auditoria'], ['storage', 'Armazenamento de mídia'], ['ai-usage', 'Uso de IA']]
 };
 
 export function startAgency(env) {
@@ -479,10 +488,7 @@ export function startAgency(env) {
       <div class="ag-phone" aria-label="Pré-visualização do celular"><div class="ag-phone-top" data-bg="${h(m.primary)}"><b data-preview="appName">${h(m.appName)}</b></div><p class="ag-login" data-preview="loginTitle">${h(m.loginTitle)}</p><ul class="ag-phone-list">${order.filter(([k]) => !m.hidden.includes(k)).map(([, label]) => `<li><span class="ag-dot" data-bg="${h(m.accent)}"></span>${h(tr(label))}</li>`).join('')}${m.custom.map(c => `<li><span class="ag-dot" data-bg="${h(m.accent)}"></span>${h(c.label)}</li>`).join('')}</ul></div></div></div>`;
   };
 
-  pages['desktop-app'] = () => {
-    location.replace('#agency/dashboard');
-    return '';
-  };
+  pages['desktop-app'] = () => desktopPage(D(), location.origin, A.data.access?.agencyId || 'agency');
 
   // ---- SaaS Configurator --------------------------------------------------
   pages.saas = () => {
@@ -844,6 +850,14 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       return `<div class="toolbar">${search('Buscar no log de auditoria…')}${btn('Exportar CSV', 'audit-csv', '', 'secondary', 'download')}</div>${table(['Data/Hora', 'Usuário', 'Ação', 'Alvo', 'Detalhes'], rows.slice(A.auditPage * per, A.auditPage * per + per).map(a => `<tr><td>${day(a.at, true)}</td><td>${h(a.actor)}</td><td><b>${h(a.action)}</b></td><td>${h(a.target)}</td><td><small>${h(a.details)}</small></td></tr>`), empty('Nenhuma atividade recente', 'Todas as alterações realizadas na agência e nas subcontas são auditadas aqui.'))}
         ${pgs > 1 ? `<div class="inline-gap ag-gap">${btn('Anterior', 'audit-page', `data-step="-1" ${A.auditPage ? '' : 'disabled'}`)}<span>Página ${A.auditPage + 1} de ${pgs}</span>${btn('Próxima', 'audit-page', `data-step="1" ${A.auditPage < pgs - 1 ? '' : 'disabled'}`)}</div>` : ''}`;
     },
+    'ai-usage': () => {
+      const list = [...accounts()].sort((a, b) => (b.aiCost || 0) - (a.aiCost || 0));
+      const max = Math.max(0.000001, ...list.map(a => a.aiCost || 0));
+      const limited = list.filter(a => a.aiLimit > 0);
+      return `<p class="dim">Custo estimado das chamadas de IA neste mês, pelos preços públicos dos modelos. A fatura da OpenAI é a referência. O limite mensal de cada subconta é definido em Estúdio de agentes → Uso de IA.</p>
+        <div class="metrics three">${metric('Custo de IA no mês', formatUsd(O().totals.aiCost))}${metric('Subcontas com limite', `${limited.length} de ${list.length}`)}${metric('No limite', limited.filter(a => a.aiCost >= a.aiLimit).length)}</div>
+        ${table(['Subconta', 'Custo no mês', 'Limite mensal', ''], list.map(a => `<tr><td><b>${h(a.name)}</b></td><td>${formatUsd(a.aiCost)}</td><td>${a.aiLimit ? `${formatUsd(a.aiLimit)}${a.aiCost >= a.aiLimit ? ' <span class="badge pink">Atingido</span>' : ''}` : '<span class="dim">Sem limite</span>'}</td><td>${bar(((a.aiCost || 0) / max) * 100)}</td></tr>`), '')}`;
+    },
     storage: () => { const total = O().totals.storage, max = Math.max(1, ...accounts().map(a => a.storage)); return `<div class="metrics three">${metric('Total de arquivos armazenados', bytes(total))}${metric('Quantidade de arquivos', accounts().reduce((s, a) => s + a.files, 0))}${metric('Subcontas ativas', accounts().length)}</div>${table(['Subconta', 'Arquivos', 'Espaço utilizado', ''], [...accounts()].sort((a, b) => b.storage - a.storage).map(a => `<tr><td><b>${h(a.name)}</b></td><td>${a.files}</td><td>${bytes(a.storage)}</td><td>${bar((a.storage / max) * 100)}</td></tr>`), '')}`; }
   };
   pages.settings = () => { const sub = A.sub || 'profile'; return `<div class="page">${head('Configurações', 'Gerencie dados da empresa, equipe, faturamento, integrações e conformidade.')}${tabCard('settings', `<div class="ag-settings">${settingsPages[sub]()}</div>`, 'Seções de configurações')}</div>`; };
@@ -1137,6 +1151,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'api-key-delete': confirmBox('Revogar esta chave de API?', 'Sistemas ou integrações que utilizam esta chave deixarão de funcionar imediatamente.', 'api-key-delete', id, 'Revogar'); break;
         case 'private-integration': dialog('Criar integração privada', `<label>Nome da integração<input name="name" required maxlength="80"></label><label>Descrição do propósito<input name="description" maxlength="500"></label><fieldset class="ag-checks"><legend>Escopos de acesso</legend>${['subaccounts.read', 'contacts.read', 'contacts.write'].map(s => `<label class="check"><input type="checkbox" name="scopes" value="${s}"> ${s}</label>`).join('')}</fieldset>`, { form: 'private-integration', submit: 'Criar token' }); break;
         case 'private-integration-delete': confirmBox('Excluir esta integração?', 'O token associado deixará de funcionar imediatamente.', 'private-integration-delete', id, 'Excluir'); break;
+        case 'desktop-publish': await act('desktop-app-publish'); go('desktop-app'); flash('App desktop publicado. Envie o link de instalação para a equipe e os clientes.'); break;
+        case 'desktop-remove': await act('desktop-app', { data: { [id]: 'remove' } }); go('desktop-app'); flash('Imagem removida.'); break;
+        case 'desktop-copy': await navigator.clipboard.writeText(id).then(() => flash('Link copiado.'), () => flash('Selecione o link e copie.', true)); break;
         case 'saas-mode': await act('saas-mode', { data: { enabled: Boolean(d.on) } }); go('saas'); flash(d.on ? 'Modo SaaS ativado.' : 'Modo SaaS desativado.'); break;
         case 'app-install': {
           const name = appName(id), avail = D().integrations[id]?.accounts || [];
@@ -1166,7 +1183,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       D().company[el.name] = el.value.toLowerCase();
       applyBrandColor(D().company.primary, D().company.secondary);
     }
-    if (el.form?.dataset.agForm === 'mobile-app' || el.form?.dataset.agForm === 'desktop-app') {
+    if (el.form?.dataset.agForm === 'desktop-app') desktopPreview(el.form, el);
+    if (el.form?.dataset.agForm === 'mobile-app') {
       const preview = el.form.parentElement;
       if (el.name === 'appName' || el.name === 'loginTitle') preview.querySelectorAll(`[data-preview="${el.name}"]`).forEach(x => { x.textContent = el.value; });
       if (el.name === 'primary') preview.querySelectorAll('.ag-phone-top,.ag-window-bar').forEach(x => { x.style.background = el.value; });
@@ -1328,7 +1346,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           await act('mobile-app', { data: { appName: data.appName, loginTitle: data.loginTitle, primary: data.primary, accent: data.accent, order, hidden: order.filter(k => !visible.includes(k)), custom } });
           msg = 'Aplicativo móvel salvo.'; break;
         }
-        case 'desktop-app': await act('desktop-app', { data }); msg = 'Aplicativo desktop salvo.'; break;
+        case 'desktop-app': await act('desktop-app', { data: await readDesktop(f) }); go('desktop-app'); msg = 'Aplicativo desktop salvo.'; break;
         case 'profile': await act('profile', { data }); msg = 'Perfil atualizado com sucesso.'; break;
         case 'company': {
           const file = f.querySelector('[name=logoFile]').files[0];

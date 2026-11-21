@@ -1,6 +1,8 @@
 // Communities: groups configured in the workspace (name, channels, points, levels) and member activity
 // (memberships, posts, comments, likes, polls) kept in a separate `community-<workspace>` document.
 import { randomUUID } from 'node:crypto';
+import { eventView, nextOccurrence, occurrences, REMINDER_BEFORE } from './community-events.mjs';
+import { badgeLabels, badgesOf, communityAnalytics, communityConfig, digestPosts, extendAccess, hasAccess, heldReason, newsletterDue } from './community-config.mjs';
 
 export const communityCollections = ['communities'];
 export const levelThresholds = [0, 5, 20, 65, 155, 515, 2015, 8015, 33015];
@@ -46,13 +48,14 @@ export const communityFields = {
       active: d.active === undefined ? prior?.active !== false : Boolean(d.active),
       memberPosts: d.memberPosts === undefined ? prior?.memberPosts !== false : Boolean(d.memberPosts),
       welcome: str(d.welcome ?? prior?.welcome, 1000),
-      channels, levels, points: points(d.points, prior?.points)
+      channels, levels, points: points(d.points, prior?.points), ...communityConfig(d, prior || {})
     };
   }
 };
 
 const blankDoc = () => ({ groups: {} });
 const groupData = (doc, id) => doc.groups[id] ||= { members: {}, posts: [] };
+const eventRecord = (data, id) => (data.events ||= {})[id] ||= { attendees: {} };
 const displayName = member => member?.name || (member?.email || '').split('@')[0] || 'Membro';
 const https = value => { const link = str(value, 500); if (link && !/^https:\/\/[^\s"'<>]+$/i.test(link)) fail('Use um link que comece com https://.'); return link; };
 
@@ -60,9 +63,11 @@ const https = value => { const link = str(value, 500); if (link && !/^https:\/\/
 function scores(group, data, since = 0) {
   const totals = new Map(), add = (id, value) => { if (id !== 'staff' && value) totals.set(id, (totals.get(id) || 0) + value); };
   for (const post of data.posts) {
+    if (post.held) continue;
     if (Date.parse(post.created) >= since) add(post.authorId, group.points.post);
     for (const like of post.likes) if (like.memberId !== post.authorId && Date.parse(like.at) >= since) add(post.authorId, group.points.like);
     for (const comment of post.comments) {
+      if (comment.held) continue;
       if (comment.authorId !== post.authorId && Date.parse(comment.created) >= since) add(comment.authorId, group.points.comment);
       for (const like of comment.likes) if (like.memberId !== comment.authorId && Date.parse(like.at) >= since) add(comment.authorId, group.points.like);
     }
@@ -70,7 +75,7 @@ function scores(group, data, since = 0) {
   return totals;
 }
 
-export function makeCommunity({ store }) {
+export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null }) {
   const docId = workspace => `community-${workspace}`;
   async function load(workspace) {
     try { return await store.load(docId(workspace)); }
@@ -88,20 +93,24 @@ export function makeCommunity({ store }) {
   const groupOf = (state, id) => state.communities.find(row => row.id === id && row.active !== false) || fail('Comunidade não encontrada.', 404);
   const people = portal => new Map((portal?.members || []).map(member => [member.id, member]));
 
-  function postView(state, group, data, post, viewer, names, levels) {
-    const author = post.authorId === 'staff' ? { name: state.profile.name, staff: true, level: 0 }
-      : { name: names.get(post.authorId) || 'Membro', staff: false, level: levels.get(post.authorId) || 1 };
+  function postView(state, group, data, post, viewer, names, levels, badges = new Map()) {
+    const person = id => id === 'staff' ? { name: state.profile.name, staff: true, level: 0, badges: [] }
+      : { name: names.get(id) || 'Membro', staff: false, level: levels.get(id) || 1, badges: badgeLabels(badges.get(id)) };
+    const author = person(post.authorId);
     const moderator = viewer === 'staff' || data.members[viewer]?.role === 'moderator';
+    const seeComment = comment => !comment.held || moderator || comment.authorId === viewer;
     const image = post.imageFileId && state.files.find(file => file.id === post.imageFileId && file.data.startsWith('data:image/'));
     return {
       id: post.id, channelId: post.channelId, channel: group.channels.find(channel => channel.id === post.channelId)?.name || '',
       title: post.title, body: post.body, link: post.link || '', image: image?.data || '', pinned: Boolean(post.pinned), created: post.created,
       author, mine: post.authorId === viewer, canDelete: post.authorId === viewer || moderator, commentsEnabled: post.commentsEnabled !== false,
+      held: post.held ? (moderator ? post.held : 'Em análise') : '', reports: moderator ? (post.reports || []).length : 0, reported: (post.reports || []).some(row => row.memberId === viewer),
       likes: post.likes.length, liked: post.likes.some(like => like.memberId === viewer),
       poll: post.poll ? { options: post.poll.map(option => ({ id: option.id, text: option.text, votes: option.votes.length })),
         voted: post.poll.find(option => option.votes.includes(viewer))?.id || null, total: post.poll.reduce((sum, option) => sum + option.votes.length, 0) } : null,
-      comments: post.comments.map(comment => ({ id: comment.id, body: comment.body, created: comment.created,
-        author: comment.authorId === 'staff' ? { name: state.profile.name, staff: true, level: 0 } : { name: names.get(comment.authorId) || 'Membro', staff: false, level: levels.get(comment.authorId) || 1 },
+      comments: post.comments.filter(seeComment).map(comment => ({ id: comment.id, body: comment.body, created: comment.created,
+        held: comment.held ? (moderator ? comment.held : 'Em análise') : '', reports: moderator ? (comment.reports || []).length : 0, reported: (comment.reports || []).some(row => row.memberId === viewer),
+        author: person(comment.authorId),
         likes: comment.likes.length, liked: comment.likes.some(like => like.memberId === viewer), mine: comment.authorId === viewer,
         canDelete: comment.authorId === viewer || moderator }))
     };
@@ -109,9 +118,10 @@ export function makeCommunity({ store }) {
 
   function feed(state, group, data, viewer, names, channelId = '') {
     const levels = new Map([...scores(group, data)].map(([id, total]) => [id, levelOf(total)]));
-    return data.posts.filter(post => !channelId || post.channelId === channelId)
+    const moderator = viewer === 'staff' || data.members[viewer]?.role === 'moderator', badges = badgesOf(group, data);
+    return data.posts.filter(post => (!channelId || post.channelId === channelId) && (!post.held || moderator || post.authorId === viewer))
       .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.created.localeCompare(a.created)).slice(0, 100)
-      .map(post => postView(state, group, data, post, viewer, names, levels));
+      .map(post => postView(state, group, data, post, viewer, names, levels, badges));
   }
 
   function leaderboard(group, data, names, viewer, period) {
@@ -134,20 +144,39 @@ export function makeCommunity({ store }) {
     const cover = group.coverFileId && state.files.find(file => file.id === group.coverFileId)?.data;
     return { id: group.id, name: group.name, slug: group.slug, description: group.description, cover: cover || '', visibility: group.visibility,
       welcome: group.welcome, memberPosts: group.memberPosts, channels: group.channels,
+      access: group.access || 'free', plans: group.plans || [], trialDays: group.trialDays || 0, questions: group.questions || [], onboarding: group.onboarding || [],
+      theme: group.theme || null, tabs: group.tabs || null,
       memberCount: Object.values(data.members).filter(row => row.status === 'active').length, postCount: data.posts.length };
   }
+
+  // The group's events for one viewer: upcoming first (soonest on top), then past ones (latest on top).
+  function eventsOf(state, group, data, viewer, names, { staff = false } = {}) {
+    const member = staff || data.members[viewer]?.status === 'active', at = Date.now();
+    const list = (state.communityEvents || []).filter(event => event.communityId === group.id && (staff || event.status === 'published'))
+      .map(event => eventView(state, event, data.events?.[event.id], { viewer, staff, member, live: data.live, names, at }));
+    const upcoming = list.filter(row => !row.past).sort((a, b) => a.start.localeCompare(b.start));
+    return [...upcoming, ...list.filter(row => row.past).sort((a, b) => b.start.localeCompare(a.start))];
+  }
+  const liveBanner = (state, data) => {
+    const event = data.live && (state.communityEvents || []).find(row => row.id === data.live.eventId);
+    return event ? { eventId: event.id, title: event.title, startedAt: data.live.startedAt } : null;
+  };
 
   // What a signed-in portal member sees of one group.
   function memberView(state, portal, group, data, member, { channelId = '', period = '30' } = {}) {
     const membership = data.members[member.id];
     if (membership?.status === 'banned') fail('Você não tem mais acesso a esta comunidade.', 403);
     const names = new Map([...people(portal)].map(([id, row]) => [id, displayName(row)]));
-    const open = membership?.status === 'active' || (!membership && group.visibility === 'public') || (membership?.status === 'requested' && group.visibility === 'public');
-    const view = { group: groupHeader(state, group, data), membership: membership ? { status: membership.status, role: membership.role } : null };
+    const paid = group.access === 'paid', allowed = hasAccess(group, membership);
+    const open = allowed || (!paid && ((!membership && group.visibility === 'public') || (membership?.status === 'requested' && group.visibility === 'public')));
+    const view = { group: groupHeader(state, group, data), membership: membership ? { status: membership.status, role: membership.role, planId: membership.planId || '',
+      paidUntil: membership.paidUntil || '', expired: paid && membership.status === 'active' && !allowed, trialUsed: Boolean(membership.trialUsed),
+      onboardingDone: membership.onboardingDone || [] } : null };
     if (!open) return view;
-    return { ...view, posts: feed(state, group, data, member.id, names, channelId),
+    const badges = badgesOf(group, data);
+    return { ...view, posts: feed(state, group, data, member.id, names, channelId), events: eventsOf(state, group, data, member.id, names), live: liveBanner(state, data),
       members: Object.entries(data.members).filter(([, row]) => row.status === 'active')
-        .map(([id, row]) => ({ name: names.get(id) || 'Membro', role: row.role, joinedAt: row.joinedAt, level: levelOf(scores(group, data).get(id) || 0) }))
+        .map(([id, row]) => ({ name: names.get(id) || 'Membro', role: row.role, joinedAt: row.joinedAt, level: levelOf(scores(group, data).get(id) || 0), badges: badgeLabels(badges.get(id)) }))
         .sort((a, b) => a.name.localeCompare(b.name)),
       leaderboard: leaderboard(group, data, names, member.id, ['7', '30', 'all'].includes(period) ? period : '30') };
   }
@@ -188,24 +217,57 @@ export function makeCommunity({ store }) {
   // Member actions: join, leave, post, comment, like, vote, delete.
   async function act(workspace, state, portal, member, groupId, input) {
     const group = groupOf(state, groupId), action = input?.action;
-    return change(workspace, doc => {
+    let joined = null, welcomed = false;
+    const result = await change(workspace, doc => {
       const data = groupData(doc, groupId), membership = data.members[member.id];
       if (membership?.status === 'banned') fail('Você não tem mais acesso a esta comunidade.', 403);
       if (action === 'join') {
-        if (!membership) data.members[member.id] = { role: 'member', status: group.visibility === 'public' ? 'active' : 'requested', joinedAt: new Date().toISOString() };
+        if (membership?.status === 'active' || membership?.status === 'requested') return memberView(state, portal, group, data, member, {});
+        const answers = (group.questions || []).map(question => {
+          const answer = str((Array.isArray(input.answers) ? input.answers : []).find(row => row?.id === question.id)?.answer, 1000);
+          if (question.required && !answer) fail(`Responda: ${question.text}`);
+          return { question: question.text, answer };
+        });
+        const now = new Date().toISOString();
+        if (group.access === 'paid') {
+          if (!group.trialDays || membership?.trialUsed) fail('Esta comunidade é paga: escolha um plano para entrar.', 402);
+          data.members[member.id] = { ...(membership || {}), role: membership?.role || 'member', status: 'active', joinedAt: membership?.joinedAt || now, answers,
+            trialUsed: true, paidUntil: new Date(Date.now() + group.trialDays * DAY).toISOString(), lastActive: now };
+          welcomed = true;
+        } else {
+          data.members[member.id] = { role: 'member', status: group.visibility === 'public' ? 'active' : 'requested', joinedAt: now, answers, lastActive: now };
+          welcomed = group.visibility === 'public';
+        }
       } else if (action === 'leave') {
         delete data.members[member.id];
+      } else if (action === 'onboarding') {
+        if (membership?.status !== 'active') fail('Entre na comunidade para participar.', 403);
+        const step = (group.onboarding || []).find(row => row.id === input.stepId) || fail('Etapa não encontrada.', 404);
+        const done = new Set(membership.onboardingDone || []);
+        if (input.done === false) done.delete(step.id); else done.add(step.id);
+        membership.onboardingDone = [...done];
       } else {
         if (membership?.status !== 'active') fail('Entre na comunidade para participar.', 403);
+        if (!hasAccess(group, membership)) fail('Seu acesso a esta comunidade venceu. Renove o plano para continuar participando.', 402);
         const moderator = membership.role === 'moderator';
+        membership.lastActive = new Date().toISOString();
         if (action === 'post') {
           if (!group.memberPosts && !moderator) fail('Somente a equipe publica nesta comunidade.', 403);
-          writePost(data, group, member.id, input);
+          const post = writePost(data, group, member.id, input);
+          const held = moderator ? '' : heldReason(group, post.title, post.body, post.link);
+          if (held) post.held = held;
         } else if (action === 'comment') {
           const post = findPost(data, input.postId);
           if (post.commentsEnabled === false) fail('Os comentários estão desativados nesta publicação.', 403);
           if (post.comments.length >= 500) fail('Esta publicação atingiu o limite de comentários.', 409);
-          post.comments.push({ id: randomUUID(), authorId: member.id, body: str(input.body, 2000) || fail('Escreva o comentário.'), created: new Date().toISOString(), likes: [] });
+          const body = str(input.body, 2000) || fail('Escreva o comentário.'), held = moderator ? '' : heldReason(group, body);
+          post.comments.push({ id: randomUUID(), authorId: member.id, body, created: new Date().toISOString(), likes: [], ...(held ? { held } : {}) });
+        } else if (action === 'report') {
+          const post = findPost(data, input.postId);
+          const target = input.commentId ? post.comments.find(row => row.id === input.commentId) || fail('Comentário não encontrado.', 404) : post;
+          if (target.authorId === member.id) fail('Você não pode denunciar o que você mesmo escreveu.');
+          target.reports ||= [];
+          if (!target.reports.some(row => row.memberId === member.id)) target.reports.push({ memberId: member.id, reason: str(input.reason, 200), at: new Date().toISOString() });
         } else if (action === 'like') {
           const post = findPost(data, input.postId);
           toggleLike(input.commentId ? (post.comments.find(row => row.id === input.commentId) || fail('Comentário não encontrado.', 404)).likes : post.likes, member.id);
@@ -214,6 +276,21 @@ export function makeCommunity({ store }) {
           const option = post.poll?.find(row => row.id === input.optionId) || fail('Opção não encontrada.', 404);
           for (const row of post.poll) row.votes = row.votes.filter(id => id !== member.id);
           option.votes.push(member.id);
+        } else if (action === 'rsvp' || action === 'rsvp-cancel') {
+          const event = (state.communityEvents || []).find(row => row.id === input.eventId && row.communityId === group.id && row.status === 'published') || fail('Evento não encontrado.', 404);
+          const record = eventRecord(data, event.id), mine = record.attendees[member.id];
+          if (action === 'rsvp-cancel') {
+            if (mine?.paid) fail('Ingressos pagos não são cancelados pelo portal. Fale com a equipe.', 409);
+            delete record.attendees[member.id];
+          } else {
+            if (event.access === 'paid') fail('Este evento é pago: compre o ingresso para participar.', 402);
+            if (!nextOccurrence(event)) fail('Este evento já terminou.', 409);
+            if (mine?.status !== 'going') {
+              if (event.capacity && Object.values(record.attendees).filter(row => row.status === 'going').length >= event.capacity) fail('As vagas deste evento esgotaram.', 409);
+              record.attendees[member.id] = { status: 'going', at: new Date().toISOString(), paid: false, reminded: {} };
+              joined = { eventId: event.id, memberId: member.id, paid: false };
+            }
+          }
         } else if (action === 'delete') {
           const post = findPost(data, input.postId);
           if (input.commentId) {
@@ -228,10 +305,122 @@ export function makeCommunity({ store }) {
       }
       return memberView(state, portal, group, data, member, { channelId: input.channelFilter || '' });
     });
+    if (joined) await onEventJoin?.(workspace, joined);
+    if (welcomed) await onMemberJoin?.(workspace, { groupId, memberId: member.id });
+    return result;
+  }
+
+  // Paid access: check the plan, keep the pending invoice, and open (or extend) the access once paid.
+  async function reservePlan(workspace, state, member, groupId, planId, answers = []) {
+    const group = groupOf(state, groupId), doc = await load(workspace), row = doc.groups[groupId]?.members?.[member.id];
+    if (row?.status === 'banned') fail('Você não tem mais acesso a esta comunidade.', 403);
+    if (group.access !== 'paid') fail('Esta comunidade é gratuita.');
+    const plan = (group.plans || []).find(item => item.id === planId) || fail('Plano não encontrado.', 404);
+    if (plan.interval === 'once' && row?.status === 'active' && row.planId && !row.paidUntil) fail('Você já tem acesso vitalício a esta comunidade.', 409);
+    const given = Array.isArray(answers) ? answers : [];
+    for (const question of group.questions || []) if (question.required && !row?.answers?.length && !str(given.find(item => item?.id === question.id)?.answer, 1000)) fail(`Responda: ${question.text}`);
+    return { group, plan };
+  }
+  async function markPlanPending(workspace, groupId, memberId, invoiceId, answersInput = []) {
+    const group = (await store.load(workspace)).communities.find(row => row.id === groupId);
+    await change(workspace, doc => {
+      const data = groupData(doc, groupId), row = data.members[memberId];
+      const answers = (group?.questions || []).map(question => ({ question: question.text, answer: str((Array.isArray(answersInput) ? answersInput : []).find(item => item?.id === question.id)?.answer, 1000) }));
+      if (!row) data.members[memberId] = { role: 'member', status: 'pending', joinedAt: new Date().toISOString(), answers, pendingInvoiceId: invoiceId };
+      else row.pendingInvoiceId = invoiceId;
+    });
+  }
+  async function grantPlan(workspace, state, { communityId, planId, memberId }, invoiceId = '') {
+    const group = state.communities.find(row => row.id === communityId), plan = group?.plans?.find(row => row.id === planId);
+    if (!group || !plan || !memberId) return false;
+    let opened = false;
+    await change(workspace, doc => {
+      const data = groupData(doc, communityId), row = data.members[memberId] || { role: 'member', joinedAt: new Date().toISOString() };
+      if (row.status === 'banned' || (invoiceId && (row.paidInvoices || []).includes(invoiceId))) return;
+      opened = row.status !== 'active';
+      Object.assign(row, { status: 'active', planId: plan.id, paidUntil: extendAccess(row, plan), pendingInvoiceId: '', paidInvoices: [...(row.paidInvoices || []), invoiceId].filter(Boolean).slice(-50) });
+      data.members[memberId] = row;
+    });
+    if (opened) await onMemberJoin?.(workspace, { groupId: communityId, memberId });
+    return true;
+  }
+
+  // Newsletters due now: the best posts since the last one, for every active member.
+  async function dueNewsletters(workspace, state, at = Date.now()) {
+    const zone = state.profile?.timezone || 'America/Sao_Paulo';
+    const groups = (state.communities || []).filter(group => group.active !== false && group.newsletter?.enabled);
+    if (!groups.length) return [];
+    const out = [];
+    await change(workspace, doc => {
+      for (const group of groups) {
+        const data = groupData(doc, group.id);
+        if (!newsletterDue(group, data, at, zone)) continue;
+        const posts = digestPosts(group, data, at);
+        data.newsletterAt = new Date(at).toISOString();
+        const memberIds = Object.entries(data.members).filter(([, row]) => hasAccess(group, row, at)).map(([id]) => id);
+        if (posts.length && memberIds.length) out.push({ groupId: group.id, groupName: group.name, posts, memberIds });
+      }
+    });
+    return out;
+  }
+
+  // Paid tickets: check the member may buy, keep the pending invoice, and turn it into a seat once paid.
+  async function reserve(workspace, state, member, groupId, eventId) {
+    const group = groupOf(state, groupId), doc = await load(workspace), data = doc.groups[groupId] || { members: {}, posts: [] };
+    if (data.members[member.id]?.status !== 'active') fail('Entre na comunidade para participar.', 403);
+    const event = (state.communityEvents || []).find(row => row.id === eventId && row.communityId === group.id && row.status === 'published') || fail('Evento não encontrado.', 404);
+    if (event.access !== 'paid') fail('Este evento é gratuito: basta confirmar presença.');
+    if (!nextOccurrence(event)) fail('Este evento já terminou.', 409);
+    const record = data.events?.[event.id] || { attendees: {} };
+    if (record.attendees[member.id]?.status === 'going') fail('Você já tem ingresso para este evento.', 409);
+    if (event.capacity && Object.values(record.attendees).filter(row => row.status === 'going').length >= event.capacity) fail('Os ingressos deste evento esgotaram.', 409);
+    return event;
+  }
+  async function markPending(workspace, groupId, eventId, memberId, invoiceId) {
+    await change(workspace, doc => {
+      const record = eventRecord(groupData(doc, groupId), eventId), row = record.attendees[memberId];
+      if (row?.status !== 'going') record.attendees[memberId] = { status: 'pending', at: new Date().toISOString(), paid: false, invoiceId, reminded: {} };
+    });
+  }
+  async function grantTicket(workspace, { communityId, eventId, memberId }, invoiceId = '') {
+    if (!memberId) return false;
+    let granted = false;
+    await change(workspace, doc => {
+      const data = groupData(doc, communityId), record = eventRecord(data, eventId), row = record.attendees[memberId];
+      if (row?.status === 'going' && row.paid) return;
+      record.attendees[memberId] = { ...(row || {}), status: 'going', at: new Date().toISOString(), paid: true, invoiceId, reminded: row?.reminded || {} };
+      if (!data.members[memberId]) data.members[memberId] = { role: 'member', status: 'active', joinedAt: new Date().toISOString() };
+      granted = true;
+    });
+    if (granted) await onEventJoin?.(workspace, { eventId, memberId, paid: true });
+    return granted;
+  }
+
+  // Reminders due now (one day before each date of an event with reminders on), marked as sent once.
+  async function dueReminders(workspace, state, at = Date.now()) {
+    const events = (state.communityEvents || []).filter(event => event.status === 'published' && event.reminder !== false);
+    if (!events.length) return [];
+    const doc = await load(workspace);
+    if (!events.some(event => Object.keys(doc.groups[event.communityId]?.events?.[event.id]?.attendees || {}).length)) return [];
+    const due = [];
+    await change(workspace, current => {
+      for (const event of events) {
+        const record = current.groups[event.communityId]?.events?.[event.id];
+        if (!record) continue;
+        const date = occurrences(event).find(row => { const start = Date.parse(row.start); return start > at && start - REMINDER_BEFORE <= at; });
+        if (!date) continue;
+        for (const [memberId, row] of Object.entries(record.attendees)) {
+          if (row.status !== 'going' || row.reminded?.[date.index] || Date.parse(row.at) > Date.parse(date.start) - REMINDER_BEFORE) continue;
+          row.reminded = { ...(row.reminded || {}), [date.index]: new Date(at).toISOString() };
+          due.push({ eventId: event.id, memberId, start: date.start });
+        }
+      }
+    });
+    return due;
   }
 
   // Staff view of one group (or a summary of all) for the admin panel.
-  function adminView(state, portal, doc, groupId) {
+  function adminView(state, portal, doc, groupId, { days = 30 } = {}) {
     const names = new Map([...people(portal)].map(([id, row]) => [id, displayName(row)]));
     if (!groupId) return { groups: state.communities.map(group => {
       const data = doc.groups[group.id] || { members: {}, posts: [] }, members = Object.values(data.members);
@@ -241,18 +430,32 @@ export function makeCommunity({ store }) {
     }) };
     const group = state.communities.find(row => row.id === groupId) || fail('Comunidade não encontrada.', 404);
     const data = doc.groups[groupId] || { members: {}, posts: [] }, totals = scores(group, data);
-    const contacts = people(portal);
-    return { group: groupHeader(state, group, data), posts: feed(state, group, data, 'staff', names),
+    const contacts = people(portal), badges = badgesOf(group, data);
+    const queue = [];
+    for (const post of data.posts) {
+      if (post.held || post.reports?.length) queue.push({ postId: post.id, commentId: '', kind: 'post', title: post.title, body: post.body, author: post.authorId === 'staff' ? state.profile.name : names.get(post.authorId) || 'Membro', created: post.created, held: post.held || '', reports: (post.reports || []).map(row => ({ name: names.get(row.memberId) || 'Membro', reason: row.reason, at: row.at })) });
+      for (const comment of post.comments) if (comment.held || comment.reports?.length) queue.push({ postId: post.id, commentId: comment.id, kind: 'comment', title: post.title, body: comment.body, author: comment.authorId === 'staff' ? state.profile.name : names.get(comment.authorId) || 'Membro', created: comment.created, held: comment.held || '', reports: (comment.reports || []).map(row => ({ name: names.get(row.memberId) || 'Membro', reason: row.reason, at: row.at })) });
+    }
+    const directory = people(portal);
+    return { group: groupHeader(state, group, data), posts: feed(state, group, data, 'staff', names), live: liveBanner(state, data),
+      events: eventsOf(state, group, data, 'staff', names, { staff: true }).map(view => ({ ...view,
+        people: Object.entries(data.events?.[view.id]?.attendees || {}).map(([id, row]) => ({ id, name: names.get(id) || 'Membro', email: directory.get(id)?.email || '', status: row.status, paid: Boolean(row.paid), at: row.at }))
+          .sort((a, b) => a.status.localeCompare(b.status) || a.name.localeCompare(b.name)) })),
+      queue: queue.sort((a, b) => b.created.localeCompare(a.created)),
+      analytics: communityAnalytics(state, group, data, { days, zone: state.profile?.timezone || 'America/Sao_Paulo' }),
       members: Object.entries(data.members).map(([id, row]) => ({ id, name: names.get(id) || 'Membro', email: contacts.get(id)?.email || '',
-        status: row.status, role: row.role, joinedAt: row.joinedAt, points: totals.get(id) || 0, level: levelOf(totals.get(id) || 0) }))
+        status: row.status, role: row.role, joinedAt: row.joinedAt, points: totals.get(id) || 0, level: levelOf(totals.get(id) || 0),
+        answers: row.answers || [], badges: badgeLabels(badges.get(id)), planId: row.planId || '', paidUntil: row.paidUntil || '', expired: row.status === 'active' && !hasAccess(group, row),
+        lastActive: row.lastActive || '', onboarding: (row.onboardingDone || []).filter(stepId => (group.onboarding || []).some(step => step.id === stepId)).length }))
         .sort((a, b) => a.status.localeCompare(b.status) || a.name.localeCompare(b.name)),
       candidates: [...contacts.values()].filter(member => !member.revokedAt && !data.members[member.id]).map(member => ({ id: member.id, name: displayName(member), email: member.email })) };
   }
 
-  async function admin(workspace, state, portal, groupId, input) {
-    if (!input) return adminView(state, portal, await load(workspace), groupId);
+  async function admin(workspace, state, portal, groupId, input, options = {}) {
+    if (!input) return adminView(state, portal, await load(workspace), groupId, options);
     const group = state.communities.find(row => row.id === groupId) || fail('Comunidade não encontrada.', 404);
-    return change(workspace, doc => {
+    const added = [], welcome = [];
+    const result = await change(workspace, doc => {
       const data = groupData(doc, groupId), action = input.action;
       if (action === 'post') {
         const post = writePost(data, group, 'staff', input);
@@ -271,30 +474,58 @@ export function makeCommunity({ store }) {
         else data.posts = data.posts.filter(row => row !== post);
       } else if (action === 'member') {
         const row = data.members[input.memberId] || fail('Membro não encontrado.', 404);
+        if (input.status === 'active' && row.status !== 'active') welcome.push(input.memberId);
         if (input.status !== undefined) row.status = ['active', 'requested', 'banned'].includes(input.status) ? input.status : fail('Situação inválida.');
         if (input.role !== undefined) row.role = input.role === 'moderator' ? 'moderator' : 'member';
       } else if (action === 'add') {
         const ids = Array.isArray(input.memberIds) ? input.memberIds.slice(0, 500) : [];
         const valid = new Set((portal?.members || []).filter(member => !member.revokedAt).map(member => member.id));
-        for (const id of ids) if (valid.has(id) && !data.members[id]) data.members[id] = { role: 'member', status: 'active', joinedAt: new Date().toISOString() };
+        for (const id of ids) if (valid.has(id) && !data.members[id]) { data.members[id] = { role: 'member', status: 'active', joinedAt: new Date().toISOString() }; welcome.push(id); }
       } else if (action === 'remove') {
         delete data.members[input.memberId];
+      } else if (action === 'approve' || action === 'reject' || action === 'dismiss') {
+        const post = findPost(data, input.postId);
+        const target = input.commentId ? post.comments.find(row => row.id === input.commentId) || fail('Comentário não encontrado.', 404) : post;
+        if (action === 'reject') { if (input.commentId) post.comments = post.comments.filter(row => row !== target); else data.posts = data.posts.filter(row => row !== post); }
+        else { if (action === 'approve') delete target.held; target.reports = []; }
+      } else if (action === 'live-start') {
+        const event = (state.communityEvents || []).find(row => row.id === input.eventId && row.communityId === group.id) || fail('Evento não encontrado.', 404);
+        if (!event.liveUrl && !(event.locationType === 'online' && event.location)) fail('Informe o link da transmissão no evento antes de entrar ao vivo.');
+        data.live = { eventId: event.id, startedAt: new Date().toISOString() };
+      } else if (action === 'live-end') {
+        data.live = null;
+      } else if (action === 'attendee-add') {
+        const event = (state.communityEvents || []).find(row => row.id === input.eventId && row.communityId === group.id) || fail('Evento não encontrado.', 404);
+        const record = eventRecord(data, event.id);
+        for (const id of (Array.isArray(input.memberIds) ? input.memberIds : []).slice(0, 500)) {
+          if (data.members[id]?.status !== 'active' || record.attendees[id]?.status === 'going') continue;
+          record.attendees[id] = { status: 'going', at: new Date().toISOString(), paid: false, guest: true, reminded: {} };
+          added.push({ eventId: event.id, memberId: id, paid: false });
+        }
+      } else if (action === 'attendee-remove') {
+        const record = eventRecord(data, input.eventId);
+        delete record.attendees[input.memberId];
       } else fail('Ação da comunidade não encontrada.', 404);
       return adminView(state, portal, doc, groupId);
     });
+    for (const row of added) await onEventJoin?.(workspace, row);
+    for (const memberId of welcome) await onMemberJoin?.(workspace, { groupId, memberId });
+    return result;
   }
 
   // Adds a member to groups (for offers); banned members stay banned.
   async function enroll(workspace, memberId, groupIds) {
     if (!memberId || !groupIds.length) return;
+    const opened = [];
     await change(workspace, doc => {
       for (const id of groupIds) {
         const data = groupData(doc, id), row = data.members[memberId];
-        if (!row) data.members[memberId] = { role: 'member', status: 'active', joinedAt: new Date().toISOString() };
-        else if (row.status === 'requested') row.status = 'active';
+        if (!row) { data.members[memberId] = { role: 'member', status: 'active', joinedAt: new Date().toISOString() }; opened.push(id); }
+        else if (['requested', 'pending'].includes(row.status)) { row.status = 'active'; opened.push(id); }
       }
     });
+    for (const groupId of opened) await onMemberJoin?.(workspace, { groupId, memberId });
   }
 
-  return { home, read, act, admin, enroll };
+  return { home, read, act, admin, enroll, reserve, markPending, grantTicket, dueReminders, reservePlan, markPlanPending, grantPlan, dueNewsletters };
 }

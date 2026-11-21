@@ -70,14 +70,14 @@ Soci: 🟡 `agents.js` / `agent-ai.mjs` existem. Conferir **Voice AI** (atendime
 ### Marketing — `/marketing`
 | GHL | Soci |
 |---|---|
-| Social Planner (FB, IG, LinkedIn, TikTok, YouTube, Pinterest, Threads, Bluesky, GBP, Community; CSV, fila evergreen, post recorrente, RSS) | ✅ base; 🟡 evergreen, recorrente, RSS, Threads/Bluesky |
+| Social Planner (FB, IG, LinkedIn, TikTok, YouTube, Pinterest, Threads, Bluesky, GBP, Community; CSV, fila evergreen, post recorrente, RSS) | ✅ (5.3: fila evergreen, recorrente por dias/contagem, RSS com filtros e imagem, Threads/Bluesky completos) |
 | Emails (construtor, campanhas, estatísticas) | ✅ blocos, campanhas, A/B do assunto (sem blocos avançados) |
 | Snippets | ✅ |
 | Countdown Timers | ✅ GIF para e-mail e iframe para páginas |
 | Trigger Links | ✅ com taxa de clique |
 | Affiliate Manager (dashboard, campanhas, afiliados, pagamentos, mídia, config.) | ❌ (só existe o portal de afiliados da agência) |
 | Brand Boards | ❌ |
-| Ad Manager | ❌ |
+| Ad Manager | ✅ (5.4: Meta Ads e Google Ads; criação de anúncio no Meta) |
 | Prospecting | ✅ |
 | (extra Soci) Prancheta | ✅ |
 
@@ -115,7 +115,7 @@ A lista completa está em [04c](04c-ghl-catalogo-tecnico.md) §1.3, e completar 
 |---|---|
 | Client Portal | ✅ |
 | Courses (dashboard, produtos, ofertas, analytics, course builder) | ✅ 🟡 analytics |
-| Communities (grupos, domínio, app) | ✅ |
+| Communities (grupos, domínio, app) | ✅ (6.1 eventos, ao vivo e gravações; 6.2 planos, tema, adesão, moderação, emblemas, newsletter e analytics) |
 | Certificates (emissão, analytics, e-mail) | ❌ |
 | Branded Mobile App | ❌ |
 | Gokollab Marketplace | ⏭ |
@@ -136,7 +136,7 @@ Upload ✅ · Pastas 🟡 · Conectar Canva ❌ · Conectar Google Drive 🟡 (`
 | Settings | 🟡 |
 
 ### Relatórios — `/reporting`
-Custom reports ✅ · Google Ads report ❌ · Meta Ads report ❌ · Attribution report ❌ · Call report ❌ · Agent report ❌ · Appointment report 🟡 · Local Marketing Audit ✅ (`prospect-audit.mjs`)
+Custom reports ✅ · Google Ads report ✅ · Meta Ads report ✅ · Attribution report ✅ (5.4) · Call report ❌ · Agent report ❌ · Appointment report 🟡 · Local Marketing Audit ✅ (`prospect-audit.mjs`)
 
 ### App Marketplace — `/integration`
 Marketplace de apps + App Studio. Soci: 🟡 `setup-marketplace.mjs`.
@@ -156,9 +156,9 @@ Marketplace de apps + App Studio. Soci: 🟡 `setup-marketplace.mjs`.
 | Objects (objetos personalizados) | ✅ |
 | Custom Fields · Custom Values | ✅ |
 | Import Data | ✅ |
-| Manage Scoring (lead scoring) | ❌ |
+| Manage Scoring (lead scoring) | ✅ regras com gatilhos dos workflows |
 | Domains & URL Redirects | 🟡 |
-| External Tracking (pixels, GA, GTM) | ❌ |
+| External Tracking (pixels, GA, GTM) | ✅ script do site + GA4, GTM e Pixel da Meta |
 | Integrations · Private Integrations (tokens de API) | ✅ Google / 🟡 |
 | Tags | ✅ |
 | Labs (feature flags por conta) | ❌ |

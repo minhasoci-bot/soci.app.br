@@ -15,19 +15,30 @@ export const refSources = {
   workflows: s => s.workflows.map(row => [row.id, row.name]),
   chats: s => (s.chatWidgets || []).map(row => [row.id, row.name]),
   webinars: s => (s.webinars || []).map(row => [row.id, row.name]),
+  communities: s => (s.communities || []).map(row => [row.id, row.name]),
+  courses: s => (s.courses || []).map(row => [row.id, row.name]),
+  certificateTemplates: s => (s.certificateTemplates || []).filter(row => row.kind === 'certificate').map(row => [row.id, row.name]),
+  badgeTemplates: s => (s.certificateTemplates || []).filter(row => row.kind === 'badge').map(row => [row.id, row.name]),
+  communityEvents: s => (s.communityEvents || []).map(row => [row.id, `${row.title} · ${(s.communities || []).find(group => group.id === row.communityId)?.name || 'Comunidade'}`]),
   stores: s => (s.stores || []).map(row => [row.id, row.name]),
   products: s => (s.products || []).filter(row => row.kind !== 'Recurring').map(row => [row.id, row.name]),
   documentTemplates: s => (s.documentTemplates || []).map(row => [row.id, row.title]),
   estimates: s => (s.estimates || []).map(row => [row.id, `${row.number} · ${row.title}`]),
   invoiceTemplates: s => (s.invoiceTemplates || []).map(row => [row.id, row.name]),
   emailCampaigns: s => (s.emailCampaigns || []).map(row => [row.id, row.name]),
+  videoCollectors: s => (s.videoCollectors || []).map(row => [row.id, row.name]),
+  affiliates: s => (s.affiliates || []).map(row => [row.id, `${row.name} (${row.code})`]),
+  affiliateCampaigns: s => (s.affiliateCampaigns || []).map(row => [row.id, row.name]),
+  socialCategories: s => (s.socialCategories || []).map(row => [row.id, row.name]),
+  socialAccounts: s => (s.socialAccounts || []).map(row => [row.id, `${row.name}${row.handle ? ` (${row.handle})` : ''} · ${socialNetworks.find(([id]) => id === row.provider)?.[1] || row.provider}`]),
   dateFields: s => (s.customFields || []).filter(row => row.object === 'Contact' && row.type === 'Date').map(row => [row.id, row.name]),
   contactFields: s => [['name', 'Nome'], ['email', 'E-mail'], ['phone', 'Telefone'], ['company', 'Empresa'], ...(s.customFields || []).filter(row => row.object === 'Contact').map(row => [`custom:${row.id}`, row.name])],
-  numberFields: s => (s.customFields || []).filter(row => row.object === 'Contact' && ['Number', 'Monetary'].includes(row.type)).map(row => [`custom:${row.id}`, row.name]),
+  numberFields: s => [['score', 'Pontuação do lead'], ...(s.customFields || []).filter(row => row.object === 'Contact' && ['Number', 'Monetary'].includes(row.type)).map(row => [`custom:${row.id}`, row.name])],
   textFields: s => [['name', 'Nome'], ['company', 'Empresa'], ...(s.customFields || []).filter(row => row.object === 'Contact' && ['Single line', 'Multi line'].includes(row.type)).map(row => [`custom:${row.id}`, row.name])]
 };
 
 const any = label => ['', label];
+const socialNetworks = [['facebook', 'Facebook'], ['instagram', 'Instagram'], ['linkedin', 'LinkedIn'], ['tiktok', 'TikTok'], ['youtube', 'YouTube'], ['pinterest', 'Pinterest'], ['threads', 'Threads'], ['bluesky', 'Bluesky'], ['gbp', 'Google Business']];
 export const channels = [['', 'Qualquer canal'], ['WhatsApp', 'WhatsApp'], ['SMS', 'SMS'], ['Email', 'E-mail'], ['Live chat', 'Chat ao vivo']];
 const weekdays = [['1', 'Segunda'], ['2', 'Terça'], ['3', 'Quarta'], ['4', 'Quinta'], ['5', 'Sexta'], ['6', 'Sábado'], ['0', 'Domingo']];
 
@@ -55,7 +66,31 @@ export const triggerCatalog = [
     { type: 'trigger_link_clicked', label: 'Link de rastreamento clicado', icon: 'link', fields: [f('linkId', 'Link', 'ref', { source: 'links', empty: 'Qualquer link' })] },
     { type: 'chat_started', label: 'Chat do site iniciado', icon: 'chat', fields: [f('widgetId', 'Chat', 'ref', { source: 'chats', empty: 'Qualquer chat' })] },
     { type: 'webinar_registered', label: 'Inscrição em webinar', icon: 'play', fields: [f('webinarId', 'Webinar', 'ref', { source: 'webinars', empty: 'Qualquer webinar' })] },
-    { type: 'review_received', label: 'Nova avaliação recebida', icon: 'star', fields: [f('maxScore', 'Nota de no máximo', 'select', { options: [['', 'Qualquer nota'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4']] })] }
+    { type: 'course_completed', label: 'Curso concluído', icon: 'award', description: 'Quando um aluno chega a 100% de um curso com certificado ligado. Use {{trigger.course}} para o nome do curso.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
+    { type: 'certificate_issued', label: 'Certificado emitido', icon: 'award', description: 'Quando um certificado de conclusão é emitido. Use {{trigger.code}} para o código de verificação.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
+    { type: 'badge_issued', label: 'Badge emitido', icon: 'star', description: 'Quando um aluno recebe o badge de matrícula de um curso.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
+    { type: 'course_quiz_submitted', label: 'Quiz do curso respondido', icon: 'check', description: 'Quando um aluno envia um quiz no portal. Use {{trigger.score}} para a nota (0 a 100) e {{trigger.title}} para a aula.', fields: [
+      f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' }),
+      f('passed', 'Resultado', 'select', { options: [any('Aprovado ou não'), ['yes', 'Atingiu a nota mínima'], ['no', 'Não atingiu a nota mínima']] })
+    ] },
+    { type: 'course_assignment_submitted', label: 'Tarefa do curso entregue', icon: 'edit', description: 'Quando um aluno entrega uma tarefa no portal.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
+    { type: 'course_assignment_graded', label: 'Tarefa do curso corrigida', icon: 'check', description: 'Quando a equipe aprova ou pede ajustes numa tarefa.', fields: [
+      f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' }),
+      f('status', 'Correção', 'select', { options: [any('Qualquer correção'), ['approved', 'Aprovada'], ['revise', 'Pediu ajustes']] })
+    ] },
+    { type: 'community_member_joined', label: 'Membro entrou na comunidade', icon: 'users', description: 'Quando um membro entra numa comunidade (gratuita, aprovada, paga ou no teste grátis). Use {{trigger.title}} para o nome da comunidade.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
+    ] },
+    { type: 'community_event_registered', label: 'Inscrição em evento da comunidade', icon: 'cal', description: 'Quando um membro confirma presença ou paga o ingresso de um evento da comunidade. Use {{trigger.title}} para o nome do evento.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' }),
+      f('eventId', 'Evento', 'ref', { source: 'communityEvents', empty: 'Qualquer evento' }),
+      f('paid', 'Ingresso', 'select', { options: [any('Gratuito ou pago'), ['no', 'Gratuito'], ['yes', 'Pago']] })
+    ] },
+    { type: 'review_received', label: 'Nova avaliação recebida', icon: 'star', fields: [f('maxScore', 'Nota de no máximo', 'select', { options: [['', 'Qualquer nota'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4']] })] },
+    { type: 'affiliate_created', label: 'Afiliado cadastrado', icon: 'users', fields: [] },
+    { type: 'affiliate_lead', label: 'Lead de afiliado', icon: 'users', fields: [f('affiliateId', 'Afiliado', 'ref', { source: 'affiliates', empty: 'Qualquer afiliado' })] },
+    { type: 'affiliate_sale', label: 'Nova venda de afiliado', icon: 'pay', fields: [f('affiliateId', 'Afiliado', 'ref', { source: 'affiliates', empty: 'Qualquer afiliado' })] },
+    { type: 'video_testimonial', label: 'Depoimento em vídeo recebido', icon: 'play', fields: [f('collectorId', 'Coletor', 'ref', { source: 'videoCollectors', empty: 'Qualquer coletor' })] }
   ] },
   { group: 'Redes Sociais', items: [
     { type: 'social_comment_received', label: 'Comentário em post social (ManyChat)', icon: 'chat', fields: [
@@ -65,6 +100,22 @@ export const triggerCatalog = [
     { type: 'social_dm_received', label: 'Mensagem direta / DM recebida', icon: 'send', fields: [
       f('network', 'Rede', 'select', { options: [['', 'Qualquer rede'], ['instagram', 'Instagram Direct'], ['facebook', 'Messenger']] }),
       f('keyword', 'Contém a palavra', 'text', { placeholder: 'Ex.: INFO, QUERO' })
+    ] },
+    { type: 'ad_lead', label: 'Lead de anúncio', icon: 'meg', description: 'Quando um contato chega de um anúncio (Google Ads, Meta Ads ou outra mídia paga), por um formulário, site, loja ou webinar. Use {{trigger.campaign}} e {{trigger.source}}.', fields: [
+      f('network', 'Origem', 'select', { options: [any('Qualquer anúncio'), ['google_ads', 'Google Ads'], ['meta_ads', 'Meta Ads'], ['paid_other', 'Outros anúncios']] }),
+      f('campaign', 'Campanha contém', 'text', { placeholder: 'Ex.: black-friday' })
+    ] },
+    { type: 'external_tracking_event', label: 'Evento do rastreamento externo', icon: 'site', description: 'Quando um contato conhecido visita uma página ou envia um formulário no seu site com o script de rastreamento instalado.', fields: [
+      f('event', 'Evento', 'select', { options: [any('Visita ou formulário'), ['pageview', 'Visita de página'], ['form', 'Formulário enviado']] }),
+      f('url', 'Endereço contém', 'text', { placeholder: 'Ex.: /precos' })
+    ] },
+    { type: 'score_changed', label: 'Pontuação do lead mudou', icon: 'star', description: 'Quando a pontuação do contato muda. Com um mínimo, dispara só quando a pontuação chega a esse valor.', fields: [
+      f('min', 'Chegou a pelo menos', 'number', { placeholder: 'Qualquer mudança' })
+    ] },
+    { type: 'social_post_published', label: 'Post social publicado', icon: 'send', description: 'Quando o Social Planner termina de publicar um post (agendado, recorrente, da fila evergreen ou do RSS). Use {{trigger.url}}, {{trigger.summary}} e {{trigger.networks}}.', fields: [
+      f('status', 'Resultado', 'select', { options: [['published', 'Publicado'], ['failed', 'Falhou'], any('Publicado ou falhou')] }),
+      f('network', 'Rede', 'select', { options: [any('Qualquer rede'), ...socialNetworks] }),
+      f('categoryId', 'Categoria', 'ref', { source: 'socialCategories', empty: 'Qualquer categoria' })
     ] }
   ] },
   { group: 'Agendamentos', items: [
@@ -107,7 +158,8 @@ export const conditionSubjects = [
   ['opportunity_status', 'Status da oportunidade', [['is', 'é'], ['is_not', 'não é']], 'status'],
   ['replied', 'Respondeu desde a inscrição', [['yes', 'sim'], ['no', 'não']], 'none'],
   ['submitted', 'Já enviou o formulário', [['yes', 'sim'], ['no', 'não']], 'form'],
-  ['trigger', 'Dado do gatilho', [['equals', 'é igual a'], ['contains', 'contém'], ['gt', 'é maior que'], ['lt', 'é menor que'], ['not_empty', 'está preenchido']], 'key']
+  ['trigger', 'Dado do gatilho', [['equals', 'é igual a'], ['contains', 'contém'], ['gt', 'é maior que'], ['lt', 'é menor que'], ['not_empty', 'está preenchido']], 'key'],
+  ['var', 'Variável do fluxo', [['equals', 'é igual a'], ['not_equals', 'é diferente de'], ['contains', 'contém'], ['empty', 'está vazia'], ['not_empty', 'está preenchida'], ['gt', 'é maior que'], ['lt', 'é menor que']], 'key']
 ];
 
 const conditions = f('conditions', 'Condições', 'conditions');
@@ -119,17 +171,37 @@ export const actionCatalog = [
     { type: 'assign_user', label: 'Atribuir a um usuário', icon: 'contacts', fields: [f('user', 'Usuário', 'text', { required: true, placeholder: 'Nome do usuário da equipe' })] },
     { type: 'remove_user', label: 'Remover usuário atribuído', icon: 'contacts' },
     { type: 'set_dnd', label: 'Ativar ou desativar DND', icon: 'lock', fields: [f('state', 'Não perturbe', 'select', { options: [['on', 'Ativar'], ['off', 'Desativar']] })] },
-    { type: 'add_note', label: 'Adicionar nota', icon: 'note', fields: [f('body', 'Nota', 'textarea', { required: true })] }
+    { type: 'add_note', label: 'Adicionar nota', icon: 'note', fields: [f('body', 'Nota', 'textarea', { required: true })] },
+    { type: 'make_affiliate', label: 'Tornar afiliado', icon: 'users', description: 'Cadastra o contato como afiliado na campanha (precisa de e-mail).', fields: [f('campaignId', 'Campanha de afiliados', 'ref', { source: 'affiliateCampaigns', required: true })] }
   ] },
   { group: 'Comunicação', items: [
     { type: 'send_email', label: 'Enviar e-mail', icon: 'mail', fields: [f('subject', 'Assunto', 'text', { required: true }), f('body', 'Mensagem', 'textarea', { required: true })] },
     { type: 'send_sms', label: 'Enviar SMS', icon: 'phone', fields: [f('body', 'Mensagem', 'textarea', { required: true })] },
     { type: 'send_whatsapp', label: 'Enviar WhatsApp', icon: 'chat', fields: [f('body', 'Mensagem', 'textarea', { required: true })] },
     { type: 'send_instagram_dm', label: 'Enviar Direct no Instagram', icon: 'send', fields: [f('body', 'Mensagem privada', 'textarea', { required: true })] },
+    { type: 'issue_certificate', label: 'Emitir certificado', icon: 'award', description: 'Emite um certificado de um modelo para o contato, com página pública e código de verificação. Use {{action.<etapa>.code}} para o código.', fields: [
+      f('templateId', 'Modelo', 'ref', { source: 'certificateTemplates', required: true, empty: 'Escolha o modelo' }),
+      f('subject', 'Sobre o quê (curso, evento, conquista)', 'text', { required: true, placeholder: 'Ex.: Workshop de Vendas 2026' })
+    ] },
+    { type: 'issue_badge', label: 'Emitir badge', icon: 'star', description: 'Concede um badge de um modelo ao contato.', fields: [
+      f('templateId', 'Modelo', 'ref', { source: 'badgeTemplates', required: true, empty: 'Escolha o modelo' }),
+      f('subject', 'Pelo quê', 'text', { required: true, placeholder: 'Ex.: 10 indicações' })
+    ] },
+    { type: 'adjust_score', label: 'Ajustar pontuação do lead', icon: 'star', description: 'Soma ou subtrai pontos da pontuação do contato (use negativo para tirar).', fields: [f('points', 'Pontos', 'number', { required: true, min: -1000, max: 1000, value: 10 })] },
+    { type: 'create_social_post', label: 'Criar post social', icon: 'send', description: 'Cria um post no Social Planner como rascunho ou agendado. Sem conta escolhida, usa as contas da fila da categoria ou todas as conectadas.', fields: [
+      f('body', 'Texto do post', 'textarea', { required: true, placeholder: 'Ex.: Obrigado pela avaliação, {{contact.first_name}}!' }),
+      f('mode', 'Como criar', 'select', { options: [['draft', 'Rascunho para revisar'], ['schedule', 'Agendar']] }),
+      f('delay', 'Publicar daqui a (minutos)', 'number', { min: 0, max: 43200, value: 0 }),
+      f('accountId', 'Conta', 'ref', { source: 'socialAccounts', empty: 'Contas da categoria ou todas' }),
+      f('categoryId', 'Categoria', 'ref', { source: 'socialCategories', empty: 'Sem categoria' }),
+      f('link', 'Link (opcional)', 'text'),
+      f('image', 'URL da imagem (opcional)', 'text'),
+      f('approval', 'Aprovação', 'select', { options: [['', 'Sem aprovação'], ['yes', 'Pedir aprovação antes de publicar']] })
+    ] },
     { type: 'reply_social_comment', label: 'Responder comentário público', icon: 'chat', fields: [f('body', 'Resposta pública no post', 'textarea', { required: true })] },
     { type: 'send_live_chat', label: 'Enviar mensagem no chat do site', icon: 'chat', fields: [f('body', 'Mensagem', 'textarea', { required: true })] },
     { type: 'internal_notification', label: 'Notificação interna', icon: 'bell', fields: [f('body', 'Mensagem para a equipe', 'textarea', { required: true })] },
-    { type: 'review_request', label: 'Pedir avaliação', icon: 'star', fields: [f('channel', 'Canal', 'select', { options: [['WhatsApp', 'WhatsApp'], ['SMS', 'SMS'], ['Email', 'E-mail']] }), f('body', 'Mensagem', 'textarea', { required: true, value: 'Oi, {{contact.first_name}}! Como foi sua experiência com a {{workspace.name}}? Sua avaliação ajuda muito.' })] },
+    { type: 'review_request', label: 'Pedir avaliação', icon: 'star', description: 'Envia o link de avaliação pessoal do contato com a mensagem do canal definida em Reputação → Configurações.', fields: [f('channel', 'Canal', 'select', { options: [['WhatsApp', 'WhatsApp'], ['Email', 'E-mail'], ['SMS', 'SMS']] })] },
     { type: 'manual_sms', label: 'Ação manual: SMS', icon: 'phone', fields: [f('body', 'Instruções', 'textarea', { required: true }), f('assignee', 'Responsável', 'text')] },
     { type: 'manual_whatsapp', label: 'Ação manual: WhatsApp', icon: 'whatsapp', fields: [f('body', 'Mensagem sugerida', 'textarea', { required: true, placeholder: 'Oi {{contact.first_name}}, …' }), f('assignee', 'Responsável', 'text')] },
     { type: 'manual_call', label: 'Ação manual: ligação', icon: 'phone', fields: [f('body', 'Instruções', 'textarea', { required: true }), f('assignee', 'Responsável', 'text')] }
@@ -152,6 +224,34 @@ export const actionCatalog = [
       f('interval', 'A cada (períodos)', 'number', { min: 1, max: 30, value: 1 }), f('count', 'Número de faturas (0 = sem fim)', 'number', { min: 0, max: 240, value: 0 }),
       f('channel', 'Enviar por', 'select', { options: [['email', 'E-mail'], ['email_whatsapp', 'E-mail e WhatsApp']] })] },
     { type: 'create_invoice', label: 'Criar fatura', icon: 'pay', fields: [f('title', 'Descrição', 'text', { required: true }), f('value', 'Valor (R$)', 'number', { min: 0, required: true }), f('dueDays', 'Vence em (dias)', 'number', { min: 0, max: 365, value: 7 })] }
+  ] },
+  { group: 'IA', items: [
+    { type: 'ai_decision', label: 'Decidir com IA', icon: 'spark', ai: true, description: 'A IA escolhe uma das opções. Use a variável num Se / Senão ou Roteador.',
+      fields: [f('question', 'O que a IA deve decidir', 'textarea', { required: true, placeholder: 'Ex.: Este lead está pronto para comprar?' }),
+        f('options', 'Opções (separadas por vírgula)', 'text', { required: true, placeholder: 'quente, morno, frio' }),
+        f('input', 'Informação para analisar (aceita variáveis)', 'textarea', { value: '{{trigger.body}}' }),
+        f('variable', 'Guardar a resposta na variável', 'text', { value: 'decisao', required: true })] },
+    { type: 'ai_summarize', label: 'Resumir com IA', icon: 'spark', ai: true, description: 'Resume uma conversa ou um texto em poucas linhas.',
+      fields: [f('source', 'O que resumir', 'select', { options: [['conversation', 'Últimas mensagens do contato'], ['text', 'Um texto']] }),
+        f('input', 'Texto (aceita variáveis)', 'textarea', { value: '{{trigger.body}}', when: { source: 'text' } }),
+        f('length', 'Tamanho', 'select', { options: [['short', 'Uma frase'], ['medium', 'Um parágrafo'], ['bullets', 'Tópicos']] }),
+        f('variable', 'Guardar o resumo na variável', 'text', { value: 'resumo', required: true }),
+        f('note', 'Também salvar como nota do contato', 'select', { options: [['no', 'Não'], ['yes', 'Sim']] })] },
+    { type: 'ai_intent', label: 'Detectar intenção com IA', icon: 'spark', ai: true, description: 'Classifica a mensagem numa das intenções. Sem encaixe, a variável fica “outra”.',
+      fields: [f('intents', 'Intenções (separadas por vírgula)', 'text', { required: true, placeholder: 'comprar, agendar, suporte, cancelar' }),
+        f('input', 'Mensagem (aceita variáveis)', 'textarea', { value: '{{trigger.body}}' }),
+        f('variable', 'Guardar a intenção na variável', 'text', { value: 'intencao', required: true })] },
+    { type: 'ai_translate', label: 'Traduzir com IA', icon: 'spark', ai: true,
+      fields: [f('input', 'Texto (aceita variáveis)', 'textarea', { required: true, value: '{{trigger.body}}' }),
+        f('language', 'Traduzir para', 'select', { options: [['pt', 'Português'], ['es', 'Espanhol'], ['en', 'Inglês']] }),
+        f('variable', 'Guardar a tradução na variável', 'text', { value: 'traducao', required: true })] },
+    { type: 'ai_extract', label: 'Extrair dados com IA', icon: 'spark', ai: true, description: 'Cada dado vira {{vars.nome}}. Use “Atualizar campo do contato” depois para gravar.',
+      fields: [f('fields', 'Dados a extrair (um por linha: nome = descrição)', 'textarea', { required: true, placeholder: 'empresa = nome da empresa\norcamento = valor em reais\nprazo = quando quer começar' }),
+        f('input', 'Texto de onde extrair (aceita variáveis)', 'textarea', { value: '{{trigger.body}}' })] },
+    { type: 'ai_image', label: 'Analisar imagem com IA', icon: 'spark', ai: true, description: 'Descreve ou responde uma pergunta sobre uma imagem pública (https).',
+      fields: [f('image', 'Endereço da imagem (aceita variáveis)', 'text', { required: true, placeholder: 'https://… ou {{trigger.attachment}}' }),
+        f('question', 'Pergunta', 'textarea', { value: 'Descreva a imagem em poucas palavras.' }),
+        f('variable', 'Guardar a resposta na variável', 'text', { value: 'analise_imagem', required: true })] }
   ] },
   { group: 'Fluxo', items: [
     { type: 'wait', label: 'Aguardar', icon: 'clock', fields: [f('mode', 'Aguardar', 'select', { options: [['delay', 'Um tempo'], ['until', 'Até uma data e hora'], ['event', 'Até um evento acontecer']] }),
@@ -180,6 +280,17 @@ export const allTriggers = triggerCatalog.flatMap(group => group.items.map(item 
 export const allActions = actionCatalog.flatMap(group => group.items.map(item => ({ ...item, group: group.group })));
 export const triggerSpec = type => allTriggers.find(item => item.type === type);
 export const actionSpec = type => allActions.find(item => item.type === type);
+
+// "nome = descrição" lines of the extract action, as variable names the engine can store.
+export const aiVariableName = value => String(value || '').trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+export function aiExtractFields(text) {
+  const seen = new Set();
+  return String(text || '').split('\n').map(line => {
+    const [name, ...rest] = line.split('=');
+    return { name: aiVariableName(name), description: rest.join('=').trim().slice(0, 200) };
+  }).filter(item => item.name && !seen.has(item.name) && seen.add(item.name)).slice(0, 12);
+}
+export const aiOptions = text => [...new Set(String(text || '').split(',').map(item => item.trim()).filter(Boolean))].slice(0, 12);
 
 export const variables = [['{{contact.first_name}}', 'Primeiro nome'], ['{{contact.name}}', 'Nome completo'], ['{{contact.email}}', 'E-mail'], ['{{contact.phone}}', 'Telefone'], ['{{contact.company}}', 'Empresa'], ['{{workspace.name}}', 'Nome do workspace'], ['{{trigger.body}}', 'Mensagem recebida'], ['{{trigger.form}}', 'Formulário'], ['{{trigger.total}}', 'Total do pedido']];
 
@@ -226,6 +337,10 @@ export function stepSummary(step, s) {
     case 'wait': return c.mode === 'until' ? (c.until ? new Date(c.until).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Data a definir') : c.mode === 'event' ? `Até: ${(actionSpec('wait').fields.find(x => x.key === 'event').options.find(([k]) => k === c.event) || [])[1] || 'evento'}${c.timeoutDays ? ` (até ${c.timeoutDays} d)` : ''}` : `${c.amount || 1} ${({ minutes: 'min', hours: 'h', days: 'dia(s)' })[c.unit || 'days']}`;
     case 'if_else': case 'filter': return `${(step.config?.conditions || []).length || 0} condição(ões)`;
     case 'set_variable': return c.name ? `vars.${c.name}` : '';
+    case 'ai_decision': return `${String(c.options || '').slice(0, 50)} → vars.${c.variable || 'decisao'}`;
+    case 'ai_intent': return `${String(c.intents || '').slice(0, 50)} → vars.${c.variable || 'intencao'}`;
+    case 'ai_summarize': case 'ai_translate': case 'ai_image': return c.variable ? `→ vars.${c.variable}` : '';
+    case 'ai_extract': return aiExtractFields(c.fields).map(item => `vars.${item.name}`).join(', ').slice(0, 80);
     case 'router': return `${(step.routes || []).length} caminho(s)`;
     case 'create_task': case 'create_opportunity': case 'create_invoice': return c.title;
     case 'add_to_workflow': case 'remove_from_workflow': return ref('workflows', c.workflowId) || (step.type === 'remove_from_workflow' ? 'Este fluxo' : '');

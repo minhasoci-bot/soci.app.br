@@ -1,8 +1,12 @@
 // Sites → Blogs: blog sites, posts (Markdown editor with preview, schedule, SEO, AI writing), authors and categories.
+import { aiTool } from './content-ai.js';
 import { icon } from './icons.js';
 import { h, pageShell, utabs } from './screens.js';
 import { siteTabs } from './forms.js';
 import { isLive, markdown, readingTime, slugify } from './blog-data.js';
+
+let aiOn = false;
+const aiWrap = (html, target, field) => aiOn ? `<div class="ai-wrap">${html}${aiTool(target, 'blog', field)}</div>` : html;
 
 export const blogTabs = ['blogs', 'blog', 'post', 'blog-settings'];
 const bv = { postId: '', rev: '', draft: null, dirty: false, write: 'edit', query: '', status: '', blogSection: 'posts', settings: 'authors', busy: false };
@@ -101,7 +105,7 @@ function sidePanel(c, blog) {
     <section><h2>Publicação</h2><fieldset class="cw-segment"><legend class="sr-only">Status</legend>${[['draft', 'Rascunho'], ['published', 'Publicar']].map(([id, label]) => `<label><input type="radio" name="bl-status" data-bl-set="status" value="${id}"${d.status === id ? ' checked' : ''}> ${label}</label>`).join('')}</fieldset>
       ${d.status === 'published' ? `<label>Data de publicação <small class="dim">vazio = agora</small><input type="datetime-local" data-bl-set="publishAt" value="${local(d.publishAt)}"></label>${scheduled ? `<p class="bl-note">${icon('clock', 14)} Agendado para ${when(d.publishAt)}.</p>` : ''}` : ''}</section>
     <section><h2>Endereço</h2><label>Caminho<input data-bl-set="slug" value="${h(d.slug)}" maxlength="80" aria-describedby="bl-url"></label><small id="bl-url" class="dim bl-url">${h(blogUrl(c, blog))}/${h(slugify(d.slug || d.title) || 'artigo')}</small></section>
-    <section><h2>Resumo e capa</h2><label>Resumo${counter(d.summary || '', 400)}<textarea data-bl-set="summary" rows="3" maxlength="400">${h(d.summary)}</textarea></label>
+    <section><h2>Resumo e capa</h2>${aiWrap(`<label>Resumo${counter(d.summary || '', 400)}<textarea data-bl-set="summary" rows="3" maxlength="400">${h(d.summary)}</textarea></label>`, '[data-bl-set="summary"]', 'Resumo')}
       <label>Imagem de capa (https://)<input type="url" data-bl-set="coverUrl" value="${h(d.coverUrl)}" maxlength="600" placeholder="https://"></label>${d.coverUrl && /^https:\/\//.test(d.coverUrl) ? `<img class="bl-cover-preview" src="${h(d.coverUrl)}" alt="">` : ''}</section>
     <section><h2>Autor e categorias</h2><label>Autor<select data-bl-set="authorId"><option value="">Sem autor</option>${c.s.blogAuthors.map(row => `<option value="${row.id}"${d.authorId === row.id ? ' selected' : ''}>${h(row.name)}</option>`).join('')}</select></label>
       ${c.s.blogCategories.length ? `<fieldset class="bl-cats"><legend>Categorias</legend>${c.s.blogCategories.map(cat => `<label class="check"><input type="checkbox" data-bl-cat="${cat.id}"${d.categoryIds?.includes(cat.id) ? ' checked' : ''}> ${h(cat.name)}</label>`).join('')}</fieldset>` : ''}
@@ -124,7 +128,7 @@ function postView(c) {
     <div class="bl-edit"><div class="bl-main surface">
       <label class="sr-only" for="bl-title">Título</label><input id="bl-title" class="bl-title-input" data-bl-set="title" value="${h(d.title)}" maxlength="160" placeholder="Título do artigo">
       <div class="bl-bar"><div class="fm-range" role="tablist" aria-label="Modo">${[['edit', 'Escrever'], ['preview', 'Pré-visualizar']].map(([id, label]) => `<button role="tab" class="${bv.write === id ? 'selected' : ''}" aria-selected="${bv.write === id}" data-bl-write="${id}">${label}</button>`).join('')}</div>
-        ${bv.write === 'edit' ? `<div class="bl-tools" role="toolbar" aria-label="Formatação">${tools.map(([id, label]) => `<button type="button" class="icon-btn bl-tool" data-bl-tool="${id}" title="${label}" aria-label="${label}">${{ h2: 'H2', h3: 'H3', bold: '<b>B</b>', italic: '<i>I</i>', link: icon('link', 14), list: icon('list', 14), quote: '❝', image: icon('folder', 14) }[id]}</button>`).join('')}</div>` : ''}
+        ${bv.write === 'edit' ? `<div class="bl-tools" role="toolbar" aria-label="Formatação">${aiOn ? aiTool('#bl-body', 'blog', 'Texto do artigo') : ''}${tools.map(([id, label]) => `<button type="button" class="icon-btn bl-tool" data-bl-tool="${id}" title="${label}" aria-label="${label}">${{ h2: 'H2', h3: 'H3', bold: '<b>B</b>', italic: '<i>I</i>', link: icon('link', 14), list: icon('list', 14), quote: '❝', image: icon('folder', 14) }[id]}</button>`).join('')}</div>` : ''}
         <span class="dim bl-words">${readingTime(d.body)} min de leitura</span></div>
       ${bv.write === 'edit' ? `<label class="sr-only" for="bl-body">Texto do artigo</label><textarea id="bl-body" class="bl-body-input" data-bl-set="body" placeholder="Escreva o artigo. Use ## para títulos, - para listas, **negrito**, [link](https://...)">${h(d.body)}</textarea>
         <p class="dim bl-hint">Markdown: <code>## Título</code> · <code>**negrito**</code> · <code>*itálico*</code> · <code>[texto](https://…)</code> · <code>- item</code> · <code>&gt; citação</code> · <code>![descrição](https://imagem)</code></p>`
@@ -133,6 +137,7 @@ function postView(c) {
 }
 
 export function blogScreen(c) {
+  aiOn = Boolean(c.features?.contentAI);
   if (c.tab === 'post') return postView(c);
   if (c.tab === 'blog') return blogView(c);
   if (c.tab === 'blog-settings') return settingsView(c);

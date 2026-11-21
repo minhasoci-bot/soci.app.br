@@ -8,7 +8,7 @@ export const agencyNav = [
   ['ask', 'Pergunte à Soci', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['saas', 'Configurador SaaS', 'chart'], ['prospecting', 'Prospecção', 'search'],
   ['accounts', 'Subcontas', 'users'], ['brand-groups', 'Grupos de marcas', 'chart'], ['presentations', 'Apresentações', 'monitor'], ['prancheta', 'Prancheta', 'palette'], ['snapshots', 'Setups de conta', 'box'],
   ['affiliate', 'Portal de afiliados', 'link'], ['templates', 'Biblioteca de templates', 'site'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
-  ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'],
+  ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'], ['desktop-app', 'Aplicativo desktop', 'monitor'],
   ['settings', 'Configurações', 'gear']
 ];
 
@@ -24,10 +24,13 @@ export const subAccountModules = [
 export const moduleOfRecord = {
   contacts: 'contacts', tasks: 'contacts', opportunities: 'opportunities', appointments: 'calendars', workflows: 'automation',
   workflowFolders: 'automation', workflowLists: 'automation',
-  invoices: 'payments', campaigns: 'marketing', emailTemplates: 'marketing', emailCampaigns: 'marketing', countdownTimers: 'marketing', pages: 'sites', forms: 'sites', chatWidgets: 'sites', chatSessions: 'sites', blogs: 'sites', blogPosts: 'sites', blogAuthors: 'sites', blogCategories: 'sites', stores: 'sites', orders: 'payments', webinars: 'sites', webinarRegistrations: 'sites', qrCodes: 'sites', courses: 'memberships', communities: 'memberships', offers: 'memberships', reviews: 'reputation',
-  agents: 'ai-agents', agentRuns: 'ai-agents', files: 'media', snippetFolders: 'conversations', snippets: 'conversations', triggerLinks: 'conversations',
+  invoices: 'payments', campaigns: 'marketing', emailTemplates: 'marketing', emailCampaigns: 'marketing', countdownTimers: 'marketing', pages: 'sites', forms: 'sites', chatWidgets: 'sites', chatSessions: 'sites', blogs: 'sites', blogPosts: 'sites', blogAuthors: 'sites', blogCategories: 'sites', stores: 'sites', orders: 'payments', webinars: 'sites', webinarRegistrations: 'sites', qrCodes: 'sites', courses: 'memberships', communities: 'memberships', communityEvents: 'memberships', credentialsIssued: 'memberships', certificateTemplates: 'memberships', offers: 'memberships', reviews: 'reputation',
+  agents: 'ai-agents', agentRuns: 'ai-agents', knowledgeBases: 'ai-agents', agentTemplatesCustom: 'ai-agents', ai: 'ai-agents', brandBoards: 'marketing', affiliateSettings: 'marketing', affiliateCampaigns: 'marketing', affiliates: 'marketing', affiliateCommissions: 'marketing', affiliatePayouts: 'marketing',
+  reputation: 'reputation', listings: 'reputation', reviewRequests: 'reputation', reviewWidgets: 'reputation', videoCollectors: 'reputation', videoTestimonials: 'reputation', videoUploads: 'reputation', files: 'media', snippetFolders: 'conversations', snippets: 'conversations', triggerLinks: 'conversations',
   studioProjects: 'sites', pipelines: 'opportunities', stages: 'opportunities',
   customFields: 'settings', customValues: 'settings', tags: 'contacts', companies: 'contacts',
+  scoringRules: 'settings', tracking: 'settings', trackingEvents: 'settings',
+  adSettings: 'marketing', adCampaigns: 'marketing', adStats: 'marketing', attributionEvents: 'reporting',
   products: 'payments', paymentLinks: 'payments', subscriptions: 'payments', transactions: 'payments', coupons: 'payments',
   documents: 'payments', documentTemplates: 'payments', contentBlocks: 'payments', estimates: 'payments', invoiceTemplates: 'payments', recurringInvoices: 'payments', abandonedCheckouts: 'payments', productCollections: 'payments', productReviews: 'payments', giftCards: 'payments', inventoryLog: 'payments',
   socialCategories: 'marketing', socialHashtags: 'marketing', socialFeeds: 'marketing', socialWebhooks: 'marketing', socialCompetitors: 'marketing',

@@ -10,7 +10,7 @@ const qv = { id: '', rev: '', draft: null, dirty: false };
 let env = null;
 const badge = (label, tone = '') => `<span class="badge ${tone}">${h(label)}</span>`;
 const when = iso => iso ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso)) : '—';
-const types = [['url', 'Site ou link', 'site'], ['form', 'Formulário', 'list'], ['store', 'Loja', 'box'], ['blog', 'Blog', 'note'], ['webinar', 'Webinar', 'play'], ['whatsapp', 'WhatsApp', 'chat'], ['phone', 'Ligação', 'phone'], ['sms', 'SMS', 'send'], ['email', 'E-mail', 'mail']];
+const types = [['url', 'Site ou link', 'site'], ['form', 'Formulário', 'list'], ['store', 'Loja', 'box'], ['blog', 'Blog', 'note'], ['webinar', 'Webinar', 'play'], ['review', 'Link de avaliação', 'star'], ['whatsapp', 'WhatsApp', 'chat'], ['phone', 'Ligação', 'phone'], ['sms', 'SMS', 'send'], ['email', 'E-mail', 'mail']];
 const typeName = type => types.find(([id]) => id === type)?.[1] || type;
 const dynamic = (c, qr) => `${location.origin}/q/${c.workspace}/${qr.id}`;
 const targets = (c, type) => ({ form: c.s.forms.map(row => [row.id, row.name, row.active]), store: c.s.stores.map(row => [row.id, row.name, row.active]), blog: c.s.blogs.map(row => [row.id, row.name, row.active]), webinar: c.s.webinars.map(row => [row.id, row.name, row.active]) })[type] || [];
@@ -37,6 +37,7 @@ function loadDraft(c) {
 function fieldsFor(c, d) {
   const set = (key, label, value, extra = '') => `<label>${label}<input data-qr-set="${key}" value="${h(value)}"${extra}></label>`;
   if (d.type === 'url') return set('url', 'Endereço', d.url, ' type="url" maxlength="1000" placeholder="https://"');
+  if (d.type === 'review') return '<p class="dim">Leva à página de avaliação da empresa. Configure a página e os sites de avaliação em <a class="text-link" href="#reputation/settings">Reputação → Configurações</a>.</p>';
   if (['form', 'store', 'blog', 'webinar'].includes(d.type)) {
     const list = targets(c, d.type);
     return list.length ? `<label>${typeName(d.type)}<select data-qr-set="targetId"><option value="">Escolha…</option>${list.map(([id, name, active]) => `<option value="${id}"${d.targetId === id ? ' selected' : ''}>${h(name)}${active ? '' : ' (não publicado)'}</option>`).join('')}</select></label>`

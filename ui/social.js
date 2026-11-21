@@ -1,9 +1,10 @@
 // Marketing → Social Planner: connect networks, compose once and publish everywhere, calendar and list
 // of posts, approvals, categories with an evergreen queue, hashtag groups, RSS feeds and CSV bulk upload.
 // screens.js renders socialPlanner(c); app.js calls socialEvents once with its helpers.
+import { aiTool } from './content-ai.js';
 import { brandHighlight, brandIcon, icon as i, shcLayers } from './icons.js';
 import { badge, h, fmt } from './screens.js';
-import { bestTimes, bulkCsvColumns, mediaKind, network, networks, occurrencesBetween, parseCsv, postIssues, postTypes, recurrences, statusLabel, statusTone, textFor, weekdays } from './social-data.js';
+import { bestTimes, bulkCsvColumns, mediaKind, network, networks, occurrencesBetween, parseCsv, postIssues, postTypes, queueNext, recurrences, statusLabel, statusTone, textFor, weekdays } from './social-data.js';
 
 const ui = { view: 'calendar', mode: 'month', cursor: new Date(), status: 'all', account: '', draft: null, picked: new Set() };
 const freshCsv = () => ({ step: 1, file: '', rows: [], accountIds: [], asDraft: false, needsApproval: false, review: [] });
@@ -121,7 +122,7 @@ function postList(c) {
       <td><div class="sp-row">${thumb}<div><b class="sp-row-text">${h((p.summary || '(sem texto)').slice(0, 120))}</b>${p.status === 'draft' && p.approval === 'rejected' && p.reviewNote ? `<small class="dim">${i('note', 12)} Ajuste pedido${p.reviewedBy ? ` por ${h(p.reviewedBy)}` : ''}: ${h(p.reviewNote.slice(0, 160))}</small>` : ''}${p.error ?`<small class="sp-err">${h(p.error.slice(0, 160))}</small>` : ''}${links ? `<small>${links}</small>` : ''}</div></div></td>
       <td><div class="sp-accts">${accountsOf(c, p).slice(0, 5).map(a => accountChip(a)).join('')}</div></td>
       <td>${p.scheduleDate ? `${fmt(p.status === 'published' ? p.publishedAt || p.scheduleDate : p.scheduleDate, zone, true)}${p.recurrence?.freq ? ` ${i('refresh', 12)}` : ''}` : '—'}</td>
-      <td>${status(p.status)}${p.source !== 'post' ? ` <span class="dim">${h({ csv: 'CSV', rss: 'RSS', recurring: 'recorrente', queue: 'evergreen' }[p.source] || '')}</span>` : ''}</td>
+      <td>${status(p.status)}${p.source !== 'post' ? ` <span class="dim">${h({ csv: 'CSV', rss: 'RSS', recurring: 'recorrente', queue: 'evergreen', workflow: 'automação' }[p.source] || '')}</span>` : ''}</td>
       <td class="right sp-actions">${p.status === 'in_review' ? `<button class="secondary" data-sp-review="${p.id}">Revisar</button>` : ''}${p.status === 'failed' ? `<button class="secondary" data-sp-retry="${p.id}">${i('refresh', 14)} Tentar de novo</button>` : ''}
         <button class="icon-btn" data-sp-open="${p.id}" aria-label="Abrir post">${i('edit', 16)}</button><button class="icon-btn" data-sp-dup="${p.id}" aria-label="Duplicar post" title="Duplicar">${i('box', 16)}</button></td></tr>`;
   });
@@ -147,11 +148,14 @@ function accountsView(c) {
 }
 function categoriesView(c) {
   const cards = c.s.socialCategories.map(cat => {
-    const n = c.s.socialPosts.filter(p => p.categoryId === cat.id && !p.parentId).length;
-    return `<article class="surface sp-card"><div class="sp-card-head"><span class="sp-dot" style="background:${h(cat.color)}"></span><b>${h(cat.name)}</b>${cat.evergreen ? badge('Evergreen', 'green') : ''}</div>
-      <p class="dim">${n} post(s)${cat.evergreen ? ` · ${cat.slots.map(s => `${weekdays[s.day]} ${s.time}`).join(', ')}` : ''}</p><button class="secondary" data-sp-edit="socialCategories" data-id="${cat.id}">${i('edit', 15)} Editar</button></article>`;
+    const n = c.s.socialPosts.filter(p => p.categoryId === cat.id && !p.parentId).length, next = queueNext(c.s, cat, new Date(), zoneOf(c));
+    const queue = !cat.evergreen ? '' : !next?.post
+      ? `<p class="dim">${cat.recycle === false ? 'Todos os posts já saíram pela fila. Adicione posts à categoria ou ative a reciclagem.' : 'Adicione posts publicados ou rascunhos a esta categoria para abastecer a fila.'}</p>`
+      : `<div class="sp-next"><span>${i('refresh', 13)} Próximo da fila${next.at ? ` · ${fmt(next.at, zoneOf(c), true)}` : ''}</span><b>${h(textFor(next.post, '').slice(0, 90) || 'Post sem texto')}</b></div>`;
+    return `<article class="surface sp-card"><div class="sp-card-head"><span class="sp-dot" style="background:${h(cat.color)}"></span><b>${h(cat.name)}</b>${cat.evergreen ? badge(cat.recycle === false ? 'Fila: uma vez' : 'Evergreen', 'green') : ''}</div>
+      <p class="dim">${n} post(s)${cat.evergreen ? ` · ${cat.slots.map(s => `${weekdays[s.day]} ${s.time}`).join(', ')}` : ''}</p>${queue}<button class="secondary" data-sp-edit="socialCategories" data-id="${cat.id}">${i('edit', 15)} Editar</button></article>`;
   }).join('');
-  return `<p class="dim sp-intro">Organize posts por tema. Ative a fila evergreen para que os posts publicados ou rascunhos da categoria voltem a ser publicados, em rodízio, nos horários escolhidos.</p>
+  return `<p class="dim sp-intro">Organize posts por tema. Ative a fila evergreen para que os posts publicados ou rascunhos da categoria voltem a ser publicados, em rodízio, nos horários escolhidos (fuso ${h(zoneOf(c))}).</p>
     <div class="sp-cards">${cards || emptyBox('Nenhuma categoria', 'Crie categorias para organizar e reciclar conteúdo.')}</div>`;
 }
 function hashtagsView(c) {
@@ -413,7 +417,8 @@ function composerHtml(c) {
       <div class="sp-ai-row"><label class="check"><input type="checkbox" name="aiHashtags" checked> Sugerir hashtags</label><span class="spacer"></span>
         <button type="button" class="secondary" data-sp-ai>${i('spark', 15)} Gerar legenda</button></div>
       <p class="dim">A IA usa o texto atual como rascunho, se houver, e adapta o tamanho às redes escolhidas. Revise antes de publicar.</p></details>`}
-    <label>Texto<textarea name="summary" rows="6" placeholder="O que você quer compartilhar?" ${locked ? 'readonly' : ''}>${h(d.summary)}</textarea></label>
+    ${c.features?.contentAI && !locked ? `<div class="ai-wrap"><label>Texto<textarea id="sp-summary" name="summary" rows="6" placeholder="O que você quer compartilhar?">${h(d.summary)}</textarea></label>${aiTool('#sp-summary', 'social', 'Texto do post')}</div>`
+      : `<label>Texto<textarea id="sp-summary" name="summary" rows="6" placeholder="O que você quer compartilhar?" ${locked ? 'readonly' : ''}>${h(d.summary)}</textarea></label>`}
     <div class="sp-tools">${c.s.socialHashtags.length ? `<select data-sp-hashtags aria-label="Inserir hashtags"><option value="">#  Inserir grupo de hashtags</option>${c.s.socialHashtags.map(g => `<option value="${g.id}">${h(g.name)}</option>`).join('')}</select>` : ''}<span id="sp-counters" class="sp-counters"></span></div>
     <details class="sp-block" ${Object.keys(d.overrides).length ? 'open' : ''}><summary>Personalizar texto por rede</summary><div id="sp-overrides"></div></details>
     <fieldset class="sp-block"><legend>Mídia</legend><div id="sp-media" class="sp-media"></div>
@@ -436,6 +441,9 @@ function composerHtml(c) {
         <label>Repetir<select name="freq">${recurrences.map(([v, l]) => `<option value="${v}" ${(d.recurrence?.freq || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label ${d.recurrence?.freq ? '' : 'hidden'} data-sp-rec>A cada<input type="number" name="interval" min="1" max="30" value="${d.recurrence?.interval || 1}"></label>
         <label ${d.recurrence?.freq ? '' : 'hidden'} data-sp-rec>Até (opcional)<input type="date" name="until" value="${h((d.recurrence?.until || '').slice(0, 10))}"></label>
+        <label ${d.recurrence?.freq ? '' : 'hidden'} data-sp-rec>Terminar após (posts)<input type="number" name="count" min="0" max="500" placeholder="Sem limite" value="${d.recurrence?.count || ''}"></label>
+        <div class="sp-days" ${d.recurrence?.freq === 'weekly' ? '' : 'hidden'} data-sp-days role="group" aria-label="Dias da semana">${weekdays.map((w, n) => `<label class="${(d.recurrence?.days || []).includes(n) ? 'on' : ''}"><input type="checkbox" name="recDay" value="${n}" ${(d.recurrence?.days || []).includes(n) ? 'checked' : ''}>${w}</label>`).join('')}</div>
+        ${d.recurrence?.count && d.recurrence?.done ? `<p class="dim" data-sp-rec>${d.recurrence.done} de ${d.recurrence.count} publicados.</p>` : ''}
         <div class="sp-best" id="sp-best" aria-live="polite"></div></div>
       <label class="check"><input type="checkbox" name="needsApproval" ${d.needsApproval ? 'checked' : ''}> Exigir aprovação antes de publicar</label></fieldset>
     <ul id="sp-issues" class="sp-issues"></ul>
@@ -495,7 +503,11 @@ function readComposer(c, form) {
   Object.assign(d, { type: f.type.value, summary: f.summary.value, categoryId: f.categoryId.value, link: f.link.value.trim(), firstComment: f.firstComment.value,
     location: (f.location?.value || '').trim(), userTags: (f.userTags?.value || '').trim(),
     tags: f.tags.value.split(',').map(t => t.trim()).filter(Boolean), needsApproval: f.needsApproval.checked, mode: f.mode.value, when: f.when.value });
-  d.recurrence = f.freq.value ? { freq: f.freq.value, interval: Number(f.interval.value) || 1, until: f.until.value } : null;
+  const prior = d.recurrence;
+  d.recurrence = f.freq.value ? { ...(prior || {}), freq: f.freq.value, interval: Number(f.interval.value) || 1, until: f.until.value, count: Number(f.count.value) || 0,
+    days: f.freq.value === 'weekly' ? [...form.querySelectorAll('[name="recDay"]:checked')].map(x => Number(x.value)) : [] } : null;
+  form.querySelector('[data-sp-days]').hidden = d.recurrence?.freq !== 'weekly';
+  form.querySelectorAll('.sp-days label').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
   for (const n of networks) { const t = f[`override-${n.id}`]; if (t) { if (t.value.trim()) d.overrides[n.id] = t.value; else delete d.overrides[n.id]; } }
   form.querySelector('[data-sp-schedule]').hidden = d.mode !== 'schedule';
   form.querySelectorAll('[data-sp-rec]').forEach(x => { x.hidden = !d.recurrence; });
@@ -529,11 +541,16 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
       socialCategories: () => `<label>Nome<input name="name" value="${h(r?.name || '')}" required maxlength="60"></label><label>Cor<input type="color" name="color" value="${h(r?.color || '#ea580c')}"></label>
         <label class="check"><input type="checkbox" name="evergreen" ${r?.evergreen || evergreen ? 'checked' : ''}> Fila evergreen (republicar em rodízio)</label>
         <fieldset class="sp-block"><legend>Horários da fila</legend><div data-sp-slots>${(r?.slots || (evergreen ? [undefined] : [])).map(s => slotRow(s)).join('')}</div><button type="button" class="secondary" data-sp-slot>${i('plus', 14)} Horário</button></fieldset>
+        <label class="check"><input type="checkbox" name="recycle" ${!r || r.recycle !== false ? 'checked' : ''}> Reciclar: quando todos os posts saírem, recomeçar do primeiro</label>
         <fieldset class="sp-block"><legend>Contas da fila</legend>${acctBoxes(r?.accountIds || [])}</fieldset>`,
       socialHashtags: () => `<label>Nome do grupo<input name="name" value="${h(r?.name || '')}" required maxlength="60"></label><label>Hashtags<textarea name="tags" rows="4" placeholder="#marketing #vendas">${h((r?.tags || []).map(t => `#${t}`).join(' '))}</textarea></label>`,
       socialFeeds: () => `<label>Nome<input name="name" value="${h(r?.name || '')}" required maxlength="80"></label><label>URL do feed (RSS ou Atom)<input type="url" name="url" value="${h(r?.url || '')}" required></label>
         <label>Modelo do texto<textarea name="template" rows="3">${h(r?.template || '{{title}}\n\n{{link}}')}</textarea></label><p class="dim">Use {{title}}, {{link}} e {{summary}}.</p>
         <label>Ao encontrar item novo<select name="mode"><option value="draft">Criar rascunho para revisar</option><option value="schedule" ${r?.mode === 'schedule' ? 'selected' : ''}>Publicar automaticamente</option></select></label>
+        <div class="field-grid"><label>Intervalo entre posts (min)<input type="number" name="spacing" min="0" max="1440" value="${r?.spacing ?? 60}"></label><label>Itens por leitura<input type="number" name="perCheck" min="1" max="10" value="${r?.perCheck || 3}"></label></div>
+        <div class="field-grid"><label>Só itens com as palavras<input name="include" value="${h((r?.include || []).join(', '))}" placeholder="Ex.: promoção, lançamento"></label><label>Ignorar itens com<input name="exclude" value="${h((r?.exclude || []).join(', '))}" placeholder="Ex.: patrocinado"></label></div>
+        <label>Categoria dos posts<select name="categoryId"><option value="">Sem categoria</option>${c.s.socialCategories.map(cat => `<option value="${cat.id}" ${r?.categoryId === cat.id ? 'selected' : ''}>${h(cat.name)}${cat.evergreen ? ' (fila evergreen)' : ''}</option>`).join('')}</select></label>
+        <label class="check"><input type="checkbox" name="images" ${!r || r.images !== false ? 'checked' : ''}> Usar a imagem do item, quando houver</label>
         <label class="check"><input type="checkbox" name="active" ${!r || r.active ? 'checked' : ''}> Ativo</label><fieldset class="sp-block"><legend>Contas</legend>${acctBoxes(r?.accountIds || [])}</fieldset>`,
       socialWebhooks: () => `<label>Nome da integração<input name="name" value="${h(r?.name || '')}" required maxlength="80" placeholder="Ex.: Webhook n8n ou Zapier"></label>
         <label>URL do Webhook (HTTPS)<input type="url" name="url" value="${h(r?.url || '')}" placeholder="https://seu-servidor.com/webhook" required></label>
@@ -884,10 +901,10 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
         render();
       } else if (form.dataset.spRecord) {
         const key = form.dataset.spRecord, f = form.elements, data = { name: f.name?.value };
-        if (key === 'socialCategories') Object.assign(data, { color: f.color.value, evergreen: f.evergreen.checked, accountIds: [...form.querySelectorAll('[name="accountIds"]:checked')].map(x => x.value),
+        if (key === 'socialCategories') Object.assign(data, { color: f.color.value, evergreen: f.evergreen.checked, recycle: f.recycle.checked, accountIds: [...form.querySelectorAll('[name="accountIds"]:checked')].map(x => x.value),
           slots: [...form.querySelectorAll('.sp-slot')].map(r => ({ day: Number(r.querySelector('select').value), time: r.querySelector('input').value })) });
         if (key === 'socialHashtags') data.tags = f.tags.value;
-        if (key === 'socialFeeds') Object.assign(data, { url: f.url.value, template: f.template.value, mode: f.mode.value, active: f.active.checked, accountIds: [...form.querySelectorAll('[name="accountIds"]:checked')].map(x => x.value) });
+        if (key === 'socialFeeds') Object.assign(data, { url: f.url.value, template: f.template.value, mode: f.mode.value, active: f.active.checked, images: f.images.checked, categoryId: f.categoryId.value, include: f.include.value, exclude: f.exclude.value, spacing: Number(f.spacing.value) || 0, perCheck: Number(f.perCheck.value) || 3, accountIds: [...form.querySelectorAll('[name="accountIds"]:checked')].map(x => x.value) });
         if (key === 'socialWebhooks') Object.assign(data, { url: f.url.value, active: f.active.checked, events: [...form.querySelectorAll('[name="events"]:checked')].map(x => x.value) });
         if (key === 'socialCompetitors') Object.assign(data, {
           handle: f.handle.value,

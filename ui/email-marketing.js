@@ -1,6 +1,9 @@
 // Marketing → E-mails: statistics, campaigns and templates, the block editor with a live preview, and the
 // report of each campaign (opens, clicks, unsubscribes and the A/B result). Follows GoHighLevel's
 // /marketing/emails (Statistics, Campaigns, Templates); the names, texts and look are Soci's.
+import { aiTool } from './content-ai.js';
+import { colorOf, defaultBoard } from './brand-data.js';
+import { contentTones } from './content-ai-data.js';
 import { icon } from './icons.js';
 import { h, pageShell, search } from './screens.js';
 import { BLOCK_TYPES, FONTS, MAX_BLOCKS, MERGE_FIELDS, mergeValues, newBlock, renderEmail, fillText, starterDesign } from './email-blocks.js';
@@ -13,6 +16,9 @@ const people = n => `${n || 0} contato${n === 1 ? '' : 's'}`;
 const pct = (part, whole) => whole ? `${Math.round(part / whole * 1000) / 10}%`.replace('.', ',') : '—';
 const when = iso => { const d = new Date(iso); return iso && !Number.isNaN(d.getTime()) ? d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—'; };
 const field = (label, control, hint = '') => `<label class="em-field"><span>${h(label)}</span>${control}${hint ? `<small class="dim">${hint}</small>` : ''}</label>`;
+// The AI button sits beside the label, outside it, so clicking the label still focuses the field.
+let aiOn = false;
+const aiField = (label, control, target, hint = '') => aiOn ? `<div class="ai-wrap">${field(label, control, hint)}${aiTool(target, 'email', label)}</div>` : field(label, control, hint);
 const isEmail = value => /^[^\s@<>"]{1,64}@[^\s@<>"]{1,190}\.[a-z0-9-]{2,}$/i.test(value);
 
 const secondary = current => `<nav class="em-subtabs" aria-label="Seções de e-mail">${[['email', 'Estatísticas'], ['email-campaigns', 'Campanhas'], ['email-templates', 'Modelos']]
@@ -92,9 +98,9 @@ function blockEditor(b, i, count, open, timers = []) {
   const align = (value, def = 'left') => `<select data-em-b="align" data-i="${i}">${[['left', 'Esquerda'], ['center', 'Centro'], ['right', 'Direita']].map(([v, l]) => `<option value="${v}"${(value || def) === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
   const input = (prop, value, attrs = '') => `<input data-em-b="${prop}" data-i="${i}" value="${h(value ?? '')}" ${attrs}>`;
   let body = '';
-  if (b.type === 'heading') body = field('Texto', input('text', b.text, 'maxlength="300"')) + `<div class="em-two">${field('Tamanho', `<select data-em-b="level" data-i="${i}"><option value="1"${b.level !== 2 ? ' selected' : ''}>Grande</option><option value="2"${b.level === 2 ? ' selected' : ''}>Médio</option></select>`)}${field('Alinhamento', align(b.align))}</div>`;
-  if (b.type === 'text') body = field('Texto', `<textarea data-em-b="text" data-i="${i}" rows="6" maxlength="8000">${h(b.text)}</textarea>`, 'Use **negrito**, *itálico* e [texto do link](https://…). Uma linha em branco separa parágrafos.') + field('Alinhamento', align(b.align));
-  if (b.type === 'button') body = `<div class="em-two">${field('Texto do botão', input('label', b.label, 'maxlength="80"'))}${field('Link', input('url', b.url, 'type="url" placeholder="https://"'))}</div><div class="em-two">${field('Cor', `<input type="color" data-em-b="color" data-i="${i}" value="${h(b.color || '#d6246e')}">`, 'Vazio usa a cor de destaque.')}${field('Alinhamento', align(b.align, 'center'))}</div>`;
+  if (b.type === 'heading') body = aiField('Texto', input('text', b.text, 'maxlength="300"'), `[data-em-b="text"][data-i="${i}"]`) + `<div class="em-two">${field('Tamanho', `<select data-em-b="level" data-i="${i}"><option value="1"${b.level !== 2 ? ' selected' : ''}>Grande</option><option value="2"${b.level === 2 ? ' selected' : ''}>Médio</option></select>`)}${field('Alinhamento', align(b.align))}</div>`;
+  if (b.type === 'text') body = aiField('Texto', `<textarea data-em-b="text" data-i="${i}" rows="6" maxlength="8000">${h(b.text)}</textarea>`, `[data-em-b="text"][data-i="${i}"]`, 'Use **negrito**, *itálico* e [texto do link](https://…). Uma linha em branco separa parágrafos.') + field('Alinhamento', align(b.align));
+  if (b.type === 'button') body = `<div class="em-two">${aiField('Texto do botão', input('label', b.label, 'maxlength="80"'), `[data-em-b="label"][data-i="${i}"]`)}${field('Link', input('url', b.url, 'type="url" placeholder="https://"'))}</div><div class="em-two">${field('Cor', `<input type="color" data-em-b="color" data-i="${i}" value="${h(b.color || '#d6246e')}">`, 'Vazio usa a cor de destaque.')}${field('Alinhamento', align(b.align, 'center'))}</div>`;
   if (b.type === 'image') body = field('Endereço da imagem (https)', input('src', b.src, 'type="url" placeholder="https://…/imagem.jpg"'), 'Use uma imagem pública, como as da Mídia Drive ou do seu site.') + `<div class="em-two">${field('Texto alternativo', input('alt', b.alt, 'maxlength="200"'))}${field('Link ao clicar', input('url', b.url, 'type="url" placeholder="https:// (opcional)"'))}</div><div class="em-two">${field('Largura (%)', input('width', b.width, 'type="number" min="20" max="100" step="5"'))}${field('Alinhamento', align(b.align, 'center'))}</div>`;
   if (b.type === 'spacer') body = field('Altura (px)', input('height', b.height, 'type="number" min="8" max="80" step="4"'));
   if (b.type === 'divider') body = '<p class="dim">Uma linha fina separa as seções.</p>';
@@ -120,6 +126,7 @@ function editor(c, ctx, kind) {
   const row = load(c, kind);
   if (!row) return shell(c, ctx, kind === 'campaign' ? 'email-campaigns' : 'email-templates', `<div class="surface padded empty"><strong>Não encontramos este e-mail</strong><a class="secondary" href="#marketing/${kind === 'campaign' ? 'email-campaigns' : 'email-templates'}">Voltar</a></div>`);
   if (kind === 'campaign' && row.status !== 'draft') { location.replace(`#marketing/email-report/${row.id}`); return ''; }
+  aiOn = Boolean(c.features?.contentAI);
   const d = ed.draft, camp = kind === 'campaign', p = preview(c), tags = allTags(c);
   const chips = `<p class="em-vars"><span class="dim">Campos:</span> ${MERGE_FIELDS.map(([token, label]) => `<button type="button" class="chip" data-em-var="${h(token)}" title="${h(label)}">${h(token)}</button>`).join(' ')}</p>`;
   const audience = camp ? `<section class="surface padded em-section"><h2>Público</h2>
@@ -128,16 +135,17 @@ function editor(c, ctx, kind) {
       <p class="em-reach" data-em-reach>${reachText(c)}</p></section>
     <section class="surface padded em-section"><div class="inline-gap"><h2>Teste A/B do assunto</h2><label class="switch-line"><input type="checkbox" data-em-ab="enabled"${d.ab.enabled ? ' checked' : ''}> Ativar</label></div>
       ${d.ab.enabled ? `<p class="dim">Uma parte do público recebe o assunto A ou o B. Depois da espera, o restante recebe o vencedor.</p>
-      ${field('Assunto B', `<input data-em-ab="subjectB" maxlength="200" value="${h(d.ab.subjectB)}">`)}${field('Pré-cabeçalho B', `<input data-em-ab="preheaderB" maxlength="200" value="${h(d.ab.preheaderB)}" placeholder="Vazio usa o pré-cabeçalho A">`)}
+      ${aiField('Assunto B', `<input data-em-ab="subjectB" maxlength="200" value="${h(d.ab.subjectB)}">`, '[data-em-ab="subjectB"]')}${aiField('Pré-cabeçalho B', `<input data-em-ab="preheaderB" maxlength="200" value="${h(d.ab.preheaderB)}" placeholder="Vazio usa o pré-cabeçalho A">`, '[data-em-ab="preheaderB"]')}
       <div class="em-three">${field('Grupo de teste', `<select data-em-ab="testPercent">${[10, 20, 30, 40, 50].map(n => `<option value="${n}"${Number(d.ab.testPercent) === n ? ' selected' : ''}>${n}% do público</option>`).join('')}</select>`)}
         ${field('Vence quem tiver mais', `<select data-em-ab="metric"><option value="opens"${d.ab.metric !== 'clicks' ? ' selected' : ''}>Aberturas</option><option value="clicks"${d.ab.metric === 'clicks' ? ' selected' : ''}>Cliques</option></select>`)}
         ${field('Esperar', `<select data-em-ab="waitHours">${[1, 2, 4, 8, 12, 24, 48, 72].map(n => `<option value="${n}"${Number(d.ab.waitHours) === n ? ' selected' : ''}>${n} h</option>`).join('')}</select>`)}</div>` : '<p class="dim">Descubra qual assunto abre mais: teste dois assuntos com parte do público antes de enviar para todos.</p>'}</section>` : '';
-  const settings = `<section class="surface padded em-section"><h2>Mensagem</h2>
-      ${field('Assunto', `<input data-em="subject" maxlength="200" value="${h(d.subject)}" placeholder="Ex.: {{contact.first_name}}, chegou a sua oferta">`)}
-      ${field('Pré-cabeçalho', `<input data-em="preheader" maxlength="200" value="${h(d.preheader)}" placeholder="Aparece ao lado do assunto na caixa de entrada">`)}
+  const settings = `<section class="surface padded em-section"><div class="em-section-head"><h2>Mensagem</h2>${aiOn ? `<button type="button" class="secondary" data-em-act="ai-write">${icon('spark', 14)} Escrever com IA</button>` : ''}</div>
+      ${aiField('Assunto', `<input data-em="subject" maxlength="200" value="${h(d.subject)}" placeholder="Ex.: {{contact.first_name}}, chegou a sua oferta">`, '[data-em="subject"]')}
+      ${aiField('Pré-cabeçalho', `<input data-em="preheader" maxlength="200" value="${h(d.preheader)}" placeholder="Aparece ao lado do assunto na caixa de entrada">`, '[data-em="preheader"]')}
       <div class="em-two">${field('Nome do remetente', `<input data-em="fromName" maxlength="80" value="${h(d.fromName)}" placeholder="${h(c.s.profile?.name || '')}">`)}${field('Responder para', `<input type="email" data-em="replyTo" maxlength="160" value="${h(d.replyTo)}" placeholder="contato@suaempresa.com.br">`)}</div>
       ${chips}<p class="dim"><small>O endereço de envio é o domínio da subconta em <a class="text-link" href="#settings/email">Configurações → Serviços de e-mail</a> ou, sem ele, o da plataforma.</small></p></section>`;
-  const style = `<section class="surface padded em-section"><h2>Estilo</h2><div class="em-colors">${[['background', 'Fundo'], ['card', 'Conteúdo'], ['text', 'Texto'], ['accent', 'Destaque']].map(([k, l]) => field(l, `<input type="color" data-em-style="${k}" value="${h(d.style[k])}">`)).join('')}
+  const brand = defaultBoard(c.s.brandBoards);
+  const style = `<section class="surface padded em-section"><div class="em-section-head"><h2>Estilo</h2>${brand ? `<button type="button" class="secondary" data-em-act="apply-brand">Aplicar marca: ${h(brand.name)}</button>` : '<a class="text-link" href="#marketing/brand">Criar a marca</a>'}</div><div class="em-colors">${[['background', 'Fundo'], ['card', 'Conteúdo'], ['text', 'Texto'], ['accent', 'Destaque']].map(([k, l]) => field(l, `<input type="color" data-em-style="${k}" value="${h(d.style[k])}">`)).join('')}
       ${field('Fonte', `<select data-em-style="font">${FONTS.map(([v, l]) => `<option value="${h(v)}"${d.style.font === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`)}</div></section>`;
   const blocks = `<section class="surface padded em-section"><h2>Blocos</h2><ol class="em-blocks">${d.blocks.map((b, i) => blockEditor(b, i, d.blocks.length, ed.open === i, c.s.countdownTimers || [])).join('')}</ol>
       ${d.blocks.length < MAX_BLOCKS ? `<div class="em-add"><span class="dim">Adicionar:</span> ${BLOCK_TYPES.map(([type, label]) => `<button type="button" class="secondary" data-em-act="add" data-type="${type}">${icon('plus', 13)} ${label}</button>`).join('')}</div>` : ''}</section>`;
@@ -194,6 +202,23 @@ export function emailMarketingScreen(c, ctx) {
 }
 
 const localInput = at => { const d = new Date(at - new Date(at).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); };
+
+// Puts an AI draft into the editor: subject lines and the first heading, text and button.
+export function applyEmailDraft(d, draft) {
+  d.subject = draft.subject;
+  d.preheader = draft.preheader;
+  if (d.ab.enabled && draft.subjectB) d.ab.subjectB = draft.subjectB;
+  const put = (type, values, after) => {
+    const found = d.blocks.find(b => b.type === type);
+    if (found) return Object.assign(found, values);
+    const block = { ...newBlock(type), ...values };
+    d.blocks.splice(after ? d.blocks.indexOf(after) + 1 : 0, 0, block);
+    return block;
+  };
+  const heading = put('heading', { text: draft.heading });
+  const text = put('text', { text: draft.body }, heading);
+  put('button', { label: draft.buttonLabel }, text);
+}
 
 export function installEmailMarketing({ c, mutate, flash, dialog, close, render, api, url, load: reload }) {
   const here = () => c.view === 'marketing' && emailTabs.includes(c.tab);
@@ -279,11 +304,30 @@ export function installEmailMarketing({ c, mutate, flash, dialog, close, render,
         case 'up': case 'down': { const i = Number(ds.i), j = ds.emAct === 'up' ? i - 1 : i + 1; [d.blocks[i], d.blocks[j]] = [d.blocks[j], d.blocks[i]]; ed.open = j; touch(true); break; }
         case 'device': ed.device = ds.device; render(); break;
         case 'save': el.disabled = true; await saveDraft(); render(); flash('Salvo.'); break;
+        case 'apply-brand': {
+          const brand = defaultBoard(c.s.brandBoards);
+          if (!brand || !editing()) break;
+          const pick = (...roles) => roles.map(role => colorOf(brand, role)).find(Boolean);
+          // The text sits on the content card, so the card takes the brand background and the page around it a neutral.
+          const accent = pick('primary', 'accent', 'secondary'), text = pick('text'), card = pick('background'), background = pick('neutral') || card;
+          Object.assign(d.style, { ...(accent && { accent }), ...(text && { text }), ...(card && { card }), ...(background && { background }) });
+          touch(true); flash(`Cores de ${brand.name} aplicadas ao e-mail.`);
+          break;
+        }
         case 'save-template': { const id = await mutate({ type: 'save', key: 'emailTemplates', data: { ...payload(), name: d.name } }); flash('Modelo salvo. Ele aparece em Modelos.'); void id; break; }
         case 'test':
           dialog('Enviar e-mail de teste', `<form class="em-form" data-em-test><label class="em-field"><span>Enviar para</span><input type="email" name="to" required maxlength="160" value="${h(c.access?.email || c.me?.email || '')}" autocomplete="email"></label>
             <p class="dim">O teste usa os dados do primeiro contato com e-mail nos campos personalizados. Os links não são rastreados.</p><div class="inline-gap"><button class="primary">Enviar teste</button><button type="button" class="secondary" data-act="close">Cancelar</button></div><p class="form-status" role="alert"></p></form>`);
           break;
+        case 'ai-write': {
+          if (!editing()) break;
+          dialog('Escrever com IA', `<form class="em-form" data-em-ai><label class="em-field"><span>Objetivo do e-mail</span><textarea name="brief" rows="3" required maxlength="2000" placeholder="Ex.: anunciar o cardápio de verão com entrega grátis no bairro até domingo"></textarea></label>
+            <div class="em-two"><label class="em-field"><span>Chamada para ação</span><input name="cta" maxlength="200" placeholder="Ex.: Pedir agora"></label><label class="em-field"><span>Público</span><input name="audience" maxlength="300" placeholder="Ex.: clientes que já pediram"></label></div>
+            <div class="em-two"><label class="em-field"><span>Tom</span><select name="tone">${contentTones.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label><label class="em-field"><span>Idioma</span><select name="language"><option value="pt">Português</option><option value="es">Espanhol</option></select></label></div>
+            <p class="dim">A IA preenche o assunto, o pré-cabeçalho${d.ab.enabled ? ', o assunto B do teste A/B' : ''} e o primeiro título, texto e botão. Imagens, links e os outros blocos ficam como estão. Revise antes de enviar: dados que a IA não sabe aparecem como [[marcadores]].</p>
+            <div class="inline-gap"><button class="primary">${icon('spark', 14)} Escrever</button><button type="button" class="secondary" data-act="close">Cancelar</button></div><p class="form-status" role="alert"></p></form>`);
+          break;
+        }
         case 'schedule': {
           if (!d.subject.trim()) { flash('Escreva o assunto antes de enviar.', true); break; }
           const n = reach(c, d.audience);
@@ -298,6 +342,19 @@ export function installEmailMarketing({ c, mutate, flash, dialog, close, render,
   });
   document.addEventListener('submit', async event => {
     const form = event.target;
+    if (form.matches('[data-em-ai]')) {
+      event.preventDefault();
+      const status = form.querySelector('.form-status'), button = form.querySelector('button.primary');
+      button.disabled = true; status.textContent = 'Escrevendo o e-mail…';
+      try {
+        const fields = Object.fromEntries(new FormData(form));
+        const draft = await api(url('/api/content-ai/email'), { ...fields, ab: Boolean(ed.draft?.ab.enabled) });
+        if (!editing()) { close(); return; }
+        applyEmailDraft(ed.draft, draft);
+        close(); touch(true); flash('E-mail escrito pela IA. Revise os [[marcadores]] antes de enviar.');
+      } catch (error) { button.disabled = false; status.textContent = error.message; }
+      return;
+    }
     if (!form.matches('[data-em-test],[data-em-schedule]')) return;
     event.preventDefault();
     const status = form.querySelector('.form-status'), button = form.querySelector('button.primary');

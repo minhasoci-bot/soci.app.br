@@ -4,7 +4,7 @@ import { qrSvg } from './qr.js';
 import { outline } from './courses.js';
 
 const pathOf = workspace => `/api/client-portal/${encodeURIComponent(workspace)}/admin`;
-const navigation = [['portal','Portal do cliente'], ['portal-members','Clientes'], ['portal-settings','Configurações'], ['courses','Cursos'], ['communities','Comunidades'], ['offers','Ofertas']];
+const navigation = [['portal','Portal do cliente'], ['portal-members','Clientes'], ['portal-settings','Configurações'], ['courses','Cursos'], ['communities','Comunidades'], ['offers','Ofertas'], ['certificates','Certificados']];
 export const portalTabs = () => navigation.map(([id, label]) => ({ value: id, label, href: `#memberships/${id}` }));
 export function portalAdminScreen(c) {
   const tab = c.tab || 'portal';

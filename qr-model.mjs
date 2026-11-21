@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 
 export const qrCollections = ['qrCodes'];
-export const qrTypes = ['url', 'form', 'store', 'blog', 'webinar', 'whatsapp', 'phone', 'email', 'sms'];
+export const qrTypes = ['url', 'form', 'store', 'blog', 'webinar', 'review', 'whatsapp', 'phone', 'email', 'sms'];
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : '';
@@ -35,6 +35,7 @@ export function qrTarget(s, qr, { base, workspace }) {
     const key = { form: 'forms', store: 'stores', blog: 'blogs', webinar: 'webinars' }[qr.type];
     return s[key]?.some(item => item.id === qr.targetId && item.active) ? base + path : '';
   }
+  if (qr.type === 'review') return `${base}/avaliar/${workspace}`;
   const text = encodeURIComponent(qr.message || '');
   if (qr.type === 'whatsapp') return `https://wa.me/${digits(qr.phone)}${qr.message ? `?text=${text}` : ''}`;
   if (qr.type === 'phone') return `tel:+${digits(qr.phone)}`;

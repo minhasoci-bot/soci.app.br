@@ -1,3 +1,4 @@
+import { reputationScreen } from './reputation.js';
 import {brandHighlight, brandIcon, icon as i, shcLayers} from './icons.js';
 import {tr, getLanguage} from './i18n.js';
 import {phoneField} from './phone-input.js';
@@ -22,6 +23,7 @@ import {portalAdminScreen, portalTabs} from './client-portal.js';
 import {coursesScreen} from './courses.js';
 import {communitiesScreen} from './communities.js';
 import {offersScreen} from './offers.js';
+import { certificatesScreen } from './certificates.js';
 import {documentsScreen} from './documents.js';
 import {estimatesScreen} from './estimates.js';
 import {invoicesScreen, invoiceTabs} from './invoices.js';
@@ -29,10 +31,14 @@ import {paymentSettingsScreen} from './payment-settings.js';
 import {emailServicesView} from './email-services.js';
 import {emailMarketingScreen} from './email-marketing.js';
 import {countdownScreen} from './countdowns.js';
+import { affiliatesScreen } from './affiliates.js';
+import { adsReportScreen, adsScreen, reportingAdsTabs } from './ads.js';
+import { brandScreen } from './brand.js';
+import { contactScoreCell, scoringScreen, trackingScreen } from './tracking.js';
 import {ordersScreenFor, orderTabsKeys} from './orders.js';
 import {catalogScreen, catalogTabs} from './catalog.js';
 import {pranchetaScreen} from './prancheta.js';
-import {reportEditor, reportList, reportSources} from './reports.js';
+import {reportEditor, reportList, reportSources, reportingSections} from './reports.js';
 import {cardFields, opportunityPreferences, opportunityResults} from './opportunity-data.js';
 import {opportunityStatuses} from './dashboard-data.js';
 import {cardContext, filterButton, forecastView, listTabs, moreMenu, pipelinesView, quickActionBar, smartTagChips, stageStyle} from './opportunities.js';
@@ -97,7 +103,7 @@ function contacts(c){
   if(['bulk','fields','companies'].includes(c.tab)) return contactsTab(c,c.tab);
   const tab=c.tab||'all', list=tab==='tasks'?top(c.s.tasks,c.query,['title']):top(c.s.contacts,c.query,['name','email','phone','company','tags']);
   const tag=c.tag, tags=[...new Set(c.s.contacts.flatMap(x=>x.tags))].sort();
-  const body = `<div class="toolbar">${search(c.query,tab==='tasks'?'Buscar tarefas…':'Busca rápida…')}${tab==='all'?`<label class="tag-filter">${i('filter',15)}<select id="tag-filter" aria-label="Filtrar contatos por tag"><option value="">Todas as tags</option>${tags.map(t=>`<option ${t===tag?'selected':''}>${h(t)}</option>`).join('')}</select></label>`:''}</div>`+(tab==='tasks'?table(['Tarefa','Contato','Prazo','Status',''],list.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),date(r.due,c),`<button class="pill-button ${r.done?'completed':''}" data-task="${r.id}">${r.done?'Concluída':'Em aberto'}</button>`],'tasks',r.id)),empty('Nenhuma tarefa encontrada','Adicione uma tarefa para acompanhar os retornos.','check')):(()=>{const shown=list.filter(r=>!tag||r.tags.includes(tag));return bulkBar(c,'contacts')+table([pickHead('contacts',shown.map(r=>r.id)),'Nome','Telefone','E-mail','Empresa','Tags',''],shown.map(r=>row([pickBox('contacts',r.id),`<button class="identity" data-edit="contacts" data-id="${r.id}">${avatar(r.name)}<strong>${h(r.name)}</strong></button>`,h(r.phone||'—'),h(r.email||'—'),h(r.company||'—'),r.tags.map(t=>badge(t,'blue')).join(' ')||'—'],'contacts',r.id)),empty('Nenhum contato encontrado','Crie um contato ou tente outro filtro.','contacts'))})());
+  const body = `<div class="toolbar">${search(c.query,tab==='tasks'?'Buscar tarefas…':'Busca rápida…')}${tab==='all'?`<label class="tag-filter">${i('filter',15)}<select id="tag-filter" aria-label="Filtrar contatos por tag"><option value="">Todas as tags</option>${tags.map(t=>`<option ${t===tag?'selected':''}>${h(t)}</option>`).join('')}</select></label>`:''}</div>`+(tab==='tasks'?table(['Tarefa','Contato','Prazo','Status',''],list.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),date(r.due,c),`<button class="pill-button ${r.done?'completed':''}" data-task="${r.id}">${r.done?'Concluída':'Em aberto'}</button>`],'tasks',r.id)),empty('Nenhuma tarefa encontrada','Adicione uma tarefa para acompanhar os retornos.','check')):(()=>{const shown=list.filter(r=>!tag||r.tags.includes(tag));return bulkBar(c,'contacts')+table([pickHead('contacts',shown.map(r=>r.id)),'Nome','Telefone','E-mail','Empresa','Pontuação','Tags',''],shown.map(r=>row([pickBox('contacts',r.id),`<button class="identity" data-edit="contacts" data-id="${r.id}">${avatar(r.name)}<strong>${h(r.name)}</strong></button>`,h(r.phone||'—'),h(r.email||'—'),h(r.company||'—'),contactScoreCell(r),r.tags.map(t=>badge(t,'blue')).join(' ')||'—'],'contacts',r.id)),empty('Nenhum contato encontrado','Crie um contato ou tente outro filtro.','contacts'))})());
   return pageShell({
     title: 'Contatos',
     desc: 'Gerencie leads, tarefas, campos personalizados e empresas deste workspace.',
@@ -241,7 +247,10 @@ function payments(c){
 }
 function marketing(c){
   const t=c.tab||'social';
-  const marketingTabs = [['social','Planejador social'],['email','E-mails'],['countdown','Contadores']];
+  const marketingTabs = [['social','Planejador social'],['email','E-mails'],['countdown','Contadores'],['affiliates','Afiliados'],['ads','Anúncios'],['brand','Marca']];
+  if(t==='affiliates') return affiliatesScreen(c,{ marketingTabs });
+  if(t==='ads') return adsScreen(c,{ marketingTabs });
+  if(t==='brand') return brandScreen(c,{ marketingTabs });
   if(t==='social') return socialPlanner(c,{ pageShell, utabs, marketingTabs });
   if(t==='countdown') return countdownScreen(c,{ marketingTabs });
   return emailMarketingScreen(c,{ marketingTabs });
@@ -265,20 +274,18 @@ function sites(c){
   });
 }
 function memberships(c){
-  return ['courses','course'].includes(c.tab) ? coursesScreen(c) : ['communities','community'].includes(c.tab) ? communitiesScreen(c) : c.tab === 'offers' ? offersScreen(c) : portalAdminScreen(c);
+  return ['courses','course'].includes(c.tab) ? coursesScreen(c) : ['communities','community'].includes(c.tab) ? communitiesScreen(c) : c.tab === 'offers' ? offersScreen(c) : c.tab === 'certificates' ? certificatesScreen(c) : portalAdminScreen(c);
 }
 function media(c){
   return wrap(head('Mídia Drive','Guarde imagens e PDFs no drive local.',action('Enviar arquivo','upload','upload'))+`<div class="toolbar">${search(c.query,'Buscar arquivos…')}</div><div class="card-grid">${top(c.s.files,c.query,['name']).map(r=>`<article class="surface resource media-card"><div class="media-preview">${r.data.startsWith('data:image/')?`<img src="${h(r.data)}" alt="">`:`${i('folder',44)} <b>PDF</b>`}</div><div class="media-name"><h2>${h(r.name)}</h2><button class="icon-btn" data-file="${r.id}" title="Baixar" aria-label="Baixar ${h(r.name)}">${i('download',16)}</button><button class="icon-btn" data-delete="files" data-id="${r.id}" title="Remover" aria-label="Remover ${h(r.name)}">${i('trash',16)}</button></div></article>`).join('')||empty('Nenhum arquivo enviado','Adicione uma imagem ou PDF do seu computador.','folder')}</div>`);
-}
-function reputation(c){
-  return wrap(head('Reputação','Leia e responda às avaliações guardadas neste workspace.',primary('Adicionar avaliação','reviews'))+`<div class="metrics three"><div class="surface metric"><span>Nota média</span><b>${c.m.average.toFixed(1)} <small> / 5</small></b></div><div class="surface metric"><span>Total de avaliações</span><b>${c.m.reviews}</b></div><div class="surface metric"><span>Aguardando resposta</span><b>${c.s.reviews.filter(x=>!x.reply).length}</b></div></div>`+table(['Avaliador','Nota','Avaliação','Resposta',''],[...c.s.reviews].reverse().map(r=>row([`<b>${h(r.author)}</b>`,badge(`${r.score} / 5`,'pink'),`<span class="ellipsis">${h(r.text)}</span>`,`<span class="ellipsis">${h(r.reply||'—')}</span>`],'reviews',r.id)),empty('Nenhuma avaliação registrada','Adicione uma avaliação para acompanhar o feedback localmente.','award')));
 }
 function reporting(c){
   const view=c.tab || 'reports';
   if (view === 'reports') return reportList(c);
   if (view === 'new') return reportSources(c);
   if (view === 'editor') return reportEditor(c);
-  const tabCfg = { key: 'reporting', items: [['reports','Relatórios'],['overview','Visão geral'],['snapshots','Relatórios do painel']], current: view, label: 'Seções de relatórios' };
+  if (reportingAdsTabs.includes(view)) return adsReportScreen(c, { sections: reportingSections });
+  const tabCfg = { key: 'reporting', items: reportingSections, current: view, label: 'Seções de relatórios' };
   if (view==='snapshots') return pageShell({
     title: 'Relatórios',
     desc: 'Cópias salvas a partir dos seus painéis de métricas.',
@@ -378,6 +385,7 @@ function googleSubView(c){
     <div class="inline-gap"><button class="secondary" data-act="google-connect">Trocar conta Google</button><button class="secondary" data-act="google-disconnect">Desconectar</button></div>`,true);
 }
 function settings(c){
+  if(['tracking','scoring'].includes(c.tab)){ const tabs={ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') }; return c.tab==='tracking'?trackingScreen(c,tabs):scoringScreen(c,tabs); }
   if(c.tab&&!['business','workspaces','whatsapp','abacatepay','google','email'].includes(c.tab)) return settingsTab(c,c.tab);
   const p=c.s.profile;
   const tab = c.tab || 'business';
@@ -390,7 +398,7 @@ function settings(c){
     content: body
   });
 }
-export const screens={launchpad,'ask-ai':dashboard,dashboard,conversations,calendars,contacts,opportunities,automation:automationScreen,payments,marketing,sites,memberships,media,reputation,reporting,settings,studio,'ai-agents':agentsScreen,prancheta:()=>pageShell({title:'Prancheta',desc:'A ferramenta de prancheta foi movida para a visão da agência.',cta:'<a class="primary" href="#agency/prancheta">Ir para Prancheta da Agência</a>',content:empty('Ferramenta da Agência','A Prancheta Criativa agora está centralizada no menu da sua agência.','palette')})};
+export const screens={launchpad,'ask-ai':dashboard,dashboard,conversations,calendars,contacts,opportunities,automation:automationScreen,payments,marketing,sites,memberships,media,reputation:reputationScreen,reporting,settings,studio,'ai-agents':agentsScreen,prancheta:()=>pageShell({title:'Prancheta',desc:'A ferramenta de prancheta foi movida para a visão da agência.',cta:'<a class="primary" href="#agency/prancheta">Ir para Prancheta da Agência</a>',content:empty('Ferramenta da Agência','A Prancheta Criativa agora está centralizada no menu da sua agência.','palette')})};
 export { date, empty, name, primary, row, search, table };
 
 export function publicView(data,workspace){

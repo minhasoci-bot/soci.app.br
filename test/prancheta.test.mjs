@@ -187,9 +187,9 @@ test('Prancheta: Send to Social Planner creates draft post with exported media',
   assert.equal(ws.socialPosts.length, 1);
   const post = ws.socialPosts[0];
   assert.equal(post.id, result.postId);
-  assert.equal(post.status, 'Draft');
-  assert.equal(post.channel, 'Instagram');
-  assert.equal(post.body, 'Confira a dica de hoje para acelerar seu negócio digital.');
+  assert.equal(post.status, 'draft', 'a Social Planner draft');
+  assert.deepEqual(post.accountIds, []);
+  assert.equal(post.summary, 'Confira a dica de hoje para acelerar seu negócio digital.');
   assert.equal(post.media.length, 1);
   assert.equal(post.media[0].fileId, result.fileId);
 });

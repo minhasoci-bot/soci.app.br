@@ -1,5 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { memberCourse, memberCourseCard } from './course-model.mjs';
+import { courseOutline, memberCourse, memberCourseCard } from './course-model.mjs';
+import { gradeQuiz } from './course-learning.mjs';
+import { courseAnalytics, courseSummaries } from './course-analytics.mjs';
 
 const fail = (message, status = 400) => { throw Object.assign(Error(message), { status }); };
 const text = (value, limit) => typeof value === 'string' ? value.trim().slice(0, limit) : '';
@@ -58,8 +60,10 @@ function person(doc, address) {
 
 export function makeClientPortal({
   store, mailKey = process.env.RESEND_API_KEY, from = process.env.PORTAL_EMAIL_FROM,
-  publicOrigin = process.env.PORTAL_PUBLIC_ORIGIN, request = fetch
+  publicOrigin = process.env.PORTAL_PUBLIC_ORIGIN, request = fetch, onCourseActivity = null, loadState = null
 }) {
+  // The workspace again after a credential was issued (the server gives the loader; tests may not).
+  const reload = async (workspace, state) => loadState ? loadState(workspace) : state;
   let mailOrigin;
   try {
     const url = new URL(publicOrigin);
@@ -161,6 +165,38 @@ export function makeClientPortal({
       return { ...issued, accessPath };
     }
 
+    if (action === 'course-analytics') {
+      const doc = await load(workspace) || blankPortal(), courseId = text(input.courseId, 60);
+      if (!courseId) return { summaries: courseSummaries(state, doc) };
+      const course = state.courses.find(row => row.id === courseId) || fail('Curso não encontrado.', 404);
+      const days = [7, 30, 90, 365].includes(Number(input.days)) ? Number(input.days) : 30;
+      return { analytics: courseAnalytics(state, course, doc, { days }) };
+    }
+    if (action === 'submissions') {
+      const doc = await load(workspace) || blankPortal();
+      return { submissions: submissionsOf(state, doc, text(input.courseId, 60)) };
+    }
+    if (action === 'grade') {
+      const status = input.status === 'approved' ? 'approved' : input.status === 'revise' ? 'revise' : fail('Escolha aprovar ou pedir ajustes.');
+      const courseId = text(input.courseId, 60), lessonId = text(input.lessonId, 60);
+      let graded = null;
+      const result = await change(workspace, doc => {
+        const member = doc.members.find(row => row.id === input.memberId) || fail('Cliente não encontrado.', 404);
+        const row = member.assignments?.[courseId]?.[lessonId] || fail('Entrega não encontrada.', 404);
+        Object.assign(row, { status, feedback: text(input.feedback, 2000), gradedAt: new Date().toISOString() });
+        member.progress ||= {};
+        const done = member.progress[courseId] ||= {};
+        if (status === 'approved') done[lessonId] ||= new Date().toISOString(); else delete done[lessonId];
+        graded = { member, lessonId, status };
+        return { submissions: submissionsOf(state, doc, courseId) };
+      });
+      const lesson = lessonOf(state, courseId, lessonId);
+      const course = state.courses.find(row => row.id === courseId);
+      if (course && status === 'approved' && memberCourse(state, course, graded.member).progress.percent === 100 && credentialDue(state, graded.member, course, 'certificate')) await issue(workspace, graded.member, course, 'completed');
+      await onCourseActivity?.(workspace, { event: 'graded', status, courseId, lessonId, lessonTitle: lesson?.title || '', email: graded.member.email, name: graded.member.name, contactId: graded.member.contactId || '' });
+      return result;
+    }
+
     return change(workspace, doc => {
       if (action === 'settings') {
         const color = text(input.color, 8);
@@ -217,6 +253,28 @@ export function makeClientPortal({
     return session && doc.members.find(row => row.id === session.memberId && !row.revokedAt);
   }
 
+  // Badge when the student first opens a course, certificate when it reaches 100% (only what is still missing).
+  const credentialDue = (state, member, course, kind) => course.credentials?.[kind]?.enabled
+    && !(state.credentialsIssued || []).some(row => row.kind === kind && row.courseId === course.id && row.memberId === member.id && !row.revokedAt);
+  const issue = (workspace, member, course, event) => onCourseActivity?.(workspace, { event, courseId: course.id, memberId: member.id, email: member.email, name: member.name, contactId: member.contactId || '' });
+  const lessonOf = (state, courseId, lessonId) => {
+    const course = state.courses.find(row => row.id === courseId);
+    return course && courseOutline(course).flatMap(module => module.lessons).find(lesson => lesson.id === lessonId);
+  };
+  // Assignment deliveries for the team: newest first, with the student and the lesson.
+  function submissionsOf(state, doc, courseId = '') {
+    const out = [];
+    for (const member of doc.members || []) for (const [course, lessons] of Object.entries(member.assignments || {})) {
+      if (courseId && course !== courseId) continue;
+      for (const [lessonId, row] of Object.entries(lessons)) {
+        const lesson = lessonOf(state, course, lessonId);
+        if (!lesson) continue;
+        out.push({ memberId: member.id, name: member.name || member.email, email: member.email, courseId: course, lessonId, lesson: lesson.title, graded: lesson.assignment?.graded !== false, ...row });
+      }
+    }
+    return out.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 500);
+  }
+
   function grantedCourse(state, member, courseId) {
     const course = state.courses.find(row => row.id === courseId && row.active && member.courseIds.includes(row.id));
     if (!course) fail('Curso indisponível para este cliente.', 404);
@@ -235,29 +293,69 @@ export function makeClientPortal({
       return { ...base, signedIn: false };
     }
     if (courseId) {
-      return { ...base, signedIn: true, member: { name: member.name }, course: memberCourse(state, grantedCourse(state, member, courseId), member, { lessonId }) };
+      const course = grantedCourse(state, member, courseId);
+      if (credentialDue(state, member, course, 'badge')) {
+        await issue(workspace, member, course, 'opened');
+        state = await reload(workspace, state);
+      }
+      return { ...base, signedIn: true, member: { name: member.name }, course: memberCourse(state, course, member, { lessonId }) };
     }
     const courses = state.courses.filter(course => course.active && member.courseIds.includes(course.id));
     return { ...base, signedIn: true, member: { name: member.name }, courses: courses.map(course => memberCourseCard(state, course, member)) };
   }
 
   // Marks one lesson as done (or not) for the signed-in member and returns the refreshed course.
+  // Quizzes and assignments complete through their own submission, never by "mark as done".
   async function progress(workspace, state, token, courseId, input) {
-    if (typeof input?.lessonId !== 'string' || typeof input.done !== 'boolean') fail('Informe a aula.', 400);
+    const action = ['quiz', 'assignment'].includes(input?.action) ? input.action : 'done';
+    if (typeof input?.lessonId !== 'string' || (action === 'done' && typeof input.done !== 'boolean')) fail('Informe a aula.', 400);
+    let activity = null;
+    const finished = {};
     try {
-      return await store.change(portalId(workspace), doc => {
+      const result = await store.change(portalId(workspace), doc => {
         requireEnabled(doc);
         const member = signedMember(doc, token);
         if (!member) fail('Entre no portal para acessar sua aula.', 401);
         const course = grantedCourse(state, member, courseId);
         memberCourse(state, course, member, { lessonId: input.lessonId });
+        const lesson = lessonOf(state, courseId, input.lessonId);
+        finished.member = structuredClone(member);
         member.progress ||= {};
         const done = member.progress[courseId] ||= {};
-        if (input.done) done[input.lessonId] ||= new Date().toISOString();
-        else delete done[input.lessonId];
+        const who = { email: member.email, name: member.name, contactId: member.contactId || '', courseId, lessonId: lesson.id, lessonTitle: lesson.title };
+        if (action === 'done') {
+          if (['quiz', 'assignment'].includes(lesson.kind)) fail(lesson.kind === 'quiz' ? 'Responda o quiz para concluir esta aula.' : 'Envie a tarefa para concluir esta aula.', 409);
+          if (input.done) done[input.lessonId] ||= new Date().toISOString();
+          else delete done[input.lessonId];
+        } else if (action === 'quiz') {
+          if (lesson.kind !== 'quiz') fail('Esta aula não é um quiz.');
+          const graded = gradeQuiz(lesson, input.answers);
+          const attempts = ((member.quizzes ||= {})[courseId] ||= {}), prior = attempts[lesson.id];
+          attempts[lesson.id] = { ...graded, at: new Date().toISOString(), count: (prior?.count || 0) + 1, best: Math.max(prior?.best || 0, graded.score) };
+          if (graded.passed) done[lesson.id] ||= new Date().toISOString();
+          activity = { ...who, event: 'quiz', score: graded.score, passed: graded.passed };
+        } else {
+          if (lesson.kind !== 'assignment') fail('Esta aula não é uma tarefa.');
+          const body = text(input.text, 5000), link = text(input.link, 600);
+          if (!body && !link) fail('Escreva sua resposta ou envie um link.');
+          if (link && !/^https:\/\/[^\s"'<>]+$/i.test(link)) fail('O link precisa começar com https://.');
+          const deliveries = ((member.assignments ||= {})[courseId] ||= {}), prior = deliveries[lesson.id];
+          if (prior?.status === 'approved') fail('Esta tarefa já foi aprovada.', 409);
+          deliveries[lesson.id] = { text: body, link, at: new Date().toISOString(), status: lesson.assignment.graded ? 'submitted' : 'approved', feedback: '', count: (prior?.count || 0) + 1 };
+          if (!lesson.assignment.graded) done[lesson.id] ||= new Date().toISOString();
+          activity = { ...who, event: 'assignment' };
+        }
         return { ...view(workspace, doc, state), signedIn: true, member: { name: member.name },
           course: memberCourse(state, course, member, { lessonId: input.lessonId }) };
       });
+      if (activity) await onCourseActivity?.(workspace, activity);
+      const course = state.courses.find(row => row.id === courseId);
+      if (result.course?.progress.percent === 100 && credentialDue(state, finished.member, course, 'certificate')) {
+        await issue(workspace, finished.member, course, 'completed');
+        const fresh = await reload(workspace, state);
+        result.course = { ...result.course, certificate: memberCourse(fresh, course, finished.member, { lessonId: input.lessonId }).certificate };
+      }
+      return result;
     } catch (error) {
       if (error.status === 404 && error.message === 'Workspace not found.') fail('Entre no portal para acessar sua aula.', 401);
       throw error;

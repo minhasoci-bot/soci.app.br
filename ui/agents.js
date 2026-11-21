@@ -4,6 +4,8 @@ import {
   agentDraft, agentFieldNames, agentIcons, agentLimits, agentResources, agentRevision, agentTemplates, changedAgentFields,
   memoryKinds, triggerGroups, triggerLabel, triggerType, triggerTypes
 } from './agents-data.js';
+import { agentHubScreen, hubTabs } from './agent-hub.js';
+import { kbLimits } from './ai-data.js';
 
 const timeFormat = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
 const dayFormat = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' });
@@ -17,6 +19,7 @@ const listState = { query: '', folder: '', sort: 'updated' };
 const chats = new Map();
 const builderLogs = new Map();
 const view = { side: 'activity', memory: 'person', focusDescribe: false };
+let workspaceBases = [];
 
 function tone(text) {
   let sum = 0;
@@ -93,6 +96,12 @@ function listPane(agents, selectedId) {
       <select data-agent-sort aria-label="Ordenar agentes"><option value="updated">Atualizados recentemente</option><option value="name" ${listState.sort === 'name' ? 'selected' : ''}>Nome (A–Z)</option></select>
     </div>
     <nav class="ags-items" data-agent-items aria-label="Lista de agentes">${listItems(agents, selectedId)}</nav>
+    <nav class="ags-hub-links" aria-label="Mais do estúdio">
+      <a href="#ai-agents/knowledge">${icon('book', 15)} Bases de conhecimento</a>
+      <a href="#ai-agents/templates">${icon('copy', 15)} Modelos</a>
+      <a href="#ai-agents/logs">${icon('list', 15)} Logs</a>
+      <a href="#ai-agents/usage">${icon('chart', 15)} Uso de IA</a>
+    </nav>
   </aside>`;
 }
 
@@ -106,7 +115,7 @@ function templateCard(template) {
   </button>`;
 }
 
-function homeMain(model) {
+function homeMain(model, custom = []) {
   return `<div class="ags-home">
     <div class="ags-hero">
       <span class="ags-hero-icon">${icon('spark', 22)}</span>
@@ -123,6 +132,8 @@ function homeMain(model) {
     <div class="ags-or"><span>ou</span></div>
     <h3 class="ags-section-title">Comece por um caso de uso</h3>
     <p class="dim ags-section-text">Gatilhos e recursos já configurados. Edite o que quiser depois de escolher.</p>
+    ${custom.length ? `<h3 class="ags-section-title">Modelos da subconta</h3><div class="ags-templates">${custom.map(templateCard).join('')}</div>
+    <h3 class="ags-section-title">Modelos da soci</h3>` : ''}
     <div class="ags-templates">${agentTemplates.map(templateCard).join('')}</div>
   </div>`;
 }
@@ -246,7 +257,7 @@ function studioView(c, selected) {
   const agents = c.s.agents;
   const model = c.features?.agentModel;
   const folders = [...new Set(agents.map(agent => agent.folder).filter(Boolean))];
-  let main = homeMain(model);
+  let main = homeMain(model, c.s.agentTemplatesCustom || []);
   if (selected) {
     const key = chatKey(c.workspace, selected.id);
     if (!chats.has(key)) chats.set(key, { version: 'draft', messages: [], log: [], config: '' });
@@ -313,10 +324,16 @@ function configFields(agent) {
         ${agentResources.map(([key, label, text, ico]) => `<label class="resource-toggle"><span class="resource-icon">${icon(ico, 15)}</span>
           <span class="resource-text"><b>${label}</b><small>${text}</small></span>
           <input type="checkbox" role="switch" name="res-${key}" ${draft.resources[key] ? 'checked' : ''}></label>`).join('')}</div></div>
-      <div class="editor-row"><span class="editor-label">Base de conhecimento</span><div class="editor-value">
+      <div class="editor-row"><span class="editor-label">Fontes do agente</span><div class="editor-value">
         <div class="agent-sources" data-agent-sources>${draft.knowledge.map(sourceFields).join('')}</div>
         <button type="button" class="editor-add" data-agent-add-source>${icon('plus', 14)} Adicionar fonte</button>
         <small class="dim" data-agent-source-count></small></div></div>
+      <div class="editor-row"><span class="editor-label">Bases da subconta</span><div class="editor-value editor-bases">
+        ${workspaceBases.length ? workspaceBases.map(base => `<label class="resource-toggle"><span class="resource-icon">${icon('book', 15)}</span>
+          <span class="resource-text"><b>${h(base.name)}</b><small>${base.sources.length} ${base.sources.length === 1 ? 'fonte' : 'fontes'}${base.description ? ` · ${h(base.description)}` : ''}</small></span>
+          <input type="checkbox" name="kb" value="${h(base.id)}" ${draft.bases.includes(base.id) ? 'checked' : ''}></label>`).join('')
+          : '<small class="dim">Nenhuma base criada nesta subconta.</small>'}
+        <small class="dim">O agente recebe só os trechos ligados a cada pergunta, até ${kbLimits.agentBases} bases. <a class="text-link" href="#ai-agents/knowledge">Gerenciar bases</a></small></div></div>
       <div class="editor-row stacked"><label class="editor-label" for="agent-instructions">Instruções</label><div class="editor-value">
         <textarea id="agent-instructions" name="instructions" required rows="18" maxlength="${agentLimits.instructions}">${h(draft.instructions)}</textarea>
         <small class="dim" data-agent-count></small></div></div>
@@ -365,6 +382,8 @@ function editorView(agent, model, workspace) {
 
 export function agentsScreen(c) {
   const agents = c.s.agents;
+  workspaceBases = c.s.knowledgeBases || [];
+  if (hubTabs.includes(c.tab)) return agentHubScreen(c);
   if (c.tab === 'edit') {
     const agent = agents.find(item => item.id === c.agentId);
     return agent ? editorView(agent, c.features?.agentModel, c.workspace)
@@ -654,6 +673,7 @@ function mountEditor({ root, workspace, model, agent, request, updateAgent }) {
       knowledge: [...sources().children].map(source => ({
         title: source.querySelector('input').value.trim(), text: source.querySelector('textarea').value.trim()
       })),
+      bases: [...form.querySelectorAll('[name=kb]:checked')].map(input => input.value),
       triggers: triggers.map(({ type, value }) => (value ? { type, value } : { type })),
       subagents: [...form.querySelectorAll('.agent-subagent')].map(item => ({
         name: item.querySelector('[name=subName]').value.trim(),

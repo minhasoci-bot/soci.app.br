@@ -1,0 +1,36 @@
+/* Content AI: the IA button beside editor fields and its action menu. */
+.ai-wrap { position: relative; }
+.ai-wrap > .ai-tool { position: absolute; top: -2px; right: 0; }
+.ai-tool {
+  display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px;
+  border: 1px solid var(--g-brand-line, var(--g-line)); border-radius: 999px;
+  background: color-mix(in srgb, var(--g-brand) 8%, var(--g-surface)); color: color-mix(in srgb, var(--g-brand) 78%, var(--g-ink));
+  font-size: 12px; font-weight: 700; line-height: 1; cursor: pointer;
+}
+.ai-tool:hover, .ai-tool[aria-expanded="true"] { background: color-mix(in srgb, var(--g-brand) 16%, var(--g-surface)); border-color: var(--g-brand); }
+.ai-tool:focus-visible { outline: 2px solid var(--g-brand); outline-offset: 2px; }
+.bl-tools .ai-tool { align-self: center; margin-right: 6px; }
+
+.ai-menu {
+  position: absolute; z-index: 1000; display: grid; gap: 2px; padding: 6px;
+  border: 1px solid var(--g-line); border-radius: 12px; background: var(--g-surface);
+  box-shadow: var(--g-shadow-lift, 0 12px 32px rgb(0 0 0 / .14));
+}
+.ai-menu[hidden] { display: none; }
+.ai-menu > button, .ai-menu-tone > button {
+  padding: 7px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--g-ink);
+  font-size: 13.5px; font-weight: 600; text-align: left; cursor: pointer;
+}
+.ai-menu > button:hover, .ai-menu > button:focus-visible, .ai-menu-tone > button:hover, .ai-menu-tone > button:focus-visible { background: var(--g-surface-2); outline: none; }
+.ai-menu-scope { padding: 4px 10px 6px; color: var(--g-dim); font-size: 11.5px; font-weight: 700; }
+.ai-menu-tone { display: flex; gap: 6px; align-items: center; margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--g-line); }
+.ai-menu-tone select { flex: 1; min-width: 0; height: 32px; font-size: 13px; }
+.ai-menu-tone > button { flex: none; }
+.ai-menu-msg { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 13.5px; }
+.ai-menu-msg.error { color: var(--g-orange-ink, #b4431b); }
+.ai-menu-row { display: flex; gap: 6px; padding: 0 6px 6px; }
+.ai-spinner { width: 14px; height: 14px; border: 2px solid var(--g-line); border-top-color: var(--g-brand); border-radius: 50%; animation: ai-spin .8s linear infinite; }
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ai-spinner { animation: none; } }
+
+.em-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

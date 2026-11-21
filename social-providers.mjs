@@ -188,12 +188,42 @@ async function blueskySession(secret) {
   try { const r = await call(`${pds()}/xrpc/com.atproto.server.refreshSession`, { method: 'POST', token: secret.refresh }); return { ...secret, token: r.accessJwt, refresh: r.refreshJwt }; }
   catch { const [fresh] = await blueskyLogin(secret.identifier, secret.password); return fresh.secret; }
 }
-function facets(text) {
+/** Rich-text facets: links, #hashtags and @mentions (handles that resolve to an account). */
+export async function facets(text) {
   const enc = new TextEncoder(), out = [];
   const byteAt = i => enc.encode(text.slice(0, i)).length;
   for (const m of text.matchAll(/https?:\/\/[^\s)]+/g)) out.push({ index: { byteStart: byteAt(m.index), byteEnd: byteAt(m.index + m[0].length) }, features: [{ $type: 'app.bsky.richtext.facet#link', uri: m[0] }] });
   for (const m of text.matchAll(/(^|\s)#([\p{L}\p{N}_]{1,60})/gu)) { const start = m.index + m[1].length; out.push({ index: { byteStart: byteAt(start), byteEnd: byteAt(start + m[2].length + 1) }, features: [{ $type: 'app.bsky.richtext.facet#tag', tag: m[2] }] }); }
+  const handles = [...text.matchAll(/(^|[\s(])@([a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)+)/gi)].slice(0, 20);
+  for (const m of handles) {
+    const handle = m[2].replace(/[.-]+$/, ''), start = m.index + m[1].length;
+    const did = await call(`${pds()}/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(handle.toLowerCase())}`).then(r => r.did).catch(() => '');
+    if (did) out.push({ index: { byteStart: byteAt(start), byteEnd: byteAt(start + handle.length + 1) }, features: [{ $type: 'app.bsky.richtext.facet#mention', did }] });
+  }
   return out;
+}
+const metaTag = (html, name) => {
+  const tag = [...html.matchAll(/<meta\b[^>]*>/gi)].map(([t]) => t).find(t => new RegExp(`\\b(property|name)=["']${name}["']`, 'i').test(t));
+  return (tag?.match(/\bcontent=["']([^"']*)["']/i)?.[1] || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+};
+/** Link card for a URL: page title, description and a thumbnail blob. Any failure leaves a plain card. */
+async function linkCard(url, token) {
+  const card = { uri: url, title: url, description: '' };
+  try {
+    const page = await fetcher(url, { headers: { Accept: 'text/html' }, signal: AbortSignal.timeout(8_000), redirect: 'follow' });
+    if (!page.ok || !/html/i.test(page.headers.get('content-type') || '')) return card;
+    const html = (await page.text()).slice(0, 500_000);
+    card.title = (metaTag(html, 'og:title') || html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] || url).trim().slice(0, 300);
+    card.description = (metaTag(html, 'og:description') || metaTag(html, 'description')).slice(0, 1000);
+    const image = metaTag(html, 'og:image');
+    if (/^https?:\/\//i.test(image)) {
+      const r = await fetcher(new URL(image, url).href, { signal: AbortSignal.timeout(8_000) });
+      const type = r.headers.get('content-type') || '';
+      const bytes = r.ok && /^image\//.test(type) ? Buffer.from(await r.arrayBuffer()) : null;
+      if (bytes && bytes.length <= 1_000_000) card.thumb = (await call(`${pds()}/xrpc/com.atproto.repo.uploadBlob`, { method: 'POST', token, headers: { 'Content-Type': type }, body: bytes })).blob;
+    }
+  } catch { /* the card still links */ }
+  return card;
 }
 
 // ---- Publishing ----------------------------------------------------------------------------------
@@ -278,6 +308,13 @@ const publishers = {
       creation = await make({ media_type: 'CAROUSEL', children: children.join(','), text: p.text });
     }
     const id = (await call(`${g}/${uid}/threads_publish`, { method: 'POST', token, json: { creation_id: creation } })).id;
+    if (p.firstComment) {
+      // First comment: a text reply to the new thread, published the same way.
+      try {
+        const reply = await make({ media_type: 'TEXT', text: p.firstComment.slice(0, 500), reply_to_id: id });
+        await call(`${g}/${uid}/threads_publish`, { method: 'POST', token, json: { creation_id: reply } });
+      } catch { /* the post itself went out */ }
+    }
     const link = await call(`${g}/${id}?fields=permalink`, { token }).catch(() => ({}));
     return { ok: true, externalId: id, url: link.permalink || '' };
   },
@@ -331,19 +368,28 @@ const publishers = {
     return { ok: true, externalId: r.id, url: `https://www.pinterest.com/pin/${r.id}/` };
   },
   async bluesky(a, s, p, media) {
-    const record = { $type: 'app.bsky.feed.post', text: p.text, createdAt: new Date().toISOString(), langs: ['pt'], facets: facets(p.text) };
-    const images = media.filter(m => mediaKind(m) === 'image').slice(0, 4);
-    if (media.some(m => mediaKind(m) === 'video')) fail('Vídeos no Bluesky ainda não são suportados pelo planejador.');
-    if (images.length) {
+    const record = { $type: 'app.bsky.feed.post', text: p.text, createdAt: new Date().toISOString(), langs: ['pt'], facets: await facets(p.text) };
+    const images = media.filter(m => mediaKind(m) === 'image').slice(0, 4), video = media.find(m => mediaKind(m) === 'video');
+    const upload = (bytes, type) => call(`${pds()}/xrpc/com.atproto.repo.uploadBlob`, { method: 'POST', token: s.token, headers: { 'Content-Type': type }, body: bytes }).then(r => r.blob);
+    if (video) {
+      // A video goes alone: Bluesky does not mix it with images. The app processes it after posting.
+      const bytes = await video.bytes(); if (bytes.length > 100_000_000) fail('O Bluesky aceita vídeos de até 100 MB.');
+      record.embed = { $type: 'app.bsky.embed.video', video: await upload(bytes, video.mime || 'video/mp4'), alt: String(video.alt || '').slice(0, 1000) };
+    } else if (images.length) {
       const list = [];
       for (const m of images) {
         const bytes = await m.bytes(); if (bytes.length > 1_000_000) fail('O Bluesky aceita imagens de até 1 MB.');
-        const blob = await call(`${pds()}/xrpc/com.atproto.repo.uploadBlob`, { method: 'POST', token: s.token, headers: { 'Content-Type': m.mime || 'image/jpeg' }, body: bytes });
-        list.push({ alt: '', image: blob.blob });
+        list.push({ alt: String(m.alt || '').slice(0, 1000), image: await upload(bytes, m.mime || 'image/jpeg') });
       }
       record.embed = { $type: 'app.bsky.embed.images', images: list };
-    } else if (p.link) record.embed = { $type: 'app.bsky.embed.external', external: { uri: p.link, title: p.link, description: '' } };
-    const r = await call(`${pds()}/xrpc/com.atproto.repo.createRecord`, { method: 'POST', token: s.token, json: { repo: a.externalId, collection: 'app.bsky.feed.post', record } });
+    } else if (p.link) record.embed = { $type: 'app.bsky.embed.external', external: await linkCard(p.link, s.token) };
+    const create = rec => call(`${pds()}/xrpc/com.atproto.repo.createRecord`, { method: 'POST', token: s.token, json: { repo: a.externalId, collection: 'app.bsky.feed.post', record: rec } });
+    const r = await create(record);
+    if (p.firstComment) {
+      // The first comment is a reply to the post itself (root and parent are the same).
+      const ref = { uri: r.uri, cid: r.cid };
+      await create({ $type: 'app.bsky.feed.post', text: p.firstComment.slice(0, 300), createdAt: new Date().toISOString(), langs: ['pt'], facets: await facets(p.firstComment.slice(0, 300)), reply: { root: ref, parent: ref } }).catch(() => null);
+    }
     return { ok: true, externalId: r.uri, url: `https://bsky.app/profile/${a.externalId}/post/${r.uri.split('/').pop()}` };
   }
 };

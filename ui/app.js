@@ -18,6 +18,9 @@ import { topbar } from './topbar.js';
 import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm.js';
 import { socialEvents } from './social.js';
 import { mountAgentScreen } from './agents.js';
+import { mountAgentHub } from './agent-hub.js';
+import { installContentAI } from './content-ai.js';
+import { installReputation, reputationTabs } from './reputation.js';
 import { afterSitesRender, installSites } from './sites.js';
 import { afterFormsRender, installForms } from './forms.js';
 import { installChat } from './chat-widgets.js';
@@ -33,12 +36,17 @@ import { installClientPortal } from './client-portal.js';
 import { installCourses } from './courses.js';
 import { installCommunities } from './communities.js';
 import { installOffers } from './offers.js';
+import { installCertificates } from './certificates.js';
 import { afterDocumentsRender, installDocuments } from './documents.js';
 import { installEstimates } from './estimates.js';
 import { installInvoices, invoiceTabs } from './invoices.js';
 import { installPaymentSettings } from './payment-settings.js';
 import { installEmailMarketing, emailTabs } from './email-marketing.js';
 import { installCountdowns } from './countdowns.js';
+import { installAffiliates } from './affiliates.js';
+import { installAds } from './ads.js';
+import { installBrand } from './brand.js';
+import { contactScore, installTracking } from './tracking.js';
 import { installOrders } from './orders.js';
 import { installCatalog } from './catalog.js';
 import { installPrancheta } from './prancheta.js';
@@ -112,7 +120,7 @@ async function refreshSubWa(){
 c.dash = dashboardPreferences(c.workspace);
 c.pipeline = '';
 c.studio = { brief:'',template:'landing',project:'' };
-let toastTimer, modalReturn, busy=false, renderedView='', editor, mountClientPortal, mountCommunities;
+let toastTimer, modalReturn, busy=false, renderedView='', editor, mountClientPortal, mountCommunities, mountCourses;
 const G=s=>document.querySelector(s);
 const url=path=>`${path}?workspace=${encodeURIComponent(c.workspace)}`;
 function flash(msg,isError=false){ clearTimeout(toastTimer);toast.className=isError?'issue':'success';toast.textContent=msg;toastTimer=setTimeout(()=>{toast.className='';toast.textContent='';},4600); }
@@ -152,7 +160,7 @@ const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social',...emailTabs,'countdown','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers'],reporting:['reports','overview','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],'ai-agents':['agent','edit'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social',...emailTabs,'countdown','affiliates','ads','brand','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers','certificates'],reporting:['reports','attribution','google-ads','meta-ads','overview','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],reputation:reputationTabs,'ai-agents':['agent','edit','knowledge','base','templates','logs','usage'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -227,7 +235,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   c.view=view;c.tab=nextTab;c.automationId=automationId;c.studio.project=project||'';
   c.reportId=view==='reporting'&&nextTab==='editor'?project||'':'';
   c.emailId=view==='marketing'&&['email-campaign','email-template','email-report'].includes(nextTab)?project||'':'';
-  c.agentId=view==='ai-agents'&&['agent','edit'].includes(nextTab)?project:'';
+  c.agentId=view==='ai-agents'&&['agent','edit','base'].includes(nextTab)?project:'';
   if(view==='launchpad'){ render(); if(allowedView('settings')) void refreshSubWa(); return; }
   if(view==='settings'&&nextTab==='whatsapp'){ render(); void refreshSubWa(); return; }
   stopSubWaPoll();
@@ -300,7 +308,21 @@ function render(){
   if(c.view==='studio' || (c.view==='sites' && ['editor','build'].includes(c.tab))) afterStudioRender();
   if(c.view==='sites') { afterSitesRender(); afterFormsRender(); }
   if(c.view==='payments'&&c.tab==='document') afterDocumentsRender();
-  if(c.view==='memberships') { mountClientPortal?.(); mountCommunities?.(); }
+  if(c.view==='memberships') { mountClientPortal?.(); mountCommunities?.(); mountCourses?.(); }
+  const aiHub = G('[data-ai-hub]');
+  if (aiHub) {
+    const workspace = c.workspace;
+    mountAgentHub({
+      root: aiHub, flash, rerender: () => { if (c.workspace === workspace && c.view === 'ai-agents') render(); },
+      state: () => c.s,
+      request: (operation, data) => api(`/api/ai/${operation}?workspace=${encodeURIComponent(workspace)}`, data),
+      async createAgent(template) {
+        const { agent } = await api(`/api/agents/create?workspace=${encodeURIComponent(workspace)}`, { template });
+        if (c.workspace === workspace) c.s.agents.push(agent);
+        location.hash = `#ai-agents/edit/${encodeURIComponent(agent.id)}`;
+      }
+    });
+  }
   const agentScreen = G('[data-agent-screen]');
   if (agentScreen?.dataset.agentId && editor?.id === agentScreen.dataset.agentId && editor.workspace === c.workspace) {
     agentScreen.replaceWith(editor.root);
@@ -388,7 +410,7 @@ function edit(key,id,preset={}){
   const entry=c.s[key]?.find(r=>r.id===id); if(id&&!entry)return;
   const r=entry||preset; let body='';
   switch(key){
-    case 'contacts':body=input('Nome completo','name',r.name,true)+`<div class="field-grid">${input('E-mail','email',r.email,false,'email')}${input('Telefone','phone',r.phone,false,'tel')}</div>`+`<label>Empresa<input name="company" list="crm-companies" value="${h(r.company||'')}"></label><datalist id="crm-companies">${c.s.companies.map(x=>`<option value="${h(x.name)}">`).join('')}</datalist>`+input('Tags (separadas por vírgula)','tags',r.tags?.join(', '))+area('Notas','notes',r.notes)+customInputs(c,'Contact',r)+(id?`<div class="inline-gap"><button type="button" class="secondary" data-start-thread="${id}">${i('chat',16)} Abrir conversa</button><button type="button" class="secondary" data-edit="tasks" data-contact="${id}">${i('plus',16)} Nova tarefa</button></div>`:'');break;
+    case 'contacts':body=input('Nome completo','name',r.name,true)+`<div class="field-grid">${input('E-mail','email',r.email,false,'email')}${input('Telefone','phone',r.phone,false,'tel')}</div>`+`<label>Empresa<input name="company" list="crm-companies" value="${h(r.company||'')}"></label><datalist id="crm-companies">${c.s.companies.map(x=>`<option value="${h(x.name)}">`).join('')}</datalist>`+input('Tags (separadas por vírgula)','tags',r.tags?.join(', '))+area('Notas','notes',r.notes)+customInputs(c,'Contact',r)+contactScore(r)+(id?`<div class="inline-gap"><button type="button" class="secondary" data-start-thread="${id}">${i('chat',16)} Abrir conversa</button><button type="button" class="secondary" data-edit="tasks" data-contact="${id}">${i('plus',16)} Nova tarefa</button></div>`:'');break;
     case 'tasks':body=input('Título','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices(),false)+input('Prazo','due',r.due?r.due.slice(0,10):'',false,'date')+input('Responsável','owner',r.owner)+area('Notas','notes',r.notes)+check('Concluída','done',r.done);break;
     case 'opportunities': {
       const pipelineId = c.s.stages.find(stage => stage.id === r.stage)?.pipelineId ||
@@ -1077,15 +1099,22 @@ if(viewPath){
   installBuilder({ c, api, url, flash, render });
   installAutomation({ c, mutate, render, flash, dialog, close });
   mountClientPortal = installClientPortal({ c, api, flash, dialog, close });
-  installCourses({ c, mutate, flash, dialog, close, render });
+  mountCourses = installCourses({ c, api, url, mutate, flash, dialog, close, render });
   mountCommunities = installCommunities({ c, api, mutate, flash, dialog, close, render });
   installOffers({ c, api, mutate, flash, dialog, close, render });
+  installCertificates({ c, mutate, flash, dialog, close, render });
   installDocuments({ c, api, mutate, flash, dialog, close, render });
   installEstimates({ c, api, mutate, flash, dialog, close, render });
   installInvoices({ c, api, mutate, flash, dialog, close, render });
   installPaymentSettings({ c, mutate, flash, render });
   installEmailMarketing({ c, mutate, flash, dialog, close, render, api, url, load });
+  installReputation({ c, api, url, mutate, flash, dialog, close, render });
+  installContentAI({ api, flash, workspace: () => c.workspace, enabled: kind => Boolean(c.features?.contentAI || (kind === 'gbp' && c.features?.reviewAI)) });
   installCountdowns({ c, mutate, flash, dialog, close, render });
+  installAffiliates({ c, api, url, mutate, flash, dialog, close, render });
+  installAds({ c, api, url, mutate, flash, dialog, close, render });
+  installBrand({ c, api, url, mutate, flash, dialog, close, render });
+  installTracking({ c, mutate, flash, dialog, close, render });
   installOrders({ c, mutate, flash, dialog, close, render });
   installCatalog({ c, mutate, flash, dialog, close, render });
   installPrancheta({

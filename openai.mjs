@@ -77,6 +77,16 @@ async function openAIRequest(path, { apiKey, request, body, timeout, problem }) 
   return result;
 }
 
-export function openAIResponse(body, { apiKey, request, timeout, problem }) {
-  return openAIRequest('/responses', { apiKey, request, timeout, problem, body: { ...body, store: false } });
+// `onUsage`, when the caller meters AI spend, receives the model and token counts of every call,
+// including failed ones (with zero tokens and the error message).
+export async function openAIResponse(body, { apiKey, request, timeout, problem, onUsage }) {
+  const started = Date.now();
+  try {
+    const result = await openAIRequest('/responses', { apiKey, request, timeout, problem, body: { ...body, store: false } });
+    await onUsage?.({ model: result.model || body.model, usage: result.usage || {}, ms: Date.now() - started });
+    return result;
+  } catch (error) {
+    await onUsage?.({ model: body.model, usage: {}, ms: Date.now() - started, error: error.message });
+    throw error;
+  }
 }

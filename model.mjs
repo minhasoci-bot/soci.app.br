@@ -7,7 +7,10 @@ import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashb
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
 import { afterSave, beforeDelete, bulk, crmCollections, crmFields, customData } from './crm-model.mjs';
 import { inboxRule } from './ui/inbox-data.js';
-import { socialBeforeDelete, socialCollections, socialCommand, socialFields } from './social-model.mjs';
+import { saveTracking, trackingCollections, trackingDefaults, trackingEvent, trackingOf } from './tracking.mjs';
+import { applyScoring, changeScore, scoringCollections, scoringFields } from './scoring-model.mjs';
+import { adCollections, adDefaults, adSettingsOf, attributionSnapshot, recordAttribution, saveAdSettings } from './ads-model.mjs';
+import { socialBeforeDelete, socialCollections, socialCommand, socialFields, workflowPost } from './social-model.mjs';
 import { chatBeforeDelete, chatCollections, chatCommand, chatFields } from './chat-model.mjs';
 import { blogBeforeDelete, blogCollections, blogFields, blogView } from './blog-model.mjs';
 import { storeAfterSave, storeBeforeDelete, storeCheckout, storeCollections, storeFields } from './store-model.mjs';
@@ -15,10 +18,20 @@ import { webinarBeforeDelete, webinarCollections, webinarCommand, webinarFields 
 import { qrCollections, qrFields, qrScan } from './qr-model.mjs';
 import { courseFields } from './course-model.mjs';
 import { communityCollections, communityFields } from './community.mjs';
+import { communityEventBeforeDelete, communityEventCollections, communityEventCommand, communityEventFields } from './community-events.mjs';
+import { communityCommand } from './community-config.mjs';
+import { courseActivityCommand } from './course-learning.mjs';
+import { courseOfferBeforeDelete, credentialCollections } from './course-credentials.mjs';
+import { certificateBeforeDelete, certificateCollections, certificateFields, credentialCommand, issueFromTemplate } from './certificate-model.mjs';
 import { offerBeforeDelete, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
 import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
+import { directories } from './ui/gbp-data.js';
+import { brandCollections, brandFields } from './brand-model.mjs';
+import { addAffiliateFromContact, affiliateClick, affiliateCollections, affiliateDefaults, affiliateFields, affiliateSettings, affiliateSignup, attributeContacts, issuePortalToken, recordPayout, reviewCommission, saveAffiliateSettings, settleAffiliates } from './affiliate-model.mjs';
+import { acceptVideoChunk, finishVideoUpload, mediaCollections, mediaFields, startVideoUpload } from './reputation-media.mjs';
+import { createReviewRequest, deliver as deliverReviewRequest, importGoogleReviews, openReviewRequest, reputationCollections, saveListing, reputationDefaults, reputationOf, saveReputation, sendReviewRequests, submitReview as submitWorkspaceReview } from './reputation-model.mjs';
 import { documentAfterSave, documentBeforeDelete, documentCollections, documentCommand, documentFields, sendTemplateDocument } from './document-model.mjs';
 import { catalogAfterSave, catalogBeforeDelete, catalogCollections, catalogCommand, catalogFields, submitReview, workflowInventory } from './catalog-model.mjs';
 import { captureCart, checkoutBeforeDelete, checkoutCollections, checkoutCommand, checkoutConverted, checkoutFields, checkoutTick, restoreCart } from './checkout-model.mjs';
@@ -33,12 +46,17 @@ export const defaults = {
   stages: [{ id: 'new', name: 'New Lead' }, { id: 'qualified', name: 'Qualified' }, { id: 'proposal', name: 'Proposal' }, { id: 'won', name: 'Won', visible:false }].map(stage => ({ ...stage, pipelineId:salesPipeline })),
   contacts: [], tasks: [], opportunities: [], messages: [], appointments: [], workflows: [], runs: [], invoices: [],
   workflowFolders: [], workflowLists: [], deletedWorkflows: [],
-  campaigns: [], pages: [], forms: [], submissions: [], courses: [], files: [], reviews: [], agents: [], agentRuns: [], integrations: [],
+  campaigns: [], pages: [], forms: [], submissions: [], courses: [], files: [], reviews: [], agents: [], agentRuns: [], knowledgeBases: [], agentTemplatesCustom: [], integrations: [],
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[], pranchetaFiles:[],
-  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...offerCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...credentialCollections, ...certificateCollections, ...offerCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
   paymentSettings: paymentDefaults(),
+  ai: { limit: 0, alertAt: 0.8, ledger: [] },
+  adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
+  tracking: trackingDefaults(), trackingEvents: [], scoringRules: [],
+  brandBoards: [], affiliateSettings: affiliateDefaults(), affiliateCampaigns: [], affiliates: [], affiliateCommissions: [], affiliatePayouts: [],
+  reputation: reputationDefaults(), listings: {}, reviewRequests: [], reviewWidgets: [], videoCollectors: [], videoTestimonials: [], videoUploads: [],
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
 export const blank = name => ({ ...structuredClone(defaults), profile: { ...defaults.profile, ...(name ? { name } : {}) } });
@@ -46,8 +64,15 @@ export function hydrateWorkspace(state) {
   const fresh = blank();
   state.customReports ??= [];
   state.paymentSettings ??= paymentDefaults();
+  state.ai ??= { limit: 0, alertAt: 0.8, ledger: [] };
+  state.ai.ledger ??= [];
+  reputationOf(state);
+  state.listings ??= {};
+  affiliateSettings(state);
+  adSettingsOf(state);
+  trackingOf(state);
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...affiliateCollections,...adCollections,...trackingCollections,...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...credentialCollections,...certificateCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -129,6 +154,7 @@ const fields = {
   },
   ...crmFields,
   ...socialFields,
+  ...scoringFields,
   ...chatFields,
   ...blogFields,
   ...storeFields,
@@ -155,6 +181,8 @@ const fields = {
   forms: (s,d) => formRecord(s,d),
   ...courseFields,
   ...communityFields,
+  ...communityEventFields,
+  ...certificateFields,
   ...offerFields,
   ...documentFields,
   ...estimateFields,
@@ -164,6 +192,9 @@ const fields = {
   ...catalogFields,
   reviews: (s,d) => ({ author: req(d.author,'Author'), score: one(Number(d.score),[1,2,3,4,5],'rating'), text: req(d.text,'Review',2500), reply: str(d.reply,2500) }),
   files: (s,d) => ({ name: req(d.name,'File name'), data: file(d.data) }),
+  ...mediaFields,
+  ...affiliateFields,
+  ...brandFields,
   agents: (s,d) => ({ name: req(d.name,'Agent name'), role: one(d.role,['Support','Sales','Scheduling'],'role'), instructions: str(d.instructions,5000), active: Boolean(d.active) }),
   snippetFolders: (s,d) => ({ name: req(d.name, 'Folder name', 100) }),
   snippets: (s,d) => {
@@ -215,11 +246,29 @@ function linkDestination(value) {
 
 // Workflows run on workflow-engine.mjs. The old event names are still accepted here.
 let engineWorkspace = 'demo';
-const engine = createEngine({ add, now, sendDocument: (state, contact, config, depth = 0) =>
+const queue = (s, item) => { s.workflowOutbox ??= []; s.workflowOutbox.push({ id: uid(), created: now(), ...item }); if (s.workflowOutbox.length > 500) s.workflowOutbox.splice(0, s.workflowOutbox.length - 500); };
+const engine = createEngine({ add, now,
+  // "Pedir avaliação" in a workflow: a personal review link, the message in Conversations and the delivery.
+  makeAffiliate: (state, contact, campaignId) => addAffiliateFromContact(state, contact, campaignId, { emit: (st, event, ctx) => engine.emit(st, event, ctx) }),
+  requestReview: (state, contact, channel, run) => {
+    const made = createReviewRequest(state, engineWorkspace, contact, channel, { source: 'workflow', runId: run.id });
+    return deliverReviewRequest(state, made, contact, channel, reputationOf(state), { add, outbox: queue, runId: run.id, workflowId: run.workflowId });
+  },
+  sendDocument: (state, contact, config, depth = 0) =>
   sendTemplateDocument(state, engineWorkspace, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })),
   sendEstimate: (state, contact, config, depth = 0) => sendEstimateCopy(state, engineWorkspace, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })),
   sendInvoice: (state, contact, config, depth = 0) => sendTemplateInvoice(state, engineWorkspace, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })),
   updateInventory: state => (config) => workflowInventory(state, config),
+  createSocialPost: (state, config, text) => workflowPost(state, config, text, { add }),
+  // "Emitir certificado/badge": one credential from a template for the workflow's contact.
+  issueCredential: (state, contact, templateId, subject, kind, depth = 0) => {
+    const template = (state.certificateTemplates || []).find(row => row.id === templateId && row.kind === kind);
+    if (!template) return null;
+    return issueFromTemplate(state, template, contact, subject, { add, run: (st, event, ctx) => engine.emit(st, event, { ...ctx, depth: depth + 1 }), source: 'workflow' });
+  },
+  // Lead scoring: every event passes the scoring rules; workflows adjust the score through the same path.
+  onEvent: (state, type, ctx, { matches }) => applyScoring(state, type, ctx, { matches, emit: (st, event, c) => engine.emit(st, event, c) }),
+  adjustScore: (state, contact, delta, reason, depth = 0) => changeScore(state, contact, delta, reason, { emit: (st, event, c) => engine.emit(st, event, c), depth }),
   startRecurring: (state, contact, config, depth = 0) => startTemplateRecurring(state, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })) });
 const legacyEvents = { 'Contact created': 'contact_created', 'Form submitted': 'form_submitted', 'Opportunity stage changed': 'pipeline_stage_changed',
   'Appointment booked': 'appointment_booked', 'Trigger link clicked': 'trigger_link_clicked', 'Customer replied': 'customer_replied' };
@@ -235,6 +284,8 @@ function run(state, event, context = {}) {
     if (form?.kind === 'quiz') engine.emit(state, 'quiz_submitted', ctx);
   }
 }
+/** Workflow events from outside a command (the social scheduler, for one). */
+export const emitWorkflow = (state, event, ctx = {}) => run(state, event, ctx);
 const enroll = (state, workflow, event, contactId = '') => engine.enroll(state, workflow, { contactId, depth: 1 }, event);
 const finishManualAction = (state, id, data) => engine.finishManual(state, id, data, one, str);
 
@@ -266,7 +317,21 @@ export function metrics(s) {
   const open = s.opportunities.filter(v=>v.status==='Open'), won = s.opportunities.filter(v=>v.status==='Won');
   return { contacts:s.contacts.length, open:open.length, openValue:open.reduce((n,r)=>n+r.value,0), won:won.length, wonValue:won.reduce((n,r)=>n+r.value,0), appointments:s.appointments.filter(a=>a.status!=='Canceled').length, invoicesPaid:s.invoices.filter(i=>i.status==='Paid').reduce((n,r)=>n+r.value,0), unread:s.messages.filter(m=>!m.read).length, reviews:s.reviews.length, average:s.reviews.length ? s.reviews.reduce((n,r)=>n+r.score,0)/s.reviews.length : 0 };
 }
-export function execute(s, command, { workspace = 'demo', trackClick = true } = {}) {
+// Every command: contacts created by a referred visitor are attributed to the affiliate, then paid
+// invoices become commissions (see affiliate-model.mjs).
+export function execute(s, command, options = {}) {
+  const before = options.affiliate ? new Set(s.contacts.map(row => row.id)) : null;
+  // Public commands carry the visitor's first and last touch (an empty object for a direct visit).
+  const sources = options.attribution ? attributionSnapshot(s) : null;
+  const result = executeCommand(s, command, options);
+  const emit = (st, event, ctx) => engine.emit(st, event, ctx);
+  if (before) attributeContacts(s, before, options.affiliate, { emit });
+  if (sources) recordAttribution(s, sources, options.attribution, { emit });
+  settleAffiliates(s, { emit });
+  return result;
+}
+
+function executeCommand(s, command, { workspace = 'demo', trackClick = true } = {}) {
   const { type, key, id, data:d = {} } = command;
   engineWorkspace = workspace;
   if (!d || typeof d!=='object' || Array.isArray(d)) fail('Invalid record data.');
@@ -299,10 +364,30 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'invoice-tick') return invoiceTick(s, d.at ? Date.parse(d.at) : Date.now(), { workspace, run });
   if (type === 'workflow-hook') return engine.inbound(s, str(d.workflowId, 40), str(d.triggerId, 40), d.payload && typeof d.payload === 'object' ? d.payload : {});
   if (type === 'workflow-outbox-take') { const items = s.workflowOutbox || []; s.workflowOutbox = []; return items; }
+  if (type === 'ad-settings') { saveAdSettings(s, d); return 'ok'; }
+  if (type === 'tracking-settings') { saveTracking(s, d); return 'ok'; }
+  if (type === 'tracking-event') return trackingEvent(s, d, { add, run, now });
+  if (type === 'affiliate-settings') return saveAffiliateSettings(s, d);
+  if (type === 'affiliate-portal-link') return issuePortalToken(s, str(id, 40));
+  if (type === 'affiliate-signup') return affiliateSignup(s, d, { emit: (st, event, ctx) => engine.emit(st, event, ctx) });
+  if (type === 'affiliate-click') return affiliateClick(s, d);
+  if (type === 'commission-review') return reviewCommission(s, str(id, 40), d);
+  if (type === 'affiliate-payout') return recordPayout(s, d, { add });
+  if (type === 'reputation-settings') return saveReputation(s, d);
+  if (type === 'gbp-reviews-import') return importGoogleReviews(s, d, { add, emit: (st, event, ctx) => engine.emit(st, event, ctx) });
+  if (type === 'listing-save') return saveListing(s, d, directories);
+  if (type === 'review-visibility') { const review = find(s, 'reviews', id) || fail('Avaliação não encontrada.', 404); review.hidden = d.hidden === true; review.updated = now(); return review.id; }
+  if (type === 'video-start') return startVideoUpload(s, str(id, 40), d);
+  if (type === 'video-chunk') return acceptVideoChunk(s, str(id, 40), d);
+  if (type === 'video-finish') return finishVideoUpload(s, str(id, 40), d, { emit: (st, event, ctx) => engine.emit(st, event, ctx) });
+  if (type === 'review-request') return sendReviewRequests(s, workspace, d, { add, outbox: queue });
+  if (type === 'review-open') return Boolean(openReviewRequest(s, str(d.tokenHash, 64)));
+  if (type === 'review-submit') return submitWorkspaceReview(s, { ...d, tokenHash: str(d.tokenHash, 64) }, { add, emit: (st, event, ctx) => engine.emit(st, event, ctx) });
+  if (type === 'workflow-ai-result') return (Array.isArray(d.results) ? d.results.slice(0, 200) : []).filter(item => engine.aiResult(s, item)).length;
   if (type === 'workflow-outbox-result') {
     for (const item of Array.isArray(d.results) ? d.results.slice(0, 500) : []) {
       const target = find(s, 'runs', item?.runId);
-      if (target) target.results.push(`${item.kind === 'whatsapp' ? 'WhatsApp' : 'Webhook'}: ${str(item.text, 120)}`);
+      if (target) target.results.push(`${({ whatsapp: 'WhatsApp', email: 'E-mail' })[item.kind] || 'Webhook'}: ${str(item.text, 120)}`);
       const doc = item?.docId ? find(s, 'documents', item.docId) : item?.estimateId ? find(s, 'estimates', item.estimateId) : item?.invoiceId ? find(s, 'invoices', item.invoiceId) : item?.checkoutId ? (s.abandonedCheckouts || []).find(row => row.id === item.checkoutId) : item?.giftCardId ? (s.giftCards || []).find(row => row.id === item.giftCardId) : null;
       if (doc) (doc.audit ||= []).push({ at: now(), event: 'delivered', detail: str(item.text, 200) });
     }
@@ -364,6 +449,10 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'chat-start' || type === 'chat-send') return chatCommand(s, { ...command, data:d }, { add, now, run });
   if (type === 'blog-view') return blogView(s, id);
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
+  if (typeof type === 'string' && type.startsWith('community-event-')) return communityEventCommand(s, { ...command, data:d }, { add, run, now });
+  if (['community-plan-invoice', 'community-welcome', 'community-newsletter'].includes(type)) return communityCommand(s, { ...command, data:d }, { add, run, now });
+  if (type === 'course-activity') return courseActivityCommand(s, { ...command, data:d }, { add, run });
+  if (type === 'credential-issue' || type === 'credential-revoke') return credentialCommand(s, { ...command, data:d }, { add, run });
   if (typeof type === 'string' && type.startsWith('document-')) return documentCommand(s, { ...command, data:d }, { workspace, run });
   if (typeof type === 'string' && type.startsWith('estimate-')) return estimateCommand(s, { ...command, data:d }, { workspace, run });
   if (typeof type === 'string' && type.startsWith('email-')) return emailCommand(s, { ...command, data:d }, { run, add });
@@ -436,12 +525,11 @@ export function execute(s, command, { workspace = 'demo', trackClick = true } = 
       size: Math.round(dataUri.length * 0.75),
       type: 'image/png'
     });
+    // A draft in the Social Planner's own shape, ready to pick accounts and schedule.
     const post = add(s, 'socialPosts', {
-      body: str(d.body || existing?.name || 'Arte criada na Prancheta soci', 2000),
-      channel: 'Instagram',
-      scheduledAt: d.scheduledAt || now(),
-      status: 'Draft',
-      media: [{ fileId: file.id, name: file.name, type: 'image' }]
+      type: 'post', summary: str(d.body || existing?.name || 'Arte criada na Prancheta soci', 2000), overrides: {}, accountIds: [],
+      media: [{ fileId: file.id, name: file.name, type: 'image' }], link: '', firstComment: '', location: '', userTags: '', categoryId: '', tags: [],
+      needsApproval: false, source: 'post', scheduleDate: '', recurrence: null, status: 'draft', approval: '', results: [], createdBy: 'Prancheta', error: ''
     });
     return { fileId: file.id, postId: post.id };
   }
@@ -580,6 +668,9 @@ function remove(s, key, id) {
     storeBeforeDelete(s, key, id);
     webinarBeforeDelete(s, key, id);
     offerBeforeDelete(s, key, id);
+    communityEventBeforeDelete(s, key, id);
+    courseOfferBeforeDelete(s, key, id);
+    certificateBeforeDelete(s, key, id);
     documentBeforeDelete(s, key, id);
     estimateBeforeDelete(s, key, id);
     invoiceBeforeDelete(s, key, id);

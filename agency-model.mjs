@@ -1,3 +1,5 @@
+import { usageSummary } from './ui/ai-data.js';
+import { desktopDefaults, publishDesktop, saveDesktop } from './agency-desktop.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { defaults, metrics, uid, now } from './model.mjs';
 import { hydrateProspecting } from './prospecting-model.mjs';
@@ -54,7 +56,7 @@ export function blankAgency() {
     affiliate: { accepted: false, steps: {}, code: '', payout: { method: 'PayPal', email: '' }, payments: [] },
     learning: { completed: [] },
     mobileApp: { appName: 'My Agency', primary: '#1570ef', accent: '#12b76a', loginTitle: 'Welcome back', hidden: [], order: mobileModules.map(m => m[0]), custom: [] },
-    desktopApp: { appName: 'My Agency', primary: '#1570ef', domain: '' },
+    desktopApp: desktopDefaults(),
     integrations: {},
     billing: { plan: 'Starter', wallet: [], autoRecharge: { enabled: false, threshold: 10, amount: 25 } },
     systemEmails: Object.fromEntries(systemEmailKeys.map(([key, , subject, body]) => [key, { subject, body }])),
@@ -470,8 +472,13 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       return 'mobile';
     }
     case 'desktop-app': {
-      Object.assign(state.desktopApp, { appName: req(d.appName, 'App name', 40), primary: color(d.primary), domain: str(d.domain, 200).toLowerCase() });
+      saveDesktop(state, d);
       log('Desktop app settings saved', state.desktopApp.appName);
+      return 'desktop';
+    }
+    case 'desktop-app-publish': {
+      const app = publishDesktop(state);
+      log('Desktop app published', `${app.appName} v${app.version}`);
       return 'desktop';
     }
     case 'integration': {
@@ -765,6 +772,7 @@ export function agencyOverview(agency, workspaces) {
       address: meta.address || '', phone: meta.phone || state.profile.phone || '', website: meta.website || '', email: state.profile.email,
       currency: state.profile.currency, contacts: m.contacts, open: m.open, openValue: m.openValue, won: m.won, wonValue: m.wonValue,
       invoicesPaid: m.invoicesPaid, appointments: m.appointments, workflows: state.workflows.length, runs: state.runs.length, files: state.files.length, storage,
+      aiCost: usageSummary(state.ai).cost, aiLimit: Number(state.ai?.limit) || 0,
       resold: resold.map(p => p.key)
     };
   });
@@ -785,7 +793,7 @@ export function agencyOverview(agency, workspaces) {
       newThisMonth: accounts.filter(a => a.created && monthKey(a.created) === thisMonth).length,
       mrr, resale: live.reduce((s, a) => s + resale(a), 0), resaleProfit: live.reduce((s, a) => s + profit(a), 0),
       contacts: accounts.reduce((s, a) => s + a.contacts, 0), open: accounts.reduce((s, a) => s + a.open, 0), runs: accounts.reduce((s, a) => s + a.runs, 0),
-      storage: accounts.reduce((s, a) => s + a.storage, 0), affiliateDue: Math.round(affiliateDue * 100) / 100, wallet: Math.round(wallet * 100) / 100,
+      storage: accounts.reduce((s, a) => s + a.storage, 0), aiCost: Math.round(accounts.reduce((s, a) => s + a.aiCost, 0) * 1e6) / 1e6, affiliateDue: Math.round(affiliateDue * 100) / 100, wallet: Math.round(wallet * 100) / 100,
       snapshots: agency.snapshots.length, prospects: agency.prospects.length
     },
     growth
