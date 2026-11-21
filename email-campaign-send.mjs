@@ -18,8 +18,11 @@ export function campaignMessage({ workspace, item, campaign, business, from, pub
   const urls = origin ? trackingUrls(origin, workspace, item.token) : null;
   const values = mergeValues(item.contact, { name: business });
   const variant = campaign[item.variant === 'B' ? 'B' : 'A'];
+  // Countdown GIFs carry the send time, so an evergreen timer counts from when this e-mail went out.
+  const sentAt = Math.floor(Date.now() / 1000);
   const { html, text } = renderEmail({ blocks: campaign.blocks, style: campaign.style, preheader: fillText(variant.preheader, values), business, values,
-    link: (url, index) => urls ? urls.click(index) : url, pixel: urls?.pixel || '', unsubscribe: urls?.unsubscribe || '' });
+    link: (url, index) => urls ? urls.click(index) : url, pixel: urls?.pixel || '', unsubscribe: urls?.unsubscribe || '',
+    countdownSrc: origin ? id => `${origin}/cd/${workspace}/${id}.gif?s=${sentAt}` : null });
   return {
     from: `${name(campaign.fromName) || name(business) || 'Soci'} <${from}>`, to: [item.email], subject: fillText(variant.subject, values).slice(0, 250) || '(sem assunto)', html, text,
     ...(campaign.replyTo ? { reply_to: campaign.replyTo } : {}),

@@ -87,7 +87,7 @@ function load(c, kind) {
   return row;
 }
 
-function blockEditor(b, i, count, open) {
+function blockEditor(b, i, count, open, timers = []) {
   const label = BLOCK_TYPES.find(([type]) => type === b.type)?.[1] || b.type;
   const align = (value, def = 'left') => `<select data-em-b="align" data-i="${i}">${[['left', 'Esquerda'], ['center', 'Centro'], ['right', 'Direita']].map(([v, l]) => `<option value="${v}"${(value || def) === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
   const input = (prop, value, attrs = '') => `<input data-em-b="${prop}" data-i="${i}" value="${h(value ?? '')}" ${attrs}>`;
@@ -98,6 +98,10 @@ function blockEditor(b, i, count, open) {
   if (b.type === 'image') body = field('Endereço da imagem (https)', input('src', b.src, 'type="url" placeholder="https://…/imagem.jpg"'), 'Use uma imagem pública, como as da Mídia Drive ou do seu site.') + `<div class="em-two">${field('Texto alternativo', input('alt', b.alt, 'maxlength="200"'))}${field('Link ao clicar', input('url', b.url, 'type="url" placeholder="https:// (opcional)"'))}</div><div class="em-two">${field('Largura (%)', input('width', b.width, 'type="number" min="20" max="100" step="5"'))}${field('Alinhamento', align(b.align, 'center'))}</div>`;
   if (b.type === 'spacer') body = field('Altura (px)', input('height', b.height, 'type="number" min="8" max="80" step="4"'));
   if (b.type === 'divider') body = '<p class="dim">Uma linha fina separa as seções.</p>';
+  if (b.type === 'countdown') body = timers.length
+    ? field('Contador', `<select data-em-b="timerId" data-i="${i}"><option value="">Escolha um contador…</option>${timers.map(t => `<option value="${h(t.id)}"${t.id === b.timerId ? ' selected' : ''}>${h(t.name)}</option>`).join('')}</select>`,
+        'A imagem anima por 1 minuto a partir de quando o e-mail é aberto. Contadores “evergreen” contam a partir do envio.') + field('Alinhamento', align(b.align, 'center'))
+    : '<p class="dim">Nenhum contador criado ainda. <a class="text-link" href="#marketing/countdown">Criar em Marketing → Contadores</a>.</p>';
   const summary = b.type === 'text' ? String(b.text || '').split('\n')[0] : b.type === 'heading' ? b.text : b.type === 'button' ? b.label : b.type === 'image' ? b.alt || b.src : '';
   return `<li class="em-block${open ? ' open' : ''}"><div class="em-block-head"><button type="button" class="em-block-toggle" data-em-act="toggle" data-i="${i}" aria-expanded="${open}"><b>${h(label)}</b><span class="dim ellipsis">${h(summary || '')}</span></button>
     <span class="inline-gap"><button type="button" class="icon-btn" data-em-act="up" data-i="${i}" ${i === 0 ? 'disabled' : ''} title="Subir" aria-label="Subir bloco">${icon('arrowUp', 14)}</button><button type="button" class="icon-btn" data-em-act="down" data-i="${i}" ${i === count - 1 ? 'disabled' : ''} title="Descer" aria-label="Descer bloco">${icon('arrowDown', 14)}</button><button type="button" class="icon-btn" data-em-act="remove" data-i="${i}" title="Remover" aria-label="Remover bloco">${icon('trash', 14)}</button></span></div>
@@ -106,7 +110,8 @@ function blockEditor(b, i, count, open) {
 
 function preview(c) {
   const d = ed.draft, values = sampleValues(c);
-  const { html } = renderEmail({ blocks: d.blocks, style: d.style, preheader: fillText(d.preheader, values), business: c.s.profile?.name, values, unsubscribe: '#', keepUnknown: true });
+  const { html } = renderEmail({ blocks: d.blocks, style: d.style, preheader: fillText(d.preheader, values), business: c.s.profile?.name, values, unsubscribe: '#', keepUnknown: true,
+    countdownSrc: id => (c.s.countdownTimers || []).some(t => t.id === id) ? `${location.origin}/cd/${c.workspace}/${id}.gif` : '' });
   return { html, subject: fillText(d.subject, values, true), from: d.fromName || c.s.profile?.name || 'Soci' };
 }
 const previewHead = p => `<p><b>De:</b> ${h(p.from)}</p><p><b>Assunto:</b> ${h(p.subject || 'Sem assunto')}</p>`;
@@ -134,7 +139,7 @@ function editor(c, ctx, kind) {
       ${chips}<p class="dim"><small>O endereço de envio é o domínio da subconta em <a class="text-link" href="#settings/email">Configurações → Serviços de e-mail</a> ou, sem ele, o da plataforma.</small></p></section>`;
   const style = `<section class="surface padded em-section"><h2>Estilo</h2><div class="em-colors">${[['background', 'Fundo'], ['card', 'Conteúdo'], ['text', 'Texto'], ['accent', 'Destaque']].map(([k, l]) => field(l, `<input type="color" data-em-style="${k}" value="${h(d.style[k])}">`)).join('')}
       ${field('Fonte', `<select data-em-style="font">${FONTS.map(([v, l]) => `<option value="${h(v)}"${d.style.font === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`)}</div></section>`;
-  const blocks = `<section class="surface padded em-section"><h2>Blocos</h2><ol class="em-blocks">${d.blocks.map((b, i) => blockEditor(b, i, d.blocks.length, ed.open === i)).join('')}</ol>
+  const blocks = `<section class="surface padded em-section"><h2>Blocos</h2><ol class="em-blocks">${d.blocks.map((b, i) => blockEditor(b, i, d.blocks.length, ed.open === i, c.s.countdownTimers || [])).join('')}</ol>
       ${d.blocks.length < MAX_BLOCKS ? `<div class="em-add"><span class="dim">Adicionar:</span> ${BLOCK_TYPES.map(([type, label]) => `<button type="button" class="secondary" data-em-act="add" data-type="${type}">${icon('plus', 13)} ${label}</button>`).join('')}</div>` : ''}</section>`;
   const back = camp ? 'email-campaigns' : 'email-templates';
   const actions = `<span class="inline-gap"><button type="button" class="secondary" data-em-act="test">${icon('send', 15)} Enviar teste</button>${camp ? `<button type="button" class="secondary" data-em-act="save-template">Salvar como modelo</button>` : ''}
@@ -144,7 +149,7 @@ function editor(c, ctx, kind) {
     content: `<div class="em-titlebar"><a class="secondary" href="#marketing/${back}">${icon('left', 15)} Voltar</a><input class="em-name" data-em="name" maxlength="120" value="${h(d.name)}" aria-label="Nome"></div>
       <div class="em-editor"><div class="em-side">${settings}${audience}${blocks}${style}</div>
       <div class="em-preview surface padded"><div class="inline-gap em-preview-bar"><b>Prévia</b><span class="em-device">${[['desktop', 'Computador'], ['mobile', 'Celular']].map(([k, l]) => `<button type="button" class="${ed.device === k ? 'active' : ''}" data-em-act="device" data-device="${k}" aria-pressed="${ed.device === k}">${l}</button>`).join('')}</span></div>
-        <div class="em-preview-head" data-em-head>${previewHead(p)}</div><iframe class="em-frame ${ed.device}" title="Prévia do e-mail" sandbox="" data-em-frame srcdoc="${h(p.html)}"></iframe></div></div>` });
+        <div class="em-preview-head" data-em-head>${previewHead(p)}</div><iframe class="em-frame ${ed.device}" title="Prévia do e-mail" sandbox="allow-same-origin" data-em-frame srcdoc="${h(p.html)}"></iframe></div></div>` });
 }
 function reachText(c) {
   const n = reach(c, ed.draft.audience);

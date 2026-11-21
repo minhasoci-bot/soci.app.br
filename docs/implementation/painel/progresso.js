@@ -17,8 +17,8 @@
  */
 window.PLANO_SOCI = {
   titulo: "Paridade Soci × GoHighLevel",
-  atualizadoEm: "2026-11-20 21:23",
-  etapaAtual: "2.5",
+  atualizadoEm: "2026-11-20 21:36",
+  etapaAtual: "3.1",
 
   regras: [
     "Front-end sempre em ui/ (nunca copiar public/ por cima de ui/).",
@@ -107,7 +107,9 @@ window.PLANO_SOCI = {
           entrega: "ui/conversation-analytics.js, ui/conversations.js, ui/app.js, model.mjs, server.mjs, workflow-engine.mjs, ui/workflow-data.js, ui/style.css, test/conversations-analytics.test.mjs, test/platform.test.mjs (sem commit)",
           nota: "Análises ganhou Visão geral (conversas, recebidas, enviadas, primeira resposta mediana e média, % respondida em até 1 h, mensagens por dia, por canal, quem respondeu e quem está esperando, com período e canal) ao lado do Desempenho de SLA. O SLA passou a cobrir WhatsApp, chat do site, Instagram e Facebook além de e-mail e SMS. Links de rastreamento: o link na mensagem agora é absoluto (antes era um caminho relativo, inútil fora do app) e o WhatsApp enviava o código {{trigger_link…}} cru: corrigido para enviar o link do contato; a Análise tem período, enviados, taxa de clique e quem clicou. Respostas rápidas de texto mantêm o canal da conversa (antes forçavam SMS) e ganharam empresa do contato, seu nome e os valores personalizados. Ações manuais: nova ação de fluxo WhatsApp manual (mensagem sugerida editável, enviada pelo WhatsApp da subconta ao concluir) e botão Ligar nas ligações. Telefonia/SMS reais seguem na 2.4 (decisão D1). 244 testes passando." },
         { id: "2.4", titulo: "Telefonia: ligações, chamadas perdidas, relatório de chamadas", status: "bloqueado", ref: "04 §3 Fase 2", nota: "Depende da decisão D1." },
-        { id: "2.5", titulo: "Countdown timers para e-mails e páginas", status: "pendente", ref: "04c §4 (Countdown)" }
+        { id: "2.5", titulo: "Countdown timers para e-mails e páginas", status: "feito", ref: "04c §4 (Countdown)", data: "2026-11-20",
+          entrega: "ui/countdown-data.js, countdown-gif.mjs, ui/countdowns.js, ui/email-blocks.js, ui/email-marketing.js, email-campaign-model.mjs, email-campaign-send.mjs, server.mjs, ui/screens.js, ui/app.js, ui/agency-data.js, ui/style.css, test/countdowns.test.mjs (sem commit)",
+          nota: "Marketing → Contadores: data fixa (no fuso da subconta) ou evergreen (duração contada do envio do e-mail ou da primeira visita à página), modelos Caixas e Minimalista, cores e texto ao terminar, com prévia ao vivo. No e-mail: bloco Contador no construtor, que vira um GIF animado gerado pelo servidor (60 quadros, um por segundo, a partir da abertura; só a área que muda é gravada, ~7 KB; codificador GIF próprio, sem dependência). Nas páginas: código de iframe que conta ao vivo e guarda a primeira visita no navegador. Contador excluído mostra imagem vazia nos e-mails já enviados. Fora por ora: os 9 visuais do GHL (anel, roda, mostrador etc.) e um elemento nativo no construtor de sites. 248 testes passando." }
       ]
     },
     {
@@ -189,6 +191,7 @@ window.PLANO_SOCI = {
   ],
 
   historico: [
+    { data: "2026-11-20", hora: "21:36", texto: "2.5 concluído: contadores com GIF animado para e-mails e iframe para páginas. Fase 2 completa, exceto 2.4 (telefonia, aguardando a decisão D1). Próximo: 3.1 Agent Studio." },
     { data: "2026-11-20", hora: "21:23", texto: "2.3 concluído: análises de conversas, SLA em todos os canais, links de rastreamento absolutos com taxa de clique, respostas rápidas no canal da conversa e ação manual de WhatsApp. 2.4 segue bloqueado (D1). Próximo: 2.5 countdown timers." },
     { data: "2026-11-20", hora: "21:13", texto: "2.2 concluído: construtor de e-mail por blocos, campanhas com envio em lote, rastreio de abertura, clique e descadastro, estatísticas e teste A/B do assunto, com gatilho Evento de e-mail. Próximo: 2.3 analytics de conversas." },
     { data: "2026-11-20", hora: "20:52", texto: "2.1 concluído: domínio de envio próprio por subconta (SPF/DKIM via Resend), com verificação e retorno ao endereço da plataforma se o domínio cair. Próximo: 2.2 construtor de e-mail e campanhas." },

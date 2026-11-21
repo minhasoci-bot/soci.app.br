@@ -73,7 +73,7 @@ Soci: 🟡 `agents.js` / `agent-ai.mjs` existem. Conferir **Voice AI** (atendime
 | Social Planner (FB, IG, LinkedIn, TikTok, YouTube, Pinterest, Threads, Bluesky, GBP, Community; CSV, fila evergreen, post recorrente, RSS) | ✅ base; 🟡 evergreen, recorrente, RSS, Threads/Bluesky |
 | Emails (construtor, campanhas, estatísticas) | ✅ blocos, campanhas, A/B do assunto (sem blocos avançados) |
 | Snippets | ✅ |
-| Countdown Timers | ❌ |
+| Countdown Timers | ✅ GIF para e-mail e iframe para páginas |
 | Trigger Links | ✅ com taxa de clique |
 | Affiliate Manager (dashboard, campanhas, afiliados, pagamentos, mídia, config.) | ❌ (só existe o portal de afiliados da agência) |
 | Brand Boards | ❌ |

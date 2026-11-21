@@ -28,6 +28,7 @@ import {invoicesScreen, invoiceTabs} from './invoices.js';
 import {paymentSettingsScreen} from './payment-settings.js';
 import {emailServicesView} from './email-services.js';
 import {emailMarketingScreen} from './email-marketing.js';
+import {countdownScreen} from './countdowns.js';
 import {ordersScreenFor, orderTabsKeys} from './orders.js';
 import {catalogScreen, catalogTabs} from './catalog.js';
 import {pranchetaScreen} from './prancheta.js';
@@ -240,8 +241,9 @@ function payments(c){
 }
 function marketing(c){
   const t=c.tab||'social';
-  const marketingTabs = [['social','Planejador social'],['email','E-mails']];
+  const marketingTabs = [['social','Planejador social'],['email','E-mails'],['countdown','Contadores']];
   if(t==='social') return socialPlanner(c,{ pageShell, utabs, marketingTabs });
+  if(t==='countdown') return countdownScreen(c,{ marketingTabs });
   return emailMarketingScreen(c,{ marketingTabs });
 }
 function sites(c){

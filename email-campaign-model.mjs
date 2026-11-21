@@ -3,8 +3,10 @@
 // of the subject line (a test group gets A or B; after the wait, the rest gets the winner).
 import { randomBytes } from 'node:crypto';
 import { collectLinks, normalizeDesign } from './ui/email-blocks.js';
+import { normalizeTimer } from './ui/countdown-data.js';
 
-export const emailCollections = ['emailTemplates', 'emailCampaigns'];
+// countdownTimers: Marketing → Contadores, used by the e-mail Contador block and embedded in pages.
+export const emailCollections = ['emailTemplates', 'emailCampaigns', 'countdownTimers'];
 /** Recipients live inside the workspace document, so one campaign is capped. */
 export const MAX_RECIPIENTS = 2000;
 const LEASE_MS = 10 * 60_000;
@@ -33,6 +35,7 @@ const content = d => {
 };
 
 export const emailFields = {
+  countdownTimers: (s, d) => normalizeTimer(d, s.profile?.timezone || 'America/Sao_Paulo'),
   emailTemplates: (s, d) => ({ name: str(d.name, 120) || fail('Dê um nome ao modelo.'), ...content(d) }),
   emailCampaigns: (s, d) => {
     const prior = d.id ? s.emailCampaigns.find(row => row.id === d.id) : null;
@@ -197,6 +200,8 @@ export function emailCommand(s, { type, id, data: d }, { run, add }) {
     if (!row.blocks?.length) fail('Monte o e-mail antes de enviar: ele está vazio.');
     const loose = row.blocks.find(b => b.type === 'button' && b.label && !b.url);
     if (loose) fail(`O botão “${loose.label}” está sem link. Coloque o endereço ou remova o bloco.`);
+    const timers = row.blocks.filter(b => b.type === 'countdown');
+    if (timers.some(b => !(s.countdownTimers || []).some(t => t.id === b.timerId))) fail('Escolha o contador do bloco Contador, ou remova o bloco.');
     if (row.ab?.enabled && !row.ab.subjectB) fail('Escreva o assunto B do teste A/B, ou desligue o teste.');
     if (row.audience?.mode === 'tags' && !row.audience.tags.length) fail('Escolha ao menos uma tag para o público.');
     const reach = audienceContacts(s, row.audience).length;

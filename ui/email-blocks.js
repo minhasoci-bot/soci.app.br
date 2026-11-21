@@ -6,7 +6,7 @@
 
 export const BLOCK_TYPES = [
   ['heading', 'Título', 'type'], ['text', 'Texto', 'menu'], ['button', 'Botão', 'arrow'],
-  ['image', 'Imagem', 'image'], ['divider', 'Divisor', 'minus'], ['spacer', 'Espaçador', 'move']
+  ['image', 'Imagem', 'image'], ['countdown', 'Contador', 'clock'], ['divider', 'Divisor', 'minus'], ['spacer', 'Espaçador', 'move']
 ];
 export const FONTS = [['Arial, Helvetica, sans-serif', 'Arial'], ['Georgia, serif', 'Georgia'], ['Verdana, Geneva, sans-serif', 'Verdana'], ["'Trebuchet MS', sans-serif", 'Trebuchet']];
 export const MERGE_FIELDS = [['{{contact.first_name}}', 'Primeiro nome'], ['{{contact.name}}', 'Nome completo'], ['{{contact.email}}', 'E-mail'], ['{{contact.company}}', 'Empresa'], ['{{workspace.name}}', 'Nome da empresa']];
@@ -36,6 +36,7 @@ export const newBlock = type => ({
   text: { type, text: 'Olá, {{contact.first_name}}!\n\nEscreva aqui a sua mensagem. Use **negrito**, *itálico* e [links](https://exemplo.com.br).', align: 'left' },
   button: { type, label: 'Saiba mais', url: '', color: '', align: 'center' },
   image: { type, src: '', alt: '', url: '', width: 100, align: 'center' },
+  countdown: { type, timerId: '', align: 'center' },
   divider: { type },
   spacer: { type, height: 24 }
 })[type];
@@ -57,6 +58,7 @@ export function normalizeDesign(d = {}) {
     else if (b?.type === 'text') blocks.push({ type: 'text', text: clip(b.text, 8000), align });
     else if (b?.type === 'button') blocks.push({ type: 'button', label: clip(b.label, 80), url: safeUrl(b.url), color: color(b.color, ''), align: pick(b.align, ['left', 'center', 'right'], 'center') });
     else if (b?.type === 'image') blocks.push({ type: 'image', src: safeUrl(b.src, { image: true }), alt: clip(b.alt, 200), url: safeUrl(b.url), width: range(b.width, 20, 100, 100), align: pick(b.align, ['left', 'center', 'right'], 'center') });
+    else if (b?.type === 'countdown') blocks.push({ type: 'countdown', timerId: /^[0-9a-f-]{36}$/.test(b.timerId || '') ? b.timerId : '', align: pick(b.align, ['left', 'center', 'right'], 'center') });
     else if (b?.type === 'divider') blocks.push({ type: 'divider' });
     else if (b?.type === 'spacer') blocks.push({ type: 'spacer', height: range(b.height, 8, 80, 24) });
   }
@@ -90,7 +92,7 @@ const fillHtml = (html, values, keep) => html.replace(/\{\{\s*([a-z_.]+)\s*\}\}/
  * { html, text } for one recipient.
  * link(url, index) → the href to use (the click-tracking URL when sending); pixel and unsubscribe are URLs or ''.
  */
-export function renderEmail({ blocks = [], style: rawStyle = {}, preheader = '', business = '', values = {}, link = url => url, pixel = '', unsubscribe = '', keepUnknown = false } = {}) {
+export function renderEmail({ blocks = [], style: rawStyle = {}, preheader = '', business = '', values = {}, link = url => url, pixel = '', unsubscribe = '', keepUnknown = false, countdownSrc = null } = {}) {
   const style = { ...DEFAULT_STYLE, ...rawStyle };
   let index = 0;
   const href = url => esc(link(url, index++));
@@ -125,6 +127,12 @@ export function renderEmail({ blocks = [], style: rawStyle = {}, preheader = '',
       const img = `<img src="${esc(b.src)}" alt="${esc(b.alt)}" width="${Math.round(536 * b.width / 100)}" style="display:inline-block;width:${b.width}%;max-width:100%;height:auto;border:0;border-radius:6px">`;
       if (b.alt) texts.push(`[${b.alt}]`);
       return `<tr><td style="${pad};padding-bottom:14px;text-align:${b.align}">${b.url ? `<a href="${href(b.url)}">${img}</a>` : img}</td></tr>`;
+    }
+    if (b.type === 'countdown') {
+      // The animated GIF of a timer from Marketing → Contadores; countdownSrc builds its absolute URL.
+      const src = b.timerId && countdownSrc ? countdownSrc(b.timerId) : '';
+      if (!src) return keepUnknown ? `<tr><td style="${pad};padding-bottom:14px;text-align:center;color:#71717a;font-size:13px">[Escolha o contador deste bloco]</td></tr>` : '';
+      return `<tr><td style="${pad};padding-bottom:14px;text-align:${b.align}"><img src="${esc(src)}" alt="Contagem regressiva" width="400" height="122" style="display:inline-block;width:400px;max-width:100%;height:auto;border:0"></td></tr>`;
     }
     if (b.type === 'divider') { texts.push('———'); return `<tr><td style="${pad};padding-bottom:14px"><hr style="border:0;border-top:1px solid #e4e4e7;margin:4px 0"></td></tr>`; }
     if (b.type === 'spacer') return `<tr><td style="height:${b.height}px;line-height:${b.height}px;font-size:0">&nbsp;</td></tr>`;
