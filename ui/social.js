@@ -404,7 +404,7 @@ function composerHtml(c) {
   const d = ui.draft, zone = zoneOf(c), locked = d.status === 'published';
   const accts = c.s.socialAccounts.map(a => `<label class="sp-pick ${d.accountIds.includes(a.id) ? 'on' : ''}"><input type="checkbox" name="account" value="${a.id}" ${d.accountIds.includes(a.id) ? 'checked' : ''} ${locked ? 'disabled' : ''}>${accountChip(a)}<span>${h(a.name)}</span></label>`).join('')
     || `<p class="dim">Nenhuma conta conectada. O post ficará como rascunho. <button type="button" class="text-link" data-sp-goto="accounts">Conectar contas</button></p>`;
-  const drive = c.s.files.filter(f => f.data.startsWith('data:image/'));
+  const drive = c.s.files.filter(f => f.data.startsWith('data:image/') && !f.trashedAt);
   return `<form class="sp-composer" data-sp-form="post"><div class="sp-compose-main">
     <fieldset class="sp-block"><legend>Publicar em</legend><div class="sp-picks">${accts}</div></fieldset>
     <div class="field-grid"><label>Tipo<select name="type" ${locked ? 'disabled' : ''}>${postTypes.map(([v, l]) => `<option value="${v}" ${d.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>

@@ -211,7 +211,8 @@ function conditionEditor(c, list, match, scope) {
     const needsValue = !['empty', 'not_empty'].includes(cond.op) && valueKind !== 'none';
     let value = '';
     if (valueKind === 'field') value = `<select ${at} data-wf-cond-prop="key" aria-label="Campo">${opts([['', 'Campo…'], ...refSources.contactFields(c.s)], cond.key)}</select>`;
-    if (valueKind === 'key') value = `<input ${at} data-wf-cond-prop="key" value="${h(cond.key)}" placeholder="Chave (ex.: body, total)" aria-label="Chave do dado">`;
+    if (valueKind === 'key') value = cond.subject === 'var' ? `<input ${at} data-wf-cond-prop="key" value="${h(cond.key)}" placeholder="Variável (ex.: intencao)" aria-label="Nome da variável">`
+      : `<input ${at} data-wf-cond-prop="key" value="${h(cond.key)}" placeholder="Chave (ex.: body, total)" aria-label="Chave do dado">`;
     if (needsValue) {
       if (valueKind === 'stage') value += `<select ${at} data-wf-cond-prop="value" aria-label="Etapa">${opts([['', 'Etapa…'], ...refSources.stages(c.s)], cond.value)}</select>`;
       else if (valueKind === 'status') value += `<select ${at} data-wf-cond-prop="value" aria-label="Status">${opts(opportunityStatuses, cond.value || 'Won')}</select>`;
@@ -262,6 +263,10 @@ function inspector(c, editor) {
   }
   if (step.type === 'goal') body += '<p class="wf-sub">Se a meta acontecer enquanto o contato está em qualquer etapa anterior, ele pula direto para cá.</p>';
   if (['manual_call', 'manual_sms'].includes(step.type)) body += '<p class="wf-sub">O fluxo pausa até alguém concluir ou dispensar a ação na fila de ações manuais.</p>';
+  if (spec?.ai) {
+    body += `<p class="wf-sub">A IA roda em segundo plano com a chave da OpenAI de quem salvar o fluxo. O contato espera a resposta (até 10 minutos) e segue para a próxima etapa. Para ramificar, use um Se / Senão ou Roteador com a condição “Variável do fluxo”.${step.type === 'ai_decision' ? ' A variável recebe uma das opções e {{vars.NOME_motivo}} traz o motivo.' : step.type === 'ai_intent' ? ' Sem encaixe, a variável fica “outra”; {{vars.NOME_confianca}} traz a confiança de 0 a 100.' : ''} No teste, a IA não é chamada e as variáveis ficam vazias. O uso conta no limite mensal de IA da subconta.</p>`;
+    if (!c.features?.contentAI) body += '<p class="wf-sub wfb-warn">Sem uma chave da OpenAI conectada, estas etapas registram erro e o fluxo segue. Conecte em Visão da agência → Configurações → OpenAI.</p>';
+  }
   const run = tested(editor, step.id), outputs = editor.test?.outputs?.[step.id];
   const failed = run && /^(erro|sem |campo |e-mail inválido|contato em não perturbe|não passou)/.test(run.result);
   const exit = `<aside class="wfb-exit" aria-label="Saída"><div class="wfb-exit-status"><h3>Saída</h3>${btn('test-run', editor.test ? 'Re-testar' : 'Testar', { glyph: 'play', cls: 'secondary' })}</div>
@@ -286,7 +291,7 @@ const triggerData = {
   customer_replied: [['body', 'Mensagem recebida'], ['channel', 'Canal']], form_submitted: [['formId', 'Formulário']], survey_submitted: [['formId', 'Pesquisa']],
   quiz_submitted: [['formId', 'Quiz'], ['tier', 'Faixa do resultado']], pipeline_stage_changed: [['stageId', 'Etapa']], opportunity_status_changed: [['status', 'Status']],
   invoice_status: [['status', 'Status'], ['total', 'Valor']], payment_received: [['total', 'Valor pago']], order_submitted: [['storeId', 'Loja'], ['total', 'Total']], order_paid: [['storeId', 'Loja'], ['total', 'Total']],
-  review_received: [['score', 'Nota']], chat_started: [['widgetId', 'Chat']], webinar_registered: [['webinarId', 'Webinar']], trigger_link_clicked: [['linkId', 'Link']],
+  review_received: [['score', 'Nota']], chat_started: [['widgetId', 'Chat']], webinar_registered: [['webinarId', 'Webinar']], trigger_link_clicked: [['linkId', 'Link']], email_event: [['event', 'Evento'], ['campaignId', 'Campanha']],
   contact_tag: [['tag', 'Tag'], ['change', 'Adicionada ou removida']], contact_changed: [['fields', 'Campos alterados']], appointment_status: [['status', 'Status']]
 };
 const outputKeys = { create_task: [['id', 'ID'], ['title', 'Título'], ['due', 'Prazo']], create_opportunity: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['stage', 'Etapa']],

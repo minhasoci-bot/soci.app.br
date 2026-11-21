@@ -1,4 +1,4 @@
-import { icon as i } from './icons.js';
+import { icon as i, brandIcon } from './icons.js';
 import { tr } from './i18n.js';
 import { avatar, badge, date, empty, h, money, search, tabs } from './screens.js';
 import { slaRecords } from './conversations.js';
@@ -155,6 +155,13 @@ function boxTitle(c, box) {
   return { all:'Minha caixa', assigned:'Atribuídas a mim', followed:'Seguidas por mim', team:'Caixa da equipe' }[box] || 'Conversas';
 }
 
+const channelBadge = ch => {
+  if (ch === 'Instagram') return `<span style="display:inline-flex;align-items:center;gap:4px;color:#e1306c;">${brandIcon('instagram', 13)} <b>Instagram</b></span>`;
+  if (ch === 'Facebook') return `<span style="display:inline-flex;align-items:center;gap:4px;color:#1877f2;">${brandIcon('facebook', 13)} <b>Facebook</b></span>`;
+  if (ch === 'WhatsApp') return `<span style="display:inline-flex;align-items:center;gap:4px;color:#22c55e;">${i('whatsapp', 13)} <b>WhatsApp</b></span>`;
+  return h(tr(ch));
+};
+
 function listPanel(c, st, list) {
   const slaOn = c.s.conversationSla.enabled;
   const picked = st.picked.filter(id => list.some(t => t.contact.id === id));
@@ -185,7 +192,7 @@ function listPanel(c, st, list) {
     <div class="thread-items">${list.map(t => `<div class="thread-row ${c.thread === t.contact.id ? 'selected' : ''}">
       <input type="checkbox" data-inbox-pick="${t.contact.id}" ${picked.includes(t.contact.id) ? 'checked' : ''} aria-label="Selecionar conversa com ${h(t.contact.name)}">
       <button data-thread="${t.contact.id}" class="thread-preview ${c.thread === t.contact.id ? 'selected' : ''} ${t.unread ? 'is-unread' : ''}">
-        ${avatar(t.contact.name)}<span><b>${h(t.contact.name)}</b><small>${t.latest.direction === 'Outbound' ? 'Você: ' : ''}${h(t.latest.body)}</small></span>
+        ${avatar(t.contact.name)}<span><b>${t.latest.channel === 'Instagram' ? `<span style="color:#e1306c;display:inline-flex;vertical-align:middle;margin-right:4px;">${brandIcon('instagram', 12)}</span>` : t.latest.channel === 'Facebook' ? `<span style="color:#1877f2;display:inline-flex;vertical-align:middle;margin-right:4px;">${brandIcon('facebook', 12)}</span>` : t.latest.channel === 'WhatsApp' ? `<span style="color:#22c55e;display:inline-flex;vertical-align:middle;margin-right:4px;">${i('whatsapp', 12)}</span>` : ''}${h(t.contact.name)}</b><small>${t.latest.direction === 'Outbound' ? 'Você: ' : ''}${h(t.latest.body)}</small></span>
         <span class="thread-meta"><time datetime="${h(t.latest.created)}">${stamp(c, t.latest.created)}</time>
           <span class="thread-flags">${t.sla ? `<span class="badge ${t.sla.state === 'Overdue' ? 'red' : 'blue'}" title="SLA">${h(tr(t.sla.state))}</span>` : ''}${t.starred ? `<span class="gold" aria-label="Com estrela">${i('star',13)}</span>` : ''}${t.unread ? `<span class="unread-count" aria-label="${t.unread} não lidas">${t.unread}</span>` : ''}${t.assignee ? `<span class="assignee" title="Atribuída a ${h(t.assignee)}">${avatar(t.assignee,'tiny')}</span>` : ''}</span></span>
       </button></div>`).join('') || empty('Nenhuma conversa', st.rules.length ? 'Nenhuma conversa corresponde aos filtros.' : 'Selecione uma caixa ou inicie uma nova conversa.','chat')}</div></section>`;
@@ -207,9 +214,9 @@ function threadPanel(c, all) {
       <span class="badge ${item.state === 'Overdue' ? 'red' : 'blue'}" data-sla-clock="${item.id}">${tr(item.channel)} · ${tr(item.state)}</span>
       <button class="icon-btn" aria-label="Dispensar SLA de ${tr(item.channel)}" title="Dispensar SLA" data-dismiss-sla="${item.id}">${i('close',13)}</button></span>`).join('')}</div>` : ''}
     <div class="thread-messages">${t.messages.map(m => `<div class="message ${m.direction === 'Outbound' ? 'outbound' : ''} ${origin(m) !== 'human' ? 'automated' : ''}">
-      <small>${h(tr(m.channel))} · ${date(m.created,c,true)}${origin(m) === 'workflow' ? ' · Automação' : ''}</small>${m.subject ? `<b class="message-subject">${h(m.subject)}</b>` : ''}<p>${messageContent(m.body)}</p></div>`).join('')}</div>
+      <small>${channelBadge(m.channel)} · ${date(m.created,c,true)}${origin(m) === 'workflow' ? ' · Automação' : ''}</small>${m.subject ? `<b class="message-subject">${h(m.subject)}</b>` : ''}<p>${messageContent(m.body)}</p></div>`).join('')}</div>
     <form class="message-compose" data-form="message"><p>As mensagens ficam registradas nesta caixa de entrada.</p>
-      <div class="inline-gap"><select name="channel" aria-label="Canal"><option value="Note">Nota</option><option value="Email">E-mail</option><option value="SMS">SMS</option><option value="WhatsApp">WhatsApp</option><option value="Live chat">Chat ao vivo</option></select>
+      <div class="inline-gap"><select name="channel" aria-label="Canal"><option value="Note">Nota</option><option value="Email">E-mail</option><option value="SMS">SMS</option><option value="WhatsApp">WhatsApp</option><option value="Live chat">Chat ao vivo</option><option value="Instagram">Instagram</option><option value="Facebook">Facebook</option></select>
         <select name="direction" aria-label="Direção"><option value="Outbound">Enviada</option><option value="Inbound">Recebida</option></select>
         <button type="button" class="secondary" data-act="insert-snippet">Inserir modelo</button>
         <button type="button" class="secondary" data-act="insert-link">Inserir link de rastreamento</button></div>

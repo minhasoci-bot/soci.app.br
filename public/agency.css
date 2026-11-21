@@ -171,3 +171,19 @@ label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:no
 .ag-mkt-sec{padding:12px;border:1px solid var(--g-line,var(--line));border-radius:10px;background:var(--g-surface-2,#f8fafc)}
 .ag-mkt-sec h4{margin:0 0 6px;font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--dim)}
 .ag-mkt-sec ul{margin:0;padding-left:16px;display:grid;gap:4px;font-size:13px}
+
+/* Aplicativo desktop (6.7) */
+.dk-progress{height:6px;border-radius:999px;background:#eef0f4;overflow:hidden;margin:0 0 16px}.dk-progress span{display:block;height:100%;background:var(--g-brand,#b71889)}
+.dk-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,460px);gap:16px;align-items:start}
+.dk-presets{display:flex;flex-wrap:wrap;gap:8px}.dk-preset input{position:absolute;opacity:0}.dk-preset span{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid #e3e8ef;border-radius:999px;font-size:13px;cursor:pointer}
+.dk-preset span i{width:12px;height:12px;border-radius:50%}.dk-preset:has(input:checked) span{outline:2px solid var(--g-brand,#b71889)}
+.dk-image{display:grid;gap:4px}.dk-thumb{display:flex;gap:8px;align-items:center}.dk-thumb img{max-height:48px;max-width:120px;object-fit:contain;border:1px solid #e3e8ef;border-radius:6px}
+.dk-aside{display:grid;gap:12px;position:sticky;top:12px}
+.dk-window{border:1px solid #d9dde3;border-radius:12px;overflow:hidden;background:var(--bg);color:var(--fg);background-size:cover;background-position:center}
+.dk-bar{display:flex;gap:6px;align-items:center;padding:8px 10px;background:rgba(0,0,0,.06);font-size:12px}.dk-bar span{width:9px;height:9px;border-radius:50%;background:#c9ccd3}.dk-bar b{margin-left:6px}
+.dk-body{display:grid;grid-template-columns:1fr 1.2fr;min-height:220px}.dk-side{display:grid;place-items:center;padding:12px}.dk-side img{max-width:100%;max-height:180px;object-fit:contain}
+.dk-card{align-self:center;margin:12px;padding:16px;border-radius:12px;background:color-mix(in srgb,var(--bg) 90%,white);display:grid;gap:6px;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+.dk-logo{max-height:28px;max-width:140px;object-fit:contain}.dk-mark{width:32px;height:32px;border-radius:8px}.dk-card small{opacity:.8}
+.dk-button{background:var(--btn);color:var(--btn-fg);border-radius:8px;padding:7px 10px;text-align:center;font-size:13px;font-weight:600}
+.dk-status{display:grid;gap:8px}.dk-steps{margin:0;padding-left:18px;display:grid;gap:4px}
+@media (max-width:980px){.dk-layout{grid-template-columns:1fr}.dk-aside{position:static}}

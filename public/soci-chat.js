@@ -148,7 +148,10 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     editing: null,
     renaming: null,
     menuConvId: null,
-    speakingId: null
+    speakingId: null,
+    connectors: { treg: { enabled: true, token: '', googleMaps: true, instagram: true } },
+    skills: [],
+    activeTab: 'general'
   };
 
   let pinned = true;
@@ -272,42 +275,155 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
       <div class="sc-search-results" data-sc="search-results"></div>
     </dialog>
 
-    <dialog class="sc-modal" data-sc="settings-modal" aria-labelledby="sc-settings-title">
+    <dialog class="sc-modal sc-modal-settings" data-sc="settings-modal" aria-labelledby="sc-settings-title">
       <header>
-        <h2 id="sc-settings-title">Configurações do chat</h2>
+        <h2 id="sc-settings-title">Personalização do Chat & Conectores</h2>
         <button type="button" class="sc-icon-btn" data-sc-action="close-modal" aria-label="Fechar">${icon('close', 17)}</button>
       </header>
+      <div class="sc-modal-tabs" role="tablist">
+        <button type="button" class="sc-tab-btn active" data-sc-tab="general" role="tab">Geral</button>
+        <button type="button" class="sc-tab-btn" data-sc-tab="connectors" role="tab">Conectores</button>
+        <button type="button" class="sc-tab-btn" data-sc-tab="skills" role="tab">Habilidades</button>
+      </div>
       <div class="sc-settings-body">
-        <div class="sc-setting-block">
-          <label class="sc-setting-label" for="sc-instructions">Instruções personalizadas</label>
-          <p class="sc-setting-hint">Como a Soci deve responder ou o que deve considerar sobre a sua agência?</p>
-          <textarea id="sc-instructions" data-sc="instructions" rows="4" placeholder="Ex.: Responda de forma objetiva, sempre destacando oportunidades de aumento de MRR."></textarea>
-          <div class="sc-setting-actions">
-            <button type="button" class="primary" data-sc-action="save-instructions">Salvar instruções</button>
+        <!-- Aba Geral -->
+        <div class="sc-tab-pane active" data-sc-pane="general">
+          <div class="sc-setting-block">
+            <label class="sc-setting-label" for="sc-instructions">Instruções personalizadas</label>
+            <p class="sc-setting-hint">Como a Soci deve responder ou o que deve considerar sobre a sua agência?</p>
+            <textarea id="sc-instructions" data-sc="instructions" rows="4" placeholder="Ex.: Responda de forma objetiva, sempre destacando oportunidades de aumento de MRR."></textarea>
+            <div class="sc-setting-actions">
+              <button type="button" class="primary" data-sc-action="save-instructions">Salvar instruções</button>
+            </div>
+          </div>
+          <div class="sc-setting-row">
+            <div>
+              <div class="sc-setting-label">Provedor de IA</div>
+              <p class="sc-setting-hint" data-sc="provider-info"></p>
+            </div>
+            <button type="button" class="secondary" data-sc-action="open-openai">Configurar OpenAI</button>
+          </div>
+          <div class="sc-setting-row">
+            <div>
+              <div class="sc-setting-label">Importar histórico</div>
+              <p class="sc-setting-hint">Arquivo JSON no formato conversations.json.</p>
+            </div>
+            <button type="button" class="secondary" data-sc-action="import">Importar</button>
+            <input type="file" data-sc="import-input" accept=".json,application/json" hidden>
+          </div>
+          <div class="sc-setting-row">
+            <div class="sc-setting-label">Exportar conversas</div>
+            <a class="secondary" href="/api/ask/export" download="soci-conversas.json">Exportar JSON</a>
+          </div>
+          <div class="sc-setting-row">
+            <div class="sc-setting-label">Excluir todos os chats</div>
+            <button type="button" class="danger" data-sc-action="delete-all">Excluir tudo</button>
           </div>
         </div>
-        <div class="sc-setting-row">
-          <div>
-            <div class="sc-setting-label">Provedor de IA</div>
-            <p class="sc-setting-hint" data-sc="provider-info"></p>
+
+        <!-- Aba Conectores -->
+        <div class="sc-tab-pane" data-sc-pane="connectors">
+          <div class="sc-connector-card">
+            <div class="sc-connector-head">
+              <div class="sc-connector-title-box">
+                <div class="sc-connector-logo">⚡</div>
+                <div>
+                  <div class="sc-connector-name">Treg — Inteligência Externa & Prospecção</div>
+                  <div class="sc-connector-desc">Acesso a dados reais do Google Maps, Instagram e +4.200 ferramentas de inteligência em tempo real.</div>
+                </div>
+              </div>
+              <span class="sc-badge" data-sc="treg-badge">Carregando...</span>
+            </div>
+
+            <div class="sc-connector-info-box" data-sc="treg-info-box">
+              <div class="sc-connector-info-item">
+                <span class="sc-connector-info-label">Saldo disponível:</span>
+                <strong data-sc="treg-balance">—</strong>
+              </div>
+              <div class="sc-connector-info-item">
+                <span class="sc-connector-info-label">Equipe:</span>
+                <span data-sc="treg-team">—</span>
+              </div>
+              <div class="sc-connector-info-item">
+                <span class="sc-connector-info-label">Ferramentas:</span>
+                <span data-sc="treg-tools">4.200+</span>
+              </div>
+            </div>
+
+            <div class="sc-setting-block" style="border-bottom:none; padding-bottom: 4px;">
+              <label class="sc-setting-label" for="sc-treg-token">Token da conta Treg (X-Treg-Token)</label>
+              <p class="sc-setting-hint">Insira o token da sua equipe Treg para que o agente utilize seus próprios créditos e ferramentas.</p>
+              <div class="sc-input-action-row">
+                <input type="password" id="sc-treg-token" data-sc="treg-token" placeholder="eyJ1aWQi..." autocomplete="off">
+                <button type="button" class="secondary" data-sc-action="test-treg">Testar conexão</button>
+                <button type="button" class="primary" data-sc-action="save-treg">Salvar conector</button>
+              </div>
+              <p class="sc-field-msg" data-sc="treg-status-msg"></p>
+            </div>
+
+            <div class="sc-connector-toggles">
+              <div class="sc-connector-toggle-row">
+                <div>
+                  <strong>🔍 Google Maps</strong>
+                  <p class="sc-setting-hint">Permite pesquisar empresas locais, comércios, telefones, notas e endereços no Google Maps.</p>
+                </div>
+                <label class="sc-switch">
+                  <input type="checkbox" data-sc="treg-toggle-maps" checked>
+                  <span class="sc-slider"></span>
+                </label>
+              </div>
+
+              <div class="sc-connector-toggle-row">
+                <div>
+                  <strong>📸 Instagram</strong>
+                  <p class="sc-setting-hint">Permite pesquisar perfis comerciais, bio, seguidores e dados públicos no Instagram.</p>
+                </div>
+                <label class="sc-switch">
+                  <input type="checkbox" data-sc="treg-toggle-instagram" checked>
+                  <span class="sc-slider"></span>
+                </label>
+              </div>
+            </div>
           </div>
-          <button type="button" class="secondary" data-sc-action="open-openai">Configurar OpenAI</button>
         </div>
-        <div class="sc-setting-row">
-          <div>
-            <div class="sc-setting-label">Importar histórico</div>
-            <p class="sc-setting-hint">Arquivo JSON no formato conversations.json.</p>
+
+        <!-- Aba Habilidades -->
+        <div class="sc-tab-pane" data-sc-pane="skills">
+          <div class="sc-skills-toolbar">
+            <p class="sc-setting-hint" style="margin:0;">Habilidades customizadas injetadas no agente seguindo o padrão <code>agentskills.io</code> (SKILL.md).</p>
+            <div class="sc-skills-actions">
+              <button type="button" class="secondary" data-sc-action="import-skill-file">Importar SKILL.md</button>
+              <input type="file" data-sc="skill-file-input" accept=".md,text/markdown,text/plain" hidden>
+              <button type="button" class="primary" data-sc-action="open-skill-form">+ Nova Habilidade</button>
+            </div>
           </div>
-          <button type="button" class="secondary" data-sc-action="import">Importar</button>
-          <input type="file" data-sc="import-input" accept=".json,application/json" hidden>
-        </div>
-        <div class="sc-setting-row">
-          <div class="sc-setting-label">Exportar conversas</div>
-          <a class="secondary" href="/api/ask/export" download="soci-conversas.json">Exportar JSON</a>
-        </div>
-        <div class="sc-setting-row">
-          <div class="sc-setting-label">Excluir todos os chats</div>
-          <button type="button" class="danger" data-sc-action="delete-all">Excluir tudo</button>
+
+          <div class="sc-skills-list" data-sc="skills-list"></div>
+
+          <!-- Formulário de Criação e Edição de Habilidade -->
+          <div class="sc-skill-form-box" data-sc="skill-form" hidden>
+            <div class="sc-skill-form-head">
+              <h3 data-sc="skill-form-title">Nova Habilidade</h3>
+              <button type="button" class="sc-icon-btn" data-sc-action="cancel-skill-form">${icon('close', 15)}</button>
+            </div>
+            <input type="hidden" data-sc="skill-edit-id">
+            <div class="sc-field-group">
+              <label class="sc-setting-label">Nome da Habilidade</label>
+              <input type="text" data-sc="skill-name" placeholder="Ex: Auditor de Prospecção & Copywriting">
+            </div>
+            <div class="sc-field-group">
+              <label class="sc-setting-label">Descrição curta</label>
+              <input type="text" data-sc="skill-desc" placeholder="Ex: Analisa perfis e cria abordagens comerciais">
+            </div>
+            <div class="sc-field-group">
+              <label class="sc-setting-label">Instruções da Habilidade (Markdown / Prompts)</label>
+              <textarea data-sc="skill-instructions" rows="6" placeholder="Você é um especialista em... Sempre que o usuário pedir..."></textarea>
+            </div>
+            <div class="sc-setting-actions" style="gap:8px;">
+              <button type="button" class="secondary" data-sc-action="cancel-skill-form">Cancelar</button>
+              <button type="button" class="primary" data-sc-action="save-skill">Salvar Habilidade</button>
+            </div>
+          </div>
         </div>
       </div>
     </dialog>
@@ -362,6 +478,22 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     instructions: Q('instructions'),
     providerInfo: Q('provider-info'),
     importInput: Q('import-input'),
+    tregBadge: Q('treg-badge'),
+    tregBalance: Q('treg-balance'),
+    tregTeam: Q('treg-team'),
+    tregTools: Q('treg-tools'),
+    tregToken: Q('treg-token'),
+    tregStatusMsg: Q('treg-status-msg'),
+    tregToggleMaps: Q('treg-toggle-maps'),
+    tregToggleInstagram: Q('treg-toggle-instagram'),
+    skillsList: Q('skills-list'),
+    skillFileInput: Q('skill-file-input'),
+    skillForm: Q('skill-form'),
+    skillFormTitle: Q('skill-form-title'),
+    skillEditId: Q('skill-edit-id'),
+    skillName: Q('skill-name'),
+    skillDesc: Q('skill-desc'),
+    skillInstructions: Q('skill-instructions'),
     confirmModal: Q('confirm-modal'),
     confirmTitle: Q('confirm-title'),
     confirmText: Q('confirm-text'),
@@ -1298,18 +1430,281 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     items[searchSelected]?.scrollIntoView({ block: 'nearest' });
   }
 
-  function openSettings() {
+  function switchSettingsTab(tabName) {
+    state.activeTab = tabName;
+    root.querySelectorAll('[data-sc-tab]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.scTab === tabName);
+    });
+    root.querySelectorAll('[data-sc-pane]').forEach(pane => {
+      pane.classList.toggle('active', pane.dataset.scPane === tabName);
+    });
+  }
+
+  function renderConnectorsUI() {
+    const treg = state.connectors?.treg || {};
+    if (els.tregToken) {
+      els.tregToken.value = treg.token || '';
+    }
+    if (els.tregToggleMaps) {
+      els.tregToggleMaps.checked = treg.googleMaps !== false;
+    }
+    if (els.tregToggleInstagram) {
+      els.tregToggleInstagram.checked = treg.instagram !== false;
+    }
+
+    if (treg.token) {
+      els.tregBadge.className = 'sc-badge sc-badge-success';
+      els.tregBadge.textContent = 'Token da agência ativo';
+    } else if (treg.serverDefaultAvailable) {
+      els.tregBadge.className = 'sc-badge sc-badge-info';
+      els.tregBadge.textContent = 'Padrão do servidor';
+    } else {
+      els.tregBadge.className = 'sc-badge sc-badge-muted';
+      els.tregBadge.textContent = 'Não configurado';
+    }
+  }
+
+  async function verifyTregInUI(customToken) {
+    const token = customToken !== undefined ? customToken : (els.tregToken?.value.trim() || state.connectors?.treg?.token);
+    els.tregStatusMsg.textContent = 'Verificando com o servidor Treg...';
+    els.tregStatusMsg.className = 'sc-field-msg sc-msg-info';
+
+    try {
+      const res = await api('/api/ask/connectors', { action: 'verify', token });
+      if (res.valid) {
+        els.tregBadge.className = 'sc-badge sc-badge-success';
+        els.tregBadge.textContent = 'Conectado';
+        els.tregBalance.textContent = `$${res.balanceUsd} USD`;
+        els.tregTeam.textContent = res.team || res.account || 'Equipe ativa';
+        els.tregTools.textContent = res.toolsCount || '4.200+';
+        els.tregStatusMsg.textContent = `✓ Conexão bem-sucedida! Conta: ${res.account} (${res.team}). Saldo: $${res.balanceUsd} USD.`;
+        els.tregStatusMsg.className = 'sc-field-msg sc-msg-success';
+        return true;
+      } else {
+        els.tregBadge.className = 'sc-badge sc-badge-danger';
+        els.tregBadge.textContent = 'Erro de autenticação';
+        els.tregStatusMsg.textContent = `✗ ${res.error || 'Token inválido'}`;
+        els.tregStatusMsg.className = 'sc-field-msg sc-msg-danger';
+        return false;
+      }
+    } catch (err) {
+      els.tregStatusMsg.textContent = `✗ ${err.message || 'Erro ao conectar'}`;
+      els.tregStatusMsg.className = 'sc-field-msg sc-msg-danger';
+      return false;
+    }
+  }
+
+  async function saveTregConnector() {
+    const token = els.tregToken.value.trim();
+    const googleMaps = els.tregToggleMaps.checked;
+    const instagram = els.tregToggleInstagram.checked;
+    els.tregStatusMsg.textContent = 'Salvando conector...';
+    els.tregStatusMsg.className = 'sc-field-msg sc-msg-info';
+
+    try {
+      const res = await api('/api/ask/connectors', {
+        treg: { enabled: true, token, googleMaps, instagram },
+        verify: true
+      });
+      state.connectors = res.connectors;
+      renderConnectorsUI();
+      if (res.verification?.valid) {
+        els.tregBalance.textContent = `$${res.verification.balanceUsd} USD`;
+        els.tregTeam.textContent = res.verification.team || res.verification.account;
+        els.tregTools.textContent = res.verification.toolsCount || '4.200+';
+        els.tregStatusMsg.textContent = '✓ Conector salvo e verificado com sucesso!';
+        els.tregStatusMsg.className = 'sc-field-msg sc-msg-success';
+        flash('Conector Treg salvo com sucesso.');
+      } else if (res.verification) {
+        els.tregStatusMsg.textContent = `Atenção: Salvo, mas aviso da verificação: ${res.verification.error}`;
+        els.tregStatusMsg.className = 'sc-field-msg sc-msg-danger';
+      } else {
+        els.tregStatusMsg.textContent = '✓ Configurações do conector salvas.';
+        els.tregStatusMsg.className = 'sc-field-msg sc-msg-success';
+        flash('Configurações salvas.');
+      }
+    } catch (err) {
+      els.tregStatusMsg.textContent = `Erro: ${err.message}`;
+      els.tregStatusMsg.className = 'sc-field-msg sc-msg-danger';
+      flash(err.message || 'Erro ao salvar conector.', true);
+    }
+  }
+
+  function renderSkillsUI() {
+    if (!els.skillsList) return;
+    els.skillsList.textContent = '';
+    const skills = state.skills || [];
+
+    if (!skills.length) {
+      const empty = el('div', 'sc-skills-empty');
+      empty.innerHTML = `
+        <div class="sc-empty-icon">🎯</div>
+        <h4>Nenhuma habilidade adicionada</h4>
+        <p>Habilidades permitem que a Soci execute tarefas avançadas sob demanda com prompts especializados ou arquivos <code>SKILL.md</code>.</p>
+        <button type="button" class="primary" data-sc-action="open-skill-form">+ Adicionar primeira habilidade</button>
+      `;
+      els.skillsList.append(empty);
+      return;
+    }
+
+    for (const skill of skills) {
+      const item = el('div', `sc-skill-card ${skill.enabled === false ? 'is-disabled' : ''}`);
+      item.dataset.id = skill.id;
+
+      const mainCol = el('div', 'sc-skill-main');
+      const head = el('div', 'sc-skill-head');
+      const title = el('strong', 'sc-skill-title', skill.name);
+      head.append(title);
+      if (skill.description) {
+        head.append(el('p', 'sc-skill-desc', skill.description));
+      }
+
+      const preview = el('div', 'sc-skill-preview', (skill.instructions || '').slice(0, 160) + (skill.instructions?.length > 160 ? '…' : ''));
+      mainCol.append(head, preview);
+
+      const actionsCol = el('div', 'sc-skill-actions');
+
+      const switchLabel = el('label', 'sc-switch');
+      const switchInput = el('input');
+      switchInput.type = 'checkbox';
+      switchInput.checked = skill.enabled !== false;
+      switchInput.dataset.scAction = 'toggle-skill';
+      switchInput.dataset.id = skill.id;
+      const slider = el('span', 'sc-slider');
+      switchLabel.append(switchInput, slider);
+
+      const editBtn = el('button', 'sc-icon-btn');
+      editBtn.type = 'button';
+      editBtn.dataset.scAction = 'edit-skill';
+      editBtn.dataset.id = skill.id;
+      editBtn.title = 'Editar habilidade';
+      editBtn.innerHTML = icon('edit', 16);
+
+      const delBtn = el('button', 'sc-icon-btn sc-btn-danger');
+      delBtn.type = 'button';
+      delBtn.dataset.scAction = 'delete-skill';
+      delBtn.dataset.id = skill.id;
+      delBtn.title = 'Excluir habilidade';
+      delBtn.innerHTML = icon('trash', 16);
+
+      actionsCol.append(switchLabel, editBtn, delBtn);
+      item.append(mainCol, actionsCol);
+      els.skillsList.append(item);
+    }
+  }
+
+  function openSkillForm(skill = null) {
+    els.skillForm.hidden = false;
+    els.skillEditId.value = skill?.id || '';
+    els.skillFormTitle.textContent = skill ? 'Editar Habilidade' : 'Nova Habilidade';
+    els.skillName.value = skill?.name || '';
+    els.skillDesc.value = skill?.description || '';
+    els.skillInstructions.value = skill?.instructions || '';
+    els.skillName.focus();
+    els.skillsList.style.display = 'none';
+  }
+
+  function closeSkillForm() {
+    els.skillForm.hidden = true;
+    els.skillsList.style.display = '';
+  }
+
+  async function saveSkill() {
+    const id = els.skillEditId.value.trim() || undefined;
+    const name = els.skillName.value.trim();
+    const description = els.skillDesc.value.trim();
+    const instructions = els.skillInstructions.value.trim();
+
+    if (!name) {
+      flash('Informe o nome da habilidade.', true);
+      els.skillName.focus();
+      return;
+    }
+    if (!instructions) {
+      flash('Informe as instruções da habilidade.', true);
+      els.skillInstructions.focus();
+      return;
+    }
+
+    try {
+      const res = await api('/api/ask/skills', { id, name, description, instructions });
+      state.skills = res.skills;
+      closeSkillForm();
+      renderSkillsUI();
+      flash('Habilidade salva com sucesso.');
+    } catch (err) {
+      flash(err.message || 'Erro ao salvar habilidade.', true);
+    }
+  }
+
+  async function deleteSkill(id) {
+    const sk = (state.skills || []).find(s => s.id === id);
+    const ok = await confirmDialog('Excluir habilidade?', `Deseja realmente remover "${sk?.name || 'esta habilidade'}"?`, 'Excluir');
+    if (!ok) return;
+    try {
+      const res = await api('/api/ask/skills', { action: 'delete', id });
+      state.skills = res.skills;
+      renderSkillsUI();
+      flash('Habilidade removida.');
+    } catch (err) {
+      flash(err.message || 'Erro ao excluir habilidade.', true);
+    }
+  }
+
+  async function toggleSkill(id, enabled) {
+    const sk = (state.skills || []).find(s => s.id === id);
+    if (!sk) return;
+    try {
+      const res = await api('/api/ask/skills', { ...sk, enabled });
+      state.skills = res.skills;
+      renderSkillsUI();
+      flash(enabled ? `Habilidade "${sk.name}" ativada.` : `Habilidade "${sk.name}" desativada.`);
+    } catch (err) {
+      flash(err.message || 'Erro ao atualizar habilidade.', true);
+    }
+  }
+
+  async function importSkillFile(file) {
+    if (!file) return;
+    try {
+      const rawMarkdown = await file.text();
+      const res = await api('/api/ask/skills', { rawMarkdown });
+      state.skills = res.skills;
+      renderSkillsUI();
+      flash(`Habilidade importada de "${file.name}".`);
+    } catch (err) {
+      flash(err.message || 'Erro ao importar arquivo de habilidade.', true);
+    }
+  }
+
+  function openSettings(tab = 'general') {
     closeMenus();
     closeSidebarOnMobile();
+    switchSettingsTab(tab);
     els.instructions.value = settings.instructions;
     els.providerInfo.textContent = state.config.mode === 'live'
       ? `Conectado à IA generativa · modelo atual: ${modelLabel(state.model)}.`
       : 'Usando o Assistente local com os dados da agência. Conecte sua chave da OpenAI para liberar modelos generativos completos.';
+    renderConnectorsUI();
+    renderSkillsUI();
+    closeSkillForm();
     els.settingsModal.showModal();
+    if (tab === 'connectors' || state.connectors?.treg?.isConfigured) {
+      void verifyTregInUI();
+    }
   }
 
   // ---------- Eventos internos ----------
   root.addEventListener('click', async e => {
+    const tabBtn = e.target.closest('[data-sc-tab]');
+    if (tabBtn) {
+      switchSettingsTab(tabBtn.dataset.scTab);
+      if (tabBtn.dataset.scTab === 'connectors' && !els.tregBalance.textContent.includes('$')) {
+        void verifyTregInUI();
+      }
+      return;
+    }
+
     const target = e.target.closest('[data-sc-action]');
     if (!target) {
       if (!e.target.closest('.sc-menu') && !e.target.closest('[data-sc="model-btn"]') && !e.target.closest('[data-sc="plus-btn"]')) closeMenus();
@@ -1472,9 +1867,52 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
         }
         break;
       }
+      case 'test-treg':
+        await verifyTregInUI();
+        break;
+      case 'save-treg':
+        await saveTregConnector();
+        break;
+      case 'import-skill-file':
+        els.skillFileInput.click();
+        break;
+      case 'open-skill-form':
+        openSkillForm();
+        break;
+      case 'cancel-skill-form':
+        closeSkillForm();
+        break;
+      case 'save-skill':
+        await saveSkill();
+        break;
+      case 'edit-skill':
+        openSkillForm((state.skills || []).find(s => s.id === target.dataset.id));
+        break;
+      case 'delete-skill':
+        await deleteSkill(target.dataset.id);
+        break;
       case 'stop-voice':
         stopVoice();
         break;
+    }
+  });
+
+  root.addEventListener('change', async e => {
+    const target = e.target;
+    if (target.dataset.scAction === 'toggle-skill') {
+      await toggleSkill(target.dataset.id, target.checked);
+      return;
+    }
+    if (target === els.skillFileInput) {
+      if (target.files?.[0]) {
+        await importSkillFile(target.files[0]);
+        target.value = '';
+      }
+      return;
+    }
+    if (target === els.tregToggleMaps || target === els.tregToggleInstagram) {
+      await saveTregConnector();
+      return;
     }
   });
 
@@ -1632,6 +2070,12 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
       if (typeof data.instructions === 'string') {
         settings.instructions = data.instructions;
         writeStorage(STORAGE_KEY, settings);
+      }
+      if (data.connectors) {
+        state.connectors = data.connectors;
+      }
+      if (Array.isArray(data.skills)) {
+        state.skills = data.skills;
       }
       state.loaded = true;
       render();

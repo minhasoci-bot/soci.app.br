@@ -63,6 +63,7 @@ export function agentDraft(agent) {
     description: agent.description ?? legacy ?? '',
     instructions: agent.instructions || '',
     knowledge: agent.knowledge || [],
+    bases: (agent.bases || []).filter(id => typeof id === 'string'),
     triggers: (agent.triggers || [{ type: 'chat' }]).map(({ type, value }) => (value ? { type, value } : { type })),
     subagents: (agent.subagents || []).map(({ name, when, instructions }) => ({ name, when, instructions })),
     resources: resources(agent.resources)
@@ -79,7 +80,7 @@ export function changedAgentFields(agent) {
 }
 
 export const agentFieldNames = {
-  name: 'Nome', icon: 'Ícone', description: 'Descrição', instructions: 'Instruções', knowledge: 'Conhecimento',
+  name: 'Nome', icon: 'Ícone', description: 'Descrição', instructions: 'Instruções', knowledge: 'Conhecimento', bases: 'Bases de conhecimento',
   triggers: 'Gatilhos', subagents: 'Subagentes', resources: 'Recursos'
 };
 

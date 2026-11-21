@@ -38,6 +38,7 @@
 .wf-name{color:var(--g-ink)}
 .wf-sub{display:block;color:var(--g-dim);font-size:12px;margin-top:3px}
 .wf-sub[hidden]{display:none}
+.wf-sub.wfb-warn{color:var(--g-orange-ink,#b4431b);font-weight:600}
 .wf-status{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--g-line);border-radius:99px;padding:3px 8px;color:var(--g-dim);white-space:nowrap;font-size:12px;font-weight:600}
 .wf-status.published{color:var(--g-success-text, var(--g-ink));background:var(--g-success-bg, var(--g-surface-2))}
 .wf-status.published::before,.wf-status.review::before{content:"";width:6px;height:6px;border-radius:50%;background:#228c57}

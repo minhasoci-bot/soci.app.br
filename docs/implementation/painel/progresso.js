@@ -17,7 +17,7 @@
  */
 window.PLANO_SOCI = {
   titulo: "Paridade Soci × GoHighLevel",
-  atualizadoEm: "2026-11-21 16:40",
+  atualizadoEm: "2026-11-21 17:10",
   etapaAtual: "6.7",
 
   regras: [
@@ -33,8 +33,8 @@ window.PLANO_SOCI = {
       opcoes: "Twilio, Zenvia ou outro", bloqueia: ["2.4", "3.2", "6b.9"], resposta: "" },
     { id: "D2", titulo: "Modelo de cobrança do app mobile white-label", status: "pendente",
       opcoes: "Assinatura por agência (como no GHL, US$ 497/mês), incluso em plano ou outro", bloqueia: ["6.6"], resposta: "" },
-    { id: "D3", titulo: "Commitar os documentos do levantamento separados das outras mudanças da branch feat/offers", status: "pendente",
-      opcoes: "Commit só dos docs ou nova branch de docs", bloqueia: [], resposta: "" },
+    { id: "D3", titulo: "Commitar os documentos do levantamento separados das outras mudanças da branch feat/offers", status: "decidida",
+      opcoes: "Commit só dos docs ou nova branch de docs", bloqueia: [], resposta: "Commitar tudo junto na feat/offers e fazer o merge na main (usuário, 2026-11-21)." },
     { id: "D4", titulo: "Upload de PDF com campos sobrepostos já no editor (1.2)?", status: "decidida",
       opcoes: "Recomendado: não. O PDF entra como bloco anexo e a sobreposição vira item próprio depois do 1.4 (ver 05 §11)", bloqueia: [],
       resposta: "Seguir a recomendação: PDF como bloco anexo; sobreposição depois do 1.4 (usuário, 2026-11-20)." },
@@ -191,6 +191,7 @@ window.PLANO_SOCI = {
   ],
 
   historico: [
+    { data: "2026-11-21", hora: "17:10", texto: "Commit e merge na main: o trabalho das fases 5 e 6 (até o 6.7 em andamento) foi juntado com a main atual (Mídia Drive com pastas, relatórios compartilhados, Google Analytics e Perfil da Empresa). Conflitos resolvidos mantendo as duas partes, public/ espelhado a partir de ui/ para o deploy da Vercel e 331 testes passando." },
     { data: "2026-11-21", hora: "16:40", texto: "6.7 em andamento: app desktop white-label como app instalável (PWA) com a marca da agência, personalizador com pré-visualização e publicação. Código pronto e 325 testes passando; falta verificar no navegador e escrever o teste próprio. Pausado por limite de uso." },
     { data: "2026-11-21", hora: "16:15", texto: "6.5 concluído: Assinaturas → Certificados com modelos de certificado e badge (conclusão, marco, evento, treinamento; texto, assinatura, cor, estilo clássico, moderno ou minimalista e logo), emissão manual para vários contatos, listas de emitidos com revogar e restaurar, e as ações de workflow Emitir certificado e Emitir badge. Cursos podem emitir usando um modelo. Construtor de cursos ganhou Analytics: alunos, começaram, concluíram, progresso médio, ativos, aulas concluídas por dia, funil por aula com números de quiz e tarefa, lista de alunos e exportação CSV; os cartões de curso mostram alunos e conclusão. 325 testes passando. 6.6 segue bloqueado pela decisão D2. Próximo: 6.7." },
     { data: "2026-11-21", hora: "15:30", texto: "6.5 iniciado: modelos de certificado e badge (conclusão, marco, evento, treinamento) com estilo próprio, emissão manual e por automação, revogação, lista de emitidos e analytics de cursos (matrículas, conclusão, funil por aula, quizzes, tarefas e alunos)." },

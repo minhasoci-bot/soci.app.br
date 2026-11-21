@@ -16,6 +16,7 @@ import { blogBeforeDelete, blogCollections, blogFields, blogView } from './blog-
 import { storeAfterSave, storeBeforeDelete, storeCheckout, storeCollections, storeFields } from './store-model.mjs';
 import { webinarBeforeDelete, webinarCollections, webinarCommand, webinarFields } from './webinar-model.mjs';
 import { qrCollections, qrFields, qrScan } from './qr-model.mjs';
+import { mediaBeforeDelete, mediaCollections as driveCollections, mediaCommand, mediaCommandTypes, mediaFields as driveFields } from './media-model.mjs';
 import { courseFields } from './course-model.mjs';
 import { communityCollections, communityFields } from './community.mjs';
 import { communityEventBeforeDelete, communityEventCollections, communityEventCommand, communityEventFields } from './community-events.mjs';
@@ -50,7 +51,7 @@ export const defaults = {
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[], pranchetaFiles:[],
-  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...credentialCollections, ...certificateCollections, ...offerCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...credentialCollections, ...certificateCollections, ...offerCollections, ...driveCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
   paymentSettings: paymentDefaults(),
   ai: { limit: 0, alertAt: 0.8, ledger: [] },
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
@@ -72,7 +73,7 @@ export function hydrateWorkspace(state) {
   adSettingsOf(state);
   trackingOf(state);
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...affiliateCollections,...adCollections,...trackingCollections,...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...credentialCollections,...certificateCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...driveCollections,...affiliateCollections,...adCollections,...trackingCollections,...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...credentialCollections,...certificateCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -98,7 +99,6 @@ const amount = value => {
 };
 const date = value => { const d = new Date(req(value, 'Date')); if (!Number.isFinite(+d)) fail('Enter a valid date.'); return d.toISOString(); };
 const email = value => { const v = str(value).toLowerCase(); if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) fail('Enter a valid email address.'); return v; };
-const file = value => { if (typeof value !== 'string' || value.length > 1000000 || !/^data:(?:image\/(?:png|jpeg|gif|webp)|application\/pdf);base64,[A-Za-z0-9+/]+=*$/.test(value)) fail('Choose a PNG, JPEG, GIF, WebP or PDF under 700 KB.'); return value; };
 const percent = value => {
   if (value === '' || value == null) return null;
   const n = Number(value);
@@ -191,10 +191,10 @@ const fields = {
   ...checkoutFields,
   ...catalogFields,
   reviews: (s,d) => ({ author: req(d.author,'Author'), score: one(Number(d.score),[1,2,3,4,5],'rating'), text: req(d.text,'Review',2500), reply: str(d.reply,2500) }),
-  files: (s,d) => ({ name: req(d.name,'File name'), data: file(d.data) }),
   ...mediaFields,
   ...affiliateFields,
   ...brandFields,
+  ...driveFields,
   agents: (s,d) => ({ name: req(d.name,'Agent name'), role: one(d.role,['Support','Sales','Scheduling'],'role'), instructions: str(d.instructions,5000), active: Boolean(d.active) }),
   snippetFolders: (s,d) => ({ name: req(d.name, 'Folder name', 100) }),
   snippets: (s,d) => {
@@ -466,6 +466,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (typeof type === 'string' && type.startsWith('checkout-')) return checkoutCommand(s, { ...command, data:d }, { workspace });
   if (['webinar-register','webinar-attend','webinar-reminders'].includes(type)) return webinarCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'qr-scan') return qrScan(s, id, d);
+  if (mediaCommandTypes.includes(type)) return mediaCommand(s, type, d, remove);
   if (type === 'studio-meta') return studioMeta(s, id, d);
   if (type === 'studio-visit' || type === 'studio-star') {
     const project = find(s,'studioProjects',id);
@@ -667,6 +668,7 @@ function remove(s, key, id) {
     blogBeforeDelete(s, key, id);
     storeBeforeDelete(s, key, id);
     webinarBeforeDelete(s, key, id);
+    mediaBeforeDelete(s, key, id);
     offerBeforeDelete(s, key, id);
     communityEventBeforeDelete(s, key, id);
     courseOfferBeforeDelete(s, key, id);
