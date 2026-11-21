@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { blank, seed, uid, execute, find } from './model.mjs';
+import { blank, seed, uid, execute, find, emitWorkflow } from './model.mjs';
 import { createSqliteStore, supabaseFromEnv } from './storage.mjs';
 import { accountProfile, afterLogin, authFromEnv } from './auth.mjs';
 import { discoverDesign, generatePage, generateSite, planSite, revisePage, suggestSeo } from './studio-ai.mjs';
@@ -11,6 +11,28 @@ import { localPlan, questionsFor, validDesign, validPlan } from './ui/studio-des
 import { designAgent, replyAsAgent } from './agent-ai.mjs';
 import { createOpenAI, openAIModel } from './openai.mjs';
 import { agentBuildRequest, agentPreview, applyAgentDesign, editAgent, recordAgentRun } from './agent-model.mjs';
+import { checkAiBudget, editAgentTemplate, editKnowledgeBase, setAiLimit, usageMeter } from './ai-model.mjs';
+import { usageSummary } from './ui/ai-data.js';
+import { brandVoiceRequest, emailRequest, reviewReplyRequest, transformRequest, transformText, writeBrandVoice, writeEmail, writeReviewReply } from './content-ai.mjs';
+import { brandFromPage, fetchPublicPage } from './brand-model.mjs';
+import { brandVoicePrompt, defaultBoard, voiceTraits } from './ui/brand-data.js';
+import { contentModule } from './ui/content-ai-data.js';
+import { runWorkflowAI } from './workflow-ai.mjs';
+import { reviewTokenHash } from './reputation-model.mjs';
+import { renderReviewPage, reviewPageCsp } from './reputation-page.mjs';
+import { mediaRowId } from './reputation-media.mjs';
+import { collectorCsp, renderCollector, renderWidget, widgetCsp, widgetLoader } from './reputation-widget.mjs';
+
+function meteredUsage() {
+  const meter = usageMeter();
+  return {
+    onUsage: meter.onUsage,
+    record(state, kind, agent, run, error = '') {
+      const charged = meter.charge(state, kind, agent, error);
+      return recordAgentRun(state, { ...run, ...charged, error });
+    }
+  };
+}
 import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
@@ -21,23 +43,74 @@ import { collectProspectAudit, fetchPage } from './prospect-audit.mjs';
 import { importedFile, mediaLimitBytes } from './media-model.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
-import { exchangeGoogle, googleAuthUrl, googleConfigured, googleReports, revokeGoogle } from './google-integrations.mjs';
+import { adsAuthUrl, adsConfigured, adsExchange, createMetaAd, freshAdsSecret, setCampaignBudget, setCampaignStatus, syncAds } from './ads-providers.mjs';
+import { hasPixels, injectPixels, originAllowed, pixelsScript, trackerScript, trackingOf, touchesFrom, widenCsp } from './tracking.mjs';
+import { adSettingsOf, markAdConnection, metaAdInput, patchAdCampaign, storeAdSync } from './ads-model.mjs';
+import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
+import { exchangeGoogle, freshSecret, googleAuthUrl, googleConfigured, googleError, googleReports, listGoogleReviews, listLocations, locationDetails, replyGoogleReview, revokeGoogle, updateLocation } from './google-integrations.mjs';
+import { gbpChecklist, hoursPeriods } from './ui/gbp-data.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { affiliatePortal, portalTokenHash } from './affiliate-model.mjs';
+import { affiliatePageCsp, renderPortal, renderSignup } from './affiliate-page.mjs';
+
+// Per request: the affiliate referral cookies a public visitor carries (one per workspace).
+const requestScope = new AsyncLocalStorage();
+// Per request: where the visitor came from, per workspace (first and last touch; see ui/ads-data.js).
+const touchCookie = workspace => `soci_at_${workspace.replace(/[^\w-]/g, '')}`;
+function touchesOf(req) {
+  const out = {};
+  for (const part of String(req.headers.cookie || '').split(';')) {
+    const [name, value = ''] = part.trim().split('=');
+    if (!name?.startsWith('soci_at_')) continue;
+    try { const v = JSON.parse(Buffer.from(decodeURIComponent(value), 'base64url').toString('utf8')); out[name.slice(8)] = { first: cleanTouch(v.f), last: cleanTouch(v.l) }; } catch { /* a broken cookie is ignored */ }
+  }
+  return out;
+}
+const affiliateCookie = workspace => `soci_af_${workspace.replace(/[^\w-]/g, '')}`;
+function referralsOf(req) {
+  const refs = {};
+  for (const part of String(req.headers.cookie || '').split(';')) {
+    const [name, value = ''] = part.trim().split('=');
+    if (!name?.startsWith('soci_af_')) continue;
+    const [affiliateId, campaignId, at] = decodeURIComponent(value).split('.');
+    if (/^[0-9a-f-]{36}$/.test(affiliateId || '') && /^[0-9a-f-]{36}$/.test(campaignId || '') && /^\d{13}$/.test(at || '')) refs[name.slice(8)] = { affiliateId, campaignId, at: Number(at) };
+  }
+  return refs;
+}
+// Visitor-facing requests (pages, forms, store, chat, webinar, offers). App screens never attribute.
+const publicRequest = path => !path.startsWith('/api/') || /^\/api\/(store|chat|webinar|offer|avaliar|depoimento)\//.test(path);
 import { folded, prospectSearchText } from './ui/prospecting-data.js';
 import { shareReportHtml, widgetHtml } from './ui/prospect-report.js';
 import { snapshotAssets } from './ui/agency-data.js';
 import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, requireWorkspaceCommand, workspaceView } from './authorization.mjs';
-import { attachAccounts, claimDue, evergreenDue, reviewSocialCsv, settle } from './social-model.mjs';
+import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, reviewSocialCsv, settle } from './social-model.mjs';
 import { authUrl, availability, blueskyLogin, exchange as socialExchange, publish as socialPublish, seal, unseal } from './social-providers.mjs';
 import { network } from './ui/social-data.js';
 import { captionRequest, writeCaption } from './social-ai.mjs';
 import { findSharedReport, reportMailer, sharedReportPage } from './report-share.mjs';
+import { documentMailer, documentMessage } from './document-mail.mjs';
+import { campaignMailer } from './email-campaign-send.mjs';
+import { countdownGif } from './countdown-gif.mjs';
+import { deadlineOf, embedPage } from './ui/countdown-data.js';
+import { mergeValues, normalizeDesign, renderEmail, fillText } from './ui/email-blocks.js';
+import { applyDomainStatus, emailDomainView, emailDomains, normalizeLocalPart, workspaceSender } from './email-domain.mjs';
+import { tokenHash as documentTokenHash } from './document-model.mjs';
+import { estimateTokenHash } from './estimate-model.mjs';
+import { invoiceTokenHash } from './invoice-model.mjs';
+import { cartTokenHash, abandonedOf } from './checkout-model.mjs';
 import { reportsDue } from './report-model.mjs';
+import { brandGroupData } from './ui/brand-group-data.js';
+import { brandGroupPage } from './brand-group-page.mjs';
+import { presentationPageHtml } from './presentation-model.mjs';
 import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
 import { createAbacatePayHandler } from './abacatepay.mjs';
 import { makeClientPortal, portalCookie } from './client-portal.mjs';
 import { makeCommunity } from './community.mjs';
+import { fillWelcome } from './community-config.mjs';
+import { certificateCsp, certificatePage } from './course-credentials.mjs';
+import { desktopCsp, desktopLaunchPage, desktopManifest, desktopOf, desktopWorker } from './agency-desktop.mjs';
 import { createMcpHandler } from './mcp-server.mjs';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { chatHistory } from './chat-model.mjs';
@@ -55,16 +128,17 @@ const root = dirname(fileURLToPath(import.meta.url));
 const staticFiles = new Map([
   ['/launchpad.js','text/javascript; charset=utf-8'], ['/launchpad-data.js','text/javascript; charset=utf-8'], ['/launchpad.css','text/css; charset=utf-8'],
   ['/app.js','text/javascript; charset=utf-8'], ['/icons.js','text/javascript; charset=utf-8'],
-  ['/screens.js','text/javascript; charset=utf-8'], ['/conversations.js','text/javascript; charset=utf-8'],
+  ['/screens.js','text/javascript; charset=utf-8'], ['/conversations.js','text/javascript; charset=utf-8'], ['/conversation-analytics.js','text/javascript; charset=utf-8'],
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
   ['/reports.js','text/javascript; charset=utf-8'], ['/report-data.js','text/javascript; charset=utf-8'], ['/reports.css','text/css; charset=utf-8'],
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/offers.js','text/javascript; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
-  ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
+  ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
   ['/highlight.js','text/javascript; charset=utf-8'],
   ['/vendor/marked.js','text/javascript; charset=utf-8'], ['/vendor/purify.js','text/javascript; charset=utf-8'],
@@ -74,7 +148,7 @@ const staticFiles = new Map([
   ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
   ['/opportunity-data.js','text/javascript; charset=utf-8'], ['/opportunity-filters.js','text/javascript; charset=utf-8'], ['/opportunities.js','text/javascript; charset=utf-8'], ['/opportunities.css','text/css; charset=utf-8'],
   ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'],
-  ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'],
+  ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
@@ -100,18 +174,46 @@ const webinarPath = new RegExp(`^/w/${workspaceSegment}/([0-9a-f-]{36})(?:/(sala
 const webinarApi = new RegExp(`^/api/webinar/${workspaceSegment}/([0-9a-f-]{36})/register$`);
 const qrPath = new RegExp(`^/q/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
+const reviewPagePath = new RegExp(`^/avaliar/${workspaceSegment}(?:/([0-9a-f]{48}))?/?$`);
+const reviewApi = new RegExp(`^/api/avaliar/${workspaceSegment}$`);
+const widgetPath = new RegExp(`^/rw/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js))?/?$`);
+const videoPath = new RegExp(`^/v/${workspaceSegment}/([0-9a-f-]{36})$`);
+const collectorPath = new RegExp(`^/depoimento/${workspaceSegment}/([0-9a-f-]{36})/?$`);
+const collectorApi = new RegExp(`^/api/depoimento/${workspaceSegment}/([0-9a-f-]{36})/(start|chunk|finish)$`);
+const affiliateLink = new RegExp(`^/r/${workspaceSegment}/([a-z0-9]{3,20})(?:/([0-9a-f-]{36}))?/?$`);
+const affiliatePagePath = new RegExp(`^/afiliados/${workspaceSegment}(?:/([0-9a-f]{48}))?/?$`);
+const affiliateSignupApi = new RegExp(`^/api/afiliados/${workspaceSegment}/signup$`);
 const offerPath = new RegExp(`^/oferta/${workspaceSegment}/([0-9a-f-]{36})/?$`);
+const certificatePath = new RegExp(`^/certificado/${workspaceSegment}/([0-9A-F]{12})/?$`);
+const desktopPath = /^\/desktop\/([\w-]{1,60})\/(manifest\.webmanifest|sw\.js|icon-(?:192|512|1024)\.png)?$/;
 const offerApi = new RegExp(`^/api/offer/${workspaceSegment}/([0-9a-f-]{36})$`);
-const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout)$`);
+const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout|cart|restore|review)$`);
 const blogPath = new RegExp(`^/b/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,80}|rss\\.xml))?/?$`);
 const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
 const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
+const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const emailTrackPath = new RegExp(`^/e/(o|c|u)/${workspaceSegment}/([0-9a-f]{24})(?:/([0-9]{1,3}))?$`);
+const countdownPath = new RegExp(`^/cd/${workspaceSegment}/([0-9a-f-]{36})([.]gif)?$`);
+// A transparent 1x1 GIF for timers that no longer exist (an e-mail must not show a broken image).
+const blankGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
 const hookPath = new RegExp(`^/hooks/${workspaceSegment}/([0-9a-f-]{36})/([a-z0-9]{6,40})$`, 'i');
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialInvitePath = new RegExp(`^/social-connect/${workspaceSegment}/?$`);
 const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
+const signPagePath = new RegExp(`^/assinar/${workspaceSegment}/?$`);
+const signApiPath = new RegExp(`^/api/assinar/${workspaceSegment}$`);
+const estimatePagePath = new RegExp(`^/orcamento/${workspaceSegment}/?$`);
+const estimateApiPath = new RegExp(`^/api/orcamento/${workspaceSegment}$`);
+const invoicePagePath = new RegExp(`^/fatura/${workspaceSegment}/?$`);
+const invoiceApiPath = new RegExp(`^/api/fatura/${workspaceSegment}$`);
+const brandGroupRoute = /^\/marcas\/([0-9a-f]{64})\/?$/;
+const presentationRoute = /^\/apresentacao\/([0-9a-f]{64})\/?$/;
 const sharedReportRoute = new RegExp(`^/relatorio/${workspaceSegment}/([0-9a-f]{64})/?$`);
 const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{36})/([0-9a-f-]{36})$`);
+// Pages a visitor lands on (sites, forms, offers, store, blog, webinars, QR codes and links): they remember the visit's source.
+// The tracking script (/t/<workspace>.js), the pixels loader (/t/<workspace>/pixels.js) and events (/t/<workspace>/e).
+const trackingPath = new RegExp(`^/t/${workspaceSegment}(\\.js|/pixels\\.js|/e)$`);
+const landingPath = new RegExp(`^/(s|form|oferta|loja|b|w|q|r)/${workspaceSegment}(?:/|$)`);
 const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,48}))?$`);
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
@@ -139,13 +241,32 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 
 export function makeServer({
   dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
-  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, designAgentConfig=designAgent,
+  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, brandFetch=fetch, brandResolve=null, designAgentConfig=designAgent,
   openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
-  portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(),
+  portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(), campaignMail=campaignMailer(),
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
 }={}) {
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
+  const content = { transformText, writeEmail, writeReviewReply, writeBrandVoice, writeCaption, writePost, postSeo, ...contentAI };
+  // The default brand board's voice, added by the server to every AI writer (never taken from the browser).
+  const brandVoiceOf = async workspace => brandVoicePrompt(defaultBoard((await store.load(workspace)).brandBoards));
+  // One AI request for a sub-account: checks the monthly limit, meters every OpenAI call and books it.
+  // Tests inject `contentAI` and run locally with only the meter, never a key.
+  async function meteredAI(who, id, kind, run) {
+    checkAiBudget(await store.load(id));
+    const meter = usageMeter();
+    const connection = localAccess && contentAI ? { onUsage: meter.onUsage, model: agentModel }
+      : { ...await openAI.requireConnection(who.session), onUsage: meter.onUsage };
+    try {
+      const result = await run(connection);
+      await store.change(id, state => { meter.charge(state, kind, ''); });
+      return result;
+    } catch (problem) {
+      await store.change(id, state => { meter.charge(state, kind, '', problem.message); });
+      throw problem;
+    }
+  }
   const openAI = createOpenAI({ store, model: agentModel, secret: openAISecret, request: openAIRequest });
   const handleAsk = createAskHandler({ store, openAI, openAIRequest });
   const waha = createWahaHandler({ store, secret: openAISecret, request: wahaRequest });
@@ -153,8 +274,34 @@ export function makeServer({
   const whatsapp = createWhatsAppHandler({
     store, secret: openAISecret, request: whatsappRequest, envBaseUrl: uazapiBaseUrl, envAdminToken: uazapiAdminToken
   });
-  const clientPortal = makeClientPortal({ ...portalOptions, store });
-  const community = makeCommunity({ store });
+  // A quiz, an assignment or a grade: the student's contact gets the course triggers in the workflows.
+  const onCourseActivity = async (workspace, data) => { await change(workspace, { type: 'course-activity', data }); flushLater(workspace); };
+  const clientPortal = makeClientPortal({ ...portalOptions, store, onCourseActivity, loadState: workspace => store.load(workspace) });
+  // A member confirmed or paid an event: find or create the contact and fire "Inscrição em evento da comunidade".
+  const onEventJoin = async (workspace, { eventId, memberId, paid }) => {
+    const member = (await clientPortal.directory(workspace)).members?.find(row => row.id === memberId);
+    if (!member) return;
+    await change(workspace, { type: 'community-event-joined', id: eventId, data: { email: member.email, name: member.name, contactId: member.contactId || '', paid } });
+    flushLater(workspace);
+  };
+  // Someone became an active member: the welcome e-mail (when set) and "Membro entrou na comunidade".
+  const onMemberJoin = async (workspace, { groupId, memberId }) => {
+    const [state, directory] = await Promise.all([store.load(workspace), clientPortal.directory(workspace)]);
+    const group = state.communities.find(row => row.id === groupId), member = directory.members?.find(row => row.id === memberId);
+    if (!group || !member?.email) return;
+    const body = fillWelcome(group.welcomeDm, { name: member.name || member.email.split('@')[0], group: group.name });
+    await change(workspace, { type: 'community-welcome', id: group.id, data: { items: [{ email: member.email, name: member.name, contactId: member.contactId || '', group: group.name, subject: `Boas-vindas à ${group.name}`, body }] } });
+    flushLater(workspace);
+  };
+  const community = makeCommunity({ store, onEventJoin, onMemberJoin });
+  // A paid ticket invoice: the member gets the seat (once per invoice).
+  async function grantEventTicket(workspace, invoice) {
+    await community.grantTicket(workspace, invoice.eventTicket, invoice.id);
+    await store.change(workspace, current => {
+      const row = current.invoices.find(item => item.id === invoice.id);
+      if (row) row.ticketGrantedAt = new Date().toISOString();
+    });
+  }
   // Gives an offer's courses and communities to the contact who bought it (once per invoice).
   async function grantOffer(workspace, offerId, contactId, invoiceId = '') {
     const state = await store.load(workspace);
@@ -381,6 +528,12 @@ export function makeServer({
     const gateway = await abacate.status(who.agencyId, abacate.AGENCY_SCOPE, publicBase(req));
     return { agency: { ...publicAgency(agency, who), abacatepay: { connected: gateway.connected, storeName: gateway.storeName || '', devMode: Boolean(gateway.devMode) } }, overview: agencyOverview(agency, states), marketplace: publicMarketplaceList(marketplaceDoc, who.agencyId), workspaces, personalWorkspace, access: who,
       features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, ...extra };
+  }
+  // Sub-accounts of a brand group that still belong to the agency and are not closed, with their state.
+  async function brandWorkspaces(agency, agencyId, group) {
+    const wanted = new Set(group.accountIds);
+    const rows = (await listWorkspaces(agencyId)).filter(w => wanted.has(w.id) && agency.accounts?.[w.id]?.status !== 'Closed');
+    return Promise.all(rows.map(async w => ({ id: w.id, name: w.name, state: await store.load(w.id) })));
   }
   const agencyWorkspaceViews = (agency, who, workspaces) => Promise.all(workspaces.map(async w => ({
     ...w, ...workspaceView(effectiveAccess(agency, who, w.id), await store.load(w.id))
@@ -674,6 +827,12 @@ export function makeServer({
         return result;
       });
     }
+    if (op === 'brand-group-report') {
+      const agency = await loadAgency(who.agencyId);
+      const group = agency.brandGroups?.find(row => row.id === input.id);
+      if (!group) throw error('Grupo de marcas não encontrado.',404);
+      return brandGroupData(group, await brandWorkspaces(agency, who.agencyId, group));
+    }
     if (op === 'accounts') return createAccount(who, input);
     if (op === 'snapshot-create' || op === 'snapshot-refresh') {
       const agency = await loadAgency(who.agencyId);
@@ -823,9 +982,13 @@ export function makeServer({
     throw error('Unknown agency request.',404);
   }
   function change(id,command,who) {
+    const scope = requestScope.getStore();
+    const affiliate = !who && scope?.public ? scope.refs[id] || null : null;
+    // Visitor actions on landing pages and the public store/chat/webinar/offer APIs carry the visit's source.
+    const attribution = !who && scope?.attribute ? scope.touches[id] || {} : null;
     return store.change(id, state => {
       if (who) requireRecordEffects(who, state, command);
-      const result = execute(state, command, { workspace: id });
+      const result = execute(state, command, { workspace: id, affiliate, attribution });
       return { id:result, state };
     });
   }
@@ -837,6 +1000,26 @@ export function makeServer({
   };
   const socialSecrets = async (workspace, mutate) => { await socialRow(`social-${workspace}`); return store.change(`social-${workspace}`, mutate); };
   const publicBase = req => process.env.SOCIAL_PUBLIC_URL || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+  // Documentos e contratos: signing links by e-mail/WhatsApp, and a per-IP limit on the public signing API.
+  // Serviços de e-mail: the sub-account's verified sending domain, or '' to send from the platform address.
+  const sendingAddress = async workspace => { try { return workspaceSender(await store.load(`email-${workspace}`)); } catch { return ''; } };
+  const signHits = new Map(), testHits = new Map(), countdownCache = new Map(), trackingHits = new Map();
+  // Tracking events: up to 300 per connection every 10 minutes.
+  const allowTracking = ip => {
+    const at = Date.now(), hit = trackingHits.get(ip);
+    if (!hit || hit.reset < at) { if (trackingHits.size > 5000) trackingHits.clear(); trackingHits.set(ip, { count: 1, reset: at + 600000 }); return true; }
+    return ++hit.count <= 300;
+  };
+  // The sub-account's pixels (GA4, Tag Manager, Meta) on a public page: the loader tag and a CSP that allows them.
+  const withPixels = (state, workspace, headers, body) => {
+    if (!hasPixels(state?.tracking) || typeof body !== 'string') return [headers, body];
+    return [{ ...headers, 'Content-Security-Policy': widenCsp(headers['Content-Security-Policy']) }, injectPixels(body, workspace)];
+  };
+  const allowSign = ip => {
+    const at = Date.now(), hit = signHits.get(ip);
+    if (!hit || hit.reset < at) { if (signHits.size > 5000) signHits.clear(); signHits.set(ip, { count: 1, reset: at + 600000 }); return true; }
+    return ++hit.count <= 120;
+  };
   const callbackPath = provider => `/api/social/callback/${provider === 'instagram' ? 'facebook' : provider}`;
   const validateInvite = (row, key) => {
     const invite = row.invite;
@@ -897,12 +1080,6 @@ export function makeServer({
     }
     return { ...m, bytes: async () => { const r = await fetch(m.url, { signal: AbortSignal.timeout(120_000) }); if (!r.ok) throw error(`Não foi possível baixar a mídia (${r.status}).`,502); return Buffer.from(await r.arrayBuffer()); } };
   });
-  const rssItems = xml => [...xml.matchAll(/<(item|entry)\b[\s\S]*?<\/\1>/gi)].map(([block]) => {
-    const tag = name => (block.match(new RegExp(`<${name}\\b[^>]*>([\\s\\S]*?)<\\/${name}>`, 'i'))?.[1] || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '')
-      .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').trim();
-    const link = tag('link') || block.match(/<link\b[^>]*href="([^"]+)"/i)?.[1] || '';
-    return { title: tag('title'), link, guid: tag('guid') || tag('id') || link, summary: tag('description') || tag('summary') };
-  }).filter(item => item.guid);
   async function checkFeeds(workspace, agencyId, at) {
     const state = await store.load(workspace);
     const stale = state.socialFeeds.filter(f => f.active && Date.parse(f.lastChecked || 0) < at - 30 * 60_000);
@@ -912,21 +1089,14 @@ export function makeServer({
       try {
         const r = await fetch(feed.url, { signal: AbortSignal.timeout(20_000), headers: { Accept: 'application/rss+xml, application/atom+xml, text/xml' } });
         if (!r.ok) throw Error(`HTTP ${r.status}`);
-        items = rssItems((await r.text()).slice(0, 2_000_000));
+        items = parseFeed((await r.text()).slice(0, 2_000_000));
       } catch (e) { problem = `Não foi possível ler o feed: ${e.message}`.slice(0, 200); }
       if (!await accountIsActive(agencyId, workspace, 'marketing')) return;
       await store.change(workspace, s => {
         const row = s.socialFeeds.find(f => f.id === feed.id); if (!row) return;
         row.lastChecked = new Date(at).toISOString(); row.error = problem; if (problem) return;
-        const seen = new Set(row.seen || []), fresh = items.filter(item => !seen.has(item.guid)).slice(0, row.seen ? 5 : 3).reverse();
-        for (const item of fresh) {
-          const summary = row.template.replace(/\{\{\s*(title|link|summary)\s*\}\}/g, (_, k) => item[k] || '').slice(0, 5000);
-          const accounts = row.accountIds.filter(accountId => s.socialAccounts.some(a => a.id === accountId));
-          s.socialPosts.push({ id: uid(), created: stamp(), type: 'post', summary, overrides: {}, accountIds: accounts, media: [], link: item.link, firstComment: '', categoryId: '', tags: [],
-            needsApproval: false, source: 'rss', feedId: row.id, scheduleDate: row.mode === 'schedule' ? new Date(at + 5 * 60_000).toISOString() : '', recurrence: null,
-            status: row.mode === 'schedule' && accounts.length ? 'scheduled' : 'draft', approval: '', results: [], createdBy: row.name, error: '' });
-        }
-        row.seen = items.map(item => item.guid).slice(0, 200);
+        const made = feedPosts(s, row, items, { at, uid, now: stamp });
+        if (made.length) row.lastItemAt = stamp();
       });
     }
   }
@@ -984,10 +1154,14 @@ export function makeServer({
       }
       const publishedOk = results.filter(r => r.ok);
       const publishedFail = results.filter(r => !r.ok);
-      await store.change(workspace, s => {
-        settle(s, post.id, results, { uid, now: stamp });
+      const queued = await store.change(workspace, s => {
+        const outcome = settle(s, post.id, results, { uid, now: stamp });
         for (const [accountId, message] of Object.entries(broken)) { const a = s.socialAccounts.find(x => x.id === accountId); if (a) Object.assign(a, { status: 'expired', error: message }); }
+        // "Post social publicado" workflows run here, outside a member's command.
+        if (outcome && s.workflows?.some(w => w.active)) emitWorkflow(s, 'social_post_published', outcome);
+        return s.workflowOutbox?.length || 0;
       });
+      if (queued) flushLater(workspace);
       completed++;
       const activeWebhooks = (state.socialWebhooks || []).filter(w => w.active);
       if (activeWebhooks.length) {
@@ -1018,22 +1192,134 @@ export function makeServer({
     }
     return sent.length;
   }
+  // Community events: one day before each date, attendees get an e-mail reminder in Conversas.
+  async function runEventReminders(workspace, base, at = Date.now()) {
+    const state = await store.load(workspace);
+    if (!state.communityEvents?.length) return 0;
+    const due = await community.dueReminders(workspace, state, at);
+    if (!due.length) return 0;
+    const members = new Map(((await clientPortal.directory(workspace)).members || []).map(row => [row.id, row]));
+    const items = due.map(row => { const member = members.get(row.memberId);
+      return member && { eventId: row.eventId, start: row.start, email: member.email, name: member.name, contactId: member.contactId || '', link: `${base}/portal/${workspace}` }; }).filter(Boolean);
+    if (!items.length) return 0;
+    const result = await change(workspace, { type: 'community-event-reminders', data: { items } });
+    return Number(result.id) || 0;
+  }
+  // Community newsletters: at the chosen hour, the best posts go by e-mail to every member with access.
+  async function runNewsletters(workspace, base, at = Date.now()) {
+    const state = await store.load(workspace);
+    if (!state.communities?.some(group => group.newsletter?.enabled)) return 0;
+    const due = await community.dueNewsletters(workspace, state, at);
+    if (!due.length) return 0;
+    const members = new Map(((await clientPortal.directory(workspace)).members || []).map(row => [row.id, row]));
+    const items = due.flatMap(digest => digest.memberIds.map(id => members.get(id)).filter(member => member?.email && !member.revokedAt).map(member => ({
+      email: member.email, name: member.name, contactId: member.contactId || '', subject: `Novidades da comunidade ${digest.groupName}`,
+      body: [`Oi${member.name ? `, ${member.name.split(' ')[0]}` : ''}! Veja o que movimentou a comunidade ${digest.groupName}:`, '',
+        ...digest.posts.map(post => `• ${post.title} (${post.likes} curtidas, ${post.comments} comentários)`), '', `Entre para participar: ${base}/portal/${workspace}`].join('\n') })));
+    if (!items.length) return 0;
+    const result = await change(workspace, { type: 'community-newsletter', data: { items } });
+    return Number(result.id) || 0;
+  }
+  async function sendVideo(req, res, method, workspace, row, cache) {
+    const parts = [];
+    for (let index = 0; index < row.chunks; index++) {
+      const chunk = await Promise.resolve().then(() => store.load(mediaRowId(workspace, row.id, index))).catch(() => null);
+      if (!chunk?.data) throw error('Vídeo indisponível.', 404);
+      parts.push(Buffer.from(chunk.data, 'base64'));
+    }
+    const bytes = Buffer.concat(parts);
+    const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ''));
+    const headers = { 'Content-Type': row.mime, 'Accept-Ranges': 'bytes', 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff', 'Cross-Origin-Resource-Policy': 'cross-origin' };
+    if (range && (range[1] || range[2])) {
+      const start = range[1] ? Number(range[1]) : Math.max(0, bytes.length - Number(range[2]));
+      const end = range[1] && range[2] ? Math.min(Number(range[2]), bytes.length - 1) : bytes.length - 1;
+      if (start >= bytes.length || start > end) { res.writeHead(416, { 'Content-Range': `bytes */${bytes.length}` }); return res.end(); }
+      res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${bytes.length}`, 'Content-Length': end - start + 1 });
+      return res.end(method === 'HEAD' ? undefined : bytes.subarray(start, end + 1));
+    }
+    res.writeHead(200, { ...headers, 'Content-Length': bytes.length });
+    return res.end(method === 'HEAD' ? undefined : bytes);
+  }
+  // AI steps run in the background with the OpenAI key of whoever saved the workflow, and only while that
+  // person still belongs to the agency that owns the sub-account (or it is their own personal account).
+  async function workflowConnection(workspace, state, workflowId) {
+    if (localAccess && workflowAI) return { model: agentModel };
+    const key = state.workflows.find(row => row.id === workflowId)?.aiKey;
+    if (!key?.session) throw error('salve o fluxo de novo, com a OpenAI conectada, para usar as ações de IA', 409);
+    const agencyId = state.agencyId || AGENCY_ID;
+    let allowed = false;
+    if (privateSpace.test(workspace)) allowed = workspace === personalId({ id: key.session });
+    else if (key.agency === agencyId) {
+      if (key.user) allowed = Boolean((await loadAgency(agencyId).catch(() => null))?.users.some(user => user.id === key.user && user.loginEnabled));
+      else allowed = agencyId === `agency-${key.session}` || (agencyId === AGENCY_ID && key.session === agencyOwnerId);
+    }
+    if (!allowed) throw error('quem salvou o fluxo não tem mais acesso a esta subconta; salve o fluxo de novo', 403);
+    const connection = await openAI.optionalConnection({ id: key.session });
+    if (!connection) throw error('conecte a OpenAI de quem salvou o fluxo (Visão da agência → Configurações → OpenAI)', 409);
+    return connection;
+  }
+  async function workflowAIStep(workspace, state, item) {
+    const base = { runId: item.runId, stepId: item.stepId };
+    try {
+      const connection = await workflowConnection(workspace, state, item.workflowId);
+      checkAiBudget(await store.load(workspace));
+      const meter = usageMeter();
+      try {
+        const { vars } = await (workflowAI || runWorkflowAI)({ ...connection, onUsage: meter.onUsage }, item);
+        await store.change(workspace, current => { meter.charge(current, 'workflow', ''); });
+        return { ...base, vars };
+      } catch (problem) {
+        await store.change(workspace, current => { meter.charge(current, 'workflow', '', problem.message); });
+        throw problem;
+      }
+    } catch (problem) {
+      return { ...base, error: problem.status === 402 ? 'limite mensal de IA da subconta atingido' : problem.message };
+    }
+  }
   // Workflows: deliver what the engine queued (outbound webhooks, WhatsApp) and record the outcome on each run.
   async function flushWorkflows(workspace) {
     const state = await store.load(workspace);
     if (!state.workflowOutbox?.length) return 0;
     const items = (await change(workspace, { type: 'workflow-outbox-take' })).id || [];
-    const results = [];
+    const results = [], aiResults = [];
+    const fromAddress = items.some(item => ['document', 'document-owner', 'review-email'].includes(item.kind)) ? await sendingAddress(workspace) : '';
+    const absolute = item => (item.path && !item.origin ? String(item.body || '').split(item.path).join(documentMail.linkOf(item)) : item.body);
     for (const item of items) {
       if (item.kind === 'webhook') results.push({ runId: item.runId, kind: 'webhook', text: await deliverWebhook(item) });
+      if (item.kind === 'ai') aiResults.push(await workflowAIStep(workspace, state, item));
+      if (item.kind === 'review-email') {
+        const outcome = await documentMail.email(item.email, { subject: item.subject, text: absolute(item) }, `review-${workspace}-${item.requestId}`,
+          { fromName: state.profile?.name || '', fromAddress }).catch(problem => problem.message);
+        results.push({ runId: item.runId, kind: 'email', text: typeof outcome === 'string' ? outcome : 'pedido de avaliação enviado' });
+      }
+      if (item.kind === 'document' || item.kind === 'document-owner') {
+        const message = documentMessage(item, documentMail.linkOf(item)), outcomes = [];
+        if (item.kind === 'document-owner' || item.channels?.includes('email')) {
+          outcomes.push(await documentMail.email(item.email, message, `doc-${workspace}-${item.docId || item.estimateId || item.invoiceId || item.checkoutId || item.giftCardId}-${item.recipientId || 'owner'}-${item.event || (item.final ? 'final' : 'request')}-${String(item.path || '').slice(-12)}`, { fromName: item.fromName || (fromAddress ? state.profile?.name || '' : ''), replyTo: item.replyTo, fromAddress }));
+        }
+        if (item.kind === 'document' && item.channels?.includes('whatsapp')) {
+          if (!item.phone) outcomes.push('WhatsApp: contato sem telefone');
+          else if (privateSpace.test(workspace)) outcomes.push('WhatsApp não enviado (conta pessoal)');
+          else {
+            const sent = await whatsapp.sendWorkspaceText(state.agencyId || AGENCY_ID, workspace, item.phone, message.text, (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
+            outcomes.push(sent?.sent ? 'WhatsApp enviado' : sent?.reason === 'not-connected' ? 'WhatsApp não conectado' : 'WhatsApp não enviado');
+          }
+        }
+        results.push({ docId: item.docId, estimateId: item.estimateId, invoiceId: item.invoiceId, checkoutId: item.checkoutId, giftCardId: item.giftCardId, kind: 'document', text: `${item.kind === 'document-owner' ? 'Aviso ao remetente' : item.name}${item.final ? ' (cópia final)' : ''}: ${outcomes.join(' · ')}` });
+      }
       if (item.kind === 'whatsapp') {
         if (privateSpace.test(workspace)) { results.push({ runId: item.runId, kind: 'whatsapp', text: 'não enviado (conta pessoal)' }); continue; }
-        const sent = await whatsapp.sendWorkspaceText(state.agencyId || AGENCY_ID, workspace, item.phone, item.body, (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
+        const sent = await whatsapp.sendWorkspaceText(state.agencyId || AGENCY_ID, workspace, item.phone, absolute(item), (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
         results.push({ runId: item.runId, kind: 'whatsapp', text: sent?.sent ? 'enviado' : sent?.reason === 'not-connected' ? 'WhatsApp não conectado' : 'não enviado' });
       }
     }
     if (results.length) await change(workspace, { type: 'workflow-outbox-result', data: { results } });
-    return results.length;
+    if (aiResults.length) {
+      // Resuming can queue the next AI step or webhook of the same run.
+      const resumed = await change(workspace, { type: 'workflow-ai-result', data: { results: aiResults } });
+      if (resumed.state.workflowOutbox?.length) flushLater(workspace);
+    }
+    return results.length + aiResults.length;
   }
   const flushLater = workspace => { Promise.resolve().then(() => flushWorkflows(workspace)).catch(e => console.error(`Workflow delivery (${workspace}): ${e.message}`)); };
   // Every minute: wake waiting runs and fire scheduled triggers (birthdays, custom dates, scheduler, stale deals).
@@ -1045,6 +1331,27 @@ export function makeServer({
     await flushWorkflows(workspace);
     return result;
   }
+  // Recurring invoices: every minute, issue what is due today and deliver the e-mails with the payment links.
+  async function runRecurringInvoices(workspace, at = Date.now()) {
+    const state = await store.load(workspace);
+    const day = new Intl.DateTimeFormat('en-CA', { timeZone: state.profile?.timezone || 'UTC' }).format(new Date(at));
+    if (!state.recurringInvoices?.some(row => row.status === 'active' && row.nextIssueOn && row.nextIssueOn <= day)) return [];
+    if (!privateSpace.test(workspace) && !(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'payments').catch(() => false))) return [];
+    const issued = (await change(workspace, { type: 'invoice-tick', data: { at: new Date(at).toISOString() } })).id || [];
+    if (issued.length) await flushWorkflows(workspace);
+    return issued;
+  }
+  // Abandoned checkouts: open carts idle for longer than the configured wait become abandoned (contact,
+  // workflow trigger and recovery e-mail).
+  async function runAbandonedCheckouts(workspace, at = Date.now()) {
+    const state = await store.load(workspace);
+    const limit = at - abandonedOf(state).afterMinutes * 60000;
+    if (!state.abandonedCheckouts?.some(row => row.status === 'open' && Date.parse(row.updated) <= limit)) return 0;
+    if (!privateSpace.test(workspace) && !(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'payments').catch(() => false))) return 0;
+    const count = (await change(workspace, { type: 'checkout-tick', data: { at: new Date(at).toISOString() } })).id || 0;
+    if (count) await flushWorkflows(workspace);
+    return count;
+  }
   // Scheduled report e-mails: each due report is sent once per slot; failures are kept on the
   // schedule (lastError) and the slot is not retried, so a broken address does not resend all day.
   async function runReportMail(workspace, at = new Date()) {
@@ -1054,21 +1361,55 @@ export function makeServer({
     if (!due.length) return 0;
     if (!privateSpace.test(workspace) && !(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'reporting').catch(() => false))) return 0;
     let sent = 0;
+    const fromAddress = await sendingAddress(workspace);
     for (const { id: reportId, slot } of due) {
       const report = state.customReports.find(row => row.id === reportId);
       let problem = '';
-      try { await reportMail.send(workspace, state, report, slot); sent++; } catch (e) { problem = e.message; }
+      try { await reportMail.send(workspace, state, report, slot, { fromAddress }); sent++; } catch (e) { problem = e.message; }
       await change(workspace, { type: 'report-sent', id: reportId, data: { slot, error: problem } });
     }
     return sent;
   }
+  // E-mail campaigns: start what is scheduled, pick the A/B winner when the test ends and send the queue
+  // in batches of 100 (at most 2.000 a minute per sub-account). One run per sub-account at a time.
+  const emailRuns = new Set();
+  async function runEmailCampaigns(workspace, at = Date.now()) {
+    const state = await store.load(workspace);
+    if (!state.emailCampaigns?.some(row => ['scheduled', 'sending', 'testing'].includes(row.status))) return 0;
+    if (!privateSpace.test(workspace) && !(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'marketing').catch(() => false))) return 0;
+    if (emailRuns.has(workspace)) return 0;
+    emailRuns.add(workspace);
+    try {
+      const queued = (await change(workspace, { type: 'email-tick', data: { at: new Date(at).toISOString() } })).id;
+      if (!queued) return 0;
+      const fromAddress = await sendingAddress(workspace);
+      let sent = 0;
+      for (let round = 0; round < 20; round++) {
+        const batch = (await change(workspace, { type: 'email-take', data: { limit: 100 } })).id;
+        if (!batch.items.length) break;
+        const results = await campaignMail.sendBatch({ workspace, ...batch, fromAddress });
+        if (!results) break;
+        const done = await change(workspace, { type: 'email-result', data: { results } });
+        sent += results.filter(row => row.ok).length;
+        if (done.state.workflowOutbox?.length) flushLater(workspace);
+      }
+      return sent;
+    } finally { emailRuns.delete(workspace); }
+  }
+  const emailLater = workspace => { Promise.resolve().then(() => runEmailCampaigns(workspace)).catch(e => console.error(`E-mail campaigns (${workspace}): ${e.message}`)); };
   async function runAllSocial(base) {
     let total = 0;
     for (const w of (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id))) {
       try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
       try { await runWebinarReminders(w.id, base); } catch (e) { console.error(`Webinar reminders (${w.id}): ${e.message}`); }
+      try { await runEventReminders(w.id, base); } catch (e) { console.error(`Community event reminders (${w.id}): ${e.message}`); }
+      try { await runNewsletters(w.id, base); } catch (e) { console.error(`Community newsletters (${w.id}): ${e.message}`); }
       try { await runWorkflows(w.id); } catch (e) { console.error(`Workflows (${w.id}): ${e.message}`); }
       try { await runReportMail(w.id); } catch (e) { console.error(`Report e-mail (${w.id}): ${e.message}`); }
+      try { await runRecurringInvoices(w.id); } catch (e) { console.error(`Recurring invoices (${w.id}): ${e.message}`); }
+      try { await runAbandonedCheckouts(w.id); } catch (e) { console.error(`Abandoned checkouts (${w.id}): ${e.message}`); }
+      try { await runEmailCampaigns(w.id); } catch (e) { console.error(`E-mail campaigns (${w.id}): ${e.message}`); }
+      try { await runAllAds(w.id); } catch (e) { console.error(`Ads (${w.id}): ${e.message}`); }
     }
     return total;
   }
@@ -1079,6 +1420,58 @@ export function makeServer({
 const m=${JSON.stringify({ type: 'soci-social', ...message }).replace(/</g, '\\u003c')};
 if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); window.close(); } else location.href='/app#marketing/social';
 </script>`;
+  // ---- Anúncios (Meta Ads, Google Ads) --------------------------------------------------------
+  // Tokens live sealed in the `ads-<workspace>` row; the workspace keeps campaigns and daily numbers.
+  const adsCallbackPath = '/api/ads/callback';
+  const adsPopup = (base, message) => `<!doctype html><meta charset="utf-8"><title>soci</title><body style="font-family:system-ui;padding:24px">
+<p>${message.error ? 'Não foi possível conectar a conta de anúncios.' : 'Conta de anúncios conectada. Você pode fechar esta janela.'}</p><script>
+const m=${JSON.stringify({ type: 'soci-ads', ...message }).replace(/</g, '\\u003c')};
+if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); window.close(); } else location.href='/app#marketing/ads';
+</script>`;
+  const adsView = row => ({ configured: adsConfigured(), ...Object.fromEntries(['meta', 'google'].map(network => {
+    const a = row[network] || {};
+    return [network, { connected: Boolean(a.token), user: a.user || '', connectedAt: a.connectedAt || '', accounts: a.accounts || [], accountId: a.accountId || '', pages: a.pages || [], pageId: a.pageId || '' }];
+  })) });
+  async function adsAccess(workspace, network) {
+    const rowId = `ads-${workspace}`, a = (await socialRow(rowId))[network];
+    if (!a?.token) throw error(`Conecte o ${network === 'meta' ? 'Meta Ads' : 'Google Ads'} primeiro.`, 409);
+    const account = a.accounts.find(item => item.id === a.accountId);
+    if (!account) throw error('Escolha a conta de anúncios.', 409);
+    const fresh = await freshAdsSecret(network, unseal(a.token));
+    if (fresh.changed) await store.change(rowId, row => { if (row[network]) row[network].token = seal(fresh.secret); });
+    return { secret: fresh.secret, account, page: (a.pages || []).find(item => item.id === a.pageId) || null };
+  }
+  const adsRuns = new Set();
+  /** Syncs campaigns and the daily numbers of the last 7 days (90 on the first sync or when `full`). */
+  async function runAds(workspace, network, { full = false } = {}) {
+    const key = `${workspace}|${network}`;
+    if (adsRuns.has(key)) throw error('A sincronização já está em andamento.', 409);
+    adsRuns.add(key);
+    try {
+      const { secret, account } = await adsAccess(workspace, network);
+      const state = await store.load(workspace);
+      let today;
+      try { today = new Intl.DateTimeFormat('en-CA', { timeZone: state.profile?.timezone || 'UTC' }).format(new Date()); } catch { today = stamp().slice(0, 10); }
+      const back = full || !state.adSettings?.lastSync?.[network] ? 89 : 6;
+      const from = new Date(Date.parse(`${today}T12:00:00Z`) - back * 864e5).toISOString().slice(0, 10);
+      const data = await syncAds(network, secret, account, from, today);
+      return await store.change(workspace, s => storeAdSync(s, network, { account, ...data, from, to: today }));
+    } catch (e) {
+      await store.change(workspace, s => { const settings = adSettingsOf(s); settings.syncErrors[network] = String(e.message || e).slice(0, 300); (settings.lastAttempt ??= {})[network] = stamp(); }).catch(() => {});
+      throw e;
+    } finally { adsRuns.delete(key); }
+  }
+  // Scheduler: every connected network syncs every 3 hours (an error waits an hour before retrying).
+  async function runAllAds(workspace) {
+    const state = await store.load(workspace), settings = state.adSettings;
+    if (!settings?.connected?.meta && !settings?.connected?.google) return;
+    if (!await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'marketing')) return;
+    for (const network of ['meta', 'google']) {
+      if (!settings.connected[network] || Date.parse(settings.lastSync?.[network] || 0) > Date.now() - 3 * 3600_000) continue;
+      if (Date.parse(settings.lastAttempt?.[network] || 0) > Date.now() - 3600_000) continue;
+      await runAds(workspace, network).catch(e => console.error(`Ads sync (${workspace}, ${network}): ${e.message}`));
+    }
+  }
   // ---- Google Analytics + Business Profile (sub-account dashboard) ----------------------------
   const googleCallbackPath = '/api/google/callback';
   const googleCache = new Map();
@@ -1109,6 +1502,36 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     if (!data.ga?.error && !data.gbp?.error) googleCache.set(workspace, { key, at: Date.now(), data });
     return data;
   }
+  // The Business Profile location chosen for a workspace, with a fresh token and its account (for reviews).
+  async function gbpAccess(workspace) {
+    const rowId = `google-${workspace}`;
+    const g = (await socialRow(rowId)).google;
+    if (!g?.token) throw error('Conecte o Google em Configurações → Google para gerenciar o Perfil da Empresa.', 409);
+    if (!g.gbpLocation) throw error('Escolha o local do Perfil da Empresa em Configurações → Google.', 409);
+    const fresh = await freshSecret(unseal(g.token)).catch(() => { throw error('O acesso ao Google expirou. Conecte a conta de novo em Configurações → Google.', 401); });
+    if (fresh.changed) await store.change(rowId, row => { if (row.google) row.google.token = seal(fresh.secret); });
+    let location = g.locations?.find(item => item.id === g.gbpLocation);
+    if (!location?.accountId) {
+      const list = await listLocations(fresh.secret.token).catch(problem => { throw googleError(problem); });
+      await store.change(rowId, row => { if (row.google) row.google.locations = list; });
+      location = list.find(item => item.id === g.gbpLocation);
+    }
+    return { token: fresh.secret.token, location: g.gbpLocation, account: location?.accountId || '', name: location?.name || '' };
+  }
+  const gbpCache = new Map();
+  async function gbpStatus(workspace, force = false) {
+    const access = await gbpAccess(workspace);
+    const cached = gbpCache.get(workspace);
+    const details = !force && cached?.location === access.location && cached.at > Date.now() - 10 * 60_000 ? cached.details
+      : await locationDetails(access.token, access.location).catch(problem => { throw googleError(problem); });
+    gbpCache.set(workspace, { location: access.location, details, at: Date.now() });
+    const state = await store.load(workspace);
+    const gbpAccounts = new Set((state.socialAccounts || []).filter(row => row.provider === 'gbp').map(row => row.id));
+    const week = Date.now() - 7 * 864e5;
+    const posts = (state.socialPosts || []).filter(post => Date.parse(post.publishedAt || 0) > week && (post.results || []).some(result => result.ok && gbpAccounts.has(result.accountId))).length;
+    return { location: access.location, name: details.title || access.name, account: Boolean(access.account), details, syncedAt: state.reputation?.googleSyncedAt || '',
+      checklist: gbpChecklist(details, { reviews: state.reviews, posts }) };
+  }
   const payload = async request => {
     if (!/^application\/json(?:\s*;|$)/i.test(request.headers['content-type']||'')) throw error('Send a JSON request.',415);
     let size=0; const chunks=[];
@@ -1117,6 +1540,22 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     catch { throw error('Invalid JSON request.',400); }
   };
   const server=createServer(async (req,res) => {
+    const requestPath = String(req.url || '/').split('?')[0];
+    const touches = touchesOf(req), landing = requestPath.match(landingPath);
+    requestScope.enterWith({ public: publicRequest(requestPath), refs: referralsOf(req), touches,
+      attribute: Boolean(landing) || /^\/api\/(store|chat|webinar|offer)\//.test(requestPath) });
+    if (landing && req.method === 'GET') {
+      // UTM tags, click ids or an outside referrer: remember them (the first touch is kept for 90 days).
+      const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(':')[0];
+      const touch = touchFromVisit(req.url, String(req.headers.referer || ''), host);
+      if (touch) {
+        const workspace = landing[2], prior = touches[workspace];
+        touches[workspace] = { first: prior?.first || touch, last: touch };
+        const value = Buffer.from(JSON.stringify({ f: touches[workspace].first, l: touch })).toString('base64url');
+        const secure = String(req.headers['x-forwarded-proto'] || '').includes('https') || String(process.env.SOCIAL_PUBLIC_URL || '').startsWith('https') ? '; Secure' : '';
+        res.setHeader('Set-Cookie', `${touchCookie(workspace)}=${value}; Max-Age=${90 * 86400}; Path=/; HttpOnly; SameSite=Lax${secure}`);
+      }
+    }
     const isVercel = Boolean(process.env.VERCEL);
     const currentPort=server.address()?.port ?? port;
     const allowedHosts=[`127.0.0.1:${currentPort}`,`localhost:${currentPort}`];
@@ -1138,7 +1577,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       p = p.replace(/\/+/g, '/');
       const method=req.method;
       if (!['GET','HEAD','POST'].includes(method)) throw error('Method not allowed.',405);
-      if (method==='POST' && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
+      // Tracking events come from the business's own site, so they are the one cross-site POST accepted.
+      if (method==='POST' && !trackingPath.test(p) && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
       if (p.startsWith('/api/') && !p.startsWith('/api/auth/')) await ready;
       const id=url.searchParams.get('workspace') || 'demo';
       const portalMatch = p.match(portalApi);
@@ -1158,13 +1598,36 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const input = method === 'POST' ? await payload(req) : null;
           await requireActiveAccount(who.agencyId, workspace, true);
           const state = await store.load(workspace);
-          return json(await community.admin(workspace, state, await clientPortal.directory(workspace), courseId, input));
+          const days = [7, 30, 90, 365].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 30;
+          return json(await community.admin(workspace, state, await clientPortal.directory(workspace), courseId, input, { days }));
         }
         if (operation === 'community') {
           const input = method === 'POST' ? await payload(req) : null;
           await publicAccountPolicy(workspace, method === 'POST', 'memberships');
           const { doc, member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,proto === 'https'));
           const state = await store.load(workspace);
+          // Paid access to the community: an invoice for the chosen plan; access opens (or is extended) with the payment.
+          if (input?.action === 'subscribe') {
+            const { group, plan } = await community.reservePlan(workspace, state, member, courseId, String(input.planId || ''), input.answers);
+            const agencyId = state.agencyId || AGENCY_ID;
+            if (!(await abacate.connected(agencyId, workspace))) throw error('A assinatura desta comunidade ainda não está disponível. Fale com a equipe.',409);
+            const invoiceId = (await change(workspace,{ type:'community-plan-invoice', id:group.id, data:{ planId:plan.id, email:member.email, name:member.name, contactId:member.contactId || '', memberId:member.id } })).id;
+            const origin = publicBase(req), page = `${origin}/portal/${workspace}`;
+            const payment = await abacate.chargeInvoice(agencyId, workspace, invoiceId, origin, { returnUrl:`${page}?plano=voltou`, completionUrl:`${page}?plano=pago` });
+            await community.markPlanPending(workspace, courseId, member.id, invoiceId, input.answers);
+            return json({ community: await community.read(workspace, await store.load(workspace), doc, member, courseId, {}), payUrl: payment.url });
+          }
+          // A paid event ticket: an invoice for the member, charged by AbacatePay; the seat comes with the payment.
+          if (input?.action === 'ticket') {
+            const event = await community.reserve(workspace, state, member, courseId, String(input.eventId || ''));
+            const agencyId = state.agencyId || AGENCY_ID;
+            if (!(await abacate.connected(agencyId, workspace))) throw error('A venda de ingressos ainda não está disponível. Fale com a equipe.',409);
+            const invoiceId = (await change(workspace,{ type:'community-event-ticket', id:event.id, data:{ email:member.email, name:member.name, contactId:member.contactId || '', memberId:member.id } })).id;
+            const origin = publicBase(req), page = `${origin}/portal/${workspace}`;
+            const payment = await abacate.chargeInvoice(agencyId, workspace, invoiceId, origin, { returnUrl:`${page}?evento=voltou`, completionUrl:`${page}?evento=pago` });
+            await community.markPending(workspace, courseId, event.id, member.id, invoiceId);
+            return json({ community: await community.read(workspace, state, doc, member, courseId, {}), payUrl: payment.url });
+          }
           const result = input ? await community.act(workspace, state, doc, member, courseId, input)
             : await community.read(workspace, state, doc, member, courseId, { channelId: String(url.searchParams.get('channel') || '').slice(0, 60), period: url.searchParams.get('period') || '30' });
           return json({ community: result });
@@ -1351,6 +1814,114 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/social-connect.html')));
       }
+      const signPage = p.match(signPagePath);
+      if (signPage && method === 'GET') {
+        await ready;
+        await publicAccountPolicy(signPage[1], false, 'payments');
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        res.setHeader('X-Robots-Tag', 'noindex');
+        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/document-sign.html')));
+      }
+      const signCall = p.match(signApiPath);
+      if (signCall) {
+        await ready;
+        if (method !== 'POST') throw error('Method not allowed.',405);
+        const workspace = signCall[1];
+        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
+        const input = await payload(req);
+        const action = ['open', 'sign', 'decline', 'pay'].includes(input.action) ? input.action : '';
+        if (!action) throw error('Ação inválida para este link.',400);
+        const digest = documentTokenHash(input.token);
+        if (!digest) throw error('Este link não é válido.',404);
+        await publicAccountPolicy(workspace, action !== 'open', 'payments');
+        if (action === 'pay') {
+          const due = (await change(workspace, { type: 'document-payable', data: { tokenHash: digest } })).id;
+          const current = await store.load(workspace), agencyId = current.agencyId || AGENCY_ID;
+          if (!(await abacate.connected(agencyId, workspace))) throw error('O pagamento online ainda não está disponível. Fale com quem enviou o documento.',409);
+          const page = `${publicBase(req)}/assinar/${workspace}`;
+          const back = { returnUrl: `${page}?pagamento=voltou`, completionUrl: `${page}?pagamento=ok` };
+          if (due.kind === 'invoice') return json({ url: (await abacate.chargeInvoice(agencyId, workspace, due.invoiceId, publicBase(req), back)).url });
+          if (due.checkout) return json({ url: due.checkout.url });
+          const checkout = await abacate.subscribeWorkspace(agencyId, workspace, { reference: `doc-${due.docId}`, name: due.title, amount: due.amount, ...back, metadata: { workspace, documentId: due.docId } });
+          await change(workspace, { type: 'document-subscription-checkout', data: { docId: due.docId, checkout } });
+          return json({ url: checkout.url });
+        }
+        const result = await change(workspace, { type: `document-${action}`, data: { tokenHash: digest, ip, userAgent: String(req.headers['user-agent'] || ''), origin: publicBase(req),
+          values: input.values, items: input.items, accept: input.accept, reason: input.reason } });
+        if (result.state.workflowOutbox?.length) flushLater(workspace);
+        if (result.id?.payment) result.id.payment.online = await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false);
+        return json(result.id);
+      }
+      const estimatePage = p.match(estimatePagePath);
+      if (estimatePage && method === 'GET') {
+        await ready;
+        await publicAccountPolicy(estimatePage[1], false, 'payments');
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        res.setHeader('X-Robots-Tag', 'noindex');
+        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/estimate-view.html')));
+      }
+      const estimateCall = p.match(estimateApiPath);
+      if (estimateCall) {
+        await ready;
+        if (method !== 'POST') throw error('Method not allowed.',405);
+        const workspace = estimateCall[1];
+        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
+        const input = await payload(req);
+        const action = ['open', 'accept', 'decline', 'pay'].includes(input.action) ? input.action : '';
+        if (!action) throw error('Ação inválida para este link.',400);
+        const digest = estimateTokenHash(input.token);
+        if (!digest) throw error('Este link não é válido.',404);
+        await publicAccountPolicy(workspace, action !== 'open', 'payments');
+        if (action === 'pay') {
+          const due = (await change(workspace, { type: 'estimate-payable', data: { tokenHash: digest } })).id;
+          const current = await store.load(workspace), agencyId = current.agencyId || AGENCY_ID;
+          if (!(await abacate.connected(agencyId, workspace))) throw error('O pagamento online ainda não está disponível. Fale com quem enviou o orçamento.',409);
+          const page = `${publicBase(req)}/orcamento/${workspace}`;
+          return json({ url: (await abacate.chargeInvoice(agencyId, workspace, due.invoiceId, publicBase(req), { returnUrl: `${page}?pagamento=voltou`, completionUrl: `${page}?pagamento=ok` })).url });
+        }
+        const result = await change(workspace, { type: `estimate-${action}`, data: { tokenHash: digest, ip, userAgent: String(req.headers['user-agent'] || ''), origin: publicBase(req),
+          name: input.name, items: input.items, reason: input.reason } });
+        if (result.state.workflowOutbox?.length) flushLater(workspace);
+        if (result.id?.invoice) result.id.online = await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false);
+        return json(result.id);
+      }
+      const invoicePage = p.match(invoicePagePath);
+      if (invoicePage && method === 'GET') {
+        await ready;
+        await publicAccountPolicy(invoicePage[1], false, 'payments');
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        res.setHeader('X-Robots-Tag', 'noindex');
+        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/invoice-view.html')));
+      }
+      const invoiceCall = p.match(invoiceApiPath);
+      if (invoiceCall) {
+        await ready;
+        if (method !== 'POST') throw error('Method not allowed.',405);
+        const workspace = invoiceCall[1];
+        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
+        const input = await payload(req);
+        const action = ['open', 'pay'].includes(input.action) ? input.action : '';
+        if (!action) throw error('Ação inválida para este link.',400);
+        const digest = invoiceTokenHash(input.token);
+        if (!digest) throw error('Este link não é válido.',404);
+        await publicAccountPolicy(workspace, action !== 'open', 'payments');
+        if (action === 'pay') {
+          const due = (await change(workspace, { type: 'invoice-payable', data: { tokenHash: digest } })).id;
+          const current = await store.load(workspace), agencyId = current.agencyId || AGENCY_ID;
+          if (!(await abacate.connected(agencyId, workspace))) throw error('O pagamento online ainda não está disponível. Fale com quem enviou a fatura.',409);
+          const page = `${publicBase(req)}/fatura/${workspace}`;
+          return json({ url: (await abacate.chargeInvoice(agencyId, workspace, due.invoiceId, publicBase(req), { returnUrl: `${page}?pagamento=voltou`, completionUrl: `${page}?pagamento=ok` })).url });
+        }
+        const result = await change(workspace, { type: 'invoice-open', data: { tokenHash: digest } });
+        result.id.online = result.id.payable ? await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false) : false;
+        return json(result.id);
+      }
       const approvePage = p.match(socialApprovePath);
       if (approvePage && method === 'GET') {
         await ready;
@@ -1518,9 +2089,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         if (op === 'ai') {
           captionRequest(input);
+          input.voice = await brandVoiceOf(id);
           const status = who.session ? await openAI.status(who.session) : { configured: false };
           if (!status.configured) throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para gerar legendas com IA.',409);
-          return json(await writeCaption(await openAI.requireConnection(who.session), input));
+          return json(await meteredAI(who, id, 'social', connection => content.writeCaption(connection, input)));
         }
         const withState = async extra => {
           const state = await store.load(id);
@@ -1562,15 +2134,15 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const { agency, who: actor } = await accessContext(req,await verifiedUser(req,res));
         const isPersonal = privateSpace.test(id);
         const who = await requireWorkspaceAccess(agency, actor, id, { support: true });
-        const studio = hasModule(who, 'sites'), agents = hasModule(who, 'ai-agents'), marketing = hasModule(who, 'marketing');
+        const studio = hasModule(who, 'sites'), agents = hasModule(who, 'ai-agents'), marketing = hasModule(who, 'marketing'), reputation = hasModule(who, 'reputation');
         const [state, workspaces, aiStatus] = await Promise.all([
-          store.load(id), visibleWorkspaces(who), !who.support && (studio || agents || marketing) ? openAI.status(who.session) : null
+          store.load(id), visibleWorkspaces(who), !who.support && (studio || agents || marketing || reputation) ? openAI.status(who.session) : null
         ]);
         const account = workspaces.find(w => w.id === id)?.name || id;
         const audit = !isPersonal && (who.support || hasModule(who, 'settings')) ? agency.audit.filter(a => a.target === account || a.target === id).slice(-200) : [];
         if (who.support) await changeAgency(who.agencyId, current => logTo(current, who, 'Sub-account support viewed', id, who.account.status));
         return json({ ...workspaceView(who, state), workspaces,
-          features:{studioAI: Boolean(aiStatus?.configured && studio), socialAI: Boolean(aiStatus?.configured && marketing), reportEmail: reportMail.configured, social: marketing ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
+          features:{studioAI: Boolean(aiStatus?.configured && studio), socialAI: Boolean(aiStatus?.configured && marketing), contentAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && (marketing || studio)), reviewAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && reputation), reportEmail: reportMail.configured, social: marketing ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
           agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id,who.settings),
           ...(who.support && { account: { ...who.account, support: true, statusHistory: agency.accounts[id]?.statusHistory || [],
             ignoredWebhooks: agency.accounts[id]?.ignoredWebhooks || {} } }),
@@ -1604,12 +2176,21 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const who = await workspaceAccess(req, res, id);
         requireWorkspaceCommand(who, command);
         command.actor = who.name;
+        // Whose OpenAI key the workflow's AI steps use: always the saving user, never a value from the client.
+        if (command.type === 'save' && command.key === 'workflows' && command.data && typeof command.data === 'object') {
+          command.data = { ...command.data, aiKey: who.session ? { session: who.session.id, user: who.userId || '', agency: who.agencyId || '' } : null };
+        }
+        if (['document-send', 'document-link', 'estimate-send', 'estimate-link', 'invoice-send', 'invoice-from-template', 'checkout-remind', 'email-campaign-schedule', 'message', 'review-request', 'reputation-settings'].includes(command.type)) command.data = { ...(command.data && typeof command.data === 'object' ? command.data : {}), origin: publicBase(req) };
+        const removedVideo = command.type === 'delete' && command.key === 'videoTestimonials' ? (await store.load(id)).videoTestimonials?.find(row => row.id === command.id) : null;
         const result = await change(id,command,who);
+        if (removedVideo) for (let index = 0; index < removedVideo.chunks; index++) await Promise.resolve().then(() => store.change(mediaRowId(id, removedVideo.id, index), row => { row.data = ''; row.deleted = true; })).catch(() => {});
         let delivery = null;
         if (!privateSpace.test(id) && command.type === 'message' && command.data?.channel === 'WhatsApp' && command.data?.direction === 'Outbound') {
           const contact = result.state.contacts.find(c => c.id === command.data.contactId);
           if (contact?.phone) {
-            delivery = await whatsapp.sendWorkspaceText(who.agencyId, id, contact.phone, command.data.body,
+            // The stored body: trigger links already replaced by this contact's tracked URLs.
+            const sentBody = result.state.messages.find(m => m.id === result.id)?.body || command.data.body;
+            delivery = await whatsapp.sendWorkspaceText(who.agencyId, id, contact.phone, sentBody,
               (agencyId, workspace) => accountIsActive(agencyId, workspace, 'conversations'));
           }
         }
@@ -1619,6 +2200,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);
         }
         if (result.state.workflowOutbox?.length) flushLater(id);
+        if (command.type === 'email-campaign-schedule') emailLater(id);
         return json({ id: result.id, ...workspaceView(who, result.state), ...(delivery ? { delivery } : {}) });
       }
       if (p==='/api/agency' && method!=='POST') {
@@ -1636,7 +2218,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/abacatepay/webhook/') && method === 'POST') {
         await ready;
         return await abacate.handleWebhook({ req, url, json, listWorkspaces, changeAgency,
-          onInvoicePaid: async (workspace, invoice) => { if (invoice.offerId && !invoice.offerGrantedAt) await grantOffer(workspace, invoice.offerId, invoice.contactId, invoice.id); } });
+          onInvoicePaid: async (workspace, invoice) => {
+            if (invoice.offerId && !invoice.offerGrantedAt) await grantOffer(workspace, invoice.offerId, invoice.contactId, invoice.id);
+            if (invoice.eventTicket && !invoice.ticketGrantedAt) await grantEventTicket(workspace, invoice);
+            if (invoice.communityPlan) await community.grantPlan(workspace, await store.load(workspace), invoice.communityPlan, invoice.id);
+            flushLater(workspace);
+          } });
       }
       if (p.startsWith('/api/abacatepay/agency/')) {
         const who = await access(req, res);
@@ -1674,6 +2261,123 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           });
           await recordAudit(who, 'Assinatura AbacatePay cancelada', meta.name || workspace);
           return json(await agencyPayload(req, res));
+        }
+        throw error('Not found.', 404);
+      }
+      // Anúncios: OAuth of Meta Ads / Google Ads, account choice, sync, campaign changes and Meta ad creation.
+      if (p === adsCallbackPath && method === 'GET') {
+        const base = publicBase(req);
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'");
+        try {
+          await socialRow('ads-oauth');
+          const nonce = url.searchParams.get('state') || '';
+          const pending = await store.change('ads-oauth', row => { const v = row.states[nonce]; delete row.states[nonce]; return v; });
+          if (!pending || Date.parse(pending.at) < Date.now() - 15 * 60_000) throw error('Este login expirou. Tente conectar de novo.',400);
+          if (localAccess && pending.actor !== 'local-owner') req.localSocialUser = pending.actor;
+          const who = await workspaceAccess(req, res, pending.workspace, { modules: ['marketing'] });
+          if (pending.actor !== socialActor(who)) throw error('Esta autorização pertence a outra sessão.',403);
+          if (url.searchParams.get('error')) throw error('A autorização foi cancelada.',400);
+          const network = pending.network, label = network === 'meta' ? 'Meta Ads' : 'Google Ads';
+          const found = await adsExchange(network, { code: url.searchParams.get('code') || '', redirectUri: base + adsCallbackPath });
+          const rowId = `ads-${pending.workspace}`;
+          await socialRow(rowId);
+          const accountId = await store.change(rowId, row => {
+            const prior = row[network] || {};
+            const keep = (list, value) => list.some(item => item.id === value) ? value : '';
+            row[network] = { token: seal(found.secret), user: found.user, accounts: found.accounts, pages: found.pages || [], connectedAt: stamp(),
+              accountId: keep(found.accounts, prior.accountId) || (found.accounts.length === 1 ? found.accounts[0].id : ''),
+              pageId: keep(found.pages || [], prior.pageId) || (found.pages?.length === 1 ? found.pages[0].id : '') };
+            return row[network].accountId;
+          });
+          await store.change(pending.workspace, s => markAdConnection(s, network, true));
+          await recordAudit(who, `${label} conectado`, found.user || pending.workspace).catch(() => {});
+          if (accountId) runAds(pending.workspace, network, { full: true }).catch(() => {});
+          return send(200,'text/html; charset=utf-8',adsPopup(base, { network }));
+        } catch (e) {
+          return send(200,'text/html; charset=utf-8',adsPopup(base, { error: e.message }));
+        }
+      }
+      if (p.startsWith('/api/ads/workspace/')) {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.', 404);
+        const op = p.slice('/api/ads/workspace/'.length).replace(/\/+$/, '');
+        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
+        const rowId = `ads-${id}`;
+        if (op === 'connect' && method === 'GET') {
+          const network = url.searchParams.get('network');
+          if (!['meta', 'google'].includes(network)) throw error('Escolha a rede de anúncios.', 400);
+          const nonce = uid();
+          const target = adsAuthUrl(network, { redirectUri: publicBase(req) + adsCallbackPath, state: nonce });
+          await socialRow('ads-oauth');
+          await store.change('ads-oauth', row => {
+            for (const [k, v] of Object.entries(row.states)) if (Date.parse(v.at) < Date.now() - 15 * 60_000) delete row.states[k];
+            row.states[nonce] = { workspace: id, network, at: stamp(), actor: socialActor(who) };
+          });
+          res.writeHead(302, { Location: target }); return res.end();
+        }
+        if (op === 'status' && method === 'GET') return json(adsView(await socialRow(rowId)));
+        if (method !== 'POST') throw error('Method not allowed.', 405);
+        const body = await payload(req);
+        const net = ['meta', 'google'].includes(body.network) ? body.network : null;
+        if (!net) throw error('Escolha a rede de anúncios.', 400);
+        const label = net === 'meta' ? 'Meta Ads' : 'Google Ads';
+        const reply = async extra => json({ ...workspaceView(who, await store.load(id)), ads: adsView(await socialRow(rowId)), ...extra });
+        if (op === 'select') {
+          await socialRow(rowId);
+          const changed = await store.change(rowId, row => {
+            const a = row[net];
+            if (!a?.token) throw error(`Conecte o ${label} primeiro.`, 409);
+            let moved = false;
+            if (body.accountId !== undefined) {
+              if (!a.accounts.some(item => item.id === body.accountId)) throw error('Escolha uma conta de anúncios desta conexão.', 400);
+              moved = a.accountId !== body.accountId; a.accountId = body.accountId;
+            }
+            if (body.pageId !== undefined) {
+              if (body.pageId && !(a.pages || []).some(item => item.id === body.pageId)) throw error('Escolha uma Página desta conexão.', 400);
+              a.pageId = body.pageId;
+            }
+            return moved;
+          });
+          if (changed) {
+            // Another ad account: its numbers replace the old account's.
+            await store.change(id, s => { s.adCampaigns = (s.adCampaigns || []).filter(c => c.network !== net); s.adStats = (s.adStats || []).filter(r => r.network !== net); delete adSettingsOf(s).lastSync[net]; });
+            const synced = await runAds(id, net, { full: true }).then(() => '', e => e.message);
+            return reply({ syncError: synced });
+          }
+          return reply({});
+        }
+        if (op === 'sync') return reply({ synced: await runAds(id, net, { full: body.full === true }) });
+        if (op === 'campaign') {
+          const camp = (await store.load(id)).adCampaigns?.find(c => c.network === net && c.id === String(body.id || ''));
+          if (!camp) throw error('Campanha não encontrada. Sincronize de novo.', 404);
+          const { secret, account } = await adsAccess(id, net);
+          if (body.action === 'pause' || body.action === 'activate') {
+            const on = body.action === 'activate';
+            await setCampaignStatus(net, secret, account, camp.id, on);
+            await store.change(id, s => patchAdCampaign(s, net, camp.id, { status: on ? 'active' : 'paused', rawStatus: on ? (net === 'meta' ? 'ACTIVE' : 'ENABLED') : 'PAUSED' }));
+            await recordAudit(who, `Campanha ${on ? 'ativada' : 'pausada'} (${label})`, camp.name).catch(() => {});
+          } else if (body.action === 'budget') {
+            await setCampaignBudget(net, secret, account, camp, body.budget);
+            await store.change(id, s => patchAdCampaign(s, net, camp.id, { budget: Math.round(Number(body.budget) * 100) / 100 }));
+            await recordAudit(who, `Orçamento da campanha alterado (${label})`, `${camp.name}: ${body.budget}`).catch(() => {});
+          } else throw error('Ação inválida.', 400);
+          return reply({});
+        }
+        if (op === 'create') {
+          if (net !== 'meta') throw error('A criação de anúncios pelo Soci está disponível para o Meta Ads.', 400);
+          const { ad, image } = metaAdInput(await store.load(id), body);
+          const { secret, account, page } = await adsAccess(id, 'meta');
+          if (!page) throw error('Escolha a Página do Facebook que vai assinar o anúncio.', 409);
+          const created = await createMetaAd(secret, account, page, ad, image);
+          await recordAudit(who, 'Anúncio criado no Meta Ads (pausado)', ad.name).catch(() => {});
+          await runAds(id, 'meta').catch(() => null);
+          return reply({ created });
+        }
+        if (op === 'disconnect') {
+          await socialRow(rowId);
+          await store.change(rowId, row => { delete row[net]; });
+          await store.change(id, s => markAdConnection(s, net, false));
+          await recordAudit(who, `${label} desconectado`, id).catch(() => {});
+          return reply({});
         }
         throw error('Not found.', 404);
       }
@@ -1750,6 +2454,87 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           googleCache.delete(id);
           await recordAudit(who, 'Google desconectado', id).catch(() => {});
           return json(googleView(await store.load(rowId), true));
+        }
+        throw error('Not found.', 404);
+      }
+      if (p === '/api/email/campaign/test' && method === 'POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.', 404);
+        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
+        const body = await payload(req);
+        const to = String(body.to || '').trim().toLowerCase();
+        if (!/^[^\s@<>"]{1,64}@[^\s@<>"]{1,190}\.[a-z0-9-]{2,}$/i.test(to)) throw error('Informe um e-mail válido para o teste.', 400);
+        const at = Date.now(), hits = (testHits.get(id) || []).filter(time => time > at - 3600_000);
+        if (hits.length >= 20) throw error('Limite de 20 e-mails de teste por hora atingido. Tente mais tarde.', 429);
+        testHits.set(id, [...hits, at]);
+        const state = await store.load(id), design = normalizeDesign(body);
+        if (!design.blocks.length) throw error('O e-mail está vazio.', 400);
+        const contact = state.contacts.find(row => row.email) || { name: 'Ana Souza', email: to, company: 'Exemplo' };
+        const values = mergeValues(contact, state.profile), business = state.profile?.name || '';
+        const testOrigin = publicBase(req), sentAt = Math.floor(Date.now() / 1000);
+        const { html, text } = renderEmail({ ...design, preheader: fillText(String(body.preheader || ''), values), business, values,
+          countdownSrc: timerId => `${testOrigin}/cd/${id}/${timerId}.gif?s=${sentAt}` });
+        await campaignMail.sendTest({ to, subject: fillText(String(body.subject || '').slice(0, 200), values) || '(sem assunto)', html, text,
+          fromName: String(body.fromName || '').slice(0, 80) || business, replyTo: /^[^\s@<>"]+@[^\s@<>"]+$/.test(body.replyTo || '') ? body.replyTo : '', fromAddress: await sendingAddress(id) });
+        await recordAudit(who, 'E-mail de teste enviado', to).catch(() => {});
+        return json({ ok: true, to });
+      }
+      if (p.startsWith('/api/email/workspace/')) {
+        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
+        const op = p.slice('/api/email/workspace/'.length).replace(/\/+$/, '');
+        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
+        const rowId = `email-${id}`;
+        const view = row => emailDomainView(row, { configured: emailDomainApi.configured, platformFrom: process.env.PORTAL_EMAIL_FROM || '' });
+        // Copies Resend's view of the domain (status and per-record status) into the row.
+        const refresh = async () => {
+          const row = await socialRow(rowId), d = row.emailDomain;
+          if (!d) return row;
+          const live = await emailDomainApi.get(d.id);
+          await store.change(rowId, r => { if (r.emailDomain?.id === d.id) r.emailDomain = applyDomainStatus(r.emailDomain, live, stamp()); });
+          return store.load(rowId);
+        };
+        if (op === 'status' && method === 'GET') {
+          const row = await socialRow(rowId);
+          if (!row.emailDomain || row.emailDomain.status === 'verified' || !emailDomainApi.configured) return json(view(row));
+          try { return json(view(await refresh())); } catch (e) { return json({ ...view(row), problem: e.message }); }
+        }
+        if (method !== 'POST') throw error('Method not allowed.', 405);
+        const body = await payload(req);
+        if (op === 'add') {
+          if ((await socialRow(rowId)).emailDomain) throw error('Esta subconta já tem um domínio de envio. Remova o atual para trocar.', 409);
+          const localPart = normalizeLocalPart(body.localPart ?? 'contato');
+          const live = await emailDomainApi.add(body.domain);
+          let clash = false;
+          await store.change(rowId, r => {
+            if (r.emailDomain) { clash = true; return; }
+            r.emailDomain = { ...live, localPart, addedAt: stamp(), checkedAt: stamp(), verifiedAt: live.status === 'verified' ? stamp() : '' };
+          });
+          if (clash) { await emailDomainApi.remove(live.id).catch(() => {}); throw error('Esta subconta já tem um domínio de envio. Remova o atual para trocar.', 409); }
+          await recordAudit(who, 'Domínio de envio adicionado', live.name).catch(() => {});
+          return json(view(await store.load(rowId)));
+        }
+        if (op === 'verify') {
+          const row = await socialRow(rowId);
+          if (!row.emailDomain) throw error('Adicione um domínio de envio primeiro.', 409);
+          await emailDomainApi.verify(row.emailDomain.id);
+          return json(view(await refresh()));
+        }
+        if (op === 'save') {
+          const localPart = normalizeLocalPart(body.localPart);
+          await socialRow(rowId);
+          await store.change(rowId, r => {
+            if (!r.emailDomain) throw error('Adicione um domínio de envio primeiro.', 409);
+            r.emailDomain.localPart = localPart;
+          });
+          return json(view(await store.load(rowId)));
+        }
+        if (op === 'remove') {
+          const row = await socialRow(rowId);
+          if (row.emailDomain) {
+            await emailDomainApi.remove(row.emailDomain.id);
+            await store.change(rowId, r => { delete r.emailDomain; });
+            await recordAudit(who, 'Domínio de envio removido', row.emailDomain.name).catch(() => {});
+          }
+          return json(view(await store.load(rowId)));
         }
         throw error('Not found.', 404);
       }
@@ -1852,6 +2637,129 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           }
         });
       }
+      const gbpAction = p.match(/^\/api\/gbp\/(status|profile|sync|reply)$/);
+      if (gbpAction) {
+        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
+        const who = await workspaceAccess(req, res, id, { modules: ['reputation'] });
+        const op = gbpAction[1];
+        if (op === 'status' && method === 'GET') return json(await gbpStatus(id, url.searchParams.get('refresh') === '1'));
+        if (method !== 'POST') throw error('Method not allowed.', 405);
+        const input = await payload(req);
+        const access = await gbpAccess(id);
+        if (op === 'profile') {
+          const patch = {};
+          if (input.description !== undefined) {
+            const text = String(input.description || '').trim();
+            if (text.length > 750) throw error('A descrição do Google aceita até 750 caracteres.', 400);
+            if (/https?:\/\/|www\./i.test(text)) throw error('O Google não aceita links na descrição.', 400);
+            patch.description = text;
+          }
+          if (input.phone !== undefined) patch.phone = String(input.phone || '').trim().slice(0, 30);
+          if (input.website !== undefined) {
+            const site = String(input.website || '').trim();
+            if (site && !/^https?:\/\/[^\s]+$/i.test(site)) throw error('Use um site que comece com https://', 400);
+            patch.website = site;
+          }
+          if (Array.isArray(input.hours)) patch.hours = hoursPeriods(input.hours);
+          await updateLocation(access.token, access.location, patch).catch(problem => { throw problem.status === 400 ? problem : googleError(problem); });
+          await recordAudit(who, 'Perfil do Google atualizado', id, Object.keys(patch).join(', ')).catch(() => {});
+          return json(await gbpStatus(id, true));
+        }
+        if (op === 'sync') {
+          if (!access.account) throw error('Não encontramos a conta deste local. Escolha o local de novo em Configurações → Google.', 409);
+          const reviews = await listGoogleReviews(access.token, access.account, access.location).catch(problem => { throw googleError(problem); });
+          const result = await change(id, { type: 'gbp-reviews-import', data: { reviews } });
+          if (result.state.workflowOutbox?.length) flushLater(id);
+          return json({ ...result.id, total: reviews.length, ...workspaceView(who, result.state) });
+        }
+        if (op === 'reply') {
+          const state = await store.load(id);
+          const review = state.reviews.find(row => row.id === input.reviewId && row.googleName);
+          if (!review) throw error('Avaliação do Google não encontrada.', 404);
+          if (!review.googleName.startsWith(`${access.account}/${access.location}/`)) throw error('Esta avaliação é de outro local do Google.', 409);
+          const reply = String(input.reply || '').trim().slice(0, 2500);
+          await replyGoogleReview(access.token, review.googleName, reply).catch(problem => { throw googleError(problem); });
+          const result = await change(id, { type: 'save', key: 'reviews', id: review.id, data: { author: review.author, score: review.score, text: review.text, reply } }, who);
+          return json({ ok: true, ...workspaceView(who, result.state) });
+        }
+        throw error('Not found.', 404);
+      }
+      if (p === '/api/video' && (method === 'GET' || method === 'HEAD')) {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
+        await workspaceAccess(req, res, id, { modules: ['reputation'] });
+        const row = (await store.load(id)).videoTestimonials?.find(item => item.id === url.searchParams.get('id'));
+        if (!row) throw error('Vídeo não encontrado.', 404);
+        return await sendVideo(req, res, method, id, row, 'private, no-store');
+      }
+      const brandAction = p.match(/^\/api\/brand\/(import|voice-ai)$/);
+      if (brandAction && method === 'POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
+        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
+        const input = await payload(req);
+        if (brandAction[1] === 'import') {
+          const page = await fetchPublicPage(String(input.url || ''), { fetchImpl: brandFetch, ...(brandResolve && { resolve: brandResolve }) });
+          return json({ board: brandFromPage(page) });
+        }
+        brandVoiceRequest(input);
+        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
+          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para gerar a voz da marca.', 409);
+        }
+        return json({ voice: await meteredAI(who, id, 'brand', connection => content.writeBrandVoice(connection, input, voiceTraits)) });
+      }
+      if (p === '/api/content-ai/review-reply' && method === 'POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
+        const input = await payload(req);
+        const who = await workspaceAccess(req, res, id, { modules: ['reputation'] });
+        const state = await store.load(id);
+        const request = reviewReplyRequest(state, { ...input, voice: brandVoicePrompt(defaultBoard(state.brandBoards)) });
+        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
+          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para responder com IA.', 409);
+        }
+        return json(await meteredAI(who, id, 'reputation', connection => content.writeReviewReply(connection, request)));
+      }
+      const contentAction = p.match(/^\/api\/content-ai\/(transform|email)$/);
+      if (contentAction && method === 'POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
+        const input = await payload(req);
+        const email = contentAction[1] === 'email';
+        input.voice = await brandVoiceOf(id);
+        const request = email ? emailRequest(input) : transformRequest(input);
+        const kind = email ? 'email' : request.kind;
+        const who = await workspaceAccess(req, res, id, { modules: [contentModule[kind]] });
+        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
+          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para usar a IA de conteúdo.', 409);
+        }
+        const result = await meteredAI(who, id, kind === 'gbp' ? 'reputation' : kind, connection => email ? content.writeEmail(connection, input) : content.transformText(connection, input));
+        return json(result);
+      }
+      const aiAction = p.match(/^\/api\/ai\/(kb-create|kb-save|kb-delete|template-save|template-delete|limit|usage)$/);
+      if (aiAction && (method === 'POST' || aiAction[1] === 'usage')) {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
+        const who = await workspaceAccess(req, res, id, { modules: ['ai-agents'] });
+        const operation = aiAction[1];
+        if (operation === 'usage') {
+          const month = url.searchParams.get('month') || undefined;
+          if (month && !/^\d{4}-\d{2}$/.test(month)) throw error('Informe o mês como AAAA-MM.', 400);
+          return json({ usage: usageSummary((await store.load(id)).ai, month) });
+        }
+        const input = await payload(req);
+        if (operation === 'limit') {
+          requireCapability(who, 'agency', 'Só a agência pode alterar o limite de gastos com IA desta subconta.');
+          const usage = await store.change(id, state => setAiLimit(state, input));
+          return json({ usage });
+        }
+        if (operation.startsWith('template-')) {
+          const template = await store.change(id, state => editAgentTemplate(state, operation, input));
+          return json({ template }, template ? 201 : 200);
+        }
+        const kbOperation = operation.slice(3);
+        const base = await store.change(id, state => editKnowledgeBase(state, kbOperation, input));
+        if (!privateSpace.test(id) && kbOperation !== 'save') {
+          const account = (await listWorkspaces(who.agencyId)).find(w => w.id === id)?.name || id;
+          await recordAudit(who, kbOperation === 'create' ? 'Base de conhecimento criada' : 'Base de conhecimento excluída', account, base?.name || '');
+        }
+        return json({ base }, kbOperation === 'create' ? 201 : 200);
+      }
       const agentAction = p.match(/^\/api\/agents\/(create|save|publish|unpublish|move|delete|memory|test|build)$/);
       if (agentAction && method==='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
@@ -1859,19 +2767,42 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const operation = agentAction[1];
         const input = await payload(req);
         if (operation === 'test') {
-          const preview = agentPreview(await store.load(id), input);
-          const connection = localAccess && generateAgentReply !== replyAsAgent ? null : await openAI.requireConnection(who.session);
-          const reply = await generateAgentReply({ ...preview, model: preview.model || agentModel }, connection);
+          const current = await store.load(id);
+          const preview = agentPreview(current, input);
+          checkAiBudget(current);
+          const meter = meteredUsage();
+          const connection = localAccess && generateAgentReply !== replyAsAgent ? { onUsage: meter.onUsage } : { ...await openAI.requireConnection(who.session), onUsage: meter.onUsage };
           const message = preview.messages.at(-1).content;
-          const run = await store.change(id, state => recordAgentRun(state, { agent: input.id, version: input.version, input: message, output: reply }));
+          const runInput = { agent: input.id, version: input.version, input: message, kind: 'test', sources: [...new Set(preview.retrieved.map(item => item.title))] };
+          let reply;
+          try {
+            reply = await generateAgentReply({ ...preview, model: preview.model || agentModel }, connection);
+          } catch (problem) {
+            await store.change(id, state => meter.record(state, 'agent-test', input.id, runInput, problem.message));
+            throw problem;
+          }
+          const run = await store.change(id, state => meter.record(state, 'agent-test', input.id, { ...runInput, output: reply }));
           return json({ reply, run });
         }
         if (operation === 'build') {
-          const build = agentBuildRequest(await store.load(id), input);
-          const connection = localAccess && designAgentConfig !== designAgent ? null : await openAI.requireConnection(who.session);
-          const { summary, draft } = await designAgentConfig(build, connection);
-          const agent = await store.change(id, state => applyAgentDesign(state, input, draft));
-          return json({ agent, summary });
+          const current = await store.load(id);
+          const build = agentBuildRequest(current, input);
+          checkAiBudget(current);
+          const meter = meteredUsage();
+          const connection = localAccess && designAgentConfig !== designAgent ? { onUsage: meter.onUsage } : { ...await openAI.requireConnection(who.session), onUsage: meter.onUsage };
+          const runInput = { agent: input.id, version: 'draft', input: build.request, kind: 'build' };
+          let design;
+          try {
+            design = await designAgentConfig(build, connection);
+          } catch (problem) {
+            await store.change(id, state => meter.record(state, 'agent-build', input.id, runInput, problem.message));
+            throw problem;
+          }
+          const agent = await store.change(id, state => {
+            meter.record(state, 'agent-build', input.id, { ...runInput, output: design.summary });
+            return applyAgentDesign(state, input, design.draft);
+          });
+          return json({ agent, summary: design.summary });
         }
         const agent = await store.change(id, state => editAgent(state, operation, { ...input, model: agentModel }));
         if (!privateSpace.test(id) && operation !== 'save') {
@@ -1882,8 +2813,15 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         return json({ agent }, operation === 'create' ? 201 : 200);
       }
       if (p.startsWith('/api/prancheta/')) {
-        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
-        await requireActiveAccount(who.agencyId, id, true);
+        const isAgencyTarget = id === 'agency' || !id;
+        const who = isAgencyTarget
+          ? await access(req, res)
+          : await workspaceAccess(req, res, id, { modules: ['marketing'] });
+        if (isAgencyTarget) {
+          requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
+        } else {
+          await requireActiveAccount(who.agencyId, id, true);
+        }
         const action = p.slice('/api/prancheta/'.length);
         const formatPranchetaMeta = (f) => ({
           id: f.id,
@@ -1898,23 +2836,32 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           pages: f.pages || []
         });
 
+        const loadTarget = async () => isAgencyTarget ? loadAgency(who.agencyId) : store.load(id);
+        const changeTarget = async (cmd) => {
+          if (isAgencyTarget) {
+            return changeAgency(who.agencyId, a => executeAgency(a, cmd, { actor: who.name }));
+          }
+          const res = await change(id, cmd);
+          return res.id;
+        };
+
         if (action === 'files') {
           if (method === 'GET') {
-            const state = await store.load(id);
+            const state = await loadTarget();
             const raw = state.pranchetaFiles || [];
             return json({ files: raw.map(formatPranchetaMeta) });
           }
           if (method === 'POST') {
             const input = await payload(req);
-            const saved = await change(id, { type: 'prancheta-save', data: input, id: input.id });
-            const state = await store.load(id);
+            const savedId = await changeTarget({ type: 'prancheta-save', data: input, id: input.id });
+            const state = await loadTarget();
             const raw = state.pranchetaFiles || [];
-            return json({ id: saved.id, files: raw.map(formatPranchetaMeta) });
+            return json({ id: savedId, files: raw.map(formatPranchetaMeta) });
           }
         }
         if (action === 'file') {
           const fileId = url.searchParams.get('id') || url.searchParams.get('fileId');
-          const state = await store.load(id);
+          const state = await loadTarget();
           const raw = state.pranchetaFiles || [];
           const found = raw.find(f => f.id === fileId);
           if (method === 'GET') {
@@ -1929,19 +2876,19 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (method === 'POST') {
             const input = await payload(req);
             const targetId = input.id || fileId;
-            const saved = await change(id, { type: 'prancheta-save', data: input, id: targetId });
-            const nextState = await store.load(id);
-            const nextFound = (nextState.pranchetaFiles || []).find(f => f.id === saved.id);
-            return json({ id: saved.id, file: nextFound ? formatPranchetaMeta(nextFound) : null });
+            const savedId = await changeTarget({ type: 'prancheta-save', data: input, id: targetId });
+            const nextState = await loadTarget();
+            const nextFound = (nextState.pranchetaFiles || []).find(f => f.id === savedId);
+            return json({ id: savedId, file: nextFound ? formatPranchetaMeta(nextFound) : null });
           }
         }
         if (action === 'save' && method === 'POST') {
           const input = await payload(req);
-          const saved = await change(id, { type: 'prancheta-save', data: input, id: input.id });
-          const state = await store.load(id);
+          const savedId = await changeTarget({ type: 'prancheta-save', data: input, id: input.id });
+          const state = await loadTarget();
           const raw = state.pranchetaFiles || [];
-          const found = raw.find(f => f.id === saved.id);
-          return json({ id: saved.id, file: found ? formatPranchetaMeta(found) : null, files: raw.map(formatPranchetaMeta) });
+          const found = raw.find(f => f.id === savedId);
+          return json({ id: savedId, file: found ? formatPranchetaMeta(found) : null, files: raw.map(formatPranchetaMeta) });
         }
         if (action === 'templates' && method === 'GET') {
           const { createCanonicalTemplates, pranchetaPresets } = await import('./prancheta-model.mjs');
@@ -1949,33 +2896,33 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         if (action === 'template-use' && method === 'POST') {
           const input = await payload(req);
-          const saved = await change(id, { type: 'prancheta-template', data: input });
-          const state = await store.load(id);
-          return json({ id: saved.id, files: state.pranchetaFiles || [] }, 201);
+          const savedId = await changeTarget({ type: 'prancheta-template', data: input });
+          const state = await loadTarget();
+          return json({ id: savedId, files: state.pranchetaFiles || [] }, 201);
         }
         if (action === 'delete' && method === 'POST') {
           const input = await payload(req);
-          await change(id, { type: 'prancheta-delete', id: input.id });
-          const state = await store.load(id);
+          await changeTarget({ type: 'prancheta-delete', id: input.id });
+          const state = await loadTarget();
           return json({ ok: true, files: state.pranchetaFiles || [] });
         }
         if (action === 'duplicate' && method === 'POST') {
           const input = await payload(req);
-          const copy = await change(id, { type: 'prancheta-duplicate', id: input.id });
-          const state = await store.load(id);
-          return json({ id: copy.id, files: state.pranchetaFiles || [] }, 201);
+          const copyId = await changeTarget({ type: 'prancheta-duplicate', id: input.id });
+          const state = await loadTarget();
+          return json({ id: copyId, files: state.pranchetaFiles || [] }, 201);
         }
         if (action === 'export-media' && method === 'POST') {
           const input = await payload(req);
-          const file = await change(id, { type: 'prancheta-export-media', id: input.id, data: input });
-          const state = await store.load(id);
-          return json({ ok: true, fileId: file.id, files: state.files || [] });
+          const fileId = await changeTarget({ type: 'prancheta-export-media', id: input.id, data: input });
+          const state = await loadTarget();
+          return json({ ok: true, fileId, files: state.files || [] });
         }
         if (action === 'to-social' && method === 'POST') {
           const input = await payload(req);
-          const result = await change(id, { type: 'prancheta-to-social', id: input.id, data: input });
+          const result = await changeTarget({ type: 'prancheta-to-social', id: input.id, data: input });
           const state = await store.load(id);
-          return json({ ok: true, ...(result.id || {}), posts: state.socialPosts || [] });
+          return json({ ok: true, ...(result || {}), posts: state.socialPosts || [] });
         }
         throw error('Rota da prancheta não encontrada.', 404);
       }
@@ -2068,6 +3015,36 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         res.writeHead(200, { ...previewHeaders, 'ETag': etag, 'Cache-Control': 'private, no-cache' });
         return res.end(page.html);
       }
+      // Rastreamento externo: the script for the business's site, the pixels loader and the events endpoint.
+      const tracker = p.match(trackingPath);
+      if (tracker) {
+        await ready;
+        const [, workspace, part] = tracker;
+        if (part === '/e') {
+          if (method !== 'POST') throw error('Method not allowed.', 405);
+          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+          const cors = { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' };
+          if (!allowTracking(ip)) { res.writeHead(429, cors); return res.end(); }
+          await publicAccountPolicy(workspace, true, 'sites');
+          let size = 0; const chunks = [];
+          for await (const chunk of req) { size += chunk.length; if (size > 64_000) throw error('Evento grande demais.', 413); chunks.push(chunk); }
+          let data;
+          try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw error('Evento inválido.', 400); }
+          if (!data || typeof data !== 'object' || Array.isArray(data)) throw error('Evento inválido.', 400);
+          const result = await store.change(workspace, s => {
+            if (!originAllowed(trackingOf(s), req.headers.origin || data.url || '')) throw error('Este domínio não pode enviar eventos para esta subconta.', 403);
+            return { id: execute(s, { type: 'tracking-event', data }, { workspace, attribution: touchesFrom(data) }), outbox: s.workflowOutbox?.length || 0 };
+          });
+          if (result.outbox) flushLater(workspace);
+          res.writeHead(204, cors); return res.end();
+        }
+        if (method !== 'GET' && method !== 'HEAD') throw error('Method not allowed.', 405);
+        await publicAccountPolicy(workspace, false, 'sites');
+        const t = trackingOf(await store.load(workspace));
+        const body = part === '/pixels.js' ? pixelsScript(t) : trackerScript(workspace, publicBase(req), t);
+        res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Access-Control-Allow-Origin': '*', 'Cross-Origin-Resource-Policy': 'cross-origin' });
+        return res.end(method === 'HEAD' ? undefined : body);
+      }
       const site = p.match(sitePath);
       if (site) {
         await ready;
@@ -2101,8 +3078,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const pt = /<html\b[^>]*\blang\s*=\s*["']?pt/i.test(page.html), es = /<html\b[^>]*\blang\s*=\s*["']?es/i.test(page.html);
         const notice = url.searchParams.has('sent') ? { ok:true, text:pt ? 'Obrigado! Seus dados foram enviados.' : es ? '¡Gracias! Tus datos fueron enviados.' : 'Thank you! Your details were sent.' }
           : url.searchParams.has('error') ? { ok:false, text:pt ? 'Não foi possível enviar. Confira o nome e o e-mail e tente de novo.' : es ? 'No se pudo enviar. Revisa el nombre y el correo e inténtalo de nuevo.' : 'Your details could not be sent. Check the name and email and try again.' } : '';
-        res.writeHead(200, publicHeaders);
-        return res.end(renderPublic(page,{ base, notice }));
+        const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, publicHeaders, renderPublic(page,{ base, notice }));
+        res.writeHead(200, siteHeaders);
+        return res.end(siteBody);
       }
       // Webinars: registration, watch room (attendance when the room is open) and calendar file.
       const webinarRoute = p.match(webinarPath);
@@ -2176,10 +3154,141 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         let body;
         if (cart) body = storeCart(state, shop, { base, workspace });
         else if (slug) { const item = catalog(state, shop).find(row => row.slug === slug); if (!item) throw error('Produto não encontrado.',404); body = storeProduct(state, shop, item, { base }); }
-        else body = storeHome(state, shop, { base, category:String(url.searchParams.get('categoria') || '').slice(0,40) });
-        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" });
-        return res.end(method === 'HEAD' ? undefined : body);
+        else body = storeHome(state, shop, { base, category:String(url.searchParams.get('categoria') || '').slice(0,40), collection:String(url.searchParams.get('colecao') || '').slice(0,80) });
+        const [storeHeaders, storeBody] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin',
+          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, body);
+        res.writeHead(200, storeHeaders);
+        return res.end(method === 'HEAD' ? undefined : storeBody);
+      }
+      // Affiliates: the referral link, the program sign-up and the affiliate's private dashboard.
+      const referral = p.match(affiliateLink);
+      if (referral && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, code, campaignId = ''] = referral;
+        await publicAccountPolicy(workspace, false, 'marketing');
+        const clicked = method === 'GET' ? (await change(workspace, { type: 'affiliate-click', data: { code, campaignId } })).id : null;
+        if (!clicked) throw error('Este link de afiliado não está ativo.', 404);
+        const cookie = affiliateCookie(workspace);
+        const current = referralsOf(req)[workspace];
+        const headers = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer',
+          Location: clicked.destination.startsWith('/') ? publicBase(req) + clicked.destination : clicked.destination };
+        // First touch: an earlier referral keeps its credit while it is still valid.
+        if (!current || Date.now() - current.at > clicked.cookieDays * 864e5) {
+          const secure = String(req.headers['x-forwarded-proto'] || '').includes('https') || publicBase(req).startsWith('https') ? '; Secure' : '';
+          headers['Set-Cookie'] = [...[res.getHeader('Set-Cookie') || []].flat(), `${cookie}=${encodeURIComponent(`${clicked.affiliateId}.${clicked.campaignId}.${Date.now()}`)}; Max-Age=${clicked.cookieDays * 86400}; Path=/; HttpOnly; SameSite=Lax${secure}`];
+        }
+        res.writeHead(302, headers);
+        return res.end();
+      }
+      const affiliatePage = p.match(affiliatePagePath);
+      if (affiliatePage && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, token = ''] = affiliatePage;
+        await publicAccountPolicy(workspace, false, 'marketing');
+        const state = await store.load(workspace);
+        let page;
+        if (token) {
+          const portal = affiliatePortal(state, portalTokenHash(token));
+          if (!portal) throw error('Este link de painel não é válido. Peça um novo à empresa.', 404);
+          page = renderPortal(state, portal, { workspace, origin: publicBase(req) });
+        } else page = renderSignup(state, { workspace });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': affiliatePageCsp, 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' });
+        return res.end(method === 'HEAD' ? undefined : page);
+      }
+      const affiliateJoin = p.match(affiliateSignupApi);
+      if (affiliateJoin && method === 'POST') {
+        await ready;
+        const [, workspace] = affiliateJoin;
+        await publicAccountPolicy(workspace, true, 'marketing');
+        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.', 429);
+        const input = await payload(req);
+        const result = (await change(workspace, { type: 'affiliate-signup', data: { name: input.name, email: input.email, phone: input.phone, pix: input.pix, terms: input.terms === true, website: input.website } })).id;
+        flushLater(workspace);
+        return json(result.token ? { ok: true, approval: result.status, portal: `/afiliados/${workspace}/${result.token}` } : { ok: true }, 201);
+      }
+      // Review widget (iframe page and loader script), approved videos, and the video testimonial collector.
+      const widgetRoute = p.match(widgetPath);
+      if (widgetRoute && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, widgetId, part] = widgetRoute;
+        await publicAccountPolicy(workspace, false, 'reputation');
+        const state = await store.load(workspace);
+        const widget = state.reviewWidgets?.find(row => row.id === widgetId && row.active);
+        if (part) {
+          res.writeHead(widget ? 200 : 404, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Access-Control-Allow-Origin': '*' });
+          return res.end(method === 'HEAD' || !widget ? undefined : widgetLoader({ origin: publicBase(req), workspace, widgetId }));
+        }
+        if (!widget) throw error('Este widget não está ativo.', 404);
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=120', 'Content-Security-Policy': widgetCsp, 'Referrer-Policy': 'no-referrer' });
+        return res.end(method === 'HEAD' ? undefined : renderWidget(state, widget, { workspace }));
+      }
+      const videoRoute = p.match(videoPath);
+      if (videoRoute && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, videoId] = videoRoute;
+        await publicAccountPolicy(workspace, false, 'reputation');
+        const row = (await store.load(workspace)).videoTestimonials?.find(item => item.id === videoId && item.status === 'approved');
+        if (!row) throw error('Vídeo não encontrado.', 404);
+        return await sendVideo(req, res, method, workspace, row, 'public, max-age=600');
+      }
+      const collectorRoute = p.match(collectorPath);
+      if (collectorRoute && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, collectorId] = collectorRoute;
+        await publicAccountPolicy(workspace, false, 'reputation');
+        const state = await store.load(workspace);
+        const collector = state.videoCollectors?.find(row => row.id === collectorId && row.active);
+        if (!collector) throw error('Este link de depoimento não está ativo.', 404);
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': collectorCsp, 'Permissions-Policy': 'camera=(self), microphone=(self)', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' });
+        return res.end(method === 'HEAD' ? undefined : renderCollector(state, collector, { workspace }));
+      }
+      const collectorCall = p.match(collectorApi);
+      if (collectorCall && method === 'POST') {
+        await ready;
+        const [, workspace, collectorId, step] = collectorCall;
+        await publicAccountPolicy(workspace, true, 'reputation');
+        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+        if (step !== 'chunk' && !allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.', 429);
+        const input = await payload(req);
+        const result = (await change(workspace, { type: `video-${step}`, id: collectorId, data: input })).id;
+        if (step === 'chunk') {
+          const rowId = mediaRowId(workspace, result.upload.id, result.index);
+          if (!await store.insert(rowId, { data: result.data })) await store.change(rowId, row => { row.data = result.data; });
+          return json({ ok: true, index: result.index });
+        }
+        if (step === 'finish') { flushLater(workspace); return json({ ok: true }, 201); }
+        return json(result);
+      }
+      // Review link: the public page (generic or personal) and the review it sends.
+      const reviewRoute = p.match(reviewPagePath);
+      if (reviewRoute && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, token = ''] = reviewRoute;
+        const active = await publicAccountPolicy(workspace, false, 'reputation');
+        const state = await store.load(workspace);
+        const tokenHash = token ? reviewTokenHash(token) : '';
+        const request = tokenHash ? state.reviewRequests?.find(row => row.tokenHash === tokenHash) : null;
+        if (token && !request) throw error('Este link de avaliação não é válido.', 404);
+        if (request && active && method === 'GET' && request.status === 'sent') await Promise.resolve().then(() => change(workspace, { type: 'review-open', data: { tokenHash } })).catch(() => {});
+        const contact = request ? state.contacts.find(row => row.id === request.contactId) : null;
+        const tint = (await clientPortal.directory(workspace).catch(() => null))?.settings?.color || '';
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': reviewPageCsp, 'X-Robots-Tag': 'noindex' });
+        return res.end(method === 'HEAD' ? undefined : renderReviewPage(state, { workspace, token, contactName: contact?.name || '', done: request?.status === 'reviewed', tint }));
+      }
+      const reviewSubmit = p.match(reviewApi);
+      if (reviewSubmit && method === 'POST') {
+        await ready;
+        const [, workspace] = reviewSubmit;
+        await publicAccountPolicy(workspace, true, 'reputation');
+        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.', 429);
+        const input = await payload(req);
+        const tokenHash = input.token ? reviewTokenHash(String(input.token)) : '';
+        if (input.token && !tokenHash) throw error('Este link de avaliação não é válido.', 404);
+        const result = await change(workspace, { type: 'review-submit', data: { tokenHash, score: input.score, text: input.text, name: input.name, website: input.website } });
+        if (result.state.workflowOutbox?.length) flushLater(workspace);
+        return json({ ok: true }, 201);
       }
       const offerRoute = p.match(offerPath);
       if (offerRoute && (method === 'GET' || method === 'HEAD')) {
@@ -2191,8 +3300,40 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!offer) throw error('Esta oferta não está disponível.',404);
         const color = (await clientPortal.directory(workspace)).settings?.color || '';
         const status = ['pago','voltou'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : '';
-        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Content-Security-Policy':offerPageCsp });
-        return res.end(method === 'HEAD' ? undefined : renderOfferPage(state, offer, { workspace, status, color }));
+        const [offerHeaders, offerBody] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Content-Security-Policy':offerPageCsp }, renderOfferPage(state, offer, { workspace, status, color }));
+        res.writeHead(200, offerHeaders);
+        return res.end(method === 'HEAD' ? undefined : offerBody);
+      }
+      // The agency's installable desktop app: the branded sign-in screen, its manifest, icons and service worker.
+      const desktop = p.match(desktopPath);
+      if (desktop && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, agencyId, part = ''] = desktop;
+        let agency;
+        try { agency = await loadAgency(agencyId); } catch { throw error('App não encontrado.',404); }
+        const app = desktopOf(structuredClone(agency));
+        if (app.status !== 'published') throw error('Este app ainda não foi publicado pela agência.',404);
+        const done = (type, body, extra = {}) => { res.writeHead(200, { 'Content-Type':type, 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff', ...extra }); return res.end(method === 'HEAD' ? undefined : body); };
+        if (part === 'manifest.webmanifest') return done('application/manifest+json; charset=utf-8', JSON.stringify(desktopManifest(app, agencyId)));
+        if (part === 'sw.js') return done('text/javascript; charset=utf-8', desktopWorker, { 'Service-Worker-Allowed':`/desktop/${agencyId}/` });
+        if (part.startsWith('icon-')) {
+          const size = part.slice(5, -4), source = (size === '192' && app.icon192) || (size === '512' && app.icon512) || app.icon;
+          if (!source) throw error('Ícone não encontrado.',404);
+          return done('image/png', Buffer.from(source.split(',')[1], 'base64'));
+        }
+        return done('text/html; charset=utf-8', desktopLaunchPage(app, agencyId, { signedIn: Boolean(auth?.hasSession?.(req)) }), { 'Content-Security-Policy':desktopCsp, 'Referrer-Policy':'no-referrer' });
+      }
+      // Certificates and badges: a public page anyone with the code can open to see and verify it.
+      const certificate = p.match(certificatePath);
+      if (certificate && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, code] = certificate;
+        await publicAccountPolicy(workspace, false, 'memberships');
+        const state = await store.load(workspace);
+        const row = (state.credentialsIssued || []).find(item => item.code === code);
+        if (!row) throw error('Certificado não encontrado.',404);
+        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer', 'X-Robots-Tag':'noindex', 'Content-Security-Policy':certificateCsp });
+        return res.end(method === 'HEAD' ? undefined : certificatePage(state, row));
       }
       const offerCall = p.match(offerApi);
       if (offerCall) {
@@ -2223,11 +3364,26 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const input = await payload(req);
         await publicAccountPolicy(workspace, true, 'sites');
         await publicAccountPolicy(workspace, true, 'payments');
+        if (op === 'cart') {
+          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+          if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
+          return json((await change(workspace,{ type:'store-cart', id:storeId, data:{ session:input.session, name:input.name, email:input.email, phone:input.phone, items:input.items, coupon:input.coupon, delivery:input.delivery } })).id);
+        }
+        if (op === 'review') {
+          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+          if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
+          return json((await change(workspace,{ type:'store-review', id:storeId, data:{ productId:input.productId, name:input.name, email:input.email, rating:input.rating, title:input.title, body:input.body, website:input.website } })).id,201);
+        }
+        if (op === 'restore') {
+          const digest = cartTokenHash(input.token);
+          if (!digest) throw error('Este link de recuperação não é válido.',404);
+          return json((await change(workspace,{ type:'store-cart-restore', id:storeId, data:{ tokenHash:digest } })).id);
+        }
         if (op === 'quote') {
           const state = await store.load(workspace);
           const shop = state.stores?.find(item => item.id === storeId && item.active);
           if (!shop) throw error('Esta loja não está aberta.',404);
-          const { coupon_, ...quote } = quoteOrder(state, shop, input);
+          const { coupon_, giftCard_, ...quote } = quoteOrder(state, shop, input);
           return json(quote);
         }
         const result = await change(workspace,{ type:'store-checkout', id:storeId, data:input });
@@ -2241,6 +3397,44 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         return json({ number:order.number, total:order.total, method:methodLabel[shop.payment.method] || shop.payment.method, instructions:shop.payment.instructions, thanks:shop.thanks, payUrl },201);
       }
       // Blogs: home with categories and pages, posts with SEO tags, and RSS. Drafts open with ?preview=1 when signed in.
+      // Brand group reports shared by link: the token finds the agency, so no agency id is exposed.
+      const brandGroupShare = p.match(brandGroupRoute);
+      if (brandGroupShare && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const token = brandGroupShare[1];
+        const match = await store.findAgency({ brandGroups: [{ share: { id: token } }] });
+        const agency = match && hydrateAgency(match.state);
+        const group = agency?.brandGroups.find(row => row.share?.id === token);
+        if (!group || (group.share.expires && Date.parse(group.share.expires) <= Date.now())) throw error('Este relatório não está mais compartilhado.',404);
+        const asked = url.searchParams.get('lang');
+        const lang = ['pt', 'es'].includes(asked) ? asked : group.share.lang;
+        const data = brandGroupData(group, await brandWorkspaces(agency, match.id, group));
+        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer', 'X-Robots-Tag':'noindex',
+          'Content-Security-Policy':"default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" });
+        return res.end(method === 'HEAD' ? undefined : brandGroupPage(data, { lang, path: p, agency: agency.company }));
+      }
+      // Presentations shared by public link:
+      const presentationShare = p.match(presentationRoute);
+      if (presentationShare && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const token = presentationShare[1];
+        const match = await store.findAgency({ presentations: [{ share: { id: token } }] });
+        const agency = match && hydrateAgency(match.state);
+        const presentation = agency?.presentations?.find(row => row.share?.id === token);
+        if (!presentation || (presentation.share.expires && Date.parse(presentation.share.expires) <= Date.now())) throw error('Esta apresentação não está mais compartilhada.', 404);
+        const asked = url.searchParams.get('lang');
+        const lang = ['pt', 'es'].includes(asked) ? asked : (presentation.share.lang || 'pt');
+        const autoPrint = url.searchParams.has('print');
+        const html = presentationPageHtml(presentation, { lang, autoPrint, company: agency.company });
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'Referrer-Policy': 'no-referrer',
+          'X-Robots-Tag': 'noindex',
+          'Content-Security-Policy': "default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        });
+        return res.end(method === 'HEAD' ? undefined : html);
+      }
       // Shared reports: read-only, rendered here so the page never receives the workspace state.
       const sharedReport = p.match(sharedReportRoute);
       if (sharedReport && (method === 'GET' || method === 'HEAD')) {
@@ -2266,8 +3460,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const preview = await publicPreview(req, res, url, workspace);
         if (!blog || (!blog.active && !preview)) throw error('Este blog não está publicado.',404);
         const base = `/b/${workspace}/${blogId}`, origin = publicBase(req);
-        const html = (status, body) => { res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Cache-Control':'no-store',
-          'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }); return res.end(method === 'HEAD' ? undefined : body); };
+        const html = (status, page) => { const [headers, body] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Cache-Control':'no-store',
+          'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, page); res.writeHead(status, headers); return res.end(method === 'HEAD' ? undefined : body); };
         if (slug === 'rss.xml') {
           if (blog.rss === false) throw error('Este blog não tem RSS.',404);
           res.writeHead(200, { 'Content-Type':'application/rss+xml; charset=utf-8', 'Cache-Control':'no-store' });
@@ -2285,10 +3479,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const connection = await openAI.status(who.session).then(status => status.configured ? openAI.requireConnection(who.session) : null);
         if (input.mode === 'seo') {
           if (!connection) throw error('Conecte a OpenAI em Configurações para gerar o SEO com IA.',409);
-          return json({ ai:true, seo:await postSeo(connection,{ title:input.title, body:input.body }) });
+          return json({ ai:true, seo:await meteredAI(who, id, 'blog', metered => content.postSeo(metered,{ title:input.title, body:input.body })) });
         }
         if (!String(input.topic || input.title || '').trim()) throw error('Descreva o tema do artigo.',400);
-        return json(connection ? { ai:true, post:await writePost(connection, input) } : { ai:false, post:localDraft(input) });
+        input.voice = await brandVoiceOf(id);
+        return json(connection ? { ai:true, post:await meteredAI(who, id, 'blog', metered => content.writePost(metered, input)) } : { ai:false, post:localDraft(input) });
       }
       // Chat widget: the loader a site embeds, the panel it opens in an iframe, a demo page and the visitor API.
       const chatRoute = p.match(chatPath);
@@ -2349,10 +3544,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!form || (!form.active && !preview)) throw error('Este formulário não está publicado.',404);
         const redirects = form.onSubmit?.action === 'redirect' && form.onSubmit.url;
         const page = (status, options) => {
-          res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; object-src 'none'; form-action 'self'${redirects ? ' https: http:' : ''}; frame-ancestors *` });
-          return res.end(method === 'HEAD' ? undefined : formPage(form, { action:`/form/${workspace}/${formId}${embed ? '?embed=1' : preview ? '?preview=1' : ''}`, target:embed && redirects ? '_top' : '',
+          const [headers, body] = withPixels(preview ? null : state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
+            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; object-src 'none'; form-action 'self'${redirects ? ' https: http:' : ''}; frame-ancestors *` },
+            formPage(form, { action:`/form/${workspace}/${formId}${embed ? '?embed=1' : preview ? '?preview=1' : ''}`, target:embed && redirects ? '_top' : '',
             customFields:state.customFields || [], embed, brand:state.profile?.name || '', ...options }));
+          res.writeHead(status, headers);
+          return res.end(method === 'HEAD' ? undefined : body);
         };
         if (!formOpen(form)) return page(200, { notice:{ title:'Formulário encerrado', text:form.schedule?.closedMessage || 'Este formulário não está recebendo respostas agora.' } });
         if (method === 'GET' || method === 'HEAD') {
@@ -2386,6 +3583,71 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await change(workspace, { type: 'workflow-hook', data: { workflowId, triggerId, payload: body && typeof body === 'object' && !Array.isArray(body) ? body : {} } });
         if (result.state.workflowOutbox?.length) flushLater(workspace);
         return json({ ok: true, run: result.id === 'already-enrolled' ? null : result.id }, 202);
+      }
+      // Contadores: the animated GIF for e-mails (?s= is when the e-mail was sent, for evergreen timers)
+      // and the page that sites embed in an iframe.
+      const countdownRoute = p.match(countdownPath);
+      if (countdownRoute && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, timerId, gif] = countdownRoute;
+        let timer = null;
+        try { await publicAccountPolicy(workspace, false, 'marketing'); timer = (await store.load(workspace)).countdownTimers?.find(row => row.id === timerId) || null; } catch { timer = null; }
+        if (gif) {
+          let bytes = blankGif;
+          if (timer) {
+            const now = Date.now(), sent = Number(url.searchParams.get('s')) * 1000, created = Date.parse(timer.created) || 0;
+            const start = Number.isFinite(sent) && sent > 0 ? Math.min(now, Math.max(created, sent)) : now;
+            const key = `${workspace}:${timerId}:${timer.updated || timer.created}:${start}:${Math.floor(now / 1000)}`;
+            bytes = countdownCache.get(key);
+            if (!bytes) {
+              bytes = countdownGif(timer, deadlineOf(timer, start) - now);
+              if (countdownCache.size >= 200) countdownCache.delete(countdownCache.keys().next().value);
+              countdownCache.set(key, bytes);
+            }
+          }
+          res.writeHead(200, { 'Content-Type': 'image/gif', 'Content-Length': bytes.length, 'Cache-Control': 'no-store, no-cache, max-age=0', Expires: '0' });
+          return res.end(method === 'HEAD' ? undefined : bytes);
+        }
+        if (!timer) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Contador indisponível.'); }
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
+          'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors *" });
+        return res.end(method === 'HEAD' ? undefined : embedPage(timer, { key: `${workspace}-${timerId}` }));
+      }
+      // E-mail campaigns: open pixel, click redirect and unsubscribe page of one recipient.
+      const tracked = p.match(emailTrackPath);
+      if (tracked && ['GET', 'HEAD', 'POST'].includes(method)) {
+        await ready;
+        const [, kind, workspace, token, index] = tracked;
+        const page = (status, title, body) => {
+          res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'" });
+          return res.end(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;color:#18181b;background:#f4f4f5}main{max-width:440px;margin:16px;padding:32px;border-radius:16px;background:#fff;text-align:center}h1{font-size:22px;margin:0 0 8px}p{margin:0 0 16px;color:#52525b}button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:12px 20px;background:#18181b;color:#fff;cursor:pointer}</style></head><body><main><h1>${esc(title)}</h1>${body}</main></body></html>`);
+        };
+        let active = false;
+        try { active = await publicAccountPolicy(workspace, false, 'marketing'); }
+        catch { if (kind !== 'o') return page(404, 'Link indisponível', '<p>Este e-mail não está mais disponível.</p>'); }
+        const track = async (event, write) => {
+          if (!write) return execute(await store.load(workspace), { type: 'email-track', data: { token, event: 'info' } });
+          const result = await change(workspace, { type: 'email-track', data: { token, event, index } });
+          if (result.state.workflowOutbox?.length) flushLater(workspace);
+          return result.id;
+        };
+        if (kind === 'o') {
+          res.writeHead(200, { 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, max-age=0' });
+          res.end(Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64'));
+          if (active && method === 'GET') { const seen = await track('info', false).catch(() => null); if (seen && !seen.opened) await track('open', true).catch(() => null); }
+          return;
+        }
+        if (kind === 'c') {
+          const found = active ? await track('click', true) : execute(await store.load(workspace), { type: 'email-track', data: { token, event: 'click', index } });
+          if (!found?.url) return page(404, 'Link indisponível', '<p>Este link não existe mais.</p>');
+          res.writeHead(302, { Location: found.url, 'Cache-Control': 'no-store' }); return res.end();
+        }
+        const info = await track('info', false);
+        if (!info) return page(404, 'Link indisponível', '<p>Não encontramos esta inscrição.</p>');
+        // POST is the confirmation button and the one-click unsubscribe of mail clients (RFC 8058). It works even while the account is paused.
+        if (method === 'POST') { await track('unsubscribe', true); return page(200, 'Inscrição cancelada', `<p>Você não vai mais receber e-mails de marketing de ${esc(info.business || 'esta empresa')}.</p>`); }
+        if (info.unsubscribed) return page(200, 'Inscrição cancelada', `<p>Você já saiu da lista de e-mails de ${esc(info.business || 'esta empresa')}.</p>`);
+        return page(200, 'Cancelar inscrição', `<p>Deixar de receber os e-mails de marketing de <b>${esc(info.business || 'esta empresa')}</b>?</p><form method="post"><button>Cancelar inscrição</button></form>`);
       }
       const redirect = p.match(redirectPath);
       if (redirect && method === 'GET') {

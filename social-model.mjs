@@ -1,7 +1,8 @@
 // Social Planner records of a sub-account: connected accounts (public part only; tokens live in the
 // separate `social-<workspace>` row handled by social-providers.mjs), posts, categories with an
 // evergreen queue, hashtag groups and RSS feeds. model.mjs routes `social-*` commands and saves here.
-import { network, networks, nextOccurrence, postIssues, postStatuses, postTypes } from './ui/social-data.js';
+import { dateKey, minutes, network, networks, nextOccurrence, postIssues, postStatuses, postTypes, queuePick, queuePool, weekdayOf, weekdays, zonedIso, zonedParts } from './ui/social-data.js';
+export { queueNext, queuePool } from './ui/social-data.js';
 
 export const socialCollections = ['socialAccounts', 'socialPosts', 'socialCategories', 'socialHashtags', 'socialFeeds', 'socialImports', 'socialWebhooks', 'socialCompetitors'];
 
@@ -22,6 +23,8 @@ const web = (value, label = 'link') => {
 const color = value => /^#[0-9a-f]{6}$/i.test(str(value)) ? str(value).toLowerCase() : '#ea580c';
 const time = value => /^([01]\d|2[0-3]):[0-5]\d$/.test(str(value)) ? str(value) : fail('Informe um horário no formato HH:MM.');
 const list = value => Array.isArray(value) ? value : typeof value === 'string' && value ? value.split(',') : [];
+const keywords = value => [...new Set(list(value).map(v => str(v, 60).toLowerCase()).filter(Boolean))].slice(0, 30);
+const zoneOf = s => s.profile?.timezone || 'UTC';
 
 function media(s, value) {
   const items = Array.isArray(value) ? value.slice(0, 35) : [];
@@ -41,12 +44,16 @@ const accountIds = (s, value) => {
   for (const id of ids) if (!s.socialAccounts.some(a => a.id === id)) fail('Uma das contas escolhidas foi desconectada.');
   return ids;
 };
-function recurrence(value, start) {
+/** A repeat rule. Weekly rules may pick weekdays; `count` ends the series after N posts. */
+function recurrence(value, start, prior) {
   if (!value?.freq) return null;
   const freq = one(value.freq, ['daily', 'weekly', 'monthly'], 'uma repetição');
   const until = value.until ? instant(value.until.length === 10 ? `${value.until}T23:59:59Z` : value.until, 'uma data final') : '';
   if (until && start && until < start) fail('A data final da repetição vem antes do primeiro post.');
-  return { freq, interval: Math.max(1, Math.min(30, Math.round(Number(value.interval) || 1))), until };
+  const days = freq === 'weekly' ? [...new Set(list(value.days).map(Number))].filter(n => Number.isInteger(n) && n >= 0 && n <= 6).sort() : [];
+  const count = Math.max(0, Math.min(500, Math.round(Number(value.count) || 0)));
+  const done = prior?.freq ? Math.min(prior.done || 0, count || Infinity) : 0;
+  return { freq, interval: Math.max(1, Math.min(30, Math.round(Number(value.interval) || 1))), until, days, count, done, anchor: prior?.anchor || start || '' };
 }
 function overrides(value) {
   const out = {};
@@ -67,7 +74,12 @@ function postFields(s, d, prior) {
   };
   const mode = one(d.mode || 'draft', ['draft', 'schedule', 'now'], 'como publicar');
   post.scheduleDate = mode === 'now' ? new Date().toISOString() : instant(d.scheduleDate, 'uma data de publicação');
-  post.recurrence = recurrence(d.recurrence, post.scheduleDate);
+  post.recurrence = recurrence(d.recurrence, post.scheduleDate, prior?.scheduleDate === post.scheduleDate ? prior?.recurrence : null);
+  if (post.recurrence && !post.recurrence.anchor) post.recurrence.anchor = post.scheduleDate;
+  if (post.recurrence?.days.length && post.scheduleDate) {
+    const day = new Date(zonedIso(zonedParts(post.scheduleDate, zoneOf(s)), 'UTC')).getUTCDay();
+    if (!post.recurrence.days.includes(day)) fail(`O primeiro post cai em ${weekdays[day]}, que não está entre os dias escolhidos para repetir.`);
+  }
   if (mode === 'draft') { post.status = 'draft'; return post; }
   if (!post.scheduleDate) fail('Escolha quando publicar.');
   if (mode === 'schedule' && Date.parse(post.scheduleDate) < Date.now() - 60_000) fail('Escolha uma data no futuro ou use “Publicar agora”.');
@@ -84,7 +96,10 @@ export const socialFields = {
     if (s.socialCategories.some(c => c.id !== d.id && c.name.toLowerCase() === name.toLowerCase())) fail(`A categoria “${name}” já existe.`);
     const slots = (Array.isArray(d.slots) ? d.slots : []).slice(0, 21).map(x => ({ day: one(Number(x?.day), [0, 1, 2, 3, 4, 5, 6], 'um dia'), time: time(x?.time) }));
     if (d.evergreen && !slots.length) fail('Adicione ao menos um horário para a fila evergreen.');
-    return { name, color: color(d.color), evergreen: Boolean(d.evergreen), slots, accountIds: d.evergreen ? accountIds(s, d.accountIds) : [] };
+    const ids = d.evergreen ? accountIds(s, d.accountIds) : [];
+    if (d.evergreen && !ids.length) fail('Escolha ao menos uma conta para a fila evergreen.');
+    // recycle: when every post went out, start over (default). Off: each post goes out once from the queue.
+    return { name, color: color(d.color), evergreen: Boolean(d.evergreen), slots, accountIds: ids, recycle: d.recycle === undefined ? true : Boolean(d.recycle) };
   },
   socialHashtags: (s, d) => {
     const tags = [...new Set(str(d.tags, 3000).split(/[\s,]+/).map(t => t.replace(/^#*/, '')).filter(t => /^[\p{L}\p{N}_]{1,60}$/u.test(t)))].slice(0, 60);
@@ -95,7 +110,13 @@ export const socialFields = {
     name: req(d.name, 'Nome do feed', 80), url: web(req(d.url, 'Endereço do feed', 2000), 'endereço de feed'),
     accountIds: accountIds(s, d.accountIds).length ? accountIds(s, d.accountIds) : fail('Escolha ao menos uma conta para o feed.'),
     mode: one(d.mode || 'draft', ['draft', 'schedule'], 'o modo do feed'), template: str(d.template, 1000) || '{{title}}\n\n{{link}}',
-    active: d.active === undefined ? true : Boolean(d.active)
+    active: d.active === undefined ? true : Boolean(d.active),
+    // Only items whose title or text has one of `include` (and none of `exclude`) become posts.
+    include: keywords(d.include), exclude: keywords(d.exclude),
+    images: d.images === undefined ? true : Boolean(d.images),
+    categoryId: d.categoryId ? (s.socialCategories.find(c => c.id === d.categoryId)?.id ?? fail('Escolha uma categoria válida.')) : '',
+    spacing: Math.max(0, Math.min(1440, Math.round(Number(d.spacing ?? 60) || 0))),
+    perCheck: Math.max(1, Math.min(10, Math.round(Number(d.perCheck) || 3)))
   }),
   socialWebhooks: (s, d) => ({
     name: req(d.name, 'Nome do webhook', 80),
@@ -276,41 +297,143 @@ export function claimDue(s, at = Date.now()) {
   return due.map(p => structuredClone(p));
 }
 
-/** Stores per-account results. A recurring post leaves a published copy and moves to its next date. */
-export function settle(s, postId, results, { uid, now }) {
-  const p = s.socialPosts.find(x => x.id === postId); if (!p) return;
+/**
+ * Stores per-account results. A recurring post leaves a published copy and moves to its next date.
+ * Returns what happened, for the "post published" workflow trigger.
+ */
+export function settle(s, postId, results, { uid, now, zone = zoneOf(s) }) {
+  const p = s.socialPosts.find(x => x.id === postId); if (!p) return null;
   const failed = results.filter(r => !r.ok);
   const entry = results.map(r => ({ accountId: r.accountId, ok: r.ok, url: r.url || '', externalId: r.externalId || '', error: r.error || '', at: now() }));
+  const status = failed.length === results.length ? 'failed' : 'published', error = failed.map(f => f.error).join(' · ');
+  const outcome = { postId: p.id, status, summary: String(p.summary || '').slice(0, 500), source: p.source || 'post', categoryId: p.categoryId || '', url: entry.find(r => r.ok && r.url)?.url || '',
+    networks: [...new Set(results.map(r => s.socialAccounts.find(a => a.id === r.accountId)?.provider).filter(Boolean))].join(','), failed: failed.length };
   delete p.claimedAt;
   if (p.recurrence?.freq) {
-    s.socialPosts.push({ ...structuredClone(p), id: uid(), created: now(), recurrence: null, parentId: p.id, source: 'recurring',
-      status: failed.length ? 'failed' : 'published', results: entry, publishedAt: now(), error: failed.map(f => f.error).join(' · ') });
-    const next = nextOccurrence(p.scheduleDate, p.recurrence, new Date().toISOString());
-    if (next) { p.scheduleDate = next; p.status = 'scheduled'; p.results = []; return; }
-    p.status = failed.length ? 'failed' : 'published'; p.results = entry; p.publishedAt = now(); return;
+    const copy = { ...structuredClone(p), id: uid(), created: now(), recurrence: null, parentId: p.id, source: 'recurring', status, results: entry, publishedAt: now(), error };
+    s.socialPosts.push(copy); outcome.postId = copy.id;
+    p.recurrence.done = (p.recurrence.done || 0) + 1;
+    const next = nextOccurrence(p.scheduleDate, p.recurrence, new Date().toISOString(), zone);
+    if (next) { p.scheduleDate = next; p.status = 'scheduled'; p.results = []; p.error = ''; return outcome; }
+    Object.assign(p, { status, results: entry, publishedAt: now(), error }); return outcome;
   }
-  p.results = entry; p.publishedAt = now();
-  p.status = failed.length === results.length ? 'failed' : 'published';
-  p.error = failed.map(f => f.error).join(' · ');
+  Object.assign(p, { results: entry, publishedAt: now(), status, error });
+  if (p.source === 'queue' && p.parentId && status === 'published') {
+    const original = s.socialPosts.find(x => x.id === p.parentId);
+    if (original) original.lastQueuedAt = now();
+  }
+  return outcome;
 }
 
-/** Evergreen queue: when a category slot is due, re-schedule the next post of that category. */
+/**
+ * Evergreen queue: when a category slot is due, re-schedule the next post of that category on the
+ * queue's accounts. Slots are read on the sub-account's wall clock and fire once, within an hour of
+ * their time (a slot missed for longer is skipped, not published late).
+ */
 export function evergreenDue(s, at = new Date(), zone = 'UTC') {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: zone, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(at).map(x => [x.type, x.value]));
-  const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(parts.weekday), clock = `${parts.hour}:${parts.minute}`;
-  const stamp = at.toISOString().slice(0, 16), created = [];
+  const p = zonedParts(at.toISOString(), zone), day = weekdayOf(p), clock = p.h * 60 + p.mi, created = [];
   for (const c of s.socialCategories.filter(x => x.evergreen && x.accountIds?.length)) {
-    const slot = c.slots.find(x => x.day === day && x.time <= clock && c.lastSlot !== `${stamp.slice(0, 10)} ${x.time}`);
+    const slot = c.slots.filter(x => x.day === day && minutes(x.time) <= clock && clock - minutes(x.time) < 60).sort((a, b) => b.time.localeCompare(a.time))[0];
     if (!slot) continue;
-    const pool = s.socialPosts.filter(p => p.categoryId === c.id && !p.parentId && ['published', 'draft'].includes(p.status) && p.source !== 'queue');
-    c.lastSlot = `${stamp.slice(0, 10)} ${slot.time}`;
+    const key = `${dateKey(p)} ${slot.time}`;
+    if ((c.lastSlot || '') >= key) continue;
+    c.lastSlot = key;
+    const pool = queuePool(s, c);
     if (!pool.length) continue;
-    const pick = pool[(c.cursor || 0) % pool.length]; c.cursor = ((c.cursor || 0) + 1) % pool.length;
-    const copy = { ...structuredClone(pick), id: undefined, accountIds: c.accountIds, status: 'scheduled', scheduleDate: at.toISOString(), results: [], recurrence: null, source: 'queue', parentId: pick.id, approval: '', needsApproval: false };
+    const pick = queuePick(c, pool);
+    if (c.recycle !== false) c.cursor = ((c.cursor || 0) + 1) % pool.length;
+    const copy = { ...structuredClone(pick), id: undefined, accountIds: c.accountIds, status: 'scheduled', scheduleDate: at.toISOString(), results: [], recurrence: null,
+      source: 'queue', parentId: pick.id, approval: '', needsApproval: false, queueRuns: 0, lastQueuedAt: '' };
     if (postIssues(copy, s.socialAccounts).length) continue;
+    pick.queueRuns = (pick.queueRuns || 0) + 1;
     created.push(copy);
   }
   return created;
+}
+
+// ---- RSS feeds ---------------------------------------------------------------------------------
+const entities = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', hellip: '…', mdash: '—', ndash: '–', rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“' };
+const decode = text => text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (all, code) => {
+  if (code[0] !== '#') return entities[code.toLowerCase()] ?? all;
+  const n = code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : Number(code.slice(1));
+  return n > 0 && n < 0x110000 ? String.fromCodePoint(n) : all;
+});
+const unwrap = raw => raw.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
+// Entities are decoded before tags are stripped too, since many feeds escape their HTML (&lt;p&gt;).
+const plain = raw => decode(decode(unwrap(raw)).replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, ''))
+  .replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+const httpUrl = value => { try { const u = new URL(decode(String(value || '').trim())); return ['http:', 'https:'].includes(u.protocol) ? u.href : ''; } catch { return ''; } };
+
+/** Items of an RSS 2.0 or Atom document: title, link, guid, plain-text summary and an image. */
+export function parseFeed(xml) {
+  return [...String(xml || '').matchAll(/<(item|entry)\b[\s\S]*?<\/\1>/gi)].map(([block]) => {
+    const raw = name => block.match(new RegExp(`<${name}\\b[^>]*>([\\s\\S]*?)<\\/${name}>`, 'i'))?.[1] || '';
+    const tags = name => [...block.matchAll(new RegExp(`<${name}\\b[^>]*>`, 'gi'))].map(([t]) => t);
+    const attr = (tag, name) => tag.match(new RegExp(`\\b${name}=["']([^"']+)["']`, 'i'))?.[1] || '';
+    const links = tags('link'), alternate = links.find(t => !/\brel=/i.test(t) || /\brel=["']alternate["']/i.test(t));
+    const link = httpUrl(plain(raw('link'))) || httpUrl(attr(alternate || '', 'href'));
+    const body = raw('content:encoded') || raw('description') || raw('summary') || raw('content');
+    const image = [...tags('media:content'), ...tags('media:thumbnail'), ...tags('enclosure')]
+      .filter(t => !/\b(type|medium)=["'](?!image)/i.test(t)).map(t => httpUrl(attr(t, 'url'))).find(Boolean)
+      || httpUrl(decode(unwrap(body)).match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i)?.[1]);
+    return { title: plain(raw('title')), link, guid: plain(raw('guid')) || plain(raw('id')) || link, summary: plain(body).slice(0, 3000), image };
+  }).filter(item => item.guid);
+}
+
+const matches = (feed, item) => {
+  const text = `${item.title}\n${item.summary}`.toLowerCase();
+  return (!feed.include?.length || feed.include.some(k => text.includes(k))) && !(feed.exclude || []).some(k => text.includes(k));
+};
+
+/**
+ * Turns the new items of a feed into posts: drafts, or scheduled `spacing` minutes apart starting
+ * five minutes from now. The first read only takes the newest few, so old items are not reposted.
+ */
+export function feedPosts(s, feed, items, { at = Date.now(), uid, now }) {
+  const seen = new Set(feed.seen || []), limit = feed.seen ? feed.perCheck || 5 : Math.min(3, feed.perCheck || 3);
+  const fresh = items.filter(item => !seen.has(item.guid)).slice(0, limit).reverse();
+  const accounts = feed.accountIds.filter(id => s.socialAccounts.some(a => a.id === id)), spacing = (feed.spacing ?? 60) * 60_000;
+  const created = [];
+  let next = Math.max(at + 5 * 60_000, Date.parse(feed.lastScheduled || 0) + spacing);
+  for (const item of fresh.filter(item => matches(feed, item))) {
+    if (s.socialPosts.length >= 3000) break;
+    const summary = feed.template.replace(/\{\{\s*(title|link|summary)\s*\}\}/g, (_, k) => item[k] || '').slice(0, 5000);
+    const post = { id: uid(), created: now(), type: 'post', summary, overrides: {}, accountIds: accounts, media: feed.images !== false && item.image ? [{ url: item.image, type: 'image' }] : [],
+      link: item.link, firstComment: '', location: '', userTags: '', categoryId: feed.categoryId || '', tags: [], needsApproval: false, source: 'rss', feedId: feed.id,
+      scheduleDate: '', recurrence: null, status: 'draft', approval: '', results: [], createdBy: feed.name, error: '' };
+    if (feed.mode === 'schedule' && accounts.length) {
+      post.scheduleDate = new Date(next).toISOString();
+      const issues = postIssues(post, s.socialAccounts);
+      if (issues.length) { post.error = issues.join(' '); post.scheduleDate = ''; }
+      else { post.status = 'scheduled'; feed.lastScheduled = post.scheduleDate; next += spacing; }
+    }
+    s.socialPosts.push(post); created.push(post);
+  }
+  feed.seen = [...new Set([...items.map(item => item.guid), ...(feed.seen || [])])].slice(0, 300);
+  return created;
+}
+
+// ---- Workflows ---------------------------------------------------------------------------------
+const httpOnly = value => { try { const u = new URL(value); return ['http:', 'https:'].includes(u.protocol) && !u.username && !u.password ? u.href : ''; } catch { return ''; } };
+/** "Criar post social" action: a draft, or a post scheduled `delay` minutes ahead on the chosen accounts. */
+export function workflowPost(s, config, text, { add }) {
+  const summary = text(config.body).slice(0, 5000).trim();
+  if (!summary) return { error: 'texto vazio' };
+  const category = config.categoryId ? s.socialCategories.find(c => c.id === config.categoryId) : null;
+  const ids = config.accountId ? [config.accountId] : category?.accountIds?.length ? category.accountIds : s.socialAccounts.filter(a => a.status === 'connected').map(a => a.id);
+  const image = httpOnly(text(config.image || '').trim());
+  const post = { type: 'post', summary, overrides: {}, accountIds: ids.filter(id => s.socialAccounts.some(a => a.id === id)), media: image ? [{ url: image, type: 'image' }] : [],
+    link: httpOnly(text(config.link || '').trim()), firstComment: '', location: '', userTags: '', categoryId: category?.id || '', tags: [],
+    needsApproval: config.approval === 'yes', source: 'workflow', scheduleDate: '', recurrence: null, status: 'draft', approval: '', results: [], createdBy: 'Automação', error: '' };
+  if (config.mode === 'schedule') {
+    post.scheduleDate = new Date(Date.now() + Math.max(0, Math.min(43200, Number(config.delay) || 0)) * 60_000).toISOString();
+    const issues = postIssues(post, s.socialAccounts);
+    if (issues.length) { post.error = issues.join(' '); post.scheduleDate = ''; }
+    else { post.status = post.needsApproval ? 'in_review' : 'scheduled'; post.approval = post.needsApproval ? 'pending' : ''; }
+  }
+  if (s.socialPosts.length >= 3000) return { error: 'o planejador está cheio (3.000 posts)' };
+  const row = add(s, 'socialPosts', post);
+  return { id: row.id, status: row.status, problem: post.error };
 }
 
 export { postStatuses };

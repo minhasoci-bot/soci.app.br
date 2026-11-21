@@ -1,7 +1,11 @@
+import { usageSummary } from './ui/ai-data.js';
+import { desktopDefaults, publishDesktop, saveDesktop } from './agency-desktop.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { defaults, metrics, uid, now } from './model.mjs';
 import { hydrateProspecting } from './prospecting-model.mjs';
 import { agentTemplate } from './agent-model.mjs';
+import { sanitizePresentation } from './presentation-model.mjs';
+import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
 import {
   accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog, labFeatures,
   mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
@@ -47,12 +51,12 @@ export function blankAgency() {
     profile: { name: 'Agency', first: 'Agency', last: 'Owner', email: '', phone: '', language: platformLanguage },
     company: { name: 'My Agency', brand: platformBrand, domain: '', website: '', phone: '', address: '', primary: defaultPrimary, secondary: defaultSecondary, logo: '', timezone: 'America/Sao_Paulo', currency: defaults.profile.currency },
     accounts: {}, plans: [], snapshots: [], snapshotLoads: [], prospects: [], partners: [], ideas: [], menuLinks: [], announcements: [],
-    users: [], templates: [], templateInstalls: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], audit: [],
+    users: [], templates: [], templateInstalls: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], audit: [], brandGroups: [], presentations: [], pranchetaFiles: [],
     reselling: Object.fromEntries(resellProducts.map(p => [p.key, { price: p.base, disabled: [] }])),
     affiliate: { accepted: false, steps: {}, code: '', payout: { method: 'PayPal', email: '' }, payments: [] },
     learning: { completed: [] },
     mobileApp: { appName: 'My Agency', primary: '#1570ef', accent: '#12b76a', loginTitle: 'Welcome back', hidden: [], order: mobileModules.map(m => m[0]), custom: [] },
-    desktopApp: { appName: 'My Agency', primary: '#1570ef', domain: '' },
+    desktopApp: desktopDefaults(),
     integrations: {},
     billing: { plan: 'Starter', wallet: [], autoRecharge: { enabled: false, threshold: 10, amount: 25 } },
     systemEmails: Object.fromEntries(systemEmailKeys.map(([key, , subject, body]) => [key, { subject, body }])),
@@ -154,7 +158,7 @@ function updateAccountStatus(state, id, meta, status, reason, actor) {
 const pick = (state, key, id) => state[key].find(item => item.id === id) || fail('Record not found.', 404);
 
 // Commands that only touch the agency record.
-export function executeAgency(state, command, { accountIds, actor, sharedSnapshot }) {
+export function executeAgency(state, command, { accountIds = [], actor, sharedSnapshot } = {}) {
   const { type, key, id } = command;
   const d = command.data && typeof command.data === 'object' && !Array.isArray(command.data) ? command.data : {};
   const log = (action, target, details) => audit(state, actor, action, target, details);
@@ -192,6 +196,164 @@ export function executeAgency(state, command, { accountIds, actor, sharedSnapsho
       if (key === 'plans') for (const meta of Object.values(state.accounts)) if (meta.plan === id) meta.plan = '';
       log(`${collections[key].label} deleted`, row.name || row.title || row.first || id);
       return id;
+    }
+    // Brand groups: consolidated reports over several sub-accounts, with an optional public link.
+    case 'brand-group-save': {
+      const name = str(d.name, 80) || fail('Informe o nome do grupo.');
+      const chosen = [...new Set((Array.isArray(d.accountIds) ? d.accountIds : [d.accountIds]).filter(x => typeof x === 'string' && x))];
+      if (!chosen.length) fail('Escolha ao menos uma subconta para o grupo.');
+      if (chosen.length > 100) fail('Um grupo pode ter até 100 subcontas.');
+      if (chosen.some(x => !accountIds.includes(x))) fail('Uma das subcontas escolhidas não existe mais.');
+      const period = ['7', '30', '90'].includes(String(d.period)) ? String(d.period) : '30';
+      if (id) {
+        const row = pick(state, 'brandGroups', id);
+        Object.assign(row, { name, accountIds: chosen, period, updated: now() });
+        log('Brand group updated', name);
+        return row.id;
+      }
+      if (state.brandGroups.length >= 50) fail('A agência pode ter até 50 grupos de marcas.');
+      const row = { id: uid(), created: now(), name, accountIds: chosen, period };
+      state.brandGroups.push(row);
+      log('Brand group created', name, `${chosen.length} subconta(s)`);
+      return row.id;
+    }
+    case 'brand-group-delete': {
+      const row = pick(state, 'brandGroups', id);
+      state.brandGroups = state.brandGroups.filter(item => item.id !== id);
+      log('Brand group deleted', row.name);
+      return id;
+    }
+    case 'brand-group-share': {
+      const row = pick(state, 'brandGroups', id);
+      if (d.action === 'revoke') { delete row.share; log('Brand group link revoked', row.name); return id; }
+      const days = Number(d.days);
+      if (![7, 30, 90, 0].includes(days)) fail('Escolha a validade do link.');
+      row.share = { id: randomBytes(32).toString('hex'), created: now(), expires: days ? new Date(Date.now() + days * 86_400_000).toISOString() : '', lang: d.lang === 'es' ? 'es' : 'pt' };
+      log('Brand group link created', row.name, days ? `${days} dias` : 'sem validade');
+      return id;
+    }
+    // Presentations: client pitches, proposals and slide decks created by the agency
+    case 'presentation-save': {
+      state.presentations ??= [];
+      const clean = sanitizePresentation(d, state.company);
+      const targetId = id || d.id;
+      const existing = targetId ? state.presentations.find(item => item.id === targetId) : null;
+      if (existing) {
+        Object.assign(existing, clean, { updated: now() });
+        log('Presentation updated', existing.name || existing.title);
+        return existing.id;
+      }
+      if (state.presentations.length >= 100) fail('A agência pode ter até 100 apresentações.');
+      const row = { id: targetId || uid(), created: now(), updated: now(), ...clean };
+      state.presentations.push(row);
+      log('Presentation created', row.name || row.title, `${row.slides.length} lâmina(s)`);
+      return row.id;
+    }
+    case 'presentation-delete': {
+      state.presentations ??= [];
+      const row = pick(state, 'presentations', id);
+      state.presentations = state.presentations.filter(item => item.id !== id);
+      log('Presentation deleted', row.name || row.title);
+      return id;
+    }
+    case 'presentation-duplicate': {
+      state.presentations ??= [];
+      const row = pick(state, 'presentations', id);
+      if (state.presentations.length >= 100) fail('A agência pode ter até 100 apresentações.');
+      const clone = JSON.parse(JSON.stringify(row));
+      clone.id = uid();
+      clone.name = `${row.name || row.title} (Cópia)`;
+      clone.title = clone.name;
+      clone.created = now();
+      clone.updated = now();
+      delete clone.share;
+      state.presentations.push(clone);
+      log('Presentation duplicated', clone.name);
+      return clone.id;
+    }
+    case 'presentation-share': {
+      state.presentations ??= [];
+      const row = pick(state, 'presentations', id);
+      if (d.action === 'revoke') {
+        delete row.share;
+        log('Presentation link revoked', row.name || row.title);
+        return id;
+      }
+      const days = Number(d.days);
+      if (![7, 30, 90, 0].includes(days)) fail('Escolha a validade do link.');
+      row.share = {
+        id: randomBytes(32).toString('hex'),
+        created: now(),
+        expires: days ? new Date(Date.now() + days * 86_400_000).toISOString() : '',
+        lang: d.lang === 'es' ? 'es' : 'pt'
+      };
+      log('Presentation link created', row.name || row.title, days ? `${days} dias` : 'sem validade');
+      return id;
+    }
+    // Prancheta: Design files and vector artwork created at the agency level
+    case 'prancheta-save': {
+      state.pranchetaFiles ??= [];
+      const record = pranchetaFileRecord(state, d);
+      const targetId = id || d.id;
+      const existing = targetId ? state.pranchetaFiles.find(item => item.id === targetId) : null;
+      if (existing) {
+        Object.assign(existing, record, { updated: now() });
+        log('Prancheta updated', existing.name);
+        return existing.id;
+      }
+      if (state.pranchetaFiles.length >= 200) fail('A agência pode ter até 200 arquivos na prancheta.');
+      const row = { ...record, id: targetId || uid(), created: now(), updated: now() };
+      state.pranchetaFiles.unshift(row);
+      log('Prancheta created', row.name);
+      return row.id;
+    }
+    case 'prancheta-delete': {
+      state.pranchetaFiles ??= [];
+      const existing = state.pranchetaFiles.find(item => item.id === id);
+      if (!existing) fail('Design não encontrado.', 404);
+      state.pranchetaFiles = state.pranchetaFiles.filter(item => item.id !== id);
+      log('Prancheta deleted', existing.name);
+      return id;
+    }
+    case 'prancheta-duplicate': {
+      state.pranchetaFiles ??= [];
+      const existing = state.pranchetaFiles.find(item => item.id === id);
+      if (!existing) fail('Design não encontrado.', 404);
+      if (state.pranchetaFiles.length >= 200) fail('A agência pode ter até 200 arquivos na prancheta.');
+      const copy = JSON.parse(JSON.stringify(existing));
+      copy.id = uid();
+      copy.name = `${existing.name} (Cópia)`.slice(0, 150);
+      copy.created = now();
+      copy.updated = now();
+      state.pranchetaFiles.unshift(copy);
+      log('Prancheta duplicated', copy.name);
+      return copy.id;
+    }
+    case 'prancheta-template': {
+      state.pranchetaFiles ??= [];
+      if (state.pranchetaFiles.length >= 200) fail('A agência pode ter até 200 arquivos na prancheta.');
+      const templates = createCanonicalTemplates();
+      const tpl = templates.find(t => t.id === d.templateId) || templates[0];
+      const row = {
+        id: uid(),
+        name: tpl.name,
+        format: tpl.format,
+        width: tpl.width,
+        height: tpl.height,
+        pages: JSON.parse(JSON.stringify(tpl.pages)),
+        created: now(),
+        updated: now()
+      };
+      state.pranchetaFiles.unshift(row);
+      log('Prancheta created from template', row.name);
+      return row.id;
+    }
+    case 'prancheta-export-media': {
+      const existing = id ? state.pranchetaFiles?.find(f => f.id === id) : null;
+      const dataUri = d.data || existing?.thumbnail;
+      if (!dataUri || typeof dataUri !== 'string') fail('Imagem inválida para exportação.');
+      log('Prancheta exported', existing?.name || 'Arte');
+      return existing?.id || id || uid();
     }
     case 'account-meta': {
       const meta = accountIds.includes(id) && state.accounts[id] || fail('Sub-account not found.', 404);
@@ -310,8 +472,13 @@ export function executeAgency(state, command, { accountIds, actor, sharedSnapsho
       return 'mobile';
     }
     case 'desktop-app': {
-      Object.assign(state.desktopApp, { appName: req(d.appName, 'App name', 40), primary: color(d.primary), domain: str(d.domain, 200).toLowerCase() });
+      saveDesktop(state, d);
       log('Desktop app settings saved', state.desktopApp.appName);
+      return 'desktop';
+    }
+    case 'desktop-app-publish': {
+      const app = publishDesktop(state);
+      log('Desktop app published', `${app.appName} v${app.version}`);
       return 'desktop';
     }
     case 'integration': {
@@ -605,6 +772,7 @@ export function agencyOverview(agency, workspaces) {
       address: meta.address || '', phone: meta.phone || state.profile.phone || '', website: meta.website || '', email: state.profile.email,
       currency: state.profile.currency, contacts: m.contacts, open: m.open, openValue: m.openValue, won: m.won, wonValue: m.wonValue,
       invoicesPaid: m.invoicesPaid, appointments: m.appointments, workflows: state.workflows.length, runs: state.runs.length, files: state.files.length, storage,
+      aiCost: usageSummary(state.ai).cost, aiLimit: Number(state.ai?.limit) || 0,
       resold: resold.map(p => p.key)
     };
   });
@@ -625,7 +793,7 @@ export function agencyOverview(agency, workspaces) {
       newThisMonth: accounts.filter(a => a.created && monthKey(a.created) === thisMonth).length,
       mrr, resale: live.reduce((s, a) => s + resale(a), 0), resaleProfit: live.reduce((s, a) => s + profit(a), 0),
       contacts: accounts.reduce((s, a) => s + a.contacts, 0), open: accounts.reduce((s, a) => s + a.open, 0), runs: accounts.reduce((s, a) => s + a.runs, 0),
-      storage: accounts.reduce((s, a) => s + a.storage, 0), affiliateDue: Math.round(affiliateDue * 100) / 100, wallet: Math.round(wallet * 100) / 100,
+      storage: accounts.reduce((s, a) => s + a.storage, 0), aiCost: Math.round(accounts.reduce((s, a) => s + a.aiCost, 0) * 1e6) / 1e6, affiliateDue: Math.round(affiliateDue * 100) / 100, wallet: Math.round(wallet * 100) / 100,
       snapshots: agency.snapshots.length, prospects: agency.prospects.length
     },
     growth

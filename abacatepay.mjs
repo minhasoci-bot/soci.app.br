@@ -213,7 +213,7 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     return payment;
   }
 
-  function paidInvoice(state, { checkoutId, invoiceId, method, receiptUrl }) {
+  function paidInvoice(state, { checkoutId, invoiceId, method, receiptUrl }, workspace = 'demo') {
     const invoice = state.invoices.find(item => (checkoutId && item.payment?.checkoutId === checkoutId) || (invoiceId && item.id === invoiceId));
     if (!invoice) return false;
     invoice.payment = { ...(invoice.payment || { provider: 'abacatepay', checkoutId }), status: 'PAID', paidAt: stamp(), method, receiptUrl: receiptUrl || '' };
@@ -222,9 +222,9 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     const order = state.orders?.find(item => item.invoiceId === invoice.id && item.status === 'Pending');
     if (order) {
       order.paidMethod = method;
-      execute(state, { type: 'save', key: 'orders', id: order.id, data: { id: order.id, status: 'Paid', note: order.note, tracking: order.tracking } });
+      execute(state, { type: 'save', key: 'orders', id: order.id, data: { id: order.id, status: 'Paid', note: order.note, tracking: order.tracking } }, { workspace });
     } else {
-      execute(state, { type: 'save', key: 'invoices', id: invoice.id, data: { title: invoice.title, contactId: invoice.contactId, value: invoice.value, due: invoice.due, status: 'Paid' } });
+      execute(state, { type: 'save', key: 'invoices', id: invoice.id, data: { title: invoice.title, contactId: invoice.contactId, value: invoice.value, due: invoice.due, status: 'Paid' } }, { workspace });
     }
     return state.invoices.find(item => item.id === invoice.id);
   }
@@ -258,6 +258,25 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     if (!checkout?.id || !checkout?.url) throw fail('O AbacatePay não devolveu o link da assinatura.', 502);
     return { provider: 'abacatepay', checkoutId: String(checkout.id), url: String(checkout.url), status: 'Pending', planId: plan.id, planName: plan.name,
       amount: price / 100, subscriptionId: '', devMode: Boolean(checkout.devMode), createdAt: stamp(), updatedAt: stamp(), payments: [] };
+  }
+  // ---- Sub-account: monthly subscription of a signed document ----------------------------------
+  async function subscribeWorkspace(agencyId, scope, { reference, name, amount, returnUrl, completionUrl, metadata }) {
+    const row = await loadRow(agencyId);
+    const apiKey = keyOf(row, agencyId, scope);
+    const price = cents(amount);
+    if (price < 100) throw fail('O AbacatePay cobra a partir de R$ 1,00.');
+    const productId = await ensureProduct(apiKey, { externalId: `soci-${reference}-${price}-mensal`, name: clean(name, 120) || 'Assinatura', price, cycle: 'MONTHLY' });
+    const body = { items: [{ id: productId, quantity: 1 }], externalId: `${reference}-${Date.now().toString(36)}`, methods: ['PIX', 'CARD'], metadata };
+    if (/^https?:\/\//.test(returnUrl || '')) body.returnUrl = returnUrl;
+    if (/^https?:\/\//.test(completionUrl || '')) body.completionUrl = completionUrl;
+    let checkout;
+    try { checkout = await call(apiKey, '/subscriptions/create', { method: 'POST', body }); }
+    catch (err) {
+      if (!/PIX is not available/i.test(err.gateway || '')) throw err;
+      checkout = await call(apiKey, '/subscriptions/create', { method: 'POST', body: { ...body, methods: ['CARD'] } });
+    }
+    if (!checkout?.id || !checkout?.url) throw fail('O AbacatePay não devolveu o link da assinatura.', 502);
+    return { provider: 'abacatepay', checkoutId: String(checkout.id), url: String(checkout.url), status: 'PENDING', amount: price / 100, devMode: Boolean(checkout.devMode), createdAt: stamp() };
   }
   async function cancelSubscription(agencyId, billing) {
     if (!billing?.subscriptionId) return;
@@ -319,11 +338,17 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
       const method = methodNames[data.payerInformation?.method] || 'Pix';
       if ((event === 'checkout.completed' && charge.frequency !== 'SUBSCRIPTION') || event === 'transparent.completed') {
         let invoice = null;
-        await store.change(scope, state => { invoice = paidInvoice(state, { checkoutId, invoiceId: charge.metadata?.invoiceId, method, receiptUrl: charge.receiptUrl }); });
+        await store.change(scope, state => { invoice = paidInvoice(state, { checkoutId, invoiceId: charge.metadata?.invoiceId, method, receiptUrl: charge.receiptUrl }, scope); });
         handled = Boolean(invoice);
         if (invoice && onInvoicePaid) await onInvoicePaid(scope, structuredClone(invoice)).catch(() => {});
       } else if (event === 'checkout.refunded' || event === 'transparent.refunded') {
         await store.change(scope, state => { handled = refundedInvoice(state, checkoutId); });
+      } else if (event.startsWith('subscription.')) {
+        const pay = data?.payment || {};
+        await store.change(scope, state => {
+          handled = execute(state, { type: 'document-subscription', data: { event, checkoutId, subscriptionId: String(data?.subscription?.id || ''),
+            amount: Number(pay.paidAmount || pay.amount || 0) / 100, method: methodNames[data?.subscription?.method] || '', receiptUrl: String(pay.receiptUrl || '') } }, { workspace: scope });
+        });
       }
     }
     if (deliveryId) await changeRow(agencyId, current => { current.seen = [...current.seen, deliveryId].slice(-300); });
@@ -333,7 +358,7 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
   return {
     status: async (agencyId, scope, publicOrigin) => view(await loadRow(agencyId), agencyId, scope, publicOrigin),
     connected: async (agencyId, scope) => Boolean(connOf(await loadRow(agencyId), scope)),
-    connect, disconnect, createCheckout, chargeInvoice, subscribe, cancelSubscription, handleWebhook,
+    connect, disconnect, createCheckout, chargeInvoice, subscribe, subscribeWorkspace, cancelSubscription, handleWebhook,
     AGENCY_SCOPE
   };
 }

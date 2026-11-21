@@ -3,8 +3,12 @@ import { icon } from './icons.js';
 import { h, fmt, pageShell, search } from './screens.js';
 import { portalTabs } from './client-portal.js';
 import { tr } from './i18n.js';
+import { applyExtraInput, applyLookInput, assignmentEditor, blankAssignment, blankQuiz, checkoutPanel, credentialsPanel, defaultCredentials, defaultPage, extraAction, livePanel, lookPanel,
+  quizEditor, submissionsPanel, submodulePanel, analyticsPanel, analyticsCsv } from './course-builder-extra.js';
 
-const kinds = [['text','Texto','note'],['video','Vídeo','play'],['file','Arquivo','paperclip']];
+const kinds = [['text','Texto','note'],['video','Vídeo','play'],['file','Arquivo','paperclip'],['quiz','Quiz','check'],['assignment','Tarefa','edit']];
+const submissions = new Map(), analytics = new Map(), summaries = new Map();
+let analyticsDays = 30;
 const sorts = [['newest','Mais recentes'],['oldest','Mais antigos'],['az','Nome: A a Z'],['za','Nome: Z a A']];
 const statuses = [['all','Todos'],['published','Publicados'],['draft','Rascunhos']];
 const list = { sort: 'newest', status: 'all' };
@@ -50,6 +54,7 @@ function productList(c) {
           <h3><a href="#memberships/course/${encodeURIComponent(course.id)}">${h(course.name)}</a></h3>
           ${course.description ? `<p>${h(course.description)}</p>` : ''}
           <small>${modules.length} ${modules.length === 1 ? 'módulo' : 'módulos'} · ${count} ${count === 1 ? 'aula' : 'aulas'} · atualizado em ${h(fmt(course.updated || course.created, c.s.profile.timezone))}</small>
+          <small class="co-stats" data-co-stats="${h(course.id)}">${(() => { const row = summaries.get(`${c.workspace}:${course.id}`); return row ? `${row.students} ${row.students === 1 ? 'aluno' : 'alunos'} · ${row.completed} concluíram · progresso médio ${row.average}%` : ''; })()}</small>
           <div class="co-card-actions"><a class="secondary" href="#memberships/course/${encodeURIComponent(course.id)}">${icon('edit',15)} Editar curso</a>
           ${course.active && course.portalOnly === false ? `<a class="text-link" href="/course/${encodeURIComponent(c.workspace)}/${encodeURIComponent(course.id)}" target="_blank" rel="noopener">${icon('external',14)} Aula pública</a>` : ''}</div></div></article>`;
     }).join('')}</div>` : `<div class="co-empty">${icon('book',28)}<strong>${query || list.status !== 'all' ? 'Nenhum curso encontrado' : 'Crie seu primeiro curso'}</strong>
@@ -65,7 +70,10 @@ function draftOf(c, id) {
   if (!entry || (!entry.dirty && entry.stamp !== stamp)) {
     entry = { stamp, dirty: false, sel: entry?.sel || { type: 'details' }, draft: {
       name: course.name, description: course.description || '', coverFileId: course.coverFileId || '', active: Boolean(course.active),
-      portalOnly: course.portalOnly !== false, modules: structuredClone(outline(course)) } };
+      portalOnly: course.portalOnly !== false, sequential: Boolean(course.sequential), liveSessions: structuredClone(course.liveSessions || []),
+      theme: structuredClone(course.theme || null), instructor: structuredClone(course.instructor || { name: '', title: '', bio: '', photoFileId: '' }), page: structuredClone(course.page || defaultPage()),
+      credentials: structuredClone(course.credentials || { badge: { enabled: false, title: 'Aluno matriculado' }, certificate: { enabled: false, title: 'Certificado de conclusão', signer: '', signerRole: '' } }), offerId: course.offerId || '',
+      modules: structuredClone(outline(course)).map(module => ({ ...module, submodules: module.submodules || [] })) } };
     drafts.set(id, entry);
   }
   return entry;
@@ -79,22 +87,37 @@ function editorPanel(c, entry) {
   if (sel.type === 'module') {
     const module = findModule(draft, sel.id);
     if (module) return `<h2>Módulo</h2><label>Título do módulo<input data-co-set="module.title" value="${h(module.title)}" maxlength="160" required></label>
-      <p class="co-hint">${module.lessons.length} ${module.lessons.length === 1 ? 'aula' : 'aulas'} neste módulo.</p>
+      <p class="co-hint">${module.lessons.length} ${module.lessons.length === 1 ? 'aula' : 'aulas'} neste módulo${module.submodules?.length ? ` · ${module.submodules.length} ${module.submodules.length === 1 ? 'submódulo' : 'submódulos'}` : ''}.</p>
       <div class="co-panel-actions"><button type="button" class="secondary" data-co="add-lesson" data-id="${h(module.id)}">${icon('plus',15)} Adicionar aula</button>
+      <button type="button" class="secondary" data-co="add-submodule" data-id="${h(module.id)}">${icon('plus',15)} Adicionar submódulo</button>
       <button type="button" class="danger plain" data-co="remove-module" data-id="${h(module.id)}">${icon('trash',15)} Excluir módulo</button></div>`;
   }
+  if (sel.type === 'submodule') {
+    const module = draft.modules.find(row => row.submodules?.some(sub => sub.id === sel.id));
+    if (module) return submodulePanel(module, module.submodules.find(sub => sub.id === sel.id));
+  }
+  if (sel.type === 'live') return livePanel(c, draft);
+  if (sel.type === 'look') return lookPanel(c, draft);
+  if (sel.type === 'analytics') return analyticsPanel(c, analytics.get(`${c.workspace}:${builderId()}:${analyticsDays}`), analyticsDays);
+  if (sel.type === 'checkout') return checkoutPanel(c, draft, builderId());
+  if (sel.type === 'credentials') return credentialsPanel(c, draft, builderId());
+  if (sel.type === 'submissions') return submissionsPanel(c, submissions.get(`${c.workspace}:${builderId()}`));
   if (sel.type === 'lesson') {
-    const { lesson } = findLesson(draft, sel.id);
+    const { lesson, module } = findLesson(draft, sel.id);
     if (lesson) {
       const files = c.s.files.filter(file => !file.trashedAt);
-      return `<h2>Aula</h2><label>Título da aula<input data-co-set="lesson.title" value="${h(lesson.title)}" maxlength="160" required></label>
+      const bodyLabel = lesson.kind === 'text' ? 'Conteúdo da aula' : lesson.kind === 'assignment' ? 'Instruções da tarefa' : lesson.kind === 'quiz' ? 'Introdução do quiz (opcional)' : 'Texto de apoio (opcional)';
+      return `<h2>${lesson.kind === 'quiz' ? 'Quiz' : lesson.kind === 'assignment' ? 'Tarefa' : 'Aula'}</h2><label>Título<input data-co-set="lesson.title" value="${h(lesson.title)}" maxlength="160" required></label>
+        <div class="cx-row">${module.submodules?.length ? `<label>Submódulo<select data-co-set="lesson.submoduleId"><option value="">Direto no módulo</option>${module.submodules.map(sub => `<option value="${h(sub.id)}"${lesson.submoduleId === sub.id ? ' selected' : ''}>${h(sub.title)}</option>`).join('')}</select></label>` : ''}
+          <label class="cp-checkbox co-check"><input type="checkbox" data-co-set="lesson.published"${lesson.published !== false ? ' checked' : ''}><span>Publicada<small>Desligada, a aula fica como rascunho e os alunos não a veem.</small></span></label></div>
         <fieldset class="co-kinds"><legend>Tipo de aula</legend>${kinds.map(([value, label, glyph]) => `<label><input type="radio" name="co-kind" data-co-set="lesson.kind" value="${value}" ${lesson.kind === value ? 'checked' : ''}><span>${icon(glyph,15)} ${label}</span></label>`).join('')}</fieldset>
         ${lesson.kind === 'video' ? `<label>Link do vídeo<input type="url" data-co-set="lesson.videoUrl" value="${h(lesson.videoUrl || '')}" placeholder="https://youtu.be/…" maxlength="500"></label>
           <p class="co-hint">YouTube, Vimeo e Loom aparecem com o player deles. Links diretos para .mp4 ou .webm tocam no próprio portal.</p>` : ''}
         ${lesson.kind === 'file' ? `<label>Arquivo da Mídia Drive<select data-co-set="lesson.fileId"><option value="">Escolha um arquivo</option>
           ${files.map(file => `<option value="${h(file.id)}" ${file.id === lesson.fileId ? 'selected' : ''}>${h(file.name)}</option>`).join('')}</select></label>
           ${files.length ? '' : '<p class="co-hint">Envie o material na <a class="text-link" href="#media">Mídia Drive</a> primeiro.</p>'}` : ''}
-        <label>${lesson.kind === 'text' ? 'Conteúdo da aula' : 'Texto de apoio (opcional)'}<textarea data-co-set="lesson.body" rows="${lesson.kind === 'text' ? 12 : 5}" maxlength="20000">${h(lesson.body || '')}</textarea></label>
+        <label>${bodyLabel}<textarea data-co-set="lesson.body" rows="${['text', 'assignment'].includes(lesson.kind) ? 10 : 4}" maxlength="20000">${h(lesson.body || '')}</textarea></label>
+        ${lesson.kind === 'quiz' ? quizEditor(lesson) : ''}${lesson.kind === 'assignment' ? assignmentEditor(c, lesson) : ''}
         <label class="co-drip">Liberar <input type="number" min="0" max="365" step="1" data-co-set="lesson.dripDays" value="${Number(lesson.dripDays || 0)}"> dias depois que o aluno recebe acesso ao curso</label>
         <p class="co-hint">Use 0 para liberar imediatamente.</p>
         <div class="co-panel-actions"><button type="button" class="danger plain" data-co="remove-lesson" data-id="${h(lesson.id)}">${icon('trash',15)} Excluir aula</button></div>`;
@@ -111,26 +134,39 @@ function editorPanel(c, entry) {
       <label><input type="radio" name="co-status" data-co-set="course.active" value="" ${draft.active ? '' : 'checked'}><span>Rascunho</span></label>
       <label><input type="radio" name="co-status" data-co-set="course.active" value="1" ${draft.active ? 'checked' : ''}><span>Publicado</span></label></fieldset>
     <p class="co-hint">Cursos publicados aparecem no portal para os clientes com acesso. Libere o acesso na aba <a class="text-link" href="#memberships/portal-members">Clientes</a>.</p>
+    <label class="cp-checkbox co-check"><input type="checkbox" data-co-set="course.sequential" ${draft.sequential ? 'checked' : ''}>
+      <span>Aulas em ordem<small>Cada aula só abre depois que o aluno concluir a anterior (quizzes contam quando atingem a nota mínima).</small></span></label>
     <label class="cp-checkbox co-check"><input type="checkbox" data-co-set="course.public" ${draft.portalOnly ? '' : 'checked'}>
       <span>Também mostrar a primeira aula em uma página pública<small>Útil como aula gratuita de apresentação.</small></span></label>`;
 }
 
 function outlinePanel(entry) {
   const { draft, sel } = entry;
-  const current = (type, id) => sel.type === type && (type === 'details' || sel.id === id) ? 'aria-current="true"' : '';
+  const current = (type, id) => sel.type === type && (['details', 'live', 'submissions', 'look', 'checkout', 'credentials', 'analytics'].includes(type) || sel.id === id) ? 'aria-current="true"' : '';
   const kindIcon = kind => kinds.find(([value]) => value === kind)?.[2] || 'note';
   return `<button type="button" class="co-node co-details" data-co="select" data-type="details" ${current('details')}>${icon('gear',15)} Detalhes do curso</button>
+    <button type="button" class="co-node co-details" data-co="select" data-type="look" ${current('look')}>${icon('palette',15)} Página e tema</button>
+    <button type="button" class="co-node co-details" data-co="select" data-type="checkout" ${current('checkout')}>${icon('pay',15)} Checkout${draft.offerId ? ' <small>ativo</small>' : ''}</button>
+    <button type="button" class="co-node co-details" data-co="select" data-type="credentials" ${current('credentials')}>${icon('award',15)} Certificado e badge</button>
     ${draft.modules.map((module, m) => `<section class="co-module">
       <div class="co-module-head"><button type="button" class="co-node" data-co="select" data-type="module" data-id="${h(module.id)}" ${current('module', module.id)}>
         <span class="co-index">${m + 1}</span><strong>${h(module.title || 'Módulo sem título')}</strong></button>
         <span class="co-move"><button type="button" class="icon-btn" data-co="module-up" data-id="${h(module.id)}" aria-label="Subir módulo ${h(module.title)}" ${m ? '' : 'disabled'}>${icon('chevron',14)}</button>
         <button type="button" class="icon-btn co-down" data-co="module-down" data-id="${h(module.id)}" aria-label="Descer módulo ${h(module.title)}" ${m < draft.modules.length - 1 ? '' : 'disabled'}>${icon('chevron',14)}</button></span></div>
-      <ol>${module.lessons.map((lesson, l) => `<li><button type="button" class="co-node co-lesson" data-co="select" data-type="lesson" data-id="${h(lesson.id)}" ${current('lesson', lesson.id)}>
-          ${icon(kindIcon(lesson.kind),14)}<span>${h(lesson.title || 'Aula sem título')}</span>${Number(lesson.dripDays) ? `<small title="Liberada ${Number(lesson.dripDays)} dias após o acesso">${icon('clock',12)} ${Number(lesson.dripDays)}d</small>` : ''}</button>
+      ${(() => { const item = lesson => { const l = module.lessons.indexOf(lesson); return `<li><button type="button" class="co-node co-lesson" data-co="select" data-type="lesson" data-id="${h(lesson.id)}" ${current('lesson', lesson.id)}>
+          ${icon(kindIcon(lesson.kind),14)}<span>${h(lesson.title || 'Aula sem título')}</span>${lesson.published === false ? '<small class="co-draft">rascunho</small>' : ''}${Number(lesson.dripDays) ? `<small title="Liberada ${Number(lesson.dripDays)} dias após o acesso">${icon('clock',12)} ${Number(lesson.dripDays)}d</small>` : ''}</button>
         <span class="co-move"><button type="button" class="icon-btn" data-co="lesson-up" data-id="${h(lesson.id)}" aria-label="Subir aula ${h(lesson.title)}" ${m || l ? '' : 'disabled'}>${icon('chevron',13)}</button>
-        <button type="button" class="icon-btn co-down" data-co="lesson-down" data-id="${h(lesson.id)}" aria-label="Descer aula ${h(lesson.title)}" ${m < draft.modules.length - 1 || l < module.lessons.length - 1 ? '' : 'disabled'}>${icon('chevron',13)}</button></span></li>`).join('')}</ol>
+        <button type="button" class="icon-btn co-down" data-co="lesson-down" data-id="${h(lesson.id)}" aria-label="Descer aula ${h(lesson.title)}" ${m < draft.modules.length - 1 || l < module.lessons.length - 1 ? '' : 'disabled'}>${icon('chevron',13)}</button></span></li>`; };
+        const subs = module.submodules || [], known = new Set(subs.map(sub => sub.id));
+        return `<ol>${module.lessons.filter(lesson => !known.has(lesson.submoduleId)).map(item).join('')}</ol>${subs.map(sub => `<div class="co-submodule">
+          <button type="button" class="co-node co-sub" data-co="select" data-type="submodule" data-id="${h(sub.id)}" ${current('submodule', sub.id)}>${icon('folder',14)}<strong>${h(sub.title || 'Submódulo sem título')}</strong></button>
+          <ol>${module.lessons.filter(lesson => lesson.submoduleId === sub.id).map(item).join('')}</ol>
+          <button type="button" class="co-add" data-co="add-lesson" data-id="${h(module.id)}" data-sub="${h(sub.id)}">${icon('plus',14)} Aula</button></div>`).join('')}`; })()}
       <button type="button" class="co-add" data-co="add-lesson" data-id="${h(module.id)}">${icon('plus',14)} Aula</button></section>`).join('')}
-    <button type="button" class="secondary co-add-module" data-co="add-module">${icon('plus',15)} Adicionar módulo</button>`;
+    <button type="button" class="secondary co-add-module" data-co="add-module">${icon('plus',15)} Adicionar módulo</button>
+    <button type="button" class="co-node co-details" data-co="select" data-type="live" ${current('live', undefined)}>${icon('play',15)} Sessões ao vivo <small>${(draft.liveSessions || []).length}</small></button>
+    <button type="button" class="co-node co-details" data-co="select" data-type="submissions" ${current('submissions', undefined)}>${icon('inbox',15)} Entregas das tarefas</button>
+    <button type="button" class="co-node co-details" data-co="select" data-type="analytics" ${current('analytics', undefined)}>${icon('chart',15)} Analytics</button>`;
 }
 
 function builder(c, id) {
@@ -154,12 +190,28 @@ export function coursesScreen(c) {
   return c.tab === 'course' && id ? builder(c, id) : productList(c);
 }
 
-export function installCourses({ c, mutate, flash, dialog, close, render }) {
+export function installCourses({ c, api, url, mutate, flash, dialog, close, render }) {
+  const loadAnalytics = async () => {
+    const key = `${c.workspace}:${builderId()}:${analyticsDays}`;
+    try { analytics.set(key, (await api(`/api/client-portal/${encodeURIComponent(c.workspace)}/admin`, { action: 'course-analytics', courseId: builderId(), days: analyticsDays })).analytics); }
+    catch (error) { flash(error.message, true); return; }
+    if (entry()?.sel.type === 'analytics') render();
+  };
+  const loadSubmissions = async () => {
+    const key = `${c.workspace}:${builderId()}`;
+    try { submissions.set(key, (await api(`/api/client-portal/${encodeURIComponent(c.workspace)}/admin`, { action: 'submissions', courseId: builderId() })).submissions); }
+    catch (error) { submissions.set(key, []); flash(error.message, true); }
+    if (entry()?.sel.type === 'submissions') render();
+  };
   const active = () => c.view === 'memberships' && ['courses', 'course'].includes(c.tab);
   const entry = () => drafts.get(builderId());
+  // Keeps each module's lessons in the order they are shown: straight lessons, then each submodule's.
+  const normalize = draft => { for (const module of draft.modules) { const subs = module.submodules || [], known = new Set(subs.map(sub => sub.id));
+    module.lessons = [...module.lessons.filter(lesson => !known.has(lesson.submoduleId)), ...subs.flatMap(sub => module.lessons.filter(lesson => lesson.submoduleId === sub.id))]; } };
   const markDirty = () => {
     const current = entry();
     if (!current) return;
+    normalize(current.draft);
     current.dirty = true;
     document.querySelector('[data-co-dirty]')?.removeAttribute('hidden');
     document.querySelector('[data-co="discard"]')?.removeAttribute('hidden');
@@ -205,13 +257,47 @@ export function installCourses({ c, mutate, flash, dialog, close, render }) {
       }
       if (action === 'delete') confirmForm('Excluir curso', `“${h(c.s.courses.find(row => row.id === id).name)}” será excluído e sai do portal de todos os clientes. Esta ação não pode ser desfeita.`, 'Excluir curso', 'delete', id);
       if (!draft) return;
-      if (action === 'select') { current.sel = { type, id }; repaint(`[data-co="select"][data-type="${type}"]${id ? `[data-id="${CSS.escape(id)}"]` : ''}`); }
+      if (action === 'select') { current.sel = { type, id }; repaint(`[data-co="select"][data-type="${type}"]${id ? `[data-id="${CSS.escape(id)}"]` : ''}`); if (type === 'submissions') void loadSubmissions(); if (type === 'analytics') void loadAnalytics(); }
+      if (action === 'analytics-export') {
+        const data = analytics.get(`${c.workspace}:${builderId()}:${analyticsDays}`);
+        if (!data) return;
+        const href = URL.createObjectURL(new Blob(['﻿' + analyticsCsv(data)], { type: 'text/csv;charset=utf-8' }));
+        Object.assign(document.createElement('a'), { href, download: `alunos-${(draft.name || 'curso').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.csv` }).click();
+        setTimeout(() => URL.revokeObjectURL(href), 1000);
+        return;
+      }
+      if (extraAction(action, control, draft, current.sel, findLesson)) { markDirty(); repaint(); return; }
+      if (action === 'checkout-copy') { await navigator.clipboard.writeText(control.dataset.value).then(() => flash('Link copiado.'), () => flash('Selecione o link e copie.', true)); return; }
+      if (action === 'checkout-unlink') { draft.offerId = ''; markDirty(); repaint(); flash('Checkout desvinculado. Salve o curso; a oferta continua na aba Ofertas.'); return; }
+      if (action === 'checkout-create') {
+        const type = document.querySelector('[name="cx-price"]:checked')?.value || 'one_time', price = Number(document.querySelector('[data-cx-price]')?.value);
+        if (type !== 'free' && !(price >= 1)) { flash('Informe o preço (a partir de R$ 1,00).', true); return; }
+        control.disabled = true;
+        try {
+          const offerId = await mutate({ type: 'save', key: 'offers', data: { title: draft.name || 'Curso', description: draft.description || '', courseIds: [builderId()], type, price: type === 'free' ? 0 : price, coverFileId: draft.coverFileId || '', status: 'published' } });
+          draft.offerId = offerId;
+          await mutate({ type: 'save', key: 'courses', id: builderId(), data: { offerId } });
+          if (!current.dirty) { const saved = c.s.courses.find(row => row.id === builderId()); current.stamp = saved.updated || saved.created || ''; }
+          repaint(); flash('Checkout criado. Copie o link e divulgue.');
+        } finally { control.disabled = false; }
+        return;
+      }
+      if (action === 'add-submodule') {
+        const module = findModule(draft, id), sub = { id: newId(), title: `Submódulo ${(module.submodules?.length || 0) + 1}` };
+        (module.submodules ||= []).push(sub); current.sel = { type: 'submodule', id: sub.id }; markDirty(); repaint('[data-co-set="submodule.title"]');
+      }
+      if (action === 'remove-submodule') {
+        const module = draft.modules.find(row => row.submodules?.some(sub => sub.id === id));
+        module.submodules = module.submodules.filter(sub => sub.id !== id);
+        for (const lesson of module.lessons) if (lesson.submoduleId === id) lesson.submoduleId = '';
+        current.sel = { type: 'module', id: module.id }; markDirty(); repaint();
+      }
       if (action === 'add-module') {
         const module = { id: newId(), title: `Módulo ${draft.modules.length + 1} / Módulo ${draft.modules.length + 1}`, lessons: [newLesson()] };
         draft.modules.push(module); current.sel = { type: 'module', id: module.id }; markDirty(); repaint('[data-co-set="module.title"]');
       }
       if (action === 'add-lesson') {
-        const lesson = newLesson(); findModule(draft, id).lessons.push(lesson);
+        const lesson = { ...newLesson(), submoduleId: control.dataset.sub || '' }; findModule(draft, id).lessons.push(lesson);
         current.sel = { type: 'lesson', id: lesson.id }; markDirty(); repaint('[data-co-set="lesson.title"]');
       }
       if (action === 'remove-module') {
@@ -229,8 +315,10 @@ export function installCourses({ c, mutate, flash, dialog, close, render }) {
       }
       if (action === 'lesson-up' || action === 'lesson-down') {
         const { module, lesson } = findLesson(draft, id), m = draft.modules.indexOf(module), l = module.lessons.indexOf(lesson);
-        const up = action === 'lesson-up';
-        if (up ? l > 0 : l < module.lessons.length - 1) move(module.lessons, l, up ? -1 : 1);
+        const up = action === 'lesson-up', neighbor = module.lessons[l + (up ? -1 : 1)];
+        // At the edge of a submodule the lesson changes group instead of jumping over it.
+        if (neighbor && (neighbor.submoduleId || '') !== (lesson.submoduleId || '')) lesson.submoduleId = neighbor.submoduleId || '';
+        else if (up ? l > 0 : l < module.lessons.length - 1) move(module.lessons, l, up ? -1 : 1);
         else { module.lessons.splice(l, 1); const target = draft.modules[m + (up ? -1 : 1)]; up ? target.lessons.push(lesson) : target.lessons.unshift(lesson); }
         markDirty(); repaint(`[data-co="${action}"][data-id="${CSS.escape(id)}"]`);
       }
@@ -250,13 +338,31 @@ export function installCourses({ c, mutate, flash, dialog, close, render }) {
   const edit = event => {
     if (!active()) return;
     const el = event.target, key = el.dataset?.coSet;
-    if (!key) return;
     const current = entry();
-    if (!current) return;
-    const [scope, field] = key.split('.');
+    if (!current || !el.dataset) return;
     const { draft, sel } = current;
+    // Quiz, assignment and live-session fields carry their own data attributes.
+    if (!key && (el.dataset.coLook || el.dataset.coCred)) {
+      const redraw = applyLookInput(draft, el, event);
+      if (redraw !== null) { markDirty(); if (redraw) repaint(); }
+      return;
+    }
+    if (!key && (el.dataset.coQuiz || el.dataset.coQ || el.dataset.coO || el.dataset.coAssign || el.dataset.coLive)) {
+      const extra = applyExtraInput(draft, sel, el, findLesson, event);
+      if (extra !== null) { markDirty(); if (extra) repaint(); }
+      return;
+    }
+    if (!key) return;
+    const [scope, field] = key.split('.');
+    if (scope === 'submodule') {
+      const sub = draft.modules.flatMap(module => module.submodules || []).find(row => row.id === sel.id);
+      sub.title = el.value;
+      const node = document.querySelector(`[data-co="select"][data-type="submodule"][data-id="${CSS.escape(sel.id)}"] strong`);
+      if (node) node.textContent = el.value || 'Submódulo sem título';
+    }
     if (scope === 'course') {
       if (field === 'active') draft.active = el.value === '1';
+      else if (field === 'sequential') draft.sequential = el.checked;
       else if (field === 'public') draft.portalOnly = !el.checked;
       else draft[field] = el.value;
       if (field === 'name') document.querySelector('[data-co-title]').textContent = el.value || 'Curso sem nome';
@@ -269,20 +375,35 @@ export function installCourses({ c, mutate, flash, dialog, close, render }) {
     }
     if (scope === 'lesson') {
       const { lesson } = findLesson(draft, sel.id);
-      lesson[field] = field === 'dripDays' ? Math.max(0, Math.min(365, Math.trunc(Number(el.value) || 0))) : el.value;
+      lesson[field] = field === 'dripDays' ? Math.max(0, Math.min(365, Math.trunc(Number(el.value) || 0))) : field === 'published' ? el.checked : el.value;
+      if (field === 'kind' && el.value === 'quiz') lesson.quiz ||= blankQuiz();
+      if (field === 'kind' && el.value === 'assignment') lesson.assignment ||= blankAssignment();
       const node = document.querySelector(`[data-co="select"][data-type="lesson"][data-id="${CSS.escape(sel.id)}"] span`);
       if (node && field === 'title') node.textContent = el.value || 'Aula sem título';
-      if (event.type === 'change' && ['kind', 'dripDays'].includes(field)) { markDirty(); repaint(`[data-co-set="lesson.${field}"]${field === 'kind' ? ':checked' : ''}`); return; }
+      if (event.type === 'change' && ['kind', 'dripDays', 'published', 'submoduleId'].includes(field)) { markDirty(); repaint(`[data-co-set="lesson.${field}"]${field === 'kind' ? ':checked' : ''}`); return; }
     }
     markDirty();
   };
   document.addEventListener('input', edit);
   document.addEventListener('change', event => {
     if (active() && event.target.dataset?.coFilter) { list[event.target.dataset.coFilter] = event.target.value; render(); return; }
+    if (active() && event.target.matches('[data-cx-days]')) { analyticsDays = Number(event.target.value); render(); void loadAnalytics(); return; }
     edit(event);
   });
 
   document.addEventListener('submit', async event => {
+    const grade = event.target.closest('[data-cx-grade]');
+    if (grade && active()) {
+      event.preventDefault();
+      const buttons = grade.querySelectorAll('button'); buttons.forEach(button => { button.disabled = true; });
+      try {
+        const result = await api(`/api/client-portal/${encodeURIComponent(c.workspace)}/admin`, { action: 'grade', courseId: builderId(), memberId: grade.dataset.member, lessonId: grade.dataset.lesson,
+          status: event.submitter?.value, feedback: grade.elements.feedback.value });
+        submissions.set(`${c.workspace}:${builderId()}`, result.submissions); render();
+        flash(event.submitter?.value === 'approved' ? 'Entrega aprovada: a aula foi concluída para o aluno.' : 'Pedido de ajustes enviado.');
+      } catch (error) { flash(error.message, true); buttons.forEach(button => { button.disabled = false; }); }
+      return;
+    }
     const form = event.target.closest('[data-co-form]');
     if (!form) return;
     event.preventDefault();
@@ -293,7 +414,7 @@ export function installCourses({ c, mutate, flash, dialog, close, render }) {
     try {
       if (form.dataset.coForm === 'create') {
         const id = await mutate({ type: 'save', key: 'courses', data: { name: data.name, description: data.description, active: false,
-          modules: [{ title: 'Módulo 1 / Módulo 1', lessons: [{ title: 'Aula 1 / Lección 1', kind: 'text', body: '' }] }] } });
+          modules: [{ title: 'Módulo 1 / Módulo 1', lessons: [{ title: 'Aula 1 / Lección 1', kind: 'text', body: '' }] }], credentials: defaultCredentials(), page: defaultPage() } });
         close(); location.hash = `#memberships/course/${encodeURIComponent(id)}`; flash('Curso criado. Monte os módulos e aulas.');
       }
       if (form.dataset.coForm === 'delete') {
@@ -307,4 +428,16 @@ export function installCourses({ c, mutate, flash, dialog, close, render }) {
       submit.disabled = false;
     }
   });
+
+  // The course list shows students and completion per course; fetched once per visit to the list.
+  let fetched = '';
+  return async () => {
+    if (!active() || c.tab !== 'courses' || fetched === c.workspace) return;
+    fetched = c.workspace;
+    try {
+      const { summaries: rows } = await api(`/api/client-portal/${encodeURIComponent(c.workspace)}/admin`, { action: 'course-analytics' });
+      for (const [id, row] of Object.entries(rows)) summaries.set(`${c.workspace}:${id}`, row);
+      for (const [id, row] of Object.entries(rows)) { const slot = document.querySelector(`[data-co-stats="${CSS.escape(id)}"]`); if (slot) slot.textContent = `${row.students} ${row.students === 1 ? 'aluno' : 'alunos'} · ${row.completed} concluíram · progresso médio ${row.average}%`; }
+    } catch { fetched = ''; }
+  };
 }

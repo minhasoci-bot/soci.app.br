@@ -27,7 +27,7 @@ export async function writeCaption(connection, input) {
 Write in ${req.language === 'es' ? 'Latin American Spanish' : 'Brazilian Portuguese'}, with a ${req.tone} tone. Open with a strong hook in the first line, keep short paragraphs, use at most three emojis and end with a clear call to action.
 The caption must have at most ${Math.max(200, req.limit - 300)} characters and must not contain hashtags; put hashtags only in the hashtags list (${req.hashtags ? '5 to 12 relevant hashtags without the # sign, mixing broad and niche ones' : 'return an empty list'}).
 Never invent prices, discounts, dates, statistics, awards, client names or testimonials. When the post needs a fact the owner must supply, write a placeholder in double brackets, like [[preço]].
-If a draft is given, improve it and keep its facts.`,
+If a draft is given, improve it and keep its facts.${typeof input.voice === 'string' && input.voice ? `\n${input.voice.slice(0, 4000)}` : ''}`,
     input: `Sobre o post: ${req.brief || '(use o rascunho)'}\nRascunho atual: ${req.current || '(nenhum)'}\nChamada para ação desejada: ${req.cta || '(escolha a mais natural)'}`,
     text: { format: { type: 'json_schema', name: 'social_caption', strict: true, schema: object({ caption: { type: 'string' }, hashtags: { type: 'array', items: { type: 'string' } } }) } }
   }, { ...connection, timeout: 60000, problem: 'A OpenAI não concluiu a legenda. Tente de novo.' });

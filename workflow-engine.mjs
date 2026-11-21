@@ -3,14 +3,16 @@
 // outbox for the calls the server makes after saving (outbound webhooks, WhatsApp).
 import { randomBytes } from 'node:crypto';
 import { buildWorkflowContext, resolveTemplate } from './expressions.mjs';
-import { actionSpec, allActions, allTriggers, eachStep, triggerSpec, upgradeWorkflow } from './ui/workflow-data.js';
+import { scoreTriggerMatches } from './scoring-model.mjs';
+import { actionSpec, aiExtractFields, aiOptions, aiVariableName, allActions, allTriggers, eachStep, triggerSpec, upgradeWorkflow } from './ui/workflow-data.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value) : '';
 const lower = value => String(value ?? '').trim().toLowerCase();
 const tagList = list => [...new Set((list || []).map(tag => str(tag, 48)).filter(Boolean))].slice(0, 20);
 const FAILURES = /^(erro|sem contato|sem nome|sem oportunidade|campo removido|campo inválido|e-mail inválido|contato em não perturbe)/;
-const MAX_STEPS = 120, MAX_DEPTH = 4, CONDITIONS = ['tag', 'field', 'dnd', 'stage', 'opportunity_status', 'replied', 'submitted', 'trigger'];
+const MAX_STEPS = 120, MAX_DEPTH = 4, CONDITIONS = ['tag', 'field', 'dnd', 'stage', 'opportunity_status', 'replied', 'submitted', 'trigger', 'var'];
+const AI_TIMEOUT = 10 * 60000;
 const scheduledTypes = allTriggers.filter(item => item.scheduled).map(item => item.type);
 
 /* ───────── Validação ───────── */
@@ -85,7 +87,21 @@ export function workflowRecord(s, d) {
     eachStep(steps, step => { if (step.type === 'goto' && !step.config.target) fail('“Ir para outra etapa”: escolha a etapa de destino.'); });
     if (triggers.some(t => t.type === 'scheduler') && triggers.find(t => t.type === 'scheduler').config.tag === '') fail('Agendador: informe a tag dos contatos que entram.');
   }
-  return { name: str(d.name, 240) || fail('Dê um nome ao fluxo.'), triggers, steps, active: publishing, folderId: d.folderId || '', allowReentry: d.allowReentry !== false, fired: prior?.fired || {} };
+  let ai = false;
+  eachStep(steps, step => { if (actionSpec(step.type)?.ai) ai = true; });
+  if (publishing) {
+    eachStep(steps, step => {
+      const spec = actionSpec(step.type);
+      if (step.type === 'ai_decision' && aiOptions(step.config.options).length < 2) fail(`${spec.label}: informe pelo menos duas opções.`);
+      if (step.type === 'ai_intent' && aiOptions(step.config.intents).length < 2) fail(`${spec.label}: informe pelo menos duas intenções.`);
+      if (step.type === 'ai_extract' && !aiExtractFields(step.config.fields).length) fail(`${spec.label}: informe os dados a extrair, um por linha.`);
+      if (spec?.ai && step.type !== 'ai_extract' && !aiVariableName(step.config.variable)) fail(`${spec.label}: informe o nome da variável.`);
+    });
+  }
+  // Set only by the server from the saving user's session; the run checks it against the workspace's agency.
+  const key = d.aiKey && typeof d.aiKey === 'object' && typeof d.aiKey.session === 'string' ? { session: str(d.aiKey.session, 80), user: str(d.aiKey.user, 80), agency: str(d.aiKey.agency, 120) } : null;
+  return { name: str(d.name, 240) || fail('Dê um nome ao fluxo.'), triggers, steps, active: publishing, folderId: d.folderId || '', allowReentry: d.allowReentry !== false, fired: prior?.fired || {},
+    aiKey: ai ? key || prior?.aiKey || null : null };
 }
 
 /* ───────── Grafo ───────── */
@@ -108,7 +124,7 @@ export function compile(steps) {
 
 /* ───────── Motor ───────── */
 
-export function createEngine({ add, now }) {
+export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, onEvent = null, adjustScore = null }) {
   const contactOf = (s, id) => s.contacts.find(row => row.id === id);
   const fieldValue = (s, contact, key) => {
     if (!contact) return '';
@@ -137,8 +153,8 @@ export function createEngine({ add, now }) {
       case 'opportunity_status': return cond.op === 'is_not' ? latest?.status !== value : latest?.status === value;
       case 'replied': { const yes = s.messages.some(row => row.contactId === run.contactId && row.direction === 'Inbound' && row.created >= run.created); return cond.op === 'no' ? !yes : yes; }
       case 'submitted': { const yes = s.submissions.some(row => row.contactId === run.contactId && (!value || row.formId === value)); return cond.op === 'no' ? !yes : yes; }
-      case 'field': case 'trigger': {
-        const actual = cond.subject === 'field' ? fieldValue(s, contact, cond.key) : run.context?.[cond.key] ?? '';
+      case 'field': case 'trigger': case 'var': {
+        const actual = cond.subject === 'field' ? fieldValue(s, contact, cond.key) : cond.subject === 'var' ? run.vars?.[aiVariableName(cond.key) || cond.key] ?? '' : run.context?.[cond.key] ?? '';
         const a = lower(Array.isArray(actual) ? actual.join(',') : actual), b = lower(value);
         switch (cond.op) {
           case 'equals': return a === b; case 'not_equals': return a !== b; case 'contains': return a.includes(b); case 'not_contains': return !a.includes(b);
@@ -173,18 +189,37 @@ export function createEngine({ add, now }) {
       case 'customer_replied': return (!c.channel || c.channel === ctx.channel) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
       case 'social_comment_received': return (!c.network || c.network === ctx.network) && (!c.keyword || lower(ctx.body || ctx.comment).includes(lower(c.keyword)));
       case 'social_dm_received': return (!c.network || c.network === ctx.network) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
+      case 'external_tracking_event': return (!c.event || c.event === ctx.event) && (!c.url || lower(ctx.url).includes(lower(c.url)));
+      case 'score_changed': return scoreTriggerMatches(c, ctx);
+      case 'ad_lead': return (!c.network || c.network === ctx.network) && (!c.campaign || lower(ctx.campaign).includes(lower(c.campaign)));
+      case 'social_post_published': return (!c.status || c.status === ctx.status) && (!c.network || String(ctx.networks || '').split(',').includes(c.network)) && (!c.categoryId || c.categoryId === ctx.categoryId);
       case 'form_submitted': case 'survey_submitted': return !c.formId || c.formId === ctx.formId;
       case 'quiz_submitted': return (!c.formId || c.formId === ctx.formId) && (!c.tier || lower(c.tier) === lower(ctx.tier));
       case 'trigger_link_clicked': return !c.linkId || c.linkId === ctx.linkId;
       case 'chat_started': return !c.widgetId || c.widgetId === ctx.widgetId;
       case 'webinar_registered': return !c.webinarId || c.webinarId === ctx.webinarId;
+      case 'badge_issued': case 'certificate_issued': case 'course_completed': return !c.courseId || c.courseId === ctx.courseId;
+      case 'course_quiz_submitted': return (!c.courseId || c.courseId === ctx.courseId) && (!c.passed || c.passed === ctx.passed);
+      case 'course_assignment_submitted': return !c.courseId || c.courseId === ctx.courseId;
+      case 'course_assignment_graded': return (!c.courseId || c.courseId === ctx.courseId) && (!c.status || c.status === ctx.status);
+      case 'community_member_joined': return !c.communityId || c.communityId === ctx.communityId;
+      case 'community_event_registered': return (!c.communityId || c.communityId === ctx.communityId) && (!c.eventId || c.eventId === ctx.eventId) && (!c.paid || c.paid === ctx.paid);
       case 'review_received': return !c.maxScore || Number(ctx.score) <= Number(c.maxScore);
+      case 'video_testimonial': return !c.collectorId || c.collectorId === ctx.collectorId;
+      case 'affiliate_created': case 'affiliate_lead': case 'affiliate_sale': return !c.affiliateId || c.affiliateId === ctx.affiliateId;
       case 'appointment_status': return !c.status || c.status === ctx.status;
       case 'opportunity_created': return !c.pipelineId || c.pipelineId === ctx.pipelineId;
       case 'opportunity_status_changed': return !c.status || c.status === ctx.status;
       case 'pipeline_stage_changed': return !c.stageId || c.stageId === ctx.stageId;
       case 'invoice_status': return !c.status || c.status === ctx.status;
-      case 'order_submitted': case 'order_paid': return !c.storeId || c.storeId === ctx.storeId;
+      case 'estimate_status': return !c.status || c.status === ctx.status;
+      case 'recurring_invoice_status': return !c.status || c.status === ctx.status;
+      case 'document_paid': return !c.templateId || c.templateId === ctx.templateId;
+      case 'document_status': return (!c.status || c.status === ctx.status) && (!c.templateId || c.templateId === ctx.templateId);
+      case 'order_submitted': case 'order_paid': case 'order_fulfilled': return !c.storeId || c.storeId === ctx.storeId;
+      case 'email_event': return (!c.event || c.event === ctx.event) && (!c.campaignId || c.campaignId === ctx.campaignId);
+      case 'product_review': return (!c.storeId || c.storeId === ctx.storeId) && (!c.rating || Number(ctx.rating) <= Number(c.rating));
+      case 'abandoned_checkout': return (!c.storeId || c.storeId === ctx.storeId) && (!c.status || c.status === ctx.status);
       case 'inbound_webhook': return ctx.triggerId === trigger.id;
       default: return scheduledTypes.includes(type) ? ctx.triggerId === trigger.id : true;
     }
@@ -204,7 +239,7 @@ export function createEngine({ add, now }) {
 
   function perform(s, run, node, depth, id) {
     const contact = contactOf(s, run.contactId), c = node.config || {}, text = value => merge(value, s, contact, run);
-    const needsContact = !['internal_notification', 'webhook', 'create_task'].includes(node.type);
+    const needsContact = !['internal_notification', 'webhook', 'create_task', 'create_social_post'].includes(node.type);
     if (needsContact && !contact) return 'sem contato';
     const message = (channel, body, subject = '') => add(s, 'messages', { contactId: contact.id, body: text(body).slice(0, 5000), subject, channel, direction: 'Outbound', read: true, starred: false, origin: 'workflow', workflowId: run.workflowId });
     switch (node.type) {
@@ -244,9 +279,44 @@ export function createEngine({ add, now }) {
       case 'send_sms': if (contact.dnd) return 'contato em não perturbe'; message('SMS', c.body); return 'registrada em Conversas';
       case 'send_live_chat': message('Live chat', c.body); return 'enviada ao chat';
       case 'send_instagram_dm': if (contact.dnd) return 'contato em não perturbe'; message('Instagram', c.body); return 'registrada em Conversas (Direct)';
+      case 'create_social_post': {
+        if (!createSocialPost) return 'erro: planejador social indisponível';
+        const made = createSocialPost(s, c, text);
+        if (made.error) return `erro: ${made.error}`;
+        output(run, id, { id: made.id, status: made.status });
+        return made.status === 'scheduled' ? 'post agendado' : made.status === 'in_review' ? 'post enviado para aprovação' : made.problem ? `rascunho criado: ${made.problem}`.slice(0, 300) : 'rascunho criado';
+      }
       case 'reply_social_comment': message('Instagram', `[Resposta ao comentário] ${c.body}`); return 'comentário respondido';
-      case 'send_whatsapp': case 'review_request': {
-        const channel = node.type === 'review_request' ? c.channel || 'WhatsApp' : 'WhatsApp';
+      case 'adjust_score': {
+        const points = Math.round(Number(text(c.points)));
+        if (!Number.isFinite(points) || !points) return 'erro: pontos inválidos';
+        if (!adjustScore) return 'erro: pontuação indisponível';
+        const score = adjustScore(s, contact, Math.max(-1000, Math.min(1000, points)), `Automação: ${run.name}`, depth);
+        output(run, id, { score });
+        return `pontuação: ${score}`;
+      }
+      case 'issue_certificate': case 'issue_badge': {
+        const kind = node.type === 'issue_badge' ? 'badge' : 'certificate';
+        if (!contact.name && !contact.email) return 'erro: contato sem nome nem e-mail';
+        const subject = text(c.subject);
+        if (!subject) return 'erro: informe sobre o que é o certificado';
+        const row = issueCredential?.(s, contact, c.templateId, subject, kind, depth);
+        if (!row) return 'erro: modelo de certificado não encontrado';
+        output(run, id, { code: row.code });
+        return `${kind === 'badge' ? 'badge' : 'certificado'} emitido (${row.code})`;
+      }
+      case 'make_affiliate': return makeAffiliate ? makeAffiliate(s, contact, c.campaignId) : 'erro: afiliados indisponíveis';
+      case 'review_request': {
+        const channel = ['WhatsApp', 'SMS', 'Email'].includes(c.channel) ? c.channel : 'WhatsApp';
+        if (contact.dnd) return 'contato em não perturbe';
+        if (channel === 'Email' && !contact.email) return 'erro: contato sem e-mail';
+        if (channel !== 'Email' && !contact.phone) return 'erro: contato sem telefone';
+        if (!requestReview) return 'erro: pedidos de avaliação indisponíveis';
+        requestReview(s, contact, channel, run);
+        return channel === 'SMS' ? 'link de avaliação registrado em Conversas' : 'link de avaliação na fila de envio';
+      }
+      case 'send_whatsapp': {
+        const channel = 'WhatsApp';
         if (contact.dnd) return 'contato em não perturbe';
         const row = message(channel, c.body, channel === 'Email' ? 'Sua opinião importa' : '');
         if (channel === 'WhatsApp' && contact.phone) outbox(s, { kind: 'whatsapp', runId: run.id, phone: contact.phone, body: row.body });
@@ -280,6 +350,46 @@ export function createEngine({ add, now }) {
         if (latest.status !== c.status) { latest.status = c.status; latest.statusChangedAt = now(); latest.updated = now(); emit(s, 'opportunity_status_changed', { contactId: contact.id, status: c.status, depth }); }
         return 'concluída';
       }
+      case 'send_document': {
+        if (!sendDocument) return 'indisponível';
+        try {
+          const doc = sendDocument(s, contact, { ...c, title: text(c.title).slice(0, 160) }, depth);
+          output(run, id, { id: doc.id, title: doc.title, total: doc.total });
+          return 'enviado';
+        } catch (error) { return error.message; }
+      }
+      case 'send_estimate': {
+        if (!sendEstimate) return 'indisponível';
+        try {
+          const est = sendEstimate(s, contact, c, depth);
+          output(run, id, { id: est.id, number: est.number, total: est.total });
+          return 'enviado';
+        } catch (error) { return error.message; }
+      }
+      case 'send_invoice': {
+        if (!sendInvoice) return 'indisponível';
+        try {
+          const invoice = sendInvoice(s, contact, c, depth);
+          output(run, id, { id: invoice.id, number: invoice.number, value: invoice.value, due: invoice.due });
+          return 'enviada';
+        } catch (error) { return error.message; }
+      }
+      case 'update_inventory': {
+        if (!updateInventory) return 'indisponível';
+        try {
+          const product = updateInventory(s)(c);
+          output(run, id, { id: product.id, name: product.name, quantity: product.quantity });
+          return 'atualizado';
+        } catch (error) { return error.message; }
+      }
+      case 'start_recurring_invoice': {
+        if (!startRecurring) return 'indisponível';
+        try {
+          const rec = startRecurring(s, contact, c, depth);
+          output(run, id, { id: rec.id, name: rec.name, total: rec.total, next: rec.nextIssueOn });
+          return 'iniciada';
+        } catch (error) { return error.message; }
+      }
       case 'create_invoice': {
         const due = new Date(Date.now() + (Number(c.dueDays) || 0) * 864e5).toISOString().slice(0, 10);
         const invoice = add(s, 'invoices', { title: text(c.title).slice(0, 240), contactId: contact.id, value: Math.max(0, Math.round((Number(c.value) || 0) * 100) / 100), due, status: 'Open' });
@@ -287,6 +397,14 @@ export function createEngine({ add, now }) {
         return 'criada';
       }
       case 'math': {
+        if (c.field === 'score') {
+          // The lead score changes through adjustScore, so "Pontuação do lead mudou" still fires.
+          const current = Number(contact.score) || 0, n = Number(c.number) || 0;
+          const result = Math.round({ add: current + n, subtract: current - n, multiply: current * n, divide: n ? current / n : current, set: n }[c.op] ?? current);
+          const score = adjustScore ? adjustScore(s, contact, result - current, `Automação: ${run.name}`, depth) : current;
+          output(run, id, { value: score });
+          return `= ${score}`;
+        }
         const field = (s.customFields || []).find(row => `custom:${row.id}` === c.field);
         if (!field) return 'campo removido';
         const current = Number(contact.custom?.[field.id]) || 0, n = Number(c.number) || 0;
@@ -330,7 +448,7 @@ export function createEngine({ add, now }) {
       if (!node) { run.at = ''; break; }
       const label = actionSpec(node.type)?.label || node.type, c = node.config || {};
       const trace = text => { (run.trace ??= []).push({ id, type: node.type, result: text }); if (run.trace.length > 300) run.trace.shift(); };
-      if (run.test && (node.type === 'wait' || node.type === 'manual_sms' || node.type === 'manual_call' || (node.type === 'goal' && c.otherwise === 'wait'))) {
+      if (run.test && (node.type === 'wait' || node.type === 'manual_sms' || node.type === 'manual_call' || node.type === 'manual_whatsapp' || (node.type === 'goal' && c.otherwise === 'wait'))) {
         run.results.push(`${label}: (teste) pulada`); trace('pulada no teste'); run.at = node.next; continue;
       }
       if (node.type === 'filter') {
@@ -370,11 +488,28 @@ export function createEngine({ add, now }) {
         if (target === run.workflowId) { run.at = ''; break; }
         run.at = node.next; continue;
       }
-      if (node.type === 'manual_sms' || node.type === 'manual_call') {
+      if (node.type === 'manual_sms' || node.type === 'manual_call' || node.type === 'manual_whatsapp') {
         const contact = contactOf(s, run.contactId);
         if (!contact) { run.results.push(`${label}: sem contato`); run.at = node.next; continue; }
-        add(s, 'manualActions', { runId: run.id, workflowId: run.workflowId, workflowName: run.name, contactId: contact.id, type: node.type === 'manual_sms' ? 'Manual SMS' : 'Manual Call', instructions: merge(c.body, s, contact, run), assignee: c.assignee || '', status: 'Pending' });
+        add(s, 'manualActions', { runId: run.id, workflowId: run.workflowId, workflowName: run.name, contactId: contact.id, type: { manual_sms: 'Manual SMS', manual_whatsapp: 'Manual WhatsApp' }[node.type] || 'Manual Call', instructions: merge(c.body, s, contact, run), assignee: c.assignee || '', status: 'Pending' });
         run.status = 'Waiting'; run.at = node.next; run.wakeAt = ''; run.results.push(`${label}: aguardando ação manual`);
+        return;
+      }
+      if (actionSpec(node.type)?.ai) {
+        const contact = contactOf(s, run.contactId);
+        const request = aiRequest(s, run, node, contact);
+        if (run.test) {
+          run.vars = { ...(run.vars || {}), ...Object.fromEntries(request.names.map(name => [name, ''])) };
+          run.results.push(`${label}: (teste) IA não executada, variáveis vazias`); trace('pulada no teste'); run.at = node.next; continue;
+        }
+        if (request.problem) {
+          run.results.push(`${label}: erro: ${request.problem}`); trace(`erro: ${request.problem}`);
+          if (c.stopOnError) { run.status = 'Failed'; run.at = ''; run.finished = now(); return; }
+          run.at = node.next; continue;
+        }
+        outbox(s, { kind: 'ai', runId: run.id, stepId: id, workflowId: run.workflowId, action: node.type, ...request.payload });
+        run.status = 'Waiting'; run.waitFor = { type: 'ai', step: id }; run.wakeAt = new Date(Date.now() + AI_TIMEOUT).toISOString(); run.at = node.next;
+        run.results.push(`${label}: aguardando a IA`); trace('aguardando a IA');
         return;
       }
       let result;
@@ -389,6 +524,58 @@ export function createEngine({ add, now }) {
     run.wakeAt = ''; run.waitFor = null;
   }
 
+  // What an AI step sends to the model, resolved now so the call does not depend on later changes.
+  function aiRequest(s, run, node, contact) {
+    const c = node.config || {}, text = value => merge(value, s, contact, run).slice(0, 12000);
+    const variable = aiVariableName(c.variable);
+    switch (node.type) {
+      case 'ai_decision': return { names: [variable], payload: { variable, question: text(c.question), options: aiOptions(c.options), input: text(c.input) } };
+      case 'ai_intent': return { names: [variable], payload: { variable, intents: aiOptions(c.intents), input: text(c.input) } };
+      case 'ai_translate': return { names: [variable], payload: { variable, language: c.language || 'pt', input: text(c.input) } };
+      case 'ai_extract': { const fields = aiExtractFields(c.fields); return { names: fields.map(item => item.name), payload: { fields, input: text(c.input) } }; }
+      case 'ai_image': {
+        const image = text(c.image).trim();
+        return { names: [variable], payload: { variable, image, question: text(c.question) || 'Descreva a imagem.' }, problem: /^https:\/\/\S+$/i.test(image) ? '' : 'endereço da imagem inválido (use https://)' };
+      }
+      case 'ai_summarize': {
+        const conversation = c.source !== 'text';
+        const input = conversation && contact
+          ? s.messages.filter(row => row.contactId === contact.id && row.channel !== 'Note').sort((a, b) => String(a.created).localeCompare(String(b.created))).slice(-30)
+            .map(row => `${row.direction === 'Inbound' ? 'Cliente' : 'Equipe'} (${row.channel}): ${String(row.body || '').slice(0, 800)}`).join('\n')
+          : text(c.input);
+        return { names: [variable], payload: { variable, length: c.length || 'short', note: c.note === 'yes', input }, problem: conversation && !contact ? 'sem contato' : '' };
+      }
+      default: return { names: [], payload: {}, problem: 'ação de IA desconhecida' };
+    }
+  }
+
+  // The answer of an AI step: variables, a line in the run and, for summaries, an optional note.
+  function aiResult(s, item) {
+    const run = s.runs.find(row => row.id === item?.runId);
+    if (!run || run.status !== 'Waiting' || run.waitFor?.type !== 'ai' || run.waitFor.step !== item.stepId) return false;
+    const node = run.graph?.nodes?.[item.stepId], label = actionSpec(node?.type)?.label || 'IA';
+    const trace = value => { (run.trace ??= []).push({ id: item.stepId, type: node?.type, result: value }); if (run.trace.length > 300) run.trace.shift(); };
+    if (item.error) {
+      const line = `erro: ${str(item.error, 200)}`;
+      run.results.push(`${label}: ${line}`); trace(line);
+      if (node?.config?.stopOnError) { Object.assign(run, { status: 'Failed', at: '', waitFor: null, wakeAt: '', finished: now() }); run.results.push('Fluxo interrompido: a etapa falhou e está marcada para parar em caso de erro'); return true; }
+      resume(s, run);
+      return true;
+    }
+    const vars = Object.fromEntries(Object.entries(item.vars && typeof item.vars === 'object' ? item.vars : {})
+      .map(([name, value]) => [aiVariableName(name), str(String(value ?? ''), 4000)]).filter(([name]) => name).slice(0, 12));
+    run.vars = { ...(run.vars || {}), ...vars };
+    output(run, item.stepId, vars);
+    const shown = Object.entries(vars).map(([name, value]) => `${name} = ${value.slice(0, 60)}`).join(' · ') || 'sem resultado';
+    run.results.push(`${label}: ${shown}`); trace(shown);
+    const contact = contactOf(s, run.contactId);
+    if (node?.type === 'ai_summarize' && node.config?.note === 'yes' && contact && Object.values(vars)[0]) {
+      add(s, 'messages', { contactId: contact.id, body: `Resumo da IA: ${Object.values(vars)[0]}`.slice(0, 5000), subject: '', channel: 'Note', direction: 'Outbound', read: true, starred: false, origin: 'workflow', workflowId: run.workflowId });
+    }
+    resume(s, run);
+    return true;
+  }
+
   function resume(s, run, note) {
     run.status = 'Running'; run.wakeAt = ''; run.waitFor = null;
     if (note) run.results.push(note);
@@ -399,6 +586,8 @@ export function createEngine({ add, now }) {
   function emit(s, type, ctx = {}) {
     const depth = ctx.depth || 0;
     if (depth > MAX_DEPTH) return;
+    // Lead scoring (and other listeners) see each event first, with this engine's trigger filter.
+    onEvent?.(s, type, ctx, { matches: trigger => matchTrigger(trigger, type, ctx) });
     if (ctx.contactId) {
       for (const run of s.runs.filter(row => row.contactId === ctx.contactId && ['Running', 'Waiting'].includes(row.status) && row.graph)) {
         if (run.status === 'Waiting' && run.waitFor && eventMatches(run.waitFor.type, run.waitFor.value, type, ctx, s)) { resume(s, run, run.waitFor.goal ? 'Meta alcançada' : 'Evento aconteceu: seguindo'); continue; }
@@ -437,8 +626,9 @@ export function createEngine({ add, now }) {
     }
     if (key === 'invoices' && (!prior || prior.status !== row.status)) emit(s, 'invoice_status', { ...base, status: row.status, total: row.value });
     if (key === 'transactions' && !prior) emit(s, 'payment_received', { ...base, total: row.amount });
-    if (key === 'reviews' && !prior) emit(s, 'review_received', { contactId: '', score: row.score });
+    if (key === 'reviews' && !prior) emit(s, 'review_received', { contactId: row.contactId || '', score: row.score });
     if (key === 'orders' && prior && prior.status !== row.status && row.status === 'Paid') emit(s, 'order_paid', { ...base, storeId: row.storeId, total: row.total });
+    if (key === 'orders' && prior && prior.status !== row.status && row.status === 'Fulfilled') emit(s, 'order_fulfilled', { ...base, storeId: row.storeId, total: row.total });
   }
 
   // Every minute: wake runs whose time came, and fire scheduled triggers once per day.
@@ -526,5 +716,5 @@ export function createEngine({ add, now }) {
     };
   }
 
-  return { emit, enroll, recordChange, tick, finishManual, inbound, proceed, test: testRun };
+  return { emit, enroll, recordChange, tick, finishManual, inbound, proceed, aiResult, test: testRun };
 }

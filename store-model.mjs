@@ -1,6 +1,7 @@
 // Stores: a storefront over the Payments products, the checkout that turns a cart into an order and an
 // open invoice, and the order lifecycle (paid → transaction, cancelled → stock back and invoice void).
 import { slugify } from './ui/blog-data.js';
+import { giftCardFor, inventoryCheck, moveInventory, redeemGiftCard } from './catalog-model.mjs';
 
 export const storeCollections = ['stores', 'orders'];
 export const orderStatuses = ['Pending', 'Paid', 'Fulfilled', 'Cancelled'];
@@ -97,6 +98,7 @@ export function quoteOrder(s, store, input = {}) {
     const product = item && s.products.find(row => row.id === productId && row.active !== false);
     if (!product) fail('Um dos produtos não está mais à venda. Atualize o carrinho.');
     if (item.stock !== null && qty > item.stock) fail(item.stock ? `Só há ${item.stock} unidade(s) de “${product.name}”.` : `“${product.name}” esgotou.`);
+    inventoryCheck(product, qty);
     return { productId, name: product.name, price: product.price, qty, total: cents(product.price * qty) };
   });
   const subtotal = cents(lines.reduce((sum, line) => sum + line.total, 0));
@@ -106,7 +108,11 @@ export function quoteOrder(s, store, input = {}) {
   const after = cents(subtotal - discount);
   const shipping = delivery !== 'shipping' ? 0 : store.shipping.mode === 'free-over' && after >= store.shipping.freeOver ? 0 : store.shipping.flat;
   const tax = cents(after * (store.taxPercent || 0) / 100);
-  return { lines, subtotal, discount, coupon: found?.coupon.code || '', delivery, shipping, tax, total: cents(after + shipping + tax), coupon_: found?.coupon };
+  const gross = cents(after + shipping + tax);
+  // A gift card pays part or all of the total (Pagamentos → Cartões-presente).
+  const card = giftCardFor(s, input.giftCard, gross);
+  return { lines, subtotal, discount, coupon: found?.coupon.code || '', delivery, shipping, tax, giftCard: card?.card.code || '', giftCardAmount: card?.amount || 0,
+    total: cents(gross - (card?.amount || 0)), coupon_: found?.coupon, giftCard_: card?.card };
 }
 
 export function storeCheckout(s, command, { add, run }) {
@@ -134,9 +140,17 @@ export function storeCheckout(s, command, { add, run }) {
   if (quote.coupon_) quote.coupon_.redemptions = (quote.coupon_.redemptions || 0) + 1;
   const number = s.orders.reduce((max, order) => Math.max(max, order.number || 0), 1000) + 1;
   const invoice = add(s, 'invoices', { title: `Pedido #${number} · ${store.name}`, contactId: contact.id, value: quote.total, due: today(), status: 'Open' });
-  const { coupon_, ...totals } = quote;
+  const { coupon_, giftCard_, ...totals } = quote;
   const order = add(s, 'orders', { storeId: store.id, number, contactId: contact.id, name, email, phone, ...totals, items: quote.lines, address, note: str(d.note, 500), status: 'Pending', invoiceId: invoice.id, tracking: '' });
   if (s.orders.length > 20000) s.orders.splice(0, s.orders.length - 20000);
+  moveInventory(s, quote.lines, -1, `Pedido #${number}`);
+  redeemGiftCard(s, giftCard_, quote.giftCardAmount, order);
   run(s, 'order_submitted', { contactId: contact.id, storeId: store.id, total: quote.total });
+  if (quote.total === 0 && quote.giftCardAmount > 0) {
+    // Fully paid with a gift card: nothing left to charge.
+    Object.assign(order, { status: 'Paid', paidAt: new Date().toISOString(), paidMethod: 'Cartão-presente' });
+    invoice.status = 'Paid';
+    run(s, 'order_paid', { contactId: contact.id, storeId: store.id, total: 0 });
+  }
   return order.id;
 }

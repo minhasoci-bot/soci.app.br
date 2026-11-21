@@ -22,7 +22,7 @@ export async function writePost(connection, input) {
   const post = await respond(connection, {
     name: 'blog_post',
     schema: object({ title: { type: 'string' }, summary: { type: 'string' }, body: { type: 'string' }, seoTitle: { type: 'string' }, seoDescription: { type: 'string' } }),
-    instructions: `You are a senior content writer for a small business blog. Write one complete, useful article of about ${words} words with a clear structure, a short introduction and a conclusion with a call to action. Do not repeat the title as a heading in the body.\n${rules}`,
+    instructions: `You are a senior content writer for a small business blog. Write one complete, useful article of about ${words} words with a clear structure, a short introduction and a conclusion with a call to action. Do not repeat the title as a heading in the body.\n${rules}${typeof input.voice === 'string' && input.voice ? `\n${input.voice.slice(0, 4000)}` : ''}`,
     input: `Tema: ${clip(input.topic, 1500)}\nTítulo sugerido: ${clip(input.title, 160) || '(escolha o melhor)'}\nPalavras-chave: ${clip(input.keywords, 300) || '(nenhuma)'}\nTom: ${clip(input.tone, 60) || 'profissional e próximo'}\nPúblico: ${clip(input.audience, 200) || '(clientes do negócio)'}`
   });
   return { ...post, slug: slugify(post.title) };

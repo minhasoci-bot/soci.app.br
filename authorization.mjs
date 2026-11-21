@@ -20,6 +20,8 @@ const writeModules = {
 };
 
 const commandModules = {
+  'ad-settings': 'marketing', 'tracking-settings': 'settings', 'affiliate-settings': 'marketing', 'affiliate-portal-link': 'marketing', 'commission-review': 'marketing', 'affiliate-payout': 'marketing',
+  'reputation-settings': 'reputation', 'review-request': 'reputation', 'review-visibility': 'reputation', 'listing-save': 'reputation',
   'dashboard-create': 'dashboard', 'dashboard-save': 'dashboard', 'dashboard-restore': 'dashboard',
   'dashboard-report': 'dashboard', 'dashboard-default': 'dashboard', 'dashboard-timezone': 'dashboard', 'dashboard-delete': 'dashboard',
   'report-create': 'reporting', 'report-save': 'reporting', 'report-delete': 'reporting',
@@ -30,6 +32,7 @@ const commandModules = {
   'social-duplicate': 'marketing', 'social-delete': 'marketing', 'social-bulk-delete': 'marketing',
   'social-retry': 'marketing', 'social-csv': 'marketing', 'social-account-remove': 'marketing',
   'prancheta-save': 'marketing', 'prancheta-delete': 'marketing', 'prancheta-duplicate': 'marketing',
+  'email-campaign-schedule': 'marketing', 'email-campaign-cancel': 'marketing', 'email-campaign-duplicate': 'marketing',
   'prancheta-export-media': 'marketing', 'prancheta-to-social': 'marketing', 'prancheta-template': 'marketing',
   message: 'conversations', thread: 'conversations', 'team-message': 'conversations',
   'manual-action': 'conversations', 'conversation-sla': 'conversations', 'dismiss-sla': 'conversations',
@@ -42,8 +45,13 @@ const commandModules = {
   'chat-start': 'sites', 'chat-send': 'sites', 'blog-view': 'sites',
   'store-checkout': 'payments', 'webinar-register': 'sites', 'webinar-attend': 'sites',
   'webinar-reminders': 'sites', 'qr-scan': 'sites',
+  'community-event-ticket': 'memberships', 'community-event-joined': 'memberships', 'community-event-reminders': 'memberships',
+  'community-plan-invoice': 'memberships', 'community-welcome': 'memberships', 'community-newsletter': 'memberships', 'course-activity': 'memberships', 'credential-issue': 'memberships', 'credential-revoke': 'memberships',
   onboarding: 'dashboard', profile: 'settings',
-  'workflow-enroll': 'automation', 'workflow-restore': 'automation', 'workflow-move': 'automation'
+  'workflow-enroll': 'automation', 'workflow-restore': 'automation', 'workflow-move': 'automation',
+  'document-send': 'payments', 'document-void': 'payments', 'document-link': 'payments',
+  'estimate-send': 'payments', 'estimate-link': 'payments', 'estimate-revise': 'payments', 'estimate-status': 'payments', 'estimate-invoice': 'payments',
+  'payment-settings': 'payments', 'catalog-inventory': 'payments', 'catalog-giftcard-products': 'payments', 'catalog-giftcard-send': 'payments', 'catalog-giftcard-adjust': 'payments', 'catalog-reviews': 'payments', 'checkout-settings': 'payments', 'checkout-remind': 'payments', 'invoice-from-template': 'payments', 'invoice-send': 'payments', 'invoice-recurring-start': 'payments', 'invoice-recurring-pause': 'payments', 'invoice-recurring-cancel': 'payments'
 };
 
 const agencySettingsCommands = new Set([
@@ -51,7 +59,7 @@ const agencySettingsCommands = new Set([
   'sub-feature', 'email-domain', 'email-domain-accounts', 'email-domain-remove', 'affiliate-pixel', 'profile',
   'company', 'billing-plan', 'wallet', 'auto-recharge', 'system-email', 'labs', 'compliance',
   'api-key', 'api-key-delete', 'private-integration', 'private-integration-delete', 'resell',
-  'addon-request', 'addon-cancel', 'affiliate-pay', 'mobile-app', 'desktop-app', 'integration',
+  'addon-request', 'addon-cancel', 'affiliate-pay', 'mobile-app', 'desktop-app', 'desktop-app-publish', 'integration',
   'app-install', 'app-uninstall', 'app-resell'
 ]);
 const agencySettingsRecords = new Set(['users', 'plans', 'menuLinks', 'announcements']);
@@ -121,7 +129,7 @@ export function requireRecordEffects(access, state, command) {
     const requested = Array.isArray(data?.ids) ? data.ids.filter(value => typeof value === 'string') : [];
     const ids = new Set(type === 'delete' ? [id] : [...new Set(requested)].slice(0, 500));
     for (const collection of ['opportunities', 'messages', 'threads', 'linkTickets', 'linkClicks', 'appointments', 'invoices',
-      'subscriptions', 'transactions', 'submissions', 'manualActions', 'runs']) {
+      'subscriptions', 'transactions', 'submissions', 'manualActions', 'runs', 'documents', 'estimates', 'recurringInvoices', 'abandonedCheckouts']) {
       if (state[collection]?.some(row => ids.has(row.contactId))) requireModule(access, readModules[collection]);
     }
   }

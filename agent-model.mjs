@@ -3,6 +3,8 @@ import {
   agentDraft, agentIcons, agentLimits, agentResources, agentRevision, agentTemplate as templateById, changedAgentFields,
   memoryKinds, scheduleOptions, triggerType
 } from './ui/agents-data.js';
+import { agentKnowledge, validBases } from './ai-model.mjs';
+import { kbLimits } from './ui/ai-data.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const text = value => (typeof value === 'string' ? value.trim() : '');
@@ -60,6 +62,7 @@ function validDraft(draft) {
       title: requiredText(source?.title, agentLimits.sourceName, 'o título da fonte'),
       text: requiredText(source?.text, agentLimits.sourceText, 'o conteúdo da fonte')
     })),
+    bases: Array.isArray(draft.bases) ? [...new Set(draft.bases.filter(id => typeof id === 'string'))].slice(0, kbLimits.agentBases) : [],
     triggers: validTriggers(draft.triggers ?? [{ type: 'chat' }]),
     subagents: validSubagents(draft.subagents ?? []),
     resources: Object.fromEntries(agentResources.map(([key]) => [key, resources[key] === true]))
@@ -77,9 +80,11 @@ function checkRevision(agent, revision) {
 }
 
 function created(state, input) {
-  const template = input.template ? templateById(input.template) : null;
+  const custom = input.template ? (state.agentTemplatesCustom || []).find(item => item.id === input.template) : null;
+  const template = custom || (input.template ? templateById(input.template) : null);
   if (input.template && !template) fail('Modelo de agente não encontrado.', 404);
-  const base = template ? validDraft(agentDraft(template)) : {
+  const known = new Set((state.knowledgeBases || []).map(base => base.id));
+  const base = template ? validDraft({ ...agentDraft(template), bases: (template.bases || []).filter(id => known.has(id)) }) : {
     ...validDraft({
       name: requiredText(input.name || 'Novo agente / Nuevo agente', agentLimits.name, 'o nome'),
       description: input.description,
@@ -101,7 +106,7 @@ export function editAgent(state, operation, input) {
   checkRevision(agent, input.revision);
   switch (operation) {
     case 'save':
-      Object.assign(agent, validDraft(input));
+      Object.assign(agent, validDraft(input), { bases: validBases(state, input.bases) });
       delete agent.role;
       break;
     case 'publish':
@@ -156,6 +161,7 @@ export function agentPreview(state, input) {
   }
   return {
     draft,
+    retrieved: agentKnowledge(state, draft.bases, typeof messages.at(-1) === 'string' ? messages.at(-1) : ''),
     model: input.version === 'published' ? config.model : undefined,
     memory: draft.resources.memory ? (agent.memory || []).map(({ kind, text: fact }) => ({ kind, text: fact })) : [],
     messages: messages.map((message, index) => ({
@@ -179,11 +185,14 @@ export function applyAgentDesign(state, input, design) {
   return editAgent(state, 'save', { ...draft, id: input.id, revision: input.revision });
 }
 
-export function recordAgentRun(state, { agent, version, input, output }) {
+export function recordAgentRun(state, { agent, version, input, output, kind = 'test', model = '', usage, ms, error, sources }) {
   state.agentRuns ||= [];
   const run = {
-    id: randomUUID(), agent, version, at: new Date().toISOString(),
-    input: input.slice(0, 280), output: output.slice(0, 600)
+    id: randomUUID(), agent, version, kind, at: new Date().toISOString(),
+    input: String(input || '').slice(0, 280), output: String(output || '').slice(0, 600),
+    ...(model && { model }), ...(usage && { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, cost: usage.cost }),
+    ...(ms !== undefined && { ms }), ...(error && { error: String(error).slice(0, 200) }),
+    ...(sources?.length && { sources: sources.slice(0, 8) })
   };
   state.agentRuns.unshift(run);
   state.agentRuns.length = Math.min(state.agentRuns.length, 100);
@@ -193,5 +202,5 @@ export function recordAgentRun(state, { agent, version, input, output }) {
 // Snapshot copy: configuration only, never versions or what the agent remembers about people.
 export function agentTemplate(agent) {
   const { published, version, revision, memory, role, ...template } = agent;
-  return { ...template, ...agentDraft(agent), memory: [], active: false };
+  return { ...template, ...agentDraft(agent), bases: [], memory: [], active: false };
 }

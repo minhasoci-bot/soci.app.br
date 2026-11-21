@@ -2,12 +2,14 @@
 import { icon } from './icons.js';
 import { h, fmt, pageShell } from './screens.js';
 import { portalTabs } from './client-portal.js';
+import { attendeeDialog, eventData, eventForm, eventsTab, recordingRow } from './community-events.js';
+import { analyticsTab, memberDetails, membersCsv, moderationTab, readSettings, rowTemplates, settingsSections, themeInput } from './community-admin.js';
 
 const levelThresholds = [0, 5, 20, 65, 155, 515, 2015, 8015, 33015];
 const roleLabel = { member: 'Membro', moderator: 'Moderador' };
 const statusLabel = { active: 'Ativo', requested: 'Pedido de entrada', banned: 'Banido' };
-const detailTabs = [['posts', 'Publicações'], ['members', 'Membros'], ['settings', 'Configurações']];
-const ui = { tab: 'posts' };
+const detailTabs = [['posts', 'Publicações'], ['events', 'Eventos'], ['members', 'Membros'], ['moderation', 'Moderação'], ['analytics', 'Analytics'], ['settings', 'Configurações']];
+const ui = { tab: 'posts', days: 30 };
 const groupId = () => location.hash.split('/')[1] === 'community' ? decodeURIComponent(location.hash.split('/')[2] || '') : '';
 const shell = (content, cta = '') => pageShell({ title: 'Assinaturas', desc: 'Gerencie o portal do cliente, permissões de acesso, cursos e comunidades deste workspace.',
   className: 'cp-admin', cta, tabs: { key: 'memberships', items: portalTabs(), current: 'communities', label: 'Seções de assinaturas' }, content });
@@ -64,6 +66,7 @@ function settings(c, group) {
         `<label>${label}<span><input type="number" name="points.${key}" min="0" max="100" step="1" value="${Number(group.points?.[key] ?? 0)}"> pts</span></label>`).join('')}</div>
       <h3>Níveis</h3><div class="cm-levels">${levelThresholds.map((min, index) => `<label><span class="cm-level-badge">${index + 1}</span>
         <input name="level.${index}" maxlength="30" value="${h(group.levels?.[index]?.name || `Nível ${index + 1}`)}" aria-label="Nome do nível ${index + 1}"><small>${min} pts</small></label>`).join('')}</div></section>
+    ${settingsSections(group)}
     <p class="form-status" role="alert" data-cm-error></p>
     <div class="cm-settings-actions"><button type="button" class="danger plain" data-cm="delete" data-id="${h(group.id)}">${icon('trash',15)} Excluir comunidade</button>
       <button type="submit" class="primary">${icon('check',16)} Salvar configurações</button></div></form>`;
@@ -114,13 +117,13 @@ function postsTab(c, group, data) {
         .map(row => `<li><span>${h(row.name)}</span><b>${row.points} pts</b></li>`).join('') || '<li class="co-hint">Sem pontos ainda.</li>'}</ol></aside></div>`;
 }
 
-function membersTab(c, data) {
+function membersTab(c, data, group) {
   return `<div class="cm-panel"><div class="cm-panel-head"><h2>Membros</h2>
       <button type="button" class="primary" data-cm="add-members" ${data.candidates.length ? '' : 'disabled'}>${icon('plus',15)} Adicionar clientes do portal</button></div>
     ${data.candidates.length ? '' : '<p class="co-hint">Todos os clientes do portal já estão nesta comunidade. Convide novos clientes na aba Clientes.</p>'}
     ${data.members.length ? `<div class="cp-table-scroll"><table class="cm-table"><thead><tr><th scope="col">Membro</th><th scope="col">Situação</th><th scope="col">Função</th><th scope="col">Nível</th><th scope="col">Entrou em</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead>
-      <tbody>${data.members.map(row => `<tr><td><strong>${h(row.name)}</strong><small>${h(row.email)}</small></td>
-        <td><span class="badge ${row.status === 'active' ? 'green' : row.status === 'banned' ? 'red' : 'blue'}">${statusLabel[row.status]}</span></td>
+      <tbody>${data.members.map(row => `<tr><td><strong>${h(row.name)}</strong><small>${h(row.email)}</small>${memberDetails(group, row)}</td>
+        <td><span class="badge ${row.status === 'active' ? (row.expired ? 'gold' : 'green') : row.status === 'banned' ? 'red' : 'blue'}">${row.expired ? 'Acesso vencido' : statusLabel[row.status] || row.status}</span></td>
         <td>${roleLabel[row.role]}</td><td>${row.level} · ${row.points} pts</td><td>${h(fmt(row.joinedAt, c.s.profile.timezone))}</td>
         <td class="cm-row-actions">${row.status === 'requested' ? `<button type="button" class="primary" data-cm="member" data-id="${h(row.id)}" data-status="active">Aprovar</button>` : ''}
           ${row.status === 'active' ? `<button type="button" class="secondary" data-cm="member" data-id="${h(row.id)}" data-role="${row.role === 'moderator' ? 'member' : 'moderator'}">${row.role === 'moderator' ? 'Tirar moderação' : 'Tornar moderador'}</button>
@@ -139,11 +142,12 @@ export function installCommunities({ c, api, mutate, flash, dialog, close, rende
     const id = root?.dataset.communityRoot, data = cache.get(`${c.workspace}:${id}`), group = c.s.communities.find(row => row.id === id);
     if (!root || !group || ui.tab === 'settings') return;
     if (!data) return;
-    root.innerHTML = ui.tab === 'members' ? membersTab(c, data) : postsTab(c, group, data);
+    root.innerHTML = ui.tab === 'members' ? membersTab(c, data, group) : ui.tab === 'events' ? eventsTab(c, group, data) : ui.tab === 'moderation' ? moderationTab(c, data)
+      : ui.tab === 'analytics' ? analyticsTab(c, data, ui.days) : postsTab(c, group, data);
   };
   const load = async id => {
     const key = `${c.workspace}:${id}`;
-    try { cache.set(key, await api(endpoint(id))); paint(); }
+    try { cache.set(key, await api(`${endpoint(id)}?days=${ui.days}`)); paint(); }
     catch (error) { const root = document.querySelector('[data-community-root]'); if (root) root.innerHTML = `<div class="co-empty" role="alert">${h(error.message)}</div>`; }
   };
   const send = async (input, id = groupId()) => { cache.set(`${c.workspace}:${id}`, await api(endpoint(id), input)); paint(); };
@@ -195,6 +199,31 @@ export function installCommunities({ c, api, mutate, flash, dialog, close, rende
         await send({ action: 'member', memberId: id, ...(control.dataset.status ? { status: control.dataset.status } : {}), ...(control.dataset.role ? { role: control.dataset.role } : {}) });
         flash('Membro atualizado.');
       }
+      if (action === 'event-new' || action === 'event-edit') {
+        const group = c.s.communities.find(row => row.id === groupId());
+        const event = action === 'event-edit' ? c.s.communityEvents.find(row => row.id === id) : null;
+        dialog(event ? 'Editar evento' : 'Novo evento', eventForm(c, group, event));
+      }
+      if (action === 'event-recording-add') { document.querySelector('[data-ce-recordings]').insertAdjacentHTML('beforeend', recordingRow()); document.querySelector('[data-ce-recordings] li:last-child input[name="recording.title"]').focus(); }
+      if (action === 'event-recording-remove') control.closest('li').remove();
+      if (action === 'event-jump' || action === 'jump') document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (action === 'row-add') { const list = document.querySelector(`[data-ca-list="${control.dataset.list}"]`); list.insertAdjacentHTML('beforeend', rowTemplates[control.dataset.list]()); list.lastElementChild.querySelector('input:not([type=hidden])')?.focus(); }
+      if (action === 'row-remove') control.closest('li').remove();
+      if (action === 'row-up' || action === 'row-down') { const row = control.closest('li'), other = action === 'row-up' ? row.previousElementSibling : row.nextElementSibling; if (other) other.insertAdjacentElement(action === 'row-up' ? 'beforebegin' : 'afterend', row); control.focus(); }
+      if (action === 'mod') { await send({ action: control.dataset.act, postId: id, commentId: control.dataset.comment || undefined }); flash({ approve: 'Aprovado: agora todos veem.', reject: 'Excluído.', dismiss: 'Denúncias limpas.' }[control.dataset.act]); }
+      if (action === 'export-members') {
+        const group = c.s.communities.find(row => row.id === groupId()), data = cache.get(`${c.workspace}:${groupId()}`);
+        const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob(['\ufeff' + membersCsv(group, data)], { type: 'text/csv;charset=utf-8' })), download: `membros-${group.slug || 'comunidade'}.csv` });
+        link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      }
+      if (action === 'event-delete') {
+        if (!confirm('Excluir este evento? Quem confirmou presença deixa de vê-lo no portal. Ingressos pagos não são estornados automaticamente.')) return;
+        await mutate({ type: 'delete', key: 'communityEvents', id }); await load(groupId()); flash('Evento excluído.');
+      }
+      if (action === 'live-start') { await send({ action: 'live-start', eventId: id }); flash('Você está ao vivo. Os membros veem o aviso no topo da comunidade.'); }
+      if (action === 'live-end') { await send({ action: 'live-end' }); flash('Transmissão encerrada. Adicione a gravação no evento quando ela estiver pronta.'); }
+      if (action === 'attendee-remove') { await send({ action: 'attendee-remove', eventId: id, memberId: control.dataset.member }); flash('Participante removido.'); }
+      if (action === 'attendee-add') dialog('Adicionar participantes', attendeeDialog(cache.get(`${c.workspace}:${groupId()}`), id));
       if (action === 'remove-member') { await send({ action: 'remove', memberId: id }); flash('Membro removido da comunidade.'); }
       if (action === 'add-members') {
         const data = cache.get(`${c.workspace}:${groupId()}`);
@@ -224,7 +253,7 @@ export function installCommunities({ c, api, mutate, flash, dialog, close, rende
           memberPosts: fields.has('memberPosts'), active: fields.has('active'), welcome: fields.get('welcome'),
           channels: names.map((name, index) => ({ ...(ids[index] ? { id: ids[index] } : {}), name })),
           points: { post: Number(fields.get('points.post')), comment: Number(fields.get('points.comment')), like: Number(fields.get('points.like')) },
-          levels: levelThresholds.map((min, index) => ({ name: fields.get(`level.${index}`) })) } });
+          levels: levelThresholds.map((min, index) => ({ name: fields.get(`level.${index}`) })), ...readSettings(form) } });
         render(); flash('Configurações salvas.');
       }
       if (kind === 'delete') {
@@ -237,10 +266,23 @@ export function installCommunities({ c, api, mutate, flash, dialog, close, rende
         flash('Publicado na comunidade.');
       }
       if (kind === 'comment') { await send({ action: 'comment', postId: form.dataset.id, body: fields.get('body') }); flash('Resposta publicada.'); }
+      if (kind === 'event') {
+        const id = form.dataset.id || undefined;
+        await mutate({ type: 'save', key: 'communityEvents', id, data: eventData(form) });
+        close(); await load(groupId()); flash(id ? 'Evento salvo.' : 'Evento criado. Ele aparece na aba Eventos da comunidade, no portal.');
+      }
+      if (kind === 'attendees') { await send({ action: 'attendee-add', eventId: form.dataset.id, memberIds: fields.getAll('memberIds') }); close(); flash('Participantes adicionados.'); }
       if (kind === 'add') { await send({ action: 'add', memberIds: fields.getAll('memberIds') }); close(); flash('Clientes adicionados à comunidade.'); }
     } catch (failure) {
       if (error) error.textContent = failure.message; else flash(failure.message, true);
     } finally { if (submit?.isConnected) submit.disabled = false; }
+  });
+
+  for (const type of ['input', 'change']) document.addEventListener(type, event => {
+    if (!active()) return;
+    const form = event.target.closest('[data-cm-form="settings"]');
+    if (form) themeInput(form, event.target);
+    if (type === 'change' && event.target.matches('[data-ca-days]')) { ui.days = Number(event.target.value); void load(groupId()); }
   });
 
   return mount;

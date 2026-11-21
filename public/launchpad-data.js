@@ -32,10 +32,10 @@ export function setupTasks(state, access, whatsapp) {
     task('communication', ['initial', 'sales'], 'Preparar o atendimento pelo WhatsApp', 'Conecte o número da subconta para conversar com seus clientes.', 'whatsapp', ['settings'], [
       step('Conectar o WhatsApp da subconta', whatsapp?.status === 'connected', '#settings/whatsapp')
     ], ['Em Configurações → WhatsApp, clique em Conectar WhatsApp.', 'No celular, abra Aparelhos conectados e leia o QR Code. Você também pode usar o pareamento por número.', 'Espere a confirmação de conexão. Volte ao guia para verificar o estado atual. A agência precisa ter configurado o provedor.']),
-    task('campaign', ['initial', 'marketing'], 'Planejar sua primeira campanha de e-mail', 'Prepare o conteúdo e a data da sua próxima comunicação.', 'send', ['marketing'], [
-      step('Criar uma campanha de e-mail', rows('campaigns').some(row => row.channel === 'Email'), '#marketing/email'),
-      step('Definir a campanha como planejada', rows('campaigns').some(row => row.channel === 'Email' && row.status === 'Planned' && row.date), '#marketing/email')
-    ], ['Em Marketing → E-mail, clique em Nova campanha.', 'Escreva o conteúdo, escolha a data e salve com o status Planejada.', 'A Soci organiza o planejamento. O envio deve ser realizado pelo seu provedor de e-mail.']),
+    task('campaign', ['initial', 'marketing'], 'Enviar sua primeira campanha de e-mail', 'Monte o e-mail no construtor e envie para os seus contatos.', 'send', ['marketing'], [
+      step('Criar uma campanha de e-mail', rows('emailCampaigns').length > 0, '#marketing/email-campaigns'),
+      step('Enviar ou agendar a campanha', rows('emailCampaigns').some(row => row.status !== 'draft'), '#marketing/email-campaigns')
+    ], ['Em Marketing → E-mails → Campanhas, clique em Nova campanha.', 'Monte o e-mail com os blocos, escolha o público e envie um teste para você.', 'Clique em Enviar ou agendar. Aberturas, cliques e cancelamentos aparecem no relatório da campanha.']),
     task('workflow', ['initial', 'marketing'], 'Automatizar o acompanhamento dos leads', 'Ative um fluxo para executar ações quando algo acontecer na sua base.', 'flow', ['automation'], [
       step('Criar um fluxo de automação', has('workflows'), '#automation/workflows'),
       step('Publicar um fluxo', active('workflows'), '#automation/workflows')

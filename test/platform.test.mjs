@@ -198,7 +198,9 @@ test('Trigger links count each click and automate once for the contact who recei
   const contactId = link.body.state.contacts[0].id;
   const message = await execute({type:'message',data:{contactId,channel:'Email',subject:'Offer',direction:'Outbound',body:`See {{trigger_link.${linkId}}}`}});
   assert.equal(message.status,200);
-  const path = message.body.state.messages.find(item => item.id === message.body.id).body.split(' ')[1];
+  const sent = message.body.state.messages.find(item => item.id === message.body.id).body.split(' ')[1];
+  assert.ok(sent.startsWith(`${local.base}/r/demo/`), 'the link in the message is absolute, so it works outside the app');
+  const path = new URL(sent).pathname;
   for (const route of [`/r/demo/${linkId}`,path,path]) {
     const response = await fetch(local.base + route,{redirect:'manual'});
     assert.equal(response.status,302);

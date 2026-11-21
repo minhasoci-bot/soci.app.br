@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <title>Orçamento · Soci</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/graao.css">
+  <link rel="stylesheet" href="/documents.css">
+  <link rel="stylesheet" href="/document-sign.css">
+  <link rel="stylesheet" href="/estimates.css">
+  <script type="module" src="/estimate-view.js"></script>
+</head>
+<body class="ds-body">
+  <header class="ds-top">
+    <div class="ds-top-inner">
+      <div><p class="ds-sender" id="sender">Orçamento</p><h1 id="title">Abrindo orçamento…</h1></div>
+      <div class="ds-top-actions"><span id="lang"></span><button type="button" class="secondary" id="print" hidden>Imprimir ou salvar PDF</button></div>
+    </div>
+  </header>
+  <main class="ds-main">
+    <div id="notice" class="ds-notice" role="status">Abrindo orçamento…</div>
+    <section id="pay" class="ds-pay" aria-label="Pagamento" data-no-translate="1" hidden></section>
+    <div id="doc" class="ds-doc" data-no-translate="1"></div>
+  </main>
+  <footer class="ds-bar" id="bar" hidden>
+    <div class="ds-bar-inner">
+      <p class="ds-progress">Total: <b id="total" data-no-translate="1"></b></p>
+      <label class="es-name">Seu nome<input id="name" maxlength="120" autocomplete="name"></label>
+      <p class="form-status" id="error" role="alert"></p>
+      <div class="ds-bar-actions"><button type="button" class="secondary" id="decline">Recusar</button><button type="button" class="primary" id="accept">Aprovar orçamento</button></div>
+    </div>
+  </footer>
+
+  <dialog id="refuse" class="ds-dialog" aria-labelledby="refuse-title">
+    <form method="dialog" class="ds-dialog-body">
+      <h2 id="refuse-title">Recusar orçamento</h2>
+      <p>Conte o motivo, se quiser. Quem enviou será avisado.</p>
+      <label>Motivo (opcional)<textarea id="reason" rows="3" maxlength="500"></textarea></label>
+      <div class="ds-dialog-actions"><span></span><span></span><button type="button" class="secondary" id="refuse-cancel">Voltar</button><button type="button" class="danger" id="refuse-ok">Recusar orçamento</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

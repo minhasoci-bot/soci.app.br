@@ -125,7 +125,7 @@ test('The builder chat rewrites the configuration but keeps the knowledge source
   const { agent: built, summary } = await send('build', { id: withSource.id, revision: withSource.revision, request: 'Qualifique leads de formulário' });
   assert.equal(summary, 'Adicionei o gatilho de formulário.');
   assert.equal(requests[0].build.request, 'Qualifique leads de formulário');
-  assert.equal(requests[0].connection, null);
+  assert.equal(requests[0].connection.apiKey, undefined, 'local runs get only the usage meter, never a key');
   assert.equal(built.name, 'Qualificador');
   assert.deepEqual(built.triggers, [{ type: 'form-submitted' }]);
   assert.deepEqual(built.knowledge, [{ title: 'ICP', text: 'Clínicas em SP.' }]);

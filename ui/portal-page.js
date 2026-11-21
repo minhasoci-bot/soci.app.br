@@ -1,5 +1,6 @@
 import { icon } from './icons.js';
 import { communityCards, communityPage } from './portal-community.js';
+import { assignmentBlock, certificateLink, coursePage, instructorCard, liveBlock, nextLessonCard, quizAnswers, quizBlock, themed } from './portal-course-extra.js';
 
 const root = document.querySelector('#portal');
 const workspace = location.pathname.split('/')[2];
@@ -35,6 +36,7 @@ function library(courses) {
       <div class="cp-cover">${item.cover ? `<img src="${h(item.cover)}" alt="">` : `<span class="cp-course-icon">${icon('book',26)}</span>`}</div>
       <div class="cp-course-text"><h3>${h(item.name)}</h3>${item.description ? `<p>${h(item.description)}</p>` : ''}
         <div class="cp-course-progress">${bar(item.progress)}<small>${item.progress.done} de ${item.progress.total} aulas · ${item.progress.percent}%</small></div>
+        ${item.badge || item.certificate ? `<div class="cp-card-credentials">${item.badge ? `<span class="cp-tag">★ ${h(item.badge.title)}</span>` : ''}${item.certificate ? `<a class="cp-tag cp-tag-ok" href="${h(certificateLink(item.certificate))}" target="_blank" rel="noopener">${icon('award',12)} Certificado</a>` : ''}</div>` : ''}
         <button type="button" class="cp-public-primary" data-course="${h(item.id)}">${startLabel(item.progress)} ${icon('right',16)}</button></div>
     </article>`).join('')}</div>` : '<p class="cp-public-card">Você ainda não tem cursos liberados.</p>'}</section>`;
 }
@@ -49,30 +51,39 @@ function lessonBody(lesson) {
       <div><strong>${h(lesson.file.name)}</strong><small>Material da aula</small></div>
       <a class="cp-public-primary" href="${h(lesson.file.data)}" download="${h(lesson.file.name)}">${icon('download',16)} Baixar</a></div>`
     : '<p class="cp-public-error">O material desta aula não está mais disponível.</p>';
-  return `${media}${lesson.body ? `<div class="cp-lesson-body">${h(lesson.body)}</div>` : ''}`;
+  return `${media}${lesson.body ? `<div class="cp-lesson-body">${h(lesson.body)}</div>` : ''}${lesson.kind === 'quiz' ? quizBlock(lesson, retake === lesson.id) : ''}${lesson.kind === 'assignment' ? assignmentBlock(lesson) : ''}`;
 }
+let retake = '';
+const kindGlyph = { video: 'play', file: 'paperclip', quiz: 'check', assignment: 'edit' };
 
 function player(course) {
   const flat = course.modules.flatMap(module => module.lessons);
   const index = flat.findIndex(lesson => lesson.id === course.lesson?.id);
   const current = flat[index], next = flat.slice(index + 1).find(lesson => !lesson.locked);
-  return `<div class="cp-player">
-    <div class="cp-player-top"><button type="button" class="cp-public-link" data-portal-public="back">${icon('left',16)} Meus cursos</button>
+  return `<div class="cp-player${themed(course)}">
+    <div class="cp-player-top"><button type="button" class="cp-public-link" data-portal-public="${course.page?.productPage === false ? 'back' : 'course-page'}">${icon('left',16)} ${course.page?.productPage === false ? 'Meus cursos' : 'Página do curso'}</button>
       <div class="cp-player-title"><h1>${h(course.name)}</h1><div class="cp-course-progress">${bar(course.progress)}<small>${course.progress.percent}% concluído</small></div></div></div>
     <div class="cp-player-grid">
-      <nav class="cp-public-card cp-outline" aria-label="Aulas do curso">${course.modules.map(module => `<section><h2>${h(module.title)}</h2><ol>
-        ${module.lessons.map(lesson => `<li><button type="button" data-lesson="${h(lesson.id)}" ${lesson.id === current?.id ? 'aria-current="true"' : ''} ${lesson.locked ? 'disabled' : ''}>
-          <span class="cp-state-icon ${lesson.done ? 'done' : ''}">${icon(lesson.locked ? 'lock' : lesson.done ? 'check' : lesson.kind === 'video' ? 'play' : lesson.kind === 'file' ? 'paperclip' : 'note',14)}</span>
-          <span>${h(lesson.title)}${lesson.locked ? `<small>Disponível em ${h(day(lesson.availableAt))}</small>` : ''}</span></button></li>`).join('')}</ol></section>`).join('')}</nav>
+      <div class="cp-player-side"><nav class="cp-public-card cp-outline" aria-label="Aulas do curso">${course.modules.map(module => {
+        const item = lesson => `<li><button type="button" data-lesson="${h(lesson.id)}" ${lesson.id === current?.id ? 'aria-current="true"' : ''} ${lesson.locked ? 'disabled' : ''}>
+          <span class="cp-state-icon ${lesson.done ? 'done' : ''}">${icon(lesson.locked ? 'lock' : lesson.done ? 'check' : kindGlyph[lesson.kind] || 'note',14)}</span>
+          <span>${h(lesson.title)}${lesson.locked ? `<small>${lesson.waiting ? 'Conclua a aula anterior' : `Disponível em ${h(day(lesson.availableAt))}`}</small>` : ''}</span></button></li>`;
+        const subs = module.submodules || [], known = new Set(subs.map(sub => sub.id));
+        return `<section><h2>${h(module.title)}</h2><ol>${module.lessons.filter(lesson => !known.has(lesson.submoduleId)).map(item).join('')}</ol>
+          ${subs.filter(sub => module.lessons.some(lesson => lesson.submoduleId === sub.id)).map(sub => `<h3 class="cp-submodule">${h(sub.title)}</h3><ol>${module.lessons.filter(lesson => lesson.submoduleId === sub.id).map(item).join('')}</ol>`).join('')}</section>`;
+      }).join('')}</nav>${instructorCard(course)}${liveBlock(course.live)}</div>
       <article class="cp-public-card cp-lesson">${course.lesson ? `<p class="cp-lesson-kicker">Aula ${index + 1} de ${flat.length}</p><h2 class="cp-lesson-title">${h(course.lesson.title)}</h2>` : ''}
         ${lessonBody(course.lesson)}
         ${current ? `<footer class="cp-lesson-actions">
-          <button type="button" class="${current.done ? 'cp-public-ghost' : 'cp-public-primary'}" data-portal-public="toggle" aria-pressed="${current.done}">${icon('check',16)} ${current.done ? 'Concluída' : 'Marcar como concluída'}</button>
-          ${next ? `<button type="button" class="cp-public-link" data-lesson="${h(next.id)}">Próxima aula ${icon('right',16)}</button>` : ''}</footer>` : ''}
+          ${['quiz', 'assignment'].includes(current.kind) ? (current.done ? `<span class="cp-tag cp-tag-ok">${icon('check',14)} Concluída</span>` : '')
+            : `<button type="button" class="${current.done ? 'cp-public-ghost' : 'cp-public-primary'}" data-portal-public="toggle" aria-pressed="${current.done}">${icon('check',16)} ${current.done ? 'Concluída' : 'Marcar como concluída'}</button>`}
+          ${next && course.page?.nextCard === false ? `<button type="button" class="cp-public-link" data-lesson="${h(next.id)}" data-auto="${!current.done && !['quiz', 'assignment'].includes(current.kind) ? '1' : ''}">Próxima aula ${icon('right',16)}</button>` : ''}</footer>
+          ${course.page?.nextCard !== false ? nextLessonCard(next, current) : ''}
+          ${course.certificate && course.progress.percent === 100 ? `<a class="cp-certificate-banner" href="${h(certificateLink(course.certificate))}" target="_blank" rel="noopener">${icon('award',20)}<span><b>Curso concluído!</b><small>Ver e imprimir o certificado</small></span></a>` : ''}` : ''}
       </article></div></div>`;
 }
 
-let portal, course, community = null;
+let portal, course, community = null, courseView = 'lesson';
 const cmUi = { tab: 'discussion', channel: '', period: '30' };
 function draw(message = '') {
   const { title, introduction, color, signedIn, courses, member } = portal || { title: 'Portal do cliente' };
@@ -83,7 +94,7 @@ function draw(message = '') {
       ${signedIn ? '<button type="button" class="cp-public-link" data-portal-public="logout">Sair</button>' : ''}
     </header>
     ${message ? `<p class="cp-public-error" role="alert">${h(message)}</p>` : ''}
-    ${signedIn ? (community ? communityPage(community, cmUi) : course ? player(course) : `<section class="cp-public-welcome">
+    ${signedIn ? (community ? communityPage(community, cmUi) : course ? (courseView === 'page' ? coursePage(course, bar) : player(course)) : `<section class="cp-public-welcome">
       <h1>${member?.name ? `Olá, ${h(member.name)}` : 'Bem-vindo ao portal'}</h1>
       ${introduction ? `<p>${h(introduction)}</p>` : ''}</section>${library(courses)}${communityCards(portal?.communities)}`) :
       `<section class="cp-public-card cp-signin"><div class="cp-course-icon">${icon('key',24)}</div>
@@ -128,17 +139,41 @@ root.addEventListener('click', async event => {
       const lessonId = course.lesson.id, done = !course.modules.flatMap(module => module.lessons).find(lesson => lesson.id === lessonId).done;
       course = (await api(`progress/${encodeURIComponent(course.id)}`,{ lessonId, done })).course;
       focus = '[data-portal-public="toggle"]';
+    } else if (button.dataset.courseRetake) {
+      retake = button.dataset.courseRetake;
+      focus = '.cp-quiz-form input';
+    } else if (action === 'course-page') {
+      courseView = 'page';
+      focus = '.cp-course-hero h1';
     } else if (button.dataset.lesson) {
+      retake = '';
+      // "Conclude when moving on": a plain lesson is marked done before the next one opens.
+      if (button.dataset.auto === '1' && course.page?.autoComplete && course.lesson) await api(`progress/${encodeURIComponent(course.id)}`, { lessonId: course.lesson.id, done: true });
+      courseView = 'lesson';
       await openCourse(course.id, button.dataset.lesson);
       focus = '.cp-lesson-title';
     } else if (button.dataset.community) {
       Object.assign(cmUi, { tab: 'discussion', channel: '', period: '30' });
       await loadCommunity(button.dataset.community);
+      cmUi.tab = (community.group.tabs || []).find(tab => tab.visible !== false)?.key || 'discussion';
       focus = '.cp-community-head h1';
     } else if (button.dataset.cmPublic) {
       const { cmPublic: verb, value, post, comment, option } = button.dataset;
       if (verb === 'tab') { cmUi.tab = value; focus = `[data-cm-public="tab"][data-value="${value}"]`; }
       else if (verb === 'channel') { cmUi.channel = value; await loadCommunity(community.group.id); focus = `[data-cm-public="channel"][data-value="${value}"]`; }
+      else if (verb === 'events') { cmUi.events = value; focus = `[data-cm-public="events"][data-value="${value}"]`; }
+      else if (verb === 'ticket') {
+        const result = await api(`community/${encodeURIComponent(community.group.id)}`, { action: 'ticket', eventId: button.dataset.event });
+        community = result.community;
+        if (result.payUrl) { location.href = result.payUrl; return; }
+      }
+      else if (verb === 'rsvp' || verb === 'rsvp-cancel') await communityAction({ action: verb, eventId: button.dataset.event });
+      else if (verb === 'onboarding') { await communityAction({ action: 'onboarding', stepId: button.dataset.step, done: button.dataset.done === 'yes' }); focus = `[data-cm-public="onboarding"][data-step="${button.dataset.step}"]`; }
+      else if (verb === 'report') {
+        const reason = prompt('Por que você está denunciando? (opcional)');
+        if (reason === null) return;
+        await communityAction({ action: 'report', postId: post, commentId: comment, reason });
+      }
       else if (verb === 'period') { cmUi.period = value; await loadCommunity(community.group.id); focus = `[data-cm-public="period"][data-value="${value}"]`; }
       else if (verb === 'delete' && !confirmDelete(button)) return;
       else if (['join','leave','like','vote','delete'].includes(verb)) {
@@ -147,6 +182,7 @@ root.addEventListener('click', async event => {
       }
     } else if (button.dataset.course) {
       await openCourse(button.dataset.course);
+      courseView = course.page?.productPage === false ? 'lesson' : 'page';
       focus = '.cp-lesson-title';
     }
     draw();
@@ -175,13 +211,41 @@ function confirmDelete(button) {
 }
 
 root.addEventListener('submit', async event => {
+  const courseForm = event.target.closest('[data-course-form]');
+  if (courseForm && course?.lesson) {
+    event.preventDefault();
+    const submit = courseForm.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    try {
+      const body = courseForm.dataset.courseForm === 'quiz' ? { action: 'quiz', lessonId: course.lesson.id, answers: quizAnswers(courseForm) }
+        : { action: 'assignment', lessonId: course.lesson.id, text: courseForm.elements.text.value, link: courseForm.elements.link.value };
+      course = (await api(`progress/${encodeURIComponent(course.id)}`, body)).course;
+      retake = '';
+      draw();
+      root.querySelector('.cp-quiz-result, .cp-assignment-status')?.scrollIntoView({ block: 'start' });
+    } catch (error) {
+      if (error.status === 401) { course = null; if (portal) portal.signedIn = false; draw(error.message); return; }
+      submit.disabled = false;
+      courseForm.querySelector('.cp-public-error')?.remove();
+      courseForm.insertAdjacentHTML('afterbegin', `<p class="cp-public-error" role="alert">${h(error.message)}</p>`);
+    }
+    return;
+  }
   const form = event.target.closest('[data-cm-public-form]');
   if (!form || !community) return;
   event.preventDefault();
   const fields = new FormData(form), submit = form.querySelector('button[type="submit"]');
   submit.disabled = true;
   try {
-    if (form.dataset.cmPublicForm === 'post') {
+    const answers = [...form.querySelectorAll('textarea[name^="answer."]')].map(area => ({ id: area.name.slice(7), answer: area.value }));
+    if (form.dataset.cmPublicForm === 'join' || (form.dataset.cmPublicForm === 'subscribe' && event.submitter?.name === 'trial')) {
+      await communityAction({ action: 'join', answers });
+      portal = await api('home');
+    } else if (form.dataset.cmPublicForm === 'subscribe') {
+      const result = await api(`community/${encodeURIComponent(community.group.id)}`, { action: 'subscribe', planId: event.submitter?.value, answers });
+      community = result.community;
+      if (result.payUrl) { location.href = result.payUrl; return; }
+    } else if (form.dataset.cmPublicForm === 'post') {
       await communityAction({ action: 'post', channelId: fields.get('channelId'), title: fields.get('title'), body: fields.get('body'), link: fields.get('link'),
         poll: String(fields.get('poll') || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean) });
     } else {
@@ -206,7 +270,11 @@ window.addEventListener('hashchange', () => {
 try {
   portal = await api('home');
   if (access !== null) portal.signedIn = false;
-  draw();
+  // Back from paying an event ticket: the seat shows up in the community's Eventos once AbacatePay confirms.
+  const query = new URLSearchParams(location.search), ticket = query.get('evento'), plan = query.get('plano');
+  if (ticket || plan) history.replaceState(null, '', location.pathname + location.hash);
+  draw(ticket === 'pago' ? 'Pagamento recebido. Seu ingresso aparece na aba Eventos da comunidade assim que o pagamento for confirmado.' : ticket === 'voltou' ? 'O pagamento do ingresso não foi concluído. Você pode tentar de novo na aba Eventos.'
+    : plan === 'pago' ? 'Pagamento recebido. O acesso à comunidade é liberado assim que o pagamento for confirmado.' : plan === 'voltou' ? 'A assinatura não foi concluída. Você pode tentar de novo na página da comunidade.' : '');
   if (location.hash === '#cursos') root.querySelector('#cursos')?.scrollIntoView();
 } catch (error) {
   access = null;

@@ -309,3 +309,83 @@ input[type=checkbox][role=switch]:active { transform: none; }
 :root:root .ags-chat-status.info, :root:root .builder-status.info { color: var(--g-dim); font-weight: 500; }
 .picker-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .picker-title .badge { padding: 1px 7px; font-size: 11px; }
+
+/* ───────────── Studio sections: bases, modelos, logs, uso ───────────── */
+.ags-hub-links { display: grid; gap: 2px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--g-line); }
+.ags-hub-links a { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 8px; color: var(--g-ink-2, var(--g-ink)); font-size: 13.5px; font-weight: 600; text-decoration: none; }
+.ags-hub-links a:hover { background: var(--g-surface-2); color: var(--g-ink); }
+.ags-hub-links svg { color: var(--g-dim); }
+
+.ai-hub .g-utabs-panel { display: grid; gap: 16px; }
+.kb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.kb-card { display: grid; align-content: start; gap: 6px; padding: 16px; color: inherit; text-decoration: none; }
+a.kb-card:hover { border-color: var(--g-brand-line); box-shadow: var(--g-shadow-lift); }
+.kb-card-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--g-brand-tint); color: var(--g-brand); }
+.kb-card-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--g-dim); font-size: 12.5px; }
+.kb-card .dim { line-height: 1.45; }
+
+.kb-editor { display: grid; gap: 12px; }
+.kb-meta, .kb-source, .kb-probe, .tpl-save, .usage-block { display: grid; gap: 10px; padding: 16px; }
+.kb-meta label, .kb-source label, .tpl-save label, .usage-limit-form label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.kb-sources { display: grid; gap: 10px; }
+.kb-source { margin: 0; border: 1px solid var(--g-line); }
+.kb-source-head { display: flex; align-items: end; gap: 10px; }
+.kb-source-head > label { flex: 0 0 230px; min-width: 0; }
+.kb-source-head > label.grow, .tpl-save-fields .grow { flex: 1 1 auto; min-width: 0; }
+.kb-source-head .icon-btn { flex: none; margin-bottom: 4px; }
+.kb-actions, .kb-footer { display: flex; align-items: center; gap: 12px; }
+.kb-footer { justify-content: flex-end; position: sticky; bottom: 0; padding: 12px 0; background: var(--g-bg, var(--g-surface)); }
+.kb-footer .danger { margin-right: auto; }
+.kb-footer .form-status[data-error], .tpl-save .form-status[data-error], .usage-limit-form .form-status[data-error] { color: var(--g-orange-ink); }
+.kb-probe h2, .tpl-save h2, .usage-block h2 { font-size: 15px; letter-spacing: -.01em; }
+.kb-probe-form { display: flex; gap: 8px; }
+.kb-probe-form input { flex: 1; }
+.kb-passages { display: grid; gap: 8px; margin: 0; padding-left: 20px; }
+.kb-passages p { margin-top: 2px; color: var(--g-ink-2, var(--g-ink)); white-space: pre-wrap; font-size: 13px; }
+
+.tpl-save-fields { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
+.tpl-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+
+.log-toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+.log-toolbar .search { flex: 1; min-width: 200px; }
+.log-table td { vertical-align: top; }
+.log-table .num, .usage-block .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.log-detail summary { cursor: pointer; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-detail[open] summary { white-space: normal; }
+.log-detail p { max-width: 460px; margin-top: 6px; white-space: pre-wrap; font-size: 13px; }
+.log-error { color: var(--g-orange-ink); }
+.empty-row { padding: 16px; text-align: center; }
+.log-table td:first-child { white-space: nowrap; }
+.log-usage { min-width: 150px; }
+.log-usage small { display: block; margin-top: 2px; font-size: 12px; }
+.ai-hub .table-shell { overflow-x: auto; }
+
+.usage-head { display: flex; justify-content: flex-end; }
+.usage-head label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.usage-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.usage-alert { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--g-amber); background: color-mix(in srgb, var(--g-amber) 12%, transparent); font-size: 13.5px; }
+.usage-alert.blocked { border-color: var(--g-orange-ink); background: color-mix(in srgb, var(--g-orange-ink) 10%, transparent); }
+.usage-meter { height: 10px; border-radius: 999px; background: var(--g-surface-2); overflow: hidden; }
+.usage-meter span { display: block; height: 100%; border-radius: inherit; background: var(--g-brand); }
+.usage-meter.warning span { background: var(--g-amber); }
+.usage-meter.blocked span { background: var(--g-orange-ink); }
+.usage-limit-form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.usage-limit-form label { flex: 0 0 190px; }
+.usage-limit-form input, .usage-limit-form select, .usage-head select { width: 100%; }
+.usage-head label { flex: 0 0 240px; }
+.usage-block table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.usage-block th { color: var(--g-dim); font-size: 12px; font-weight: 700; text-align: left; }
+.usage-block th, .usage-block td { padding: 7px 8px; border-bottom: 1px solid var(--g-line); }
+.usage-block tr:last-child td { border-bottom: 0; }
+.usage-bar { display: block; width: 120px; height: 6px; border-radius: 999px; background: var(--g-surface-2); overflow: hidden; }
+.usage-bar span { display: block; height: 100%; background: var(--g-brand); }
+.usage-days { display: flex; align-items: end; gap: 4px; height: 120px; overflow-x: auto; }
+.usage-day { display: grid; grid-template-rows: 1fr auto; justify-items: center; gap: 4px; min-width: 18px; height: 100%; }
+.usage-day > span { align-self: end; width: 12px; border-radius: 4px 4px 0 0; background: var(--g-brand); }
+.usage-day small { color: var(--g-dim); font-size: 10.5px; }
+.usage-note { font-size: 12.5px; }
+@media (max-width: 640px) {
+  .kb-source-head, .kb-probe-form { flex-wrap: wrap; }
+  .kb-source-head > label { flex: 1 1 100%; }
+  .kb-footer { flex-wrap: wrap; }
+}
