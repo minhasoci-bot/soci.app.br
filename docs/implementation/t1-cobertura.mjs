@@ -215,5 +215,5 @@ export const acoes = [
   c('Register for ticketed event (beta)', 'register_event', 'Evento pago inscrito como cortesia, sem cobrar.'),
   c('Register for rsvp event (beta)', 'register_event'),
   // Voice AI (1)
-  falta('Voice AI outbound call (beta)', 'voice_ai_call', 'Voice AI com Twilio (3.2).')
+  c('Voice AI outbound call (beta)', 'voice_ai_call', 'Agente de IA liga e conversa por voz (Twilio).')
 ];

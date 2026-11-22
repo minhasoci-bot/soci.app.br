@@ -41,6 +41,8 @@ export const twiml = {
   gather: ({ action, digits = 1, timeout = 6, prompt = '', finishOnKey = '#' }) => `<Gather${attrs({ input: 'dtmf', action, method: 'POST', numDigits: digits, timeout, finishOnKey, actionOnEmptyResult: 'true' })}>${prompt}</Gather>`,
   dial: (numbers, { action, callerId, timeout = 20, record = false } = {}) => `<Dial${attrs({ action, method: 'POST', callerId, timeout, ...(record ? { record: 'record-from-answer-dual' } : {}) })}>${[].concat(numbers).map(n => `<Number>${xml(n)}</Number>`).join('')}</Dial>`,
   record: ({ action, maxLength = 120, transcribe = false } = {}) => `<Record${attrs({ action, method: 'POST', maxLength, playBeep: 'true', ...(transcribe ? { transcribe: 'true' } : {}) })}/>`,
+  // Voice AI: listens to the caller's speech (Twilio transcribes it) and posts SpeechResult to `action`.
+  listen: ({ action, language = 'pt-BR', prompt = '', timeout = 6 }) => `<Gather${attrs({ input: 'speech', action, method: 'POST', language, speechTimeout: 'auto', timeout, actionOnEmptyResult: 'true' })}>${prompt}</Gather>`,
   redirect: url => `<Redirect method="POST">${xml(url)}</Redirect>`,
   hangup: () => '<Hangup/>',
   response: (...verbs) => `<?xml version="1.0" encoding="UTF-8"?><Response>${verbs.flat().filter(Boolean).join('')}</Response>`

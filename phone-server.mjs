@@ -2,13 +2,16 @@
 // answers are TwiML. Every webhook is checked against X-Twilio-Signature with the URL Twilio was given.
 import { e164, twilioClient, twilioConfigured, twilioSignatureValid, twiml } from './twilio.mjs';
 import { contactByPhone, numberByPhone, phoneOf } from './phone-model.mjs';
+import { voicePrompt, voiceSettings } from './voice-ai.mjs';
+import { botDecision } from './workflow-engine.mjs';
+import { upcomingSlots } from './scheduling-model.mjs';
 import { requireCredit } from './wallet-model.mjs';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const FINAL_STATUS = { completed: '', busy: 'busy', 'no-answer': 'missed', canceled: 'missed', failed: 'failed' };
 const VOICEMAIL_GREETING = 'Não conseguimos atender agora. Deixe seu recado após o sinal.';
 
-export function createPhoneHandler({ store, change, flushLater = () => {}, request = fetch, env = process.env, accountActive = async () => true }) {
+export function createPhoneHandler({ store, change, flushLater = () => {}, request = fetch, env = process.env, accountActive = async () => true, agentReply = null }) {
   const client = () => twilioClient({ sid: env.TWILIO_ACCOUNT_SID, token: env.TWILIO_AUTH_TOKEN, request });
   const originOf = req => String(env.PHONE_PUBLIC_ORIGIN || env.SOCIAL_PUBLIC_URL || `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers['x-forwarded-host'] || req.headers.host}`).replace(/\/+$/, '');
   const hook = (origin, kind, workspace, params = {}) => {
@@ -55,15 +58,90 @@ export function createPhoneHandler({ store, change, flushLater = () => {}, reque
     }
   }
 
+  async function voiceCall(workspace, origin, { contactId, numberId, to, voice, workflowId = '' }) {
+    const state = await store.load(workspace);
+    const number = phoneOf(state).numbers.find(row => row.id === numberId);
+    if (!number) fail('Número da Soci não encontrado.', 404);
+    requireCredit(state, 'phone');
+    const callId = (await change(workspace, { type: 'phone-call-start', data: { direction: 'outbound', kind: 'voice-ai', contactId, numberId, from: number.number, to, workflowId, voice: voiceSettings(voice) } })).id;
+    try {
+      const made = await client().dial({ to, from: number.number, url: hook(origin, 'agent', workspace, { call: callId, start: 1 }), status: hook(origin, 'status', workspace, { call: callId }), machineDetection: 'Enable', timeout: 30 });
+      await change(workspace, { type: 'phone-call-update', data: { callId, callSid: made.sid } });
+    } catch (problem) {
+      await change(workspace, { type: 'phone-call-update', data: { callId, status: 'failed', final: true } });
+      throw problem;
+    }
+  }
+
   /** The outbox of a workflow: calls, voicemail drops and lookups. Returns a result line, or the vars of a lookup. */
   async function workflowItem(workspace, item, origin) {
     if (item.kind === 'phone-call') return `ligação iniciada (${await placeCall(workspace, origin, item)})`;
     if (item.kind === 'voicemail-drop') { await dropVoicemail(workspace, origin, item); return 'recado em andamento'; }
+    if (item.kind === 'voice-ai-call') { await voiceCall(workspace, origin, item); return 'ligação do Voice AI iniciada'; }
     if (item.kind === 'phone-lookup') {
       const found = await client().lookup(item.phone);
       return { vars: { telefone_status: found.valid ? 'valid' : 'invalid', telefone_tipo: found.lineType || '', telefone_operadora: found.carrier || '' } };
     }
     return '';
+  }
+
+  // ---- Voice AI (3.2) ----
+  const agentHook = (origin, workspace, call, extra = {}) => hook(origin, 'agent', workspace, { call: call.id, ...extra });
+  const speak = (voice, text) => twiml.say(text, { voice: voice.voice, language: voice.language });
+  const listen = (origin, workspace, call, prompt, extra = {}) => twiml.listen({ action: agentHook(origin, workspace, call, extra), language: call.voice.language, prompt });
+  async function agentTurn(workspace, call, speech) {
+    if (!agentReply) fail('Voice AI indisponível.', 409);
+    const state = await store.load(workspace);
+    const contact = state.contacts.find(row => row.id === call.contactId) || null;
+    const voice = call.voice, service = (state.services || []).find(row => row.id === voice.serviceId && row.active);
+    const number = phoneOf(state).numbers.find(row => row.id === call.numberId);
+    const input = voicePrompt({ business: state.profile?.name || '', contact, direction: call.direction, goal: voice.goal, zone: state.profile?.timezone || 'America/Sao_Paulo',
+      transcript: [...voice.transcript, ...(speech ? [{ role: 'caller', text: speech }] : [])], slots: service ? upcomingSlots(state, service.id, { count: 6 }) : [], serviceName: service?.name || '', canTransfer: Boolean(voice.transfer) });
+    return botDecision(await agentReply(workspace, { agentId: voice.agentId, input, workflowId: call.workflowId || '', voiceKey: call.direction === 'inbound' ? number?.voiceKey || null : null }));
+  }
+  // The agent's first words: the welcome message, or (outbound, without one) what the agent says first.
+  async function agentStart(origin, workspace, call, form = {}) {
+    const voice = call.voice;
+    if (/^machine/.test(form.AnsweredBy || '')) {
+      await change(workspace, { type: 'voice-turn', data: { callId: call.id, outcome: 'end' } });
+      return twiml.response(twiml.hangup());
+    }
+    let opening = voice.welcome;
+    if (!opening) {
+      const state = await store.load(workspace);
+      opening = call.direction === 'inbound' ? `Olá! Você ligou para ${state.profile?.name || 'nós'}. Como posso ajudar?` : (await agentTurn(workspace, call, '').catch(() => null))?.text || 'Olá! Tudo bem?';
+    }
+    await change(workspace, { type: 'voice-turn', data: { callId: call.id, agent: opening } });
+    return twiml.response(listen(origin, workspace, call, speak(voice, opening)));
+  }
+  async function agentAnswer(origin, workspace, call, form, query) {
+    const voice = call.voice, speech = String(form.SpeechResult || '').trim().slice(0, 600);
+    const end = async (text, outcome) => { await change(workspace, { type: 'voice-turn', data: { callId: call.id, agent: text, outcome } }); return twiml.response(text ? speak(voice, text) : '', twiml.hangup()); };
+    if (Date.now() - Date.parse(call.created) > voice.maxMinutes * 60000) return end('Nosso tempo acabou por aqui. A equipe vai continuar o atendimento. Obrigado!', 'timeout');
+    if (!speech) {
+      if (Number(query.get('miss')) >= 1) return end('Não consegui ouvir. A equipe vai retornar a ligação. Até logo!', 'timeout');
+      return twiml.response(listen(origin, workspace, call, speak(voice, 'Desculpe, não ouvi. Pode repetir?'), { miss: 1 }));
+    }
+    let decision;
+    try { decision = await agentTurn(workspace, call, speech); }
+    catch { await change(workspace, { type: 'voice-turn', data: { callId: call.id, caller: speech } }); return end('Tive um problema agora. A equipe vai retornar a ligação. Até logo!', 'end'); }
+    const text = decision.text;
+    if (decision.action === 'book') {
+      const booked = (await change(workspace, { type: 'voice-book', data: { callId: call.id, day: decision.day, time: decision.time } })).id;
+      await change(workspace, { type: 'voice-turn', data: { callId: call.id, caller: speech, agent: booked?.error ? 'Esse horário acabou de ser ocupado. Podemos ver outro?' : text, outcome: booked?.error ? '' : 'book', appointmentId: booked?.id || '' } });
+      return twiml.response(listen(origin, workspace, call, speak(voice, booked?.error ? 'Esse horário acabou de ser ocupado. Podemos ver outro?' : text || 'Combinado, está marcado!')));
+    }
+    if (decision.action === 'handoff' && voice.transfer) {
+      await change(workspace, { type: 'voice-turn', data: { callId: call.id, caller: speech, agent: text, outcome: 'transfer' } });
+      const state = await store.load(workspace), number = phoneOf(state).numbers.find(row => row.id === call.numberId);
+      return twiml.response(text ? speak(voice, text) : '', twiml.dial(voice.transfer, { callerId: call.direction === 'inbound' ? undefined : number?.number, timeout: 25 }), twiml.hangup());
+    }
+    if (decision.action === 'handoff' || decision.action === 'end') {
+      await change(workspace, { type: 'voice-turn', data: { callId: call.id, caller: speech } });
+      return end(text || 'Obrigado pela ligação. Até logo!', decision.action === 'handoff' ? 'transfer' : 'end');
+    }
+    await change(workspace, { type: 'voice-turn', data: { callId: call.id, caller: speech, agent: text } });
+    return twiml.response(listen(origin, workspace, call, text ? speak(voice, text) : ''));
   }
 
   // TwiML for what the IVR steps left (verbs) and what they wait for.
@@ -115,13 +193,20 @@ export function createPhoneHandler({ store, change, flushLater = () => {}, reque
       const callId = (await change(workspace, { type: 'phone-call-start', data: { direction: 'inbound', callSid: form.CallSid, from: form.From, to: form.To, numberId: owned.id } })).id;
       const fresh = await store.load(workspace), started = fresh.calls.find(row => row.id === callId);
       done();
-      if (owned.ivr) {
+      if (started?.voice) return xmlReply(res, await agentStart(origin, workspace, started, form));
+      if (owned.mode === 'ivr') {
         const out = (await change(workspace, { type: 'ivr-take', data: { callSid: form.CallSid } })).id;
         if (out.owner) return xmlReply(res, ivrResponse(origin, workspace, started, owned, out));
       }
       return xmlReply(res, forwardResponse(origin, workspace, started, owned));
     }
     if (!call) return xmlReply(res, twiml.response(twiml.hangup()));
+    if (kind === 'agent') {
+      if (!call.voice) return xmlReply(res, twiml.response(twiml.hangup()));
+      const answer = query.get('start') ? await agentStart(origin, workspace, call, form) : await agentAnswer(origin, workspace, call, form, query);
+      done();
+      return xmlReply(res, answer);
+    }
     if (kind === 'ivr') {
       const step = query.get('kind');
       await change(workspace, { type: 'ivr-input', data: { callSid: call.callSid, digits: form.Digits || '', dialStatus: form.DialCallStatus || '', recordingUrl: form.RecordingUrl || '' } });
