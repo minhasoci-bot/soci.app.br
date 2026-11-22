@@ -33,6 +33,8 @@ import { appointmentRecord, schedulingCollections, schedulingCommand, scheduling
 import { meetingCollections, meetingCommand, meetingFields } from './meeting-model.mjs';
 import { seoCommand, seoDefaults, visibilityDefaults } from './seo-model.mjs';
 import { walletCharge, walletDefaults } from './wallet-model.mjs';
+import { labsDefaults, rejectDuplicateContact, toggleLab } from './labs-model.mjs';
+import { onAiAlert } from './ai-model.mjs';
 import { offerBeforeDelete, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
@@ -66,7 +68,7 @@ export const defaults = {
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
   tracking: trackingDefaults(), trackingEvents: [], scoringRules: [],
   brandBoards: [], affiliateSettings: affiliateDefaults(), affiliateCampaigns: [], affiliates: [], affiliateCommissions: [], affiliatePayouts: [],
-  wallet: walletDefaults(), seo: seoDefaults(), seoAudits: [], visibility: visibilityDefaults(), visibilityRuns: [],
+  wallet: walletDefaults(), labs: labsDefaults(), seo: seoDefaults(), seoAudits: [], visibility: visibilityDefaults(), visibilityRuns: [],
   reputation: reputationDefaults(), listings: {}, reviewRequests: [], reviewWidgets: [], videoCollectors: [], videoTestimonials: [], videoUploads: [],
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
@@ -79,7 +81,7 @@ export function hydrateWorkspace(state) {
   state.ai.ledger ??= [];
   reputationOf(state);
   state.listings ??= {};
-  state.wallet ??= walletDefaults(); state.seo ??= seoDefaults(); state.seoAudits ??= []; state.visibility ??= visibilityDefaults(); state.visibilityRuns ??= [];
+  state.wallet ??= walletDefaults(); state.labs ??= labsDefaults(); state.seo ??= seoDefaults(); state.seoAudits ??= []; state.visibility ??= visibilityDefaults(); state.visibilityRuns ??= [];
   affiliateSettings(state);
   adSettingsOf(state);
   trackingOf(state);
@@ -312,6 +314,8 @@ function run(state, event, context = {}) {
 }
 /** Workflow events from outside a command (the social scheduler, for one). */
 export const emitWorkflow = (state, event, ctx = {}) => run(state, event, ctx);
+// The AI ledger lives in ai-model.mjs; its threshold crossings reach the workflows through here.
+onAiAlert((state, ctx) => run(state, 'ai_usage_alert', ctx));
 const enroll = (state, workflow, event, contactId = '') => engine.enroll(state, workflow, { contactId, depth: 1 }, event);
 const finishManualAction = (state, id, data) => engine.finishManual(state, id, data, one, str);
 
@@ -483,6 +487,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (['seo-settings', 'seo-audit', 'visibility-settings', 'visibility-run'].includes(type)) return seoCommand(s, { ...command, data:d }, { now });
   if (['meeting-transcript', 'meeting-summary', 'meeting-tasks', 'meeting-note'].includes(type)) return meetingCommand(s, { ...command, data:d }, { add, run, now });
   if (['scheduling-settings', 'scheduling-book', 'field-status'].includes(type)) return schedulingCommand(s, { ...command, data:d }, { save: (key, data) => executeCommand(s, { type:'save', key, data }, { workspace }), run, now });
+  if (type === 'labs-toggle') return toggleLab(s, { key: str(d.key, 60), on: d.on });
   if (typeof type === 'string' && type.startsWith('preferences-')) return preferenceCommand(s, { ...command, data:d }, { run, now });
   if (typeof type === 'string' && type.startsWith('loyalty-')) return loyaltyCommand(s, { ...command, data:d }, { add, run, actor: str(command.actor, 80) });
   if (type === 'sequence-enroll' || type === 'sequence-remove') return sequenceCommand(s, { ...command, data:d });
@@ -662,6 +667,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     if (key==='files' && !prior && s.files.length>=60) fail('The local drive holds up to 60 files.');
     if (key==='studioProjects' && !prior && s.studioProjects.length>=60) fail('A workspace can have up to 60 Studio projects.');
     const details = fields[key](s, key === 'workflows' ? { ...prior, ...d, id } : { ...d, id });
+    if (key === 'contacts') rejectDuplicateContact(s, { ...prior, ...details }, prior);
     const row = prior ? { ...prior, ...details, updated: now() } : add(s,key,details);
     if (key==='agents' && prior) {
       row.revision = uid();

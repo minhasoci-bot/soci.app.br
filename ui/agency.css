@@ -188,3 +188,8 @@ label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:no
 .dk-status{display:grid;gap:8px}.dk-steps{margin:0;padding-left:18px;display:grid;gap:4px}
 @media (max-width:980px){.dk-layout{grid-template-columns:1fr}.dk-aside{position:static}}
 .dk-presets .dk-preset{display:inline-flex;width:auto;gap:0}
+/* Central de IA → Painel de uso: one column per day, 7 to 90 of them */
+.ag-ai-chart{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:3px}
+.ag-ai-chart .ag-colbar{max-width:none;border-radius:3px}
+.ag-ai-chart .ag-colbar span{border-radius:3px 3px 0 0}
+.ag-ai-chart small{font-size:11px;white-space:nowrap;min-height:1.2em}

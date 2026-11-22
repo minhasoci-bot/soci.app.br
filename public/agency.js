@@ -1,6 +1,7 @@
 import { brandHighlight, brandIcon, icon as i, logo, brandName, bootScreen, shcLayers } from './icons.js';
 import { desktopPage, desktopPreview, readDesktop } from './agency-desktop.js';
-import { formatUsd } from './ai-data.js';
+import { formatTokens, formatUsd, usageKinds } from './ai-data.js';
+import { labCatalog, labModes } from './labs-data.js';
 import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { applyBrandColor } from './graao.js';
@@ -14,7 +15,7 @@ import { brandGroupCsv, brandGroupHtml, groupPeriods } from './brand-group-data.
 import { presentationsHtml, attachPresentationListeners, closePresentationEditor } from './presentations.js';
 import { pranchetaScreen } from './prancheta.js';
 import {
-  affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, labFeatures, learningTracks,
+  affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, learningTracks,
   marketplaceCategories, mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
   appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav, walletProducts
 } from './agency-data.js';
@@ -38,12 +39,18 @@ const subTabs = {
     ['whatsapp', 'WhatsApp'], ['email-services', 'Serviços de e-mail'], ['emails', 'E-mails do sistema'], ['announcements', 'Comunicados'],
     ['workflow-premium', 'Workflow: recursos premium'], ['external-ai', 'Workflow: IA externa'], ['domain-purchase', 'Compra de domínios'],
     ['openai', 'OpenAI'], ['private-integrations', 'Integrações privadas'], ['affiliates', 'Afiliados'], ['menu-links', 'Links de menu'], ['abacatepay', 'AbacatePay'], ['api-keys', 'Chaves de API'],
-    ['compliance', 'Conformidade'], ['labs', 'Recursos experimentais'], ['audit', 'Logs de auditoria'], ['storage', 'Armazenamento de mídia'], ['ai-usage', 'Uso de IA']]
+    ['compliance', 'Conformidade'], ['labs', 'Recursos experimentais'], ['audit', 'Logs de auditoria'], ['storage', 'Armazenamento de mídia']],
+  'ai-suite': [['limits', 'Planos e limites'], ['usage', 'Painel de uso'], ['setup', 'Configuração']]
 };
+const aiPeriods = [['7', '7 dias'], ['30', '30 dias'], ['90', '90 dias'], ['month', 'Este mês']];
+const aiFilters = [['', 'Todas as subcontas'], ['nolimit', 'Sem limite'], ['near', 'Perto do limite'], ['blocked', 'No limite'], ['off', 'IA desligada']];
+const aiAlertSteps = [0.5, 0.6, 0.7, 0.8, 0.9, 0.95];
+// Where an account stands in Central de IA → Planos e limites.
+const aiState = a => !a.aiEnabled ? 'off' : !a.aiLimit ? 'nolimit' : a.aiCost >= a.aiLimit ? 'blocked' : a.aiCost >= a.aiLimit * (a.aiAlertAt || 0.8) ? 'near' : 'ok';
 
 export function startAgency(env) {
   const { app, overlay, api, flash, openWorkspace } = env;
-  const A = { data: null, openAI: null, openAIOnly: false, wa: null, waFocus: null, waPairOpen: false, page: 'dashboard', sub: '', query: '', status: '', category: '', mktOrigin: '', selected: new Set(), chat: [], auditPage: 0, navOpen: true };
+  const A = { data: null, openAI: null, openAIOnly: false, wa: null, waFocus: null, waPairOpen: false, page: 'dashboard', sub: '', query: '', status: '', category: '', mktOrigin: '', selected: new Set(), chat: [], auditPage: 0, navOpen: true, aiFilter: '', aiPeriod: '30', aiUsage: null };
   let waPollTimer = null;
   function stopWaPoll() { if (waPollTimer) { clearInterval(waPollTimer); waPollTimer = null; } }
   const G = s => document.querySelector(s);
@@ -254,15 +261,77 @@ export function startAgency(env) {
     return pranchetaScreen(pranchetaCtx);
   };
 
-  pages['ai-suite'] = () => {
-    const tools = [
-      ['Funcionário de IA', 'Uso ilimitado de recursos de IA para as subcontas da agência.', 'Disponível em todas as subcontas', ''],
-      ['AI Studio', 'Gere e edite protótipos de páginas e sites dentro de cada subconta.', 'Disponível em todas as subcontas', ''],
-      ['Agentes de IA', 'Crie agentes por descrição ou modelo, configure gatilhos, subagentes e recursos, teste e publique versões.', 'Disponível em todas as subcontas', '', 'ai-agents'],
-      ['Pergunte à Soci', 'Assistente executivo com respostas baseadas nos registros da agência.', 'Nível da agência', 'ask']
-    ];
-    return `<div class="page">${head('Central de IA', 'Ferramentas de Inteligência Artificial para potencializar sua agência e seus clientes.')}<div class="card-grid">${tools.map(([name, text, state, page, view]) => `<article class="surface padded resource"><span class="metric-icon">${i('spark')}</span><div><h2>${h(name)}</h2><p>${h(text)}</p></div>${badge(state, 'blue')}${page ? `<a class="text-link" href="#agency/${page}">Abrir ${i('arrow', 15)}</a>` : btn('Abrir em uma subconta', 'switch-account', view ? `data-view="${view}"` : '')}</article>`).join('')}</div></div>`;
+  // ---- Central de IA (7.2): limits per sub-account, usage over a period, defaults ----
+  const pct = value => `${Math.round(value * 100)}%`;
+  const aiLimitsTab = () => {
+    const all = accounts(), manage = A.data.access?.settings;
+    const list = all.filter(a => match(a.name, a.id) && (!A.aiFilter || aiState(a) === A.aiFilter)).sort((a, b) => (b.aiCost || 0) - (a.aiCost || 0));
+    const count = state => all.filter(a => aiState(a) === state).length;
+    const row = a => {
+      const state = aiState(a), used = a.aiLimit ? Math.min(100, (a.aiCost / a.aiLimit) * 100) : 0;
+      const status = { off: badge('IA desligada'), nolimit: badge('Sem limite', 'blue'), blocked: badge('No limite', 'red'), near: badge('Perto do limite', 'gold'), ok: badge('Dentro do limite', 'green') }[state];
+      return `<tr><td><b>${h(a.name)}</b><br><small class="dim">${h(a.id)}</small></td><td>${a.agents}</td>
+        <td>${sw(tr('IA ligada nesta subconta'), a.aiEnabled, `data-ag-ai-access="${a.id}"`, !manage)}</td>
+        <td>${a.aiResold ? badge('Carteira da subconta', 'blue') : badge('Agência')}</td>
+        <td>${formatUsd(a.aiCost)}${a.aiLimit ? `<br>${bar(used, state === 'blocked' ? 'low' : '')}` : ''}</td>
+        <td>${a.aiLimit ? `${formatUsd(a.aiLimit)}<br><small class="dim">${h(tr('alerta em'))} ${pct(a.aiAlertAt || 0.8)}</small>` : `<span class="dim">${h(tr('Sem limite'))}</span>`}</td>
+        <td>${status}</td><td class="right">${manage ? btn('Editar limite', 'ai-limit', `data-id="${a.id}"`) : ''}</td></tr>`;
+    };
+    return `<p class="dim">${h(tr('Gasto estimado com IA neste mês, pelos preços públicos dos modelos (a fatura da OpenAI é a referência). Quando a subconta chega ao limite, os recursos de IA param até o mês virar ou o limite subir.'))}</p>
+      <div class="metrics">${metric('Custo de IA no mês', formatUsd(O().totals.aiCost))}${metric('IA ligada', `${all.filter(a => a.aiEnabled).length} <small>/ ${all.length}</small>`)}${metric('Perto do limite', count('near'))}${metric('No limite', count('blocked'))}</div>
+      <div class="toolbar">${search('Buscar por nome ou ID da subconta…')}<select data-ag-ai-filter aria-label="${h(tr('Filtrar subcontas'))}">${aiFilters.map(([v, label]) => `<option value="${v}" ${A.aiFilter === v ? 'selected' : ''}>${h(tr(label))}</option>`).join('')}</select>${btn('Editar padrões', 'tab', 'data-sub="setup"', 'secondary', 'gear')}</div>
+      ${table(['Subconta', 'Agentes', 'IA', 'Cobrança', 'Uso no mês', 'Limite mensal', 'Situação', ''], list.map(row), empty('Nenhuma subconta encontrada', 'Mude a busca ou o filtro.'))}`;
   };
+  const aiUsageTab = () => {
+    const u = A.aiUsage || {}, period = A.aiPeriod || '30';
+    const periods = `<div class="inline-gap ag-gap" role="group" aria-label="${h(tr('Período'))}">${aiPeriods.map(([v, label]) => btn(label, 'ai-period', `data-period="${v}" aria-pressed="${v === period}"`, v === period ? 'primary' : 'secondary')).join('')}</div>`;
+    if (u.error) return `${periods}<p class="form-status" role="alert">${h(u.error)}</p>${btn('Tentar de novo', 'ai-period', `data-period="${period}"`)}`;
+    if (!u.data || u.period !== period) return `${periods}<p class="dim">${h(tr('Somando o uso de todas as subcontas…'))}</p>`;
+    const d = u.data, t = d.totals, days = Object.entries(d.byDay), max = Math.max(0.000001, ...days.map(([, x]) => x.cost));
+    const step = days.length > 31 ? 7 : days.length > 10 ? 3 : 1;
+    const kindLabel = key => usageKinds.find(([k]) => k === key)?.[1] || key;
+    const rank = (obj, label) => Object.entries(obj).sort((a, b) => b[1].cost - a[1].cost || b[1].calls - a[1].calls)
+      .map(([key, x]) => `<tr><td>${h(tr(label(key)))}</td><td>${x.calls}</td><td>${formatTokens(x.inputTokens + x.outputTokens)}</td><td>${formatUsd(x.cost)}</td><td>${bar(t.cost ? (x.cost / t.cost) * 100 : 0)}</td></tr>`);
+    return `${periods}
+      ${d.partial ? `<p class="surface padded ag-notice">${i('alert', 18)} ${h(tr('Alguma subconta muito ativa guarda só o mês atual completo: os dias mais antigos do período podem estar incompletos.'))}</p>` : ''}
+      <div class="metrics">${metric('Custo estimado', formatUsd(t.cost), `${day(d.from)} a ${day(d.to)}`)}${metric('Chamadas de IA', t.calls)}${metric('Tokens', formatTokens(t.inputTokens + t.outputTokens), `${formatTokens(t.inputTokens)} de entrada`)}${metric('Erros', t.errors)}</div>
+      <section class="surface padded"><h2>${h(tr('Custo por dia'))}</h2><div class="ag-chart ag-ai-chart">${days.map(([date, x], index) => `<div class="ag-col" title="${h(date.split('-').reverse().join('/'))}: ${h(formatUsd(x.cost))} · ${x.calls} ${h(tr('chamadas'))}"><span class="ag-colbar"><span data-h="${(x.cost / max) * 100}"></span></span><small>${index % step === 0 ? h(date.slice(8, 10) + '/' + date.slice(5, 7)) : ''}</small></div>`).join('')}</div></section>
+      <h2 class="section-heading">${h(tr('Por subconta'))}</h2>${table(['Subconta', 'Chamadas', 'Tokens', 'Custo', ''], d.byAccount.map(x => `<tr><td><b>${h(x.name)}</b></td><td>${x.calls}</td><td>${formatTokens(x.inputTokens + x.outputTokens)}</td><td>${formatUsd(x.cost)}</td><td>${bar(t.cost ? (x.cost / t.cost) * 100 : 0)}</td></tr>`), empty('Nenhum uso de IA no período', 'As chamadas de IA das subcontas aparecem aqui.'))}
+      <div class="ag-two"><section><h2 class="section-heading">${h(tr('Por produto'))}</h2>${table(['Produto', 'Chamadas', 'Tokens', 'Custo', ''], rank(d.byKind, kindLabel), '')}</section>
+      <section><h2 class="section-heading">${h(tr('Por modelo'))}</h2>${table(['Modelo', 'Chamadas', 'Tokens', 'Custo', ''], rank(d.byModel, key => key), '')}</section></div>`;
+  };
+  const aiSetupTab = () => {
+    const def = D().aiDefaults || { limit: 0, alertAt: 0.8, enabled: true }, manage = A.data.access?.settings;
+    const noLimit = accounts().filter(a => !a.aiLimit).length;
+    return `<div class="ag-two"><form class="surface padded settings-form" data-ag-form="ai-defaults"><h2>${h(tr('Padrões para subcontas novas'))}</h2><p class="dim">${h(tr('Toda subconta criada a partir de agora começa com estes valores.'))}</p>
+        <label>${h(tr('Limite mensal de IA (US$)'))}<input name="limit" type="number" min="0" max="100000" step="0.01" value="${h(def.limit)}"><small class="dim">${h(tr('Use 0 para não limitar.'))}</small></label>
+        <label>${h(tr('Avisar quando chegar a'))}<select name="alertAt">${aiAlertSteps.map(v => `<option value="${v}" ${Number(def.alertAt) === v ? 'selected' : ''}>${pct(v)} ${h(tr('do limite'))}</option>`).join('')}</select></label>
+        <label class="check"><input type="checkbox" name="enabled" ${def.enabled !== false ? 'checked' : ''}> ${h(tr('IA ligada nas subcontas novas'))}</label>
+        <button class="primary" ${manage ? '' : 'disabled'}>${h(tr('Salvar padrões'))}</button><p class="form-status" role="alert"></p></form>
+      <section class="surface padded"><h2>${h(tr('Aplicar o limite padrão agora'))}</h2><p class="dim">${h(tr('Leva o limite e o alerta padrão para as subcontas que já existem.'))}</p>
+        <div class="inline-gap">${btn(`Subcontas sem limite (${noLimit})`, 'ai-apply', 'data-scope="unlimited"', 'secondary')}${btn('Todas as subcontas', 'ai-apply', 'data-scope="all"', 'secondary')}</div>
+        <h2>${h(tr('Ligado à Central de IA'))}</h2>
+        <a class="line-item" href="#agency/settings/openai"><span>${h(tr('Chave da OpenAI usada pelas subcontas'))}</span>${i('arrow', 15)}</a>
+        <a class="line-item" href="#agency/saas/rebilling"><span>${h(tr('Revenda de IA com margem (carteira de créditos)'))}</span>${i('arrow', 15)}</a>
+        <a class="line-item" href="#agency/settings/labs"><span>${h(tr('Recursos experimentais (Labs)'))}</span>${i('arrow', 15)}</a></section></div>`;
+  };
+  pages['ai-suite'] = () => {
+    const sub = A.sub || 'limits';
+    const body = sub === 'usage' ? aiUsageTab() : sub === 'setup' ? aiSetupTab() : aiLimitsTab();
+    return `<div class="page">${head('Central de IA', 'Limites, uso e padrões de IA de todas as subcontas.')}${tabCard('ai-suite', body, 'Seções da Central de IA')}</div>`;
+  };
+  async function loadAiUsage(period = A.aiPeriod || '30') {
+    A.aiPeriod = period; A.aiUsage = { period }; render();
+    try { const data = await call('ai-usage', { period }); A.aiUsage = { period, data }; }
+    catch (e) { A.aiUsage = { period, error: e.message }; }
+    if (A.page === 'ai-suite' && A.sub === 'usage') render();
+  }
+  function editAiLimit(id) {
+    const a = accounts().find(x => x.id === id); if (!a) return;
+    dialog(`Limite de IA: ${a.name}`, `<div class="field-grid"><label>${h(tr('Limite mensal (US$)'))}<input name="limit" type="number" min="0" max="100000" step="0.01" value="${h(a.aiLimit || 0)}"></label>
+      <label>${h(tr('Avisar quando chegar a'))}<select name="alertAt">${aiAlertSteps.map(v => `<option value="${v}" ${Number(a.aiAlertAt || 0.8) === v ? 'selected' : ''}>${pct(v)} ${h(tr('do limite'))}</option>`).join('')}</select></label></div>
+      <p class="dim">${h(tr('Use 0 para não limitar. Gasto neste mês:'))} ${formatUsd(a.aiCost)}.</p>`, { form: 'ai-limit', id, submit: 'Salvar limite' });
+  }
 
   pages.dashboard = () => {
     const t = O().totals, growth = O().growth, max = Math.max(1, ...growth.map(g => g.total));
@@ -874,21 +943,23 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     abacatepay: abacateSettings,
     announcements: () => `<div class="page-head"><div><h2>Comunicados gerais</h2><p class="dim">Comunicados ativos são exibidos em banner de destaque no topo das subcontas selecionadas.</p></div>${primary('Novo comunicado', 'new-record', 'data-key="announcements"')}</div>${table(['Título', 'Estilo', 'Público-alvo', 'Status', ''], [...D().announcements].reverse().map(a => `<tr><td><b>${h(a.title)}</b><br><small class="dim">${h(a.body.slice(0, 90))}</small></td><td>${h(tr(a.tone))}</td><td><small>${a.accounts.length ? h(a.accounts.map(accountName).join(', ')) : 'Todas as subcontas'}</small></td><td>${badge(a.published ? 'Publicado' : 'Rascunho', a.published ? 'green' : '')}</td><td class="right">${btn('Editar', 'edit-record', `data-key="announcements" data-id="${a.id}"`)}</td></tr>`), empty('Nenhum comunicado', 'Crie comunicados informativos ou alertas para os clientes da agência.'))}`,
     emails: () => `<h2>E-mails do sistema</h2><p class="dim ag-hint">Modelos de e-mail disparados pela plataforma. O envio em produção requer um provedor de e-mail conectado.</p>${systemEmailKeys.map(([key, label]) => { const e = D().systemEmails[key]; return `<form class="surface padded settings-form ag-gap" data-ag-form="system-email" data-id="${key}"><h2>${h(tr(label))}</h2><label class="ag-full">Assunto<input name="subject" required value="${h(e.subject)}"></label><label class="ag-full">Mensagem<textarea name="body" required>${h(e.body)}</textarea></label><button class="primary">Salvar modelo</button><p class="form-status" role="alert"></p></form>`; }).join('')}`,
-    labs: () => `<form class="surface padded settings-form" data-ag-form="labs"><h2>Recursos experimentais (Labs)</h2><p class="dim">Ative antecipadamente funcionalidades e comportamentos em fase de experimentação.</p>${labFeatures.map(([key, label, text]) => `<label class="check ag-lab"><input type="checkbox" name="${key}" ${D().labs[key] ? 'checked' : ''}><span><b>${h(label)}</b><br><small class="dim">${h(text)}</small></span></label>`).join('')}<button class="primary">Salvar preferências</button><p class="form-status" role="alert"></p></form>`,
+    labs: () => {
+      const all = accounts(), manage = A.data.access?.settings;
+      const using = (key, mode) => mode === 'all' ? all.length : mode === 'optin' ? all.filter(a => (a.labsOn || []).includes(key)).length : 0;
+      return `<section class="surface padded"><h2>${h(tr('Recursos experimentais (Labs)'))}</h2><p class="dim">${h(tr('Funcionalidades em teste. Escolha para cada uma se fica desligada, se cada subconta decide em Configurações → Labs ou se fica ligada em todas.'))}</p></section>
+        ${table(['Recurso', 'Onde aparece', 'Disponibilidade', 'Em uso'], labCatalog.map(([key, title, text, where]) => {
+          const mode = D().labs?.[key] || 'off';
+          return `<tr><td><b>${h(tr(title))}</b><br><small class="dim">${h(tr(text))}</small></td><td>${h(tr(where))}</td>
+            <td><select data-ag-lab="${key}" aria-label="${h(tr('Disponibilidade de'))} ${h(tr(title))}" ${manage ? '' : 'disabled'}>${labModes.map(([v, label]) => `<option value="${v}" ${mode === v ? 'selected' : ''}>${h(tr(label))}</option>`).join('')}</select></td>
+            <td>${using(key, mode)} <small class="dim">/ ${all.length}</small></td></tr>`;
+        }), '')}`;
+    },
     compliance: () => { const c = D().compliance; return `<form class="surface padded settings-form" data-ag-form="compliance"><h2>Conformidade e privacidade (LGPD)</h2><div class="field-grid"><label>Período de retenção de dados (dias)<input name="retentionDays" type="number" min="0" max="3650" value="${c.retentionDays}"></label></div><label class="ag-full">Texto padrão de consentimento em formulários<textarea name="consent">${h(c.consent)}</textarea></label><label class="check"><input type="checkbox" name="cookieBanner" ${c.cookieBanner ? 'checked' : ''}> Exibir aviso e banner de cookies nas páginas publicadas</label><label class="check"><input type="checkbox" name="hipaa" ${c.hipaa ? 'checked' : ''}> Modo de dados sensíveis de saúde (requer o complemento correspondente)</label><button class="primary">Salvar conformidade</button><p class="form-status" role="alert"></p></form>`; },
     audit: () => {
       const rows = [...D().audit].reverse().filter(a => match(a.actor, a.action, a.target, a.details));
       const per = 50, pgs = Math.max(1, Math.ceil(rows.length / per)); A.auditPage = Math.min(A.auditPage, pgs - 1);
       return `<div class="toolbar">${search('Buscar no log de auditoria…')}${btn('Exportar CSV', 'audit-csv', '', 'secondary', 'download')}</div>${table(['Data/Hora', 'Usuário', 'Ação', 'Alvo', 'Detalhes'], rows.slice(A.auditPage * per, A.auditPage * per + per).map(a => `<tr><td>${day(a.at, true)}</td><td>${h(a.actor)}</td><td><b>${h(a.action)}</b></td><td>${h(a.target)}</td><td><small>${h(a.details)}</small></td></tr>`), empty('Nenhuma atividade recente', 'Todas as alterações realizadas na agência e nas subcontas são auditadas aqui.'))}
         ${pgs > 1 ? `<div class="inline-gap ag-gap">${btn('Anterior', 'audit-page', `data-step="-1" ${A.auditPage ? '' : 'disabled'}`)}<span>Página ${A.auditPage + 1} de ${pgs}</span>${btn('Próxima', 'audit-page', `data-step="1" ${A.auditPage < pgs - 1 ? '' : 'disabled'}`)}</div>` : ''}`;
-    },
-    'ai-usage': () => {
-      const list = [...accounts()].sort((a, b) => (b.aiCost || 0) - (a.aiCost || 0));
-      const max = Math.max(0.000001, ...list.map(a => a.aiCost || 0));
-      const limited = list.filter(a => a.aiLimit > 0);
-      return `<p class="dim">Custo estimado das chamadas de IA neste mês, pelos preços públicos dos modelos. A fatura da OpenAI é a referência. O limite mensal de cada subconta é definido em Estúdio de agentes → Uso de IA.</p>
-        <div class="metrics three">${metric('Custo de IA no mês', formatUsd(O().totals.aiCost))}${metric('Subcontas com limite', `${limited.length} de ${list.length}`)}${metric('No limite', limited.filter(a => a.aiCost >= a.aiLimit).length)}</div>
-        ${table(['Subconta', 'Custo no mês', 'Limite mensal', ''], list.map(a => `<tr><td><b>${h(a.name)}</b></td><td>${formatUsd(a.aiCost)}</td><td>${a.aiLimit ? `${formatUsd(a.aiLimit)}${a.aiCost >= a.aiLimit ? ' <span class="badge pink">Atingido</span>' : ''}` : '<span class="dim">Sem limite</span>'}</td><td>${bar(((a.aiCost || 0) / max) * 100)}</td></tr>`), '')}`;
     },
     storage: () => { const total = O().totals.storage, max = Math.max(1, ...accounts().map(a => a.storage)); return `<div class="metrics three">${metric('Total de arquivos armazenados', bytes(total))}${metric('Quantidade de arquivos', accounts().reduce((s, a) => s + a.files, 0))}${metric('Subcontas ativas', accounts().length)}</div>${table(['Subconta', 'Arquivos', 'Espaço utilizado', ''], [...accounts()].sort((a, b) => b.storage - a.storage).map(a => `<tr><td><b>${h(a.name)}</b></td><td>${a.files}</td><td>${bytes(a.storage)}</td><td>${bar((a.storage / max) * 100)}</td></tr>`), '')}`; }
   };
@@ -945,6 +1016,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       if (isOpenAIPage() && A.data.access.session && !A.openAI) await refreshOpenAI();
       if (isWhatsAppPage() && !A.wa) await refreshWhatsApp();
       if (isAbacatePage() && !A.abacate) await refreshAbacate();
+      if (A.page === 'ai-suite' && A.sub === 'usage' && (!A.aiUsage || A.aiUsage.period !== (A.aiPeriod || '30'))) await loadAiUsage();
       return;
     }
     if (loading) return;
@@ -961,6 +1033,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       if (isOpenAIPage() && data.access.session && !A.openAI) await refreshOpenAI();
       if (isWhatsAppPage() && !A.wa) await refreshWhatsApp();
       if (isAbacatePage() && !A.abacate) await refreshAbacate();
+      if (A.page === 'ai-suite' && A.sub === 'usage') void loadAiUsage();
     } catch (e) {
       if (currentVisit !== visit || !active()) return;
       if (e.status === 403 && isOpenAIPage()) {
@@ -1007,6 +1080,15 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const d = b.dataset, id = d.id;
     try {
       switch (d.ag) {
+        case 'ai-limit': editAiLimit(id); break;
+        case 'ai-period': await loadAiUsage(d.period); break;
+        case 'ai-apply': {
+          const def = D().aiDefaults || {}, all = d.scope === 'all';
+          confirmBox(all ? 'Aplicar o limite padrão em todas as subcontas?' : 'Aplicar o limite padrão nas subcontas sem limite?',
+            `${def.limit ? `US$ ${Number(def.limit).toFixed(2)} por mês, com alerta em ${pct(def.alertAt || 0.8)}.` : 'O limite padrão é 0: as subcontas ficam sem limite.'}${all ? ' Os limites definidos uma a uma são substituídos.' : ''}`,
+            'ai-apply', d.scope, 'Aplicar');
+          break;
+        }
         case 'bg-new': editGroup(); break;
         case 'bg-edit': editGroup(id); break;
         case 'bg-open': await openGroup(id); break;
@@ -1235,6 +1317,16 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     try {
       if (el.matches('[data-ag-user]')) { if (el.value) localStorage.setItem('go.user', el.value); else localStorage.removeItem('go.user'); location.reload(); }
       if (el.matches('[data-ag-status]')) { A.status = el.value; render(); G('[data-ag-status]').focus(); }
+      if (el.matches('[data-ag-ai-filter]')) { A.aiFilter = el.value; render(); G('[data-ag-ai-filter]').focus(); }
+      if (el.matches('[data-ag-ai-access]')) {
+        const x = el.dataset.agAiAccess;
+        await call('ai-access', { workspace: x, on: el.checked }); render(); G(`[data-ag-ai-access="${x}"]`)?.focus();
+        flash(el.checked ? 'IA ligada na subconta.' : 'IA desligada na subconta.');
+      }
+      if (el.matches('[data-ag-lab]')) {
+        const key = el.dataset.agLab;
+        await act('labs', { data: { [key]: el.value } }); render(); G(`[data-ag-lab="${key}"]`)?.focus(); flash('Recursos experimentais atualizados.');
+      }
       if (el.matches('[data-ag-category]')) { A.category = el.value; render(); G('[data-ag-category]').focus(); }
       if (el.matches('[data-ag-mkt-origin]')) { A.mktOrigin = el.value; render(); G('[data-ag-mkt-origin]').focus(); }
       if (el.matches('[data-ag-mkt-pick]')) {
@@ -1399,7 +1491,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'auto-recharge': await act('auto-recharge', { data }); msg = 'Regras de alerta de saldo salvas.'; break;
         case 'wallet': await act('wallet', { data }); msg = 'Lançamento na carteira registrado.'; break;
         case 'system-email': await act('system-email', { id, data }); msg = 'Modelo de e-mail salvo.'; break;
-        case 'labs': await act('labs', { data }); msg = 'Recursos experimentais atualizados.'; break;
+        case 'ai-defaults': await act('ai-defaults', { data }); msg = 'Padrões de IA salvos.'; break;
+        case 'ai-limit': await call('ai-limit', { workspace: id, limit: Number(data.limit) || 0, alertAt: Number(data.alertAt) }); msg = 'Limite de IA salvo.'; break;
+        case 'ai-apply': { const changed = await call('ai-apply-defaults', { scope: id }); msg = `Limite padrão aplicado em ${changed} subconta(s).`; break; }
         case 'compliance': await act('compliance', { data }); msg = 'Configurações de conformidade salvas.'; break;
         case 'api-key': { const r = await act('api-key', { data }); close(); render(); secretBox('Chave de API criada', r.secret); keepOpen = true; msg = ''; break; }
         case 'api-key-delete': await act('api-key-delete', { id }); msg = 'Chave de API revogada.'; break;

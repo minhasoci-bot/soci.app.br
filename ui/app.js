@@ -45,6 +45,8 @@ import { installScheduling } from './scheduling.js';
 import { installMeetings } from './meetings.js';
 import { installSeo } from './seo.js';
 import { installWallet } from './wallet.js';
+import { installLabs } from './labs.js';
+import { installConversationAi } from './conversation-ai.js';
 import { contactPreferences, installPreferences } from './preferences.js';
 import { installContactTrash } from './contact-trash.js';
 import { afterDocumentsRender, installDocuments } from './documents.js';
@@ -1129,6 +1131,8 @@ if(viewPath){
   installReputation({ c, api, url, mutate, flash, dialog, close, render });
   installSeo({ c, api, url, mutate, flash, dialog, close, render });
   installWallet({ c, api, url, flash, render });
+  installLabs({ c, mutate, flash, render });
+  installConversationAi({ c, api, url, flash, render });
   installContentAI({ api, flash, workspace: () => c.workspace, enabled: kind => Boolean(c.features?.contentAI || (kind === 'gbp' && c.features?.reviewAI)) });
   installCountdowns({ c, mutate, flash, dialog, close, render });
   installAffiliates({ c, api, url, mutate, flash, dialog, close, render });

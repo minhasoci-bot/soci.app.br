@@ -191,13 +191,6 @@ export const systemEmailKeys = [
   ['appointment', 'Appointment reminder', 'Reminder: {{appointment.title}}', 'Your appointment starts at {{appointment.start}}.']
 ];
 
-export const labFeatures = [
-  ['workflowAi', 'AI workflow builder', 'Describe a workflow and get a draft in the builder.'],
-  ['newInbox', 'Unified inbox preview', 'Group conversations from every channel in one list.'],
-  ['bulkSnapshots', 'Bulk setup loading', 'Load one account setup into several sub-accounts at once.'],
-  ['darkSidebar', 'Compact sidebar', 'Narrower navigation for small screens.']
-];
-
 export const mobileModules = [['dashboard', 'Dashboard'], ['conversations', 'Conversations'], ['contacts', 'Contacts'], ['opportunities', 'Opportunities'], ['calendars', 'Calendars'], ['payments', 'Payments'], ['reputation', 'Reviews']];
 
 export const snapshotAssets = [

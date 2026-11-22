@@ -49,7 +49,7 @@ const commandModules = {
   'community-event-ticket': 'memberships', 'community-event-joined': 'memberships', 'community-event-reminders': 'memberships',
   'community-plan-invoice': 'memberships', 'community-welcome': 'memberships', 'community-newsletter': 'memberships', 'course-activity': 'memberships', 'credential-issue': 'memberships', 'credential-revoke': 'memberships',
   'ticket-create': 'conversations', 'ticket-update': 'conversations', 'ticket-note': 'conversations', 'ticket-reply': 'conversations', 'ticket-settings': 'conversations', 'sequence-enroll': 'marketing', 'sequence-remove': 'marketing', 'seo-settings': 'reputation', 'seo-audit': 'reputation', 'visibility-settings': 'reputation', 'visibility-run': 'reputation', 'meeting-transcript': 'calendars', 'meeting-summary': 'calendars', 'meeting-tasks': 'calendars', 'meeting-note': 'calendars', 'scheduling-settings': 'calendars', 'scheduling-book': 'calendars', 'field-status': 'calendars', 'loyalty-settings': 'marketing', 'loyalty-adjust': 'marketing', 'loyalty-redeem': 'marketing', 'preferences-settings': 'settings', 'preferences-link': 'contacts', 'preferences-save': 'contacts', 'contact-restore': 'contacts', 'contact-trash-purge': 'contacts', 'contact-trash-empty': 'contacts',
-  onboarding: 'dashboard', profile: 'settings',
+  onboarding: 'dashboard', profile: 'settings', 'labs-toggle': 'settings',
   'workflow-enroll': 'automation', 'workflow-restore': 'automation', 'workflow-move': 'automation',
   'document-send': 'payments', 'document-void': 'payments', 'document-link': 'payments',
   'estimate-send': 'payments', 'estimate-link': 'payments', 'estimate-revise': 'payments', 'estimate-status': 'payments', 'estimate-invoice': 'payments',
@@ -59,7 +59,7 @@ const commandModules = {
 const agencySettingsCommands = new Set([
   'account-meta', 'account-reactivate', 'saas-mode', 'saas-rebilling', 'rebill-account', 'saas-account', 'workflow-builder',
   'sub-feature', 'email-domain', 'email-domain-accounts', 'email-domain-remove', 'affiliate-pixel', 'profile',
-  'company', 'billing-plan', 'wallet', 'auto-recharge', 'system-email', 'labs', 'compliance',
+  'company', 'billing-plan', 'wallet', 'auto-recharge', 'system-email', 'labs', 'ai-defaults', 'compliance',
   'api-key', 'api-key-delete', 'private-integration', 'private-integration-delete', 'resell',
   'addon-request', 'addon-cancel', 'affiliate-pay', 'mobile-app', 'desktop-app', 'desktop-app-publish', 'integration',
   'app-install', 'app-uninstall', 'app-resell'
@@ -185,6 +185,8 @@ export function workspaceView(access, state) {
       : hasModule(access, 'contacts') || (field.object === 'Contact' && hasModule(access, 'sites')));
   }
   if (!snapshotSources.every(module => hasModule(access, module))) view.dashboardReports = [];
+  // Every screen needs to know which Labs features are on (Conversas shows the AI buttons, for one).
+  view.labs = state.labs || view.labs;
   for (const key of ['bulkActions', 'imports']) {
     view[key] = state[key].filter(row => hasModule(access, row.object === 'opportunities' ? 'opportunities' : 'contacts'));
   }

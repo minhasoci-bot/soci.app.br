@@ -11,7 +11,9 @@ import { localPlan, questionsFor, validDesign, validPlan } from './ui/studio-des
 import { designAgent, replyAsAgent } from './agent-ai.mjs';
 import { createOpenAI, openAIModel } from './openai.mjs';
 import { agentBuildRequest, agentPreview, applyAgentDesign, editAgent, recordAgentRun } from './agent-model.mjs';
-import { checkAiBudget, editAgentTemplate, editKnowledgeBase, setAiLimit, usageMeter } from './ai-model.mjs';
+import { agencyAiUsage, checkAiBudget, editAgentTemplate, editKnowledgeBase, setAiAccess, setAiLimit, usageMeter } from './ai-model.mjs';
+import { requireLab, setLabsOffer } from './labs-model.mjs';
+import { conversationRequest, writeConversationReply, writeConversationSummary } from './conversation-ai.mjs';
 import { usageSummary } from './ui/ai-data.js';
 import { brandVoiceRequest, emailRequest, reviewReplyRequest, transformRequest, transformText, writeBrandVoice, writeEmail, writeReviewReply } from './content-ai.mjs';
 import { brandFromPage, fetchPublicPage } from './brand-model.mjs';
@@ -141,7 +143,7 @@ const staticFiles = new Map([
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
@@ -172,7 +174,7 @@ const privateSpace = /^user-[0-9a-f-]{36}$/;
 const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
-const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community|offer-grant|loyalty)(?:/([0-9a-f-]{36}))?$`);
+const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community|offer-grant|loyalty|admin-enter)(?:/([0-9a-f-]{36}))?$`);
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const chatPath = new RegExp(`^/chat/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js|demo))?/?$`);
 const chatApi = new RegExp(`^/api/chat/${workspaceSegment}/([0-9a-f-]{36})/(start|send|messages)$`);
@@ -256,7 +258,7 @@ export function makeServer({
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
 }={}) {
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
-  const content = { transformText, writeEmail, writeReviewReply, writeBrandVoice, writeCaption, writePost, postSeo, transcribeAudio, summarizeMeeting, askAssistant, ...contentAI };
+  const content = { transformText, writeEmail, writeReviewReply, writeBrandVoice, writeCaption, writePost, postSeo, transcribeAudio, summarizeMeeting, askAssistant, writeConversationReply, writeConversationSummary, ...contentAI };
   // The default brand board's voice, added by the server to every AI writer (never taken from the browser).
   const brandVoiceOf = async workspace => brandVoicePrompt(defaultBoard((await store.load(workspace)).brandBoards));
   // One AI request for a sub-account: checks the monthly limit, meters every OpenAI call and books it.
@@ -551,6 +553,11 @@ export function makeServer({
     const agency = await loadAgency(agencyId);
     for (const w of workspaces) await store.change(w.id, s => { setPricing(s, pricingFor(agency, w.id)); });
   }
+  // Labs: the agency's mode for each feature, copied into every sub-account.
+  async function syncLabs(agencyId, workspaces) {
+    const agency = await loadAgency(agencyId);
+    for (const w of workspaces) await store.change(w.id, s => { setLabsOffer(s, agency.labs); });
+  }
   async function recordAudit(who, action, target, details = '') {
     try { await changeAgency(who.agencyId, agency => logTo(agency, who, action, target, details)); }
     catch { /* Audit entries are best effort and never undo the action itself. */ }
@@ -579,6 +586,11 @@ export function makeServer({
       requireSetupModules(effectiveAccess(planned, who, newId), Object.keys(snap.assets || {}));
       loaded = { snap, report: applySnapshot(state, snap, 'skip', studioMap) };
     }
+    // Central de IA defaults and the agency's Labs offer start with the new sub-account.
+    const aiDefaults = agency.aiDefaults || {};
+    state.ai = { ...state.ai, limit: Number(aiDefaults.limit) || 0, alertAt: Number(aiDefaults.alertAt) || 0.8 };
+    setAiAccess(state, aiDefaults.enabled !== false);
+    setLabsOffer(state, agency.labs);
     await store.insert(newId, state);
     if (loaded) await applyStudioSites(loaded.snap, studioMap, newId);
     await changeAgency(who.agencyId, a => {
@@ -851,7 +863,44 @@ export function makeServer({
       });
       // Reselling prices are copied into each sub-account's wallet.
       if (['saas-rebilling', 'rebill-account'].includes(input.type)) await syncWallets(who.agencyId, workspaces);
+      if (input.type === 'labs') await syncLabs(who.agencyId, workspaces);
       return outcome;
+    }
+    // Central de IA: usage over a period, and the agency's limit and switch for each sub-account.
+    if (op === 'ai-usage') {
+      const workspaces = await listWorkspaces(who.agencyId);
+      const rows = await Promise.all(workspaces.map(async w => ({ id: w.id, name: w.name, ai: (await store.load(w.id)).ai })));
+      return agencyAiUsage(rows, String(input.period || '30'));
+    }
+    if (['ai-limit', 'ai-access', 'ai-apply-defaults'].includes(op)) {
+      requireCapability(who, 'settings', 'Seu usuário não pode mudar os limites de IA das subcontas.');
+      const workspaces = await listWorkspaces(who.agencyId);
+      if (op === 'ai-apply-defaults') {
+        const { limit = 0, alertAt = 0.8 } = (await loadAgency(who.agencyId)).aiDefaults || {};
+        const all = input.scope === 'all';
+        let changed = 0;
+        for (const w of workspaces) {
+          const done = await store.change(w.id, s => {
+            if (!all && Number(s.ai?.limit) > 0) return false;
+            setAiLimit(s, { limit, alertAt });
+            return true;
+          });
+          if (done) changed += 1;
+        }
+        await recordAudit(who, 'Limite padrão de IA aplicado', all ? 'Todas as subcontas' : 'Subcontas sem limite', `US$ ${Number(limit).toFixed(2)} em ${changed} subconta(s)`);
+        return changed;
+      }
+      const workspace = workspaces.find(w => w.id === String(input.workspace || ''));
+      if (!workspace) throw error('Subconta não encontrada.', 404);
+      if (op === 'ai-limit') {
+        const usage = await store.change(workspace.id, s => setAiLimit(s, input));
+        await recordAudit(who, 'Limite de IA alterado', workspace.name, usage.limit ? `US$ ${usage.limit.toFixed(2)} por mês, alerta em ${Math.round((Number(input.alertAt) || 0.8) * 100)}%` : 'Sem limite');
+        return usage.limit;
+      }
+      const on = input.on === true || input.on === 'true';
+      await store.change(workspace.id, s => setAiAccess(s, on));
+      await recordAudit(who, on ? 'IA ligada na subconta' : 'IA desligada na subconta', workspace.name);
+      return on;
     }
     if (op === 'brand-group-report') {
       const agency = await loadAgency(who.agencyId);
@@ -1677,9 +1726,36 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const input = method === 'POST' ? await payload(req) : null;
           await requireActiveAccount(who.agencyId, workspace, true);
           const state = await store.load(workspace);
+          if (input?.action === 'staff-enter') {
+            const staffUser = {
+              email: who.session?.email || state.profile?.email || 'admin@soci.app.br',
+              name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador'
+            };
+            const result = await clientPortal.admin(workspace, state, { ...input, ...staffUser });
+            if (result.memberId && state.communities?.length) {
+              await community.enroll(workspace, result.memberId, state.communities.map(g => g.id));
+            }
+            return json(result);
+          }
           return json(await clientPortal.admin(workspace, state, input));
         }
         const secure = proto === 'https';
+        if (method === 'POST' && operation === 'admin-enter') {
+          const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'] });
+          await requireActiveAccount(who.agencyId, workspace, true);
+          const state = await store.load(workspace);
+          const staffUser = {
+            email: who.session?.email || state.profile?.email || 'admin@soci.app.br',
+            name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador'
+          };
+          const result = await clientPortal.admin(workspace, state, { action: 'staff-enter', ...staffUser });
+          if (result.memberId && state.communities?.length) {
+            await community.enroll(workspace, result.memberId, state.communities.map(g => g.id));
+          }
+          const session = await clientPortal.exchange(workspace, result.token);
+          portalCookie(req, res, workspace, session, secure);
+          return json({ ok: true });
+        }
         if (method === 'POST' && operation === 'exchange') {
           const { token } = await payload(req);
           await publicAccountPolicy(workspace, true, 'memberships');
@@ -1702,7 +1778,23 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         await publicAccountPolicy(workspace, false, 'memberships');
         const state = await store.load(workspace);
         const lessonId = String(url.searchParams.get('lesson') || '').slice(0, 60);
-        const page = await clientPortal.content(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId, lessonId);
+        let page = await clientPortal.content(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId, lessonId);
+        if (operation === 'home' && !page.signedIn && auth?.hasSession(req)) {
+          try {
+            const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'], hide: true });
+            const staffUser = {
+              email: who.session?.email || state.profile?.email || 'admin@soci.app.br',
+              name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador'
+            };
+            const result = await clientPortal.admin(workspace, state, { action: 'staff-enter', ...staffUser });
+            if (result.memberId && state.communities?.length) {
+              await community.enroll(workspace, result.memberId, state.communities.map(g => g.id));
+            }
+            const session = await clientPortal.exchange(workspace, result.token);
+            portalCookie(req, res, workspace, session, secure);
+            page = await clientPortal.content(workspace, state, session, courseId, lessonId);
+          } catch {}
+        }
         if (operation === 'home' && page.signedIn) {
           const { member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,secure));
           page.communities = await community.home(workspace, state, member);
@@ -2768,6 +2860,22 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para responder com IA.', 409);
         }
         return json(await meteredAI(who, id, 'reputation', connection => content.writeReviewReply(connection, request)));
+      }
+      // Labs in Conversas: a reply draft or a summary of the history with one contact (metered as "conversations").
+      const conversationAI = p.match(/^\/api\/conversations\/ai\/(reply|summary)$/);
+      if (conversationAI && method === 'POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
+        const who = await workspaceAccess(req, res, id, { modules: ['conversations'] });
+        const mode = conversationAI[1];
+        const state = await store.load(id);
+        requireLab(state, mode === 'reply' ? 'conversation-reply' : 'conversation-summary');
+        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
+          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para usar a IA nas conversas.', 409);
+        }
+        const body = await payload(req);
+        const request = conversationRequest(state, String(body.contactId || ''), { mode, language: body.language });
+        const write = mode === 'reply' ? content.writeConversationReply : content.writeConversationSummary;
+        return json(await meteredAI(who, id, 'conversations', connection => write(connection, request)));
       }
       // Meetings + Notes AI: transcribe a meeting's audio, or summarize its transcript (both metered as "meetings").
       const meetingAction = p.match(/^\/api\/meetings\/(transcribe|summarize)$/);

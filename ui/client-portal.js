@@ -166,8 +166,8 @@ export function installClientPortal({ c, api, flash, dialog, close }) {
       `<option value="member:${h(member.id)}">${h(member.name || member.email)}${member.name ? ` · ${h(member.email)}` : ''}</option>`) : [];
     return [...clients,...contacts].join('');
   };
-  const picker = (action, label = 'Contato') => `<label>${label}<select name="recipient" required aria-label="${label}">
-      <option value="">Buscar por nome ou e-mail</option>${contactOptions(action)}</select></label>`;
+  const picker = (action, label = 'Contato') => `<label>${label}<input name="recipient" required list="cp-picker-list" autocomplete="off" placeholder="Digite um e-mail ou escolha da lista">
+      <datalist id="cp-picker-list">${contactOptions(action)}</datalist></label>`;
   const emailToggle = (name, text, checked) => current.emailConfigured
     ? `<label class="cp-checkbox"><input name="${name}" type="checkbox" ${checked ? 'checked' : ''}> ${text}</label>`
     : `<label class="cp-checkbox cp-unavailable"><input type="checkbox" disabled> <span>${text}<small>Configure um remetente de e-mail para enviar.</small></span></label>`;
@@ -253,8 +253,14 @@ export function installClientPortal({ c, api, flash, dialog, close }) {
     }
     if (action === 'permissions') input.courseIds = fields.getAll('courseIds');
     if (input.recipient) {
-      const [kind, id] = input.recipient.split(':');
-      input[kind === 'member' ? 'memberId' : 'contactId'] = id;
+      if (input.recipient.includes(':')) {
+        const [kind, id] = input.recipient.split(':');
+        input[kind === 'member' ? 'memberId' : 'contactId'] = id;
+      } else {
+        input.email = input.recipient.trim();
+        const contact = c.s.contacts.find(row => (row.email || '').trim().toLowerCase() === input.email.toLowerCase());
+        if (contact) input.contactId = contact.id;
+      }
     }
     const submit = form.querySelector('button[type="submit"]'), status = form.querySelector('[data-portal-error]');
     const opening = c.workspace;

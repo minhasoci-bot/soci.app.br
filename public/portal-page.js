@@ -101,7 +101,7 @@ function draw(message = '') {
       `<section class="cp-public-card cp-signin"><div class="cp-course-icon">${icon('key',24)}</div>
         <h1>Acesse seu portal</h1>
         ${access ? '<p>Confirme para entrar com o seu link de acesso.</p><button type="button" class="cp-public-primary" data-portal-public="enter">Entrar no portal</button>' :
-          '<p>Peça um link de acesso à equipe responsável por seus cursos.</p>'}</section>`}
+          '<p>Peça um link de acesso à equipe responsável por seus cursos.</p><button type="button" class="cp-public-ghost" data-portal-public="admin-enter">${icon('user',16)} Entrar como equipe / administrador</button>'}</section>`}
   </div>`;
 }
 
@@ -128,6 +128,16 @@ root.addEventListener('click', async event => {
       await api('exchange',{ token:access });
       access = null;
       portal = await api('home');
+    } else if (action === 'admin-enter') {
+      await api('admin-enter', {});
+      portal = await api('home');
+      const hash = new URLSearchParams(location.hash.slice(1));
+      const targetCommunity = new URLSearchParams(location.search).get('comunidade') || hash.get('comunidade');
+      if (targetCommunity) {
+        Object.assign(cmUi, { tab: 'discussion', channel: '', period: '30' });
+        await loadCommunity(targetCommunity);
+        cmUi.tab = (community?.group?.tabs || []).find(tab => tab.visible !== false)?.key || 'discussion';
+      }
     } else if (action === 'logout') {
       await api('logout',{});
       course = null;
@@ -273,10 +283,22 @@ window.addEventListener('hashchange', () => {
 });
 
 try {
+  if (access !== null) {
+    try {
+      await api('exchange', { token: access });
+      access = null;
+    } catch {}
+  }
   portal = await api('home');
-  if (access !== null) portal.signedIn = false;
-  // Back from paying an event ticket: the seat shows up in the community's Eventos once AbacatePay confirms.
-  const query = new URLSearchParams(location.search), ticket = query.get('evento'), plan = query.get('plano');
+  const query = new URLSearchParams(location.search);
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const targetCommunity = query.get('comunidade') || hash.get('comunidade');
+  if (targetCommunity && portal?.signedIn) {
+    Object.assign(cmUi, { tab: 'discussion', channel: '', period: '30' });
+    await loadCommunity(targetCommunity);
+    cmUi.tab = (community?.group?.tabs || []).find(tab => tab.visible !== false)?.key || 'discussion';
+  }
+  const ticket = query.get('evento'), plan = query.get('plano');
   if (ticket || plan) history.replaceState(null, '', location.pathname + location.hash);
   draw(ticket === 'pago' ? 'Pagamento recebido. Seu ingresso aparece na aba Eventos da comunidade assim que o pagamento for confirmado.' : ticket === 'voltou' ? 'O pagamento do ingresso não foi concluído. Você pode tentar de novo na aba Eventos.'
     : plan === 'pago' ? 'Pagamento recebido. O acesso à comunidade é liberado assim que o pagamento for confirmado.' : plan === 'voltou' ? 'A assinatura não foi concluída. Você pode tentar de novo na página da comunidade.' : '');

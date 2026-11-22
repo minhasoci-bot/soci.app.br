@@ -25,7 +25,8 @@ export function communitiesScreen(c) {
     return `<div class="page cp-admin cm-admin">
       <a class="text-link co-back" href="#memberships/communities">${icon('left',15)} Comunidades</a>
       <header class="cm-head"><span class="cm-head-cover">${cover(c, group) ? `<img src="${h(cover(c, group))}" alt="">` : icon('users',24)}</span>
-        <div><h1>${h(group.name)}</h1><p>${visibility(group)} ${group.active === false ? '<span class="badge">Desativada</span>' : ''} <span>${h(group.description || 'Sem descrição')}</span></p></div></header>
+        <div><h1>${h(group.name)}</h1><p>${visibility(group)} ${group.active === false ? '<span class="badge">Desativada</span>' : ''} <span>${h(group.description || 'Sem descrição')}</span></p></div>
+        <div class="cm-head-actions" style="margin-left:auto"><a class="secondary" href="/portal/${encodeURIComponent(c.workspace)}#comunidade=${encodeURIComponent(group.id)}" target="_blank" rel="noopener">${icon('external',15)} Ver no portal</a></div></header>
       <nav class="cm-tabs" aria-label="Seções da comunidade">${detailTabs.map(([value, label]) => `<button type="button" data-cm="tab" data-id="${value}" ${ui.tab === value ? 'aria-current="page"' : ''}>${label}</button>`).join('')}</nav>
       <div data-community-root="${h(id)}" aria-live="polite">${ui.tab === 'settings' ? settings(c, group) : '<div class="cm-loading">Carregando…</div>'}</div></div>`;
   }
@@ -37,7 +38,8 @@ export function communitiesScreen(c) {
         <h3><a href="#memberships/community/${encodeURIComponent(group.id)}">${h(group.name)}</a></h3>
         ${group.description ? `<p>${h(group.description)}</p>` : ''}
         <small data-community-stats="${h(group.id)}">${group.channels.length} ${group.channels.length === 1 ? 'canal' : 'canais'}</small>
-        <div class="co-card-actions"><a class="secondary" href="#memberships/community/${encodeURIComponent(group.id)}">${icon('edit',15)} Gerenciar</a></div></div></article>`).join('')}</div>`
+        <div class="co-card-actions"><a class="secondary" href="#memberships/community/${encodeURIComponent(group.id)}">${icon('edit',15)} Gerenciar</a>
+          <a class="secondary" href="/portal/${encodeURIComponent(c.workspace)}#comunidade=${encodeURIComponent(group.id)}" target="_blank" rel="noopener">${icon('external',15)} Ver no portal</a></div></div></article>`).join('')}</div>`
       : `<div class="co-empty">${icon('users',28)}<strong>Crie sua primeira comunidade</strong>
         <p>Um espaço para seus clientes trocarem ideias, tirarem dúvidas e acompanharem novidades, dentro do portal do cliente.</p>
         <button type="button" class="primary" data-cm="create">${icon('plus',16)} Criar comunidade</button></div>`}`);

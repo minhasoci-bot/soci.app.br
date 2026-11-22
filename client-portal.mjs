@@ -47,10 +47,10 @@ function grant(member, ids) {
 function recipient(state, input, action) {
   const contact = input.contactId && state.contacts.find(row => row.id === input.contactId);
   if (input.contactId && !contact) fail('Contato não encontrado nesta subconta.', 404);
-  if (!contact && action !== 'invite') fail('Selecione um contato para gerar o link.');
+  if (!contact && !input.email) fail('Selecione um contato para gerar o link.');
   const email = emailOf(contact ? contact.email : input.email);
   if (!/^[^\s@,<>]+@[^\s@,<>]+\.[^\s@,<>]+$/.test(email)) fail('Informe um e-mail válido.');
-  return { email, name: contact?.name || '', contactId: contact?.id || '' };
+  return { email, name: contact?.name || input.name || '', contactId: contact?.id || '' };
 }
 
 function person(doc, address) {
@@ -163,6 +163,30 @@ export function makeClientPortal({
         return { ...issued, sent: true };
       }
       return { ...issued, accessPath };
+    }
+
+    if (action === 'staff-enter') {
+      const email = emailOf(input.email || state.profile?.email || 'admin@soci.app.br');
+      const name = text(input.name || state.profile?.name || 'Administrador', 120);
+      const token = secret(), fingerprint = digest(token);
+      const allCourses = (state.courses || []).map(c => c.id);
+      const memberId = await change(workspace, doc => {
+        const now = Date.now(), created = new Date(now).toISOString();
+        let member = doc.members.find(row => row.email === email);
+        if (!member) {
+          member = { id: randomUUID(), email, name, contactId: '', courseIds: [], created };
+          doc.members.push(member);
+        }
+        member.name ||= name;
+        member.joinedAt ||= created;
+        delete member.revokedAt;
+        grant(member, [...new Set([...(member.courseIds || []), ...allCourses])]);
+        doc.links = (doc.links || []).filter(link => link.expires > now);
+        doc.links.push({ memberId: member.id, fingerprint, expires: now + 60 * 60 * 1000 });
+        return member.id;
+      });
+      const accessPath = `${portalPath(workspace)}#access=${token}`;
+      return { ok: true, memberId, accessPath, token };
     }
 
     if (action === 'course-analytics') {

@@ -22,6 +22,7 @@ export const usageKinds = [
   ['brand', 'Marca (voz com IA)'],
   ['meetings', 'Reuniões (transcrição e resumo)'],
   ['visibility', 'Visibilidade na IA (perguntas com busca na web)'],
+  ['conversations', 'Conversas (sugestões e resumos)'],
   ['other', 'Outros usos de IA']
 ];
 

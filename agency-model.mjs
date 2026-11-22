@@ -7,8 +7,9 @@ import { agentTemplate } from './agent-model.mjs';
 import { sanitizePresentation } from './presentation-model.mjs';
 import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
 import { walletKeys, walletProducts, walletSummary } from './wallet-model.mjs';
+import { labCatalog, labModes } from './ui/labs-data.js';
 import {
-  accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog, labFeatures,
+  accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog,
   mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
   appScopes, maxMarkup, rebillProducts, subFeatures, workflowBuilders
 } from './ui/agency-data.js';
@@ -61,7 +62,8 @@ export function blankAgency() {
     integrations: {},
     billing: { plan: 'Starter', wallet: [], autoRecharge: { enabled: false, threshold: 10, amount: 25 } },
     systemEmails: Object.fromEntries(systemEmailKeys.map(([key, , subject, body]) => [key, { subject, body }])),
-    labs: Object.fromEntries(labFeatures.map(([key]) => [key, false])),
+    labs: Object.fromEntries(labCatalog.map(([key]) => [key, 'off'])),
+    aiDefaults: { limit: 0, alertAt: 0.8, enabled: true },
     compliance: { retentionDays: 365, consent: 'By submitting, you agree to receive messages from this business.', cookieBanner: true, hipaa: false },
     saas: { enabled: false, enabledAt: '', rebilling: Object.fromEntries(rebillProducts.map(([key]) => [key, 1])), accounts: [],
       unitCosts: Object.fromEntries(walletProducts.map(([key, , , cost]) => [key, cost])), rebill: {}, lowBalance: 20 },
@@ -100,6 +102,8 @@ export function hydrateAgency(state) {
   state.saas.unitCosts ??= {}; state.saas.rebill ??= {}; state.saas.lowBalance ??= 20;
   for (const [key, , , cost] of walletProducts) state.saas.unitCosts[key] ??= cost;
   for (const [key] of subFeatures) state.subFeatures[key] ??= { on: {}, rebill: [] };
+  // Labs used to be on/off switches for the agency itself; they are now a mode per feature offered to sub-accounts.
+  state.labs = Object.fromEntries(labCatalog.map(([key]) => [key, labModes.some(([mode]) => mode === state.labs?.[key]) ? state.labs[key] : 'off']));
   return hydrateProspecting(state);
 }
 
@@ -630,9 +634,21 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       return id;
     }
     case 'labs': {
-      for (const [key] of labFeatures) state.labs[key] = d[key] === true || d[key] === 'on';
-      log('Labs features updated');
+      for (const [key, title] of labCatalog) {
+        if (d[key] === undefined) continue;
+        state.labs[key] = one(d[key], labModes.map(([mode]) => mode), `mode for ${title}`);
+      }
+      log('Labs features updated', labCatalog.map(([key, title]) => `${title}: ${labModes.find(([mode]) => mode === state.labs[key])[1]}`).join(' · '));
       return 'labs';
+    }
+    case 'ai-defaults': {
+      const limit = Number(d.limit ?? 0);
+      if (!Number.isFinite(limit) || limit < 0 || limit > 100000) fail('Informe um limite mensal entre US$ 0 e US$ 100.000. Use 0 para não limitar.');
+      const alertAt = Number(d.alertAt ?? 0.8);
+      if (!Number.isFinite(alertAt) || alertAt < 0.5 || alertAt > 0.95) fail('O alerta deve ficar entre 50% e 95% do limite.');
+      state.aiDefaults = { limit: Math.round(limit * 100) / 100, alertAt, enabled: d.enabled === undefined ? true : flag(d.enabled) };
+      log('AI defaults updated', `US$ ${state.aiDefaults.limit} · alerta ${Math.round(alertAt * 100)}% · IA ${state.aiDefaults.enabled ? 'ligada' : 'desligada'} em subcontas novas`);
+      return 'ai-defaults';
     }
     case 'compliance': {
       state.compliance = { retentionDays: num(d.retentionDays, 'Retention period', 3650), consent: str(d.consent, 1000), cookieBanner: d.cookieBanner === true || d.cookieBanner === 'on', hipaa: d.hipaa === true || d.hipaa === 'on' };
@@ -791,7 +807,9 @@ export function agencyOverview(agency, workspaces) {
       address: meta.address || '', phone: meta.phone || state.profile.phone || '', website: meta.website || '', email: state.profile.email,
       currency: state.profile.currency, contacts: m.contacts, open: m.open, openValue: m.openValue, won: m.won, wonValue: m.wonValue,
       invoicesPaid: m.invoicesPaid, appointments: m.appointments, workflows: state.workflows.length, runs: state.runs.length, files: state.files.length, storage,
-      aiCost: usageSummary(state.ai).cost, aiLimit: Number(state.ai?.limit) || 0, wallet: walletSummary(state),
+      aiCost: usageSummary(state.ai).cost, aiLimit: Number(state.ai?.limit) || 0, aiAlertAt: Number(state.ai?.alertAt) || 0.8,
+      aiEnabled: !state.ai?.disabled, aiResold: Boolean(state.wallet?.pricing?.ai), agents: (state.agents || []).length, wallet: walletSummary(state),
+      labsOn: Object.keys(state.labs?.on || {}),
       resold: resold.map(p => p.key)
     };
   });

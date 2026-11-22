@@ -2,6 +2,7 @@ import { icon as i, brandIcon } from './icons.js';
 import { tr } from './i18n.js';
 import { avatar, badge, date, empty, h, money, search, tabs } from './screens.js';
 import { slaRecords } from './conversations.js';
+import { conversationAiBar } from './conversation-ai.js';
 import { fixedRuleValues, inboxFilterFields, inboxRule, inboxSorts } from './inbox-data.js';
 
 // Inbox layout: box navigation | conversation list | open thread | contact panel with a section rail.
@@ -215,6 +216,7 @@ function threadPanel(c, all) {
       <button class="icon-btn" aria-label="Dispensar SLA de ${tr(item.channel)}" title="Dispensar SLA" data-dismiss-sla="${item.id}">${i('close',13)}</button></span>`).join('')}</div>` : ''}
     <div class="thread-messages">${t.messages.map(m => `<div class="message ${m.direction === 'Outbound' ? 'outbound' : ''} ${origin(m) !== 'human' ? 'automated' : ''}">
       <small>${channelBadge(m.channel)} · ${date(m.created,c,true)}${origin(m) === 'workflow' ? ' · Automação' : ''}</small>${m.subject ? `<b class="message-subject">${h(m.subject)}</b>` : ''}<p>${messageContent(m.body)}</p></div>`).join('')}</div>
+    ${conversationAiBar(c, contact.id)}
     <form class="message-compose" data-form="message"><p>As mensagens ficam registradas nesta caixa de entrada.</p>
       <div class="inline-gap"><select name="channel" aria-label="Canal"><option value="Note">Nota</option><option value="Email">E-mail</option><option value="SMS">SMS</option><option value="WhatsApp">WhatsApp</option><option value="Live chat">Chat ao vivo</option><option value="Instagram">Instagram</option><option value="Facebook">Facebook</option></select>
         <select name="direction" aria-label="Direção"><option value="Outbound">Enviada</option><option value="Inbound">Recebida</option></select>

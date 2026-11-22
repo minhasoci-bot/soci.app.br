@@ -230,6 +230,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'product_review': return (!c.storeId || c.storeId === ctx.storeId) && (!c.rating || Number(ctx.rating) <= Number(c.rating));
       case 'abandoned_checkout': return (!c.storeId || c.storeId === ctx.storeId) && (!c.status || c.status === ctx.status);
       case 'inbound_webhook': return ctx.triggerId === trigger.id;
+      case 'ai_usage_alert': return !c.level || c.level === ctx.level;
       default: return scheduledTypes.includes(type) ? ctx.triggerId === trigger.id : true;
     }
   }

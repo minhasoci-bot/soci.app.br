@@ -134,16 +134,40 @@ export function setAiLimit(state, input) {
   return usageSummary(state.ai);
 }
 
+// The agency's switch for one sub-account (Central de IA → Planos e limites).
+export function setAiAccess(state, on) {
+  state.ai ||= { limit: 0, alertAt: 0.8, ledger: [] };
+  if (on) delete state.ai.disabled;
+  else state.ai.disabled = true;
+  return !state.ai.disabled;
+}
+
 export function checkAiBudget(state) {
+  if (state.ai?.disabled) fail('A IA desta subconta foi desligada pela agência. Fale com a sua agência para religar.', 403);
   requireCredit(state, 'ai');
   const summary = usageSummary(state.ai);
   if (summary.blocked) {
-    fail(`O limite mensal de IA desta subconta (US$ ${summary.limit.toFixed(2)}) foi atingido. Aumente o limite em Estúdio de agentes → Uso de IA.`, 402);
+    fail(`O limite mensal de IA desta subconta (US$ ${summary.limit.toFixed(2)}) foi atingido. A agência pode aumentar o limite na Central de IA.`, 402);
   }
   return summary;
 }
 
 const ledgerMax = 1500;
+
+// Workflows hear about the month's spend crossing the alert line or the limit ("Uso de IA chegou ao alerta").
+// model.mjs registers the emitter, so this module stays free of the workflow engine.
+let alertHook = null;
+export const onAiAlert = fn => { alertHook = fn; };
+
+function crossings(state, before, after) {
+  const limit = Number(state.ai?.limit) || 0;
+  if (!limit || after <= before) return [];
+  const alertLine = limit * (state.ai.alertAt || 0.8);
+  const levels = [];
+  if (before < alertLine && after >= alertLine && after < limit) levels.push('alert');
+  if (before < limit && after >= limit) levels.push('blocked');
+  return levels;
+}
 
 export function recordAiUsage(state, { kind, agent = '', model = '', usage = {}, ms = 0, error = '' }) {
   state.ai ||= { limit: 0, alertAt: 0.8, ledger: [] };
@@ -157,14 +181,60 @@ export function recordAiUsage(state, { kind, agent = '', model = '', usage = {},
     cost: usageCost(model, inputTokens, outputTokens), ms: Math.max(0, Math.round(ms) || 0),
     ...(error && { error: String(error).slice(0, 200) })
   };
+  const before = entry.cost > 0 ? usageSummary(state.ai).cost : 0;
   state.ai.ledger.unshift(entry);
   if (entry.cost > 0) walletCharge(state, 'ai', entry.cost, entry.at);
+  if (entry.cost > 0 && alertHook) {
+    const limit = Number(state.ai.limit) || 0;
+    const after = Math.round((before + entry.cost) * 1e6) / 1e6;
+    for (const level of crossings(state, before, after)) {
+      try { alertHook(state, { level, cost: after, limit, month: monthOf(entry.at), title: level === 'blocked' ? 'Limite de IA atingido' : 'Alerta de uso de IA' }); }
+      catch { /* A failing workflow never undoes the usage record. */ }
+    }
+  }
   // Keep the current month whole; trim only older entries past the cap.
   if (state.ai.ledger.length > ledgerMax) {
     const month = monthOf();
     state.ai.ledger = state.ai.ledger.filter((item, index) => index < ledgerMax || monthOf(item.at) === month);
   }
   return entry;
+}
+
+// Central de IA → Painel de uso: the agency's AI usage over a period, summed from every sub-account ledger.
+// `period` is 7, 30 or 90 days ending today, or "month" for the current calendar month.
+export const usagePeriods = ['7', '30', '90', 'month'];
+export function agencyAiUsage(accounts, period = '30', today = new Date().toISOString().slice(0, 10)) {
+  const span = usagePeriods.includes(String(period)) ? String(period) : '30';
+  const end = Date.parse(`${today}T00:00:00Z`);
+  const from = span === 'month' ? `${today.slice(0, 7)}-01` : new Date(end - (Number(span) - 1) * 864e5).toISOString().slice(0, 10);
+  const blank = () => ({ calls: 0, errors: 0, inputTokens: 0, outputTokens: 0, cost: 0 });
+  const add = (totals, entry) => {
+    totals.calls += 1;
+    if (entry.error) totals.errors += 1;
+    totals.inputTokens += entry.inputTokens || 0;
+    totals.outputTokens += entry.outputTokens || 0;
+    totals.cost = Math.round((totals.cost + (entry.cost || 0)) * 1e6) / 1e6;
+  };
+  const result = { period: span, from, to: today, totals: blank(), byDay: {}, byKind: {}, byModel: {}, byAccount: [], partial: false };
+  for (let at = Date.parse(`${from}T00:00:00Z`); at <= end; at += 864e5) result.byDay[new Date(at).toISOString().slice(0, 10)] = blank();
+  for (const account of accounts) {
+    const ledger = account.ai?.ledger || [];
+    const mine = blank();
+    for (const entry of ledger) {
+      const day = String(entry.at).slice(0, 10);
+      if (day < from || day > today) continue;
+      add(result.totals, entry); add(mine, entry);
+      add(result.byDay[day] ||= blank(), entry);
+      add(result.byKind[entry.kind || 'other'] ||= blank(), entry);
+      add(result.byModel[entry.model || '—'] ||= blank(), entry);
+    }
+    // A full ledger keeps only the current month whole; older days of a busy sub-account may be missing.
+    const oldest = ledger.length ? String(ledger.at(-1).at).slice(0, 10) : '';
+    if (ledger.length >= ledgerMax && oldest > from) result.partial = true;
+    if (mine.calls) result.byAccount.push({ id: account.id, name: account.name, ...mine });
+  }
+  result.byAccount.sort((a, b) => b.cost - a.cost || b.calls - a.calls);
+  return result;
 }
 
 // Monthly AI spend of a sub-account, for the agency overview.
