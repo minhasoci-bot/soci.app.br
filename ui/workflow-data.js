@@ -445,6 +445,13 @@ export const actionCatalog = [
     { type: 'set_variable', label: 'Definir variável', icon: 'key', description: 'Guarda um valor para usar depois como {{vars.nome}}', fields: [f('name', 'Nome da variável', 'text', { required: true, placeholder: 'ex.: cupom' }), f('value', 'Valor (texto ou expressão)', 'text', { required: true, placeholder: '{{upper(contact.first_name)}}' })] },
     { type: 'router', label: 'Roteador', icon: 'flow', branch: true, fields: [] },
     { type: 'split', label: 'Teste A/B', icon: 'flow', branch: true, description: 'Divide os contatos entre caminhos por percentual, para comparar mensagens, ofertas ou tempos de espera. Cada contato cai em um caminho por sorteio.', fields: [] },
+    { type: 'loop', label: 'Repetir (loop)', icon: 'updown', branch: true, description: 'Roda as etapas de dentro uma vez para cada item de uma lista (ou um número de vezes) e depois segue o fluxo. Dentro, use {{vars.item}}, {{vars.item_numero}} e {{vars.item_total}}. Até 50 repetições.', fields: [
+      f('mode', 'Repetir', 'select', { options: [['list', 'Para cada item de uma lista'], ['count', 'Um número de vezes']] }),
+      f('items', 'Lista (aceita variáveis)', 'textarea', { placeholder: '{{contact.tags}} ou maçã, pera, uva' }),
+      f('separator', 'Separador dos itens', 'text', { value: ',', placeholder: ', ou \\n para um item por linha' }),
+      f('times', 'Quantas vezes', 'number', { value: 3, min: 1, max: 50 }),
+      f('variable', 'Nome da variável do item', 'text', { value: 'item', placeholder: 'item' })
+    ] },
     { type: 'drip', label: 'Liberar em lotes', icon: 'clock', description: 'Deixa passar só um lote de contatos a cada intervalo; os outros esperam a vez nesta etapa. Útil para não disparar tudo de uma vez.', fields: [
       f('batch', 'Contatos por lote', 'number', { min: 1, max: 1000, value: 50, required: true }),
       f('amount', 'A cada', 'number', { min: 1, max: 1000, value: 1, required: true }),
@@ -526,6 +533,7 @@ export function eachStep(steps, visit, path = []) {
     if (step.type === 'if_else') { eachStep(step.yes, visit, [...path, step.id, 'yes']); eachStep(step.no, visit, [...path, step.id, 'no']); }
     if (step.type === 'router' || step.type === 'split') (step.routes || []).forEach(route => eachStep(route.steps, visit, [...path, step.id, route.id]));
     if (step.type === 'router') eachStep(step.otherwise, visit, [...path, step.id, 'otherwise']);
+    if (step.type === 'loop') eachStep(step.body, visit, [...path, step.id, 'body']);
   }
 }
 
@@ -548,6 +556,7 @@ export function stepSummary(step, s) {
     case 'ai_extract': return aiExtractFields(c.fields).map(item => `vars.${item.name}`).join(', ').slice(0, 80);
     case 'router': return `${(step.routes || []).length} caminho(s)`;
     case 'split': return (step.routes || []).map(route => `${route.label} ${splitPercent(route.percent)}%`).join(' · ').slice(0, 80);
+    case 'loop': return c.mode === 'count' ? `${c.times || 0} vez(es)` : `Cada item de ${String(c.items || '').slice(0, 40) || '…'}`;
     case 'drip': return `${c.batch || 0} a cada ${c.amount || 1} ${({ minutes: 'min', hours: 'h', days: 'dia(s)' })[c.unit || 'hours']}`;
     case 'register_event': return ref('communityEvents', c.eventId);
     case 'grant_channel_access': case 'revoke_channel_access': return ref('privateChannels', c.channel);

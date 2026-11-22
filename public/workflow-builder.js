@@ -38,7 +38,7 @@ export function listByKey(row, key) {
   if (key === 'root') return row.steps;
   const [id, part] = key.split(':'), step = findStep(row, id);
   if (!step) return null;
-  if (part === 'yes' || part === 'no' || part === 'otherwise') return (step[part] ??= []);
+  if (part === 'yes' || part === 'no' || part === 'otherwise' || part === 'body') return (step[part] ??= []);
   if (part?.startsWith('route.')) { const route = step.routes?.find(item => item.id === part.slice(6)); return route ? (route.steps ??= []) : null; }
   return null;
 }
@@ -50,6 +50,7 @@ function parentOf(row, id) {
     if (step.type === 'if_else') { visit(step.yes || [], `${step.id}:yes`); visit(step.no || [], `${step.id}:no`); }
     if (step.type === 'router' || step.type === 'split') (step.routes || []).forEach(route => visit(route.steps || [], `${step.id}:route.${route.id}`));
     if (step.type === 'router') visit(step.otherwise || [], `${step.id}:otherwise`);
+    if (step.type === 'loop') visit(step.body || [], `${step.id}:body`);
   });
   visit(row.steps, 'root');
   return result;
@@ -65,6 +66,7 @@ export function newStep(type) {
   const step = { id: stepId(), type, config: defaults(spec) };
   if (type === 'if_else') Object.assign(step, { yes: [], no: [], config: { match: 'all', conditions: [condition()] } });
   if (type === 'router') Object.assign(step, { routes: [{ id: stepId(), label: 'Caminho 1', match: 'all', conditions: [condition()], steps: [] }], otherwise: [] });
+  if (type === 'loop') step.body = [];
   if (type === 'split') Object.assign(step, { routes: [{ id: stepId(), label: 'Caminho A', percent: 50, steps: [] }, { id: stepId(), label: 'Caminho B', percent: 50, steps: [] }] });
   return step;
 }
@@ -97,8 +99,9 @@ function layoutFlow(c, editor) {
         current: editor.node === step.id, footer: `#${number}`, ran: tested(editor, step.id)?.result || '',
         variant: spec?.branch ? 'wfb-branch-node' : step.type === 'goal' ? 'wfb-goal' : step.type === 'end' || step.type === 'goto' ? 'wfb-stop' : '' }) });
       const right = { x: x + CARD_W, y: y + mid };
-      if (step.type === 'if_else' || step.type === 'router' || step.type === 'split') {
-        const paths = step.type === 'if_else'
+      if (step.type === 'if_else' || step.type === 'router' || step.type === 'split' || step.type === 'loop') {
+        const paths = step.type === 'loop' ? [['Para cada item', '', step.body || [], `${step.id}:body`, `${number}.R`]]
+          : step.type === 'if_else'
           ? [['Sim', 'yes', step.yes || [], `${step.id}:yes`, `${number}.S`], ['Não', 'no', step.no || [], `${step.id}:no`, `${number}.N`]]
           : step.type === 'split'
             ? (step.routes || []).map((route, r) => [`${route.label} · ${splitPercent(route.percent)}%`, '', route.steps || [], `${step.id}:route.${route.id}`, `${number}.${String.fromCharCode(65 + r)}`])
@@ -440,7 +443,7 @@ export function builderClick(op, target, editor, { pick }) {
       else if (op === 'node-duplicate') {
         if (count(row) >= MAX_STEPS) throw Error(`Um fluxo aceita até ${MAX_STEPS} etapas.`);
         const copy = structuredClone(place.list[place.index]);
-        const fresh = node => { node.id = stepId(); (node.routes || []).forEach(route => { route.id = stepId(); route.steps?.forEach(fresh); }); ['yes', 'no', 'otherwise'].forEach(part => node[part]?.forEach(fresh)); };
+        const fresh = node => { node.id = stepId(); (node.routes || []).forEach(route => { route.id = stepId(); route.steps?.forEach(fresh); }); ['yes', 'no', 'otherwise', 'body'].forEach(part => node[part]?.forEach(fresh)); };
         fresh(copy);
         let n = 0; eachStep([copy], () => n++);
         if (count(row) + n > MAX_STEPS) throw Error(`Um fluxo aceita até ${MAX_STEPS} etapas.`);

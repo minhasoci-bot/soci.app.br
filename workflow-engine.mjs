@@ -58,12 +58,15 @@ export function pickSplit(routes, random = Math.random) {
 // "Formatar lista": a text read as a list (a JSON array, or items split by the separator; "\n" is one per line),
 // trimmed and without empty items. Lists come back joined by `joiner` (comma, semicolon, pipe, and, line, space, none).
 const JOINERS = { comma: ', ', semicolon: '; ', pipe: ' | ', and: ' e ', line: '\n', space: ' ', none: '' };
-export function formatList(value, { op = 'count', separator = ',', position = 1, search = '', joiner = 'comma' } = {}) {
+export function listItems(value, separator = ',') {
   const raw = String(value ?? '').trim();
   let items = null;
   if (raw.startsWith('[')) try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) items = parsed.map(item => typeof item === 'object' && item ? JSON.stringify(item) : String(item ?? '')); } catch { /* not JSON: split below */ }
   const sep = String(separator ?? '') || ',';
-  items = (items ?? raw.split(sep === '\\n' ? '\n' : sep)).map(item => item.trim()).filter(Boolean);
+  return (items ?? raw.split(sep === '\\n' ? '\n' : sep)).map(item => item.trim()).filter(Boolean);
+}
+export function formatList(value, { op = 'count', separator = ',', position = 1, search = '', joiner = 'comma' } = {}) {
+  const items = listItems(value, separator);
   const join = list => list.join(JOINERS[joiner] ?? JOINERS.comma);
   switch (op) {
     case 'first': return items[0] ?? '';
@@ -77,6 +80,7 @@ export function formatList(value, { op = 'count', separator = ',', position = 1,
     default: return String(items.length);
   }
 }
+const MAX_LOOP = 50, MAX_RUN_STEPS = 1000;
 const MAX_STEPS = 120, MAX_DEPTH = 4, CONDITIONS = ['tag', 'field', 'dnd', 'stage', 'opportunity_status', 'replied', 'submitted', 'trigger', 'var'];
 const AI_TIMEOUT = 10 * 60000;
 const scheduledTypes = allTriggers.filter(item => item.scheduled).map(item => item.type);
@@ -140,6 +144,11 @@ export function workflowRecord(s, d) {
         step.routes = (Array.isArray(raw.routes) ? raw.routes : []).slice(0, 6).map((route, index) => ({ id: uniqueId(route?.id), label: str(route?.label, 60) || `Caminho ${index + 1}`, match: route?.match === 'any' ? 'any' : 'all', conditions: cleanConditions(route?.conditions), steps: list(route?.steps, depth + 1) }));
         step.otherwise = list(raw.otherwise, depth + 1);
       }
+      if (spec.type === 'loop') {
+        step.body = list(raw.body, depth + 1);
+        if (publishing && step.config.mode !== 'count' && !String(step.config.items || '').trim()) fail('Repetir: informe a lista.');
+        if (publishing && !step.body.length) fail('Repetir: coloque pelo menos uma etapa dentro.');
+      }
       if (spec.type === 'split') {
         const routes = (Array.isArray(raw.routes) ? raw.routes : []).slice(0, 6);
         if (routes.length < 2) fail('Teste A/B: use de 2 a 6 caminhos.');
@@ -186,6 +195,8 @@ export function compile(steps) {
       if (step.type === 'if_else') { node.yes = chain(step.yes || [], after); node.no = chain(step.no || [], after); }
       if (step.type === 'router') { node.routes = (step.routes || []).map(route => ({ label: route.label, match: route.match, conditions: route.conditions || [], first: chain(route.steps || [], after) })); node.otherwise = chain(step.otherwise || [], after); }
       if (step.type === 'split') node.routes = (step.routes || []).map(route => ({ label: route.label, percent: route.percent, first: chain(route.steps || [], after) }));
+      // The body's last step goes back to the loop step, which decides between the next item and the rest of the flow.
+      if (step.type === 'loop') node.body = chain(step.body || [], step.id);
       nodes[step.id] = node;
       after = step.id;
     }
@@ -805,7 +816,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
     }
     let jumps = 0;
     while (run.at) {
-      if (++run.steps > 300) { run.status = 'Failed'; run.results.push('Fluxo interrompido: etapas demais (possível repetição infinita)'); return; }
+      if (++run.steps > MAX_RUN_STEPS) { run.status = 'Failed'; run.results.push('Fluxo interrompido: etapas demais (possível repetição infinita)'); return; }
       const id = run.at, node = run.graph.nodes[id];
       if (!node) { run.at = ''; break; }
       const label = actionSpec(node.type)?.label || node.type, c = node.config || {};
@@ -834,6 +845,24 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         const route = pickSplit(node.routes);
         if (!route) { run.results.push(`${label}: sem caminhos`); trace('sem caminhos'); run.at = node.next; continue; }
         run.results.push(`${label}: ${route.label}`); trace(route.label); run.at = route.first; continue;
+      }
+      if (node.type === 'loop') {
+        const loops = (run.loops ??= {});
+        if (!loops[id]) {
+          const name = String(c.variable || 'item').trim().replace(/[^\w]/g, '_').slice(0, 40) || 'item';
+          const items = c.mode === 'count' ? Array.from({ length: Math.min(MAX_LOOP, Math.max(0, Math.trunc(Number(c.times)) || 0)) }, (_, i) => String(i + 1))
+            : listItems(merge(c.items, s, contactOf(s, run.contactId), run), c.separator).slice(0, MAX_LOOP);
+          loops[id] = { name, items, index: 0 };
+          run.results.push(`${label}: ${items.length} repetição(ões)`);
+        }
+        const state = loops[id];
+        if (state.index >= state.items.length || !node.body) {
+          delete loops[id]; trace(`concluído (${state.items.length})`); run.at = node.next; continue;
+        }
+        const n = state.index++;
+        run.vars = { ...(run.vars || {}), [state.name]: state.items[n], [`${state.name}_numero`]: String(n + 1), [`${state.name}_total`]: String(state.items.length) };
+        trace(`${n + 1}/${state.items.length}: ${state.items[n].slice(0, 40)}`);
+        run.at = node.body; continue;
       }
       if (node.type === 'drip') {
         if (run.test) { run.results.push(`${label}: (teste) pulada`); trace('pulada no teste'); run.at = node.next; continue; }
