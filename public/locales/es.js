@@ -5233,5 +5233,15 @@ export default {
   "Página (endereço depois do site)": "Página (dirección después del sitio)",
   "Ex.: obrigado (vazio = qualquer página; a inicial é index)": "Ej.: obrigado (vacío = cualquier página; la inicial es index)",
   "Aula iniciada": "Clase iniciada",
-  "Quando o aluno abre uma aula no portal pela primeira vez (abrir de novo e aulas já concluídas não contam). Use {{trigger.title}} para o nome da aula e {{trigger.course}} para o curso.": "Cuando el alumno abre una clase en el portal por primera vez (abrirla de nuevo y las clases ya completadas no cuentan). Usa {{trigger.title}} para el nombre de la clase y {{trigger.course}} para el curso."
+  "Quando o aluno abre uma aula no portal pela primeira vez (abrir de novo e aulas já concluídas não contam). Use {{trigger.title}} para o nome da aula e {{trigger.course}} para o curso.": "Cuando el alumno abre una clase en el portal por primera vez (abrirla de nuevo y las clases ya completadas no cuentan). Usa {{trigger.title}} para el nombre de la clase y {{trigger.course}} para el curso.",
+  "Manda uma mensagem privada pela conta profissional do Instagram conectada no Social Planner, para quem já escreveu no Direct. A Meta só aceita a resposta até 24 horas depois da última mensagem do contato. Os botões viram respostas rápidas.": "Envía un mensaje privado por la cuenta profesional de Instagram conectada en el Social Planner, a quien ya escribió por Direct. Meta solo acepta la respuesta hasta 24 horas después del último mensaje del contacto. Los botones se convierten en respuestas rápidas.",
+  "Botões de resposta rápida (um por linha, até 13; opcional)": "Botones de respuesta rápida (uno por línea, hasta 13; opcional)",
+  "Quero saber o preço\nFalar com atendente": "Quiero saber el precio\nHablar con un agente",
+  "Enviar mensagem no Messenger": "Enviar mensaje por Messenger",
+  "Manda uma mensagem pelo Messenger da página do Facebook conectada no Social Planner, para quem já escreveu para a página. A Meta só aceita a resposta até 24 horas depois da última mensagem do contato. Os botões viram respostas rápidas.": "Envía un mensaje por el Messenger de la página de Facebook conectada en el Social Planner, a quien ya escribió a la página. Meta solo acepta la respuesta hasta 24 horas después del último mensaje del contacto. Los botones se convierten en respuestas rápidas.",
+  "Quando uma mensagem de WhatsApp, Messenger ou Direct da equipe ou de um fluxo não é entregue. Use {{trigger.reason}} para o motivo, {{trigger.channel}} para o canal e {{trigger.body}} para a mensagem. Fluxos com este gatilho não disparam de novo com as falhas das próprias mensagens.": "Cuando un mensaje de WhatsApp, Messenger o Direct del equipo o de un flujo no se entrega. Usa {{trigger.reason}} para el motivo, {{trigger.channel}} para el canal y {{trigger.body}} para el mensaje. Los flujos con este disparador no se activan de nuevo con las fallas de sus propios mensajes.",
+  "Direct do Instagram": "Direct de Instagram",
+  "Canal desconectado": "Canal desconectado",
+  "Contato ainda não escreveu nesse canal": "El contacto aún no escribió por este canal",
+  "Fora da janela de 24 horas": "Fuera de la ventana de 24 horas"
 };
