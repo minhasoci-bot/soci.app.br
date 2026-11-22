@@ -7,7 +7,7 @@ import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashb
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
 import { afterSave, beforeDelete, bulk, companyWorkflow, crmCollections, crmFields, customData } from './crm-model.mjs';
 import { inboxRule } from './ui/inbox-data.js';
-import { saveTracking, trackingCollections, trackingDefaults, trackingEvent, trackingOf } from './tracking.mjs';
+import { linkVisitor, saveTracking, sitePageview, trackingCollections, trackingDefaults, trackingEvent, trackingOf } from './tracking.mjs';
 import { applyScoring, changeScore, scoringCollections, scoringFields } from './scoring-model.mjs';
 import { adCollections, adDefaults, adSettingsOf, attributionSnapshot, recordAttribution, saveAdSettings } from './ads-model.mjs';
 import { socialBeforeDelete, socialCollections, socialCommand, socialFields, workflowPost } from './social-model.mjs';
@@ -441,6 +441,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   // Server-internal: the GA4 API secret itself stays sealed on the server; the sub-account only knows it is set.
   if (type === 'tracking-ga4-secret') { trackingOf(s).ga4SecretSet = Boolean(d.set); return 'ok'; }
   if (type === 'tracking-event') return trackingEvent(s, d, { add, run, now });
+  if (type === 'site-pageview') return sitePageview(s, d, { run, now });
   if (type === 'affiliate-settings') return saveAffiliateSettings(s, d);
   if (type === 'affiliate-portal-link') return issuePortalToken(s, str(id, 40));
   if (type === 'affiliate-signup') return affiliateSignup(s, d, { emit: (st, event, ctx) => engine.emit(st, event, ctx) });
@@ -915,6 +916,7 @@ function other(s, command, type, key, id, d, workspace) {
     }
     const submission=add(s,'submissions',{ formId:id, contactId:c.id, name:info.name || c.name, email:info.email, phone:info.phone, answers:read.answers, source:str(d._source,40) || 'Link', ...(read.result ? { result:{ score:read.result.score, max:read.result.max, percent:read.result.percent, tier:read.result.tier, categories:read.result.categories } } : {}) });
     if (s.submissions.length > 5000) s.submissions.splice(0, s.submissions.length - 5000);
+    linkVisitor(s, d._vid, c.id);
     run(s,'Form submitted',{contactId:c.id,formId:id,tier:read.result?.tier || ''});
     return submission.id;
   }

@@ -27,6 +27,7 @@ export const refSources = {
   badgeTemplates: s => (s.certificateTemplates || []).filter(row => row.kind === 'badge').map(row => [row.id, row.name]),
   communityEvents: s => (s.communityEvents || []).map(row => [row.id, `${row.title} · ${(s.communities || []).find(group => group.id === row.communityId)?.name || 'Comunidade'}`]),
   stores: s => (s.stores || []).map(row => [row.id, row.name]),
+  sites: s => (s.studioProjects || []).map(row => [row.id, `${row.name} · ${row.kind === 'funnel' ? 'Funil' : 'Site'}`]),
   services: s => (s.services || []).map(row => [row.id, row.name]),
   coupons: s => (s.coupons || []).map(row => [row.id, `${row.code} · ${row.name}`]),
   customValues: s => (s.customValues || []).map(row => [row.id, row.name]),
@@ -99,6 +100,10 @@ export const triggerCatalog = [
     { type: 'email_event', label: 'Evento de e-mail', icon: 'mail', fields: [f('event', 'Quando o contato', 'select', { options: [any('Abrir, clicar ou sair da lista'), ['opened', 'Abrir o e-mail'], ['clicked', 'Clicar em um link'], ['unsubscribed', 'Cancelar a inscrição']] }),
       f('campaignId', 'Campanha', 'ref', { source: 'emailCampaigns', empty: 'Qualquer campanha' })] },
     { type: 'trigger_link_clicked', label: 'Link de rastreamento clicado', icon: 'link', fields: [f('linkId', 'Link', 'ref', { source: 'links', empty: 'Qualquer link' })] },
+    { type: 'site_page_viewed', label: 'Página do site ou funil visitada', icon: 'site', description: 'Quando um contato conhecido abre uma página de um site ou funil publicado na Soci. O navegador passa a ser reconhecido depois que a pessoa envia um formulário do site ou funil; visitas anônimas não disparam. Recarregar a mesma página em 30 minutos não conta de novo. Use {{trigger.page}} e {{trigger.site}}.', fields: [
+      f('projectId', 'Site ou funil', 'ref', { source: 'sites', empty: 'Qualquer site ou funil' }),
+      f('page', 'Página (endereço depois do site)', 'text', { placeholder: 'Ex.: obrigado (vazio = qualquer página; a inicial é index)' })
+    ] },
     { type: 'chat_started', label: 'Chat do site iniciado', icon: 'chat', fields: [f('widgetId', 'Chat', 'ref', { source: 'chats', empty: 'Qualquer chat' })] },
     { type: 'webinar_registered', label: 'Inscrição em webinar', icon: 'play', fields: [f('webinarId', 'Webinar', 'ref', { source: 'webinars', empty: 'Qualquer webinar' })] },
     { type: 'preferences_changed', label: 'Preferências de comunicação mudaram', icon: 'lock', description: 'Quando o contato muda canais ou assuntos na central de preferências.', fields: [f('all', 'Saiu de tudo?', 'select', { options: [any('Qualquer mudança'), ['yes', 'Saiu de todas as comunicações'], ['no', 'Ajustou canais ou assuntos']] })] },

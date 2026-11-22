@@ -70,6 +70,17 @@ function touchesOf(req) {
   }
   return out;
 }
+// Sites and funnels published on the Soci: a random visitor id, linked to the contact when the visitor sends
+// the site's form, so later page views can fire "Página do site ou funil visitada".
+const siteVisitorCookie = workspace => `soci_sv_${workspace.replace(/[^\w-]/g, '')}`;
+function siteVisitorOf(req, workspace) {
+  const name = siteVisitorCookie(workspace);
+  for (const part of String(req.headers.cookie || '').split(';')) {
+    const [key, value = ''] = part.trim().split('=');
+    if (key === name && /^[a-z0-9]{6,40}$/i.test(value)) return value;
+  }
+  return '';
+}
 const affiliateCookie = workspace => `soci_af_${workspace.replace(/[^\w-]/g, '')}`;
 function referralsOf(req) {
   const refs = {};
@@ -3647,11 +3658,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const project = (await store.load(workspace)).studioProjects.find(item => item.id === projectId);
           try {
             if (!project?.formId) throw error('This site is not accepting submissions.',404);
-            await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _source:'Site' } });
+            const vid = siteVisitorOf(req, workspace) || randomBytes(12).toString('hex');
+            await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _source:'Site', _vid:vid } });
             const order = doc.published.pages;
             const from = order.findIndex(item => item.slug === (fields._page || 'index'));
             if (from >= 0) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, order[from].id, 'optins'))).catch(() => {});
             const next = project.kind === 'funnel' && from >= 0 ? order[from + 1] : null;
+            const secure = String(req.headers['x-forwarded-proto'] || '').includes('https') || publicBase(req).startsWith('https') ? '; Secure' : '';
+            res.setHeader('Set-Cookie', [...[res.getHeader('Set-Cookie') || []].flat(), `${siteVisitorCookie(workspace)}=${vid}; Max-Age=${365 * 86400}; Path=/; HttpOnly; SameSite=Lax${secure}`]);
             res.writeHead(303,{ Location:next ? `${base}/${encodeURIComponent(next.slug)}` : `${back}?sent=1` });
           } catch {
             res.writeHead(303,{ Location:`${back}?error=1` });
@@ -3662,6 +3676,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const page = doc.published.pages.find(item => item.slug === slug);
         if (!page) throw error('Page not found.',404);
         if (active && !url.searchParams.has('sent') && !url.searchParams.has('error')) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, page.id, 'views'))).catch(() => {});
+        const visitor = active && method === 'GET' ? siteVisitorOf(req, workspace) : '';
+        if (visitor) {
+          // A browser that already sent this sub-account a site form: the view counts for its contact.
+          try { if (await change(workspace, { type:'site-pageview', data:{ projectId, pageId:page.id, page:page.slug, vid:visitor } })) flushLater(workspace); }
+          catch (failure) { console.error(`Site page view (${workspace}): ${failure.message}`); }
+        }
         const pt = /<html\b[^>]*\blang\s*=\s*["']?pt/i.test(page.html), es = /<html\b[^>]*\blang\s*=\s*["']?es/i.test(page.html);
         const notice = url.searchParams.has('sent') ? { ok:true, text:pt ? 'Obrigado! Seus dados foram enviados.' : es ? '¡Gracias! Tus datos fueron enviados.' : 'Thank you! Your details were sent.' }
           : url.searchParams.has('error') ? { ok:false, text:pt ? 'Não foi possível enviar. Confira o nome e o e-mail e tente de novo.' : es ? 'No se pudo enviar. Revisa el nombre y el correo e inténtalo de nuevo.' : 'Your details could not be sent. Check the name and email and try again.' } : '';
@@ -4203,7 +4223,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const read = readAnswers(form, input, state.customFields || []);
         if (!read.ok) return page(422, { values:read.values, errors:read.errors });
         await publicAccountPolicy(workspace, true, 'sites');
-        try { await change(workspace,{ type:'submit', id:formId, data:{ ...input, _source:embed ? 'Incorporado' : 'Link' } }); }
+        try { await change(workspace,{ type:'submit', id:formId, data:{ ...input, _vid:'', _source:embed ? 'Incorporado' : 'Link' } }); }
         catch (failure) { return page(failure.status && failure.status < 500 ? 422 : 500, { values:read.values, errors:{ _form:failure.status && failure.status < 500 ? failure.message : 'Não foi possível enviar agora. Tente de novo.' } }); }
         if (redirects) { res.writeHead(303, { Location:form.onSubmit.url }); return res.end(); }
         const tier = read.result?.tierDetail;
@@ -4312,7 +4332,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (kind!=='f') throw error('Method not allowed.',405);
           const input = await payload(req);
           await publicAccountPolicy(w, true, 'sites');
-          const submission = await change(w,{type:'submit',id:item,data:input});
+          // _vid links a site visitor to the contact; only the site route (which sets the cookie) may send it.
+          const submission = await change(w,{type:'submit',id:item,data:{ ...(input && typeof input === 'object' ? input : {}), _vid:'' }});
           return json({id:submission.id},201);
         }
         await publicAccountPolicy(w, false, kind === 'course' ? 'memberships' : 'sites');

@@ -181,5 +181,39 @@ export function trackingEvent(s, d, { add, run, now }) {
   return row.id;
 }
 
+// ---- Sites and funnels published on the Soci ----------------------------------------------------------
+const visitorId = value => /^[a-z0-9]{6,40}$/i.test(String(value || '')) ? String(value) : '';
+
+/** A form sent from a Soci site: that browser (its visitor cookie) is now this contact. */
+export function linkVisitor(s, vid, contactId) {
+  const id = visitorId(vid);
+  if (!id || !contactId) return;
+  const visitors = trackingOf(s).visitors;
+  visitors[id] = contactId;
+  const keys = Object.keys(visitors);
+  if (keys.length > 5000) for (const k of keys.slice(0, keys.length - 5000)) delete visitors[k];
+}
+
+const SITE_VIEW_GAP = 30 * 60000;
+/**
+ * 'site-pageview' (server only): a page of a published site or funnel opened by a browser the sub-account
+ * knows. Fires "Página do site ou funil visitada" once per contact and page every 30 minutes.
+ */
+export function sitePageview(s, d, { run, now }) {
+  const t = trackingOf(s);
+  const contactId = t.visitors[visitorId(d.vid)];
+  if (!contactId || !s.contacts.some(row => row.id === contactId)) return '';
+  const pageId = str(d.pageId, 60), page = str(d.page, 60).toLowerCase() || 'index', projectId = str(d.projectId, 60);
+  const views = t.siteViews && typeof t.siteViews === 'object' ? t.siteViews : (t.siteViews = {});
+  const key = `${contactId}:${pageId || page}`, at = now();
+  if (views[key] && Date.parse(at) - Date.parse(views[key]) < SITE_VIEW_GAP) return '';
+  views[key] = at;
+  const keys = Object.keys(views);
+  if (keys.length > 2000) for (const k of keys.slice(0, keys.length - 2000)) delete views[k];
+  const project = (s.studioProjects || []).find(row => row.id === projectId);
+  run(s, 'site_page_viewed', { contactId, projectId, pageId, page, site: project?.name || '', kind: project?.kind || '' });
+  return contactId;
+}
+
 /** The touches sent by the external script, checked like the cookie ones. */
 export const touchesFrom = d => ({ first: cleanTouch(d?.touches?.first), last: cleanTouch(d?.touches?.last) });
