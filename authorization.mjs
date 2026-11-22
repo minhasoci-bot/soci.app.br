@@ -21,7 +21,7 @@ const writeModules = {
 };
 
 const commandModules = {
-  'ad-settings': 'marketing', 'tracking-settings': 'settings', 'tracking-google-lead-key': 'settings', 'affiliate-settings': 'marketing', 'affiliate-portal-link': 'marketing', 'commission-review': 'marketing', 'affiliate-payout': 'marketing',
+  'ad-settings': 'marketing', 'tracking-settings': 'settings', 'tracking-google-lead-key': 'settings', 'phone-number-save': 'settings', 'affiliate-settings': 'marketing', 'affiliate-portal-link': 'marketing', 'commission-review': 'marketing', 'affiliate-payout': 'marketing',
   'reputation-settings': 'reputation', 'review-request': 'reputation', 'review-visibility': 'reputation', 'listing-save': 'reputation',
   'dashboard-create': 'dashboard', 'dashboard-save': 'dashboard', 'dashboard-restore': 'dashboard',
   'dashboard-report': 'dashboard', 'dashboard-default': 'dashboard', 'dashboard-timezone': 'dashboard', 'dashboard-delete': 'dashboard',

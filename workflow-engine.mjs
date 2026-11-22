@@ -7,6 +7,7 @@ import { scoreTriggerMatches } from './scoring-model.mjs';
 import { canMessage } from './preference-model.mjs';
 import { appActionItem } from './app-studio-model.mjs';
 import { slaRecords } from './ui/conversation-sla.js';
+import { e164 } from './twilio.mjs';
 import { actionSpec, aiExtractFields, aiOptions, aiVariableName, allActions, allTriggers, eachStep, splitPercent, triggerSpec, upgradeWorkflow } from './ui/workflow-data.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
@@ -26,6 +27,21 @@ const metaIdentity = contact => {
     first: sha256(first), last: sha256(rest.at(-1) || ''), external: sha256(String(contact.id || '')) };
 };
 const FAILURES = /^(erro|sem contato|sem nome|sem oportunidade|sem agendamento|sem conversa|campo removido|campo inválido|e-mail inválido|contato em não perturbe)/;
+
+// Telefonia (2.4): the IVR steps answer a live call. Each one adds verbs to the call's script (s.callScripts[callSid]);
+// the server turns them into TwiML. Gather, connect and record wait for Twilio's next request (callInput).
+export const IVR_STEPS = new Set(['ivr_say', 'ivr_gather', 'ivr_connect', 'ivr_record', 'ivr_hangup']);
+const IVR_WAIT = 20 * 60 * 1000;
+/** The call's script, created on first use and pruned to the 50 most recent calls. */
+export function callScript(s, callSid, create = true) {
+  s.callScripts ||= {};
+  if (!s.callScripts[callSid] && create) {
+    const old = Object.entries(s.callScripts).sort((a, b) => String(a[1].at).localeCompare(String(b[1].at)));
+    while (old.length >= 50) delete s.callScripts[old.shift()[0]];
+    s.callScripts[callSid] = { verbs: [], wait: null, owner: '', done: false, at: new Date().toISOString() };
+  }
+  return s.callScripts[callSid] || null;
+}
 
 // Bot de IA nas conversas: the channels it can answer on, and the step that sends on each.
 export const BOT_CHANNELS = { WhatsApp: 'send_whatsapp', Email: 'send_email', 'Live chat': 'send_live_chat', Instagram: 'send_instagram_dm', Facebook: 'send_messenger', SMS: 'send_sms' };
@@ -337,6 +353,9 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       case 'association_created': return !c.object || c.object === ctx.object;
       case 'email_received': return (!c.subject || lower(ctx.subject).includes(lower(c.subject))) && (!c.from || lower(ctx.from).includes(lower(c.from)));
       case 'conversation_ai_event': return (!c.event || c.event === ctx.event) && (!c.agentId || c.agentId === ctx.agentId);
+      case 'call_details': return (!c.direction || c.direction === ctx.direction) && (!c.status || c.status === ctx.status) && (!c.numberId || c.numberId === ctx.numberId);
+      case 'phone_validated': return (!c.result || c.result === (ctx.valid === 'sim' ? 'valid' : 'invalid')) && (!c.lineType || c.lineType === ctx.lineType);
+      case 'ivr_call': return !c.numberId || c.numberId === ctx.numberId;
       case 'portal_file_uploaded': return !c.kind || c.kind === ctx.kind;
       case 'video_watched': return Number(ctx.percent) === (Number(c.percent) || 25) && (!c.video || lower(ctx.video).includes(lower(c.video))) && (!c.url || lower(ctx.url).includes(lower(c.url)));
       case 'whatsapp_ad_click': return (!c.adId || c.adId === ctx.adId) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
@@ -495,6 +514,23 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
         const buttons = [...new Set(text(c.buttons).split('\n').map(line => line.trim().slice(0, 30)).filter(Boolean))].slice(0, 6);
         if (buttons.length) row.buttons = buttons;
         return buttons.length ? `enviada ao chat com ${buttons.length} botão(ões)` : 'enviada ao chat';
+      }
+      case 'call': case 'voicemail_drop': {
+        const number = (s.phone?.numbers || []).find(row => row.id === c.numberId);
+        if (!number) return 'erro: número da Soci não encontrado (Configurações → Telefonia)';
+        if (contact.dnd) return 'contato em não perturbe';
+        const to = e164(contact.phone);
+        if (!to) return 'erro: contato sem telefone válido';
+        if (node.type === 'call') {
+          const agent = e164(text(c.agentPhone)) || e164((number.forward || [])[0]);
+          if (!agent) return 'erro: informe o telefone da equipe ou o encaminhamento do número';
+          outbox(s, { kind: 'phone-call', runId: run.id, workflowId: run.workflowId, contactId: contact.id, numberId: number.id, to, agent });
+          return `ligando para ${agent} e depois para ${to}`;
+        }
+        const message = c.kind === 'play' ? '' : text(c.message).trim().slice(0, 1500), url = c.kind === 'play' ? text(c.url).trim().slice(0, 1000) : '';
+        if (c.kind === 'play' ? !/^https:\/\/\S+$/i.test(url) : !message) return c.kind === 'play' ? 'erro: endereço do áudio inválido (use https://)' : 'erro: escreva o recado';
+        outbox(s, { kind: 'voicemail-drop', runId: run.id, workflowId: run.workflowId, contactId: contact.id, numberId: number.id, to, message, url });
+        return `recado na fila para ${to}`;
       }
       case 'conversation_ai_status': {
         if (c.state === 'off') {
@@ -1233,6 +1269,53 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
         run.status = 'Waiting'; run.at = node.next; run.wakeAt = ''; run.results.push(`${label}: aguardando ação manual`);
         return;
       }
+      if (IVR_STEPS.has(node.type)) {
+        if (run.test) { run.results.push(`${label}: (teste) pulada`); trace('pulada no teste'); run.at = node.next; continue; }
+        const callSid = String(run.context?.callSid || '');
+        const script = callSid ? callScript(s, callSid) : null;
+        const problem = !callSid ? 'o fluxo não começou por Início da URA' : !script || script.done ? 'a ligação já terminou' : script.owner && script.owner !== run.id ? 'a ligação já está sendo atendida por outro fluxo' : '';
+        if (problem) { run.results.push(`${label}: erro: ${problem}`); trace(`erro: ${problem}`); run.at = node.next; continue; }
+        script.owner = run.id;
+        const contact = contactOf(s, run.contactId), say = value => merge(value, s, contact, run).trim().slice(0, 3000);
+        const speak = () => c.kind === 'play' ? (/^https:\/\/\S+$/i.test(say(c.url)) ? { verb: 'play', url: say(c.url) } : null) : say(c.message) ? { verb: 'say', text: say(c.message) } : null;
+        let wait = '';
+        if (node.type === 'ivr_say') { const verb = speak(); if (verb) script.verbs.push(verb); }
+        if (node.type === 'ivr_gather') {
+          script.verbs.push({ verb: 'gather', prompt: say(c.message), digits: Math.min(10, Math.max(1, Math.trunc(Number(c.digits)) || 1)), timeout: Math.min(30, Math.max(3, Math.trunc(Number(c.timeout)) || 6)) });
+          wait = 'gather';
+        }
+        if (node.type === 'ivr_connect') {
+          const to = [...new Set(say(c.to).split(/[\n,;]+/).map(value => e164(value)).filter(Boolean))].slice(0, 10);
+          if (!to.length) { run.results.push(`${label}: erro: nenhum telefone válido`); trace('erro: nenhum telefone válido'); run.at = node.next; continue; }
+          script.verbs.push({ verb: 'dial', to, timeout: Math.min(60, Math.max(5, Math.trunc(Number(c.timeout)) || 20)), record: c.record === 'yes' });
+          wait = 'dial';
+        }
+        if (node.type === 'ivr_record') {
+          if (say(c.message)) script.verbs.push({ verb: 'say', text: say(c.message) });
+          script.verbs.push({ verb: 'record', maxLength: Math.min(600, Math.max(10, Math.trunc(Number(c.maxLength)) || 120)) });
+          wait = 'record';
+        }
+        if (node.type === 'ivr_hangup') { if (say(c.message)) script.verbs.push({ verb: 'say', text: say(c.message) }); script.verbs.push({ verb: 'hangup' }); script.done = true; }
+        if (!wait) { run.results.push(`${label}: ${node.type === 'ivr_hangup' ? 'ligação encerrada' : 'concluída'}`); trace('concluída'); run.at = node.next; continue; }
+        script.wait = { runId: run.id, step: id, kind: wait, variable: aiVariableName(c.variable) || 'ivr_digitos' };
+        run.status = 'Waiting'; run.waitFor = { type: 'call', step: id, callSid }; run.wakeAt = new Date(Date.now() + IVR_WAIT).toISOString(); run.at = node.next;
+        run.results.push(`${label}: aguardando a ligação`); trace('aguardando a ligação');
+        return;
+      }
+      if (node.type === 'phone_validate') {
+        // The server asks Twilio Lookup after saving; the run waits like "Verificar e-mail" and resumes with the answer.
+        const contact = contactOf(s, run.contactId), phone = e164(contact?.phone);
+        if (!phone) {
+          run.results.push(`${label}: erro: contato sem telefone`); trace('erro: contato sem telefone');
+          if (c.stopOnError) { run.status = 'Failed'; run.at = ''; run.finished = now(); return; }
+          run.at = node.next; continue;
+        }
+        if (run.test) { run.vars = { ...(run.vars || {}), telefone_status: '', telefone_tipo: '' }; run.results.push(`${label}: (teste) consulta não executada`); trace('pulada no teste'); run.at = node.next; continue; }
+        outbox(s, { kind: 'phone-lookup', runId: run.id, stepId: id, phone });
+        run.status = 'Waiting'; run.waitFor = { type: 'ai', step: id }; run.wakeAt = new Date(Date.now() + AI_TIMEOUT).toISOString(); run.at = node.next;
+        run.results.push(`${label}: consultando ${phone}`); trace('consultando');
+        return;
+      }
       if (node.type === 'email_verify') {
         // The server checks the domain (DNS) after saving; the run waits like an AI step and resumes with the answer.
         const contact = contactOf(s, run.contactId);
@@ -1478,6 +1561,37 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
     return true;
   }
 
+  function callInput(s, { callSid = '', digits = '', dialStatus = '', recordingUrl = '', ended = false } = {}) {
+    const script = callScript(s, String(callSid), false);
+    if (!script) return false;
+    if (ended) script.done = true;
+    const wait = script.wait;
+    const run = wait && s.runs.find(row => row.id === wait.runId && row.status === 'Waiting' && row.waitFor?.type === 'call' && row.waitFor.step === wait.step);
+    script.wait = null;
+    if (!run) return Boolean(ended);
+    const label = actionSpec(run.graph?.nodes?.[wait.step]?.type)?.label || 'URA';
+    let vars = {}, line = '';
+    if (wait.kind === 'gather') { vars = { [wait.variable]: str(String(digits || ''), 20).replace(/[^\d*#]/g, '') }; line = vars[wait.variable] ? `digitou ${vars[wait.variable]}` : 'sem resposta'; }
+    if (wait.kind === 'dial') { vars = { ivr_transferencia: str(String(dialStatus || (ended ? 'completed' : 'no-answer')), 30) }; line = `transferência: ${vars.ivr_transferencia}`; }
+    if (wait.kind === 'record') {
+      const url = /^https:\/\/api\.twilio\.com\//.test(String(recordingUrl)) ? String(recordingUrl).slice(0, 500) : '';
+      vars = { ivr_gravacao: url };
+      line = url ? 'recado gravado' : 'sem recado';
+      const contact = contactOf(s, run.contactId), call = (s.calls || []).find(row => row.callSid === callSid);
+      if (url && contact) {
+        if (call) Object.assign(call, { status: 'voicemail', voicemailUrl: url });
+        add(s, 'messages', { contactId: contact.id, body: 'Recado gravado na URA', subject: '', channel: 'Call', direction: 'Inbound', read: false, starred: false, origin: 'workflow', workflowId: run.workflowId, callId: call?.id || '', recordingUrl: url });
+      }
+    }
+    if (ended && wait.kind !== 'record') line = line || 'ligação encerrada';
+    run.vars = { ...(run.vars || {}), ...vars };
+    output(run, wait.step, vars);
+    run.results.push(`${label}: ${line}`);
+    (run.trace ??= []).push({ id: wait.step, type: run.graph?.nodes?.[wait.step]?.type, result: line });
+    resume(s, run);
+    return true;
+  }
+
   // The answer of an AI step: variables, a line in the run and, for summaries, an optional note.
   function aiResult(s, item) {
     if (item?.bot) return botResult(s, item);
@@ -1518,6 +1632,12 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       Object.assign(contact, { emailStatus: vars.email_status, emailCheckedAt: now() });
       const tag = str(node.config?.invalidTag || '', 48);
       if (vars.email_status === 'invalid' && tag && !(contact.tags || []).some(t => lower(t) === lower(tag))) { contact.tags = tagList([...(contact.tags || []), tag]); emit(s, 'contact_tag', { contactId: contact.id, change: 'added', tag }); }
+    }
+    if (node?.type === 'phone_validate' && contact && ['valid', 'invalid'].includes(vars.telefone_status)) {
+      Object.assign(contact, { phoneStatus: vars.telefone_status, phoneLineType: vars.telefone_tipo || '', phoneCheckedAt: now() });
+      const tag = str(node.config?.invalidTag || '', 48);
+      if (vars.telefone_status === 'invalid' && tag && !(contact.tags || []).some(t => lower(t) === lower(tag))) { contact.tags = tagList([...(contact.tags || []), tag]); emit(s, 'contact_tag', { contactId: contact.id, change: 'added', tag, depth: 1 }); }
+      emit(s, 'phone_validated', { contactId: contact.id, valid: vars.telefone_status === 'valid' ? 'sim' : 'não', lineType: vars.telefone_tipo || '', carrier: vars.telefone_operadora || '', depth: 1 });
     }
     const auditSummary = node?.type === 'marketing_audit' ? Object.entries(vars).find(([key]) => key.endsWith('_resumo'))?.[1] : '';
     if (auditSummary && node.config?.note !== 'no' && contact) {
@@ -1730,5 +1850,5 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
     };
   }
 
-  return { emit, enroll, recordChange, tick, finishManual, inbound, proceed, aiResult, messageFailed, test: testRun };
+  return { emit, enroll, recordChange, tick, finishManual, inbound, proceed, aiResult, messageFailed, callInput, test: testRun };
 }

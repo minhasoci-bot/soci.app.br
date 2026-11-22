@@ -221,7 +221,8 @@ export const maxMarkup = 10;
 export const walletProducts = [
   ['ai', 'IA (agentes, conteúdo, resumos)', 'R$ por US$ 1 de consumo da OpenAI', 5.8, 'US$ de consumo'],
   ['email', 'E-mails enviados', 'R$ por 1.000 e-mails', 0.6, 'e-mail'],
-  ['whatsapp', 'Mensagens de WhatsApp enviadas', 'R$ por mensagem', 0, 'mensagem']
+  ['whatsapp', 'Mensagens de WhatsApp enviadas', 'R$ por mensagem', 0, 'mensagem'],
+  ['phone', 'Ligações (Twilio)', 'R$ por minuto de ligação', 0.12, 'minuto']
 ];
 
 // Per-sub-account switches shown on Settings tabs: [key, title, description, enabled by default].

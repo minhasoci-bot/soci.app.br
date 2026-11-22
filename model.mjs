@@ -30,6 +30,7 @@ import { sequenceCollections, sequenceCommand, sequenceFields, sequenceInbound, 
 import { addPoints, loyaltyCollections, loyaltyCommand, loyaltyEvent, loyaltyFields } from './loyalty-model.mjs';
 import { preferenceCommand, preferenceToken } from './preference-model.mjs';
 import { trashCommand, trashContact } from './contact-trash.mjs';
+import { phoneCommand, phoneDefaults } from './phone-model.mjs';
 import { appointmentRecord, bookForContact, createBookingLink, noteOnAppointment, schedulingCollections, schedulingCommand, schedulingFields, upcomingSlots, zonedInstant } from './scheduling-model.mjs';
 import { meetingCollections, meetingCommand, meetingFields } from './meeting-model.mjs';
 import { seoCommand, seoDefaults, visibilityDefaults } from './seo-model.mjs';
@@ -68,7 +69,7 @@ export const defaults = {
   paymentSettings: paymentDefaults(),
   ai: { limit: 0, alertAt: 0.8, ledger: [] },
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
-  tracking: trackingDefaults(), trackingEvents: [], adFormLeads: [], calls: [], aiVideoJobs: [], aiVideos: [], scoringRules: [],
+  tracking: trackingDefaults(), trackingEvents: [], adFormLeads: [], calls: [], phone: phoneDefaults(), aiVideoJobs: [], aiVideos: [], scoringRules: [],
   brandBoards: [], affiliateSettings: affiliateDefaults(), affiliateCampaigns: [], affiliates: [], affiliateCommissions: [], affiliatePayouts: [],
   wallet: walletDefaults(), labs: labsDefaults(), appInstalls: [], appLog: [], seo: seoDefaults(), seoAudits: [], visibility: visibilityDefaults(), visibilityRuns: [],
   reputation: reputationDefaults(), listings: {}, reviewRequests: [], reviewWidgets: [], videoCollectors: [], videoTestimonials: [], videoUploads: [],
@@ -448,6 +449,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'tracking-google-lead-key') return newGoogleLeadKey(s);
   // Server only: a lead from a Google Ads lead form webhook or from Meta Lead Ads.
   if (type === 'ad-form-lead') return adFormLead(s, d, { add, run, now });
+  // Telefonia (2.4): numbers, calls and the IVR (phone-model.mjs). Only phone-number-save comes from the browser.
+  if (type.startsWith('phone-') || type.startsWith('ivr-')) { const out = phoneCommand(s, type, d, { add, run, now, engine }); if (out !== undefined) return out; }
   // Server only: an e-mail that arrived at the sub-account's inbound address (Resend). It is the same as a
   // contact's message in Conversas (Cliente respondeu) and also fires "E-mail recebido". Never twice.
   if (type === 'email-inbound') {
@@ -538,7 +541,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'workflow-outbox-result') {
     for (const item of Array.isArray(d.results) ? d.results.slice(0, 500) : []) {
       const target = find(s, 'runs', item?.runId);
-      if (target) target.results.push(`${({ whatsapp: 'WhatsApp', email: 'E-mail', app: 'App', access: 'Acesso', copy: 'Cópia', meta: 'Meta', google: 'Google Ads', ga4: 'Google Analytics' })[item.kind] || 'Webhook'}: ${str(item.text, 120)}`);
+      if (target) target.results.push(`${({ phone: 'Telefonia', whatsapp: 'WhatsApp', email: 'E-mail', app: 'App', access: 'Acesso', copy: 'Cópia', meta: 'Meta', google: 'Google Ads', ga4: 'Google Analytics' })[item.kind] || 'Webhook'}: ${str(item.text, 120)}`);
       if (item?.failed && item.messageId) engine.messageFailed(s, { messageId: str(item.messageId, 40), reason: str(item.failed, 40) }, 1);
       const doc = item?.docId ? find(s, 'documents', item.docId) : item?.estimateId ? find(s, 'estimates', item.estimateId) : item?.invoiceId ? find(s, 'invoices', item.invoiceId) : item?.checkoutId ? (s.abandonedCheckouts || []).find(row => row.id === item.checkoutId) : item?.giftCardId ? (s.giftCards || []).find(row => row.id === item.giftCardId) : null;
       if (doc) (doc.audit ||= []).push({ at: now(), event: 'delivered', detail: str(item.text, 200) });

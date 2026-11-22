@@ -30,6 +30,8 @@ import {estimatesScreen} from './estimates.js';
 import {invoicesScreen, invoiceTabs} from './invoices.js';
 import {paymentSettingsScreen} from './payment-settings.js';
 import {emailServicesView} from './email-services.js';
+import {phoneSettingsView} from './phone-settings.js';
+import {callReportView} from './call-report.js';
 import {emailMarketingScreen} from './email-marketing.js';
 import {countdownScreen} from './countdowns.js';
 import { affiliatesScreen } from './affiliates.js';
@@ -304,6 +306,7 @@ function reporting(c){
   if (view === 'editor') return reportEditor(c);
   if (reportingAdsTabs.includes(view)) return adsReportScreen(c, { sections: reportingSections });
   const tabCfg = { key: 'reporting', items: reportingSections, current: view, label: 'Seções de relatórios' };
+  if (view==='calls') return callReportView(c, { pageShell, tabs: tabCfg });
   if (view==='snapshots') return pageShell({
     title: 'Relatórios',
     desc: 'Cópias salvas a partir dos seus painéis de métricas.',
@@ -408,10 +411,10 @@ function settings(c){
   if(c.tab==='labs') return labsScreen(c,{ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') });
   if(c.tab==='wallet') return walletScreen(c,{ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') });
   if(['tracking','scoring','preferences'].includes(c.tab)){ const tabs={ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') }; return c.tab==='tracking'?trackingScreen(c,tabs):c.tab==='preferences'?preferencesScreen(c,tabs):scoringScreen(c,tabs); }
-  if(c.tab&&!['business','workspaces','whatsapp','abacatepay','google','email'].includes(c.tab)) return settingsTab(c,c.tab);
+  if(c.tab&&!['business','workspaces','whatsapp','abacatepay','google','email','phone'].includes(c.tab)) return settingsTab(c,c.tab);
   const p=c.s.profile;
   const tab = c.tab || 'business';
-  const body = tab==='email'?emailServicesView(c):tab==='google'?googleSubView(c):tab==='abacatepay'?abacateSubView(c):tab==='whatsapp'?whatsappSubView(c):tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'sub-profile-phone' })}<label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label><label>${tr('Idioma da plataforma')}<select data-lang-choice-select><option value="pt" ${getLanguage()==='pt'?'selected':''}>Português (Brasil)</option><option value="es" ${getLanguage()==='es'?'selected':''}>Español (Latinoamérica)</option></select></label></div><button class="primary">Salvar alterações</button></form>`;
+  const body = tab==='phone'?phoneSettingsView(c):tab==='email'?emailServicesView(c):tab==='google'?googleSubView(c):tab==='abacatepay'?abacateSubView(c):tab==='whatsapp'?whatsappSubView(c):tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'sub-profile-phone' })}<label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label><label>${tr('Idioma da plataforma')}<select data-lang-choice-select><option value="pt" ${getLanguage()==='pt'?'selected':''}>Português (Brasil)</option><option value="es" ${getLanguage()==='es'?'selected':''}>Español (Latinoamérica)</option></select></label></div><button class="primary">Salvar alterações</button></form>`;
   return pageShell({
     title: tr('Configurações'),
     desc: tr('Gerencie o workspace ativo.'),
