@@ -6,6 +6,14 @@ import { agentLimits } from './agents-data.js';
 import {
   formatTokens, formatUsd, kbLimits, modelPrice, retrieveKnowledge, sourceKinds, usageKinds, usageMonths, usageSummary
 } from './ai-data.js';
+import { contextCards } from './beautiful-ui.js';
+
+const sourceBadges = {
+  text: { badge: 'TXT', tone: 'var(--bui-ink-3)' },
+  faq: { badge: 'FAQ', tone: 'var(--bui-accent)' },
+  url: { badge: 'URL', tone: 'var(--bui-green)' }
+};
+let probeCards = null;
 
 export const hubTabs = ['knowledge', 'base', 'templates', 'logs', 'usage'];
 
@@ -316,8 +324,24 @@ export function mountAgentHub({ root, state, request, rerender, createAgent, fla
       const question = event.currentTarget.elements.q.value.trim();
       const draft = read();
       const passages = retrieveKnowledge([{ name: draft.name, sources: draft.sources.filter(source => source.text) }], question);
-      out.innerHTML = passages.length ? `<ol class="kb-passages">${passages.map(item => `<li><b>${h(item.title)}</b><p>${h(item.text)}</p></li>`).join('')}</ol>`
-        : '<p class="dim">Nenhum trecho encontrado. Adicione conteúdo à base.</p>';
+      probeCards?.destroy();
+      probeCards = null;
+      if (!passages.length) {
+        out.innerHTML = '<p class="dim">Nenhum trecho encontrado. Adicione conteúdo à base.</p>';
+        return;
+      }
+      const kindOf = title => draft.sources.find(source => source.title === title)?.kind || 'text';
+      probeCards = contextCards({
+        header: 'Trechos que o agente recebe',
+        chunks: passages.map(item => ({
+          title: item.title || 'Sem título',
+          chars: `${item.text.length.toLocaleString('pt-BR')} caracteres`,
+          body: item.text,
+          source: item.base || draft.name || 'Base de conhecimento',
+          ...sourceBadges[kindOf(item.title)]
+        }))
+      });
+      out.replaceChildren(probeCards.el);
     });
     count();
   }
