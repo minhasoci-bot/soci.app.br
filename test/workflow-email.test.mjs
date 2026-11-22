@@ -50,7 +50,8 @@ test('The server sends workflow and team e-mails through the mailer; a mailer er
   let fail = '';
   const documentMail = {
     linkOf: item => item.path ? `https://app.soci.test${item.path}` : '',
-    async email(to, { subject, text }, idempotency, options) { if (fail) return fail; sent.push({ to, subject, text, idempotency, options }); return { id: `re_${sent.length}` }; }
+    // Like the real mailer: always a sentence, "e-mail enviado" on success.
+    async email(to, { subject, text }, idempotency, options) { if (fail) return fail; sent.push({ to, subject, text, idempotency, options }); return 'e-mail enviado'; }
   };
   const store = createSqliteStore(':memory:');
   const { server, host } = makeServer({ store, auth: null, allowLocalAccess: true, port: 0, socialScheduler: false, documentMail });
@@ -76,6 +77,9 @@ test('The server sends workflow and team e-mails through the mailer; a mailer er
   assert.deepEqual(reply.delivery, { sent: true });
   assert.deepEqual([sent.at(-1).subject, sent.at(-1).text], ['Sua dúvida', 'Respondendo por aqui.']);
 
+  fail = 'e-mail não enviado (HTTP 422)';
+  const rejected = await call('/api/action?workspace=demo', { type: 'message', data: { contactId, channel: 'Email', direction: 'Outbound', subject: 'Erro', body: 'Recusado pela Resend.' } });
+  assert.deepEqual(rejected.delivery, { sent: false, reason: 'provider_error' });
   fail = 'e-mail não configurado (RESEND_API_KEY e PORTAL_EMAIL_FROM)';
   const failed = await call('/api/action?workspace=demo', { type: 'message', data: { contactId, channel: 'Email', direction: 'Outbound', subject: 'De novo', body: 'Outra mensagem.' } });
   assert.deepEqual(failed.delivery, { sent: false, reason: 'not_connected' });

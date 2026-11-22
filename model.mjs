@@ -446,6 +446,25 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'tracking-google-lead-key') return newGoogleLeadKey(s);
   // Server only: a lead from a Google Ads lead form webhook or from Meta Lead Ads.
   if (type === 'ad-form-lead') return adFormLead(s, d, { add, run, now });
+  // Server only: an e-mail that arrived at the sub-account's inbound address (Resend). It is the same as a
+  // contact's message in Conversas (Cliente respondeu) and also fires "E-mail recebido". Never twice.
+  if (type === 'email-inbound') {
+    const externalId = str(d.id, 200);
+    if (externalId && s.messages.some(row => row.externalId === externalId)) return '';
+    const email = str(d.email, 254).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail('E-mail inválido.');
+    let contact = s.contacts.find(row => (row.email || '').toLowerCase() === email);
+    if (!contact) {
+      contact = add(s, 'contacts', { name: str(d.name, 120) || email, email, phone: '', tags: ['E-mail'], company: '', notes: '', custom: {} });
+      run(s, 'Contact created', { contactId: contact.id });
+    }
+    const subject = str(d.subject, 240), body = str(d.body, 5000) || '(e-mail sem texto)';
+    const msgId = executeCommand(s, { type: 'message', data: { contactId: contact.id, channel: 'Email', direction: 'Inbound', body, subject } }, { workspace });
+    const row = find(s, 'messages', msgId);
+    if (row && externalId) row.externalId = externalId;
+    run(s, 'email_received', { contactId: contact.id, subject, from: email, body });
+    return msgId;
+  }
   // Server only: a file a client sends from the client portal. It goes to Arquivos (linked to the contact), leaves a
   // note in Conversas and fires "Arquivo enviado no portal do cliente". The 300 most recent portal files are kept.
   if (type === 'portal-file') {

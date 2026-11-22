@@ -2,7 +2,7 @@
 // compiled into a graph when a contact enrolls, runs that pause and resume, scheduled triggers, and an
 // outbox for the calls the server makes after saving (outbound webhooks, WhatsApp).
 import { createHash, randomBytes } from 'node:crypto';
-import { buildWorkflowContext, resolveTemplate } from './expressions.mjs';
+import { buildWorkflowContext, evaluateExpression, resolveTemplate } from './expressions.mjs';
 import { scoreTriggerMatches } from './scoring-model.mjs';
 import { canMessage } from './preference-model.mjs';
 import { appActionItem } from './app-studio-model.mjs';
@@ -26,6 +26,21 @@ const metaIdentity = contact => {
     first: sha256(first), last: sha256(rest.at(-1) || ''), external: sha256(String(contact.id || '')) };
 };
 const FAILURES = /^(erro|sem contato|sem nome|sem oportunidade|sem agendamento|sem conversa|campo removido|campo inválido|e-mail inválido|contato em não perturbe)/;
+
+// "Código personalizado": the lines of the step ("nome = expressão", "//" comments), or the first problem.
+export function customCodeLines(code) {
+  const lines = [];
+  for (const [index, raw] of String(code || '').split('\n').entries()) {
+    const text = raw.trim();
+    if (!text || text.startsWith('//')) continue;
+    const match = text.match(/^([A-Za-z_]\w{0,39})\s*=(?!=)\s*([\s\S]+)$/);
+    if (!match) return { error: `linha ${index + 1}: use nome = expressão` };
+    lines.push({ line: index + 1, name: match[1], expression: match[2] });
+  }
+  if (!lines.length) return { error: 'escreva pelo menos uma linha nome = expressão' };
+  if (lines.length > 50) return { error: 'até 50 linhas' };
+  return lines;
+}
 
 // "Definir data do evento": a date (and time) as written by people or stored in a field, read in the sub-account's
 // time zone: 2026-12-01, 2026-12-01 19:30, 01/12/2026, 01/12/2026 19:30 or a full ISO date. Returns ms, or null.
@@ -204,7 +219,9 @@ export function workflowRecord(s, d) {
       const spec = actionSpec(step.type);
       if (step.type === 'ai_decision' && aiOptions(step.config.options).length < 2) fail(`${spec.label}: informe pelo menos duas opções.`);
       if (step.type === 'ai_intent' && aiOptions(step.config.intents).length < 2) fail(`${spec.label}: informe pelo menos duas intenções.`);
-      if (step.type === 'ai_extract' && !aiExtractFields(step.config.fields).length) fail(`${spec.label}: informe os dados a extrair, um por linha.`);      if (spec?.ai && step.type !== 'ai_extract' && !aiVariableName(step.config.variable)) fail(`${spec.label}: informe o nome da variável.`);
+      if (step.type === 'ai_extract' && !aiExtractFields(step.config.fields).length) fail(`${spec.label}: informe os dados a extrair, um por linha.`);
+      if (step.type === 'custom_code' && customCodeLines(step.config.code).error) fail(`${spec.label}: ${customCodeLines(step.config.code).error}.`);
+      if (spec?.ai && step.type !== 'ai_extract' && !aiVariableName(step.config.variable)) fail(`${spec.label}: informe o nome da variável.`);
     });
   }
   // Set only by the server from the saving user's session; the run checks it against the workspace's agency.
@@ -305,6 +322,7 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       case 'external_tracking_event': return (!c.event || c.event === ctx.event) && (!c.url || lower(ctx.url).includes(lower(c.url)));
       case 'score_changed': return scoreTriggerMatches(c, ctx);
       case 'association_created': return !c.object || c.object === ctx.object;
+      case 'email_received': return (!c.subject || lower(ctx.subject).includes(lower(c.subject))) && (!c.from || lower(ctx.from).includes(lower(c.from)));
       case 'portal_file_uploaded': return !c.kind || c.kind === ctx.kind;
       case 'video_watched': return Number(ctx.percent) === (Number(c.percent) || 25) && (!c.video || lower(ctx.video).includes(lower(c.video))) && (!c.url || lower(ctx.url).includes(lower(c.url)));
       case 'whatsapp_ad_click': return (!c.adId || c.adId === ctx.adId) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
@@ -463,6 +481,22 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
         const buttons = [...new Set(text(c.buttons).split('\n').map(line => line.trim().slice(0, 30)).filter(Boolean))].slice(0, 6);
         if (buttons.length) row.buttons = buttons;
         return buttons.length ? `enviada ao chat com ${buttons.length} botão(ões)` : 'enviada ao chat';
+      }
+      case 'custom_code': {
+        // "Código personalizado": lines "nome = expressão" in the Soci expression language — parsed, never eval'd, with
+        // no network or disk. Each result is a flow variable; the next lines use it by name and later steps as {{vars.nome}}.
+        const lines = customCodeLines(c.code);
+        if (lines.error) return `erro: ${lines.error}`;
+        const out = {};
+        for (const { line, name, expression } of lines) {
+          let value;
+          try { value = evaluateExpression(expression, { ...out, ...mergeContext(s, contact, run) }); } catch (problem) { return `erro: linha ${line}: ${problem.message}`; }
+          const result = value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+          out[name] = result.slice(0, 4000);
+          run.vars = { ...(run.vars || {}), [name]: out[name] };
+        }
+        output(run, id, out);
+        return Object.entries(out).map(([name, value]) => `${name} = ${value.slice(0, 40)}`).join(', ').slice(0, 200);
       }
       case 'log_call': {
         // "Registrar ligação": a call made or received outside the Soci, in the call log and in Conversas.
