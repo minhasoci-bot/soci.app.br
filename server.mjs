@@ -130,7 +130,7 @@ import { localDraft, postSeo, writePost } from './blog-ai.mjs';
 import { catalog, methodLabel, storeCart, storeHome, storeProduct } from './ui/store-data.js';
 import { quoteOrder } from './store-model.mjs';
 import { renderOfferPage, offerPageCsp } from './offer-page.mjs';
-import { deliverCustomWebhook, deliverWebhook } from './workflow-delivery.mjs';
+import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
 import { eachStep } from './ui/workflow-data.js';
 import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
 import { deviceOf, qrTarget } from './qr-model.mjs';
@@ -1556,6 +1556,20 @@ export function makeServer({
         const sent = await whatsapp.sendWorkspaceText(state.agencyId || AGENCY_ID, workspace, item.phone, absolute(item), (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
         results.push({ runId: item.runId, kind: 'whatsapp', text: sent?.sent ? 'enviado' : sent?.reason === 'not-connected' ? 'WhatsApp não conectado' : 'não enviado',
           ...(sent?.sent ? {} : { failed: deliveryFailure(sent?.reason), messageId: item.messageId || '' }) });
+      }
+      if (item.kind === 'whatsapp-media') {
+        if (privateSpace.test(workspace)) { results.push({ runId: item.runId, kind: 'whatsapp', text: 'não enviado (conta pessoal)' }); continue; }
+        // The provider downloads the file: only public https addresses (never the internal network of its server).
+        const target = await publicTarget(item.media?.url || '');
+        if (typeof target === 'string') { results.push({ runId: item.runId, kind: 'whatsapp', text: `arquivo não enviado: ${target}`, failed: 'provider_error', messageId: item.messageId || '' }); continue; }
+        const sent = await whatsapp.sendWorkspaceMedia(state.agencyId || AGENCY_ID, workspace, item.phone, item.media, (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
+        results.push({ runId: item.runId, kind: 'whatsapp', text: sent?.sent ? 'arquivo enviado' : sent?.reason === 'not-connected' ? 'WhatsApp não conectado' : sent?.reason === 'unsupported' ? 'o provedor de WhatsApp não envia arquivos' : 'arquivo não enviado',
+          ...(sent?.sent ? {} : { failed: deliveryFailure(sent?.reason), messageId: item.messageId || '' }) });
+      }
+      if (item.kind === 'whatsapp-typing') {
+        if (privateSpace.test(workspace)) { results.push({ runId: item.runId, kind: 'whatsapp', text: '"digitando" não mostrado (conta pessoal)' }); continue; }
+        const shown = await whatsapp.sendWorkspacePresence(state.agencyId || AGENCY_ID, workspace, item.phone, item.seconds, (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
+        results.push({ runId: item.runId, kind: 'whatsapp', text: shown?.sent ? `"digitando…" por ${shown.seconds} s` : shown?.reason === 'not-connected' ? 'WhatsApp não conectado' : shown?.reason === 'unsupported' ? 'o provedor de WhatsApp não mostra "digitando"' : '"digitando" não mostrado' });
       }
     }
     if (results.length) {

@@ -14,7 +14,7 @@ function privateAddress(address) {
 }
 
 // A public https address, or the reason it is refused (a string).
-async function publicTarget(url, resolve) {
+async function publicTarget(url, resolve = lookup) {
   let target;
   try { target = new URL(url); } catch { return 'endereço inválido'; }
   if (target.protocol !== 'https:' || target.username || target.password) return 'apenas https:// é aceito';
@@ -83,4 +83,4 @@ export async function deliverCustomWebhook(item, { fetchImpl = fetch, resolve = 
   return response.ok ? { vars } : { error: `falhou (${response.status})`, vars };
 }
 
-export { privateAddress };
+export { privateAddress, publicTarget };
