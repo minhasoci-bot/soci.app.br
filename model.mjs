@@ -298,6 +298,8 @@ const engine = createEngine({ add, now,
     applyScoring(state, type, ctx, { matches, emit: (st, event, c) => engine.emit(st, event, c) });
     queueAppEvents(state, type, ctx);
   },
+  // "Excluir contato" and "Remover oportunidade" go through the same deletion as the screens (contacts to the trash).
+  removeRecord: (state, key, recordId) => remove(state, key, recordId),
   adjustScore: (state, contact, delta, reason, depth = 0) => changeScore(state, contact, delta, reason, { emit: (st, event, c) => engine.emit(st, event, c), depth }),
   startRecurring: (state, contact, config, depth = 0) => startTemplateRecurring(state, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })) });
 const legacyEvents = { 'Contact created': 'contact_created', 'Form submitted': 'form_submitted', 'Opportunity stage changed': 'pipeline_stage_changed',
@@ -504,7 +506,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (typeof type === 'string' && type.startsWith('email-')) return emailCommand(s, { ...command, data:d }, { run, add });
   if (typeof type === 'string' && type.startsWith('invoice-')) return invoiceCommand(s, { ...command, data:d }, { workspace, run });
   if (type === 'store-checkout') { const orderId = storeCheckout(s, { ...command, data:d }, { add, run }); checkoutConverted(s, d.session, find(s, 'orders', orderId), run); return orderId; }
-  if (type === 'store-cart') return captureCart(s, id, d);
+  if (type === 'store-cart') return captureCart(s, id, d, { run });
   if (type === 'store-review') return submitReview(s, id, d, run);
   if (typeof type === 'string' && type.startsWith('catalog-')) return catalogCommand(s, { ...command, data:d }, { workspace });
   if (type === 'store-cart-restore') return restoreCart(s, id, str(d.tokenHash, 64));

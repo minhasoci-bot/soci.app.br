@@ -137,7 +137,12 @@ export function storeCheckout(s, command, { add, run }) {
     contact.updated = new Date().toISOString();
   }
   for (const line of quote.lines) { const item = store.items.find(entry => entry.productId === line.productId); if (item.stock !== null) item.stock -= line.qty; }
-  if (quote.coupon_) quote.coupon_.redemptions = (quote.coupon_.redemptions || 0) + 1;
+  if (quote.coupon_) {
+    const coupon = quote.coupon_;
+    coupon.redemptions = (coupon.redemptions || 0) + 1;
+    run(s, 'coupon_redeemed', { contactId: contact.id, couponId: coupon.id, code: coupon.code, title: coupon.name });
+    if (coupon.limit && coupon.redemptions >= coupon.limit) run(s, 'coupon_limit_reached', { contactId: contact.id, couponId: coupon.id, code: coupon.code, title: coupon.name });
+  }
   const number = s.orders.reduce((max, order) => Math.max(max, order.number || 0), 1000) + 1;
   const invoice = add(s, 'invoices', { title: `Pedido #${number} · ${store.name}`, contactId: contact.id, value: quote.total, due: today(), status: 'Open' });
   const { coupon_, giftCard_, ...totals } = quote;

@@ -12,7 +12,36 @@ const fail = (message, status = 400) => { throw Object.assign(new Error(message)
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value) : '';
 const lower = value => String(value ?? '').trim().toLowerCase();
 const tagList = list => [...new Set((list || []).map(tag => str(tag, 48)).filter(Boolean))].slice(0, 20);
-const FAILURES = /^(erro|sem contato|sem nome|sem oportunidade|campo removido|campo inválido|e-mail inválido|contato em não perturbe)/;
+const FAILURES = /^(erro|sem contato|sem nome|sem oportunidade|sem agendamento|sem conversa|campo removido|campo inválido|e-mail inválido|contato em não perturbe)/;
+
+// "Formatar data": AAAA-MM-DD, a date with time or "hoje", plus some days, in the sub-account's time zone.
+export function formatDate(value, days = 0, format = 'br', zone = 'America/Sao_Paulo') {
+  const raw = String(value || '').trim();
+  const at = /^(hoje|today|hoy)$/i.test(raw) ? Date.now()
+    : /^\d{4}-\d{2}-\d{2}$/.test(raw) ? Date.parse(`${raw}T12:00:00Z`)
+      : /^\d{2}\/\d{2}\/\d{4}$/.test(raw) ? Date.parse(`${raw.slice(6)}-${raw.slice(3, 5)}-${raw.slice(0, 2)}T12:00:00Z`) : Date.parse(raw);
+  if (!Number.isFinite(at)) return null;
+  const date = new Date(at + days * 864e5), dateOnly = /^\d{4}-\d{2}-\d{2}$|^\d{2}\/\d{2}\/\d{4}$/.test(raw);
+  const timeZone = dateOnly ? 'UTC' : zone;
+  const part = options => new Intl.DateTimeFormat('pt-BR', { timeZone, ...options }).format(date);
+  if (format === 'iso') return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  if (format === 'long') return part({ day: 'numeric', month: 'long', year: 'numeric' });
+  if (format === 'weekday') return part({ weekday: 'long' });
+  if (format === 'time') return dateOnly ? null : part({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  return part({ day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+// "Formatar número": accepts 1234.5, 1.234,56 or R$ 1.234,56.
+export function formatNumber(value, format = 'decimal') {
+  let raw = String(value ?? '').replace(/[R$\s%]/g, '');
+  if (raw.includes(',')) raw = raw.replace(/\./g, '').replace(',', '.');
+  const n = Number(raw);
+  if (raw === '' || !Number.isFinite(n)) return null;
+  if (format === 'brl') return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+  if (format === 'integer') return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(n);
+  if (format === 'percent') return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(n)}%`;
+  return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
 const MAX_STEPS = 120, MAX_DEPTH = 4, CONDITIONS = ['tag', 'field', 'dnd', 'stage', 'opportunity_status', 'replied', 'submitted', 'trigger', 'var'];
 const AI_TIMEOUT = 10 * 60000;
 const scheduledTypes = allTriggers.filter(item => item.scheduled).map(item => item.type);
@@ -126,7 +155,7 @@ export function compile(steps) {
 
 /* ───────── Motor ───────── */
 
-export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null }) {
+export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null }) {
   const contactOf = (s, id) => s.contacts.find(row => row.id === id);
   const fieldValue = (s, contact, key) => {
     if (!contact) return '';
@@ -233,6 +262,10 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'inbound_webhook': return ctx.triggerId === trigger.id;
       case 'ai_usage_alert': return !c.level || c.level === ctx.level;
       case 'app_trigger': return !c.trigger || c.trigger === `${ctx.appId}:${ctx.key}`;
+      case 'service_booked': return (!c.serviceId || c.serviceId === ctx.serviceId) && (!c.kind || c.kind === ctx.kind);
+      case 'subscription_status': return !c.status || c.status === ctx.status;
+      case 'coupon_redeemed': case 'coupon_limit_reached': return !c.couponId || c.couponId === ctx.couponId;
+      case 'cart_updated': return !c.storeId || c.storeId === ctx.storeId;
       default: return scheduledTypes.includes(type) ? ctx.triggerId === trigger.id : true;
     }
   }
@@ -251,7 +284,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
 
   function perform(s, run, node, depth, id) {
     const contact = contactOf(s, run.contactId), c = node.config || {}, text = value => merge(value, s, contact, run);
-    const needsContact = !['internal_notification', 'webhook', 'app_action', 'create_task', 'create_social_post'].includes(node.type);
+    const needsContact = !['internal_notification', 'webhook', 'app_action', 'create_task', 'create_social_post', 'update_custom_value', 'date_format', 'number_format'].includes(node.type);
     if (needsContact && !contact) return 'sem contato';
     const message = (channel, body, subject = '') => add(s, 'messages', { contactId: contact.id, body: text(body).slice(0, 5000), subject, channel, direction: 'Outbound', read: true, starred: false, origin: 'workflow', workflowId: run.workflowId });
     switch (node.type) {
@@ -454,6 +487,71 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         run.vars = { ...(run.vars || {}), [name]: typeof value === 'string' ? value.slice(0, 4000) : value };
         output(run, id, { [name]: run.vars[name] });
         return `${name} = ${typeof value === 'string' ? value.slice(0, 60) : JSON.stringify(value).slice(0, 60)}`;
+      }
+      case 'edit_conversation': {
+        const rows = s.messages.filter(row => row.contactId === contact.id);
+        if (!rows.length) return 'sem conversa';
+        const change = { read: ['read', true], unread: ['read', false], star: ['starred', true], unstar: ['starred', false] }[c.op];
+        if (!change) return 'erro: escolha o que fazer';
+        if (change[0] === 'read' && !change[1]) rows.at(-1).read = false; else rows.forEach(row => { row[change[0]] = change[1]; });
+        return 'concluída';
+      }
+      case 'conversation_followers': {
+        const names = text(c.users).split(',').map(name => name.trim().slice(0, 80)).filter(Boolean).slice(0, 20);
+        if (!names.length) return 'erro: informe as pessoas';
+        let meta = s.threads.find(row => row.contactId === contact.id);
+        if (!meta) meta = add(s, 'threads', { contactId: contact.id, assignee: '', followers: [] });
+        const lowered = new Set(names.map(lower));
+        const merged = new Map();
+        for (const name of [...(meta.followers || []), ...names]) if (!merged.has(lower(name))) merged.set(lower(name), name);
+        meta.followers = c.op === 'remove' ? (meta.followers || []).filter(name => !lowered.has(lower(name))) : [...merged.values()];
+        meta.updated = now();
+        return `seguidores: ${meta.followers.join(', ') || 'ninguém'}`;
+      }
+      case 'delete_contact': {
+        if (!removeRecord) return 'erro: exclusão indisponível';
+        const name = contact.name;
+        removeRecord(s, 'contacts', contact.id);
+        run.contactId = '';
+        return `${name} foi para a lixeira`;
+      }
+      case 'remove_opportunity': {
+        if (!removeRecord) return 'erro: exclusão indisponível';
+        const latest = s.opportunities.filter(row => row.contactId === contact.id && (!c.pipelineId || row.pipelineId === c.pipelineId))
+          .sort((a, b) => String(b.updated || b.created).localeCompare(String(a.updated || a.created)))[0];
+        if (!latest) return 'sem oportunidade';
+        removeRecord(s, 'opportunities', latest.id);
+        return `removida: ${latest.title}`;
+      }
+      case 'appointment_status_update': {
+        if (!['Confirmed', 'Completed', 'Canceled'].includes(c.status)) return 'erro: escolha o status';
+        const mine = s.appointments.filter(row => row.contactId === contact.id);
+        const stamp = Date.now();
+        const next = mine.filter(row => Date.parse(row.start) >= stamp && row.status !== 'Canceled').sort((a, b) => Date.parse(a.start) - Date.parse(b.start))[0]
+          || mine.sort((a, b) => Date.parse(b.start) - Date.parse(a.start))[0];
+        if (!next) return 'sem agendamento';
+        if (next.status !== c.status) {
+          next.status = c.status; next.updated = now();
+          emit(s, 'appointment_status', { contactId: contact.id, appointmentId: next.id, status: c.status, depth });
+        }
+        output(run, id, { id: next.id, title: next.title, start: next.start, status: next.status });
+        return `${next.title}: ${c.status}`;
+      }
+      case 'update_custom_value': {
+        const row = (s.customValues || []).find(item => item.id === c.valueId);
+        if (!row) return 'erro: valor personalizado removido';
+        row.value = text(c.value).slice(0, 5000);
+        row.updated = now();
+        return `${row.name} = ${row.value.slice(0, 60)}`;
+      }
+      case 'date_format': case 'number_format': {
+        const name = String(c.variable || '').trim().replace(/[^\w]/g, '_').slice(0, 40);
+        if (!name) return 'sem nome';
+        const formatted = node.type === 'date_format' ? formatDate(text(c.value), Number(c.days) || 0, c.format, s.profile?.timezone) : formatNumber(text(c.value), c.format);
+        if (formatted === null) return `erro: ${node.type === 'date_format' ? 'data' : 'número'} inválido(a): ${text(c.value).slice(0, 40)}`;
+        run.vars = { ...(run.vars || {}), [name]: formatted };
+        output(run, id, { [name]: formatted });
+        return `${name} = ${formatted}`;
       }
       case 'app_action': {
         const made = appActionItem(s, c, { run, contact, data: text(c.data || '').slice(0, 4000) });
@@ -660,6 +758,12 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
     }
     if (key === 'invoices' && (!prior || prior.status !== row.status)) emit(s, 'invoice_status', { ...base, status: row.status, total: row.value });
     if (key === 'transactions' && !prior) emit(s, 'payment_received', { ...base, total: row.amount });
+    if (key === 'transactions' && row.status === 'Refunded' && prior?.status !== 'Refunded') emit(s, 'refund', { ...base, total: row.amount, transactionId: row.id });
+    if (key === 'subscriptions' && (!prior || prior.status !== row.status)) emit(s, 'subscription_status', { ...base, status: row.status, subscriptionId: row.id });
+    if (key === 'appointments' && !prior && row.serviceId) {
+      const service = (s.services || []).find(item => item.id === row.serviceId);
+      if (service) emit(s, 'service_booked', { ...base, serviceId: service.id, kind: service.kind, appointmentId: row.id, title: service.name });
+    }
     if (key === 'reviews' && !prior) emit(s, 'review_received', { contactId: row.contactId || '', score: row.score });
     if (key === 'orders' && prior && prior.status !== row.status && row.status === 'Paid') emit(s, 'order_paid', { ...base, storeId: row.storeId, total: row.total });
     if (key === 'orders' && prior && prior.status !== row.status && row.status === 'Fulfilled') emit(s, 'order_fulfilled', { ...base, storeId: row.storeId, total: row.total });
@@ -687,6 +791,11 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         let contacts = [];
         if (trigger.type === 'scheduler') contacts = s.contacts.filter(row => c.tag && (row.tags || []).some(tag => lower(tag) === lower(c.tag)));
         if (trigger.type === 'birthday_reminder') { const target = shift(today, Number(c.days) || 0).slice(5); contacts = s.contacts.filter(row => String(row.custom?.[c.field] || '').slice(5, 10) === target); }
+        if (trigger.type === 'task_reminder') {
+          const target = shift(today, Number(c.days) || 0);
+          const due = (s.tasks || []).filter(row => !row.done && row.contactId && String(row.due || '').slice(0, 10) === target);
+          contacts = [...new Set(due.map(row => row.contactId))].map(id => contactOf(s, id)).filter(Boolean);
+        }
         if (trigger.type === 'custom_date_reminder') { const target = shift(today, -(Number(c.offset) || 0)); contacts = s.contacts.filter(row => String(row.custom?.[c.field] || '').slice(0, 10) === target); }
         if (trigger.type === 'stale_opportunity') {
           const limit = at - (Number(c.days) || 7) * 864e5;
