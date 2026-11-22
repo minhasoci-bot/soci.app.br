@@ -131,6 +131,7 @@ import { catalog, methodLabel, storeCart, storeHome, storeProduct } from './ui/s
 import { quoteOrder } from './store-model.mjs';
 import { renderOfferPage, offerPageCsp } from './offer-page.mjs';
 import { deliverCustomWebhook, deliverWebhook } from './workflow-delivery.mjs';
+import { eachStep } from './ui/workflow-data.js';
 import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
 import { deviceOf, qrTarget } from './qr-model.mjs';
 
@@ -354,6 +355,19 @@ export function makeServer({
   async function offerAccessChanged(workspace, contact, offerId, event) {
     await change(workspace, { type: 'offer-access', data: { event, offerId, email: contact.email || '', name: contact.name || '', contactId: contact.id || contact.contactId || '' } });
     flushLater(workspace);
+  }
+  // Workflows: "Copiar contato" into another sub-account of the same agency (checked again at run time).
+  async function workflowCopyContact(workspace, state, item) {
+    const target = String(item.workspace || '');
+    if (privateSpace.test(workspace)) return 'não disponível na conta pessoal';
+    if (target === workspace) return 'a subconta de destino é esta mesma';
+    const agencyId = state.agencyId || AGENCY_ID;
+    const account = (await listWorkspaces(agencyId)).find(row => row.id === target);
+    if (!account) return 'subconta de destino não encontrada nesta agência';
+    if (!await accountIsActive(agencyId, target, 'contacts').catch(() => false)) return `${account.name}: subconta sem contatos ativos`;
+    const copied = await change(target, { type: 'contact-copy-in', data: { ...(item.contact || {}), tags: [...(item.contact?.tags || []), ...(item.tags || [])], from: state.profile?.name || workspace } });
+    if (copied.state.workflowOutbox?.length) flushLater(target);
+    return `${account.name}: ${copied.id?.created ? 'contato criado' : 'contato já existia (campos vazios e tags completados)'}`;
   }
   // Workflows: the access actions (courses in the portal, communities, offers, ranking points), applied after the run was saved.
   async function workflowAccess(workspace, item) {
@@ -1509,6 +1523,7 @@ export function makeServer({
         appEntries.push({ app: sent.name, appId: item.appId, kind: item.body?.type || 'event', text: `${what}: ${sent.text}` });
       }
       if (item.kind === 'ai') aiResults.push(await workflowAIStep(workspace, state, item));
+      if (item.kind === 'copy-contact') results.push({ runId: item.runId, kind: 'copy', text: await workflowCopyContact(workspace, state, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'custom-webhook') aiResults.push({ runId: item.runId, stepId: item.stepId, ...(await deliverCustomWebhook(item).catch(() => ({ error: 'falha de conexão' }))) });
       if (item.kind === 'email-verify') {
         const checked = await checkEmailAddress(item.email, emailResolver).catch(() => ({ status: 'unknown', reason: 'não foi possível consultar o domínio agora' }));
@@ -2485,6 +2500,13 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         command.actor = who.name;
         // Whose OpenAI key the workflow's AI steps use: always the saving user, never a value from the client.
         if (command.type === 'save' && command.key === 'workflows' && command.data && typeof command.data === 'object') {
+          // "Copiar contato": whoever saves the workflow must be able to open the target sub-account's contacts.
+          const targets = new Set();
+          eachStep(Array.isArray(command.data.steps) ? command.data.steps : [], step => { if (step?.type === 'copy_contact' && step.config?.workspace) targets.add(String(step.config.workspace)); });
+          for (const target of targets) {
+            if (target === id) throw error('Copiar contato: escolha outra subconta como destino.', 400);
+            await workspaceAccess(req, res, target, { modules: ['contacts'] }).catch(() => { throw error('Copiar contato: seu usuário não tem acesso aos contatos da subconta de destino.', 403); });
+          }
           command.data = { ...command.data, aiKey: who.session ? { session: who.session.id, user: who.userId || '', agency: who.agencyId || '' } : null };
         }
         if (['document-send', 'document-link', 'estimate-send', 'estimate-link', 'invoice-send', 'invoice-from-template', 'checkout-remind', 'email-campaign-schedule', 'message', 'review-request', 'reputation-settings'].includes(command.type)) command.data = { ...(command.data && typeof command.data === 'object' ? command.data : {}), origin: publicBase(req) };
