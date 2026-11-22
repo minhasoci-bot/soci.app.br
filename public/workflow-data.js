@@ -302,6 +302,13 @@ export const actionCatalog = [
     { type: 'email_verify', label: 'Verificar e-mail', icon: 'mail', description: 'Confere o formato do e-mail do contato e se o domínio recebe e-mail (sem enviar nada). O fluxo espera a resposta: use {{vars.email_status}} (valid, invalid ou unknown) e {{vars.email_motivo}} num Se / Senão.', fields: [
       f('invalidTag', 'Tag para e-mail inválido (opcional)', 'text', { value: 'email-invalido', placeholder: 'email-invalido' })
     ] },
+    { type: 'marketing_audit', label: 'Gerar auditoria de marketing', icon: 'chart', description: 'Audita o site da empresa do contato (velocidade, SEO, segurança e LGPD) e, com o Google Maps configurado, o perfil no Google e a reputação. O fluxo espera o resultado (até um minuto): nota do site (0 a 100) em {{vars.nome}}, as partes em {{vars.nome_seo}}, {{vars.nome_seguranca}}…, e um resumo com o que melhorar em {{vars.nome_resumo}}.', fields: [
+      f('website', 'Site (aceita variáveis)', 'text', { placeholder: 'https://empresa.com.br (ou um campo pelo painel de variáveis)' }),
+      f('business', 'Nome da empresa (para achar no Google)', 'text', { value: '{{contact.company}}' }),
+      f('city', 'Cidade (opcional, ajuda a achar no Google)', 'text', { placeholder: 'Recife' }),
+      f('variable', 'Guardar na variável', 'text', { required: true, value: 'auditoria' }),
+      f('note', 'Registrar o resumo como nota na conversa', 'select', { options: [['yes', 'Sim'], ['no', 'Não']] })
+    ] },
     { type: 'copy_contact', label: 'Copiar contato para outra subconta', icon: 'users', description: 'Cria o contato (nome, e-mail, telefone e empresa) noutra subconta da agência. Se ele já existir lá (mesmo e-mail ou telefone), só completa os campos vazios e soma as tags. Campos personalizados não vão. Quem salva o fluxo precisa ter acesso aos contatos da subconta de destino.', fields: [
       f('workspace', 'Subconta de destino', 'ref', { source: 'accounts', required: true, empty: 'Escolha a subconta' }),
       f('copyTags', 'Levar as tags do contato', 'select', { options: [['no', 'Não'], ['yes', 'Sim']] }),
@@ -618,6 +625,7 @@ export function stepSummary(step, s) {
     case 'company_update': return c.field ? `${c.field} = ${String(c.value || '').slice(0, 50)}` : '';
     case 'company_clear': return ({ all: 'Todos os campos', contact: 'Telefone, e-mail e site', address: 'Endereço completo' })[c.field] || c.field || '';
     case 'email_verify': return c.invalidTag ? `Inválido → tag ${c.invalidTag}` : '→ vars.email_status';
+    case 'marketing_audit': return `→ vars.${c.variable || 'auditoria'}`;
     case 'merge_contact': return `${({ email: 'Mesmo e-mail', phone: 'Mesmo telefone' })[c.by] || 'Mesmo e-mail ou telefone'} · ${c.keep === 'oldest' ? 'mantém o mais antigo' : 'mantém este'}`;
     case 'list_format': return c.variable ? `→ vars.${c.variable}` : '';
     case 'whatsapp_window': return `→ vars.${c.variable || 'janela_whatsapp'}`;

@@ -369,3 +369,32 @@ export async function collectProspectAudit(row,{ places = placesConfigured,looku
   const meaningful = audit.website !== null || audit.profile || audit.reputation;
   return meaningful ? audit : null;
 }
+
+// ---------- Workflows ----------
+
+/**
+ * "Gerar auditoria de marketing" (workflows): the audit as variables. <name> is the website health
+ * (0–100), then the parts, the reputation (0–10), whether the site answered and a summary in plain
+ * Portuguese with the pending items. Returns { vars } or { error } when nothing could be audited.
+ */
+export function marketingAuditVars(audit,name = 'auditoria') {
+  if (!audit) return { error:'não foi possível auditar (site fora do ar ou empresa não encontrada)' };
+  const site = audit.website, health = site?.health || {}, parts = health.parts || {};
+  const value = number => Number.isFinite(number) ? String(number) : '';
+  const pending = site?.reachable ? [...(health.seo || []),...(health.security || []),...(health.compliance || []),...(audit.profile?.checks || [])]
+    .filter(row => row.ok === false).map(row => row.label) : (audit.profile?.checks || []).filter(row => row.ok === false).map(row => row.label);
+  const lines = [
+    site ? (site.reachable ? `Saúde do site: ${health.score ?? '—'}/100 (velocidade ${parts.performance ?? '—'}, SEO ${parts.seo ?? '—'}, segurança ${parts.security ?? '—'}, conformidade ${parts.compliance ?? '—'}).` : `O site ${site.url} não respondeu.`) : 'Sem site para auditar.',
+    audit.profile ? `Perfil no Google: ${audit.profile.found ? `${audit.profile.score ?? '—'}% completo` : 'não encontrado'}.` : '',
+    Number.isFinite(audit.reputation?.score) ? `Reputação: ${audit.reputation.score}/10.` : '',
+    (audit.social || []).length ? `Redes no site: ${audit.social.map(row => row.label).join(', ')}.` : '',
+    pending.length ? `A melhorar: ${pending.slice(0,8).join('; ')}${pending.length > 8 ? `; e mais ${pending.length-8}` : ''}.` : ''
+  ].filter(Boolean);
+  return { vars:{
+    [name]:value(site?.reachable ? health.score : site ? 0 : null),
+    [`${name}_velocidade`]:value(parts.performance),[`${name}_seo`]:value(parts.seo),
+    [`${name}_seguranca`]:value(parts.security),[`${name}_conformidade`]:value(parts.compliance),
+    [`${name}_reputacao`]:value(audit.reputation?.score),[`${name}_site_ok`]:site ? (site.reachable ? 'sim' : 'nao') : '',
+    [`${name}_resumo`]:lines.join('\n')
+  } };
+}
