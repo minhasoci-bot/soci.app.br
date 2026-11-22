@@ -5087,5 +5087,11 @@
   "Roda as etapas de dentro uma vez para cada item de uma lista (ou um número de vezes) e depois segue o fluxo. Dentro, use {{vars.item}}, {{vars.item_numero}} e {{vars.item_total}}. Até 50 repetições.": "Ejecuta los pasos de adentro una vez por cada elemento de una lista (o un número de veces) y luego sigue el flujo. Adentro, use {{vars.item}}, {{vars.item_numero}} y {{vars.item_total}}. Hasta 50 repeticiones.",
   "Para cada item de uma lista": "Para cada elemento de una lista",
   "Um número de vezes": "Un número de veces",
-  "Nome da variável do item": "Nombre de la variable del elemento"
+  "Nome da variável do item": "Nombre de la variable del elemento",
+  "Rodar agente de IA": "Ejecutar agente de IA",
+  "Manda uma mensagem para a versão publicada de um agente de IA desta subconta (com a base de conhecimento e a memória dele) e guarda a resposta em {{vars.nome}}. A execução aparece no histórico do agente.": "Envía un mensaje a la versión publicada de un agente de IA de esta subcuenta (con su base de conocimiento y su memoria) y guarda la respuesta en {{vars.nome}}. La ejecución aparece en el historial del agente.",
+  "Agente (publicado)": "Agente (publicado)",
+  "Escolha o agente": "Elija el agente",
+  "Mensagem para o agente (aceita variáveis)": "Mensaje para el agente (acepta variables)",
+  "Guardar a resposta na variável": "Guardar la respuesta en la variable"
 }

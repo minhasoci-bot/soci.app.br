@@ -18,6 +18,7 @@ export const refSources = {
   communities: s => (s.communities || []).map(row => [row.id, row.name]),
   privateChannels: s => (s.communities || []).flatMap(group => (group.channels || []).filter(channel => channel.private).map(channel => [`${group.id}:${channel.id}`, `${group.name} · #${channel.name}`])),
   courses: s => (s.courses || []).map(row => [row.id, row.name]),
+  agents: s => (s.agents || []).filter(row => row.published).map(row => [row.id, row.name]),
   offers: s => (s.offers || []).map(row => [row.id, row.title]),
   sequences: s => (s.emailSequences || []).map(row => [row.id, row.name]),
   rewards: s => (s.loyaltyRewards || []).map(row => [row.id, row.name]),
@@ -406,6 +407,11 @@ export const actionCatalog = [
     { type: 'update_custom_value', label: 'Atualizar valor personalizado', icon: 'key', description: 'Muda um valor personalizado da conta, usado como {{custom_values.nome}} em todo lugar.', fields: [f('valueId', 'Valor personalizado', 'ref', { source: 'customValues', required: true, empty: 'Escolha um valor' }), f('value', 'Novo valor', 'text', { required: true })] }
   ] },
   { group: 'IA', items: [
+    { type: 'ai_agent', label: 'Rodar agente de IA', icon: 'spark', ai: true, description: 'Manda uma mensagem para a versão publicada de um agente de IA desta subconta (com a base de conhecimento e a memória dele) e guarda a resposta em {{vars.nome}}. A execução aparece no histórico do agente.', fields: [
+      f('agentId', 'Agente (publicado)', 'ref', { source: 'agents', required: true, empty: 'Escolha o agente' }),
+      f('input', 'Mensagem para o agente (aceita variáveis)', 'textarea', { required: true, value: '{{trigger.body}}' }),
+      f('variable', 'Guardar a resposta na variável', 'text', { required: true, value: 'resposta_agente' })
+    ] },
     { type: 'ai_decision', label: 'Decidir com IA', icon: 'spark', ai: true, description: 'A IA escolhe uma das opções. Use a variável num Se / Senão ou Roteador.',
       fields: [f('question', 'O que a IA deve decidir', 'textarea', { required: true, placeholder: 'Ex.: Este lead está pronto para comprar?' }),
         f('options', 'Opções (separadas por vírgula)', 'text', { required: true, placeholder: 'quente, morno, frio' }),
@@ -552,6 +558,7 @@ export function stepSummary(step, s) {
     case 'set_variable': return c.name ? `vars.${c.name}` : '';
     case 'ai_decision': return `${String(c.options || '').slice(0, 50)} → vars.${c.variable || 'decisao'}`;
     case 'ai_intent': return `${String(c.intents || '').slice(0, 50)} → vars.${c.variable || 'intencao'}`;
+    case 'ai_agent': return [ref('agents', c.agentId), c.variable ? `→ vars.${c.variable}` : ''].filter(Boolean).join(' ');
     case 'ai_summarize': case 'ai_translate': case 'ai_image': return c.variable ? `→ vars.${c.variable}` : '';
     case 'ai_extract': return aiExtractFields(c.fields).map(item => `vars.${item.name}`).join(', ').slice(0, 80);
     case 'router': return `${(step.routes || []).length} caminho(s)`;

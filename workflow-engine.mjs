@@ -978,6 +978,11 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
           : text(c.input);
         return { names: [variable], payload: { variable, length: c.length || 'short', note: c.note === 'yes', input }, problem: conversation && !contact ? 'sem contato' : '' };
       }
+      case 'ai_agent': {
+        const agent = (s.agents || []).find(row => row.id === c.agentId), input = text(c.input).trim();
+        return { names: [variable], payload: { variable, agentId: c.agentId || '', input },
+          problem: !agent ? 'agente não encontrado' : !agent.published ? 'o agente não está publicado' : !input ? 'a mensagem para o agente ficou vazia' : '' };
+      }
       default: return { names: [], payload: {}, problem: 'ação de IA desconhecida' };
     }
   }

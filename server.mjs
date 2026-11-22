@@ -11,7 +11,7 @@ import { discoverDesign, generatePage, generateSite, planSite, revisePage, sugge
 import { localPlan, questionsFor, validDesign, validPlan } from './ui/studio-design.js';
 import { designAgent, replyAsAgent } from './agent-ai.mjs';
 import { createOpenAI, openAIModel } from './openai.mjs';
-import { agentBuildRequest, agentPreview, applyAgentDesign, editAgent, recordAgentRun } from './agent-model.mjs';
+import { agentBuildRequest, agentWorkflowRequest, agentPreview, applyAgentDesign, editAgent, recordAgentRun } from './agent-model.mjs';
 import { agencyAiUsage, checkAiBudget, editAgentTemplate, editKnowledgeBase, setAiAccess, setAiLimit, usageMeter } from './ai-model.mjs';
 import { requireLab, setLabsOffer } from './labs-model.mjs';
 import { conversationRequest, writeConversationReply, writeConversationSummary } from './conversation-ai.mjs';
@@ -1490,6 +1490,16 @@ export function makeServer({
       checkAiBudget(await store.load(workspace));
       const meter = usageMeter();
       try {
+        if (item.action === 'ai_agent') {
+          // "Rodar agente de IA": the published agent answers the step's message; the run shows in the agent's history.
+          const request = agentWorkflowRequest(state, item.agentId, item.input);
+          const reply = String(await generateAgentReply({ ...request, model: request.model || agentModel }, { ...connection, onUsage: meter.onUsage }) || '');
+          await store.change(workspace, current => {
+            meter.charge(current, 'workflow', '');
+            recordAgentRun(current, { agent: item.agentId, version: 'published', input: item.input, output: reply, kind: 'workflow', model: request.model || agentModel, sources: [...new Set(request.retrieved.map(row => row.title))] });
+          });
+          return { ...base, vars: { [item.variable]: reply } };
+        }
         const { vars } = await (workflowAI || runWorkflowAI)({ ...connection, onUsage: meter.onUsage }, item);
         await store.change(workspace, current => { meter.charge(current, 'workflow', ''); });
         return { ...base, vars };
