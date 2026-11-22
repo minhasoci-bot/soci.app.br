@@ -171,6 +171,20 @@ export function agentPreview(state, input) {
   };
 }
 
+// Workflows (T.1): one message to the published version of an agent, with its knowledge and memory.
+export function agentWorkflowRequest(state, agentId, message) {
+  const agent = findAgent(state, agentId);
+  if (!agent.published) fail('o agente não está publicado', 409);
+  const content = text(message).slice(0, agentLimits.message);
+  if (!content) fail('a mensagem para o agente ficou vazia');
+  const draft = validDraft(agentDraft(agent.published));
+  return {
+    draft, retrieved: agentKnowledge(state, draft.bases, content), model: agent.published.model,
+    memory: draft.resources.memory ? (agent.memory || []).map(({ kind, text: fact }) => ({ kind, text: fact })) : [],
+    messages: [{ role: 'user', content }], name: agent.name, version: agent.published.version
+  };
+}
+
 // The current draft plus a validated change request, for the builder chat.
 export function agentBuildRequest(state, input) {
   const agent = findAgent(state, input.id);
