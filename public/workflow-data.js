@@ -59,6 +59,7 @@ export const triggerCatalog = [
     { type: 'birthday_reminder', label: 'Lembrete de aniversário', icon: 'gift', scheduled: true, fields: [f('field', 'Campo de data de nascimento', 'ref', { source: 'dateFields', required: true }), f('days', 'Dias antes', 'number', { min: 0, max: 60, value: 0 }), f('time', 'Horário', 'time', { value: '09:00' })] },
     { type: 'custom_date_reminder', label: 'Lembrete de data personalizada', icon: 'cal', scheduled: true, fields: [f('field', 'Campo de data', 'ref', { source: 'dateFields', required: true }), f('offset', 'Dias em relação à data (negativo = antes)', 'number', { min: -365, max: 365, value: 0 }), f('time', 'Horário', 'time', { value: '09:00' })] },
     { type: 'note_added', label: 'Nota adicionada', icon: 'note' },
+    { type: 'note_changed', label: 'Nota alterada', icon: 'note', description: 'Quando as notas do contato são editadas. Use {{trigger.body}} para o texto novo.', fields: [] },
     { type: 'task_added', label: 'Tarefa adicionada', icon: 'check' },
     { type: 'task_completed', label: 'Tarefa concluída', icon: 'check' },
     { type: 'task_reminder', label: 'Lembrete de tarefa', icon: 'clock', scheduled: true, description: 'Uma vez por dia, para as tarefas em aberto que vencem no dia escolhido.', fields: [f('days', 'Quantos dias antes do prazo', 'number', { value: 0, min: 0, max: 30 }), f('time', 'Horário', 'time', { value: '09:00' })] }
@@ -352,11 +353,19 @@ export const actionCatalog = [
     { type: 'set_variable', label: 'Definir variável', icon: 'key', description: 'Guarda um valor para usar depois como {{vars.nome}}', fields: [f('name', 'Nome da variável', 'text', { required: true, placeholder: 'ex.: cupom' }), f('value', 'Valor (texto ou expressão)', 'text', { required: true, placeholder: '{{upper(contact.first_name)}}' })] },
     { type: 'router', label: 'Roteador', icon: 'flow', branch: true, fields: [] },
     { type: 'split', label: 'Teste A/B', icon: 'flow', branch: true, description: 'Divide os contatos entre caminhos por percentual, para comparar mensagens, ofertas ou tempos de espera. Cada contato cai em um caminho por sorteio.', fields: [] },
+    { type: 'drip', label: 'Liberar em lotes', icon: 'clock', description: 'Deixa passar só um lote de contatos a cada intervalo; os outros esperam a vez nesta etapa. Útil para não disparar tudo de uma vez.', fields: [
+      f('batch', 'Contatos por lote', 'number', { min: 1, max: 1000, value: 50, required: true }),
+      f('amount', 'A cada', 'number', { min: 1, max: 1000, value: 1, required: true }),
+      f('unit', 'Unidade', 'select', { options: [['minutes', 'minutos'], ['hours', 'horas'], ['days', 'dias']], value: 'hours' })
+    ] },
     { type: 'goal', label: 'Evento de meta', icon: 'award', fields: [f('event', 'Meta alcançada quando', 'select', { options: [['contact_tag', 'Receber uma tag'], ['customer_replied', 'Cliente responder'], ['form_submitted', 'Enviar um formulário'], ['appointment_booked', 'Fazer um agendamento'], ['order_paid', 'Pagar um pedido'], ['opportunity_status_changed', 'Oportunidade ganha']] }), f('eventValue', 'Tag ou formulário (opcional)', 'text'),
       f('otherwise', 'Ao chegar aqui sem a meta', 'select', { options: [['continue', 'Seguir o fluxo'], ['wait', 'Esperar a meta'], ['end', 'Encerrar o fluxo']] })] },
     { type: 'goto', label: 'Ir para outra etapa', icon: 'updown', fields: [f('target', 'Etapa de destino', 'step', { required: true })] },
     { type: 'add_to_workflow', label: 'Adicionar a outro fluxo', icon: 'flow', fields: [f('workflowId', 'Fluxo', 'ref', { source: 'workflows', required: true })] },
     { type: 'remove_from_workflow', label: 'Remover de um fluxo', icon: 'close', fields: [f('workflowId', 'Fluxo', 'ref', { source: 'workflows', empty: 'Este fluxo' })] },
+    { type: 'remove_from_all_workflows', label: 'Remover de todos os fluxos', icon: 'close', description: 'Tira o contato de todos os fluxos em que ele está rodando ou esperando.', fields: [
+      f('scope', 'Incluindo este fluxo?', 'select', { options: [['others', 'Não: este fluxo continua'], ['all', 'Sim: este fluxo também termina aqui']] })
+    ] },
     { type: 'math', label: 'Operação matemática', icon: 'sort', fields: [f('field', 'Campo numérico', 'ref', { source: 'numberFields', required: true }), f('op', 'Operação', 'select', { options: [['add', 'Somar'], ['subtract', 'Subtrair'], ['multiply', 'Multiplicar'], ['divide', 'Dividir'], ['set', 'Definir como']] }), f('number', 'Valor', 'number', { required: true, value: 1 })] },
     { type: 'text_format', label: 'Formatar texto', icon: 'edit', fields: [f('field', 'Campo', 'ref', { source: 'textFields', required: true }), f('op', 'Formato', 'select', { options: [['upper', 'MAIÚSCULAS'], ['lower', 'minúsculas'], ['title', 'Primeira Letra Maiúscula'], ['trim', 'Sem espaços nas pontas']] })] },
     { type: 'date_format', label: 'Formatar data', icon: 'clock', description: 'Guarda uma data formatada em {{vars.nome}}. Aceita AAAA-MM-DD, data com hora ou a palavra hoje.', fields: [f('value', 'Data', 'text', { required: true, placeholder: '2026-12-01, {{vars.data}} ou hoje' }), f('days', 'Somar dias', 'number', { value: 0, min: -3650, max: 3650 }), f('format', 'Formato', 'select', { options: [['br', 'DD/MM/AAAA'], ['iso', 'AAAA-MM-DD'], ['long', 'Por extenso (21 de novembro de 2026)'], ['weekday', 'Dia da semana'], ['time', 'Hora (HH:MM)']] }), f('variable', 'Nome da variável', 'text', { required: true, placeholder: 'data' })] },
@@ -438,6 +447,8 @@ export function stepSummary(step, s) {
     case 'ai_extract': return aiExtractFields(c.fields).map(item => `vars.${item.name}`).join(', ').slice(0, 80);
     case 'router': return `${(step.routes || []).length} caminho(s)`;
     case 'split': return (step.routes || []).map(route => `${route.label} ${splitPercent(route.percent)}%`).join(' · ').slice(0, 80);
+    case 'drip': return `${c.batch || 0} a cada ${c.amount || 1} ${({ minutes: 'min', hours: 'h', days: 'dia(s)' })[c.unit || 'hours']}`;
+    case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';
     case 'create_task': case 'create_opportunity': case 'create_invoice': return c.title;
     case 'add_to_workflow': case 'remove_from_workflow': return ref('workflows', c.workflowId) || (step.type === 'remove_from_workflow' ? 'Este fluxo' : '');
     case 'webhook': return c.url;
