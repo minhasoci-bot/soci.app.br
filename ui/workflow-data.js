@@ -338,6 +338,16 @@ export const actionCatalog = [
     { type: 'send_email', label: 'Enviar e-mail', icon: 'mail', fields: [f('subject', 'Assunto', 'text', { required: true }), f('body', 'Mensagem', 'textarea', { required: true }), f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })] },
     { type: 'send_sms', label: 'Enviar SMS', icon: 'phone', fields: [f('body', 'Mensagem', 'textarea', { required: true }), f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })] },
     { type: 'send_whatsapp', label: 'Enviar WhatsApp', icon: 'chat', fields: [f('body', 'Mensagem', 'textarea', { required: true }), f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })] },
+    { type: 'whatsapp_media', label: 'Enviar arquivo no WhatsApp', icon: 'whatsapp', description: 'Manda uma imagem, vídeo, documento (PDF) ou áudio por um endereço https público. O arquivo fica registrado em Conversas. Disponível com a Evolution API.', fields: [
+      f('mediaType', 'Tipo', 'select', { options: [['image', 'Imagem'], ['document', 'Documento (PDF etc.)'], ['video', 'Vídeo'], ['audio', 'Áudio']] }),
+      f('url', 'Endereço do arquivo (https://, aceita variáveis)', 'text', { required: true, placeholder: 'https://…/catalogo.pdf' }),
+      f('caption', 'Legenda (aceita variáveis; áudio não leva legenda)', 'textarea', {}),
+      f('fileName', 'Nome do arquivo (documentos)', 'text', { placeholder: 'catalogo.pdf' }),
+      f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })
+    ] },
+    { type: 'whatsapp_typing', label: 'Mostrar "digitando…" no WhatsApp', icon: 'whatsapp', description: 'Mostra "digitando…" para o contato por alguns segundos, antes da próxima mensagem do fluxo, para a conversa parecer natural. Disponível com a Evolution API.', fields: [
+      f('seconds', 'Segundos', 'number', { min: 1, max: 25, value: 3 })
+    ] },
     { type: 'send_instagram_dm', label: 'Enviar Direct no Instagram', icon: 'send', fields: [f('body', 'Mensagem privada', 'textarea', { required: true })] },
     { type: 'loyalty_points', label: 'Dar ou tirar pontos de fidelidade', icon: 'gift', description: 'Soma (ou subtrai, com número negativo) pontos no programa de fidelidade.', fields: [f('points', 'Pontos', 'number', { required: true, value: 50 }), f('reason', 'Motivo', 'text', { placeholder: 'Ex.: Indicação de amigo' })] },
     { type: 'add_to_sequence', label: 'Inscrever em sequência de e-mail', icon: 'mail', description: 'Coloca o contato numa sequência ativa (uma vez enquanto estiver nela).', fields: [f('sequenceId', 'Sequência', 'ref', { source: 'sequences', required: true, empty: 'Escolha a sequência' })] },
@@ -631,6 +641,8 @@ export function stepSummary(step, s) {
     case 'whatsapp_window': return `→ vars.${c.variable || 'janela_whatsapp'}`;
     case 'custom_event': return c.event ? `evento ${c.event}` : '';
     case 'copy_contact': return c.workspace ? 'para outra subconta' : '';
+    case 'whatsapp_media': return c.fileName || c.url || '';
+    case 'whatsapp_typing': return `${c.seconds || 3} s`;
     case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';
     case 'update_affiliate': return ({ active: 'Ativo', paused: 'Pausado', pending: 'Aguardando aprovação' })[c.status] || '';
     case 'add_affiliate_campaign': case 'remove_affiliate_campaign': return ref('affiliateCampaigns', c.campaignId);

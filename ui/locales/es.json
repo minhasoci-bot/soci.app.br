@@ -5164,5 +5164,15 @@
   "https://empresa.com.br (ou um campo pelo painel de variáveis)": "https://empresa.com.br (o un campo desde el panel de variables)",
   "Nome da empresa (para achar no Google)": "Nombre de la empresa (para encontrarla en Google)",
   "Cidade (opcional, ajuda a achar no Google)": "Ciudad (opcional, ayuda a encontrarla en Google)",
-  "Registrar o resumo como nota na conversa": "Registrar el resumen como nota en la conversación"
+  "Registrar o resumo como nota na conversa": "Registrar el resumen como nota en la conversación",
+  "Enviar arquivo no WhatsApp": "Enviar archivo por WhatsApp",
+  "Manda uma imagem, vídeo, documento (PDF) ou áudio por um endereço https público. O arquivo fica registrado em Conversas. Disponível com a Evolution API.": "Envía una imagen, video, documento (PDF) o audio desde una dirección https pública. El archivo queda registrado en Conversaciones. Disponible con Evolution API.",
+  "Documento (PDF etc.)": "Documento (PDF etc.)",
+  "Áudio": "Audio",
+  "Endereço do arquivo (https://, aceita variáveis)": "Dirección del archivo (https://, acepta variables)",
+  "Legenda (aceita variáveis; áudio não leva legenda)": "Leyenda (acepta variables; el audio no lleva leyenda)",
+  "Nome do arquivo (documentos)": "Nombre del archivo (documentos)",
+  "Mostrar \"digitando…\" no WhatsApp": "Mostrar \"escribiendo…\" en WhatsApp",
+  "Mostra \"digitando…\" para o contato por alguns segundos, antes da próxima mensagem do fluxo, para a conversa parecer natural. Disponível com a Evolution API.": "Muestra \"escribiendo…\" al contacto durante unos segundos, antes del siguiente mensaje del flujo, para que la conversación parezca natural. Disponible con Evolution API.",
+  "Segundos": "Segundos"
 }

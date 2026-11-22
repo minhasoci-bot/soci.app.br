@@ -527,6 +527,26 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         outbox(s, { kind: 'whatsapp', runId: run.id, phone: contact.phone, body: row.body, contactId: contact.id, messageId: row.id });
         return 'registrada e na fila de envio';
       }
+      case 'whatsapp_media': {
+        // A file by public https URL; the server checks the address before the provider fetches it.
+        if (contact.dnd) return 'contato em não perturbe';
+        if (!canMessage(contact, 'WhatsApp', c.topicId)) return 'contato não aceita WhatsApp (preferências)';
+        const type = ['image', 'video', 'document', 'audio'].includes(c.mediaType) ? c.mediaType : 'image';
+        const url = text(c.url).trim().slice(0, 2000), caption = text(c.caption).trim().slice(0, 1000), fileName = text(c.fileName).trim().slice(0, 120);
+        if (!/^https:\/\/\S+$/i.test(url)) return 'erro: endereço do arquivo inválido (use https://)';
+        const kind = { image: 'Imagem', video: 'Vídeo', document: 'Documento', audio: 'Áudio' }[type];
+        const row = message('WhatsApp', [`[${kind}${fileName ? `: ${fileName}` : ''}] ${url}`, caption].filter(Boolean).join('\n'));
+        if (!contact.phone) { messageFailed(s, { messageId: row.id, reason: 'no_phone' }, depth); return 'erro: contato sem telefone'; }
+        outbox(s, { kind: 'whatsapp-media', runId: run.id, phone: contact.phone, media: { type, url, caption: type === 'audio' ? '' : caption, fileName }, contactId: contact.id, messageId: row.id });
+        return `${kind.toLowerCase()} na fila de envio`;
+      }
+      case 'whatsapp_typing': {
+        if (contact.dnd) return 'contato em não perturbe';
+        if (!contact.phone) return 'erro: contato sem telefone';
+        const seconds = Math.min(25, Math.max(1, Math.round(Number(c.seconds) || 3)));
+        outbox(s, { kind: 'whatsapp-typing', runId: run.id, phone: contact.phone, seconds });
+        return `"digitando…" por ${seconds} s na fila`;
+      }
       case 'internal_notification': add(s, 'teamMessages', { author: 'Automação', body: `${run.name}: ${text(c.body)}`.slice(0, 2000) }); return 'enviada ao chat interno';
       case 'create_task': {
         const due = new Date(Date.now() + (Number(c.dueDays) || 0) * 864e5).toISOString();

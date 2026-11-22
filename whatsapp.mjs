@@ -345,6 +345,18 @@ function createEvolutionAdapter(call) {
       const data = await readJsonSafe(res);
       return { ok: res.ok, status: res.status, message: res.ok ? '' : evolutionError(data), id: String(data.key?.id || data.id || '') };
     },
+    // Workflows: a file by public URL (image, video, document or audio) and the "typing…" indicator.
+    async sendMedia({ creds, sub, number, media }) {
+      const body = { number, mediatype: media.type, media: media.url, ...(media.caption ? { caption: media.caption } : {}), ...(media.fileName ? { fileName: media.fileName } : {}) };
+      const res = await send(creds, `/message/sendMedia/${name(sub)}`, { method: 'POST', body, retry: true, timeout: 45000 });
+      const data = await readJsonSafe(res);
+      return { ok: res.ok, status: res.status, message: res.ok ? '' : evolutionError(data), id: String(data.key?.id || data.id || '') };
+    },
+    async presence({ creds, sub, number, seconds }) {
+      const res = await send(creds, `/chat/sendPresence/${name(sub)}`, { method: 'POST', body: { number, presence: 'composing', delay: seconds * 1000 }, timeout: seconds * 1000 + 15000 });
+      const data = await readJsonSafe(res);
+      return { ok: res.ok, status: res.status, message: res.ok ? '' : evolutionError(data) };
+    },
     parseWebhook(body) {
       const event = String(body.event || body.type || '').toLowerCase().replace(/_/g, '.');
       if (event === 'connection.update') {
@@ -658,6 +670,50 @@ export function createWhatsAppHandler({
     };
   }
 
+  // The sub-account's connected instance, or the reason it cannot send now.
+  async function workspaceSender(agencyId, workspaceId, accountIsActive) {
+    let row = await ensureRow(agencyId);
+    const creds = serverCredentials(row, agencyId);
+    let sub = subFor(row, workspaceId, creds.provider);
+    const token = instanceTokenOf(row, agencyId, workspaceId, creds.provider);
+    if (!creds.configured || !sub.enabled || !token) return { reason: 'not-connected' };
+    if (sub.status !== 'connected') {
+      const live = await fetchLiveSubStatus(row, agencyId, workspaceId);
+      if (live.status !== 'connected') return { reason: 'not-connected' };
+      row = await ensureRow(agencyId);
+      sub = subFor(row, workspaceId, creds.provider);
+    }
+    if (!await accountIsActive(agencyId, workspaceId)) return { reason: 'account-suspended' };
+    return { creds, token, sub, adapter: adapters[creds.provider] };
+  }
+
+  /** Workflows: a file by public https URL. media = { type: image|video|document|audio, url, caption, fileName }. */
+  async function sendWorkspaceMedia(agencyId, workspaceId, phoneRaw, media, accountIsActive) {
+    const number = digits(phoneRaw);
+    if (number.length < 10 || number.length > 15) return { sent: false, reason: 'invalid-phone' };
+    const sender = await workspaceSender(agencyId, workspaceId, accountIsActive);
+    if (sender.reason) return { sent: false, reason: sender.reason };
+    if (!sender.adapter.sendMedia) return { sent: false, reason: 'unsupported' };
+    const result = await sender.adapter.sendMedia({ ...sender, number, media: {
+      type: ['image', 'video', 'document', 'audio'].includes(media?.type) ? media.type : 'document', url: String(media?.url || '').slice(0, 2000),
+      caption: String(media?.caption || '').slice(0, 1000), fileName: String(media?.fileName || '').slice(0, 120) } });
+    if (!result.ok) throw fail(`Falha ao enviar pelo WhatsApp (HTTP ${result.status})${result.message ? `: ${result.message}` : ''}.`, 502);
+    return { sent: true, id: result.id };
+  }
+
+  /** Workflows: "typing…" for 1 to 25 seconds before the next message. */
+  async function sendWorkspacePresence(agencyId, workspaceId, phoneRaw, secondsRaw, accountIsActive) {
+    const number = digits(phoneRaw);
+    if (number.length < 10 || number.length > 15) return { sent: false, reason: 'invalid-phone' };
+    const sender = await workspaceSender(agencyId, workspaceId, accountIsActive);
+    if (sender.reason) return { sent: false, reason: sender.reason };
+    if (!sender.adapter.presence) return { sent: false, reason: 'unsupported' };
+    const seconds = Math.min(25, Math.max(1, Math.round(Number(secondsRaw) || 3)));
+    const result = await sender.adapter.presence({ ...sender, number, seconds });
+    if (!result.ok) throw fail(`Falha ao mostrar "digitando" no WhatsApp (HTTP ${result.status})${result.message ? `: ${result.message}` : ''}.`, 502);
+    return { sent: true, seconds };
+  }
+
   async function sendWorkspaceText(agencyId, workspaceId, phoneRaw, textRaw, accountIsActive) {
     const number = digits(phoneRaw);
     const text = typeof textRaw === 'string' ? textRaw.trim().slice(0, 4000) : '';
@@ -878,5 +934,5 @@ export function createWhatsAppHandler({
     throw fail('Rota do WhatsApp não encontrada.', 404);
   }
 
-  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, sendWorkspaceText };
+  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, sendWorkspaceText, sendWorkspaceMedia, sendWorkspacePresence };
 }

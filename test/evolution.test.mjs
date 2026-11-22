@@ -62,6 +62,11 @@ function fakeEvolution() {
       }
       return json({ key: { remoteJid: `${body.number}@s.whatsapp.net`, fromMe: true, id: `EVO${calls.length}` }, status: 'PENDING' }, 201);
     }
+    if (group === 'message' && action === 'sendMedia' && method === 'POST') {
+      if (inst.state !== 'open') return json({ status: 400, error: 'Bad Request', response: { message: ['Connection Closed'] } }, 400);
+      return json({ key: { remoteJid: `${body.number}@s.whatsapp.net`, fromMe: true, id: `EVOM${calls.length}` }, status: 'PENDING' }, 201);
+    }
+    if (group === 'chat' && action === 'sendPresence' && method === 'POST') return json({ presence: body.presence }, 201);
     return new Response('Not found', { status: 404 });
   }
   const markOpen = (name, phone, profileName) => Object.assign(instances.get(name), { state: 'open', ownerJid: `${phone}@s.whatsapp.net`, profileName });
@@ -265,4 +270,37 @@ test('Trocar UAZAPI por Evolution não reaproveita instância nem status antigos
   assert.equal(conn.body.qrcode, QR);
   assert.equal(local.store.load('whatsapp-agency').subaccounts.demo.provider, 'evolution');
   assert.equal(local.store.load('whatsapp-agency').subaccounts.demo.webhookSecret, 'f'.repeat(48), 'mantém a URL do webhook');
+});
+
+test('Evolution API nos fluxos: "digitando…", arquivo por https público e endereço interno bloqueado', async t => {
+  const evo = fakeEvolution();
+  const local = await boot(t, { whatsappRequest: evo.request, evolutionBaseUrl: 'https://evo.soci.test/', evolutionApiKey: API_KEY });
+  await local.call('/api/whatsapp/workspace/connect?workspace=demo', {});
+  evo.markOpen('soci_demo', '5531988887777', 'Atendimento Demo');
+  await local.call('/api/whatsapp/workspace/status?workspace=demo');
+  const saved = await local.call('/api/action?workspace=demo', { type: 'save', key: 'workflows', data: { name: 'Catálogo', active: true, triggers: [{ type: 'contact_created' }], steps: [
+    { type: 'whatsapp_typing', config: { seconds: 2 } },
+    { type: 'whatsapp_media', config: { mediaType: 'document', url: 'https://93.184.216.34/{{contact.first_name}}.pdf', caption: 'Olá, {{contact.first_name}}!', fileName: 'catalogo.pdf' } },
+    { type: 'whatsapp_media', config: { mediaType: 'image', url: 'https://10.0.0.5/interno.png' } }
+  ] } });
+  assert.equal(saved.status, 200, saved.body?.error);
+  await local.call('/api/action?workspace=demo', { type: 'save', key: 'contacts', data: { name: 'Carla Souza', phone: '+55 11 97777-6666', tags: [], custom: {} } });
+  let run;
+  for (let i = 0; i < 50 && !(run?.results || []).some(line => /arquivo não enviado/.test(line)); i++) {
+    await new Promise(resolve => setTimeout(resolve, 20));
+    run = (await local.call('/api/state?workspace=demo')).body.state.runs.find(row => row.name === 'Catálogo');
+  }
+  const presence = evo.calls.find(c => c.path === '/chat/sendPresence/soci_demo');
+  assert.deepEqual(presence.body, { number: '5511977776666', presence: 'composing', delay: 2000 });
+  const media = evo.calls.filter(c => c.path === '/message/sendMedia/soci_demo');
+  assert.equal(media.length, 1, 'the internal address never reaches the provider');
+  assert.deepEqual(media[0].body, { number: '5511977776666', mediatype: 'document', media: 'https://93.184.216.34/Carla.pdf', caption: 'Olá, Carla!', fileName: 'catalogo.pdf' });
+  assert.ok(evo.calls.indexOf(presence) < evo.calls.indexOf(media[0]), 'typing comes before the file');
+  assert.ok(run.results.some(line => /"digitando…" por 2 s/.test(line)));
+  assert.ok(run.results.some(line => /arquivo enviado/.test(line)));
+  assert.ok(run.results.some(line => /arquivo não enviado: endereço de rede interna bloqueado/.test(line)));
+  const state = (await local.call('/api/state?workspace=demo')).body.state;
+  const blocked = state.messages.find(m => m.body.includes('interno.png'));
+  assert.equal(blocked.failed, 'provider_error', 'the blocked file shows as not delivered');
+  assert.ok(state.messages.some(m => m.body === '[Documento: catalogo.pdf] https://93.184.216.34/Carla.pdf\nOlá, Carla!'));
 });
