@@ -13,6 +13,9 @@ export function teammates(c) {
   return [...new Set([me(c), ...users].filter(Boolean))];
 }
 const origin = message => message?.origin || 'human';
+// Why an outbound message was not delivered (set by the server after the WhatsApp provider answers).
+const deliveryFailures = { not_connected: 'WhatsApp desconectado', no_phone: 'Contato sem telefone', invalid_phone: 'Telefone inválido',
+  suspended: 'Conta suspensa', provider_error: 'Erro do provedor' };
 const time = message => message ? +new Date(message.created) : null;
 
 export function inboxThreads(s, clock = Date.now()) {
@@ -215,7 +218,7 @@ function threadPanel(c, all) {
       <span class="badge ${item.state === 'Overdue' ? 'red' : 'blue'}" data-sla-clock="${item.id}">${tr(item.channel)} · ${tr(item.state)}</span>
       <button class="icon-btn" aria-label="Dispensar SLA de ${tr(item.channel)}" title="Dispensar SLA" data-dismiss-sla="${item.id}">${i('close',13)}</button></span>`).join('')}</div>` : ''}
     <div class="thread-messages">${t.messages.map(m => `<div class="message ${m.direction === 'Outbound' ? 'outbound' : ''} ${origin(m) !== 'human' ? 'automated' : ''}">
-      <small>${channelBadge(m.channel)} · ${date(m.created,c,true)}${origin(m) === 'workflow' ? ' · Automação' : ''}</small>${m.subject ? `<b class="message-subject">${h(m.subject)}</b>` : ''}<p>${messageContent(m.body)}</p></div>`).join('')}</div>
+      <small>${channelBadge(m.channel)} · ${date(m.created,c,true)}${origin(m) === 'workflow' ? ' · Automação' : ''}${m.failed ? ` · <span class="badge red" title="${h(tr(deliveryFailures[m.failed] || deliveryFailures.provider_error))}">${tr('Não entregue')}</span>` : ''}</small>${m.subject ? `<b class="message-subject">${h(m.subject)}</b>` : ''}<p>${messageContent(m.body)}</p></div>`).join('')}</div>
     ${conversationAiBar(c, contact.id)}
     <form class="message-compose" data-form="message"><p>As mensagens ficam registradas nesta caixa de entrada.</p>
       <div class="inline-gap"><select name="channel" aria-label="Canal"><option value="Note">Nota</option><option value="Email">E-mail</option><option value="SMS">SMS</option><option value="WhatsApp">WhatsApp</option><option value="Live chat">Chat ao vivo</option><option value="Instagram">Instagram</option><option value="Facebook">Facebook</option></select>

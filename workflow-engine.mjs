@@ -330,6 +330,8 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'coupon_redeemed': case 'coupon_limit_reached': case 'coupon_expired': return !c.couponId || c.couponId === ctx.couponId;
       case 'conversation_sla': return (!c.state || c.state === ctx.state) && (!c.channel || c.channel === ctx.channel);
       case 'cart_updated': return !c.storeId || c.storeId === ctx.storeId;
+      case 'user_replied': return (!c.channel || c.channel === ctx.channel) && (!c.user || lower(c.user) === lower(ctx.user)) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
+      case 'message_failed': return (!c.channel || c.channel === ctx.channel) && (!c.reason || c.reason === ctx.reason);
       case 'prospect_received': return (!c.isNew || c.isNew === ctx.isNew) && (!c.withOpportunity || c.withOpportunity === ctx.withOpportunity) && (!c.category || lower(ctx.category).includes(lower(c.category)));
       default: return scheduledTypes.includes(type) ? ctx.triggerId === trigger.id : true;
     }
@@ -518,8 +520,9 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         if (contact.dnd) return 'contato em não perturbe';
         if (!canMessage(contact, 'WhatsApp', c.topicId)) return 'contato não aceita WhatsApp (preferências)';
         const row = message(channel, c.body, channel === 'Email' ? 'Sua opinião importa' : '');
-        if (channel === 'WhatsApp' && contact.phone) outbox(s, { kind: 'whatsapp', runId: run.id, phone: contact.phone, body: row.body });
-        return channel === 'WhatsApp' ? 'registrada e na fila de envio' : 'registrada em Conversas';
+        if (!contact.phone) { messageFailed(s, { messageId: row.id, reason: 'no_phone' }, depth); return 'erro: contato sem telefone'; }
+        outbox(s, { kind: 'whatsapp', runId: run.id, phone: contact.phone, body: row.body, contactId: contact.id, messageId: row.id });
+        return 'registrada e na fila de envio';
       }
       case 'internal_notification': add(s, 'teamMessages', { author: 'Automação', body: `${run.name}: ${text(c.body)}`.slice(0, 2000) }); return 'enviada ao chat interno';
       case 'create_task': {
@@ -787,6 +790,17 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         output(run, id, { [name]: formatted });
         return `${name} = ${formatted}`;
       }
+      case 'whatsapp_window': {
+        // WhatsApp's customer service window: 24 hours from the contact's last WhatsApp message.
+        const name = String(c.variable || '').trim().replace(/[^\w]/g, '_').slice(0, 40) || 'janela_whatsapp';
+        const last = s.messages.filter(row => row.contactId === contact.id && row.channel === 'WhatsApp' && row.direction === 'Inbound')
+          .reduce((latest, row) => (row.created || '') > latest ? row.created : latest, '');
+        const left = last ? Math.floor((Date.parse(last) + 864e5 - Date.now()) / 6e4) : 0;
+        const values = { [name]: left > 0 ? 'aberta' : 'fechada', [`${name}_minutos`]: String(Math.max(left, 0)) };
+        run.vars = { ...(run.vars || {}), ...values };
+        output(run, id, values);
+        return left > 0 ? `janela aberta (restam ${Math.floor(left / 60)} h ${left % 60} min)` : last ? 'janela fechada (última mensagem há mais de 24 h)' : 'janela fechada (o contato nunca mandou WhatsApp)';
+      }
       case 'list_format': {
         const name = String(c.variable || '').trim().replace(/[^\w]/g, '_').slice(0, 40);
         if (!name) return 'sem nome';
@@ -1046,6 +1060,19 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
     }
   }
 
+  // An outbound message that could not be delivered: marked on the message, then the "message_failed" event.
+  function messageFailed(s, { messageId, reason }, depth = 0) {
+    const row = s.messages.find(item => item.id === messageId);
+    if (!row || row.direction !== 'Outbound' || row.failed) return false;
+    row.failed = String(reason || 'provider_error').slice(0, 40);
+    row.failedAt = now();
+    // A failure handler whose own message fails would trigger itself (or another handler) forever: those stay quiet.
+    const sender = row.workflowId ? s.workflows.find(item => item.id === row.workflowId) : null;
+    if (sender && (upgradeWorkflow(sender).triggers || []).some(trigger => trigger.type === 'message_failed')) return true;
+    emit(s, 'message_failed', { contactId: row.contactId, channel: row.channel, reason: row.failed, body: row.body, messageId: row.id, depth });
+    return true;
+  }
+
   // What changed in a saved record, as workflow events.
   function recordChange(s, key, prior, row) {
     const base = { contactId: row.contactId || '' };
@@ -1195,5 +1222,5 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
     };
   }
 
-  return { emit, enroll, recordChange, tick, finishManual, inbound, proceed, aiResult, test: testRun };
+  return { emit, enroll, recordChange, tick, finishManual, inbound, proceed, aiResult, messageFailed, test: testRun };
 }
