@@ -110,7 +110,9 @@ export function installTickets({ c, mutate, flash, dialog, close, render }) {
   });
   document.addEventListener('submit', async event => {
     const form = event.target.closest('[data-tk-form]');
-    if (!form) return;
+    // Rastreamento and Pontuação also use data-tk-form: outside the tickets tab only "Novo ticket" (opened from a
+    // conversation) is ours, or saving those screens would also send an empty ticket-settings.
+    if (!form || !(here() || form.dataset.tkForm === 'new')) return;
     event.preventDefault();
     const f = new FormData(form), status = form.querySelector('.form-status'), button = form.querySelector('button.primary');
     button.disabled = true; status.textContent = '';
