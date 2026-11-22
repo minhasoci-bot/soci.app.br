@@ -4805,5 +4805,14 @@
   "Remover acesso a comunidade": "Quitar acceso a comunidad",
   "Tira o contato da comunidade. Membros banidos continuam banidos.": "Saca al contacto de la comunidad. Los miembros bloqueados siguen bloqueados.",
   "Escolha o curso": "Elija el curso",
-  "Escolha a comunidade": "Elija la comunidad"
+  "Escolha a comunidade": "Elija la comunidad",
+  "Teste A/B": "Prueba A/B",
+  "Divide os contatos entre caminhos por percentual, para comparar mensagens, ofertas ou tempos de espera. Cada contato cai em um caminho por sorteio.": "Divide los contactos entre caminos por porcentaje, para comparar mensajes, ofertas o tiempos de espera. Cada contacto cae en un camino por sorteo.",
+  "Percentual dos contatos": "Porcentaje de los contactos",
+  "Os percentuais precisam somar 100% para publicar.": "Los porcentajes deben sumar 100% para publicar.",
+  "Cada contato é sorteado para um caminho na hora em que chega aqui; o caminho sorteado aparece no histórico da execução.": "Cada contacto se sortea a un camino en el momento en que llega aquí; el camino sorteado aparece en el historial de la ejecución.",
+  "Teste A/B: use de 2 a 6 caminhos.": "Prueba A/B: use de 2 a 6 caminos.",
+  "Teste A/B: os percentuais dos caminhos precisam somar 100%.": "Prueba A/B: los porcentajes de los caminos deben sumar 100%.",
+  "Caminho A": "Camino A",
+  "Caminho B": "Camino B"
 }

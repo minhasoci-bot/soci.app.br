@@ -567,7 +567,7 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
         }
       }
     }
-    document.querySelector(focus)?.focus({ preventScroll: !revealNode });
+    if (focus) document.querySelector(focus)?.focus({ preventScroll: !revealNode });
   };
   const zoomCanvas = op => {
     const viewport = canvasElement(), track = viewport?.querySelector('.wf-track'), stage = viewport?.closest('.wf-stage');
@@ -727,7 +727,9 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
         const d = input.dataset;
         const selector = d.wfCfg ? `.wf-inspector [data-wf-cfg="${CSS.escape(d.wfCfg)}"]`
           : d.wfCond ? `.wf-inspector [data-wf-cond="${CSS.escape(d.wfCond)}"][data-wf-cond-index="${d.wfCondIndex}"][data-wf-cond-prop="${d.wfCondProp}"]`
-          : d.wfMatch ? `.wf-inspector [data-wf-match="${CSS.escape(d.wfMatch)}"]` : '';
+          : d.wfMatch ? `.wf-inspector [data-wf-match="${CSS.escape(d.wfMatch)}"]`
+          : d.wfRoutePercent ? `.wf-inspector [data-wf-route-percent="${CSS.escape(d.wfRoutePercent)}"]`
+          : d.wfRouteLabel ? `.wf-inspector [data-wf-route-label="${CSS.escape(d.wfRouteLabel)}"]` : '';
         renderCanvas(selector);
       }
       return;

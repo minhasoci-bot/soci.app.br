@@ -3,7 +3,7 @@
 import { icon } from './icons.js';
 import { h } from './screens.js';
 import { FUNCTION_CATALOG, buildWorkflowContext, resolveTemplate } from './expressions.js';
-import { actionCatalog, actionSpec, conditionSubjects, eachStep, refSources, stepId, stepSummary, triggerCatalog, triggerSpec, triggerSummary, upgradeWorkflow, variables } from './workflow-data.js';
+import { actionCatalog, actionSpec, conditionSubjects, eachStep, refSources, splitPercent, stepId, stepSummary, triggerCatalog, triggerSpec, triggerSummary, upgradeWorkflow, variables } from './workflow-data.js';
 
 const MAX_STEPS = 120;
 const opportunityStatuses = [['Open', 'Aberta'], ['Won', 'Ganha'], ['Lost', 'Perdida'], ['Abandoned', 'Abandonada']];
@@ -48,7 +48,8 @@ function parentOf(row, id) {
   const visit = (list, key) => list.forEach((step, index) => {
     if (step.id === id) result = { list, index, key };
     if (step.type === 'if_else') { visit(step.yes || [], `${step.id}:yes`); visit(step.no || [], `${step.id}:no`); }
-    if (step.type === 'router') { (step.routes || []).forEach(route => visit(route.steps || [], `${step.id}:route.${route.id}`)); visit(step.otherwise || [], `${step.id}:otherwise`); }
+    if (step.type === 'router' || step.type === 'split') (step.routes || []).forEach(route => visit(route.steps || [], `${step.id}:route.${route.id}`));
+    if (step.type === 'router') visit(step.otherwise || [], `${step.id}:otherwise`);
   });
   visit(row.steps, 'root');
   return result;
@@ -64,6 +65,7 @@ export function newStep(type) {
   const step = { id: stepId(), type, config: defaults(spec) };
   if (type === 'if_else') Object.assign(step, { yes: [], no: [], config: { match: 'all', conditions: [condition()] } });
   if (type === 'router') Object.assign(step, { routes: [{ id: stepId(), label: 'Caminho 1', match: 'all', conditions: [condition()], steps: [] }], otherwise: [] });
+  if (type === 'split') Object.assign(step, { routes: [{ id: stepId(), label: 'Caminho A', percent: 50, steps: [] }, { id: stepId(), label: 'Caminho B', percent: 50, steps: [] }] });
   return step;
 }
 
@@ -95,10 +97,12 @@ function layoutFlow(c, editor) {
         current: editor.node === step.id, footer: `#${number}`, ran: tested(editor, step.id)?.result || '',
         variant: spec?.branch ? 'wfb-branch-node' : step.type === 'goal' ? 'wfb-goal' : step.type === 'end' || step.type === 'goto' ? 'wfb-stop' : '' }) });
       const right = { x: x + CARD_W, y: y + mid };
-      if (step.type === 'if_else' || step.type === 'router') {
+      if (step.type === 'if_else' || step.type === 'router' || step.type === 'split') {
         const paths = step.type === 'if_else'
           ? [['Sim', 'yes', step.yes || [], `${step.id}:yes`, `${number}.S`], ['Não', 'no', step.no || [], `${step.id}:no`, `${number}.N`]]
-          : [...(step.routes || []).map((route, r) => [route.label, '', route.steps || [], `${step.id}:route.${route.id}`, `${number}.${r + 1}`]), ['Caso contrário', 'no', step.otherwise || [], `${step.id}:otherwise`, `${number}.C`]];
+          : step.type === 'split'
+            ? (step.routes || []).map((route, r) => [`${route.label} · ${splitPercent(route.percent)}%`, '', route.steps || [], `${step.id}:route.${route.id}`, `${number}.${String.fromCharCode(65 + r)}`])
+            : [...(step.routes || []).map((route, r) => [route.label, '', route.steps || [], `${step.id}:route.${route.id}`, `${number}.${r + 1}`]), ['Caso contrário', 'no', step.otherwise || [], `${step.id}:otherwise`, `${number}.C`]];
         let by = y, endX = x, merged = [];
         for (const [label, tone, list, listKey, num] of paths) {
           const out = sequence(list, listKey, x + CARD_W + GAP_X + 60, by, [{ ...right, label, tone }], `${num}.`);
@@ -261,6 +265,16 @@ function inspector(c, editor) {
       + btn('route-add', 'Adicionar caminho', { glyph: 'plus', disabled: (step.routes || []).length >= 6 })
       + '<p class="wf-sub">Os caminhos são testados em ordem; o primeiro que bater é seguido. Se nenhum bater, segue “Caso contrário”.</p>';
   }
+  if (step.type === 'split') {
+    const total = (step.routes || []).reduce((sum, route) => sum + splitPercent(route.percent), 0);
+    body += (step.routes || []).map((route, index) => `<fieldset class="wfb-route"><legend>Caminho ${String.fromCharCode(65 + index)}</legend>
+      <label>Nome<input value="${h(route.label)}" data-wf-route-label="${h(route.id)}" data-wf-target="${h(step.id)}" maxlength="60"></label>
+      <label>Percentual dos contatos<input type="number" min="0" max="100" step="1" value="${splitPercent(route.percent)}" data-wf-route-percent="${h(route.id)}" data-wf-target="${h(step.id)}"></label>
+      ${btn('route-delete', 'Remover caminho', { cls: 'wf-text', glyph: 'trash', id: route.id, disabled: step.routes.length < 3 })}</fieldset>`).join('')
+      + btn('route-add', 'Adicionar caminho', { glyph: 'plus', disabled: (step.routes || []).length >= 6 })
+      + `<p class="wf-sub ${total === 100 ? '' : 'wfb-warn'}" data-wf-split-total><b>Total: ${total}%</b>${total === 100 ? '' : ' <span>Os percentuais precisam somar 100% para publicar.</span>'}</p>
+      <p class="wf-sub">Cada contato é sorteado para um caminho na hora em que chega aqui; o caminho sorteado aparece no histórico da execução.</p>`;
+  }
   if (step.type === 'goal') body += '<p class="wf-sub">Se a meta acontecer enquanto o contato está em qualquer etapa anterior, ele pula direto para cá.</p>';
   if (['manual_call', 'manual_sms'].includes(step.type)) body += '<p class="wf-sub">O fluxo pausa até alguém concluir ou dispensar a ação na fila de ações manuais.</p>';
   if (spec?.ai) {
@@ -282,7 +296,7 @@ function inspector(c, editor) {
     <div class="wf-node-tools">${btn('node-up', 'Antes', { glyph: 'left', disabled: !place || place.index === 0 })}
       ${btn('node-down', 'Depois', { glyph: 'right', disabled: !place || place.index === place.list.length - 1 })}
       ${btn('node-duplicate', 'Duplicar', { glyph: 'copy' })}
-      ${btn('node-delete', step.type === 'if_else' || step.type === 'router' ? 'Remover com os ramos' : 'Remover', { cls: 'wf-text', glyph: 'trash' })}</div></div>${exit}</div>`;
+      ${btn('node-delete', spec?.branch ? 'Remover com os ramos' : 'Remover', { cls: 'wf-text', glyph: 'trash' })}</div></div>${exit}</div>`;
 }
 
 /* ───────── Entrada: dados e funções disponíveis para a etapa ───────── */
@@ -422,12 +436,13 @@ export function builderClick(op, target, editor, { pick }) {
     case 'route-add': {
       const step = findStep(row, editor.node);
       if (!step || (step.routes || []).length >= 6) return null;
-      step.routes.push({ id: stepId(), label: `Caminho ${step.routes.length + 1}`, match: 'all', conditions: [condition()], steps: [] });
+      if (step.type === 'split') step.routes.push({ id: stepId(), label: `Caminho ${String.fromCharCode(65 + step.routes.length)}`, percent: 0, steps: [] });
+      else step.routes.push({ id: stepId(), label: `Caminho ${step.routes.length + 1}`, match: 'all', conditions: [condition()], steps: [] });
       return { changed: true };
     }
     case 'route-delete': {
       const step = findStep(row, editor.node);
-      if (!step || step.routes.length < 2) return null;
+      if (!step || step.routes.length < (step.type === 'split' ? 3 : 2)) return null;
       step.routes = step.routes.filter(route => route.id !== id);
       return { changed: true };
     }
@@ -475,6 +490,12 @@ export function builderInput(input, editor, c, finalChange) {
     const step = findStep(row, input.dataset.wfTarget), route = step?.routes?.find(item => item.id === input.dataset.wfRouteLabel);
     if (!route) return null;
     route.label = input.value.slice(0, 60);
+    return finalChange ? 'render' : 'live';
+  }
+  if (input.dataset.wfRoutePercent) {
+    const step = findStep(row, input.dataset.wfTarget), route = step?.routes?.find(item => item.id === input.dataset.wfRoutePercent);
+    if (!route) return null;
+    route.percent = splitPercent(input.value);
     return finalChange ? 'render' : 'live';
   }
   if (input.dataset.wfMatch) {
