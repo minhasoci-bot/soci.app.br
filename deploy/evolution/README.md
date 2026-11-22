@@ -107,6 +107,35 @@ docker compose start evolution
 
 Cadastre `https://whatsapp.seudominio.com.br/` num monitor gratuito, como UptimeRobot ou Better Stack, para receber um alerta se a VPS inteira cair.
 
+## Rodar no seu PC Windows em vez da VPS
+
+É a mesma stack, no Docker Desktop. O endereço HTTPS público vem do **Tailscale Funnel** (`https://seu-pc.xxxx.ts.net`): não precisa abrir porta no roteador nem mexer no DNS. O Caddy fica desligado, e o backup diário roda num container (`maintenance`), porque o Windows não tem cron.
+
+1. Instale o **Docker Desktop**. Em *Settings → General*, deixe marcado **Start Docker Desktop when you sign in**.
+2. Instale o **Tailscale**, entre na sua conta e libere **HTTPS** e **Funnel** no painel do Tailscale. O próprio comando mostra o link na primeira vez.
+3. Na pasta do projeto, rode:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy\evolution\start-pc.ps1
+```
+
+4. Copie a URL e a chave que o script mostra para a Vercel (`EVOLUTION_BASE_URL` e `EVOLUTION_API_KEY`) e faça um novo deploy.
+
+Para o WhatsApp não cair:
+- O PC não pode **suspender nem hibernar**: em *Configurações → Sistema → Energia*, coloque "Nunca" para suspensão na tomada.
+- O **Windows Update** reinicia o PC sozinho. Defina o horário ativo para o dia todo, ou pause as atualizações. Depois de um reinício, o Docker Desktop e o Tailscale voltam ao entrar no Windows e os containers sobem sozinhos.
+- Se o PC desligar, o WhatsApp para de enviar e receber até ele voltar. Nesse intervalo, as mensagens que chegam ficam no celular, mas não entram no soci. Para uso sério e contínuo, a VPS continua sendo o caminho.
+
+Comandos úteis (na pasta `deploy\evolution`):
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.pc.yml ps
+```
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.pc.yml logs --tail 50 watchdog
+```
+
 ## Limites
 
 - A Evolution usa o WhatsApp Web (não é a API oficial da Meta). Ela não cai por causa do servidor, mas o WhatsApp pode **banir números** que disparam muitas mensagens para quem não conhece. Aqueça números novos e evite listas frias.
