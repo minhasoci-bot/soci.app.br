@@ -1,5 +1,6 @@
 import { usageSummary } from './ui/ai-data.js';
 import { desktopDefaults, publishDesktop, saveDesktop } from './agency-desktop.mjs';
+import { mobileOf, publishMobile, saveMobileStore } from './agency-mobile.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { defaults, metrics, uid, now } from './model.mjs';
 import { hydrateProspecting } from './prospecting-model.mjs';
@@ -473,6 +474,7 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       return 'company';
     }
     case 'mobile-app': {
+      mobileOf(state);
       const order = Array.isArray(d.order) ? d.order.filter(k => mobileModules.some(m => m[0] === k)) : [];
       const custom = (Array.isArray(d.custom) ? d.custom : []).slice(0, 5).map(item => ({ label: req(item?.label, 'Module name', 40), url: url(item?.url, 'Module URL') || fail('Module URL is required.') }));
       Object.assign(state.mobileApp, { appName: req(d.appName, 'App name', 40), primary: color(d.primary), accent: color(d.accent), loginTitle: str(d.loginTitle, 60),
@@ -485,6 +487,16 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       saveDesktop(state, d);
       log('Desktop app settings saved', state.desktopApp.appName);
       return 'desktop';
+    }
+    case 'mobile-app-store': {
+      saveMobileStore(state, d);
+      log('Mobile app store data saved', state.mobileApp.appName);
+      return 'mobile';
+    }
+    case 'mobile-app-publish': {
+      const app = publishMobile(state);
+      log('Mobile app published', `${app.appName} v${app.version}`);
+      return 'mobile';
     }
     case 'desktop-app-publish': {
       const app = publishDesktop(state);

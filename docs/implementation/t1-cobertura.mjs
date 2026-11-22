@@ -200,7 +200,7 @@ export const acoes = [
   // Communities (6)
   c('Grant private channel access', 'grant_channel_access'), c('Revoke private channel access', 'revoke_channel_access'),
   c('Revoke group access', 'revoke_community_access'),
-  falta('Smart push notification', 'push_notification', 'Notificação no app mobile white-label (6.6).'),
+  c('Smart push notification', 'push_notification', 'Para a equipe (app mobile) ou para o contato (portal do cliente), por Web Push.'),
   c('Grant community group leaderboard points', 'community_points'), c('Grant group access', 'grant_community_access'),
   // Company (3)
   c('Clear associated company fields', 'company_clear'), c('Create and associate company', 'company_create'), c('Update associated company', 'company_update'),

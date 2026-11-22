@@ -1,5 +1,6 @@
 import { brandHighlight, brandIcon, icon as i, logo, brandName, bootScreen, shcLayers } from './icons.js';
 import { desktopPage, desktopPreview, readDesktop } from './agency-desktop.js';
+import { mobileStoreCard, readMobileStore } from './agency-mobile.js';
 import { formatTokens, formatUsd, usageKinds } from './ai-data.js';
 import { labCatalog, labModes } from './labs-data.js';
 import { appApiScopes, appCategories, appEvents } from './app-studio-data.js';
@@ -590,7 +591,7 @@ export function startAgency(env) {
         <fieldset class="ag-full"><legend>Módulos (ordem de exibição e visibilidade)</legend><ol class="ag-order">${order.map(([k, label]) => `<li data-module="${k}"><label class="check"><input type="checkbox" name="visible" value="${k}" ${m.hidden.includes(k) ? '' : 'checked'}> ${h(tr(label))}</label><span><button type="button" class="icon-btn" data-ag="move-up" aria-label="Mover ${h(label)} para cima">▲</button><button type="button" class="icon-btn" data-ag="move-down" aria-label="Mover ${h(label)} para baixo">▼</button></span></li>`).join('')}</ol></fieldset>
         <fieldset class="ag-full"><legend>Módulos adicionais via URL personalizada</legend>${custom.map((c, k) => `<div class="field-grid"><label>Nome do botão<input name="customLabel${k}" maxlength="40" value="${h(c.label)}"></label><label>URL de destino<input name="customUrl${k}" type="url" value="${h(c.url)}"></label></div>`).join('')}</fieldset>
         <button class="primary">Salvar aplicativo móvel</button><p class="form-status" role="alert"></p></form>
-      <div class="ag-phone" aria-label="Pré-visualização do celular"><div class="ag-phone-top" data-bg="${h(m.primary)}"><b data-preview="appName">${h(m.appName)}</b></div><p class="ag-login" data-preview="loginTitle">${h(m.loginTitle)}</p><ul class="ag-phone-list">${order.filter(([k]) => !m.hidden.includes(k)).map(([, label]) => `<li><span class="ag-dot" data-bg="${h(m.accent)}"></span>${h(tr(label))}</li>`).join('')}${m.custom.map(c => `<li><span class="ag-dot" data-bg="${h(m.accent)}"></span>${h(c.label)}</li>`).join('')}</ul></div></div></div>`;
+      <div class="ag-phone" aria-label="Pré-visualização do celular"><div class="ag-phone-top" data-bg="${h(m.primary)}"><b data-preview="appName">${h(m.appName)}</b></div><p class="ag-login" data-preview="loginTitle">${h(m.loginTitle)}</p><ul class="ag-phone-list">${order.filter(([k]) => !m.hidden.includes(k)).map(([, label]) => `<li><span class="ag-dot" data-bg="${h(m.accent)}"></span>${h(tr(label))}</li>`).join('')}${m.custom.map(c => `<li><span class="ag-dot" data-bg="${h(m.accent)}"></span>${h(c.label)}</li>`).join('')}</ul></div></div>${mobileStoreCard(m, location.origin, A.data.access?.agencyId || 'agency')}</div>`;
   };
 
   pages['desktop-app'] = () => desktopPage(D(), location.origin, A.data.access?.agencyId || 'agency');
@@ -1361,6 +1362,16 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'api-key-delete': confirmBox('Revogar esta chave de API?', 'Sistemas ou integrações que utilizam esta chave deixarão de funcionar imediatamente.', 'api-key-delete', id, 'Revogar'); break;
         case 'private-integration': dialog('Criar integração privada', `<label>Nome da integração<input name="name" required maxlength="80"></label><label>Descrição do propósito<input name="description" maxlength="500"></label><fieldset class="ag-checks"><legend>Escopos de acesso</legend>${['subaccounts.read', 'contacts.read', 'contacts.write'].map(s => `<label class="check"><input type="checkbox" name="scopes" value="${s}"> ${s}</label>`).join('')}</fieldset>`, { form: 'private-integration', submit: 'Criar token' }); break;
         case 'private-integration-delete': confirmBox('Excluir esta integração?', 'O token associado deixará de funcionar imediatamente.', 'private-integration-delete', id, 'Excluir'); break;
+        case 'mobile-publish': await act('mobile-app-publish'); go('mobile-app'); flash('App mobile publicado. Envie o link de instalação para a equipe.'); break;
+        case 'mobile-copy': await navigator.clipboard.writeText(id).then(() => flash('Link copiado.'), () => flash('Selecione o link e copie.', true)); break;
+        case 'mobile-package': {
+          const response = await fetch('/api/mobile-app/package'), pack = await response.json();
+          if (!response.ok) throw new Error(pack.error || 'Não foi possível gerar o pacote.');
+          download('twa-manifest.json', JSON.stringify(pack.twaManifest, null, 2), 'application/json');
+          download('soci-app-lojas.json', JSON.stringify(pack, null, 2), 'application/json');
+          flash(pack.ready ? 'Pacote baixado: twa-manifest.json e soci-app-lojas.json.' : `Pacote baixado. Ainda falta: ${pack.missing.join(', ')}.`, !pack.ready);
+          break;
+        }
         case 'desktop-publish': await act('desktop-app-publish'); go('desktop-app'); flash('App desktop publicado. Envie o link de instalação para a equipe e os clientes.'); break;
         case 'desktop-remove': await act('desktop-app', { data: { [id]: 'remove' } }); go('desktop-app'); flash('Imagem removida.'); break;
         case 'desktop-copy': await navigator.clipboard.writeText(id).then(() => flash('Link copiado.'), () => flash('Selecione o link e copie.', true)); break;
@@ -1573,6 +1584,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           await act('mobile-app', { data: { appName: data.appName, loginTitle: data.loginTitle, primary: data.primary, accent: data.accent, order, hidden: order.filter(k => !visible.includes(k)), custom } });
           msg = 'Aplicativo móvel salvo.'; break;
         }
+        case 'mobile-app-store': await act('mobile-app-store', { data: await readMobileStore(f) }); go('mobile-app'); msg = 'Dados das lojas salvos.'; break;
         case 'desktop-app': await act('desktop-app', { data: await readDesktop(f) }); go('desktop-app'); msg = 'Aplicativo desktop salvo.'; break;
         case 'profile': await act('profile', { data }); msg = 'Perfil atualizado com sucesso.'; break;
         case 'company': {

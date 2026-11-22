@@ -452,6 +452,12 @@ export const actionCatalog = [
       f('eventId', 'Evento', 'ref', { source: 'communityEvents', required: true, empty: 'Escolha o evento' }),
       f('ticket', 'Evento pago', 'select', { options: [['', 'Não inscrever (o contato compra o ingresso)'], ['comp', 'Inscrever como cortesia, sem cobrar']] })
     ] },
+    { type: 'push_notification', label: 'Notificação push', icon: 'bell', description: 'Manda uma notificação no celular: para a equipe (app mobile da agência, com as notificações ativadas) ou para o contato (aparelhos em que ele ativou as notificações no portal do cliente). Tocar na notificação abre o link.', fields: [
+      f('target', 'Para quem', 'select', { options: [['team', 'Equipe (app mobile)'], ['contact', 'O contato (portal do cliente)']] }),
+      f('title', 'Título', 'text', { required: true, placeholder: 'Novo lead: {{contact.name}}' }),
+      f('body', 'Texto (aceita variáveis)', 'textarea', { required: true, placeholder: 'Veio pelo formulário {{trigger.form}}.' }),
+      f('url', 'Abrir ao tocar (opcional: /app#contacts ou https://…)', 'text')
+    ] },
     { type: 'grant_channel_access', label: 'Liberar canal privado', icon: 'lock', description: 'Dá ao contato acesso a um canal privado da comunidade. Ele precisa ser membro ativo da comunidade.', fields: [
       f('channel', 'Canal privado', 'ref', { source: 'privateChannels', required: true, empty: 'Escolha o canal' })
     ] },

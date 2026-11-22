@@ -517,6 +517,16 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
         if (buttons.length) row.buttons = buttons;
         return buttons.length ? `enviada ao chat com ${buttons.length} botão(ões)` : 'enviada ao chat';
       }
+      case 'push_notification': {
+        // "Notificação push": to the team's mobile app or to the contact's devices (client portal); the server sends.
+        const title = text(c.title).trim().slice(0, 80), body = text(c.body).trim().slice(0, 240);
+        if (!title || !body) return 'erro: escreva o título e o texto';
+        const target = c.target === 'contact' ? 'contact' : 'team';
+        const link = text(c.url).trim().slice(0, 500);
+        const url = /^https:\/\/\S+$/i.test(link) || /^\/[\w\-/#?=&.%]*$/.test(link) ? link : target === 'team' ? `/app#conversations` : '';
+        outbox(s, { kind: 'push', runId: run.id, target, contactId: contact.id, title, body, url, tag: `wf-${run.workflowId}` });
+        return target === 'team' ? 'notificação para a equipe na fila' : 'notificação para o contato na fila';
+      }
       case 'dialer_add': {
         // "Adicionar ao discador": the contact goes to the power dialer queue (Conversas → Discador).
         if (!dialerAdd) return 'erro: discador indisponível';
