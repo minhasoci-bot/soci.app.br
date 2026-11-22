@@ -425,3 +425,12 @@
 .cp-reward{display:grid;gap:8px;padding:14px;align-content:start}.cp-reward p{margin:0;font-size:13px;color:var(--portal-muted)}.cp-reward .cp-tag{justify-self:start}
 .cp-loyalty-history{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}.cp-loyalty-history li{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}
 .cp-loyalty-history b{color:#146c2e}.cp-loyalty-history b.neg{color:#b42318}
+
+/* Client portal: a file sent to the team. */
+.cp-upload form{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px}
+.cp-upload input[type=file]{flex:1;min-width:0;max-width:100%}
+.cp-upload-list{margin:14px 0 0;padding:0;list-style:none;display:grid;gap:6px}
+.cp-upload-list li{display:flex;align-items:center;gap:6px;overflow-wrap:anywhere}
+.cp-upload-list small{margin-left:auto;opacity:.7;white-space:nowrap}
+.cp-public p.cp-public-ok{padding:10px 12px;border:1px solid #bfe3cf;background:#f1fbf5;color:#14532d;border-radius:9px}
+.cp-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}

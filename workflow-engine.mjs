@@ -304,6 +304,9 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       case 'site_page_viewed': return (!c.projectId || c.projectId === ctx.projectId) && (!c.page || lower(String(c.page).trim().replace(/^\/+|\/+$/g, '') || 'index') === lower(ctx.page));
       case 'external_tracking_event': return (!c.event || c.event === ctx.event) && (!c.url || lower(ctx.url).includes(lower(c.url)));
       case 'score_changed': return scoreTriggerMatches(c, ctx);
+      case 'association_created': return !c.object || c.object === ctx.object;
+      case 'portal_file_uploaded': return !c.kind || c.kind === ctx.kind;
+      case 'video_watched': return Number(ctx.percent) === (Number(c.percent) || 25) && (!c.video || lower(ctx.video).includes(lower(c.video))) && (!c.url || lower(ctx.url).includes(lower(c.url)));
       case 'whatsapp_ad_click': return (!c.adId || c.adId === ctx.adId) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
       case 'meta_lead_form': case 'google_lead_form':
         return (!c.formId || c.formId === ctx.formId || lower(ctx.form).includes(lower(c.formId))) && (!c.campaign || c.campaign === ctx.campaignId || lower(ctx.campaign).includes(lower(c.campaign)))
@@ -581,10 +584,12 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       }
       case 'company_create': case 'company_update': case 'company_clear': {
         if (!companyAction) return 'erro: empresas indisponíveis';
+        const linkedBefore = contact.company;
         const config = { ...c, name: text(c.name || ''), value: text(c.value ?? ''), ...Object.fromEntries(['phone', 'email', 'website', 'city'].map(key => [key, text(c[key] || '')])) };
         const done = companyAction(s, contact, node.type, config);
         if (done.error) return `erro: ${done.error}`;
         output(run, id, { id: done.company.id, name: done.company.name, created: done.created ? 'yes' : 'no' });
+        if (node.type === 'company_create' && lower(linkedBefore) !== lower(contact.company)) emit(s, 'association_created', { contactId: contact.id, object: 'company', companyId: done.company.id, title: done.company.name, depth });
         if (node.type === 'company_create') return `${done.company.name}${done.created ? ' (criada)' : ''} associada`;
         return node.type === 'company_update' ? `${done.company.name}: ${c.field} atualizado` : `${done.company.name}: ${done.cleared.join(', ')} limpo(s)`;
       }
@@ -1410,6 +1415,12 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
   // What changed in a saved record, as workflow events.
   function recordChange(s, key, prior, row) {
     const base = { contactId: row.contactId || '' };
+    // "Associação criada": a contact linked to a registered company, or an opportunity linked to a contact.
+    if (key === 'contacts' && row.company && lower(row.company) !== lower(prior?.company)) {
+      const company = (s.companies || []).find(item => lower(item.name) === lower(row.company));
+      if (company) emit(s, 'association_created', { contactId: row.id, object: 'company', companyId: company.id, title: company.name });
+    }
+    if (key === 'opportunities' && row.contactId && row.contactId !== prior?.contactId) emit(s, 'association_created', { contactId: row.contactId, object: 'opportunity', opportunityId: row.id, title: row.title || row.name || '' });
     if (key === 'contacts') {
       if (!prior) { emit(s, 'contact_created', { contactId: row.id }); for (const tag of row.tags || []) emit(s, 'contact_tag', { contactId: row.id, change: 'added', tag }); return; }
       const fields = ['name', 'email', 'phone', 'company'].filter(field => (prior[field] || '') !== (row[field] || ''));

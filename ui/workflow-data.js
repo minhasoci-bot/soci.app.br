@@ -62,6 +62,9 @@ export const triggerCatalog = [
     { type: 'contact_changed', label: 'Contato alterado', icon: 'edit', fields: [f('field', 'Campo alterado', 'ref', { source: 'contactFields', empty: 'Qualquer campo' })] },
     { type: 'contact_tag', label: 'Tag do contato', icon: 'tag', fields: [f('change', 'Quando a tag for', 'select', { options: [['added', 'Adicionada'], ['removed', 'Removida']] }), f('tag', 'Tag', 'text', { placeholder: 'Qualquer tag' })] },
     { type: 'contact_dnd', label: 'Não perturbe (DND)', icon: 'lock', fields: [f('state', 'Quando', 'select', { options: [['on', 'Ativado'], ['off', 'Desativado']] })] },
+    { type: 'association_created', label: 'Associação criada', icon: 'link', description: 'Quando um contato é ligado a uma empresa do cadastro (no cadastro do contato, na importação ou pela ação Criar e associar empresa) ou quando uma oportunidade é ligada a um contato. Use {{trigger.title}} para o nome da empresa ou da oportunidade.', fields: [
+      f('object', 'Associação', 'select', { options: [any('Empresa ou oportunidade'), ['company', 'Contato ligado a uma empresa'], ['opportunity', 'Oportunidade ligada a um contato']] })
+    ] },
     { type: 'birthday_reminder', label: 'Lembrete de aniversário', icon: 'gift', scheduled: true, fields: [f('field', 'Campo de data de nascimento', 'ref', { source: 'dateFields', required: true }), f('days', 'Dias antes', 'number', { min: 0, max: 60, value: 0 }), f('time', 'Horário', 'time', { value: '09:00' })] },
     { type: 'custom_date_reminder', label: 'Lembrete de data personalizada', icon: 'cal', scheduled: true, fields: [f('field', 'Campo de data', 'ref', { source: 'dateFields', required: true }), f('offset', 'Dias em relação à data (negativo = antes)', 'number', { min: -365, max: 365, value: 0 }), f('time', 'Horário', 'time', { value: '09:00' })] },
     { type: 'note_added', label: 'Nota adicionada', icon: 'note' },
@@ -172,6 +175,9 @@ export const triggerCatalog = [
       f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' }),
       f('reason', 'Motivo', 'select', { options: [any('Qualquer motivo'), ['left', 'Saiu por conta própria'], ['removed', 'Removido pela equipe'], ['banned', 'Banido'], ['workflow', 'Removido por automação']] })
     ] },
+    { type: 'portal_file_uploaded', label: 'Arquivo enviado no portal do cliente', icon: 'upload', description: 'Quando o cliente envia um arquivo pela área "Enviar um arquivo para a equipe" do portal. O arquivo fica em Arquivos, ligado ao contato, e aparece em Conversas. Use {{trigger.name}} para o nome do arquivo.', fields: [
+      f('kind', 'Tipo de arquivo', 'select', { options: [any('Qualquer tipo'), ['photo', 'Imagem'], ['video', 'Vídeo'], ['audio', 'Áudio'], ['doc', 'Documento (PDF, TXT, CSV)']] })
+    ] },
     { type: 'portal_login', label: 'Login no portal do cliente', icon: 'lock', description: 'Quando o cliente entra no portal (área de membros) pelo link de acesso. O primeiro acesso conta como cadastro. Entradas da equipe para ver o portal não contam.', fields: [
       f('first', 'Acesso', 'select', { options: [any('Qualquer acesso'), ['yes', 'Só o primeiro acesso (cadastro)'], ['no', 'Só os acessos seguintes']] })
     ] },
@@ -213,6 +219,11 @@ export const triggerCatalog = [
     { type: 'ad_lead', label: 'Lead de anúncio', icon: 'meg', description: 'Quando um contato chega de um anúncio (Google Ads, Meta Ads ou outra mídia paga), por um formulário, site, loja ou webinar. Use {{trigger.campaign}} e {{trigger.source}}.', fields: [
       f('network', 'Origem', 'select', { options: [any('Qualquer anúncio'), ['google_ads', 'Google Ads'], ['meta_ads', 'Meta Ads'], ['paid_other', 'Outros anúncios']] }),
       f('campaign', 'Campanha contém', 'text', { placeholder: 'Ex.: black-friday' })
+    ] },
+    { type: 'video_watched', label: 'Vídeo assistido', icon: 'site', description: 'Quando um contato conhecido assiste a um vídeo HTML5 do seu site (com o script de rastreamento) até 25, 50, 75 ou 100%. Vídeos do YouTube e de outros players em iframe não são lidos. Use {{trigger.percent}}, {{trigger.video}} e {{trigger.url}}.', fields: [
+      f('percent', 'Quando chegar a', 'select', { options: [any('Começou a assistir (25%)'), ['50', 'Metade (50%)'], ['75', '75%'], ['100', 'Até o fim (100%)']] }),
+      f('video', 'Vídeo (nome ou endereço contém)', 'text', { placeholder: 'Ex.: apresentacao.mp4' }),
+      f('url', 'Página contém', 'text', { placeholder: 'Ex.: /curso' })
     ] },
     { type: 'external_tracking_event', label: 'Evento do rastreamento externo', icon: 'site', description: 'Quando um contato conhecido visita uma página ou envia um formulário no seu site com o script de rastreamento instalado.', fields: [
       f('event', 'Evento', 'select', { options: [any('Visita ou formulário'), ['pageview', 'Visita de página'], ['form', 'Formulário enviado']] }),

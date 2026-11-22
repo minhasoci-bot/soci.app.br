@@ -51,6 +51,7 @@ function installView(c) {
       <ul class="tk-list">
         <li><b>Visitas de página</b> com a origem da visita (UTM, gclid, fbclid e site de origem; primeiro e último toque).</li>
         <li><b>Formulários HTML enviados</b>: com e-mail ou telefone, o contato é criado ou atualizado, as respostas viram uma nota e as visitas seguintes contam para ele.</li>
+        <li><b>Vídeos assistidos</b>: vídeos HTML5 do seu site chegando a 25, 50, 75 e 100% (para contatos conhecidos, no gatilho Vídeo assistido).</li>
         <li><b>Eventos seus</b>: chame <code>soci.track('nome-do-evento')</code> para registrar um clique ou uma conversão.</li>
       </ul>
       <p class="dim">Senhas, cartões, CPF e campos ocultos nunca são enviados. Para ignorar um formulário, acrescente <code>data-soci-ignore</code> à tag <code>&lt;form&gt;</code>.</p></section>
@@ -75,6 +76,7 @@ function settingsView(c) {
       <h2>Script do seu site</h2>
       <label class="switch-row"><span><b>Registrar visitas de página</b><br><small class="dim">Cada página aberta com o script conta como visita.</small></span><input type="checkbox" name="pageviews"${t.pageviews !== false ? ' checked' : ''}></label>
       <label class="switch-row"><span><b>Capturar formulários HTML</b><br><small class="dim">Formulários com e-mail ou telefone criam ou atualizam o contato.</small></span><input type="checkbox" name="forms"${t.forms !== false ? ' checked' : ''}></label>
+      <label class="switch-row"><span><b>Acompanhar vídeos</b><br><small class="dim">Vídeos HTML5 (tag video) assistidos até 25, 50, 75 e 100% por contatos conhecidos disparam o gatilho Vídeo assistido. Vídeos do YouTube e de outros players em iframe não são lidos.</small></span><input type="checkbox" name="videos"${t.videos !== false ? ' checked' : ''}></label>
       <label>Domínios permitidos<textarea name="domains" rows="3" placeholder="suaempresa.com.br&#10;*.suaempresa.com.br" spellcheck="false">${h((t.domains || []).join('\n'))}</textarea></label>
       <p class="dim"><small>Um por linha. Vazio aceita eventos de qualquer site; use <code>*.dominio.com</code> para incluir os subdomínios.</small></p>
       <div class="rp-save"><span class="form-status" role="status"></span><button class="primary">Salvar configurações</button></div>
@@ -253,7 +255,7 @@ export function installTracking({ c, mutate, flash, dialog, close, render, api }
       if (form.dataset.tkForm === 'settings') {
         const f = form.elements;
         if (f.ga4Secret.value.trim()) await saveGa4Secret(f.ga4Secret.value.trim());
-        await mutate({ type: 'tracking-settings', data: { ga4: f.ga4.value, gtm: f.gtm.value, metaPixel: f.metaPixel.value, domains: f.domains.value, pageviews: f.pageviews.checked, forms: f.forms.checked } });
+        await mutate({ type: 'tracking-settings', data: { ga4: f.ga4.value, gtm: f.gtm.value, metaPixel: f.metaPixel.value, domains: f.domains.value, pageviews: f.pageviews.checked, forms: f.forms.checked, videos: f.videos.checked } });
         render(); flash('Rastreamento salvo.');
       } else {
         const id = form.dataset.id || undefined;

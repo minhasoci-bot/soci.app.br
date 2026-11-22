@@ -86,6 +86,12 @@ function player(course) {
 
 let portal, course, community = null, courseView = 'lesson', redeemed = null;
 const cmUi = { tab: 'discussion', channel: '', period: '30' };
+const uploadCard = files => `<section class="cp-public-card cp-upload"><h2>${icon('upload', 18)} Enviar um arquivo para a equipe</h2>
+  <p>Imagem, vídeo, áudio, PDF, TXT ou CSV de até 700 KB.</p>
+  <form data-portal-upload><label class="cp-sr" for="cp-upload-file">Arquivo</label><input id="cp-upload-file" type="file" name="file" required accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,application/pdf,text/plain,text/csv">
+    <button type="submit" class="cp-public-primary">Enviar</button></form>
+  ${(files || []).length ? `<ul class="cp-upload-list">${files.map(file => `<li>${icon('file', 14)} ${h(file.name)} <small>${h(new Date(file.created).toLocaleDateString('pt-BR'))}</small></li>`).join('')}</ul>` : ''}</section>`;
+
 function draw(message = '') {
   const { title, introduction, color, signedIn, courses, member } = portal || { title: 'Portal do cliente' };
   document.title = community ? `${community.group.name} · ${title}` : course ? `${course.name} · ${title}` : title;
@@ -97,7 +103,7 @@ function draw(message = '') {
     ${message ? `<p class="cp-public-error" role="alert">${h(message)}</p>` : ''}
     ${signedIn ? (community ? communityPage(community, cmUi) : course ? (courseView === 'page' ? coursePage(course, bar) : player(course)) : `<section class="cp-public-welcome">
       <h1>${member?.name ? `Olá, ${h(member.name)}` : 'Bem-vindo ao portal'}</h1>
-      ${introduction ? `<p>${h(introduction)}</p>` : ''}</section>${library(courses)}${communityCards(portal?.communities)}${loyaltyCard(portal?.loyalty, redeemed)}`) :
+      ${introduction ? `<p>${h(introduction)}</p>` : ''}</section>${library(courses)}${communityCards(portal?.communities)}${loyaltyCard(portal?.loyalty, redeemed)}${uploadCard(portal?.files)}`) :
       `<section class="cp-public-card cp-signin"><div class="cp-course-icon">${icon('key',24)}</div>
         <h1>Acesse seu portal</h1>
         ${access ? '<p>Confirme para entrar com o seu link de acesso.</p><button type="button" class="cp-public-primary" data-portal-public="enter">Entrar no portal</button>' :
@@ -226,6 +232,22 @@ function confirmDelete(button) {
 }
 
 root.addEventListener('submit', async event => {
+  const upload = event.target.closest('[data-portal-upload]');
+  if (upload) {
+    event.preventDefault();
+    const file = upload.elements.file.files?.[0];
+    const fail = text => { upload.querySelector('.cp-public-error')?.remove(); upload.insertAdjacentHTML('afterbegin', `<p class="cp-public-error" role="alert">${h(text)}</p>`); };
+    if (!file) return fail('Escolha um arquivo.');
+    if (file.size > 700_000) return fail('O arquivo passa de 700 KB.');
+    const button = upload.querySelector('button'); button.disabled = true;
+    try {
+      const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
+      portal.files = (await api('files', { name: file.name, data })).files;
+      draw();
+      root.querySelector('.cp-upload')?.insertAdjacentHTML('beforeend', '<p class="cp-public-ok" role="status">Arquivo enviado. A equipe já recebeu.</p>');
+    } catch (error) { button.disabled = false; fail(error.message); }
+    return;
+  }
   const courseForm = event.target.closest('[data-course-form]');
   if (courseForm && course?.lesson) {
     event.preventDefault();
