@@ -26,7 +26,7 @@ export const gatilhos = [
   c('Inbound webhook', 'inbound_webhook'), c('Scheduler', 'scheduler'),
   falta('Call details', 'call_details', 'Telefonia Twilio (2.4).'),
   c('Email events', 'email_event'), c('Customer replied', 'customer_replied'),
-  falta('Inbound email', 'email_received', 'E-mail recebido na caixa de entrada da subconta.'),
+  c('Inbound email', 'email_received', 'Endereço conversas+<subconta> pela Resend; as respostas aos e-mails voltam para Conversas.'),
   falta('Conversation AI trigger', 'conversation_ai_event', 'Bot de IA nas conversas.'),
   c('Custom trigger', 'custom_event'), c('Form submitted', 'form_submitted'), c('Survey submitted', 'survey_submitted'),
   c('Trigger link clicked', 'trigger_link_clicked'),
@@ -154,7 +154,7 @@ export const acoes = [
   c('Set event start date', 'set_event_date', 'Com o modo Aguardar “em relação à data do evento”.'),
   c('Add to workflow', 'add_to_workflow'), c('Remove from workflow', 'remove_from_workflow'), c('Array formatter', 'list_format'), c('Drip', 'drip'),
   c('Text formatter', 'text_format'),
-  falta('Custom code', 'custom_code', 'Código JavaScript em área isolada, sem rede nem disco.'),
+  c('Custom code', 'custom_code', 'Linguagem de expressões da Soci (nome = expressão por linha), sem rede nem disco.'),
   // Workflow AI (7)
   c('AI Agent', 'ai_agent'), c('External AI models', 'ai_prompt'), c('GPT powered by OpenAI', 'ai_prompt'),
   c('AI image generation', 'ai_image_generate'),

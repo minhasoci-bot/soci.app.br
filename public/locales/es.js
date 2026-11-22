@@ -5356,5 +5356,15 @@ export default {
   "Contato ligado a uma empresa": "Contacto vinculado a una empresa",
   "Oportunidade ligada a um contato": "Oportunidad vinculada a un contacto",
   "Acompanhar vídeos": "Seguir videos",
-  "Vídeos HTML5 (tag video) assistidos até 25, 50, 75 e 100% por contatos conhecidos disparam o gatilho Vídeo assistido. Vídeos do YouTube e de outros players em iframe não são lidos.": "Los videos HTML5 (etiqueta video) vistos hasta el 25, 50, 75 y 100% por contactos conocidos activan el disparador Video visto. Los videos de YouTube y de otros reproductores en iframe no se leen."
+  "Vídeos HTML5 (tag video) assistidos até 25, 50, 75 e 100% por contatos conhecidos disparam o gatilho Vídeo assistido. Vídeos do YouTube e de outros players em iframe não são lidos.": "Los videos HTML5 (etiqueta video) vistos hasta el 25, 50, 75 y 100% por contactos conocidos activan el disparador Video visto. Los videos de YouTube y de otros reproductores en iframe no se leen.",
+  "E-mail recebido": "Correo recibido",
+  "Quando chega um e-mail no endereço de Conversas da subconta (as respostas aos e-mails da equipe e dos fluxos vêm para cá). O contato é achado pelo e-mail ou criado. Use {{trigger.subject}}, {{trigger.from}} e {{trigger.body}}.": "Cuando llega un correo a la dirección de Conversaciones de la subcuenta (las respuestas a los correos del equipo y de los flujos llegan aquí). El contacto se encuentra por el correo o se crea. Usa {{trigger.subject}}, {{trigger.from}} y {{trigger.body}}.",
+  "Assunto contém": "El asunto contiene",
+  "Ex.: orçamento": "Ej.: presupuesto",
+  "Remetente contém": "El remitente contiene",
+  "Ex.: @empresa.com.br": "Ej.: @empresa.com",
+  "Código personalizado": "Código personalizado",
+  "Calcula valores com a linguagem de expressões da Soci, uma linha por variável: nome = expressão. Cada linha pode usar as anteriores pelo nome, o contato (contact), o gatilho (trigger), as variáveis (vars) e as etapas (steps); as próximas etapas leem o resultado em {{vars.nome}}. Roda isolado, sem rede e sem disco. Ex.: total = number(trigger.total) * 0.9": "Calcula valores con el lenguaje de expresiones de Soci, una línea por variable: nombre = expresión. Cada línea puede usar las anteriores por su nombre, el contacto (contact), el disparador (trigger), las variables (vars) y los pasos (steps); los pasos siguientes leen el resultado en {{vars.nombre}}. Se ejecuta aislado, sin red y sin disco. Ej.: total = number(trigger.total) * 0.9",
+  "Código (uma linha por variável: nome = expressão; // para comentar)": "Código (una línea por variable: nombre = expresión; // para comentar)",
+  "// Desconto de 10% e primeiro nome em maiúsculas\ntotal = number(trigger.total) * 0.9\nnome = upper(contact.first_name)\nvip = total > 1000 ? \"sim\" : \"não\"": "// Descuento del 10% y nombre en mayúsculas\ntotal = number(trigger.total) * 0.9\nnombre = upper(contact.first_name)\nvip = total > 1000 ? \"sí\" : \"no\""
 };

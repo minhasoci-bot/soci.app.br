@@ -103,6 +103,7 @@ import { authUrl, availability, blueskyLogin, exchange as socialExchange, publis
 import { fetchMetaLead, metaInbound, metaLeads, metaSenderName, metaSignatureValid, quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
 import { googleLeadFields, googleLeadKeyValid, metaLeadFields } from './lead-forms.mjs';
 import { generateImage, startVideo, videoContent, videoStatus } from './openai-media.mjs';
+import { inboundAddress, inboundEmail, inboundWorkspace, svixValid } from './email-inbound.mjs';
 import { CHUNK_BYTES } from './reputation-media.mjs';
 import { network } from './ui/social-data.js';
 import { captionRequest, writeCaption } from './social-ai.mjs';
@@ -192,6 +193,8 @@ const error = (message,status) => Object.assign(new Error(message),{status});
 const spaceId = /^[0-9a-f-]{36}$|^demo$/;
 const privateSpace = /^user-[0-9a-f-]{36}$/;
 // Why a WhatsApp message was not delivered, as the "Falha no envio de mensagem" trigger names it.
+// documentMail.email answers with a sentence: "e-mail enviado…" when Resend accepted it, anything else is a failure.
+const mailSent = outcome => typeof outcome === 'string' ? /^e-mail enviado/.test(outcome) : Boolean(outcome);
 const deliveryFailure = reason => ({ 'not-connected': 'not_connected', 'invalid-phone': 'invalid_phone', 'account-suspended': 'suspended' })[reason] || 'provider_error';
 const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
@@ -273,7 +276,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 
 export function makeServer({
   dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
-  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, brandResolve=null, designAgentConfig=designAgent,
+  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, inboundFetch=fetch, brandResolve=null, designAgentConfig=designAgent,
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
   evolutionBaseUrl=process.env.EVOLUTION_BASE_URL || '', evolutionApiKey=process.env.EVOLUTION_API_KEY || '',
@@ -1613,8 +1616,8 @@ export function makeServer({
       if (item.kind === 'email') {
         if (privateSpace.test(workspace)) { results.push({ runId: item.runId, kind: 'email', text: 'não enviado (conta pessoal)' }); continue; }
         const outcome = await documentMail.email(item.to, { subject: item.subject, text: absolute(item) }, `wf-email-${workspace}-${item.messageId}`,
-          { fromName: state.profile?.name || '', fromAddress }).catch(problem => problem.message);
-        const ok = typeof outcome !== 'string';
+          { fromName: state.profile?.name || '', fromAddress, replyTo: inboundAddress(workspace) }).catch(problem => problem.message);
+        const ok = mailSent(outcome);
         results.push({ runId: item.runId, kind: 'email', text: ok ? 'enviado' : `não enviado: ${outcome}`,
           ...(ok ? {} : { failed: /não configurado/.test(outcome) ? 'not_connected' : 'provider_error', messageId: item.messageId || '' }) });
       }
@@ -2772,8 +2775,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (!contact?.email) reason = 'no_email';
           else {
             const outcome = await documentMail.email(contact.email, { subject: row?.subject || `Mensagem de ${state.profile?.name || 'Soci'}`, text: row?.body || String(command.data.body || '') },
-              `team-email-${id}-${result.id}`, { fromName: state.profile?.name || '', fromAddress: await sendingAddress(id) }).catch(problem => problem.message);
-            if (typeof outcome === 'string') reason = /não configurado/.test(outcome) ? 'not_connected' : 'provider_error';
+              `team-email-${id}-${result.id}`, { fromName: state.profile?.name || '', fromAddress: await sendingAddress(id), replyTo: inboundAddress(id) }).catch(problem => problem.message);
+            if (!mailSent(outcome)) reason = /não configurado/.test(String(outcome)) ? 'not_connected' : 'provider_error';
           }
           delivery = { sent: !reason, ...(reason ? { reason } : {}) };
           if (reason) {
@@ -3169,6 +3172,24 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (p.startsWith('/api/whatsapp/webhook/') && method === 'POST') {
         return await whatsapp.handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json, onStored: flushLater });
+      }
+      // E-mail recebido: Resend's "email.received" for conversas+<subconta>@INBOUND_EMAIL_DOMAIN (Svix-signed).
+      if (p === '/api/email/inbound' && method === 'POST') {
+        await ready;
+        let size = 0; const chunks = [];
+        for await (const chunk of req) { size += chunk.length; if (size > 2_000_000) throw error('Payload too large.', 413); chunks.push(chunk); }
+        const raw = Buffer.concat(chunks).toString('utf8');
+        if (!svixValid(raw, req.headers, process.env.RESEND_INBOUND_SECRET || '')) throw error('Invalid signature.', 401);
+        let event;
+        try { event = JSON.parse(raw); } catch { throw error('Invalid JSON.', 400); }
+        const workspace = inboundWorkspace(event?.data?.to);
+        if (!workspace || privateSpace.test(workspace)) return json({ ok: true, ignored: true });
+        if (!await publicAccountPolicy(workspace, false, 'conversations').catch(() => false)) return json({ ok: true, ignored: true });
+        const email = await inboundEmail(event, { request: inboundFetch });
+        if (!email) return json({ ok: true, ignored: true });
+        await store.change(workspace, s => execute(s, { type: 'email-inbound', data: { id: email.id, email: email.from.email, name: email.from.name, subject: email.subject, body: email.body } }, { workspace }));
+        flushLater(workspace);
+        return json({ ok: true });
       }
       // Messenger and Direct: Meta's verification (GET) and the messages of the connected pages (POST, signed).
       if (p === '/api/meta/webhook') {
