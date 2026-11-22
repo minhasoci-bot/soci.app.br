@@ -210,14 +210,17 @@ export function makeClientPortal({
         Object.assign(row, { status, feedback: text(input.feedback, 2000), gradedAt: new Date().toISOString() });
         member.progress ||= {};
         const done = member.progress[courseId] ||= {};
+        const before = Boolean(done[lessonId]);
         if (status === 'approved') done[lessonId] ||= new Date().toISOString(); else delete done[lessonId];
-        graded = { member, lessonId, status };
+        graded = { member, lessonId, status, newlyDone: !before && Boolean(done[lessonId]) };
         return { submissions: submissionsOf(state, doc, courseId) };
       });
       const lesson = lessonOf(state, courseId, lessonId);
       const course = state.courses.find(row => row.id === courseId);
       if (course && status === 'approved' && memberCourse(state, course, graded.member).progress.percent === 100 && credentialDue(state, graded.member, course, 'certificate')) await issue(workspace, graded.member, course, 'completed');
-      await onCourseActivity?.(workspace, { event: 'graded', status, courseId, lessonId, lessonTitle: lesson?.title || '', email: graded.member.email, name: graded.member.name, contactId: graded.member.contactId || '' });
+      const who = { courseId, lessonId, lessonTitle: lesson?.title || '', email: graded.member.email, name: graded.member.name, contactId: graded.member.contactId || '' };
+      await onCourseActivity?.(workspace, { ...who, event: 'graded', status });
+      if (graded.newlyDone && lesson) await onCourseActivity?.(workspace, { ...who, event: 'lesson' });
       return result;
     }
 
@@ -333,7 +336,7 @@ export function makeClientPortal({
   async function progress(workspace, state, token, courseId, input) {
     const action = ['quiz', 'assignment'].includes(input?.action) ? input.action : 'done';
     if (typeof input?.lessonId !== 'string' || (action === 'done' && typeof input.done !== 'boolean')) fail('Informe a aula.', 400);
-    let activity = null;
+    let activity = null, lessonDone = null;
     const finished = {};
     try {
       const result = await store.change(portalId(workspace), doc => {
@@ -369,10 +372,12 @@ export function makeClientPortal({
           if (!lesson.assignment.graded) done[lesson.id] ||= new Date().toISOString();
           activity = { ...who, event: 'assignment' };
         }
+        if (!finished.member.progress?.[courseId]?.[lesson.id] && done[lesson.id]) lessonDone = { ...who, event: 'lesson' };
         return { ...view(workspace, doc, state), signedIn: true, member: { name: member.name },
           course: memberCourse(state, course, member, { lessonId: input.lessonId }) };
       });
       if (activity) await onCourseActivity?.(workspace, activity);
+      if (lessonDone) await onCourseActivity?.(workspace, lessonDone);
       const course = state.courses.find(row => row.id === courseId);
       if (result.course?.progress.percent === 100 && credentialDue(state, finished.member, course, 'certificate')) {
         await issue(workspace, finished.member, course, 'completed');
@@ -390,6 +395,7 @@ export function makeClientPortal({
   // Sends the login e-mail when delivery is configured.
   async function enroll(workspace, state, { email, name = '', contactId = '' }, courses = []) {
     const address = { email: emailOf(email), name: text(name, 120), contactId };
+    let added = [];
     if (!/^[^\s@,<>]+@[^\s@,<>]+\.[^\s@,<>]+$/.test(address.email)) fail('Informe um e-mail válido.');
     const memberId = await change(workspace, doc => {
       const created = new Date().toISOString();
@@ -402,16 +408,35 @@ export function makeClientPortal({
       member.contactId ||= address.contactId;
       member.invitedAt ||= created;
       const valid = courses.filter(id => state.courses.some(course => course.id === id));
+      const previous = new Set(member.courseIds || []);
       grant(member, [...new Set([...(member.courseIds || []), ...valid])]);
+      added = valid.filter(id => !previous.has(id));
       return member.revokedAt ? '' : member.id;
     });
-    if (!memberId) return { memberId: '', emailed: false };
+    if (!memberId) return { memberId: '', emailed: false, added: [] };
     let emailed = false;
     if (emailConfigured) {
       try { await admin(workspace, state, { action: 'login', memberId }); emailed = true; }
       catch { /* The access stays granted; staff can resend the login e-mail from the portal. */ }
     }
-    return { memberId, emailed };
+    return { memberId, emailed, added };
+  }
+
+  // Workflows (T.1): the portal member of a contact, and taking courses away from them.
+  async function memberOf(workspace, { email = '', contactId = '' }) {
+    const doc = await load(workspace);
+    const member = doc && person(doc, { email: emailOf(email), contactId });
+    return member && !member.revokedAt ? member.id : '';
+  }
+  async function revokeCourses(workspace, { email = '', contactId = '' }, courses = []) {
+    if (!(await load(workspace))) return [];
+    return change(workspace, doc => {
+      const member = person(doc, { email: emailOf(email), contactId });
+      if (!member) return [];
+      const removed = (member.courseIds || []).filter(id => courses.includes(id));
+      if (removed.length) grant(member, member.courseIds.filter(id => !courses.includes(id)));
+      return removed;
+    });
   }
 
   // The signed-in member and the portal document, for features that build on the portal session.
@@ -427,5 +452,5 @@ export function makeClientPortal({
   // The portal document for staff screens (empty when the portal was never used).
   const directory = async workspace => await load(workspace) || blankPortal();
 
-  return { admin, exchange, signOut, content, progress, session, directory, enroll };
+  return { admin, exchange, signOut, content, progress, session, directory, enroll, memberOf, revokeCourses };
 }

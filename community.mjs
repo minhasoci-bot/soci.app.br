@@ -513,9 +513,9 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null }
     return result;
   }
 
-  // Adds a member to groups (for offers); banned members stay banned.
+  // Adds a member to groups (for offers and workflows); banned members stay banned. Returns the groups opened.
   async function enroll(workspace, memberId, groupIds) {
-    if (!memberId || !groupIds.length) return;
+    if (!memberId || !groupIds.length) return [];
     const opened = [];
     await change(workspace, doc => {
       for (const id of groupIds) {
@@ -525,7 +525,21 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null }
       }
     });
     for (const groupId of opened) await onMemberJoin?.(workspace, { groupId, memberId });
+    return opened;
   }
 
-  return { home, read, act, admin, enroll, reserve, markPending, grantTicket, dueReminders, reservePlan, markPlanPending, grantPlan, dueNewsletters };
+  // Workflows (T.1): takes a member out of groups; returns the groups they were active in.
+  async function unenroll(workspace, memberId, groupIds) {
+    if (!memberId || !groupIds.length) return [];
+    return change(workspace, doc => {
+      const removed = [];
+      for (const id of groupIds) {
+        const data = groupData(doc, id), row = data.members[memberId];
+        if (row && row.status !== 'banned') { delete data.members[memberId]; removed.push(id); }
+      }
+      return removed;
+    });
+  }
+
+  return { home, read, act, admin, enroll, unenroll, reserve, markPending, grantTicket, dueReminders, reservePlan, markPlanPending, grantPlan, dueNewsletters };
 }

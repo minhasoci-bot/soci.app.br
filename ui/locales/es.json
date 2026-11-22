@@ -4790,5 +4790,20 @@
   "Moeda (R$ 1.234,56)": "Moneda (R$ 1.234,56)",
   "Duas casas (1.234,56)": "Dos decimales (1.234,56)",
   "Inteiro (1.235)": "Entero (1.235)",
-  "Percentual (12,5%)": "Porcentaje (12,5%)"
+  "Percentual (12,5%)": "Porcentaje (12,5%)",
+  "Quando o aluno marca uma aula como concluída no portal. Use {{trigger.title}} para o nome da aula.": "Cuando el alumno marca una clase como completada en el portal. Use {{trigger.title}} para el nombre de la clase.",
+  "Acesso a curso liberado": "Acceso a curso liberado",
+  "Quando o contato ganha acesso a um curso, por oferta ou por automação.": "Cuando el contacto obtiene acceso a un curso, por oferta o por automatización.",
+  "Acesso a curso removido": "Acceso a curso eliminado",
+  "Quando uma automação tira o acesso do contato a um curso.": "Cuando una automatización le quita al contacto el acceso a un curso.",
+  "Liberar acesso a curso": "Liberar acceso a curso",
+  "Dá ao contato acesso ao curso no portal do cliente (e envia o link de entrada, se o e-mail do portal estiver configurado). O contato precisa ter e-mail.": "Da al contacto acceso al curso en el portal del cliente (y envía el enlace de entrada, si el correo del portal está configurado). El contacto necesita tener correo.",
+  "Remover acesso a curso": "Quitar acceso a curso",
+  "Tira o acesso do contato ao curso no portal. O progresso fica guardado se o acesso voltar.": "Quita el acceso del contacto al curso en el portal. El progreso queda guardado si el acceso vuelve.",
+  "Liberar acesso a comunidade": "Liberar acceso a comunidad",
+  "Coloca o contato como membro da comunidade (criando o acesso dele ao portal, se preciso). O contato precisa ter e-mail.": "Agrega el contacto como miembro de la comunidad (creando su acceso al portal, si hace falta). El contacto necesita tener correo.",
+  "Remover acesso a comunidade": "Quitar acceso a comunidad",
+  "Tira o contato da comunidade. Membros banidos continuam banidos.": "Saca al contacto de la comunidad. Los miembros bloqueados siguen bloqueados.",
+  "Escolha o curso": "Elija el curso",
+  "Escolha a comunidade": "Elija la comunidad"
 }

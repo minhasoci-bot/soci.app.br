@@ -112,6 +112,8 @@ export function courseActivityCommand(s, command, { add, run }) {
   if (d.event === 'quiz') run(s, 'course_quiz_submitted', { ...base, score: Number(d.score) || 0, passed: d.passed ? 'yes' : 'no' });
   else if (d.event === 'assignment') run(s, 'course_assignment_submitted', base);
   else if (d.event === 'graded') run(s, 'course_assignment_graded', { ...base, status: d.status === 'approved' ? 'approved' : 'revise' });
+  else if (d.event === 'lesson') run(s, 'lesson_completed', base);
+  else if (d.event === 'granted' || d.event === 'revoked') run(s, d.event === 'granted' ? 'course_access_granted' : 'course_access_revoked', { contactId: contact.id, courseId: course.id, course: course.name });
   else fail('Atividade de curso desconhecida.');
   return contact.id;
 }
