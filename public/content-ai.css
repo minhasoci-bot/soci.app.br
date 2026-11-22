@@ -34,3 +34,8 @@
 @media (prefers-reduced-motion: reduce) { .ai-spinner { animation: none; } }
 
 .em-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* Barra de IA (Beautiful UI SelectionActions) dentro do menu */
+.ai-menu .bui-selection { max-width: none; padding: 4px 6px 52px; }
+.ai-menu .bui-selection-text { max-height: 220px; overflow-y: auto; font-size: 13.5px; }
+.ai-menu-tone label { padding-left: 4px; color: var(--g-dim); font-size: 12px; font-weight: 600; }

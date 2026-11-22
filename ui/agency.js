@@ -13,6 +13,7 @@ import { colorPicker, mountColorPicker } from './color-picker.js';
 import { phoneField } from './phone-input.js';
 import { createProspecting, prospectRoutes } from './prospecting.js';
 import { createSociChat } from './soci-chat.js';
+import { enhanceCode } from './bui-mounts.js';
 import { brandGroupCsv, brandGroupHtml, groupPeriods } from './brand-group-data.js';
 import { presentationsHtml, attachPresentationListeners, closePresentationEditor } from './presentations.js';
 import { pranchetaScreen } from './prancheta.js';
@@ -663,16 +664,16 @@ export function startAgency(env) {
       <li>${h(tr('Na instalação, o webhook recebe o aviso app.installed com o token da subconta (só uma vez; a Soci guarda apenas o resumo dele).'))}</li>
       <li>${h(tr('Depois chegam os eventos assinados (event), as ações dos workflows (action) e, na desinstalação, app.uninstalled.'))}</li></ol></section>
     <section class="surface padded"><h2>${h(tr('Assinatura'))}</h2><p class="dim">${h(tr('Toda entrega traz os cabeçalhos x-soci-app, x-soci-event, x-soci-timestamp e x-soci-signature. Confira assim:'))}</p>
-      <pre><code>const esperado = 'sha256=' + crypto.createHmac('sha256', SEGREDO_DO_APP)
+      <pre data-bui-code="verificar-assinatura.js"><code>const esperado = 'sha256=' + crypto.createHmac('sha256', SEGREDO_DO_APP)
   .update(req.headers['x-soci-timestamp'] + '.' + corpoBruto).digest('hex');
 if (esperado !== req.headers['x-soci-signature']) return res.status(401).end();</code></pre></section>
     <section class="surface padded"><h2>${h(tr('API com o token da instalação'))}</h2><p class="dim">${h(tr('O token só vale para a subconta onde o app foi instalado e para as permissões declaradas.'))}</p>
-      <pre><code>GET  ${h(location.origin)}/api/v1/subaccounts
+      <pre data-bui-code="api-da-instalacao.http"><code>GET  ${h(location.origin)}/api/v1/subaccounts
 GET  ${h(location.origin)}/api/v1/subaccounts/&lt;subconta&gt;/contacts      (contacts.read)
 POST ${h(location.origin)}/api/v1/subaccounts/&lt;subconta&gt;/contacts      (contacts.write)
 Authorization: Bearer soci_app_…</code></pre></section>
     <section class="surface padded"><h2>${h(tr('Disparar um gatilho do app'))}</h2><p class="dim">${h(tr('Os workflows da subconta com o gatilho "App disparou um gatilho" rodam para o contato, achado pelo e-mail ou telefone ou criado.'))}</p>
-      <pre><code>POST ${h(location.origin)}/api/apps/v1/trigger
+      <pre data-bui-code="disparar-gatilho.http"><code>POST ${h(location.origin)}/api/apps/v1/trigger
 Authorization: Bearer soci_app_…
 { "trigger": "pedido-pago", "contact": { "name": "Ana", "email": "ana@ex.com" }, "data": { "pedido": 42 } }</code></pre></section></div>`;
   pages.marketplace = () => {
@@ -993,7 +994,7 @@ Authorization: Bearer soci_app_…
     'api-keys': () => `<div class="page-head"><div><h2>Chaves de API da agência</h2><p class="dim">Chaves de API concedem acesso programático de leitura a subcontas e contatos via <code>/api/v1</code>. O token é exibido apenas uma vez.</p></div>${primary('Criar chave', 'api-key')}</div>
       ${table(['Nome', 'Chave (final)', 'Criada em', 'Último uso', ''], D().apiKeys.map(k => `<tr><td><b>${h(k.name)}</b></td><td><code>go_…${h(k.last4)}</code></td><td>${day(k.created, true)}</td><td>${k.lastUsed ? day(k.lastUsed, true) : 'Nunca'}</td><td class="right">${btn('Revogar', 'api-key-delete', `data-id="${k.id}"`)}</td></tr>`), empty('Nenhuma chave de API', 'Crie chaves de API para automatizar fluxos via scripts ou integrações.'))}
       <p class="dim ag-hint">Tokens com escopos limitados ficam em <a class="text-link" href="#agency/settings/private-integrations">Integrações privadas</a>.</p>
-      <div class="surface padded ag-gap"><h2>Endpoints disponíveis</h2><pre class="ag-code">GET  ${h(location.origin)}/api/v1/subaccounts
+      <div class="surface padded ag-gap"><h2>Endpoints disponíveis</h2><pre class="ag-code" data-bui-code="endpoints.http">GET  ${h(location.origin)}/api/v1/subaccounts
 GET  ${h(location.origin)}/api/v1/subaccounts/{id}/contacts
 POST ${h(location.origin)}/api/v1/subaccounts/{id}/contacts
 Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
@@ -1050,6 +1051,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     document.title = 'soci';
     applyBrandColor(D().company.primary, D().company.secondary);
     app.innerHTML = shell(page());
+    enhanceCode(app);
     for (const picker of app.querySelectorAll('[data-color-picker]')) mountColorPicker(picker);
     const chatHost = app.querySelector('[data-soci-chat-host]');
     if (chatHost) sociChat.mount(chatHost, { conversationId: A.sub });

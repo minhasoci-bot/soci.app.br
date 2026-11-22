@@ -14,7 +14,7 @@ const contactName = (c, id) => c.s.contacts.find(row => row.id === id)?.name || 
 const empty = (title, text, ico) => `<div class="empty">${i(ico, 26)}<strong>${title}</strong><p>${text}</p></div>`;
 const table = (cols, rows, nothing) => `<div class="surface table-shell"><table><thead><tr>${cols.map(col => `<th scope="col">${col}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length ? '' : nothing}</div>`;
 const metric = (title, value, note = '') => `<div class="surface metric"><span>${title}</span><b>${value}</b>${note ? `<small class="dim">${note}</small>` : ''}</div>`;
-const code = (text, label) => `<div class="tk-code"><pre><code>${h(text)}</code></pre><button type="button" class="secondary" data-tk-act="copy" data-value="${h(text)}">${i('copy', 15)} ${label || 'Copiar código'}</button></div>`;
+const code = (text, label) => `<div class="tk-code" data-bui-code-wrap><pre data-bui-code="${h(label && !/copiar/i.test(label) ? label : 'codigo-do-site.html')}"><code>${h(text)}</code></pre><button type="button" class="secondary" data-tk-act="copy" data-value="${h(text)}">${i('copy', 15)} ${label || 'Copiar código'}</button></div>`;
 
 const scriptUrl = c => `${location.origin}/t/${c.workspace}.js`;
 const scriptTag = c => `<script src="${scriptUrl(c)}" async></script>`;

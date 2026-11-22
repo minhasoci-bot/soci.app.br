@@ -6,6 +6,14 @@ import { agentLimits } from './agents-data.js';
 import {
   formatTokens, formatUsd, kbLimits, modelPrice, retrieveKnowledge, sourceKinds, usageKinds, usageMonths, usageSummary
 } from './ai-data.js';
+import { contextCards, toolChips } from './beautiful-ui.js';
+
+const sourceBadges = {
+  text: { badge: 'TXT', tone: 'var(--bui-ink-3)' },
+  faq: { badge: 'FAQ', tone: 'var(--bui-accent)' },
+  url: { badge: 'URL', tone: 'var(--bui-green)' }
+};
+let probeCards = null;
 
 export const hubTabs = ['knowledge', 'base', 'templates', 'logs', 'usage'];
 
@@ -148,7 +156,7 @@ function logsView(s) {
       <td>${runKinds[run.kind || 'test']}${run.version === 'published' ? ' <span class="badge blue">Publicado</span>' : ''}</td>
       <td><details class="log-detail"><summary>${h(run.input)}</summary>
         ${run.error ? `<p class="log-error">${h(run.error)}</p>` : `<p>${h(run.output)}</p>`}
-        ${run.sources?.length ? `<p class="dim">Fontes consultadas: ${run.sources.map(h).join(', ')}</p>` : ''}</details></td>
+        ${run.sources?.length ? `<div class="log-tools" data-log-tools="${h(JSON.stringify({ sources: run.sources, model: run.model || '' }))}"><p class="dim">Fontes consultadas: ${run.sources.map(h).join(', ')}</p></div>` : ''}</details></td>
       <td class="log-usage">${run.cost !== undefined ? `<b>${formatUsd(run.cost)}</b>` : '—'}
         <small class="dim">${[run.model, run.inputTokens !== undefined && `${formatTokens(run.inputTokens)} → ${formatTokens(run.outputTokens)} tokens`,
           run.ms !== undefined && `${(run.ms / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s`].filter(Boolean).map(h).join(' · ')}</small></td>
@@ -316,8 +324,24 @@ export function mountAgentHub({ root, state, request, rerender, createAgent, fla
       const question = event.currentTarget.elements.q.value.trim();
       const draft = read();
       const passages = retrieveKnowledge([{ name: draft.name, sources: draft.sources.filter(source => source.text) }], question);
-      out.innerHTML = passages.length ? `<ol class="kb-passages">${passages.map(item => `<li><b>${h(item.title)}</b><p>${h(item.text)}</p></li>`).join('')}</ol>`
-        : '<p class="dim">Nenhum trecho encontrado. Adicione conteúdo à base.</p>';
+      probeCards?.destroy();
+      probeCards = null;
+      if (!passages.length) {
+        out.innerHTML = '<p class="dim">Nenhum trecho encontrado. Adicione conteúdo à base.</p>';
+        return;
+      }
+      const kindOf = title => draft.sources.find(source => source.title === title)?.kind || 'text';
+      probeCards = contextCards({
+        header: 'Trechos que o agente recebe',
+        chunks: passages.map(item => ({
+          title: item.title || 'Sem título',
+          chars: `${item.text.length.toLocaleString('pt-BR')} caracteres`,
+          body: item.text,
+          source: item.base || draft.name || 'Base de conhecimento',
+          ...sourceBadges[kindOf(item.title)]
+        }))
+      });
+      out.replaceChildren(probeCards.el);
     });
     count();
   }
@@ -352,6 +376,14 @@ export function mountAgentHub({ root, state, request, rerender, createAgent, fla
   }
 
   if (screen === 'logs') {
+    // Fontes consultadas viram ToolChips (Beautiful UI): uma linha por base, abre para ver o modelo.
+    for (const slot of root.querySelectorAll('[data-log-tools]')) {
+      let data;
+      try { data = JSON.parse(slot.dataset.logTools); } catch { continue; }
+      const steps = data.sources.map(name => ({ icon: 'read', label: 'Consultou', chip: name }));
+      if (data.model) steps.push({ icon: 'write', label: 'Respondeu', chip: data.model, mono: true });
+      slot.replaceChildren(toolChips({ header: `${data.sources.length} ${data.sources.length === 1 ? 'fonte consultada' : 'fontes consultadas'}`, steps, open: false }).el);
+    }
     for (const control of root.querySelectorAll('[data-log-filter]')) {
       control.addEventListener(control.type === 'search' ? 'input' : 'change', () => {
         filters[control.dataset.logFilter] = control.value;
