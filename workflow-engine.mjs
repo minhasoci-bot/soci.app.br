@@ -8,6 +8,7 @@ import { canMessage } from './preference-model.mjs';
 import { appActionItem } from './app-studio-model.mjs';
 import { slaRecords } from './ui/conversation-sla.js';
 import { e164 } from './twilio.mjs';
+import { connectorStep } from './ui/connectors-data.js';
 import { actionSpec, aiExtractFields, aiOptions, aiVariableName, allActions, allTriggers, eachStep, splitPercent, triggerSpec, upgradeWorkflow } from './ui/workflow-data.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
@@ -340,6 +341,15 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
   function matchTrigger(trigger, type, ctx) {
     if (trigger.type !== type) return false;
     const c = trigger.config || {};
+    const app = type.startsWith('conn_') ? connectorStep(type) : null;
+    if (app?.kind === 'trigger') return app.spec.fields.every(field => {
+      const want = String(c[field.key] ?? '').trim();
+      if (!want) return true;
+      if (field.key === 'keyword') return lower(ctx.text).includes(lower(want));
+      if (field.key === 'minTotal') return Number(ctx.total) >= Number(want.replace(',', '.'));
+      if (['channel', 'spreadsheetId', 'sheet', 'baseId', 'table', 'reaction'].includes(field.key)) return lower(ctx[field.key]) === lower(want).replace(/^[#:]|:$/g, '');
+      return lower(ctx[field.key]).includes(lower(want));
+    });
     switch (type) {
       case 'contact_changed': return !c.field || (ctx.fields || []).includes(c.field);
       case 'contact_tag': return (c.change || 'added') === ctx.change && (!c.tag || lower(c.tag) === lower(ctx.tag));
@@ -1399,6 +1409,22 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
         outbox(s, { kind: 'custom-webhook', runId: run.id, stepId: id, variable: name, url: request.url, method: request.method, headers: request.headers, contentType: request.contentType, body: request.body });
         run.status = 'Waiting'; run.waitFor = { type: 'ai', step: id }; run.wakeAt = new Date(Date.now() + AI_TIMEOUT).toISOString(); run.at = node.next;
         run.results.push(`${label}: ${request.method} ${request.url.slice(0, 120)}`); trace('aguardando a resposta');
+        return;
+      }
+      const app = node.type.startsWith('conn_') ? connectorStep(node.type) : null;
+      if (app?.kind === 'action') {
+        const contact = contactOf(s, run.contactId);
+        const input = Object.fromEntries(app.spec.fields.map(field => [field.key, merge(String(c[field.key] ?? field.value ?? ''), s, contact, run).trim().slice(0, 12000)]));
+        const missing = app.spec.fields.find(field => field.required && !input[field.key]);
+        if (run.test || missing || !s.connectors?.[app.connector.id]) {
+          const line = run.test ? '(teste) app não chamado' : missing ? `erro: preencha ${missing.label}` : `erro: conecte o ${app.connector.name} em Configurações → Conectores`;
+          run.results.push(`${label}: ${line}`); trace(line);
+          if (!run.test && c.stopOnError) { run.status = 'Failed'; run.at = ''; run.finished = now(); return; }
+          run.at = node.next; continue;
+        }
+        outbox(s, { kind: 'connector', runId: run.id, stepId: id, connector: app.connector.id, action: app.key, input });
+        run.status = 'Waiting'; run.waitFor = { type: 'ai', step: id }; run.wakeAt = new Date(Date.now() + AI_TIMEOUT).toISOString(); run.at = node.next;
+        run.results.push(`${label}: chamando o ${app.connector.name}`); trace(`chamando o ${app.connector.name}`);
         return;
       }
       if (actionSpec(node.type)?.ai) {
