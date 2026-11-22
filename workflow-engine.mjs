@@ -282,6 +282,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'course_started': case 'course_module_started': case 'course_module_completed': return !c.courseId || c.courseId === ctx.courseId;
       case 'affiliate_campaign_enrolled': return !c.campaignId || c.campaignId === ctx.campaignId;
       case 'offer_access_granted': case 'offer_access_revoked': return !c.offerId || c.offerId === ctx.offerId;
+      case 'community_channel_granted': case 'community_channel_revoked': return !c.channel || c.channel === `${ctx.communityId}:${ctx.channelId}`;
       case 'community_level_changed': return (!c.communityId || c.communityId === ctx.communityId) && (!c.direction || c.direction === ctx.direction) && (!c.level || String(c.level) === String(ctx.level));
       case 'course_quiz_submitted': return (!c.courseId || c.courseId === ctx.courseId) && (!c.passed || c.passed === ctx.passed);
       case 'course_assignment_submitted': return !c.courseId || c.courseId === ctx.courseId;
@@ -425,6 +426,14 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         outbox(s, { kind: 'access', runId: run.id, action: node.type, ...(course ? { courseId: target.id } : { communityId: target.id }),
           contactId: contact.id, email: contact.email, name: contact.name || '' });
         return `${target.name}: na fila`;
+      }
+      case 'grant_channel_access': case 'revoke_channel_access': {
+        const [groupId, channelId] = String(c.channel || '').split(':');
+        const group = (s.communities || []).find(row => row.id === groupId), channel = group?.channels.find(row => row.id === channelId && row.private);
+        if (!channel) return 'erro: canal privado não encontrado';
+        if (!contact.email) return 'erro: contato sem e-mail';
+        outbox(s, { kind: 'access', runId: run.id, action: node.type, communityId: group.id, channelId: channel.id, contactId: contact.id, email: contact.email, name: contact.name || '' });
+        return `#${channel.name}: na fila`;
       }
       case 'grant_offer': case 'revoke_offer': case 'community_points': {
         // Offers and community points also live in the portal and community documents: applied by the server after saving.

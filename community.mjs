@@ -37,7 +37,8 @@ export const communityFields = {
     const channelInput = d.channels ?? prior?.channels ?? [{ name: 'Avisos' }];
     if (!Array.isArray(channelInput) || !channelInput.length) fail('A comunidade precisa de pelo menos um canal.');
     if (channelInput.length > 30) fail('Uma comunidade pode ter até 30 canais.');
-    const channels = channelInput.map(channel => ({ id: idOf(channel?.id), name: str(channel?.name, 40) || fail('Todo canal precisa de um nome.') }));
+    const channels = channelInput.map(channel => ({ id: idOf(channel?.id), name: str(channel?.name, 40) || fail('Todo canal precisa de um nome.'), private: Boolean(channel?.private) }));
+    if (channels.every(channel => channel.private)) fail('Deixe pelo menos um canal aberto a todos os membros.');
     const levelInput = Array.isArray(d.levels) ? d.levels : prior?.levels || [];
     const levels = levelThresholds.map((min, index) => ({ name: str(levelInput[index]?.name, 30) || `Nível ${index + 1}` }));
     const coverFileId = str(d.coverFileId ?? prior?.coverFileId, 60);
@@ -77,6 +78,18 @@ function scores(group, data, since = 0) {
   return totals;
 }
 
+// Private channels (T.1): only members given access, moderators and the team see and use them.
+const channelOpen = (group, data, viewer, channelId) => {
+  const channel = group.channels.find(row => row.id === channelId);
+  return !channel?.private || viewer === 'staff' || data.members[viewer]?.role === 'moderator' || Boolean(data.channelAccess?.[channelId]?.[viewer]);
+};
+// Gives or takes one member's access to a private channel: 'channel-granted', 'channel-revoked' or '' (no change).
+const setChannel = (data, channelId, memberId, grant) => {
+  const access = ((data.channelAccess ||= {})[channelId] ||= {});
+  if (grant === Boolean(access[memberId])) return '';
+  if (grant) access[memberId] = new Date().toISOString(); else delete access[memberId];
+  return grant ? 'channel-granted' : 'channel-revoked';
+};
 const levels = (group, data) => new Map([...scores(group, data)].map(([id, total]) => [id, levelOf(total)]));
 // Wraps a change of one group: members whose all-time level moved get a "level" activity (workflow trigger).
 const ranked = (group, groupId, activity, mutate) => doc => {
@@ -137,7 +150,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
   function feed(state, group, data, viewer, names, channelId = '') {
     const levels = new Map([...scores(group, data)].map(([id, total]) => [id, levelOf(total)]));
     const moderator = viewer === 'staff' || data.members[viewer]?.role === 'moderator', badges = badgesOf(group, data);
-    return data.posts.filter(post => (!channelId || post.channelId === channelId) && (!post.held || moderator || post.authorId === viewer))
+    return data.posts.filter(post => (!channelId || post.channelId === channelId) && (!post.held || moderator || post.authorId === viewer) && channelOpen(group, data, viewer, post.channelId))
       .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.created.localeCompare(a.created)).slice(0, 100)
       .map(post => postView(state, group, data, post, viewer, names, levels, badges));
   }
@@ -187,7 +200,8 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
     const names = new Map([...people(portal)].map(([id, row]) => [id, displayName(row)]));
     const paid = group.access === 'paid', allowed = hasAccess(group, membership);
     const open = allowed || (!paid && ((!membership && group.visibility === 'public') || (membership?.status === 'requested' && group.visibility === 'public')));
-    const view = { group: groupHeader(state, group, data), membership: membership ? { status: membership.status, role: membership.role, planId: membership.planId || '',
+    const header = groupHeader(state, group, data);
+    const view = { group: { ...header, channels: header.channels.filter(channel => channelOpen(group, data, member.id, channel.id)) }, membership: membership ? { status: membership.status, role: membership.role, planId: membership.planId || '',
       paidUntil: membership.paidUntil || '', expired: paid && membership.status === 'active' && !allowed, trialUsed: Boolean(membership.trialUsed),
       onboardingDone: membership.onboardingDone || [] } : null };
     if (!open) return view;
@@ -217,7 +231,9 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
   const findPost = (data, id) => data.posts.find(post => post.id === id) || fail('Publicação não encontrada.', 404);
   function writePost(data, group, authorId, input) {
     if (data.posts.length >= 2000) fail('Esta comunidade atingiu o limite de publicações.', 409);
-    const channelId = group.channels.some(channel => channel.id === input.channelId) ? input.channelId : group.channels[0].id;
+    const open = group.channels.filter(channel => channelOpen(group, data, authorId, channel.id));
+    if (input.channelId && group.channels.some(channel => channel.id === input.channelId) && !open.some(channel => channel.id === input.channelId)) fail('Você não tem acesso a este canal.', 403);
+    const channelId = open.some(channel => channel.id === input.channelId) ? input.channelId : (open[0] || group.channels[0]).id;
     const pollInput = Array.isArray(input.poll) ? input.poll.map(text => str(text, 80)).filter(Boolean) : [];
     if (pollInput.length === 1 || pollInput.length > 6) fail('A enquete precisa de 2 a 6 opções.');
     const post = { id: randomUUID(), channelId, authorId, created: new Date().toISOString(),
@@ -240,6 +256,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
     const result = await change(workspace, ranked(group, groupId, activity, doc => {
       activity.length = 0; // a retried change starts over
       const data = groupData(doc, groupId), membership = data.members[member.id];
+      const reach = (rows, postId) => { const post = findPost(rows, postId); if (!channelOpen(group, rows, member.id, post.channelId)) fail('Você não tem acesso a este canal.', 403); return post; };
       if (membership?.status === 'banned') fail('Você não tem mais acesso a esta comunidade.', 403);
       if (action === 'join') {
         if (membership?.status === 'active' || membership?.status === 'requested') return memberView(state, portal, group, data, member, {});
@@ -280,23 +297,23 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
           if (held) post.held = held;
           else activity.push({ event: 'post', memberId: member.id, postId: post.id, title: post.title, body: post.body });
         } else if (action === 'comment') {
-          const post = findPost(data, input.postId);
+          const post = reach(data, input.postId);
           if (post.commentsEnabled === false) fail('Os comentários estão desativados nesta publicação.', 403);
           if (post.comments.length >= 500) fail('Esta publicação atingiu o limite de comentários.', 409);
           const body = str(input.body, 2000) || fail('Escreva o comentário.'), held = moderator ? '' : heldReason(group, body);
           post.comments.push({ id: randomUUID(), authorId: member.id, body, created: new Date().toISOString(), likes: [], ...(held ? { held } : {}) });
           if (!held) activity.push({ event: 'comment', memberId: member.id, postId: post.id, title: post.title, body });
         } else if (action === 'report') {
-          const post = findPost(data, input.postId);
+          const post = reach(data, input.postId);
           const target = input.commentId ? post.comments.find(row => row.id === input.commentId) || fail('Comentário não encontrado.', 404) : post;
           if (target.authorId === member.id) fail('Você não pode denunciar o que você mesmo escreveu.');
           target.reports ||= [];
           if (!target.reports.some(row => row.memberId === member.id)) target.reports.push({ memberId: member.id, reason: str(input.reason, 200), at: new Date().toISOString() });
         } else if (action === 'like') {
-          const post = findPost(data, input.postId);
+          const post = reach(data, input.postId);
           toggleLike(input.commentId ? (post.comments.find(row => row.id === input.commentId) || fail('Comentário não encontrado.', 404)).likes : post.likes, member.id);
         } else if (action === 'vote') {
-          const post = findPost(data, input.postId);
+          const post = reach(data, input.postId);
           const option = post.poll?.find(row => row.id === input.optionId) || fail('Opção não encontrada.', 404);
           for (const row of post.poll) row.votes = row.votes.filter(id => id !== member.id);
           option.votes.push(member.id);
@@ -316,7 +333,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
             }
           }
         } else if (action === 'delete') {
-          const post = findPost(data, input.postId);
+          const post = reach(data, input.postId);
           if (input.commentId) {
             const comment = post.comments.find(row => row.id === input.commentId) || fail('Comentário não encontrado.', 404);
             if (comment.authorId !== member.id && !moderator) fail('Você só pode excluir seus comentários.', 403);
@@ -471,7 +488,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
       members: Object.entries(data.members).map(([id, row]) => ({ id, name: names.get(id) || 'Membro', email: contacts.get(id)?.email || '',
         status: row.status, role: row.role, joinedAt: row.joinedAt, points: totals.get(id) || 0, level: levelOf(totals.get(id) || 0),
         answers: row.answers || [], badges: badgeLabels(badges.get(id)), planId: row.planId || '', paidUntil: row.paidUntil || '', expired: row.status === 'active' && !hasAccess(group, row),
-        lastActive: row.lastActive || '', onboarding: (row.onboardingDone || []).filter(stepId => (group.onboarding || []).some(step => step.id === stepId)).length }))
+        lastActive: row.lastActive || '', channels: group.channels.filter(channel => channel.private && data.channelAccess?.[channel.id]?.[id]).map(channel => channel.id), onboarding: (row.onboardingDone || []).filter(stepId => (group.onboarding || []).some(step => step.id === stepId)).length }))
         .sort((a, b) => a.status.localeCompare(b.status) || a.name.localeCompare(b.name)),
       candidates: [...contacts.values()].filter(member => !member.revokedAt && !data.members[member.id]).map(member => ({ id: member.id, name: displayName(member), email: member.email })) };
   }
@@ -510,6 +527,11 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
         const ids = Array.isArray(input.memberIds) ? input.memberIds.slice(0, 500) : [];
         const valid = new Set((portal?.members || []).filter(member => !member.revokedAt).map(member => member.id));
         for (const id of ids) if (valid.has(id) && !data.members[id]) { data.members[id] = { role: 'member', status: 'active', joinedAt: new Date().toISOString() }; welcome.push(id); }
+      } else if (action === 'channel-access') {
+        const channel = group.channels.find(row => row.id === input.channelId && row.private) || fail('Canal privado não encontrado.', 404);
+        if (data.members[input.memberId]?.status !== 'active') fail('Só membros ativos recebem acesso a canais privados.');
+        const shift = setChannel(data, channel.id, input.memberId, Boolean(input.grant));
+        if (shift) activity.push({ event: shift, memberId: input.memberId, channelId: channel.id });
       } else if (action === 'remove') {
         lost(input.memberId, data.members[input.memberId], 'removed');
         delete data.members[input.memberId];
@@ -596,5 +618,23 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
     return total === null ? null : { total, level: levelOf(total), name: group.levels?.[levelOf(total) - 1]?.name || '' };
   }
 
-  return { home, read, act, admin, enroll, unenroll, grantPoints, reserve, markPending, grantTicket, dueReminders, reservePlan, markPlanPending, grantPlan, dueNewsletters };
+  // Workflows (T.1): private channel access for an active member. Returns 'granted', 'revoked', 'same' or null (not a member).
+  async function channelAccess(workspace, state, memberId, groupId, channelId, grant) {
+    const group = state.communities.find(row => row.id === groupId);
+    if (!group?.channels.some(channel => channel.id === channelId && channel.private) || !memberId) return null;
+    const activity = [];
+    let outcome = null;
+    await change(workspace, doc => {
+      activity.length = 0; outcome = null;
+      const data = groupData(doc, groupId);
+      if (data.members[memberId]?.status !== 'active') return;
+      const shift = setChannel(data, channelId, memberId, grant);
+      outcome = shift ? (grant ? 'granted' : 'revoked') : 'same';
+      if (shift) activity.push({ event: shift, memberId, channelId });
+    });
+    await announce(workspace, groupId, activity);
+    return outcome;
+  }
+
+  return { home, read, act, admin, enroll, unenroll, grantPoints, channelAccess, reserve, markPending, grantTicket, dueReminders, reservePlan, markPlanPending, grantPlan, dueNewsletters };
 }

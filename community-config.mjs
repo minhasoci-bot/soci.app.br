@@ -217,7 +217,7 @@ export function communityCommand(s, command, { add, run, now }) {
   // What a member did in a group, or what the team did to them.
   if (type === 'community-activity') {
     const group = s.communities.find(row => row.id === id);
-    const trigger = { post: 'community_post_created', comment: 'community_comment_created', requested: 'community_join_requested', rejected: 'community_join_rejected', revoked: 'community_access_revoked', level: 'community_level_changed' }[d.event]
+    const trigger = { post: 'community_post_created', comment: 'community_comment_created', requested: 'community_join_requested', rejected: 'community_join_rejected', revoked: 'community_access_revoked', level: 'community_level_changed', 'channel-granted': 'community_channel_granted', 'channel-revoked': 'community_channel_revoked' }[d.event]
       || fail('Atividade de comunidade desconhecida.');
     const contact = group && listenerContact(trigger);
     if (!contact) return '';
@@ -225,7 +225,8 @@ export function communityCommand(s, command, { add, run, now }) {
     const extra = d.event === 'post' || d.event === 'comment' ? { title: str(d.title, 200), body: str(d.body, 2000), postId: str(d.postId, 60) }
       : d.event === 'requested' ? { answers: str(d.answers, 4000) }
       : d.event === 'revoked' ? { reason: ['left', 'removed', 'banned', 'workflow'].includes(d.reason) ? d.reason : 'removed' }
-      : d.event === 'level' ? levelChange(group, d) : {};
+      : d.event === 'level' ? levelChange(group, d)
+      : d.event === 'channel-granted' || d.event === 'channel-revoked' ? { channelId: str(d.channelId, 40), channel: str(group.channels?.find(row => row.id === d.channelId)?.name, 40) } : {};
     run(s, trigger, { ...base, ...extra });
     return contact.id;
   }

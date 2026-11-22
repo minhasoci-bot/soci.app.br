@@ -372,6 +372,14 @@ export function makeServer({
       await offerAccessChanged(workspace, who, offer.id, 'revoked');
       return `${offer.title}: acesso removido`;
     }
+    if (item.action === 'grant_channel_access' || item.action === 'revoke_channel_access') {
+      const group = state.communities.find(row => row.id === item.communityId), channel = group?.channels.find(row => row.id === item.channelId);
+      if (!channel) return 'canal não encontrado';
+      const grant = item.action === 'grant_channel_access';
+      const outcome = await community.channelAccess(workspace, state, await clientPortal.memberOf(workspace, who), group.id, channel.id, grant);
+      if (!outcome) return `${group.name}: contato não é membro ativo (ou o canal não é privado)`;
+      return outcome === 'same' ? `#${channel.name}: ${grant ? 'já tinha acesso' : 'contato não tinha acesso'}` : `#${channel.name}: acesso ${grant ? 'liberado' : 'removido'}`;
+    }
     if (item.action === 'community_points') {
       const group = state.communities.find(row => row.id === item.communityId);
       if (!group) return 'comunidade não encontrada';

@@ -16,6 +16,7 @@ export const refSources = {
   chats: s => (s.chatWidgets || []).map(row => [row.id, row.name]),
   webinars: s => (s.webinars || []).map(row => [row.id, row.name]),
   communities: s => (s.communities || []).map(row => [row.id, row.name]),
+  privateChannels: s => (s.communities || []).flatMap(group => (group.channels || []).filter(channel => channel.private).map(channel => [`${group.id}:${channel.id}`, `${group.name} · #${channel.name}`])),
   courses: s => (s.courses || []).map(row => [row.id, row.name]),
   offers: s => (s.offers || []).map(row => [row.id, row.title]),
   sequences: s => (s.emailSequences || []).map(row => [row.id, row.name]),
@@ -127,6 +128,12 @@ export const triggerCatalog = [
     ] },
     { type: 'community_join_rejected', label: 'Pedido para entrar recusado', icon: 'close', description: 'Quando a equipe recusa (remove ou bane) um pedido para entrar.', fields: [
       f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
+    ] },
+    { type: 'community_channel_granted', label: 'Acesso a canal privado liberado', icon: 'lock', description: 'Quando um membro recebe acesso a um canal privado da comunidade (pela equipe ou por uma automação). Use {{trigger.channel}} para o nome do canal.', fields: [
+      f('channel', 'Canal privado', 'ref', { source: 'privateChannels', empty: 'Qualquer canal privado' })
+    ] },
+    { type: 'community_channel_revoked', label: 'Acesso a canal privado removido', icon: 'lock', description: 'Quando um membro perde o acesso a um canal privado da comunidade.', fields: [
+      f('channel', 'Canal privado', 'ref', { source: 'privateChannels', empty: 'Qualquer canal privado' })
     ] },
     { type: 'community_level_changed', label: 'Nível no ranking da comunidade mudou', icon: 'award', description: 'Quando um membro sobe ou desce de nível no ranking da comunidade (posts, comentários, curtidas recebidas e pontos dados por automações). Use {{trigger.level}} e {{trigger.levelName}}.', fields: [
       f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' }),
@@ -299,6 +306,12 @@ export const actionCatalog = [
     { type: 'grant_community_access', label: 'Liberar acesso a comunidade', icon: 'users', description: 'Coloca o contato como membro da comunidade (criando o acesso dele ao portal, se preciso). O contato precisa ter e-mail.', fields: [f('communityId', 'Comunidade', 'ref', { source: 'communities', required: true, empty: 'Escolha a comunidade' })] },
     { type: 'grant_offer', label: 'Liberar oferta', icon: 'book', description: 'Dá ao contato todos os cursos e comunidades de uma oferta, sem cobrança (e envia o link do portal, se o e-mail do portal estiver configurado). O contato precisa ter e-mail.', fields: [f('offerId', 'Oferta', 'ref', { source: 'offers', required: true, empty: 'Escolha a oferta' })] },
     { type: 'revoke_offer', label: 'Remover oferta', icon: 'close', description: 'Tira do contato os cursos e comunidades da oferta.', fields: [f('offerId', 'Oferta', 'ref', { source: 'offers', required: true, empty: 'Escolha a oferta' })] },
+    { type: 'grant_channel_access', label: 'Liberar canal privado', icon: 'lock', description: 'Dá ao contato acesso a um canal privado da comunidade. Ele precisa ser membro ativo da comunidade.', fields: [
+      f('channel', 'Canal privado', 'ref', { source: 'privateChannels', required: true, empty: 'Escolha o canal' })
+    ] },
+    { type: 'revoke_channel_access', label: 'Remover canal privado', icon: 'lock', description: 'Tira do contato o acesso a um canal privado da comunidade. Ele continua na comunidade.', fields: [
+      f('channel', 'Canal privado', 'ref', { source: 'privateChannels', required: true, empty: 'Escolha o canal' })
+    ] },
     { type: 'community_points', label: 'Dar pontos no ranking da comunidade', icon: 'award', description: 'Soma (ou tira, com número negativo) pontos do contato no ranking da comunidade. Só vale para membros ativos.', fields: [
       f('communityId', 'Comunidade', 'ref', { source: 'communities', required: true, empty: 'Escolha a comunidade' }),
       f('points', 'Pontos (negativo tira)', 'number', { required: true, value: 10, min: -1000, max: 1000 }),
@@ -514,6 +527,7 @@ export function stepSummary(step, s) {
     case 'router': return `${(step.routes || []).length} caminho(s)`;
     case 'split': return (step.routes || []).map(route => `${route.label} ${splitPercent(route.percent)}%`).join(' · ').slice(0, 80);
     case 'drip': return `${c.batch || 0} a cada ${c.amount || 1} ${({ minutes: 'min', hours: 'h', days: 'dia(s)' })[c.unit || 'hours']}`;
+    case 'grant_channel_access': case 'revoke_channel_access': return ref('privateChannels', c.channel);
     case 'grant_offer': case 'revoke_offer': return ref('offers', c.offerId);
     case 'community_points': return [ref('communities', c.communityId), c.points ? `${c.points > 0 ? '+' : ''}${c.points} pts` : ''].filter(Boolean).join(' · ');
     case 'book_appointment': return ref('services', c.serviceId) + (Number(c.afterDays) ? ` · em ${c.afterDays} dia(s)` : '');
