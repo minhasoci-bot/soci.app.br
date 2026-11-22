@@ -113,6 +113,40 @@ export const crmFields = {
   }
 };
 
+// Workflows (T.1), grupo Empresa: the contact's company is the one whose name is in contact.company.
+export const companyFieldKeys = ['name', 'phone', 'email', 'website', 'address', 'city', 'state', 'postal', 'country', 'description'];
+const companyGroups = { address: ['address', 'city', 'state', 'postal', 'country'], contact: ['phone', 'email', 'website'], all: companyFieldKeys.filter(key => key !== 'name') };
+export function companyWorkflow(s, contact, type, c, { save }) {
+  const companyOf = name => name && s.companies.find(row => same(row.name, name));
+  const safe = work => { try { return work(); } catch (error) { return { error: String(error.message || error).slice(0, 200) }; } };
+  if (type === 'company_create') {
+    const name = String(c.name || '').trim().slice(0, 120);
+    if (!name) return { error: 'informe o nome da empresa' };
+    let company = companyOf(name), created = false;
+    if (!company) {
+      const made = safe(() => save('companies', { name, ...Object.fromEntries(['phone', 'email', 'website', 'city'].map(key => [key, String(c[key] || '').trim()])) }));
+      if (made?.error) return made;
+      company = s.companies.find(row => row.id === made);
+      created = true;
+    }
+    if (contact.company !== company.name) { contact.company = company.name; contact.updated = new Date().toISOString(); }
+    return { company, created };
+  }
+  const company = companyOf(contact.company);
+  if (!company) return { error: contact.company ? `empresa “${contact.company}” não está no cadastro` : 'contato sem empresa associada' };
+  if (type === 'company_update') {
+    if (!companyFieldKeys.includes(c.field)) return { error: 'escolha o campo' };
+    const value = String(c.value ?? '').trim();
+    if (c.field === 'name' && !value) return { error: 'o nome da empresa não pode ficar vazio' };
+    const done = safe(() => save('companies', { ...company, [c.field]: value }, company.id));
+    return done?.error ? done : { company: s.companies.find(row => row.id === company.id) };
+  }
+  const keys = companyGroups[c.field] || (companyFieldKeys.includes(c.field) && c.field !== 'name' ? [c.field] : null);
+  if (!keys) return { error: 'escolha o que limpar' };
+  const done = safe(() => save('companies', { ...company, ...Object.fromEntries(keys.map(key => [key, ''])) }, company.id));
+  return done?.error ? done : { company: s.companies.find(row => row.id === company.id), cleared: keys };
+}
+
 /** Side effects of saving a CRM record or a record that CRM data depends on. */
 export function afterSave(s, key, prior, row, add) {
   if (key === 'tags' && prior && prior.name !== row.name)

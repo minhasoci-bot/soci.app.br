@@ -197,7 +197,7 @@ export function compile(steps) {
 
 /* ───────── Motor ───────── */
 
-export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null, affiliateAction = null, bookingLink = null, appointmentNote = null, bookAppointment = null }) {
+export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null, affiliateAction = null, bookingLink = null, appointmentNote = null, bookAppointment = null, companyAction = null }) {
   const contactOf = (s, id) => s.contacts.find(row => row.id === id);
   const fieldValue = (s, contact, key) => {
     if (!contact) return '';
@@ -456,6 +456,15 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         outbox(s, { kind: 'access', runId: run.id, action: node.type, ...(offer ? { offerId: offer.id } : { communityId: group.id, points, note: text(c.note || '').slice(0, 200) }),
           contactId: contact.id, email: contact.email, name: contact.name || '' });
         return `${offer ? offer.title : group.name}: na fila`;
+      }
+      case 'company_create': case 'company_update': case 'company_clear': {
+        if (!companyAction) return 'erro: empresas indisponíveis';
+        const config = { ...c, name: text(c.name || ''), value: text(c.value ?? ''), ...Object.fromEntries(['phone', 'email', 'website', 'city'].map(key => [key, text(c[key] || '')])) };
+        const done = companyAction(s, contact, node.type, config);
+        if (done.error) return `erro: ${done.error}`;
+        output(run, id, { id: done.company.id, name: done.company.name, created: done.created ? 'yes' : 'no' });
+        if (node.type === 'company_create') return `${done.company.name}${done.created ? ' (criada)' : ''} associada`;
+        return node.type === 'company_update' ? `${done.company.name}: ${c.field} atualizado` : `${done.company.name}: ${done.cleared.join(', ')} limpo(s)`;
       }
       case 'booking_link': {
         if (!bookingLink) return 'erro: agenda indisponível';

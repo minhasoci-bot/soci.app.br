@@ -5,7 +5,7 @@ import { formOpen, readAnswers, validFields, validTiers } from './ui/form-fields
 import { changeReport } from './report-model.mjs';
 import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashboard-data.js';
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
-import { afterSave, beforeDelete, bulk, crmCollections, crmFields, customData } from './crm-model.mjs';
+import { afterSave, beforeDelete, bulk, companyWorkflow, crmCollections, crmFields, customData } from './crm-model.mjs';
 import { inboxRule } from './ui/inbox-data.js';
 import { saveTracking, trackingCollections, trackingDefaults, trackingEvent, trackingOf } from './tracking.mjs';
 import { applyScoring, changeScore, scoringCollections, scoringFields } from './scoring-model.mjs';
@@ -304,6 +304,8 @@ const engine = createEngine({ add, now,
   removeRecord: (state, key, recordId) => remove(state, key, recordId),
   // Agenda: one-time booking link, a note on the next appointment and booking the first free time (same save as the screens).
   bookingLink: (state, contact, config) => createBookingLink(state, engineWorkspace, contact, config),
+  // Grupo Empresa: create/associate, update and clear the contact's company through the same save as the screens.
+  companyAction: (state, contact, type, config) => companyWorkflow(state, contact, type, config, { save: (key, data, id) => executeCommand(state, { type: 'save', key, id, data }, { workspace: engineWorkspace }) }),
   appointmentNote: (state, contact, config) => noteOnAppointment(state, contact, config),
   bookAppointment: (state, contact, config) => bookForContact(state, contact, config, { save: (key, data) => executeCommand(state, { type: 'save', key, data }, { workspace: engineWorkspace }) }),
   adjustScore: (state, contact, delta, reason, depth = 0) => changeScore(state, contact, delta, reason, { emit: (st, event, c) => engine.emit(st, event, c), depth }),
