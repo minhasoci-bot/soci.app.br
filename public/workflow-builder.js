@@ -313,13 +313,17 @@ const triggerData = {
   community_join_requested: [['community', 'Comunidade'], ['answers', 'Respostas de entrada']], community_join_rejected: [['community', 'Comunidade']],
   community_access_revoked: [['community', 'Comunidade'], ['reason', 'Motivo (left, removed, banned ou workflow)']], portal_login: [['first', 'Primeiro acesso (yes ou no)']],
   conversation_sla: [['state', 'Situação (soon ou overdue)'], ['channel', 'Canal'], ['minutes', 'Minutos sem resposta'], ['body', 'Mensagem do cliente']],
-  coupon_expired: [['code', 'Código do cupom'], ['title', 'Nome do cupom'], ['end', 'Fim da validade']]
+  coupon_expired: [['code', 'Código do cupom'], ['title', 'Nome do cupom'], ['end', 'Fim da validade']],
+  offer_access_granted: [['offer', 'Oferta'], ['offerId', 'ID da oferta']], offer_access_revoked: [['offer', 'Oferta'], ['offerId', 'ID da oferta']],
+  community_level_changed: [['community', 'Comunidade'], ['level', 'Novo nível'], ['levelName', 'Nome do nível'], ['previous', 'Nível anterior'], ['direction', 'Subiu ou desceu (up ou down)']]
 };
 const outputKeys = { create_task: [['id', 'ID'], ['title', 'Título'], ['due', 'Prazo']], create_opportunity: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['stage', 'Etapa']],
   create_invoice: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['due', 'Vencimento']], math: [['value', 'Resultado']],
   create_contact: [['id', 'ID'], ['name', 'Nome'], ['email', 'E-mail'], ['created', 'Criado agora (yes ou no)']],
   find_contact: [['found', 'Encontrado (yes ou no)'], ['id', 'ID'], ['name', 'Nome'], ['email', 'E-mail'], ['phone', 'Telefone']],
   merge_contact: [['merged', 'Duplicados mesclados'], ['id', 'ID do contato mantido'], ['name', 'Nome']],
+  booking_link: [['url', 'Link de agendamento'], ['expires', 'Vence em']],
+  book_appointment: [['id', 'ID do agendamento'], ['start', 'Início'], ['end', 'Fim'], ['service', 'Serviço'], ['staff', 'Profissional']],
   find_opportunity: [['found', 'Encontrada (yes ou no)'], ['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['stage', 'Etapa'], ['status', 'Status'], ['owner', 'Dono']] };
 const functionGroups = [
   ['Condicionais', ['if', 'ifempty', 'ifEmpty', 'switch']],

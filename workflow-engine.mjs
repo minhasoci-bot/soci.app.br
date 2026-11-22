@@ -197,7 +197,7 @@ export function compile(steps) {
 
 /* ───────── Motor ───────── */
 
-export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null, affiliateAction = null }) {
+export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null, affiliateAction = null, bookingLink = null, appointmentNote = null, bookAppointment = null }) {
   const contactOf = (s, id) => s.contacts.find(row => row.id === id);
   const fieldValue = (s, contact, key) => {
     if (!contact) return '';
@@ -281,6 +281,8 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'lesson_completed': case 'course_access_granted': case 'course_access_revoked':
       case 'course_started': case 'course_module_started': case 'course_module_completed': return !c.courseId || c.courseId === ctx.courseId;
       case 'affiliate_campaign_enrolled': return !c.campaignId || c.campaignId === ctx.campaignId;
+      case 'offer_access_granted': case 'offer_access_revoked': return !c.offerId || c.offerId === ctx.offerId;
+      case 'community_level_changed': return (!c.communityId || c.communityId === ctx.communityId) && (!c.direction || c.direction === ctx.direction) && (!c.level || String(c.level) === String(ctx.level));
       case 'course_quiz_submitted': return (!c.courseId || c.courseId === ctx.courseId) && (!c.passed || c.passed === ctx.passed);
       case 'course_assignment_submitted': return !c.courseId || c.courseId === ctx.courseId;
       case 'course_assignment_graded': return (!c.courseId || c.courseId === ctx.courseId) && (!c.status || c.status === ctx.status);
@@ -423,6 +425,42 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         outbox(s, { kind: 'access', runId: run.id, action: node.type, ...(course ? { courseId: target.id } : { communityId: target.id }),
           contactId: contact.id, email: contact.email, name: contact.name || '' });
         return `${target.name}: na fila`;
+      }
+      case 'grant_offer': case 'revoke_offer': case 'community_points': {
+        // Offers and community points also live in the portal and community documents: applied by the server after saving.
+        const offer = node.type !== 'community_points' && (s.offers || []).find(row => row.id === c.offerId);
+        const group = node.type === 'community_points' && (s.communities || []).find(row => row.id === c.communityId);
+        if (node.type !== 'community_points' && !offer) return 'erro: oferta não encontrada';
+        if (node.type === 'community_points' && !group) return 'erro: comunidade não encontrada';
+        const points = Math.trunc(Number(c.points));
+        if (group && (!points || Math.abs(points) > 1000)) return 'erro: informe de -1000 a 1000 pontos (diferente de zero)';
+        if (!contact.email) return 'erro: contato sem e-mail';
+        outbox(s, { kind: 'access', runId: run.id, action: node.type, ...(offer ? { offerId: offer.id } : { communityId: group.id, points, note: text(c.note || '').slice(0, 200) }),
+          contactId: contact.id, email: contact.email, name: contact.name || '' });
+        return `${offer ? offer.title : group.name}: na fila`;
+      }
+      case 'booking_link': {
+        if (!bookingLink) return 'erro: agenda indisponível';
+        const made = bookingLink(s, contact, { serviceId: c.serviceId || '', days: c.days });
+        if (made.error) return `erro: ${made.error}`;
+        const name = String(c.variable || '').trim().replace(/[^\w]/g, '_').slice(0, 40);
+        if (name) run.vars = { ...(run.vars || {}), [name]: made.url };
+        output(run, id, { url: made.url, expires: made.expires });
+        return `link criado (vale até ${formatDate(made.expires, 0, 'br', s.profile?.timezone)})`;
+      }
+      case 'appointment_note': {
+        if (!appointmentNote) return 'erro: agenda indisponível';
+        const body = text(c.body).trim();
+        if (!body) return 'erro: escreva a nota';
+        const row = appointmentNote(s, contact, { which: c.which, body, mode: c.mode });
+        return row ? `nota em ${row.title}` : 'sem agendamento';
+      }
+      case 'book_appointment': {
+        if (!bookAppointment) return 'erro: agenda indisponível';
+        const made = bookAppointment(s, contact, { serviceId: c.serviceId, afterDays: c.afterDays, address: text(c.address || '') });
+        if (made.error) return `erro: ${made.error}`;
+        output(run, id, { id: made.id, start: made.start, end: made.end, service: made.service, staff: made.staff });
+        return `${made.service}: ${formatDate(made.start, 0, 'br', s.profile?.timezone)} às ${formatDate(made.start, 0, 'time', s.profile?.timezone)}${made.staff ? ` com ${made.staff}` : ''}`;
       }
       case 'make_affiliate': return makeAffiliate ? makeAffiliate(s, contact, c.campaignId) : 'erro: afiliados indisponíveis';
       case 'update_affiliate': case 'add_affiliate_campaign': case 'remove_affiliate_campaign': case 'assign_affiliate_lead': case 'affiliate_manual_sale':

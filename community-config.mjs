@@ -217,14 +217,15 @@ export function communityCommand(s, command, { add, run, now }) {
   // What a member did in a group, or what the team did to them.
   if (type === 'community-activity') {
     const group = s.communities.find(row => row.id === id);
-    const trigger = { post: 'community_post_created', comment: 'community_comment_created', requested: 'community_join_requested', rejected: 'community_join_rejected', revoked: 'community_access_revoked' }[d.event]
+    const trigger = { post: 'community_post_created', comment: 'community_comment_created', requested: 'community_join_requested', rejected: 'community_join_rejected', revoked: 'community_access_revoked', level: 'community_level_changed' }[d.event]
       || fail('Atividade de comunidade desconhecida.');
     const contact = group && listenerContact(trigger);
     if (!contact) return '';
     const base = { contactId: contact.id, communityId: group.id, community: group.name };
     const extra = d.event === 'post' || d.event === 'comment' ? { title: str(d.title, 200), body: str(d.body, 2000), postId: str(d.postId, 60) }
       : d.event === 'requested' ? { answers: str(d.answers, 4000) }
-      : d.event === 'revoked' ? { reason: ['left', 'removed', 'banned', 'workflow'].includes(d.reason) ? d.reason : 'removed' } : {};
+      : d.event === 'revoked' ? { reason: ['left', 'removed', 'banned', 'workflow'].includes(d.reason) ? d.reason : 'removed' }
+      : d.event === 'level' ? levelChange(group, d) : {};
     run(s, trigger, { ...base, ...extra });
     return contact.id;
   }
@@ -236,6 +237,12 @@ export function communityCommand(s, command, { add, run, now }) {
     return contact.id;
   }
   fail('Comando de comunidade desconhecido.');
+}
+
+// A ranking level change: the new and previous level (1 to 9), its name and whether it went up or down.
+function levelChange(group, d) {
+  const level = Math.min(9, Math.max(1, Math.trunc(Number(d.level)) || 1)), previous = Math.min(9, Math.max(1, Math.trunc(Number(d.previous)) || 1));
+  return { level: String(level), previous: String(previous), levelName: str(group.levels?.[level - 1]?.name, 30) || `Nível ${level}`, direction: level > previous ? 'up' : 'down' };
 }
 
 /** The welcome message with {{nome}} and {{comunidade}} filled in. */

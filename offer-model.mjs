@@ -55,4 +55,14 @@ export function offerCheckout(s, offerId, d, { add, run }) {
   return invoice.id;
 }
 
+// Courses and communities of an offer given or taken (purchase or workflow): "Acesso à oferta liberado / removido".
+export function offerAccessCommand(s, d, { run }) {
+  const offer = s.offers.find(row => row.id === d.offerId) || fail('Oferta não encontrada.', 404);
+  const email = mail(d.email);
+  const contact = (d.contactId && s.contacts.find(row => row.id === d.contactId)) || (email && s.contacts.find(row => (row.email || '').toLowerCase() === email));
+  if (!contact) return '';
+  run(s, d.event === 'revoked' ? 'offer_access_revoked' : 'offer_access_granted', { contactId: contact.id, offerId: offer.id, offer: offer.title });
+  return contact.id;
+}
+
 export const offerPrice = offer => offer.priceLabel || (offer.type === 'free' ? 'Gratuito' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(offer.price));

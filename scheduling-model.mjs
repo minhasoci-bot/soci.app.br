@@ -28,6 +28,59 @@ export const schedulingDefaults = () => ({ enabled: false, title: 'Agende um hor
   step: 30, leadMinutes: 120, horizonDays: 30, staff: [] });
 export const schedulingOf = s => { s.scheduling = { ...schedulingDefaults(), ...(s.scheduling || {}) }; return s.scheduling; };
 export const zoneOf = s => s.profile?.timezone || 'America/Sao_Paulo';
+const webOrigin = value => { try { const u = new URL(String(value || '')); return ['http:', 'https:'].includes(u.protocol) ? u.origin : ''; } catch { return ''; } };
+
+// ---- One-time booking links (workflow action "Gerar link de agendamento de uso único") ----
+/** A valid link: known, not used and not expired. */
+export function bookingLinkOf(s, token, at = Date.now()) {
+  if (!/^[0-9a-f]{32}$/.test(String(token || ''))) return null;
+  const row = (s.bookingLinks || []).find(item => item.token === token);
+  return row && !row.usedAt && Date.parse(row.expires) > at && s.contacts.some(c => c.id === row.contactId) ? row : null;
+}
+/** A personal link to the public page for one contact (and optionally one service), valid for some days and one booking. */
+export function createBookingLink(s, workspace, contact, { serviceId = '', days = 7 } = {}, at = Date.now()) {
+  const conf = schedulingOf(s);
+  if (!conf.enabled) return { error: 'agendamento online desligado (Calendários → Página de agendamento)' };
+  if (serviceId && !(s.services || []).some(x => x.id === serviceId && x.active)) return { error: 'serviço não encontrado ou inativo' };
+  const valid = Math.min(Math.max(1, Math.trunc(Number(days)) || 7), 90);
+  const token = randomBytes(16).toString('hex'), expires = new Date(at + valid * DAY).toISOString();
+  (s.bookingLinks ||= []).push({ token, contactId: contact.id, serviceId, created: new Date(at).toISOString(), expires, usedAt: '', appointmentId: '' });
+  s.bookingLinks = s.bookingLinks.filter(row => !row.usedAt && Date.parse(row.expires) > at - 30 * DAY || row.usedAt && Date.parse(row.usedAt) > at - 30 * DAY).slice(-5000);
+  const path = `/agendar/${workspace}?${new URLSearchParams({ link: token, ...(serviceId ? { servico: serviceId } : {}) })}`;
+  const base = conf.origin || webOrigin(s.reputation?.origin);
+  return { token, path, url: base ? `${base}${path}` : path, expires };
+}
+
+/** "Nota no agendamento": writes on the contact's next appointment (or the latest one). */
+export function noteOnAppointment(s, contact, { which = 'next', body = '', mode = 'append' } = {}, at = Date.now()) {
+  const mine = s.appointments.filter(a => a.contactId === contact.id && a.status !== 'Canceled');
+  const row = which === 'last' ? [...mine].sort((a, b) => String(b.created || b.start).localeCompare(String(a.created || a.start)))[0]
+    : mine.filter(a => ms(a.end) >= at).sort((a, b) => ms(a.start) - ms(b.start))[0];
+  if (!row) return null;
+  const note = String(body || '').trim();
+  row.notes = (mode === 'replace' ? note : [row.notes, note].filter(Boolean).join('\n')).slice(0, 3000);
+  row.updated = new Date(at).toISOString();
+  return row;
+}
+
+/** "Agendar horário": the first free time of a service from some days ahead, for the workflow's contact. */
+export function bookForContact(s, contact, { serviceId = '', afterDays = 0, address = '' } = {}, { save, at = Date.now() }) {
+  const conf = schedulingOf(s);
+  const service = (s.services || []).find(x => x.id === serviceId && x.active);
+  if (!service) return { error: 'serviço não encontrado ou inativo' };
+  if (service.kind === 'rental') return { error: 'locações pedem quantidade e período: use a página de agendamento' };
+  const where = str(address, 300);
+  if (service.kind === 'field' && !where) return { error: 'serviço em campo precisa de endereço' };
+  const zone = zoneOf(s), first = addDays(dayIn(at, zone), Math.min(Math.max(0, Math.trunc(Number(afterDays)) || 0), 365));
+  for (let i = 0; i <= Math.min(conf.horizonDays, 120); i++) {
+    const slot = availableSlots(s, service.id, addDays(first, i), { at })[0];
+    if (!slot) continue;
+    const id = save('appointments', { title: `${service.name} · ${contact.name || 'Cliente'}`, contactId: contact.id, start: slot.start, end: slot.end, status: 'Confirmed',
+      serviceId: service.id, staffId: slot.staffId, resourceIds: service.resourceIds, quantity: 1, address: where, notes: '', source: 'workflow' });
+    return { id, start: slot.start, end: slot.end, service: service.name, staff: conf.staff.find(p => p.id === slot.staffId)?.name || '' };
+  }
+  return { error: 'nenhum horário livre na agenda aberta' };
+}
 
 // ---- Time zone helpers (wall time in the workspace zone ⇄ instants) ----
 function offsetAt(at, zone) {
@@ -160,16 +213,20 @@ export function availableSlots(s, serviceId, day, { at = Date.now(), units = 1, 
 }
 
 /** What the public page shows. */
-export function bookingView(s, { serviceId = '', day = '', units = 1, quantity = 1, at = Date.now() } = {}) {
+export function bookingView(s, { serviceId = '', day = '', units = 1, quantity = 1, link = '', at = Date.now() } = {}) {
   const conf = schedulingOf(s);
   if (!conf.enabled) return null;
+  const personal = link ? bookingLinkOf(s, link, at) : null, owner = personal && s.contacts.find(c => c.id === personal.contactId);
+  if (personal?.serviceId) serviceId = personal.serviceId;
   const zone = zoneOf(s), today = dayIn(at, zone);
   const services = (s.services || []).filter(x => x.active).map(x => ({ id: x.id, name: x.name, description: x.description, kind: x.kind, duration: x.duration, price: x.price, rentalUnit: x.rentalUnit, maxUnits: x.maxUnits,
     maxQuantity: x.kind === 'rental' ? s.resources.find(r => r.id === x.resourceIds[0])?.quantity || 1 : 1 }));
   const service = services.find(x => x.id === serviceId) || null;
   const days = Array.from({ length: Math.min(conf.horizonDays + 1, 14) }, (_, i) => addDays(today, i)).filter(d => (conf.hours[weekdayOf(d)] || []).length === 2);
   const chosen = !service ? '' : days.includes(day) ? day : days.find(d => availableSlots(s, service.id, d, { at, units, quantity }).length) || days[0] || '';
-  return { business: s.profile?.name || '', title: conf.title, intro: conf.intro, zone, services, service, days, day: chosen,
+  return { business: s.profile?.name || '', title: conf.title, intro: conf.intro, zone, services: personal?.serviceId ? services.filter(x => x.id === personal.serviceId) : services, service, days, day: chosen,
+    link: personal ? personal.token : '', person: owner ? { name: owner.name || '', email: owner.email || '', phone: owner.phone || '' } : null,
+    linkError: link && !personal ? 'Este link de agendamento já foi usado ou expirou. Você ainda pode agendar normalmente.' : '',
     units: Math.min(Math.max(1, units), service?.maxUnits || 1), quantity: Math.min(Math.max(1, quantity), service?.maxQuantity || 1),
     slots: service && chosen ? availableSlots(s, service.id, chosen, { at, units, quantity }) : [] };
 }
@@ -178,6 +235,7 @@ export function bookingView(s, { serviceId = '', day = '', units = 1, quantity =
 export function saveSchedulingSettings(s, d) {
   const conf = schedulingOf(s);
   if (d.enabled !== undefined) conf.enabled = Boolean(d.enabled);
+  if (d.origin !== undefined) conf.origin = webOrigin(d.origin) || conf.origin || '';
   if (d.title !== undefined) conf.title = str(d.title, 100) || schedulingDefaults().title;
   if (d.intro !== undefined) conf.intro = str(d.intro, 400);
   if (d.step !== undefined) conf.step = [10, 15, 20, 30, 45, 60, 90, 120].includes(Number(d.step)) ? Number(d.step) : fail('Intervalo entre horários inválido.');
@@ -205,6 +263,8 @@ export function saveSchedulingSettings(s, d) {
 export function bookService(s, d, { save, at = Date.now() }) {
   const conf = schedulingOf(s);
   if (!conf.enabled) fail('O agendamento online está desligado.', 404);
+  const personal = d.link ? bookingLinkOf(s, d.link, at) || fail('Este link de agendamento já foi usado ou expirou.', 410) : null;
+  if (personal?.serviceId && personal.serviceId !== d.serviceId) fail('Este link é para outro serviço.');
   const service = (s.services || []).find(x => x.id === d.serviceId && x.active) || fail('Serviço não encontrado.', 404);
   const name = str(d.name, 120) || fail('Informe seu nome.');
   const email = str(d.email, 160).toLowerCase(), phone = str(d.phone, 40);
@@ -217,12 +277,13 @@ export function bookService(s, d, { save, at = Date.now() }) {
   if (!Number.isFinite(startAt)) fail('Escolha um horário.');
   const slot = availableSlots(s, service.id, dayIn(startAt, zoneOf(s)), { at, units, quantity }).find(x => ms(x.start) === startAt);
   if (!slot) fail('Este horário acabou de ser ocupado. Escolha outro.', 409);
-  let contact = s.contacts.find(c => (email && (c.email || '').toLowerCase() === email) || (!email && phone && (c.phone || '').replace(/\D/g, '') === phone.replace(/\D/g, '')));
+  let contact = personal ? s.contacts.find(c => c.id === personal.contactId) : s.contacts.find(c => (email && (c.email || '').toLowerCase() === email) || (!email && phone && (c.phone || '').replace(/\D/g, '') === phone.replace(/\D/g, '')));
   const contactId = contact ? contact.id : save('contacts', { name, email, phone, tags: ['agendamento-online'] });
   contact = s.contacts.find(c => c.id === contactId);
   const unitsText = service.kind === 'rental' ? ` (${Math.min(Math.max(1, units), service.maxUnits)} ${service.rentalUnit === 'day' ? 'dia(s)' : 'hora(s)'}${quantity > 1 ? ` · ${quantity} un.` : ''})` : '';
   const id = save('appointments', { title: `${service.name}${unitsText} · ${contact.name || name}`, contactId, start: slot.start, end: slot.end, status: 'Confirmed',
-    serviceId: service.id, staffId: slot.staffId, resourceIds: service.resourceIds, quantity: service.kind === 'rental' ? quantity : 1, address, notes: str(d.notes, 1000), source: 'online' });
+    serviceId: service.id, staffId: slot.staffId, resourceIds: service.resourceIds, quantity: service.kind === 'rental' ? quantity : 1, address, notes: str(d.notes, 1000), source: personal ? 'link' : 'online' });
+  if (personal) Object.assign(personal, { usedAt: new Date(at).toISOString(), appointmentId: id });
   return { id, start: slot.start, end: slot.end, service: service.name, staff: conf.staff.find(p => p.id === slot.staffId)?.name || '' };
 }
 
@@ -261,8 +322,9 @@ const durationText = x => x.kind === 'rental' ? `${brl(x.price)} por ${x.rentalU
 
 /** The public booking page (plain HTML forms, no script). */
 export function bookingPage(view, { base, done = null, error = '', form = {} }) {
-  const link = params => `${base}?${new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString()}`;
-  const s = view.service;
+  const link = params => `${base}?${new URLSearchParams(Object.entries({ ...params, link: view.link }).filter(([, v]) => v !== '' && v != null)).toString()}`;
+  const s = view.service, personal = view.link ? `<input type="hidden" name="link" value="${esc(view.link)}">` : '';
+  form = view.person && !form.nome ? { ...form, nome: view.person.name, email: view.person.email, telefone: view.person.phone } : form;
   const head = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(view.title)}</title>
 <style>*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;background:#f6f5f8;color:#1e1821;padding:24px 16px}main{max-width:640px;margin:0 auto;background:#fff;border:1px solid #e8e1e9;border-radius:16px;padding:28px;display:grid;gap:16px}
 h1{margin:0;font-size:24px}h2{margin:0;font-size:17px}p{margin:0;color:#5d5560}a{color:#a00070}.list{display:grid;gap:8px;margin:0;padding:0;list-style:none}.svc{display:block;padding:12px 14px;border:1px solid #e8e1e9;border-radius:12px;text-decoration:none;color:inherit}.svc.on{border-color:#b71889;background:#fff4fa}.svc small{display:block;color:#7a727d}
@@ -274,16 +336,16 @@ button{font:600 15px system-ui,sans-serif;background:#b71889;color:#fff;border:0
   if (done) return `${head}<div class="ok" role="status"><b>Agendado!</b><br>${esc(done.service)} em ${esc(done.when)}${done.staff ? ` com ${esc(done.staff)}` : ''}. Você vai receber a confirmação pelos nossos canais.</div><p><a href="${esc(base)}">Fazer outro agendamento</a></p></main></body></html>`;
   const services = `<ul class="list">${view.services.map(x => `<li><a class="svc${s?.id === x.id ? ' on' : ''}" href="${esc(link({ servico: x.id }))}"><b>${esc(x.name)}</b><small>${esc(durationText(x))}${x.kind === 'field' ? ' · no seu endereço' : ''}</small>${x.description ? `<small>${esc(x.description)}</small>` : ''}</a></li>`).join('')}</ul>`;
   if (!view.services.length) return `${head}<p>Nenhum serviço disponível para agendar no momento.</p></main></body></html>`;
-  let body = `${view.intro ? `<p>${esc(view.intro)}</p>` : ''}<h2>1. Serviço</h2>${services}`;
+  let body = `${view.linkError ? `<p class="err" role="alert">${esc(view.linkError)}</p>` : ''}${view.intro ? `<p>${esc(view.intro)}</p>` : ''}<h2>1. Serviço</h2>${services}`;
   if (s) {
     const keep = { servico: s.id, unidades: view.units > 1 ? view.units : '', qtd: view.quantity > 1 ? view.quantity : '' };
-    if (s.kind === 'rental') body += `<form method="get" action="${esc(base)}"><input type="hidden" name="servico" value="${esc(s.id)}"><input type="hidden" name="dia" value="${esc(view.day)}"><div class="row">
+    if (s.kind === 'rental') body += `<form method="get" action="${esc(base)}">${personal}<input type="hidden" name="servico" value="${esc(s.id)}"><input type="hidden" name="dia" value="${esc(view.day)}"><div class="row">
       <label>${s.rentalUnit === 'day' ? 'Dias' : 'Horas'}<select name="unidades">${Array.from({ length: s.maxUnits }, (_, i) => `<option${i + 1 === view.units ? ' selected' : ''}>${i + 1}</option>`).join('')}</select></label>
       <label>Quantidade<select name="qtd">${Array.from({ length: Math.min(s.maxQuantity, 20) }, (_, i) => `<option${i + 1 === view.quantity ? ' selected' : ''}>${i + 1}</option>`).join('')}</select></label></div><button type="submit">Ver disponibilidade</button></form>`;
     body += `<h2>2. Dia</h2>${view.days.length ? `<div class="chips">${view.days.map(d => `<a class="chip${d === view.day ? ' on' : ''}" href="${esc(link({ ...keep, dia: d }))}">${esc(dayLabel(d))}</a>`).join('')}</div>` : '<p>Sem dias abertos para agendamento.</p>'}`;
     body += `<h2>3. Horário</h2>${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}`;
     if (!view.slots.length) body += `<p>Nenhum horário livre neste dia. Tente outro.</p>`;
-    else body += `<form method="post" action="${esc(link({ servico: s.id, dia: view.day }))}"><input type="hidden" name="servico" value="${esc(s.id)}"><input type="hidden" name="unidades" value="${view.units}"><input type="hidden" name="qtd" value="${view.quantity}">
+    else body += `<form method="post" action="${esc(link({ servico: s.id, dia: view.day }))}">${personal}<input type="hidden" name="servico" value="${esc(s.id)}"><input type="hidden" name="unidades" value="${view.units}"><input type="hidden" name="qtd" value="${view.quantity}">
       <fieldset style="border:0;padding:0;margin:0"><legend class="sr" style="position:absolute;left:-9999px">Horário</legend><div class="slots">${view.slots.map((x, i) => `<label><input type="radio" name="inicio" value="${esc(x.start)}" required${(form.inicio ? form.inicio === x.start : i === 0) ? ' checked' : ''}><span>${esc(x.time)}</span></label>`).join('')}</div></fieldset>
       <h2>4. Seus dados</h2><label>Nome<input name="nome" required maxlength="120" autocomplete="name" value="${esc(form.nome || '')}"></label>
       <div class="row"><label>E-mail<input name="email" type="email" maxlength="160" autocomplete="email" value="${esc(form.email || '')}"></label><label>Telefone<input name="telefone" maxlength="40" autocomplete="tel" value="${esc(form.telefone || '')}"></label></div>

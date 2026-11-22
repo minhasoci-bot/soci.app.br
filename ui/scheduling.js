@@ -148,7 +148,7 @@ export function installScheduling({ c, mutate, flash, dialog, close, render }) {
       if (form.dataset.schForm === 'settings') {
         const hours = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map(w => [w, f.has(`open${w}`) ? [f.get(`from${w}`), f.get(`to${w}`)] : []]));
         const staff = [...form.querySelectorAll('[name="staffName"]')].map(el => ({ id: el.dataset.id, name: el.value.trim() })).filter(p => p.name);
-        await mutate({ type: 'scheduling-settings', data: { enabled: f.has('enabled'), title: f.get('title'), intro: f.get('intro'), step: Number(f.get('step')), leadMinutes: Number(f.get('leadMinutes')), horizonDays: Number(f.get('horizonDays')), hours, staff } });
+        await mutate({ type: 'scheduling-settings', data: { enabled: f.has('enabled'), title: f.get('title'), intro: f.get('intro'), step: Number(f.get('step')), leadMinutes: Number(f.get('leadMinutes')), horizonDays: Number(f.get('horizonDays')), hours, staff, origin: location.origin } });
         render(); flash('Agenda salva.');
       }
     } catch (error) { if (status) status.textContent = error.message; else flash(error.message, true); }

@@ -29,14 +29,14 @@ import { sequenceCollections, sequenceCommand, sequenceFields, sequenceInbound, 
 import { addPoints, loyaltyCollections, loyaltyCommand, loyaltyEvent, loyaltyFields } from './loyalty-model.mjs';
 import { preferenceCommand } from './preference-model.mjs';
 import { trashCommand, trashContact } from './contact-trash.mjs';
-import { appointmentRecord, schedulingCollections, schedulingCommand, schedulingFields } from './scheduling-model.mjs';
+import { appointmentRecord, bookForContact, createBookingLink, noteOnAppointment, schedulingCollections, schedulingCommand, schedulingFields } from './scheduling-model.mjs';
 import { meetingCollections, meetingCommand, meetingFields } from './meeting-model.mjs';
 import { seoCommand, seoDefaults, visibilityDefaults } from './seo-model.mjs';
 import { walletCharge, walletDefaults } from './wallet-model.mjs';
 import { labsDefaults, rejectDuplicateContact, toggleLab } from './labs-model.mjs';
 import { onAiAlert } from './ai-model.mjs';
 import { appLog, appTrigger, dropInstalledApp, queueAppEvents, setInstalledApp } from './app-studio-model.mjs';
-import { offerBeforeDelete, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
+import { offerBeforeDelete, offerAccessCommand, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
 import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
@@ -302,6 +302,10 @@ const engine = createEngine({ add, now,
   },
   // "Excluir contato" and "Remover oportunidade" go through the same deletion as the screens (contacts to the trash).
   removeRecord: (state, key, recordId) => remove(state, key, recordId),
+  // Agenda: one-time booking link, a note on the next appointment and booking the first free time (same save as the screens).
+  bookingLink: (state, contact, config) => createBookingLink(state, engineWorkspace, contact, config),
+  appointmentNote: (state, contact, config) => noteOnAppointment(state, contact, config),
+  bookAppointment: (state, contact, config) => bookForContact(state, contact, config, { save: (key, data) => executeCommand(state, { type: 'save', key, data }, { workspace: engineWorkspace }) }),
   adjustScore: (state, contact, delta, reason, depth = 0) => changeScore(state, contact, delta, reason, { emit: (st, event, c) => engine.emit(st, event, c), depth }),
   startRecurring: (state, contact, config, depth = 0) => startTemplateRecurring(state, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })) });
 const legacyEvents = { 'Contact created': 'contact_created', 'Form submitted': 'form_submitted', 'Opportunity stage changed': 'pipeline_stage_changed',
@@ -485,6 +489,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'chat-start' || type === 'chat-send') return chatCommand(s, { ...command, data:d }, { add, now, run });
   if (type === 'blog-view') return blogView(s, id);
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
+  if (type === 'offer-access') return offerAccessCommand(s, d, { run });
   if (typeof type === 'string' && type.startsWith('community-event-')) return communityEventCommand(s, { ...command, data:d }, { add, run, now });
   if (['community-plan-invoice', 'community-welcome', 'community-newsletter', 'community-activity', 'portal-login'].includes(type)) return communityCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'course-activity') return courseActivityCommand(s, { ...command, data:d }, { add, run });

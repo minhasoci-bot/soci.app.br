@@ -343,10 +343,42 @@ export function makeServer({
   async function courseAccessChanged(workspace, contact, courseIds, event) {
     for (const courseId of courseIds || []) await onCourseActivity(workspace, { event, courseId, email: contact.email, name: contact.name || '', contactId: contact.id || contact.contactId || '' });
   }
-  // Workflows: the access actions (courses in the portal, communities), applied after the run was saved.
+  // An offer's courses and communities given or taken: "Acesso à oferta liberado / removido" in the workflows.
+  async function offerAccessChanged(workspace, contact, offerId, event) {
+    await change(workspace, { type: 'offer-access', data: { event, offerId, email: contact.email || '', name: contact.name || '', contactId: contact.id || contact.contactId || '' } });
+    flushLater(workspace);
+  }
+  // Workflows: the access actions (courses in the portal, communities, offers, ranking points), applied after the run was saved.
   async function workflowAccess(workspace, item) {
     const state = await store.load(workspace);
     const who = { email: item.email, name: item.name, contactId: item.contactId };
+    if (item.action === 'grant_offer' || item.action === 'revoke_offer') {
+      const offer = state.offers.find(row => row.id === item.offerId);
+      if (!offer) return 'oferta não encontrada';
+      if (item.action === 'grant_offer') {
+        const { memberId, emailed, added } = await clientPortal.enroll(workspace, state, who, offer.courseIds);
+        if (!memberId) return 'acesso ao portal revogado para este contato';
+        const joined = await community.enroll(workspace, memberId, offer.communityIds);
+        await courseAccessChanged(workspace, who, added, 'granted');
+        // Only a grant that opened something fires the trigger, so a workflow that grants on the trigger cannot loop.
+        if (!added.length && !joined.length) return `${offer.title}: já tinha acesso`;
+        await offerAccessChanged(workspace, who, offer.id, 'granted');
+        return `${offer.title}: acesso liberado${emailed ? ' (link enviado)' : ''}`;
+      }
+      const removed = await clientPortal.revokeCourses(workspace, who, offer.courseIds);
+      const left = await community.unenroll(workspace, await clientPortal.memberOf(workspace, who), offer.communityIds);
+      await courseAccessChanged(workspace, who, removed, 'revoked');
+      if (!removed.length && !left.length) return `${offer.title}: contato não tinha acesso`;
+      await offerAccessChanged(workspace, who, offer.id, 'revoked');
+      return `${offer.title}: acesso removido`;
+    }
+    if (item.action === 'community_points') {
+      const group = state.communities.find(row => row.id === item.communityId);
+      if (!group) return 'comunidade não encontrada';
+      const given = await community.grantPoints(workspace, state, await clientPortal.memberOf(workspace, who), group.id, item.points, item.note);
+      if (!given) return `${group.name}: contato não é membro ativo`;
+      return `${group.name}: ${item.points > 0 ? '+' : ''}${item.points} ponto(s), total ${given.total} (nível ${given.level}${given.name ? ` · ${given.name}` : ''})`;
+    }
     const course = item.courseId && state.courses.find(row => row.id === item.courseId);
     const group = item.communityId && state.communities.find(row => row.id === item.communityId);
     if (item.action === 'grant_course_access') {
@@ -384,6 +416,7 @@ export function makeServer({
     if (!memberId) throw error('O acesso deste cliente ao portal foi revogado. Reative-o na aba Clientes.',409);
     await community.enroll(workspace, memberId, offer.communityIds);
     await courseAccessChanged(workspace, contact, added, 'granted');
+    await offerAccessChanged(workspace, contact, offer.id, 'granted');
     if (invoiceId) await store.change(workspace, current => {
       const invoice = current.invoices.find(row => row.id === invoiceId);
       if (invoice) invoice.offerGrantedAt = new Date().toISOString();
@@ -3746,7 +3779,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           form = await formBody(req);
           const one = value => Array.isArray(value) ? value[0] : value;
           try {
-            const result = await change(workspace, { type: 'scheduling-book', data: { serviceId: one(form.servico), start: one(form.inicio), name: one(form.nome), email: one(form.email), phone: one(form.telefone), address: one(form.endereco), notes: one(form.notas), units: one(form.unidades), quantity: one(form.qtd) } });
+            const result = await change(workspace, { type: 'scheduling-book', data: { serviceId: one(form.servico), start: one(form.inicio), name: one(form.nome), email: one(form.email), phone: one(form.telefone), address: one(form.endereco), notes: one(form.notas), units: one(form.unidades), quantity: one(form.qtd), link: one(form.link) } });
             flushLater(workspace);
             const zone = zoneOf(await store.load(workspace)), booked = result.id;
             done = { service: booked.service, staff: booked.staff, when: `${new Intl.DateTimeFormat('pt-BR', { timeZone: zone, weekday: 'long', day: '2-digit', month: 'long' }).format(new Date(booked.start))} às ${clockIn(Date.parse(booked.start), zone)}` };
@@ -3755,7 +3788,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
             failure = failed.message; status = failed.status;
           }
         }
-        const view = bookingView(await store.load(workspace), { serviceId: String(form.servico || q.get('servico') || ''), day: String(q.get('dia') || ''), units: Number(form.unidades || q.get('unidades')) || 1, quantity: Number(form.qtd || q.get('qtd')) || 1 });
+        const one2 = value => Array.isArray(value) ? value[0] : value;
+        const view = bookingView(await store.load(workspace), { serviceId: String(form.servico || q.get('servico') || ''), day: String(q.get('dia') || ''), units: Number(form.unidades || q.get('unidades')) || 1, quantity: Number(form.qtd || q.get('qtd')) || 1, link: String(one2(form.link) || q.get('link') || '') });
         if (!view) throw error('O agendamento online desta empresa está desligado.', 404);
         res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'same-origin', 'Content-Security-Policy':bookingCsp });
         return res.end(method === 'HEAD' ? undefined : bookingPage(view, { base, done, error: failure, form }));

@@ -17,6 +17,7 @@ export const refSources = {
   webinars: s => (s.webinars || []).map(row => [row.id, row.name]),
   communities: s => (s.communities || []).map(row => [row.id, row.name]),
   courses: s => (s.courses || []).map(row => [row.id, row.name]),
+  offers: s => (s.offers || []).map(row => [row.id, row.title]),
   sequences: s => (s.emailSequences || []).map(row => [row.id, row.name]),
   rewards: s => (s.loyaltyRewards || []).map(row => [row.id, row.name]),
   topics: s => (s.preferences?.topics || [{ id: 'novidades', name: 'Novidades' }, { id: 'promocoes', name: 'Promoções' }]).map(row => [row.id, row.name]),
@@ -98,6 +99,8 @@ export const triggerCatalog = [
     { type: 'course_module_started', label: 'Módulo do curso iniciado', icon: 'book', description: 'Quando o aluno conclui a primeira aula de um módulo. Use {{trigger.module}} para o nome do módulo.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'course_module_completed', label: 'Módulo do curso concluído', icon: 'award', description: 'Quando o aluno conclui todas as aulas publicadas de um módulo. Use {{trigger.module}} para o nome do módulo.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'course_access_granted', label: 'Acesso a curso liberado', icon: 'book', description: 'Quando o contato ganha acesso a um curso, por oferta ou por automação.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
+    { type: 'offer_access_granted', label: 'Acesso à oferta liberado', icon: 'book', description: 'Quando o contato recebe os cursos e comunidades de uma oferta: na compra, na inscrição gratuita ou por uma automação. Use {{trigger.offer}} para o nome da oferta.', fields: [f('offerId', 'Oferta', 'ref', { source: 'offers', empty: 'Qualquer oferta' })] },
+    { type: 'offer_access_revoked', label: 'Acesso à oferta removido', icon: 'book', description: 'Quando uma automação tira do contato os cursos e comunidades de uma oferta.', fields: [f('offerId', 'Oferta', 'ref', { source: 'offers', empty: 'Qualquer oferta' })] },
     { type: 'course_access_revoked', label: 'Acesso a curso removido', icon: 'book', description: 'Quando uma automação tira o acesso do contato a um curso.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'certificate_issued', label: 'Certificado emitido', icon: 'award', description: 'Quando um certificado de conclusão é emitido. Use {{trigger.code}} para o código de verificação.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'badge_issued', label: 'Badge emitido', icon: 'star', description: 'Quando um aluno recebe o badge de matrícula de um curso.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
@@ -124,6 +127,11 @@ export const triggerCatalog = [
     ] },
     { type: 'community_join_rejected', label: 'Pedido para entrar recusado', icon: 'close', description: 'Quando a equipe recusa (remove ou bane) um pedido para entrar.', fields: [
       f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
+    ] },
+    { type: 'community_level_changed', label: 'Nível no ranking da comunidade mudou', icon: 'award', description: 'Quando um membro sobe ou desce de nível no ranking da comunidade (posts, comentários, curtidas recebidas e pontos dados por automações). Use {{trigger.level}} e {{trigger.levelName}}.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' }),
+      f('direction', 'Quando', 'select', { options: [['', 'Subir ou descer'], ['up', 'Subir de nível'], ['down', 'Descer de nível']] }),
+      f('level', 'Novo nível', 'select', { options: [['', 'Qualquer nível'], ...Array.from({ length: 9 }, (_, i) => [String(i + 1), `Nível ${i + 1}`])] })
     ] },
     { type: 'community_access_revoked', label: 'Acesso à comunidade removido', icon: 'close', description: 'Quando um membro ativo sai, é removido ou banido, ou uma automação tira o acesso dele. Use {{trigger.reason}} para o motivo.', fields: [
       f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' }),
@@ -289,6 +297,13 @@ export const actionCatalog = [
     { type: 'grant_course_access', label: 'Liberar acesso a curso', icon: 'book', description: 'Dá ao contato acesso ao curso no portal do cliente (e envia o link de entrada, se o e-mail do portal estiver configurado). O contato precisa ter e-mail.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', required: true, empty: 'Escolha o curso' })] },
     { type: 'revoke_course_access', label: 'Remover acesso a curso', icon: 'book', description: 'Tira o acesso do contato ao curso no portal. O progresso fica guardado se o acesso voltar.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', required: true, empty: 'Escolha o curso' })] },
     { type: 'grant_community_access', label: 'Liberar acesso a comunidade', icon: 'users', description: 'Coloca o contato como membro da comunidade (criando o acesso dele ao portal, se preciso). O contato precisa ter e-mail.', fields: [f('communityId', 'Comunidade', 'ref', { source: 'communities', required: true, empty: 'Escolha a comunidade' })] },
+    { type: 'grant_offer', label: 'Liberar oferta', icon: 'book', description: 'Dá ao contato todos os cursos e comunidades de uma oferta, sem cobrança (e envia o link do portal, se o e-mail do portal estiver configurado). O contato precisa ter e-mail.', fields: [f('offerId', 'Oferta', 'ref', { source: 'offers', required: true, empty: 'Escolha a oferta' })] },
+    { type: 'revoke_offer', label: 'Remover oferta', icon: 'close', description: 'Tira do contato os cursos e comunidades da oferta.', fields: [f('offerId', 'Oferta', 'ref', { source: 'offers', required: true, empty: 'Escolha a oferta' })] },
+    { type: 'community_points', label: 'Dar pontos no ranking da comunidade', icon: 'award', description: 'Soma (ou tira, com número negativo) pontos do contato no ranking da comunidade. Só vale para membros ativos.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', required: true, empty: 'Escolha a comunidade' }),
+      f('points', 'Pontos (negativo tira)', 'number', { required: true, value: 10, min: -1000, max: 1000 }),
+      f('note', 'Motivo (opcional)', 'text', { placeholder: 'Ex.: Concluiu o desafio da semana' })
+    ] },
     { type: 'revoke_community_access', label: 'Remover acesso a comunidade', icon: 'users', description: 'Tira o contato da comunidade. Membros banidos continuam banidos.', fields: [f('communityId', 'Comunidade', 'ref', { source: 'communities', required: true, empty: 'Escolha a comunidade' })] },
     { type: 'adjust_score', label: 'Ajustar pontuação do lead', icon: 'star', description: 'Soma ou subtrai pontos da pontuação do contato (use negativo para tirar).', fields: [f('points', 'Pontos', 'number', { required: true, min: -1000, max: 1000, value: 10 })] },
     { type: 'create_social_post', label: 'Criar post social', icon: 'send', description: 'Cria um post no Social Planner como rascunho ou agendado. Sem conta escolhida, usa as contas da fila da categoria ou todas as conectadas.', fields: [
@@ -323,6 +338,21 @@ export const actionCatalog = [
       f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' }),
       f('status', 'Status', 'select', { options: [['', 'Qualquer status'], ['Open', 'Aberta'], ['Won', 'Ganha'], ['Lost', 'Perdida'], ['Abandoned', 'Abandonada']] })] },
     { type: 'remove_opportunity', label: 'Remover oportunidade', icon: 'leads', description: 'Exclui a oportunidade mais recente do contato (do pipeline escolhido, se houver).', fields: [f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' })] },
+    { type: 'book_appointment', label: 'Agendar horário', icon: 'cal', description: 'Marca o contato no primeiro horário livre do serviço, a partir de alguns dias. Use {{steps.ID.start}} para a data e hora.', fields: [
+      f('serviceId', 'Serviço', 'ref', { source: 'services', required: true, empty: 'Escolha o serviço' }),
+      f('afterDays', 'A partir de quantos dias', 'number', { value: 1, min: 0, max: 365 }),
+      f('address', 'Endereço (serviço em campo, aceita variáveis)', 'text', { placeholder: '{{contact.address}}' })
+    ] },
+    { type: 'booking_link', label: 'Gerar link de agendamento de uso único', icon: 'cal', description: 'Cria um link pessoal da página de agendamento, já com os dados do contato. Ele vale para um agendamento e vence depois dos dias escolhidos. Use {{vars.link_agendamento}} na mensagem.', fields: [
+      f('serviceId', 'Serviço', 'ref', { source: 'services', empty: 'O cliente escolhe o serviço' }),
+      f('days', 'Vale por quantos dias', 'number', { value: 7, min: 1, max: 90 }),
+      f('variable', 'Guardar o link na variável', 'text', { value: 'link_agendamento', placeholder: 'link_agendamento' })
+    ] },
+    { type: 'appointment_note', label: 'Nota no agendamento', icon: 'note', description: 'Escreve nas observações do próximo agendamento do contato (ou do último criado).', fields: [
+      f('which', 'Agendamento', 'select', { options: [['next', 'O próximo'], ['last', 'O último criado']] }),
+      f('body', 'Nota (aceita variáveis)', 'textarea', { required: true }),
+      f('mode', 'Como escrever', 'select', { options: [['append', 'Somar às observações'], ['replace', 'Substituir as observações']] })
+    ] },
     { type: 'appointment_status_update', label: 'Mudar status do agendamento', icon: 'cal', description: 'Muda o próximo agendamento do contato (ou o último, se não houver próximo).', fields: [f('status', 'Novo status', 'select', { options: [['Confirmed', 'Confirmado'], ['Completed', 'Concluído'], ['Canceled', 'Cancelado']] })] },
     { type: 'send_document', label: 'Enviar documento ou contrato', icon: 'file', fields: [f('templateId', 'Modelo', 'ref', { source: 'documentTemplates', required: true }),
       f('title', 'Título do documento', 'text', { value: '' }), f('channel', 'Enviar por', 'select', { options: [['email', 'E-mail'], ['email_whatsapp', 'E-mail e WhatsApp']] }),
@@ -484,6 +514,11 @@ export function stepSummary(step, s) {
     case 'router': return `${(step.routes || []).length} caminho(s)`;
     case 'split': return (step.routes || []).map(route => `${route.label} ${splitPercent(route.percent)}%`).join(' · ').slice(0, 80);
     case 'drip': return `${c.batch || 0} a cada ${c.amount || 1} ${({ minutes: 'min', hours: 'h', days: 'dia(s)' })[c.unit || 'hours']}`;
+    case 'grant_offer': case 'revoke_offer': return ref('offers', c.offerId);
+    case 'community_points': return [ref('communities', c.communityId), c.points ? `${c.points > 0 ? '+' : ''}${c.points} pts` : ''].filter(Boolean).join(' · ');
+    case 'book_appointment': return ref('services', c.serviceId) + (Number(c.afterDays) ? ` · em ${c.afterDays} dia(s)` : '');
+    case 'booking_link': return [ref('services', c.serviceId) || 'Qualquer serviço', `${c.days || 7} dia(s)`].join(' · ');
+    case 'appointment_note': return String(c.body || '').slice(0, 60);
     case 'merge_contact': return `${({ email: 'Mesmo e-mail', phone: 'Mesmo telefone' })[c.by] || 'Mesmo e-mail ou telefone'} · ${c.keep === 'oldest' ? 'mantém o mais antigo' : 'mantém este'}`;
     case 'list_format': return c.variable ? `→ vars.${c.variable}` : '';
     case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';
