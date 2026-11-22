@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { cleanTouch } from './ui/ads-data.js';
 
 export const trackingCollections = ['trackingEvents'];
-export const trackingDefaults = () => ({ ga4: '', gtm: '', metaPixel: '', domains: [], pageviews: true, forms: true, visitors: {} });
+export const trackingDefaults = () => ({ ga4: '', gtm: '', metaPixel: '', domains: [], pageviews: true, forms: true, videos: true, visitors: {} });
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value) : '';
@@ -31,6 +31,7 @@ export function saveTracking(s, d) {
   }
   if (d.pageviews !== undefined) t.pageviews = Boolean(d.pageviews);
   if (d.forms !== undefined) t.forms = Boolean(d.forms);
+  if (d.videos !== undefined) t.videos = Boolean(d.videos);
   return t;
 }
 
@@ -94,7 +95,7 @@ d.addEventListener('submit',function(){if(w.gtag&&c.ga4)w.gtag('event','generate
  * password, card or document fields are never read). Events go with navigator.sendBeacon.
  */
 export function trackerScript(workspace, origin, t) {
-  const cfg = JSON.stringify({ endpoint: `${origin}/t/${workspace}/e`, pageviews: t.pageviews !== false, forms: t.forms !== false });
+  const cfg = JSON.stringify({ endpoint: `${origin}/t/${workspace}/e`, pageviews: t.pageviews !== false, forms: t.forms !== false, videos: t.videos !== false });
   return `(function(){if(window.__sociTracker)return;window.__sociTracker=1;var c=${cfg},w=window,d=document,ls;
 try{ls=w.localStorage;ls.setItem('soci_t','1');}catch(e){ls=null;}
 function get(k){try{return ls&&JSON.parse(ls.getItem(k)||'null');}catch(e){return null;}}function set(k,v){try{ls&&ls.setItem(k,JSON.stringify(v));}catch(e){}}
@@ -113,6 +114,9 @@ for(var i=0;i<f.elements.length&&n<40;i++){var el=f.elements[i],k=el.name||el.id
 if((el.type==='checkbox'||el.type==='radio')&&!el.checked)continue;out[k.slice(0,60)]=String(el.value||'').slice(0,500);n++;}
 send({type:'form',form:(f.getAttribute('name')||f.id||f.getAttribute('action')||'').slice(0,120),fields:out});},true);
 w.soci={track:function(name){send({type:'pageview',event:String(name||'').slice(0,60)});}};
+var marks=[25,50,75,100];function watch(v){if(v.__soci)return;v.__soci={};var mark=function(m){if(v.__soci[m])return;v.__soci[m]=1;send({type:'video',event:String(m),video:String(v.currentSrc||v.src||'').slice(0,300),name:String(v.getAttribute('title')||v.getAttribute('aria-label')||'').slice(0,120)});};
+v.addEventListener('timeupdate',function(){if(!v.duration||!isFinite(v.duration))return;var p=v.currentTime/v.duration*100;for(var i=0;i<marks.length;i++)if(p>=marks[i]-0.5)mark(marks[i]);});v.addEventListener('ended',function(){mark(25);mark(50);mark(75);mark(100);});}
+function scan(){var l=d.getElementsByTagName('video');for(var i=0;i<l.length;i++)watch(l[i]);}if(c.videos){scan();setInterval(scan,3000);}
 })();`;
 }
 
@@ -144,13 +148,15 @@ export function trackingEvent(s, d, { add, run, now }) {
   const t = trackingOf(s);
   const vid = /^[a-z0-9]{6,40}$/i.test(String(d.vid || '')) ? String(d.vid) : '';
   if (!vid) fail('Visitante inválido.');
-  const type = d.type === 'form' ? 'form' : 'pageview';
+  const type = d.type === 'form' ? 'form' : d.type === 'video' ? 'video' : 'pageview';
   if (type === 'form' && t.forms === false) return null;
+  if (type === 'video' && (t.videos === false || !['25', '50', '75', '100'].includes(String(d.event)))) return null;
   if (type === 'pageview' && t.pageviews === false) return null;
   let url = '';
   try { const u = new URL(str(d.url, 500)); if (['http:', 'https:'].includes(u.protocol)) url = `${u.origin}${u.pathname}${u.search}`.slice(0, 500); } catch { /* kept empty */ }
   const events = s.trackingEvents ??= [];
-  const row = { id: randomUUID(), created: now(), type, vid, url, title: str(d.title, 200), event: str(d.event, 60), contactId: t.visitors[vid] || '' };
+  const row = { id: randomUUID(), created: now(), type, vid, url, title: str(d.title, 200), event: str(d.event, 60), contactId: t.visitors[vid] || '',
+    ...(type === 'video' ? { video: str(d.video, 300), name: str(d.name, 120) } : {}) };
   if (type === 'form') {
     const fields = Object.fromEntries(Object.entries(d.fields && typeof d.fields === 'object' ? d.fields : {}).slice(0, 40).map(([k, v]) => [str(k, 60), str(v, 500)]).filter(([k]) => k));
     const info = contactFromFields(fields);
@@ -177,7 +183,9 @@ export function trackingEvent(s, d, { add, run, now }) {
   }
   events.push(row);
   if (events.length > 5000) events.splice(0, events.length - 5000);
-  if (row.contactId) run(s, 'external_tracking_event', { contactId: row.contactId, event: type, url, name: row.event || row.form });
+  // "Vídeo assistido": 25, 50, 75 and 100% of an HTML5 video, once each per page load, for a known visitor.
+  if (row.contactId && type === 'video') run(s, 'video_watched', { contactId: row.contactId, percent: Number(row.event), video: row.name || row.video, url });
+  else if (row.contactId) run(s, 'external_tracking_event', { contactId: row.contactId, event: type, url, name: row.event || row.form });
   return row.id;
 }
 

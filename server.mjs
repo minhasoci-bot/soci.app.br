@@ -196,7 +196,7 @@ const deliveryFailure = reason => ({ 'not-connected': 'not_connected', 'invalid-
 const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
-const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community|offer-grant|loyalty|admin-enter)(?:/([0-9a-f-]{36}))?$`);
+const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community|offer-grant|loyalty|admin-enter|files)(?:/([0-9a-f-]{36}))?$`);
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const chatPath = new RegExp(`^/chat/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js|demo))?/?$`);
 const chatApi = new RegExp(`^/api/chat/${workspaceSegment}/([0-9a-f-]{36})/(start|send|messages)$`);
@@ -2043,6 +2043,19 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           return json(await community.admin(workspace, state, await clientPortal.directory(workspace), courseId, input, { days }));
         }
         // Fidelidade: the member redeems a reward with their points (their contact is found by the portal access).
+        // The client sends a file to the team (Arquivos, a note in Conversas and the workflow trigger).
+        if (operation === 'files') {
+          await publicAccountPolicy(workspace, method === 'POST', 'memberships');
+          const { member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,proto === 'https'));
+          const mine = st => { const contact = st.contacts.find(row => row.id === member.contactId) || st.contacts.find(row => (row.email || '').toLowerCase() === member.email);
+            return (st.files || []).filter(row => row.source === 'portal' && contact && row.contactId === contact.id).slice(-20).reverse().map(row => ({ id: row.id, name: row.name, created: row.created })); };
+          if (method === 'GET') return json({ files: mine(await store.load(workspace)) });
+          if (method !== 'POST') throw error('Método indisponível.',405);
+          const input = await payload(req);
+          const result = await change(workspace, { type: 'portal-file', data: { contactId: member.contactId || '', email: member.email, name: member.name || '', fileName: String(input.name || ''), data: String(input.data || '') } });
+          flushLater(workspace);
+          return json({ files: mine(result.state) }, 201);
+        }
         if (operation === 'loyalty') {
           if (method !== 'POST') throw error('Método indisponível.',405);
           const input = await payload(req);
@@ -2165,6 +2178,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           page.communities = await community.home(workspace, state, member);
           const contact = state.contacts.find(row => row.id === member.contactId) || state.contacts.find(row => (row.email || '').toLowerCase() === member.email);
           page.loyalty = loyaltyView(state, contact?.id || '');
+          page.files = (state.files || []).filter(row => row.source === 'portal' && contact && row.contactId === contact.id).slice(-20).reverse().map(row => ({ id: row.id, name: row.name, created: row.created }));
         }
         return json(page);
       }

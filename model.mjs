@@ -17,7 +17,7 @@ import { blogBeforeDelete, blogCollections, blogFields, blogView } from './blog-
 import { storeAfterSave, storeBeforeDelete, storeCheckout, storeCollections, storeFields } from './store-model.mjs';
 import { webinarBeforeDelete, webinarCollections, webinarCommand, webinarFields } from './webinar-model.mjs';
 import { qrCollections, qrFields, qrScan } from './qr-model.mjs';
-import { mediaBeforeDelete, mediaCollections as driveCollections, mediaCommand, mediaCommandTypes, mediaFields as driveFields } from './media-model.mjs';
+import { mediaBeforeDelete, mediaCollections as driveCollections, mediaCommand, mediaCommandTypes, mediaFields as driveFields, mediaFile, mediaKind } from './media-model.mjs';
 import { courseFields } from './course-model.mjs';
 import { communityCollections, communityFields } from './community.mjs';
 import { communityEventBeforeDelete, communityEventCollections, communityEventCommand, communityEventFields } from './community-events.mjs';
@@ -446,6 +446,24 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'tracking-google-lead-key') return newGoogleLeadKey(s);
   // Server only: a lead from a Google Ads lead form webhook or from Meta Lead Ads.
   if (type === 'ad-form-lead') return adFormLead(s, d, { add, run, now });
+  // Server only: a file a client sends from the client portal. It goes to Arquivos (linked to the contact), leaves a
+  // note in Conversas and fires "Arquivo enviado no portal do cliente". The 300 most recent portal files are kept.
+  if (type === 'portal-file') {
+    const data = mediaFile(d.data);
+    const email = str(d.email, 160).toLowerCase();
+    let contact = (d.contactId && find(s, 'contacts', d.contactId)) || (email && s.contacts.find(row => (row.email || '').toLowerCase() === email));
+    if (!contact) {
+      if (!email) fail('Contato não encontrado.', 404);
+      contact = add(s, 'contacts', { name: str(d.name, 120) || email, email, phone: '', tags: ['Portal'], company: '', notes: '', custom: {} });
+      run(s, 'Contact created', { contactId: contact.id });
+    }
+    const file = add(s, 'files', { name: str(d.fileName, 120) || 'arquivo', data, folder: '', source: 'portal', contactId: contact.id });
+    const sent = s.files.filter(row => row.source === 'portal');
+    for (const old of sent.slice(0, Math.max(0, sent.length - 300))) s.files = s.files.filter(row => row.id !== old.id);
+    add(s, 'messages', { contactId: contact.id, body: `Arquivo enviado pelo portal: ${file.name}`, channel: 'Note', direction: 'Inbound', read: false, starred: false, origin: 'portal', fileId: file.id });
+    run(s, 'portal_file_uploaded', { contactId: contact.id, fileId: file.id, name: file.name, kind: mediaKind(data) });
+    return file.id;
+  }
   // Server only: "Gerar imagem com IA" keeps the image as a public file (it is made to be sent); the oldest
   // generated images beyond 100 are removed.
   if (type === 'ai-media-file') {

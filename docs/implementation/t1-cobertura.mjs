@@ -32,7 +32,7 @@ export const gatilhos = [
   c('Trigger link clicked', 'trigger_link_clicked'),
   c('Facebook lead form submitted', 'meta_lead_form'),
   conector('TikTok form submitted', 'Formulários de leads do TikTok pelo conector.'),
-  falta('Video tracking', 'video_watched', 'Vídeos das aulas e páginas da Soci.'),
+  c('Video tracking', 'video_watched', 'Vídeos HTML5 do site com o script de rastreamento (25, 50, 75 e 100%).'),
   falta('Number validation', 'phone_validated', 'Twilio Lookup (2.4).'),
   c('Messaging error - SMS', 'message_failed'),
   conector('LinkedIn lead form submitted', 'Formulários de leads do LinkedIn pelo conector.'),
@@ -87,10 +87,10 @@ export const gatilhos = [
   c('Social planner posts', 'social_post_published'),
   // Client portal (3)
   c('User login (client portal / memberships)', 'portal_login'),
-  falta('Client portal file uploaded', 'portal_file_uploaded', 'Envio de arquivo pelo cliente no portal.'),
+  c('Client portal file uploaded', 'portal_file_uploaded'),
   c('User signup (client portal / memberships)', 'portal_login', 'O primeiro acesso conta como cadastro.'),
   // Associations (1)
-  falta('Association created (beta)', 'association_created', 'Contato ligado a uma empresa ou a uma oportunidade.'),
+  c('Association created (beta)', 'association_created', 'Contato ligado a uma empresa ou oportunidade ligada a um contato.'),
   // Events management (2)
   c('Event registration', 'community_event_registered'), c('Event checked in', 'community_event_checked_in'),
   // Google ads (1)
