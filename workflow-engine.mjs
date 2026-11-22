@@ -332,6 +332,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'product_viewed': return (!c.storeId || c.storeId === ctx.storeId) && (!c.productId || c.productId === ctx.productId);
       case 'conversation_sla': return (!c.state || c.state === ctx.state) && (!c.channel || c.channel === ctx.channel);
       case 'cart_updated': return !c.storeId || c.storeId === ctx.storeId;
+      case 'custom_event': return !c.event || lower(String(c.event).trim()) === lower(ctx.event);
       case 'user_replied': return (!c.channel || c.channel === ctx.channel) && (!c.user || lower(c.user) === lower(ctx.user)) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
       case 'message_failed': return (!c.channel || c.channel === ctx.channel) && (!c.reason || c.reason === ctx.reason);
       case 'prospect_received': return (!c.isNew || c.isNew === ctx.isNew) && (!c.withOpportunity || c.withOpportunity === ctx.withOpportunity) && (!c.category || lower(ctx.category).includes(lower(c.category)));
@@ -353,7 +354,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
 
   function perform(s, run, node, depth, id) {
     const contact = contactOf(s, run.contactId), c = node.config || {}, text = value => merge(value, s, contact, run);
-    const needsContact = !['internal_notification', 'webhook', 'app_action', 'create_task', 'create_social_post', 'update_custom_value', 'date_format', 'number_format', 'list_format', 'create_contact', 'find_contact'].includes(node.type);
+    const needsContact = !['internal_notification', 'custom_event', 'webhook', 'app_action', 'create_task', 'create_social_post', 'update_custom_value', 'date_format', 'number_format', 'list_format', 'create_contact', 'find_contact'].includes(node.type);
     if (needsContact && !contact) return 'sem contato';
     const message = (channel, body, subject = '') => add(s, 'messages', { contactId: contact.id, body: text(body).slice(0, 5000), subject, channel, direction: 'Outbound', read: true, starred: false, origin: 'workflow', workflowId: run.workflowId });
     switch (node.type) {
@@ -792,6 +793,31 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         output(run, id, { [name]: formatted });
         return `${name} = ${formatted}`;
       }
+      case 'custom_event': {
+        // "Disparar evento personalizado": starts the workflows whose "Evento personalizado" trigger has this name.
+        const name = text(c.event).trim().slice(0, 60);
+        if (!name) return 'erro: informe o nome do evento';
+        // Without these limits a workflow without a contact could multiply itself: no self-trigger, at most
+        // 5 events per run, and chains of at most three workflows (A → B → C).
+        if (depth >= 3) return 'erro: eventos encadeados demais (até 3 fluxos em sequência)';
+        run.customEvents = (run.customEvents || 0) + 1;
+        if (run.customEvents > 5) return 'erro: no máximo 5 eventos por execução';
+        const payload = {};
+        for (const line of String(c.data || '').split(/\r?\n/).slice(0, 20)) {
+          const at = line.indexOf('=');
+          const key = at > 0 ? aiVariableName(line.slice(0, at)) : '';
+          if (key && !['event', 'contactid', 'depth', 'payload'].includes(key)) payload[key] = text(line.slice(at + 1)).trim().slice(0, 500);
+        }
+        // One budget for the whole cascade started by the first event: at most 50 workflows in total.
+        const root = !eventCascade;
+        const cascade = eventCascade ||= { left: 50 };
+        const before = cascade.left;
+        try { emit(s, 'custom_event', { contactId: contact?.id || '', event: name, payload, fromWorkflow: run.workflowId, depth }); }
+        finally { if (root) eventCascade = null; }
+        const started = before - cascade.left;
+        if (!started && cascade.left <= 0) return `erro: evento ${name} não disparado (limite de 50 fluxos por cascata de eventos)`;
+        return `evento ${name}: ${started} fluxo(s) iniciado(s)`;
+      }
       case 'whatsapp_window': {
         // WhatsApp's customer service window: 24 hours from the contact's last WhatsApp message.
         const name = String(c.variable || '').trim().replace(/[^\w]/g, '_').slice(0, 40) || 'janela_whatsapp';
@@ -1099,6 +1125,9 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
     proceed(s, run);
   }
 
+  // Workflows still allowed to start in the current cascade of custom events (null outside one).
+  let eventCascade = null;
+
   // An event: resume waits, reach goals, and enroll the workflows whose triggers match.
   function emit(s, type, ctx = {}) {
     const depth = ctx.depth || 0;
@@ -1113,8 +1142,11 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       }
     }
     for (const workflow of s.workflows.filter(row => row.active)) {
+      if (type === 'custom_event' && (ctx.fromWorkflow === workflow.id || eventCascade?.left <= 0)) continue;
       const flow = upgradeWorkflow(workflow);
-      if ((flow.triggers || []).some(trigger => matchTrigger(trigger, type, ctx))) enroll(s, workflow, { ...ctx, depth }, triggerSpec(type)?.label || type);
+      if (!(flow.triggers || []).some(trigger => matchTrigger(trigger, type, ctx))) continue;
+      if (type === 'custom_event' && eventCascade) eventCascade.left--;
+      enroll(s, workflow, { ...ctx, depth }, triggerSpec(type)?.label || type);
     }
   }
 

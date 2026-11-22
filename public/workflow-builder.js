@@ -310,6 +310,7 @@ const triggerData = {
   invoice_status: [['status', 'Status'], ['total', 'Valor']], payment_received: [['total', 'Valor pago']], order_submitted: [['storeId', 'Loja'], ['total', 'Total']], order_paid: [['storeId', 'Loja'], ['total', 'Total']],
   review_received: [['score', 'Nota']], chat_started: [['widgetId', 'Chat']], webinar_registered: [['webinarId', 'Webinar']], trigger_link_clicked: [['linkId', 'Link']], email_event: [['event', 'Evento'], ['campaignId', 'Campanha']],
   contact_tag: [['tag', 'Tag'], ['change', 'Adicionada ou removida']], contact_changed: [['fields', 'Campos alterados']], note_changed: [['body', 'Texto novo da nota']],
+  custom_event: [['event', 'Nome do evento']],
   user_replied: [['body', 'Mensagem da equipe'], ['channel', 'Canal'], ['user', 'Quem respondeu']], message_failed: [['reason', 'Motivo da falha'], ['channel', 'Canal'], ['body', 'Mensagem não entregue']],
   prospect_received: [['company', 'Empresa'], ['website', 'Site'], ['city', 'Cidade'], ['category', 'Categoria']],
   affiliate_campaign_enrolled: [['campaign', 'Campanha'], ['affiliateId', 'Afiliado']], course_started: [['course', 'Curso'], ['title', 'Aula']],
