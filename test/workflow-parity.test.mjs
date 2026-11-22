@@ -167,3 +167,53 @@ test('T.1 Teste A/B: paths drawn by percent, validated on publish, and the branc
   assert.equal(tagged('depois'), 60, 'the paths merge back into the next step');
   assert.ok(runsOf(s, flowId).every(run => run.results.some(line => /: (Cupom|Caminho B)$/.test(line))), 'the drawn path is in the run history');
 });
+
+test('T.1 contact and opportunity actions: create and find contacts, owner, followers and find opportunity', () => {
+  const s = blank();
+  const ana = save(s, 'contacts', { name: 'Ana Souza', email: 'ana@x.test', phone: '+55 11 98888-0000', tags: [], custom: {} });
+  const welcomed = flow(s, 'Novo contato', { type: 'contact_created', config: {} });
+  const refer = flow(s, 'Indicação', { type: 'contact_tag', config: { change: 'added', tag: 'indicou' } }, [
+    { id: 'novo123', type: 'create_contact', config: { name: 'Bruno {{contact.first_name}}', email: 'Bruno@X.test', tags: 'indicação, vip' } },
+    { type: 'internal_notification', config: { body: 'Indicado {{steps.novo123.name}} ({{steps.novo123.created}})' } }]);
+  save(s, 'contacts', { ...s.contacts.find(row => row.id === ana), tags: ['indicou'] }, ana);
+  const bruno = s.contacts.find(row => row.email === 'bruno@x.test');
+  assert.ok(bruno, 'the e-mail is stored in lower case');
+  assert.deepEqual([bruno.name, bruno.tags], ['Bruno Ana', ['indicação', 'vip']]);
+  assert.equal(runsOf(s, refer)[0].contactId, ana, 'the flow goes on with the current contact');
+  assert.ok(s.teamMessages.some(row => row.body === 'Indicação: Indicado Bruno Ana (yes)'));
+  assert.ok(runsOf(s, welcomed).some(run => run.contactId === bruno.id), '"Contato criado" fires for the new contact');
+  save(s, 'contacts', { ...s.contacts.find(row => row.id === ana), tags: [] }, ana);
+  save(s, 'contacts', { ...s.contacts.find(row => row.id === ana), tags: ['indicou'] }, ana);
+  assert.equal(s.contacts.filter(row => row.email === 'bruno@x.test').length, 1, 'the same e-mail is not created twice');
+  assert.ok(runsOf(s, refer)[1].results.some(line => /já existia: Bruno Ana/.test(line)));
+
+  const finder = flow(s, 'Achar', { type: 'contact_tag', config: { change: 'added', tag: 'achar' } }, [
+    { id: 'busca1', type: 'find_contact', config: { by: 'phone', value: '(11) 98888-0000', then: 'keep' } },
+    { id: 'busca2', type: 'find_contact', config: { by: 'email', value: 'BRUNO@x.test', then: 'switch' } },
+    { type: 'add_tag', config: { tag: 'encontrado' } },
+    { id: 'busca3', type: 'find_contact', config: { by: 'email', value: 'ninguem@x.test' } },
+    { type: 'internal_notification', config: { body: '{{steps.busca1.name}} / {{steps.busca2.found}} / {{steps.busca3.found}}' } }]);
+  save(s, 'contacts', { ...s.contacts.find(row => row.id === ana), tags: ['indicou', 'achar'] }, ana);
+  assert.ok(s.contacts.find(row => row.id === bruno.id).tags.includes('encontrado'), 'after "switch" the next steps act on the found contact');
+  assert.equal(s.contacts.find(row => row.id === ana).tags.includes('encontrado'), false);
+  assert.ok(s.teamMessages.some(row => row.body === 'Achar: Ana Souza / yes / no'));
+  assert.equal(runsOf(s, finder)[0].contactId, bruno.id);
+
+  const stage = s.stages[0];
+  save(s, 'opportunities', { title: 'Plano anual', contactId: ana, stage: stage.id, value: 900, status: 'Open', followers: ['Caio'] });
+  const crm = flow(s, 'CRM', { type: 'contact_tag', config: { change: 'added', tag: 'crm' } }, [
+    { type: 'opportunity_owner', config: { op: 'set', owner: 'Bia' } },
+    { type: 'opportunity_followers', config: { op: 'add', users: 'Dani, caio' } },
+    { type: 'opportunity_followers', config: { op: 'remove', users: 'CAIO' } },
+    { id: 'oport1', type: 'find_opportunity', config: { status: 'Open' } },
+    { id: 'oport2', type: 'find_opportunity', config: { status: 'Won' } },
+    { type: 'internal_notification', config: { body: '{{steps.oport1.title}} {{steps.oport1.value}} {{steps.oport1.owner}} / {{steps.oport2.found}}' } },
+    { type: 'opportunity_owner', config: { op: 'clear' } }]);
+  save(s, 'contacts', { ...s.contacts.find(row => row.id === ana), tags: ['crm'] }, ana);
+  const deal = s.opportunities.find(row => row.contactId === ana);
+  assert.deepEqual([deal.owner, deal.followers], ['', ['Dani']]);
+  assert.ok(s.teamMessages.some(row => row.body === 'CRM: Plano anual 900 Bia / no'));
+  assert.ok(runsOf(s, crm)[0].results.some(line => /Plano anual: dono Bia/.test(line)));
+  const lonely = save(s, 'contacts', { name: 'Sem negócio', email: 'sn@x.test', tags: ['crm'], custom: {} });
+  assert.ok(runsOf(s, crm).find(run => run.contactId === lonely).results.some(line => /sem oportunidade aberta/.test(line)));
+});

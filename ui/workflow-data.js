@@ -226,6 +226,14 @@ export const actionCatalog = [
     { type: 'conversation_followers', label: 'Seguidores da conversa', icon: 'contacts', fields: [f('op', 'O que fazer', 'select', { options: [['add', 'Adicionar seguidores'], ['remove', 'Remover seguidores']] }), f('users', 'Pessoas da equipe (separadas por vírgula)', 'text', { required: true, placeholder: 'Ana, Bruno' })] },
     { type: 'set_dnd', label: 'Ativar ou desativar DND', icon: 'lock', fields: [f('state', 'Não perturbe', 'select', { options: [['on', 'Ativar'], ['off', 'Desativar']] })] },
     { type: 'add_note', label: 'Adicionar nota', icon: 'note', fields: [f('body', 'Nota', 'textarea', { required: true })] },
+    { type: 'create_contact', label: 'Criar contato', icon: 'contacts', description: 'Cria outro contato (ex.: a pessoa indicada num formulário). Se já existir um com o mesmo e-mail ou telefone, usa esse. O fluxo segue com o contato atual; o novo fica em {{steps.ID.id}}.', fields: [
+      f('name', 'Nome', 'text', { required: true, placeholder: '{{trigger.indicado}}' }), f('email', 'E-mail', 'text', { placeholder: '{{trigger.email_indicado}}' }), f('phone', 'Telefone', 'text'),
+      f('tags', 'Tags (separadas por vírgula)', 'text', { placeholder: 'indicação' })] },
+    { type: 'find_contact', label: 'Buscar contato', icon: 'search', description: 'Procura um contato pelo e-mail, telefone ou um campo. O resultado fica em {{steps.ID.found}} (yes ou no), {{steps.ID.name}} e {{steps.ID.email}}; dá para seguir o fluxo com o contato encontrado.', fields: [
+      f('by', 'Procurar por', 'select', { options: [['email', 'E-mail'], ['phone', 'Telefone'], ['field', 'Campo personalizado']] }),
+      f('field', 'Campo', 'ref', { source: 'textFields', when: { by: 'field' } }),
+      f('value', 'Valor procurado', 'text', { required: true, placeholder: '{{trigger.email}}' }),
+      f('then', 'Depois de achar', 'select', { options: [['keep', 'Seguir com o contato atual'], ['switch', 'Seguir com o contato encontrado']] })] },
     { type: 'delete_contact', label: 'Excluir contato', icon: 'trash', description: 'Manda o contato para a lixeira (60 dias para restaurar). As etapas seguintes ficam sem contato.', fields: [] },
     { type: 'make_affiliate', label: 'Tornar afiliado', icon: 'users', description: 'Cadastra o contato como afiliado na campanha (precisa de e-mail).', fields: [f('campaignId', 'Campanha de afiliados', 'ref', { source: 'affiliateCampaigns', required: true })] }
   ] },
@@ -277,6 +285,15 @@ export const actionCatalog = [
     { type: 'create_task', label: 'Criar tarefa', icon: 'check', fields: [f('title', 'Título', 'text', { required: true }), f('dueDays', 'Prazo em dias', 'number', { min: 0, max: 365, value: 1 }), f('owner', 'Responsável', 'text')] },
     { type: 'create_opportunity', label: 'Criar ou atualizar oportunidade', icon: 'leads', fields: [f('title', 'Nome', 'text', { required: true, value: '{{contact.name}}' }), f('stageId', 'Etapa', 'ref', { source: 'stages', required: true }), f('value', 'Valor (R$)', 'number', { min: 0, value: 0 })] },
     { type: 'opportunity_status', label: 'Mudar status da oportunidade', icon: 'leads', fields: [f('status', 'Status', 'select', { options: [['Won', 'Ganha'], ['Lost', 'Perdida'], ['Open', 'Aberta'], ['Abandoned', 'Abandonada']] })] },
+    { type: 'opportunity_owner', label: 'Dono da oportunidade', icon: 'leads', description: 'Define ou tira o dono da oportunidade aberta mais recente do contato.', fields: [
+      f('op', 'O que fazer', 'select', { options: [['set', 'Definir dono'], ['clear', 'Tirar o dono']] }), f('owner', 'Pessoa da equipe', 'text', { placeholder: 'Ana', when: { op: 'set' } }),
+      f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' })] },
+    { type: 'opportunity_followers', label: 'Seguidores da oportunidade', icon: 'leads', description: 'Adiciona ou remove seguidores da oportunidade aberta mais recente do contato.', fields: [
+      f('op', 'O que fazer', 'select', { options: [['add', 'Adicionar seguidores'], ['remove', 'Remover seguidores']] }), f('users', 'Pessoas da equipe (separadas por vírgula)', 'text', { required: true, placeholder: 'Ana, Bruno' }),
+      f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' })] },
+    { type: 'find_opportunity', label: 'Buscar oportunidade', icon: 'search', description: 'Acha a oportunidade mais recente do contato. O resultado fica em {{steps.ID.found}}, {{steps.ID.title}}, {{steps.ID.value}}, {{steps.ID.stage}}, {{steps.ID.status}} e {{steps.ID.owner}}.', fields: [
+      f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' }),
+      f('status', 'Status', 'select', { options: [['', 'Qualquer status'], ['Open', 'Aberta'], ['Won', 'Ganha'], ['Lost', 'Perdida'], ['Abandoned', 'Abandonada']] })] },
     { type: 'remove_opportunity', label: 'Remover oportunidade', icon: 'leads', description: 'Exclui a oportunidade mais recente do contato (do pipeline escolhido, se houver).', fields: [f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' })] },
     { type: 'appointment_status_update', label: 'Mudar status do agendamento', icon: 'cal', description: 'Muda o próximo agendamento do contato (ou o último, se não houver próximo).', fields: [f('status', 'Novo status', 'select', { options: [['Confirmed', 'Confirmado'], ['Completed', 'Concluído'], ['Canceled', 'Cancelado']] })] },
     { type: 'send_document', label: 'Enviar documento ou contrato', icon: 'file', fields: [f('templateId', 'Modelo', 'ref', { source: 'documentTemplates', required: true }),
