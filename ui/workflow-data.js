@@ -276,6 +276,9 @@ export const actionCatalog = [
     { type: 'company_clear', label: 'Limpar campos da empresa associada', icon: 'grid', description: 'Apaga campos da empresa do contato. O nome nunca é apagado.', fields: [
       f('field', 'O que limpar', 'select', { options: [['all', 'Todos os campos (menos o nome)'], ['contact', 'Telefone, e-mail e site'], ['address', 'Endereço completo'], ...[['name', 'Nome'], ['phone', 'Telefone'], ['email', 'E-mail'], ['website', 'Site'], ['address', 'Endereço'], ['city', 'Cidade'], ['state', 'Estado'], ['postal', 'CEP'], ['country', 'País'], ['description', 'Descrição']].filter(([key]) => key !== 'name')] })
     ] },
+    { type: 'email_verify', label: 'Verificar e-mail', icon: 'mail', description: 'Confere o formato do e-mail do contato e se o domínio recebe e-mail (sem enviar nada). O fluxo espera a resposta: use {{vars.email_status}} (valid, invalid ou unknown) e {{vars.email_motivo}} num Se / Senão.', fields: [
+      f('invalidTag', 'Tag para e-mail inválido (opcional)', 'text', { value: 'email-invalido', placeholder: 'email-invalido' })
+    ] },
     { type: 'merge_contact', label: 'Mesclar contato', icon: 'users', description: 'Junta os contatos duplicados (mesmo e-mail ou telefone) num só: tags, campos vazios, notas, conversas, tarefas, oportunidades, agendamentos e faturas passam para o contato mantido, e os duplicados vão para a lixeira.', fields: [
       f('by', 'Duplicado quando tiver o mesmo', 'select', { options: [['any', 'E-mail ou telefone'], ['email', 'E-mail'], ['phone', 'Telefone']] }),
       f('keep', 'Contato mantido', 'select', { options: [['this', 'Este contato'], ['oldest', 'O mais antigo (o fluxo segue com ele)']] })
@@ -556,6 +559,7 @@ export function stepSummary(step, s) {
     case 'company_create': return c.name || '';
     case 'company_update': return c.field ? `${c.field} = ${String(c.value || '').slice(0, 50)}` : '';
     case 'company_clear': return ({ all: 'Todos os campos', contact: 'Telefone, e-mail e site', address: 'Endereço completo' })[c.field] || c.field || '';
+    case 'email_verify': return c.invalidTag ? `Inválido → tag ${c.invalidTag}` : '→ vars.email_status';
     case 'merge_contact': return `${({ email: 'Mesmo e-mail', phone: 'Mesmo telefone' })[c.by] || 'Mesmo e-mail ou telefone'} · ${c.keep === 'oldest' ? 'mantém o mais antigo' : 'mantém este'}`;
     case 'list_format': return c.variable ? `→ vars.${c.variable}` : '';
     case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';

@@ -885,6 +885,20 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         run.status = 'Waiting'; run.at = node.next; run.wakeAt = ''; run.results.push(`${label}: aguardando ação manual`);
         return;
       }
+      if (node.type === 'email_verify') {
+        // The server checks the domain (DNS) after saving; the run waits like an AI step and resumes with the answer.
+        const contact = contactOf(s, run.contactId);
+        if (!contact?.email) {
+          run.results.push(`${label}: erro: contato sem e-mail`); trace('erro: contato sem e-mail');
+          if (c.stopOnError) { run.status = 'Failed'; run.at = ''; run.finished = now(); return; }
+          run.at = node.next; continue;
+        }
+        if (run.test) { run.vars = { ...(run.vars || {}), email_status: '', email_motivo: '' }; run.results.push(`${label}: (teste) verificação não executada`); trace('pulada no teste'); run.at = node.next; continue; }
+        outbox(s, { kind: 'email-verify', runId: run.id, stepId: id, email: contact.email });
+        run.status = 'Waiting'; run.waitFor = { type: 'ai', step: id }; run.wakeAt = new Date(Date.now() + AI_TIMEOUT).toISOString(); run.at = node.next;
+        run.results.push(`${label}: verificando ${contact.email}`); trace('verificando');
+        return;
+      }
       if (actionSpec(node.type)?.ai) {
         const contact = contactOf(s, run.contactId);
         const request = aiRequest(s, run, node, contact);
@@ -959,6 +973,12 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
     const shown = Object.entries(vars).map(([name, value]) => `${name} = ${value.slice(0, 60)}`).join(' · ') || 'sem resultado';
     run.results.push(`${label}: ${shown}`); trace(shown);
     const contact = contactOf(s, run.contactId);
+    // "Verificar e-mail": the answer stays on the contact (emailStatus) and an invalid address can get a tag.
+    if (node?.type === 'email_verify' && contact && ['valid', 'invalid', 'unknown'].includes(vars.email_status)) {
+      Object.assign(contact, { emailStatus: vars.email_status, emailCheckedAt: now() });
+      const tag = str(node.config?.invalidTag || '', 48);
+      if (vars.email_status === 'invalid' && tag && !(contact.tags || []).some(t => lower(t) === lower(tag))) { contact.tags = tagList([...(contact.tags || []), tag]); emit(s, 'contact_tag', { contactId: contact.id, change: 'added', tag }); }
+    }
     if (node?.type === 'ai_summarize' && node.config?.note === 'yes' && contact && Object.values(vars)[0]) {
       add(s, 'messages', { contactId: contact.id, body: `Resumo da IA: ${Object.values(vars)[0]}`.slice(0, 5000), subject: '', channel: 'Note', direction: 'Outbound', read: true, starred: false, origin: 'workflow', workflowId: run.workflowId });
     }

@@ -5078,5 +5078,9 @@ export default {
   "Todos os campos (menos o nome)": "Todos los campos (menos el nombre)",
   "Telefone, e-mail e site": "Teléfono, correo y sitio web",
   "Endereço completo": "Dirección completa",
-  "Todos os campos": "Todos los campos"
+  "Todos os campos": "Todos los campos",
+  "Situação (valid, invalid ou unknown)": "Situación (valid, invalid o unknown)",
+  "Verificar e-mail": "Verificar correo",
+  "Confere o formato do e-mail do contato e se o domínio recebe e-mail (sem enviar nada). O fluxo espera a resposta: use {{vars.email_status}} (valid, invalid ou unknown) e {{vars.email_motivo}} num Se / Senão.": "Revisa el formato del correo del contacto y si el dominio recibe correo (sin enviar nada). El flujo espera la respuesta: use {{vars.email_status}} (valid, invalid o unknown) y {{vars.email_motivo}} en un Si / Si no.",
+  "Tag para e-mail inválido (opcional)": "Etiqueta para correo inválido (opcional)"
 };

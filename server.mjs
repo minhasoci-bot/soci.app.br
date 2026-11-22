@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { checkEmailAddress } from './email-verify.mjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -253,7 +254,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 export function makeServer({
   dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, brandFetch=fetch, brandResolve=null, designAgentConfig=designAgent,
-  openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
+  emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
   portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(), campaignMail=campaignMailer(),
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
@@ -1513,6 +1514,10 @@ export function makeServer({
         appEntries.push({ app: sent.name, appId: item.appId, kind: item.body?.type || 'event', text: `${what}: ${sent.text}` });
       }
       if (item.kind === 'ai') aiResults.push(await workflowAIStep(workspace, state, item));
+      if (item.kind === 'email-verify') {
+        const checked = await checkEmailAddress(item.email, emailResolver).catch(() => ({ status: 'unknown', reason: 'não foi possível consultar o domínio agora' }));
+        aiResults.push({ runId: item.runId, stepId: item.stepId, vars: { email_status: checked.status, email_motivo: checked.reason } });
+      }
       if (item.kind === 'access') results.push({ runId: item.runId, kind: 'access', text: await workflowAccess(workspace, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'review-email') {
         const outcome = await documentMail.email(item.email, { subject: item.subject, text: absolute(item) }, `review-${workspace}-${item.requestId}`,
