@@ -17,7 +17,7 @@
  */
 window.PLANO_SOCI = {
   titulo: "Paridade Soci × GoHighLevel",
-  atualizadoEm: "2026-11-21 23:24",
+  atualizadoEm: "2026-11-22 09:49",
   etapaAtual: "T.1",
 
   regras: [
@@ -177,7 +177,7 @@ window.PLANO_SOCI = {
     {
       id: "T", nome: "Transversal", objetivo: "Trabalho contínuo que acompanha todas as fases.",
       itens: [
-        { id: "T.1", titulo: "Paridade do motor de workflows: de 35/36 para 116 gatilhos e 180 ações (por módulo, junto com cada fase)", status: "andamento", ref: "04c §1.3", nota: "Hoje a Soci tem 77 gatilhos e 69 ações em ui/workflow-data.js (contagem de 2026-11-21). Lote de área de membros (test/workflow-members.test.mjs): gatilhos Aula concluída, Acesso a curso liberado e Acesso a curso removido; ações Liberar/Remover acesso a curso e Liberar/Remover acesso a comunidade. Lote de 2026-11-21 (test/workflow-parity.test.mjs): gatilhos Lembrete de tarefa, Reserva de serviço (atendimento, campo ou locação), Transcrição de reunião gerada, Assinatura, Reembolso, Cupom usado, Cupom atingiu o limite e Produtos adicionados ao carrinho; ações Editar conversa, Seguidores da conversa, Excluir contato (lixeira), Remover oportunidade, Mudar status do agendamento, Atualizar valor personalizado, Formatar data e Formatar número. Os apps do App Studio somam ações e gatilhos próprios em cada subconta onde são instalados. Faltam sobretudo os que dependem de telefonia (D1), Google Sheets e Slack (T.2), objetos associados e o teste A/B (split) com ramos por percentual." },
+        { id: "T.1", titulo: "Paridade do motor de workflows: de 35/36 para 116 gatilhos e 180 ações (por módulo, junto com cada fase)", status: "andamento", ref: "04c §1.3", nota: "Hoje a Soci tem 77 gatilhos e 70 ações em ui/workflow-data.js (contagem de 2026-11-22). Divisão A/B (test/workflow-split.test.mjs): de 2 a 6 caminhos com percentual, o mesmo contato sempre no mesmo caminho, e para publicar a soma precisa dar 100%. Lote de área de membros (test/workflow-members.test.mjs): gatilhos Aula concluída, Acesso a curso liberado e Acesso a curso removido; ações Liberar/Remover acesso a curso e Liberar/Remover acesso a comunidade. Lote de 2026-11-21 (test/workflow-parity.test.mjs): gatilhos Lembrete de tarefa, Reserva de serviço (atendimento, campo ou locação), Transcrição de reunião gerada, Assinatura, Reembolso, Cupom usado, Cupom atingiu o limite e Produtos adicionados ao carrinho; ações Editar conversa, Seguidores da conversa, Excluir contato (lixeira), Remover oportunidade, Mudar status do agendamento, Atualizar valor personalizado, Formatar data e Formatar número. Os apps do App Studio somam ações e gatilhos próprios em cada subconta onde são instalados. Faltam sobretudo os que dependem de telefonia (D1), Google Sheets e Slack (T.2) e de objetos associados." },
         { id: "T.2", titulo: "Catálogo de conectores (apps com gatilhos e ações próprios, como a aba Apps do GHL)", status: "pendente", ref: "04c §1.3 Apps" }
       ]
     },
@@ -191,6 +191,7 @@ window.PLANO_SOCI = {
   ],
 
   historico: [
+    { data: "2026-11-22", hora: "09:49", texto: "T.1, ação Divisão A/B: o fluxo divide os contatos em 2 a 6 caminhos pelo percentual de cada um, e o mesmo contato sempre cai no mesmo caminho. No construtor, cada caminho tem nome e percentual, e o total aparece com aviso quando não soma 100% (obrigatório para publicar). Corrigido também um erro no console ao renomear caminhos do Roteador. Agora são 77 gatilhos e 70 ações. 377 testes, 376 passando (a falha é o espelho public/ de arquivos de outro trabalho ainda não commitado). T.1 segue em andamento." },
     { data: "2026-11-21", hora: "23:24", texto: "T.1, lote de área de membros: 3 gatilhos (aula concluída, acesso a curso liberado e acesso a curso removido) e 4 ações (liberar e remover acesso a curso, liberar e remover acesso a comunidade). Agora são 77 gatilhos e 69 ações. 371 testes, 370 passando (a falha é o espelho public/ de ui/beautiful-ui.css, arquivo novo de outro trabalho). T.1 segue em andamento." },
     { data: "2026-11-21", hora: "22:15", texto: "T.1, novo lote do motor de workflows: 8 gatilhos (lembrete de tarefa, reserva de serviço ou locação, transcrição de reunião, assinatura, reembolso, cupom usado, cupom no limite e produtos no carrinho) e 8 ações (editar conversa, seguidores, excluir contato para a lixeira, remover oportunidade, mudar status do agendamento, atualizar valor personalizado, formatar data e formatar número). Agora são 74 gatilhos e 65 ações. 370 testes passando. T.1 segue em andamento." },
     { data: "2026-11-21", hora: "21:55", texto: "7.3 concluído: Marketplace de apps e App Studio. A agência cria apps com webhook, eventos assinados, acesso à API de contatos, ações e gatilhos de workflow e link no menu, e publica para todas ou algumas subcontas. A subconta instala em Configurações → Apps; o app recebe um token só daquela subconta no aviso de instalação, e todas as entregas vão assinadas (HMAC). Nos workflows entram a ação Ação de app e o gatilho App disparou um gatilho. 366 testes passando. Fase 7 concluída. Próximo: T.1." },

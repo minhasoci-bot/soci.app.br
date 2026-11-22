@@ -1,7 +1,7 @@
 // Workflow engine: several triggers with filters, a tree of steps (if/else, router, wait, goal, goto…)
 // compiled into a graph when a contact enrolls, runs that pause and resume, scheduled triggers, and an
 // outbox for the calls the server makes after saving (outbound webhooks, WhatsApp).
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { buildWorkflowContext, resolveTemplate } from './expressions.mjs';
 import { scoreTriggerMatches } from './scoring-model.mjs';
 import { canMessage } from './preference-model.mjs';
@@ -105,6 +105,12 @@ export function workflowRecord(s, d) {
         step.routes = (Array.isArray(raw.routes) ? raw.routes : []).slice(0, 6).map((route, index) => ({ id: uniqueId(route?.id), label: str(route?.label, 60) || `Caminho ${index + 1}`, match: route?.match === 'any' ? 'any' : 'all', conditions: cleanConditions(route?.conditions), steps: list(route?.steps, depth + 1) }));
         step.otherwise = list(raw.otherwise, depth + 1);
       }
+      if (spec.type === 'split') {
+        step.routes = (Array.isArray(raw.routes) ? raw.routes : []).slice(0, 6).map((route, index) => ({ id: uniqueId(route?.id), label: str(route?.label, 60) || `Caminho ${'ABCDEF'[index]}`,
+          percent: Math.min(100, Math.max(0, Math.round(Number(route?.percent) || 0))), steps: list(route?.steps, depth + 1) }));
+        if (publishing && step.routes.length < 2) fail('Divisão A/B: use pelo menos dois caminhos.');
+        if (publishing && step.routes.reduce((sum, route) => sum + route.percent, 0) !== 100) fail('Divisão A/B: os percentuais dos caminhos precisam somar 100%.');
+      }
       if (spec.type === 'webhook' && step.config.url && !/^https:\/\/[^\s/]+\.[^\s]+$/i.test(step.config.url)) fail('O webhook precisa de um endereço https://');
       return step;
     });
@@ -144,6 +150,7 @@ export function compile(steps) {
       const step = items[i], node = { type: step.type, config: step.config || {}, next: after };
       if (step.type === 'if_else') { node.yes = chain(step.yes || [], after); node.no = chain(step.no || [], after); }
       if (step.type === 'router') { node.routes = (step.routes || []).map(route => ({ label: route.label, match: route.match, conditions: route.conditions || [], first: chain(route.steps || [], after) })); node.otherwise = chain(step.otherwise || [], after); }
+      if (step.type === 'split') node.routes = (step.routes || []).map(route => ({ label: route.label, percent: route.percent, first: chain(route.steps || [], after) }));
       nodes[step.id] = node;
       after = step.id;
     }
@@ -151,6 +158,16 @@ export function compile(steps) {
   };
   const first = chain(steps || [], '');
   return { nodes, first };
+}
+
+// A/B split: the path index for a key (contact + step), by each path's share. The same key always gets the same path;
+// shares that do not add up to 100 count as weights. -1 when every share is zero.
+export function splitRoute(key, routes) {
+  const shares = (routes || []).map(route => Math.max(0, Number(route?.percent) || 0)), total = shares.reduce((sum, n) => sum + n, 0);
+  if (!total) return -1;
+  let point = createHash('sha256').update(String(key)).digest().readUInt32BE(0) / 2 ** 32 * total;
+  for (let i = 0; i < shares.length; i++) { if (point < shares[i]) return i; point -= shares[i]; }
+  return shares.findLastIndex(n => n > 0);
 }
 
 /* ───────── Motor ───────── */
@@ -611,6 +628,11 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       }
       if (node.type === 'if_else') { const ok = passes(s, run, c.conditions, c.match); run.results.push(`${label}: ${ok ? 'sim' : 'não'}`); trace(ok ? 'sim' : 'não'); run.at = ok ? node.yes : node.no; continue; }
       if (node.type === 'router') { const route = node.routes.find(item => passes(s, run, item.conditions, item.match)); run.results.push(`${label}: ${route ? route.label : 'caso contrário'}`); trace(route ? route.label : 'caso contrário'); run.at = route ? route.first : node.otherwise; continue; }
+      if (node.type === 'split') {
+        const route = node.routes[splitRoute(`${run.contactId || run.id}:${id}`, node.routes)];
+        run.results.push(`${label}: ${route ? route.label : 'sem caminho, seguindo'}`); trace(route ? route.label : 'sem caminho');
+        run.at = route ? route.first : node.next; continue;
+      }
       if (node.type === 'goal') {
         if (c.otherwise === 'end') { run.results.push(`${label}: meta não alcançada, fluxo encerrado`); run.at = ''; break; }
         if (c.otherwise === 'wait') { run.status = 'Waiting'; run.waitFor = { type: c.event, value: c.eventValue || '', goal: id }; run.wakeAt = ''; run.at = node.next; run.results.push(`${label}: aguardando a meta`); return; }
