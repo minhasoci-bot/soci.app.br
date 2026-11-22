@@ -5217,5 +5217,13 @@ export default {
   "Opcional, para os fluxos enviarem eventos": "Opcional, para que los flujos envíen eventos",
   "O segredo fica guardado com criptografia no servidor e não aparece de novo aqui. Ele é criado no GA4 em Administrador → Fluxos de dados → Chaves secretas da API do Measurement Protocol.": "El secreto queda guardado con cifrado en el servidor y no vuelve a aparecer aquí. Se crea en GA4 en Administrar → Flujos de datos → Secretos de la API de Measurement Protocol.",
   "Remover segredo": "Quitar secreto",
-  "Segredo do GA4 removido.": "Secreto de GA4 quitado."
+  "Segredo do GA4 removido.": "Secreto de GA4 quitado.",
+  "Perguntar à IA": "Preguntar a la IA",
+  "Pede qualquer tarefa à IA com as suas palavras (escrever, reescrever, classificar, responder) e guarda o resultado em {{vars.nome}}. O texto de apoio vai como dado para a IA analisar, nunca como instrução.": "Pide cualquier tarea a la IA con tus palabras (escribir, reescribir, clasificar, responder) y guarda el resultado en {{vars.nome}}. El texto de apoyo va como dato para que la IA lo analice, nunca como instrucción.",
+  "O que a IA deve fazer (aceita variáveis)": "Qué debe hacer la IA (acepta variables)",
+  "Ex.: Escreva uma mensagem curta e simpática convidando {{contact.first_name}} para conhecer o plano anual.": "Ej.: Escribe un mensaje corto y amable invitando a {{contact.first_name}} a conocer el plan anual.",
+  "Texto de apoio (aceita variáveis)": "Texto de apoyo (acepta variables)",
+  "Tamanho da resposta": "Tamaño de la respuesta",
+  "Curta": "Corta",
+  "Longa": "Larga"
 };

@@ -184,8 +184,7 @@ export function workflowRecord(s, d) {
       const spec = actionSpec(step.type);
       if (step.type === 'ai_decision' && aiOptions(step.config.options).length < 2) fail(`${spec.label}: informe pelo menos duas opções.`);
       if (step.type === 'ai_intent' && aiOptions(step.config.intents).length < 2) fail(`${spec.label}: informe pelo menos duas intenções.`);
-      if (step.type === 'ai_extract' && !aiExtractFields(step.config.fields).length) fail(`${spec.label}: informe os dados a extrair, um por linha.`);
-      if (spec?.ai && step.type !== 'ai_extract' && !aiVariableName(step.config.variable)) fail(`${spec.label}: informe o nome da variável.`);
+      if (step.type === 'ai_extract' && !aiExtractFields(step.config.fields).length) fail(`${spec.label}: informe os dados a extrair, um por linha.`);      if (spec?.ai && step.type !== 'ai_extract' && !aiVariableName(step.config.variable)) fail(`${spec.label}: informe o nome da variável.`);
     });
   }
   // Set only by the server from the saving user's session; the run checks it against the workspace's agency.
@@ -1167,6 +1166,11 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'ai_decision': return { names: [variable], payload: { variable, question: text(c.question), options: aiOptions(c.options), input: text(c.input) } };
       case 'ai_intent': return { names: [variable], payload: { variable, intents: aiOptions(c.intents), input: text(c.input) } };
       case 'ai_translate': return { names: [variable], payload: { variable, language: c.language || 'pt', input: text(c.input) } };
+      case 'ai_prompt': {
+        const prompt = text(c.prompt).trim();
+        return { names: [variable], payload: { variable, prompt, input: text(c.input), length: ['short', 'medium', 'long'].includes(c.length) ? c.length : 'short' },
+          problem: prompt ? '' : 'o pedido para a IA ficou vazio' };
+      }
       case 'ai_extract': { const fields = aiExtractFields(c.fields); return { names: fields.map(item => item.name), payload: { fields, input: text(c.input) } }; }
       case 'ai_image': {
         const image = text(c.image).trim();
