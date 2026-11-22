@@ -330,6 +330,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'coupon_redeemed': case 'coupon_limit_reached': case 'coupon_expired': return !c.couponId || c.couponId === ctx.couponId;
       case 'conversation_sla': return (!c.state || c.state === ctx.state) && (!c.channel || c.channel === ctx.channel);
       case 'cart_updated': return !c.storeId || c.storeId === ctx.storeId;
+      case 'prospect_received': return (!c.isNew || c.isNew === ctx.isNew) && (!c.withOpportunity || c.withOpportunity === ctx.withOpportunity) && (!c.category || lower(ctx.category).includes(lower(c.category)));
       default: return scheduledTypes.includes(type) ? ctx.triggerId === trigger.id : true;
     }
   }

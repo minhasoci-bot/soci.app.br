@@ -326,6 +326,36 @@ function run(state, event, context = {}) {
 }
 /** Workflow events from outside a command (the social scheduler, for one). */
 export const emitWorkflow = (state, event, ctx = {}) => run(state, event, ctx);
+/**
+ * Prospects the agency sends from Prospecting into this subaccount: one contact each (reused when an
+ * earlier import, the e-mail or the phone matches), tagged "New Prospect Received", an optional
+ * opportunity in the first stage, and the "Prospect recebido" trigger the first time a prospect arrives.
+ */
+export function receiveProspects(state, prospects, { opportunity: withOpportunity = false } = {}) {
+  state.prospectImports ??= {};
+  const stage = state.stages[0];
+  const digits = value => String(value || '').replace(/\D/g, '');
+  return prospects.map(row => {
+    const previous = state.prospectImports[row.id];
+    const phone = row.contactPhone || row.phone || '';
+    const email = String(row.email || '').toLowerCase();
+    const dedupPhone = digits(phone);
+    const reused = state.contacts.find(contact => contact.id === previous?.contact || (email && contact.email === email) ||
+      (dedupPhone.length >= 7 && digits(contact.phone) === dedupPhone));
+    const notes = [row.website, row.address, [row.city, row.region, row.country].filter(Boolean).join(', ')].filter(Boolean).join('\n');
+    const contact = reused?.id || execute(state, { type: 'save', key: 'contacts', data: { name: row.owner || row.name, email, phone, company: row.name,
+      notes, tags: ['New Prospect Received'] } });
+    if (reused && !reused.tags.includes('New Prospect Received')) reused.tags.push('New Prospect Received');
+    let opportunity = state.opportunities.some(item => item.id === previous?.opportunity && item.contactId === contact) ? previous.opportunity : '';
+    if (withOpportunity && !opportunity && stage) opportunity = execute(state, { type: 'save', key: 'opportunities', data: { title: row.name,
+      contactId: contact, stage: stage.id, value: 0, status: 'Open', source: 'Prospecting' } });
+    state.prospectImports[row.id] = { contact, opportunity };
+    if (!previous) run(state, 'prospect_received', { contactId: contact, prospectId: row.id, opportunityId: opportunity,
+      isNew: reused ? 'no' : 'yes', withOpportunity: opportunity ? 'yes' : 'no',
+      company: row.name || '', website: row.website || '', city: row.city || '', category: row.category || '' });
+    return { id: row.id, contact, opportunity };
+  });
+}
 // The AI ledger lives in ai-model.mjs; its threshold crossings reach the workflows through here.
 onAiAlert((state, ctx) => run(state, 'ai_usage_alert', ctx));
 const enroll = (state, workflow, event, contactId = '') => engine.enroll(state, workflow, { contactId, depth: 1 }, event);

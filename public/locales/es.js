@@ -5094,5 +5094,15 @@ export default {
   "Agente (publicado)": "Agente (publicado)",
   "Escolha o agente": "Elija el agente",
   "Mensagem para o agente (aceita variáveis)": "Mensaje para el agente (acepta variables)",
-  "Guardar a resposta na variável": "Guardar la respuesta en la variable"
+  "Guardar a resposta na variável": "Guardar la respuesta en la variable",
+  "Prospect recebido da agência": "Prospect recibido de la agencia",
+  "Quando a agência envia um prospect da Prospecção para esta subconta (uma vez por prospect; reenviar não dispara de novo). O contato chega com a tag New Prospect Received. Use {{trigger.company}}, {{trigger.website}}, {{trigger.city}} e {{trigger.category}}.": "Cuando la agencia envía un prospect de Prospección a esta subcuenta (una vez por prospect; reenviarlo no lo dispara de nuevo). El contacto llega con la etiqueta New Prospect Received. Use {{trigger.company}}, {{trigger.website}}, {{trigger.city}} y {{trigger.category}}.",
+  "Novo ou já existente": "Nuevo o ya existente",
+  "Contato novo": "Contacto nuevo",
+  "Contato que já existia": "Contacto que ya existía",
+  "Com ou sem oportunidade": "Con o sin oportunidad",
+  "Com oportunidade criada": "Con oportunidad creada",
+  "Sem oportunidade": "Sin oportunidad",
+  "Categoria do negócio contém": "La categoría del negocio contiene",
+  "Qualquer categoria": "Cualquier categoría"
 };

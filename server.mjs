@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { blank, seed, uid, execute, find, emitWorkflow } from './model.mjs';
+import { blank, seed, uid, execute, find, emitWorkflow, receiveProspects } from './model.mjs';
 import { createSqliteStore, supabaseFromEnv } from './storage.mjs';
 import { accountProfile, afterLogin, authFromEnv } from './auth.mjs';
 import { discoverDesign, generatePage, generateSite, planSite, revisePage, suggestSeo } from './studio-ai.mjs';
@@ -904,28 +904,7 @@ export function makeServer({
     const agency = await loadAgency(who.agencyId);
     const prospects = ids.map(id => agency.prospects.find(row => row.id === id && !row.archived));
     if (prospects.some(row => !row)) throw error('Um dos prospects não está disponível para envio.',404);
-    const imported = await store.change(workspace,state => {
-      state.prospectImports ??= {};
-      const stage = state.stages[0];
-      return prospects.map(row => {
-        const previous = state.prospectImports[row.id] || {};
-        const phone = row.contactPhone || row.phone || '';
-        const digits = value => String(value || '').replace(/\D/g,'');
-        const email = String(row.email || '').toLowerCase();
-        const dedupPhone = digits(phone);
-        const reused = state.contacts.find(contact => contact.id === previous.contact || (email && contact.email === email) ||
-          (dedupPhone.length >= 7 && digits(contact.phone) === dedupPhone));
-        const notes = [row.website,row.address,[row.city,row.region,row.country].filter(Boolean).join(', ')].filter(Boolean).join('\n');
-        const contact = reused?.id || execute(state,{type:'save',key:'contacts',data:{name:row.owner || row.name,email,phone,company:row.name,
-          notes,tags:['New Prospect Received']}});
-        if (reused && !reused.tags.includes('New Prospect Received')) reused.tags.push('New Prospect Received');
-        let opportunity = state.opportunities.some(item => item.id === previous.opportunity && item.contactId === contact) ? previous.opportunity : '';
-        if (input.opportunity === true && !opportunity && stage) opportunity = execute(state,{type:'save',key:'opportunities',data:{title:row.name,
-          contactId:contact,stage:stage.id,value:0,status:'Open',source:'Prospecting'}});
-        state.prospectImports[row.id] = {contact,opportunity};
-        return {id:row.id,contact,opportunity};
-      });
-    });
+    const imported = await store.change(workspace,state => receiveProspects(state,prospects,{opportunity:input.opportunity === true}));
     const at = stamp();
     await changeAgency(who.agencyId, current => {
       for (const item of imported) {
