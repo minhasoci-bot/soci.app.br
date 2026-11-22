@@ -24,6 +24,9 @@ export const refSources = {
   badgeTemplates: s => (s.certificateTemplates || []).filter(row => row.kind === 'badge').map(row => [row.id, row.name]),
   communityEvents: s => (s.communityEvents || []).map(row => [row.id, `${row.title} · ${(s.communities || []).find(group => group.id === row.communityId)?.name || 'Comunidade'}`]),
   stores: s => (s.stores || []).map(row => [row.id, row.name]),
+  services: s => (s.services || []).map(row => [row.id, row.name]),
+  coupons: s => (s.coupons || []).map(row => [row.id, `${row.code} · ${row.name}`]),
+  customValues: s => (s.customValues || []).map(row => [row.id, row.name]),
   appActions: s => (s.appInstalls || []).flatMap(app => app.actions.map(item => [`${app.appId}:${item.key}`, `${app.name} · ${item.label}`])),
   appTriggers: s => (s.appInstalls || []).flatMap(app => app.triggers.map(item => [`${app.appId}:${item.key}`, `${app.name} · ${item.label}`])),
   products: s => (s.products || []).filter(row => row.kind !== 'Recurring').map(row => [row.id, row.name]),
@@ -57,7 +60,8 @@ export const triggerCatalog = [
     { type: 'custom_date_reminder', label: 'Lembrete de data personalizada', icon: 'cal', scheduled: true, fields: [f('field', 'Campo de data', 'ref', { source: 'dateFields', required: true }), f('offset', 'Dias em relação à data (negativo = antes)', 'number', { min: -365, max: 365, value: 0 }), f('time', 'Horário', 'time', { value: '09:00' })] },
     { type: 'note_added', label: 'Nota adicionada', icon: 'note' },
     { type: 'task_added', label: 'Tarefa adicionada', icon: 'check' },
-    { type: 'task_completed', label: 'Tarefa concluída', icon: 'check' }
+    { type: 'task_completed', label: 'Tarefa concluída', icon: 'check' },
+    { type: 'task_reminder', label: 'Lembrete de tarefa', icon: 'clock', scheduled: true, description: 'Uma vez por dia, para as tarefas em aberto que vencem no dia escolhido.', fields: [f('days', 'Quantos dias antes do prazo', 'number', { value: 0, min: 0, max: 30 }), f('time', 'Horário', 'time', { value: '09:00' })] }
   ] },
   { group: 'Eventos', items: [
     { type: 'inbound_webhook', label: 'Webhook de entrada', icon: 'link', fields: [] },
@@ -139,6 +143,8 @@ export const triggerCatalog = [
     { type: 'appointment_booked', label: 'Agendamento criado', icon: 'cal' },
     { type: 'appointment_status', label: 'Status do agendamento', icon: 'cal', fields: [f('status', 'Novo status', 'select', { options: [any('Qualquer status'), ['Confirmed', 'Confirmado'], ['Completed', 'Concluído'], ['Canceled', 'Cancelado']] })] },
     { type: 'meeting_summarized', label: 'Resumo de reunião gerado', icon: 'note', fields: [f('sentiment', 'Clima do cliente', 'select', { options: [any('Qualquer clima'), ['positive', 'Positivo'], ['neutral', 'Neutro'], ['negative', 'Negativo']] })] },
+    { type: 'transcript_generated', label: 'Transcrição de reunião gerada', icon: 'note', description: 'Quando a transcrição de uma reunião ligada ao contato fica pronta (colada, de arquivo ou de áudio).', fields: [] },
+    { type: 'service_booked', label: 'Reserva de serviço', icon: 'cal', description: 'Quando o cliente reserva um serviço ou uma locação na página de agendamento.', fields: [f('serviceId', 'Serviço', 'ref', { source: 'services', empty: 'Qualquer serviço' }), f('kind', 'Tipo', 'select', { options: [any('Qualquer tipo'), ['appointment', 'Atendimento no local'], ['field', 'Serviço em campo'], ['rental', 'Locação']] })] },
     { type: 'field_status_changed', label: 'Serviço em campo: situação mudou', icon: 'cal', fields: [f('status', 'Nova situação', 'select', { options: [any('Qualquer situação'), ['en_route', 'A caminho'], ['on_site', 'No local'], ['done', 'Concluído']] })] }
   ] },
   { group: 'Oportunidades', items: [
@@ -165,7 +171,12 @@ export const triggerCatalog = [
     { type: 'estimate_status', label: 'Orçamento', icon: 'pay', fields: [f('status', 'Quando o orçamento for', 'select', { options: [any('Qualquer mudança'), ['sent', 'Enviado'], ['viewed', 'Visualizado'],
       ['accepted', 'Aceito'], ['declined', 'Recusado'], ['invoiced', 'Faturado'], ['paid', 'Pago'], ['expired', 'Vencido']] })] },
     { type: 'recurring_invoice_status', label: 'Fatura recorrente', icon: 'pay', fields: [f('status', 'Quando a fatura recorrente for', 'select', { options: [any('Qualquer mudança'),
-      ['started', 'Ativada'], ['issued', 'Fatura emitida'], ['paused', 'Pausada'], ['resumed', 'Retomada'], ['completed', 'Concluída'], ['cancelled', 'Cancelada']] })] }
+      ['started', 'Ativada'], ['issued', 'Fatura emitida'], ['paused', 'Pausada'], ['resumed', 'Retomada'], ['completed', 'Concluída'], ['cancelled', 'Cancelada']] })] },
+    { type: 'subscription_status', label: 'Assinatura', icon: 'pay', description: 'Quando uma assinatura é criada ou muda de status.', fields: [f('status', 'Status', 'select', { options: [any('Qualquer status'), ['Active', 'Ativa'], ['Paused', 'Pausada'], ['Canceled', 'Cancelada']] })] },
+    { type: 'refund', label: 'Reembolso', icon: 'pay', description: 'Quando um pagamento do contato é marcado como reembolsado. Use {{trigger.total}}.', fields: [] },
+    { type: 'coupon_redeemed', label: 'Cupom usado', icon: 'tag', description: 'Quando um pedido da loja usa um cupom. Use {{trigger.code}}.', fields: [f('couponId', 'Cupom', 'ref', { source: 'coupons', empty: 'Qualquer cupom' })] },
+    { type: 'coupon_limit_reached', label: 'Cupom atingiu o limite de usos', icon: 'tag', description: 'Quando um cupom chega ao número máximo de usos. Dispara para o contato do último pedido.', fields: [f('couponId', 'Cupom', 'ref', { source: 'coupons', empty: 'Qualquer cupom' })] },
+    { type: 'cart_updated', label: 'Produtos adicionados ao carrinho', icon: 'pay', description: 'Quando um contato já cadastrado coloca ou muda produtos no carrinho da loja. Use {{trigger.total}}.', fields: [f('storeId', 'Loja', 'ref', { source: 'stores', empty: 'Qualquer loja' })] }
   ] }
 ];
 
@@ -189,8 +200,11 @@ export const actionCatalog = [
     { type: 'update_field', label: 'Atualizar campo do contato', icon: 'edit', fields: [f('field', 'Campo', 'ref', { source: 'contactFields', required: true }), f('value', 'Novo valor (aceita variáveis)', 'text', { required: true })] },
     { type: 'assign_user', label: 'Atribuir a um usuário', icon: 'contacts', fields: [f('user', 'Usuário', 'text', { required: true, placeholder: 'Nome do usuário da equipe' })] },
     { type: 'remove_user', label: 'Remover usuário atribuído', icon: 'contacts' },
+    { type: 'edit_conversation', label: 'Editar conversa', icon: 'chat', fields: [f('op', 'O que fazer', 'select', { options: [['read', 'Marcar como lida'], ['unread', 'Marcar como não lida'], ['star', 'Marcar com estrela'], ['unstar', 'Tirar a estrela']] })] },
+    { type: 'conversation_followers', label: 'Seguidores da conversa', icon: 'contacts', fields: [f('op', 'O que fazer', 'select', { options: [['add', 'Adicionar seguidores'], ['remove', 'Remover seguidores']] }), f('users', 'Pessoas da equipe (separadas por vírgula)', 'text', { required: true, placeholder: 'Ana, Bruno' })] },
     { type: 'set_dnd', label: 'Ativar ou desativar DND', icon: 'lock', fields: [f('state', 'Não perturbe', 'select', { options: [['on', 'Ativar'], ['off', 'Desativar']] })] },
     { type: 'add_note', label: 'Adicionar nota', icon: 'note', fields: [f('body', 'Nota', 'textarea', { required: true })] },
+    { type: 'delete_contact', label: 'Excluir contato', icon: 'trash', description: 'Manda o contato para a lixeira (60 dias para restaurar). As etapas seguintes ficam sem contato.', fields: [] },
     { type: 'make_affiliate', label: 'Tornar afiliado', icon: 'users', description: 'Cadastra o contato como afiliado na campanha (precisa de e-mail).', fields: [f('campaignId', 'Campanha de afiliados', 'ref', { source: 'affiliateCampaigns', required: true })] }
   ] },
   { group: 'Comunicação', items: [
@@ -237,6 +251,8 @@ export const actionCatalog = [
     { type: 'create_task', label: 'Criar tarefa', icon: 'check', fields: [f('title', 'Título', 'text', { required: true }), f('dueDays', 'Prazo em dias', 'number', { min: 0, max: 365, value: 1 }), f('owner', 'Responsável', 'text')] },
     { type: 'create_opportunity', label: 'Criar ou atualizar oportunidade', icon: 'leads', fields: [f('title', 'Nome', 'text', { required: true, value: '{{contact.name}}' }), f('stageId', 'Etapa', 'ref', { source: 'stages', required: true }), f('value', 'Valor (R$)', 'number', { min: 0, value: 0 })] },
     { type: 'opportunity_status', label: 'Mudar status da oportunidade', icon: 'leads', fields: [f('status', 'Status', 'select', { options: [['Won', 'Ganha'], ['Lost', 'Perdida'], ['Open', 'Aberta'], ['Abandoned', 'Abandonada']] })] },
+    { type: 'remove_opportunity', label: 'Remover oportunidade', icon: 'leads', description: 'Exclui a oportunidade mais recente do contato (do pipeline escolhido, se houver).', fields: [f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' })] },
+    { type: 'appointment_status_update', label: 'Mudar status do agendamento', icon: 'cal', description: 'Muda o próximo agendamento do contato (ou o último, se não houver próximo).', fields: [f('status', 'Novo status', 'select', { options: [['Confirmed', 'Confirmado'], ['Completed', 'Concluído'], ['Canceled', 'Cancelado']] })] },
     { type: 'send_document', label: 'Enviar documento ou contrato', icon: 'file', fields: [f('templateId', 'Modelo', 'ref', { source: 'documentTemplates', required: true }),
       f('title', 'Título do documento', 'text', { value: '' }), f('channel', 'Enviar por', 'select', { options: [['email', 'E-mail'], ['email_whatsapp', 'E-mail e WhatsApp']] }),
       f('expiresDays', 'Validade em dias (0 = sem prazo)', 'number', { min: 0, max: 365, value: 15 })] },
@@ -250,7 +266,8 @@ export const actionCatalog = [
       f('frequency', 'Frequência', 'select', { options: [['monthly', 'Mensal'], ['weekly', 'Semanal'], ['daily', 'Diária'], ['yearly', 'Anual']] }),
       f('interval', 'A cada (períodos)', 'number', { min: 1, max: 30, value: 1 }), f('count', 'Número de faturas (0 = sem fim)', 'number', { min: 0, max: 240, value: 0 }),
       f('channel', 'Enviar por', 'select', { options: [['email', 'E-mail'], ['email_whatsapp', 'E-mail e WhatsApp']] })] },
-    { type: 'create_invoice', label: 'Criar fatura', icon: 'pay', fields: [f('title', 'Descrição', 'text', { required: true }), f('value', 'Valor (R$)', 'number', { min: 0, required: true }), f('dueDays', 'Vence em (dias)', 'number', { min: 0, max: 365, value: 7 })] }
+    { type: 'create_invoice', label: 'Criar fatura', icon: 'pay', fields: [f('title', 'Descrição', 'text', { required: true }), f('value', 'Valor (R$)', 'number', { min: 0, required: true }), f('dueDays', 'Vence em (dias)', 'number', { min: 0, max: 365, value: 7 })] },
+    { type: 'update_custom_value', label: 'Atualizar valor personalizado', icon: 'key', description: 'Muda um valor personalizado da conta, usado como {{custom_values.nome}} em todo lugar.', fields: [f('valueId', 'Valor personalizado', 'ref', { source: 'customValues', required: true, empty: 'Escolha um valor' }), f('value', 'Novo valor', 'text', { required: true })] }
   ] },
   { group: 'IA', items: [
     { type: 'ai_decision', label: 'Decidir com IA', icon: 'spark', ai: true, description: 'A IA escolhe uma das opções. Use a variável num Se / Senão ou Roteador.',
@@ -298,6 +315,8 @@ export const actionCatalog = [
     { type: 'remove_from_workflow', label: 'Remover de um fluxo', icon: 'close', fields: [f('workflowId', 'Fluxo', 'ref', { source: 'workflows', empty: 'Este fluxo' })] },
     { type: 'math', label: 'Operação matemática', icon: 'sort', fields: [f('field', 'Campo numérico', 'ref', { source: 'numberFields', required: true }), f('op', 'Operação', 'select', { options: [['add', 'Somar'], ['subtract', 'Subtrair'], ['multiply', 'Multiplicar'], ['divide', 'Dividir'], ['set', 'Definir como']] }), f('number', 'Valor', 'number', { required: true, value: 1 })] },
     { type: 'text_format', label: 'Formatar texto', icon: 'edit', fields: [f('field', 'Campo', 'ref', { source: 'textFields', required: true }), f('op', 'Formato', 'select', { options: [['upper', 'MAIÚSCULAS'], ['lower', 'minúsculas'], ['title', 'Primeira Letra Maiúscula'], ['trim', 'Sem espaços nas pontas']] })] },
+    { type: 'date_format', label: 'Formatar data', icon: 'clock', description: 'Guarda uma data formatada em {{vars.nome}}. Aceita AAAA-MM-DD, data com hora ou a palavra hoje.', fields: [f('value', 'Data', 'text', { required: true, placeholder: '2026-12-01, {{vars.data}} ou hoje' }), f('days', 'Somar dias', 'number', { value: 0, min: -3650, max: 3650 }), f('format', 'Formato', 'select', { options: [['br', 'DD/MM/AAAA'], ['iso', 'AAAA-MM-DD'], ['long', 'Por extenso (21 de novembro de 2026)'], ['weekday', 'Dia da semana'], ['time', 'Hora (HH:MM)']] }), f('variable', 'Nome da variável', 'text', { required: true, placeholder: 'data' })] },
+    { type: 'number_format', label: 'Formatar número', icon: 'sort', description: 'Guarda um número formatado em {{vars.nome}}.', fields: [f('value', 'Número', 'text', { required: true, placeholder: '{{trigger.total}}' }), f('format', 'Formato', 'select', { options: [['brl', 'Moeda (R$ 1.234,56)'], ['decimal', 'Duas casas (1.234,56)'], ['integer', 'Inteiro (1.235)'], ['percent', 'Percentual (12,5%)']] }), f('variable', 'Nome da variável', 'text', { required: true, placeholder: 'valor' })] },
     { type: 'app_action', label: 'Ação de app', icon: 'grid', description: 'Envia o contato e o texto abaixo para um app instalado do marketplace. O app recebe a ação no webhook dele.', fields: [f('action', 'Ação', 'ref', { source: 'appActions', empty: 'Escolha a ação de um app', required: true }), f('data', 'Dados enviados ao app', 'textarea', { placeholder: 'Ex.: plano {{contact.custom.plano}}' })] },
     { type: 'webhook', label: 'Webhook de saída', icon: 'send', fields: [f('url', 'Endereço (https://)', 'text', { required: true, placeholder: 'https://' }), f('method', 'Método', 'select', { options: [['POST', 'POST'], ['PUT', 'PUT'], ['GET', 'GET']] })] },
     { type: 'end', label: 'Encerrar fluxo', icon: 'close' }

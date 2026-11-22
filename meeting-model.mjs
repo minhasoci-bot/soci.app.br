@@ -51,6 +51,7 @@ export function meetingCommand(s, command, { add, run, now }) {
     const text = transcriptFromCaptions(str(d.transcript, 60000));
     if (!text) fail('A transcrição veio vazia.');
     meeting.transcript = text; meeting.source = ['audio', 'recording'].includes(d.source) ? d.source : 'audio'; meeting.updated = now();
+    if (meeting.contactId) run(s, 'transcript_generated', { contactId: meeting.contactId, meetingId: meeting.id, title: meeting.title });
     return meeting.id;
   }
   if (type === 'meeting-summary') {

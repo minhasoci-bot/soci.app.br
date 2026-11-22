@@ -44,7 +44,7 @@ export function saveAbandonedSettings(s, d) {
 }
 
 /** Public: the cart page reports the buyer and the items (once the e-mail is filled, and again on changes). */
-export function captureCart(s, storeId, d) {
+export function captureCart(s, storeId, d, { run = null } = {}) {
   const store = (s.stores || []).find(row => row.id === storeId && row.active) || fail('Esta loja não está aberta.', 404);
   const session = str(d.session, 64);
   if (!/^[0-9a-f]{32,64}$/.test(session)) fail('Sessão inválida.');
@@ -56,6 +56,7 @@ export function captureCart(s, storeId, d) {
   s.abandonedCheckouts ||= [];
   let row = s.abandonedCheckouts.find(item => item.sessionHash === hash && item.storeId === store.id);
   if (row && ['converted', 'recovered'].includes(row.status)) row = null;
+  const before = row ? JSON.stringify((row.items || []).map(line => [line.productId, line.qty])) : '';
   const details = { name: str(d.name, 120), email, phone: str(d.phone, 48), items: quote.lines.map(line => ({ productId: line.productId, name: line.name, qty: line.qty, price: line.price, total: line.total })),
     subtotal: quote.subtotal, total: quote.total, coupon: quote.coupon || '', updated: now() };
   if (row) Object.assign(row, details, row.status === 'abandoned' ? { returnedAt: details.updated } : {});
@@ -66,6 +67,11 @@ export function captureCart(s, storeId, d) {
       const drop = s.abandonedCheckouts.findIndex(item => item.status !== 'open' && item.status !== 'abandoned');
       s.abandonedCheckouts.splice(drop >= 0 ? drop : 0, 1);
     }
+  }
+  // "Produtos adicionados ao carrinho": a known contact put or changed products in the cart.
+  const contact = run && s.contacts.find(item => String(item.email || '').toLowerCase() === email);
+  if (contact && JSON.stringify(details.items.map(line => [line.productId, line.qty])) !== before) {
+    run(s, 'cart_updated', { contactId: contact.id, storeId: store.id, total: details.total, items: details.items.length });
   }
   return { tracked: true };
 }
