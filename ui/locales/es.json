@@ -5224,5 +5224,11 @@
   "Texto de apoio (aceita variáveis)": "Texto de apoyo (acepta variables)",
   "Tamanho da resposta": "Tamaño de la respuesta",
   "Curta": "Corta",
-  "Longa": "Larga"
+  "Longa": "Larga",
+  "Página do site ou funil visitada": "Página del sitio o embudo visitada",
+  "Quando um contato conhecido abre uma página de um site ou funil publicado na Soci. O navegador passa a ser reconhecido depois que a pessoa envia um formulário do site ou funil; visitas anônimas não disparam. Recarregar a mesma página em 30 minutos não conta de novo. Use {{trigger.page}} e {{trigger.site}}.": "Cuando un contacto conocido abre una página de un sitio o embudo publicado en Soci. El navegador pasa a ser reconocido después de que la persona envía un formulario del sitio o embudo; las visitas anónimas no disparan. Recargar la misma página en 30 minutos no cuenta de nuevo. Usa {{trigger.page}} y {{trigger.site}}.",
+  "Site ou funil": "Sitio o embudo",
+  "Qualquer site ou funil": "Cualquier sitio o embudo",
+  "Página (endereço depois do site)": "Página (dirección después del sitio)",
+  "Ex.: obrigado (vazio = qualquer página; a inicial é index)": "Ej.: obrigado (vacío = cualquier página; la inicial es index)"
 }

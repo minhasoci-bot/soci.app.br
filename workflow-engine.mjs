@@ -281,6 +281,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'customer_replied': return (!c.channel || c.channel === ctx.channel) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
       case 'social_comment_received': return (!c.network || c.network === ctx.network) && (!c.keyword || lower(ctx.body || ctx.comment).includes(lower(c.keyword)));
       case 'social_dm_received': return (!c.network || c.network === ctx.network) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
+      case 'site_page_viewed': return (!c.projectId || c.projectId === ctx.projectId) && (!c.page || lower(String(c.page).trim().replace(/^\/+|\/+$/g, '') || 'index') === lower(ctx.page));
       case 'external_tracking_event': return (!c.event || c.event === ctx.event) && (!c.url || lower(ctx.url).includes(lower(c.url)));
       case 'score_changed': return scoreTriggerMatches(c, ctx);
       case 'ad_lead': return (!c.network || c.network === ctx.network) && (!c.campaign || lower(ctx.campaign).includes(lower(c.campaign)));
