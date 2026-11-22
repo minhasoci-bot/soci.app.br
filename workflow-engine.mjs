@@ -111,7 +111,7 @@ export function formatList(value, { op = 'count', separator = ',', position = 1,
 }
 const MAX_LOOP = 50, MAX_RUN_STEPS = 1000;
 const MAX_STEPS = 120, MAX_DEPTH = 4, CONDITIONS = ['tag', 'field', 'dnd', 'stage', 'opportunity_status', 'replied', 'submitted', 'trigger', 'var'];
-const AI_TIMEOUT = 10 * 60000;
+const AI_TIMEOUT = 10 * 60000, VIDEO_TIMEOUT = 40 * 60000;
 const scheduledTypes = allTriggers.filter(item => item.scheduled).map(item => item.type);
 
 /* ───────── Validação ───────── */
@@ -1233,7 +1233,7 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
           run.at = node.next; continue;
         }
         outbox(s, { kind: 'ai', runId: run.id, stepId: id, workflowId: run.workflowId, action: node.type, ...request.payload });
-        run.status = 'Waiting'; run.waitFor = { type: 'ai', step: id }; run.wakeAt = new Date(Date.now() + AI_TIMEOUT).toISOString(); run.at = node.next;
+        run.status = 'Waiting'; run.waitFor = { type: 'ai', step: id }; run.wakeAt = new Date(Date.now() + (node.type === 'ai_video_generate' ? VIDEO_TIMEOUT : AI_TIMEOUT)).toISOString(); run.at = node.next;
         run.results.push(`${label}: aguardando a IA`); trace('aguardando a IA');
         return;
       }
@@ -1288,6 +1288,11 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       case 'ai_decision': return { names: [variable], payload: { variable, question: text(c.question), options: aiOptions(c.options), input: text(c.input) } };
       case 'ai_intent': return { names: [variable], payload: { variable, intents: aiOptions(c.intents), input: text(c.input) } };
       case 'ai_translate': return { names: [variable], payload: { variable, language: c.language || 'pt', input: text(c.input) } };
+      case 'ai_image_generate': case 'ai_video_generate': {
+        const prompt = text(c.prompt).trim();
+        const payload = node.type === 'ai_image_generate' ? { variable, prompt, size: c.size || '1024x1024', quality: c.quality || 'medium' } : { variable, prompt, seconds: c.seconds || '4', size: c.size || '1280x720' };
+        return { names: [variable, `${variable}_id`], payload, problem: prompt ? '' : 'a descrição ficou vazia' };
+      }
       case 'ai_prompt': {
         const prompt = text(c.prompt).trim();
         return { names: [variable], payload: { variable, prompt, input: text(c.input), length: ['short', 'medium', 'long'].includes(c.length) ? c.length : 'short' },

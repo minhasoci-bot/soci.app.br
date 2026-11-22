@@ -539,6 +539,18 @@ export const actionCatalog = [
       f('length', 'Tamanho da resposta', 'select', { options: [['short', 'Curta'], ['medium', 'Média'], ['long', 'Longa']] }),
       f('variable', 'Guardar a resposta na variável', 'text', { required: true, value: 'resposta_ia' })
     ] },
+    { type: 'ai_image_generate', label: 'Gerar imagem com IA', icon: 'spark', ai: true, description: 'Cria uma imagem a partir de uma descrição (OpenAI gpt-image-1) e guarda em Arquivos, com um link público em {{vars.nome}} para mandar por WhatsApp, e-mail ou post. Usa a OpenAI de quem salvou o fluxo.', fields: [
+      f('prompt', 'Descrição da imagem (aceita variáveis)', 'textarea', { required: true, placeholder: 'Ex.: foto de um bolo de aniversário com o nome {{contact.first_name}} escrito na cobertura, luz natural' }),
+      f('size', 'Formato', 'select', { options: [['1024x1024', 'Quadrado'], ['1536x1024', 'Paisagem'], ['1024x1536', 'Retrato']] }),
+      f('quality', 'Qualidade', 'select', { options: [['medium', 'Média'], ['low', 'Baixa (mais rápida)'], ['high', 'Alta']] }),
+      f('variable', 'Guardar o link na variável', 'text', { required: true, value: 'imagem_ia' })
+    ] },
+    { type: 'ai_video_generate', label: 'Gerar vídeo com IA', icon: 'spark', ai: true, description: 'Cria um vídeo curto a partir de uma descrição (OpenAI sora-2). Leva alguns minutos: o fluxo espera o vídeo ficar pronto e guarda o link público em {{vars.nome}}. Usa a OpenAI de quem salvou o fluxo.', fields: [
+      f('prompt', 'Descrição do vídeo (aceita variáveis)', 'textarea', { required: true, placeholder: 'Ex.: câmera lenta de um café sendo servido numa xícara branca, manhã, luz suave' }),
+      f('seconds', 'Duração', 'select', { options: [['4', '4 segundos'], ['8', '8 segundos'], ['12', '12 segundos']] }),
+      f('size', 'Formato', 'select', { options: [['1280x720', 'Paisagem (16:9)'], ['720x1280', 'Vertical (9:16)']] }),
+      f('variable', 'Guardar o link na variável', 'text', { required: true, value: 'video_ia' })
+    ] },
     { type: 'ai_decision', label: 'Decidir com IA', icon: 'spark', ai: true, description: 'A IA escolhe uma das opções. Use a variável num Se / Senão ou Roteador.',
       fields: [f('question', 'O que a IA deve decidir', 'textarea', { required: true, placeholder: 'Ex.: Este lead está pronto para comprar?' }),
         f('options', 'Opções (separadas por vírgula)', 'text', { required: true, placeholder: 'quente, morno, frio' }),
@@ -707,7 +719,7 @@ export function stepSummary(step, s) {
     case 'ai_decision': return `${String(c.options || '').slice(0, 50)} → vars.${c.variable || 'decisao'}`;
     case 'ai_intent': return `${String(c.intents || '').slice(0, 50)} → vars.${c.variable || 'intencao'}`;
     case 'ai_agent': return [ref('agents', c.agentId), c.variable ? `→ vars.${c.variable}` : ''].filter(Boolean).join(' ');
-    case 'ai_prompt': case 'ai_summarize': case 'ai_translate': case 'ai_image': return c.variable ? `→ vars.${c.variable}` : '';
+    case 'ai_prompt': case 'ai_summarize': case 'ai_translate': case 'ai_image': case 'ai_image_generate': case 'ai_video_generate': return c.variable ? `→ vars.${c.variable}` : '';
     case 'ai_extract': return aiExtractFields(c.fields).map(item => `vars.${item.name}`).join(', ').slice(0, 80);
     case 'router': return `${(step.routes || []).length} caminho(s)`;
     case 'split': return (step.routes || []).map(route => `${route.label} ${splitPercent(route.percent)}%`).join(' · ').slice(0, 80);

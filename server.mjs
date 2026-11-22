@@ -102,6 +102,8 @@ import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, reviewSoc
 import { authUrl, availability, blueskyLogin, exchange as socialExchange, publish as socialPublish, seal, unseal } from './social-providers.mjs';
 import { fetchMetaLead, metaInbound, metaLeads, metaSenderName, metaSignatureValid, quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
 import { googleLeadFields, googleLeadKeyValid, metaLeadFields } from './lead-forms.mjs';
+import { generateImage, startVideo, videoContent, videoStatus } from './openai-media.mjs';
+import { CHUNK_BYTES } from './reputation-media.mjs';
 import { network } from './ui/social-data.js';
 import { captionRequest, writeCaption } from './social-ai.mjs';
 import { findSharedReport, reportMailer, sharedReportPage } from './report-share.mjs';
@@ -271,7 +273,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 
 export function makeServer({
   dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
-  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, brandFetch=fetch, metaFetch=fetch, brandResolve=null, designAgentConfig=designAgent,
+  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, brandResolve=null, designAgentConfig=designAgent,
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
   evolutionBaseUrl=process.env.EVOLUTION_BASE_URL || '', evolutionApiKey=process.env.EVOLUTION_API_KEY || '',
@@ -1505,6 +1507,20 @@ export function makeServer({
       checkAiBudget(await store.load(workspace));
       const meter = usageMeter();
       try {
+        if (item.action === 'ai_image_generate') {
+          // "Gerar imagem com IA": the image becomes a public file; its link goes to the flow variable.
+          const data = await (mediaAI?.image || generateImage)({ ...connection, onUsage: meter.onUsage }, item);
+          const fileId = (await change(workspace, { type: 'ai-media-file', data: { name: `imagem-ia-${Date.now()}.webp`, data } })).id;
+          await store.change(workspace, current => { meter.charge(current, 'workflow', ''); });
+          return { ...base, vars: { [item.variable]: documentMail.linkOf({ path: `/m/${workspace}/${fileId}` }), [`${item.variable}_id`]: fileId } };
+        }
+        if (item.action === 'ai_video_generate') {
+          // "Gerar vídeo com IA": the job runs for minutes; runWorkflows checks it every cycle (pollAiVideos).
+          const jobId = await (mediaAI?.start || startVideo)({ ...connection, onUsage: meter.onUsage }, item);
+          await change(workspace, { type: 'ai-video-job', data: { jobId, runId: item.runId, stepId: item.stepId, workflowId: item.workflowId, variable: item.variable, prompt: item.prompt } });
+          await store.change(workspace, current => { meter.charge(current, 'workflow', ''); });
+          return null;
+        }
         if (item.action === 'ai_agent') {
           // "Rodar agente de IA": the published agent answers the step's message; the run shows in the agent's history.
           const request = agentWorkflowRequest(state, item.agentId, item.input);
@@ -1542,7 +1558,7 @@ export function makeServer({
         const what = item.body?.type === 'action' ? `Ação ${item.body.action}` : `Evento ${item.body?.event}`;
         appEntries.push({ app: sent.name, appId: item.appId, kind: item.body?.type || 'event', text: `${what}: ${sent.text}` });
       }
-      if (item.kind === 'ai') aiResults.push(await workflowAIStep(workspace, state, item));
+      if (item.kind === 'ai') { const answered = await workflowAIStep(workspace, state, item); if (answered) aiResults.push(answered); }
       if (item.kind === 'marketing-audit') auditLater(workspace, item);
       if (item.kind === 'ga4-event') results.push({ runId: item.runId, kind: 'ga4', text: await workflowGa4(workspace, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'google-ads-conversion') results.push({ runId: item.runId, kind: 'google', text: await workflowGoogleAds(workspace, item).catch(problem => `erro: ${problem.message}`) });
@@ -1638,11 +1654,44 @@ export function makeServer({
       if (done.state.workflowOutbox?.length) flushLater(workspace);
     }).catch(e => console.error(`Marketing audit (${workspace}): ${e.message}`));
   };
+  // "Gerar vídeo com IA": each running job is checked; a finished video is stored in chunks and resumes the run
+  // with its public link, a failed one resumes it with the error (and a job older than 40 minutes gives up).
+  async function pollAiVideos(workspace, state) {
+    for (const job of state.aiVideoJobs || []) {
+      const finish = async (data, result) => {
+        await change(workspace, { type: 'ai-video-done', data: { jobId: job.jobId, ...data } });
+        await change(workspace, { type: 'workflow-ai-result', data: { results: [{ runId: job.runId, stepId: job.stepId, ...result }] } });
+      };
+      try {
+        const connection = await workflowConnection(workspace, state, job.workflowId);
+        const status = await (mediaAI?.status || videoStatus)(connection, job.jobId);
+        if (status.status === 'failed') { await finish({}, { error: status.error || 'a OpenAI não conseguiu gerar o vídeo' }); continue; }
+        if (status.status !== 'completed') {
+          if (Date.now() - Date.parse(job.started) > 40 * 60000) await finish({}, { error: 'o vídeo não ficou pronto em 40 minutos' });
+          continue;
+        }
+        const bytes = await (mediaAI?.content || videoContent)(connection, job.jobId);
+        if (!bytes?.length || bytes.length > 15 * 1024 * 1024) { await finish({}, { error: 'o vídeo gerado passou de 15 MB' }); continue; }
+        const id = uid(), chunks = Math.ceil(bytes.length / CHUNK_BYTES);
+        for (let index = 0; index < chunks; index++) {
+          const rowId = mediaRowId(workspace, id, index);
+          await store.insert(rowId, { profile: { name: 'Vídeo gerado com IA' }, data: bytes.subarray(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES).toString('base64') });
+        }
+        await finish({ id, chunks, bytes: bytes.length, prompt: job.prompt, workflowId: job.workflowId },
+          { vars: { [job.variable]: documentMail.linkOf({ path: `/m/${workspace}/video/${id}` }), [`${job.variable}_id`]: id } });
+      } catch (problem) {
+        if (problem.status === 403 || problem.status === 409 || problem.status === 422) await finish({}, { error: problem.message }).catch(() => {});
+        else console.error(`AI video job (${workspace}): ${problem.message}`);
+      }
+    }
+    flushLater(workspace);
+  }
   // Every minute: wake waiting runs and fire scheduled triggers (birthdays, custom dates, scheduler, stale deals).
   async function runWorkflows(workspace, at = Date.now()) {
     const state = await store.load(workspace);
     if (!state.workflows?.some(row => row.active) && !state.runs?.some(row => row.status === 'Waiting')) return null;
     if (!privateSpace.test(workspace) && !(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'automation').catch(() => false))) return null;
+    if (state.aiVideoJobs?.length) await pollAiVideos(workspace, state).catch(e => console.error(`AI video (${workspace}): ${e.message}`));
     const result = (await change(workspace, { type: 'workflow-tick', data: { at: new Date(at).toISOString() } })).id;
     await flushWorkflows(workspace);
     return result;
@@ -2246,6 +2295,16 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) throw error('Not allowed.',401);
         return json({ published: await runAllSocial(publicBase(req)) });
       }
+      // "Gerar vídeo com IA": the finished video, public (it is made to be sent).
+      const aiVideo = p.match(new RegExp(`^/m/${workspaceSegment}/video/([0-9a-f-]{36})$`));
+      if (aiVideo && (method === 'GET' || method === 'HEAD')) {
+        await ready;
+        const [, workspace, videoId] = aiVideo;
+        await publicAccountPolicy(workspace);
+        const row = ((await store.load(workspace)).aiVideos || []).find(item => item.id === videoId);
+        if (!row) throw error('Vídeo indisponível.', 404);
+        return await sendVideo(req, res, method, workspace, row, 'public, max-age=86400');
+      }
       const socialFile = p.match(socialFilePath);
       if (socialFile && method === 'GET') {
         await ready;
@@ -2253,7 +2312,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         await publicAccountPolicy(workspace);
         const state = await store.load(workspace);
         const referenced = state.socialPosts.some(post => ['in_progress', 'published'].includes(post.status) &&
-          post.media?.some(item => item.fileId === fileId));
+          post.media?.some(item => item.fileId === fileId)) || state.files.some(f => f.id === fileId && f.public === true);
         if (referenced) {
           await publicAccountPolicy(workspace, false, 'marketing');
         } else {

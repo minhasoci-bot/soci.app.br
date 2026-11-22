@@ -68,7 +68,7 @@ export const defaults = {
   paymentSettings: paymentDefaults(),
   ai: { limit: 0, alertAt: 0.8, ledger: [] },
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
-  tracking: trackingDefaults(), trackingEvents: [], adFormLeads: [], calls: [], scoringRules: [],
+  tracking: trackingDefaults(), trackingEvents: [], adFormLeads: [], calls: [], aiVideoJobs: [], aiVideos: [], scoringRules: [],
   brandBoards: [], affiliateSettings: affiliateDefaults(), affiliateCampaigns: [], affiliates: [], affiliateCommissions: [], affiliatePayouts: [],
   wallet: walletDefaults(), labs: labsDefaults(), appInstalls: [], appLog: [], seo: seoDefaults(), seoAudits: [], visibility: visibilityDefaults(), visibilityRuns: [],
   reputation: reputationDefaults(), listings: {}, reviewRequests: [], reviewWidgets: [], videoCollectors: [], videoTestimonials: [], videoUploads: [],
@@ -88,7 +88,7 @@ export function hydrateWorkspace(state) {
   adSettingsOf(state);
   trackingOf(state);
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...driveCollections,...affiliateCollections,...adCollections,...trackingCollections,...leadFormCollections,'calls',...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...credentialCollections,...certificateCollections,...ticketCollections,...sequenceCollections,...loyaltyCollections,...schedulingCollections,...meetingCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...driveCollections,...affiliateCollections,...adCollections,...trackingCollections,...leadFormCollections,'calls','aiVideoJobs','aiVideos',...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...credentialCollections,...certificateCollections,...ticketCollections,...sequenceCollections,...loyaltyCollections,...schedulingCollections,...meetingCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -446,6 +446,27 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'tracking-google-lead-key') return newGoogleLeadKey(s);
   // Server only: a lead from a Google Ads lead form webhook or from Meta Lead Ads.
   if (type === 'ad-form-lead') return adFormLead(s, d, { add, run, now });
+  // Server only: "Gerar imagem com IA" keeps the image as a public file (it is made to be sent); the oldest
+  // generated images beyond 100 are removed.
+  if (type === 'ai-media-file') {
+    const file = add(s, 'files', { name: str(d.name, 120) || 'imagem-ia.webp', data: String(d.data || ''), folder: '', public: true, source: 'ai' });
+    const generated = s.files.filter(row => row.source === 'ai');
+    for (const old of generated.slice(0, Math.max(0, generated.length - 100))) s.files = s.files.filter(row => row.id !== old.id);
+    return file.id;
+  }
+  // Server only: "Gerar vídeo com IA" — the OpenAI job while it runs, then the finished video (its bytes live in
+  // media-<workspace>-<video>-<n> rows, like video testimonials).
+  if (type === 'ai-video-job') {
+    (s.aiVideoJobs ||= []).push({ jobId: str(d.jobId, 120), runId: str(d.runId, 60), stepId: str(d.stepId, 60), workflowId: str(d.workflowId, 60), variable: str(d.variable, 40), prompt: str(d.prompt, 500), started: now() });
+    return d.jobId;
+  }
+  if (type === 'ai-video-done') {
+    s.aiVideoJobs = (s.aiVideoJobs || []).filter(row => row.jobId !== d.jobId);
+    if (!d.chunks) return '';
+    const video = add(s, 'aiVideos', { id: str(d.id, 60), mime: 'video/mp4', chunks: Number(d.chunks) || 0, bytes: Number(d.bytes) || 0, prompt: str(d.prompt, 500), workflowId: str(d.workflowId, 60) });
+    if (s.aiVideos.length > 50) s.aiVideos.splice(0, s.aiVideos.length - 50);
+    return video.id;
+  }
   // Server only: a WhatsApp message that came from a "Click to WhatsApp" ad (Evolution API webhook).
   if (type === 'whatsapp-ad-click') {
     const contact = find(s, 'contacts', d.contactId);

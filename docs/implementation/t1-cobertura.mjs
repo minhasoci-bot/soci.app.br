@@ -157,7 +157,7 @@ export const acoes = [
   falta('Custom code', 'custom_code', 'Código JavaScript em área isolada, sem rede nem disco.'),
   // Workflow AI (7)
   c('AI Agent', 'ai_agent'), c('External AI models', 'ai_prompt'), c('GPT powered by OpenAI', 'ai_prompt'),
-  falta('AI image generation', 'ai_image_generate', 'Imagem gerada pela OpenAI, guardada em Arquivos.'),
+  c('AI image generation', 'ai_image_generate'),
   fora('Eliza', eliza), fora('Eliza AI appointment booking', eliza), fora('Send to Eliza agent platform', eliza),
   // Appointments (3)
   c('Update appointment status', 'appointment_status_update'), c('Generate one time booking link', 'booking_link'), c('Create appointment / booking note', 'appointment_note'),
@@ -192,7 +192,7 @@ export const acoes = [
   c('AI decision maker', 'ai_decision'), c('AI summarize', 'ai_summarize'), c('AI intent detection', 'ai_intent'), c('AI translate', 'ai_translate'),
   c('AI extract data (beta)', 'ai_extract'), c('AI email parser (beta)', 'ai_extract', 'O e-mail entra como texto de onde extrair.'),
   c('AI analyze image', 'ai_image'), c('Claude action', 'ai_prompt'),
-  falta('AI video generation', 'ai_video_generate', 'Vídeo gerado pela OpenAI (Sora), guardado em Arquivos.'),
+  c('AI video generation', 'ai_video_generate'),
   fora('AI analyze video', 'A conexão de IA da Soci é a OpenAI, cuja API não recebe vídeo como entrada.'),
   c('Gemini action', 'ai_prompt'),
   // Associations (3)
