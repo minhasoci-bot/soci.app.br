@@ -75,7 +75,9 @@ function scores(group, data, since = 0) {
   return totals;
 }
 
-export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null }) {
+export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, onActivity = null }) {
+  // Workflows (T.1): posts, comments, join requests and lost access, after the change is saved.
+  const announce = async (workspace, groupId, rows) => { for (const row of rows) await onActivity?.(workspace, { groupId, ...row }); };
   const docId = workspace => `community-${workspace}`;
   async function load(workspace) {
     try { return await store.load(docId(workspace)); }
@@ -218,7 +220,9 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null }
   async function act(workspace, state, portal, member, groupId, input) {
     const group = groupOf(state, groupId), action = input?.action;
     let joined = null, welcomed = false;
+    const activity = [];
     const result = await change(workspace, doc => {
+      activity.length = 0; // a retried change starts over
       const data = groupData(doc, groupId), membership = data.members[member.id];
       if (membership?.status === 'banned') fail('Você não tem mais acesso a esta comunidade.', 403);
       if (action === 'join') {
@@ -237,8 +241,10 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null }
         } else {
           data.members[member.id] = { role: 'member', status: group.visibility === 'public' ? 'active' : 'requested', joinedAt: now, answers, lastActive: now };
           welcomed = group.visibility === 'public';
+          if (!welcomed) activity.push({ event: 'requested', memberId: member.id, answers: answers.map(row => `${row.question}: ${row.answer}`).join('\n') });
         }
       } else if (action === 'leave') {
+        if (membership?.status === 'active') activity.push({ event: 'revoked', memberId: member.id, reason: 'left' });
         delete data.members[member.id];
       } else if (action === 'onboarding') {
         if (membership?.status !== 'active') fail('Entre na comunidade para participar.', 403);
@@ -256,12 +262,14 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null }
           const post = writePost(data, group, member.id, input);
           const held = moderator ? '' : heldReason(group, post.title, post.body, post.link);
           if (held) post.held = held;
+          else activity.push({ event: 'post', memberId: member.id, postId: post.id, title: post.title, body: post.body });
         } else if (action === 'comment') {
           const post = findPost(data, input.postId);
           if (post.commentsEnabled === false) fail('Os comentários estão desativados nesta publicação.', 403);
           if (post.comments.length >= 500) fail('Esta publicação atingiu o limite de comentários.', 409);
           const body = str(input.body, 2000) || fail('Escreva o comentário.'), held = moderator ? '' : heldReason(group, body);
           post.comments.push({ id: randomUUID(), authorId: member.id, body, created: new Date().toISOString(), likes: [], ...(held ? { held } : {}) });
+          if (!held) activity.push({ event: 'comment', memberId: member.id, postId: post.id, title: post.title, body });
         } else if (action === 'report') {
           const post = findPost(data, input.postId);
           const target = input.commentId ? post.comments.find(row => row.id === input.commentId) || fail('Comentário não encontrado.', 404) : post;
@@ -307,6 +315,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null }
     });
     if (joined) await onEventJoin?.(workspace, joined);
     if (welcomed) await onMemberJoin?.(workspace, { groupId, memberId: member.id });
+    await announce(workspace, groupId, activity);
     return result;
   }
 
@@ -454,8 +463,11 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null }
   async function admin(workspace, state, portal, groupId, input, options = {}) {
     if (!input) return adminView(state, portal, await load(workspace), groupId, options);
     const group = state.communities.find(row => row.id === groupId) || fail('Comunidade não encontrada.', 404);
-    const added = [], welcome = [];
+    const added = [], welcome = [], activity = [];
+    // A member who loses the group: a refused request, or access taken away.
+    const lost = (memberId, row, reason) => { if (row?.status === 'requested') activity.push({ event: 'rejected', memberId }); else if (row?.status === 'active') activity.push({ event: 'revoked', memberId, reason }); };
     const result = await change(workspace, doc => {
+      activity.length = 0;
       const data = groupData(doc, groupId), action = input.action;
       if (action === 'post') {
         const post = writePost(data, group, 'staff', input);
@@ -475,6 +487,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null }
       } else if (action === 'member') {
         const row = data.members[input.memberId] || fail('Membro não encontrado.', 404);
         if (input.status === 'active' && row.status !== 'active') welcome.push(input.memberId);
+        if (input.status === 'banned' && row.status !== 'banned') lost(input.memberId, row, 'banned');
         if (input.status !== undefined) row.status = ['active', 'requested', 'banned'].includes(input.status) ? input.status : fail('Situação inválida.');
         if (input.role !== undefined) row.role = input.role === 'moderator' ? 'moderator' : 'member';
       } else if (action === 'add') {
@@ -482,12 +495,18 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null }
         const valid = new Set((portal?.members || []).filter(member => !member.revokedAt).map(member => member.id));
         for (const id of ids) if (valid.has(id) && !data.members[id]) { data.members[id] = { role: 'member', status: 'active', joinedAt: new Date().toISOString() }; welcome.push(id); }
       } else if (action === 'remove') {
+        lost(input.memberId, data.members[input.memberId], 'removed');
         delete data.members[input.memberId];
       } else if (action === 'approve' || action === 'reject' || action === 'dismiss') {
         const post = findPost(data, input.postId);
         const target = input.commentId ? post.comments.find(row => row.id === input.commentId) || fail('Comentário não encontrado.', 404) : post;
         if (action === 'reject') { if (input.commentId) post.comments = post.comments.filter(row => row !== target); else data.posts = data.posts.filter(row => row !== post); }
-        else { if (action === 'approve') delete target.held; target.reports = []; }
+        else {
+          // A held post or comment from a member counts as created when the team approves it.
+          if (action === 'approve' && target.held && target.authorId !== 'staff') activity.push({ event: input.commentId ? 'comment' : 'post', memberId: target.authorId, postId: post.id, title: post.title, body: target.body });
+          if (action === 'approve') delete target.held;
+          target.reports = [];
+        }
       } else if (action === 'live-start') {
         const event = (state.communityEvents || []).find(row => row.id === input.eventId && row.communityId === group.id) || fail('Evento não encontrado.', 404);
         if (!event.liveUrl && !(event.locationType === 'online' && event.location)) fail('Informe o link da transmissão no evento antes de entrar ao vivo.');
@@ -510,12 +529,13 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null }
     });
     for (const row of added) await onEventJoin?.(workspace, row);
     for (const memberId of welcome) await onMemberJoin?.(workspace, { groupId, memberId });
+    await announce(workspace, groupId, activity);
     return result;
   }
 
-  // Adds a member to groups (for offers); banned members stay banned.
+  // Adds a member to groups (for offers and workflows); banned members stay banned. Returns the groups opened.
   async function enroll(workspace, memberId, groupIds) {
-    if (!memberId || !groupIds.length) return;
+    if (!memberId || !groupIds.length) return [];
     const opened = [];
     await change(workspace, doc => {
       for (const id of groupIds) {
@@ -525,7 +545,23 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null }
       }
     });
     for (const groupId of opened) await onMemberJoin?.(workspace, { groupId, memberId });
+    return opened;
   }
 
-  return { home, read, act, admin, enroll, reserve, markPending, grantTicket, dueReminders, reservePlan, markPlanPending, grantPlan, dueNewsletters };
+  // Workflows (T.1): takes a member out of groups; returns the groups they were active in.
+  async function unenroll(workspace, memberId, groupIds) {
+    if (!memberId || !groupIds.length) return [];
+    const removed = [], revoked = [];
+    await change(workspace, doc => {
+      removed.length = revoked.length = 0;
+      for (const id of groupIds) {
+        const data = groupData(doc, id), row = data.members[memberId];
+        if (row && row.status !== 'banned') { if (row.status === 'active') revoked.push(id); delete data.members[memberId]; removed.push(id); }
+      }
+    });
+    for (const id of revoked) await announce(workspace, id, [{ event: 'revoked', memberId, reason: 'workflow' }]);
+    return removed;
+  }
+
+  return { home, read, act, admin, enroll, unenroll, reserve, markPending, grantTicket, dueReminders, reservePlan, markPlanPending, grantPlan, dueNewsletters };
 }

@@ -306,7 +306,9 @@ export function makeServer({
   });
   // A quiz, an assignment or a grade: the student's contact gets the course triggers in the workflows.
   const onCourseActivity = async (workspace, data) => { await change(workspace, { type: 'course-activity', data }); flushLater(workspace); };
-  const clientPortal = makeClientPortal({ ...portalOptions, store, onCourseActivity, loadState: workspace => store.load(workspace) });
+  // A member signed in to the portal: "Login no portal do cliente" (first sign-in = signup).
+  const onPortalLogin = async (workspace, data) => { await change(workspace, { type: 'portal-login', data }); flushLater(workspace); };
+  const clientPortal = makeClientPortal({ ...portalOptions, store, onCourseActivity, onLogin: onPortalLogin, loadState: workspace => store.load(workspace) });
   // A member confirmed or paid an event: find or create the contact and fire "Inscrição em evento da comunidade".
   const onEventJoin = async (workspace, { eventId, memberId, paid }) => {
     const member = (await clientPortal.directory(workspace)).members?.find(row => row.id === memberId);
@@ -323,7 +325,14 @@ export function makeServer({
     await change(workspace, { type: 'community-welcome', id: group.id, data: { items: [{ email: member.email, name: member.name, contactId: member.contactId || '', group: group.name, subject: `Boas-vindas à ${group.name}`, body }] } });
     flushLater(workspace);
   };
-  const community = makeCommunity({ store, onEventJoin, onMemberJoin });
+  // Posts, comments, join requests and lost access in a group: the community triggers on the member's contact.
+  const onCommunityActivity = async (workspace, { groupId, memberId, ...data }) => {
+    const member = (await clientPortal.directory(workspace)).members?.find(row => row.id === memberId);
+    if (!member?.email) return;
+    await change(workspace, { type: 'community-activity', id: groupId, data: { ...data, email: member.email, name: member.name, contactId: member.contactId || '' } });
+    flushLater(workspace);
+  };
+  const community = makeCommunity({ store, onEventJoin, onMemberJoin, onActivity: onCommunityActivity });
   // A paid ticket invoice: the member gets the seat (once per invoice).
   async function grantEventTicket(workspace, invoice) {
     await community.grantTicket(workspace, invoice.eventTicket, invoice.id);
@@ -332,6 +341,40 @@ export function makeServer({
       if (row) row.ticketGrantedAt = new Date().toISOString();
     });
   }
+  // Courses the contact gained or lost: "Acesso a curso liberado / removido" in the workflows.
+  async function courseAccessChanged(workspace, contact, courseIds, event) {
+    for (const courseId of courseIds || []) await onCourseActivity(workspace, { event, courseId, email: contact.email, name: contact.name || '', contactId: contact.id || contact.contactId || '' });
+  }
+  // Workflows: the access actions (courses in the portal, communities), applied after the run was saved.
+  async function workflowAccess(workspace, item) {
+    const state = await store.load(workspace);
+    const who = { email: item.email, name: item.name, contactId: item.contactId };
+    const course = item.courseId && state.courses.find(row => row.id === item.courseId);
+    const group = item.communityId && state.communities.find(row => row.id === item.communityId);
+    if (item.action === 'grant_course_access') {
+      if (!course) return 'curso não encontrado';
+      const { memberId, emailed, added } = await clientPortal.enroll(workspace, state, who, [course.id]);
+      if (!memberId) return 'acesso ao portal revogado para este contato';
+      await courseAccessChanged(workspace, who, added, 'granted');
+      return added.length ? `${course.name}: acesso liberado${emailed ? ' (link enviado)' : ''}` : `${course.name}: já tinha acesso`;
+    }
+    if (item.action === 'revoke_course_access') {
+      if (!course) return 'curso não encontrado';
+      const removed = await clientPortal.revokeCourses(workspace, who, [course.id]);
+      await courseAccessChanged(workspace, who, removed, 'revoked');
+      return removed.length ? `${course.name}: acesso removido` : `${course.name}: contato não tinha acesso`;
+    }
+    if (!group) return 'comunidade não encontrada';
+    if (item.action === 'grant_community_access') {
+      const { memberId } = await clientPortal.enroll(workspace, state, who, []);
+      if (!memberId) return 'acesso ao portal revogado para este contato';
+      const joined = await community.enroll(workspace, memberId, [group.id]);
+      return joined.length ? `${group.name}: membro adicionado` : `${group.name}: já era membro (ou está banido)`;
+    }
+    const memberId = await clientPortal.memberOf(workspace, who);
+    const removed = await community.unenroll(workspace, memberId, [group.id]);
+    return removed.length ? `${group.name}: membro removido` : `${group.name}: contato não era membro`;
+  }
   // Gives an offer's courses and communities to the contact who bought it (once per invoice).
   async function grantOffer(workspace, offerId, contactId, invoiceId = '') {
     const state = await store.load(workspace);
@@ -339,9 +382,10 @@ export function makeServer({
     const contact = state.contacts.find(row => row.id === contactId);
     if (!offer || !contact?.email) throw error('Oferta ou contato não encontrado.',404);
     if (invoiceId && state.invoices.find(row => row.id === invoiceId)?.offerGrantedAt) return { enrolled: true, alreadyGranted: true, emailed: false };
-    const { memberId, emailed } = await clientPortal.enroll(workspace, state, { email: contact.email, name: contact.name, contactId }, offer.courseIds);
+    const { memberId, emailed, added } = await clientPortal.enroll(workspace, state, { email: contact.email, name: contact.name, contactId }, offer.courseIds);
     if (!memberId) throw error('O acesso deste cliente ao portal foi revogado. Reative-o na aba Clientes.',409);
     await community.enroll(workspace, memberId, offer.communityIds);
+    await courseAccessChanged(workspace, contact, added, 'granted');
     if (invoiceId) await store.change(workspace, current => {
       const invoice = current.invoices.find(row => row.id === invoiceId);
       if (invoice) invoice.offerGrantedAt = new Date().toISOString();
@@ -1424,6 +1468,7 @@ export function makeServer({
         appEntries.push({ app: sent.name, appId: item.appId, kind: item.body?.type || 'event', text: `${what}: ${sent.text}` });
       }
       if (item.kind === 'ai') aiResults.push(await workflowAIStep(workspace, state, item));
+      if (item.kind === 'access') results.push({ runId: item.runId, kind: 'access', text: await workflowAccess(workspace, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'review-email') {
         const outcome = await documentMail.email(item.email, { subject: item.subject, text: absolute(item) }, `review-${workspace}-${item.requestId}`,
           { fromName: state.profile?.name || '', fromAddress }).catch(problem => problem.message);
@@ -1815,7 +1860,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (result.memberId && state.communities?.length) {
             await community.enroll(workspace, result.memberId, state.communities.map(g => g.id));
           }
-          const session = await clientPortal.exchange(workspace, result.token);
+          const session = await clientPortal.exchange(workspace, result.token, { staff: true });
           portalCookie(req, res, workspace, session, secure);
           return json({ ok: true });
         }
@@ -1853,7 +1898,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
             if (result.memberId && state.communities?.length) {
               await community.enroll(workspace, result.memberId, state.communities.map(g => g.id));
             }
-            const session = await clientPortal.exchange(workspace, result.token);
+            const session = await clientPortal.exchange(workspace, result.token, { staff: true });
             portalCookie(req, res, workspace, session, secure);
             page = await clientPortal.content(workspace, state, session, courseId, lessonId);
           } catch {}
