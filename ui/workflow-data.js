@@ -70,6 +70,10 @@ export const triggerCatalog = [
     { type: 'ai_usage_alert', label: 'Uso de IA chegou ao alerta', icon: 'spark', description: 'Quando o gasto do mês com IA passa da faixa de alerta ou atinge o limite definido pela agência. Não tem contato: use ações internas. {{trigger.cost}} e {{trigger.limit}} trazem os valores em US$.', fields: [f('level', 'Quando', 'select', { options: [any('Alerta ou limite'), ['alert', 'Passar da faixa de alerta'], ['blocked', 'Atingir o limite']] })] },
     { type: 'scheduler', label: 'Agendador', icon: 'clock', scheduled: true, fields: [f('frequency', 'Frequência', 'select', { options: [['daily', 'Todo dia'], ['weekly', 'Toda semana']] }), f('weekday', 'Dia da semana', 'select', { options: weekdays, when: { frequency: 'weekly' } }), f('time', 'Horário', 'time', { value: '09:00' }), f('tag', 'Somente contatos com a tag', 'text', { placeholder: 'Obrigatório: limita quem entra', required: true })] },
     { type: 'customer_replied', label: 'Cliente respondeu', icon: 'chat', fields: [f('channel', 'Canal', 'select', { options: channels }), f('keyword', 'Contém a palavra', 'text', { placeholder: 'Ex.: QUERO' })] },
+    { type: 'conversation_sla', label: 'SLA da conversa', icon: 'clock', description: 'Quando uma mensagem do cliente fica sem resposta até o prazo de SLA (perto de vencer ou vencido). Precisa do SLA ligado em Conversas → Configurações. Use {{trigger.minutes}} para os minutos sem resposta.', fields: [
+      f('state', 'Quando', 'select', { options: [any('Perto de vencer ou vencido'), ['soon', 'Perto de vencer'], ['overdue', 'Vencido']] }),
+      f('channel', 'Canal', 'select', { options: [any('Qualquer canal'), ['WhatsApp', 'WhatsApp'], ['Email', 'E-mail'], ['SMS', 'SMS'], ['Live chat', 'Chat ao vivo'], ['Instagram', 'Instagram'], ['Facebook', 'Facebook']] })
+    ] },
     { type: 'form_submitted', label: 'Formulário enviado', icon: 'list', fields: [f('formId', 'Formulário', 'ref', { source: 'forms', empty: 'Qualquer formulário' })] },
     { type: 'survey_submitted', label: 'Pesquisa enviada', icon: 'chart', fields: [f('formId', 'Pesquisa', 'ref', { source: 'surveys', empty: 'Qualquer pesquisa' })] },
     { type: 'quiz_submitted', label: 'Questionário enviado', icon: 'award', fields: [f('formId', 'Questionário', 'ref', { source: 'quizzes', empty: 'Qualquer questionário' }), f('tier', 'Faixa do resultado', 'text', { placeholder: 'Qualquer faixa' })] },
@@ -203,6 +207,7 @@ export const triggerCatalog = [
     { type: 'refund', label: 'Reembolso', icon: 'pay', description: 'Quando um pagamento do contato é marcado como reembolsado. Use {{trigger.total}}.', fields: [] },
     { type: 'coupon_redeemed', label: 'Cupom usado', icon: 'tag', description: 'Quando um pedido da loja usa um cupom. Use {{trigger.code}}.', fields: [f('couponId', 'Cupom', 'ref', { source: 'coupons', empty: 'Qualquer cupom' })] },
     { type: 'coupon_limit_reached', label: 'Cupom atingiu o limite de usos', icon: 'tag', description: 'Quando um cupom chega ao número máximo de usos. Dispara para o contato do último pedido.', fields: [f('couponId', 'Cupom', 'ref', { source: 'coupons', empty: 'Qualquer cupom' })] },
+    { type: 'coupon_expired', label: 'Cupom expirou', icon: 'tag', description: 'No dia seguinte ao fim da validade de um cupom. Não tem contato: use para avisar a equipe, criar tarefa ou chamar um webhook. Use {{trigger.code}}.', fields: [f('couponId', 'Cupom', 'ref', { source: 'coupons', empty: 'Qualquer cupom' })] },
     { type: 'cart_updated', label: 'Produtos adicionados ao carrinho', icon: 'pay', description: 'Quando um contato já cadastrado coloca ou muda produtos no carrinho da loja. Use {{trigger.total}}.', fields: [f('storeId', 'Loja', 'ref', { source: 'stores', empty: 'Qualquer loja' })] }
   ] }
 ];
@@ -240,6 +245,10 @@ export const actionCatalog = [
       f('value', 'Valor procurado', 'text', { required: true, placeholder: '{{trigger.email}}' }),
       f('then', 'Depois de achar', 'select', { options: [['keep', 'Seguir com o contato atual'], ['switch', 'Seguir com o contato encontrado']] })] },
     { type: 'delete_contact', label: 'Excluir contato', icon: 'trash', description: 'Manda o contato para a lixeira (60 dias para restaurar). As etapas seguintes ficam sem contato.', fields: [] },
+    { type: 'merge_contact', label: 'Mesclar contato', icon: 'users', description: 'Junta os contatos duplicados (mesmo e-mail ou telefone) num só: tags, campos vazios, notas, conversas, tarefas, oportunidades, agendamentos e faturas passam para o contato mantido, e os duplicados vão para a lixeira.', fields: [
+      f('by', 'Duplicado quando tiver o mesmo', 'select', { options: [['any', 'E-mail ou telefone'], ['email', 'E-mail'], ['phone', 'Telefone']] }),
+      f('keep', 'Contato mantido', 'select', { options: [['this', 'Este contato'], ['oldest', 'O mais antigo (o fluxo segue com ele)']] })
+    ] },
     { type: 'make_affiliate', label: 'Tornar afiliado', icon: 'users', description: 'Cadastra o contato como afiliado na campanha (precisa de e-mail).', fields: [f('campaignId', 'Campanha de afiliados', 'ref', { source: 'affiliateCampaigns', required: true })] },
     { type: 'update_affiliate', label: 'Atualizar afiliado', icon: 'users', description: 'Muda a situação do afiliado ligado ao contato (pelo e-mail ou por ter sido criado a partir dele).', fields: [
       f('status', 'Situação', 'select', { options: [['active', 'Ativo'], ['paused', 'Pausado'], ['pending', 'Aguardando aprovação']] })
@@ -388,6 +397,15 @@ export const actionCatalog = [
     { type: 'text_format', label: 'Formatar texto', icon: 'edit', fields: [f('field', 'Campo', 'ref', { source: 'textFields', required: true }), f('op', 'Formato', 'select', { options: [['upper', 'MAIÚSCULAS'], ['lower', 'minúsculas'], ['title', 'Primeira Letra Maiúscula'], ['trim', 'Sem espaços nas pontas']] })] },
     { type: 'date_format', label: 'Formatar data', icon: 'clock', description: 'Guarda uma data formatada em {{vars.nome}}. Aceita AAAA-MM-DD, data com hora ou a palavra hoje.', fields: [f('value', 'Data', 'text', { required: true, placeholder: '2026-12-01, {{vars.data}} ou hoje' }), f('days', 'Somar dias', 'number', { value: 0, min: -3650, max: 3650 }), f('format', 'Formato', 'select', { options: [['br', 'DD/MM/AAAA'], ['iso', 'AAAA-MM-DD'], ['long', 'Por extenso (21 de novembro de 2026)'], ['weekday', 'Dia da semana'], ['time', 'Hora (HH:MM)']] }), f('variable', 'Nome da variável', 'text', { required: true, placeholder: 'data' })] },
     { type: 'number_format', label: 'Formatar número', icon: 'sort', description: 'Guarda um número formatado em {{vars.nome}}.', fields: [f('value', 'Número', 'text', { required: true, placeholder: '{{trigger.total}}' }), f('format', 'Formato', 'select', { options: [['brl', 'Moeda (R$ 1.234,56)'], ['decimal', 'Duas casas (1.234,56)'], ['integer', 'Inteiro (1.235)'], ['percent', 'Percentual (12,5%)']] }), f('variable', 'Nome da variável', 'text', { required: true, placeholder: 'valor' })] },
+    { type: 'list_format', label: 'Formatar lista', icon: 'list', description: 'Trata um texto como lista (itens separados por vírgula ou outro separador) e guarda o resultado em {{vars.nome}}.', fields: [
+      f('value', 'Lista (aceita variáveis)', 'textarea', { required: true, placeholder: '{{contact.tags}} ou maçã, pera, uva' }),
+      f('separator', 'Separador dos itens', 'text', { value: ',', placeholder: ', ou \\n para um item por linha' }),
+      f('op', 'O que fazer', 'select', { options: [['count', 'Contar os itens'], ['first', 'Primeiro item'], ['last', 'Último item'], ['item', 'Item na posição'], ['contains', 'Contém o valor (yes ou no)'], ['unique', 'Tirar repetidos'], ['sort', 'Ordenar de A a Z'], ['reverse', 'Inverter a ordem'], ['join', 'Juntar de novo']] }),
+      f('position', 'Posição (1 = primeiro, -1 = último)', 'number', { value: 1, min: -1000, max: 1000 }),
+      f('search', 'Valor procurado', 'text', { placeholder: 'Só para “Contém o valor”' }),
+      f('joiner', 'Juntar o resultado com', 'select', { options: [['comma', 'Vírgula (a, b)'], ['semicolon', 'Ponto e vírgula (a; b)'], ['pipe', 'Barra (a | b)'], ['and', 'A palavra e (a e b)'], ['line', 'Um por linha'], ['space', 'Espaço (a b)'], ['none', 'Nada (ab)']] }),
+      f('variable', 'Nome da variável', 'text', { required: true, placeholder: 'lista' })
+    ] },
     { type: 'app_action', label: 'Ação de app', icon: 'grid', description: 'Envia o contato e o texto abaixo para um app instalado do marketplace. O app recebe a ação no webhook dele.', fields: [f('action', 'Ação', 'ref', { source: 'appActions', empty: 'Escolha a ação de um app', required: true }), f('data', 'Dados enviados ao app', 'textarea', { placeholder: 'Ex.: plano {{contact.custom.plano}}' })] },
     { type: 'webhook', label: 'Webhook de saída', icon: 'send', fields: [f('url', 'Endereço (https://)', 'text', { required: true, placeholder: 'https://' }), f('method', 'Método', 'select', { options: [['POST', 'POST'], ['PUT', 'PUT'], ['GET', 'GET']] })] },
     { type: 'end', label: 'Encerrar fluxo', icon: 'close' }
@@ -466,6 +484,8 @@ export function stepSummary(step, s) {
     case 'router': return `${(step.routes || []).length} caminho(s)`;
     case 'split': return (step.routes || []).map(route => `${route.label} ${splitPercent(route.percent)}%`).join(' · ').slice(0, 80);
     case 'drip': return `${c.batch || 0} a cada ${c.amount || 1} ${({ minutes: 'min', hours: 'h', days: 'dia(s)' })[c.unit || 'hours']}`;
+    case 'merge_contact': return `${({ email: 'Mesmo e-mail', phone: 'Mesmo telefone' })[c.by] || 'Mesmo e-mail ou telefone'} · ${c.keep === 'oldest' ? 'mantém o mais antigo' : 'mantém este'}`;
+    case 'list_format': return c.variable ? `→ vars.${c.variable}` : '';
     case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';
     case 'update_affiliate': return ({ active: 'Ativo', paused: 'Pausado', pending: 'Aguardando aprovação' })[c.status] || '';
     case 'add_affiliate_campaign': case 'remove_affiliate_campaign': return ref('affiliateCampaigns', c.campaignId);
