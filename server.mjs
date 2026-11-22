@@ -43,7 +43,7 @@ import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
-import { auditableUrl, collectProspectAudit, fetchPage } from './prospect-audit.mjs';
+import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
 import { importedFile, mediaLimitBytes } from './media-model.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
@@ -1523,6 +1523,7 @@ export function makeServer({
         appEntries.push({ app: sent.name, appId: item.appId, kind: item.body?.type || 'event', text: `${what}: ${sent.text}` });
       }
       if (item.kind === 'ai') aiResults.push(await workflowAIStep(workspace, state, item));
+      if (item.kind === 'marketing-audit') auditLater(workspace, item);
       if (item.kind === 'copy-contact') results.push({ runId: item.runId, kind: 'copy', text: await workflowCopyContact(workspace, state, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'custom-webhook') aiResults.push({ runId: item.runId, stepId: item.stepId, ...(await deliverCustomWebhook(item).catch(() => ({ error: 'falha de conexão' }))) });
       if (item.kind === 'email-verify') {
@@ -1571,6 +1572,15 @@ export function makeServer({
     return results.length + aiResults.length;
   }
   const flushLater = workspace => { Promise.resolve().then(() => flushWorkflows(workspace)).catch(e => console.error(`Workflow delivery (${workspace}): ${e.message}`)); };
+  // "Gerar auditoria de marketing": the audit can take a minute (PageSpeed), so it runs apart from the delivery queue
+  // and resumes the waiting run with the result. The audit fetches only public addresses (prospect-audit.mjs).
+  const auditLater = (workspace, item) => {
+    Promise.resolve().then(async () => {
+      const audit = await prospectAudit({ website: item.website, name: item.business, city: item.city }).catch(() => null);
+      const done = await change(workspace, { type: 'workflow-ai-result', data: { results: [{ runId: item.runId, stepId: item.stepId, ...marketingAuditVars(audit, item.variable) }] } });
+      if (done.state.workflowOutbox?.length) flushLater(workspace);
+    }).catch(e => console.error(`Marketing audit (${workspace}): ${e.message}`));
+  };
   // Every minute: wake waiting runs and fire scheduled triggers (birthdays, custom dates, scheduler, stale deals).
   async function runWorkflows(workspace, at = Date.now()) {
     const state = await store.load(workspace);

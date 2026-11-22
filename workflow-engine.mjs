@@ -980,6 +980,26 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         run.results.push(`${label}: verificando ${contact.email}`); trace('verificando');
         return;
       }
+      if (node.type === 'marketing_audit') {
+        // The server audits the site (and the Google profile, when Maps is set up) and resumes the run with the result.
+        const contact = contactOf(s, run.contactId);
+        const name = aiVariableName(c.variable) || 'auditoria';
+        const website = merge(c.website, s, contact, run).trim().slice(0, 300), business = merge(c.business, s, contact, run).trim().slice(0, 120);
+        if (run.test) {
+          const empty = Object.fromEntries(['', '_velocidade', '_seo', '_seguranca', '_conformidade', '_reputacao', '_site_ok', '_resumo'].map(part => [`${name}${part}`, '']));
+          run.vars = { ...(run.vars || {}), ...empty }; output(run, id, empty);
+          run.results.push(`${label}: (teste) auditoria não executada`); trace('pulada no teste'); run.at = node.next; continue;
+        }
+        if (!website && !business) {
+          run.results.push(`${label}: erro: informe o site ou o nome da empresa`); trace('erro: sem site nem empresa');
+          if (c.stopOnError) { run.status = 'Failed'; run.at = ''; run.finished = now(); return; }
+          run.at = node.next; continue;
+        }
+        outbox(s, { kind: 'marketing-audit', runId: run.id, stepId: id, variable: name, website, business, city: merge(c.city, s, contact, run).trim().slice(0, 120) });
+        run.status = 'Waiting'; run.waitFor = { type: 'ai', step: id }; run.wakeAt = new Date(Date.now() + AI_TIMEOUT).toISOString(); run.at = node.next;
+        run.results.push(`${label}: auditando ${website || business}`); trace('auditando');
+        return;
+      }
       if (node.type === 'custom_webhook') {
         // The server sends it after saving; the run waits like an AI step and resumes with the answer.
         const request = customWebhookRequest(s, run, c, contactOf(s, run.contactId));
@@ -1120,6 +1140,10 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       Object.assign(contact, { emailStatus: vars.email_status, emailCheckedAt: now() });
       const tag = str(node.config?.invalidTag || '', 48);
       if (vars.email_status === 'invalid' && tag && !(contact.tags || []).some(t => lower(t) === lower(tag))) { contact.tags = tagList([...(contact.tags || []), tag]); emit(s, 'contact_tag', { contactId: contact.id, change: 'added', tag }); }
+    }
+    const auditSummary = node?.type === 'marketing_audit' ? Object.entries(vars).find(([key]) => key.endsWith('_resumo'))?.[1] : '';
+    if (auditSummary && node.config?.note !== 'no' && contact) {
+      add(s, 'messages', { contactId: contact.id, body: `Auditoria de marketing\n${auditSummary}`.slice(0, 5000), subject: '', channel: 'Note', direction: 'Outbound', read: true, starred: false, origin: 'workflow', workflowId: run.workflowId });
     }
     if (node?.type === 'ai_summarize' && node.config?.note === 'yes' && contact && Object.values(vars)[0]) {
       add(s, 'messages', { contactId: contact.id, body: `Resumo da IA: ${Object.values(vars)[0]}`.slice(0, 5000), subject: '', channel: 'Note', direction: 'Outbound', read: true, starred: false, origin: 'workflow', workflowId: run.workflowId });

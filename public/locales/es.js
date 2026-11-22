@@ -5158,5 +5158,12 @@ export default {
   "Tags a adicionar na cópia (separadas por vírgula)": "Etiquetas para agregar en la copia (separadas por coma)",
   "ex.: veio da matriz": "ej.: vino de la matriz",
   "Não": "No",
-  "Sim": "Sí"
+  "Sim": "Sí",
+  "Gerar auditoria de marketing": "Generar auditoría de marketing",
+  "Audita o site da empresa do contato (velocidade, SEO, segurança e LGPD) e, com o Google Maps configurado, o perfil no Google e a reputação. O fluxo espera o resultado (até um minuto): nota do site (0 a 100) em {{vars.nome}}, as partes em {{vars.nome_seo}}, {{vars.nome_seguranca}}…, e um resumo com o que melhorar em {{vars.nome_resumo}}.": "Audita el sitio de la empresa del contacto (velocidad, SEO, seguridad y LGPD) y, con Google Maps configurado, el perfil en Google y la reputación. El flujo espera el resultado (hasta un minuto): nota del sitio (0 a 100) en {{vars.nome}}, las partes en {{vars.nome_seo}}, {{vars.nome_seguranca}}…, y un resumen con lo que mejorar en {{vars.nome_resumo}}.",
+  "Site (aceita variáveis)": "Sitio web (acepta variables)",
+  "https://empresa.com.br (ou um campo pelo painel de variáveis)": "https://empresa.com.br (o un campo desde el panel de variables)",
+  "Nome da empresa (para achar no Google)": "Nombre de la empresa (para encontrarla en Google)",
+  "Cidade (opcional, ajuda a achar no Google)": "Ciudad (opcional, ayuda a encontrarla en Google)",
+  "Registrar o resumo como nota na conversa": "Registrar el resumen como nota en la conversación"
 };
