@@ -30,7 +30,7 @@ import { sequenceCollections, sequenceCommand, sequenceFields, sequenceInbound, 
 import { addPoints, loyaltyCollections, loyaltyCommand, loyaltyEvent, loyaltyFields } from './loyalty-model.mjs';
 import { preferenceCommand, preferenceToken } from './preference-model.mjs';
 import { trashCommand, trashContact } from './contact-trash.mjs';
-import { phoneCommand, phoneDefaults } from './phone-model.mjs';
+import { dialerDefaults, phoneCommand, phoneDefaults } from './phone-model.mjs';
 import { appointmentRecord, bookForContact, createBookingLink, noteOnAppointment, schedulingCollections, schedulingCommand, schedulingFields, upcomingSlots, zonedInstant } from './scheduling-model.mjs';
 import { meetingCollections, meetingCommand, meetingFields } from './meeting-model.mjs';
 import { seoCommand, seoDefaults, visibilityDefaults } from './seo-model.mjs';
@@ -69,7 +69,7 @@ export const defaults = {
   paymentSettings: paymentDefaults(),
   ai: { limit: 0, alertAt: 0.8, ledger: [] },
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
-  tracking: trackingDefaults(), trackingEvents: [], adFormLeads: [], calls: [], phone: phoneDefaults(), aiVideoJobs: [], aiVideos: [], scoringRules: [],
+  tracking: trackingDefaults(), trackingEvents: [], adFormLeads: [], calls: [], phone: phoneDefaults(), dialer: dialerDefaults(), aiVideoJobs: [], aiVideos: [], scoringRules: [],
   brandBoards: [], affiliateSettings: affiliateDefaults(), affiliateCampaigns: [], affiliates: [], affiliateCommissions: [], affiliatePayouts: [],
   wallet: walletDefaults(), labs: labsDefaults(), appInstalls: [], appLog: [], seo: seoDefaults(), seoAudits: [], visibility: visibilityDefaults(), visibilityRuns: [],
   reputation: reputationDefaults(), listings: {}, reviewRequests: [], reviewWidgets: [], videoCollectors: [], videoTestimonials: [], videoUploads: [],
@@ -312,6 +312,7 @@ const engine = createEngine({ add, now,
   companyAction: (state, contact, type, config) => companyWorkflow(state, contact, type, config, { save: (key, data, id) => executeCommand(state, { type: 'save', key, id, data }, { workspace: engineWorkspace }) }),
   appointmentNote: (state, contact, config) => noteOnAppointment(state, contact, config),
   freeSlots: (state, serviceId) => upcomingSlots(state, serviceId),
+  dialerAdd: (state, contact) => phoneCommand(state, 'dialer-queue-add', { contactIds: [contact.id], by: 'workflow' }, { add, run, now, engine }) > 0,
   zonedTime: (day, time, zone) => zonedInstant(day, time, zone),
   bookAppointment: (state, contact, config) => bookForContact(state, contact, config, { save: (key, data) => executeCommand(state, { type: 'save', key, data }, { workspace: engineWorkspace }) }),
   adjustScore: (state, contact, delta, reason, depth = 0) => changeScore(state, contact, delta, reason, { emit: (st, event, c) => engine.emit(st, event, c), depth }),
@@ -460,7 +461,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     const made = bookForContact(s, contact, { serviceId: call.voice.serviceId, start: new Date(at).toISOString() }, { save: (key, data) => executeCommand(s, { type: 'save', key, data }, { workspace }) });
     return made.error ? { error: made.error } : { id: made.id };
   }
-  if (type.startsWith('phone-') || type.startsWith('ivr-') || type === 'voice-turn') { const out = phoneCommand(s, type, d, { add, run, now, engine }); if (out !== undefined) return out; }
+  if (type.startsWith('phone-') || type.startsWith('ivr-') || type.startsWith('dialer-') || type === 'voice-turn') { const out = phoneCommand(s, type, d, { add, run, now, engine }); if (out !== undefined) return out; }
   // Server only: an e-mail that arrived at the sub-account's inbound address (Resend). It is the same as a
   // contact's message in Conversas (Cliente respondeu) and also fires "E-mail recebido". Never twice.
   if (type === 'email-inbound') {

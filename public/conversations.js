@@ -3,13 +3,14 @@ import { tr } from './i18n.js';
 import { badge, date, empty, h, name, pageShell, primary, row, search, table, utabs } from './screens.js';
 import { conversationStats, duration, volumeChart } from './conversation-analytics.js';
 import { ticketsPanel } from './tickets.js';
+import { dialerPanel } from './dialer.js';
 
 import { SLA_CHANNELS, slaRecords } from './conversation-sla.js';
 
 export { SLA_CHANNELS, slaRecords };
-export const conversationSections = ['tickets', 'manual-actions', 'snippets', 'folders', 'trigger-links', 'link-analysis', 'analytics', 'analytics-sla', 'settings'];
+export const conversationSections = ['tickets', 'dialer', 'manual-actions', 'snippets', 'folders', 'trigger-links', 'link-analysis', 'analytics', 'analytics-sla', 'settings'];
 const sections = [
-  ['','Conversas'], ['tickets','Tickets'], ['manual-actions','Ações manuais'], ['snippets','Respostas rápidas'],
+  ['','Conversas'], ['tickets','Tickets'], ['dialer','Discador'], ['manual-actions','Ações manuais'], ['snippets','Respostas rápidas'],
   ['trigger-links','Links de rastreamento'], ['analytics','Análises'], ['settings','Configurações']
 ];
 
@@ -226,5 +227,5 @@ function slaSettings(c) {
     </form>`;
 }
 
-const panels = { tickets: ticketsPanel, 'manual-actions': manualActions, snippets, folders: snippets, 'trigger-links': triggerLinks,
+const panels = { tickets: ticketsPanel, dialer: dialerPanel, 'manual-actions': manualActions, snippets, folders: snippets, 'trigger-links': triggerLinks,
   'link-analysis': triggerLinks, analytics, 'analytics-sla': analytics, settings: slaSettings };

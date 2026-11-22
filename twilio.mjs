@@ -44,6 +44,8 @@ export const twiml = {
   // Voice AI: listens to the caller's speech (Twilio transcribes it) and posts SpeechResult to `action`.
   listen: ({ action, language = 'pt-BR', prompt = '', timeout = 6 }) => `<Gather${attrs({ input: 'speech', action, method: 'POST', language, speechTimeout: 'auto', timeout, actionOnEmptyResult: 'true' })}>${prompt}</Gather>`,
   redirect: url => `<Redirect method="POST">${xml(url)}</Redirect>`,
+  // Power dialer: the member's line and each contact join the same conference room.
+  conference: (room, { endOnExit = false, beep = false, waitUrl = '', status = '' } = {}) => `<Dial><Conference${attrs({ startConferenceOnEnter: 'true', endConferenceOnExit: endOnExit ? 'true' : 'false', beep: beep ? 'true' : 'false', waitUrl, statusCallback: status, statusCallbackEvent: status ? 'end' : '' })}>${xml(room)}</Conference></Dial>`,
   hangup: () => '<Hangup/>',
   response: (...verbs) => `<?xml version="1.0" encoding="UTF-8"?><Response>${verbs.flat().filter(Boolean).join('')}</Response>`
 };

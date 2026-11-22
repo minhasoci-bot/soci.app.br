@@ -116,6 +116,17 @@ async function refreshPhone(){
   catch(e){ if(c.workspace===ws) c.phoneSetup={error:e.message,workspace:ws}; }
   if(c.workspace===ws&&c.mode!=='agency'&&c.view==='settings'&&c.tab==='phone') render();
 }
+// Conversas → Discador: while a session is open, the screen follows the current call (unless a form is being filled).
+let dialerPoll=null;
+function followDialer(){
+  if(dialerPoll) return;
+  dialerPoll=setInterval(async()=>{
+    const open=(c.s?.dialer?.sessions||[]).some(row=>row.status!=='ended');
+    if(c.mode==='agency'||c.view!=='conversations'||c.tab!=='dialer'||!open){ clearInterval(dialerPoll); dialerPoll=null; return; }
+    if(document.activeElement?.closest?.('form[data-form="dialer-disposition"]')) return;
+    try{ await load(); render(); }catch{}
+  },4000);
+}
 // Serviços de e-mail: the sub-account's sending domain and its DNS records (re-checked with Resend while pending).
 async function refreshEmail(){
   const ws=c.workspace;
@@ -266,6 +277,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(view==='payments'&&!nextTab||view==='settings'&&nextTab==='abacatepay'||view==='payments'&&nextTab==='document'&&!c.pay){ render(); void refreshPay(); return; }
   if(view==='dashboard'&&c.google?.workspace!==c.workspace||view==='settings'&&nextTab==='google'){ render(); void refreshGoogle(); return; }
   if(view==='settings'&&nextTab==='email'){ if(c.emailDomain?.workspace!==c.workspace) c.emailDomain=null; render(); void refreshEmail(); return; }
+  if(view==='conversations'&&nextTab==='dialer'){ render(); followDialer(); return; }
   if(view==='settings'&&nextTab==='phone'){ if(c.phoneSetup?.workspace!==c.workspace){ c.phoneSetup=null; c.phoneSearch=null; } render(); void refreshPhone(); return; }
   render(); }
 const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${tr(label)}" title="${tr(label)}" ${attributes}>${i(name,17)}</button>`;
@@ -855,6 +867,15 @@ document.addEventListener('click',async ev=>{
       }
       case 'abacate-refresh': c.pay=null; render(); await refreshPay(); break;
       case 'google-refresh': c.google=null; render(); await refreshGoogle(); break;
+      case 'dialer-next': {
+        const next=await api(url('/api/phone/dialer/next'),{});
+        await load(); render(); flash(next.done?tr('A fila acabou.'):tr('Chamando o próximo contato.')); followDialer();
+        break;
+      }
+      case 'dialer-hangup': await api(url('/api/phone/dialer/hangup'),{}); flash(tr('Ligação encerrada.')); setTimeout(async()=>{ await load(); render(); },1500); break;
+      case 'dialer-stop': await api(url('/api/phone/dialer/stop'),{}); await load(); render(); flash(tr('Discador encerrado.')); break;
+      case 'dialer-remove': await mutate({type:'dialer-queue-remove',data:{contactId:d.dialerContact}}); render(); break;
+      case 'dialer-clear': if(!confirm(tr('Tirar todos os contatos pendentes da fila?'))) break; await mutate({type:'dialer-queue-remove',data:{all:true}}); render(); break;
       case 'phone-refresh': c.phoneSetup=null; render(); await refreshPhone(); break;
       case 'phone-buy': {
         const number=d.phoneNumber;
@@ -1085,6 +1106,20 @@ document.addEventListener('submit',async ev=>{
     else if(name==='google-select'){
       c.google={...await api(url('/api/google/workspace/select'),{gaProperty:data.gaProperty||'',gbpLocation:data.gbpLocation||'',gscSite:data.gscSite||''}),workspace:c.workspace};
       render(); flash('Escolha salva. O painel já mostra os dados do Google.'); return;
+    }
+    else if(name==='dialer-start'){
+      c.dialerAgent=data.agentPhone||'';
+      await api(url('/api/phone/dialer/start'),{numberId:data.numberId||'',agentPhone:data.agentPhone||''});
+      await load(); render(); flash(tr('Ligando para você. Atenda para abrir o discador.')); followDialer(); return;
+    }
+    else if(name==='dialer-add-tag'){
+      const added=await mutate({type:'dialer-queue-add',data:{tag:data.tag||''}});
+      render(); flash(`${tr('Contatos adicionados à fila')}: ${Number(added)||0}`); return;
+    }
+    else if(name==='dialer-disposition'){
+      await mutate({type:'dialer-disposition',data:{callId:data.callId,disposition:data.disposition,note:data.note||''}});
+      if(data.next==='1'){ const next=await api(url('/api/phone/dialer/next'),{}); await load(); render(); flash(next.done?tr('Resultado salvo. A fila acabou.'):tr('Resultado salvo. Chamando o próximo contato.')); return; }
+      await load(); render(); flash(tr('Resultado salvo.')); return;
     }
     else if(name==='phone-search'){
       c.phoneSearchArea=data.areaCode||'';

@@ -11,6 +11,13 @@ export const callStatusLabels = { ringing: 'tocando', 'in-progress': 'em andamen
 
 export const phoneDefaults = () => ({ numbers: [] });
 export const phoneOf = s => { s.phone = { ...phoneDefaults(), ...(s.phone || {}) }; s.calls ||= []; return s.phone; };
+
+// Power dialer (6b.9): a queue of contacts and the team member's session. The member stays on the line in a Twilio
+// conference while the dialer calls one contact after the other; each call gets a result (disposition).
+export const dialerDispositions = [['interested', 'Interessado'], ['callback', 'Retornar depois'], ['not_interested', 'Sem interesse'], ['no_answer', 'Não atendeu'], ['voicemail', 'Caixa postal'], ['wrong_number', 'Número errado']];
+export const dialerDefaults = () => ({ queue: [], sessions: [] });
+export const dialerOf = s => { s.dialer = { ...dialerDefaults(), ...(s.dialer || {}) }; return s.dialer; };
+const DIALER_QUEUE = 500;
 /** The number of the sub-account that a Twilio "To"/"From" belongs to. */
 export const numberByPhone = (s, phone) => phoneOf(s).numbers.find(row => row.number === e164(phone));
 
@@ -88,7 +95,7 @@ export function phoneCommand(s, type, d, { add, run, now, engine }) {
       run(s, 'Contact created', { contactId: contact.id });
     }
     const call = add(s, 'calls', { contactId: contact?.id || '', direction, status: 'ringing', duration: 0, notes: '', phone: e164(direction === 'inbound' ? d.from : d.to), source: 'twilio',
-      numberId: number?.id || '', callSid: str(d.callSid, 64), userId: str(d.userId, 80), workflowId: str(d.workflowId, 80), kind: d.kind === 'voicemail-drop' ? 'voicemail-drop' : 'call',
+      numberId: number?.id || '', callSid: str(d.callSid, 64), userId: str(d.userId, 80), workflowId: str(d.workflowId, 80), kind: d.kind === 'voicemail-drop' ? 'voicemail-drop' : d.kind === 'dialer' ? 'dialer' : 'call', ...(d.dialerId ? { dialerId: str(d.dialerId, 80) } : {}),
       ...(d.kind === 'voicemail-drop' ? { notes: str(d.notes, 1500), dropUrl: /^https:\/\/\S+$/i.test(String(d.dropUrl || '')) ? str(d.dropUrl, 1000) : '' } : {}) });
     // Voice AI: an outbound call of the workflow step, or an inbound call to a number answered by the agent.
     if (d.kind === 'voice-ai' || (direction === 'inbound' && number?.mode === 'voice_ai' && number.voiceAgentId)) {
@@ -140,6 +147,83 @@ export function phoneCommand(s, type, d, { add, run, now, engine }) {
     if (['transfer', 'end', 'book', 'timeout'].includes(d.outcome)) call.voice.outcome = d.outcome;
     if (d.appointmentId) call.voice.appointmentId = str(d.appointmentId, 80);
     return call.id;
+  }
+  if (type === 'dialer-queue-add') {
+    // Contacts with a phone go to the end of the queue (once while pending); by list or by tag.
+    const dialer = dialerOf(s), pending = new Set(dialer.queue.filter(row => row.status === 'pending').map(row => row.contactId));
+    const tag = str(d.tag, 48).toLowerCase();
+    const ids = tag ? s.contacts.filter(row => (row.tags || []).some(t => String(t).toLowerCase() === tag)).map(row => row.id) : [].concat(d.contactIds || []).map(String);
+    let added = 0;
+    for (const id of ids) {
+      const contact = s.contacts.find(row => row.id === id);
+      if (!contact || !e164(contact.phone) || pending.has(id) || contact.dnd) continue;
+      if (dialer.queue.filter(row => row.status === 'pending').length >= DIALER_QUEUE) fail(`A fila do discador aceita até ${DIALER_QUEUE} contatos pendentes.`);
+      dialer.queue.push({ contactId: id, status: 'pending', added: now(), by: str(d.by, 80) });
+      pending.add(id); added++;
+    }
+    dialer.queue = dialer.queue.filter(row => row.status === 'pending').concat(dialer.queue.filter(row => row.status !== 'pending').slice(-300));
+    return added;
+  }
+  if (type === 'dialer-queue-remove') {
+    const dialer = dialerOf(s), before = dialer.queue.length;
+    dialer.queue = d.all ? dialer.queue.filter(row => row.status !== 'pending') : dialer.queue.filter(row => !(row.status === 'pending' && row.contactId === d.contactId));
+    return before - dialer.queue.length;
+  }
+  if (type === 'dialer-disposition') {
+    // The result of a dialer call: on the call, the queue and in Conversas; fires "Resultado do discador".
+    const call = (s.calls || []).find(row => row.id === d.callId);
+    if (!call) fail('Ligação não encontrada.', 404);
+    const disposition = dialerDispositions.find(([key]) => key === d.disposition);
+    if (!disposition) fail('Escolha o resultado da ligação.');
+    const first = !call.disposition;
+    call.disposition = disposition[0];
+    const note = str(d.note, 1000);
+    if (note) call.notes = note;
+    const item = dialerOf(s).queue.find(row => row.callId === call.id);
+    if (item) Object.assign(item, { status: 'done', disposition: disposition[0] });
+    const contact = s.contacts.find(row => row.id === call.contactId);
+    if (contact && first) {
+      add(s, 'messages', { contactId: contact.id, body: [`Discador: ${disposition[1]}`, note].filter(Boolean).join('\n'), subject: '', channel: 'Note', direction: 'Outbound', read: true, starred: false, origin: 'human', callId: call.id });
+      run(s, 'dialer_disposition', { contactId: contact.id, callId: call.id, disposition: disposition[0], note });
+    }
+    return call.id;
+  }
+  if (type === 'dialer-session-start') {
+    // Server only: the member's session (one active per member; the newest replaces the older ones).
+    const dialer = dialerOf(s), userId = str(d.userId, 80);
+    for (const row of dialer.sessions) if (row.userId === userId && row.status !== 'ended') row.status = 'ended';
+    const session = { id: `dl-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, userId, numberId: str(d.numberId, 80), agent: e164(d.agent), status: 'connecting', agentCallSid: '', currentCallId: '', calls: 0, created: now() };
+    dialer.sessions = [...dialer.sessions.filter(row => row.status !== 'ended').slice(-20), ...dialer.sessions.filter(row => row.status === 'ended').slice(-20), session];
+    return session.id;
+  }
+  if (type === 'dialer-session-update') {
+    const session = dialerOf(s).sessions.find(row => row.id === d.id);
+    if (!session) return '';
+    if (['connecting', 'active', 'ended'].includes(d.status)) session.status = d.status;
+    if (d.agentCallSid) session.agentCallSid = str(d.agentCallSid, 64);
+    if (d.status === 'ended') session.ended = now();
+    return session.id;
+  }
+  if (type === 'dialer-next') {
+    // Server only: the next pending contact of the queue for the session; the call row comes from phone-call-start.
+    const dialer = dialerOf(s), session = dialer.sessions.find(row => row.id === d.id);
+    if (!session || session.status === 'ended') fail('Inicie o discador.', 409);
+    const current = session.currentCallId && s.calls.find(row => row.id === session.currentCallId);
+    if (current && !current.ended && current.status !== 'failed') fail('Ainda há uma ligação em andamento: desligue antes de chamar o próximo.', 409);
+    const item = dialer.queue.find(row => row.status === 'pending' && (!d.contactId || row.contactId === d.contactId));
+    if (!item) return null;
+    const contact = s.contacts.find(row => row.id === item.contactId);
+    if (!contact || !e164(contact.phone)) { item.status = 'skipped'; return { skip: true }; }
+    item.status = 'calling';
+    return { contactId: contact.id, to: e164(contact.phone) };
+  }
+  if (type === 'dialer-calling') {
+    // Server only: ties the contact's call to the session and to the queue item.
+    const dialer = dialerOf(s), session = dialer.sessions.find(row => row.id === d.id);
+    const item = dialer.queue.find(row => row.status === 'calling' && row.contactId === d.contactId);
+    if (session) { session.currentCallId = str(d.callId, 80); session.calls++; session.status = 'active'; }
+    if (item) { item.callId = str(d.callId, 80); item.status = d.failed ? 'pending' : 'called'; }
+    return session?.id || '';
   }
   if (type === 'ivr-input') return engine.callInput(s, { callSid: str(d.callSid, 64), digits: str(String(d.digits ?? ''), 20), dialStatus: str(d.dialStatus, 30), recordingUrl: str(d.recordingUrl, 500) }) ? 'ok' : '';
   if (type === 'ivr-take') {

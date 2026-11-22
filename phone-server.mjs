@@ -1,7 +1,7 @@
 // Telefonia (2.4): the HTTP side. The team's API (/api/phone/*) and Twilio's webhooks (/api/phone/twilio/*), whose
 // answers are TwiML. Every webhook is checked against X-Twilio-Signature with the URL Twilio was given.
 import { e164, twilioClient, twilioConfigured, twilioSignatureValid, twiml } from './twilio.mjs';
-import { contactByPhone, numberByPhone, phoneOf } from './phone-model.mjs';
+import { contactByPhone, dialerOf, numberByPhone, phoneOf } from './phone-model.mjs';
 import { voicePrompt, voiceSettings } from './voice-ai.mjs';
 import { botDecision } from './workflow-engine.mjs';
 import { upcomingSlots } from './scheduling-model.mjs';
@@ -200,12 +200,33 @@ export function createPhoneHandler({ store, change, flushLater = () => {}, reque
       }
       return xmlReply(res, forwardResponse(origin, workspace, started, owned));
     }
+    if (kind === 'dialer') {
+      // The member answered: they wait in the room while the dialer brings in one contact at a time.
+      const session = dialerOf(state).sessions.find(row => row.id === query.get('session'));
+      if (!session || session.status === 'ended') return xmlReply(res, twiml.response(twiml.say('O discador foi encerrado.'), twiml.hangup()));
+      await change(workspace, { type: 'dialer-session-update', data: { id: session.id, status: 'active', agentCallSid: form.CallSid } });
+      done();
+      return xmlReply(res, twiml.response(twiml.say('Discador pronto. Chame o próximo contato pela Soci.'), twiml.conference(`soci-dialer-${session.id}`, { endOnExit: true, waitUrl: '' })));
+    }
+    if (kind === 'dialerend') {
+      await change(workspace, { type: 'dialer-session-update', data: { id: query.get('session'), status: 'ended' } });
+      done();
+      return xmlReply(res, twiml.response());
+    }
     if (!call) return xmlReply(res, twiml.response(twiml.hangup()));
     if (kind === 'agent') {
       if (!call.voice) return xmlReply(res, twiml.response(twiml.hangup()));
       const answer = query.get('start') ? await agentStart(origin, workspace, call, form) : await agentAnswer(origin, workspace, call, form, query);
       done();
       return xmlReply(res, answer);
+    }
+    if (kind === 'join') {
+      // A dialer contact answered: into the member's room (leaving does not end it).
+      const session = dialerOf(state).sessions.find(row => row.id === call.dialerId);
+      if (!session || session.status === 'ended') return xmlReply(res, twiml.response(twiml.hangup()));
+      await change(workspace, { type: 'phone-call-update', data: { callId: call.id, status: 'answered' } });
+      done();
+      return xmlReply(res, twiml.response(twiml.conference(`soci-dialer-${session.id}`, { endOnExit: false })));
     }
     if (kind === 'ivr') {
       const step = query.get('kind');
@@ -290,6 +311,60 @@ export function createPhoneHandler({ store, change, flushLater = () => {}, reque
       const callId = await placeCall(workspace, origin, { contactId: contact.id, numberId: number.id, agent, to, userId: who?.userId || '' });
       flushLater(workspace);
       return json({ id: callId, agent, to });
+    }
+    if (path.startsWith('/api/phone/dialer/') && method === 'POST') {
+      needs('conversations');
+      const state = await store.load(workspace), dialer = dialerOf(state), userId = who?.userId || 'local';
+      const mine = dialer.sessions.find(row => row.userId === userId && row.status !== 'ended');
+      if (path === '/api/phone/dialer/start') {
+        const numbers = phoneOf(state).numbers, number = numbers.find(row => row.id === body.numberId) || numbers[0];
+        if (!number) fail('Compre um número em Configurações → Telefonia.', 409);
+        const agent = e164(body.agentPhone) || number.forward?.[0];
+        if (!agent) fail('Informe o seu telefone: o discador liga para você e mantém a linha aberta.');
+        requireCredit(state, 'phone');
+        if (mine?.agentCallSid) await client().hangup(mine.agentCallSid).catch(() => {});
+        const id = (await change(workspace, { type: 'dialer-session-start', data: { userId, numberId: number.id, agent } })).id;
+        try {
+          const made = await client().dial({ to: agent, from: number.number, url: hook(origin, 'dialer', workspace, { session: id }), status: hook(origin, 'dialerend', workspace, { session: id }), timeout: 30 });
+          await change(workspace, { type: 'dialer-session-update', data: { id, agentCallSid: made.sid } });
+        } catch (problem) {
+          await change(workspace, { type: 'dialer-session-update', data: { id, status: 'ended' } });
+          throw problem;
+        }
+        flushLater(workspace);
+        return json({ session: id, agent });
+      }
+      if (!mine) fail('Inicie o discador.', 409);
+      if (path === '/api/phone/dialer/next') {
+        // Skips contacts without a valid phone; places the next call into the member's room.
+        let next;
+        for (let i = 0; i < 20; i++) { next = (await change(workspace, { type: 'dialer-next', data: { id: mine.id, contactId: body.contactId || '' } })).id; if (!next?.skip) break; }
+        if (!next || next.skip) return json({ done: true });
+        const number = phoneOf(await store.load(workspace)).numbers.find(row => row.id === mine.numberId);
+        if (!number) fail('Número da Soci não encontrado.', 404);
+        const callId = (await change(workspace, { type: 'phone-call-start', data: { direction: 'outbound', kind: 'dialer', dialerId: mine.id, contactId: next.contactId, numberId: number.id, from: number.number, to: next.to, userId } })).id;
+        try {
+          const made = await client().dial({ to: next.to, from: number.number, url: hook(origin, 'join', workspace, { call: callId }), status: hook(origin, 'status', workspace, { call: callId }), timeout: 25 });
+          await change(workspace, { type: 'phone-call-update', data: { callId, callSid: made.sid } });
+          await change(workspace, { type: 'dialer-calling', data: { id: mine.id, contactId: next.contactId, callId } });
+        } catch (problem) {
+          await change(workspace, { type: 'phone-call-update', data: { callId, status: 'failed', final: true } });
+          await change(workspace, { type: 'dialer-calling', data: { id: mine.id, contactId: next.contactId, callId, failed: true } });
+          throw problem;
+        }
+        flushLater(workspace);
+        return json({ callId, contactId: next.contactId });
+      }
+      if (path === '/api/phone/dialer/hangup') {
+        const current = state.calls.find(row => row.id === mine.currentCallId);
+        if (current?.callSid && !current.ended) await client().hangup(current.callSid).catch(() => {});
+        return json({ ok: true });
+      }
+      if (path === '/api/phone/dialer/stop') {
+        if (mine.agentCallSid) await client().hangup(mine.agentCallSid).catch(() => {});
+        await change(workspace, { type: 'dialer-session-update', data: { id: mine.id, status: 'ended' } });
+        return json({ ok: true });
+      }
     }
     if (path === '/api/phone/recording' && method === 'GET') {
       needs('conversations');

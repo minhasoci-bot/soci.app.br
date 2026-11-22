@@ -208,6 +208,9 @@ export const triggerCatalog = [
       f('status', 'Resultado', 'select', { options: [any('Qualquer resultado'), ['answered', 'Atendida'], ['missed', 'Não atendida'], ['voicemail', 'Caixa postal (recado)'], ['busy', 'Ocupado'], ['failed', 'Falhou']] }),
       f('numberId', 'Número', 'ref', { source: 'phoneNumbers', empty: 'Qualquer número' })
     ] },
+    { type: 'dialer_disposition', label: 'Resultado do discador', icon: 'phone', description: 'Quando a equipe marca o resultado de uma ligação do discador (Conversas → Discador). Use {{trigger.disposition}} e {{trigger.note}}.', fields: [
+      f('disposition', 'Resultado', 'select', { options: [any('Qualquer resultado'), ['interested', 'Interessado'], ['callback', 'Retornar depois'], ['not_interested', 'Sem interesse'], ['no_answer', 'Não atendeu'], ['voicemail', 'Caixa postal'], ['wrong_number', 'Número errado']] })
+    ] },
     { type: 'voice_ai_ended', label: 'Ligação do Voice AI terminou', icon: 'spark', description: 'Quando termina uma ligação atendida ou feita pelo Voice AI. Use {{trigger.transcript}} (a conversa inteira), {{trigger.outcome}} (end, transfer, book, timeout) e {{trigger.duration}}: por exemplo, resuma com IA, extraia dados para o contato ou avise a equipe.', fields: [
       f('outcome', 'Como terminou', 'select', { options: [any('De qualquer jeito'), ['end', 'Encerrou a conversa'], ['transfer', 'Transferiu para a equipe'], ['book', 'Marcou um horário'], ['timeout', 'Tempo ou silêncio']] }),
       f('direction', 'Direção', 'select', { options: [any('Recebida ou feita'), ['inbound', 'Recebida'], ['outbound', 'Feita']] }),
@@ -506,6 +509,7 @@ export const actionCatalog = [
       f('message', 'Texto do recado (aceita variáveis)', 'textarea', { when: { kind: 'say' }, placeholder: 'Oi, {{contact.first_name}}! Aqui é da {{workspace.name}}…' }),
       f('url', 'Endereço do áudio (https)', 'text', { when: { kind: 'play' }, placeholder: 'https://…/recado.mp3' })
     ] },
+    { type: 'dialer_add', label: 'Adicionar ao discador', icon: 'phone', description: 'Coloca o contato na fila do discador (Conversas → Discador), para a equipe ligar em sequência. Contatos sem telefone ou em não perturbe ficam de fora.', fields: [] },
     { type: 'voice_ai_call', label: 'Ligação do Voice AI', icon: 'spark', description: 'Um agente de IA publicado liga para o contato e conversa por voz, com a base de conhecimento dele e o objetivo desta etapa. Pode transferir para a equipe, encerrar ou marcar um horário do serviço escolhido. A transcrição vai para Conversas e dispara Ligação do Voice AI terminou. Usa a OpenAI de quem salvou o fluxo.', fields: [
       f('numberId', 'Ligar pelo número', 'ref', { source: 'phoneNumbers', required: true, empty: 'Escolha o número' }),
       f('agentId', 'Agente (publicado)', 'ref', { source: 'agents', required: true, empty: 'Escolha o agente' }),
