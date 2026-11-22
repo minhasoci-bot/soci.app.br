@@ -77,6 +77,9 @@ export const triggerCatalog = [
       f('state', 'Quando', 'select', { options: [any('Perto de vencer ou vencido'), ['soon', 'Perto de vencer'], ['overdue', 'Vencido']] }),
       f('channel', 'Canal', 'select', { options: [any('Qualquer canal'), ['WhatsApp', 'WhatsApp'], ['Email', 'E-mail'], ['SMS', 'SMS'], ['Live chat', 'Chat ao vivo'], ['Instagram', 'Instagram'], ['Facebook', 'Facebook']] })
     ] },
+    { type: 'custom_event', label: 'Evento personalizado', icon: 'flow', description: 'Quando outro fluxo usa a ação Disparar evento personalizado com este nome. Os dados enviados ficam em {{trigger.campo}} e o nome em {{trigger.event}}. Pode vir sem contato: aí use ações internas.', fields: [
+      f('event', 'Nome do evento', 'text', { placeholder: 'Qualquer evento (ex.: pedido_aprovado)' })
+    ] },
     { type: 'user_replied', label: 'Equipe respondeu', icon: 'chat', description: 'Quando alguém da equipe manda uma mensagem ao contato pela caixa de entrada (notas internas não contam). Use {{trigger.body}} para a mensagem e {{trigger.user}} para quem respondeu.', fields: [
       f('channel', 'Canal', 'select', { options: channels }), f('user', 'Usuário', 'text', { placeholder: 'Qualquer usuário (nome exato)' }), f('keyword', 'Contém a palavra', 'text', { placeholder: 'Ex.: proposta' })
     ] },
@@ -483,6 +486,10 @@ export const actionCatalog = [
     { type: 'goal', label: 'Evento de meta', icon: 'award', fields: [f('event', 'Meta alcançada quando', 'select', { options: [['contact_tag', 'Receber uma tag'], ['customer_replied', 'Cliente responder'], ['form_submitted', 'Enviar um formulário'], ['appointment_booked', 'Fazer um agendamento'], ['order_paid', 'Pagar um pedido'], ['opportunity_status_changed', 'Oportunidade ganha']] }), f('eventValue', 'Tag ou formulário (opcional)', 'text'),
       f('otherwise', 'Ao chegar aqui sem a meta', 'select', { options: [['continue', 'Seguir o fluxo'], ['wait', 'Esperar a meta'], ['end', 'Encerrar o fluxo']] })] },
     { type: 'goto', label: 'Ir para outra etapa', icon: 'updown', fields: [f('target', 'Etapa de destino', 'step', { required: true })] },
+    { type: 'custom_event', label: 'Disparar evento personalizado', icon: 'flow', description: 'Dispara um evento com nome e dados. Os fluxos com o gatilho Evento personalizado de mesmo nome começam na hora, com este contato (se houver) e os dados em {{trigger.campo}}. Limites: o fluxo não dispara a si mesmo, até 5 eventos por execução, até 3 fluxos em sequência e até 50 fluxos por cascata.', fields: [
+      f('event', 'Nome do evento', 'text', { required: true, placeholder: 'ex.: pedido_aprovado' }),
+      f('data', 'Dados (um por linha, campo=valor, aceita variáveis)', 'textarea', { placeholder: 'valor={{vars.total}}\norigem=site' })
+    ] },
     { type: 'add_to_workflow', label: 'Adicionar a outro fluxo', icon: 'flow', fields: [f('workflowId', 'Fluxo', 'ref', { source: 'workflows', required: true })] },
     { type: 'remove_from_workflow', label: 'Remover de um fluxo', icon: 'close', fields: [f('workflowId', 'Fluxo', 'ref', { source: 'workflows', empty: 'Este fluxo' })] },
     { type: 'remove_from_all_workflows', label: 'Remover de todos os fluxos', icon: 'close', description: 'Tira o contato de todos os fluxos em que ele está rodando ou esperando.', fields: [
@@ -607,6 +614,7 @@ export function stepSummary(step, s) {
     case 'merge_contact': return `${({ email: 'Mesmo e-mail', phone: 'Mesmo telefone' })[c.by] || 'Mesmo e-mail ou telefone'} · ${c.keep === 'oldest' ? 'mantém o mais antigo' : 'mantém este'}`;
     case 'list_format': return c.variable ? `→ vars.${c.variable}` : '';
     case 'whatsapp_window': return `→ vars.${c.variable || 'janela_whatsapp'}`;
+    case 'custom_event': return c.event ? `evento ${c.event}` : '';
     case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';
     case 'update_affiliate': return ({ active: 'Ativo', paused: 'Pausado', pending: 'Aguardando aprovação' })[c.status] || '';
     case 'add_affiliate_campaign': case 'remove_affiliate_campaign': return ref('affiliateCampaigns', c.campaignId);

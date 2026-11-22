@@ -5140,5 +5140,13 @@
   "Sem corpo": "Sin cuerpo",
   "Corpo (JSON vazio = dados do contato e do gatilho)": "Cuerpo (JSON vacío = datos del contacto y del disparador)",
   "Método": "Método",
-  "JSON": "JSON"
+  "JSON": "JSON",
+  "Disparar evento personalizado": "Disparar evento personalizado",
+  "Dispara um evento com nome e dados. Os fluxos com o gatilho Evento personalizado de mesmo nome começam na hora, com este contato (se houver) e os dados em {{trigger.campo}}. Limites: o fluxo não dispara a si mesmo, até 5 eventos por execução, até 3 fluxos em sequência e até 50 fluxos por cascata.": "Dispara un evento con nombre y datos. Los flujos con el disparador Evento personalizado del mismo nombre empiezan al instante, con este contacto (si hay) y los datos en {{trigger.campo}}. Límites: el flujo no se dispara a sí mismo, hasta 5 eventos por ejecución, hasta 3 flujos en secuencia y hasta 50 flujos por cascada.",
+  "Nome do evento": "Nombre del evento",
+  "ex.: pedido_aprovado": "ej.: pedido_aprobado",
+  "Dados (um por linha, campo=valor, aceita variáveis)": "Datos (uno por línea, campo=valor, acepta variables)",
+  "Evento personalizado": "Evento personalizado",
+  "Quando outro fluxo usa a ação Disparar evento personalizado com este nome. Os dados enviados ficam em {{trigger.campo}} e o nome em {{trigger.event}}. Pode vir sem contato: aí use ações internas.": "Cuando otro flujo usa la acción Disparar evento personalizado con este nombre. Los datos enviados quedan en {{trigger.campo}} y el nombre en {{trigger.event}}. Puede llegar sin contacto: en ese caso use acciones internas.",
+  "Qualquer evento (ex.: pedido_aprovado)": "Cualquier evento (ej.: pedido_aprobado)"
 }
