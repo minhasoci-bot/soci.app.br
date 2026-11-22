@@ -7,6 +7,7 @@ import { drawDashboardGauges } from './dashboard.js';
 import { launchpadGuide } from './launchpad.js';
 import { opportunityStatuses } from './dashboard-data.js';
 import { tr, initI18n, getLanguage, translateDom } from './i18n.js';
+import { toast } from './toast.js';
 import { cardFields, cardLayouts, opportunityCsv, opportunityCsvColumns, opportunityPreferences, opportunityResults, opportunitySorts, quickActions } from './opportunity-data.js';
 import { opportunityEvents } from './opportunities.js';
 import { parseCsv } from './social-data.js';
@@ -68,7 +69,7 @@ import { applyBrandColor, setThemeAccount } from './graao.js';
 import { installReports } from './reports.js';
 import './phone-input.js';
 
-const app=document.querySelector('#app'), overlay=document.querySelector('#overlay'), toast=document.querySelector('#toast');
+const app=document.querySelector('#app'), overlay=document.querySelector('#overlay');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
 const viewPath=!isAppPath ? location.pathname : '';
 const c={workspace:new URLSearchParams(location.search).get('workspace')||localStorage.getItem('go.workspace')||'demo',view:'dashboard',tab:'',query:'',tag:'',thread:'',chat:[],month:new Date(),choice:'',askOpen:false,navOpen:false,workspaces:[],conversationFilters:{},wa:null,waPairOpen:false};
@@ -134,10 +135,10 @@ async function refreshSubWa(){
 c.dash = dashboardPreferences(c.workspace);
 c.pipeline = '';
 c.studio = { brief:'',template:'landing',project:'' };
-let toastTimer, modalReturn, busy=false, renderedView='', editor, mountClientPortal, mountCommunities, mountCourses;
+let modalReturn, busy=false, renderedView='', editor, mountClientPortal, mountCommunities, mountCourses;
 const G=s=>document.querySelector(s);
 const url=path=>`${path}?workspace=${encodeURIComponent(c.workspace)}`;
-function flash(msg,isError=false){ clearTimeout(toastTimer);toast.className=isError?'issue':'success';toast.textContent=msg;toastTimer=setTimeout(()=>{toast.className='';toast.textContent='';},4600); }
+function flash(msg,isError=false){ return isError?toast.error(msg):toast.success(msg); }
 const actingUser = () => { try { return localStorage.getItem('go.user') || ''; } catch { return ''; } };
 async function api(path,body){
   const headers = c.access?.session ? {} : { 'X-Go-User': actingUser() };
