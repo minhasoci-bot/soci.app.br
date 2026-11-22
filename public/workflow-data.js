@@ -105,6 +105,25 @@ export const triggerCatalog = [
     { type: 'community_member_joined', label: 'Membro entrou na comunidade', icon: 'users', description: 'Quando um membro entra numa comunidade (gratuita, aprovada, paga ou no teste grátis). Use {{trigger.title}} para o nome da comunidade.', fields: [
       f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
     ] },
+    { type: 'community_post_created', label: 'Post criado na comunidade', icon: 'edit', description: 'Quando um membro publica numa comunidade (posts retidos pela moderação contam quando são aprovados). Use {{trigger.title}} e {{trigger.body}}.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
+    ] },
+    { type: 'community_comment_created', label: 'Comentário na comunidade', icon: 'chat', description: 'Quando um membro comenta um post. Use {{trigger.body}} para o comentário e {{trigger.title}} para o post.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
+    ] },
+    { type: 'community_join_requested', label: 'Pedido para entrar na comunidade', icon: 'users', description: 'Quando alguém pede para entrar numa comunidade privada. Use {{trigger.answers}} para as respostas das perguntas de entrada.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
+    ] },
+    { type: 'community_join_rejected', label: 'Pedido para entrar recusado', icon: 'close', description: 'Quando a equipe recusa (remove ou bane) um pedido para entrar.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
+    ] },
+    { type: 'community_access_revoked', label: 'Acesso à comunidade removido', icon: 'close', description: 'Quando um membro ativo sai, é removido ou banido, ou uma automação tira o acesso dele. Use {{trigger.reason}} para o motivo.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' }),
+      f('reason', 'Motivo', 'select', { options: [any('Qualquer motivo'), ['left', 'Saiu por conta própria'], ['removed', 'Removido pela equipe'], ['banned', 'Banido'], ['workflow', 'Removido por automação']] })
+    ] },
+    { type: 'portal_login', label: 'Login no portal do cliente', icon: 'lock', description: 'Quando o cliente entra no portal (área de membros) pelo link de acesso. O primeiro acesso conta como cadastro. Entradas da equipe para ver o portal não contam.', fields: [
+      f('first', 'Acesso', 'select', { options: [any('Qualquer acesso'), ['yes', 'Só o primeiro acesso (cadastro)'], ['no', 'Só os acessos seguintes']] })
+    ] },
     { type: 'community_event_registered', label: 'Inscrição em evento da comunidade', icon: 'cal', description: 'Quando um membro confirma presença ou paga o ingresso de um evento da comunidade. Use {{trigger.title}} para o nome do evento.', fields: [
       f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' }),
       f('eventId', 'Evento', 'ref', { source: 'communityEvents', empty: 'Qualquer evento' }),

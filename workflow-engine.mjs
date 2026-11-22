@@ -256,7 +256,10 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'course_quiz_submitted': return (!c.courseId || c.courseId === ctx.courseId) && (!c.passed || c.passed === ctx.passed);
       case 'course_assignment_submitted': return !c.courseId || c.courseId === ctx.courseId;
       case 'course_assignment_graded': return (!c.courseId || c.courseId === ctx.courseId) && (!c.status || c.status === ctx.status);
-      case 'community_member_joined': return !c.communityId || c.communityId === ctx.communityId;
+      case 'community_member_joined': case 'community_post_created': case 'community_comment_created':
+      case 'community_join_requested': case 'community_join_rejected': return !c.communityId || c.communityId === ctx.communityId;
+      case 'community_access_revoked': return (!c.communityId || c.communityId === ctx.communityId) && (!c.reason || c.reason === ctx.reason);
+      case 'portal_login': return !c.first || c.first === ctx.first;
       case 'community_event_registered': return (!c.communityId || c.communityId === ctx.communityId) && (!c.eventId || c.eventId === ctx.eventId) && (!c.paid || c.paid === ctx.paid);
       case 'review_received': return !c.maxScore || Number(ctx.score) <= Number(c.maxScore);
       case 'video_testimonial': return !c.collectorId || c.collectorId === ctx.collectorId;
