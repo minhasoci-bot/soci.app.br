@@ -264,6 +264,18 @@ export const actionCatalog = [
       f('value', 'Valor procurado', 'text', { required: true, placeholder: '{{trigger.email}}' }),
       f('then', 'Depois de achar', 'select', { options: [['keep', 'Seguir com o contato atual'], ['switch', 'Seguir com o contato encontrado']] })] },
     { type: 'delete_contact', label: 'Excluir contato', icon: 'trash', description: 'Manda o contato para a lixeira (60 dias para restaurar). As etapas seguintes ficam sem contato.', fields: [] },
+    { type: 'company_create', label: 'Criar e associar empresa', icon: 'grid', description: 'Liga o contato à empresa com este nome; se ela não estiver no cadastro, cria. Use {{steps.ID.name}} depois.', fields: [
+      f('name', 'Nome da empresa (aceita variáveis)', 'text', { required: true, placeholder: '{{contact.company}} ou {{trigger.empresa}}' }),
+      f('phone', 'Telefone (só para empresa nova)', 'text'), f('email', 'E-mail (só para empresa nova)', 'text'),
+      f('website', 'Site (só para empresa nova)', 'text', { placeholder: 'https://' }), f('city', 'Cidade (só para empresa nova)', 'text')
+    ] },
+    { type: 'company_update', label: 'Atualizar empresa associada', icon: 'grid', description: 'Muda um campo da empresa do contato (a empresa com o nome que está no contato).', fields: [
+      f('field', 'Campo', 'select', { options: [['name', 'Nome'], ['phone', 'Telefone'], ['email', 'E-mail'], ['website', 'Site'], ['address', 'Endereço'], ['city', 'Cidade'], ['state', 'Estado'], ['postal', 'CEP'], ['country', 'País'], ['description', 'Descrição']] }),
+      f('value', 'Novo valor (aceita variáveis)', 'text', { required: true })
+    ] },
+    { type: 'company_clear', label: 'Limpar campos da empresa associada', icon: 'grid', description: 'Apaga campos da empresa do contato. O nome nunca é apagado.', fields: [
+      f('field', 'O que limpar', 'select', { options: [['all', 'Todos os campos (menos o nome)'], ['contact', 'Telefone, e-mail e site'], ['address', 'Endereço completo'], ...[['name', 'Nome'], ['phone', 'Telefone'], ['email', 'E-mail'], ['website', 'Site'], ['address', 'Endereço'], ['city', 'Cidade'], ['state', 'Estado'], ['postal', 'CEP'], ['country', 'País'], ['description', 'Descrição']].filter(([key]) => key !== 'name')] })
+    ] },
     { type: 'merge_contact', label: 'Mesclar contato', icon: 'users', description: 'Junta os contatos duplicados (mesmo e-mail ou telefone) num só: tags, campos vazios, notas, conversas, tarefas, oportunidades, agendamentos e faturas passam para o contato mantido, e os duplicados vão para a lixeira.', fields: [
       f('by', 'Duplicado quando tiver o mesmo', 'select', { options: [['any', 'E-mail ou telefone'], ['email', 'E-mail'], ['phone', 'Telefone']] }),
       f('keep', 'Contato mantido', 'select', { options: [['this', 'Este contato'], ['oldest', 'O mais antigo (o fluxo segue com ele)']] })
@@ -541,6 +553,9 @@ export function stepSummary(step, s) {
     case 'book_appointment': return ref('services', c.serviceId) + (Number(c.afterDays) ? ` · em ${c.afterDays} dia(s)` : '');
     case 'booking_link': return [ref('services', c.serviceId) || 'Qualquer serviço', `${c.days || 7} dia(s)`].join(' · ');
     case 'appointment_note': return String(c.body || '').slice(0, 60);
+    case 'company_create': return c.name || '';
+    case 'company_update': return c.field ? `${c.field} = ${String(c.value || '').slice(0, 50)}` : '';
+    case 'company_clear': return ({ all: 'Todos os campos', contact: 'Telefone, e-mail e site', address: 'Endereço completo' })[c.field] || c.field || '';
     case 'merge_contact': return `${({ email: 'Mesmo e-mail', phone: 'Mesmo telefone' })[c.by] || 'Mesmo e-mail ou telefone'} · ${c.keep === 'oldest' ? 'mantém o mais antigo' : 'mantém este'}`;
     case 'list_format': return c.variable ? `→ vars.${c.variable}` : '';
     case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';
