@@ -90,6 +90,9 @@ export const triggerCatalog = [
     ] },
     { type: 'course_completed', label: 'Curso concluído', icon: 'award', description: 'Quando um aluno chega a 100% de um curso com certificado ligado. Use {{trigger.course}} para o nome do curso.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'lesson_completed', label: 'Aula concluída', icon: 'book', description: 'Quando o aluno marca uma aula como concluída no portal. Use {{trigger.title}} para o nome da aula.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
+    { type: 'course_started', label: 'Curso iniciado', icon: 'book', description: 'Quando o aluno conclui a primeira aula de um curso. Use {{trigger.course}} para o nome do curso.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
+    { type: 'course_module_started', label: 'Módulo do curso iniciado', icon: 'book', description: 'Quando o aluno conclui a primeira aula de um módulo. Use {{trigger.module}} para o nome do módulo.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
+    { type: 'course_module_completed', label: 'Módulo do curso concluído', icon: 'award', description: 'Quando o aluno conclui todas as aulas publicadas de um módulo. Use {{trigger.module}} para o nome do módulo.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'course_access_granted', label: 'Acesso a curso liberado', icon: 'book', description: 'Quando o contato ganha acesso a um curso, por oferta ou por automação.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'course_access_revoked', label: 'Acesso a curso removido', icon: 'book', description: 'Quando uma automação tira o acesso do contato a um curso.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'certificate_issued', label: 'Certificado emitido', icon: 'award', description: 'Quando um certificado de conclusão é emitido. Use {{trigger.code}} para o código de verificação.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
@@ -134,6 +137,7 @@ export const triggerCatalog = [
     { type: 'affiliate_created', label: 'Afiliado cadastrado', icon: 'users', fields: [] },
     { type: 'affiliate_lead', label: 'Lead de afiliado', icon: 'users', fields: [f('affiliateId', 'Afiliado', 'ref', { source: 'affiliates', empty: 'Qualquer afiliado' })] },
     { type: 'affiliate_sale', label: 'Nova venda de afiliado', icon: 'pay', fields: [f('affiliateId', 'Afiliado', 'ref', { source: 'affiliates', empty: 'Qualquer afiliado' })] },
+    { type: 'affiliate_campaign_enrolled', label: 'Afiliado entrou em campanha', icon: 'users', description: 'Quando um afiliado passa a participar de uma campanha (na tela de afiliados ou por automação). Dispara no contato do afiliado; use {{trigger.campaign}} para o nome da campanha.', fields: [f('campaignId', 'Campanha', 'ref', { source: 'affiliateCampaigns', empty: 'Qualquer campanha' })] },
     { type: 'video_testimonial', label: 'Depoimento em vídeo recebido', icon: 'play', fields: [f('collectorId', 'Coletor', 'ref', { source: 'videoCollectors', empty: 'Qualquer coletor' })] }
   ] },
   { group: 'Redes Sociais', items: [
@@ -236,7 +240,21 @@ export const actionCatalog = [
       f('value', 'Valor procurado', 'text', { required: true, placeholder: '{{trigger.email}}' }),
       f('then', 'Depois de achar', 'select', { options: [['keep', 'Seguir com o contato atual'], ['switch', 'Seguir com o contato encontrado']] })] },
     { type: 'delete_contact', label: 'Excluir contato', icon: 'trash', description: 'Manda o contato para a lixeira (60 dias para restaurar). As etapas seguintes ficam sem contato.', fields: [] },
-    { type: 'make_affiliate', label: 'Tornar afiliado', icon: 'users', description: 'Cadastra o contato como afiliado na campanha (precisa de e-mail).', fields: [f('campaignId', 'Campanha de afiliados', 'ref', { source: 'affiliateCampaigns', required: true })] }
+    { type: 'make_affiliate', label: 'Tornar afiliado', icon: 'users', description: 'Cadastra o contato como afiliado na campanha (precisa de e-mail).', fields: [f('campaignId', 'Campanha de afiliados', 'ref', { source: 'affiliateCampaigns', required: true })] },
+    { type: 'update_affiliate', label: 'Atualizar afiliado', icon: 'users', description: 'Muda a situação do afiliado ligado ao contato (pelo e-mail ou por ter sido criado a partir dele).', fields: [
+      f('status', 'Situação', 'select', { options: [['active', 'Ativo'], ['paused', 'Pausado'], ['pending', 'Aguardando aprovação']] })
+    ] },
+    { type: 'add_affiliate_campaign', label: 'Adicionar afiliado a campanha', icon: 'users', description: 'Coloca o afiliado ligado ao contato numa campanha, com o link e a comissão dela.', fields: [f('campaignId', 'Campanha de afiliados', 'ref', { source: 'affiliateCampaigns', required: true, empty: 'Escolha a campanha' })] },
+    { type: 'remove_affiliate_campaign', label: 'Tirar afiliado de campanha', icon: 'users', description: 'Tira o afiliado ligado ao contato de uma campanha. Comissões já geradas continuam.', fields: [f('campaignId', 'Campanha de afiliados', 'ref', { source: 'affiliateCampaigns', required: true, empty: 'Escolha a campanha' })] },
+    { type: 'assign_affiliate_lead', label: 'Atribuir lead a afiliado', icon: 'users', description: 'Registra que o contato foi indicado pelo afiliado: as próximas faturas pagas dele geram comissão.', fields: [
+      f('affiliateId', 'Afiliado', 'ref', { source: 'affiliates', required: true, empty: 'Escolha o afiliado' }),
+      f('campaignId', 'Campanha', 'ref', { source: 'affiliateCampaigns', empty: 'Primeira campanha ativa do afiliado' }),
+      f('replace', 'Se o contato já tiver afiliado', 'select', { options: [['no', 'Manter o afiliado atual'], ['yes', 'Trocar por este']] })
+    ] },
+    { type: 'affiliate_manual_sale', label: 'Registrar venda de afiliado', icon: 'pay', description: 'Lança uma venda feita fora das faturas (no balcão, por exemplo) para o afiliado que indicou o contato. A comissão segue a regra da campanha e o prazo de carência.', fields: [
+      f('amount', 'Valor da venda (R$)', 'number', { min: 0.01, max: 1000000, required: true }),
+      f('note', 'Observação', 'text', { placeholder: 'Ex.: Pedido {{trigger.total}}' })
+    ] }
   ] },
   { group: 'Comunicação', items: [
     { type: 'send_email', label: 'Enviar e-mail', icon: 'mail', fields: [f('subject', 'Assunto', 'text', { required: true }), f('body', 'Mensagem', 'textarea', { required: true }), f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })] },
@@ -449,6 +467,10 @@ export function stepSummary(step, s) {
     case 'split': return (step.routes || []).map(route => `${route.label} ${splitPercent(route.percent)}%`).join(' · ').slice(0, 80);
     case 'drip': return `${c.batch || 0} a cada ${c.amount || 1} ${({ minutes: 'min', hours: 'h', days: 'dia(s)' })[c.unit || 'hours']}`;
     case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';
+    case 'update_affiliate': return ({ active: 'Ativo', paused: 'Pausado', pending: 'Aguardando aprovação' })[c.status] || '';
+    case 'add_affiliate_campaign': case 'remove_affiliate_campaign': return ref('affiliateCampaigns', c.campaignId);
+    case 'assign_affiliate_lead': return ref('affiliates', c.affiliateId);
+    case 'affiliate_manual_sale': return c.amount ? `R$ ${c.amount}` : '';
     case 'create_task': case 'create_opportunity': case 'create_invoice': return c.title;
     case 'add_to_workflow': case 'remove_from_workflow': return ref('workflows', c.workflowId) || (step.type === 'remove_from_workflow' ? 'Este fluxo' : '');
     case 'webhook': return c.url;

@@ -306,7 +306,9 @@ const triggerData = {
   quiz_submitted: [['formId', 'Quiz'], ['tier', 'Faixa do resultado']], pipeline_stage_changed: [['stageId', 'Etapa']], opportunity_status_changed: [['status', 'Status']],
   invoice_status: [['status', 'Status'], ['total', 'Valor']], payment_received: [['total', 'Valor pago']], order_submitted: [['storeId', 'Loja'], ['total', 'Total']], order_paid: [['storeId', 'Loja'], ['total', 'Total']],
   review_received: [['score', 'Nota']], chat_started: [['widgetId', 'Chat']], webinar_registered: [['webinarId', 'Webinar']], trigger_link_clicked: [['linkId', 'Link']], email_event: [['event', 'Evento'], ['campaignId', 'Campanha']],
-  contact_tag: [['tag', 'Tag'], ['change', 'Adicionada ou removida']], contact_changed: [['fields', 'Campos alterados']], note_changed: [['body', 'Texto novo da nota']], appointment_status: [['status', 'Status']],
+  contact_tag: [['tag', 'Tag'], ['change', 'Adicionada ou removida']], contact_changed: [['fields', 'Campos alterados']], note_changed: [['body', 'Texto novo da nota']],
+  affiliate_campaign_enrolled: [['campaign', 'Campanha'], ['affiliateId', 'Afiliado']], course_started: [['course', 'Curso'], ['title', 'Aula']],
+  course_module_started: [['course', 'Curso'], ['module', 'Módulo'], ['title', 'Aula']], course_module_completed: [['course', 'Curso'], ['module', 'Módulo'], ['title', 'Aula']], appointment_status: [['status', 'Status']],
   community_post_created: [['community', 'Comunidade'], ['title', 'Título do post'], ['body', 'Texto do post']], community_comment_created: [['community', 'Comunidade'], ['title', 'Post comentado'], ['body', 'Comentário']],
   community_join_requested: [['community', 'Comunidade'], ['answers', 'Respostas de entrada']], community_join_rejected: [['community', 'Comunidade']],
   community_access_revoked: [['community', 'Comunidade'], ['reason', 'Motivo (left, removed, banned ou workflow)']], portal_login: [['first', 'Primeiro acesso (yes ou no)']]

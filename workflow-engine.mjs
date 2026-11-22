@@ -174,7 +174,7 @@ export function compile(steps) {
 
 /* ───────── Motor ───────── */
 
-export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null }) {
+export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null, affiliateAction = null }) {
   const contactOf = (s, id) => s.contacts.find(row => row.id === id);
   const fieldValue = (s, contact, key) => {
     if (!contact) return '';
@@ -255,7 +255,9 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'ticket_created': return (!c.priority || c.priority === ctx.priority) && (!c.category || c.category === ctx.category);
       case 'ticket_status_changed': return (!c.status || c.status === ctx.status) && (!c.priority || c.priority === ctx.priority);
       case 'badge_issued': case 'certificate_issued': case 'course_completed':
-      case 'lesson_completed': case 'course_access_granted': case 'course_access_revoked': return !c.courseId || c.courseId === ctx.courseId;
+      case 'lesson_completed': case 'course_access_granted': case 'course_access_revoked':
+      case 'course_started': case 'course_module_started': case 'course_module_completed': return !c.courseId || c.courseId === ctx.courseId;
+      case 'affiliate_campaign_enrolled': return !c.campaignId || c.campaignId === ctx.campaignId;
       case 'course_quiz_submitted': return (!c.courseId || c.courseId === ctx.courseId) && (!c.passed || c.passed === ctx.passed);
       case 'course_assignment_submitted': return !c.courseId || c.courseId === ctx.courseId;
       case 'course_assignment_graded': return (!c.courseId || c.courseId === ctx.courseId) && (!c.status || c.status === ctx.status);
@@ -399,6 +401,8 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         return `${target.name}: na fila`;
       }
       case 'make_affiliate': return makeAffiliate ? makeAffiliate(s, contact, c.campaignId) : 'erro: afiliados indisponíveis';
+      case 'update_affiliate': case 'add_affiliate_campaign': case 'remove_affiliate_campaign': case 'assign_affiliate_lead': case 'affiliate_manual_sale':
+        return affiliateAction ? affiliateAction(s, contact, node.type, { ...c, note: text(c.note || '') }, depth) : 'erro: afiliados indisponíveis';
       case 'review_request': {
         const channel = ['WhatsApp', 'SMS', 'Email'].includes(c.channel) ? c.channel : 'WhatsApp';
         if (contact.dnd) return 'contato em não perturbe';

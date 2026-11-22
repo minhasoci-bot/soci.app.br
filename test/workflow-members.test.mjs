@@ -36,6 +36,8 @@ test('T.1 members: course and community access actions, access and lesson trigge
   const revoked = await flow('Acesso removido', { type: 'course_access_revoked', config: {} });
   const lesson = await flow('Aula feita', { type: 'lesson_completed', config: { courseId: course } }, [{ type: 'internal_notification', config: { body: 'Aula {{trigger.title}}' } }]);
   const joined = await flow('Entrou', { type: 'community_member_joined', config: { communityId: group } });
+  const started = await flow('Começou', { type: 'course_started', config: { courseId: course } });
+  const moduleDone = await flow('Módulo feito', { type: 'course_module_completed', config: {} }, [{ type: 'internal_notification', config: { body: 'Módulo {{trigger.module}}' } }]);
 
   const noEmail = await saveRemote('contacts', { name: 'Sem e-mail', tags: ['aluno'], custom: {} });
   assert.match(runsOf(await state(), grant).find(run => run.contactId === noEmail).results.join(' | '), /erro: contato sem e-mail/);
@@ -58,6 +60,13 @@ test('T.1 members: course and community access actions, access and lesson trigge
   assert.equal(runsOf(s, lesson).length, 1, 'marking the same lesson again does not fire twice');
   assert.equal(runsOf(s, lesson)[0].contactId, ana);
   assert.ok(s.teamMessages.some(row => row.body === 'Aula feita: Aula Introdução'), 'the lesson title reaches {{trigger.title}}');
+  // The portal sends the lessons done so far: the first one starts the course, the last one of M1 completes the module.
+  s = await until(s => runsOf(s, started).length);
+  assert.equal(runsOf(s, moduleDone).length, 0);
+  await call(`${api}/progress/${course}`, { lessonId: 'l2', done: true }, as);
+  s = await until(s => runsOf(s, moduleDone).length);
+  assert.equal(runsOf(s, started).length, 1);
+  assert.ok(s.teamMessages.some(row => row.body === 'Módulo feito: Módulo M1'));
 
   // Granting again changes nothing and fires nothing.
   const contact = s.contacts.find(row => row.id === ana);
