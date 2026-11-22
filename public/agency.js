@@ -2,6 +2,8 @@ import { brandHighlight, brandIcon, icon as i, logo, brandName, bootScreen, shcL
 import { desktopPage, desktopPreview, readDesktop } from './agency-desktop.js';
 import { formatTokens, formatUsd, usageKinds } from './ai-data.js';
 import { labCatalog, labModes } from './labs-data.js';
+import { appApiScopes, appCategories, appEvents } from './app-studio-data.js';
+import { allTriggers } from './workflow-data.js';
 import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { applyBrandColor } from './graao.js';
@@ -40,7 +42,8 @@ const subTabs = {
     ['workflow-premium', 'Workflow: recursos premium'], ['external-ai', 'Workflow: IA externa'], ['domain-purchase', 'Compra de domínios'],
     ['openai', 'OpenAI'], ['private-integrations', 'Integrações privadas'], ['affiliates', 'Afiliados'], ['menu-links', 'Links de menu'], ['abacatepay', 'AbacatePay'], ['api-keys', 'Chaves de API'],
     ['compliance', 'Conformidade'], ['labs', 'Recursos experimentais'], ['audit', 'Logs de auditoria'], ['storage', 'Armazenamento de mídia']],
-  'ai-suite': [['limits', 'Planos e limites'], ['usage', 'Painel de uso'], ['setup', 'Configuração']]
+  'ai-suite': [['limits', 'Planos e limites'], ['usage', 'Painel de uso'], ['setup', 'Configuração']],
+  marketplace: [['apps', 'App Studio'], ['installs', 'Instalações'], ['docs', 'Como integrar']]
 };
 const aiPeriods = [['7', '7 dias'], ['30', '30 dias'], ['90', '90 dias'], ['month', 'Este mês']];
 const aiFilters = [['', 'Todas as subcontas'], ['nolimit', 'Sem limite'], ['near', 'Perto do limite'], ['blocked', 'No limite'], ['off', 'IA desligada']];
@@ -634,10 +637,72 @@ export function startAgency(env) {
   }
 
   // ---- App Marketplace ----------------------------------------------------
-  pages.marketplace = () => {
-    location.replace('#agency/dashboard');
-    return '';
+  // ---- Marketplace de apps (7.3): the App Studio, where the apps are installed and how to integrate ----
+  const studioApps = () => D().studioApps || [];
+  const appInstallsOf = appId => (D().appInstalls || []).filter(row => row.appId === appId);
+  const eventLabel = type => allTriggers.find(t => t.type === type)?.label || type;
+  const appBadges = app => [app.webhookUrl ? badge('Webhook', 'blue') : '', app.events.length ? badge(`${app.events.length} evento(s)`) : '', app.actions.length ? badge(`${app.actions.length} ação(ões)`) : '',
+    app.triggers.length ? badge(`${app.triggers.length} gatilho(s)`) : '', app.scopes.length ? badge('API') : '', app.menu ? badge('Link de menu') : ''].filter(Boolean).join(' ');
+  const studioList = () => {
+    const manage = A.data.access?.settings, list = studioApps().filter(app => match(app.name, app.tagline, app.category));
+    return `<div class="toolbar">${search('Buscar apps…')}</div>
+      ${table(['App', 'Situação', 'Disponível para', 'Instalações', 'O que faz', ''], list.map(app => `<tr><td><b>${h(app.name)}</b><br><small class="dim">${h(app.tagline || app.category)}</small></td>
+        <td>${app.status === 'published' ? badge('Publicado', 'green') : badge('Rascunho')}</td>
+        <td>${app.availability?.mode === 'chosen' ? `${app.availability.accounts.length} ${h(tr('subconta(s)'))}` : h(tr('Todas as subcontas'))}</td>
+        <td>${appInstallsOf(app.id).length}</td><td>${appBadges(app)}</td>
+        <td class="right">${manage ? `<div class="inline-gap">${btn('Editar', 'studio-edit', `data-id="${app.id}"`)}${btn(app.status === 'published' ? 'Despublicar' : 'Publicar', 'studio-publish', `data-id="${app.id}" data-on="${app.status !== 'published'}"`, app.status === 'published' ? 'secondary' : 'primary')}${app.webhookUrl ? btn('Segredo', 'studio-secret', `data-id="${app.id}"`, 'secondary', 'key') : ''}${btn('Excluir', 'studio-delete', `data-id="${app.id}"`, 'danger plain', 'trash')}</div>` : ''}</td></tr>`),
+        empty('Nenhum app criado', 'Crie um app para levar os dados das subcontas a outro sistema, receber gatilhos de fora ou adicionar um link no menu.', manage ? primary('Criar app', 'studio-new') : ''))}`;
   };
+  const studioInstalls = () => {
+    const rows = (D().appInstalls || []).filter(row => match(accountName(row.account), studioApps().find(app => app.id === row.appId)?.name));
+    return `<div class="toolbar">${search('Buscar por app ou subconta…')}</div>${table(['App', 'Subconta', 'Instalado em', 'Por', 'Último uso da API'], rows.map(row => `<tr><td><b>${h(studioApps().find(app => app.id === row.appId)?.name || row.appId)}</b></td><td>${h(accountName(row.account))}</td><td>${day(row.at, true)}</td><td>${h(row.by || '—')}</td><td>${row.lastUsed ? day(row.lastUsed, true) : '<span class="dim">—</span>'}</td></tr>`), empty('Nenhuma instalação', 'As subcontas instalam os apps publicados em Configurações → Apps.'))}`;
+  };
+  const studioDocs = () => `<div class="ag-studio-docs">
+    <section class="surface padded"><h2>${h(tr('Como um app conversa com a Soci'))}</h2>
+      <ol><li>${h(tr('Crie o app, informe o webhook (https://) e publique. As subcontas instalam em Configurações → Apps.'))}</li>
+      <li>${h(tr('Na instalação, o webhook recebe o aviso app.installed com o token da subconta (só uma vez; a Soci guarda apenas o resumo dele).'))}</li>
+      <li>${h(tr('Depois chegam os eventos assinados (event), as ações dos workflows (action) e, na desinstalação, app.uninstalled.'))}</li></ol></section>
+    <section class="surface padded"><h2>${h(tr('Assinatura'))}</h2><p class="dim">${h(tr('Toda entrega traz os cabeçalhos x-soci-app, x-soci-event, x-soci-timestamp e x-soci-signature. Confira assim:'))}</p>
+      <pre><code>const esperado = 'sha256=' + crypto.createHmac('sha256', SEGREDO_DO_APP)
+  .update(req.headers['x-soci-timestamp'] + '.' + corpoBruto).digest('hex');
+if (esperado !== req.headers['x-soci-signature']) return res.status(401).end();</code></pre></section>
+    <section class="surface padded"><h2>${h(tr('API com o token da instalação'))}</h2><p class="dim">${h(tr('O token só vale para a subconta onde o app foi instalado e para as permissões declaradas.'))}</p>
+      <pre><code>GET  ${h(location.origin)}/api/v1/subaccounts
+GET  ${h(location.origin)}/api/v1/subaccounts/&lt;subconta&gt;/contacts      (contacts.read)
+POST ${h(location.origin)}/api/v1/subaccounts/&lt;subconta&gt;/contacts      (contacts.write)
+Authorization: Bearer soci_app_…</code></pre></section>
+    <section class="surface padded"><h2>${h(tr('Disparar um gatilho do app'))}</h2><p class="dim">${h(tr('Os workflows da subconta com o gatilho "App disparou um gatilho" rodam para o contato, achado pelo e-mail ou telefone ou criado.'))}</p>
+      <pre><code>POST ${h(location.origin)}/api/apps/v1/trigger
+Authorization: Bearer soci_app_…
+{ "trigger": "pedido-pago", "contact": { "name": "Ana", "email": "ana@ex.com" }, "data": { "pedido": 42 } }</code></pre></section></div>`;
+  pages.marketplace = () => {
+    const sub = A.sub || 'apps';
+    const body = sub === 'installs' ? studioInstalls() : sub === 'docs' ? studioDocs() : studioList();
+    return `<div class="page">${head('Marketplace de apps', 'Crie apps para as suas subcontas: eventos por webhook, ações e gatilhos nos workflows, acesso à API e link no menu.', A.data.access?.settings ? primary('Criar app', 'studio-new') : '')}${tabCard('marketplace', body, 'Seções do marketplace')}</div>`;
+  };
+  function editStudioApp(appId = '') {
+    const app = appId ? studioApps().find(row => row.id === appId) : null;
+    if (appId && !app) return;
+    const v = app || { events: [], scopes: [], actions: [], triggers: [], availability: { mode: 'all', accounts: [] }, category: 'Outros' };
+    const lines = list => list.map(item => item.description ? `${item.label}: ${item.description}` : item.label).join('\n');
+    const checks = (name, options, chosen) => `<fieldset class="ag-checks ag-full"><legend>${h(tr(name === 'events' ? 'Eventos enviados ao webhook' : name === 'scopes' ? 'Permissões na API' : 'Subcontas'))}</legend>${options.map(([value, label]) => `<label class="check"><input type="checkbox" name="${name}" value="${h(value)}" ${chosen.includes(value) ? 'checked' : ''}> ${h(tr(label))}</label>`).join('')}</fieldset>`;
+    dialog(app ? `Editar ${app.name}` : 'Criar app', `<div class="field-grid">
+      <label>${h(tr('Nome'))}<input name="name" required maxlength="60" value="${h(v.name || '')}"></label>
+      <label>${h(tr('Categoria'))}<select name="category">${appCategories.map(c => `<option ${v.category === c ? 'selected' : ''}>${h(c)}</option>`).join('')}</select></label>
+      <label class="ag-full">${h(tr('Frase curta'))}<input name="tagline" maxlength="140" value="${h(v.tagline || '')}" placeholder="${h(tr('O que o app faz, em uma linha'))}"></label>
+      <label class="ag-full">${h(tr('Descrição'))}<textarea name="description" maxlength="2000">${h(v.description || '')}</textarea></label>
+      <label>${h(tr('Site do desenvolvedor'))}<input name="website" type="url" value="${h(v.website || '')}" placeholder="https://"></label>
+      <label>${h(tr('Webhook do app'))}<input name="webhookUrl" type="url" value="${h(v.webhookUrl || '')}" placeholder="https://"></label>
+      ${checks('events', appEvents.map(type => [type, eventLabel(type)]), v.events)}
+      ${checks('scopes', appApiScopes, v.scopes)}
+      <label class="ag-full">${h(tr('Ações nos workflows (uma por linha, "Nome: o que faz")'))}<textarea name="actions" placeholder="Enviar lead: manda o contato para o ERP">${h(lines(v.actions))}</textarea></label>
+      <label class="ag-full">${h(tr('Gatilhos que o app dispara (um por linha)'))}<textarea name="triggers" placeholder="Pedido pago">${h(lines(v.triggers))}</textarea></label>
+      <label>${h(tr('Link no menu: nome'))}<input name="menuLabel" maxlength="40" value="${h(v.menu?.label || '')}"></label>
+      <label>${h(tr('Link no menu: endereço'))}<input name="menuUrl" value="${h(v.menu?.url || '')}" placeholder="https://app.exemplo.com/?conta={{location.id}}"></label>
+      <label class="ag-full">${h(tr('Disponível para'))}<select name="availability"><option value="all">${h(tr('Todas as subcontas'))}</option><option value="chosen" ${v.availability?.mode === 'chosen' ? 'selected' : ''}>${h(tr('Só as subcontas escolhidas'))}</option></select></label>
+      ${checks('accounts', accounts().map(a => [a.id, a.name]), v.availability?.accounts || [])}</div>
+      <p class="dim">${h(tr('Eventos, ações e permissões na API precisam do webhook. O app só aparece para as subcontas depois de publicado.'))}</p>`, { form: 'studio-app', id: appId, submit: app ? 'Salvar app' : 'Criar app', wide: true });
+  }
 
   // ---- Settings ----------------------------------------------------------
   const isOpenAIPage = () => A.page === 'settings' && A.sub === 'openai';
@@ -1080,6 +1145,28 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const d = b.dataset, id = d.id;
     try {
       switch (d.ag) {
+        case 'studio-new': editStudioApp(); break;
+        case 'studio-edit': editStudioApp(id); break;
+        case 'studio-publish': {
+          const on = d.on === 'true';
+          await act('studio-app-publish', { id, data: { published: on } }); render();
+          flash(on ? 'App publicado: as subcontas já podem instalar.' : 'App despublicado: quem já instalou continua usando.');
+          break;
+        }
+        case 'studio-delete': {
+          const app = studioApps().find(row => row.id === id);
+          confirmBox(`Excluir ${app?.name || 'este app'}?`, 'O app sai do marketplace e o segredo deixa de valer. Só é possível excluir um app sem instalações.', 'studio-delete', id, 'Excluir app');
+          break;
+        }
+        case 'studio-secret': {
+          const app = studioApps().find(row => row.id === id);
+          const { secret, version } = await call('studio-app-secret', { id });
+          dialog(`Segredo de assinatura: ${app?.name || 'app'}`, `<p class="dim">${h(tr('Use este segredo no servidor do app para conferir o cabeçalho x-soci-signature. Guarde-o como senha.'))}</p>
+            <div class="ag-copy"><input readonly value="${h(secret)}" aria-label="${h(tr('Segredo de assinatura'))}">${btn('Copiar', 'copy', `data-text="${h(secret)}"`)}</div>
+            <p class="dim">${h(tr('Versão'))} ${version}. ${h(tr('Gerar um novo segredo invalida o atual na hora.'))}</p>${btn('Gerar novo segredo', 'studio-rotate', `data-id="${id}"`, 'danger plain', 'refresh')}`);
+          break;
+        }
+        case 'studio-rotate': confirmBox('Gerar um novo segredo?', 'As próximas entregas usam o segredo novo. Atualize o servidor do app antes, ou as assinaturas deixam de conferir.', 'studio-rotate', id, 'Gerar novo segredo'); break;
         case 'ai-limit': editAiLimit(id); break;
         case 'ai-period': await loadAiUsage(d.period); break;
         case 'ai-apply': {
@@ -1492,6 +1579,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'wallet': await act('wallet', { data }); msg = 'Lançamento na carteira registrado.'; break;
         case 'system-email': await act('system-email', { id, data }); msg = 'Modelo de e-mail salvo.'; break;
         case 'ai-defaults': await act('ai-defaults', { data }); msg = 'Padrões de IA salvos.'; break;
+        case 'studio-app': await act('studio-app-save', { id: id || undefined, data }); msg = id ? 'App salvo. As subcontas que o instalaram já recebem as mudanças.' : 'App criado como rascunho. Publique quando estiver pronto.'; break;
+        case 'studio-delete': await act('studio-app-delete', { id }); msg = 'App excluído.'; break;
+        case 'studio-rotate': await act('studio-app-rotate', { id }); msg = 'Novo segredo gerado. Abra “Segredo” para copiar.'; break;
         case 'ai-limit': await call('ai-limit', { workspace: id, limit: Number(data.limit) || 0, alertAt: Number(data.alertAt) }); msg = 'Limite de IA salvo.'; break;
         case 'ai-apply': { const changed = await call('ai-apply-defaults', { scope: id }); msg = `Limite padrão aplicado em ${changed} subconta(s).`; break; }
         case 'compliance': await act('compliance', { data }); msg = 'Configurações de conformidade salvas.'; break;

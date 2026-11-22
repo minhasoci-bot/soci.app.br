@@ -14,6 +14,7 @@ import { agentBuildRequest, agentPreview, applyAgentDesign, editAgent, recordAge
 import { agencyAiUsage, checkAiBudget, editAgentTemplate, editKnowledgeBase, setAiAccess, setAiLimit, usageMeter } from './ai-model.mjs';
 import { requireLab, setLabsOffer } from './labs-model.mjs';
 import { conversationRequest, writeConversationReply, writeConversationSummary } from './conversation-ai.mjs';
+import { addInstall, appSecret, appSignature, installedCopy, removeInstall, tokenHash as appTokenHash } from './app-studio-model.mjs';
 import { usageSummary } from './ui/ai-data.js';
 import { brandVoiceRequest, emailRequest, reviewReplyRequest, transformRequest, transformText, writeBrandVoice, writeEmail, writeReviewReply } from './content-ai.mjs';
 import { brandFromPage, fetchPublicPage } from './brand-model.mjs';
@@ -143,7 +144,7 @@ const staticFiles = new Map([
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
@@ -252,7 +253,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 export function makeServer({
   dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, brandFetch=fetch, brandResolve=null, designAgentConfig=designAgent,
-  openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch,
+  openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
   portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(), campaignMail=campaignMailer(),
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
@@ -278,6 +279,23 @@ export function makeServer({
     }
   }
   const openAI = createOpenAI({ store, model: agentModel, secret: openAISecret, request: openAIRequest });
+  // Marketplace apps (7.3): signing secrets derive from the storage key; without one (local runs) from a per-process key.
+  const appSigningKey = openAISecret || randomBytes(32).toString('hex');
+  const appDeliveryOptions = { ...(appRequest && { fetchImpl: appRequest }), ...(appResolve && { resolve: appResolve }) };
+  // One signed POST to an app's webhook. `body` is the event, action or lifecycle notice.
+  async function deliverToApp(agencyId, workspace, appId, body) {
+    const agency = await loadAgency(agencyId);
+    const app = (agency.studioApps || []).find(row => row.id === appId);
+    const install = (agency.appInstalls || []).find(row => row.appId === appId && row.account === workspace);
+    if (!app) return { name: 'App', text: 'app excluído: não enviado' };
+    if (!install && body.type !== 'app.uninstalled') return { name: app.name, text: 'app desinstalado: não enviado' };
+    if (!app.webhookUrl) return { name: app.name, text: 'o app não tem webhook' };
+    const payload = { ...body, app: { id: app.id, name: app.name }, workspace, installId: install?.id || body.installId || '', sentAt: stamp() };
+    const raw = JSON.stringify(payload), timestamp = String(Math.floor(Date.now() / 1000));
+    const headers = { 'x-soci-app': app.id, 'x-soci-event': body.event || body.type, 'x-soci-timestamp': timestamp,
+      'x-soci-signature': appSignature(appSecret(appSigningKey, agencyId, app), timestamp, raw) };
+    return { name: app.name, text: await deliverWebhook({ url: app.webhookUrl, method: 'POST', body: payload, raw, headers }, appDeliveryOptions) };
+  }
   const handleAsk = createAskHandler({ store, openAI, openAIRequest });
   const waha = createWahaHandler({ store, secret: openAISecret, request: wahaRequest });
   const abacate = createAbacatePayHandler({ store, secret: openAISecret, request: abacatePayRequest });
@@ -600,10 +618,31 @@ export function makeServer({
     });
     return newId;
   }
+  async function appBearer(req) {
+    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i,'');
+    if (!/^soci_app_[0-9a-f]{48}$/.test(token)) throw error('Envie o token de instalação do app no cabeçalho Authorization.', 401);
+    const digest = appTokenHash(token);
+    const match = await store.findAgency({ appInstalls: [{ tokenHash: digest }] });
+    if (!match) throw error('Token de app inválido ou o app foi desinstalado.', 401);
+    return changeAgency(match.id, agency => {
+      const install = (agency.appInstalls || []).find(row => row.tokenHash === digest);
+      const app = install && (agency.studioApps || []).find(row => row.id === install.appId);
+      if (!install || !app) throw error('Token de app inválido ou o app foi desinstalado.', 401);
+      install.lastUsed = stamp();
+      return { agencyId: match.id, install: { ...install }, app: { ...app } };
+    });
+  }
   async function bearer(req, scope) {
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i,'');
     if (!token) throw error('Send an API key in the Authorization header.',401);
     const digest = hash(token);
+    // A marketplace app's install token: only its own sub-account and the scopes the app declared.
+    if (token.startsWith('soci_app_')) {
+      const { agencyId, install, app } = await appBearer(req);
+      if (!app.scopes.includes(scope)) throw error(`O app ${app.name} não tem a permissão ${scope}.`, 403);
+      req.appAccount = install.account;
+      return agencyId;
+    }
     const matches = await Promise.all([store.findAgency({ apiKeys: [{ hash: digest }] }), store.findAgency({ privateIntegrations: [{ hash: digest }] })]);
     const match = matches.find(Boolean);
     if (!match) throw error('This key is invalid or lacks the required scope.',401);
@@ -864,7 +903,22 @@ export function makeServer({
       // Reselling prices are copied into each sub-account's wallet.
       if (['saas-rebilling', 'rebill-account'].includes(input.type)) await syncWallets(who.agencyId, workspaces);
       if (input.type === 'labs') await syncLabs(who.agencyId, workspaces);
+      // An edited app reaches the sub-accounts where it is installed (new actions, triggers, events, link).
+      if (input.type === 'studio-app-save') {
+        const agency = await loadAgency(who.agencyId), app = agency.studioApps.find(row => row.id === outcome);
+        for (const install of (agency.appInstalls || []).filter(row => row.appId === outcome)) {
+          await change(install.account, { type: 'app-installed', data: { copy: installedCopy(app, install) } });
+        }
+      }
       return outcome;
+    }
+    // App Studio: the signing secret of one app, for the agency's developers to check the deliveries.
+    if (op === 'studio-app-secret') {
+      requireCapability(who, 'settings', 'Seu usuário não pode ver o segredo dos apps.');
+      const agency = await loadAgency(who.agencyId);
+      const app = (agency.studioApps || []).find(row => row.id === String(input.id || '')) || (() => { throw error('App não encontrado.', 404); })();
+      await recordAudit(who, 'Segredo de assinatura do app consultado', app.name);
+      return { secret: appSecret(appSigningKey, who.agencyId, app), version: app.secretVersion || 1 };
     }
     // Central de IA: usage over a period, and the agency's limit and switch for each sub-account.
     if (op === 'ai-usage') {
@@ -1356,11 +1410,17 @@ export function makeServer({
     const state = await store.load(workspace);
     if (!state.workflowOutbox?.length) return 0;
     const items = (await change(workspace, { type: 'workflow-outbox-take' })).id || [];
-    const results = [], aiResults = [];
+    const results = [], aiResults = [], appEntries = [];
     const fromAddress = items.some(item => ['document', 'document-owner', 'review-email'].includes(item.kind)) ? await sendingAddress(workspace) : '';
     const absolute = item => (item.path && !item.origin ? String(item.body || '').split(item.path).join(documentMail.linkOf(item)) : item.body);
     for (const item of items) {
       if (item.kind === 'webhook') results.push({ runId: item.runId, kind: 'webhook', text: await deliverWebhook(item) });
+      if (item.kind === 'app') {
+        const sent = await deliverToApp(state.agencyId || AGENCY_ID, workspace, item.appId, item.body || {});
+        if (item.runId) results.push({ runId: item.runId, kind: 'app', text: sent.text });
+        const what = item.body?.type === 'action' ? `Ação ${item.body.action}` : `Evento ${item.body?.event}`;
+        appEntries.push({ app: sent.name, appId: item.appId, kind: item.body?.type || 'event', text: `${what}: ${sent.text}` });
+      }
       if (item.kind === 'ai') aiResults.push(await workflowAIStep(workspace, state, item));
       if (item.kind === 'review-email') {
         const outcome = await documentMail.email(item.email, { subject: item.subject, text: absolute(item) }, `review-${workspace}-${item.requestId}`,
@@ -1389,6 +1449,7 @@ export function makeServer({
       }
     }
     if (results.length) await change(workspace, { type: 'workflow-outbox-result', data: { results } });
+    if (appEntries.length) await change(workspace, { type: 'app-log', data: { entries: appEntries } });
     if (aiResults.length) {
       // Resuming can queue the next AI step or webhook of the same run.
       const resumed = await change(workspace, { type: 'workflow-ai-result', data: { results: aiResults } });
@@ -1854,15 +1915,29 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         return send(200,'text/html; charset=utf-8',method === 'HEAD' ? undefined : widgetHtml(widget,url.searchParams.has('sent')));
       }
+      // A marketplace app fires one of its workflow triggers in the sub-account it is installed in.
+      if (p === '/api/apps/v1/trigger' && method === 'POST') {
+        const { install } = await appBearer(req);
+        const body = await payload(req);
+        const result = await change(install.account, { type: 'app-trigger', data: { appId: install.appId, key: String(body.trigger || ''),
+          contact: body.contact && typeof body.contact === 'object' ? body.contact : {}, payload: body.data } });
+        flushLater(install.account);
+        return json({ ok: true, ...result.id }, 202);
+      }
       const apiMatch = p.match(apiPath);
       if (apiMatch) {
         const [, account] = apiMatch;
         if (!account) {
           if (method !== 'GET') throw error('Method not allowed.',405);
+          if (String(req.headers.authorization || '').includes('soci_app_')) {
+            const { agencyId, install } = await appBearer(req);
+            return json({ subaccounts: (await listWorkspaces(agencyId)).filter(w => w.id === install.account) });
+          }
           const agencyId = await bearer(req,'subaccounts.read');
           return json({ subaccounts: await listWorkspaces(agencyId) });
         }
         const agencyId = await bearer(req,method === 'POST' ? 'contacts.write' : 'contacts.read');
+        if (req.appAccount && req.appAccount !== account) throw error('O token deste app só vale para a subconta onde ele foi instalado.', 403);
         const input = method === 'POST' ? await payload(req) : null;
         await requireWorkspaceAccess(await loadAgency(agencyId), { agencyId, modules: null }, account, {
           modules: ['contacts'], hide: true, reason: false
@@ -2860,6 +2935,40 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para responder com IA.', 409);
         }
         return json(await meteredAI(who, id, 'reputation', connection => content.writeReviewReply(connection, request)));
+      }
+      // App marketplace (7.3): a sub-account installs or removes an app its agency published.
+      const appAction = p.match(/^\/api\/apps\/(install|uninstall)$/);
+      if (appAction && method === 'POST') {
+        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
+        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
+        const body = await payload(req);
+        const agencyId = (await store.load(id)).agencyId || AGENCY_ID;
+        if (appAction[1] === 'install') {
+          const { app, install, token } = await changeAgency(agencyId, agency => {
+            const made = addInstall(agency, String(body.appId || ''), id, who.name);
+            logTo(agency, who, 'App installed', made.app.name, id);
+            return made;
+          });
+          await change(id, { type: 'app-installed', data: { copy: installedCopy(app, install) } });
+          // The app gets its token once, in the signed "app.installed" notice; Soci keeps only its hash.
+          const sent = app.webhookUrl
+            ? await deliverToApp(agencyId, id, app.id, { type: 'app.installed', token: app.scopes.length ? token : '', scopes: app.scopes, events: app.events,
+              api: { base: `${publicBase(req)}/api/v1`, trigger: `${publicBase(req)}/api/apps/v1/trigger` } })
+            : { name: app.name, text: 'sem webhook' };
+          await change(id, { type: 'app-log', data: { entries: [{ app: app.name, appId: app.id, kind: 'install', text: `Instalado por ${who.name}: ${sent.text}` }] } });
+          return json({ ...workspaceView(who, (await store.load(id))), installed: app.id, delivery: sent.text }, 201);
+        }
+        const removed = await changeAgency(agencyId, agency => {
+          const made = removeInstall(agency, String(body.installId || ''), id);
+          logTo(agency, who, 'App uninstalled', made.app?.name || made.install.appId, id);
+          return made;
+        });
+        await change(id, { type: 'app-removed', data: { appId: removed.install.appId } });
+        if (removed.app?.webhookUrl) {
+          const sent = await deliverToApp(agencyId, id, removed.app.id, { type: 'app.uninstalled', installId: removed.install.id });
+          await change(id, { type: 'app-log', data: { entries: [{ app: removed.app.name, appId: removed.app.id, kind: 'uninstall', text: `Desinstalado por ${who.name}: ${sent.text}` }] } });
+        }
+        return json({ ...workspaceView(who, (await store.load(id))), removed: removed.install.appId });
       }
       // Labs in Conversas: a reply draft or a summary of the history with one contact (metered as "conversations").
       const conversationAI = p.match(/^\/api\/conversations\/ai\/(reply|summary)$/);

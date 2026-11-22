@@ -12,7 +12,7 @@ const readModules = {
   socialAccounts: 'marketing', socialPosts: 'marketing', socialImports: 'marketing',
   dashboards: 'dashboard', defaultDashboard: 'dashboard', onboarding: 'dashboard',
   dashboardReports: 'reporting', customReports: 'reporting', integrations: 'settings',
-  seo: 'reputation', seoAudits: 'reputation', visibility: 'reputation', visibilityRuns: 'reputation', wallet: 'settings'
+  seo: 'reputation', seoAudits: 'reputation', visibility: 'reputation', visibilityRuns: 'reputation', wallet: 'settings', appLog: 'settings'
 };
 
 const writeModules = {
@@ -59,7 +59,7 @@ const commandModules = {
 const agencySettingsCommands = new Set([
   'account-meta', 'account-reactivate', 'saas-mode', 'saas-rebilling', 'rebill-account', 'saas-account', 'workflow-builder',
   'sub-feature', 'email-domain', 'email-domain-accounts', 'email-domain-remove', 'affiliate-pixel', 'profile',
-  'company', 'billing-plan', 'wallet', 'auto-recharge', 'system-email', 'labs', 'ai-defaults', 'compliance',
+  'company', 'billing-plan', 'wallet', 'auto-recharge', 'system-email', 'labs', 'ai-defaults', 'studio-app-save', 'studio-app-publish', 'studio-app-delete', 'studio-app-rotate', 'compliance',
   'api-key', 'api-key-delete', 'private-integration', 'private-integration-delete', 'resell',
   'addon-request', 'addon-cancel', 'affiliate-pay', 'mobile-app', 'desktop-app', 'desktop-app-publish', 'integration',
   'app-install', 'app-uninstall', 'app-resell'
@@ -187,6 +187,8 @@ export function workspaceView(access, state) {
   if (!snapshotSources.every(module => hasModule(access, module))) view.dashboardReports = [];
   // Every screen needs to know which Labs features are on (Conversas shows the AI buttons, for one).
   view.labs = state.labs || view.labs;
+  // Installed apps feed the workflow builder (app actions and triggers) of anyone who builds flows.
+  view.appInstalls = state.appInstalls || [];
   for (const key of ['bulkActions', 'imports']) {
     view[key] = state[key].filter(row => hasModule(access, row.object === 'opportunities' ? 'opportunities' : 'contacts'));
   }
