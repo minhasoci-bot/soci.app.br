@@ -235,7 +235,8 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'email_sequence_completed': return !c.sequenceId || c.sequenceId === ctx.sequenceId;
       case 'ticket_created': return (!c.priority || c.priority === ctx.priority) && (!c.category || c.category === ctx.category);
       case 'ticket_status_changed': return (!c.status || c.status === ctx.status) && (!c.priority || c.priority === ctx.priority);
-      case 'badge_issued': case 'certificate_issued': case 'course_completed': return !c.courseId || c.courseId === ctx.courseId;
+      case 'badge_issued': case 'certificate_issued': case 'course_completed':
+      case 'lesson_completed': case 'course_access_granted': case 'course_access_revoked': return !c.courseId || c.courseId === ctx.courseId;
       case 'course_quiz_submitted': return (!c.courseId || c.courseId === ctx.courseId) && (!c.passed || c.passed === ctx.passed);
       case 'course_assignment_submitted': return !c.courseId || c.courseId === ctx.courseId;
       case 'course_assignment_graded': return (!c.courseId || c.courseId === ctx.courseId) && (!c.status || c.status === ctx.status);
@@ -364,6 +365,16 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         if (!row) return 'erro: modelo de certificado não encontrado';
         output(run, id, { code: row.code });
         return `${kind === 'badge' ? 'badge' : 'certificado'} emitido (${row.code})`;
+      }
+      case 'grant_course_access': case 'revoke_course_access': case 'grant_community_access': case 'revoke_community_access': {
+        // The portal and the communities live in their own documents: the server applies the change after saving.
+        const course = node.type.includes('course');
+        const target = course ? s.courses.find(row => row.id === c.courseId) : (s.communities || []).find(row => row.id === c.communityId);
+        if (!target) return `erro: ${course ? 'curso' : 'comunidade'} não encontrado(a)`;
+        if (!contact.email) return 'erro: contato sem e-mail';
+        outbox(s, { kind: 'access', runId: run.id, action: node.type, ...(course ? { courseId: target.id } : { communityId: target.id }),
+          contactId: contact.id, email: contact.email, name: contact.name || '' });
+        return `${target.name}: na fila`;
       }
       case 'make_affiliate': return makeAffiliate ? makeAffiliate(s, contact, c.campaignId) : 'erro: afiliados indisponíveis';
       case 'review_request': {
