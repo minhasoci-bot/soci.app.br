@@ -77,6 +77,11 @@ export const triggerCatalog = [
       f('state', 'Quando', 'select', { options: [any('Perto de vencer ou vencido'), ['soon', 'Perto de vencer'], ['overdue', 'Vencido']] }),
       f('channel', 'Canal', 'select', { options: [any('Qualquer canal'), ['WhatsApp', 'WhatsApp'], ['Email', 'E-mail'], ['SMS', 'SMS'], ['Live chat', 'Chat ao vivo'], ['Instagram', 'Instagram'], ['Facebook', 'Facebook']] })
     ] },
+    { type: 'prospect_received', label: 'Prospect recebido da agência', icon: 'leads', description: 'Quando a agência envia um prospect da Prospecção para esta subconta (uma vez por prospect; reenviar não dispara de novo). O contato chega com a tag New Prospect Received. Use {{trigger.company}}, {{trigger.website}}, {{trigger.city}} e {{trigger.category}}.', fields: [
+      f('isNew', 'Contato', 'select', { options: [any('Novo ou já existente'), ['yes', 'Contato novo'], ['no', 'Contato que já existia']] }),
+      f('withOpportunity', 'Oportunidade', 'select', { options: [any('Com ou sem oportunidade'), ['yes', 'Com oportunidade criada'], ['no', 'Sem oportunidade']] }),
+      f('category', 'Categoria do negócio contém', 'text', { placeholder: 'Qualquer categoria' })
+    ] },
     { type: 'form_submitted', label: 'Formulário enviado', icon: 'list', fields: [f('formId', 'Formulário', 'ref', { source: 'forms', empty: 'Qualquer formulário' })] },
     { type: 'survey_submitted', label: 'Pesquisa enviada', icon: 'chart', fields: [f('formId', 'Pesquisa', 'ref', { source: 'surveys', empty: 'Qualquer pesquisa' })] },
     { type: 'quiz_submitted', label: 'Questionário enviado', icon: 'award', fields: [f('formId', 'Questionário', 'ref', { source: 'quizzes', empty: 'Qualquer questionário' }), f('tier', 'Faixa do resultado', 'text', { placeholder: 'Qualquer faixa' })] },
