@@ -28,7 +28,7 @@ import { certificateBeforeDelete, certificateCollections, certificateFields, cre
 import { ticketCollections, ticketCommand, ticketInbound, ticketWorkflow } from './ticket-model.mjs';
 import { sequenceCollections, sequenceCommand, sequenceFields, sequenceInbound, sequenceWorkflow } from './sequence-model.mjs';
 import { addPoints, loyaltyCollections, loyaltyCommand, loyaltyEvent, loyaltyFields } from './loyalty-model.mjs';
-import { preferenceCommand } from './preference-model.mjs';
+import { preferenceCommand, preferenceToken } from './preference-model.mjs';
 import { trashCommand, trashContact } from './contact-trash.mjs';
 import { appointmentRecord, bookForContact, createBookingLink, noteOnAppointment, schedulingCollections, schedulingCommand, schedulingFields } from './scheduling-model.mjs';
 import { meetingCollections, meetingCommand, meetingFields } from './meeting-model.mjs';
@@ -266,6 +266,8 @@ function linkDestination(value) {
 let engineWorkspace = 'demo';
 const queue = (s, item) => { s.workflowOutbox ??= []; s.workflowOutbox.push({ id: uid(), created: now(), ...item }); if (s.workflowOutbox.length > 500) s.workflowOutbox.splice(0, s.workflowOutbox.length - 500); };
 const engine = createEngine({ add, now,
+  // The contact's preference page, for the e-mail footer and "Pedir consentimento".
+  preferencePath: contact => `/preferencias/${engineWorkspace}/${preferenceToken(contact)}`,
   // "Pedir avaliação" in a workflow: a personal review link, the message in Conversations and the delivery.
   makeAffiliate: (state, contact, campaignId) => addAffiliateFromContact(state, contact, campaignId, { emit: (st, event, ctx) => engine.emit(st, event, ctx) }),
   // Atualizar afiliado, campanhas, atribuir lead e venda manual: the Affiliate Manager's workflow actions.

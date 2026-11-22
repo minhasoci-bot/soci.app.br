@@ -131,7 +131,7 @@ export const acoes = [
   c('WhatsApp media', 'whatsapp_media'),
   c('WhatsApp interactive messages', 'whatsapp_interactive', 'Botões, lista ou enquete pela Evolution API.'),
   fora('TikTok interactive messenger', 'O TikTok não abre a API de mensagens diretas para contas comerciais em geral.'),
-  falta('Send opt-in message (beta)', 'send_optin', 'Pede o consentimento do contato e grava nas preferências de comunicação.'),
+  c('Send opt-in message (beta)', 'send_optin'),
   c('Add internal comments', 'add_note', 'Nota interna na conversa.'),
   fora('Send RCS', 'RCS Business Messaging exige marca aprovada pelo Google e um provedor RCS; nenhum dos canais da Soci oferece.'),
   fora('RCS interactive message', 'RCS Business Messaging exige marca aprovada pelo Google e um provedor RCS; nenhum dos canais da Soci oferece.'),

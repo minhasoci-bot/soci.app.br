@@ -5239,7 +5239,7 @@ export default {
   "Quero saber o preço\nFalar com atendente": "Quiero saber el precio\nHablar con un agente",
   "Enviar mensagem no Messenger": "Enviar mensaje por Messenger",
   "Manda uma mensagem pelo Messenger da página do Facebook conectada no Social Planner, para quem já escreveu para a página. A Meta só aceita a resposta até 24 horas depois da última mensagem do contato. Os botões viram respostas rápidas.": "Envía un mensaje por el Messenger de la página de Facebook conectada en el Social Planner, a quien ya escribió a la página. Meta solo acepta la respuesta hasta 24 horas después del último mensaje del contacto. Los botones se convierten en respuestas rápidas.",
-  "Quando uma mensagem de WhatsApp, Messenger ou Direct da equipe ou de um fluxo não é entregue. Use {{trigger.reason}} para o motivo, {{trigger.channel}} para o canal e {{trigger.body}} para a mensagem. Fluxos com este gatilho não disparam de novo com as falhas das próprias mensagens.": "Cuando un mensaje de WhatsApp, Messenger o Direct del equipo o de un flujo no se entrega. Usa {{trigger.reason}} para el motivo, {{trigger.channel}} para el canal y {{trigger.body}} para el mensaje. Los flujos con este disparador no se activan de nuevo con las fallas de sus propios mensajes.",
+  "Quando uma mensagem de WhatsApp, e-mail, Messenger ou Direct da equipe ou de um fluxo não é entregue. Use {{trigger.reason}} para o motivo, {{trigger.channel}} para o canal e {{trigger.body}} para a mensagem. Fluxos com este gatilho não disparam de novo com as falhas das próprias mensagens.": "Cuando un mensaje de WhatsApp, correo, Messenger o Direct del equipo o de un flujo no se entrega. Usa {{trigger.reason}} para el motivo, {{trigger.channel}} para el canal y {{trigger.body}} para el mensaje. Los flujos con este disparador no se activan de nuevo con las fallas de sus propios mensajes.",
   "Direct do Instagram": "Direct de Instagram",
   "Canal desconectado": "Canal desconectado",
   "Contato ainda não escreveu nesse canal": "El contacto aún no escribió por este canal",
@@ -5285,5 +5285,11 @@ export default {
   "Rodapé (botões e lista; opcional)": "Pie (botones y lista; opcional)",
   "Botões": "Botones",
   "Lista": "Lista",
-  "Enquete": "Encuesta"
+  "Enquete": "Encuesta",
+  "Envia pelo domínio de envio da subconta (Serviços de e-mail), ou pelo endereço da plataforma se não houver. O rodapé leva o link para o contato escolher o que recebe.": "Envía por el dominio de envío de la subcuenta (Servicios de correo), o por la dirección de la plataforma si no hay. El pie lleva el enlace para que el contacto elija qué recibe.",
+  "Pedir consentimento (opt-in)": "Pedir consentimiento (opt-in)",
+  "Manda o link da página de preferências do contato, onde ele escolhe os canais e os assuntos que quer receber. Quando ele salva, dispara Preferências de comunicação mudaram. Use {{link_preferencias}} para pôr o link no meio do texto (sem ele, o link vai no fim).": "Envía el enlace de la página de preferencias del contacto, donde elige los canales y los temas que quiere recibir. Al guardar, se activa Preferencias de comunicación cambiaron. Usa {{link_preferencias}} para poner el enlace en medio del texto (sin él, el enlace va al final).",
+  "Assunto do e-mail": "Asunto del correo",
+  "Oi, {{contact.first_name}}! Quer continuar recebendo nossas mensagens? Escolha aqui o que você prefere receber: {{link_preferencias}}": "¡Hola, {{contact.first_name}}! ¿Quieres seguir recibiendo nuestros mensajes? Elige aquí lo que prefieres recibir: {{link_preferencias}}",
+  "Contato sem e-mail": "Contacto sin correo"
 };

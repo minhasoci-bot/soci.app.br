@@ -216,7 +216,7 @@ export function compile(steps) {
 
 /* ───────── Motor ───────── */
 
-export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null, affiliateAction = null, bookingLink = null, appointmentNote = null, bookAppointment = null, companyAction = null }) {
+export function createEngine({ add, now, preferencePath = null, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null, affiliateAction = null, bookingLink = null, appointmentNote = null, bookAppointment = null, companyAction = null }) {
   const contactOf = (s, id) => s.contacts.find(row => row.id === id);
   const fieldValue = (s, contact, key) => {
     if (!contact) return '';
@@ -403,7 +403,36 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         return 'concluída';
       }
       case 'add_note': message('Note', c.body); return 'concluída';
-      case 'send_email': if (contact.dnd) return 'contato em não perturbe'; if (!canMessage(contact, 'Email', c.topicId)) return 'contato não aceita este e-mail (preferências)'; message('Email', c.body, text(c.subject).slice(0, 240)); return 'registrada em Conversas';
+      case 'send_email': {
+        // Sent by the server through the sub-account's sending domain, with the contact's preference link in the footer.
+        if (contact.dnd) return 'contato em não perturbe';
+        if (!canMessage(contact, 'Email', c.topicId)) return 'contato não aceita este e-mail (preferências)';
+        const subject = text(c.subject).trim().slice(0, 240);
+        const row = message('Email', c.body, subject);
+        if (!contact.email) { messageFailed(s, { messageId: row.id, reason: 'no_email' }, depth); return 'erro: contato sem e-mail'; }
+        const path = preferencePath ? preferencePath(contact) : '';
+        outbox(s, { kind: 'email', runId: run.id, to: contact.email, subject: subject || (s.profile?.name ? `Mensagem de ${s.profile.name}` : 'Mensagem'),
+          body: `${row.body}${path ? `\n\n—\nPara escolher o que você recebe: ${path}` : ''}`, path, contactId: contact.id, messageId: row.id });
+        return 'registrada e na fila de envio';
+      }
+      case 'send_optin': {
+        // "Pedir consentimento": the contact's preference page, where they choose channels and topics (Preferências mudaram fires).
+        if (contact.dnd) return 'contato em não perturbe';
+        if (!preferencePath) return 'erro: preferências indisponíveis';
+        const channel = c.channel === 'Email' ? 'Email' : 'WhatsApp';
+        const path = preferencePath(contact), raw = String(c.body || '');
+        const body = raw.includes('{{link_preferencias}}') ? raw.split('{{link_preferencias}}').join(path) : `${raw.trim()}\n${path}`;
+        const row = message(channel, body, channel === 'Email' ? text(c.subject).trim().slice(0, 240) || 'Suas preferências de comunicação' : '');
+        contact.optInRequestedAt = now();
+        if (channel === 'Email') {
+          if (!contact.email) { messageFailed(s, { messageId: row.id, reason: 'no_email' }, depth); return 'erro: contato sem e-mail'; }
+          outbox(s, { kind: 'email', runId: run.id, to: contact.email, subject: row.subject, body: row.body, path, contactId: contact.id, messageId: row.id });
+        } else {
+          if (!contact.phone) { messageFailed(s, { messageId: row.id, reason: 'no_phone' }, depth); return 'erro: contato sem telefone'; }
+          outbox(s, { kind: 'whatsapp', runId: run.id, phone: contact.phone, body: row.body, path, contactId: contact.id, messageId: row.id });
+        }
+        return 'pedido de consentimento na fila de envio';
+      }
       case 'send_sms': if (contact.dnd) return 'contato em não perturbe'; if (!canMessage(contact, 'SMS', c.topicId)) return 'contato não aceita SMS (preferências)'; message('SMS', c.body); return 'registrada em Conversas';
       case 'send_live_chat': message('Live chat', c.body); return 'enviada ao chat';
       case 'send_instagram_dm': case 'send_messenger': {
