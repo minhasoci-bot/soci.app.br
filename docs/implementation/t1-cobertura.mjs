@@ -27,7 +27,7 @@ export const gatilhos = [
   falta('Call details', 'call_details', 'Telefonia Twilio (2.4).'),
   c('Email events', 'email_event'), c('Customer replied', 'customer_replied'),
   c('Inbound email', 'email_received', 'Endereço conversas+<subconta> pela Resend; as respostas aos e-mails voltam para Conversas.'),
-  falta('Conversation AI trigger', 'conversation_ai_event', 'Bot de IA nas conversas.'),
+  c('Conversation AI trigger', 'conversation_ai_event', 'Respondeu, sugeriu, marcou, passou para a equipe ou encerrou.'),
   c('Custom trigger', 'custom_event'), c('Form submitted', 'form_submitted'), c('Survey submitted', 'survey_submitted'),
   c('Trigger link clicked', 'trigger_link_clicked'),
   c('Facebook lead form submitted', 'meta_lead_form'),
@@ -118,15 +118,15 @@ export const acoes = [
   c('Instagram DM', 'send_instagram_dm'), c('Manual action to SMS', 'manual_sms'), c('Manual action to call', 'manual_call'),
   fora('GMB messaging', 'O Google encerrou o Business Messages (mensagens do Perfil da Empresa) em julho de 2024.'),
   c('Send internal notification', 'internal_notification'), c('Send review request', 'review_request'),
-  falta('Conversation AI', 'conversation_ai', 'Bot de IA nas conversas.'),
+  c('Conversation AI', ['conversation_ai', 'conversation_ai_status'], 'Agente de IA publicado responde na conversa; ligado na conversa, responde a cada mensagem nova.'),
   c('Facebook interactive messenger', 'send_messenger', 'Respostas rápidas (botões) no Messenger.'),
   c('Instagram interactive messenger', 'send_instagram_dm', 'Respostas rápidas (botões) no Direct.'),
   c('Reply in comments', 'reply_social_comment'),
-  falta('Appointment booking conversation AI bot', 'conversation_ai', 'Bot de IA nas conversas, com agendamento.'),
+  c('Appointment booking conversation AI bot', 'conversation_ai', 'Com um serviço escolhido, oferece horários livres e marca o escolhido.'),
   c('Send live chat message', 'send_live_chat'),
   c('Log external call', 'log_call'),
   c('WhatsApp', 'send_whatsapp'), c('Whatsapp: customer service window check', 'whatsapp_window'), c('Book appointment', 'book_appointment'),
-  falta('Update conversation AI bot and status', 'conversation_ai_status', 'Bot de IA nas conversas.'),
+  c('Update conversation AI bot and status', 'conversation_ai_status'),
   fora('Whatsapp: send flows', 'WhatsApp Flows existe só na API oficial da Meta (Cloud API); a Soci usa a Evolution API.'),
   c('WhatsApp media', 'whatsapp_media'),
   c('WhatsApp interactive messages', 'whatsapp_interactive', 'Botões, lista ou enquete pela Evolution API.'),
@@ -205,8 +205,12 @@ export const acoes = [
   // Company (3)
   c('Clear associated company fields', 'company_clear'), c('Create and associate company', 'company_create'), c('Update associated company', 'company_update'),
   // Conversation AI (9)
-  ...['Continue conversation', 'AI message', 'Transfer bot', 'AI splitter', 'Custom message', 'AI capture information', 'End conversation', 'Book appointment', 'Services booking']
-    .map(name => falta(name, 'conversation_ai', 'Etapa do bot de IA nas conversas.')),
+  // As etapas do construtor de bots do GHL viram etapas comuns do fluxo, em volta do "Bot de IA na conversa".
+  c('Continue conversation', 'conversation_ai'), c('AI message', 'conversation_ai'),
+  c('Transfer bot', 'conversation_ai_status', 'Liga outro agente na conversa (ou desliga o bot e a equipe assume).'),
+  c('AI splitter', 'ai_intent'), c('Custom message', ['send_whatsapp', 'send_live_chat'], 'Mensagem fixa no canal da conversa.'),
+  c('AI capture information', 'ai_extract'), c('End conversation', 'conversation_ai_status'),
+  c('Book appointment', 'conversation_ai', 'Com um serviço escolhido.'), c('Services booking', 'conversation_ai', 'Com um serviço escolhido.'),
   // Events Management (2)
   c('Register for ticketed event (beta)', 'register_event', 'Evento pago inscrito como cortesia, sem cobrar.'),
   c('Register for rsvp event (beta)', 'register_event'),

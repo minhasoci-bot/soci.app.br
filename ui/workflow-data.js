@@ -74,6 +74,10 @@ export const triggerCatalog = [
     { type: 'task_reminder', label: 'Lembrete de tarefa', icon: 'clock', scheduled: true, description: 'Uma vez por dia, para as tarefas em aberto que vencem no dia escolhido.', fields: [f('days', 'Quantos dias antes do prazo', 'number', { value: 0, min: 0, max: 30 }), f('time', 'Horário', 'time', { value: '09:00' })] }
   ] },
   { group: 'Eventos', items: [
+    { type: 'conversation_ai_event', label: 'Evento do bot de IA', icon: 'spark', description: 'Quando o bot de IA das conversas responde, sugere uma resposta, marca um horário, passa a conversa para a equipe ou encerra o atendimento. Use {{trigger.event}}, {{trigger.body}} e {{trigger.channel}}.', fields: [
+      f('event', 'Evento', 'select', { options: [any('Qualquer evento'), ['replied', 'Respondeu'], ['suggested', 'Sugeriu uma resposta'], ['booked', 'Marcou um horário'], ['handoff', 'Passou para a equipe'], ['ended', 'Encerrou o atendimento']] }),
+      f('agentId', 'Agente', 'ref', { source: 'agents', empty: 'Qualquer agente' })
+    ] },
     { type: 'inbound_webhook', label: 'Webhook de entrada', icon: 'link', fields: [] },
     { type: 'app_trigger', label: 'App disparou um gatilho', icon: 'grid', description: 'Quando um app instalado do marketplace dispara um dos gatilhos dele. Os dados enviados pelo app ficam em {{trigger.payload}}.', fields: [f('trigger', 'Gatilho do app', 'ref', { source: 'appTriggers', empty: 'Qualquer gatilho de app' })] },
     { type: 'ai_usage_alert', label: 'Uso de IA chegou ao alerta', icon: 'spark', description: 'Quando o gasto do mês com IA passa da faixa de alerta ou atinge o limite definido pela agência. Não tem contato: use ações internas. {{trigger.cost}} e {{trigger.limit}} trazem os valores em US$.', fields: [f('level', 'Quando', 'select', { options: [any('Alerta ou limite'), ['alert', 'Passar da faixa de alerta'], ['blocked', 'Atingir o limite']] })] },
@@ -543,6 +547,20 @@ export const actionCatalog = [
     ] }
   ] },
   { group: 'IA', items: [
+    { type: 'conversation_ai', label: 'Bot de IA na conversa', icon: 'chat', ai: true, description: 'Um agente de IA publicado lê a conversa com o contato e responde à última mensagem dele, com a base de conhecimento do agente. Ele passa a conversa para a equipe quando o cliente pede uma pessoa ou quando não sabe responder, encerra quando o cliente se despede e, com um serviço escolhido, oferece horários livres e marca o escolhido. A resposta fica em {{vars.nome}}.', fields: [
+      f('agentId', 'Agente (publicado)', 'ref', { source: 'agents', required: true, empty: 'Escolha o agente' }),
+      f('mode', 'Modo', 'select', { options: [['auto', 'Responder sozinho'], ['suggest', 'Sugerir à equipe (nota em Conversas)']] }),
+      f('channel', 'Canal', 'select', { options: [['last', 'Canal da última mensagem do cliente'], ['WhatsApp', 'WhatsApp'], ['Email', 'E-mail'], ['Live chat', 'Chat ao vivo'], ['Instagram', 'Instagram'], ['Facebook', 'Messenger'], ['SMS', 'SMS']] }),
+      f('serviceId', 'Marcar horários do serviço (opcional)', 'ref', { source: 'services', empty: 'Não marcar horários' }),
+      f('variable', 'Guardar a resposta na variável', 'text', { required: true, value: 'resposta_bot' })
+    ] },
+    { type: 'conversation_ai_status', label: 'Ligar ou desligar o bot de IA', icon: 'spark', description: 'Liga o bot de IA na conversa do contato: cada mensagem nova do cliente recebe a resposta do agente, até ele passar a conversa para a equipe, encerrar o atendimento ou ser desligado. As respostas usam a OpenAI de quem salvou este fluxo. Desligar também tira o bot da conversa.', fields: [
+      f('state', 'Bot', 'select', { options: [['on', 'Ligar'], ['off', 'Desligar']] }),
+      f('agentId', 'Agente (publicado)', 'ref', { source: 'agents', empty: 'Escolha o agente', when: { state: 'on' } }),
+      f('mode', 'Modo', 'select', { options: [['auto', 'Responder sozinho'], ['suggest', 'Sugerir à equipe (nota em Conversas)']], when: { state: 'on' } }),
+      f('channel', 'Canal', 'select', { options: [['last', 'Canal da última mensagem do cliente'], ['WhatsApp', 'WhatsApp'], ['Email', 'E-mail'], ['Live chat', 'Chat ao vivo'], ['Instagram', 'Instagram'], ['Facebook', 'Messenger'], ['SMS', 'SMS']], when: { state: 'on' } }),
+      f('serviceId', 'Marcar horários do serviço (opcional)', 'ref', { source: 'services', empty: 'Não marcar horários', when: { state: 'on' } })
+    ] },
     { type: 'ai_agent', label: 'Rodar agente de IA', icon: 'spark', ai: true, description: 'Manda uma mensagem para a versão publicada de um agente de IA desta subconta (com a base de conhecimento e a memória dele) e guarda a resposta em {{vars.nome}}. A execução aparece no histórico do agente.', fields: [
       f('agentId', 'Agente (publicado)', 'ref', { source: 'agents', required: true, empty: 'Escolha o agente' }),
       f('input', 'Mensagem para o agente (aceita variáveis)', 'textarea', { required: true, value: '{{trigger.body}}' }),
@@ -737,6 +755,8 @@ export function stepSummary(step, s) {
     case 'ai_decision': return `${String(c.options || '').slice(0, 50)} → vars.${c.variable || 'decisao'}`;
     case 'ai_intent': return `${String(c.intents || '').slice(0, 50)} → vars.${c.variable || 'intencao'}`;
     case 'ai_agent': return [ref('agents', c.agentId), c.variable ? `→ vars.${c.variable}` : ''].filter(Boolean).join(' ');
+    case 'conversation_ai': return [ref('agents', c.agentId), c.mode === 'suggest' ? 'sugere' : 'responde', c.variable ? `→ vars.${c.variable}` : ''].filter(Boolean).join(' ');
+    case 'conversation_ai_status': return c.state === 'off' ? 'desligar' : ['ligar', ref('agents', c.agentId)].filter(Boolean).join(' ');
     case 'ai_prompt': case 'ai_summarize': case 'ai_translate': case 'ai_image': case 'ai_image_generate': case 'ai_video_generate': return c.variable ? `→ vars.${c.variable}` : '';
     case 'ai_extract': return aiExtractFields(c.fields).map(item => `vars.${item.name}`).join(', ').slice(0, 80);
     case 'router': return `${(step.routes || []).length} caminho(s)`;

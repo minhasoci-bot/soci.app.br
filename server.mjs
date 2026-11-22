@@ -1504,7 +1504,8 @@ export function makeServer({
     return connection;
   }
   async function workflowAIStep(workspace, state, item) {
-    const base = { runId: item.runId, stepId: item.stepId };
+    // The bot switched on in a conversation has no run: its answer goes back by contact.
+    const base = item.bot ? { runId: '', stepId: '', bot: true, contactId: item.contactId } : { runId: item.runId, stepId: item.stepId };
     try {
       const connection = await workflowConnection(workspace, state, item.workflowId);
       checkAiBudget(await store.load(workspace));
@@ -1524,8 +1525,8 @@ export function makeServer({
           await store.change(workspace, current => { meter.charge(current, 'workflow', ''); });
           return null;
         }
-        if (item.action === 'ai_agent') {
-          // "Rodar agente de IA": the published agent answers the step's message; the run shows in the agent's history.
+        if (item.action === 'ai_agent' || item.action === 'conversation_ai') {
+          // "Rodar agente de IA" and the bot of Conversas: the published agent answers; the run shows in the agent's history.
           const request = agentWorkflowRequest(state, item.agentId, item.input);
           const reply = String(await generateAgentReply({ ...request, model: request.model || agentModel }, { ...connection, onUsage: meter.onUsage }) || '');
           await store.change(workspace, current => {

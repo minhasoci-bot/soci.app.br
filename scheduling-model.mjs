@@ -64,7 +64,8 @@ export function noteOnAppointment(s, contact, { which = 'next', body = '', mode 
 }
 
 /** "Agendar horário": the first free time of a service from some days ahead, for the workflow's contact. */
-export function bookForContact(s, contact, { serviceId = '', afterDays = 0, address = '' } = {}, { save, at = Date.now() }) {
+// `start` (an ISO instant offered by upcomingSlots) books that exact free time; without it, the first free time from `afterDays`.
+export function bookForContact(s, contact, { serviceId = '', afterDays = 0, address = '', start = '' } = {}, { save, at = Date.now() }) {
   const conf = schedulingOf(s);
   const service = (s.services || []).find(x => x.id === serviceId && x.active);
   if (!service) return { error: 'serviço não encontrado ou inativo' };
@@ -72,8 +73,12 @@ export function bookForContact(s, contact, { serviceId = '', afterDays = 0, addr
   const where = str(address, 300);
   if (service.kind === 'field' && !where) return { error: 'serviço em campo precisa de endereço' };
   const zone = zoneOf(s), first = addDays(dayIn(at, zone), Math.min(Math.max(0, Math.trunc(Number(afterDays)) || 0), 365));
+  const wanted = start ? Date.parse(start) : NaN;
+  if (start && !Number.isFinite(wanted)) return { error: 'horário inválido' };
   for (let i = 0; i <= Math.min(conf.horizonDays, 120); i++) {
-    const slot = availableSlots(s, service.id, addDays(first, i), { at })[0];
+    const slots = availableSlots(s, service.id, start ? dayIn(wanted, zone) : addDays(first, i), { at });
+    const slot = start ? slots.find(row => Date.parse(row.start) === wanted) : slots[0];
+    if (start && !slot) return { error: 'o horário escolhido não está mais livre' };
     if (!slot) continue;
     const id = save('appointments', { title: `${service.name} · ${contact.name || 'Cliente'}`, contactId: contact.id, start: slot.start, end: slot.end, status: 'Confirmed',
       serviceId: service.id, staffId: slot.staffId, resourceIds: service.resourceIds, quantity: 1, address: where, notes: '', source: 'workflow' });
@@ -210,6 +215,21 @@ export function availableSlots(s, serviceId, day, { at = Date.now(), units = 1, 
     slots.push({ start: new Date(start).toISOString(), end: new Date(end).toISOString(), time: hhmm, staffId });
   }
   return slots;
+}
+
+/** The next free times of a service (the bot of Conversas offers these), at most `count`, from now. */
+export function upcomingSlots(s, serviceId, { count = 8, at = Date.now() } = {}) {
+  const service = (s.services || []).find(x => x.id === serviceId && x.active);
+  if (!service || service.kind === 'rental') return [];
+  const conf = schedulingOf(s), zone = zoneOf(s), today = dayIn(at, zone), found = [];
+  for (let i = 0; i <= Math.min(conf.horizonDays, 60) && found.length < count; i++) {
+    const day = addDays(today, i);
+    // At most three times per day, spread over the day, so the offer covers several days.
+    const slots = availableSlots(s, serviceId, day, { at });
+    const picks = slots.length <= 3 ? slots : [slots[0], slots[Math.floor(slots.length / 2)], slots.at(-1)];
+    for (const slot of picks) if (found.length < count) found.push({ start: slot.start, day, time: slot.time });
+  }
+  return found;
 }
 
 /** What the public page shows. */

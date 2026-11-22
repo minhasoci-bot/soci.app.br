@@ -27,6 +27,19 @@ const metaIdentity = contact => {
 };
 const FAILURES = /^(erro|sem contato|sem nome|sem oportunidade|sem agendamento|sem conversa|campo removido|campo inválido|e-mail inválido|contato em não perturbe)/;
 
+// Bot de IA nas conversas: the channels it can answer on, and the step that sends on each.
+export const BOT_CHANNELS = { WhatsApp: 'send_whatsapp', Email: 'send_email', 'Live chat': 'send_live_chat', Instagram: 'send_instagram_dm', Facebook: 'send_messenger', SMS: 'send_sms' };
+const BOT_DAILY_REPLIES = 30;
+
+/** The agent's answer split into the text for the client and what the bot decided ([[TRANSFERIR]], [[ENCERRAR]], [[AGENDAR AAAA-MM-DD HH:MM]]). */
+export function botDecision(reply) {
+  const raw = String(reply ?? '');
+  const booking = raw.match(/\[\[\s*AGENDAR\s+(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})\s*\]\]/i);
+  const action = /\[\[\s*TRANSFERIR\s*\]\]/i.test(raw) ? 'handoff' : booking ? 'book' : /\[\[\s*ENCERRAR\s*\]\]/i.test(raw) ? 'end' : 'reply';
+  const text = raw.replace(/\[\[[^\]]{0,40}\]\]/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, 4000);
+  return { action, text, day: booking?.[1] || '', time: booking?.[2] || '' };
+}
+
 // "Código personalizado": the lines of the step ("nome = expressão", "//" comments), or the first problem.
 export function customCodeLines(code) {
   const lines = [];
@@ -253,7 +266,7 @@ export function compile(steps) {
 
 /* ───────── Motor ───────── */
 
-export function createEngine({ add, now, preferencePath = null, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null, affiliateAction = null, bookingLink = null, appointmentNote = null, bookAppointment = null, companyAction = null }) {
+export function createEngine({ add, now, preferencePath = null, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null, affiliateAction = null, bookingLink = null, appointmentNote = null, bookAppointment = null, companyAction = null, freeSlots = null, zonedTime = null }) {
   const contactOf = (s, id) => s.contacts.find(row => row.id === id);
   const fieldValue = (s, contact, key) => {
     if (!contact) return '';
@@ -323,6 +336,7 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       case 'score_changed': return scoreTriggerMatches(c, ctx);
       case 'association_created': return !c.object || c.object === ctx.object;
       case 'email_received': return (!c.subject || lower(ctx.subject).includes(lower(c.subject))) && (!c.from || lower(ctx.from).includes(lower(c.from)));
+      case 'conversation_ai_event': return (!c.event || c.event === ctx.event) && (!c.agentId || c.agentId === ctx.agentId);
       case 'portal_file_uploaded': return !c.kind || c.kind === ctx.kind;
       case 'video_watched': return Number(ctx.percent) === (Number(c.percent) || 25) && (!c.video || lower(ctx.video).includes(lower(c.video))) && (!c.url || lower(ctx.url).includes(lower(c.url)));
       case 'whatsapp_ad_click': return (!c.adId || c.adId === ctx.adId) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
@@ -481,6 +495,19 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
         const buttons = [...new Set(text(c.buttons).split('\n').map(line => line.trim().slice(0, 30)).filter(Boolean))].slice(0, 6);
         if (buttons.length) row.buttons = buttons;
         return buttons.length ? `enviada ao chat com ${buttons.length} botão(ões)` : 'enviada ao chat';
+      }
+      case 'conversation_ai_status': {
+        if (c.state === 'off') {
+          if (!contact.aiBot) return 'o bot já estava desligado';
+          delete contact.aiBot;
+          return 'bot desligado';
+        }
+        const agent = (s.agents || []).find(row => row.id === c.agentId);
+        if (!agent) return 'erro: agente não encontrado';
+        if (!agent.published) return 'erro: o agente não está publicado';
+        contact.aiBot = { status: 'on', agentId: agent.id, mode: c.mode === 'suggest' ? 'suggest' : 'auto', channel: BOT_CHANNELS[c.channel] ? c.channel : 'last',
+          serviceId: str(c.serviceId, 80), workflowId: run.workflowId, since: now(), day: '', replies: 0 };
+        return `bot ligado com ${agent.name}`;
       }
       case 'custom_code': {
         // "Código personalizado": lines "nome = expressão" in the Soci expression language — parsed, never eval'd, with
@@ -1355,12 +1382,105 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
         return { names: [variable], payload: { variable, agentId: c.agentId || '', input },
           problem: !agent ? 'agente não encontrado' : !agent.published ? 'o agente não está publicado' : !input ? 'a mensagem para o agente ficou vazia' : '' };
       }
+      case 'conversation_ai': {
+        const agent = (s.agents || []).find(row => row.id === c.agentId);
+        if (!contact) return { names: [variable], payload: {}, problem: 'sem contato' };
+        const input = botInput(s, contact, { channel: botChannel(s, contact, c.channel), serviceId: c.serviceId });
+        return { names: [variable], payload: { variable, agentId: c.agentId || '', input },
+          problem: !agent ? 'agente não encontrado' : !agent.published ? 'o agente não está publicado' : '' };
+      }
       default: return { names: [], payload: {}, problem: 'ação de IA desconhecida' };
     }
   }
 
+  // Bot de IA nas conversas: the channel it answers on (the client's last one by default) and the agent's input.
+  function botChannel(s, contact, wanted) {
+    if (BOT_CHANNELS[wanted]) return wanted;
+    const last = s.messages.filter(row => row.contactId === contact.id && row.direction === 'Inbound' && BOT_CHANNELS[row.channel]).sort((a, b) => String(b.created).localeCompare(String(a.created)))[0];
+    return last?.channel || 'WhatsApp';
+  }
+  function botInput(s, contact, { channel, serviceId }) {
+    const service = (s.services || []).find(row => row.id === serviceId && row.active);
+    const slots = service && freeSlots ? freeSlots(s, service.id) : [];
+    const history = s.messages.filter(row => row.contactId === contact.id && row.channel !== 'Note').sort((a, b) => String(a.created).localeCompare(String(b.created))).slice(-20)
+      .map(row => `${row.direction === 'Inbound' ? 'Cliente' : 'Equipe'}: ${String(row.body || '').replace(/\s+/g, ' ').slice(0, 700)}`).join('\n');
+    return [
+      `Você atende ${contact.name || 'um cliente'} pelo canal ${channel} em nome de ${s.profile?.name || 'nossa empresa'}. Escreva só a próxima mensagem da equipe: curta, no idioma do cliente, sem inventar preços, prazos ou políticas que não estejam na sua base de conhecimento.`,
+      'Regras:',
+      '- Se o cliente pedir para falar com uma pessoa, reclamar com irritação ou perguntar algo que você não sabe, escreva [[TRANSFERIR]] e uma frase dizendo que alguém da equipe vai continuar.',
+      '- Se o cliente agradecer e se despedir, encerrando o assunto, escreva [[ENCERRAR]] junto da despedida.',
+      ...(slots.length ? [`- Horários livres para ${service.name} (fuso ${s.profile?.timezone || 'America/Sao_Paulo'}): ${slots.map(slot => `${slot.day} ${slot.time}`).join(', ')}. Ofereça alguns quando o cliente quiser marcar. Quando ele escolher um desses, escreva [[AGENDAR AAAA-MM-DD HH:MM]] com o horário escolhido e confirme. Nunca ofereça outros horários.`] : []),
+      '',
+      'Conversa (a mais antiga primeiro):',
+      history || '(sem mensagens)'
+    ].join('\n').slice(0, 12000);
+  }
+  // The bot's answer: book, hand off or end, then the reply goes out on the channel (or as a suggestion note).
+  // `run` is the workflow run of a "Bot de IA na conversa" step, or a stand-in for the bot switched on in the conversation.
+  function botAnswer(s, { run, contact, config, reply, stepId = '', depth = 0 }) {
+    const decision = botDecision(reply);
+    const agentId = config.agentId || '', channel = botChannel(s, contact, config.channel);
+    const event = (name, extra = {}) => emit(s, 'conversation_ai_event', { contactId: contact.id, event: name, agentId, channel, body: decision.text, ...extra, depth: depth + 1 });
+    const lines = [];
+    let booked = null;
+    if (decision.action === 'book') {
+      const at = zonedTime ? zonedTime(decision.day, decision.time, s.profile?.timezone || 'America/Sao_Paulo') : NaN;
+      booked = config.serviceId && bookAppointment && Number.isFinite(at) ? bookAppointment(s, contact, { serviceId: config.serviceId, start: new Date(at).toISOString() }) : { error: 'sem serviço para marcar' };
+      lines.push(booked.error ? `não marcou: ${booked.error}` : `marcou ${decision.day} ${decision.time}`);
+    }
+    if (['handoff', 'end'].includes(decision.action) && contact.aiBot) delete contact.aiBot;
+    if (decision.text) {
+      if (config.mode === 'suggest') {
+        add(s, 'messages', { contactId: contact.id, body: `Sugestão do bot de IA (${channel}): ${decision.text}`.slice(0, 5000), subject: '', channel: 'Note', direction: 'Outbound', read: false, starred: false, origin: 'workflow', workflowId: run.workflowId || '' });
+        lines.push('sugestão em Conversas');
+      } else {
+        const lastSubject = s.messages.filter(row => row.contactId === contact.id && row.channel === 'Email' && row.subject).sort((a, b) => String(b.created).localeCompare(String(a.created)))[0]?.subject || '';
+        // Braces are broken so the agent's text is sent as written, never read as {{variables}}.
+        const body = decision.text.replace(/\{\{/g, '{ {').replace(/\}\}/g, '} }');
+        const sent = perform(s, run, { type: BOT_CHANNELS[channel], config: { body, subject: lastSubject ? (/^re:/i.test(lastSubject) ? lastSubject : `Re: ${lastSubject}`) : '' } }, depth, stepId);
+        lines.push(`${channel}: ${sent}`);
+      }
+    }
+    if (decision.action === 'handoff') {
+      add(s, 'messages', { contactId: contact.id, body: 'O bot de IA passou esta conversa para a equipe.', subject: '', channel: 'Note', direction: 'Outbound', read: false, starred: false, origin: 'workflow', workflowId: run.workflowId || '' });
+      lines.push('passou para a equipe');
+    }
+    if (decision.text) event(config.mode === 'suggest' ? 'suggested' : 'replied');
+    if (booked && !booked.error) event('booked', { appointmentId: booked.id, start: booked.start });
+    if (decision.action === 'handoff') event('handoff');
+    if (decision.action === 'end') { lines.push('encerrou o atendimento'); event('ended'); }
+    return { decision, line: lines.join(' · ') || 'sem resposta' };
+  }
+  // A new message of a client whose conversation has the bot on: the agent answers (at most BOT_DAILY_REPLIES a day).
+  function botInbound(s, ctx) {
+    const contact = contactOf(s, ctx.contactId), bot = contact?.aiBot;
+    if (!bot || bot.status !== 'on' || !BOT_CHANNELS[ctx.channel]) return;
+    if (bot.channel !== 'last' && bot.channel !== ctx.channel) return;
+    const agent = (s.agents || []).find(row => row.id === bot.agentId && row.published);
+    const day = String(now()).slice(0, 10);
+    if (bot.day !== day) Object.assign(bot, { day, replies: 0 });
+    if (!agent || bot.replies >= BOT_DAILY_REPLIES || (s.workflowOutbox || []).some(item => item.bot && item.contactId === contact.id)) return;
+    bot.replies++;
+    outbox(s, { kind: 'ai', bot: true, runId: '', stepId: '', contactId: contact.id, workflowId: bot.workflowId, action: 'conversation_ai', variable: 'resposta_bot', agentId: bot.agentId,
+      input: botInput(s, contact, { channel: botChannel(s, contact, bot.channel), serviceId: bot.serviceId }) });
+  }
+  // The answer to botInbound: no workflow run, the bot's settings are on the contact.
+  function botResult(s, item) {
+    const contact = contactOf(s, item.contactId), bot = contact?.aiBot;
+    if (!contact || !bot) return false;
+    if (item.error) {
+      add(s, 'messages', { contactId: contact.id, body: `O bot de IA não respondeu: ${str(item.error, 200)}`, subject: '', channel: 'Note', direction: 'Outbound', read: false, starred: false, origin: 'workflow', workflowId: bot.workflowId || '' });
+      return true;
+    }
+    const reply = String(Object.values(item.vars || {})[0] ?? '');
+    const stand = { id: '', workflowId: bot.workflowId || '', contactId: contact.id, vars: {}, outputs: {}, results: [], context: {} };
+    botAnswer(s, { run: stand, contact, config: bot, reply });
+    return true;
+  }
+
   // The answer of an AI step: variables, a line in the run and, for summaries, an optional note.
   function aiResult(s, item) {
+    if (item?.bot) return botResult(s, item);
     const run = s.runs.find(row => row.id === item?.runId);
     if (!run || run.status !== 'Waiting' || run.waitFor?.type !== 'ai' || run.waitFor.step !== item.stepId) return false;
     const node = run.graph?.nodes?.[item.stepId], label = actionSpec(node?.type)?.label || 'IA';
@@ -1378,11 +1498,19 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       resume(s, run);
       return true;
     }
-    const vars = Object.fromEntries(Object.entries(item.vars && typeof item.vars === 'object' ? item.vars : {})
+    let vars = Object.fromEntries(Object.entries(item.vars && typeof item.vars === 'object' ? item.vars : {})
       .map(([name, value]) => [aiVariableName(name), str(String(value ?? ''), 4000)]).filter(([name]) => name).slice(0, 12));
+    // "Bot de IA na conversa": the reply goes out (or is suggested) and the bot's decision is kept with it.
+    let botLine = '';
+    if (node?.type === 'conversation_ai' && contactOf(s, run.contactId)) {
+      const name = aiVariableName(node.config?.variable) || 'resposta_bot';
+      const answered = botAnswer(s, { run, contact: contactOf(s, run.contactId), config: node.config || {}, reply: item.vars?.[name] ?? Object.values(item.vars || {})[0] ?? '', stepId: item.stepId });
+      vars = { [name]: answered.decision.text, bot_acao: { reply: 'responder', handoff: 'transferir', end: 'encerrar', book: 'agendar' }[answered.decision.action] };
+      botLine = answered.line;
+    }
     run.vars = { ...(run.vars || {}), ...vars };
     output(run, item.stepId, vars);
-    const shown = Object.entries(vars).map(([name, value]) => `${name} = ${value.slice(0, 60)}`).join(' · ') || 'sem resultado';
+    const shown = botLine || Object.entries(vars).map(([name, value]) => `${name} = ${value.slice(0, 60)}`).join(' · ') || 'sem resultado';
     run.results.push(`${label}: ${shown}`); trace(shown);
     const contact = contactOf(s, run.contactId);
     // "Verificar e-mail": the answer stays on the contact (emailStatus) and an invalid address can get a tag.
@@ -1417,6 +1545,7 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
     if (depth > MAX_DEPTH) return;
     // Lead scoring (and other listeners) see each event first, with this engine's trigger filter.
     onEvent?.(s, type, ctx, { matches: trigger => matchTrigger(trigger, type, ctx) });
+    if (type === 'customer_replied') botInbound(s, ctx);
     if (ctx.contactId) {
       for (const run of s.runs.filter(row => row.contactId === ctx.contactId && ['Running', 'Waiting'].includes(row.status) && row.graph)) {
         if (run.status === 'Waiting' && run.waitFor && eventMatches(run.waitFor.type, run.waitFor.value, type, ctx, s)) { resume(s, run, run.waitFor.goal ? 'Meta alcançada' : 'Evento aconteceu: seguindo'); continue; }
