@@ -458,6 +458,12 @@ export const actionCatalog = [
       f('currency', 'Moeda', 'select', { options: [['BRL', 'Real (BRL)'], ['USD', 'Dólar (USD)'], ['EUR', 'Euro (EUR)']] }),
       f('testCode', 'Código de teste do Gerenciador de Eventos (opcional)', 'text', { placeholder: 'TEST12345' })
     ] },
+    { type: 'google_ads_conversion', label: 'Enviar conversão para o Google Ads', icon: 'chart', description: 'Registra uma conversão offline do contato numa ação de conversão da conta conectada em Marketing → Anúncios, pelo clique que trouxe o lead (gclid guardado na atribuição). Opcionalmente manda e-mail e telefone com hash (conversões otimizadas para leads), o que vale também para quem não veio de um clique.', fields: [
+      f('actionId', 'ID da ação de conversão', 'text', { required: true, placeholder: 'ex.: 6543210987 (Metas → Conversões no Google Ads)' }),
+      f('value', 'Valor (opcional, aceita variáveis)', 'text', { placeholder: 'ex.: 150,00 ou {{vars.total}}' }),
+      f('currency', 'Moeda', 'select', { options: [['BRL', 'Real (BRL)'], ['USD', 'Dólar (USD)'], ['EUR', 'Euro (EUR)']] }),
+      f('identifiers', 'Mandar e-mail e telefone com hash', 'select', { options: [['no', 'Não, só o clique (gclid)'], ['yes', 'Sim (conversões otimizadas para leads)']] })
+    ] },
     { type: 'meta_audience', label: 'Público personalizado da Meta', icon: 'users', description: 'Inclui ou tira o contato (e-mail e telefone com hash SHA-256) de um público personalizado da Meta, para anunciar para ele ou excluí-lo dos anúncios. O ID do público fica no Gerenciador de Públicos. Precisa do Meta Ads conectado em Marketing → Anúncios.', fields: [
       f('op', 'O que fazer', 'select', { options: [['add', 'Incluir no público'], ['remove', 'Tirar do público']] }),
       f('audienceId', 'ID do público personalizado', 'text', { required: true, placeholder: 'ex.: 23851234567890123' })
@@ -657,6 +663,7 @@ export function stepSummary(step, s) {
     case 'whatsapp_media': return c.fileName || c.url || '';
     case 'whatsapp_typing': return `${c.seconds || 3} s`;
     case 'meta_conversion': return c.event === 'custom' ? c.customEvent || '' : c.event || 'Lead';
+    case 'google_ads_conversion': return c.actionId ? `ação ${c.actionId}` : '';
     case 'meta_audience': return `${c.op === 'remove' ? 'tirar de' : 'incluir em'} ${c.audienceId || '…'}`;
     case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';
     case 'update_affiliate': return ({ active: 'Ativo', paused: 'Pausado', pending: 'Aguardando aprovação' })[c.status] || '';

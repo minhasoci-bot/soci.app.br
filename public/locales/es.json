@@ -5195,5 +5195,12 @@
   "Incluir no público": "Agregar al público",
   "Tirar do público": "Quitar del público",
   "ID do público personalizado": "ID del público personalizado",
-  "ex.: 23851234567890123": "ej.: 23851234567890123"
+  "ex.: 23851234567890123": "ej.: 23851234567890123",
+  "Enviar conversão para o Google Ads": "Enviar conversión a Google Ads",
+  "Registra uma conversão offline do contato numa ação de conversão da conta conectada em Marketing → Anúncios, pelo clique que trouxe o lead (gclid guardado na atribuição). Opcionalmente manda e-mail e telefone com hash (conversões otimizadas para leads), o que vale também para quem não veio de um clique.": "Registra una conversión offline del contacto en una acción de conversión de la cuenta conectada en Marketing → Anuncios, por el clic que trajo al lead (gclid guardado en la atribución). Opcionalmente envía correo y teléfono con hash (conversiones mejoradas para leads), lo que sirve también para quien no llegó por un clic.",
+  "ID da ação de conversão": "ID de la acción de conversión",
+  "ex.: 6543210987 (Metas → Conversões no Google Ads)": "ej.: 6543210987 (Objetivos → Conversiones en Google Ads)",
+  "Mandar e-mail e telefone com hash": "Enviar correo y teléfono con hash",
+  "Não, só o clique (gclid)": "No, solo el clic (gclid)",
+  "Sim (conversões otimizadas para leads)": "Sí (conversiones mejoradas para leads)"
 }
