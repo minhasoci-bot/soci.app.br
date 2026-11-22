@@ -322,6 +322,8 @@ const outputKeys = { create_task: [['id', 'ID'], ['title', 'Título'], ['due', '
   create_contact: [['id', 'ID'], ['name', 'Nome'], ['email', 'E-mail'], ['created', 'Criado agora (yes ou no)']],
   find_contact: [['found', 'Encontrado (yes ou no)'], ['id', 'ID'], ['name', 'Nome'], ['email', 'E-mail'], ['phone', 'Telefone']],
   merge_contact: [['merged', 'Duplicados mesclados'], ['id', 'ID do contato mantido'], ['name', 'Nome']],
+  booking_link: [['url', 'Link de agendamento'], ['expires', 'Vence em']],
+  book_appointment: [['id', 'ID do agendamento'], ['start', 'Início'], ['end', 'Fim'], ['service', 'Serviço'], ['staff', 'Profissional']],
   find_opportunity: [['found', 'Encontrada (yes ou no)'], ['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['stage', 'Etapa'], ['status', 'Status'], ['owner', 'Dono']] };
 const functionGroups = [
   ['Condicionais', ['if', 'ifempty', 'ifEmpty', 'switch']],

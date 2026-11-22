@@ -3779,7 +3779,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           form = await formBody(req);
           const one = value => Array.isArray(value) ? value[0] : value;
           try {
-            const result = await change(workspace, { type: 'scheduling-book', data: { serviceId: one(form.servico), start: one(form.inicio), name: one(form.nome), email: one(form.email), phone: one(form.telefone), address: one(form.endereco), notes: one(form.notas), units: one(form.unidades), quantity: one(form.qtd) } });
+            const result = await change(workspace, { type: 'scheduling-book', data: { serviceId: one(form.servico), start: one(form.inicio), name: one(form.nome), email: one(form.email), phone: one(form.telefone), address: one(form.endereco), notes: one(form.notas), units: one(form.unidades), quantity: one(form.qtd), link: one(form.link) } });
             flushLater(workspace);
             const zone = zoneOf(await store.load(workspace)), booked = result.id;
             done = { service: booked.service, staff: booked.staff, when: `${new Intl.DateTimeFormat('pt-BR', { timeZone: zone, weekday: 'long', day: '2-digit', month: 'long' }).format(new Date(booked.start))} às ${clockIn(Date.parse(booked.start), zone)}` };
@@ -3788,7 +3788,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
             failure = failed.message; status = failed.status;
           }
         }
-        const view = bookingView(await store.load(workspace), { serviceId: String(form.servico || q.get('servico') || ''), day: String(q.get('dia') || ''), units: Number(form.unidades || q.get('unidades')) || 1, quantity: Number(form.qtd || q.get('qtd')) || 1 });
+        const one2 = value => Array.isArray(value) ? value[0] : value;
+        const view = bookingView(await store.load(workspace), { serviceId: String(form.servico || q.get('servico') || ''), day: String(q.get('dia') || ''), units: Number(form.unidades || q.get('unidades')) || 1, quantity: Number(form.qtd || q.get('qtd')) || 1, link: String(one2(form.link) || q.get('link') || '') });
         if (!view) throw error('O agendamento online desta empresa está desligado.', 404);
         res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'same-origin', 'Content-Security-Policy':bookingCsp });
         return res.end(method === 'HEAD' ? undefined : bookingPage(view, { base, done, error: failure, form }));

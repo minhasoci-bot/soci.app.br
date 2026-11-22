@@ -29,7 +29,7 @@ import { sequenceCollections, sequenceCommand, sequenceFields, sequenceInbound, 
 import { addPoints, loyaltyCollections, loyaltyCommand, loyaltyEvent, loyaltyFields } from './loyalty-model.mjs';
 import { preferenceCommand } from './preference-model.mjs';
 import { trashCommand, trashContact } from './contact-trash.mjs';
-import { appointmentRecord, schedulingCollections, schedulingCommand, schedulingFields } from './scheduling-model.mjs';
+import { appointmentRecord, bookForContact, createBookingLink, noteOnAppointment, schedulingCollections, schedulingCommand, schedulingFields } from './scheduling-model.mjs';
 import { meetingCollections, meetingCommand, meetingFields } from './meeting-model.mjs';
 import { seoCommand, seoDefaults, visibilityDefaults } from './seo-model.mjs';
 import { walletCharge, walletDefaults } from './wallet-model.mjs';
@@ -302,6 +302,10 @@ const engine = createEngine({ add, now,
   },
   // "Excluir contato" and "Remover oportunidade" go through the same deletion as the screens (contacts to the trash).
   removeRecord: (state, key, recordId) => remove(state, key, recordId),
+  // Agenda: one-time booking link, a note on the next appointment and booking the first free time (same save as the screens).
+  bookingLink: (state, contact, config) => createBookingLink(state, engineWorkspace, contact, config),
+  appointmentNote: (state, contact, config) => noteOnAppointment(state, contact, config),
+  bookAppointment: (state, contact, config) => bookForContact(state, contact, config, { save: (key, data) => executeCommand(state, { type: 'save', key, data }, { workspace: engineWorkspace }) }),
   adjustScore: (state, contact, delta, reason, depth = 0) => changeScore(state, contact, delta, reason, { emit: (st, event, c) => engine.emit(st, event, c), depth }),
   startRecurring: (state, contact, config, depth = 0) => startTemplateRecurring(state, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })) });
 const legacyEvents = { 'Contact created': 'contact_created', 'Form submitted': 'form_submitted', 'Opportunity stage changed': 'pipeline_stage_changed',

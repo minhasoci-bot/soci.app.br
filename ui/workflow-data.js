@@ -338,6 +338,21 @@ export const actionCatalog = [
       f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' }),
       f('status', 'Status', 'select', { options: [['', 'Qualquer status'], ['Open', 'Aberta'], ['Won', 'Ganha'], ['Lost', 'Perdida'], ['Abandoned', 'Abandonada']] })] },
     { type: 'remove_opportunity', label: 'Remover oportunidade', icon: 'leads', description: 'Exclui a oportunidade mais recente do contato (do pipeline escolhido, se houver).', fields: [f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' })] },
+    { type: 'book_appointment', label: 'Agendar horário', icon: 'cal', description: 'Marca o contato no primeiro horário livre do serviço, a partir de alguns dias. Use {{steps.ID.start}} para a data e hora.', fields: [
+      f('serviceId', 'Serviço', 'ref', { source: 'services', required: true, empty: 'Escolha o serviço' }),
+      f('afterDays', 'A partir de quantos dias', 'number', { value: 1, min: 0, max: 365 }),
+      f('address', 'Endereço (serviço em campo, aceita variáveis)', 'text', { placeholder: '{{contact.address}}' })
+    ] },
+    { type: 'booking_link', label: 'Gerar link de agendamento de uso único', icon: 'cal', description: 'Cria um link pessoal da página de agendamento, já com os dados do contato. Ele vale para um agendamento e vence depois dos dias escolhidos. Use {{vars.link_agendamento}} na mensagem.', fields: [
+      f('serviceId', 'Serviço', 'ref', { source: 'services', empty: 'O cliente escolhe o serviço' }),
+      f('days', 'Vale por quantos dias', 'number', { value: 7, min: 1, max: 90 }),
+      f('variable', 'Guardar o link na variável', 'text', { value: 'link_agendamento', placeholder: 'link_agendamento' })
+    ] },
+    { type: 'appointment_note', label: 'Nota no agendamento', icon: 'note', description: 'Escreve nas observações do próximo agendamento do contato (ou do último criado).', fields: [
+      f('which', 'Agendamento', 'select', { options: [['next', 'O próximo'], ['last', 'O último criado']] }),
+      f('body', 'Nota (aceita variáveis)', 'textarea', { required: true }),
+      f('mode', 'Como escrever', 'select', { options: [['append', 'Somar às observações'], ['replace', 'Substituir as observações']] })
+    ] },
     { type: 'appointment_status_update', label: 'Mudar status do agendamento', icon: 'cal', description: 'Muda o próximo agendamento do contato (ou o último, se não houver próximo).', fields: [f('status', 'Novo status', 'select', { options: [['Confirmed', 'Confirmado'], ['Completed', 'Concluído'], ['Canceled', 'Cancelado']] })] },
     { type: 'send_document', label: 'Enviar documento ou contrato', icon: 'file', fields: [f('templateId', 'Modelo', 'ref', { source: 'documentTemplates', required: true }),
       f('title', 'Título do documento', 'text', { value: '' }), f('channel', 'Enviar por', 'select', { options: [['email', 'E-mail'], ['email_whatsapp', 'E-mail e WhatsApp']] }),
@@ -501,6 +516,9 @@ export function stepSummary(step, s) {
     case 'drip': return `${c.batch || 0} a cada ${c.amount || 1} ${({ minutes: 'min', hours: 'h', days: 'dia(s)' })[c.unit || 'hours']}`;
     case 'grant_offer': case 'revoke_offer': return ref('offers', c.offerId);
     case 'community_points': return [ref('communities', c.communityId), c.points ? `${c.points > 0 ? '+' : ''}${c.points} pts` : ''].filter(Boolean).join(' · ');
+    case 'book_appointment': return ref('services', c.serviceId) + (Number(c.afterDays) ? ` · em ${c.afterDays} dia(s)` : '');
+    case 'booking_link': return [ref('services', c.serviceId) || 'Qualquer serviço', `${c.days || 7} dia(s)`].join(' · ');
+    case 'appointment_note': return String(c.body || '').slice(0, 60);
     case 'merge_contact': return `${({ email: 'Mesmo e-mail', phone: 'Mesmo telefone' })[c.by] || 'Mesmo e-mail ou telefone'} · ${c.keep === 'oldest' ? 'mantém o mais antigo' : 'mantém este'}`;
     case 'list_format': return c.variable ? `→ vars.${c.variable}` : '';
     case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';
