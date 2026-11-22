@@ -1532,7 +1532,7 @@ export function makeServer({
     if (!state.workflowOutbox?.length) return 0;
     const items = (await change(workspace, { type: 'workflow-outbox-take' })).id || [];
     const results = [], aiResults = [], appEntries = [];
-    const fromAddress = items.some(item => ['document', 'document-owner', 'review-email'].includes(item.kind)) ? await sendingAddress(workspace) : '';
+    const fromAddress = items.some(item => ['document', 'document-owner', 'review-email', 'email'].includes(item.kind)) ? await sendingAddress(workspace) : '';
     const absolute = item => (item.path && !item.origin ? String(item.body || '').split(item.path).join(documentMail.linkOf(item)) : item.body);
     for (const item of items) {
       if (item.kind === 'webhook') results.push({ runId: item.runId, kind: 'webhook', text: await deliverWebhook(item) });
@@ -1593,6 +1593,14 @@ export function makeServer({
         if (privateSpace.test(workspace)) { results.push({ runId: item.runId, kind: 'whatsapp', text: '"digitando" não mostrado (conta pessoal)' }); continue; }
         const shown = await whatsapp.sendWorkspacePresence(state.agencyId || AGENCY_ID, workspace, item.phone, item.seconds, (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
         results.push({ runId: item.runId, kind: 'whatsapp', text: shown?.sent ? `"digitando…" por ${shown.seconds} s` : shown?.reason === 'not-connected' ? 'WhatsApp não conectado' : shown?.reason === 'unsupported' ? 'o provedor de WhatsApp não mostra "digitando"' : '"digitando" não mostrado' });
+      }
+      if (item.kind === 'email') {
+        if (privateSpace.test(workspace)) { results.push({ runId: item.runId, kind: 'email', text: 'não enviado (conta pessoal)' }); continue; }
+        const outcome = await documentMail.email(item.to, { subject: item.subject, text: absolute(item) }, `wf-email-${workspace}-${item.messageId}`,
+          { fromName: state.profile?.name || '', fromAddress }).catch(problem => problem.message);
+        const ok = typeof outcome !== 'string';
+        results.push({ runId: item.runId, kind: 'email', text: ok ? 'enviado' : `não enviado: ${outcome}`,
+          ...(ok ? {} : { failed: /não configurado/.test(outcome) ? 'not_connected' : 'provider_error', messageId: item.messageId || '' }) });
       }
       if (item.kind === 'whatsapp-interactive') {
         if (privateSpace.test(workspace)) { results.push({ runId: item.runId, kind: 'whatsapp', text: 'não enviada (conta pessoal)' }); continue; }
@@ -2681,6 +2689,24 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
                 (agencyId, workspace) => accountIsActive(agencyId, workspace, 'conversations'));
             } catch (err) { await failed('provider_error').catch(() => {}); throw err; }
             if (!delivery.sent) await failed(deliveryFailure(delivery.reason));
+          }
+        }
+        // A team e-mail in Conversas goes out from the sub-account's sending domain (or the platform address).
+        if (!privateSpace.test(id) && command.type === 'message' && command.data?.channel === 'Email' && command.data?.direction === 'Outbound') {
+          const contact = state.contacts.find(c => c.id === command.data.contactId);
+          const row = state.messages.find(m => m.id === result.id);
+          let reason = '';
+          if (!contact?.email) reason = 'no_email';
+          else {
+            const outcome = await documentMail.email(contact.email, { subject: row?.subject || `Mensagem de ${state.profile?.name || 'Soci'}`, text: row?.body || String(command.data.body || '') },
+              `team-email-${id}-${result.id}`, { fromName: state.profile?.name || '', fromAddress: await sendingAddress(id) }).catch(problem => problem.message);
+            if (typeof outcome === 'string') reason = /não configurado/.test(outcome) ? 'not_connected' : 'provider_error';
+          }
+          delivery = { sent: !reason, ...(reason ? { reason } : {}) };
+          if (reason) {
+            const marked = await change(id, { type: 'message-failed', data: { messageId: result.id, reason } });
+            state = marked.state;
+            if (state.workflowOutbox?.length) flushLater(id);
           }
         }
         // A team reply on Messenger or Direct goes out through the page the contact wrote to.

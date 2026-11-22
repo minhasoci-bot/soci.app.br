@@ -86,9 +86,9 @@ export const triggerCatalog = [
     { type: 'user_replied', label: 'Equipe respondeu', icon: 'chat', description: 'Quando alguém da equipe manda uma mensagem ao contato pela caixa de entrada (notas internas não contam). Use {{trigger.body}} para a mensagem e {{trigger.user}} para quem respondeu.', fields: [
       f('channel', 'Canal', 'select', { options: channels }), f('user', 'Usuário', 'text', { placeholder: 'Qualquer usuário (nome exato)' }), f('keyword', 'Contém a palavra', 'text', { placeholder: 'Ex.: proposta' })
     ] },
-    { type: 'message_failed', label: 'Falha no envio de mensagem', icon: 'close', description: 'Quando uma mensagem de WhatsApp, Messenger ou Direct da equipe ou de um fluxo não é entregue. Use {{trigger.reason}} para o motivo, {{trigger.channel}} para o canal e {{trigger.body}} para a mensagem. Fluxos com este gatilho não disparam de novo com as falhas das próprias mensagens.', fields: [
-      f('channel', 'Canal', 'select', { options: [any('Qualquer canal'), ['WhatsApp', 'WhatsApp'], ['Facebook', 'Messenger'], ['Instagram', 'Direct do Instagram']] }),
-      f('reason', 'Motivo', 'select', { options: [any('Qualquer motivo'), ['not_connected', 'Canal desconectado'], ['no_phone', 'Contato sem telefone'], ['invalid_phone', 'Telefone inválido'], ['suspended', 'Conta suspensa'], ['no_recipient', 'Contato ainda não escreveu nesse canal'], ['window_closed', 'Fora da janela de 24 horas'], ['provider_error', 'Erro do provedor']] })
+    { type: 'message_failed', label: 'Falha no envio de mensagem', icon: 'close', description: 'Quando uma mensagem de WhatsApp, e-mail, Messenger ou Direct da equipe ou de um fluxo não é entregue. Use {{trigger.reason}} para o motivo, {{trigger.channel}} para o canal e {{trigger.body}} para a mensagem. Fluxos com este gatilho não disparam de novo com as falhas das próprias mensagens.', fields: [
+      f('channel', 'Canal', 'select', { options: [any('Qualquer canal'), ['WhatsApp', 'WhatsApp'], ['Email', 'E-mail'], ['Facebook', 'Messenger'], ['Instagram', 'Direct do Instagram']] }),
+      f('reason', 'Motivo', 'select', { options: [any('Qualquer motivo'), ['not_connected', 'Canal desconectado'], ['no_phone', 'Contato sem telefone'], ['invalid_phone', 'Telefone inválido'], ['suspended', 'Conta suspensa'], ['no_email', 'Contato sem e-mail'], ['no_recipient', 'Contato ainda não escreveu nesse canal'], ['window_closed', 'Fora da janela de 24 horas'], ['provider_error', 'Erro do provedor']] })
     ] },
     { type: 'prospect_received', label: 'Prospect recebido da agência', icon: 'leads', description: 'Quando a agência envia um prospect da Prospecção para esta subconta (uma vez por prospect; reenviar não dispara de novo). O contato chega com a tag New Prospect Received. Use {{trigger.company}}, {{trigger.website}}, {{trigger.city}} e {{trigger.category}}.', fields: [
       f('isNew', 'Contato', 'select', { options: [any('Novo ou já existente'), ['yes', 'Contato novo'], ['no', 'Contato que já existia']] }),
@@ -356,7 +356,7 @@ export const actionCatalog = [
     ] }
   ] },
   { group: 'Comunicação', items: [
-    { type: 'send_email', label: 'Enviar e-mail', icon: 'mail', fields: [f('subject', 'Assunto', 'text', { required: true }), f('body', 'Mensagem', 'textarea', { required: true }), f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })] },
+    { type: 'send_email', label: 'Enviar e-mail', icon: 'mail', description: 'Envia pelo domínio de envio da subconta (Serviços de e-mail), ou pelo endereço da plataforma se não houver. O rodapé leva o link para o contato escolher o que recebe.', fields: [f('subject', 'Assunto', 'text', { required: true }), f('body', 'Mensagem', 'textarea', { required: true }), f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })] },
     { type: 'send_sms', label: 'Enviar SMS', icon: 'phone', fields: [f('body', 'Mensagem', 'textarea', { required: true }), f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })] },
     { type: 'send_whatsapp', label: 'Enviar WhatsApp', icon: 'chat', fields: [f('body', 'Mensagem', 'textarea', { required: true }), f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })] },
     { type: 'whatsapp_media', label: 'Enviar arquivo no WhatsApp', icon: 'whatsapp', description: 'Manda uma imagem, vídeo, documento (PDF) ou áudio por um endereço https público. O arquivo fica registrado em Conversas. Disponível com a Evolution API.', fields: [
@@ -435,6 +435,11 @@ export const actionCatalog = [
     { type: 'reply_social_comment', label: 'Responder comentário público', icon: 'chat', fields: [f('body', 'Resposta pública no post', 'textarea', { required: true })] },
     { type: 'send_live_chat', label: 'Enviar mensagem no chat do site', icon: 'chat', fields: [f('body', 'Mensagem', 'textarea', { required: true })] },
     { type: 'internal_notification', label: 'Notificação interna', icon: 'bell', fields: [f('body', 'Mensagem para a equipe', 'textarea', { required: true })] },
+    { type: 'send_optin', label: 'Pedir consentimento (opt-in)', icon: 'check', description: 'Manda o link da página de preferências do contato, onde ele escolhe os canais e os assuntos que quer receber. Quando ele salva, dispara Preferências de comunicação mudaram. Use {{link_preferencias}} para pôr o link no meio do texto (sem ele, o link vai no fim).', fields: [
+      f('channel', 'Canal', 'select', { options: [['WhatsApp', 'WhatsApp'], ['Email', 'E-mail']] }),
+      f('subject', 'Assunto do e-mail', 'text', { value: 'Suas preferências de comunicação', when: { channel: 'Email' } }),
+      f('body', 'Mensagem', 'textarea', { required: true, value: 'Oi, {{contact.first_name}}! Quer continuar recebendo nossas mensagens? Escolha aqui o que você prefere receber: {{link_preferencias}}' })
+    ] },
     { type: 'review_request', label: 'Pedir avaliação', icon: 'star', description: 'Envia o link de avaliação pessoal do contato com a mensagem do canal definida em Reputação → Configurações.', fields: [f('channel', 'Canal', 'select', { options: [['WhatsApp', 'WhatsApp'], ['Email', 'E-mail'], ['SMS', 'SMS']] })] },
     { type: 'manual_sms', label: 'Ação manual: SMS', icon: 'phone', fields: [f('body', 'Instruções', 'textarea', { required: true }), f('assignee', 'Responsável', 'text')] },
     { type: 'manual_whatsapp', label: 'Ação manual: WhatsApp', icon: 'whatsapp', fields: [f('body', 'Mensagem sugerida', 'textarea', { required: true, placeholder: 'Oi {{contact.first_name}}, …' }), f('assignee', 'Responsável', 'text')] },
