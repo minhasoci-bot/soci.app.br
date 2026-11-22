@@ -284,6 +284,9 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'site_page_viewed': return (!c.projectId || c.projectId === ctx.projectId) && (!c.page || lower(String(c.page).trim().replace(/^\/+|\/+$/g, '') || 'index') === lower(ctx.page));
       case 'external_tracking_event': return (!c.event || c.event === ctx.event) && (!c.url || lower(ctx.url).includes(lower(c.url)));
       case 'score_changed': return scoreTriggerMatches(c, ctx);
+      case 'meta_lead_form': case 'google_lead_form':
+        return (!c.formId || c.formId === ctx.formId || lower(ctx.form).includes(lower(c.formId))) && (!c.campaign || c.campaign === ctx.campaignId || lower(ctx.campaign).includes(lower(c.campaign)))
+          && (!c.test || c.test === ctx.test);
       case 'ad_lead': return (!c.network || c.network === ctx.network) && (!c.campaign || lower(ctx.campaign).includes(lower(c.campaign)));
       case 'social_post_published': return (!c.status || c.status === ctx.status) && (!c.network || String(ctx.networks || '').split(',').includes(c.network)) && (!c.categoryId || c.categoryId === ctx.categoryId);
       case 'form_submitted': case 'survey_submitted': return !c.formId || c.formId === ctx.formId;

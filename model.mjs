@@ -8,6 +8,7 @@ import { studioTemplates, studioThemes } from './ui/studio-data.js';
 import { afterSave, beforeDelete, bulk, companyWorkflow, crmCollections, crmFields, customData } from './crm-model.mjs';
 import { inboxRule } from './ui/inbox-data.js';
 import { linkVisitor, saveTracking, sitePageview, trackingCollections, trackingDefaults, trackingEvent, trackingOf } from './tracking.mjs';
+import { adFormLead, leadFormCollections, newGoogleLeadKey } from './lead-forms.mjs';
 import { applyScoring, changeScore, scoringCollections, scoringFields } from './scoring-model.mjs';
 import { adCollections, adDefaults, adSettingsOf, attributionSnapshot, recordAttribution, saveAdSettings } from './ads-model.mjs';
 import { socialBeforeDelete, socialCollections, socialCommand, socialFields, workflowPost } from './social-model.mjs';
@@ -67,7 +68,7 @@ export const defaults = {
   paymentSettings: paymentDefaults(),
   ai: { limit: 0, alertAt: 0.8, ledger: [] },
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
-  tracking: trackingDefaults(), trackingEvents: [], scoringRules: [],
+  tracking: trackingDefaults(), trackingEvents: [], adFormLeads: [], scoringRules: [],
   brandBoards: [], affiliateSettings: affiliateDefaults(), affiliateCampaigns: [], affiliates: [], affiliateCommissions: [], affiliatePayouts: [],
   wallet: walletDefaults(), labs: labsDefaults(), appInstalls: [], appLog: [], seo: seoDefaults(), seoAudits: [], visibility: visibilityDefaults(), visibilityRuns: [],
   reputation: reputationDefaults(), listings: {}, reviewRequests: [], reviewWidgets: [], videoCollectors: [], videoTestimonials: [], videoUploads: [],
@@ -87,7 +88,7 @@ export function hydrateWorkspace(state) {
   adSettingsOf(state);
   trackingOf(state);
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...driveCollections,...affiliateCollections,...adCollections,...trackingCollections,...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...credentialCollections,...certificateCollections,...ticketCollections,...sequenceCollections,...loyaltyCollections,...schedulingCollections,...meetingCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...driveCollections,...affiliateCollections,...adCollections,...trackingCollections,...leadFormCollections,...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...credentialCollections,...certificateCollections,...ticketCollections,...sequenceCollections,...loyaltyCollections,...schedulingCollections,...meetingCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -440,6 +441,9 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'tracking-settings') { saveTracking(s, d); return 'ok'; }
   // Server-internal: the GA4 API secret itself stays sealed on the server; the sub-account only knows it is set.
   if (type === 'tracking-ga4-secret') { trackingOf(s).ga4SecretSet = Boolean(d.set); return 'ok'; }
+  if (type === 'tracking-google-lead-key') return newGoogleLeadKey(s);
+  // Server only: a lead from a Google Ads lead form webhook or from Meta Lead Ads.
+  if (type === 'ad-form-lead') return adFormLead(s, d, { add, run, now });
   if (type === 'tracking-event') return trackingEvent(s, d, { add, run, now });
   if (type === 'site-pageview') return sitePageview(s, d, { run, now });
   if (type === 'affiliate-settings') return saveAffiliateSettings(s, d);

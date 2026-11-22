@@ -196,6 +196,16 @@ export const triggerCatalog = [
       f('network', 'Rede', 'select', { options: [['', 'Qualquer rede'], ['instagram', 'Instagram Direct'], ['facebook', 'Messenger']] }),
       f('keyword', 'Contém a palavra', 'text', { placeholder: 'Ex.: INFO, QUERO' })
     ] },
+    { type: 'meta_lead_form', label: 'Formulário de cadastro do Facebook', icon: 'meg', description: 'Quando alguém envia um formulário de cadastro (Lead Ads) no Facebook ou no Instagram, de uma página conectada no Social Planner. O contato é criado ou atualizado e as respostas viram nota. Use {{trigger.form}} e {{trigger.campaign}}.', fields: [
+      f('formId', 'Formulário (ID ou parte do nome)', 'text', { placeholder: 'Vazio = qualquer formulário' }),
+      f('campaign', 'Campanha contém', 'text', { placeholder: 'Ex.: black-friday' }),
+      f('test', 'Leads de teste', 'select', { options: [any('Reais e de teste'), ['no', 'Só leads reais'], ['yes', 'Só leads de teste']] })
+    ] },
+    { type: 'google_lead_form', label: 'Formulário de lead do Google Ads', icon: 'meg', description: 'Quando alguém envia o formulário de lead de um anúncio do Google Ads com o webhook da Soci (URL e chave em Marketing → Rastreamento → Formulários). O contato é criado ou atualizado, o clique (gclid) fica na atribuição e as respostas viram nota. Use {{trigger.form}} e {{trigger.campaign}}.', fields: [
+      f('formId', 'ID do formulário', 'text', { placeholder: 'Vazio = qualquer formulário' }),
+      f('campaign', 'ID da campanha', 'text', { placeholder: 'Vazio = qualquer campanha' }),
+      f('test', 'Leads de teste', 'select', { options: [any('Reais e de teste'), ['no', 'Só leads reais'], ['yes', 'Só leads de teste']] })
+    ] },
     { type: 'ad_lead', label: 'Lead de anúncio', icon: 'meg', description: 'Quando um contato chega de um anúncio (Google Ads, Meta Ads ou outra mídia paga), por um formulário, site, loja ou webinar. Use {{trigger.campaign}} e {{trigger.source}}.', fields: [
       f('network', 'Origem', 'select', { options: [any('Qualquer anúncio'), ['google_ads', 'Google Ads'], ['meta_ads', 'Meta Ads'], ['paid_other', 'Outros anúncios']] }),
       f('campaign', 'Campanha contém', 'text', { placeholder: 'Ex.: black-friday' })

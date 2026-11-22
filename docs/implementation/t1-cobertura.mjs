@@ -30,7 +30,7 @@ export const gatilhos = [
   falta('Conversation AI trigger', 'conversation_ai_event', 'Bot de IA nas conversas.'),
   c('Custom trigger', 'custom_event'), c('Form submitted', 'form_submitted'), c('Survey submitted', 'survey_submitted'),
   c('Trigger link clicked', 'trigger_link_clicked'),
-  falta('Facebook lead form submitted', 'meta_lead_form', 'Formulário de cadastro dos anúncios da Meta (Lead Ads).'),
+  c('Facebook lead form submitted', 'meta_lead_form'),
   conector('TikTok form submitted', 'Formulários de leads do TikTok pelo conector.'),
   falta('Video tracking', 'video_watched', 'Vídeos das aulas e páginas da Soci.'),
   falta('Number validation', 'phone_validated', 'Twilio Lookup (2.4).'),
@@ -94,7 +94,7 @@ export const gatilhos = [
   // Events management (2)
   c('Event registration', 'community_event_registered'), c('Event checked in', 'community_event_checked_in'),
   // Google ads (1)
-  falta('Google lead form submitted', 'google_lead_form', 'Formulário de lead do Google Ads (webhook com chave).'),
+  c('Google lead form submitted', 'google_lead_form'),
   // Google sheets (3) e Slack (5)
   conector('New spreadsheet row (polling 5 mins) (beta)'), conector('New spreadsheet (polling 5 mins) (beta)'), conector('New worksheet (polling 5 mins) (beta)'),
   conector('New mention (instant)'), conector('User invited to channel (instant)'), conector('New direct message (instant)'),

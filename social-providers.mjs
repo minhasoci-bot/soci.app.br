@@ -53,7 +53,7 @@ const oauth = {
   facebook: {
     keys: meta,
     url: ({ redirectUri, state }) => `https://www.facebook.com/${graphVersion()}/dialog/oauth?` + form({ client_id: meta.id(), redirect_uri: redirectUri, state, response_type: 'code',
-      ...(env('META_LOGIN_CONFIG_ID') ? { config_id: env('META_LOGIN_CONFIG_ID') } : { scope: 'pages_show_list,pages_read_engagement,pages_manage_posts,business_management,instagram_basic,instagram_content_publish,pages_messaging,pages_manage_metadata,instagram_manage_messages' }) }),
+      ...(env('META_LOGIN_CONFIG_ID') ? { config_id: env('META_LOGIN_CONFIG_ID') } : { scope: 'pages_show_list,pages_read_engagement,pages_manage_posts,business_management,instagram_basic,instagram_content_publish,pages_messaging,pages_manage_metadata,instagram_manage_messages,leads_retrieval,pages_manage_ads' }) }),
     async exchange({ code, redirectUri }) {
       const g = `https://graph.facebook.com/${graphVersion()}`;
       const short = await call(`${g}/oauth/access_token?` + form({ client_id: meta.id(), client_secret: meta.secret(), redirect_uri: redirectUri, code }));

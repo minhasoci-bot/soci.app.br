@@ -100,7 +100,8 @@ import { snapshotAssets } from './ui/agency-data.js';
 import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, requireWorkspaceCommand, workspaceView } from './authorization.mjs';
 import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, reviewSocialCsv, settle } from './social-model.mjs';
 import { authUrl, availability, blueskyLogin, exchange as socialExchange, publish as socialPublish, seal, unseal } from './social-providers.mjs';
-import { metaInbound, metaSenderName, metaSignatureValid, quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
+import { fetchMetaLead, metaInbound, metaLeads, metaSenderName, metaSignatureValid, quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
+import { googleLeadFields, googleLeadKeyValid, metaLeadFields } from './lead-forms.mjs';
 import { network } from './ui/social-data.js';
 import { captionRequest, writeCaption } from './social-ai.mjs';
 import { findSharedReport, reportMailer, sharedReportPage } from './report-share.mjs';
@@ -3095,8 +3096,45 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
             touched.add(route.workspace);
           } catch (problem) { console.error(`Meta webhook (${route.workspace}): ${problem.message}`); }
         }
+        // Lead Ads: the lead's answers are read with the page token, then become a contact and the trigger.
+        for (const lead of metaLeads(body)) {
+          const route = routes[lead.pageId];
+          if (!route || route.network !== 'facebook') continue;
+          try {
+            if (!await publicAccountPolicy(route.workspace, false, 'marketing')) continue;
+            const state = await store.load(route.workspace);
+            const sender = await metaSender(route.workspace, state, `facebook:${lead.pageId}`);
+            if (!sender) continue;
+            const found = await fetchMetaLead({ token: sender.token, leadgenId: lead.leadgenId, formId: lead.formId }, metaFetch);
+            const touch = found.lead.is_organic ? null : { source: 'facebook', medium: 'paid_social', campaign: String(found.lead.campaign_name || ''), at: new Date().toISOString(), channel: 'meta_ads' };
+            await store.change(route.workspace, s => execute(s, { type: 'ad-form-lead', data: { network: 'meta', leadId: lead.leadgenId, formId: String(found.lead.form_id || lead.formId),
+              formName: found.formName, campaign: String(found.lead.campaign_name || ''), campaignId: String(found.lead.campaign_id || ''), fields: metaLeadFields(found.lead) } },
+              { workspace: route.workspace, ...(touch ? { attribution: { first: touch, last: touch } } : {}) }));
+            touched.add(route.workspace);
+          } catch (problem) { console.error(`Meta lead (${route.workspace}): ${problem.message}`); }
+        }
         for (const workspace of touched) flushLater(workspace);
         return json({ ok: true });
+      }
+      // Google Ads lead form webhook: the URL and key from Marketing → Rastreamento; Google retries on non-200.
+      const googleLead = p.match(new RegExp(`^/api/google-leads/${workspaceSegment}$`));
+      if (googleLead && method === 'POST') {
+        await ready;
+        const workspace = googleLead[1];
+        if (privateSpace.test(workspace)) throw error('Not found.', 404);
+        let size = 0; const chunks = [];
+        for await (const chunk of req) { size += chunk.length; if (size > 100_000) throw error('Payload too large.', 413); chunks.push(chunk); }
+        let body;
+        try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw error('Invalid JSON.', 400); }
+        await publicAccountPolicy(workspace, true, 'marketing');
+        if (!googleLeadKeyValid(await store.load(workspace), body?.google_key)) throw error('Invalid key.', 403);
+        const gclid = String(body.gcl_id || '').slice(0, 200);
+        const touch = { source: 'google', medium: 'cpc', campaign: String(body.campaign_id || ''), gclid, at: new Date().toISOString(), channel: 'google_ads' };
+        await store.change(workspace, s => execute(s, { type: 'ad-form-lead', data: { network: 'google', leadId: String(body.lead_id || ''), formId: String(body.form_id || ''),
+          campaignId: String(body.campaign_id || ''), campaign: String(body.campaign_id || ''), test: body.is_test === true, fields: googleLeadFields(body) } },
+          { workspace, attribution: { first: touch, last: touch } }));
+        flushLater(workspace);
+        return json({});
       }
       if (p.startsWith('/api/whatsapp/agency/')) {
         const who = await access(req, res);
