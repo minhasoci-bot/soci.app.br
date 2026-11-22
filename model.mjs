@@ -36,7 +36,7 @@ import { walletCharge, walletDefaults } from './wallet-model.mjs';
 import { labsDefaults, rejectDuplicateContact, toggleLab } from './labs-model.mjs';
 import { onAiAlert } from './ai-model.mjs';
 import { appLog, appTrigger, dropInstalledApp, queueAppEvents, setInstalledApp } from './app-studio-model.mjs';
-import { offerBeforeDelete, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
+import { offerBeforeDelete, offerAccessCommand, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
 import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
@@ -485,6 +485,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'chat-start' || type === 'chat-send') return chatCommand(s, { ...command, data:d }, { add, now, run });
   if (type === 'blog-view') return blogView(s, id);
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
+  if (type === 'offer-access') return offerAccessCommand(s, d, { run });
   if (typeof type === 'string' && type.startsWith('community-event-')) return communityEventCommand(s, { ...command, data:d }, { add, run, now });
   if (['community-plan-invoice', 'community-welcome', 'community-newsletter', 'community-activity', 'portal-login'].includes(type)) return communityCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'course-activity') return courseActivityCommand(s, { ...command, data:d }, { add, run });

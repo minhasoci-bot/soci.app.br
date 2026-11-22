@@ -313,7 +313,9 @@ const triggerData = {
   community_join_requested: [['community', 'Comunidade'], ['answers', 'Respostas de entrada']], community_join_rejected: [['community', 'Comunidade']],
   community_access_revoked: [['community', 'Comunidade'], ['reason', 'Motivo (left, removed, banned ou workflow)']], portal_login: [['first', 'Primeiro acesso (yes ou no)']],
   conversation_sla: [['state', 'Situação (soon ou overdue)'], ['channel', 'Canal'], ['minutes', 'Minutos sem resposta'], ['body', 'Mensagem do cliente']],
-  coupon_expired: [['code', 'Código do cupom'], ['title', 'Nome do cupom'], ['end', 'Fim da validade']]
+  coupon_expired: [['code', 'Código do cupom'], ['title', 'Nome do cupom'], ['end', 'Fim da validade']],
+  offer_access_granted: [['offer', 'Oferta'], ['offerId', 'ID da oferta']], offer_access_revoked: [['offer', 'Oferta'], ['offerId', 'ID da oferta']],
+  community_level_changed: [['community', 'Comunidade'], ['level', 'Novo nível'], ['levelName', 'Nome do nível'], ['previous', 'Nível anterior'], ['direction', 'Subiu ou desceu (up ou down)']]
 };
 const outputKeys = { create_task: [['id', 'ID'], ['title', 'Título'], ['due', 'Prazo']], create_opportunity: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['stage', 'Etapa']],
   create_invoice: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['due', 'Vencimento']], math: [['value', 'Resultado']],

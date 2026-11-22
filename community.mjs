@@ -59,9 +59,11 @@ const eventRecord = (data, id) => (data.events ||= {})[id] ||= { attendees: {} }
 const displayName = member => member?.name || (member?.email || '').split('@')[0] || 'Membro';
 const https = value => { const link = str(value, 500); if (link && !/^https:\/\/[^\s"'<>]+$/i.test(link)) fail('Use um link que comece com https://.'); return link; };
 
-// Points per author in a period: posts, comments and likes received (likes on your own content do not count).
+// Points per author in a period: posts, comments and likes received (likes on your own content do not count),
+// plus the points the workflows gave (data.bonuses).
 function scores(group, data, since = 0) {
   const totals = new Map(), add = (id, value) => { if (id !== 'staff' && value) totals.set(id, (totals.get(id) || 0) + value); };
+  for (const bonus of data.bonuses || []) if (Date.parse(bonus.at) >= since) add(bonus.memberId, bonus.points);
   for (const post of data.posts) {
     if (post.held) continue;
     if (Date.parse(post.created) >= since) add(post.authorId, group.points.post);
@@ -74,6 +76,20 @@ function scores(group, data, since = 0) {
   }
   return totals;
 }
+
+const levels = (group, data) => new Map([...scores(group, data)].map(([id, total]) => [id, levelOf(total)]));
+// Wraps a change of one group: members whose all-time level moved get a "level" activity (workflow trigger).
+const ranked = (group, groupId, activity, mutate) => doc => {
+  const before = group?.points ? levels(group, groupData(doc, groupId)) : new Map();
+  const result = mutate(doc);
+  if (!group?.points) return result;
+  const after = levels(group, groupData(doc, groupId));
+  for (const id of new Set([...before.keys(), ...after.keys()])) {
+    const previous = before.get(id) || 1, level = after.get(id) || 1;
+    if (previous !== level) activity.push({ event: 'level', memberId: id, level, previous });
+  }
+  return result;
+};
 
 export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, onActivity = null }) {
   // Workflows (T.1): posts, comments, join requests and lost access, after the change is saved.
@@ -221,7 +237,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
     const group = groupOf(state, groupId), action = input?.action;
     let joined = null, welcomed = false;
     const activity = [];
-    const result = await change(workspace, doc => {
+    const result = await change(workspace, ranked(group, groupId, activity, doc => {
       activity.length = 0; // a retried change starts over
       const data = groupData(doc, groupId), membership = data.members[member.id];
       if (membership?.status === 'banned') fail('Você não tem mais acesso a esta comunidade.', 403);
@@ -312,7 +328,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
         } else fail('Ação da comunidade não encontrada.', 404);
       }
       return memberView(state, portal, group, data, member, { channelId: input.channelFilter || '' });
-    });
+    }));
     if (joined) await onEventJoin?.(workspace, joined);
     if (welcomed) await onMemberJoin?.(workspace, { groupId, memberId: member.id });
     await announce(workspace, groupId, activity);
@@ -466,7 +482,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
     const added = [], welcome = [], activity = [];
     // A member who loses the group: a refused request, or access taken away.
     const lost = (memberId, row, reason) => { if (row?.status === 'requested') activity.push({ event: 'rejected', memberId }); else if (row?.status === 'active') activity.push({ event: 'revoked', memberId, reason }); };
-    const result = await change(workspace, doc => {
+    const result = await change(workspace, ranked(group, groupId, activity, doc => {
       activity.length = 0;
       const data = groupData(doc, groupId), action = input.action;
       if (action === 'post') {
@@ -526,7 +542,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
         delete record.attendees[input.memberId];
       } else fail('Ação da comunidade não encontrada.', 404);
       return adminView(state, portal, doc, groupId);
-    });
+    }));
     for (const row of added) await onEventJoin?.(workspace, row);
     for (const memberId of welcome) await onMemberJoin?.(workspace, { groupId, memberId });
     await announce(workspace, groupId, activity);
@@ -563,5 +579,22 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
     return removed;
   }
 
-  return { home, read, act, admin, enroll, unenroll, reserve, markPending, grantTicket, dueReminders, reservePlan, markPlanPending, grantPlan, dueNewsletters };
+  // Workflows (T.1): bonus points (negative takes points away) for an active member. Null when not a member.
+  async function grantPoints(workspace, state, memberId, groupId, points, note = '') {
+    const group = state.communities.find(row => row.id === groupId);
+    if (!group || !memberId) return null;
+    const activity = [];
+    let total = null;
+    await change(workspace, ranked(group, groupId, activity, doc => {
+      activity.length = 0; total = null;
+      const data = groupData(doc, groupId);
+      if (data.members[memberId]?.status !== 'active') return;
+      (data.bonuses ||= []).push({ memberId, points, note: str(note, 200), at: new Date().toISOString() });
+      total = scores(group, data).get(memberId) || 0;
+    }));
+    await announce(workspace, groupId, activity);
+    return total === null ? null : { total, level: levelOf(total), name: group.levels?.[levelOf(total) - 1]?.name || '' };
+  }
+
+  return { home, read, act, admin, enroll, unenroll, grantPoints, reserve, markPending, grantTicket, dueReminders, reservePlan, markPlanPending, grantPlan, dueNewsletters };
 }

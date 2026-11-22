@@ -281,6 +281,8 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'lesson_completed': case 'course_access_granted': case 'course_access_revoked':
       case 'course_started': case 'course_module_started': case 'course_module_completed': return !c.courseId || c.courseId === ctx.courseId;
       case 'affiliate_campaign_enrolled': return !c.campaignId || c.campaignId === ctx.campaignId;
+      case 'offer_access_granted': case 'offer_access_revoked': return !c.offerId || c.offerId === ctx.offerId;
+      case 'community_level_changed': return (!c.communityId || c.communityId === ctx.communityId) && (!c.direction || c.direction === ctx.direction) && (!c.level || String(c.level) === String(ctx.level));
       case 'course_quiz_submitted': return (!c.courseId || c.courseId === ctx.courseId) && (!c.passed || c.passed === ctx.passed);
       case 'course_assignment_submitted': return !c.courseId || c.courseId === ctx.courseId;
       case 'course_assignment_graded': return (!c.courseId || c.courseId === ctx.courseId) && (!c.status || c.status === ctx.status);
@@ -423,6 +425,19 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         outbox(s, { kind: 'access', runId: run.id, action: node.type, ...(course ? { courseId: target.id } : { communityId: target.id }),
           contactId: contact.id, email: contact.email, name: contact.name || '' });
         return `${target.name}: na fila`;
+      }
+      case 'grant_offer': case 'revoke_offer': case 'community_points': {
+        // Offers and community points also live in the portal and community documents: applied by the server after saving.
+        const offer = node.type !== 'community_points' && (s.offers || []).find(row => row.id === c.offerId);
+        const group = node.type === 'community_points' && (s.communities || []).find(row => row.id === c.communityId);
+        if (node.type !== 'community_points' && !offer) return 'erro: oferta não encontrada';
+        if (node.type === 'community_points' && !group) return 'erro: comunidade não encontrada';
+        const points = Math.trunc(Number(c.points));
+        if (group && (!points || Math.abs(points) > 1000)) return 'erro: informe de -1000 a 1000 pontos (diferente de zero)';
+        if (!contact.email) return 'erro: contato sem e-mail';
+        outbox(s, { kind: 'access', runId: run.id, action: node.type, ...(offer ? { offerId: offer.id } : { communityId: group.id, points, note: text(c.note || '').slice(0, 200) }),
+          contactId: contact.id, email: contact.email, name: contact.name || '' });
+        return `${offer ? offer.title : group.name}: na fila`;
       }
       case 'make_affiliate': return makeAffiliate ? makeAffiliate(s, contact, c.campaignId) : 'erro: afiliados indisponíveis';
       case 'update_affiliate': case 'add_affiliate_campaign': case 'remove_affiliate_campaign': case 'assign_affiliate_lead': case 'affiliate_manual_sale':
