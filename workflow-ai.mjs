@@ -28,6 +28,16 @@ const pick = (value, options, fallback) => {
 
 export async function runWorkflowAI(connection, item) {
   switch (item.action) {
+    case 'ai_prompt': {
+      // "Perguntar à IA" (GPT / Claude / Gemini action in GHL): the user's own task; the supporting text stays data.
+      const prompt = String(item.prompt || '').trim().slice(0, 4000);
+      if (!prompt) throw fail('o pedido para a IA ficou vazio', 400);
+      const size = { short: ['a short answer (up to about 80 words)', 400], medium: ['up to about 250 words', 1200], long: ['as long as the task needs (up to about 700 words)', 3000] }[item.length] || ['a short answer (up to about 80 words)', 400];
+      const answer = await ask(connection, { name: 'answer', schema: object({ answer: string }), max: size[1],
+        instructions: `You do one task for a small business CRM automation. Write ${size[0]}, in the language of the task unless it asks for another. Answer only with the result, with no preamble, and do not invent facts that are not in the task or the data.\nTask: ${prompt}`,
+        input: wrap(item.input || '(sem informação de apoio)') });
+      return { vars: { [item.variable]: String(answer.answer || '').trim() } };
+    }
     case 'ai_decision': {
       if ((item.options || []).length < 2) throw fail('informe pelo menos duas opções', 400);
       const answer = await ask(connection, { name: 'decision', schema: object({ choice: { type: 'string', enum: item.options }, reason: string }),

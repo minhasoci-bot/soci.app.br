@@ -481,6 +481,12 @@ export const actionCatalog = [
       f('input', 'Mensagem para o agente (aceita variáveis)', 'textarea', { required: true, value: '{{trigger.body}}' }),
       f('variable', 'Guardar a resposta na variável', 'text', { required: true, value: 'resposta_agente' })
     ] },
+    { type: 'ai_prompt', label: 'Perguntar à IA', icon: 'spark', ai: true, description: 'Pede qualquer tarefa à IA com as suas palavras (escrever, reescrever, classificar, responder) e guarda o resultado em {{vars.nome}}. O texto de apoio vai como dado para a IA analisar, nunca como instrução.', fields: [
+      f('prompt', 'O que a IA deve fazer (aceita variáveis)', 'textarea', { required: true, placeholder: 'Ex.: Escreva uma mensagem curta e simpática convidando {{contact.first_name}} para conhecer o plano anual.' }),
+      f('input', 'Texto de apoio (aceita variáveis)', 'textarea', { value: '{{trigger.body}}' }),
+      f('length', 'Tamanho da resposta', 'select', { options: [['short', 'Curta'], ['medium', 'Média'], ['long', 'Longa']] }),
+      f('variable', 'Guardar a resposta na variável', 'text', { required: true, value: 'resposta_ia' })
+    ] },
     { type: 'ai_decision', label: 'Decidir com IA', icon: 'spark', ai: true, description: 'A IA escolhe uma das opções. Use a variável num Se / Senão ou Roteador.',
       fields: [f('question', 'O que a IA deve decidir', 'textarea', { required: true, placeholder: 'Ex.: Este lead está pronto para comprar?' }),
         f('options', 'Opções (separadas por vírgula)', 'text', { required: true, placeholder: 'quente, morno, frio' }),
@@ -643,7 +649,7 @@ export function stepSummary(step, s) {
     case 'ai_decision': return `${String(c.options || '').slice(0, 50)} → vars.${c.variable || 'decisao'}`;
     case 'ai_intent': return `${String(c.intents || '').slice(0, 50)} → vars.${c.variable || 'intencao'}`;
     case 'ai_agent': return [ref('agents', c.agentId), c.variable ? `→ vars.${c.variable}` : ''].filter(Boolean).join(' ');
-    case 'ai_summarize': case 'ai_translate': case 'ai_image': return c.variable ? `→ vars.${c.variable}` : '';
+    case 'ai_prompt': case 'ai_summarize': case 'ai_translate': case 'ai_image': return c.variable ? `→ vars.${c.variable}` : '';
     case 'ai_extract': return aiExtractFields(c.fields).map(item => `vars.${item.name}`).join(', ').slice(0, 80);
     case 'router': return `${(step.routes || []).length} caminho(s)`;
     case 'split': return (step.routes || []).map(route => `${route.label} ${splitPercent(route.percent)}%`).join(' · ').slice(0, 80);
