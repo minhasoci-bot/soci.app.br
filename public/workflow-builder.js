@@ -325,6 +325,7 @@ const outputKeys = { create_task: [['id', 'ID'], ['title', 'Título'], ['due', '
   find_contact: [['found', 'Encontrado (yes ou no)'], ['id', 'ID'], ['name', 'Nome'], ['email', 'E-mail'], ['phone', 'Telefone']],
   merge_contact: [['merged', 'Duplicados mesclados'], ['id', 'ID do contato mantido'], ['name', 'Nome']],
   booking_link: [['url', 'Link de agendamento'], ['expires', 'Vence em']],
+  email_verify: [['email_status', 'Situação (valid, invalid ou unknown)'], ['email_motivo', 'Motivo']],
   company_create: [['id', 'ID da empresa'], ['name', 'Nome da empresa'], ['created', 'Criada agora (yes ou no)']],
   company_update: [['id', 'ID da empresa'], ['name', 'Nome da empresa']], company_clear: [['id', 'ID da empresa'], ['name', 'Nome da empresa']],
   book_appointment: [['id', 'ID do agendamento'], ['start', 'Início'], ['end', 'Fim'], ['service', 'Serviço'], ['staff', 'Profissional']],
