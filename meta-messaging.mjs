@@ -40,6 +40,35 @@ export function metaInbound(body) {
   return out;
 }
 
+/** The Lead Ads submissions of a webhook body (object "page", field "leadgen"). */
+export function metaLeads(body) {
+  if (body?.object !== 'page' || !Array.isArray(body.entry)) return [];
+  const out = [];
+  for (const entry of body.entry.slice(0, 50)) {
+    for (const change of Array.isArray(entry?.changes) ? entry.changes.slice(0, 50) : []) {
+      if (change?.field !== 'leadgen') continue;
+      const value = change.value || {};
+      const leadgenId = str(String(value.leadgen_id ?? ''), 64), pageId = str(String(value.page_id ?? entry.id ?? ''), 64);
+      if (!/^\d{3,64}$/.test(leadgenId) || !/^\d{3,64}$/.test(pageId)) continue;
+      out.push({ pageId, leadgenId, formId: str(String(value.form_id ?? ''), 64), adId: str(String(value.ad_id ?? ''), 64) });
+    }
+  }
+  return out;
+}
+
+/** A lead's answers, form and campaign, read with the page token (needs leads_retrieval). */
+export async function fetchMetaLead({ token, leadgenId, formId }, request = fetch) {
+  const get = async path => {
+    const response = await request(`https://graph.facebook.com/${graphVersion()}/${path}${path.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(10000) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw Object.assign(new Error(str(data.error?.message, 200) || 'A Meta não devolveu o lead.'), { status: 502 });
+    return data;
+  };
+  const lead = await get(`${encodeURIComponent(leadgenId)}?fields=field_data,form_id,campaign_name,campaign_id,ad_name,is_organic,created_time`);
+  const form = await get(`${encodeURIComponent(lead.form_id || formId)}?fields=name`).catch(() => ({}));
+  return { lead, formName: str(form.name, 160) };
+}
+
 /** Quick-reply buttons from the step's text: one per line, up to 13, 20 characters each (Meta's limits). */
 export function quickReplies(text) {
   const titles = [...new Set(String(text || '').split('\n').map(line => line.trim().slice(0, 20)).filter(Boolean))].slice(0, 13);
@@ -85,11 +114,11 @@ export async function metaSenderName({ token, senderId, network }, request = fet
   } catch { return ''; }
 }
 
-/** Lets the page send this app its messages (Messenger and Instagram); asked when the account is connected. */
+/** Lets the page send this app its messages (Messenger and Instagram) and Lead Ads; asked when the account is connected. */
 export async function subscribeMetaPage({ token, pageId }, request = fetch) {
   if (!token || !pageId) return false;
   try {
-    const response = await request(`https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(pageId)}/subscribed_apps?subscribed_fields=messages&access_token=${encodeURIComponent(token)}`, { method: 'POST', signal: AbortSignal.timeout(10000) });
+    const response = await request(`https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(pageId)}/subscribed_apps?subscribed_fields=messages,leadgen&access_token=${encodeURIComponent(token)}`, { method: 'POST', signal: AbortSignal.timeout(10000) });
     return response.ok;
   } catch { return false; }
 }

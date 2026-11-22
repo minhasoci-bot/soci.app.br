@@ -14,7 +14,7 @@ const contactName = (c, id) => c.s.contacts.find(row => row.id === id)?.name || 
 const empty = (title, text, ico) => `<div class="empty">${i(ico, 26)}<strong>${title}</strong><p>${text}</p></div>`;
 const table = (cols, rows, nothing) => `<div class="surface table-shell"><table><thead><tr>${cols.map(col => `<th scope="col">${col}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length ? '' : nothing}</div>`;
 const metric = (title, value, note = '') => `<div class="surface metric"><span>${title}</span><b>${value}</b>${note ? `<small class="dim">${note}</small>` : ''}</div>`;
-const code = (text, label) => `<div class="tk-code" data-bui-code-wrap><pre data-bui-code="${h(label && !/copiar/i.test(label) ? label : 'codigo-do-site.html')}"><code>${h(text)}</code></pre><button type="button" class="secondary" data-tk-act="copy" data-value="${h(text)}">${i('copy', 15)} ${label || 'Copiar código'}</button></div>`;
+const code = (text, label, file = '') => `<div class="tk-code" data-bui-code-wrap><pre data-bui-code="${h(file || (label && !/copiar/i.test(label) ? label : 'codigo-do-site.html'))}"><code>${h(text)}</code></pre><button type="button" class="secondary" data-tk-act="copy" data-value="${h(text)}">${i('copy', 15)} ${label || 'Copiar código'}</button></div>`;
 
 const scriptUrl = c => `${location.origin}/t/${c.workspace}.js`;
 const scriptTag = c => `<script src="${scriptUrl(c)}" async></script>`;
@@ -92,6 +92,13 @@ function formsView(c) {
   return `<section class="surface padded tk-section"><h2>Formulários HTML</h2>
       <p class="dim">Com o script instalado, qualquer formulário do seu site vira contato, sem configurar nada. Reconhecemos os campos pelo nome: <code>email</code>/<code>e-mail</code>, <code>telefone</code>/<code>phone</code>/<code>whatsapp</code>, <code>nome</code>/<code>name</code>, <code>sobrenome</code> e <code>empresa</code>. Os demais campos entram na nota do contato.</p>
       ${code(sample, 'Copiar exemplo')}</section>
+    <section class="surface padded tk-section"><h2>Formulários de lead do Google Ads</h2>
+      <p class="dim">No Google Ads, abra o formulário de lead do anúncio, vá em <b>Integração de dados de leads → Webhook</b> e cole a URL e a chave abaixo. Cada lead vira contato (com o clique na atribuição) e dispara o gatilho <b>Formulário de lead do Google Ads</b>. Use <b>Enviar dados de teste</b> no Google para conferir.</p>
+      ${code(`${location.origin}/api/google-leads/${c.workspace}`, 'Copiar URL', 'URL do webhook')}
+      ${c.s.tracking?.googleLeadKey ? code(c.s.tracking.googleLeadKey, 'Copiar chave', 'Chave') : '<p class="dim">Ainda não há chave.</p>'}
+      <div class="inline-gap"><button type="button" class="secondary" data-tk-act="google-lead-key">${i('key', 15)} ${c.s.tracking?.googleLeadKey ? 'Gerar chave nova' : 'Gerar chave'}</button></div></section>
+    <section class="surface padded tk-section"><h2>Formulários de cadastro do Facebook e Instagram</h2>
+      <p class="dim">Os leads dos formulários de cadastro (Lead Ads) das páginas conectadas no <a href="#marketing/social">Social Planner</a> chegam sozinhos, pela permissão de leads da Meta. Cada lead vira contato e dispara o gatilho <b>Formulário de cadastro do Facebook</b>. Se a página foi conectada antes, conecte de novo para dar a permissão de leads.</p></section>
     <section class="surface padded tk-section"><h2>Formulários em iframe</h2>
       <p class="dim">Formulários do Soci incorporados no seu site já criam o contato direto. Formulários de outras ferramentas em iframe não podem ser lidos pelo script (o navegador isola o iframe): use a integração da ferramenta ou um webhook de entrada nas automações.</p></section>
     <h2 class="section-heading">Formulários recebidos</h2>
@@ -204,6 +211,10 @@ export function installTracking({ c, mutate, flash, dialog, close, render, api }
     const act = el.dataset.tkAct;
     try {
       if (act === 'copy') await navigator.clipboard.writeText(el.dataset.value).then(() => flash('Código copiado.'), () => flash('Selecione o código e copie manualmente.', true));
+      if (act === 'google-lead-key') {
+        if (c.s.tracking?.googleLeadKey && !confirm('Gerar uma chave nova? Os formulários do Google Ads com a chave antiga param de mandar leads até você trocar a chave lá.')) return;
+        await mutate({ type: 'tracking-google-lead-key' }); render(); flash('Chave gerada. Copie a URL e a chave para o formulário de lead do Google Ads.');
+      }
       if (act === 'rule-new') dialog('Nova regra de pontuação', ruleForm(c));
       if (act === 'rule-edit') dialog('Editar regra de pontuação', ruleForm(c, c.s.scoringRules.find(r => r.id === el.dataset.id)));
       if (act === 'rule-delete') {
