@@ -5130,5 +5130,15 @@
   "Qualquer produto": "Cualquier producto",
   "Total do carrinho": "Total del carrito",
   "Produto (id)": "Producto (id)",
-  "Loja (id)": "Tienda (id)"
+  "Loja (id)": "Tienda (id)",
+  "Webhook personalizado": "Webhook personalizado",
+  "Chama uma API com o método, os cabeçalhos e o corpo que você escrever (todos aceitam variáveis) e espera a resposta: o corpo fica em {{vars.nome}}, o código HTTP em {{vars.nome_status}} e, numa resposta JSON, cada campo simples em {{vars.nome_campo}}. Só endereços https públicos.": "Llama a una API con el método, los encabezados y el cuerpo que usted escriba (todos aceptan variables) y espera la respuesta: el cuerpo queda en {{vars.nome}}, el código HTTP en {{vars.nome_status}} y, en una respuesta JSON, cada campo simple en {{vars.nome_campo}}. Solo direcciones https públicas.",
+  "Endereço (https://, aceita variáveis)": "Dirección (https://, acepta variables)",
+  "Cabeçalhos (um por linha, Nome: valor)": "Encabezados (uno por línea, Nombre: valor)",
+  "Formato do corpo (GET e DELETE não levam corpo)": "Formato del cuerpo (GET y DELETE no llevan cuerpo)",
+  "Formulário (campo=valor por linha)": "Formulario (campo=valor por línea)",
+  "Sem corpo": "Sin cuerpo",
+  "Corpo (JSON vazio = dados do contato e do gatilho)": "Cuerpo (JSON vacío = datos del contacto y del disparador)",
+  "Método": "Método",
+  "JSON": "JSON"
 }

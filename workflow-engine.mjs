@@ -945,6 +945,25 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         run.results.push(`${label}: verificando ${contact.email}`); trace('verificando');
         return;
       }
+      if (node.type === 'custom_webhook') {
+        // The server sends it after saving; the run waits like an AI step and resumes with the answer.
+        const request = customWebhookRequest(s, run, c, contactOf(s, run.contactId));
+        const name = aiVariableName(c.variable) || 'resposta';
+        if (run.test) {
+          run.vars = { ...(run.vars || {}), [name]: '', [`${name}_status`]: '' };
+          output(run, id, { [name]: '', [`${name}_status`]: '' });
+          run.results.push(`${label}: (teste) não enviado: ${request.method} ${request.url || '(sem endereço)'}`); trace('pulada no teste'); run.at = node.next; continue;
+        }
+        if (request.problem) {
+          run.results.push(`${label}: erro: ${request.problem}`); trace(`erro: ${request.problem}`);
+          if (c.stopOnError) { run.status = 'Failed'; run.at = ''; run.finished = now(); return; }
+          run.at = node.next; continue;
+        }
+        outbox(s, { kind: 'custom-webhook', runId: run.id, stepId: id, variable: name, url: request.url, method: request.method, headers: request.headers, contentType: request.contentType, body: request.body });
+        run.status = 'Waiting'; run.waitFor = { type: 'ai', step: id }; run.wakeAt = new Date(Date.now() + AI_TIMEOUT).toISOString(); run.at = node.next;
+        run.results.push(`${label}: ${request.method} ${request.url.slice(0, 120)}`); trace('aguardando a resposta');
+        return;
+      }
       if (actionSpec(node.type)?.ai) {
         const contact = contactOf(s, run.contactId);
         const request = aiRequest(s, run, node, contact);
@@ -972,6 +991,37 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
     run.status = 'Completed';
     run.finished = now();
     run.wakeAt = ''; run.waitFor = null;
+  }
+
+  // "Webhook personalizado": the request with the variables filled in now. Each {{…}} is escaped for
+  // where it lands (URL, JSON string), so a contact's name with quotes cannot break the address or the body.
+  function customWebhookRequest(s, run, c, contact) {
+    const fill = (template, escape = value => value) => String(template ?? '').replace(/\{\{[\s\S]*?\}\}/g, token => escape(merge(token, s, contact, run)));
+    const method = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(c.method) ? c.method : 'POST';
+    const url = fill(c.url, encodeURIComponent).trim().slice(0, 2000);
+    const headers = {};
+    for (const line of String(c.headers || '').split(/\r?\n/).slice(0, 20)) {
+      const at = line.indexOf(':');
+      if (at > 0 && line.slice(0, at).trim()) headers[line.slice(0, at).trim().slice(0, 60)] = fill(line.slice(at + 1)).replace(/[\r\n]+/g, ' ').trim().slice(0, 2000);
+    }
+    const contentType = ['json', 'form', 'none'].includes(c.contentType) ? c.contentType : 'json';
+    let body = '', problem = /^https:\/\/\S+$/i.test(url) ? '' : 'endereço inválido (use https://)';
+    if (!['GET', 'DELETE'].includes(method) && contentType === 'json') {
+      body = String(c.body || '').trim()
+        ? fill(c.body, value => JSON.stringify(value).slice(1, -1))
+        : JSON.stringify({ workflow: { id: run.workflowId, name: run.name }, trigger: run.event, context: run.context,
+          contact: contact ? { id: contact.id, name: contact.name, email: contact.email, phone: contact.phone, company: contact.company, tags: contact.tags, custom: contact.custom || {} } : null });
+      try { JSON.parse(body); } catch { problem ||= 'o corpo não é um JSON válido'; }
+    }
+    if (!['GET', 'DELETE'].includes(method) && contentType === 'form') {
+      const form = new URLSearchParams();
+      for (const line of String(c.body || '').split(/\r?\n/).slice(0, 50)) {
+        const at = line.indexOf('=');
+        if (at > 0) form.append(line.slice(0, at).trim(), fill(line.slice(at + 1)).trim());
+      }
+      body = form.toString();
+    }
+    return { url, method, headers, contentType, body: body.slice(0, 100000), problem };
   }
 
   // What an AI step sends to the model, resolved now so the call does not depend on later changes.
@@ -1011,6 +1061,12 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
     const node = run.graph?.nodes?.[item.stepId], label = actionSpec(node?.type)?.label || 'IA';
     const trace = value => { (run.trace ??= []).push({ id: item.stepId, type: node?.type, result: value }); if (run.trace.length > 300) run.trace.shift(); };
     if (item.error) {
+      // A webhook that answered with an error still leaves its status and body for a later Se / Senão.
+      if (node?.type === 'custom_webhook' && item.vars && typeof item.vars === 'object') {
+        const vars = Object.fromEntries(Object.entries(item.vars).map(([name, value]) => [aiVariableName(name), str(String(value ?? ''), 4000)]).filter(([name]) => name).slice(0, 12));
+        run.vars = { ...(run.vars || {}), ...vars };
+        output(run, item.stepId, vars);
+      }
       const line = `erro: ${str(item.error, 200)}`;
       run.results.push(`${label}: ${line}`); trace(line);
       if (node?.config?.stopOnError) { Object.assign(run, { status: 'Failed', at: '', waitFor: null, wakeAt: '', finished: now() }); run.results.push('Fluxo interrompido: a etapa falhou e está marcada para parar em caso de erro'); return true; }
