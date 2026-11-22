@@ -30,7 +30,7 @@ import { sequenceCollections, sequenceCommand, sequenceFields, sequenceInbound, 
 import { addPoints, loyaltyCollections, loyaltyCommand, loyaltyEvent, loyaltyFields } from './loyalty-model.mjs';
 import { preferenceCommand, preferenceToken } from './preference-model.mjs';
 import { trashCommand, trashContact } from './contact-trash.mjs';
-import { appointmentRecord, bookForContact, createBookingLink, noteOnAppointment, schedulingCollections, schedulingCommand, schedulingFields } from './scheduling-model.mjs';
+import { appointmentRecord, bookForContact, createBookingLink, noteOnAppointment, schedulingCollections, schedulingCommand, schedulingFields, upcomingSlots, zonedInstant } from './scheduling-model.mjs';
 import { meetingCollections, meetingCommand, meetingFields } from './meeting-model.mjs';
 import { seoCommand, seoDefaults, visibilityDefaults } from './seo-model.mjs';
 import { walletCharge, walletDefaults } from './wallet-model.mjs';
@@ -310,6 +310,8 @@ const engine = createEngine({ add, now,
   // Grupo Empresa: create/associate, update and clear the contact's company through the same save as the screens.
   companyAction: (state, contact, type, config) => companyWorkflow(state, contact, type, config, { save: (key, data, id) => executeCommand(state, { type: 'save', key, id, data }, { workspace: engineWorkspace }) }),
   appointmentNote: (state, contact, config) => noteOnAppointment(state, contact, config),
+  freeSlots: (state, serviceId) => upcomingSlots(state, serviceId),
+  zonedTime: (day, time, zone) => zonedInstant(day, time, zone),
   bookAppointment: (state, contact, config) => bookForContact(state, contact, config, { save: (key, data) => executeCommand(state, { type: 'save', key, data }, { workspace: engineWorkspace }) }),
   adjustScore: (state, contact, delta, reason, depth = 0) => changeScore(state, contact, delta, reason, { emit: (st, event, c) => engine.emit(st, event, c), depth }),
   startRecurring: (state, contact, config, depth = 0) => startTemplateRecurring(state, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })) });
