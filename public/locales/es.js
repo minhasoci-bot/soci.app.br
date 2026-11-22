@@ -5082,5 +5082,11 @@ export default {
   "Situação (valid, invalid ou unknown)": "Situación (valid, invalid o unknown)",
   "Verificar e-mail": "Verificar correo",
   "Confere o formato do e-mail do contato e se o domínio recebe e-mail (sem enviar nada). O fluxo espera a resposta: use {{vars.email_status}} (valid, invalid ou unknown) e {{vars.email_motivo}} num Se / Senão.": "Revisa el formato del correo del contacto y si el dominio recibe correo (sin enviar nada). El flujo espera la respuesta: use {{vars.email_status}} (valid, invalid o unknown) y {{vars.email_motivo}} en un Si / Si no.",
-  "Tag para e-mail inválido (opcional)": "Etiqueta para correo inválido (opcional)"
+  "Tag para e-mail inválido (opcional)": "Etiqueta para correo inválido (opcional)",
+  "Para cada item": "Para cada elemento",
+  "Repetir (loop)": "Repetir (loop)",
+  "Roda as etapas de dentro uma vez para cada item de uma lista (ou um número de vezes) e depois segue o fluxo. Dentro, use {{vars.item}}, {{vars.item_numero}} e {{vars.item_total}}. Até 50 repetições.": "Ejecuta los pasos de adentro una vez por cada elemento de una lista (o un número de veces) y luego sigue el flujo. Adentro, use {{vars.item}}, {{vars.item_numero}} y {{vars.item_total}}. Hasta 50 repeticiones.",
+  "Para cada item de uma lista": "Para cada elemento de una lista",
+  "Um número de vezes": "Un número de veces",
+  "Nome da variável do item": "Nombre de la variable del elemento"
 };
