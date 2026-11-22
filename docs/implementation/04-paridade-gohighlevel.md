@@ -139,7 +139,7 @@ Upload ✅ · Pastas 🟡 · Conectar Canva ❌ · Conectar Google Drive 🟡 (`
 Custom reports ✅ · Google Ads report ✅ · Meta Ads report ✅ · Attribution report ✅ (5.4) · Call report ❌ · Agent report ❌ · Appointment report 🟡 · Local Marketing Audit ✅ (`prospect-audit.mjs`)
 
 ### App Marketplace — `/integration`
-Marketplace de apps + App Studio. Soci: 🟡 `setup-marketplace.mjs`.
+Marketplace de apps + App Studio. Soci: ✅ App Studio da agência e Configurações → Apps nas subcontas (7.3); `setup-marketplace.mjs` cuida dos setups de conta.
 
 ### Configurações — `/settings`
 | GHL | Soci |
@@ -178,7 +178,7 @@ Ask AI ✅ (Pergunte a Soci) · Launchpad ✅ · Dashboard ✅
 | SaaS Configurator (planos, revenda de assinaturas para clientes) | 🟡 (`03-agencia-saas-snapshot.md`) |
 | Prospecting · Sub-accounts · Snapshots | ✅ |
 | Reselling (revenda de telefonia, e-mail, IA com margem) | 🟡 IA, e-mails e WhatsApp com carteira de créditos (7.1); telefonia depende da D1 |
-| Marketplace | 🟡 |
+| Marketplace | ✅ Marketplace de apps com App Studio (7.3) |
 | Affiliate Portal · Template Library · Partners · University · Ideas | ✅ |
 | SaaS Education | ⏭ (conteúdo) |
 | Swag | ⏭ |
@@ -279,7 +279,7 @@ A ordem segue impacto para o cliente da Soci (agências e PMEs no Brasil) e depe
 ### Fase 7: plataforma de agência
 - Reselling com margem (IA, mensagens, telefonia). Feito em 2026-11-22 para IA, e-mails e WhatsApp, com carteira de créditos por subconta e recarga por Pix; telefonia depende da D1.
 - AI Suite da agência e Labs (flags por conta). Feito em 2026-11-21: Central de IA com limites, uso e padrões; Labs com sugestão e resumo de conversa por IA e bloqueio de contatos duplicados.
-- App Marketplace / App Studio aberto.
+- App Marketplace / App Studio aberto. Feito em 2026-11-21: apps da agência com webhook assinado, token por subconta, API de contatos, ações e gatilhos de workflow e link no menu.
 
 ### Fora do escopo (⏭)
 WordPress hospedado, Swag, Gokollab, conteúdo de educação SaaS do GHL.

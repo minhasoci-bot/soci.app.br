@@ -1,0 +1,11 @@
+/* Configurações → Apps: the app marketplace of a sub-account (7.3) */
+.mk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin:12px 0}
+.mk-card{display:flex;flex-direction:column;gap:10px}
+.mk-card header{display:flex;align-items:center;gap:10px}
+.mk-card h3{margin:0;font-size:15px}
+.mk-card p{margin:0}
+.mk-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;background:var(--g-grad-brand,var(--blue));color:#fff;font-weight:700;flex:none}
+.mk-abilities{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px;color:var(--dim)}
+.mk-actions{margin-top:auto;flex-wrap:wrap}
+.mk-card details summary{cursor:pointer;font-size:13px}
+.mk-filters{margin-top:12px}

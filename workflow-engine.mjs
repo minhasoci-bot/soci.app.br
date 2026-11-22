@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { buildWorkflowContext, resolveTemplate } from './expressions.mjs';
 import { scoreTriggerMatches } from './scoring-model.mjs';
 import { canMessage } from './preference-model.mjs';
+import { appActionItem } from './app-studio-model.mjs';
 import { actionSpec, aiExtractFields, aiOptions, aiVariableName, allActions, allTriggers, eachStep, triggerSpec, upgradeWorkflow } from './ui/workflow-data.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
@@ -231,6 +232,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'abandoned_checkout': return (!c.storeId || c.storeId === ctx.storeId) && (!c.status || c.status === ctx.status);
       case 'inbound_webhook': return ctx.triggerId === trigger.id;
       case 'ai_usage_alert': return !c.level || c.level === ctx.level;
+      case 'app_trigger': return !c.trigger || c.trigger === `${ctx.appId}:${ctx.key}`;
       default: return scheduledTypes.includes(type) ? ctx.triggerId === trigger.id : true;
     }
   }
@@ -249,7 +251,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
 
   function perform(s, run, node, depth, id) {
     const contact = contactOf(s, run.contactId), c = node.config || {}, text = value => merge(value, s, contact, run);
-    const needsContact = !['internal_notification', 'webhook', 'create_task', 'create_social_post'].includes(node.type);
+    const needsContact = !['internal_notification', 'webhook', 'app_action', 'create_task', 'create_social_post'].includes(node.type);
     if (needsContact && !contact) return 'sem contato';
     const message = (channel, body, subject = '') => add(s, 'messages', { contactId: contact.id, body: text(body).slice(0, 5000), subject, channel, direction: 'Outbound', read: true, starred: false, origin: 'workflow', workflowId: run.workflowId });
     switch (node.type) {
@@ -452,6 +454,12 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         run.vars = { ...(run.vars || {}), [name]: typeof value === 'string' ? value.slice(0, 4000) : value };
         output(run, id, { [name]: run.vars[name] });
         return `${name} = ${typeof value === 'string' ? value.slice(0, 60) : JSON.stringify(value).slice(0, 60)}`;
+      }
+      case 'app_action': {
+        const made = appActionItem(s, c, { run, contact, data: text(c.data || '').slice(0, 4000) });
+        if (made.error) return `erro: ${made.error}`;
+        outbox(s, made.item);
+        return `${made.label}: na fila de envio`;
       }
       case 'webhook': {
         outbox(s, { kind: 'webhook', runId: run.id, url: c.url, method: c.method || 'POST', body: { workflow: { id: run.workflowId, name: run.name }, trigger: run.event, context: run.context,

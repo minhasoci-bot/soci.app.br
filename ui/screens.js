@@ -39,6 +39,7 @@ import { loyaltyScreen } from './loyalty.js';
 import { preferencesScreen } from './preferences.js';
 import { walletScreen } from './wallet.js';
 import { labsScreen } from './labs.js';
+import { appsScreen } from './app-marketplace.js';
 import { trashView } from './contact-trash.js';
 import { schedulingScreen, schedulingTabs } from './scheduling.js';
 import { meetingsScreen } from './meetings.js';
@@ -397,6 +398,7 @@ function googleSubView(c){
     <div class="inline-gap"><button class="secondary" data-act="google-connect">Trocar conta Google</button><button class="secondary" data-act="google-disconnect">Desconectar</button></div>`,true);
 }
 function settings(c){
+  if(c.tab==='apps') return appsScreen(c,{ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') });
   if(c.tab==='labs') return labsScreen(c,{ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') });
   if(c.tab==='wallet') return walletScreen(c,{ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') });
   if(['tracking','scoring','preferences'].includes(c.tab)){ const tabs={ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') }; return c.tab==='tracking'?trackingScreen(c,tabs):c.tab==='preferences'?preferencesScreen(c,tabs):scoringScreen(c,tabs); }

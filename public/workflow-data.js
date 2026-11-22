@@ -24,6 +24,8 @@ export const refSources = {
   badgeTemplates: s => (s.certificateTemplates || []).filter(row => row.kind === 'badge').map(row => [row.id, row.name]),
   communityEvents: s => (s.communityEvents || []).map(row => [row.id, `${row.title} · ${(s.communities || []).find(group => group.id === row.communityId)?.name || 'Comunidade'}`]),
   stores: s => (s.stores || []).map(row => [row.id, row.name]),
+  appActions: s => (s.appInstalls || []).flatMap(app => app.actions.map(item => [`${app.appId}:${item.key}`, `${app.name} · ${item.label}`])),
+  appTriggers: s => (s.appInstalls || []).flatMap(app => app.triggers.map(item => [`${app.appId}:${item.key}`, `${app.name} · ${item.label}`])),
   products: s => (s.products || []).filter(row => row.kind !== 'Recurring').map(row => [row.id, row.name]),
   documentTemplates: s => (s.documentTemplates || []).map(row => [row.id, row.title]),
   estimates: s => (s.estimates || []).map(row => [row.id, `${row.number} · ${row.title}`]),
@@ -59,6 +61,7 @@ export const triggerCatalog = [
   ] },
   { group: 'Eventos', items: [
     { type: 'inbound_webhook', label: 'Webhook de entrada', icon: 'link', fields: [] },
+    { type: 'app_trigger', label: 'App disparou um gatilho', icon: 'grid', description: 'Quando um app instalado do marketplace dispara um dos gatilhos dele. Os dados enviados pelo app ficam em {{trigger.payload}}.', fields: [f('trigger', 'Gatilho do app', 'ref', { source: 'appTriggers', empty: 'Qualquer gatilho de app' })] },
     { type: 'ai_usage_alert', label: 'Uso de IA chegou ao alerta', icon: 'spark', description: 'Quando o gasto do mês com IA passa da faixa de alerta ou atinge o limite definido pela agência. Não tem contato: use ações internas. {{trigger.cost}} e {{trigger.limit}} trazem os valores em US$.', fields: [f('level', 'Quando', 'select', { options: [any('Alerta ou limite'), ['alert', 'Passar da faixa de alerta'], ['blocked', 'Atingir o limite']] })] },
     { type: 'scheduler', label: 'Agendador', icon: 'clock', scheduled: true, fields: [f('frequency', 'Frequência', 'select', { options: [['daily', 'Todo dia'], ['weekly', 'Toda semana']] }), f('weekday', 'Dia da semana', 'select', { options: weekdays, when: { frequency: 'weekly' } }), f('time', 'Horário', 'time', { value: '09:00' }), f('tag', 'Somente contatos com a tag', 'text', { placeholder: 'Obrigatório: limita quem entra', required: true })] },
     { type: 'customer_replied', label: 'Cliente respondeu', icon: 'chat', fields: [f('channel', 'Canal', 'select', { options: channels }), f('keyword', 'Contém a palavra', 'text', { placeholder: 'Ex.: QUERO' })] },
@@ -295,6 +298,7 @@ export const actionCatalog = [
     { type: 'remove_from_workflow', label: 'Remover de um fluxo', icon: 'close', fields: [f('workflowId', 'Fluxo', 'ref', { source: 'workflows', empty: 'Este fluxo' })] },
     { type: 'math', label: 'Operação matemática', icon: 'sort', fields: [f('field', 'Campo numérico', 'ref', { source: 'numberFields', required: true }), f('op', 'Operação', 'select', { options: [['add', 'Somar'], ['subtract', 'Subtrair'], ['multiply', 'Multiplicar'], ['divide', 'Dividir'], ['set', 'Definir como']] }), f('number', 'Valor', 'number', { required: true, value: 1 })] },
     { type: 'text_format', label: 'Formatar texto', icon: 'edit', fields: [f('field', 'Campo', 'ref', { source: 'textFields', required: true }), f('op', 'Formato', 'select', { options: [['upper', 'MAIÚSCULAS'], ['lower', 'minúsculas'], ['title', 'Primeira Letra Maiúscula'], ['trim', 'Sem espaços nas pontas']] })] },
+    { type: 'app_action', label: 'Ação de app', icon: 'grid', description: 'Envia o contato e o texto abaixo para um app instalado do marketplace. O app recebe a ação no webhook dele.', fields: [f('action', 'Ação', 'ref', { source: 'appActions', empty: 'Escolha a ação de um app', required: true }), f('data', 'Dados enviados ao app', 'textarea', { placeholder: 'Ex.: plano {{contact.custom.plano}}' })] },
     { type: 'webhook', label: 'Webhook de saída', icon: 'send', fields: [f('url', 'Endereço (https://)', 'text', { required: true, placeholder: 'https://' }), f('method', 'Método', 'select', { options: [['POST', 'POST'], ['PUT', 'PUT'], ['GET', 'GET']] })] },
     { type: 'end', label: 'Encerrar fluxo', icon: 'close' }
   ] }

@@ -35,6 +35,7 @@ import { seoCommand, seoDefaults, visibilityDefaults } from './seo-model.mjs';
 import { walletCharge, walletDefaults } from './wallet-model.mjs';
 import { labsDefaults, rejectDuplicateContact, toggleLab } from './labs-model.mjs';
 import { onAiAlert } from './ai-model.mjs';
+import { appLog, appTrigger, dropInstalledApp, queueAppEvents, setInstalledApp } from './app-studio-model.mjs';
 import { offerBeforeDelete, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
@@ -68,7 +69,7 @@ export const defaults = {
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
   tracking: trackingDefaults(), trackingEvents: [], scoringRules: [],
   brandBoards: [], affiliateSettings: affiliateDefaults(), affiliateCampaigns: [], affiliates: [], affiliateCommissions: [], affiliatePayouts: [],
-  wallet: walletDefaults(), labs: labsDefaults(), seo: seoDefaults(), seoAudits: [], visibility: visibilityDefaults(), visibilityRuns: [],
+  wallet: walletDefaults(), labs: labsDefaults(), appInstalls: [], appLog: [], seo: seoDefaults(), seoAudits: [], visibility: visibilityDefaults(), visibilityRuns: [],
   reputation: reputationDefaults(), listings: {}, reviewRequests: [], reviewWidgets: [], videoCollectors: [], videoTestimonials: [], videoUploads: [],
   conversationSla: { enabled: false, mode: 'common', common: { soon: 3, overdue: 5 }, channels: {}, automation: 'none', workflows: [], startedAt: '' }
 };
@@ -81,7 +82,7 @@ export function hydrateWorkspace(state) {
   state.ai.ledger ??= [];
   reputationOf(state);
   state.listings ??= {};
-  state.wallet ??= walletDefaults(); state.labs ??= labsDefaults(); state.seo ??= seoDefaults(); state.seoAudits ??= []; state.visibility ??= visibilityDefaults(); state.visibilityRuns ??= [];
+  state.wallet ??= walletDefaults(); state.labs ??= labsDefaults(); state.appInstalls ??= []; state.appLog ??= []; state.seo ??= seoDefaults(); state.seoAudits ??= []; state.visibility ??= visibilityDefaults(); state.visibilityRuns ??= [];
   affiliateSettings(state);
   adSettingsOf(state);
   trackingOf(state);
@@ -295,6 +296,7 @@ const engine = createEngine({ add, now,
     sequenceInbound(state, type, ctx);
     loyaltyEvent(state, type, ctx, { add, run: (st, event, c) => engine.emit(st, event, { ...c, depth: (ctx.depth || 0) + 1 }) });
     applyScoring(state, type, ctx, { matches, emit: (st, event, c) => engine.emit(st, event, c) });
+    queueAppEvents(state, type, ctx);
   },
   adjustScore: (state, contact, delta, reason, depth = 0) => changeScore(state, contact, delta, reason, { emit: (st, event, c) => engine.emit(st, event, c), depth }),
   startRecurring: (state, contact, config, depth = 0) => startTemplateRecurring(state, contact, config, (st, event, ctx) => run(st, event, { ...ctx, depth: depth + 1 })) });
@@ -417,7 +419,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'workflow-outbox-result') {
     for (const item of Array.isArray(d.results) ? d.results.slice(0, 500) : []) {
       const target = find(s, 'runs', item?.runId);
-      if (target) target.results.push(`${({ whatsapp: 'WhatsApp', email: 'E-mail' })[item.kind] || 'Webhook'}: ${str(item.text, 120)}`);
+      if (target) target.results.push(`${({ whatsapp: 'WhatsApp', email: 'E-mail', app: 'App' })[item.kind] || 'Webhook'}: ${str(item.text, 120)}`);
       const doc = item?.docId ? find(s, 'documents', item.docId) : item?.estimateId ? find(s, 'estimates', item.estimateId) : item?.invoiceId ? find(s, 'invoices', item.invoiceId) : item?.checkoutId ? (s.abandonedCheckouts || []).find(row => row.id === item.checkoutId) : item?.giftCardId ? (s.giftCards || []).find(row => row.id === item.giftCardId) : null;
       if (doc) (doc.audit ||= []).push({ at: now(), event: 'delivered', detail: str(item.text, 200) });
     }
@@ -487,6 +489,11 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (['seo-settings', 'seo-audit', 'visibility-settings', 'visibility-run'].includes(type)) return seoCommand(s, { ...command, data:d }, { now });
   if (['meeting-transcript', 'meeting-summary', 'meeting-tasks', 'meeting-note'].includes(type)) return meetingCommand(s, { ...command, data:d }, { add, run, now });
   if (['scheduling-settings', 'scheduling-book', 'field-status'].includes(type)) return schedulingCommand(s, { ...command, data:d }, { save: (key, data) => executeCommand(s, { type:'save', key, data }, { workspace }), run, now });
+  // Marketplace apps (7.3): only the server sends these, after checking the install token or the agency.
+  if (type === 'app-installed') return setInstalledApp(s, d.copy);
+  if (type === 'app-removed') return dropInstalledApp(s, str(d.appId, 40));
+  if (type === 'app-trigger') return appTrigger(s, d, { add, run });
+  if (type === 'app-log') { for (const entry of (Array.isArray(d.entries) ? d.entries : []).slice(0, 50)) appLog(s, entry); return true; }
   if (type === 'labs-toggle') return toggleLab(s, { key: str(d.key, 60), on: d.on });
   if (typeof type === 'string' && type.startsWith('preferences-')) return preferenceCommand(s, { ...command, data:d }, { run, now });
   if (typeof type === 'string' && type.startsWith('loyalty-')) return loyaltyCommand(s, { ...command, data:d }, { add, run, actor: str(command.actor, 80) });
