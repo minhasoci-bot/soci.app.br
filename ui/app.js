@@ -290,7 +290,7 @@ function renderAccountLifecycle() {
     ${history.length ? `<details><summary>Histórico de status</summary><ul>${history.map(row =>
       `<li>${h(date(row.at))} · ${h(row.actor)} · ${h(tr(row.from))} → ${h(tr(row.to))}${row.reason ? ` · ${h(row.reason)}` : ''}</li>`).join('')}</ul></details>` : ''}
     ${Object.keys(account.ignoredWebhooks || {}).length ? `<details><summary>Eventos recebidos durante a suspensão</summary><ul>${Object.entries(account.ignoredWebhooks).map(([provider, row]) =>
-      `<li>${h(provider === 'uazapi' ? 'UAZAPI' : 'WAHA')} · ${h(row.count)} ignorado(s) · último em ${h(date(row.lastAt))}</li>`).join('')}</ul></details>` : ''}
+      `<li>${h({ uazapi: 'UAZAPI', evolution: 'Evolution API' }[provider] || 'WAHA')} · ${h(row.count)} ignorado(s) · último em ${h(date(row.lastAt))}</li>`).join('')}</ul></details>` : ''}
     <a class="primary" href="#agency/accounts">Gerenciar subcontas</a>` : `<p>Entre em contato com o suporte da sua agência para recuperar o acesso.</p>`;
   app.innerHTML = `<main class="boot boot-error"><h1>Subconta ${status}</h1>
     ${account.suspendedReason ? `<p>${h(account.suspendedReason)}</p>` : ''}${support}
