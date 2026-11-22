@@ -6,7 +6,7 @@ import { buildWorkflowContext, resolveTemplate } from './expressions.mjs';
 import { scoreTriggerMatches } from './scoring-model.mjs';
 import { canMessage } from './preference-model.mjs';
 import { appActionItem } from './app-studio-model.mjs';
-import { actionSpec, aiExtractFields, aiOptions, aiVariableName, allActions, allTriggers, eachStep, triggerSpec, upgradeWorkflow } from './ui/workflow-data.js';
+import { actionSpec, aiExtractFields, aiOptions, aiVariableName, allActions, allTriggers, eachStep, splitPercent, triggerSpec, upgradeWorkflow } from './ui/workflow-data.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value) : '';
@@ -41,6 +41,15 @@ export function formatNumber(value, format = 'decimal') {
   if (format === 'integer') return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(n);
   if (format === 'percent') return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(n)}%`;
   return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+// "Teste A/B": draws one path by its percent (paths at 0% are never taken; all at 0% split evenly).
+export function pickSplit(routes, random = Math.random) {
+  if (!routes?.length) return null;
+  const total = routes.reduce((sum, route) => sum + (Number(route.percent) || 0), 0);
+  if (!total) return routes[Math.floor(random() * routes.length)] || routes[0];
+  let ticket = random() * total;
+  for (const route of routes) { ticket -= Number(route.percent) || 0; if (ticket < 0 && route.percent > 0) return route; }
+  return routes.findLast(route => route.percent > 0);
 }
 const MAX_STEPS = 120, MAX_DEPTH = 4, CONDITIONS = ['tag', 'field', 'dnd', 'stage', 'opportunity_status', 'replied', 'submitted', 'trigger', 'var'];
 const AI_TIMEOUT = 10 * 60000;
@@ -105,6 +114,12 @@ export function workflowRecord(s, d) {
         step.routes = (Array.isArray(raw.routes) ? raw.routes : []).slice(0, 6).map((route, index) => ({ id: uniqueId(route?.id), label: str(route?.label, 60) || `Caminho ${index + 1}`, match: route?.match === 'any' ? 'any' : 'all', conditions: cleanConditions(route?.conditions), steps: list(route?.steps, depth + 1) }));
         step.otherwise = list(raw.otherwise, depth + 1);
       }
+      if (spec.type === 'split') {
+        const routes = (Array.isArray(raw.routes) ? raw.routes : []).slice(0, 6);
+        if (routes.length < 2) fail('Teste A/B: use de 2 a 6 caminhos.');
+        step.routes = routes.map((route, index) => ({ id: uniqueId(route?.id), label: str(route?.label, 60) || `Caminho ${String.fromCharCode(65 + index)}`, percent: splitPercent(route?.percent), steps: list(route?.steps, depth + 1) }));
+        if (publishing && step.routes.reduce((sum, route) => sum + route.percent, 0) !== 100) fail('Teste A/B: os percentuais dos caminhos precisam somar 100%.');
+      }
       if (spec.type === 'webhook' && step.config.url && !/^https:\/\/[^\s/]+\.[^\s]+$/i.test(step.config.url)) fail('O webhook precisa de um endereço https://');
       return step;
     });
@@ -144,6 +159,7 @@ export function compile(steps) {
       const step = items[i], node = { type: step.type, config: step.config || {}, next: after };
       if (step.type === 'if_else') { node.yes = chain(step.yes || [], after); node.no = chain(step.no || [], after); }
       if (step.type === 'router') { node.routes = (step.routes || []).map(route => ({ label: route.label, match: route.match, conditions: route.conditions || [], first: chain(route.steps || [], after) })); node.otherwise = chain(step.otherwise || [], after); }
+      if (step.type === 'split') node.routes = (step.routes || []).map(route => ({ label: route.label, percent: route.percent, first: chain(route.steps || [], after) }));
       nodes[step.id] = node;
       after = step.id;
     }
@@ -611,6 +627,11 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       }
       if (node.type === 'if_else') { const ok = passes(s, run, c.conditions, c.match); run.results.push(`${label}: ${ok ? 'sim' : 'não'}`); trace(ok ? 'sim' : 'não'); run.at = ok ? node.yes : node.no; continue; }
       if (node.type === 'router') { const route = node.routes.find(item => passes(s, run, item.conditions, item.match)); run.results.push(`${label}: ${route ? route.label : 'caso contrário'}`); trace(route ? route.label : 'caso contrário'); run.at = route ? route.first : node.otherwise; continue; }
+      if (node.type === 'split') {
+        const route = pickSplit(node.routes);
+        if (!route) { run.results.push(`${label}: sem caminhos`); trace('sem caminhos'); run.at = node.next; continue; }
+        run.results.push(`${label}: ${route.label}`); trace(route.label); run.at = route.first; continue;
+      }
       if (node.type === 'goal') {
         if (c.otherwise === 'end') { run.results.push(`${label}: meta não alcançada, fluxo encerrado`); run.at = ''; break; }
         if (c.otherwise === 'wait') { run.status = 'Waiting'; run.waitFor = { type: c.event, value: c.eventValue || '', goal: id }; run.wakeAt = ''; run.at = node.next; run.results.push(`${label}: aguardando a meta`); return; }

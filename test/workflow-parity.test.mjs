@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { blank, execute } from '../model.mjs';
-import { formatDate, formatNumber } from '../workflow-engine.mjs';
+import { formatDate, formatNumber, pickSplit } from '../workflow-engine.mjs';
 
 const save = (s, key, data, id) => execute(s, { type: 'save', key, id, data });
 const act = (s, type, id, data = {}) => execute(s, { type, id, data, actor: 'Bia' }, { workspace: 'demo' });
@@ -136,4 +136,34 @@ test('T.1 triggers in the store: cart updated by a known contact, coupon used an
   act(s, 'store-checkout', storeId, { session: 'cd'.repeat(16), name: 'Bia', email: 'bia@x.test', items: [{ productId, qty: 1 }], delivery: 'pickup', coupon: 'dez' });
   assert.equal(runsOf(s, used)[0]?.context.code, 'DEZ');
   assert.equal(runsOf(s, limit).length, 1, 'the only redemption reaches the limit');
+});
+
+test('T.1 Teste A/B: paths drawn by percent, validated on publish, and the branch steps run', () => {
+  const routes = [{ label: 'A', percent: 20 }, { label: 'B', percent: 0 }, { label: 'C', percent: 80 }];
+  assert.equal(pickSplit(routes, () => 0).label, 'A');
+  assert.equal(pickSplit(routes, () => 0.19).label, 'A');
+  assert.equal(pickSplit(routes, () => 0.2).label, 'C', 'a path at 0% is never taken');
+  assert.equal(pickSplit(routes, () => 0.999).label, 'C');
+  assert.equal(pickSplit([{ label: 'X', percent: 0 }, { label: 'Y', percent: 0 }], () => 0.6).label, 'Y', 'all at 0%: even split');
+  assert.equal(pickSplit([], () => 0), null);
+
+  const s = blank();
+  const split = (routes, active = true) => save(s, 'workflows', { name: 'AB', active, triggers: [{ type: 'contact_tag', config: { change: 'added', tag: 'ab' } }],
+    steps: [{ type: 'split', routes }, { type: 'add_tag', config: { tag: 'depois' } }] });
+  assert.throws(() => split([{ label: 'Só', percent: 100, steps: [] }]), /de 2 a 6 caminhos/);
+  assert.throws(() => split([{ label: 'A', percent: 50, steps: [] }, { label: 'B', percent: 40, steps: [] }]), /somar 100%/);
+  const draft = split([{ label: 'A', percent: 50, steps: [] }, { label: 'B', percent: 40, steps: [] }], false);
+  assert.ok(s.workflows.find(row => row.id === draft), 'a draft may be saved before the percents add up');
+
+  const flowId = split([
+    { label: 'Cupom', percent: 50, steps: [{ type: 'add_tag', config: { tag: 'grupo-a' } }] },
+    { label: '', percent: 50, steps: [{ type: 'add_tag', config: { tag: 'grupo-b' } }] }]);
+  const row = s.workflows.find(item => item.id === flowId);
+  assert.deepEqual(row.steps[0].routes.map(route => [route.label, route.percent]), [['Cupom', 50], ['Caminho B', 50]]);
+  for (let i = 0; i < 60; i++) save(s, 'contacts', { name: `C${i}`, email: `c${i}@x.test`, tags: ['ab'], custom: {} });
+  const tagged = tag => s.contacts.filter(contact => contact.tags.includes(tag)).length;
+  assert.equal(tagged('grupo-a') + tagged('grupo-b'), 60, 'each contact takes exactly one path');
+  assert.ok(tagged('grupo-a') > 0 && tagged('grupo-b') > 0, 'both paths are taken');
+  assert.equal(tagged('depois'), 60, 'the paths merge back into the next step');
+  assert.ok(runsOf(s, flowId).every(run => run.results.some(line => /: (Cupom|Caminho B)$/.test(line))), 'the drawn path is in the run history');
 });

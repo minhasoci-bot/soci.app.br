@@ -315,6 +315,7 @@ export const actionCatalog = [
     { type: 'filter', label: 'Filtro', icon: 'filter', description: 'Só continua se a condição for verdadeira', fields: [conditions] },
     { type: 'set_variable', label: 'Definir variável', icon: 'key', description: 'Guarda um valor para usar depois como {{vars.nome}}', fields: [f('name', 'Nome da variável', 'text', { required: true, placeholder: 'ex.: cupom' }), f('value', 'Valor (texto ou expressão)', 'text', { required: true, placeholder: '{{upper(contact.first_name)}}' })] },
     { type: 'router', label: 'Roteador', icon: 'flow', branch: true, fields: [] },
+    { type: 'split', label: 'Teste A/B', icon: 'flow', branch: true, description: 'Divide os contatos entre caminhos por percentual, para comparar mensagens, ofertas ou tempos de espera. Cada contato cai em um caminho por sorteio.', fields: [] },
     { type: 'goal', label: 'Evento de meta', icon: 'award', fields: [f('event', 'Meta alcançada quando', 'select', { options: [['contact_tag', 'Receber uma tag'], ['customer_replied', 'Cliente responder'], ['form_submitted', 'Enviar um formulário'], ['appointment_booked', 'Fazer um agendamento'], ['order_paid', 'Pagar um pedido'], ['opportunity_status_changed', 'Oportunidade ganha']] }), f('eventValue', 'Tag ou formulário (opcional)', 'text'),
       f('otherwise', 'Ao chegar aqui sem a meta', 'select', { options: [['continue', 'Seguir o fluxo'], ['wait', 'Esperar a meta'], ['end', 'Encerrar o fluxo']] })] },
     { type: 'goto', label: 'Ir para outra etapa', icon: 'updown', fields: [f('target', 'Etapa de destino', 'step', { required: true })] },
@@ -377,9 +378,13 @@ export function eachStep(steps, visit, path = []) {
   for (const step of steps || []) {
     visit(step, path);
     if (step.type === 'if_else') { eachStep(step.yes, visit, [...path, step.id, 'yes']); eachStep(step.no, visit, [...path, step.id, 'no']); }
-    if (step.type === 'router') { (step.routes || []).forEach(route => eachStep(route.steps, visit, [...path, step.id, route.id])); eachStep(step.otherwise, visit, [...path, step.id, 'otherwise']); }
+    if (step.type === 'router' || step.type === 'split') (step.routes || []).forEach(route => eachStep(route.steps, visit, [...path, step.id, route.id]));
+    if (step.type === 'router') eachStep(step.otherwise, visit, [...path, step.id, 'otherwise']);
   }
 }
+
+// Teste A/B: the paths' shares as whole percents, 0 to 100 each.
+export const splitPercent = value => Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
 
 export function stepSummary(step, s) {
   const c = step.config || {};
@@ -396,6 +401,7 @@ export function stepSummary(step, s) {
     case 'ai_summarize': case 'ai_translate': case 'ai_image': return c.variable ? `→ vars.${c.variable}` : '';
     case 'ai_extract': return aiExtractFields(c.fields).map(item => `vars.${item.name}`).join(', ').slice(0, 80);
     case 'router': return `${(step.routes || []).length} caminho(s)`;
+    case 'split': return (step.routes || []).map(route => `${route.label} ${splitPercent(route.percent)}%`).join(' · ').slice(0, 80);
     case 'create_task': case 'create_opportunity': case 'create_invoice': return c.title;
     case 'add_to_workflow': case 'remove_from_workflow': return ref('workflows', c.workflowId) || (step.type === 'remove_from_workflow' ? 'Este fluxo' : '');
     case 'webhook': return c.url;
