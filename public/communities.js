@@ -228,6 +228,7 @@ export function installCommunities({ c, api, mutate, flash, dialog, close, rende
       if (action === 'live-start') { await send({ action: 'live-start', eventId: id }); flash('Você está ao vivo. Os membros veem o aviso no topo da comunidade.'); }
       if (action === 'live-end') { await send({ action: 'live-end' }); flash('Transmissão encerrada. Adicione a gravação no evento quando ela estiver pronta.'); }
       if (action === 'attendee-remove') { await send({ action: 'attendee-remove', eventId: id, memberId: control.dataset.member }); flash('Participante removido.'); }
+      if (action === 'attendee-checkin') { await send({ action: 'attendee-checkin', eventId: id, memberId: control.dataset.member, undo: Boolean(control.dataset.undo) }); flash(control.dataset.undo ? 'Check-in desfeito.' : 'Presença registrada.'); }
       if (action === 'attendee-add') dialog('Adicionar participantes', attendeeDialog(cache.get(`${c.workspace}:${groupId()}`), id));
       if (action === 'remove-member') { await send({ action: 'remove', memberId: id }); flash('Membro removido da comunidade.'); }
       if (action === 'channel-access') {

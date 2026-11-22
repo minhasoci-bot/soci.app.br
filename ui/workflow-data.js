@@ -129,6 +129,10 @@ export const triggerCatalog = [
     { type: 'community_join_rejected', label: 'Pedido para entrar recusado', icon: 'close', description: 'Quando a equipe recusa (remove ou bane) um pedido para entrar.', fields: [
       f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
     ] },
+    { type: 'community_event_checked_in', label: 'Check-in em evento da comunidade', icon: 'check', description: 'Quando a equipe marca a presença de um participante no evento. Use {{trigger.title}} para o nome do evento.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' }),
+      f('eventId', 'Evento', 'ref', { source: 'communityEvents', empty: 'Qualquer evento' })
+    ] },
     { type: 'community_channel_granted', label: 'Acesso a canal privado liberado', icon: 'lock', description: 'Quando um membro recebe acesso a um canal privado da comunidade (pela equipe ou por uma automação). Use {{trigger.channel}} para o nome do canal.', fields: [
       f('channel', 'Canal privado', 'ref', { source: 'privateChannels', empty: 'Qualquer canal privado' })
     ] },
@@ -306,6 +310,9 @@ export const actionCatalog = [
     { type: 'grant_community_access', label: 'Liberar acesso a comunidade', icon: 'users', description: 'Coloca o contato como membro da comunidade (criando o acesso dele ao portal, se preciso). O contato precisa ter e-mail.', fields: [f('communityId', 'Comunidade', 'ref', { source: 'communities', required: true, empty: 'Escolha a comunidade' })] },
     { type: 'grant_offer', label: 'Liberar oferta', icon: 'book', description: 'Dá ao contato todos os cursos e comunidades de uma oferta, sem cobrança (e envia o link do portal, se o e-mail do portal estiver configurado). O contato precisa ter e-mail.', fields: [f('offerId', 'Oferta', 'ref', { source: 'offers', required: true, empty: 'Escolha a oferta' })] },
     { type: 'revoke_offer', label: 'Remover oferta', icon: 'close', description: 'Tira do contato os cursos e comunidades da oferta.', fields: [f('offerId', 'Oferta', 'ref', { source: 'offers', required: true, empty: 'Escolha a oferta' })] },
+    { type: 'register_event', label: 'Inscrever em evento da comunidade', icon: 'cal', description: 'Confirma a presença do contato num evento gratuito da comunidade, se houver vaga. Ele precisa ser membro ativo da comunidade do evento.', fields: [
+      f('eventId', 'Evento', 'ref', { source: 'communityEvents', required: true, empty: 'Escolha o evento' })
+    ] },
     { type: 'grant_channel_access', label: 'Liberar canal privado', icon: 'lock', description: 'Dá ao contato acesso a um canal privado da comunidade. Ele precisa ser membro ativo da comunidade.', fields: [
       f('channel', 'Canal privado', 'ref', { source: 'privateChannels', required: true, empty: 'Escolha o canal' })
     ] },
@@ -527,6 +534,7 @@ export function stepSummary(step, s) {
     case 'router': return `${(step.routes || []).length} caminho(s)`;
     case 'split': return (step.routes || []).map(route => `${route.label} ${splitPercent(route.percent)}%`).join(' · ').slice(0, 80);
     case 'drip': return `${c.batch || 0} a cada ${c.amount || 1} ${({ minutes: 'min', hours: 'h', days: 'dia(s)' })[c.unit || 'hours']}`;
+    case 'register_event': return ref('communityEvents', c.eventId);
     case 'grant_channel_access': case 'revoke_channel_access': return ref('privateChannels', c.channel);
     case 'grant_offer': case 'revoke_offer': return ref('offers', c.offerId);
     case 'community_points': return [ref('communities', c.communityId), c.points ? `${c.points > 0 ? '+' : ''}${c.points} pts` : ''].filter(Boolean).join(' · ');

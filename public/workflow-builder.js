@@ -315,6 +315,7 @@ const triggerData = {
   conversation_sla: [['state', 'Situação (soon ou overdue)'], ['channel', 'Canal'], ['minutes', 'Minutos sem resposta'], ['body', 'Mensagem do cliente']],
   coupon_expired: [['code', 'Código do cupom'], ['title', 'Nome do cupom'], ['end', 'Fim da validade']],
   offer_access_granted: [['offer', 'Oferta'], ['offerId', 'ID da oferta']], offer_access_revoked: [['offer', 'Oferta'], ['offerId', 'ID da oferta']],
+  community_event_checked_in: [['community', 'Comunidade'], ['title', 'Evento'], ['eventId', 'ID do evento']],
   community_channel_granted: [['community', 'Comunidade'], ['channel', 'Canal'], ['channelId', 'ID do canal']], community_channel_revoked: [['community', 'Comunidade'], ['channel', 'Canal'], ['channelId', 'ID do canal']],
   community_level_changed: [['community', 'Comunidade'], ['level', 'Novo nível'], ['levelName', 'Nome do nível'], ['previous', 'Nível anterior'], ['direction', 'Subiu ou desceu (up ou down)']]
 };
