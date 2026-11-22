@@ -450,7 +450,17 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   // Server only: a lead from a Google Ads lead form webhook or from Meta Lead Ads.
   if (type === 'ad-form-lead') return adFormLead(s, d, { add, run, now });
   // Telefonia (2.4): numbers, calls and the IVR (phone-model.mjs). Only phone-number-save comes from the browser.
-  if (type.startsWith('phone-') || type.startsWith('ivr-')) { const out = phoneCommand(s, type, d, { add, run, now, engine }); if (out !== undefined) return out; }
+  // Voice AI: the agent booked a free time the caller chose (same save as the screens).
+  if (type === 'voice-book') {
+    const call = (s.calls || []).find(row => row.id === d.callId);
+    const contact = call && s.contacts.find(row => row.id === call.contactId);
+    if (!call?.voice?.serviceId || !contact) return { error: 'sem serviço para marcar' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(d.day)) || !/^\d{2}:\d{2}$/.test(String(d.time))) return { error: 'horário inválido' };
+    const at = zonedInstant(String(d.day), String(d.time), s.profile?.timezone || 'America/Sao_Paulo');
+    const made = bookForContact(s, contact, { serviceId: call.voice.serviceId, start: new Date(at).toISOString() }, { save: (key, data) => executeCommand(s, { type: 'save', key, data }, { workspace }) });
+    return made.error ? { error: made.error } : { id: made.id };
+  }
+  if (type.startsWith('phone-') || type.startsWith('ivr-') || type === 'voice-turn') { const out = phoneCommand(s, type, d, { add, run, now, engine }); if (out !== undefined) return out; }
   // Server only: an e-mail that arrived at the sub-account's inbound address (Resend). It is the same as a
   // contact's message in Conversas (Cliente respondeu) and also fires "E-mail recebido". Never twice.
   if (type === 'email-inbound') {

@@ -356,6 +356,7 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       case 'call_details': return (!c.direction || c.direction === ctx.direction) && (!c.status || c.status === ctx.status) && (!c.numberId || c.numberId === ctx.numberId);
       case 'phone_validated': return (!c.result || c.result === (ctx.valid === 'sim' ? 'valid' : 'invalid')) && (!c.lineType || c.lineType === ctx.lineType);
       case 'ivr_call': return !c.numberId || c.numberId === ctx.numberId;
+      case 'voice_ai_ended': return (!c.outcome || c.outcome === ctx.outcome) && (!c.agentId || c.agentId === ctx.agentId) && (!c.direction || c.direction === ctx.direction);
       case 'portal_file_uploaded': return !c.kind || c.kind === ctx.kind;
       case 'video_watched': return Number(ctx.percent) === (Number(c.percent) || 25) && (!c.video || lower(ctx.video).includes(lower(c.video))) && (!c.url || lower(ctx.url).includes(lower(c.url)));
       case 'whatsapp_ad_click': return (!c.adId || c.adId === ctx.adId) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
@@ -514,6 +515,20 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
         const buttons = [...new Set(text(c.buttons).split('\n').map(line => line.trim().slice(0, 30)).filter(Boolean))].slice(0, 6);
         if (buttons.length) row.buttons = buttons;
         return buttons.length ? `enviada ao chat com ${buttons.length} botão(ões)` : 'enviada ao chat';
+      }
+      case 'voice_ai_call': {
+        // "Ligação do Voice AI": the server dials the contact and the agent talks (voice-ai.mjs), with this flow's OpenAI.
+        const number = (s.phone?.numbers || []).find(row => row.id === c.numberId);
+        if (!number) return 'erro: número da Soci não encontrado (Configurações → Telefonia)';
+        const agent = (s.agents || []).find(row => row.id === c.agentId);
+        if (!agent) return 'erro: agente não encontrado';
+        if (!agent.published) return 'erro: o agente não está publicado';
+        if (contact.dnd) return 'contato em não perturbe';
+        const to = e164(contact.phone);
+        if (!to) return 'erro: contato sem telefone válido';
+        outbox(s, { kind: 'voice-ai-call', runId: run.id, workflowId: run.workflowId, contactId: contact.id, numberId: number.id, to,
+          voice: { agentId: agent.id, goal: text(c.goal).trim().slice(0, 1500), welcome: text(c.welcome).trim().slice(0, 400), voice: c.voice, transfer: text(c.transfer).trim(), serviceId: c.serviceId || '', maxMinutes: c.maxMinutes } });
+        return `${agent.name} vai ligar para ${to}`;
       }
       case 'call': case 'voicemail_drop': {
         const number = (s.phone?.numbers || []).find(row => row.id === c.numberId);

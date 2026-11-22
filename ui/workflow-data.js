@@ -208,6 +208,11 @@ export const triggerCatalog = [
       f('status', 'Resultado', 'select', { options: [any('Qualquer resultado'), ['answered', 'Atendida'], ['missed', 'Não atendida'], ['voicemail', 'Caixa postal (recado)'], ['busy', 'Ocupado'], ['failed', 'Falhou']] }),
       f('numberId', 'Número', 'ref', { source: 'phoneNumbers', empty: 'Qualquer número' })
     ] },
+    { type: 'voice_ai_ended', label: 'Ligação do Voice AI terminou', icon: 'spark', description: 'Quando termina uma ligação atendida ou feita pelo Voice AI. Use {{trigger.transcript}} (a conversa inteira), {{trigger.outcome}} (end, transfer, book, timeout) e {{trigger.duration}}: por exemplo, resuma com IA, extraia dados para o contato ou avise a equipe.', fields: [
+      f('outcome', 'Como terminou', 'select', { options: [any('De qualquer jeito'), ['end', 'Encerrou a conversa'], ['transfer', 'Transferiu para a equipe'], ['book', 'Marcou um horário'], ['timeout', 'Tempo ou silêncio']] }),
+      f('direction', 'Direção', 'select', { options: [any('Recebida ou feita'), ['inbound', 'Recebida'], ['outbound', 'Feita']] }),
+      f('agentId', 'Agente', 'ref', { source: 'agents', empty: 'Qualquer agente' })
+    ] },
     { type: 'phone_validated', label: 'Telefone validado', icon: 'phone', description: 'Quando a ação Validar telefone consulta o número do contato. Use {{trigger.valid}} (sim ou não), {{trigger.lineType}} e {{trigger.carrier}}.', fields: [
       f('result', 'Resultado', 'select', { options: [any('Válido ou inválido'), ['valid', 'Válido'], ['invalid', 'Inválido']] }),
       f('lineType', 'Tipo de linha', 'select', { options: [any('Qualquer tipo'), ['mobile', 'Celular'], ['landline', 'Fixo'], ['voip', 'VoIP']] })
@@ -500,6 +505,16 @@ export const actionCatalog = [
       f('kind', 'Recado', 'select', { options: [['say', 'Texto falado'], ['play', 'Arquivo de áudio (MP3)']] }),
       f('message', 'Texto do recado (aceita variáveis)', 'textarea', { when: { kind: 'say' }, placeholder: 'Oi, {{contact.first_name}}! Aqui é da {{workspace.name}}…' }),
       f('url', 'Endereço do áudio (https)', 'text', { when: { kind: 'play' }, placeholder: 'https://…/recado.mp3' })
+    ] },
+    { type: 'voice_ai_call', label: 'Ligação do Voice AI', icon: 'spark', description: 'Um agente de IA publicado liga para o contato e conversa por voz, com a base de conhecimento dele e o objetivo desta etapa. Pode transferir para a equipe, encerrar ou marcar um horário do serviço escolhido. A transcrição vai para Conversas e dispara Ligação do Voice AI terminou. Usa a OpenAI de quem salvou o fluxo.', fields: [
+      f('numberId', 'Ligar pelo número', 'ref', { source: 'phoneNumbers', required: true, empty: 'Escolha o número' }),
+      f('agentId', 'Agente (publicado)', 'ref', { source: 'agents', required: true, empty: 'Escolha o agente' }),
+      f('goal', 'Objetivo da ligação (aceita variáveis)', 'textarea', { placeholder: 'Confirme a consulta de {{contact.first_name}} amanhã e ofereça remarcar se precisar.' }),
+      f('welcome', 'Primeira fala (vazio: o agente começa sozinho)', 'text', { placeholder: 'Oi, {{contact.first_name}}! Aqui é da {{workspace.name}}.' }),
+      f('voice', 'Voz', 'select', { options: [['Polly.Camila', 'Camila (pt-BR)'], ['Polly.Vitoria', 'Vitória (pt-BR)'], ['Polly.Thiago', 'Thiago (pt-BR)'], ['Polly.Lupe', 'Lupe (es)'], ['Polly.Joanna', 'Joanna (en)']] }),
+      f('transfer', 'Transferir para (telefone da equipe, opcional)', 'text', { placeholder: '(11) 99999-0000' }),
+      f('serviceId', 'Marcar horários do serviço (opcional)', 'ref', { source: 'services', empty: 'Não marcar horários' }),
+      f('maxMinutes', 'Duração máxima (minutos)', 'number', { value: 10, min: 1, max: 15 })
     ] },
     { type: 'phone_validate', label: 'Validar telefone', icon: 'check', description: 'Consulta o telefone do contato (Twilio Lookup): se o número existe e o tipo de linha. Guarda em {{vars.telefone_status}} (valid ou invalid) e {{vars.telefone_tipo}} e dispara Telefone validado.', fields: [
       f('invalidTag', 'Etiqueta para número inválido (opcional)', 'text', { placeholder: 'Telefone inválido' })
@@ -850,6 +865,7 @@ export function stepSummary(step, s) {
     case 'webhook': return c.url;
     case 'custom_webhook': return [`${c.method || 'POST'} ${c.url || ''}`.trim(), `→ vars.${c.variable || 'resposta'}`].join(' ');
     case 'math': return `${ref('numberFields', c.field)} ${({ add: '+', subtract: '−', multiply: '×', divide: '÷', set: '=' })[c.op] || ''} ${c.number ?? ''}`;
+    case 'voice_ai_call': return [ref('agents', c.agentId), ref('phoneNumbers', c.numberId)].filter(Boolean).join(' · ');
     case 'call': case 'voicemail_drop': return ref('phoneNumbers', c.numberId);
     case 'ivr_say': return String(c.kind === 'play' ? c.url : c.message || '').slice(0, 80);
     case 'ivr_gather': return `${String(c.message || '').slice(0, 50)} → vars.${c.variable || 'ivr_digitos'}`;

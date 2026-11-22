@@ -684,6 +684,7 @@ function conversationFormControls(element) {
   const form = element.form;
   if (!form) return;
   if (form.dataset.form === 'message' && element.name === 'channel') showEmailSubject(form);
+  if (form.dataset.form === 'phone-number' && element.name === 'mode') { const box = form.querySelector('.phone-voice'); if (box) box.hidden = element.value !== 'voice_ai'; }
   if (form.dataset.key === 'snippets' && element.name === 'type') showFieldset(form.querySelector('[data-snippet-subject]'),element.value === 'Email');
   if (form.dataset.form !== 'conversation-sla') return;
   if (element.name === 'mode') {
@@ -1091,7 +1092,8 @@ document.addEventListener('submit',async ev=>{
       render(); return;
     }
     else if(name==='phone-number'){
-      await mutate({type:'phone-number-save',data:{id:data.id,name:data.name||'',forward:data.forward||'',timeout:Number(data.timeout)||20,record:data.record==='on',voicemail:data.voicemail==='on',greeting:data.greeting||'',ivr:data.ivr==='on'}});
+      await mutate({type:'phone-number-save',data:{id:data.id,name:data.name||'',forward:data.forward||'',timeout:Number(data.timeout)||20,record:data.record==='on',voicemail:data.voicemail==='on',greeting:data.greeting||'',mode:data.mode||'forward',
+        voiceAgentId:data.voiceAgentId||'',voiceWelcome:data.voiceWelcome||'',voice:data.voice||'',voiceTransfer:data.voiceTransfer||'',voiceServiceId:data.voiceServiceId||'',voiceMaxMinutes:Number(data.voiceMaxMinutes)||10}});
       await refreshPhone(); flash(tr('Número salvo.')); return;
     }
     else if(name==='email-domain-add'){

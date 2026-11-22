@@ -322,9 +322,24 @@ export function makeServer({
       'x-soci-signature': appSignature(appSecret(appSigningKey, agencyId, app), timestamp, raw) };
     return { name: app.name, text: await deliverWebhook({ url: app.webhookUrl, method: 'POST', body: payload, raw, headers }, appDeliveryOptions) };
   }
+  async function voiceAgentReply(workspace, { agentId, input, workflowId = '', voiceKey = null }) {
+    const state = await store.load(workspace);
+    const connection = localAccess && generateAgentReply !== replyAsAgent ? { model: agentModel }
+      : workflowId ? await workflowConnection(workspace, state, workflowId)
+      : await keyConnection(workspace, state, voiceKey, 'Voice AI: salve o número de novo, com a OpenAI conectada', 'quem ligou o Voice AI não tem mais acesso a esta subconta; salve o número de novo', 'conecte a OpenAI de quem ligou o Voice AI (Visão da agência → Configurações → OpenAI)');
+    checkAiBudget(state);
+    const meter = usageMeter();
+    const request = agentWorkflowRequest(state, agentId, input);
+    const reply = String(await generateAgentReply({ ...request, model: request.model || agentModel }, { ...connection, onUsage: meter.onUsage }) || '');
+    await store.change(workspace, current => {
+      meter.charge(current, 'workflow', '');
+      recordAgentRun(current, { agent: agentId, version: 'published', input, output: reply, kind: 'voice', model: request.model || agentModel, sources: [...new Set(request.retrieved.map(row => row.title))] });
+    });
+    return reply;
+  }
   // Telefonia (2.4): Twilio numbers, calls and IVR (phone-server.mjs).
   const phone = createPhoneHandler({ store, change: (workspace, command) => change(workspace, command), flushLater: workspace => flushLater(workspace), request: twilioRequest, env: phoneEnv,
-    accountActive: workspace => publicAccountPolicy(workspace, false, 'conversations') });
+    accountActive: workspace => publicAccountPolicy(workspace, false, 'conversations'), agentReply: (workspace, options) => voiceAgentReply(workspace, options) });
   const phoneOrigin = () => String(phoneEnv.PHONE_PUBLIC_ORIGIN || phoneEnv.SOCIAL_PUBLIC_URL || phoneEnv.PORTAL_PUBLIC_ORIGIN || '').replace(/\/+$/, '');
   const handleAsk = createAskHandler({ store, openAI, openAIRequest });
   const waha = createWahaHandler({ store, secret: openAISecret, request: wahaRequest });
@@ -1494,8 +1509,10 @@ export function makeServer({
   // person still belongs to the agency that owns the sub-account (or it is their own personal account).
   async function workflowConnection(workspace, state, workflowId) {
     if (localAccess && workflowAI) return { model: agentModel };
-    const key = state.workflows.find(row => row.id === workflowId)?.aiKey;
-    if (!key?.session) throw error('salve o fluxo de novo, com a OpenAI conectada, para usar as ações de IA', 409);
+    return keyConnection(workspace, state, state.workflows.find(row => row.id === workflowId)?.aiKey, 'salve o fluxo de novo, com a OpenAI conectada, para usar as ações de IA', 'quem salvou o fluxo não tem mais acesso a esta subconta; salve o fluxo de novo', 'conecte a OpenAI de quem salvou o fluxo (Visão da agência → Configurações → OpenAI)');
+  }
+  async function keyConnection(workspace, state, key, missing, revoked, disconnected) {
+    if (!key?.session) throw error(missing, 409);
     const agencyId = state.agencyId || AGENCY_ID;
     let allowed = false;
     if (privateSpace.test(workspace)) allowed = workspace === personalId({ id: key.session });
@@ -1503,9 +1520,9 @@ export function makeServer({
       if (key.user) allowed = Boolean((await loadAgency(agencyId).catch(() => null))?.users.some(user => user.id === key.user && user.loginEnabled));
       else allowed = agencyId === `agency-${key.session}` || (agencyId === AGENCY_ID && key.session === agencyOwnerId);
     }
-    if (!allowed) throw error('quem salvou o fluxo não tem mais acesso a esta subconta; salve o fluxo de novo', 403);
+    if (!allowed) throw error(revoked, 403);
     const connection = await openAI.optionalConnection({ id: key.session });
-    if (!connection) throw error('conecte a OpenAI de quem salvou o fluxo (Visão da agência → Configurações → OpenAI)', 409);
+    if (!connection) throw error(disconnected, 409);
     return connection;
   }
   async function workflowAIStep(workspace, state, item) {
@@ -1574,7 +1591,7 @@ export function makeServer({
       if (item.kind === 'meta-capi' || item.kind === 'meta-audience') results.push({ runId: item.runId, kind: 'meta', text: await workflowMeta(workspace, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'copy-contact') results.push({ runId: item.runId, kind: 'copy', text: await workflowCopyContact(workspace, state, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'custom-webhook') aiResults.push({ runId: item.runId, stepId: item.stepId, ...(await deliverCustomWebhook(item).catch(() => ({ error: 'falha de conexão' }))) });
-      if (item.kind === 'phone-call' || item.kind === 'voicemail-drop') {
+      if (item.kind === 'phone-call' || item.kind === 'voicemail-drop' || item.kind === 'voice-ai-call') {
         const text = !phoneOrigin() ? 'erro: defina PHONE_PUBLIC_ORIGIN para a Twilio chamar a Soci'
           : await phone.workflowItem(workspace, item, phoneOrigin()).catch(problem => `erro: ${problem.message}`);
         results.push({ runId: item.runId, kind: 'phone', text });
@@ -2756,6 +2773,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
             await workspaceAccess(req, res, target, { modules: ['contacts'] }).catch(() => { throw error('Copiar contato: seu usuário não tem acesso aos contatos da subconta de destino.', 403); });
           }
           command.data = { ...command.data, aiKey: who.session ? { session: who.session.id, user: who.userId || '', agency: who.agencyId || '' } : null };
+        }
+        if (command.type === 'phone-number-save' && command.data && typeof command.data === 'object') {
+          command.data = { ...command.data, voiceKey: command.data.mode === 'voice_ai' && who.session ? { session: who.session.id, user: who.userId || '', agency: who.agencyId || '' } : null };
         }
         if (['document-send', 'document-link', 'estimate-send', 'estimate-link', 'invoice-send', 'invoice-from-template', 'checkout-remind', 'email-campaign-schedule', 'message', 'review-request', 'reputation-settings'].includes(command.type)) command.data = { ...(command.data && typeof command.data === 'object' ? command.data : {}), origin: publicBase(req) };
         const removedVideo = command.type === 'delete' && command.key === 'videoTestimonials' ? (await store.load(id)).videoTestimonials?.find(row => row.id === command.id) : null;
