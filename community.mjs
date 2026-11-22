@@ -644,10 +644,11 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
   }
 
   // Workflows (T.1): confirms an active member in a free event with seats left. Fires "Inscrição em evento da comunidade".
-  async function registerEvent(workspace, state, memberId, eventId) {
+  // `comp`: a paid event given as a courtesy (a workflow's "Inscrever em evento" with the comp option), without charging.
+  async function registerEvent(workspace, state, memberId, eventId, { comp = false } = {}) {
     const event = (state.communityEvents || []).find(row => row.id === eventId && row.status === 'published');
     if (!event) return 'missing';
-    if (event.access === 'paid') return 'paid';
+    if (event.access === 'paid' && !comp) return 'paid';
     if (!nextOccurrence(event)) return 'ended';
     if (!memberId) return 'not-member';
     let outcome = 'not-member';
@@ -656,7 +657,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
       if (data.members[memberId]?.status !== 'active') { outcome = 'not-member'; return; }
       if (record.attendees[memberId]?.status === 'going') { outcome = 'already'; return; }
       if (event.capacity && Object.values(record.attendees).filter(row => row.status === 'going').length >= event.capacity) { outcome = 'full'; return; }
-      record.attendees[memberId] = { status: 'going', at: new Date().toISOString(), paid: false, guest: true, reminded: {} };
+      record.attendees[memberId] = { status: 'going', at: new Date().toISOString(), paid: false, guest: true, reminded: {}, ...(event.access === 'paid' ? { comp: true } : {}) };
       outcome = 'registered';
     });
     if (outcome === 'registered') await onEventJoin?.(workspace, { eventId: event.id, memberId, paid: false });

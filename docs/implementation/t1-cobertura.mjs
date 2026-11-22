@@ -124,7 +124,7 @@ export const acoes = [
   c('Reply in comments', 'reply_social_comment'),
   falta('Appointment booking conversation AI bot', 'conversation_ai', 'Bot de IA nas conversas, com agendamento.'),
   c('Send live chat message', 'send_live_chat'),
-  falta('Log external call', 'log_call', 'Registra uma ligação feita fora da Soci no histórico do contato.'),
+  c('Log external call', 'log_call'),
   c('WhatsApp', 'send_whatsapp'), c('Whatsapp: customer service window check', 'whatsapp_window'), c('Book appointment', 'book_appointment'),
   falta('Update conversation AI bot and status', 'conversation_ai_status', 'Bot de IA nas conversas.'),
   fora('Whatsapp: send flows', 'WhatsApp Flows existe só na API oficial da Meta (Cloud API); a Soci usa a Evolution API.'),
@@ -135,7 +135,7 @@ export const acoes = [
   c('Add internal comments', 'add_note', 'Nota interna na conversa.'),
   fora('Send RCS', 'RCS Business Messaging exige marca aprovada pelo Google e um provedor RCS; nenhum dos canais da Soci oferece.'),
   fora('RCS interactive message', 'RCS Business Messaging exige marca aprovada pelo Google e um provedor RCS; nenhum dos canais da Soci oferece.'),
-  falta('Live chat interactive messenger (beta)', 'send_live_chat', 'Botões de resposta no chat do site.'),
+  c('Live chat interactive messenger (beta)', 'send_live_chat', 'Botões de resposta no chat do site.'),
   c('Show WhatsApp typing indicator', 'whatsapp_typing'),
   // Slack (6)
   conector('Send Message'), conector('Invite user to channel (beta)'), conector('Find channel by name (beta)'),
@@ -151,7 +151,7 @@ export const acoes = [
   c('If / else', 'if_else'), c('Router', 'router'), c('Loop (beta)', 'loop'), c('Wait', 'wait'), c('Goal event', 'goal'), c('Split', 'split'),
   c('Update custom value', 'update_custom_value'), c('Go to', 'goto'), c('Date/time formatter', 'date_format'), c('Number formatter', 'number_format'),
   c('Math operation', 'math'),
-  falta('Set event start date', 'set_event_date', 'Define a data de referência que a espera “até a data do evento” usa.'),
+  c('Set event start date', 'set_event_date', 'Com o modo Aguardar “em relação à data do evento”.'),
   c('Add to workflow', 'add_to_workflow'), c('Remove from workflow', 'remove_from_workflow'), c('Array formatter', 'list_format'), c('Drip', 'drip'),
   c('Text formatter', 'text_format'),
   falta('Custom code', 'custom_code', 'Código JavaScript em área isolada, sem rede nem disco.'),
@@ -170,7 +170,7 @@ export const acoes = [
   fora('Create associated records of an opportunity (beta)', objetos), fora('Update associated records of an opportunity (beta)', objetos),
   fora('Add associated record(s) of an opportunity to workflow (beta)', objetos),
   // Payments (6)
-  falta('Stripe one time charge', 'charge', 'Cobrança avulsa pela AbacatePay (Pix ou cartão), com link enviado ao contato.'),
+  c('Stripe one time charge', ['create_invoice', 'send_invoice'], 'A AbacatePay não guarda cartão para cobrar direto: a cobrança avulsa vira fatura com link de pagamento (Pix ou cartão) enviada ao contato.'),
   c('Send estimate', 'send_estimate'), c('Send documents & contracts', 'send_document'), c('Send invoice', 'send_invoice'),
   c('Send recurring invoice', 'start_recurring_invoice'), c('Update inventory', 'update_inventory'),
   // Marketing (6)
@@ -208,7 +208,7 @@ export const acoes = [
   ...['Continue conversation', 'AI message', 'Transfer bot', 'AI splitter', 'Custom message', 'AI capture information', 'End conversation', 'Book appointment', 'Services booking']
     .map(name => falta(name, 'conversation_ai', 'Etapa do bot de IA nas conversas.')),
   // Events Management (2)
-  falta('Register for ticketed event (beta)', 'register_event', 'Inscrição em evento pago sem cobrar (cortesia).'),
+  c('Register for ticketed event (beta)', 'register_event', 'Evento pago inscrito como cortesia, sem cobrar.'),
   c('Register for rsvp event (beta)', 'register_event'),
   // Voice AI (1)
   falta('Voice AI outbound call (beta)', 'voice_ai_call', 'Voice AI com Twilio (3.2).')

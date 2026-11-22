@@ -32,6 +32,9 @@ export const chatCss = color => `
 .cw-msg.them{align-self:flex-start;background:#fff;border:1px solid #eaecf0;border-bottom-left-radius:4px}
 .cw-msg.me{align-self:flex-end;background:var(--cw);color:#fff;border-bottom-right-radius:4px}
 .cw-msg small{display:block;margin-top:3px;font-size:11px;opacity:.7}
+.cw-quick{align-self:flex-start;display:flex;flex-wrap:wrap;gap:6px;max-width:82%}
+.cw-quick button{min-height:34px;padding:6px 12px;border:1px solid var(--cw);border-radius:999px;background:#fff;color:var(--cw);font:inherit;font-weight:600;cursor:pointer}
+.cw-quick button:hover{background:var(--cw);color:#fff}.cw-quick button:focus-visible{outline:2px solid var(--cw);outline-offset:2px}
 .cw-form{display:grid;gap:10px;padding:14px 16px;border-top:1px solid #eaecf0;background:#fff}
 .cw-form label{display:grid;gap:4px;font-size:12.5px;font-weight:600}
 .cw-form input,.cw-form textarea{width:100%;min-height:40px;padding:9px 11px;border:1px solid #d0d5dd;border-radius:10px;font:inherit;color:inherit;background:#fff}
@@ -73,7 +76,9 @@ const log=document.querySelector('[data-cw-log]'),start=document.querySelector('
 let token='';try{token=localStorage.getItem(key)||''}catch{}
 let seen=new Set(),timer=0;
 const fmt=iso=>new Date(iso).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-const add=m=>{if(seen.has(m.id))return;seen.add(m.id);const p=document.createElement('p');p.className='cw-msg '+(m.direction==='Inbound'?'me':'them');p.textContent=m.body;const s=document.createElement('small');s.textContent=(m.direction==='Inbound'?'Você':${JSON.stringify(agentName)})+' · '+fmt(m.created);p.append(s);log.append(p);log.scrollTop=log.scrollHeight};
+const add=m=>{if(seen.has(m.id))return;seen.add(m.id);const p=document.createElement('p');p.className='cw-msg '+(m.direction==='Inbound'?'me':'them');p.textContent=m.body;const s=document.createElement('small');s.textContent=(m.direction==='Inbound'?'Você':${JSON.stringify(agentName)})+' · '+fmt(m.created);p.append(s);log.append(p);
+if(m.direction!=='Inbound'&&Array.isArray(m.buttons)&&m.buttons.length){const q=document.createElement('div');q.className='cw-quick';for(const label of m.buttons){const b=document.createElement('button');b.type='button';b.textContent=label;b.addEventListener('click',async()=>{q.remove();try{(await call('/send',{body:label})).messages.forEach(add)}catch(err){error.textContent=err.message;error.hidden=false}});q.append(b)}log.append(q)}
+log.scrollTop=log.scrollHeight};
 const done=()=>{start.hidden=true;compose.hidden=true;const d=document.createElement('div');d.className='cw-done';d.innerHTML='<span aria-hidden="true">✓</span><p></p>';d.querySelector('p').textContent=${JSON.stringify(thanks)};log.append(d)};
 const call=async(path,body)=>{const r=await fetch(api+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','X-Chat-Token':token},body:body?JSON.stringify(body):undefined});const data=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(data.error||'Não foi possível enviar.'),{status:r.status});return data};
 const poll=async()=>{if(!token||document.hidden)return;try{(await call('/messages')).messages.forEach(add)}catch(e){if(e.status===401){token='';try{localStorage.removeItem(key)}catch{}compose.hidden=true;start.hidden=false}}};

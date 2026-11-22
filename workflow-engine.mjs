@@ -27,6 +27,26 @@ const metaIdentity = contact => {
 };
 const FAILURES = /^(erro|sem contato|sem nome|sem oportunidade|sem agendamento|sem conversa|campo removido|campo inválido|e-mail inválido|contato em não perturbe)/;
 
+// "Definir data do evento": a date (and time) as written by people or stored in a field, read in the sub-account's
+// time zone: 2026-12-01, 2026-12-01 19:30, 01/12/2026, 01/12/2026 19:30 or a full ISO date. Returns ms, or null.
+export function eventInstant(value, zone = 'America/Sao_Paulo') {
+  const raw = String(value || '').trim();
+  let m = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?$/);
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:,?\s+(\d{2}):(\d{2}))?$/);
+  if (br) m = [raw, br[3], br[2], br[1], br[4], br[5]];
+  if (!m) { const at = /[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? Date.parse(raw) : NaN; return Number.isFinite(at) ? at : null; }
+  const [y, mo, d, h, mi] = m.slice(1).map(part => Number(part ?? 0));
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return null;
+  const guess = Date.UTC(y, mo - 1, d, h, mi);
+  // The zone's offset at that moment (Intl), applied once more to settle daylight-saving edges.
+  const offsetAt = at => {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      .formatToParts(new Date(at)).map(part => [part.type, part.value]));
+    return Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute) - at;
+  };
+  try { const first = guess - offsetAt(guess); return guess - offsetAt(first); } catch { return null; }
+}
+
 // "Formatar data": AAAA-MM-DD, a date with time or "hoje", plus some days, in the sub-account's time zone.
 export function formatDate(value, days = 0, format = 'br', zone = 'America/Sao_Paulo') {
   const raw = String(value || '').trim();
@@ -434,7 +454,37 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
         return 'pedido de consentimento na fila de envio';
       }
       case 'send_sms': if (contact.dnd) return 'contato em não perturbe'; if (!canMessage(contact, 'SMS', c.topicId)) return 'contato não aceita SMS (preferências)'; message('SMS', c.body); return 'registrada em Conversas';
-      case 'send_live_chat': message('Live chat', c.body); return 'enviada ao chat';
+      case 'send_live_chat': {
+        // Optional reply buttons: the visitor taps one and it is sent as their message.
+        const row = message('Live chat', c.body);
+        const buttons = [...new Set(text(c.buttons).split('\n').map(line => line.trim().slice(0, 30)).filter(Boolean))].slice(0, 6);
+        if (buttons.length) row.buttons = buttons;
+        return buttons.length ? `enviada ao chat com ${buttons.length} botão(ões)` : 'enviada ao chat';
+      }
+      case 'log_call': {
+        // "Registrar ligação": a call made or received outside the Soci, in the call log and in Conversas.
+        const direction = c.direction === 'inbound' ? 'inbound' : 'outbound';
+        const status = ['answered', 'missed', 'voicemail', 'busy'].includes(c.status) ? c.status : 'answered';
+        const minutes = Math.max(0, Math.min(600, Number(text(c.duration)) || 0));
+        const notes = text(c.notes).trim().slice(0, 2000);
+        const call = add(s, 'calls', { contactId: contact.id, direction, status, duration: Math.round(minutes * 60), notes, phone: text(c.phone).trim().slice(0, 40) || contact.phone || '',
+          source: 'external', workflowId: run.workflowId });
+        const label = `${direction === 'inbound' ? 'Ligação recebida' : 'Ligação feita'} · ${({ answered: 'atendida', missed: 'não atendida', voicemail: 'caixa postal', busy: 'ocupado' })[status]}${minutes ? ` · ${minutes} min` : ''}`;
+        add(s, 'messages', { contactId: contact.id, body: [label, notes].filter(Boolean).join('\n'), channel: 'Call', direction: direction === 'inbound' ? 'Inbound' : 'Outbound', read: true, starred: false,
+          origin: 'workflow', workflowId: run.workflowId, callId: call.id });
+        output(run, id, { callId: call.id, status });
+        return label;
+      }
+      case 'set_event_date': {
+        // "Definir data do evento": the date the "Aguardar em relação à data do evento" steps count from.
+        const raw = text(c.date).trim();
+        const at = eventInstant(raw, s.profile?.timezone || 'America/Sao_Paulo');
+        if (at === null) return `erro: data inválida: ${raw.slice(0, 40) || '(vazia)'}`;
+        run.eventDate = new Date(at).toISOString();
+        run.vars = { ...(run.vars || {}), data_evento: run.eventDate };
+        output(run, id, { eventDate: run.eventDate });
+        return `data do evento: ${run.eventDate}`;
+      }
       case 'send_instagram_dm': case 'send_messenger': {
         // Delivered through the page connected in the Social Planner, to the id Meta gave when the contact wrote first.
         const network = node.type === 'send_messenger' ? 'facebook' : 'instagram', channel = network === 'facebook' ? 'Facebook' : 'Instagram';
@@ -503,9 +553,9 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       case 'register_event': {
         const event = (s.communityEvents || []).find(row => row.id === c.eventId);
         if (!event) return 'erro: evento não encontrado';
-        if (event.access === 'paid') return 'erro: evento pago (o contato precisa comprar o ingresso)';
+        if (event.access === 'paid' && c.ticket !== 'comp') return 'erro: evento pago (o contato precisa comprar o ingresso, ou escolha inscrever como cortesia)';
         if (!contact.email) return 'erro: contato sem e-mail';
-        outbox(s, { kind: 'access', runId: run.id, action: node.type, eventId: event.id, communityId: event.communityId, contactId: contact.id, email: contact.email, name: contact.name || '' });
+        outbox(s, { kind: 'access', runId: run.id, action: node.type, eventId: event.id, communityId: event.communityId, contactId: contact.id, email: contact.email, name: contact.name || '', comp: event.access === 'paid' });
         return `${event.title}: na fila`;
       }
       case 'grant_channel_access': case 'revoke_channel_access': {
@@ -1030,6 +1080,14 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
         run.status = 'Waiting';
         if (c.mode === 'until') { if (!c.until || Date.parse(c.until) <= Date.now()) { run.status = 'Running'; run.results.push(`${label}: data já passou, seguindo`); continue; } run.wakeAt = c.until; }
         else if (c.mode === 'event') { run.waitFor = { type: c.event, value: c.eventValue || '' }; run.wakeAt = new Date(Date.now() + (Number(c.timeoutDays) || 3) * 864e5).toISOString(); }
+        else if (c.mode === 'event_date') {
+          // Before or after the date set by "Definir data do evento"; a moment already past goes straight on.
+          if (!run.eventDate) { run.status = 'Running'; run.results.push(`${label}: sem data do evento definida, seguindo`); continue; }
+          const offset = Math.max(0, Number(c.offset) || 0) * ({ minutes: 6e4, hours: 36e5, days: 864e5 }[c.offsetUnit] || 864e5);
+          const target = Date.parse(run.eventDate) + (c.direction === 'after' ? offset : -offset);
+          if (!Number.isFinite(target) || target <= Date.now()) { run.status = 'Running'; run.results.push(`${label}: o momento já passou, seguindo`); continue; }
+          run.wakeAt = new Date(target).toISOString();
+        }
         else run.wakeAt = new Date(Date.now() + (Number(c.amount) || 1) * ({ minutes: 6e4, hours: 36e5, days: 864e5 }[c.unit] || 864e5)).toISOString();
         run.results.push(`${label}: aguardando ${run.waitFor ? 'o evento' : `até ${new Date(run.wakeAt).toISOString()}`}`);
         return;

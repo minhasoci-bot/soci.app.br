@@ -409,8 +409,8 @@ export function makeServer({
     if (item.action === 'register_event') {
       const event = (state.communityEvents || []).find(row => row.id === item.eventId);
       if (!event) return 'evento não encontrado';
-      const outcome = await community.registerEvent(workspace, state, await clientPortal.memberOf(workspace, who), event.id);
-      return `${event.title}: ${({ registered: 'presença confirmada', already: 'já estava confirmado', full: 'vagas esgotadas', ended: 'evento já terminou', paid: 'evento pago (use o ingresso)', missing: 'evento não publicado', 'not-member': 'contato não é membro ativo da comunidade' })[outcome]}`;
+      const outcome = await community.registerEvent(workspace, state, await clientPortal.memberOf(workspace, who), event.id, { comp: item.comp === true });
+      return `${event.title}: ${({ registered: item.comp ? 'inscrito como cortesia' : 'presença confirmada', already: 'já estava confirmado', full: 'vagas esgotadas', ended: 'evento já terminou', paid: 'evento pago (use o ingresso)', missing: 'evento não publicado', 'not-member': 'contato não é membro ativo da comunidade' })[outcome]}`;
     }
     if (item.action === 'grant_channel_access' || item.action === 'revoke_channel_access') {
       const group = state.communities.find(row => row.id === item.communityId), channel = group?.channels.find(row => row.id === item.channelId);

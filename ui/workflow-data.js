@@ -406,8 +406,9 @@ export const actionCatalog = [
     { type: 'grant_community_access', label: 'Liberar acesso a comunidade', icon: 'users', description: 'Coloca o contato como membro da comunidade (criando o acesso dele ao portal, se preciso). O contato precisa ter e-mail.', fields: [f('communityId', 'Comunidade', 'ref', { source: 'communities', required: true, empty: 'Escolha a comunidade' })] },
     { type: 'grant_offer', label: 'Liberar oferta', icon: 'book', description: 'Dá ao contato todos os cursos e comunidades de uma oferta, sem cobrança (e envia o link do portal, se o e-mail do portal estiver configurado). O contato precisa ter e-mail.', fields: [f('offerId', 'Oferta', 'ref', { source: 'offers', required: true, empty: 'Escolha a oferta' })] },
     { type: 'revoke_offer', label: 'Remover oferta', icon: 'close', description: 'Tira do contato os cursos e comunidades da oferta.', fields: [f('offerId', 'Oferta', 'ref', { source: 'offers', required: true, empty: 'Escolha a oferta' })] },
-    { type: 'register_event', label: 'Inscrever em evento da comunidade', icon: 'cal', description: 'Confirma a presença do contato num evento gratuito da comunidade, se houver vaga. Ele precisa ser membro ativo da comunidade do evento.', fields: [
-      f('eventId', 'Evento', 'ref', { source: 'communityEvents', required: true, empty: 'Escolha o evento' })
+    { type: 'register_event', label: 'Inscrever em evento da comunidade', icon: 'cal', description: 'Confirma a presença do contato num evento da comunidade, se houver vaga. Ele precisa ser membro ativo da comunidade do evento. Num evento pago, só inscreve se você escolher cortesia (sem cobrar).', fields: [
+      f('eventId', 'Evento', 'ref', { source: 'communityEvents', required: true, empty: 'Escolha o evento' }),
+      f('ticket', 'Evento pago', 'select', { options: [['', 'Não inscrever (o contato compra o ingresso)'], ['comp', 'Inscrever como cortesia, sem cobrar']] })
     ] },
     { type: 'grant_channel_access', label: 'Liberar canal privado', icon: 'lock', description: 'Dá ao contato acesso a um canal privado da comunidade. Ele precisa ser membro ativo da comunidade.', fields: [
       f('channel', 'Canal privado', 'ref', { source: 'privateChannels', required: true, empty: 'Escolha o canal' })
@@ -433,7 +434,17 @@ export const actionCatalog = [
       f('approval', 'Aprovação', 'select', { options: [['', 'Sem aprovação'], ['yes', 'Pedir aprovação antes de publicar']] })
     ] },
     { type: 'reply_social_comment', label: 'Responder comentário público', icon: 'chat', fields: [f('body', 'Resposta pública no post', 'textarea', { required: true })] },
-    { type: 'send_live_chat', label: 'Enviar mensagem no chat do site', icon: 'chat', fields: [f('body', 'Mensagem', 'textarea', { required: true })] },
+    { type: 'send_live_chat', label: 'Enviar mensagem no chat do site', icon: 'chat', description: 'Responde no chat do site em que o contato está conversando. Os botões aparecem embaixo da mensagem e, quando o visitante toca num, ele vai como resposta dele.', fields: [
+      f('body', 'Mensagem', 'textarea', { required: true }),
+      f('buttons', 'Botões de resposta (um por linha, até 6; opcional)', 'textarea', { placeholder: 'Quero um orçamento\nFalar com atendente' })
+    ] },
+    { type: 'log_call', label: 'Registrar ligação', icon: 'phone', description: 'Registra uma ligação feita ou recebida fora da Soci (no celular, por exemplo) no histórico de ligações e em Conversas.', fields: [
+      f('direction', 'Ligação', 'select', { options: [['outbound', 'Feita para o contato'], ['inbound', 'Recebida do contato']] }),
+      f('status', 'Resultado', 'select', { options: [['answered', 'Atendida'], ['missed', 'Não atendida'], ['voicemail', 'Caixa postal'], ['busy', 'Ocupado']] }),
+      f('duration', 'Duração (minutos)', 'number', { min: 0, max: 600, value: 0 }),
+      f('notes', 'Notas (aceita variáveis)', 'textarea'),
+      f('phone', 'Telefone (vazio = o do contato)', 'text')
+    ] },
     { type: 'internal_notification', label: 'Notificação interna', icon: 'bell', fields: [f('body', 'Mensagem para a equipe', 'textarea', { required: true })] },
     { type: 'send_optin', label: 'Pedir consentimento (opt-in)', icon: 'check', description: 'Manda o link da página de preferências do contato, onde ele escolhe os canais e os assuntos que quer receber. Quando ele salva, dispara Preferências de comunicação mudaram. Use {{link_preferencias}} para pôr o link no meio do texto (sem ele, o link vai no fim).', fields: [
       f('channel', 'Canal', 'select', { options: [['WhatsApp', 'WhatsApp'], ['Email', 'E-mail']] }),
@@ -556,12 +567,18 @@ export const actionCatalog = [
         f('variable', 'Guardar a resposta na variável', 'text', { value: 'analise_imagem', required: true })] }
   ] },
   { group: 'Fluxo', items: [
-    { type: 'wait', label: 'Aguardar', icon: 'clock', fields: [f('mode', 'Aguardar', 'select', { options: [['delay', 'Um tempo'], ['until', 'Até uma data e hora'], ['event', 'Até um evento acontecer']] }),
+    { type: 'wait', label: 'Aguardar', icon: 'clock', fields: [f('mode', 'Aguardar', 'select', { options: [['delay', 'Um tempo'], ['until', 'Até uma data e hora'], ['event', 'Até um evento acontecer'], ['event_date', 'Em relação à data do evento']] }),
       f('amount', 'Quanto', 'number', { min: 1, max: 1000, value: 1, when: { mode: 'delay' } }), f('unit', 'Unidade', 'select', { options: [['minutes', 'minutos'], ['hours', 'horas'], ['days', 'dias']], value: 'days', when: { mode: 'delay' } }),
       f('until', 'Data e hora', 'datetime', { when: { mode: 'until' } }),
       f('event', 'Evento', 'select', { when: { mode: 'event' }, options: [['customer_replied', 'Cliente responder'], ['contact_tag', 'Receber uma tag'], ['form_submitted', 'Enviar um formulário'], ['appointment_booked', 'Fazer um agendamento'], ['order_paid', 'Pagar um pedido']] }),
       f('eventValue', 'Tag ou formulário (opcional)', 'text', { when: { mode: 'event' } }),
-      f('timeoutDays', 'Desistir de esperar após (dias)', 'number', { min: 1, max: 365, value: 3, when: { mode: 'event' } })] },
+      f('timeoutDays', 'Desistir de esperar após (dias)', 'number', { min: 1, max: 365, value: 3, when: { mode: 'event' } }),
+      f('offset', 'Quanto', 'number', { min: 0, max: 1000, value: 1, when: { mode: 'event_date' } }),
+      f('offsetUnit', 'Unidade', 'select', { options: [['minutes', 'minutos'], ['hours', 'horas'], ['days', 'dias']], value: 'days', when: { mode: 'event_date' } }),
+      f('direction', 'Quando', 'select', { options: [['before', 'antes da data do evento'], ['after', 'depois da data do evento']], when: { mode: 'event_date' } })] },
+    { type: 'set_event_date', label: 'Definir data do evento', icon: 'cal', description: 'Guarda a data (e a hora) de um evento do contato, como uma consulta, um webinar ou uma entrega. As etapas Aguardar "em relação à data do evento" contam a partir dela. Aceita variáveis e datas como 2026-12-01 19:30 ou 01/12/2026 19:30, no fuso da subconta. Fica em {{vars.data_evento}}.', fields: [
+      f('date', 'Data e hora do evento (aceita variáveis)', 'text', { required: true, placeholder: 'Ex.: {{contact.data_da_consulta}} ou 01/12/2026 19:30' })
+    ] },
     { type: 'if_else', label: 'Se / Senão', icon: 'flow', branch: true, fields: [conditions] },
     { type: 'filter', label: 'Filtro', icon: 'filter', description: 'Só continua se a condição for verdadeira', fields: [conditions] },
     { type: 'set_variable', label: 'Definir variável', icon: 'key', description: 'Guarda um valor para usar depois como {{vars.nome}}', fields: [f('name', 'Nome da variável', 'text', { required: true, placeholder: 'ex.: cupom' }), f('value', 'Valor (texto ou expressão)', 'text', { required: true, placeholder: '{{upper(contact.first_name)}}' })] },
