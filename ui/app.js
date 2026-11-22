@@ -1197,7 +1197,7 @@ if(viewPath){
   installAffiliates({ c, api, url, mutate, flash, dialog, close, render });
   installAds({ c, api, url, mutate, flash, dialog, close, render });
   installBrand({ c, api, url, mutate, flash, dialog, close, render });
-  installTracking({ c, mutate, flash, dialog, close, render });
+  installTracking({ c, mutate, flash, dialog, close, render, api });
   installOrders({ c, mutate, flash, dialog, close, render });
   installCatalog({ c, mutate, flash, dialog, close, render });
   installPrancheta({

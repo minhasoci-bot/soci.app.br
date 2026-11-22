@@ -223,3 +223,14 @@ export async function uploadGoogleConversion(secret, customer, { actionId, gclid
   if (data.partialFailureError) fail(String(data.partialFailureError.message || 'O Google Ads recusou a conversão.').slice(0, 300));
   return { accepted: (data.results || []).filter(row => row && Object.keys(row).length).length };
 }
+
+// ---------- Workflows: events to Google Analytics 4 (Measurement Protocol) ----------
+
+/** Sends one event for a contact to the GA4 property (measurement id + API secret of the data stream). */
+export async function sendGa4Event({ measurementId, secret, clientId, userId = '', event }) {
+  if (!/^G-[A-Z0-9]{4,20}$/.test(String(measurementId || ''))) fail('ID de medição do GA4 inválido.');
+  if (!secret) fail('Falta o segredo da API do Measurement Protocol (Marketing → Rastreamento).', 409);
+  await call('https://www.google-analytics.com/mp/collect?' + form({ measurement_id: measurementId, api_secret: secret }),
+    { method: 'POST', json: { client_id: clientId, ...(userId ? { user_id: userId } : {}), events: [event] } });
+  return { sent: true };
+}

@@ -47,7 +47,7 @@ import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } fro
 import { importedFile, mediaLimitBytes } from './media-model.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
-import { adsAuthUrl, adsConfigured, adsExchange, changeMetaAudience, createMetaAd, freshAdsSecret, sendMetaEvents, setCampaignBudget, setCampaignStatus, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
+import { adsAuthUrl, adsConfigured, adsExchange, changeMetaAudience, createMetaAd, freshAdsSecret, sendMetaEvents, setCampaignBudget, setCampaignStatus, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
 import { hasPixels, injectPixels, originAllowed, pixelsScript, trackerScript, trackingOf, touchesFrom, widenCsp } from './tracking.mjs';
 import { adSettingsOf, markAdConnection, metaAdInput, patchAdCampaign, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
@@ -1524,6 +1524,7 @@ export function makeServer({
       }
       if (item.kind === 'ai') aiResults.push(await workflowAIStep(workspace, state, item));
       if (item.kind === 'marketing-audit') auditLater(workspace, item);
+      if (item.kind === 'ga4-event') results.push({ runId: item.runId, kind: 'ga4', text: await workflowGa4(workspace, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'google-ads-conversion') results.push({ runId: item.runId, kind: 'google', text: await workflowGoogleAds(workspace, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'meta-capi' || item.kind === 'meta-audience') results.push({ runId: item.runId, kind: 'meta', text: await workflowMeta(workspace, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'copy-contact') results.push({ runId: item.runId, kind: 'copy', text: await workflowCopyContact(workspace, state, item).catch(problem => `erro: ${problem.message}`) });
@@ -1733,6 +1734,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     }
     const changed = await changeMetaAudience(secret, item.audience, [item.row], item.remove);
     return `${item.remove ? 'removido do' : 'incluído no'} público ${item.audience}${changed.invalid ? ' (dados inválidos)' : ''}`;
+  }
+  // Workflows: an event to the GA4 property, with the sealed Measurement Protocol secret.
+  async function workflowGa4(workspace, item) {
+    if (privateSpace.test(workspace)) return 'não disponível na conta pessoal';
+    const row = await socialRow(`ads-${workspace}`);
+    const secret = row.ga4Secret ? unseal(row.ga4Secret) : '';
+    await sendGa4Event({ measurementId: item.measurementId, secret, clientId: item.clientId, userId: item.userId, event: item.event });
+    return `${item.event.name} enviado`;
   }
   // Workflows: an offline conversion to the Google Ads account chosen in Marketing → Anúncios.
   async function workflowGoogleAds(workspace, item) {
@@ -2542,6 +2551,19 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const file = importedFile(response, address);
         const result = await change(id, { type:'save', key:'files', data:{ ...file, folderId: typeof input.folderId === 'string' ? input.folderId : '' } }, who);
         return json({ id: result.id, ...workspaceView(who, result.state) });
+      }
+      // Marketing → Rastreamento: the GA4 Measurement Protocol API secret. Write-only: sealed in the ads-<workspace> row,
+      // never sent back; the sub-account state only says whether it is set. An empty value removes it.
+      if (p==='/api/tracking/ga4-secret' && method==='POST') {
+        if (!spaceId.test(id)) throw error('Workspace not found.',404);
+        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
+        const input = await payload(req);
+        const secret = typeof input?.secret === 'string' ? input.secret.trim() : '';
+        if (secret && !/^[\w-]{8,64}$/.test(secret)) throw error('Segredo da API do GA4 inválido.', 400);
+        await socialRow(`ads-${id}`);
+        await store.change(`ads-${id}`, row => { if (secret) row.ga4Secret = seal(secret); else delete row.ga4Secret; });
+        const result = await change(id, { type: 'tracking-ga4-secret', data: { set: Boolean(secret) } });
+        return json(workspaceView(who, result.state));
       }
       if (p==='/api/action' && method==='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);

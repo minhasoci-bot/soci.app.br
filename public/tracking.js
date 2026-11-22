@@ -68,7 +68,9 @@ function settingsView(c) {
         <label>ID de medição do Google Analytics 4<input name="ga4" value="${h(t.ga4)}" placeholder="G-XXXXXXXXXX" maxlength="24" spellcheck="false" autocomplete="off"></label>
         <label>ID do contêiner do Google Tag Manager<input name="gtm" value="${h(t.gtm)}" placeholder="GTM-XXXXXXX" maxlength="16" spellcheck="false" autocomplete="off"></label>
         <label>ID do Pixel da Meta<input name="metaPixel" value="${h(t.metaPixel)}" placeholder="123456789012345" inputmode="numeric" maxlength="20" spellcheck="false" autocomplete="off"></label>
+        <label>Segredo da API do GA4 (Measurement Protocol)<input name="ga4Secret" type="password" value="" placeholder="${t.ga4SecretSet ? 'Configurado. Deixe vazio para manter' : 'Opcional, para os fluxos enviarem eventos'}" maxlength="64" spellcheck="false" autocomplete="new-password"></label>
       </div>
+      <p class="dim"><small>O segredo fica guardado com criptografia no servidor e não aparece de novo aqui. Ele é criado no GA4 em Administrador → Fluxos de dados → Chaves secretas da API do Measurement Protocol.${t.ga4SecretSet ? ' <button type="button" class="text-link" data-tk-ga4-clear>Remover segredo</button>' : ''}</small></p>
       <p class="dim"><small>Tags do Tag Manager que injetam código inline ficam bloqueadas pela política de segurança das páginas; tags de GA4 e da Meta funcionam.</small></p>
       <h2>Script do seu site</h2>
       <label class="switch-row"><span><b>Registrar visitas de página</b><br><small class="dim">Cada página aberta com o script conta como visita.</small></span><input type="checkbox" name="pageviews"${t.pageviews !== false ? ' checked' : ''}></label>
@@ -181,7 +183,13 @@ export function contactScore(contact) {
 export const contactScoreCell = contact => Number(contact.score) ? scoreBadge(Number(contact.score)) : '<span class="dim">—</span>';
 
 // ---- Events --------------------------------------------------------------------------------------
-export function installTracking({ c, mutate, flash, dialog, close, render }) {
+export function installTracking({ c, mutate, flash, dialog, close, render, api }) {
+  // The GA4 API secret goes to its own write-only endpoint; the answer is the sub-account view, as after an action.
+  const saveGa4Secret = async secret => { const view = await api(`/api/tracking/ga4-secret?workspace=${encodeURIComponent(c.workspace)}`, { secret }); if (view?.state) { c.s = view.state; if (view.metrics) c.m = view.metrics; } };
+  document.addEventListener('click', async event => {
+    if (!here() || !event.target.closest('[data-tk-ga4-clear]')) return;
+    try { await saveGa4Secret(''); render(); flash('Segredo do GA4 removido.'); } catch (error) { flash(error.message); }
+  });
   const here = () => c.view === 'settings' && ['tracking', 'scoring'].includes(c.tab);
   const ruleData = form => {
     const config = {};
@@ -233,6 +241,7 @@ export function installTracking({ c, mutate, flash, dialog, close, render }) {
     try {
       if (form.dataset.tkForm === 'settings') {
         const f = form.elements;
+        if (f.ga4Secret.value.trim()) await saveGa4Secret(f.ga4Secret.value.trim());
         await mutate({ type: 'tracking-settings', data: { ga4: f.ga4.value, gtm: f.gtm.value, metaPixel: f.metaPixel.value, domains: f.domains.value, pageviews: f.pageviews.checked, forms: f.forms.checked } });
         render(); flash('Rastreamento salvo.');
       } else {

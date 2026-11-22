@@ -564,6 +564,20 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         outbox(s, { kind: 'meta-capi', runId: run.id, pixel, event, testCode: String(c.testCode || '').trim().slice(0, 40) });
         return `${name} na fila para a Meta`;
       }
+      case 'ga4_event': {
+        // GA4 Measurement Protocol: the contact is identified by an id derived from it (no e-mail or phone goes to Google).
+        const measurementId = String(s.tracking?.ga4 || '');
+        if (!measurementId) return 'erro: configure o ID de medição do GA4 em Marketing → Rastreamento';
+        if (!s.tracking?.ga4SecretSet) return 'erro: configure o segredo da API do GA4 em Marketing → Rastreamento';
+        const name = c.event === 'custom' ? text(c.customEvent).trim().replace(/[^\w]/g, '_').replace(/^[^a-zA-Z]+/, '').slice(0, 40) : String(c.event || 'generate_lead');
+        if (!name) return 'erro: informe o nome do evento personalizado';
+        const amount = Number(text(c.value).replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
+        const params = { source: 'soci_workflow', workflow: String(run.name || '').slice(0, 100), engagement_time_msec: 1,
+          ...(Number.isFinite(amount) && amount > 0 ? { value: Math.round(amount * 100) / 100, currency: /^[A-Z]{3}$/.test(String(c.currency || '')) ? c.currency : 'BRL' } : {}) };
+        const clientId = `${parseInt(sha256(contact.id).slice(0, 8), 16)}.${parseInt(sha256(contact.id).slice(8, 16), 16)}`;
+        outbox(s, { kind: 'ga4-event', runId: run.id, measurementId, clientId, userId: contact.id, event: { name, params } });
+        return `${name} na fila para o Google Analytics`;
+      }
       case 'google_ads_conversion': {
         // Offline conversion: the click that brought the contact (gclid from the attribution) and, if chosen, the
         // hashed e-mail and phone (enhanced conversions for leads). The server sends it with the Google Ads connection.

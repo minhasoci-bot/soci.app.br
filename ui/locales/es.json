@@ -5202,5 +5202,19 @@
   "ex.: 6543210987 (Metas → Conversões no Google Ads)": "ej.: 6543210987 (Objetivos → Conversiones en Google Ads)",
   "Mandar e-mail e telefone com hash": "Enviar correo y teléfono con hash",
   "Não, só o clique (gclid)": "No, solo el clic (gclid)",
-  "Sim (conversões otimizadas para leads)": "Sí (conversiones mejoradas para leads)"
+  "Sim (conversões otimizadas para leads)": "Sí (conversiones mejoradas para leads)",
+  "Enviar evento para o Google Analytics": "Enviar evento a Google Analytics",
+  "Manda um evento do contato para a sua propriedade do GA4 (Measurement Protocol), como lead gerado ou compra, com valor opcional. O contato vai só com um identificador da Soci (nada de e-mail ou telefone). Precisa do ID de medição e do segredo da API em Marketing → Rastreamento.": "Envía un evento del contacto a su propiedad de GA4 (Measurement Protocol), como lead generado o compra, con valor opcional. El contacto va solo con un identificador de Soci (sin correo ni teléfono). Necesita el ID de medición y el secreto de la API en Marketing → Seguimiento.",
+  "Lead gerado (generate_lead)": "Lead generado (generate_lead)",
+  "Lead qualificado (qualify_lead)": "Lead calificado (qualify_lead)",
+  "Lead convertido (close_convert_lead)": "Lead convertido (close_convert_lead)",
+  "Compra (purchase)": "Compra (purchase)",
+  "Cadastro (sign_up)": "Registro (sign_up)",
+  "ex.: proposta_enviada": "ej.: propuesta_enviada",
+  "Segredo da API do GA4 (Measurement Protocol)": "Secreto de la API de GA4 (Measurement Protocol)",
+  "Configurado. Deixe vazio para manter": "Configurado. Déjelo vacío para mantenerlo",
+  "Opcional, para os fluxos enviarem eventos": "Opcional, para que los flujos envíen eventos",
+  "O segredo fica guardado com criptografia no servidor e não aparece de novo aqui. Ele é criado no GA4 em Administrador → Fluxos de dados → Chaves secretas da API do Measurement Protocol.": "El secreto queda guardado con cifrado en el servidor y no vuelve a aparecer aquí. Se crea en GA4 en Administrar → Flujos de datos → Secretos de la API de Measurement Protocol.",
+  "Remover segredo": "Quitar secreto",
+  "Segredo do GA4 removido.": "Secreto de GA4 quitado."
 }

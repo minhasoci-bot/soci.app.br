@@ -438,6 +438,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'workflow-outbox-take') { const items = s.workflowOutbox || []; s.workflowOutbox = []; return items; }
   if (type === 'ad-settings') { saveAdSettings(s, d); return 'ok'; }
   if (type === 'tracking-settings') { saveTracking(s, d); return 'ok'; }
+  // Server-internal: the GA4 API secret itself stays sealed on the server; the sub-account only knows it is set.
+  if (type === 'tracking-ga4-secret') { trackingOf(s).ga4SecretSet = Boolean(d.set); return 'ok'; }
   if (type === 'tracking-event') return trackingEvent(s, d, { add, run, now });
   if (type === 'affiliate-settings') return saveAffiliateSettings(s, d);
   if (type === 'affiliate-portal-link') return issuePortalToken(s, str(id, 40));
@@ -459,7 +461,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'workflow-outbox-result') {
     for (const item of Array.isArray(d.results) ? d.results.slice(0, 500) : []) {
       const target = find(s, 'runs', item?.runId);
-      if (target) target.results.push(`${({ whatsapp: 'WhatsApp', email: 'E-mail', app: 'App', access: 'Acesso', copy: 'Cópia', meta: 'Meta', google: 'Google Ads' })[item.kind] || 'Webhook'}: ${str(item.text, 120)}`);
+      if (target) target.results.push(`${({ whatsapp: 'WhatsApp', email: 'E-mail', app: 'App', access: 'Acesso', copy: 'Cópia', meta: 'Meta', google: 'Google Ads', ga4: 'Google Analytics' })[item.kind] || 'Webhook'}: ${str(item.text, 120)}`);
       if (item?.failed && item.messageId) engine.messageFailed(s, { messageId: str(item.messageId, 40), reason: str(item.failed, 40) }, 1);
       const doc = item?.docId ? find(s, 'documents', item.docId) : item?.estimateId ? find(s, 'estimates', item.estimateId) : item?.invoiceId ? find(s, 'invoices', item.invoiceId) : item?.checkoutId ? (s.abandonedCheckouts || []).find(row => row.id === item.checkoutId) : item?.giftCardId ? (s.giftCards || []).find(row => row.id === item.giftCardId) : null;
       if (doc) (doc.audit ||= []).push({ at: now(), event: 'delivered', detail: str(item.text, 200) });
