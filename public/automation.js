@@ -310,7 +310,8 @@ function workflowList(c, tab, id) {
     const statusToggle = `<button type="button" class="wf-toggle-btn ${row.active ? 'active' : ''}" data-wf="quick-toggle" data-wf-id="${h(row.id)}" role="switch" aria-checked="${row.active}" title="${row.active ? 'Publicado (clique para pausar)' : 'Rascunho (clique para publicar)'}"><span class="wf-toggle-track"><span class="wf-toggle-thumb"></span></span><span class="wf-toggle-text">${row.active ? 'Publicado' : 'Rascunho'}</span></button>`;
     const openGlyph = `<svg class="wf-external-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h7v7M13 3L7 9"/></svg>`;
     return `<tr><td>${link('builder', `<strong>${h(row.name)}</strong>${openGlyph}`, row.id, 'wf-name')}
-      <span class="wf-sub">${h(workflowTriggerText(row, s))}</span></td>
+      <span class="wf-sub">${h(workflowTriggerText(row, s))}</span>
+      <button type="button" class="wf-text bui-flow-toggle" data-bui-flow="${h(row.id)}" aria-expanded="false">Ver fluxo</button></td>
       <td>${statusToggle}</td>
       <td>${link('enrollments', summary?.total || '0', row.id, 'wf-count')}</td>
       <td>${summary?.active || '0'}</td>

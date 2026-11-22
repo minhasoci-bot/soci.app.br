@@ -358,7 +358,7 @@ export function dashboard(c) {
     <div class="dash-quick"><button data-dash-act="quick" ${compatible ? '' : 'disabled'} title="${compatible ? 'Filtrar widgets de contatos por tag' : 'Nenhum widget deste painel aceita filtros rápidos'}">Filtros rápidos</button>
     ${compatible && c.dash.showQuick ? selectMarkup('Tag do contato','data-dash-quick',c.dash.quickTag,tags.map(label => [label,label]),'Todas as tags') : ''}
     ${saved.timezone ? `<span class="dash-zone">${icon('clock',14)} Fuso do painel: ${h(saved.timezone)}</span>` : ''}</div>
-    ${editing ? `<div class="dash-edit-layout">${library(c,board)}${grid}</div>` : grid}</div>`;
+    ${editing ? `<div class="dash-edit-layout">${library(c,board)}${grid}</div>` : `<div class="dash-bui-row" data-bui="dashboard-ai" aria-label="Insights e próximo passo"></div>${grid}`}</div>`;
 }
 
 const gaugeValues = new Map();

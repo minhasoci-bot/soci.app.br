@@ -18,8 +18,31 @@ O soci.app não usa React nem Tailwind, então nada daqui é servido. A versão 
 
 Todos os 27 itens estão portados. Vitrine com todos em `/beautiful-ui.html` (dados de exemplo).
 
-Em uso no app: chat Pergunte à Soci (loader, raciocínio, cursor), teste de agentes (loader) e "Testar a busca"
-das bases de conhecimento (ContextCards).
+## Onde cada componente está em uso
+
+`ui/bui-mounts.js` monta os componentes depois de cada render: as telas deixam marcadores `data-bui="…"`
+e as ações reaproveitam os handlers do app (`data-edit`, `data-go`, `data-task`…).
+
+| Componente | Onde |
+| --- | --- |
+| LoadingState, ThinkingState, StreamText (cursor) | Pergunte à Soci; teste e construtor de agentes |
+| PromptBar | Compositor do teste de agentes (`/` traz mensagens de teste prontas, ditado por voz) |
+| StreamingText | Resposta do agente no teste, com as bases consultadas como fontes |
+| ChatComposer (visual do fio) | Construtor de agentes por chat |
+| ApprovalCard | "Prefere responder a algumas perguntas?" na criação de agente |
+| TaskRows | Painel Atividade do agente |
+| ToolChips | Logs dos agentes (fontes consultadas) |
+| ContextCards | Bases de conhecimento → Testar a busca |
+| SelectionActions | IA de conteúdo nos editores (prévia antes de aplicar) |
+| RecordsTable | Contatos → Listas inteligentes |
+| FilterTable | Contatos → Tarefas |
+| DiffTable | Prévia da importação de contatos (CSV) |
+| Search | Busca global (Ctrl K), na subconta e na agência |
+| InsightCards, RecommendationCard | Topo do Painel (dados reais de oportunidades, contatos e tarefas) |
+| Flowchart | "Ver fluxo" na lista de workflows |
+| CodeBlock | Código de rastreamento; documentação de API e apps da agência |
+| FineTuneCard | Editor de e-mail: blocos de imagem (largura, alinhamento) e espaçador (altura) |
+| SidebarNav | Só na vitrine. Os lugares que ela caberia (barra lateral do app, histórico da Soci) perderiam recursos que já existem. |
 
 Diferenças em relação ao original:
 - InsightCards usa um gráfico SVG próprio (`lineChart`) no lugar da lib `liveline`.

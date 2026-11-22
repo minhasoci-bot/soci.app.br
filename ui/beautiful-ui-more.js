@@ -27,7 +27,7 @@ export function searchList({ items = [], placeholder = 'Buscar…', label = 'Bus
 
   function paint() {
     const q = fold(input.value.trim());
-    const results = q ? items.filter(item => fold(item.label ?? item).includes(q)) : items.slice(0, limit);
+    const results = q ? items.filter(item => fold(`${item.label ?? item} ${item.keywords || ''}`).includes(q)).slice(0, 12) : items.filter(item => !item.searchOnly).slice(0, limit);
     clear.hidden = !input.value;
     if (q.length > 2 && !results.length) {
       const box = node('div', 'bui-search-empty');
@@ -108,7 +108,8 @@ export function filterTable({ columns = [], rows = [], statuses = [], statusKey 
       const line = node('div', 'bui-filter-row');
       columns.forEach((c, i) => {
         const cell = node('span', i === 0 ? 'is-strong' : '');
-        if (c.key === statusKey) cell.append(pill(r[c.key]));
+        if (c.render) cell.append(c.render(r));
+        else if (c.key === statusKey) cell.append(pill(r[c.key]));
         else cell.append(node('span', null, r[c.key] ?? ''));
         line.append(cell);
       });
@@ -200,7 +201,7 @@ export function codeBlock({ filename = 'arquivo', lines = [], diff = null, code,
  * columns: [{ key, label, width? }]
  * rows: [{ key, values: {...}, change?: 'remove' | 'add' }]
  */
-export function diffTable({ title = 'Alterações propostas', columns = [], rows = [], hint = 'Clique nas linhas alteradas para incluir ou tirar', onApply } = {}) {
+export function diffTable({ title = 'Alterações propostas', columns = [], rows = [], hint = 'Clique nas linhas alteradas para incluir ou tirar', applyButton = true, onApply, onChange } = {}) {
   const el = node('div', 'bui-card bui-diff');
   const bar = node('div', 'bui-diff-bar');
   const hintEl = node('small', null, hint);
@@ -232,7 +233,7 @@ export function diffTable({ title = 'Alterações propostas', columns = [], rows
         row.tabIndex = 0;
         row.setAttribute('role', 'checkbox');
         row.setAttribute('aria-checked', String(on));
-        const toggle = () => { include[r.key] = !include[r.key]; paint(); };
+        const toggle = () => { include[r.key] = !include[r.key]; paint(); onChange?.(rows.filter(x => x.change && include[x.key])); };
         row.addEventListener('click', toggle);
         row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
       }
@@ -250,6 +251,8 @@ export function diffTable({ title = 'Alterações propostas', columns = [], rows
       foot.replaceChildren(ok);
       return;
     }
+    const summary = node('small', null, `${plural(removals, 'remoção', 'remoções')} · ${plural(additions, 'inclusão', 'inclusões')}`);
+    if (!applyButton) { foot.replaceChildren(summary); return; }
     const apply = button(`Aplicar ${plural(total, 'alteração', 'alterações')}`, { variant: 'accent' });
     apply.disabled = total === 0;
     apply.addEventListener('click', () => {
@@ -257,7 +260,7 @@ export function diffTable({ title = 'Alterações propostas', columns = [], rows
       paint();
       onApply?.(rows.filter(r => r.change && include[r.key]));
     });
-    foot.replaceChildren(node('small', null, `${plural(removals, 'remoção', 'remoções')} · ${plural(additions, 'inclusão', 'inclusões')}`), apply);
+    foot.replaceChildren(summary, apply);
   }
   paint();
   return { el, destroy() {} };
@@ -269,7 +272,7 @@ export function diffTable({ title = 'Alterações propostas', columns = [], rows
  * text: string com marcadores [n] para citar sources[n-1]
  * sources: [{ name, domain, href, image? }]
  */
-export function streamingText({ text = '', sources = [], followUps = [], labels = {}, wordMs = 55, onFollowUp, onAction, onDone } = {}) {
+export function streamingText({ text = '', sources = [], followUps = [], labels = {}, wordMs = 55, actions: shown = ['copy', 'retry', 'up', 'down'], onFollowUp, onAction, onDone } = {}) {
   const t = { sources: `${sources.length} ${sources.length === 1 ? 'fonte' : 'fontes'}`, followUps: 'Continue com', ...labels };
   const el = node('div', 'bui-streaming');
   const p = node('p', 'bui-streaming-text');
@@ -313,7 +316,7 @@ export function streamingText({ text = '', sources = [], followUps = [], labels 
     ['up', 'Resposta boa', '<path d="M7 10v12M15 5.88L14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88z"/>'],
     ['down', 'Resposta ruim', '<path d="M17 14V2M9 18.12L10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88z"/>']
   ];
-  for (const [key, label, path] of ACTIONS) {
+  for (const [key, label, path] of ACTIONS.filter(([key]) => shown.includes(key))) {
     const b = node('button', 'bui-icon-btn is-sm');
     b.type = 'button';
     b.setAttribute('aria-label', label);
@@ -506,7 +509,7 @@ export function promptBar({ sources = [], commands = [], models = [], model, pil
   send.type = 'button';
   send.setAttribute('aria-label', 'Enviar');
   send.append(svg('<path d="M12 19V5M5 12l7-7 7 7"/>', { size: 16, width: 2.4 }));
-  controls.append(plus, input);
+  controls.append(...(sources.length ? [plus] : []), input);
   if (models.length) controls.append(modelBtn);
   if (SpeechRec) controls.append(mic);
   controls.append(send);
@@ -616,7 +619,7 @@ export function promptBar({ sources = [], commands = [], models = [], model, pil
       const names = await onAttach?.();
       if (names?.length) { attachments.push(...names); paintFiles(); }
     } else if (kind === 'at') input.value = `${before}@${row.name} `;
-    else input.value = `${before}${row.name} `;
+    else input.value = row.text ? `${before}${row.text}` : `${before}${row.name} `;
     plusOpen = false;
     dismissed = false;
     paint();
@@ -1053,7 +1056,9 @@ function smoothValues(values, per = 9) {
     }
   }
   out.push(values[n - 1]);
-  return out;
+  // A curva não pode passar dos valores reais (ex.: ficar negativa entre semanas sem venda).
+  const lo = Math.min(...values), hi = Math.max(...values);
+  return out.map(v => Math.min(hi, Math.max(lo, v)));
 }
 
 /** series: [{ name, values, color }] · format(v) */
@@ -1309,27 +1314,33 @@ export function scrubField({ label, value = 0, min = 0, max = 100, step = 1, suf
 const SEG_SHAPES = {
   row: '<rect x="2" y="9" width="5" height="6" rx="1.2"/><rect x="9.5" y="9" width="5" height="6" rx="1.2"/><rect x="17" y="9" width="5" height="6" rx="1.2"/>',
   col: '<rect x="8" y="3" width="8" height="7" rx="1.2"/><rect x="8" y="14" width="8" height="7" rx="1.2"/>',
-  grid: '<rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><rect x="13" y="13" width="7" height="7" rx="1.2"/>'
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><rect x="13" y="13" width="7" height="7" rx="1.2"/>',
+  alignLeft: '<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>',
+  alignCenter: '<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>',
+  alignRight: '<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>'
 };
 
 /**
  * fields: [{ key, label, value, min, max, step?, suffix? }] · options: string[]
  * segments: [{ key, label, shape: 'row' | 'col' | 'grid' }]
  */
-export function fineTuneCard({ title = 'Ajustes', fields = [], options = [], segments, labels = {}, onChange } = {}) {
+export function fineTuneCard({ title = 'Ajustes', fields = [], options = [], segments, segment, labels = {}, onChange } = {}) {
   const t = { layout: 'Layout', type: 'Tipo', placeholder: 'Escolher', adjust: 'Ajustar', edited: 'Editado', ...labels };
-  const segs = segments || [{ key: 'row', label: 'Linha', shape: 'row' }, { key: 'col', label: 'Coluna', shape: 'col' }, { key: 'grid', label: 'Grade', shape: 'grid' }];
+  const segs = segments ?? [{ key: 'row', label: 'Linha', shape: 'row' }, { key: 'col', label: 'Coluna', shape: 'col' }, { key: 'grid', label: 'Grade', shape: 'grid' }];
+  const firstSeg = segs.some(s => s.key === segment) ? segment : segs[0]?.key;
+  const firstIndex = Math.max(0, segs.findIndex(s => s.key === firstSeg));
   const el = node('div', 'bui-card bui-tune');
   const head = node('div', 'bui-tune-head');
   const status = node('span');
   head.append(node('b', null, title), status);
   const body = node('div', 'bui-card-pad bui-tune-body');
-  body.append(node('p', null, t.layout));
+  if (segs.length) body.append(node('p', null, t.layout));
   const seg = node('div', 'bui-tune-seg');
   seg.style.setProperty('--n', segs.length);
   const thumb = node('span', 'bui-tune-thumb');
   seg.append(thumb);
-  const state = { segment: segs[0].key, values: Object.fromEntries(fields.map(f => [f.key, f.value])), type: null };
+  thumb.style.transform = `translateX(${firstIndex * 100}%)`;
+  const state = { segment: firstSeg, values: Object.fromEntries(fields.map(f => [f.key, f.value])), type: null };
   const emit = () => { paintStatus(); onChange?.({ ...state, values: { ...state.values } }); };
   segs.forEach((s, i) => {
     const b = node('button', 'bui-tune-seg-btn');
@@ -1342,10 +1353,10 @@ export function fineTuneCard({ title = 'Ajustes', fields = [], options = [], seg
       seg.querySelectorAll('.bui-tune-seg-btn').forEach((x, j) => x.setAttribute('aria-pressed', String(j === i)));
       emit();
     });
-    b.setAttribute('aria-pressed', String(i === 0));
+    b.setAttribute('aria-pressed', String(i === firstIndex));
     seg.append(b);
   });
-  body.append(seg);
+  if (segs.length) body.append(seg);
   for (let i = 0; i < fields.length; i += 2) {
     const pair = node('div', 'bui-tune-pair');
     for (const f of fields.slice(i, i + 2)) {
@@ -1392,7 +1403,7 @@ export function fineTuneCard({ title = 'Ajustes', fields = [], options = [], seg
     el.append(foot);
   }
   function paintStatus() {
-    const changed = state.segment !== segs[0].key || state.type || fields.some(f => state.values[f.key] !== f.value);
+    const changed = state.segment !== firstSeg || state.type || fields.some(f => state.values[f.key] !== f.value);
     status.className = changed ? 'bui-tune-edited' : 'bui-tune-adjust';
     if (changed) status.replaceChildren(svg(CHECK, { size: 10, width: 3 }), document.createTextNode(t.edited));
     else {
@@ -1422,7 +1433,7 @@ export const selectionIcons = SA_ICONS;
  * actions: { primary: [{ id, label, icon, busy? , run? }], more: [...] } — sem `run` o botão só avisa onAction
  * onRun(instruction, original) → Promise<string> com o texto reescrito
  */
-export function selectionActions({ lead = '', original = '', actions, labels = {}, onRun, onAction, onKeep, onDiscard } = {}) {
+export function selectionActions({ lead = '', original = '', actions, labels = {}, prompt = true, onRun, onAction, onKeep, onDiscard, onError } = {}) {
   const t = { keep: 'Manter', discard: 'Descartar', placeholder: 'Descreva a edição', editing: 'Editando', ...labels };
   const acts = actions || {
     primary: [{ id: 'explain', label: 'Explicar', icon: 'explain' }, { id: 'improve', label: 'Melhorar', icon: 'improve', busy: 'Melhorando', run: 'Melhorar' }],
@@ -1460,7 +1471,7 @@ export function selectionActions({ lead = '', original = '', actions, labels = {
     input.setAttribute('aria-label', t.placeholder);
     form.append(input);
     const presets = node('div', 'bui-selection-presets');
-    presets.append(sep());
+    if (prompt) presets.append(sep());
     for (const a of acts.primary) presets.append(pillBtn(a.label, a.icon, () => (a.run ? run(a.run, a.busy) : onAction?.(a.id, current))));
     const more = node('div', 'bui-selection-more');
     for (const a of acts.more) more.append(pillBtn(a.label, a.icon, () => (a.run ? run(a.run, a.busy) : onAction?.(a.id, current))));
@@ -1486,7 +1497,8 @@ export function selectionActions({ lead = '', original = '', actions, labels = {
     form.addEventListener('submit', e => { e.preventDefault(); submit(); });
     send.addEventListener('click', submit);
     input.addEventListener('input', () => { el.classList.toggle('is-typing', Boolean(input.value.trim())); place(); });
-    swap(form, presets, sendWrap);
+    if (prompt) swap(form, presets, sendWrap);
+    else swap(presets);
   }
   function busy(label, thinking) {
     const s = node('span', 'bui-selection-busy');
@@ -1499,7 +1511,7 @@ export function selectionActions({ lead = '', original = '', actions, labels = {
     if (!onRun) return;
     busy(busyLabel || t.editing, true);
     let rewrite;
-    try { rewrite = await onRun(instruction, current); } catch { idle(); return; }
+    try { rewrite = await onRun(instruction, current); } catch (error) { idle(); onError?.(error); return; }
     if (!rewrite) { idle(); return; }
     proposal = rewrite;
     busy(busyLabel || t.editing, false);
@@ -1533,7 +1545,10 @@ export function selectionActions({ lead = '', original = '', actions, labels = {
       if (!lastLine) return;
       const b = pick.getBoundingClientRect();
       const host = el.getBoundingClientRect();
-      floater.style.transform = `translate3d(${Math.round(b.left - host.left + b.width / 2)}px, ${Math.round(lastLine.bottom - host.top + 8)}px, 0) translateX(-50%)`;
+      // Texto longo rola dentro do parágrafo: a barra fica presa à parte visível.
+      const bottom = Math.min(lastLine.bottom, p.getBoundingClientRect().bottom);
+      const x = Math.min(Math.max(b.left - host.left + b.width / 2, 120), Math.max(120, host.width - 120));
+      floater.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(bottom - host.top + 8)}px, 0) translateX(-50%)`;
       floater.classList.add('is-visible');
     });
   }
@@ -1590,14 +1605,14 @@ function tagList(tags) {
  * columns: [{ key, label, type: 'title'|'tags'|'text'|'date'|'status'|'link', width?, sort?: (a, b) => n, statuses?: { value: { label, color } } }]
  * rows: [{ id, ...valores }] · ai: { label, prompt?, compute(row) → Promise<string> } adiciona a coluna de IA pelo “+”
  */
-export function recordsTable({ columns = [], rows = [], ai, footerLabel = 'registros', onSelect, onOpen } = {}) {
+export function recordsTable({ columns = [], rows = [], ai, footerLabel = 'registros', selected: initial = [], onSelect, onOpen } = {}) {
   const el = node('div', 'bui-card bui-rec');
   const scroll = node('div', 'bui-rec-scroll');
   const table = node('table', 'bui-rec-table');
   scroll.append(table);
   el.append(scroll);
   const widths = Object.fromEntries(columns.map(c => [c.key, c.width || (c.type === 'title' ? 260 : 190)]));
-  const selected = new Set();
+  const selected = new Set(initial.filter(id => rows.some(r => r.id === id)));
   let sort = { key: columns[0]?.key, dir: 1 };
   let aiCol = null;
   const aiValues = new Map();

@@ -68,6 +68,8 @@ import { installPrancheta } from './prancheta.js';
 import { applyBrandColor, setThemeAccount } from './graao.js';
 import { installReports } from './reports.js';
 import './phone-input.js';
+import { clickWith, mountBeautifulUI } from './bui-mounts.js';
+import { diffTable, searchList } from './beautiful-ui-more.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
@@ -313,6 +315,7 @@ function render(){
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
   app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}${c.launchpadReturn && c.view!=='launchpad' ? `<div class="lp-return"><a href="#launchpad/${h(c.launchpadReturn)}">${i('left',14)} Voltar ao guia</a><span>Continue a configuração. Seu progresso será reconhecido ao voltar.</span><button class="icon-btn" aria-label="Fechar lembrete do guia" data-act="launchpad-dismiss">${i('close',14)}</button></div>` : ''}<main id="screen" class="screen">${screenHtml}</main></div></div>`;
   if (getLanguage() === 'es') translateDom(app);
+  mountBeautifulUI(G('#screen'), c, { render });
   if(c.view==='conversations'&&c.thread) {const area=G('.thread-messages');if(area)area.scrollTop=area.scrollHeight;}
   if(c.view==='dashboard') { G('#screen').scrollTop=previousScroll; }
   if(c.view==='dashboard' || c.view==='reporting') { drawDashboardGauges(app); }
@@ -351,6 +354,7 @@ function render(){
         root: agentScreen, workspace, model: c.features?.agentModel,
         startAgent: c.s.agents.find(agent => agent.id === c.agentId),
         agents: () => c.s.agents,
+        runs: () => c.s.agentRuns || [],
         request: (operation, data) => api(`/api/agents/${operation}?workspace=${encodeURIComponent(workspace)}`, data),
         updateAgent(id, agent, rerender = true) {
           if (c.workspace !== workspace) return;
@@ -373,7 +377,7 @@ function render(){
 window.addEventListener('beforeunload', event => {
   if (editor?.dirty()) event.preventDefault();
 });
-function rerenderSearch(focusId,value,start,end){ G('#screen').innerHTML=screens[c.view](c);const el=G(`#${focusId}`);if(el){el.value=value;el.focus();el.setSelectionRange(start,end);} }
+function rerenderSearch(focusId,value,start,end){ G('#screen').innerHTML=screens[c.view](c);mountBeautifulUI(G('#screen'),c,{render});const el=G(`#${focusId}`);if(el){el.value=value;el.focus();el.setSelectionRange(start,end);} }
 function close(){ const d=G('#dialog');if(d?.open)d.close();overlay.innerHTML='';if(modalReturn?.isConnected)modalReturn.focus(); }
 function dialog(title,body,{form='',description='',buttons='',key='',id=''}={}){
   modalReturn=document.activeElement;
@@ -799,13 +803,13 @@ document.addEventListener('click',async ev=>{
         location.assign('/login');
         break;
       case 'new-workspace':dialog('Criar workspace',input('Nome do workspace','name','',true),{form:'workspace',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Criar workspace</button>'});break;
-      case 'search':dialog('Buscar no workspace','<label>Encontre um módulo ou contato<input id="global-search" placeholder="Buscar módulos e contatos…" autocomplete="off"></label><div id="search-results"></div>');globalSearch('');break;
+      case 'search':dialog('Buscar no workspace','<div id="search-results" class="bui-search-host"></div>');mountGlobalSearch();break;
       case 'dialer':dialog('Discador','<p>O discador não está conectado. Chamadas de voz exigem a configuração de um provedor de telefonia autorizado.</p>');break;
       case 'updates':dialog('Novidades','<p>A soci está rodando localmente com tudo atualizado.</p>');break;
       case 'notifications':dialog('Notificações',`<p>${c.m.unread} mensage${c.m.unread===1?'m não lida':'ns não lidas'}.</p><button class="secondary" data-go="conversations">Abrir conversas</button>`);break;
       case 'help':dialog('Ajuda','<p>Gerencie contatos, oportunidades, agendamentos, formulários e automações. Acesse Configurações para gerenciar workspaces.</p><button class="secondary" data-go="dashboard">Abrir painel</button>');break;
       case 'reload':await load();render();flash('Workspace atualizado.');break;
-      case 'import':dialog('Importar contatos',`<p>Escolha um arquivo CSV com a coluna <b>name</b>. Opcional: email, phone, company, tags e notes. Até 500 contatos.</p><label>Arquivo CSV<input name="file" type="file" accept=".csv,text/csv" required></label>`,{form:'import',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Importar contatos</button>'});break;
+      case 'import':dialog('Importar contatos',`<p>Escolha um arquivo CSV com a coluna <b>name</b>. Opcional: email, phone, company, tags e notes. Até 500 contatos.</p><label>Arquivo CSV<input name="file" type="file" accept=".csv,text/csv" required></label><div class="bui-import-preview" data-import-preview></div><input type="hidden" name="previewRows">`,{form:'import',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Importar contatos</button>'});mountImportPreview();break;
       case 'opportunity-clear':
         c.opportunityFilters={};c.opportunityList='';c.query='';close();render();G('[data-opp="filters"]')?.focus();break;
       case 'opportunity-sort': case 'opportunity-fields': case 'opportunity-import':
@@ -888,6 +892,56 @@ document.addEventListener('click',async ev=>{
     }
   } catch(e){flash(e.message,true);}
 });
+
+// Busca global (Ctrl K) com o Search do Beautiful UI. Escolher um item reaproveita os handlers
+// data-go / data-ag-go / data-edit do app.
+function mountGlobalSearch(){
+  const host=G('#search-results');
+  if(!host) return;
+  let items;
+  if(location.hash.startsWith('#agency')){
+    const agNavList=[['dashboard','Painel da agência'],['prospecting','Prospecção'],['accounts','Subcontas'],['snapshots','Setups de conta'],['affiliate','Portal de afiliados'],['templates','Biblioteca de modelos'],['partners','Parceiros'],['university','Universidade'],['ideas','Ideias'],['mobile-app','Aplicativo móvel'],['settings','Configurações']];
+    let accounts=[];
+    try{accounts=JSON.parse(localStorage.getItem('ag_db_v1')||'{}').accounts||[];}catch{}
+    items=[...agNavList.map(([k,label])=>({label,keywords:k,run:{agGo:k}})),...accounts.map(a=>({label:a.name||'Subconta',keywords:'subconta',searchOnly:true,run:{agGo:'accounts'}}))];
+  }else{
+    items=[...nav.filter(x=>allowedView(x[0])).map(([k,label])=>({label:tr(label),keywords:k,run:{go:k}})),
+      ...(allowedView('contacts')?c.s.contacts.map(x=>({label:x.name,keywords:`${x.email||''} ${x.phone||''} contato`,searchOnly:true,run:{edit:'contacts',id:x.id}})):[])];
+  }
+  const list=searchList({items,placeholder:'Buscar módulos e contatos…',label:'Buscar no workspace',limit:8,empty:['Nada encontrado','Tente outro nome de módulo ou contato'],onSelect:item=>clickWith(host,item.run)});
+  host.replaceChildren(list.el);
+  list.input.focus();
+}
+
+// Prévia da importação de contatos com a DiffTable: linhas novas entram (verde) e podem ser
+// tiradas com um clique; e-mails que já existem aparecem sem marca e são ignorados.
+function mountImportPreview(){
+  const file=G('#dialog input[name="file"]'), slot=G('#dialog [data-import-preview]'), hidden=G('#dialog input[name="previewRows"]');
+  if(!file||!slot||!hidden) return;
+  file.addEventListener('change',async()=>{
+    slot.replaceChildren();
+    hidden.value='';
+    const f=file.files?.[0];
+    if(!f||f.size>500000) return;
+    let rows;
+    try{rows=parseCSV(await f.text()).slice(0,500);}catch(e){slot.textContent=e.message;return;}
+    if(!rows.length) return;
+    const known=new Set(c.s.contacts.map(x=>String(x.email||'').toLowerCase()).filter(Boolean));
+    const list=rows.map((raw,i)=>({key:String(i),raw,values:{name:raw.name||'—',email:raw.email||'—',company:raw.company||'—'},change:raw.email&&known.has(String(raw.email).toLowerCase())?undefined:'add'}));
+    const shown=list.slice(0,40), rest=list.slice(40).filter(x=>x.change);
+    const sync=included=>{hidden.value=JSON.stringify([...included,...rest].map(x=>x.raw));};
+    sync(shown.filter(x=>x.change));
+    const fresh=list.filter(x=>x.change).length, dupes=list.length-fresh;
+    slot.replaceChildren(diffTable({
+      title:`Prévia: ${fresh} novo(s)${dupes?`, ${dupes} já existe(m)`:''}${list.length>shown.length?` · mostrando ${shown.length} de ${list.length}`:''}`,
+      hint:'Clique num contato novo para tirar da importação',
+      applyButton:false,
+      columns:[{key:'name',label:'Nome',width:'1fr'},{key:'email',label:'E-mail',width:'1.25fr'},{key:'company',label:'Empresa',width:'0.9fr'}],
+      rows:shown,
+      onChange:sync
+    }).el);
+  });
+}
 
 function globalSearch(value){
   const q=value.toLowerCase();
@@ -1046,7 +1100,7 @@ document.addEventListener('submit',async ev=>{
     }
     else if(name==='assistant'){const q=data.prompt.trim();if(q){c.chat.push({self:true,body:q},{body:assistant(q)});render();G('.ask-composer input')?.focus();}return;}
     else if(name==='lead'){await api(`/api/view/f/${f.dataset.workspace}/${f.dataset.id}`,data);f.reset();status.textContent='Thank you. Your information was submitted.';status.classList.add('confirmed');return;}
-    else if(name==='import'){if(data.file.size>500000)throw Error('Choose a CSV file under 500 KB.');const n=await mutate({type:'import',data:{rows:parseCSV(await data.file.text()),file:data.file.name}});msg=`${n} contact${n===1?'':'s'} imported. Existing emails were skipped.`;}
+    else if(name==='import'){if(data.file.size>500000)throw Error('Choose a CSV file under 500 KB.');const previewed=data.previewRows?JSON.parse(data.previewRows):null;if(previewed&&!previewed.length)throw Error('Nenhum contato novo selecionado na prévia.');const n=await mutate({type:'import',data:{rows:previewed||parseCSV(await data.file.text()),file:data.file.name}});msg=`${n} contact${n===1?'':'s'} imported. Existing emails were skipped.`;}
     else if(name==='opportunity-import') {
       if(data.file.size>500000)throw Error('Escolha um CSV de até 500 KB.');
       const n=await mutate({type:name,data:{pipelineId:data.pipelineId,rows:parseCsv(await data.file.text()),file:data.file.name}});

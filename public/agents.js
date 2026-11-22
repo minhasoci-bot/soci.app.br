@@ -1,4 +1,6 @@
 import { icon } from './icons.js';
+import { approvalCard, loadingState, taskRows, thinkingState } from './beautiful-ui.js';
+import { promptBar, streamingText } from './beautiful-ui-more.js';
 import { h } from './screens.js';
 import {
   agentDraft, agentFieldNames, agentIcons, agentLimits, agentResources, agentRevision, agentTemplates, changedAgentFields,
@@ -126,6 +128,8 @@ function homeMain(model, custom = []) {
         <textarea id="agent-describe" name="description" rows="2" maxlength="${agentLimits.request}" required placeholder="Descreva o que o seu agente deve fazer…"></textarea>
         <button class="ags-send" aria-label="Criar agente com esta descrição">${icon('arrow', 17)}</button>
       </form>
+      <button type="button" class="text-link ags-guide-link" data-agent-guide-open>${icon('spark', 14)} Prefere responder a algumas perguntas?</button>
+      <div class="ags-guide" data-agent-guide hidden></div>
       <p class="form-status" role="status" data-describe-status></p>
       ${model ? '' : '<p class="ags-note">Sem uma chave da OpenAI conectada, a descrição vira o rascunho das instruções. <a class="text-link" href="#agency/settings/openai">Conectar a OpenAI</a></p>'}
     </div>
@@ -160,12 +164,9 @@ function chatMain(agent, model, chat) {
       </div>
       ${bubbles}
     </div>
-    <form class="ags-composer" data-agent-test>
+    <div class="ags-composer has-prompt" data-agent-test>
       <span class="ags-test-chip">${chat.version === 'published' ? `Versão ${h(agent.published?.version)}` : 'Modo de teste'}</span>
-      <label class="sr-only" for="agent-test-message">Mensagem para o agente</label>
-      <textarea id="agent-test-message" name="message" rows="1" maxlength="${agentLimits.message}" placeholder="Mensagem para ${h(draft.name)}…" ${model ? '' : 'disabled'}></textarea>
-      <button aria-label="Enviar mensagem" ${model ? '' : 'disabled'}>${icon('send', 16)}</button>
-    </form>
+    </div>
     <p class="form-status ags-chat-status${model ? '' : ' info'}" role="status" data-agent-test-status>${model ? '' : 'Conecte uma chave da OpenAI em Visão da agência → Configurações → OpenAI para conversar com o agente.'}</p>
   </div>`;
 }
@@ -174,12 +175,46 @@ function bubble(entry, name) {
   return `<div class="agent-bubble ${entry.role}"><strong>${entry.role === 'user' ? 'Você' : h(name)}</strong><p>${h(entry.content)}</p></div>`;
 }
 
+// Mensagens prontas para testar o agente pelo “/” do PromptBar.
+const TEST_COMMANDS = [
+  { key: 'oi', name: '/oi', desc: 'Primeiro contato', text: 'Olá! Tudo bem? Queria saber mais sobre vocês.' },
+  { key: 'preco', name: '/preco', desc: 'Pergunta de preço', text: 'Quanto custa o serviço de vocês?' },
+  { key: 'horario', name: '/horario', desc: 'Horário de atendimento', text: 'Qual é o horário de atendimento?' },
+  { key: 'agendar', name: '/agendar', desc: 'Pedido de horário', text: 'Quero agendar um horário para esta semana.' },
+  { key: 'humano', name: '/humano', desc: 'Pedido de atendente', text: 'Prefiro falar com uma pessoa, pode me transferir?' },
+  { key: 'reclamacao', name: '/reclamacao', desc: 'Cliente insatisfeito', text: 'Estou insatisfeito, meu pedido atrasou e ninguém me respondeu.' }
+];
+
+const runDetails = run => [
+  run.model && { label: 'Modelo', meta: run.model },
+  run.inputTokens !== undefined && { label: 'Tokens', meta: `${run.inputTokens} → ${run.outputTokens}` },
+  run.ms !== undefined && { label: 'Duração', meta: `${(run.ms / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s` },
+  run.sources?.length && { label: 'Fontes consultadas', meta: String(run.sources.length) },
+  { label: run.error ? 'Erro' : 'Resposta', meta: (run.error || run.output || '').slice(0, 48) + ((run.error || run.output || '').length > 48 ? '…' : '') }
+].filter(Boolean);
+
 function activityPanel(agent, runs) {
   const list = runs.filter(run => run.agent === agent.id).slice(0, 30);
   if (!list.length) return '<div class="ags-side-empty"><b>Nenhuma atividade ainda</b><p>Cada conversa de teste fica registrada aqui.</p></div>';
-  return `<ol class="ags-runs">${list.map(run => `<li>
-    <div class="ags-run-top"><span class="badge ${run.version === 'published' ? 'green' : ''}">${run.version === 'published' ? 'Versão publicada' : 'Rascunho'}</span><time datetime="${h(run.at)}">${fullFormat.format(new Date(run.at))}</time></div>
-    <p class="ags-run-in">${h(run.input)}</p><p class="ags-run-out">${h(run.output)}</p></li>`).join('')}</ol>`;
+  // TaskRows (Beautiful UI) é montado em mountStudio sobre este marcador.
+  return `<div class="ags-runs-bui" data-agent-runs="${h(agent.id)}"></div>`;
+}
+
+function mountActivity(root, agent, runs) {
+  const slot = root.querySelector('[data-agent-runs]');
+  if (!slot) return;
+  const list = runs.filter(run => run.agent === agent.id).slice(0, 30);
+  slot.replaceChildren(taskRows({
+    list: true,
+    labels: { done: 'Concluída', failed: 'Erro' },
+    rows: list.map((run, i) => ({
+      key: `${run.at}-${i}`,
+      label: run.input || '(sem mensagem)',
+      amount: `${run.version === 'published' ? 'Publicada' : 'Rascunho'} · ${fullFormat.format(new Date(run.at))}`,
+      status: run.error ? 'failed' : 'done',
+      details: runDetails(run)
+    }))
+  }).el);
 }
 
 function approvalsPanel(agent) {
@@ -344,7 +379,10 @@ function builderEntries(log) {
   if (!log.length) return `<div class="builder-empty">${icon('chat', 20)}<b>Edite este agente pelo chat</b>
     <p>Descreva o que quer mudar e o construtor atualiza a configuração ao lado.</p>
     <p class="dim">Experimente “Adicione um gatilho para formulários enviados” ou “Deixe o tom mais descontraído”.</p></div>`;
-  return log.map(entry => `<div class="agent-bubble ${entry.role}${entry.error ? ' error' : ''}"><strong>${entry.role === 'user' ? 'Você' : 'Construtor'}</strong><p>${h(entry.content)}</p></div>`).join('');
+  // Fio no estilo do ChatComposer (Beautiful UI): pedido à direita, resposta do construtor em seção.
+  return log.map(entry => entry.role === 'user'
+    ? `<div class="bui-chat-user"><div class="bui-chat-bubble">${h(entry.content)}</div></div>`
+    : `<div class="bui-chat-reply${entry.error ? ' is-error' : ''}"><div class="bui-chat-meta"><b>Construtor</b><span>${entry.error ? 'Não aplicado' : 'Configuração atualizada'}</span></div><p>${h(entry.content)}</p></div>`).join('');
 }
 
 function editorView(agent, model, workspace) {
@@ -414,10 +452,11 @@ export function mountAgentScreen(options) {
   return mountStudio(options);
 }
 
-function mountStudio({ root, workspace, model = '', startAgent, request, updateAgent, addRun, refresh, agents }) {
+function mountStudio({ root, workspace, model = '', startAgent, request, updateAgent, addRun, refresh, agents, runs = () => [] }) {
   const get = selector => root.querySelector(selector);
   let agent = startAgent && root.dataset.studioAgent === startAgent.id ? startAgent : null;
   let busy = false;
+  if (agent) mountActivity(root, agent, runs());
 
   const items = get('[data-agent-items]');
   const refreshList = () => { items.innerHTML = listItems(agents(), agent?.id); };
@@ -469,6 +508,38 @@ function mountStudio({ root, workspace, model = '', startAgent, request, updateA
       }
     });
   }
+
+  // Roteiro de perguntas (ApprovalCard) que monta a descrição do agente.
+  const guideOpen = get('[data-agent-guide-open]');
+  const guide = get('[data-agent-guide]');
+  if (guideOpen && guide && describe) guideOpen.addEventListener('click', () => {
+    guideOpen.hidden = true;
+    guide.hidden = false;
+    const card = approvalCard({
+      labels: { send: 'Montar agente', skip: 'Pular' },
+      questions: [
+        { q: 'O que o agente vai fazer?', type: 'radio', options: ['Atender clientes e tirar dúvidas', 'Qualificar leads e passar para vendas', 'Agendar horários', 'Recuperar clientes inativos'] },
+        { q: 'Por onde ele vai conversar?', type: 'check', options: ['WhatsApp', 'Instagram', 'Chat do site', 'E-mail'] },
+        { q: 'Qual tom ele deve usar?', type: 'radio', options: ['Profissional', 'Descontraído', 'Empático'] },
+        { q: 'Quando ele deve chamar uma pessoa?', type: 'radio', options: ['Quando o cliente pedir', 'Em reclamações', 'Antes de fechar uma venda'] }
+      ],
+      onSubmit: answers => {
+        const [goal, channels, tone, handoff] = answers.map(item => item.answers);
+        const text = [
+          goal.length ? `Um agente para ${goal.join(' e ').toLowerCase()}.` : '',
+          channels.length ? `Ele conversa por ${channels.join(', ')}.` : '',
+          tone.length ? `Tom ${tone[0].toLowerCase()}.` : '',
+          handoff.length ? `Passa a conversa para uma pessoa ${handoff[0].toLowerCase()}.` : ''
+        ].filter(Boolean).join(' ');
+        if (!text) return;
+        describe.elements.description.value = text;
+        autoGrow(describe.elements.description);
+        describe.requestSubmit();
+      },
+      onDismiss: () => { guide.hidden = true; guideOpen.hidden = false; }
+    });
+    guide.replaceChildren(card.el);
+  });
 
   root.addEventListener('click', async event => {
     const target = event.target.closest('button, a');
@@ -596,21 +667,63 @@ function mountStudio({ root, workspace, model = '', startAgent, request, updateA
 
   const transcript = get('[data-agent-transcript]');
   const testForm = get('[data-agent-test]');
-  const input = testForm.elements.message;
   const testStatus = get('[data-agent-test-status]');
   const chat = chats.get(chatKey(workspace, agent.id));
-  transcript.scrollTop = transcript.scrollHeight;
-  input.addEventListener('input', () => autoGrow(input, 160));
-  input.addEventListener('keydown', event => {
-    if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); testForm.requestSubmit(); }
+  // Compositor (PromptBar): “/” traz mensagens de teste prontas; o microfone dita quando o navegador permite.
+  const prompt = promptBar({
+    commands: TEST_COMMANDS,
+    placeholder: `Mensagem para ${agent.name}… (/ para mensagens de teste)`,
+    onSend: ({ text }) => send(text)
   });
+  testForm.append(prompt.el);
+  const input = prompt.input;
+  input.maxLength = agentLimits.message;
+  input.id = 'agent-test-message';
+  if (!model) { input.disabled = true; prompt.el.querySelectorAll('button').forEach(b => { b.disabled = true; }); }
+  // Resposta nova aparece com StreamingText, com as bases consultadas como fontes.
+  const last = chat.log.at(-1);
+  if (last?.role === 'assistant' && last.fresh) {
+    last.fresh = false;
+    const target = [...transcript.querySelectorAll('.agent-bubble.assistant p')].at(-1);
+    if (target) {
+      const stream = streamingText({
+        text: last.content,
+        wordMs: 28,
+        actions: ['copy', 'retry'],
+        sources: (last.sources || []).map(name => ({ name, domain: name, href: '#ai-agents/knowledge' })),
+        labels: { sources: `${(last.sources || []).length} ${(last.sources || []).length === 1 ? 'base consultada' : 'bases consultadas'}` },
+        onAction: key => {
+          if (key !== 'retry') return;
+          const question = [...chat.log].reverse().find(entry => entry.role === 'user');
+          if (question) { input.value = question.content; input.dispatchEvent(new Event('input')); input.focus(); }
+        }
+      });
+      target.replaceWith(stream.el);
+    }
+  }
+  transcript.scrollTop = transcript.scrollHeight;
+  let loader = null;
+  const showLoader = () => {
+    const wrap = document.createElement('div');
+    wrap.className = 'agent-bubble assistant agent-bubble-loading';
+    wrap.innerHTML = `<strong>${h(agent.name)}</strong>`;
+    loader = loadingState({ label: 'Pensando', since: chat.pendingSince || Date.now() });
+    wrap.append(loader.el);
+    transcript.append(wrap);
+    transcript.scrollTop = transcript.scrollHeight;
+  };
+  const hideLoader = () => {
+    loader?.destroy();
+    loader?.el.closest('.agent-bubble')?.remove();
+    loader = null;
+  };
   if (chat.pending) {
     testForm.inert = true;
     testStatus.textContent = 'Aguardando resposta…';
+    showLoader();
   }
-  testForm.addEventListener('submit', async event => {
-    event.preventDefault();
-    const message = input.value.trim();
+  async function send(text) {
+    const message = String(text || '').trim();
     if (!model || !message || chat.pending) return;
     const config = chat.version === 'published' ? `published:${agent.published?.version}` : agentRevision(agent);
     if (chat.config && chat.config !== config) Object.assign(chat, { messages: [], log: [] });
@@ -618,31 +731,33 @@ function mountStudio({ root, workspace, model = '', startAgent, request, updateA
     const history = [...chat.messages.slice(-8), message];
     chat.log.push({ role: 'user', content: message });
     chat.pending = true;
+    chat.pendingSince = Date.now();
     transcript.insertAdjacentHTML('beforeend', bubble({ role: 'user', content: message }, agent.name));
-    transcript.scrollTop = transcript.scrollHeight;
-    input.value = '';
-    autoGrow(input, 160);
+    showLoader();
     testForm.inert = true;
     testStatus.textContent = 'Aguardando resposta…';
     try {
       const { reply, run } = await request('test', { id: agent.id, revision: agentRevision(agent), version: chat.version, messages: history });
       chat.messages = [...history, reply];
-      chat.log.push({ role: 'assistant', content: reply });
+      chat.log.push({ role: 'assistant', content: reply, sources: run?.sources || [], fresh: true });
       chat.pending = false;
+      hideLoader();
       addRun(run);
     } catch (error) {
       chat.log.pop();
       chat.pending = false;
+      hideLoader();
       if (!root.isConnected) refresh();
       else {
         transcript.lastElementChild?.remove();
         input.value = message;
+        input.dispatchEvent(new Event('input'));
         testStatus.textContent = error.message;
         testForm.inert = false;
         input.focus();
       }
     }
-  });
+  }
   if (!chat.pending && model && !matchMedia('(max-width: 760px)').matches) input.focus({ preventScroll: true });
   return { root, workspace, id: '', flush: async () => true, dirty: () => false };
 }
@@ -921,12 +1036,16 @@ function mountEditor({ root, workspace, model, agent, request, updateAgent }) {
     builderLogs.set(logKey, log);
     log.push({ role: 'user', content: text });
     renderBuilder();
+    const trace = thinkingState({ active: 'Atualizando o agente', working: true, open: true, rows: [{ primary: 'Salvando o rascunho' }] });
+    builderLog.append(trace.el);
+    builderLog.scrollTop = builderLog.scrollHeight;
     buildField.value = '';
     autoGrow(buildField, 160);
-    buildStatus.textContent = 'Atualizando o agente…';
+    buildStatus.textContent = '';
     try {
       if (!await save(true)) throw new Error('Resolva as pendências do rascunho e tente de novo.');
       committing = form.inert = true;
+      trace.setRows([{ primary: 'Salvando o rascunho' }, { primary: 'Lendo o pedido', secondary: text.length > 40 ? `${text.slice(0, 40)}…` : text }, { primary: 'Ajustando a configuração' }]);
       const result = await request('build', { id: agent.id, revision: agentRevision(agent), request: text });
       agent = result.agent;
       updateAgent(agent.id, agent);

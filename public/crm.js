@@ -38,6 +38,9 @@ const page = content => `<div class="page">${content}</div>`;
 
 // ---- Selection for bulk actions ---------------------------------------------------------------
 const picked = { contacts: new Set(), opportunities: new Set() };
+// Usados pela RecordsTable (bui-mounts.js), que cuida das próprias caixas de seleção.
+export const pickedIds = object => [...picked[object]];
+export function setPicked(object, ids) { picked[object] = new Set(ids); }
 export const pickBox = (object, id) => `<input type="checkbox" data-crm-pick="${object}" value="${id}" ${picked[object].has(id) ? 'checked' : ''} aria-label="Selecionar registro">`;
 export const pickCell = (object, id) => `<td class="crm-pick"><input type="checkbox" data-crm-pick="${object}" value="${id}" ${picked[object].has(id) ? 'checked' : ''} aria-label="Selecionar registro"></td>`;
 export const pickHead = (object, ids) => `<input type="checkbox" data-crm-all="${object}" data-ids="${ids.join(',')}" ${ids.length && ids.every(id => picked[object].has(id)) ? 'checked' : ''} aria-label="Selecionar todos">`;

@@ -387,3 +387,20 @@ a.kb-card:hover { border-color: var(--g-brand-line); box-shadow: var(--g-shadow-
   .kb-source-head > label { flex: 1 1 100%; }
   .kb-footer { flex-wrap: wrap; }
 }
+
+/* Beautiful UI nos agentes */
+.ags-composer.has-prompt { display: grid; gap: 6px; }
+.ags-composer.has-prompt .ags-test-chip { position: static; padding-left: 6px; }
+.ags-composer.has-prompt .bui-prompt-box { border-radius: 18px; box-shadow: var(--g-shadow, 0 1px 2px rgba(15, 19, 26, .05)); }
+.agent-bubble .bui-streaming { margin-top: 2px; }
+.agent-bubble .bui-streaming-text { font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.builder-log .bui-chat-user { padding-left: 15%; }
+.builder-log .bui-chat-reply.is-error p { color: var(--bui-red); }
+.builder-log .bui-thinking { max-width: 420px; }
+.ags-guide-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; border: 0; background: none; font-size: 13px; cursor: pointer; }
+.ags-guide { display: flex; width: 100%; justify-content: center; margin-top: 8px; text-align: left; }
+.ags-runs-bui .bui-tasks { max-width: none; }
+.ags-runs-bui .bui-task-amount { font-size: 11.5px; }
+.builder-log .bui-chat-bubble { background: var(--g-surface, #fff); box-shadow: 0 0 0 1px var(--g-line, #e2e5ea); }
+/* O textarea do PromptBar não herda o visual antigo do compositor. */
+.ags-composer.has-prompt textarea.bui-prompt-input { display: block; width: auto; min-height: 28px; max-height: 100px; padding: 5px 4px !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; line-height: 18px; }

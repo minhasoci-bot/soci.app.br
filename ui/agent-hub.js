@@ -6,7 +6,7 @@ import { agentLimits } from './agents-data.js';
 import {
   formatTokens, formatUsd, kbLimits, modelPrice, retrieveKnowledge, sourceKinds, usageKinds, usageMonths, usageSummary
 } from './ai-data.js';
-import { contextCards } from './beautiful-ui.js';
+import { contextCards, toolChips } from './beautiful-ui.js';
 
 const sourceBadges = {
   text: { badge: 'TXT', tone: 'var(--bui-ink-3)' },
@@ -156,7 +156,7 @@ function logsView(s) {
       <td>${runKinds[run.kind || 'test']}${run.version === 'published' ? ' <span class="badge blue">Publicado</span>' : ''}</td>
       <td><details class="log-detail"><summary>${h(run.input)}</summary>
         ${run.error ? `<p class="log-error">${h(run.error)}</p>` : `<p>${h(run.output)}</p>`}
-        ${run.sources?.length ? `<p class="dim">Fontes consultadas: ${run.sources.map(h).join(', ')}</p>` : ''}</details></td>
+        ${run.sources?.length ? `<div class="log-tools" data-log-tools="${h(JSON.stringify({ sources: run.sources, model: run.model || '' }))}"><p class="dim">Fontes consultadas: ${run.sources.map(h).join(', ')}</p></div>` : ''}</details></td>
       <td class="log-usage">${run.cost !== undefined ? `<b>${formatUsd(run.cost)}</b>` : '—'}
         <small class="dim">${[run.model, run.inputTokens !== undefined && `${formatTokens(run.inputTokens)} → ${formatTokens(run.outputTokens)} tokens`,
           run.ms !== undefined && `${(run.ms / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s`].filter(Boolean).map(h).join(' · ')}</small></td>
@@ -376,6 +376,14 @@ export function mountAgentHub({ root, state, request, rerender, createAgent, fla
   }
 
   if (screen === 'logs') {
+    // Fontes consultadas viram ToolChips (Beautiful UI): uma linha por base, abre para ver o modelo.
+    for (const slot of root.querySelectorAll('[data-log-tools]')) {
+      let data;
+      try { data = JSON.parse(slot.dataset.logTools); } catch { continue; }
+      const steps = data.sources.map(name => ({ icon: 'read', label: 'Consultou', chip: name }));
+      if (data.model) steps.push({ icon: 'write', label: 'Respondeu', chip: data.model, mono: true });
+      slot.replaceChildren(toolChips({ header: `${data.sources.length} ${data.sources.length === 1 ? 'fonte consultada' : 'fontes consultadas'}`, steps, open: false }).el);
+    }
     for (const control of root.querySelectorAll('[data-log-filter]')) {
       control.addEventListener(control.type === 'search' ? 'input' : 'change', () => {
         filters[control.dataset.logFilter] = control.value;

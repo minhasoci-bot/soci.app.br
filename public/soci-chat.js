@@ -4,6 +4,7 @@ import { Marked } from '/vendor/marked.js';
 import DOMPurify from '/vendor/purify.js';
 import { highlight } from '/highlight.js';
 import { icon as baseIcon, logo as sociLogo } from './icons.js';
+import { loadingState, thinkingState } from './beautiful-ui.js';
 
 const MAX_ATTACHMENTS = 10;
 const MAX_TEXT_FILE = 512 * 1024;
@@ -773,15 +774,10 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     return turn;
   }
 
+  const thoughtFor = ms => (ms ? `Pensou por ${Math.max(1, Math.round(ms / 1000))}s` : 'Raciocínio');
+
   function reasoningBlock(text, ms) {
-    const wrap = el('div', 'sc-reasoning');
-    const btn = el('button', 'sc-reasoning-toggle');
-    btn.type = 'button';
-    btn.dataset.scAction = 'toggle-reasoning';
-    btn.append(el('span', 'sc-reasoning-label', ms ? `Pensou por ${Math.max(1, Math.round(ms / 1000))}s` : 'Raciocínio'));
-    btn.insertAdjacentHTML('beforeend', icon('chevronDown', 15));
-    wrap.append(btn, el('div', 'sc-reasoning-body', text));
-    return wrap;
+    return thinkingState({ working: false, done: thoughtFor(ms), text }).el;
   }
 
   function errorTurn(error) {
@@ -941,12 +937,13 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     av.setAttribute('aria-hidden', 'true');
     av.innerHTML = sociLogo;
     const body = el('div', 'sc-assistant-body');
-    const thinking = el('span', 'sc-thinking', 'Pensando');
+    const loader = loadingState({ label: 'Pensando' });
+    loader.el.classList.add('sc-loading');
     const md = el('div', 'sc-markdown streaming');
-    body.append(thinking, md);
+    body.append(loader.el, md);
     row.append(av, body);
     turn.append(row);
-    return { el: turn, body, thinking, md, reasoningEl: null };
+    return { el: turn, body, thinking: loader.el, loader, md, trace: null, reasoningEl: null };
   }
 
   async function runStream({ action, parentId, message }) {
@@ -1017,21 +1014,24 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
   function onReasoning(stream, v) {
     stream.reasoning += v;
     if (!stream.reasoningEl) {
-      stream.reasoningEl = reasoningBlock('', 0);
-      stream.reasoningEl.querySelector('.sc-reasoning-label').textContent = 'Pensando';
+      stream.trace = thinkingState({ active: 'Pensando', working: true, open: true });
+      stream.reasoningEl = stream.trace.el;
       stream.thinking.hidden = true;
+      stream.loader.destroy();
       stream.body.prepend(stream.reasoningEl);
     }
-    stream.reasoningEl.querySelector('.sc-reasoning-body').textContent = stream.reasoning;
+    stream.trace.setText(stream.reasoning);
     followBottom();
   }
 
   function onDelta(stream, v) {
     if (!stream.text) {
       stream.thinking.hidden = true;
-      if (stream.reasoningEl) {
+      stream.loader.destroy();
+      if (stream.trace) {
         stream.reasoningMs = Date.now() - stream.started;
-        stream.reasoningEl.querySelector('.sc-reasoning-label').textContent = `Pensou por ${Math.max(1, Math.round(stream.reasoningMs / 1000))}s`;
+        stream.trace.setDone(thoughtFor(stream.reasoningMs));
+        stream.trace.setWorking(false);
       }
     }
     stream.text += v;
@@ -1067,6 +1067,7 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
   function finishStream(stream, assistant, errorMessage) {
     if (state.stream !== stream) return;
     cancelAnimationFrame(stream.frame);
+    stream.loader.destroy();
     state.stream = null;
     const conv = stream.conv;
     if (assistant && !conv.mapping[assistant.id]) {
@@ -1820,7 +1821,7 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
         if (state.error) regenerate(state.error.parentId);
         break;
       case 'toggle-reasoning':
-        target.closest('.sc-reasoning').classList.toggle('open');
+        target.closest('.sc-reasoning')?.classList.toggle('open');
         break;
       case 'open-image': {
         const blob = await (await fetch(target.src)).blob();
