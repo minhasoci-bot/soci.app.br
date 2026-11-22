@@ -121,7 +121,7 @@ export function afterSave(s, key, prior, row, add) {
     for (const contact of s.contacts) if (contact.company && same(contact.company, prior.name)) contact.company = row.name;
   if (key === 'customFields' && prior && prior.type !== row.type)
     for (const list of ['contacts', 'opportunities', 'companies']) for (const r of s[list]) if (r.custom) delete r.custom[row.id];
-  if (key === 'coupons' && prior) row.redemptions = prior.redemptions || 0;
+  if (key === 'coupons' && prior) { row.redemptions = prior.redemptions || 0; if (prior.expiredFor) row.expiredFor = prior.expiredFor; }
   // A paid invoice books its payment once, the way a gateway would record the charge.
   if (key === 'invoices' && row.status === 'Paid' && prior?.status !== 'Paid' && !s.transactions.some(t => t.invoiceId === row.id))
     add(s, 'transactions', { contactId: row.contactId, amount: row.value, date: new Date().toISOString().slice(0, 10), method: row.paidMethod || 'Manual', source: 'Invoice', status: 'Succeeded', note: row.title, invoiceId: row.id });

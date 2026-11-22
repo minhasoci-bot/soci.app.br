@@ -6,6 +6,7 @@ import { buildWorkflowContext, resolveTemplate } from './expressions.mjs';
 import { scoreTriggerMatches } from './scoring-model.mjs';
 import { canMessage } from './preference-model.mjs';
 import { appActionItem } from './app-studio-model.mjs';
+import { slaRecords } from './ui/conversation-sla.js';
 import { actionSpec, aiExtractFields, aiOptions, aiVariableName, allActions, allTriggers, eachStep, splitPercent, triggerSpec, upgradeWorkflow } from './ui/workflow-data.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
@@ -53,6 +54,28 @@ export function pickSplit(routes, random = Math.random) {
   let ticket = random() * total;
   for (const route of routes) { ticket -= Number(route.percent) || 0; if (ticket < 0 && route.percent > 0) return route; }
   return routes.findLast(route => route.percent > 0);
+}
+// "Formatar lista": a text read as a list (a JSON array, or items split by the separator; "\n" is one per line),
+// trimmed and without empty items. Lists come back joined by `joiner` (comma, semicolon, pipe, and, line, space, none).
+const JOINERS = { comma: ', ', semicolon: '; ', pipe: ' | ', and: ' e ', line: '\n', space: ' ', none: '' };
+export function formatList(value, { op = 'count', separator = ',', position = 1, search = '', joiner = 'comma' } = {}) {
+  const raw = String(value ?? '').trim();
+  let items = null;
+  if (raw.startsWith('[')) try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) items = parsed.map(item => typeof item === 'object' && item ? JSON.stringify(item) : String(item ?? '')); } catch { /* not JSON: split below */ }
+  const sep = String(separator ?? '') || ',';
+  items = (items ?? raw.split(sep === '\\n' ? '\n' : sep)).map(item => item.trim()).filter(Boolean);
+  const join = list => list.join(JOINERS[joiner] ?? JOINERS.comma);
+  switch (op) {
+    case 'first': return items[0] ?? '';
+    case 'last': return items.at(-1) ?? '';
+    case 'item': { const n = Math.trunc(Number(position) || 1); return (n < 0 ? items.at(n) : items[n - 1]) ?? ''; }
+    case 'contains': return items.some(item => lower(item) === lower(search)) ? 'yes' : 'no';
+    case 'unique': { const seen = new Set(); return join(items.filter(item => !seen.has(lower(item)) && seen.add(lower(item)))); }
+    case 'sort': return join([...items].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base', numeric: true })));
+    case 'reverse': return join([...items].reverse());
+    case 'join': return join(items);
+    default: return String(items.length);
+  }
 }
 const MAX_STEPS = 120, MAX_DEPTH = 4, CONDITIONS = ['tag', 'field', 'dnd', 'stage', 'opportunity_status', 'replied', 'submitted', 'trigger', 'var'];
 const AI_TIMEOUT = 10 * 60000;
@@ -289,7 +312,8 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'app_trigger': return !c.trigger || c.trigger === `${ctx.appId}:${ctx.key}`;
       case 'service_booked': return (!c.serviceId || c.serviceId === ctx.serviceId) && (!c.kind || c.kind === ctx.kind);
       case 'subscription_status': return !c.status || c.status === ctx.status;
-      case 'coupon_redeemed': case 'coupon_limit_reached': return !c.couponId || c.couponId === ctx.couponId;
+      case 'coupon_redeemed': case 'coupon_limit_reached': case 'coupon_expired': return !c.couponId || c.couponId === ctx.couponId;
+      case 'conversation_sla': return (!c.state || c.state === ctx.state) && (!c.channel || c.channel === ctx.channel);
       case 'cart_updated': return !c.storeId || c.storeId === ctx.storeId;
       default: return scheduledTypes.includes(type) ? ctx.triggerId === trigger.id : true;
     }
@@ -309,7 +333,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
 
   function perform(s, run, node, depth, id) {
     const contact = contactOf(s, run.contactId), c = node.config || {}, text = value => merge(value, s, contact, run);
-    const needsContact = !['internal_notification', 'webhook', 'app_action', 'create_task', 'create_social_post', 'update_custom_value', 'date_format', 'number_format', 'create_contact', 'find_contact'].includes(node.type);
+    const needsContact = !['internal_notification', 'webhook', 'app_action', 'create_task', 'create_social_post', 'update_custom_value', 'date_format', 'number_format', 'list_format', 'create_contact', 'find_contact'].includes(node.type);
     if (needsContact && !contact) return 'sem contato';
     const message = (channel, body, subject = '') => add(s, 'messages', { contactId: contact.id, body: text(body).slice(0, 5000), subject, channel, direction: 'Outbound', read: true, starred: false, origin: 'workflow', workflowId: run.workflowId });
     switch (node.type) {
@@ -552,6 +576,49 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         run.contactId = '';
         return `${name} foi para a lixeira`;
       }
+      case 'merge_contact': {
+        if (!removeRecord) return 'erro: mesclagem indisponível';
+        const by = ['email', 'phone'].includes(c.by) ? c.by : 'any', email = lower(contact.email);
+        const twins = s.contacts.filter(row => row.id !== contact.id && ((by !== 'phone' && email && lower(row.email) === email) || (by !== 'email' && contact.phone && samePhone(contact.phone, row.phone))));
+        if (!twins.length) { output(run, id, { merged: '0', id: contact.id, name: contact.name }); return 'nenhum duplicado'; }
+        const order = row => s.contacts.indexOf(row);
+        const keeper = c.keep === 'oldest' ? [contact, ...twins].sort((a, b) => String(a.created || '').localeCompare(String(b.created || '')) || order(a) - order(b))[0] : contact;
+        const gone = [contact, ...twins].filter(row => row.id !== keeper.id), added = [], wasDnd = Boolean(keeper.dnd);
+        const visitors = s.tracking?.visitors || {};
+        for (const dup of gone) {
+          // The kept contact wins; its empty fields take the duplicate's values. DND from either side is kept.
+          for (const key of ['name', 'email', 'phone', 'company']) if (!keeper[key] && dup[key]) keeper[key] = dup[key];
+          const filled = Object.entries(keeper.custom || {}).filter(([, value]) => value !== '' && value != null);
+          keeper.custom = { ...(dup.custom || {}), ...Object.fromEntries(filled) };
+          for (const tag of dup.tags || []) if (!(keeper.tags || []).some(t => lower(t) === lower(tag))) { keeper.tags = [...(keeper.tags || []), tag]; added.push(tag); }
+          if (dup.notes && !String(keeper.notes || '').includes(dup.notes)) keeper.notes = [keeper.notes, dup.notes].filter(Boolean).join('\n\n').slice(0, 20000);
+          if (dup.dnd) keeper.dnd = true;
+          // One conversation per contact: followers and assignee join the kept thread.
+          const thread = (s.threads || []).find(row => row.contactId === keeper.id);
+          if (thread) {
+            for (const other of s.threads.filter(row => row.contactId === dup.id)) { thread.followers = [...new Set([...(thread.followers || []), ...(other.followers || [])])]; thread.assignee ||= other.assignee || ''; }
+            s.threads = s.threads.filter(row => row.contactId !== dup.id);
+          }
+          // Every record of the duplicate (messages, tasks, deals, bookings, invoices, orders…) moves to the kept contact.
+          for (const [key, rows] of Object.entries(s)) {
+            if (!Array.isArray(rows) || ['contacts', 'contactTrash', 'runs'].includes(key)) continue;
+            for (const row of rows) if (row && typeof row === 'object' && row.contactId === dup.id) row.contactId = keeper.id;
+          }
+          for (const other of s.runs) if (other.contactId === dup.id) {
+            if (other.id !== run.id && ['Running', 'Waiting'].includes(other.status)) { Object.assign(other, { status: 'Removed', at: '', waitFor: null, wakeAt: '' }); other.results?.push('Contato mesclado em outro'); }
+            other.contactId = keeper.id;
+          }
+          for (const [vid, owner] of Object.entries(visitors)) if (owner === dup.id) visitors[vid] = keeper.id;
+          removeRecord(s, 'contacts', dup.id);
+        }
+        keeper.tags = [...new Set(keeper.tags || [])];
+        keeper.updated = now();
+        run.contactId = keeper.id;
+        output(run, id, { merged: String(gone.length), id: keeper.id, name: keeper.name });
+        for (const tag of added) emit(s, 'contact_tag', { contactId: keeper.id, change: 'added', tag, depth });
+        if (!wasDnd && keeper.dnd) emit(s, 'contact_dnd', { contactId: keeper.id, state: 'on', depth });
+        return `${gone.length} duplicado(s) mesclado(s) em ${keeper.name}${keeper.id === contact.id ? '' : ' (o fluxo segue com ele)'}`;
+      }
       case 'create_contact': {
         const name = text(c.name).trim().slice(0, 240), email = lower(text(c.email).trim()).slice(0, 254), phone = text(c.phone).trim().slice(0, 48);
         if (!name && !email && !phone) return 'erro: informe nome, e-mail ou telefone';
@@ -642,6 +709,14 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         run.vars = { ...(run.vars || {}), [name]: formatted };
         output(run, id, { [name]: formatted });
         return `${name} = ${formatted}`;
+      }
+      case 'list_format': {
+        const name = String(c.variable || '').trim().replace(/[^\w]/g, '_').slice(0, 40);
+        if (!name) return 'sem nome';
+        const result = formatList(text(c.value), { op: c.op, separator: c.separator, position: c.position, search: text(c.search).trim(), joiner: c.joiner }).slice(0, 5000);
+        run.vars = { ...(run.vars || {}), [name]: result };
+        output(run, id, { [name]: result });
+        return `${name} = ${result.slice(0, 80)}`;
       }
       case 'app_action': {
         const made = appActionItem(s, c, { run, contact, data: text(c.data || '').slice(0, 4000) });
@@ -923,6 +998,28 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         }
         for (const contact of contacts.slice(0, 500)) { if (enroll(s, workflow, { contactId: contact.id, triggerId: trigger.id, depth: 1 }, triggerSpec(trigger.type).label)) fired++; }
       }
+    }
+    const listening = type => s.workflows.some(row => row.active && (upgradeWorkflow(row).triggers || []).some(t => t.type === type));
+    // "SLA da conversa": once per waiting customer message and state (due soon, then overdue), last 7 days only.
+    if (listening('conversation_sla')) {
+      const open = slaRecords(s, at).filter(row => !row.answered && ['Due soon', 'Overdue'].includes(row.state) && row.contactId && Date.parse(row.started) >= at - 7 * 864e5);
+      const byId = open.length ? new Map(s.messages.map(row => [row.id, row])) : new Map();
+      for (const record of open.slice(0, 500)) {
+        const message = byId.get(record.id), state = record.state === 'Overdue' ? 'overdue' : 'soon';
+        if (!message || (message.slaFired || []).includes(state)) continue;
+        message.slaFired = state === 'overdue' ? ['soon', 'overdue'] : ['soon'];
+        emit(s, 'conversation_sla', { contactId: record.contactId, state, channel: record.channel, minutes: String(Math.floor(record.elapsed)), body: String(message.body || '').slice(0, 500), messageId: message.id, depth: 1 });
+        fired++;
+      }
+    }
+    // "Cupom expirou": the day after the coupon's last valid day, once per coupon (no contact).
+    const couponFlows = listening('coupon_expired');
+    for (const coupon of s.coupons || []) {
+      if (!coupon.end || today <= coupon.end || coupon.expiredFor === coupon.end) continue;
+      coupon.expiredFor = coupon.end;
+      if (coupon.end < shift(today, -7)) continue;
+      emit(s, 'coupon_expired', { contactId: '', couponId: coupon.id, code: coupon.code || '', title: coupon.name || '', end: coupon.end, depth: 1 });
+      if (couponFlows) fired++;
     }
     return { woke, fired };
   }
