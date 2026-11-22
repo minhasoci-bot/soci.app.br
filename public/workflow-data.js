@@ -450,6 +450,19 @@ export const actionCatalog = [
     { type: 'create_invoice', label: 'Criar fatura', icon: 'pay', fields: [f('title', 'Descrição', 'text', { required: true }), f('value', 'Valor (R$)', 'number', { min: 0, required: true }), f('dueDays', 'Vence em (dias)', 'number', { min: 0, max: 365, value: 7 })] },
     { type: 'update_custom_value', label: 'Atualizar valor personalizado', icon: 'key', description: 'Muda um valor personalizado da conta, usado como {{custom_values.nome}} em todo lugar.', fields: [f('valueId', 'Valor personalizado', 'ref', { source: 'customValues', required: true, empty: 'Escolha um valor' }), f('value', 'Novo valor', 'text', { required: true })] }
   ] },
+  { group: 'Marketing', items: [
+    { type: 'meta_conversion', label: 'Enviar conversão para a Meta', icon: 'chart', description: 'Manda um evento do contato para o seu Pixel da Meta pela API de Conversões (como Lead ou Compra), para os anúncios otimizarem com dados do CRM. E-mail, telefone e nome vão com hash (SHA-256). Precisa do Pixel em Marketing → Rastreamento e do Meta Ads conectado em Marketing → Anúncios.', fields: [
+      f('event', 'Evento', 'select', { options: [['Lead', 'Lead'], ['Purchase', 'Compra (Purchase)'], ['CompleteRegistration', 'Cadastro concluído'], ['Schedule', 'Agendamento'], ['Contact', 'Contato'], ['SubmitApplication', 'Inscrição enviada'], ['Subscribe', 'Assinatura'], ['InitiateCheckout', 'Início do checkout'], ['custom', 'Personalizado']] }),
+      f('customEvent', 'Nome do evento personalizado', 'text', { placeholder: 'ex.: lead_qualificado', when: { event: 'custom' } }),
+      f('value', 'Valor (opcional, aceita variáveis)', 'text', { placeholder: 'ex.: 150,00 ou {{vars.total}}' }),
+      f('currency', 'Moeda', 'select', { options: [['BRL', 'Real (BRL)'], ['USD', 'Dólar (USD)'], ['EUR', 'Euro (EUR)']] }),
+      f('testCode', 'Código de teste do Gerenciador de Eventos (opcional)', 'text', { placeholder: 'TEST12345' })
+    ] },
+    { type: 'meta_audience', label: 'Público personalizado da Meta', icon: 'users', description: 'Inclui ou tira o contato (e-mail e telefone com hash SHA-256) de um público personalizado da Meta, para anunciar para ele ou excluí-lo dos anúncios. O ID do público fica no Gerenciador de Públicos. Precisa do Meta Ads conectado em Marketing → Anúncios.', fields: [
+      f('op', 'O que fazer', 'select', { options: [['add', 'Incluir no público'], ['remove', 'Tirar do público']] }),
+      f('audienceId', 'ID do público personalizado', 'text', { required: true, placeholder: 'ex.: 23851234567890123' })
+    ] }
+  ] },
   { group: 'IA', items: [
     { type: 'ai_agent', label: 'Rodar agente de IA', icon: 'spark', ai: true, description: 'Manda uma mensagem para a versão publicada de um agente de IA desta subconta (com a base de conhecimento e a memória dele) e guarda a resposta em {{vars.nome}}. A execução aparece no histórico do agente.', fields: [
       f('agentId', 'Agente (publicado)', 'ref', { source: 'agents', required: true, empty: 'Escolha o agente' }),
@@ -643,6 +656,8 @@ export function stepSummary(step, s) {
     case 'copy_contact': return c.workspace ? 'para outra subconta' : '';
     case 'whatsapp_media': return c.fileName || c.url || '';
     case 'whatsapp_typing': return `${c.seconds || 3} s`;
+    case 'meta_conversion': return c.event === 'custom' ? c.customEvent || '' : c.event || 'Lead';
+    case 'meta_audience': return `${c.op === 'remove' ? 'tirar de' : 'incluir em'} ${c.audienceId || '…'}`;
     case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';
     case 'update_affiliate': return ({ active: 'Ativo', paused: 'Pausado', pending: 'Aguardando aprovação' })[c.status] || '';
     case 'add_affiliate_campaign': case 'remove_affiliate_campaign': return ref('affiliateCampaigns', c.campaignId);
