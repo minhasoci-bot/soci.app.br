@@ -2,6 +2,7 @@
 // person, fills their fields (text, date, checkbox, drawn or typed signature), optional items, the
 // e-signature consent, and signs or declines. The token stays in the fragment, out of logs and referrers.
 import { getLanguage, langToggle, setLanguage, translateDom } from './i18n.js';
+import { toast } from './toast.js';
 
 const token = location.hash.slice(1);
 const workspace = location.pathname.split('/')[2];
@@ -206,8 +207,8 @@ document.querySelectorAll('#pad [data-mode]').forEach(tab => tab.addEventListene
 $('clear').addEventListener('click', () => { if (mode === 'draw') { resetCanvas(canvas); drawn = false; } else { $('typed').value = ''; drawTyped(); } });
 $('pad-cancel').addEventListener('click', () => $('pad').close());
 $('pad-ok').addEventListener('click', () => {
-  if (mode === 'draw' && !drawn) { alert(say('Desenhe sua assinatura ou use a aba Digitar.', 'Dibuja tu firma o usa la pestaña Escribir.')); return; }
-  if (mode === 'type' && !$('typed').value.trim()) { alert(say('Digite seu nome.', 'Escribe tu nombre.')); return; }
+  if (mode === 'draw' && !drawn) { toast.error(say('Desenhe sua assinatura ou use a aba Digitar.', 'Dibuja tu firma o usa la pestaña Escribir.')); return; }
+  if (mode === 'type' && !$('typed').value.trim()) { toast.error(say('Digite seu nome.', 'Escribe tu nombre.')); return; }
   values[padField.id] = (mode === 'draw' ? canvas : $('preview')).toDataURL('image/png');
   $('pad').close();
   hydrate();
