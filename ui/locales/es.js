@@ -5040,5 +5040,18 @@ export default {
   "Remover canal privado": "Quitar canal privado",
   "Tira do contato o acesso a um canal privado da comunidade. Ele continua na comunidade.": "Le quita al contacto el acceso a un canal privado de la comunidad. Sigue en la comunidad.",
   "Deixe pelo menos um canal aberto a todos os membros.": "Deje al menos un canal abierto a todos los miembros.",
-  "Você não tem acesso a este canal.": "No tiene acceso a este canal."
+  "Você não tem acesso a este canal.": "No tiene acceso a este canal.",
+  "Check-in desfeito.": "Check-in deshecho.",
+  "Presença registrada.": "Asistencia registrada.",
+  "Presente": "Presente",
+  "Desfazer check-in": "Deshacer check-in",
+  "Fazer check-in": "Hacer check-in",
+  "ID do evento": "ID del evento",
+  "Check-in em evento da comunidade": "Check-in en evento de la comunidad",
+  "Quando a equipe marca a presença de um participante no evento. Use {{trigger.title}} para o nome do evento.": "Cuando el equipo marca la asistencia de un participante en el evento. Use {{trigger.title}} para el nombre del evento.",
+  "Qualquer evento": "Cualquier evento",
+  "Inscrever em evento da comunidade": "Inscribir en evento de la comunidad",
+  "Confirma a presença do contato num evento gratuito da comunidade, se houver vaga. Ele precisa ser membro ativo da comunidade do evento.": "Confirma la asistencia del contacto a un evento gratuito de la comunidad, si hay cupo. Debe ser miembro activo de la comunidad del evento.",
+  "Escolha o evento": "Elija el evento",
+  "Só participantes confirmados fazem check-in.": "Solo los participantes confirmados hacen check-in."
 };

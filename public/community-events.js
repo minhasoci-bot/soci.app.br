@@ -8,7 +8,7 @@ const money = value => new Intl.NumberFormat('pt-BR', { style: 'currency', curre
 const pad = n => String(n).padStart(2, '0');
 /** ISO → value of a datetime-local input, in this browser's time zone. */
 const localInput = iso => { if (!iso) return ''; const d = new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-const statusBadge = row => row.status === 'going' ? `<span class="badge green">${row.paid ? 'Pago' : row.guest ? 'Convidado' : 'Confirmado'}</span>` : '<span class="badge gold">Pagamento pendente</span>';
+const statusBadge = row => row.status === 'going' ? `<span class="badge green">${row.paid ? 'Pago' : row.guest ? 'Convidado' : 'Confirmado'}</span>${row.checkedInAt ? ' <span class="badge blue">Presente</span>' : ''}` : '<span class="badge gold">Pagamento pendente</span>';
 
 export function recordingRow(row = {}) {
   return `<li class="ce-recording"><input type="hidden" name="recording.id" value="${h(row.id || '')}">
@@ -90,7 +90,7 @@ function eventCard(c, event, data) {
     <details class="ce-people"><summary>Participantes (${event.people.length})</summary>
       ${event.people.length ? `<div class="cp-table-scroll"><table class="cm-table"><thead><tr><th scope="col">Membro</th><th scope="col">Situação</th><th scope="col">Desde</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead><tbody>
         ${event.people.map(row => `<tr><td><strong>${h(row.name)}</strong><small>${h(row.email)}</small></td><td>${statusBadge(row)}</td><td>${h(fmt(row.at, zone, true))}</td>
-          <td class="cm-row-actions"><button type="button" class="icon-btn" data-cm="attendee-remove" data-id="${h(event.id)}" data-member="${h(row.id)}" aria-label="Remover ${h(row.name)}" title="Remover">${icon('trash', 15)}</button></td></tr>`).join('')}</tbody></table></div>`
+          <td class="cm-row-actions">${row.status === 'going' ? `<button type="button" class="secondary" data-cm="attendee-checkin" data-id="${h(event.id)}" data-member="${h(row.id)}" ${row.checkedInAt ? 'data-undo="1"' : ''}>${row.checkedInAt ? 'Desfazer check-in' : 'Fazer check-in'}</button>` : ''}<button type="button" class="icon-btn" data-cm="attendee-remove" data-id="${h(event.id)}" data-member="${h(row.id)}" aria-label="Remover ${h(row.name)}" title="Remover">${icon('trash', 15)}</button></td></tr>`).join('')}</tbody></table></div>`
         : '<p class="co-hint">Ninguém confirmou ainda.</p>'}
       ${event.past ? '' : `<button type="button" class="secondary" data-cm="attendee-add" data-id="${h(event.id)}">${icon('plus', 15)} Adicionar participantes</button>`}
     </details>

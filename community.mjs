@@ -481,7 +481,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
     const directory = people(portal);
     return { group: groupHeader(state, group, data), posts: feed(state, group, data, 'staff', names), live: liveBanner(state, data),
       events: eventsOf(state, group, data, 'staff', names, { staff: true }).map(view => ({ ...view,
-        people: Object.entries(data.events?.[view.id]?.attendees || {}).map(([id, row]) => ({ id, name: names.get(id) || 'Membro', email: directory.get(id)?.email || '', status: row.status, paid: Boolean(row.paid), at: row.at }))
+        people: Object.entries(data.events?.[view.id]?.attendees || {}).map(([id, row]) => ({ id, name: names.get(id) || 'Membro', email: directory.get(id)?.email || '', status: row.status, paid: Boolean(row.paid), guest: Boolean(row.guest), at: row.at, checkedInAt: row.checkedInAt || '' }))
           .sort((a, b) => a.status.localeCompare(b.status) || a.name.localeCompare(b.name)) })),
       queue: queue.sort((a, b) => b.created.localeCompare(a.created)),
       analytics: communityAnalytics(state, group, data, { days, zone: state.profile?.timezone || 'America/Sao_Paulo' }),
@@ -562,6 +562,13 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
       } else if (action === 'attendee-remove') {
         const record = eventRecord(data, input.eventId);
         delete record.attendees[input.memberId];
+      } else if (action === 'attendee-checkin') {
+        // The team marks who came (or undoes it). The first check-in fires "Check-in em evento".
+        const event = (state.communityEvents || []).find(row => row.id === input.eventId && row.communityId === group.id) || fail('Evento não encontrado.', 404);
+        const row = eventRecord(data, event.id).attendees[input.memberId];
+        if (row?.status !== 'going') fail('Só participantes confirmados fazem check-in.');
+        if (input.undo) delete row.checkedInAt;
+        else if (!row.checkedInAt) { row.checkedInAt = new Date().toISOString(); activity.push({ event: 'checkin', memberId: input.memberId, eventId: event.id }); }
       } else fail('Ação da comunidade não encontrada.', 404);
       return adminView(state, portal, doc, groupId);
     }));
@@ -636,5 +643,25 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
     return outcome;
   }
 
-  return { home, read, act, admin, enroll, unenroll, grantPoints, channelAccess, reserve, markPending, grantTicket, dueReminders, reservePlan, markPlanPending, grantPlan, dueNewsletters };
+  // Workflows (T.1): confirms an active member in a free event with seats left. Fires "Inscrição em evento da comunidade".
+  async function registerEvent(workspace, state, memberId, eventId) {
+    const event = (state.communityEvents || []).find(row => row.id === eventId && row.status === 'published');
+    if (!event) return 'missing';
+    if (event.access === 'paid') return 'paid';
+    if (!nextOccurrence(event)) return 'ended';
+    if (!memberId) return 'not-member';
+    let outcome = 'not-member';
+    await change(workspace, doc => {
+      const data = groupData(doc, event.communityId), record = eventRecord(data, event.id);
+      if (data.members[memberId]?.status !== 'active') { outcome = 'not-member'; return; }
+      if (record.attendees[memberId]?.status === 'going') { outcome = 'already'; return; }
+      if (event.capacity && Object.values(record.attendees).filter(row => row.status === 'going').length >= event.capacity) { outcome = 'full'; return; }
+      record.attendees[memberId] = { status: 'going', at: new Date().toISOString(), paid: false, guest: true, reminded: {} };
+      outcome = 'registered';
+    });
+    if (outcome === 'registered') await onEventJoin?.(workspace, { eventId: event.id, memberId, paid: false });
+    return outcome;
+  }
+
+  return { home, read, act, admin, enroll, unenroll, grantPoints, channelAccess, registerEvent, reserve, markPending, grantTicket, dueReminders, reservePlan, markPlanPending, grantPlan, dueNewsletters };
 }
