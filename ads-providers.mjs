@@ -104,7 +104,9 @@ async function metaSync(secret, account, from, to) {
 }
 
 // ---- Google Ads API ------------------------------------------------------------------------------
-const gHeaders = () => ({ ...(env('GOOGLE_ADS_LOGIN_CUSTOMER_ID') ? { 'login-customer-id': env('GOOGLE_ADS_LOGIN_CUSTOMER_ID').replace(/-/g, '') } : {}) });
+// Every Google Ads API call needs the developer token of the Google Ads API Center (GOOGLE_ADS_DEVELOPER_TOKEN).
+const gHeaders = () => ({ ...(env('GOOGLE_ADS_DEVELOPER_TOKEN') ? { 'developer-token': env('GOOGLE_ADS_DEVELOPER_TOKEN') } : {}),
+  ...(env('GOOGLE_ADS_LOGIN_CUSTOMER_ID') ? { 'login-customer-id': env('GOOGLE_ADS_LOGIN_CUSTOMER_ID').replace(/-/g, '') } : {}) });
 async function gaql(secret, customer, query) {
   const chunks = await call(`${gads()}/customers/${customer}/googleAds:searchStream`, { method: 'POST', token: secret.token, json: { query }, headers: gHeaders(customer) });
   return (Array.isArray(chunks) ? chunks : [chunks]).flatMap(c => c.results || []);
@@ -201,4 +203,23 @@ export async function changeMetaAudience(secret, audienceId, rows, remove = fals
   const data = await call(`${graph()}/${audienceId}/users`, { method: remove ? 'DELETE' : 'POST', token: secret.token,
     json: { payload: { schema: ['EMAIL_SHA256', 'PHONE_SHA256'], data: rows } } });
   return { received: Number(data.num_received) || 0, invalid: Number(data.num_invalid_entries) || 0 };
+}
+
+// ---------- Workflows: offline conversions (Google Ads) ----------
+
+/**
+ * Uploads one conversion of a contact to a conversion action of the connected Google Ads account: by the
+ * click (gclid) and, when given, the hashed e-mail and phone (enhanced conversions for leads).
+ * Partial failures come back as errors with Google's message.
+ */
+export async function uploadGoogleConversion(secret, customer, { actionId, gclid = '', at, value = 0, currency = 'BRL', email = '', phone = '' }) {
+  if (!/^\d{3,20}$/.test(String(actionId || ''))) fail('ID da ação de conversão inválido.');
+  if (!env('GOOGLE_ADS_DEVELOPER_TOKEN')) fail('Falta o token de desenvolvedor do Google Ads (GOOGLE_ADS_DEVELOPER_TOKEN).', 409);
+  const when = new Date(at || Date.now()).toISOString().replace('T', ' ').replace(/\.\d+Z$/, '+00:00');
+  const identifiers = [...(email ? [{ hashedEmail: email }] : []), ...(phone ? [{ hashedPhoneNumber: phone }] : [])];
+  const conversion = { conversionAction: `customers/${customer}/conversionActions/${actionId}`, conversionDateTime: when,
+    ...(gclid ? { gclid } : {}), ...(value > 0 ? { conversionValue: value, currencyCode: currency } : {}), ...(identifiers.length ? { userIdentifiers: identifiers } : {}) };
+  const data = await call(`${gads()}/customers/${customer}:uploadClickConversions`, { method: 'POST', token: secret.token, headers: gHeaders(), json: { conversions: [conversion], partialFailure: true } });
+  if (data.partialFailureError) fail(String(data.partialFailureError.message || 'O Google Ads recusou a conversão.').slice(0, 300));
+  return { accepted: (data.results || []).filter(row => row && Object.keys(row).length).length };
 }

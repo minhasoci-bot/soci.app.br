@@ -564,6 +564,20 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         outbox(s, { kind: 'meta-capi', runId: run.id, pixel, event, testCode: String(c.testCode || '').trim().slice(0, 40) });
         return `${name} na fila para a Meta`;
       }
+      case 'google_ads_conversion': {
+        // Offline conversion: the click that brought the contact (gclid from the attribution) and, if chosen, the
+        // hashed e-mail and phone (enhanced conversions for leads). The server sends it with the Google Ads connection.
+        const actionId = String(c.actionId || '').replace(/\D/g, '');
+        if (!actionId) return 'erro: informe o ID da ação de conversão';
+        const gclid = String(contact.attribution?.last?.gclid || contact.attribution?.first?.gclid || '').slice(0, 200);
+        const who = metaIdentity(contact), withData = c.identifiers === 'yes';
+        if (!gclid && !(withData && (who.email || who.phone))) return 'sem clique do Google Ads (gclid) para este contato';
+        const amount = Number(text(c.value).replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
+        outbox(s, { kind: 'google-ads-conversion', runId: run.id, actionId, gclid, at: now(), value: Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) / 100 : 0,
+          currency: /^[A-Z]{3}$/.test(String(c.currency || '')) ? c.currency : 'BRL',
+          email: withData ? who.email : '', phone: withData && metaPhone(contact.phone) ? sha256(`+${metaPhone(contact.phone)}`) : '' });
+        return `conversão na fila para o Google Ads${gclid ? '' : ' (sem clique, pelos dados do contato)'}`;
+      }
       case 'meta_audience': {
         const audience = String(c.audienceId || '').replace(/\D/g, '');
         if (!audience) return 'erro: informe o ID do público personalizado';

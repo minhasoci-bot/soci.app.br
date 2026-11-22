@@ -47,7 +47,7 @@ import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } fro
 import { importedFile, mediaLimitBytes } from './media-model.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
-import { adsAuthUrl, adsConfigured, adsExchange, changeMetaAudience, createMetaAd, freshAdsSecret, sendMetaEvents, setCampaignBudget, setCampaignStatus, syncAds } from './ads-providers.mjs';
+import { adsAuthUrl, adsConfigured, adsExchange, changeMetaAudience, createMetaAd, freshAdsSecret, sendMetaEvents, setCampaignBudget, setCampaignStatus, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
 import { hasPixels, injectPixels, originAllowed, pixelsScript, trackerScript, trackingOf, touchesFrom, widenCsp } from './tracking.mjs';
 import { adSettingsOf, markAdConnection, metaAdInput, patchAdCampaign, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
@@ -1524,6 +1524,7 @@ export function makeServer({
       }
       if (item.kind === 'ai') aiResults.push(await workflowAIStep(workspace, state, item));
       if (item.kind === 'marketing-audit') auditLater(workspace, item);
+      if (item.kind === 'google-ads-conversion') results.push({ runId: item.runId, kind: 'google', text: await workflowGoogleAds(workspace, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'meta-capi' || item.kind === 'meta-audience') results.push({ runId: item.runId, kind: 'meta', text: await workflowMeta(workspace, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'copy-contact') results.push({ runId: item.runId, kind: 'copy', text: await workflowCopyContact(workspace, state, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'custom-webhook') aiResults.push({ runId: item.runId, stepId: item.stepId, ...(await deliverCustomWebhook(item).catch(() => ({ error: 'falha de conexão' }))) });
@@ -1732,6 +1733,13 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     }
     const changed = await changeMetaAudience(secret, item.audience, [item.row], item.remove);
     return `${item.remove ? 'removido do' : 'incluído no'} público ${item.audience}${changed.invalid ? ' (dados inválidos)' : ''}`;
+  }
+  // Workflows: an offline conversion to the Google Ads account chosen in Marketing → Anúncios.
+  async function workflowGoogleAds(workspace, item) {
+    if (privateSpace.test(workspace)) return 'não disponível na conta pessoal';
+    const { secret, account } = await adsAccess(workspace, 'google');
+    const sent = await uploadGoogleConversion(secret, account.id, item);
+    return sent.accepted ? `conversão registrada em ${account.name}` : 'o Google Ads não registrou a conversão';
   }
   const adsRuns = new Set();
   /** Syncs campaigns and the daily numbers of the last 7 days (90 on the first sync or when `full`). */
