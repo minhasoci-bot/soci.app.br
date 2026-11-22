@@ -75,6 +75,7 @@ function settings(c, group) {
 }
 const channelRow = channel => `<li><input type="hidden" name="channel.id" value="${h(channel.id || '')}"><span>#</span>
   <input name="channel.name" required maxlength="40" value="${h(channel.name)}" aria-label="Nome do canal">
+  <select name="channel.access" aria-label="Quem vê o canal ${h(channel.name)}" title="Privado: só membros com acesso, moderadores e a equipe"><option value="open">Aberto</option><option value="private"${channel.private ? ' selected' : ''}>Privado</option></select>
   <button type="button" class="icon-btn" data-cm="remove-channel" aria-label="Remover canal ${h(channel.name)}">${icon('trash',15)}</button></li>`;
 
 function postCard(c, post) {
@@ -129,7 +130,9 @@ function membersTab(c, data, group) {
         <td>${roleLabel[row.role]}</td><td>${row.level} · ${row.points} pts</td><td>${h(fmt(row.joinedAt, c.s.profile.timezone))}</td>
         <td class="cm-row-actions">${row.status === 'requested' ? `<button type="button" class="primary" data-cm="member" data-id="${h(row.id)}" data-status="active">Aprovar</button>` : ''}
           ${row.status === 'active' ? `<button type="button" class="secondary" data-cm="member" data-id="${h(row.id)}" data-role="${row.role === 'moderator' ? 'member' : 'moderator'}">${row.role === 'moderator' ? 'Tirar moderação' : 'Tornar moderador'}</button>
-            <button type="button" class="danger plain" data-cm="member" data-id="${h(row.id)}" data-status="banned">Banir</button>` : ''}
+            <button type="button" class="danger plain" data-cm="member" data-id="${h(row.id)}" data-status="banned">Banir</button>
+            ${row.role === 'moderator' ? '' : group.channels.filter(channel => channel.private).map(channel => { const on = (row.channels || []).includes(channel.id);
+              return `<button type="button" class="secondary" data-cm="channel-access" data-id="${h(row.id)}" data-channel="${h(channel.id)}" aria-pressed="${on}" title="${on ? 'Tirar o acesso' : 'Liberar o acesso'}">${icon('lock',14)} #${h(channel.name)}${on ? ' ✓' : ''}</button>`; }).join('')}` : ''}
           ${row.status === 'banned' ? `<button type="button" class="secondary" data-cm="member" data-id="${h(row.id)}" data-status="active">Reativar</button>` : ''}
           <button type="button" class="icon-btn" data-cm="remove-member" data-id="${h(row.id)}" aria-label="Remover ${h(row.name)}" title="Remover">${icon('trash',15)}</button></td></tr>`).join('')}</tbody></table></div>`
       : `<div class="co-empty">${icon('users',26)}<strong>Ninguém entrou ainda</strong><p>Adicione clientes do portal ou compartilhe o portal: em comunidades públicas eles entram com um clique.</p></div>`}</div>`;
@@ -227,6 +230,11 @@ export function installCommunities({ c, api, mutate, flash, dialog, close, rende
       if (action === 'attendee-remove') { await send({ action: 'attendee-remove', eventId: id, memberId: control.dataset.member }); flash('Participante removido.'); }
       if (action === 'attendee-add') dialog('Adicionar participantes', attendeeDialog(cache.get(`${c.workspace}:${groupId()}`), id));
       if (action === 'remove-member') { await send({ action: 'remove', memberId: id }); flash('Membro removido da comunidade.'); }
+      if (action === 'channel-access') {
+        const grant = control.getAttribute('aria-pressed') !== 'true';
+        await send({ action: 'channel-access', memberId: id, channelId: control.dataset.channel, grant });
+        flash(grant ? 'Acesso ao canal liberado.' : 'Acesso ao canal removido.');
+      }
       if (action === 'add-members') {
         const data = cache.get(`${c.workspace}:${groupId()}`);
         dialog('Adicionar clientes do portal', `<form class="co-form" data-cm-form="add"><fieldset class="cp-permissions"><legend>Clientes</legend>
@@ -249,11 +257,11 @@ export function installCommunities({ c, api, mutate, flash, dialog, close, rende
         close(); ui.tab = 'posts'; location.hash = `#memberships/community/${encodeURIComponent(id)}`; flash('Comunidade criada.');
       }
       if (kind === 'settings') {
-        const ids = fields.getAll('channel.id'), names = fields.getAll('channel.name');
+        const ids = fields.getAll('channel.id'), names = fields.getAll('channel.name'), access = fields.getAll('channel.access');
         await mutate({ type: 'save', key: 'communities', id: form.dataset.id, data: {
           name: fields.get('name'), description: fields.get('description'), coverFileId: fields.get('coverFileId'), visibility: fields.get('visibility'),
           memberPosts: fields.has('memberPosts'), active: fields.has('active'), welcome: fields.get('welcome'),
-          channels: names.map((name, index) => ({ ...(ids[index] ? { id: ids[index] } : {}), name })),
+          channels: names.map((name, index) => ({ ...(ids[index] ? { id: ids[index] } : {}), name, private: access[index] === 'private' })),
           points: { post: Number(fields.get('points.post')), comment: Number(fields.get('points.comment')), like: Number(fields.get('points.like')) },
           levels: levelThresholds.map((min, index) => ({ name: fields.get(`level.${index}`) })), ...readSettings(form) } });
         render(); flash('Configurações salvas.');

@@ -70,6 +70,7 @@
 .cm-channels li{display:flex;align-items:center;gap:8px}
 .cm-channels li>span{font-weight:700;color:var(--g-dim,#667085)}
 .cm-channels input[name="channel.name"]{flex:1}
+.cm-channels li>.g-select,.cm-channels select[name="channel.access"]{flex:0 0 130px;width:130px;min-width:0}
 .cm-points{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
 .cm-points label>span{display:flex;align-items:center;gap:6px}
 .cm-points input{width:90px!important}
