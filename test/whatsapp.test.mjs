@@ -207,6 +207,14 @@ test('UAZAPI managed 1-click QR isolates sub-accounts, routes inbound webhooks a
   assert.equal(sendCall?.body?.text, 'Claro, qual melhor horário?');
   assert.equal(sendCall?.headers?.token, token1);
 
+  // Without a phone the message stays in Conversas, marked as failed ("Falha no envio de mensagem").
+  const noPhone = await local.call('/api/action?workspace=demo', { type: 'save', key: 'contacts', data: { name: 'Sem telefone', tags: [], custom: {} } });
+  const undelivered = await local.call('/api/action?workspace=demo', {
+    type: 'message', data: { contactId: noPhone.body.id, channel: 'WhatsApp', direction: 'Outbound', body: 'Oi' }
+  });
+  assert.equal(undelivered.status, 200);
+  assert.equal(undelivered.body.state.messages.find(m => m.id === undelivered.body.id)?.failed, 'no_phone');
+
   const message = { EventType: 'messages', message: { chatid: '5511966665555@c.us', senderName: 'Blocked contact', text: 'Suspended message' } };
   const beforePaused = local.store.load('demo');
   const sendCount = uaz.calls.length;

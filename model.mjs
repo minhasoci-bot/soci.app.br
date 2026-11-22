@@ -460,6 +460,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     for (const item of Array.isArray(d.results) ? d.results.slice(0, 500) : []) {
       const target = find(s, 'runs', item?.runId);
       if (target) target.results.push(`${({ whatsapp: 'WhatsApp', email: 'E-mail', app: 'App', access: 'Acesso' })[item.kind] || 'Webhook'}: ${str(item.text, 120)}`);
+      if (item?.failed && item.messageId) engine.messageFailed(s, { messageId: str(item.messageId, 40), reason: str(item.failed, 40) }, 1);
       const doc = item?.docId ? find(s, 'documents', item.docId) : item?.estimateId ? find(s, 'estimates', item.estimateId) : item?.invoiceId ? find(s, 'invoices', item.invoiceId) : item?.checkoutId ? (s.abandonedCheckouts || []).find(row => row.id === item.checkoutId) : item?.giftCardId ? (s.giftCards || []).find(row => row.id === item.giftCardId) : null;
       if (doc) (doc.audit ||= []).push({ at: now(), event: 'delivered', detail: str(item.text, 200) });
     }
@@ -836,8 +837,11 @@ function other(s, command, type, key, id, d, workspace) {
       channel, direction, read: direction !== 'Inbound', starred: false, origin: 'human' }).id;
     if (direction === 'Inbound') run(s, 'Customer replied', { contactId: c, channel, body });
     if (channel === 'Note') run(s, 'note_added', { contactId: c, body });
+    else if (direction === 'Outbound') run(s, 'user_replied', { contactId: c, channel, body, user: str(command.actor, 80) });
     return msgId;
   }
+  // Server-internal (not accepted from /api/action): a message from the team that the provider did not deliver.
+  if (type === 'message-failed') return engine.messageFailed(s, { messageId: str(d.messageId, 40), reason: str(d.reason, 40) });
   if (type === 'manual-action') return finishManualAction(s, id, d);
   if (type === 'conversation-sla') return saveSla(s, d);
   if (type === 'dismiss-sla') {

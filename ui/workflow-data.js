@@ -77,6 +77,12 @@ export const triggerCatalog = [
       f('state', 'Quando', 'select', { options: [any('Perto de vencer ou vencido'), ['soon', 'Perto de vencer'], ['overdue', 'Vencido']] }),
       f('channel', 'Canal', 'select', { options: [any('Qualquer canal'), ['WhatsApp', 'WhatsApp'], ['Email', 'E-mail'], ['SMS', 'SMS'], ['Live chat', 'Chat ao vivo'], ['Instagram', 'Instagram'], ['Facebook', 'Facebook']] })
     ] },
+    { type: 'user_replied', label: 'Equipe respondeu', icon: 'chat', description: 'Quando alguém da equipe manda uma mensagem ao contato pela caixa de entrada (notas internas não contam). Use {{trigger.body}} para a mensagem e {{trigger.user}} para quem respondeu.', fields: [
+      f('channel', 'Canal', 'select', { options: channels }), f('user', 'Usuário', 'text', { placeholder: 'Qualquer usuário (nome exato)' }), f('keyword', 'Contém a palavra', 'text', { placeholder: 'Ex.: proposta' })
+    ] },
+    { type: 'message_failed', label: 'Falha no envio de mensagem', icon: 'close', description: 'Quando uma mensagem de WhatsApp da equipe ou de um fluxo não é entregue. Use {{trigger.reason}} para o motivo e {{trigger.body}} para a mensagem. Fluxos com este gatilho não disparam de novo com as falhas das próprias mensagens.', fields: [
+      f('reason', 'Motivo', 'select', { options: [any('Qualquer motivo'), ['not_connected', 'WhatsApp desconectado'], ['no_phone', 'Contato sem telefone'], ['invalid_phone', 'Telefone inválido'], ['suspended', 'Conta suspensa'], ['provider_error', 'Erro do provedor']] })
+    ] },
     { type: 'prospect_received', label: 'Prospect recebido da agência', icon: 'leads', description: 'Quando a agência envia um prospect da Prospecção para esta subconta (uma vez por prospect; reenviar não dispara de novo). O contato chega com a tag New Prospect Received. Use {{trigger.company}}, {{trigger.website}}, {{trigger.city}} e {{trigger.category}}.', fields: [
       f('isNew', 'Contato', 'select', { options: [any('Novo ou já existente'), ['yes', 'Contato novo'], ['no', 'Contato que já existia']] }),
       f('withOpportunity', 'Oportunidade', 'select', { options: [any('Com ou sem oportunidade'), ['yes', 'Com oportunidade criada'], ['no', 'Sem oportunidade']] }),
@@ -480,6 +486,9 @@ export const actionCatalog = [
     { type: 'text_format', label: 'Formatar texto', icon: 'edit', fields: [f('field', 'Campo', 'ref', { source: 'textFields', required: true }), f('op', 'Formato', 'select', { options: [['upper', 'MAIÚSCULAS'], ['lower', 'minúsculas'], ['title', 'Primeira Letra Maiúscula'], ['trim', 'Sem espaços nas pontas']] })] },
     { type: 'date_format', label: 'Formatar data', icon: 'clock', description: 'Guarda uma data formatada em {{vars.nome}}. Aceita AAAA-MM-DD, data com hora ou a palavra hoje.', fields: [f('value', 'Data', 'text', { required: true, placeholder: '2026-12-01, {{vars.data}} ou hoje' }), f('days', 'Somar dias', 'number', { value: 0, min: -3650, max: 3650 }), f('format', 'Formato', 'select', { options: [['br', 'DD/MM/AAAA'], ['iso', 'AAAA-MM-DD'], ['long', 'Por extenso (21 de novembro de 2026)'], ['weekday', 'Dia da semana'], ['time', 'Hora (HH:MM)']] }), f('variable', 'Nome da variável', 'text', { required: true, placeholder: 'data' })] },
     { type: 'number_format', label: 'Formatar número', icon: 'sort', description: 'Guarda um número formatado em {{vars.nome}}.', fields: [f('value', 'Número', 'text', { required: true, placeholder: '{{trigger.total}}' }), f('format', 'Formato', 'select', { options: [['brl', 'Moeda (R$ 1.234,56)'], ['decimal', 'Duas casas (1.234,56)'], ['integer', 'Inteiro (1.235)'], ['percent', 'Percentual (12,5%)']] }), f('variable', 'Nome da variável', 'text', { required: true, placeholder: 'valor' })] },
+    { type: 'whatsapp_window', label: 'Janela de atendimento do WhatsApp', icon: 'whatsapp', description: 'Confere se o contato mandou WhatsApp nas últimas 24 horas (a janela de atendimento). Guarda aberta ou fechada em {{vars.nome}} e os minutos que restam em {{vars.nome_minutos}}, para usar num Se / Senão.', fields: [
+      f('variable', 'Guardar na variável', 'text', { required: true, value: 'janela_whatsapp' })
+    ] },
     { type: 'list_format', label: 'Formatar lista', icon: 'list', description: 'Trata um texto como lista (itens separados por vírgula ou outro separador) e guarda o resultado em {{vars.nome}}.', fields: [
       f('value', 'Lista (aceita variáveis)', 'textarea', { required: true, placeholder: '{{contact.tags}} ou maçã, pera, uva' }),
       f('separator', 'Separador dos itens', 'text', { value: ',', placeholder: ', ou \\n para um item por linha' }),
@@ -583,6 +592,7 @@ export function stepSummary(step, s) {
     case 'email_verify': return c.invalidTag ? `Inválido → tag ${c.invalidTag}` : '→ vars.email_status';
     case 'merge_contact': return `${({ email: 'Mesmo e-mail', phone: 'Mesmo telefone' })[c.by] || 'Mesmo e-mail ou telefone'} · ${c.keep === 'oldest' ? 'mantém o mais antigo' : 'mantém este'}`;
     case 'list_format': return c.variable ? `→ vars.${c.variable}` : '';
+    case 'whatsapp_window': return `→ vars.${c.variable || 'janela_whatsapp'}`;
     case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';
     case 'update_affiliate': return ({ active: 'Ativo', paused: 'Pausado', pending: 'Aguardando aprovação' })[c.status] || '';
     case 'add_affiliate_campaign': case 'remove_affiliate_campaign': return ref('affiliateCampaigns', c.campaignId);

@@ -175,6 +175,8 @@ const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://accou
 const error = (message,status) => Object.assign(new Error(message),{status});
 const spaceId = /^[0-9a-f-]{36}$|^demo$/;
 const privateSpace = /^user-[0-9a-f-]{36}$/;
+// Why a WhatsApp message was not delivered, as the "Falha no envio de mensagem" trigger names it.
+const deliveryFailure = reason => ({ 'not-connected': 'not_connected', 'invalid-phone': 'invalid_phone', 'account-suspended': 'suspended' })[reason] || 'provider_error';
 const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
@@ -1535,10 +1537,15 @@ export function makeServer({
       if (item.kind === 'whatsapp') {
         if (privateSpace.test(workspace)) { results.push({ runId: item.runId, kind: 'whatsapp', text: 'não enviado (conta pessoal)' }); continue; }
         const sent = await whatsapp.sendWorkspaceText(state.agencyId || AGENCY_ID, workspace, item.phone, absolute(item), (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
-        results.push({ runId: item.runId, kind: 'whatsapp', text: sent?.sent ? 'enviado' : sent?.reason === 'not-connected' ? 'WhatsApp não conectado' : 'não enviado' });
+        results.push({ runId: item.runId, kind: 'whatsapp', text: sent?.sent ? 'enviado' : sent?.reason === 'not-connected' ? 'WhatsApp não conectado' : 'não enviado',
+          ...(sent?.sent ? {} : { failed: deliveryFailure(sent?.reason), messageId: item.messageId || '' }) });
       }
     }
-    if (results.length) await change(workspace, { type: 'workflow-outbox-result', data: { results } });
+    if (results.length) {
+      // A failed WhatsApp can start "Falha no envio de mensagem" workflows, which queue their own deliveries.
+      const reported = await change(workspace, { type: 'workflow-outbox-result', data: { results } });
+      if (results.some(item => item.failed) && reported.state.workflowOutbox?.length) flushLater(workspace);
+    }
     if (appEntries.length) await change(workspace, { type: 'app-log', data: { entries: appEntries } });
     if (aiResults.length) {
       // Resuming can queue the next AI step or webhook of the same run.
@@ -2484,13 +2491,24 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await change(id,command,who);
         if (removedVideo) for (let index = 0; index < removedVideo.chunks; index++) await Promise.resolve().then(() => store.change(mediaRowId(id, removedVideo.id, index), row => { row.data = ''; row.deleted = true; })).catch(() => {});
         let delivery = null;
+        let state = result.state;
         if (!privateSpace.test(id) && command.type === 'message' && command.data?.channel === 'WhatsApp' && command.data?.direction === 'Outbound') {
-          const contact = result.state.contacts.find(c => c.id === command.data.contactId);
-          if (contact?.phone) {
+          const contact = state.contacts.find(c => c.id === command.data.contactId);
+          // An undelivered message is marked and fires "Falha no envio de mensagem"; the provider error still reaches the user.
+          const failed = async reason => {
+            const marked = await change(id, { type: 'message-failed', data: { messageId: result.id, reason } });
+            state = marked.state;
+            if (state.workflowOutbox?.length) flushLater(id);
+          };
+          if (!contact?.phone) await failed('no_phone');
+          else {
             // The stored body: trigger links already replaced by this contact's tracked URLs.
-            const sentBody = result.state.messages.find(m => m.id === result.id)?.body || command.data.body;
-            delivery = await whatsapp.sendWorkspaceText(who.agencyId, id, contact.phone, sentBody,
-              (agencyId, workspace) => accountIsActive(agencyId, workspace, 'conversations'));
+            const sentBody = state.messages.find(m => m.id === result.id)?.body || command.data.body;
+            try {
+              delivery = await whatsapp.sendWorkspaceText(who.agencyId, id, contact.phone, sentBody,
+                (agencyId, workspace) => accountIsActive(agencyId, workspace, 'conversations'));
+            } catch (err) { await failed('provider_error').catch(() => {}); throw err; }
+            if (!delivery.sent) await failed(deliveryFailure(delivery.reason));
           }
         }
         if (!privateSpace.test(id) && ['save','delete','import','opportunity-import','opportunity-move','pipeline','pipeline-settings','pipeline-duplicate','pipeline-delete','stage-delete','smart-tag','smart-tag-delete','profile','bulk','workflow-enroll','workflow-restore','workflow-move'].includes(command.type)) {
@@ -2498,9 +2516,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const label = command.type === 'bulk' ? `Bulk ${command.data?.operation || ''} on ${command.data?.object || ''}`.trim() : '';
           await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);
         }
-        if (result.state.workflowOutbox?.length) flushLater(id);
+        if (state.workflowOutbox?.length) flushLater(id);
         if (command.type === 'email-campaign-schedule') emailLater(id);
-        return json({ id: result.id, ...workspaceView(who, result.state), ...(delivery ? { delivery } : {}) });
+        return json({ id: result.id, ...workspaceView(who, state), ...(delivery ? { delivery } : {}) });
       }
       if (p==='/api/agency' && method!=='POST') {
         return json(await agencyPayload(req,res));
