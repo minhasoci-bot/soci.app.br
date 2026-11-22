@@ -42,7 +42,7 @@ const findSession = (s, widgetId, tokenHash) => {
 export function chatHistory(s, widgetId, tokenHash) {
   const session = findSession(s, widgetId, tokenHash);
   return s.messages.filter(message => message.contactId === session.contactId && message.channel === 'Live chat' && message.created >= session.created)
-    .slice(-100).map(({ id, body, direction, created }) => ({ id, body, direction, created }));
+    .slice(-100).map(({ id, body, direction, created, buttons }) => ({ id, body, direction, created, ...(direction !== 'Inbound' && Array.isArray(buttons) && buttons.length ? { buttons: buttons.slice(0, 6) } : {}) }));
 }
 
 export function chatCommand(s, command, { add, now, run }) {
