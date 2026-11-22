@@ -130,7 +130,7 @@ import { localDraft, postSeo, writePost } from './blog-ai.mjs';
 import { catalog, methodLabel, storeCart, storeHome, storeProduct } from './ui/store-data.js';
 import { quoteOrder } from './store-model.mjs';
 import { renderOfferPage, offerPageCsp } from './offer-page.mjs';
-import { deliverWebhook } from './workflow-delivery.mjs';
+import { deliverCustomWebhook, deliverWebhook } from './workflow-delivery.mjs';
 import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
 import { deviceOf, qrTarget } from './qr-model.mjs';
 
@@ -1509,6 +1509,7 @@ export function makeServer({
         appEntries.push({ app: sent.name, appId: item.appId, kind: item.body?.type || 'event', text: `${what}: ${sent.text}` });
       }
       if (item.kind === 'ai') aiResults.push(await workflowAIStep(workspace, state, item));
+      if (item.kind === 'custom-webhook') aiResults.push({ runId: item.runId, stepId: item.stepId, ...(await deliverCustomWebhook(item).catch(() => ({ error: 'falha de conexão' }))) });
       if (item.kind === 'email-verify') {
         const checked = await checkEmailAddress(item.email, emailResolver).catch(() => ({ status: 'unknown', reason: 'não foi possível consultar o domínio agora' }));
         aiResults.push({ runId: item.runId, stepId: item.stepId, vars: { email_status: checked.status, email_motivo: checked.reason } });

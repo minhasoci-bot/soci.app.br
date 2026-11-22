@@ -506,6 +506,14 @@ export const actionCatalog = [
     ] },
     { type: 'app_action', label: 'Ação de app', icon: 'grid', description: 'Envia o contato e o texto abaixo para um app instalado do marketplace. O app recebe a ação no webhook dele.', fields: [f('action', 'Ação', 'ref', { source: 'appActions', empty: 'Escolha a ação de um app', required: true }), f('data', 'Dados enviados ao app', 'textarea', { placeholder: 'Ex.: plano {{contact.custom.plano}}' })] },
     { type: 'webhook', label: 'Webhook de saída', icon: 'send', fields: [f('url', 'Endereço (https://)', 'text', { required: true, placeholder: 'https://' }), f('method', 'Método', 'select', { options: [['POST', 'POST'], ['PUT', 'PUT'], ['GET', 'GET']] })] },
+    { type: 'custom_webhook', label: 'Webhook personalizado', icon: 'send', description: 'Chama uma API com o método, os cabeçalhos e o corpo que você escrever (todos aceitam variáveis) e espera a resposta: o corpo fica em {{vars.nome}}, o código HTTP em {{vars.nome_status}} e, numa resposta JSON, cada campo simples em {{vars.nome_campo}}. Só endereços https públicos.', fields: [
+      f('method', 'Método', 'select', { options: [['POST', 'POST'], ['GET', 'GET'], ['PUT', 'PUT'], ['PATCH', 'PATCH'], ['DELETE', 'DELETE']] }),
+      f('url', 'Endereço (https://, aceita variáveis)', 'text', { required: true, placeholder: 'https://api.exemplo.com/clientes?email={{contact.email}}' }),
+      f('headers', 'Cabeçalhos (um por linha, Nome: valor)', 'textarea', { placeholder: 'Authorization: Bearer {{custom_values.chave_api}}' }),
+      f('contentType', 'Formato do corpo (GET e DELETE não levam corpo)', 'select', { options: [['json', 'JSON'], ['form', 'Formulário (campo=valor por linha)'], ['none', 'Sem corpo']] }),
+      f('body', 'Corpo (JSON vazio = dados do contato e do gatilho)', 'textarea', { placeholder: '{"nome": "{{contact.name}}", "email": "{{contact.email}}"}' }),
+      f('variable', 'Guardar a resposta na variável', 'text', { required: true, value: 'resposta' })
+    ] },
     { type: 'end', label: 'Encerrar fluxo', icon: 'close' }
   ] }
 ];
@@ -607,6 +615,7 @@ export function stepSummary(step, s) {
     case 'create_task': case 'create_opportunity': case 'create_invoice': return c.title;
     case 'add_to_workflow': case 'remove_from_workflow': return ref('workflows', c.workflowId) || (step.type === 'remove_from_workflow' ? 'Este fluxo' : '');
     case 'webhook': return c.url;
+    case 'custom_webhook': return [`${c.method || 'POST'} ${c.url || ''}`.trim(), `→ vars.${c.variable || 'resposta'}`].join(' ');
     case 'math': return `${ref('numberFields', c.field)} ${({ add: '+', subtract: '−', multiply: '×', divide: '÷', set: '=' })[c.op] || ''} ${c.number ?? ''}`;
     default: return String(c.body || c.user || c.status || '').slice(0, 80);
   }
