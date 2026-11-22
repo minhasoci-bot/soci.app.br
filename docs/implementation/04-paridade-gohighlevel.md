@@ -161,7 +161,7 @@ Marketplace de apps + App Studio. Soci: 🟡 `setup-marketplace.mjs`.
 | External Tracking (pixels, GA, GTM) | ✅ script do site + GA4, GTM e Pixel da Meta |
 | Integrations · Private Integrations (tokens de API) | ✅ Google / 🟡 |
 | Tags | ✅ |
-| Labs (feature flags por conta) | ❌ |
+| Labs (feature flags por conta) | ✅ Configurações → Labs, com o que a agência libera (7.2) |
 | Audit Logs | ✅ aba |
 | Brand Boards | ❌ |
 
@@ -172,7 +172,7 @@ Ask AI ✅ (Pergunte a Soci) · Launchpad ✅ · Dashboard ✅
 
 | GHL | Soci |
 |---|---|
-| AI Suite / uso de IA da agência | ❌ |
+| AI Suite / uso de IA da agência | ✅ Central de IA: limites, liga/desliga, painel de uso e padrões (7.2) |
 | Ask AI | ✅ |
 | Launchpad · Dashboard | ✅ |
 | SaaS Configurator (planos, revenda de assinaturas para clientes) | 🟡 (`03-agencia-saas-snapshot.md`) |
@@ -278,7 +278,8 @@ A ordem segue impacto para o cliente da Soci (agências e PMEs no Brasil) e depe
 
 ### Fase 7: plataforma de agência
 - Reselling com margem (IA, mensagens, telefonia). Feito em 2026-11-22 para IA, e-mails e WhatsApp, com carteira de créditos por subconta e recarga por Pix; telefonia depende da D1.
-- AI Suite da agência, Labs (flags por conta), App Marketplace / App Studio aberto.
+- AI Suite da agência e Labs (flags por conta). Feito em 2026-11-21: Central de IA com limites, uso e padrões; Labs com sugestão e resumo de conversa por IA e bloqueio de contatos duplicados.
+- App Marketplace / App Studio aberto.
 
 ### Fora do escopo (⏭)
 WordPress hospedado, Swag, Gokollab, conteúdo de educação SaaS do GHL.

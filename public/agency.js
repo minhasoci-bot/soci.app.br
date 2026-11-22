@@ -295,7 +295,7 @@ export function startAgency(env) {
     return `${periods}
       ${d.partial ? `<p class="surface padded ag-notice">${i('alert', 18)} ${h(tr('Alguma subconta muito ativa guarda só o mês atual completo: os dias mais antigos do período podem estar incompletos.'))}</p>` : ''}
       <div class="metrics">${metric('Custo estimado', formatUsd(t.cost), `${day(d.from)} a ${day(d.to)}`)}${metric('Chamadas de IA', t.calls)}${metric('Tokens', formatTokens(t.inputTokens + t.outputTokens), `${formatTokens(t.inputTokens)} de entrada`)}${metric('Erros', t.errors)}</div>
-      <section class="surface padded"><h2>${h(tr('Custo por dia'))}</h2><div class="ag-chart ag-ai-chart">${days.map(([date, x], index) => `<div class="ag-col" title="${h(date.split('-').reverse().join('/'))}: ${h(formatUsd(x.cost))} · ${x.calls} ${h(tr('chamadas'))}"><span class="ag-colbar"><span data-h="${(x.cost / max) * 100}"></span></span><small>${index % step === 0 ? h(date.slice(8, 10) + '/' + date.slice(5, 7)) : ''}</small></div>`).join('')}</div></section>
+      <section class="surface padded"><h2>${h(tr('Custo por dia'))}</h2><div class="ag-chart ag-ai-chart">${days.map(([date, x], index) => `<div class="ag-col" title="${h(date.split('-').reverse().join('/'))}: ${h(formatUsd(x.cost))} · ${x.calls} ${h(tr('chamadas'))}"><span class="ag-colbar">${x.cost > 0 ? `<span data-h="${(x.cost / max) * 100}"></span>` : ''}</span><small>${index % step === 0 ? h(date.slice(8, 10) + '/' + date.slice(5, 7)) : ''}</small></div>`).join('')}</div></section>
       <h2 class="section-heading">${h(tr('Por subconta'))}</h2>${table(['Subconta', 'Chamadas', 'Tokens', 'Custo', ''], d.byAccount.map(x => `<tr><td><b>${h(x.name)}</b></td><td>${x.calls}</td><td>${formatTokens(x.inputTokens + x.outputTokens)}</td><td>${formatUsd(x.cost)}</td><td>${bar(t.cost ? (x.cost / t.cost) * 100 : 0)}</td></tr>`), empty('Nenhum uso de IA no período', 'As chamadas de IA das subcontas aparecem aqui.'))}
       <div class="ag-two"><section><h2 class="section-heading">${h(tr('Por produto'))}</h2>${table(['Produto', 'Chamadas', 'Tokens', 'Custo', ''], rank(d.byKind, kindLabel), '')}</section>
       <section><h2 class="section-heading">${h(tr('Por modelo'))}</h2>${table(['Modelo', 'Chamadas', 'Tokens', 'Custo', ''], rank(d.byModel, key => key), '')}</section></div>`;
@@ -310,7 +310,7 @@ export function startAgency(env) {
         <button class="primary" ${manage ? '' : 'disabled'}>${h(tr('Salvar padrões'))}</button><p class="form-status" role="alert"></p></form>
       <section class="surface padded"><h2>${h(tr('Aplicar o limite padrão agora'))}</h2><p class="dim">${h(tr('Leva o limite e o alerta padrão para as subcontas que já existem.'))}</p>
         <div class="inline-gap">${btn(`Subcontas sem limite (${noLimit})`, 'ai-apply', 'data-scope="unlimited"', 'secondary')}${btn('Todas as subcontas', 'ai-apply', 'data-scope="all"', 'secondary')}</div>
-        <h2>${h(tr('Ligado à Central de IA'))}</h2>
+        <h2 class="ag-ai-subhead">${h(tr('Ligado à Central de IA'))}</h2>
         <a class="line-item" href="#agency/settings/openai"><span>${h(tr('Chave da OpenAI usada pelas subcontas'))}</span>${i('arrow', 15)}</a>
         <a class="line-item" href="#agency/saas/rebilling"><span>${h(tr('Revenda de IA com margem (carteira de créditos)'))}</span>${i('arrow', 15)}</a>
         <a class="line-item" href="#agency/settings/labs"><span>${h(tr('Recursos experimentais (Labs)'))}</span>${i('arrow', 15)}</a></section></div>`;
