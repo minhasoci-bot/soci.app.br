@@ -1,7 +1,7 @@
 // Workflow engine: several triggers with filters, a tree of steps (if/else, router, wait, goal, goto…)
 // compiled into a graph when a contact enrolls, runs that pause and resume, scheduled triggers, and an
 // outbox for the calls the server makes after saving (outbound webhooks, WhatsApp).
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { buildWorkflowContext, resolveTemplate } from './expressions.mjs';
 import { scoreTriggerMatches } from './scoring-model.mjs';
 import { canMessage } from './preference-model.mjs';
@@ -16,6 +16,15 @@ const lower = value => String(value ?? '').trim().toLowerCase();
 const digitsOf = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length >= 12 && digits.startsWith('55') ? digits.slice(2) : digits; };
 const samePhone = (a, b) => { const x = digitsOf(a); return x.length >= 8 && x === digitsOf(b); };
 const tagList = list => [...new Set((list || []).map(tag => str(tag, 48)).filter(Boolean))].slice(0, 20);
+// Meta (Conversions API and custom audiences): normalized, then SHA-256, as Meta asks. A Brazilian phone without
+// the country code gets 55. Empty values stay empty (never the hash of an empty string).
+const sha256 = value => value ? createHash('sha256').update(value).digest('hex') : '';
+const metaPhone = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length === 10 || digits.length === 11 ? `55${digits}` : digits.length >= 12 ? digits : ''; };
+const metaIdentity = contact => {
+  const [first = '', ...rest] = String(contact.name || '').trim().toLowerCase().split(/\s+/);
+  return { email: sha256(String(contact.email || '').trim().toLowerCase()), phone: sha256(metaPhone(contact.phone)),
+    first: sha256(first), last: sha256(rest.at(-1) || ''), external: sha256(String(contact.id || '')) };
+};
 const FAILURES = /^(erro|sem contato|sem nome|sem oportunidade|sem agendamento|sem conversa|campo removido|campo inválido|e-mail inválido|contato em não perturbe)/;
 
 // "Formatar data": AAAA-MM-DD, a date with time or "hoje", plus some days, in the sub-account's time zone.
@@ -539,6 +548,29 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         if (!contact.phone) { messageFailed(s, { messageId: row.id, reason: 'no_phone' }, depth); return 'erro: contato sem telefone'; }
         outbox(s, { kind: 'whatsapp-media', runId: run.id, phone: contact.phone, media: { type, url, caption: type === 'audio' ? '' : caption, fileName }, contactId: contact.id, messageId: row.id });
         return `${kind.toLowerCase()} na fila de envio`;
+      }
+      case 'meta_conversion': {
+        // Meta Conversions API: the server sends it with the token of the Meta Ads connection.
+        const pixel = String(s.tracking?.metaPixel || '');
+        if (!pixel) return 'erro: configure o Pixel da Meta em Marketing → Rastreamento';
+        const name = c.event === 'custom' ? text(c.customEvent).trim().replace(/[^\w]/g, '_').slice(0, 40) : String(c.event || 'Lead');
+        if (!name) return 'erro: informe o nome do evento personalizado';
+        const who = metaIdentity(contact);
+        if (!who.email && !who.phone) return 'erro: contato sem e-mail nem telefone';
+        const amount = Number(text(c.value).replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
+        const userData = Object.fromEntries(Object.entries({ em: who.email, ph: who.phone, fn: who.first, ln: who.last, external_id: who.external }).filter(([, v]) => v).map(([k, v]) => [k, [v]]));
+        const event = { event_name: name, event_time: Math.floor(Date.now() / 1000), event_id: `${run.id}:${id}`, action_source: 'system_generated', user_data: userData,
+          ...(Number.isFinite(amount) && amount > 0 ? { custom_data: { value: Math.round(amount * 100) / 100, currency: /^[A-Z]{3}$/.test(String(c.currency || '')) ? c.currency : 'BRL' } } : {}) };
+        outbox(s, { kind: 'meta-capi', runId: run.id, pixel, event, testCode: String(c.testCode || '').trim().slice(0, 40) });
+        return `${name} na fila para a Meta`;
+      }
+      case 'meta_audience': {
+        const audience = String(c.audienceId || '').replace(/\D/g, '');
+        if (!audience) return 'erro: informe o ID do público personalizado';
+        const who = metaIdentity(contact);
+        if (!who.email && !who.phone) return 'erro: contato sem e-mail nem telefone';
+        outbox(s, { kind: 'meta-audience', runId: run.id, audience, remove: c.op === 'remove', row: [who.email, who.phone] });
+        return c.op === 'remove' ? 'remoção do público na fila' : 'inclusão no público na fila';
       }
       case 'whatsapp_typing': {
         if (contact.dnd) return 'contato em não perturbe';

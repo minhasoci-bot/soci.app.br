@@ -47,7 +47,7 @@ import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } fro
 import { importedFile, mediaLimitBytes } from './media-model.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
-import { adsAuthUrl, adsConfigured, adsExchange, createMetaAd, freshAdsSecret, setCampaignBudget, setCampaignStatus, syncAds } from './ads-providers.mjs';
+import { adsAuthUrl, adsConfigured, adsExchange, changeMetaAudience, createMetaAd, freshAdsSecret, sendMetaEvents, setCampaignBudget, setCampaignStatus, syncAds } from './ads-providers.mjs';
 import { hasPixels, injectPixels, originAllowed, pixelsScript, trackerScript, trackingOf, touchesFrom, widenCsp } from './tracking.mjs';
 import { adSettingsOf, markAdConnection, metaAdInput, patchAdCampaign, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
@@ -1524,6 +1524,7 @@ export function makeServer({
       }
       if (item.kind === 'ai') aiResults.push(await workflowAIStep(workspace, state, item));
       if (item.kind === 'marketing-audit') auditLater(workspace, item);
+      if (item.kind === 'meta-capi' || item.kind === 'meta-audience') results.push({ runId: item.runId, kind: 'meta', text: await workflowMeta(workspace, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'copy-contact') results.push({ runId: item.runId, kind: 'copy', text: await workflowCopyContact(workspace, state, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'custom-webhook') aiResults.push({ runId: item.runId, stepId: item.stepId, ...(await deliverCustomWebhook(item).catch(() => ({ error: 'falha de conexão' }))) });
       if (item.kind === 'email-verify') {
@@ -1713,6 +1714,24 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     const fresh = await freshAdsSecret(network, unseal(a.token));
     if (fresh.changed) await store.change(rowId, row => { if (row[network]) row[network].token = seal(fresh.secret); });
     return { secret: fresh.secret, account, page: (a.pages || []).find(item => item.id === a.pageId) || null };
+  }
+  // Workflows (Conversions API, custom audiences): only the Meta token matters, not the chosen ad account.
+  async function metaSecret(workspace) {
+    const rowId = `ads-${workspace}`, a = (await socialRow(rowId)).meta;
+    if (!a?.token) throw error('conecte o Meta Ads em Marketing → Anúncios', 409);
+    const fresh = await freshAdsSecret('meta', unseal(a.token));
+    if (fresh.changed) await store.change(rowId, row => { if (row.meta) row.meta.token = seal(fresh.secret); });
+    return fresh.secret;
+  }
+  async function workflowMeta(workspace, item) {
+    if (privateSpace.test(workspace)) return 'não disponível na conta pessoal';
+    const secret = await metaSecret(workspace);
+    if (item.kind === 'meta-capi') {
+      const sent = await sendMetaEvents(secret, item.pixel, [item.event], item.testCode);
+      return `${item.event.event_name}: ${sent.received ? 'recebido pela Meta' : 'não recebido'}${item.testCode ? ' (teste)' : ''}`;
+    }
+    const changed = await changeMetaAudience(secret, item.audience, [item.row], item.remove);
+    return `${item.remove ? 'removido do' : 'incluído no'} público ${item.audience}${changed.invalid ? ' (dados inválidos)' : ''}`;
   }
   const adsRuns = new Set();
   /** Syncs campaigns and the daily numbers of the last 7 days (90 on the first sync or when `full`). */

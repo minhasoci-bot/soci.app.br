@@ -183,3 +183,22 @@ export async function createMetaAd(secret, account, page, ad, image) {
   const made = await post(`${act}/ads`, { name: ad.name, adset_id: adset.id, creative: { creative_id: creative.id }, status: 'PAUSED' });
   return { campaignId: campaign.id, adsetId: adset.id, adId: made.id };
 }
+
+// ---------- Workflows: Conversions API and custom audiences (Meta) ----------
+// The contact data arrive already hashed (SHA-256), as Meta asks; nothing in clear text leaves the server.
+
+/** Sends server events to the sub-account's Meta Pixel. Returns how many events Meta received. */
+export async function sendMetaEvents(secret, pixelId, events, testCode = '') {
+  if (!/^\d{6,20}$/.test(String(pixelId || ''))) fail('ID do Pixel da Meta inválido.');
+  const data = await call(`${graph()}/${pixelId}/events`, { method: 'POST', token: secret.token,
+    json: { data: events, ...(testCode ? { test_event_code: String(testCode).slice(0, 40) } : {}) } });
+  return { received: Number(data.events_received) || 0 };
+}
+
+/** Adds or removes people (hashed e-mail and phone) in a Meta custom audience. */
+export async function changeMetaAudience(secret, audienceId, rows, remove = false) {
+  if (!/^\d{6,25}$/.test(String(audienceId || ''))) fail('ID do público personalizado inválido.');
+  const data = await call(`${graph()}/${audienceId}/users`, { method: remove ? 'DELETE' : 'POST', token: secret.token,
+    json: { payload: { schema: ['EMAIL_SHA256', 'PHONE_SHA256'], data: rows } } });
+  return { received: Number(data.num_received) || 0, invalid: Number(data.num_invalid_entries) || 0 };
+}
