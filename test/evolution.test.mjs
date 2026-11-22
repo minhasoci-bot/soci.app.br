@@ -67,6 +67,10 @@ function fakeEvolution() {
       return json({ key: { remoteJid: `${body.number}@s.whatsapp.net`, fromMe: true, id: `EVOM${calls.length}` }, status: 'PENDING' }, 201);
     }
     if (group === 'chat' && action === 'sendPresence' && method === 'POST') return json({ presence: body.presence }, 201);
+    if (group === 'message' && ['sendButtons', 'sendList', 'sendPoll'].includes(action) && method === 'POST') {
+      if (inst.state !== 'open') return json({ status: 400, error: 'Bad Request', response: { message: ['Connection Closed'] } }, 400);
+      return json({ key: { remoteJid: `${body.number}@s.whatsapp.net`, fromMe: true, id: `EVOI${calls.length}` }, status: 'PENDING' }, 201);
+    }
     return new Response('Not found', { status: 404 });
   }
   const markOpen = (name, phone, profileName) => Object.assign(instances.get(name), { state: 'open', ownerJid: `${phone}@s.whatsapp.net`, profileName });
@@ -303,4 +307,48 @@ test('Evolution API nos fluxos: "digitando…", arquivo por https público e end
   const blocked = state.messages.find(m => m.body.includes('interno.png'));
   assert.equal(blocked.failed, 'provider_error', 'the blocked file shows as not delivered');
   assert.ok(state.messages.some(m => m.body === '[Documento: catalogo.pdf] https://93.184.216.34/Carla.pdf\nOlá, Carla!'));
+});
+
+test('Evolution API nos fluxos: botões, lista e enquete; anúncio de clique para o WhatsApp e respostas que voltam como texto', async t => {
+  const evo = fakeEvolution();
+  const local = await boot(t, { whatsappRequest: evo.request, evolutionBaseUrl: 'https://evo.soci.test/', evolutionApiKey: API_KEY });
+  await local.call('/api/whatsapp/workspace/connect?workspace=demo', {});
+  evo.markOpen('soci_demo', '5531988887777', 'Atendimento Demo');
+  const live = await local.call('/api/whatsapp/workspace/status?workspace=demo');
+  const hookPath = new URL(live.body.webhookUrl).pathname;
+  const flow = (name, trigger, steps) => local.call('/api/action?workspace=demo', { type: 'save', key: 'workflows', data: { name, active: true, triggers: [trigger], steps } });
+  assert.equal((await flow('Menu', { type: 'contact_tag', config: { change: 'added', tag: 'menu' } }, [
+    { type: 'whatsapp_interactive', config: { kind: 'buttons', body: 'Oi, {{contact.first_name}}!', options: 'Agendar\nPreços', footer: 'Clínica' } },
+    { type: 'whatsapp_interactive', config: { kind: 'list', body: 'Escolha um serviço', options: 'Limpeza\nClareamento', buttonText: 'Serviços' } },
+    { type: 'whatsapp_interactive', config: { kind: 'poll', body: 'Melhor horário?', options: 'Manhã\nTarde' } }
+  ])).status, 200);
+  await flow('Anúncio', { type: 'whatsapp_ad_click', config: {} }, [{ type: 'add_tag', config: { tag: 'menu' } }]);
+
+  // The first message of a "Click to WhatsApp" ad: contact, message, ad trigger and attribution.
+  const ad = { externalAdReply: { sourceId: '120210', sourceUrl: 'https://fb.me/anuncio', title: 'Clareamento em BH', sourceType: 'ad', ctwaClid: 'CTWA-9' } };
+  await local.call(hookPath, upsert({ remoteJid: '5511977776666@s.whatsapp.net' }, { extendedTextMessage: { text: 'Olá! Quero saber mais', contextInfo: ad } }, 'Carla Souza'));
+  let state, run;
+  for (let i = 0; i < 60 && (run?.results || []).filter(line => /WhatsApp: /.test(line)).length < 3; i++) {
+    await new Promise(resolve => setTimeout(resolve, 20));
+    state = (await local.call('/api/state?workspace=demo')).body.state;
+    run = state.runs.find(row => row.name === 'Menu');
+  }
+  const carla = state.contacts.find(row => row.phone === '+5511977776666');
+  assert.equal(carla.attribution.last.campaign, 'Clareamento em BH');
+  assert.equal(state.runs.find(row => row.name === 'Anúncio').contactId, carla.id);
+  const sent = path => evo.calls.find(c => c.path === `/message/${path}/soci_demo`)?.body;
+  assert.deepEqual(sent('sendButtons'), { number: '5511977776666', title: '', description: 'Oi, Carla!', footer: 'Clínica',
+    buttons: [{ type: 'reply', displayText: 'Agendar', id: 'opcao_1' }, { type: 'reply', displayText: 'Preços', id: 'opcao_2' }] });
+  assert.deepEqual(sent('sendList'), { number: '5511977776666', title: '', description: 'Escolha um serviço', buttonText: 'Serviços', footerText: '',
+    sections: [{ title: 'Opções', rows: [{ title: 'Limpeza', description: '', rowId: 'opcao_1' }, { title: 'Clareamento', description: '', rowId: 'opcao_2' }] }] });
+  assert.deepEqual(sent('sendPoll'), { number: '5511977776666', name: 'Melhor horário?', selectableCount: 1, values: ['Manhã', 'Tarde'] });
+  assert.equal(run.results.filter(line => line === 'WhatsApp: mensagem interativa enviada').length, 3);
+
+  // The choices come back as messages: a button, a list row and a decrypted poll vote.
+  await local.call(hookPath, upsert({ remoteJid: '5511977776666@s.whatsapp.net' }, { buttonsResponseMessage: { selectedDisplayText: 'Agendar', selectedButtonId: 'opcao_1' } }, 'Carla Souza'));
+  await local.call(hookPath, upsert({ remoteJid: '5511977776666@s.whatsapp.net' }, { listResponseMessage: { title: 'Clareamento' } }, 'Carla Souza'));
+  await local.call(hookPath, upsert({ remoteJid: '5511977776666@s.whatsapp.net' }, { pollUpdateMessage: { vote: { selectedOptions: [{ name: 'Tarde' }] } } }, 'Carla Souza'));
+  state = (await local.call('/api/state?workspace=demo')).body.state;
+  const inbound = state.messages.filter(row => row.contactId === carla.id && row.direction === 'Inbound').map(row => row.body);
+  assert.deepEqual(inbound, ['Olá! Quero saber mais', 'Agendar', 'Clareamento', 'Escolheu: Tarde']);
 });

@@ -196,6 +196,10 @@ export const triggerCatalog = [
       f('network', 'Rede', 'select', { options: [['', 'Qualquer rede'], ['instagram', 'Instagram Direct'], ['facebook', 'Messenger']] }),
       f('keyword', 'Contém a palavra', 'text', { placeholder: 'Ex.: INFO, QUERO' })
     ] },
+    { type: 'whatsapp_ad_click', label: 'Mensagem de anúncio no WhatsApp', icon: 'meg', description: 'Quando alguém manda mensagem pelo botão de um anúncio "Clique para o WhatsApp" do Facebook ou do Instagram. O anúncio vai para a atribuição do contato. Use {{trigger.title}} (título do anúncio), {{trigger.adId}} e {{trigger.body}}.', fields: [
+      f('adId', 'ID do anúncio', 'text', { placeholder: 'Vazio = qualquer anúncio' }),
+      f('keyword', 'Mensagem contém', 'text', { placeholder: 'Ex.: quero saber mais' })
+    ] },
     { type: 'meta_lead_form', label: 'Formulário de cadastro do Facebook', icon: 'meg', description: 'Quando alguém envia um formulário de cadastro (Lead Ads) no Facebook ou no Instagram, de uma página conectada no Social Planner. O contato é criado ou atualizado e as respostas viram nota. Use {{trigger.form}} e {{trigger.campaign}}.', fields: [
       f('formId', 'Formulário (ID ou parte do nome)', 'text', { placeholder: 'Vazio = qualquer formulário' }),
       f('campaign', 'Campanha contém', 'text', { placeholder: 'Ex.: black-friday' }),
@@ -361,6 +365,14 @@ export const actionCatalog = [
       f('caption', 'Legenda (aceita variáveis; áudio não leva legenda)', 'textarea', {}),
       f('fileName', 'Nome do arquivo (documentos)', 'text', { placeholder: 'catalogo.pdf' }),
       f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })
+    ] },
+    { type: 'whatsapp_interactive', label: 'Enviar mensagem interativa no WhatsApp', icon: 'whatsapp', description: 'Manda botões de resposta (até 3), uma lista (até 10 opções) ou uma enquete (até 12), pela Evolution API. A escolha do contato chega como mensagem em Conversas e serve para o gatilho Cliente respondeu ou um Se / Senão.', fields: [
+      f('kind', 'Formato', 'select', { options: [['buttons', 'Botões (até 3)'], ['list', 'Lista (até 10)'], ['poll', 'Enquete (até 12)']], value: 'buttons' }),
+      f('body', 'Mensagem ou pergunta', 'textarea', { required: true }),
+      f('options', 'Opções (uma por linha)', 'textarea', { required: true, placeholder: 'Quero agendar\nVer preços\nFalar com atendente' }),
+      f('buttonText', 'Texto do botão que abre a lista', 'text', { value: 'Ver opções', when: { kind: 'list' } }),
+      f('footer', 'Rodapé (botões e lista; opcional)', 'text'),
+      f('topicId', 'Assunto (preferências do contato)', 'ref', { source: 'topics', empty: 'Sem assunto' })
     ] },
     { type: 'whatsapp_typing', label: 'Mostrar "digitando…" no WhatsApp', icon: 'whatsapp', description: 'Mostra "digitando…" para o contato por alguns segundos, antes da próxima mensagem do fluxo, para a conversa parecer natural. Disponível com a Evolution API.', fields: [
       f('seconds', 'Segundos', 'number', { min: 1, max: 25, value: 3 })
@@ -698,6 +710,7 @@ export function stepSummary(step, s) {
     case 'copy_contact': return c.workspace ? 'para outra subconta' : '';
     case 'whatsapp_media': return c.fileName || c.url || '';
     case 'whatsapp_typing': return `${c.seconds || 3} s`;
+    case 'whatsapp_interactive': return { buttons: 'Botões', list: 'Lista', poll: 'Enquete' }[c.kind || 'buttons'] || '';
     case 'meta_conversion': return c.event === 'custom' ? c.customEvent || '' : c.event || 'Lead';
     case 'google_ads_conversion': return c.actionId ? `ação ${c.actionId}` : '';
     case 'ga4_event': return c.event === 'custom' ? c.customEvent || '' : c.event || 'generate_lead';
