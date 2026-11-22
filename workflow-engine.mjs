@@ -328,6 +328,8 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'service_booked': return (!c.serviceId || c.serviceId === ctx.serviceId) && (!c.kind || c.kind === ctx.kind);
       case 'subscription_status': return !c.status || c.status === ctx.status;
       case 'coupon_redeemed': case 'coupon_limit_reached': case 'coupon_expired': return !c.couponId || c.couponId === ctx.couponId;
+      case 'coupon_applied': return (!c.couponId || c.couponId === ctx.couponId) && (!c.storeId || c.storeId === ctx.storeId);
+      case 'product_viewed': return (!c.storeId || c.storeId === ctx.storeId) && (!c.productId || c.productId === ctx.productId);
       case 'conversation_sla': return (!c.state || c.state === ctx.state) && (!c.channel || c.channel === ctx.channel);
       case 'cart_updated': return !c.storeId || c.storeId === ctx.storeId;
       case 'user_replied': return (!c.channel || c.channel === ctx.channel) && (!c.user || lower(c.user) === lower(ctx.user)) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));

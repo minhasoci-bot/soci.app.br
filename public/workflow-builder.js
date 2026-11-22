@@ -319,6 +319,8 @@ const triggerData = {
   community_access_revoked: [['community', 'Comunidade'], ['reason', 'Motivo (left, removed, banned ou workflow)']], portal_login: [['first', 'Primeiro acesso (yes ou no)']],
   conversation_sla: [['state', 'Situação (soon ou overdue)'], ['channel', 'Canal'], ['minutes', 'Minutos sem resposta'], ['body', 'Mensagem do cliente']],
   coupon_expired: [['code', 'Código do cupom'], ['title', 'Nome do cupom'], ['end', 'Fim da validade']],
+  coupon_applied: [['code', 'Código do cupom'], ['title', 'Nome do cupom'], ['discount', 'Desconto'], ['total', 'Total do carrinho']],
+  product_viewed: [['title', 'Produto'], ['price', 'Preço'], ['productId', 'Produto (id)'], ['storeId', 'Loja (id)']],
   offer_access_granted: [['offer', 'Oferta'], ['offerId', 'ID da oferta']], offer_access_revoked: [['offer', 'Oferta'], ['offerId', 'ID da oferta']],
   community_event_checked_in: [['community', 'Comunidade'], ['title', 'Evento'], ['eventId', 'ID do evento']],
   community_channel_granted: [['community', 'Comunidade'], ['channel', 'Canal'], ['channelId', 'ID do canal']], community_channel_revoked: [['community', 'Comunidade'], ['channel', 'Canal'], ['channelId', 'ID do canal']],

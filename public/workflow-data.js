@@ -239,6 +239,12 @@ export const triggerCatalog = [
     { type: 'coupon_redeemed', label: 'Cupom usado', icon: 'tag', description: 'Quando um pedido da loja usa um cupom. Use {{trigger.code}}.', fields: [f('couponId', 'Cupom', 'ref', { source: 'coupons', empty: 'Qualquer cupom' })] },
     { type: 'coupon_limit_reached', label: 'Cupom atingiu o limite de usos', icon: 'tag', description: 'Quando um cupom chega ao número máximo de usos. Dispara para o contato do último pedido.', fields: [f('couponId', 'Cupom', 'ref', { source: 'coupons', empty: 'Qualquer cupom' })] },
     { type: 'coupon_expired', label: 'Cupom expirou', icon: 'tag', description: 'No dia seguinte ao fim da validade de um cupom. Não tem contato: use para avisar a equipe, criar tarefa ou chamar um webhook. Use {{trigger.code}}.', fields: [f('couponId', 'Cupom', 'ref', { source: 'coupons', empty: 'Qualquer cupom' })] },
+    { type: 'coupon_applied', label: 'Cupom aplicado no carrinho', icon: 'tag', description: 'Quando um contato já cadastrado coloca um cupom válido no carrinho da loja, antes de fechar o pedido. Use {{trigger.code}}, {{trigger.discount}} e {{trigger.total}}.', fields: [
+      f('couponId', 'Cupom', 'ref', { source: 'coupons', empty: 'Qualquer cupom' }), f('storeId', 'Loja', 'ref', { source: 'stores', empty: 'Qualquer loja' })
+    ] },
+    { type: 'product_viewed', label: 'Produto visualizado', icon: 'box', description: 'Quando um contato já identificado na loja (pelo e-mail que preencheu no carrinho) abre a página de um produto. No máximo uma vez por dia para cada produto. Use {{trigger.title}} e {{trigger.price}}.', fields: [
+      f('storeId', 'Loja', 'ref', { source: 'stores', empty: 'Qualquer loja' }), f('productId', 'Produto', 'ref', { source: 'products', empty: 'Qualquer produto' })
+    ] },
     { type: 'cart_updated', label: 'Produtos adicionados ao carrinho', icon: 'pay', description: 'Quando um contato já cadastrado coloca ou muda produtos no carrinho da loja. Use {{trigger.total}}.', fields: [f('storeId', 'Loja', 'ref', { source: 'stores', empty: 'Qualquer loja' })] }
   ] }
 ];

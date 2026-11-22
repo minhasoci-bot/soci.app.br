@@ -203,7 +203,7 @@ const preferencePath = new RegExp(`^/preferencias/${workspaceSegment}/([0-9a-f]{
 const bookingPath = new RegExp(`^/agendar/${workspaceSegment}/?$`);
 const desktopPath = /^\/desktop\/([\w-]{1,60})\/(manifest\.webmanifest|sw\.js|icon-(?:192|512|1024)\.png)?$/;
 const offerApi = new RegExp(`^/api/offer/${workspaceSegment}/([0-9a-f-]{36})$`);
-const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout|cart|restore|review)$`);
+const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout|cart|restore|review|view)$`);
 const blogPath = new RegExp(`^/b/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,80}|rss\\.xml))?/?$`);
 const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
 const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
@@ -3905,6 +3905,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
           if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
           return json((await change(workspace,{ type:'store-cart', id:storeId, data:{ session:input.session, name:input.name, email:input.email, phone:input.phone, items:input.items, coupon:input.coupon, delivery:input.delivery } })).id);
+        }
+        if (op === 'view') {
+          // "Produto visualizado": the contact comes from the cart session on the server, never from the page.
+          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+          if (!allowTracking(ip)) throw error('Muitas visualizações a partir desta conexão. Aguarde alguns minutos.',429);
+          const viewed = await change(workspace,{ type:'store-view', id:storeId, data:{ session:input.session, productId:input.productId } });
+          if (viewed.state.workflowOutbox?.length) flushLater(workspace);
+          return json({ tracked: Boolean(viewed.id?.tracked) });
         }
         if (op === 'review') {
           const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
