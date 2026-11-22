@@ -141,6 +141,10 @@ import { desktopCsp, desktopLaunchPage, desktopManifest, desktopOf, desktopWorke
 import { assetLinksFor, mobileConfig, mobileCsp, mobileLaunchPage, mobileManifest, mobileOf, mobileWorker, storePackage } from './agency-mobile.mjs';
 import { pushConfigured, pushSubscription, sendPush } from './web-push.mjs';
 import { pushTargets } from './push-model.mjs';
+import { pollConnector, readWebhook, runConnectorAction, testConnection } from './connectors.mjs';
+import { connectorPublic, pollJobs } from './connector-model.mjs';
+import { connectorById, connectors as connectorCatalog } from './ui/connectors-data.js';
+import { seal as sealSecret, unseal as unsealSecret } from './social-providers.mjs';
 import { createMcpHandler } from './mcp-server.mjs';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { chatHistory } from './chat-model.mjs';
@@ -166,7 +170,7 @@ const staticFiles = new Map([
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
@@ -280,7 +284,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
   : resolve(root, '.data', 'go.sqlite');
 
 export function makeServer({
-  pushEnv=process.env, pushRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
+  pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, inboundFetch=fetch, twilioRequest=fetch, phoneEnv=process.env, brandResolve=null, designAgentConfig=designAgent,
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
@@ -1595,6 +1599,11 @@ export function makeServer({
       if (item.kind === 'meta-capi' || item.kind === 'meta-audience') results.push({ runId: item.runId, kind: 'meta', text: await workflowMeta(workspace, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'copy-contact') results.push({ runId: item.runId, kind: 'copy', text: await workflowCopyContact(workspace, state, item).catch(problem => `erro: ${problem.message}`) });
       if (item.kind === 'custom-webhook') aiResults.push({ runId: item.runId, stepId: item.stepId, ...(await deliverCustomWebhook(item).catch(() => ({ error: 'falha de conexão' }))) });
+      if (item.kind === 'connector') {
+        const row = state.connectors?.[item.connector];
+        const answered = !row ? { error: 'conector desconectado' } : await runConnectorAction(item.connector, item.action, connectorAuth(row), item.input || {}, { request: connectorRequest }).then(vars => ({ vars }), problem => ({ error: problem.message }));
+        aiResults.push({ runId: item.runId, stepId: item.stepId, ...answered });
+      }
       if (item.kind === 'push') {
         const devices = pushTargets(state, { target: item.target, contactId: item.contactId, messagesOnly: item.messagesOnly });
         const sent = await Promise.all(devices.map(device => sendPush(device, { title: item.title, body: item.body, url: item.url, tag: item.tag }, { env: pushEnv, request: pushRequest }).catch(() => ({ ok: false }))));
@@ -1733,11 +1742,31 @@ export function makeServer({
     flushLater(workspace);
   }
   // Every minute: wake waiting runs and fire scheduled triggers (birthdays, custom dates, scheduler, stale deals).
+  // T.2: the credentials of a connected app (sealed in the sub-account).
+  const connectorAuth = row => { try { return JSON.parse(unsealSecret(row.sealed) || '{}'); } catch { return {}; } };
+  async function pollConnectors(workspace, state, at = Date.now()) {
+    const byApp = new Map();
+    for (const job of pollJobs(state)) byApp.set(job.id, [...(byApp.get(job.id) || []), job]);
+    for (const [id, jobs] of byApp) {
+      const row = state.connectors[id];
+      if (row.polledAt && at - Date.parse(row.polledAt) < 5 * 60000) continue;
+      const auth = connectorAuth(row), cursors = {};
+      for (const job of jobs) {
+        try {
+          const found = await pollConnector(id, job.key, job.config, auth, row.cursors?.[job.scope], { request: connectorRequest, now: at });
+          cursors[job.scope] = found.cursor;
+          for (const event of found.events) await change(workspace, { type: 'connector-event', data: { connector: id, key: event.key, ctx: event.ctx } });
+        } catch (e) { console.error(`Conector ${id} (${workspace}): ${e.message}`); }
+      }
+      await change(workspace, { type: 'connector-cursor', data: { id, cursors } });
+    }
+  }
   async function runWorkflows(workspace, at = Date.now()) {
     const state = await store.load(workspace);
     if (!state.workflows?.some(row => row.active) && !state.runs?.some(row => row.status === 'Waiting')) return null;
     if (!privateSpace.test(workspace) && !(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'automation').catch(() => false))) return null;
     if (state.aiVideoJobs?.length) await pollAiVideos(workspace, state).catch(e => console.error(`AI video (${workspace}): ${e.message}`));
+    await pollConnectors(workspace, state, at).catch(e => console.error(`Conectores (${workspace}): ${e.message}`));
     const result = (await change(workspace, { type: 'workflow-tick', data: { at: new Date(at).toISOString() } })).id;
     await flushWorkflows(workspace);
     return result;
@@ -3231,6 +3260,21 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/whatsapp/webhook/') && method === 'POST') {
         return await whatsapp.handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json, onStored: flushLater });
       }
+      const appHook = p.match(/^\/api\/connectors\/hook\/(demo|[0-9a-f-]{36})\/([a-z_]{2,40})\/([\w-]{20,80})$/);
+      if (appHook && method === 'POST') {
+        await ready;
+        const [, workspace, appId, token] = appHook;
+        let size = 0; const chunks = [];
+        for await (const chunk of req) { size += chunk.length; if (size > 1_000_000) throw error('Payload too large.', 413); chunks.push(chunk); }
+        const state = await Promise.resolve().then(() => store.load(workspace)).catch(() => null), row = state?.connectors?.[appId];
+        const given = Buffer.from(token), expected = Buffer.from(String(row?.hook || ''));
+        if (!row || given.length !== expected.length || !timingSafeEqual(given, expected)) throw error('Not found.', 404);
+        if (!await publicAccountPolicy(workspace, true, 'automation').catch(() => false)) return json({ ok: true, ignored: true });
+        const read = readWebhook(appId, { raw: Buffer.concat(chunks).toString('utf8'), headers: req.headers, auth: connectorAuth(row) });
+        for (const event of read.events.slice(0, 50)) await change(workspace, { type: 'connector-event', data: { connector: appId, key: event.key, ctx: event.ctx, contact: event.contact } });
+        if (read.events.length) flushLater(workspace);
+        return json(read.reply || { ok: true });
+      }
       if (p.startsWith('/api/phone/twilio/') && method === 'POST') {
         await ready;
         return await phone.twilioWebhook(req, res, url, p);
@@ -3323,6 +3367,28 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           { workspace, attribution: { first: touch, last: touch } }));
         flushLater(workspace);
         return json({});
+      }
+      if (p.startsWith('/api/connectors/') && !p.startsWith('/api/connectors/hook/')) {
+        if (!spaceId.test(id) || privateSpace.test(id)) throw error('Subconta não encontrada.', 404);
+        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
+        const origin = publicBase(req);
+        const view = state => Object.fromEntries(connectorCatalog.map(def => {
+          const row = state.connectors?.[def.id];
+          return [def.id, { ...connectorPublic(row), ...(row?.hook && def.triggers.some(t => !t.poll) ? { hookUrl: `${origin}/api/connectors/hook/${id}/${def.id}/${row.hook}` } : {}) }];
+        }));
+        if (p === '/api/connectors/status' && method === 'GET') return json({ connectors: view(await store.load(id)) });
+        if (method !== 'POST') throw error('Método indisponível.', 405);
+        await requireActiveAccount(who.agencyId, id, true);
+        const body = await payload(req), def = connectorById(String(body.id || ''));
+        if (!def) throw error('Conector não encontrado.', 404);
+        if (p === '/api/connectors/connect') {
+          const auth = Object.fromEntries(def.auth.map(field => [field.key, String(body.fields?.[field.key] ?? '').trim().slice(0, 20000)]));
+          const account = await testConnection(def.id, auth, { request: connectorRequest });
+          const result = await change(id, { type: 'connector-save', data: { id: def.id, sealed: sealSecret(JSON.stringify(auth)), account, hook: randomBytes(24).toString('base64url') } });
+          return json({ connectors: view(result.state) });
+        }
+        if (p === '/api/connectors/disconnect') return json({ connectors: view((await change(id, { type: 'connector-remove', data: { id: def.id } })).state) });
+        throw error('Not found.', 404);
       }
       if (p === '/api/push/key' && method === 'GET') return json({ key: pushConfigured(pushEnv) ? pushEnv.WEB_PUSH_PUBLIC_KEY : '' });
       if ((p === '/api/push/subscribe' || p === '/api/push/unsubscribe') && method === 'POST') {

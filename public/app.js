@@ -110,6 +110,13 @@ async function refreshGoogle(){
   catch(e){ if(c.workspace===ws) c.google={error:e.message,workspace:ws}; }
   if(c.workspace===ws&&c.mode!=='agency'&&(c.view==='dashboard'||c.view==='settings'&&c.tab==='google')) render();
 }
+// Conectores (T.2): which apps the sub-account connected and their webhook URLs.
+async function refreshConnectors(){
+  const ws=c.workspace;
+  try{ const live=await api(url('/api/connectors/status')); if(c.workspace===ws) c.connectorStatus={...live,workspace:ws}; }
+  catch(e){ if(c.workspace===ws) c.connectorStatus={error:e.message,workspace:ws}; }
+  if(c.workspace===ws&&c.mode!=='agency'&&c.view==='settings'&&c.tab==='connectors') render();
+}
 // Telefonia: the sub-account's Twilio numbers (Configurações → Telefonia).
 async function refreshPhone(){
   const ws=c.workspace;
@@ -279,6 +286,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(view==='dashboard'&&c.google?.workspace!==c.workspace||view==='settings'&&nextTab==='google'){ render(); void refreshGoogle(); return; }
   if(view==='settings'&&nextTab==='email'){ if(c.emailDomain?.workspace!==c.workspace) c.emailDomain=null; render(); void refreshEmail(); return; }
   if(view==='conversations'&&nextTab==='dialer'){ render(); followDialer(); return; }
+  if(view==='settings'&&nextTab==='connectors'){ if(c.connectorStatus?.workspace!==c.workspace) c.connectorStatus=null; render(); void refreshConnectors(); return; }
   if(view==='settings'&&nextTab==='phone'){ if(c.phoneSetup?.workspace!==c.workspace){ c.phoneSetup=null; c.phoneSearch=null; } render(); void refreshPhone(); return; }
   render(); }
 const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${tr(label)}" title="${tr(label)}" ${attributes}>${i(name,17)}</button>`;
@@ -877,6 +885,13 @@ document.addEventListener('click',async ev=>{
       case 'dialer-stop': await api(url('/api/phone/dialer/stop'),{}); await load(); render(); flash(tr('Discador encerrado.')); break;
       case 'dialer-remove': await mutate({type:'dialer-queue-remove',data:{contactId:d.dialerContact}}); render(); break;
       case 'dialer-clear': if(!confirm(tr('Tirar todos os contatos pendentes da fila?'))) break; await mutate({type:'dialer-queue-remove',data:{all:true}}); render(); break;
+      case 'connectors-refresh': c.connectorStatus=null; render(); await refreshConnectors(); break;
+      case 'connector-copy': await navigator.clipboard.writeText(d.connectorValue).then(()=>flash(tr('URL copiada.')),()=>flash(tr('Selecione a URL e copie.'),true)); break;
+      case 'connector-disconnect': {
+        if(!confirm(tr('Desconectar este app? Os fluxos que usam os gatilhos e ações dele param de funcionar.'))) break;
+        c.connectorStatus={...await api(url('/api/connectors/disconnect'),{id:d.connectorId}),workspace:c.workspace}; await load(); render(); flash(tr('App desconectado.'));
+        break;
+      }
       case 'phone-refresh': c.phoneSetup=null; render(); await refreshPhone(); break;
       case 'phone-buy': {
         const number=d.phoneNumber;
@@ -1032,6 +1047,7 @@ document.addEventListener('input', e => {
   if (el.name === 'brief' && el.form?.dataset.form === 'studio-create') c.studio.brief=el.value;
   if (el.id === 'page-search') { c.query=el.value; rerenderSearch(el.id,el.value,el.selectionStart,el.selectionEnd); }
   if (el.id === 'global-search') globalSearch(el.value);
+  if (el.matches?.('[data-connector-search]')) { c.connectorQuery=el.value; const at=el.selectionStart; render(); const box=G('[data-connector-search]'); if(box){ box.focus(); box.setSelectionRange(at,at); } }
   if (el.id === 'composer-search') {
     for (const item of G('#dialog').querySelectorAll('[data-composer-item]')) item.hidden = !item.textContent.toLowerCase().includes(el.value.toLowerCase());
   }
@@ -1107,6 +1123,11 @@ document.addEventListener('submit',async ev=>{
     else if(name==='google-select'){
       c.google={...await api(url('/api/google/workspace/select'),{gaProperty:data.gaProperty||'',gbpLocation:data.gbpLocation||'',gscSite:data.gscSite||''}),workspace:c.workspace};
       render(); flash('Escolha salva. O painel já mostra os dados do Google.'); return;
+    }
+    else if(name==='connector-connect'){
+      const {connectorId,...fields}=data;
+      c.connectorStatus={...await api(url('/api/connectors/connect'),{id:connectorId,fields}),workspace:c.workspace};
+      await load(); render(); flash(tr('App conectado. Os gatilhos e as ações dele já aparecem no editor de fluxos.')); return;
     }
     else if(name==='dialer-start'){
       c.dialerAgent=data.agentPhone||'';

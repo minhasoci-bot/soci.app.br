@@ -30,6 +30,7 @@ import { sequenceCollections, sequenceCommand, sequenceFields, sequenceInbound, 
 import { addPoints, loyaltyCollections, loyaltyCommand, loyaltyEvent, loyaltyFields } from './loyalty-model.mjs';
 import { preferenceCommand, preferenceToken } from './preference-model.mjs';
 import { trashCommand, trashContact } from './contact-trash.mjs';
+import { connectorCommand } from './connector-model.mjs';
 import { pushCommand, pushInbound } from './push-model.mjs';
 import { dialerDefaults, phoneCommand, phoneDefaults } from './phone-model.mjs';
 import { appointmentRecord, bookForContact, createBookingLink, noteOnAppointment, schedulingCollections, schedulingCommand, schedulingFields, upcomingSlots, zonedInstant } from './scheduling-model.mjs';
@@ -453,6 +454,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   // Server only: a lead from a Google Ads lead form webhook or from Meta Lead Ads.
   if (type === 'ad-form-lead') return adFormLead(s, d, { add, run, now });
   // Telefonia (2.4): numbers, calls and the IVR (phone-model.mjs). Only phone-number-save comes from the browser.
+  // T.2 Conectores: connections (sealed by the server), webhook and polling events. Server only.
+  if (type.startsWith('connector-')) { const out = connectorCommand(s, type, d, { add, run, now }); if (out !== undefined) return out; }
   // Notificações push: the devices of the team (app mobile) and of contacts (portal). Server only.
   if (type.startsWith('push-')) { const out = pushCommand(s, type, d, { now }); if (out !== undefined) return out; }
   // Voice AI: the agent booked a free time the caller chose (same save as the screens).

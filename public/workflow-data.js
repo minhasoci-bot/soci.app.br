@@ -1,6 +1,7 @@
 // Workflows: the catalog shared by the engine (server) and the builder (browser) — triggers with their
 // filters, actions with their fields, condition subjects and operators, and template variables.
 import { tr } from './i18n.js';
+import { connectorActionGroups, connectorTriggerGroups } from './connectors-data.js';
 
 // Field kinds: text, textarea, number, select (static options), ref (options from workspace records), tags, time, datetime, conditions.
 const f = (key, label, kind = 'text', extra = {}) => ({ key, label, kind, ...extra });
@@ -764,6 +765,9 @@ export const actionCatalog = [
   ] }
 ];
 
+// T.2: the triggers and actions of the connector catalog (Configurações → Conectores), one group per app.
+triggerCatalog.push(...connectorTriggerGroups());
+actionCatalog.push(...connectorActionGroups());
 export const allTriggers = triggerCatalog.flatMap(group => group.items.map(item => ({ ...item, group: group.group })));
 export const allActions = actionCatalog.flatMap(group => group.items.map(item => ({ ...item, group: group.group })));
 export const triggerSpec = type => allTriggers.find(item => item.type === type);

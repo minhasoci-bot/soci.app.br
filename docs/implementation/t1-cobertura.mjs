@@ -31,11 +31,11 @@ export const gatilhos = [
   c('Custom trigger', 'custom_event'), c('Form submitted', 'form_submitted'), c('Survey submitted', 'survey_submitted'),
   c('Trigger link clicked', 'trigger_link_clicked'),
   c('Facebook lead form submitted', 'meta_lead_form'),
-  conector('TikTok form submitted', 'Formulários de leads do TikTok pelo conector.'),
+  c('TikTok form submitted', 'conn_tiktok_leads__form_submitted', 'Catálogo de conectores (T.2).'),
   c('Video tracking', 'video_watched', 'Vídeos HTML5 do site com o script de rastreamento (25, 50, 75 e 100%).'),
   c('Number validation', 'phone_validated', 'Depois da ação Validar telefone (Twilio Lookup).'),
   c('Messaging error - SMS', 'message_failed'),
-  conector('LinkedIn lead form submitted', 'Formulários de leads do LinkedIn pelo conector.'),
+  c('LinkedIn lead form submitted', 'conn_linkedin_leads__form_submitted', 'Catálogo de conectores (T.2).'),
   c('Funnel/website pageview', 'site_page_viewed'), c('Quiz submitted', 'quiz_submitted'),
   c('External tracking event', 'external_tracking_event'), c('Prospect generated', 'prospect_received'),
   c('Click to WhatsApp ads', 'whatsapp_ad_click'),
@@ -65,7 +65,7 @@ export const gatilhos = [
   c('Coupon code expired', 'coupon_expired'), c('Coupon code applied', 'coupon_applied'), c('Coupon redemption limit reached', 'coupon_limit_reached'),
   // Ecommerce stores (8)
   fora('Shopify abandoned cart (deprecating soon)', 'Sendo descontinuado no próprio GHL; o Shopify entra pelo conector (T.2).'),
-  conector('Shopify order placed', 'Pedido do Shopify pelo conector.'),
+  c('Shopify order placed', 'conn_shopify__order_placed', 'Catálogo de conectores (T.2).'),
   fora('Shopify order fulfilled (deprecating soon)', 'Sendo descontinuado no próprio GHL; o Shopify entra pelo conector (T.2).'),
   c('Order fulfilled', 'order_fulfilled'), c('Product review submitted', 'product_review'), c('Abandoned checkout', 'abandoned_checkout'),
   c('Add products to cart', 'cart_updated'), c('Product viewed', 'product_viewed'),
@@ -96,9 +96,9 @@ export const gatilhos = [
   // Google ads (1)
   c('Google lead form submitted', 'google_lead_form'),
   // Google sheets (3) e Slack (5)
-  conector('New spreadsheet row (polling 5 mins) (beta)'), conector('New spreadsheet (polling 5 mins) (beta)'), conector('New worksheet (polling 5 mins) (beta)'),
-  conector('New mention (instant)'), conector('User invited to channel (instant)'), conector('New direct message (instant)'),
-  conector('New message posted to channel (instant)'), conector('New reaction added (instant)')
+  c('New spreadsheet row (polling 5 mins) (beta)', 'conn_google_sheets__new_row', 'Catálogo de conectores (T.2).'), c('New spreadsheet (polling 5 mins) (beta)', 'conn_google_sheets__new_spreadsheet', 'Catálogo de conectores (T.2).'), c('New worksheet (polling 5 mins) (beta)', 'conn_google_sheets__new_worksheet', 'Catálogo de conectores (T.2).'),
+  c('New mention (instant)', 'conn_slack__mention', 'Catálogo de conectores (T.2).'), c('User invited to channel (instant)', 'conn_slack__member_joined', 'Catálogo de conectores (T.2).'), c('New direct message (instant)', 'conn_slack__direct_message', 'Catálogo de conectores (T.2).'),
+  c('New message posted to channel (instant)', 'conn_slack__message', 'Catálogo de conectores (T.2).'), c('New reaction added (instant)', 'conn_slack__reaction', 'Catálogo de conectores (T.2).')
 ];
 
 export const acoes = [
@@ -138,15 +138,15 @@ export const acoes = [
   c('Live chat interactive messenger (beta)', 'send_live_chat', 'Botões de resposta no chat do site.'),
   c('Show WhatsApp typing indicator', 'whatsapp_typing'),
   // Slack (6)
-  conector('Send Message'), conector('Invite user to channel (beta)'), conector('Find channel by name (beta)'),
-  conector('Find user by email (beta)'), conector('Update message (beta)'), conector('Create channel (beta)'),
+  c('Send Message', 'conn_slack__send_message', 'Catálogo de conectores (T.2).'), c('Invite user to channel (beta)', 'conn_slack__invite_user', 'Catálogo de conectores (T.2).'), c('Find channel by name (beta)', 'conn_slack__find_channel', 'Catálogo de conectores (T.2).'),
+  c('Find user by email (beta)', 'conn_slack__find_user', 'Catálogo de conectores (T.2).'), c('Update message (beta)', 'conn_slack__update_message', 'Catálogo de conectores (T.2).'), c('Create channel (beta)', 'conn_slack__create_channel', 'Catálogo de conectores (T.2).'),
   // Send data (2)
   c('Webhook', 'webhook'), c('Custom webhook', 'custom_webhook'),
   // Google Sheets (11)
-  conector('Create spreadsheet row'), conector('Create multiple spreadsheet row(s)'), conector('Lookup spreadsheet row'),
-  conector('Lookup multiple spreadsheet row(s)'), conector('Update specific spreadsheet row'), conector('Update multiple spreadsheet row(s)'),
-  conector('Update spreadsheet row using lookup'), conector('Clear specific spreadsheet row'), conector('Clear spreadsheet row using lookup'),
-  conector('Format spreadsheet row(s)'), conector('Remove spreadsheet row(s)'),
+  c('Create spreadsheet row', 'conn_google_sheets__add_row', 'Catálogo de conectores (T.2).'), c('Create multiple spreadsheet row(s)', 'conn_google_sheets__add_rows', 'Catálogo de conectores (T.2).'), c('Lookup spreadsheet row', 'conn_google_sheets__lookup_row', 'Catálogo de conectores (T.2).'),
+  c('Lookup multiple spreadsheet row(s)', 'conn_google_sheets__lookup_rows', 'Catálogo de conectores (T.2).'), c('Update specific spreadsheet row', 'conn_google_sheets__update_row', 'Catálogo de conectores (T.2).'), c('Update multiple spreadsheet row(s)', 'conn_google_sheets__update_rows', 'Catálogo de conectores (T.2).'),
+  c('Update spreadsheet row using lookup', 'conn_google_sheets__update_by_lookup', 'Catálogo de conectores (T.2).'), c('Clear specific spreadsheet row', 'conn_google_sheets__clear_row', 'Catálogo de conectores (T.2).'), c('Clear spreadsheet row using lookup', 'conn_google_sheets__clear_by_lookup', 'Catálogo de conectores (T.2).'),
+  c('Format spreadsheet row(s)', 'conn_google_sheets__format_rows', 'Catálogo de conectores (T.2).'), c('Remove spreadsheet row(s)', 'conn_google_sheets__remove_rows', 'Catálogo de conectores (T.2).'),
   // Internal (18)
   c('If / else', 'if_else'), c('Router', 'router'), c('Loop (beta)', 'loop'), c('Wait', 'wait'), c('Goal event', 'goal'), c('Split', 'split'),
   c('Update custom value', 'update_custom_value'), c('Go to', 'goto'), c('Date/time formatter', 'date_format'), c('Number formatter', 'number_format'),
