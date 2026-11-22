@@ -60,7 +60,7 @@ function person(doc, address) {
 
 export function makeClientPortal({
   store, mailKey = process.env.RESEND_API_KEY, from = process.env.PORTAL_EMAIL_FROM,
-  publicOrigin = process.env.PORTAL_PUBLIC_ORIGIN, request = fetch, onCourseActivity = null, loadState = null
+  publicOrigin = process.env.PORTAL_PUBLIC_ORIGIN, request = fetch, onCourseActivity = null, loadState = null, onLogin = null
 }) {
   // The workspace again after a credential was issued (the server gives the loader; tests may not).
   const reload = async (workspace, state) => loadState ? loadState(workspace) : state;
@@ -245,22 +245,28 @@ export function makeClientPortal({
     });
   }
 
-  async function exchange(workspace, token) {
+  // Staff previewing the portal (`staff: true`) signs in without firing "Login no portal do cliente".
+  async function exchange(workspace, token, { staff = false } = {}) {
     if (!validToken(token)) fail('Este link é inválido, expirou ou já foi usado.', 401);
     const fingerprint = digest(token), sessionToken = secret();
+    let login = null;
     try {
-      return await store.change(portalId(workspace), doc => {
+      const result = await store.change(portalId(workspace), doc => {
         requireEnabled(doc);
         const now = Date.now();
         const link = doc.links.find(row => row.fingerprint === fingerprint && row.expires > now);
         const member = link && doc.members.find(row => row.id === link.memberId && !row.revokedAt);
         if (!member) fail('Este link é inválido, expirou ou já foi usado.', 401);
+        login = { email: member.email, name: member.name || '', contactId: member.contactId || '', first: !member.joinedAt };
         member.joinedAt ||= new Date(now).toISOString();
         doc.links = doc.links.filter(row => row !== link && row.expires > now);
         doc.sessions = doc.sessions.filter(row => row.expires > now);
         doc.sessions.push({ memberId: member.id, fingerprint: digest(sessionToken), expires: now + sessionSeconds * 1000 });
         return sessionToken;
       });
+      // A workflow problem never blocks the sign-in.
+      if (login && !staff) await Promise.resolve(onLogin?.(workspace, login)).catch(problem => console.error(`Portal login trigger (${workspace}): ${problem.message}`));
+      return result;
     } catch (error) {
       if (error.status === 404 && error.message === 'Workspace not found.') fail('Este link é inválido, expirou ou já foi usado.', 401);
       throw error;

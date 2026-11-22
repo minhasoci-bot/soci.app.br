@@ -205,6 +205,36 @@ export function communityCommand(s, command, { add, run, now }) {
     }
     return written;
   }
+  // Workflows (T.1): the member's contact for a trigger. It is created only when an active workflow listens to
+  // that trigger, so signing in or posting never adds contacts to accounts that do not automate these events.
+  const listenerContact = trigger => {
+    const email = mail(d.email);
+    if (!email && !d.contactId) return null;
+    const known = (d.contactId && s.contacts.find(row => row.id === d.contactId)) || (email && s.contacts.find(row => (row.email || '').toLowerCase() === email));
+    if (known) return known;
+    return s.workflows.some(row => row.active && row.triggers?.some(item => item.type === trigger)) ? contactFor({ email, name: d.name, contactId: d.contactId }) : null;
+  };
+  // What a member did in a group, or what the team did to them.
+  if (type === 'community-activity') {
+    const group = s.communities.find(row => row.id === id);
+    const trigger = { post: 'community_post_created', comment: 'community_comment_created', requested: 'community_join_requested', rejected: 'community_join_rejected', revoked: 'community_access_revoked' }[d.event]
+      || fail('Atividade de comunidade desconhecida.');
+    const contact = group && listenerContact(trigger);
+    if (!contact) return '';
+    const base = { contactId: contact.id, communityId: group.id, community: group.name };
+    const extra = d.event === 'post' || d.event === 'comment' ? { title: str(d.title, 200), body: str(d.body, 2000), postId: str(d.postId, 60) }
+      : d.event === 'requested' ? { answers: str(d.answers, 4000) }
+      : d.event === 'revoked' ? { reason: ['left', 'removed', 'banned', 'workflow'].includes(d.reason) ? d.reason : 'removed' } : {};
+    run(s, trigger, { ...base, ...extra });
+    return contact.id;
+  }
+  // A member signed in to the client portal (first: their first sign-in, the portal "signup").
+  if (type === 'portal-login') {
+    const contact = listenerContact('portal_login');
+    if (!contact) return '';
+    run(s, 'portal_login', { contactId: contact.id, first: d.first ? 'yes' : 'no' });
+    return contact.id;
+  }
   fail('Comando de comunidade desconhecido.');
 }
 

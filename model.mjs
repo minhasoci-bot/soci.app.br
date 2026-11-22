@@ -484,7 +484,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'blog-view') return blogView(s, id);
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
   if (typeof type === 'string' && type.startsWith('community-event-')) return communityEventCommand(s, { ...command, data:d }, { add, run, now });
-  if (['community-plan-invoice', 'community-welcome', 'community-newsletter'].includes(type)) return communityCommand(s, { ...command, data:d }, { add, run, now });
+  if (['community-plan-invoice', 'community-welcome', 'community-newsletter', 'community-activity', 'portal-login'].includes(type)) return communityCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'course-activity') return courseActivityCommand(s, { ...command, data:d }, { add, run });
   if (type === 'credential-issue' || type === 'credential-revoke') return credentialCommand(s, { ...command, data:d }, { add, run });
   if (['contact-restore', 'contact-trash-purge', 'contact-trash-empty'].includes(type)) return trashCommand(s, { ...command, data:d });
