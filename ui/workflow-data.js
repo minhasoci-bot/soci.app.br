@@ -6,6 +6,7 @@ import { tr } from './i18n.js';
 const f = (key, label, kind = 'text', extra = {}) => ({ key, label, kind, ...extra });
 
 export const refSources = {
+  phoneNumbers: s => (s.phone?.numbers || []).map(row => [row.id, row.name ? `${row.name} (${row.number})` : row.number]),
   forms: s => s.forms.filter(row => (row.kind || 'form') === 'form').map(row => [row.id, row.name]),
   surveys: s => s.forms.filter(row => row.kind === 'survey').map(row => [row.id, row.name]),
   quizzes: s => s.forms.filter(row => row.kind === 'quiz').map(row => [row.id, row.name]),
@@ -200,6 +201,20 @@ export const triggerCatalog = [
     { type: 'affiliate_sale', label: 'Nova venda de afiliado', icon: 'pay', fields: [f('affiliateId', 'Afiliado', 'ref', { source: 'affiliates', empty: 'Qualquer afiliado' })] },
     { type: 'affiliate_campaign_enrolled', label: 'Afiliado entrou em campanha', icon: 'users', description: 'Quando um afiliado passa a participar de uma campanha (na tela de afiliados ou por automação). Dispara no contato do afiliado; use {{trigger.campaign}} para o nome da campanha.', fields: [f('campaignId', 'Campanha', 'ref', { source: 'affiliateCampaigns', empty: 'Qualquer campanha' })] },
     { type: 'video_testimonial', label: 'Depoimento em vídeo recebido', icon: 'play', fields: [f('collectorId', 'Coletor', 'ref', { source: 'videoCollectors', empty: 'Qualquer coletor' })] }
+  ] },
+  { group: 'Telefonia', items: [
+    { type: 'call_details', label: 'Ligação terminou', icon: 'phone', description: 'Quando termina uma ligação feita ou recebida por um número da Soci (Configurações → Telefonia). Use {{trigger.status}}, {{trigger.direction}}, {{trigger.duration}} (segundos) e {{trigger.recording}}.', fields: [
+      f('direction', 'Direção', 'select', { options: [any('Recebida ou feita'), ['inbound', 'Recebida'], ['outbound', 'Feita']] }),
+      f('status', 'Resultado', 'select', { options: [any('Qualquer resultado'), ['answered', 'Atendida'], ['missed', 'Não atendida'], ['voicemail', 'Caixa postal (recado)'], ['busy', 'Ocupado'], ['failed', 'Falhou']] }),
+      f('numberId', 'Número', 'ref', { source: 'phoneNumbers', empty: 'Qualquer número' })
+    ] },
+    { type: 'phone_validated', label: 'Telefone validado', icon: 'phone', description: 'Quando a ação Validar telefone consulta o número do contato. Use {{trigger.valid}} (sim ou não), {{trigger.lineType}} e {{trigger.carrier}}.', fields: [
+      f('result', 'Resultado', 'select', { options: [any('Válido ou inválido'), ['valid', 'Válido'], ['invalid', 'Inválido']] }),
+      f('lineType', 'Tipo de linha', 'select', { options: [any('Qualquer tipo'), ['mobile', 'Celular'], ['landline', 'Fixo'], ['voip', 'VoIP']] })
+    ] },
+    { type: 'ivr_call', label: 'Início da URA', icon: 'phone', description: 'Quando chega uma ligação num número com a URA ligada (Configurações → Telefonia). O fluxo atende com as etapas URA: falar ou tocar, coletar dígitos, transferir, gravar recado e desligar. Se nenhum fluxo atender, a ligação segue o encaminhamento do número.', fields: [
+      f('numberId', 'Número', 'ref', { source: 'phoneNumbers', empty: 'Qualquer número com URA' })
+    ] }
   ] },
   { group: 'Redes Sociais', items: [
     { type: 'social_comment_received', label: 'Comentário em post social (ManyChat)', icon: 'chat', fields: [
@@ -474,6 +489,44 @@ export const actionCatalog = [
     { type: 'manual_sms', label: 'Ação manual: SMS', icon: 'phone', fields: [f('body', 'Instruções', 'textarea', { required: true }), f('assignee', 'Responsável', 'text')] },
     { type: 'manual_whatsapp', label: 'Ação manual: WhatsApp', icon: 'whatsapp', fields: [f('body', 'Mensagem sugerida', 'textarea', { required: true, placeholder: 'Oi {{contact.first_name}}, …' }), f('assignee', 'Responsável', 'text')] },
     { type: 'manual_call', label: 'Ação manual: ligação', icon: 'phone', fields: [f('body', 'Instruções', 'textarea', { required: true }), f('assignee', 'Responsável', 'text')] }
+  ] },
+  { group: 'Telefonia', items: [
+    { type: 'call', label: 'Ligar para o contato', icon: 'phone', description: 'Liga primeiro para o telefone da equipe e, quando alguém atende, completa a ligação com o contato, mostrando o número da Soci. A ligação aparece em Conversas e no relatório de ligações e dispara Ligação terminou.', fields: [
+      f('numberId', 'Ligar pelo número', 'ref', { source: 'phoneNumbers', required: true, empty: 'Escolha o número' }),
+      f('agentPhone', 'Telefone da equipe (vazio: o encaminhamento do número)', 'text', { placeholder: '(11) 99999-0000' })
+    ] },
+    { type: 'voicemail_drop', label: 'Deixar recado por ligação', icon: 'phone', description: 'Liga para o contato e, quando cai na caixa postal (ou alguém atende), fala o texto ou toca o áudio e desliga.', fields: [
+      f('numberId', 'Ligar pelo número', 'ref', { source: 'phoneNumbers', required: true, empty: 'Escolha o número' }),
+      f('kind', 'Recado', 'select', { options: [['say', 'Texto falado'], ['play', 'Arquivo de áudio (MP3)']] }),
+      f('message', 'Texto do recado (aceita variáveis)', 'textarea', { when: { kind: 'say' }, placeholder: 'Oi, {{contact.first_name}}! Aqui é da {{workspace.name}}…' }),
+      f('url', 'Endereço do áudio (https)', 'text', { when: { kind: 'play' }, placeholder: 'https://…/recado.mp3' })
+    ] },
+    { type: 'phone_validate', label: 'Validar telefone', icon: 'check', description: 'Consulta o telefone do contato (Twilio Lookup): se o número existe e o tipo de linha. Guarda em {{vars.telefone_status}} (valid ou invalid) e {{vars.telefone_tipo}} e dispara Telefone validado.', fields: [
+      f('invalidTag', 'Etiqueta para número inválido (opcional)', 'text', { placeholder: 'Telefone inválido' })
+    ] },
+    { type: 'ivr_say', label: 'URA: falar ou tocar', icon: 'phone', description: `Fala um texto ou toca um áudio para quem ligou e segue para a próxima etapa. Só funciona em fluxos que começam por Início da URA, durante a ligação.`, fields: [
+      f('kind', 'O quê', 'select', { options: [['say', 'Texto falado'], ['play', 'Arquivo de áudio (MP3)']] }),
+      f('message', 'Texto (aceita variáveis)', 'textarea', { when: { kind: 'say' }, placeholder: 'Olá! Você ligou para a {{workspace.name}}.' }),
+      f('url', 'Endereço do áudio (https)', 'text', { when: { kind: 'play' } })
+    ] },
+    { type: 'ivr_gather', label: 'URA: coletar dígitos', icon: 'phone', description: `Fala o menu e espera a pessoa digitar no teclado. Os dígitos ficam em {{vars.nome}}: use Se / Senão para cada opção. Sem resposta, a variável fica vazia. Só funciona em fluxos que começam por Início da URA, durante a ligação.`, fields: [
+      f('message', 'Menu falado', 'textarea', { required: true, placeholder: 'Digite 1 para vendas, 2 para suporte.' }),
+      f('digits', 'Quantos dígitos', 'number', { value: 1, min: 1, max: 10 }),
+      f('timeout', 'Esperar até (segundos)', 'number', { value: 6, min: 3, max: 30 }),
+      f('variable', 'Guardar os dígitos na variável', 'text', { required: true, value: 'ivr_digitos' })
+    ] },
+    { type: 'ivr_connect', label: 'URA: transferir ligação', icon: 'phone', description: `Toca nos telefones da equipe (um por linha, todos ao mesmo tempo) e conecta quem atender. O resultado fica em {{vars.ivr_transferencia}} (completed, no-answer, busy). Só funciona em fluxos que começam por Início da URA, durante a ligação.`, fields: [
+      f('to', 'Telefones (um por linha)', 'textarea', { required: true, placeholder: '(11) 99999-0000' }),
+      f('timeout', 'Tocar por (segundos)', 'number', { value: 20, min: 5, max: 60 }),
+      f('record', 'Gravar a conversa', 'select', { options: [['no', 'Não'], ['yes', 'Sim']] })
+    ] },
+    { type: 'ivr_record', label: 'URA: gravar recado', icon: 'phone', description: `Fala o aviso e grava o recado depois do bipe. O recado vai para Conversas e o link fica em {{vars.ivr_gravacao}}. Só funciona em fluxos que começam por Início da URA, durante a ligação.`, fields: [
+      f('message', 'Aviso antes do bipe', 'textarea', { placeholder: 'Deixe seu recado após o sinal.' }),
+      f('maxLength', 'Duração máxima (segundos)', 'number', { value: 120, min: 10, max: 600 })
+    ] },
+    { type: 'ivr_hangup', label: 'URA: desligar', icon: 'phone', description: `Fala uma despedida (opcional) e encerra a ligação. As etapas seguintes que não são de URA continuam. Só funciona em fluxos que começam por Início da URA, durante a ligação.`, fields: [
+      f('message', 'Despedida (opcional)', 'textarea', { placeholder: 'Obrigado pela ligação!' })
+    ] }
   ] },
   { group: 'CRM e pagamentos', items: [
     { type: 'create_task', label: 'Criar tarefa', icon: 'check', fields: [f('title', 'Título', 'text', { required: true }), f('dueDays', 'Prazo em dias', 'number', { min: 0, max: 365, value: 1 }), f('owner', 'Responsável', 'text')] },
@@ -797,6 +850,10 @@ export function stepSummary(step, s) {
     case 'webhook': return c.url;
     case 'custom_webhook': return [`${c.method || 'POST'} ${c.url || ''}`.trim(), `→ vars.${c.variable || 'resposta'}`].join(' ');
     case 'math': return `${ref('numberFields', c.field)} ${({ add: '+', subtract: '−', multiply: '×', divide: '÷', set: '=' })[c.op] || ''} ${c.number ?? ''}`;
+    case 'call': case 'voicemail_drop': return ref('phoneNumbers', c.numberId);
+    case 'ivr_say': return String(c.kind === 'play' ? c.url : c.message || '').slice(0, 80);
+    case 'ivr_gather': return `${String(c.message || '').slice(0, 50)} → vars.${c.variable || 'ivr_digitos'}`;
+    case 'ivr_connect': return String(c.to || '').split('\n').filter(Boolean).join(', ').slice(0, 80);
     default: return String(c.body || c.user || c.status || '').slice(0, 80);
   }
 }

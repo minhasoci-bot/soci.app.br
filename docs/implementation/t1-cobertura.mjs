@@ -24,7 +24,7 @@ export const gatilhos = [
   c('Contact engagement score', 'score_changed'), c('Task completed', 'task_completed'),
   // Events (26)
   c('Inbound webhook', 'inbound_webhook'), c('Scheduler', 'scheduler'),
-  falta('Call details', 'call_details', 'Telefonia Twilio (2.4).'),
+  c('Call details', 'call_details', 'Ligação terminou: direção, resultado e número (Twilio).'),
   c('Email events', 'email_event'), c('Customer replied', 'customer_replied'),
   c('Inbound email', 'email_received', 'Endereço conversas+<subconta> pela Resend; as respostas aos e-mails voltam para Conversas.'),
   c('Conversation AI trigger', 'conversation_ai_event', 'Respondeu, sugeriu, marcou, passou para a equipe ou encerrou.'),
@@ -33,7 +33,7 @@ export const gatilhos = [
   c('Facebook lead form submitted', 'meta_lead_form'),
   conector('TikTok form submitted', 'Formulários de leads do TikTok pelo conector.'),
   c('Video tracking', 'video_watched', 'Vídeos HTML5 do site com o script de rastreamento (25, 50, 75 e 100%).'),
-  falta('Number validation', 'phone_validated', 'Twilio Lookup (2.4).'),
+  c('Number validation', 'phone_validated', 'Depois da ação Validar telefone (Twilio Lookup).'),
   c('Messaging error - SMS', 'message_failed'),
   conector('LinkedIn lead form submitted', 'Formulários de leads do LinkedIn pelo conector.'),
   c('Funnel/website pageview', 'site_page_viewed'), c('Quiz submitted', 'quiz_submitted'),
@@ -70,7 +70,7 @@ export const gatilhos = [
   c('Order fulfilled', 'order_fulfilled'), c('Product review submitted', 'product_review'), c('Abandoned checkout', 'abandoned_checkout'),
   c('Add products to cart', 'cart_updated'), c('Product viewed', 'product_viewed'),
   // IVR (1)
-  falta('Start IVR trigger', 'ivr_call', 'URA na telefonia Twilio (2.4).'),
+  c('Start IVR trigger', 'ivr_call'),
   // Facebook/Instagram events (2)
   c('Facebook - Comment(s) on a post', 'social_comment_received'), c('Instagram - Comment(s) on a post', 'social_comment_received'),
   // Communities (10)
@@ -113,7 +113,7 @@ export const acoes = [
   fora('Create Associated Record for Contact', objetos), fora('Update Associated Record for Contact', objetos), fora('Clear fields of Associated Record for Contact', objetos),
   // Communication (32)
   c('Send email', 'send_email'), c('Send SMS', 'send_sms'),
-  falta('Call', 'call', 'Telefonia Twilio (2.4).'), falta('Voicemail', 'voicemail_drop', 'Telefonia Twilio (2.4).'),
+  c('Call', 'call', 'Liga para a equipe e conecta o contato.'), c('Voicemail', 'voicemail_drop'),
   c('Messenger', 'send_messenger'),
   c('Instagram DM', 'send_instagram_dm'), c('Manual action to SMS', 'manual_sms'), c('Manual action to call', 'manual_call'),
   fora('GMB messaging', 'O Google encerrou o Business Messages (mensagens do Perfil da Empresa) em julho de 2024.'),
@@ -182,8 +182,8 @@ export const acoes = [
   // Membership (4)
   c('Course grant offer', 'grant_offer'), c('Course revoke offer', 'revoke_offer'), c('Revoke course access', 'revoke_course_access'), c('Grant course access', 'grant_course_access'),
   // IVR (5)
-  falta('Gather input on call', 'ivr_gather', 'URA Twilio (2.4).'), falta('SAY OR PLAY MESSAGE', 'ivr_say', 'URA Twilio (2.4).'),
-  falta('Connect to call', 'ivr_connect', 'URA Twilio (2.4).'), falta('End call', 'ivr_hangup', 'URA Twilio (2.4).'), falta('Record voicemail', 'ivr_record', 'URA Twilio (2.4).'),
+  c('Gather input on call', 'ivr_gather'), c('SAY OR PLAY MESSAGE', 'ivr_say'),
+  c('Connect to call', 'ivr_connect'), c('End call', 'ivr_hangup'), c('Record voicemail', 'ivr_record'),
   // Certificates (2)
   c('Issue certificate', 'issue_certificate'), c('Issue badge', 'issue_badge'),
   // Agent Studio (2)

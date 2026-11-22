@@ -28,7 +28,7 @@ function editorState(c) {
   return c.reportDraft;
 }
 const activePage = draft => draft.report.pages.find(page => page.id === draft.page) || draft.report.pages[0];
-export const reportingSections = [['reports','Relatórios'],['attribution','Atribuição'],['google-ads','Google Ads'],['meta-ads','Meta Ads'],['overview','Visão geral'],['snapshots','Relatórios do painel']];
+export const reportingSections = [['reports','Relatórios'],['attribution','Atribuição'],['google-ads','Google Ads'],['meta-ads','Meta Ads'],['overview','Visão geral'],['calls','Ligações'],['snapshots','Relatórios do painel']];
 
 export function reportList(c) {
   const all = [...c.s.customReports].sort((a,b)=>b.updated.localeCompare(a.updated));

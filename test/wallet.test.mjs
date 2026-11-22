@@ -17,11 +17,11 @@ const agencyWith = () => {
 
 test('Agency prices: unit cost and markup per product, rebilled sub-accounts only', () => {
   const agency = agencyWith();
-  assert.deepEqual(agency.saas.rebill.demo, ['ai', 'email', 'whatsapp'], 'only products with metered usage');
+  assert.deepEqual(agency.saas.rebill.demo, ['ai', 'email', 'whatsapp', 'phone'], 'only products with metered usage (calls are metered by minute)');
   assert.throws(() => executeAgency(agency, { type: 'rebill-account', id: 'other', data: { products: ['ai'] } }, { accountIds: ['demo'] }), /Sub-account/);
   assert.throws(() => executeAgency(agency, { type: 'saas-rebilling', data: { ...agency.saas.rebilling, cost_ai: -1 } }, { accountIds: ['demo'] }), /custo/i);
   const { pricing, lowAt } = pricingFor(agency, 'demo');
-  assert.deepEqual(pricing, { ai: { unit: 6, markup: 2 }, email: { unit: 0.001, markup: 3 }, whatsapp: { unit: 0.1, markup: 1.5 } });
+  assert.deepEqual(pricing, { ai: { unit: 6, markup: 2 }, email: { unit: 0.001, markup: 3 }, whatsapp: { unit: 0.1, markup: 1.5 }, phone: { unit: 0.12, markup: 1 } });
   assert.equal(lowAt, 10);
   assert.deepEqual(pricingFor(agency, 'nobody').pricing, {});
 });

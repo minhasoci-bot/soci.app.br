@@ -109,6 +109,13 @@ async function refreshGoogle(){
   catch(e){ if(c.workspace===ws) c.google={error:e.message,workspace:ws}; }
   if(c.workspace===ws&&c.mode!=='agency'&&(c.view==='dashboard'||c.view==='settings'&&c.tab==='google')) render();
 }
+// Telefonia: the sub-account's Twilio numbers (Configurações → Telefonia).
+async function refreshPhone(){
+  const ws=c.workspace;
+  try{ const live=await api(url('/api/phone/status')); if(c.workspace===ws) c.phoneSetup={...live,workspace:ws}; }
+  catch(e){ if(c.workspace===ws) c.phoneSetup={error:e.message,workspace:ws}; }
+  if(c.workspace===ws&&c.mode!=='agency'&&c.view==='settings'&&c.tab==='phone') render();
+}
 // Serviços de e-mail: the sub-account's sending domain and its DNS records (re-checked with Resend while pending).
 async function refreshEmail(){
   const ws=c.workspace;
@@ -177,7 +184,7 @@ const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments','services','resources','field','booking','meetings'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social',...emailTabs,'countdown','affiliates','ads','loyalty','brand','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers','certificates'],reporting:['reports','attribution','google-ads','meta-ads','overview','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],reputation:reputationTabs,'ai-agents':['agent','edit','knowledge','base','templates','logs','usage'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments','services','resources','field','booking','meetings'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social',...emailTabs,'countdown','affiliates','ads','loyalty','brand','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers','certificates'],reporting:['reports','attribution','google-ads','meta-ads','overview','calls','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],reputation:reputationTabs,'ai-agents':['agent','edit','knowledge','base','templates','logs','usage'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -259,6 +266,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(view==='payments'&&!nextTab||view==='settings'&&nextTab==='abacatepay'||view==='payments'&&nextTab==='document'&&!c.pay){ render(); void refreshPay(); return; }
   if(view==='dashboard'&&c.google?.workspace!==c.workspace||view==='settings'&&nextTab==='google'){ render(); void refreshGoogle(); return; }
   if(view==='settings'&&nextTab==='email'){ if(c.emailDomain?.workspace!==c.workspace) c.emailDomain=null; render(); void refreshEmail(); return; }
+  if(view==='settings'&&nextTab==='phone'){ if(c.phoneSetup?.workspace!==c.workspace){ c.phoneSetup=null; c.phoneSearch=null; } render(); void refreshPhone(); return; }
   render(); }
 const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}" aria-label="${tr(label)}" title="${tr(label)}" ${attributes}>${i(name,17)}</button>`;
 const navItem=([id,pt,ico])=>({href:`#${id}`,label:tr(pt),icon:ico,current:c.view===id});
@@ -766,6 +774,7 @@ document.addEventListener('click',async ev=>{
     if(d.file){const f=c.s.files.find(a=>a.id===d.file);const [header,body]=f.data.split(',');const data=new Blob([Uint8Array.from(atob(body),x=>x.charCodeAt(0))],{type:header.slice(5).split(';')[0]});downloads(f.name,data);return;}
     if(d.provider){dialog(d.provider,'<p>Esta integração não está disponível no workspace local. Uma conta de provedor e uma conexão autorizada são necessárias.</p>');return;}
     if(d.delete){dialog('Excluir este registro?',`<p>${d.delete==='contacts'?'O contato vai para a Lixeira com mensagens, tarefas, oportunidades, agendamentos e faturas associadas. Você pode restaurá-lo por 60 dias.':'Isso remove o registro deste workspace.'}</p>`,{form:'delete',key:d.delete,id:d.id,buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="danger">Excluir</button>'});return;}
+    if(d.callFilter!==undefined){c.callFilter=d.callFilter;render();return;}
     switch(d.act){
       case 'start-manual': {
         const first = manualQueue(c).find(item => item.status === 'Pending');
@@ -845,6 +854,30 @@ document.addEventListener('click',async ev=>{
       }
       case 'abacate-refresh': c.pay=null; render(); await refreshPay(); break;
       case 'google-refresh': c.google=null; render(); await refreshGoogle(); break;
+      case 'phone-refresh': c.phoneSetup=null; render(); await refreshPhone(); break;
+      case 'phone-buy': {
+        const number=d.phoneNumber;
+        if(!confirm(tr('Comprar este número? A Twilio cobra a mensalidade do número na conta da plataforma.'))) break;
+        c.phoneSetup={...c.phoneSetup,...await api(url('/api/phone/buy'),{number,name:''}),workspace:c.workspace}; c.phoneSearch=null;
+        await load(); render(); flash(tr('Número comprado. Escolha onde as ligações tocam.'));
+        break;
+      }
+      case 'phone-release': {
+        if(!confirm(tr('Liberar este número? Ele volta para a Twilio e pode não ser recuperado.'))) break;
+        c.phoneSetup={...c.phoneSetup,...await api(url('/api/phone/release'),{id:d.phoneId}),workspace:c.workspace};
+        await load(); render(); flash(tr('Número liberado.'));
+        break;
+      }
+      case 'phone-call': {
+        let agentPhone='';
+        try{ agentPhone=localStorage.getItem('soci-agent-phone')||''; }catch{}
+        agentPhone=prompt(tr('A Soci liga primeiro para o seu telefone e, quando você atender, completa a ligação com o contato. Qual é o seu telefone?'),agentPhone);
+        if(!agentPhone) break;
+        try{ localStorage.setItem('soci-agent-phone',agentPhone); }catch{}
+        await api(url('/api/phone/call'),{contactId:c.thread,agentPhone});
+        await load(); render(); flash(tr('Ligando para você. Atenda para falar com o contato.'));
+        break;
+      }
       case 'email-refresh': c.emailDomain=null; render(); await refreshEmail(); break;
       case 'email-copy': await navigator.clipboard.writeText(d.value); flash('Copiado.'); break;
       case 'email-verify': {
@@ -1051,6 +1084,15 @@ document.addEventListener('submit',async ev=>{
     else if(name==='google-select'){
       c.google={...await api(url('/api/google/workspace/select'),{gaProperty:data.gaProperty||'',gbpLocation:data.gbpLocation||'',gscSite:data.gscSite||''}),workspace:c.workspace};
       render(); flash('Escolha salva. O painel já mostra os dados do Google.'); return;
+    }
+    else if(name==='phone-search'){
+      c.phoneSearchArea=data.areaCode||'';
+      c.phoneSearch=(await api(url('/api/phone/search'),{areaCode:data.areaCode||'',contains:data.contains||''})).numbers;
+      render(); return;
+    }
+    else if(name==='phone-number'){
+      await mutate({type:'phone-number-save',data:{id:data.id,name:data.name||'',forward:data.forward||'',timeout:Number(data.timeout)||20,record:data.record==='on',voicemail:data.voicemail==='on',greeting:data.greeting||'',ivr:data.ivr==='on'}});
+      await refreshPhone(); flash(tr('Número salvo.')); return;
     }
     else if(name==='email-domain-add'){
       c.emailDomain={...await api(url('/api/email/workspace/add'),{domain:data.domain,localPart:data.localPart}),workspace:c.workspace};
