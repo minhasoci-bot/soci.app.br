@@ -220,7 +220,7 @@ export function makeClientPortal({
       if (course && status === 'approved' && memberCourse(state, course, graded.member).progress.percent === 100 && credentialDue(state, graded.member, course, 'certificate')) await issue(workspace, graded.member, course, 'completed');
       const who = { courseId, lessonId, lessonTitle: lesson?.title || '', email: graded.member.email, name: graded.member.name, contactId: graded.member.contactId || '' };
       await onCourseActivity?.(workspace, { ...who, event: 'graded', status });
-      if (graded.newlyDone && lesson) await onCourseActivity?.(workspace, { ...who, event: 'lesson' });
+      if (graded.newlyDone && lesson) await onCourseActivity?.(workspace, { ...who, event: 'lesson', done: Object.keys(graded.member.progress?.[courseId] || {}) });
       return result;
     }
 
@@ -378,7 +378,7 @@ export function makeClientPortal({
           if (!lesson.assignment.graded) done[lesson.id] ||= new Date().toISOString();
           activity = { ...who, event: 'assignment' };
         }
-        if (!finished.member.progress?.[courseId]?.[lesson.id] && done[lesson.id]) lessonDone = { ...who, event: 'lesson' };
+        if (!finished.member.progress?.[courseId]?.[lesson.id] && done[lesson.id]) lessonDone = { ...who, event: 'lesson', done: Object.keys(done) };
         return { ...view(workspace, doc, state), signedIn: true, member: { name: member.name },
           course: memberCourse(state, course, member, { lessonId: input.lessonId }) };
       });
