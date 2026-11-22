@@ -284,6 +284,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'site_page_viewed': return (!c.projectId || c.projectId === ctx.projectId) && (!c.page || lower(String(c.page).trim().replace(/^\/+|\/+$/g, '') || 'index') === lower(ctx.page));
       case 'external_tracking_event': return (!c.event || c.event === ctx.event) && (!c.url || lower(ctx.url).includes(lower(c.url)));
       case 'score_changed': return scoreTriggerMatches(c, ctx);
+      case 'whatsapp_ad_click': return (!c.adId || c.adId === ctx.adId) && (!c.keyword || lower(ctx.body).includes(lower(c.keyword)));
       case 'meta_lead_form': case 'google_lead_form':
         return (!c.formId || c.formId === ctx.formId || lower(ctx.form).includes(lower(c.formId))) && (!c.campaign || c.campaign === ctx.campaignId || lower(ctx.campaign).includes(lower(c.campaign)))
           && (!c.test || c.test === ctx.test);
@@ -622,6 +623,21 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         const seconds = Math.min(25, Math.max(1, Math.round(Number(c.seconds) || 3)));
         outbox(s, { kind: 'whatsapp-typing', runId: run.id, phone: contact.phone, seconds });
         return `"digitando…" por ${seconds} s na fila`;
+      }
+      case 'whatsapp_interactive': {
+        if (contact.dnd) return 'contato em não perturbe';
+        if (!canMessage(contact, 'WhatsApp', c.topicId)) return 'contato não aceita WhatsApp (preferências)';
+        const kind = ['buttons', 'list', 'poll'].includes(c.kind) ? c.kind : 'buttons';
+        const limit = { buttons: [3, 20], list: [10, 24], poll: [12, 100] }[kind];
+        const options = [...new Set(text(c.options).split('\n').map(line => line.trim()).filter(Boolean))];
+        const body = text(c.body).trim().slice(0, 1000);
+        if (!body) return 'erro: mensagem vazia';
+        if (options.length < (kind === 'poll' ? 2 : 1) || options.length > limit[0]) return `erro: ${kind === 'buttons' ? 'botões' : kind === 'list' ? 'a lista' : 'a enquete'} aceita${kind === 'poll' ? ' de 2' : ' de 1'} a ${limit[0]} opções`;
+        if (options.some(option => option.length > limit[1])) return `erro: cada opção tem até ${limit[1]} caracteres`;
+        const row = message('WhatsApp', `${body}\n${options.map(option => `• ${option}`).join('\n')}`);
+        if (!contact.phone) { messageFailed(s, { messageId: row.id, reason: 'no_phone' }, depth); return 'erro: contato sem telefone'; }
+        outbox(s, { kind: 'whatsapp-interactive', runId: run.id, phone: contact.phone, interactive: { kind, body, options, buttonText: kind === 'list' ? text(c.buttonText).trim().slice(0, 20) : '', footer: text(c.footer).trim().slice(0, 60) }, contactId: contact.id, messageId: row.id });
+        return `${kind === 'buttons' ? 'botões' : kind === 'list' ? 'lista' : 'enquete'} na fila de envio`;
       }
       case 'internal_notification': add(s, 'teamMessages', { author: 'Automação', body: `${run.name}: ${text(c.body)}`.slice(0, 2000) }); return 'enviada ao chat interno';
       case 'create_task': {

@@ -1594,6 +1594,12 @@ export function makeServer({
         const shown = await whatsapp.sendWorkspacePresence(state.agencyId || AGENCY_ID, workspace, item.phone, item.seconds, (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
         results.push({ runId: item.runId, kind: 'whatsapp', text: shown?.sent ? `"digitando…" por ${shown.seconds} s` : shown?.reason === 'not-connected' ? 'WhatsApp não conectado' : shown?.reason === 'unsupported' ? 'o provedor de WhatsApp não mostra "digitando"' : '"digitando" não mostrado' });
       }
+      if (item.kind === 'whatsapp-interactive') {
+        if (privateSpace.test(workspace)) { results.push({ runId: item.runId, kind: 'whatsapp', text: 'não enviada (conta pessoal)' }); continue; }
+        const sent = await whatsapp.sendWorkspaceInteractive(state.agencyId || AGENCY_ID, workspace, item.phone, item.interactive, (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
+        results.push({ runId: item.runId, kind: 'whatsapp', text: sent?.sent ? 'mensagem interativa enviada' : sent?.reason === 'not-connected' ? 'WhatsApp não conectado' : sent?.reason === 'unsupported' ? 'o provedor de WhatsApp não envia mensagens interativas' : 'mensagem interativa não enviada',
+          ...(sent?.sent ? {} : { failed: sent?.reason === 'not-connected' ? 'not_connected' : sent?.reason === 'invalid-phone' ? 'invalid_phone' : sent?.reason === 'account-suspended' ? 'suspended' : 'provider_error', messageId: item.messageId || '' }) });
+      }
       if (item.kind === 'meta-message') {
         const sent = await deliverMetaMessage(workspace, state, item).catch(() => ({ sent: false, reason: 'provider_error' }));
         const place = item.network === 'facebook' ? 'Messenger' : 'Direct';
@@ -3063,7 +3069,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         throw error('Not found.', 404);
       }
       if (p.startsWith('/api/whatsapp/webhook/') && method === 'POST') {
-        return await whatsapp.handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json });
+        return await whatsapp.handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json, onStored: flushLater });
       }
       // Messenger and Direct: Meta's verification (GET) and the messages of the connected pages (POST, signed).
       if (p === '/api/meta/webhook') {

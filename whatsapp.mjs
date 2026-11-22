@@ -237,10 +237,31 @@ function evolutionInbound(entry) {
   if (/@lid$/i.test(jid)) jid = String(key.remoteJidAlt || key.senderPn || entry.senderPn || '');
   if (!jid || /@lid$/i.test(jid)) return null;
   const phone = extractPhone(jid);
-  const text = evolutionText(entry.message).trim().slice(0, 4000);
+  const vote = pollVote(entry);
+  const text = (vote ? `Escolheu: ${vote}` : evolutionText(entry.message)).trim().slice(0, 4000);
   if (!phone || phone.length < 8 || !text) return null;
   const senderName = String(entry.pushName || `+${phone}`).trim().slice(0, 120);
-  return { phone, text, senderName };
+  const ad = adReferral(entry);
+  return { phone, text, senderName, ...(ad ? { ad } : {}) };
+}
+
+// "Click to WhatsApp" ads: the first message carries the ad in contextInfo.externalAdReply (Baileys), in the
+// entry or inside the text/image message.
+function adReferral(entry) {
+  const message = entry?.message || {};
+  const contexts = [entry?.contextInfo, message.contextInfo, message.extendedTextMessage?.contextInfo, message.imageMessage?.contextInfo, message.videoMessage?.contextInfo];
+  const ad = contexts.map(context => context?.externalAdReply).find(item => item && (item.sourceId || item.sourceUrl || item.ctwaClid));
+  if (!ad) return null;
+  const clip = (value, limit) => String(value || '').trim().slice(0, limit);
+  return { id: clip(ad.sourceId, 80), url: clip(ad.sourceUrl, 500), title: clip(ad.title, 200), clickId: clip(ad.ctwaClid, 200), type: clip(ad.sourceType, 40) };
+}
+
+// A poll vote, when the Evolution API delivers it decrypted (the chosen option names).
+function pollVote(entry) {
+  const update = entry?.message?.pollUpdateMessage;
+  const options = update?.vote?.selectedOptions || entry?.pollUpdates?.[0]?.vote?.selectedOptions;
+  if (!update && !entry?.pollUpdates) return '';
+  return (Array.isArray(options) ? options : []).map(option => typeof option === 'string' ? option : option?.name).filter(Boolean).map(name => String(name).slice(0, 100)).join(', ');
 }
 
 function createEvolutionAdapter(call) {
@@ -349,6 +370,19 @@ function createEvolutionAdapter(call) {
     async sendMedia({ creds, sub, number, media }) {
       const body = { number, mediatype: media.type, media: media.url, ...(media.caption ? { caption: media.caption } : {}), ...(media.fileName ? { fileName: media.fileName } : {}) };
       const res = await send(creds, `/message/sendMedia/${name(sub)}`, { method: 'POST', body, retry: true, timeout: 45000 });
+      const data = await readJsonSafe(res);
+      return { ok: res.ok, status: res.status, message: res.ok ? '' : evolutionError(data), id: String(data.key?.id || data.id || '') };
+    },
+    // Workflows: reply buttons (up to 3), a list (up to 10 options) or a poll; button and list answers come back as text.
+    async interactive({ creds, sub, number, message }) {
+      const { kind, body, options, buttonText, footer } = message;
+      const path = kind === 'buttons' ? 'sendButtons' : kind === 'list' ? 'sendList' : 'sendPoll';
+      const payload = kind === 'buttons'
+        ? { number, title: '', description: body, footer: footer || '', buttons: options.map((label, n) => ({ type: 'reply', displayText: label, id: `opcao_${n + 1}` })) }
+        : kind === 'list'
+          ? { number, title: '', description: body, buttonText: buttonText || 'Ver opções', footerText: footer || '', sections: [{ title: 'Opções', rows: options.map((label, n) => ({ title: label, description: '', rowId: `opcao_${n + 1}` })) }] }
+          : { number, name: body, selectableCount: 1, values: options };
+      const res = await send(creds, `/message/${path}/${name(sub)}`, { method: 'POST', body: payload, retry: true, timeout: 25000 });
       const data = await readJsonSafe(res);
       return { ok: res.ok, status: res.status, message: res.ok ? '' : evolutionError(data), id: String(data.key?.id || data.id || '') };
     },
@@ -701,6 +735,21 @@ export function createWhatsAppHandler({
     return { sent: true, id: result.id };
   }
 
+  /** Workflows: buttons, a list or a poll. message = { kind: buttons|list|poll, body, options[], buttonText, footer }. */
+  async function sendWorkspaceInteractive(agencyId, workspaceId, phoneRaw, message, accountIsActive) {
+    const number = digits(phoneRaw);
+    if (number.length < 10 || number.length > 15) return { sent: false, reason: 'invalid-phone' };
+    const sender = await workspaceSender(agencyId, workspaceId, accountIsActive);
+    if (sender.reason) return { sent: false, reason: sender.reason };
+    if (!sender.adapter.interactive) return { sent: false, reason: 'unsupported' };
+    const kind = ['buttons', 'list', 'poll'].includes(message?.kind) ? message.kind : 'buttons';
+    const result = await sender.adapter.interactive({ ...sender, number, message: { kind, body: String(message?.body || '').slice(0, 1000),
+      options: (Array.isArray(message?.options) ? message.options : []).map(option => String(option).slice(0, 100)).slice(0, 12),
+      buttonText: String(message?.buttonText || '').slice(0, 20), footer: String(message?.footer || '').slice(0, 60) } });
+    if (!result.ok) throw fail(`Falha ao enviar a mensagem interativa pelo WhatsApp (HTTP ${result.status})${result.message ? `: ${result.message}` : ''}.`, 502);
+    return { sent: true, id: result.id };
+  }
+
   /** Workflows: "typing…" for 1 to 25 seconds before the next message. */
   async function sendWorkspacePresence(agencyId, workspaceId, phoneRaw, secondsRaw, accountIsActive) {
     const number = digits(phoneRaw);
@@ -739,7 +788,7 @@ export function createWhatsAppHandler({
     return { sent: true, id: result.id };
   }
 
-  async function handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json }) {
+  async function handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json, onStored = null }) {
     const rawPath = resolvePath(url);
     const match = rawPath.match(/^\/api\/whatsapp\/webhook\/([^/]+)\/([^/]+)\/([a-f0-9]{32,128})$/);
     if (!match) throw fail('Webhook inválido.', 404);
@@ -781,7 +830,7 @@ export function createWhatsAppHandler({
     }
 
     await store.change(workspaceId, state => {
-      for (const { phone, text, senderName } of event.items) {
+      for (const { phone, text, senderName, ad } of event.items) {
         let contact = state.contacts.find(c => digits(c.phone) === phone && phone.length >= 8);
         if (!contact) {
           const contactId = execute(state, {
@@ -796,10 +845,14 @@ export function createWhatsAppHandler({
             type: 'message',
             data: { contactId: contact.id, channel: 'WhatsApp', direction: 'Inbound', body: text }
           });
+          // A message that came from a "Click to WhatsApp" ad: its own trigger and the ad in the contact's attribution.
+          if (ad) execute(state, { type: 'whatsapp-ad-click', data: { contactId: contact.id, ...ad, body: text } });
         }
       }
     });
 
+    // Workflows the message started (Cliente respondeu, anúncio…) deliver now, not on the next tick.
+    onStored?.(workspaceId);
     return json({ ok: true, stored: true, workspace: workspaceId });
   }
 
@@ -934,5 +987,5 @@ export function createWhatsAppHandler({
     throw fail('Rota do WhatsApp não encontrada.', 404);
   }
 
-  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, sendWorkspaceText, sendWorkspaceMedia, sendWorkspacePresence };
+  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, sendWorkspaceText, sendWorkspaceMedia, sendWorkspacePresence, sendWorkspaceInteractive };
 }

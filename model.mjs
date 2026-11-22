@@ -444,6 +444,16 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'tracking-google-lead-key') return newGoogleLeadKey(s);
   // Server only: a lead from a Google Ads lead form webhook or from Meta Lead Ads.
   if (type === 'ad-form-lead') return adFormLead(s, d, { add, run, now });
+  // Server only: a WhatsApp message that came from a "Click to WhatsApp" ad (Evolution API webhook).
+  if (type === 'whatsapp-ad-click') {
+    const contact = find(s, 'contacts', d.contactId);
+    if (!contact) return '';
+    const touch = { source: 'facebook', medium: 'whatsapp_ad', campaign: str(d.title, 120), content: str(d.id, 80), term: '', utmId: '', gclid: '', fbclid: str(d.clickId, 120),
+      referrer: '', landing: '', at: now(), channel: 'meta_ads' };
+    contact.attribution = contact.attribution?.first ? { ...contact.attribution, last: touch } : { first: touch, last: touch };
+    run(s, 'whatsapp_ad_click', { contactId: contact.id, adId: str(d.id, 80), title: str(d.title, 200), url: str(d.url, 500), body: str(d.body, 1000) });
+    return contact.id;
+  }
   if (type === 'tracking-event') return trackingEvent(s, d, { add, run, now });
   if (type === 'site-pageview') return sitePageview(s, d, { run, now });
   if (type === 'affiliate-settings') return saveAffiliateSettings(s, d);
