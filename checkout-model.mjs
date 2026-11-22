@@ -57,6 +57,7 @@ export function captureCart(s, storeId, d, { run = null } = {}) {
   let row = s.abandonedCheckouts.find(item => item.sessionHash === hash && item.storeId === store.id);
   if (row && ['converted', 'recovered'].includes(row.status)) row = null;
   const before = row ? JSON.stringify((row.items || []).map(line => [line.productId, line.qty])) : '';
+  const couponBefore = row?.coupon || '';
   const details = { name: str(d.name, 120), email, phone: str(d.phone, 48), items: quote.lines.map(line => ({ productId: line.productId, name: line.name, qty: line.qty, price: line.price, total: line.total })),
     subtotal: quote.subtotal, total: quote.total, coupon: quote.coupon || '', updated: now() };
   if (row) Object.assign(row, details, row.status === 'abandoned' ? { returnedAt: details.updated } : {});
@@ -73,6 +74,37 @@ export function captureCart(s, storeId, d, { run = null } = {}) {
   if (contact && JSON.stringify(details.items.map(line => [line.productId, line.qty])) !== before) {
     run(s, 'cart_updated', { contactId: contact.id, storeId: store.id, total: details.total, items: details.items.length });
   }
+  // "Cupom aplicado": a known contact put a valid coupon in the cart (again only when the coupon changes).
+  if (contact && quote.coupon_ && quote.coupon !== couponBefore) {
+    run(s, 'coupon_applied', { contactId: contact.id, storeId: store.id, couponId: quote.coupon_.id, code: quote.coupon, title: quote.coupon_.name, discount: quote.discount, total: details.total });
+  }
+  return { tracked: true };
+}
+
+/**
+ * Public: a product page was opened by a visitor whose cart session already has an e-mail (the cart page
+ * sent it). The contact comes from that session on the server, never from the page, and each contact
+ * fires "Produto visualizado" at most once a day per product.
+ */
+export function productViewed(s, storeId, d, { run }) {
+  const store = (s.stores || []).find(row => row.id === storeId && row.active) || fail('Esta loja não está aberta.', 404);
+  const session = str(d.session, 64);
+  if (!/^[0-9a-f]{32,64}$/.test(session)) fail('Sessão inválida.');
+  const productId = str(d.productId, 64);
+  const item = (store.items || []).find(row => row.productId === productId && !row.hidden);
+  const product = item && (s.products || []).find(row => row.id === productId && row.active !== false);
+  if (!product) fail('Produto não encontrado.', 404);
+  const hash = sha(session);
+  const cart = (s.abandonedCheckouts || []).find(row => row.sessionHash === hash && row.storeId === store.id && row.email);
+  const contact = cart && s.contacts.find(row => String(row.email || '').toLowerCase() === cart.email);
+  if (!contact) return { tracked: false };
+  const day = now().slice(0, 10), key = `${contact.id}:${store.id}:${product.id}`;
+  s.productViews ||= {};
+  if (s.productViews[key] === day) return { tracked: true };
+  s.productViews[key] = day;
+  const keys = Object.keys(s.productViews);
+  if (keys.length > MAX_ROWS) for (const old of keys.slice(0, keys.length - MAX_ROWS)) delete s.productViews[old];
+  run(s, 'product_viewed', { contactId: contact.id, storeId: store.id, productId: product.id, title: product.name, price: product.price });
   return { tracked: true };
 }
 

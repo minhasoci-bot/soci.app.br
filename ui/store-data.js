@@ -108,7 +108,9 @@ export function storeProduct(state, store, item, { base }) {
       <label>Título<input name="title" maxlength="120"></label><label>Sua avaliação *<textarea name="body" rows="3" required maxlength="2000"></textarea></label>
       <label class="st-hp" aria-hidden="true">Site<input name="website" tabindex="-1" autocomplete="off"></label>
       <p class="st-error" data-st-review-error role="alert" hidden></p><button class="st-add" type="submit">Enviar avaliação</button></form></section>`;
-  const script = `const rf=document.querySelector('[data-st-review]');
+  // Only a visitor whose cart session already exists (the cart page made it) reports the view.
+  const script = `try{const sv=localStorage.getItem('soci-cart-session:'+${JSON.stringify(store.id)});if(/^[0-9a-f]{32}$/.test(sv||''))fetch(${JSON.stringify(api)}+'/view',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:sv,productId:${JSON.stringify(item.id)}}),keepalive:true}).catch(()=>{})}catch{}
+const rf=document.querySelector('[data-st-review]');
 rf.addEventListener('change',e=>{if(e.target.name!=='rating')return;const v=Number(e.target.value);rf.querySelectorAll('[data-st-rate] label').forEach((l,i)=>l.classList.toggle('on',i<v))});
 rf.addEventListener('submit',async e=>{e.preventDefault();const er=rf.querySelector('[data-st-review-error]');for(const el of rf.elements){if(el.willValidate&&!el.checkValidity()){el.reportValidity();return}}
  const f=Object.fromEntries(new FormData(rf)),b=rf.querySelector('button[type=submit]');b.disabled=true;er.hidden=true;

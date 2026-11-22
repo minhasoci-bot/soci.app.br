@@ -5123,5 +5123,13 @@ export default {
   "Mensagem da equipe": "Mensaje del equipo",
   "Quem respondeu": "Quién respondió",
   "Motivo da falha": "Motivo del error",
-  "Mensagem não entregue": "Mensaje no entregado"
+  "Mensagem não entregue": "Mensaje no entregado",
+  "Cupom aplicado no carrinho": "Cupón aplicado en el carrito",
+  "Quando um contato já cadastrado coloca um cupom válido no carrinho da loja, antes de fechar o pedido. Use {{trigger.code}}, {{trigger.discount}} e {{trigger.total}}.": "Cuando un contacto ya registrado pone un cupón válido en el carrito de la tienda, antes de cerrar el pedido. Use {{trigger.code}}, {{trigger.discount}} y {{trigger.total}}.",
+  "Produto visualizado": "Producto visto",
+  "Quando um contato já identificado na loja (pelo e-mail que preencheu no carrinho) abre a página de um produto. No máximo uma vez por dia para cada produto. Use {{trigger.title}} e {{trigger.price}}.": "Cuando un contacto ya identificado en la tienda (por el correo que llenó en el carrito) abre la página de un producto. Como máximo una vez al día por producto. Use {{trigger.title}} y {{trigger.price}}.",
+  "Qualquer produto": "Cualquier producto",
+  "Total do carrinho": "Total del carrito",
+  "Produto (id)": "Producto (id)",
+  "Loja (id)": "Tienda (id)"
 };

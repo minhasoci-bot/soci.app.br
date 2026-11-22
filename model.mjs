@@ -47,7 +47,7 @@ import { acceptVideoChunk, finishVideoUpload, mediaCollections, mediaFields, sta
 import { createReviewRequest, deliver as deliverReviewRequest, importGoogleReviews, openReviewRequest, reputationCollections, saveListing, reputationDefaults, reputationOf, saveReputation, sendReviewRequests, submitReview as submitWorkspaceReview } from './reputation-model.mjs';
 import { documentAfterSave, documentBeforeDelete, documentCollections, documentCommand, documentFields, sendTemplateDocument } from './document-model.mjs';
 import { catalogAfterSave, catalogBeforeDelete, catalogCollections, catalogCommand, catalogFields, submitReview, workflowInventory } from './catalog-model.mjs';
-import { captureCart, checkoutBeforeDelete, checkoutCollections, checkoutCommand, checkoutConverted, checkoutFields, checkoutTick, restoreCart } from './checkout-model.mjs';
+import { captureCart, checkoutBeforeDelete, checkoutCollections, checkoutCommand, checkoutConverted, checkoutFields, checkoutTick, productViewed, restoreCart } from './checkout-model.mjs';
 import { invoiceAfterSave, paymentDefaults, savePaymentSettings, invoiceBeforeDelete, invoiceCollections, invoiceCommand, invoiceFields, invoiceTick, sendTemplateInvoice, startTemplateRecurring } from './invoice-model.mjs';
 import { emailBeforeDelete, emailCollections, emailCommand, emailFields } from './email-campaign-model.mjs';
 import { estimateAfterSave, estimateBeforeDelete, estimateCollections, estimateCommand, estimateFields, sendEstimateCopy } from './estimate-model.mjs';
@@ -547,6 +547,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (typeof type === 'string' && type.startsWith('invoice-')) return invoiceCommand(s, { ...command, data:d }, { workspace, run });
   if (type === 'store-checkout') { const orderId = storeCheckout(s, { ...command, data:d }, { add, run }); checkoutConverted(s, d.session, find(s, 'orders', orderId), run); return orderId; }
   if (type === 'store-cart') return captureCart(s, id, d, { run });
+  if (type === 'store-view') return productViewed(s, id, d, { run });
   if (type === 'store-review') return submitReview(s, id, d, run);
   if (typeof type === 'string' && type.startsWith('catalog-')) return catalogCommand(s, { ...command, data:d }, { workspace });
   if (type === 'store-cart-restore') return restoreCart(s, id, str(d.tokenHash, 64));
