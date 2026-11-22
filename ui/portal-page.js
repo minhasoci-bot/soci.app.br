@@ -92,6 +92,19 @@ const uploadCard = files => `<section class="cp-public-card cp-upload"><h2>${ico
     <button type="submit" class="cp-public-primary">Enviar</button></form>
   ${(files || []).length ? `<ul class="cp-upload-list">${files.map(file => `<li>${icon('file', 14)} ${h(file.name)} <small>${h(new Date(file.created).toLocaleDateString('pt-BR'))}</small></li>`).join('')}</ul>` : ''}</section>`;
 
+// Notificações push (6.6 / "Notificação push" dos fluxos): the client turns them on for this device.
+const pushCard = () => 'serviceWorker' in navigator && 'PushManager' in window ? `<section class="cp-public-card cp-push"><h2>${icon('bell', 18)} Notificações</h2>
+  <p>Receba neste aparelho os avisos da equipe.</p><button type="button" class="cp-public-primary" data-portal-push>Ativar notificações</button></section>` : '';
+async function enablePush() {
+  const { key } = await fetch('/api/push/key').then(r => r.json());
+  if (!key) throw Error('As notificações ainda não foram configuradas.');
+  if (await Notification.requestPermission() !== 'granted') throw Error('Permita as notificações nas configurações do navegador.');
+  const reg = await navigator.serviceWorker.register('/push/sw.js', { scope: '/push/' });
+  const raw = atob((key + '='.repeat((4 - key.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, ch => ch.charCodeAt(0)) });
+  await api('push', { subscription: sub.toJSON() });
+}
+
 function draw(message = '') {
   const { title, introduction, color, signedIn, courses, member } = portal || { title: 'Portal do cliente' };
   document.title = community ? `${community.group.name} · ${title}` : course ? `${course.name} · ${title}` : title;
@@ -103,7 +116,7 @@ function draw(message = '') {
     ${message ? `<p class="cp-public-error" role="alert">${h(message)}</p>` : ''}
     ${signedIn ? (community ? communityPage(community, cmUi) : course ? (courseView === 'page' ? coursePage(course, bar) : player(course)) : `<section class="cp-public-welcome">
       <h1>${member?.name ? `Olá, ${h(member.name)}` : 'Bem-vindo ao portal'}</h1>
-      ${introduction ? `<p>${h(introduction)}</p>` : ''}</section>${library(courses)}${communityCards(portal?.communities)}${loyaltyCard(portal?.loyalty, redeemed)}${uploadCard(portal?.files)}`) :
+      ${introduction ? `<p>${h(introduction)}</p>` : ''}</section>${library(courses)}${communityCards(portal?.communities)}${loyaltyCard(portal?.loyalty, redeemed)}${uploadCard(portal?.files)}${pushCard()}`) :
       `<section class="cp-public-card cp-signin"><div class="cp-course-icon">${icon('key',24)}</div>
         <h1>Acesse seu portal</h1>
         ${access ? '<p>Confirme para entrar com o seu link de acesso.</p><button type="button" class="cp-public-primary" data-portal-public="enter">Entrar no portal</button>' :
@@ -126,6 +139,12 @@ const openCourse = async (id, lesson = '') => {
 root.addEventListener('click', async event => {
   const button = event.target.closest('button');
   if (!button || button.type === 'submit') return;
+  if (button.dataset.portalPush !== undefined) {
+    button.disabled = true;
+    try { await enablePush(); button.textContent = 'Notificações ativadas'; }
+    catch (error) { button.disabled = false; alert(error.message); }
+    return;
+  }
   const action = button.dataset.portalPublic;
   button.disabled = true;
   let focus = '';

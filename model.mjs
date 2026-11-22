@@ -30,6 +30,7 @@ import { sequenceCollections, sequenceCommand, sequenceFields, sequenceInbound, 
 import { addPoints, loyaltyCollections, loyaltyCommand, loyaltyEvent, loyaltyFields } from './loyalty-model.mjs';
 import { preferenceCommand, preferenceToken } from './preference-model.mjs';
 import { trashCommand, trashContact } from './contact-trash.mjs';
+import { pushCommand, pushInbound } from './push-model.mjs';
 import { dialerDefaults, phoneCommand, phoneDefaults } from './phone-model.mjs';
 import { appointmentRecord, bookForContact, createBookingLink, noteOnAppointment, schedulingCollections, schedulingCommand, schedulingFields, upcomingSlots, zonedInstant } from './scheduling-model.mjs';
 import { meetingCollections, meetingCommand, meetingFields } from './meeting-model.mjs';
@@ -303,6 +304,7 @@ const engine = createEngine({ add, now,
     loyaltyEvent(state, type, ctx, { add, run: (st, event, c) => engine.emit(st, event, { ...c, depth: (ctx.depth || 0) + 1 }) });
     applyScoring(state, type, ctx, { matches, emit: (st, event, c) => engine.emit(st, event, c) });
     queueAppEvents(state, type, ctx);
+    pushInbound(state, type, ctx);
   },
   // "Excluir contato" and "Remover oportunidade" go through the same deletion as the screens (contacts to the trash).
   removeRecord: (state, key, recordId) => remove(state, key, recordId),
@@ -451,6 +453,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   // Server only: a lead from a Google Ads lead form webhook or from Meta Lead Ads.
   if (type === 'ad-form-lead') return adFormLead(s, d, { add, run, now });
   // Telefonia (2.4): numbers, calls and the IVR (phone-model.mjs). Only phone-number-save comes from the browser.
+  // Notificações push: the devices of the team (app mobile) and of contacts (portal). Server only.
+  if (type.startsWith('push-')) { const out = pushCommand(s, type, d, { now }); if (out !== undefined) return out; }
   // Voice AI: the agent booked a free time the caller chose (same save as the screens).
   if (type === 'voice-book') {
     const call = (s.calls || []).find(row => row.id === d.callId);
@@ -552,7 +556,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'workflow-outbox-result') {
     for (const item of Array.isArray(d.results) ? d.results.slice(0, 500) : []) {
       const target = find(s, 'runs', item?.runId);
-      if (target) target.results.push(`${({ phone: 'Telefonia', whatsapp: 'WhatsApp', email: 'E-mail', app: 'App', access: 'Acesso', copy: 'Cópia', meta: 'Meta', google: 'Google Ads', ga4: 'Google Analytics' })[item.kind] || 'Webhook'}: ${str(item.text, 120)}`);
+      if (target) target.results.push(`${({ push: 'Notificação', phone: 'Telefonia', whatsapp: 'WhatsApp', email: 'E-mail', app: 'App', access: 'Acesso', copy: 'Cópia', meta: 'Meta', google: 'Google Ads', ga4: 'Google Analytics' })[item.kind] || 'Webhook'}: ${str(item.text, 120)}`);
       if (item?.failed && item.messageId) engine.messageFailed(s, { messageId: str(item.messageId, 40), reason: str(item.failed, 40) }, 1);
       const doc = item?.docId ? find(s, 'documents', item.docId) : item?.estimateId ? find(s, 'estimates', item.estimateId) : item?.invoiceId ? find(s, 'invoices', item.invoiceId) : item?.checkoutId ? (s.abandonedCheckouts || []).find(row => row.id === item.checkoutId) : item?.giftCardId ? (s.giftCards || []).find(row => row.id === item.giftCardId) : null;
       if (doc) (doc.audit ||= []).push({ at: now(), event: 'delivered', detail: str(item.text, 200) });

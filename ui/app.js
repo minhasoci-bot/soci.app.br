@@ -48,6 +48,7 @@ import { installSeo } from './seo.js';
 import { installWallet } from './wallet.js';
 import { installLabs } from './labs.js';
 import { installConversationAi } from './conversation-ai.js';
+import { installMobileShell } from './mobile-shell.js';
 import { appMenuUrl } from './app-studio-data.js';
 import { installAppMarketplace } from './app-marketplace.js';
 import { contactPreferences, installPreferences } from './preferences.js';
@@ -1270,6 +1271,7 @@ if(viewPath){
   installWallet({ c, api, url, flash, render });
   installLabs({ c, mutate, flash, render });
   installConversationAi({ c, api, url, flash, render });
+  void installMobileShell({ c, api, url, flash });
   installAppMarketplace({ c, api, url, flash, render });
   installContentAI({ api, flash, workspace: () => c.workspace, enabled: kind => Boolean(c.features?.contentAI || (kind === 'gbp' && c.features?.reviewAI)) });
   installCountdowns({ c, mutate, flash, dialog, close, render });

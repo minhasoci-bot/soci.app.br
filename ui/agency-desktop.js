@@ -70,9 +70,9 @@ export function desktopPreview(form, el) {
   for (const [key, cssVar] of Object.entries(vars)) box.style.setProperty(cssVar, form.elements[key].value);
 }
 
-const readFile = file => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
+export const readFile = file => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
 /** A square PNG of the icon at one size (center crop), drawn on a canvas. */
-const squarePng = (dataUrl, size) => new Promise((resolve, reject) => {
+export const squarePng = (dataUrl, size) => new Promise((resolve, reject) => {
   const img = new Image();
   img.onload = () => { const canvas = Object.assign(document.createElement('canvas'), { width: size, height: size }); const side = Math.min(img.width, img.height);
     canvas.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size); resolve(canvas.toDataURL('image/png')); };
