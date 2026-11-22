@@ -101,7 +101,7 @@ function draw(message = '') {
       `<section class="cp-public-card cp-signin"><div class="cp-course-icon">${icon('key',24)}</div>
         <h1>Acesse seu portal</h1>
         ${access ? '<p>Confirme para entrar com o seu link de acesso.</p><button type="button" class="cp-public-primary" data-portal-public="enter">Entrar no portal</button>' :
-          '<p>Peça um link de acesso à equipe responsável por seus cursos.</p><button type="button" class="cp-public-ghost" data-portal-public="admin-enter">${icon('user',16)} Entrar como equipe / administrador</button>'}</section>`}
+          `<p>Peça um link de acesso à equipe responsável por seus cursos.</p><button type="button" class="cp-public-ghost" data-portal-public="admin-enter">${icon('user',16)} Entrar como equipe / administrador</button>`}</section>`}
   </div>`;
 }
 

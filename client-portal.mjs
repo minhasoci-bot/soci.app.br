@@ -261,7 +261,7 @@ export function makeClientPortal({
         member.joinedAt ||= new Date(now).toISOString();
         doc.links = doc.links.filter(row => row !== link && row.expires > now);
         doc.sessions = doc.sessions.filter(row => row.expires > now);
-        doc.sessions.push({ memberId: member.id, fingerprint: digest(sessionToken), expires: now + sessionSeconds * 1000 });
+        doc.sessions.push({ memberId: member.id, fingerprint: digest(sessionToken), expires: now + sessionSeconds * 1000, ...(staff ? { staff: true } : {}) });
         return sessionToken;
       });
       // A workflow problem never blocks the sign-in.
@@ -314,7 +314,28 @@ export function makeClientPortal({
     return course;
   }
 
-  async function content(workspace, state, token, courseId, lessonId = '') {
+  // "Aula iniciada": the first time a student opens a lesson that is not done yet. Staff previews never count,
+  // and a problem here never keeps the student from the lesson.
+  async function lessonStarted(workspace, token, member, course, lesson) {
+    if (member.started?.[course.id]?.[lesson.id]) return;
+    let who = null;
+    try {
+      await store.change(portalId(workspace), current => {
+        const fingerprint = validToken(token) && digest(token);
+        const session = fingerprint && current.sessions.find(row => row.fingerprint === fingerprint && row.expires > Date.now());
+        const row = session && current.members.find(item => item.id === session.memberId && !item.revokedAt);
+        if (!row || session.staff) return;
+        const started = ((row.started ||= {})[course.id] ||= {});
+        if (started[lesson.id]) return;
+        started[lesson.id] = new Date().toISOString();
+        if (!row.progress?.[course.id]?.[lesson.id]) who = { event: 'lesson_started', courseId: course.id, lessonId: lesson.id, lessonTitle: lesson.title, email: row.email, name: row.name, contactId: row.contactId || '' };
+      });
+      if (who) await onCourseActivity?.(workspace, who);
+    } catch (problem) { console.error(`Lesson started trigger (${workspace}): ${problem.message}`); }
+  }
+
+  // `track: false` (a paused sub-account) shows the lesson without recording or firing anything.
+  async function content(workspace, state, token, courseId, lessonId = '', { track = true } = {}) {
     const doc = await load(workspace);
     if (!doc && !courseId) return { ...view(workspace, blankPortal(), { profile: { name: 'Portal do cliente' } }), signedIn: false };
     if (!doc) fail('Entre no portal para acessar sua aula.', 401);
@@ -331,7 +352,10 @@ export function makeClientPortal({
         await issue(workspace, member, course, 'opened');
         state = await reload(workspace, state);
       }
-      return { ...base, signedIn: true, member: { name: member.name }, course: memberCourse(state, course, member, { lessonId }) };
+      const page = memberCourse(state, course, member, { lessonId });
+      // A lesson is opened when asked for by id; without one, only a course with no product page shows its lesson.
+      if (page.lesson && track && (lessonId || course.page?.productPage === false)) await lessonStarted(workspace, token, member, course, page.lesson);
+      return { ...base, signedIn: true, member: { name: member.name }, course: page };
     }
     const courses = state.courses.filter(course => course.active && member.courseIds.includes(course.id));
     return { ...base, signedIn: true, member: { name: member.name }, courses: courses.map(course => memberCourseCard(state, course, member)) };
