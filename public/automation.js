@@ -728,8 +728,8 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
         const selector = d.wfCfg ? `.wf-inspector [data-wf-cfg="${CSS.escape(d.wfCfg)}"]`
           : d.wfCond ? `.wf-inspector [data-wf-cond="${CSS.escape(d.wfCond)}"][data-wf-cond-index="${d.wfCondIndex}"][data-wf-cond-prop="${d.wfCondProp}"]`
           : d.wfMatch ? `.wf-inspector [data-wf-match="${CSS.escape(d.wfMatch)}"]`
-          : d.wfRouteLabel ? `.wf-inspector [data-wf-route-label="${CSS.escape(d.wfRouteLabel)}"]`
-          : d.wfRoutePercent ? `.wf-inspector [data-wf-route-percent="${CSS.escape(d.wfRoutePercent)}"]` : '';
+          : d.wfRoutePercent ? `.wf-inspector [data-wf-route-percent="${CSS.escape(d.wfRoutePercent)}"]`
+          : d.wfRouteLabel ? `.wf-inspector [data-wf-route-label="${CSS.escape(d.wfRouteLabel)}"]` : '';
         renderCanvas(selector);
       }
       return;

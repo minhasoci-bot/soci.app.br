@@ -147,8 +147,9 @@ export function settleAffiliates(s, { emit }) {
   }
   for (const commission of s.affiliateCommissions) {
     if (!['pending', 'approved'].includes(commission.status)) continue;
-    const invoice = s.invoices.find(row => row.id === commission.invoiceId);
-    if (!invoice || invoice.status === 'Void' || invoice.payment?.status === 'REFUNDED') { Object.assign(commission, { status: 'reversed', reversedAt: at }); continue; }
+    // Manual sales (from a workflow) have no invoice to void: only the hold period applies.
+    const invoice = commission.invoiceId ? s.invoices.find(row => row.id === commission.invoiceId) : null;
+    if (commission.invoiceId && (!invoice || invoice.status === 'Void' || invoice.payment?.status === 'REFUNDED')) { Object.assign(commission, { status: 'reversed', reversedAt: at }); continue; }
     if (commission.status === 'pending' && commission.approveAfter <= at && !commission.manual) Object.assign(commission, { status: 'approved', approvedAt: at });
   }
 }
@@ -180,15 +181,96 @@ export function addAffiliateFromContact(s, contact, campaignId, { emit }) {
   const campaign = s.affiliateCampaigns.find(row => row.id === campaignId && row.active);
   if (!campaign) return 'erro: campanha de afiliados inativa ou removida';
   if (existing) {
-    if (!existing.campaignIds.includes(campaign.id)) existing.campaignIds.push(campaign.id);
+    if (!existing.campaignIds.includes(campaign.id)) {
+      existing.campaignIds.push(campaign.id);
+      emit(s, 'affiliate_campaign_enrolled', { contactId: contact.id, affiliateId: existing.id, campaignId: campaign.id, campaign: campaign.name });
+    }
     return 'já era afiliado; campanha adicionada';
   }
   const details = affiliateFields.affiliates(s, { name: contact.name, email, phone: contact.phone, campaignIds: [campaign.id], status: 'active' });
   const affiliate = { id: randomUUID(), created: now(), clicks: 0, clicksByDay: {}, ...details, contactId: contact.id, source: 'Automação' };
   s.affiliates.push(affiliate);
   emit(s, 'affiliate_created', { contactId: contact.id, affiliateId: affiliate.id });
+  emit(s, 'affiliate_campaign_enrolled', { contactId: contact.id, affiliateId: affiliate.id, campaignId: campaign.id, campaign: campaign.name });
   return `afiliado criado (código ${affiliate.code})`;
 }
+
+// The affiliate behind a contact: linked when created from the contact, otherwise by e-mail.
+export const affiliateOfContact = (s, contact) => contact ? (s.affiliates || []).find(row => row.contactId === contact.id)
+  || (contact.email && (s.affiliates || []).find(row => row.email === String(contact.email).toLowerCase())) || null : null;
+
+// Campaigns added to an affiliate on the screen: "Afiliado entrou em campanha" for each new one.
+export function affiliateCampaignChanges(s, prior, row, { emit }) {
+  const before = new Set(prior?.campaignIds || []);
+  const contact = s.contacts.find(item => item.id === row.contactId) || (row.email && s.contacts.find(item => String(item.email || '').toLowerCase() === row.email));
+  for (const id of row.campaignIds || []) {
+    if (before.has(id)) continue;
+    const campaign = s.affiliateCampaigns.find(item => item.id === id);
+    emit(s, 'affiliate_campaign_enrolled', { contactId: contact?.id || '', affiliateId: row.id, campaignId: id, campaign: campaign?.name || '' });
+  }
+}
+
+// Workflow actions of the Affiliate Manager, run on the workflow's contact.
+export function affiliateWorkflow(s, contact, action, config, { emit }) {
+  const c = config || {};
+  if (action === 'assign_affiliate_lead') {
+    const affiliate = s.affiliates.find(row => row.id === c.affiliateId);
+    if (!affiliate) return 'erro: afiliado removido';
+    if (affiliate.status !== 'active') return 'erro: afiliado não está ativo';
+    const campaign = c.campaignId ? s.affiliateCampaigns.find(row => row.id === c.campaignId && row.active)
+      : s.affiliateCampaigns.find(row => row.active && affiliate.campaignIds.includes(row.id));
+    if (!campaign) return 'erro: campanha de afiliados inativa ou removida';
+    if (contact.affiliate?.affiliateId && c.replace !== 'yes') return contact.affiliate.affiliateId === affiliate.id ? 'já indicado por este afiliado' : 'já indicado por outro afiliado (mantido)';
+    if (!affiliate.campaignIds.includes(campaign.id)) {
+      affiliate.campaignIds.push(campaign.id);
+      emit(s, 'affiliate_campaign_enrolled', { contactId: affiliateContactId(s, affiliate), affiliateId: affiliate.id, campaignId: campaign.id, campaign: campaign.name });
+    }
+    contact.affiliate = { affiliateId: affiliate.id, campaignId: campaign.id, at: now(), source: 'workflow' };
+    emit(s, 'affiliate_lead', { contactId: contact.id, affiliateId: affiliate.id });
+    return `indicado por ${affiliate.name} (${campaign.name})`;
+  }
+  if (action === 'affiliate_manual_sale') {
+    const ref = contact.affiliate;
+    const affiliate = ref && s.affiliates.find(row => row.id === ref.affiliateId);
+    const campaign = ref && s.affiliateCampaigns.find(row => row.id === ref.campaignId);
+    if (!affiliate || !campaign) return 'sem afiliado: o contato não foi indicado por ninguém';
+    if (affiliate.status === 'paused') return 'erro: afiliado pausado';
+    const base = money(c.amount);
+    if (!(base > 0)) return 'erro: informe o valor da venda';
+    const value = commissionOf(campaign, base);
+    const at = now();
+    const commission = { id: randomUUID(), created: at, affiliateId: affiliate.id, campaignId: campaign.id, contactId: contact.id, invoiceId: '', base, value, status: 'pending',
+      approveAfter: new Date(Date.now() + campaign.holdDays * 864e5).toISOString(), payoutId: '', source: 'workflow', note: clip(c.note, 200) };
+    s.affiliateCommissions.unshift(commission);
+    emit(s, 'affiliate_sale', { contactId: contact.id, affiliateId: affiliate.id, total: value });
+    const brl = amount => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount).replace(/\s/g, ' ');
+    return `venda de ${brl(base)} para ${affiliate.name}: comissão ${brl(value)}`;
+  }
+  const affiliate = affiliateOfContact(s, contact);
+  if (!affiliate) return 'erro: o contato não é afiliado';
+  if (action === 'update_affiliate') {
+    if (!['active', 'paused', 'pending'].includes(c.status)) return 'erro: escolha a situação';
+    affiliate.status = c.status;
+    affiliate.updated = now();
+    return `${affiliate.name}: ${{ active: 'ativo', paused: 'pausado', pending: 'aguardando aprovação' }[c.status]}`;
+  }
+  const campaign = s.affiliateCampaigns.find(row => row.id === c.campaignId);
+  if (!campaign) return 'erro: campanha de afiliados removida';
+  if (action === 'add_affiliate_campaign') {
+    if (affiliate.campaignIds.includes(campaign.id)) return `já estava em ${campaign.name}`;
+    affiliate.campaignIds.push(campaign.id);
+    emit(s, 'affiliate_campaign_enrolled', { contactId: contact.id, affiliateId: affiliate.id, campaignId: campaign.id, campaign: campaign.name });
+    return `entrou em ${campaign.name}`;
+  }
+  if (action === 'remove_affiliate_campaign') {
+    if (!affiliate.campaignIds.includes(campaign.id)) return `não estava em ${campaign.name}`;
+    affiliate.campaignIds = affiliate.campaignIds.filter(id => id !== campaign.id);
+    return `saiu de ${campaign.name}`;
+  }
+  return 'ignorada';
+}
+
+const affiliateContactId = (s, affiliate) => affiliate.contactId || s.contacts.find(row => String(row.email || '').toLowerCase() === affiliate.email)?.id || '';
 
 // What the affiliate sees in the portal: their own numbers, never customer data.
 export function affiliatePortal(s, tokenHash) {

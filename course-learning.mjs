@@ -2,6 +2,7 @@
 // student's delivery, graded or not), live sessions with recordings, and the "course activity" trigger.
 import { randomUUID } from 'node:crypto';
 import { issueCredential } from './course-credentials.mjs';
+import { courseOutline } from './course-model.mjs';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : '';
@@ -94,6 +95,22 @@ export function liveView(course, videoEmbed, at = Date.now()) {
   return [...rows.filter(row => !row.past), ...rows.filter(row => row.past).reverse()];
 }
 
+// A lesson just done, with every lesson the student has done in the course: the first lesson starts the course,
+// the first one of a module starts the module, and the last published one completes it.
+function courseProgressEvents(s, course, base, doneIds, run) {
+  const modules = courseOutline(course).map(module => ({ ...module, lessons: module.lessons.filter(lesson => lesson.published !== false) }));
+  const known = new Set(modules.flatMap(module => module.lessons.map(lesson => lesson.id)));
+  const done = new Set((Array.isArray(doneIds) ? doneIds : []).map(id => String(id)).filter(id => known.has(id)));
+  if (!done.has(base.lessonId)) return;
+  if (done.size === 1) run(s, 'course_started', base);
+  const module = modules.find(item => item.lessons.some(lesson => lesson.id === base.lessonId));
+  if (!module) return;
+  const context = { ...base, moduleId: module.id, module: module.title };
+  const finished = module.lessons.filter(lesson => done.has(lesson.id)).length;
+  if (finished === 1) run(s, 'course_module_started', context);
+  if (finished === module.lessons.length) run(s, 'course_module_completed', context);
+}
+
 // ---- Workspace side: course activity fires the workflow triggers on the student's contact -----------------
 export function courseActivityCommand(s, command, { add, run }) {
   const d = command.data || {};
@@ -112,7 +129,7 @@ export function courseActivityCommand(s, command, { add, run }) {
   if (d.event === 'quiz') run(s, 'course_quiz_submitted', { ...base, score: Number(d.score) || 0, passed: d.passed ? 'yes' : 'no' });
   else if (d.event === 'assignment') run(s, 'course_assignment_submitted', base);
   else if (d.event === 'graded') run(s, 'course_assignment_graded', { ...base, status: d.status === 'approved' ? 'approved' : 'revise' });
-  else if (d.event === 'lesson') run(s, 'lesson_completed', base);
+  else if (d.event === 'lesson') { run(s, 'lesson_completed', base); courseProgressEvents(s, course, base, d.done, run); }
   else if (d.event === 'granted' || d.event === 'revoked') run(s, d.event === 'granted' ? 'course_access_granted' : 'course_access_revoked', { contactId: contact.id, courseId: course.id, course: course.name });
   else fail('Atividade de curso desconhecida.');
   return contact.id;

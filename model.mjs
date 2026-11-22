@@ -42,7 +42,7 @@ import { createEngine, workflowRecord } from './workflow-engine.mjs';
 import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
 import { directories } from './ui/gbp-data.js';
 import { brandCollections, brandFields } from './brand-model.mjs';
-import { addAffiliateFromContact, affiliateClick, affiliateCollections, affiliateDefaults, affiliateFields, affiliateSettings, affiliateSignup, attributeContacts, issuePortalToken, recordPayout, reviewCommission, saveAffiliateSettings, settleAffiliates } from './affiliate-model.mjs';
+import { addAffiliateFromContact, affiliateCampaignChanges, affiliateWorkflow, affiliateClick, affiliateCollections, affiliateDefaults, affiliateFields, affiliateSettings, affiliateSignup, attributeContacts, issuePortalToken, recordPayout, reviewCommission, saveAffiliateSettings, settleAffiliates } from './affiliate-model.mjs';
 import { acceptVideoChunk, finishVideoUpload, mediaCollections, mediaFields, startVideoUpload } from './reputation-media.mjs';
 import { createReviewRequest, deliver as deliverReviewRequest, importGoogleReviews, openReviewRequest, reputationCollections, saveListing, reputationDefaults, reputationOf, saveReputation, sendReviewRequests, submitReview as submitWorkspaceReview } from './reputation-model.mjs';
 import { documentAfterSave, documentBeforeDelete, documentCollections, documentCommand, documentFields, sendTemplateDocument } from './document-model.mjs';
@@ -267,6 +267,8 @@ const queue = (s, item) => { s.workflowOutbox ??= []; s.workflowOutbox.push({ id
 const engine = createEngine({ add, now,
   // "Pedir avaliação" in a workflow: a personal review link, the message in Conversations and the delivery.
   makeAffiliate: (state, contact, campaignId) => addAffiliateFromContact(state, contact, campaignId, { emit: (st, event, ctx) => engine.emit(st, event, ctx) }),
+  // Atualizar afiliado, campanhas, atribuir lead e venda manual: the Affiliate Manager's workflow actions.
+  affiliateAction: (state, contact, action, config, depth = 0) => affiliateWorkflow(state, contact, action, config, { emit: (st, event, ctx) => engine.emit(st, event, { ...ctx, depth: depth + 1 }) }),
   requestReview: (state, contact, channel, run) => {
     const made = createReviewRequest(state, engineWorkspace, contact, channel, { source: 'workflow', runId: run.id });
     return deliverReviewRequest(state, made, contact, channel, reputationOf(state), { add, outbox: queue, runId: run.id, workflowId: run.workflowId });
@@ -484,7 +486,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'blog-view') return blogView(s, id);
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
   if (typeof type === 'string' && type.startsWith('community-event-')) return communityEventCommand(s, { ...command, data:d }, { add, run, now });
-  if (['community-plan-invoice', 'community-welcome', 'community-newsletter'].includes(type)) return communityCommand(s, { ...command, data:d }, { add, run, now });
+  if (['community-plan-invoice', 'community-welcome', 'community-newsletter', 'community-activity', 'portal-login'].includes(type)) return communityCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'course-activity') return courseActivityCommand(s, { ...command, data:d }, { add, run });
   if (type === 'credential-issue' || type === 'credential-revoke') return credentialCommand(s, { ...command, data:d }, { add, run });
   if (['contact-restore', 'contact-trash-purge', 'contact-trash-empty'].includes(type)) return trashCommand(s, { ...command, data:d });
@@ -696,6 +698,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     invoiceAfterSave(s, key, prior, row, workspace);
     if (prior) s[key] = s[key].map(r=>r.id===id ? row : r);
     engine.recordChange(s, key, prior, row);
+    if (key === 'affiliates') affiliateCampaignChanges(s, prior, row, { emit: (st, event, ctx) => engine.emit(st, event, ctx) });
     return row.id;
   }
   if (type === 'delete') {

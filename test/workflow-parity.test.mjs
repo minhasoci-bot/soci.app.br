@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { blank, execute } from '../model.mjs';
-import { formatDate, formatNumber } from '../workflow-engine.mjs';
+import { formatDate, formatNumber, pickSplit } from '../workflow-engine.mjs';
 
 const save = (s, key, data, id) => execute(s, { type: 'save', key, id, data });
 const act = (s, type, id, data = {}) => execute(s, { type, id, data, actor: 'Bia' }, { workspace: 'demo' });
@@ -136,4 +136,84 @@ test('T.1 triggers in the store: cart updated by a known contact, coupon used an
   act(s, 'store-checkout', storeId, { session: 'cd'.repeat(16), name: 'Bia', email: 'bia@x.test', items: [{ productId, qty: 1 }], delivery: 'pickup', coupon: 'dez' });
   assert.equal(runsOf(s, used)[0]?.context.code, 'DEZ');
   assert.equal(runsOf(s, limit).length, 1, 'the only redemption reaches the limit');
+});
+
+test('T.1 Teste A/B: paths drawn by percent, validated on publish, and the branch steps run', () => {
+  const routes = [{ label: 'A', percent: 20 }, { label: 'B', percent: 0 }, { label: 'C', percent: 80 }];
+  assert.equal(pickSplit(routes, () => 0).label, 'A');
+  assert.equal(pickSplit(routes, () => 0.19).label, 'A');
+  assert.equal(pickSplit(routes, () => 0.2).label, 'C', 'a path at 0% is never taken');
+  assert.equal(pickSplit(routes, () => 0.999).label, 'C');
+  assert.equal(pickSplit([{ label: 'X', percent: 0 }, { label: 'Y', percent: 0 }], () => 0.6).label, 'Y', 'all at 0%: even split');
+  assert.equal(pickSplit([], () => 0), null);
+
+  const s = blank();
+  const split = (routes, active = true) => save(s, 'workflows', { name: 'AB', active, triggers: [{ type: 'contact_tag', config: { change: 'added', tag: 'ab' } }],
+    steps: [{ type: 'split', routes }, { type: 'add_tag', config: { tag: 'depois' } }] });
+  assert.throws(() => split([{ label: 'Só', percent: 100, steps: [] }]), /de 2 a 6 caminhos/);
+  assert.throws(() => split([{ label: 'A', percent: 50, steps: [] }, { label: 'B', percent: 40, steps: [] }]), /somar 100%/);
+  const draft = split([{ label: 'A', percent: 50, steps: [] }, { label: 'B', percent: 40, steps: [] }], false);
+  assert.ok(s.workflows.find(row => row.id === draft), 'a draft may be saved before the percents add up');
+
+  const flowId = split([
+    { label: 'Cupom', percent: 50, steps: [{ type: 'add_tag', config: { tag: 'grupo-a' } }] },
+    { label: '', percent: 50, steps: [{ type: 'add_tag', config: { tag: 'grupo-b' } }] }]);
+  const row = s.workflows.find(item => item.id === flowId);
+  assert.deepEqual(row.steps[0].routes.map(route => [route.label, route.percent]), [['Cupom', 50], ['Caminho B', 50]]);
+  for (let i = 0; i < 60; i++) save(s, 'contacts', { name: `C${i}`, email: `c${i}@x.test`, tags: ['ab'], custom: {} });
+  const tagged = tag => s.contacts.filter(contact => contact.tags.includes(tag)).length;
+  assert.equal(tagged('grupo-a') + tagged('grupo-b'), 60, 'each contact takes exactly one path');
+  assert.ok(tagged('grupo-a') > 0 && tagged('grupo-b') > 0, 'both paths are taken');
+  assert.equal(tagged('depois'), 60, 'the paths merge back into the next step');
+  assert.ok(runsOf(s, flowId).every(run => run.results.some(line => /: (Cupom|Caminho B)$/.test(line))), 'the drawn path is in the run history');
+});
+
+test('T.1 contact and opportunity actions: create and find contacts, owner, followers and find opportunity', () => {
+  const s = blank();
+  const ana = save(s, 'contacts', { name: 'Ana Souza', email: 'ana@x.test', phone: '+55 11 98888-0000', tags: [], custom: {} });
+  const welcomed = flow(s, 'Novo contato', { type: 'contact_created', config: {} });
+  const refer = flow(s, 'Indicação', { type: 'contact_tag', config: { change: 'added', tag: 'indicou' } }, [
+    { id: 'novo123', type: 'create_contact', config: { name: 'Bruno {{contact.first_name}}', email: 'Bruno@X.test', tags: 'indicação, vip' } },
+    { type: 'internal_notification', config: { body: 'Indicado {{steps.novo123.name}} ({{steps.novo123.created}})' } }]);
+  save(s, 'contacts', { ...s.contacts.find(row => row.id === ana), tags: ['indicou'] }, ana);
+  const bruno = s.contacts.find(row => row.email === 'bruno@x.test');
+  assert.ok(bruno, 'the e-mail is stored in lower case');
+  assert.deepEqual([bruno.name, bruno.tags], ['Bruno Ana', ['indicação', 'vip']]);
+  assert.equal(runsOf(s, refer)[0].contactId, ana, 'the flow goes on with the current contact');
+  assert.ok(s.teamMessages.some(row => row.body === 'Indicação: Indicado Bruno Ana (yes)'));
+  assert.ok(runsOf(s, welcomed).some(run => run.contactId === bruno.id), '"Contato criado" fires for the new contact');
+  save(s, 'contacts', { ...s.contacts.find(row => row.id === ana), tags: [] }, ana);
+  save(s, 'contacts', { ...s.contacts.find(row => row.id === ana), tags: ['indicou'] }, ana);
+  assert.equal(s.contacts.filter(row => row.email === 'bruno@x.test').length, 1, 'the same e-mail is not created twice');
+  assert.ok(runsOf(s, refer)[1].results.some(line => /já existia: Bruno Ana/.test(line)));
+
+  const finder = flow(s, 'Achar', { type: 'contact_tag', config: { change: 'added', tag: 'achar' } }, [
+    { id: 'busca1', type: 'find_contact', config: { by: 'phone', value: '(11) 98888-0000', then: 'keep' } },
+    { id: 'busca2', type: 'find_contact', config: { by: 'email', value: 'BRUNO@x.test', then: 'switch' } },
+    { type: 'add_tag', config: { tag: 'encontrado' } },
+    { id: 'busca3', type: 'find_contact', config: { by: 'email', value: 'ninguem@x.test' } },
+    { type: 'internal_notification', config: { body: '{{steps.busca1.name}} / {{steps.busca2.found}} / {{steps.busca3.found}}' } }]);
+  save(s, 'contacts', { ...s.contacts.find(row => row.id === ana), tags: ['indicou', 'achar'] }, ana);
+  assert.ok(s.contacts.find(row => row.id === bruno.id).tags.includes('encontrado'), 'after "switch" the next steps act on the found contact');
+  assert.equal(s.contacts.find(row => row.id === ana).tags.includes('encontrado'), false);
+  assert.ok(s.teamMessages.some(row => row.body === 'Achar: Ana Souza / yes / no'));
+  assert.equal(runsOf(s, finder)[0].contactId, bruno.id);
+
+  const stage = s.stages[0];
+  save(s, 'opportunities', { title: 'Plano anual', contactId: ana, stage: stage.id, value: 900, status: 'Open', followers: ['Caio'] });
+  const crm = flow(s, 'CRM', { type: 'contact_tag', config: { change: 'added', tag: 'crm' } }, [
+    { type: 'opportunity_owner', config: { op: 'set', owner: 'Bia' } },
+    { type: 'opportunity_followers', config: { op: 'add', users: 'Dani, caio' } },
+    { type: 'opportunity_followers', config: { op: 'remove', users: 'CAIO' } },
+    { id: 'oport1', type: 'find_opportunity', config: { status: 'Open' } },
+    { id: 'oport2', type: 'find_opportunity', config: { status: 'Won' } },
+    { type: 'internal_notification', config: { body: '{{steps.oport1.title}} {{steps.oport1.value}} {{steps.oport1.owner}} / {{steps.oport2.found}}' } },
+    { type: 'opportunity_owner', config: { op: 'clear' } }]);
+  save(s, 'contacts', { ...s.contacts.find(row => row.id === ana), tags: ['crm'] }, ana);
+  const deal = s.opportunities.find(row => row.contactId === ana);
+  assert.deepEqual([deal.owner, deal.followers], ['', ['Dani']]);
+  assert.ok(s.teamMessages.some(row => row.body === 'CRM: Plano anual 900 Bia / no'));
+  assert.ok(runsOf(s, crm)[0].results.some(line => /Plano anual: dono Bia/.test(line)));
+  const lonely = save(s, 'contacts', { name: 'Sem negócio', email: 'sn@x.test', tags: ['crm'], custom: {} });
+  assert.ok(runsOf(s, crm).find(run => run.contactId === lonely).results.some(line => /sem oportunidade aberta/.test(line)));
 });

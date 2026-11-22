@@ -59,6 +59,7 @@ export const triggerCatalog = [
     { type: 'birthday_reminder', label: 'Lembrete de aniversário', icon: 'gift', scheduled: true, fields: [f('field', 'Campo de data de nascimento', 'ref', { source: 'dateFields', required: true }), f('days', 'Dias antes', 'number', { min: 0, max: 60, value: 0 }), f('time', 'Horário', 'time', { value: '09:00' })] },
     { type: 'custom_date_reminder', label: 'Lembrete de data personalizada', icon: 'cal', scheduled: true, fields: [f('field', 'Campo de data', 'ref', { source: 'dateFields', required: true }), f('offset', 'Dias em relação à data (negativo = antes)', 'number', { min: -365, max: 365, value: 0 }), f('time', 'Horário', 'time', { value: '09:00' })] },
     { type: 'note_added', label: 'Nota adicionada', icon: 'note' },
+    { type: 'note_changed', label: 'Nota alterada', icon: 'note', description: 'Quando as notas do contato são editadas. Use {{trigger.body}} para o texto novo.', fields: [] },
     { type: 'task_added', label: 'Tarefa adicionada', icon: 'check' },
     { type: 'task_completed', label: 'Tarefa concluída', icon: 'check' },
     { type: 'task_reminder', label: 'Lembrete de tarefa', icon: 'clock', scheduled: true, description: 'Uma vez por dia, para as tarefas em aberto que vencem no dia escolhido.', fields: [f('days', 'Quantos dias antes do prazo', 'number', { value: 0, min: 0, max: 30 }), f('time', 'Horário', 'time', { value: '09:00' })] }
@@ -89,6 +90,9 @@ export const triggerCatalog = [
     ] },
     { type: 'course_completed', label: 'Curso concluído', icon: 'award', description: 'Quando um aluno chega a 100% de um curso com certificado ligado. Use {{trigger.course}} para o nome do curso.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'lesson_completed', label: 'Aula concluída', icon: 'book', description: 'Quando o aluno marca uma aula como concluída no portal. Use {{trigger.title}} para o nome da aula.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
+    { type: 'course_started', label: 'Curso iniciado', icon: 'book', description: 'Quando o aluno conclui a primeira aula de um curso. Use {{trigger.course}} para o nome do curso.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
+    { type: 'course_module_started', label: 'Módulo do curso iniciado', icon: 'book', description: 'Quando o aluno conclui a primeira aula de um módulo. Use {{trigger.module}} para o nome do módulo.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
+    { type: 'course_module_completed', label: 'Módulo do curso concluído', icon: 'award', description: 'Quando o aluno conclui todas as aulas publicadas de um módulo. Use {{trigger.module}} para o nome do módulo.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'course_access_granted', label: 'Acesso a curso liberado', icon: 'book', description: 'Quando o contato ganha acesso a um curso, por oferta ou por automação.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'course_access_revoked', label: 'Acesso a curso removido', icon: 'book', description: 'Quando uma automação tira o acesso do contato a um curso.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
     { type: 'certificate_issued', label: 'Certificado emitido', icon: 'award', description: 'Quando um certificado de conclusão é emitido. Use {{trigger.code}} para o código de verificação.', fields: [f('courseId', 'Curso', 'ref', { source: 'courses', empty: 'Qualquer curso' })] },
@@ -105,6 +109,25 @@ export const triggerCatalog = [
     { type: 'community_member_joined', label: 'Membro entrou na comunidade', icon: 'users', description: 'Quando um membro entra numa comunidade (gratuita, aprovada, paga ou no teste grátis). Use {{trigger.title}} para o nome da comunidade.', fields: [
       f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
     ] },
+    { type: 'community_post_created', label: 'Post criado na comunidade', icon: 'edit', description: 'Quando um membro publica numa comunidade (posts retidos pela moderação contam quando são aprovados). Use {{trigger.title}} e {{trigger.body}}.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
+    ] },
+    { type: 'community_comment_created', label: 'Comentário na comunidade', icon: 'chat', description: 'Quando um membro comenta um post. Use {{trigger.body}} para o comentário e {{trigger.title}} para o post.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
+    ] },
+    { type: 'community_join_requested', label: 'Pedido para entrar na comunidade', icon: 'users', description: 'Quando alguém pede para entrar numa comunidade privada. Use {{trigger.answers}} para as respostas das perguntas de entrada.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
+    ] },
+    { type: 'community_join_rejected', label: 'Pedido para entrar recusado', icon: 'close', description: 'Quando a equipe recusa (remove ou bane) um pedido para entrar.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' })
+    ] },
+    { type: 'community_access_revoked', label: 'Acesso à comunidade removido', icon: 'close', description: 'Quando um membro ativo sai, é removido ou banido, ou uma automação tira o acesso dele. Use {{trigger.reason}} para o motivo.', fields: [
+      f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' }),
+      f('reason', 'Motivo', 'select', { options: [any('Qualquer motivo'), ['left', 'Saiu por conta própria'], ['removed', 'Removido pela equipe'], ['banned', 'Banido'], ['workflow', 'Removido por automação']] })
+    ] },
+    { type: 'portal_login', label: 'Login no portal do cliente', icon: 'lock', description: 'Quando o cliente entra no portal (área de membros) pelo link de acesso. O primeiro acesso conta como cadastro. Entradas da equipe para ver o portal não contam.', fields: [
+      f('first', 'Acesso', 'select', { options: [any('Qualquer acesso'), ['yes', 'Só o primeiro acesso (cadastro)'], ['no', 'Só os acessos seguintes']] })
+    ] },
     { type: 'community_event_registered', label: 'Inscrição em evento da comunidade', icon: 'cal', description: 'Quando um membro confirma presença ou paga o ingresso de um evento da comunidade. Use {{trigger.title}} para o nome do evento.', fields: [
       f('communityId', 'Comunidade', 'ref', { source: 'communities', empty: 'Qualquer comunidade' }),
       f('eventId', 'Evento', 'ref', { source: 'communityEvents', empty: 'Qualquer evento' }),
@@ -114,6 +137,7 @@ export const triggerCatalog = [
     { type: 'affiliate_created', label: 'Afiliado cadastrado', icon: 'users', fields: [] },
     { type: 'affiliate_lead', label: 'Lead de afiliado', icon: 'users', fields: [f('affiliateId', 'Afiliado', 'ref', { source: 'affiliates', empty: 'Qualquer afiliado' })] },
     { type: 'affiliate_sale', label: 'Nova venda de afiliado', icon: 'pay', fields: [f('affiliateId', 'Afiliado', 'ref', { source: 'affiliates', empty: 'Qualquer afiliado' })] },
+    { type: 'affiliate_campaign_enrolled', label: 'Afiliado entrou em campanha', icon: 'users', description: 'Quando um afiliado passa a participar de uma campanha (na tela de afiliados ou por automação). Dispara no contato do afiliado; use {{trigger.campaign}} para o nome da campanha.', fields: [f('campaignId', 'Campanha', 'ref', { source: 'affiliateCampaigns', empty: 'Qualquer campanha' })] },
     { type: 'video_testimonial', label: 'Depoimento em vídeo recebido', icon: 'play', fields: [f('collectorId', 'Coletor', 'ref', { source: 'videoCollectors', empty: 'Qualquer coletor' })] }
   ] },
   { group: 'Redes Sociais', items: [
@@ -207,8 +231,30 @@ export const actionCatalog = [
     { type: 'conversation_followers', label: 'Seguidores da conversa', icon: 'contacts', fields: [f('op', 'O que fazer', 'select', { options: [['add', 'Adicionar seguidores'], ['remove', 'Remover seguidores']] }), f('users', 'Pessoas da equipe (separadas por vírgula)', 'text', { required: true, placeholder: 'Ana, Bruno' })] },
     { type: 'set_dnd', label: 'Ativar ou desativar DND', icon: 'lock', fields: [f('state', 'Não perturbe', 'select', { options: [['on', 'Ativar'], ['off', 'Desativar']] })] },
     { type: 'add_note', label: 'Adicionar nota', icon: 'note', fields: [f('body', 'Nota', 'textarea', { required: true })] },
+    { type: 'create_contact', label: 'Criar contato', icon: 'contacts', description: 'Cria outro contato (ex.: a pessoa indicada num formulário). Se já existir um com o mesmo e-mail ou telefone, usa esse. O fluxo segue com o contato atual; o novo fica em {{steps.ID.id}}.', fields: [
+      f('name', 'Nome', 'text', { required: true, placeholder: '{{trigger.indicado}}' }), f('email', 'E-mail', 'text', { placeholder: '{{trigger.email_indicado}}' }), f('phone', 'Telefone', 'text'),
+      f('tags', 'Tags (separadas por vírgula)', 'text', { placeholder: 'indicação' })] },
+    { type: 'find_contact', label: 'Buscar contato', icon: 'search', description: 'Procura um contato pelo e-mail, telefone ou um campo. O resultado fica em {{steps.ID.found}} (yes ou no), {{steps.ID.name}} e {{steps.ID.email}}; dá para seguir o fluxo com o contato encontrado.', fields: [
+      f('by', 'Procurar por', 'select', { options: [['email', 'E-mail'], ['phone', 'Telefone'], ['field', 'Campo personalizado']] }),
+      f('field', 'Campo', 'ref', { source: 'textFields', when: { by: 'field' } }),
+      f('value', 'Valor procurado', 'text', { required: true, placeholder: '{{trigger.email}}' }),
+      f('then', 'Depois de achar', 'select', { options: [['keep', 'Seguir com o contato atual'], ['switch', 'Seguir com o contato encontrado']] })] },
     { type: 'delete_contact', label: 'Excluir contato', icon: 'trash', description: 'Manda o contato para a lixeira (60 dias para restaurar). As etapas seguintes ficam sem contato.', fields: [] },
-    { type: 'make_affiliate', label: 'Tornar afiliado', icon: 'users', description: 'Cadastra o contato como afiliado na campanha (precisa de e-mail).', fields: [f('campaignId', 'Campanha de afiliados', 'ref', { source: 'affiliateCampaigns', required: true })] }
+    { type: 'make_affiliate', label: 'Tornar afiliado', icon: 'users', description: 'Cadastra o contato como afiliado na campanha (precisa de e-mail).', fields: [f('campaignId', 'Campanha de afiliados', 'ref', { source: 'affiliateCampaigns', required: true })] },
+    { type: 'update_affiliate', label: 'Atualizar afiliado', icon: 'users', description: 'Muda a situação do afiliado ligado ao contato (pelo e-mail ou por ter sido criado a partir dele).', fields: [
+      f('status', 'Situação', 'select', { options: [['active', 'Ativo'], ['paused', 'Pausado'], ['pending', 'Aguardando aprovação']] })
+    ] },
+    { type: 'add_affiliate_campaign', label: 'Adicionar afiliado a campanha', icon: 'users', description: 'Coloca o afiliado ligado ao contato numa campanha, com o link e a comissão dela.', fields: [f('campaignId', 'Campanha de afiliados', 'ref', { source: 'affiliateCampaigns', required: true, empty: 'Escolha a campanha' })] },
+    { type: 'remove_affiliate_campaign', label: 'Tirar afiliado de campanha', icon: 'users', description: 'Tira o afiliado ligado ao contato de uma campanha. Comissões já geradas continuam.', fields: [f('campaignId', 'Campanha de afiliados', 'ref', { source: 'affiliateCampaigns', required: true, empty: 'Escolha a campanha' })] },
+    { type: 'assign_affiliate_lead', label: 'Atribuir lead a afiliado', icon: 'users', description: 'Registra que o contato foi indicado pelo afiliado: as próximas faturas pagas dele geram comissão.', fields: [
+      f('affiliateId', 'Afiliado', 'ref', { source: 'affiliates', required: true, empty: 'Escolha o afiliado' }),
+      f('campaignId', 'Campanha', 'ref', { source: 'affiliateCampaigns', empty: 'Primeira campanha ativa do afiliado' }),
+      f('replace', 'Se o contato já tiver afiliado', 'select', { options: [['no', 'Manter o afiliado atual'], ['yes', 'Trocar por este']] })
+    ] },
+    { type: 'affiliate_manual_sale', label: 'Registrar venda de afiliado', icon: 'pay', description: 'Lança uma venda feita fora das faturas (no balcão, por exemplo) para o afiliado que indicou o contato. A comissão segue a regra da campanha e o prazo de carência.', fields: [
+      f('amount', 'Valor da venda (R$)', 'number', { min: 0.01, max: 1000000, required: true }),
+      f('note', 'Observação', 'text', { placeholder: 'Ex.: Pedido {{trigger.total}}' })
+    ] }
   ] },
   { group: 'Comunicação', items: [
     { type: 'send_email', label: 'Enviar e-mail', icon: 'mail', fields: [f('subject', 'Assunto', 'text', { required: true }), f('body', 'Mensagem', 'textarea', { required: true }), f('topicId', 'Assunto (preferências)', 'ref', { source: 'topics', empty: 'Mensagem de serviço' })] },
@@ -258,6 +304,15 @@ export const actionCatalog = [
     { type: 'create_task', label: 'Criar tarefa', icon: 'check', fields: [f('title', 'Título', 'text', { required: true }), f('dueDays', 'Prazo em dias', 'number', { min: 0, max: 365, value: 1 }), f('owner', 'Responsável', 'text')] },
     { type: 'create_opportunity', label: 'Criar ou atualizar oportunidade', icon: 'leads', fields: [f('title', 'Nome', 'text', { required: true, value: '{{contact.name}}' }), f('stageId', 'Etapa', 'ref', { source: 'stages', required: true }), f('value', 'Valor (R$)', 'number', { min: 0, value: 0 })] },
     { type: 'opportunity_status', label: 'Mudar status da oportunidade', icon: 'leads', fields: [f('status', 'Status', 'select', { options: [['Won', 'Ganha'], ['Lost', 'Perdida'], ['Open', 'Aberta'], ['Abandoned', 'Abandonada']] })] },
+    { type: 'opportunity_owner', label: 'Dono da oportunidade', icon: 'leads', description: 'Define ou tira o dono da oportunidade aberta mais recente do contato.', fields: [
+      f('op', 'O que fazer', 'select', { options: [['set', 'Definir dono'], ['clear', 'Tirar o dono']] }), f('owner', 'Pessoa da equipe', 'text', { placeholder: 'Ana', when: { op: 'set' } }),
+      f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' })] },
+    { type: 'opportunity_followers', label: 'Seguidores da oportunidade', icon: 'leads', description: 'Adiciona ou remove seguidores da oportunidade aberta mais recente do contato.', fields: [
+      f('op', 'O que fazer', 'select', { options: [['add', 'Adicionar seguidores'], ['remove', 'Remover seguidores']] }), f('users', 'Pessoas da equipe (separadas por vírgula)', 'text', { required: true, placeholder: 'Ana, Bruno' }),
+      f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' })] },
+    { type: 'find_opportunity', label: 'Buscar oportunidade', icon: 'search', description: 'Acha a oportunidade mais recente do contato. O resultado fica em {{steps.ID.found}}, {{steps.ID.title}}, {{steps.ID.value}}, {{steps.ID.stage}}, {{steps.ID.status}} e {{steps.ID.owner}}.', fields: [
+      f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' }),
+      f('status', 'Status', 'select', { options: [['', 'Qualquer status'], ['Open', 'Aberta'], ['Won', 'Ganha'], ['Lost', 'Perdida'], ['Abandoned', 'Abandonada']] })] },
     { type: 'remove_opportunity', label: 'Remover oportunidade', icon: 'leads', description: 'Exclui a oportunidade mais recente do contato (do pipeline escolhido, se houver).', fields: [f('pipelineId', 'Pipeline', 'ref', { source: 'pipelines', empty: 'Qualquer pipeline' })] },
     { type: 'appointment_status_update', label: 'Mudar status do agendamento', icon: 'cal', description: 'Muda o próximo agendamento do contato (ou o último, se não houver próximo).', fields: [f('status', 'Novo status', 'select', { options: [['Confirmed', 'Confirmado'], ['Completed', 'Concluído'], ['Canceled', 'Cancelado']] })] },
     { type: 'send_document', label: 'Enviar documento ou contrato', icon: 'file', fields: [f('templateId', 'Modelo', 'ref', { source: 'documentTemplates', required: true }),
@@ -315,12 +370,20 @@ export const actionCatalog = [
     { type: 'filter', label: 'Filtro', icon: 'filter', description: 'Só continua se a condição for verdadeira', fields: [conditions] },
     { type: 'set_variable', label: 'Definir variável', icon: 'key', description: 'Guarda um valor para usar depois como {{vars.nome}}', fields: [f('name', 'Nome da variável', 'text', { required: true, placeholder: 'ex.: cupom' }), f('value', 'Valor (texto ou expressão)', 'text', { required: true, placeholder: '{{upper(contact.first_name)}}' })] },
     { type: 'router', label: 'Roteador', icon: 'flow', branch: true, fields: [] },
-    { type: 'split', label: 'Divisão A/B', icon: 'flow', branch: true, description: 'Divide os contatos entre os caminhos pelo percentual de cada um, para testar versões de uma mensagem ou oferta. O mesmo contato cai sempre no mesmo caminho.', fields: [] },
+    { type: 'split', label: 'Teste A/B', icon: 'flow', branch: true, description: 'Divide os contatos entre caminhos por percentual, para comparar mensagens, ofertas ou tempos de espera. Cada contato cai em um caminho por sorteio.', fields: [] },
+    { type: 'drip', label: 'Liberar em lotes', icon: 'clock', description: 'Deixa passar só um lote de contatos a cada intervalo; os outros esperam a vez nesta etapa. Útil para não disparar tudo de uma vez.', fields: [
+      f('batch', 'Contatos por lote', 'number', { min: 1, max: 1000, value: 50, required: true }),
+      f('amount', 'A cada', 'number', { min: 1, max: 1000, value: 1, required: true }),
+      f('unit', 'Unidade', 'select', { options: [['minutes', 'minutos'], ['hours', 'horas'], ['days', 'dias']], value: 'hours' })
+    ] },
     { type: 'goal', label: 'Evento de meta', icon: 'award', fields: [f('event', 'Meta alcançada quando', 'select', { options: [['contact_tag', 'Receber uma tag'], ['customer_replied', 'Cliente responder'], ['form_submitted', 'Enviar um formulário'], ['appointment_booked', 'Fazer um agendamento'], ['order_paid', 'Pagar um pedido'], ['opportunity_status_changed', 'Oportunidade ganha']] }), f('eventValue', 'Tag ou formulário (opcional)', 'text'),
       f('otherwise', 'Ao chegar aqui sem a meta', 'select', { options: [['continue', 'Seguir o fluxo'], ['wait', 'Esperar a meta'], ['end', 'Encerrar o fluxo']] })] },
     { type: 'goto', label: 'Ir para outra etapa', icon: 'updown', fields: [f('target', 'Etapa de destino', 'step', { required: true })] },
     { type: 'add_to_workflow', label: 'Adicionar a outro fluxo', icon: 'flow', fields: [f('workflowId', 'Fluxo', 'ref', { source: 'workflows', required: true })] },
     { type: 'remove_from_workflow', label: 'Remover de um fluxo', icon: 'close', fields: [f('workflowId', 'Fluxo', 'ref', { source: 'workflows', empty: 'Este fluxo' })] },
+    { type: 'remove_from_all_workflows', label: 'Remover de todos os fluxos', icon: 'close', description: 'Tira o contato de todos os fluxos em que ele está rodando ou esperando.', fields: [
+      f('scope', 'Incluindo este fluxo?', 'select', { options: [['others', 'Não: este fluxo continua'], ['all', 'Sim: este fluxo também termina aqui']] })
+    ] },
     { type: 'math', label: 'Operação matemática', icon: 'sort', fields: [f('field', 'Campo numérico', 'ref', { source: 'numberFields', required: true }), f('op', 'Operação', 'select', { options: [['add', 'Somar'], ['subtract', 'Subtrair'], ['multiply', 'Multiplicar'], ['divide', 'Dividir'], ['set', 'Definir como']] }), f('number', 'Valor', 'number', { required: true, value: 1 })] },
     { type: 'text_format', label: 'Formatar texto', icon: 'edit', fields: [f('field', 'Campo', 'ref', { source: 'textFields', required: true }), f('op', 'Formato', 'select', { options: [['upper', 'MAIÚSCULAS'], ['lower', 'minúsculas'], ['title', 'Primeira Letra Maiúscula'], ['trim', 'Sem espaços nas pontas']] })] },
     { type: 'date_format', label: 'Formatar data', icon: 'clock', description: 'Guarda uma data formatada em {{vars.nome}}. Aceita AAAA-MM-DD, data com hora ou a palavra hoje.', fields: [f('value', 'Data', 'text', { required: true, placeholder: '2026-12-01, {{vars.data}} ou hoje' }), f('days', 'Somar dias', 'number', { value: 0, min: -3650, max: 3650 }), f('format', 'Formato', 'select', { options: [['br', 'DD/MM/AAAA'], ['iso', 'AAAA-MM-DD'], ['long', 'Por extenso (21 de novembro de 2026)'], ['weekday', 'Dia da semana'], ['time', 'Hora (HH:MM)']] }), f('variable', 'Nome da variável', 'text', { required: true, placeholder: 'data' })] },
@@ -378,10 +441,13 @@ export function eachStep(steps, visit, path = []) {
   for (const step of steps || []) {
     visit(step, path);
     if (step.type === 'if_else') { eachStep(step.yes, visit, [...path, step.id, 'yes']); eachStep(step.no, visit, [...path, step.id, 'no']); }
-    if (step.type === 'router') { (step.routes || []).forEach(route => eachStep(route.steps, visit, [...path, step.id, route.id])); eachStep(step.otherwise, visit, [...path, step.id, 'otherwise']); }
-    if (step.type === 'split') (step.routes || []).forEach(route => eachStep(route.steps, visit, [...path, step.id, route.id]));
+    if (step.type === 'router' || step.type === 'split') (step.routes || []).forEach(route => eachStep(route.steps, visit, [...path, step.id, route.id]));
+    if (step.type === 'router') eachStep(step.otherwise, visit, [...path, step.id, 'otherwise']);
   }
 }
+
+// Teste A/B: the paths' shares as whole percents, 0 to 100 each.
+export const splitPercent = value => Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
 
 export function stepSummary(step, s) {
   const c = step.config || {};
@@ -398,7 +464,13 @@ export function stepSummary(step, s) {
     case 'ai_summarize': case 'ai_translate': case 'ai_image': return c.variable ? `→ vars.${c.variable}` : '';
     case 'ai_extract': return aiExtractFields(c.fields).map(item => `vars.${item.name}`).join(', ').slice(0, 80);
     case 'router': return `${(step.routes || []).length} caminho(s)`;
-    case 'split': return (step.routes || []).map(route => `${route.label} ${Number(route.percent) || 0}%`).join(' · ');
+    case 'split': return (step.routes || []).map(route => `${route.label} ${splitPercent(route.percent)}%`).join(' · ').slice(0, 80);
+    case 'drip': return `${c.batch || 0} a cada ${c.amount || 1} ${({ minutes: 'min', hours: 'h', days: 'dia(s)' })[c.unit || 'hours']}`;
+    case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';
+    case 'update_affiliate': return ({ active: 'Ativo', paused: 'Pausado', pending: 'Aguardando aprovação' })[c.status] || '';
+    case 'add_affiliate_campaign': case 'remove_affiliate_campaign': return ref('affiliateCampaigns', c.campaignId);
+    case 'assign_affiliate_lead': return ref('affiliates', c.affiliateId);
+    case 'affiliate_manual_sale': return c.amount ? `R$ ${c.amount}` : '';
     case 'create_task': case 'create_opportunity': case 'create_invoice': return c.title;
     case 'add_to_workflow': case 'remove_from_workflow': return ref('workflows', c.workflowId) || (step.type === 'remove_from_workflow' ? 'Este fluxo' : '');
     case 'webhook': return c.url;

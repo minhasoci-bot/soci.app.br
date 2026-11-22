@@ -3,7 +3,7 @@
 import { icon } from './icons.js';
 import { h } from './screens.js';
 import { FUNCTION_CATALOG, buildWorkflowContext, resolveTemplate } from './expressions.js';
-import { actionCatalog, actionSpec, conditionSubjects, eachStep, refSources, stepId, stepSummary, triggerCatalog, triggerSpec, triggerSummary, upgradeWorkflow, variables } from './workflow-data.js';
+import { actionCatalog, actionSpec, conditionSubjects, eachStep, refSources, splitPercent, stepId, stepSummary, triggerCatalog, triggerSpec, triggerSummary, upgradeWorkflow, variables } from './workflow-data.js';
 
 const MAX_STEPS = 120;
 const opportunityStatuses = [['Open', 'Aberta'], ['Won', 'Ganha'], ['Lost', 'Perdida'], ['Abandoned', 'Abandonada']];
@@ -48,8 +48,8 @@ function parentOf(row, id) {
   const visit = (list, key) => list.forEach((step, index) => {
     if (step.id === id) result = { list, index, key };
     if (step.type === 'if_else') { visit(step.yes || [], `${step.id}:yes`); visit(step.no || [], `${step.id}:no`); }
-    if (step.type === 'router') { (step.routes || []).forEach(route => visit(route.steps || [], `${step.id}:route.${route.id}`)); visit(step.otherwise || [], `${step.id}:otherwise`); }
-    if (step.type === 'split') (step.routes || []).forEach(route => visit(route.steps || [], `${step.id}:route.${route.id}`));
+    if (step.type === 'router' || step.type === 'split') (step.routes || []).forEach(route => visit(route.steps || [], `${step.id}:route.${route.id}`));
+    if (step.type === 'router') visit(step.otherwise || [], `${step.id}:otherwise`);
   });
   visit(row.steps, 'root');
   return result;
@@ -65,7 +65,7 @@ export function newStep(type) {
   const step = { id: stepId(), type, config: defaults(spec) };
   if (type === 'if_else') Object.assign(step, { yes: [], no: [], config: { match: 'all', conditions: [condition()] } });
   if (type === 'router') Object.assign(step, { routes: [{ id: stepId(), label: 'Caminho 1', match: 'all', conditions: [condition()], steps: [] }], otherwise: [] });
-  if (type === 'split') step.routes = [{ id: stepId(), label: 'Caminho A', percent: 50, steps: [] }, { id: stepId(), label: 'Caminho B', percent: 50, steps: [] }];
+  if (type === 'split') Object.assign(step, { routes: [{ id: stepId(), label: 'Caminho A', percent: 50, steps: [] }, { id: stepId(), label: 'Caminho B', percent: 50, steps: [] }] });
   return step;
 }
 
@@ -100,8 +100,9 @@ function layoutFlow(c, editor) {
       if (step.type === 'if_else' || step.type === 'router' || step.type === 'split') {
         const paths = step.type === 'if_else'
           ? [['Sim', 'yes', step.yes || [], `${step.id}:yes`, `${number}.S`], ['Não', 'no', step.no || [], `${step.id}:no`, `${number}.N`]]
-          : step.type === 'split' ? (step.routes || []).map((route, r) => [`${route.label} · ${Number(route.percent) || 0}%`, '', route.steps || [], `${step.id}:route.${route.id}`, `${number}.${'ABCDEF'[r]}`])
-          : [...(step.routes || []).map((route, r) => [route.label, '', route.steps || [], `${step.id}:route.${route.id}`, `${number}.${r + 1}`]), ['Caso contrário', 'no', step.otherwise || [], `${step.id}:otherwise`, `${number}.C`]];
+          : step.type === 'split'
+            ? (step.routes || []).map((route, r) => [`${route.label} · ${splitPercent(route.percent)}%`, '', route.steps || [], `${step.id}:route.${route.id}`, `${number}.${String.fromCharCode(65 + r)}`])
+            : [...(step.routes || []).map((route, r) => [route.label, '', route.steps || [], `${step.id}:route.${route.id}`, `${number}.${r + 1}`]), ['Caso contrário', 'no', step.otherwise || [], `${step.id}:otherwise`, `${number}.C`]];
         let by = y, endX = x, merged = [];
         for (const [label, tone, list, listKey, num] of paths) {
           const out = sequence(list, listKey, x + CARD_W + GAP_X + 60, by, [{ ...right, label, tone }], `${num}.`);
@@ -265,14 +266,14 @@ function inspector(c, editor) {
       + '<p class="wf-sub">Os caminhos são testados em ordem; o primeiro que bater é seguido. Se nenhum bater, segue “Caso contrário”.</p>';
   }
   if (step.type === 'split') {
-    const total = (step.routes || []).reduce((sum, route) => sum + (Number(route.percent) || 0), 0);
-    body += (step.routes || []).map((route, index) => `<fieldset class="wfb-route"><legend>Caminho ${'ABCDEF'[index]}</legend>
+    const total = (step.routes || []).reduce((sum, route) => sum + splitPercent(route.percent), 0);
+    body += (step.routes || []).map((route, index) => `<fieldset class="wfb-route"><legend>Caminho ${String.fromCharCode(65 + index)}</legend>
       <label>Nome<input value="${h(route.label)}" data-wf-route-label="${h(route.id)}" data-wf-target="${h(step.id)}" maxlength="60"></label>
-      <label>Percentual dos contatos<input type="number" min="0" max="100" step="1" value="${h(route.percent ?? 0)}" data-wf-route-percent="${h(route.id)}" data-wf-target="${h(step.id)}"></label>
+      <label>Percentual dos contatos<input type="number" min="0" max="100" step="1" value="${splitPercent(route.percent)}" data-wf-route-percent="${h(route.id)}" data-wf-target="${h(step.id)}"></label>
       ${btn('route-delete', 'Remover caminho', { cls: 'wf-text', glyph: 'trash', id: route.id, disabled: step.routes.length < 3 })}</fieldset>`).join('')
       + btn('route-add', 'Adicionar caminho', { glyph: 'plus', disabled: (step.routes || []).length >= 6 })
-      + `<p class="wf-sub ${total === 100 ? '' : 'wfb-warn'}" data-wf-split-total>Total: ${total}%${total === 100 ? '' : '. Para publicar, os caminhos precisam somar 100%.'}</p>`
-      + '<p class="wf-sub">Cada contato cai em um caminho conforme os percentuais e, se passar de novo por aqui, segue o mesmo caminho. Depois dos caminhos o fluxo continua na etapa seguinte.</p>';
+      + `<p class="wf-sub ${total === 100 ? '' : 'wfb-warn'}" data-wf-split-total><b>Total: ${total}%</b>${total === 100 ? '' : ' <span>Os percentuais precisam somar 100% para publicar.</span>'}</p>
+      <p class="wf-sub">Cada contato é sorteado para um caminho na hora em que chega aqui; o caminho sorteado aparece no histórico da execução.</p>`;
   }
   if (step.type === 'goal') body += '<p class="wf-sub">Se a meta acontecer enquanto o contato está em qualquer etapa anterior, ele pula direto para cá.</p>';
   if (['manual_call', 'manual_sms'].includes(step.type)) body += '<p class="wf-sub">O fluxo pausa até alguém concluir ou dispensar a ação na fila de ações manuais.</p>';
@@ -305,10 +306,18 @@ const triggerData = {
   quiz_submitted: [['formId', 'Quiz'], ['tier', 'Faixa do resultado']], pipeline_stage_changed: [['stageId', 'Etapa']], opportunity_status_changed: [['status', 'Status']],
   invoice_status: [['status', 'Status'], ['total', 'Valor']], payment_received: [['total', 'Valor pago']], order_submitted: [['storeId', 'Loja'], ['total', 'Total']], order_paid: [['storeId', 'Loja'], ['total', 'Total']],
   review_received: [['score', 'Nota']], chat_started: [['widgetId', 'Chat']], webinar_registered: [['webinarId', 'Webinar']], trigger_link_clicked: [['linkId', 'Link']], email_event: [['event', 'Evento'], ['campaignId', 'Campanha']],
-  contact_tag: [['tag', 'Tag'], ['change', 'Adicionada ou removida']], contact_changed: [['fields', 'Campos alterados']], appointment_status: [['status', 'Status']]
+  contact_tag: [['tag', 'Tag'], ['change', 'Adicionada ou removida']], contact_changed: [['fields', 'Campos alterados']], note_changed: [['body', 'Texto novo da nota']],
+  affiliate_campaign_enrolled: [['campaign', 'Campanha'], ['affiliateId', 'Afiliado']], course_started: [['course', 'Curso'], ['title', 'Aula']],
+  course_module_started: [['course', 'Curso'], ['module', 'Módulo'], ['title', 'Aula']], course_module_completed: [['course', 'Curso'], ['module', 'Módulo'], ['title', 'Aula']], appointment_status: [['status', 'Status']],
+  community_post_created: [['community', 'Comunidade'], ['title', 'Título do post'], ['body', 'Texto do post']], community_comment_created: [['community', 'Comunidade'], ['title', 'Post comentado'], ['body', 'Comentário']],
+  community_join_requested: [['community', 'Comunidade'], ['answers', 'Respostas de entrada']], community_join_rejected: [['community', 'Comunidade']],
+  community_access_revoked: [['community', 'Comunidade'], ['reason', 'Motivo (left, removed, banned ou workflow)']], portal_login: [['first', 'Primeiro acesso (yes ou no)']]
 };
 const outputKeys = { create_task: [['id', 'ID'], ['title', 'Título'], ['due', 'Prazo']], create_opportunity: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['stage', 'Etapa']],
-  create_invoice: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['due', 'Vencimento']], math: [['value', 'Resultado']] };
+  create_invoice: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['due', 'Vencimento']], math: [['value', 'Resultado']],
+  create_contact: [['id', 'ID'], ['name', 'Nome'], ['email', 'E-mail'], ['created', 'Criado agora (yes ou no)']],
+  find_contact: [['found', 'Encontrado (yes ou no)'], ['id', 'ID'], ['name', 'Nome'], ['email', 'E-mail'], ['phone', 'Telefone']],
+  find_opportunity: [['found', 'Encontrada (yes ou no)'], ['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['stage', 'Etapa'], ['status', 'Status'], ['owner', 'Dono']] };
 const functionGroups = [
   ['Condicionais', ['if', 'ifempty', 'ifEmpty', 'switch']],
   ['Texto', ['concat', 'upper', 'lower', 'capitalize', 'startcase', 'trim', 'replace', 'substring', 'split', 'length', 'toString', 'urlEncode', 'urlDecode', 'base64', 'ascii', 'stripHTML', 'escapeHTML', 'escapeMarkdown', 'replaceEmojiCharacters', 'indexOf', 'md5', 'sha1', 'sha256', 'sha512', 'toBinary']],
@@ -435,7 +444,7 @@ export function builderClick(op, target, editor, { pick }) {
     case 'route-add': {
       const step = findStep(row, editor.node);
       if (!step || (step.routes || []).length >= 6) return null;
-      if (step.type === 'split') step.routes.push({ id: stepId(), label: `Caminho ${'ABCDEF'[step.routes.length]}`, percent: 0, steps: [] });
+      if (step.type === 'split') step.routes.push({ id: stepId(), label: `Caminho ${String.fromCharCode(65 + step.routes.length)}`, percent: 0, steps: [] });
       else step.routes.push({ id: stepId(), label: `Caminho ${step.routes.length + 1}`, match: 'all', conditions: [condition()], steps: [] });
       return { changed: true };
     }
@@ -494,7 +503,7 @@ export function builderInput(input, editor, c, finalChange) {
   if (input.dataset.wfRoutePercent) {
     const step = findStep(row, input.dataset.wfTarget), route = step?.routes?.find(item => item.id === input.dataset.wfRoutePercent);
     if (!route) return null;
-    route.percent = Math.min(100, Math.max(0, Math.round(Number(input.value) || 0)));
+    route.percent = splitPercent(input.value);
     return finalChange ? 'render' : 'live';
   }
   if (input.dataset.wfMatch) {

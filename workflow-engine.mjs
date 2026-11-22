@@ -1,16 +1,19 @@
 // Workflow engine: several triggers with filters, a tree of steps (if/else, router, wait, goal, goto…)
 // compiled into a graph when a contact enrolls, runs that pause and resume, scheduled triggers, and an
 // outbox for the calls the server makes after saving (outbound webhooks, WhatsApp).
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { buildWorkflowContext, resolveTemplate } from './expressions.mjs';
 import { scoreTriggerMatches } from './scoring-model.mjs';
 import { canMessage } from './preference-model.mjs';
 import { appActionItem } from './app-studio-model.mjs';
-import { actionSpec, aiExtractFields, aiOptions, aiVariableName, allActions, allTriggers, eachStep, triggerSpec, upgradeWorkflow } from './ui/workflow-data.js';
+import { actionSpec, aiExtractFields, aiOptions, aiVariableName, allActions, allTriggers, eachStep, splitPercent, triggerSpec, upgradeWorkflow } from './ui/workflow-data.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value) : '';
 const lower = value => String(value ?? '').trim().toLowerCase();
+// Phones compare by digits, with or without Brazil's +55: "+55 11 98888-0000" is "(11) 98888-0000".
+const digitsOf = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length >= 12 && digits.startsWith('55') ? digits.slice(2) : digits; };
+const samePhone = (a, b) => { const x = digitsOf(a); return x.length >= 8 && x === digitsOf(b); };
 const tagList = list => [...new Set((list || []).map(tag => str(tag, 48)).filter(Boolean))].slice(0, 20);
 const FAILURES = /^(erro|sem contato|sem nome|sem oportunidade|sem agendamento|sem conversa|campo removido|campo inválido|e-mail inválido|contato em não perturbe)/;
 
@@ -41,6 +44,15 @@ export function formatNumber(value, format = 'decimal') {
   if (format === 'integer') return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(n);
   if (format === 'percent') return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(n)}%`;
   return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+// "Teste A/B": draws one path by its percent (paths at 0% are never taken; all at 0% split evenly).
+export function pickSplit(routes, random = Math.random) {
+  if (!routes?.length) return null;
+  const total = routes.reduce((sum, route) => sum + (Number(route.percent) || 0), 0);
+  if (!total) return routes[Math.floor(random() * routes.length)] || routes[0];
+  let ticket = random() * total;
+  for (const route of routes) { ticket -= Number(route.percent) || 0; if (ticket < 0 && route.percent > 0) return route; }
+  return routes.findLast(route => route.percent > 0);
 }
 const MAX_STEPS = 120, MAX_DEPTH = 4, CONDITIONS = ['tag', 'field', 'dnd', 'stage', 'opportunity_status', 'replied', 'submitted', 'trigger', 'var'];
 const AI_TIMEOUT = 10 * 60000;
@@ -106,10 +118,10 @@ export function workflowRecord(s, d) {
         step.otherwise = list(raw.otherwise, depth + 1);
       }
       if (spec.type === 'split') {
-        step.routes = (Array.isArray(raw.routes) ? raw.routes : []).slice(0, 6).map((route, index) => ({ id: uniqueId(route?.id), label: str(route?.label, 60) || `Caminho ${'ABCDEF'[index]}`,
-          percent: Math.min(100, Math.max(0, Math.round(Number(route?.percent) || 0))), steps: list(route?.steps, depth + 1) }));
-        if (publishing && step.routes.length < 2) fail('Divisão A/B: use pelo menos dois caminhos.');
-        if (publishing && step.routes.reduce((sum, route) => sum + route.percent, 0) !== 100) fail('Divisão A/B: os percentuais dos caminhos precisam somar 100%.');
+        const routes = (Array.isArray(raw.routes) ? raw.routes : []).slice(0, 6);
+        if (routes.length < 2) fail('Teste A/B: use de 2 a 6 caminhos.');
+        step.routes = routes.map((route, index) => ({ id: uniqueId(route?.id), label: str(route?.label, 60) || `Caminho ${String.fromCharCode(65 + index)}`, percent: splitPercent(route?.percent), steps: list(route?.steps, depth + 1) }));
+        if (publishing && step.routes.reduce((sum, route) => sum + route.percent, 0) !== 100) fail('Teste A/B: os percentuais dos caminhos precisam somar 100%.');
       }
       if (spec.type === 'webhook' && step.config.url && !/^https:\/\/[^\s/]+\.[^\s]+$/i.test(step.config.url)) fail('O webhook precisa de um endereço https://');
       return step;
@@ -160,19 +172,9 @@ export function compile(steps) {
   return { nodes, first };
 }
 
-// A/B split: the path index for a key (contact + step), by each path's share. The same key always gets the same path;
-// shares that do not add up to 100 count as weights. -1 when every share is zero.
-export function splitRoute(key, routes) {
-  const shares = (routes || []).map(route => Math.max(0, Number(route?.percent) || 0)), total = shares.reduce((sum, n) => sum + n, 0);
-  if (!total) return -1;
-  let point = createHash('sha256').update(String(key)).digest().readUInt32BE(0) / 2 ** 32 * total;
-  for (let i = 0; i < shares.length; i++) { if (point < shares[i]) return i; point -= shares[i]; }
-  return shares.findLastIndex(n => n > 0);
-}
-
 /* ───────── Motor ───────── */
 
-export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null }) {
+export function createEngine({ add, now, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null, affiliateAction = null }) {
   const contactOf = (s, id) => s.contacts.find(row => row.id === id);
   const fieldValue = (s, contact, key) => {
     if (!contact) return '';
@@ -253,11 +255,16 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'ticket_created': return (!c.priority || c.priority === ctx.priority) && (!c.category || c.category === ctx.category);
       case 'ticket_status_changed': return (!c.status || c.status === ctx.status) && (!c.priority || c.priority === ctx.priority);
       case 'badge_issued': case 'certificate_issued': case 'course_completed':
-      case 'lesson_completed': case 'course_access_granted': case 'course_access_revoked': return !c.courseId || c.courseId === ctx.courseId;
+      case 'lesson_completed': case 'course_access_granted': case 'course_access_revoked':
+      case 'course_started': case 'course_module_started': case 'course_module_completed': return !c.courseId || c.courseId === ctx.courseId;
+      case 'affiliate_campaign_enrolled': return !c.campaignId || c.campaignId === ctx.campaignId;
       case 'course_quiz_submitted': return (!c.courseId || c.courseId === ctx.courseId) && (!c.passed || c.passed === ctx.passed);
       case 'course_assignment_submitted': return !c.courseId || c.courseId === ctx.courseId;
       case 'course_assignment_graded': return (!c.courseId || c.courseId === ctx.courseId) && (!c.status || c.status === ctx.status);
-      case 'community_member_joined': return !c.communityId || c.communityId === ctx.communityId;
+      case 'community_member_joined': case 'community_post_created': case 'community_comment_created':
+      case 'community_join_requested': case 'community_join_rejected': return !c.communityId || c.communityId === ctx.communityId;
+      case 'community_access_revoked': return (!c.communityId || c.communityId === ctx.communityId) && (!c.reason || c.reason === ctx.reason);
+      case 'portal_login': return !c.first || c.first === ctx.first;
       case 'community_event_registered': return (!c.communityId || c.communityId === ctx.communityId) && (!c.eventId || c.eventId === ctx.eventId) && (!c.paid || c.paid === ctx.paid);
       case 'review_received': return !c.maxScore || Number(ctx.score) <= Number(c.maxScore);
       case 'video_testimonial': return !c.collectorId || c.collectorId === ctx.collectorId;
@@ -302,7 +309,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
 
   function perform(s, run, node, depth, id) {
     const contact = contactOf(s, run.contactId), c = node.config || {}, text = value => merge(value, s, contact, run);
-    const needsContact = !['internal_notification', 'webhook', 'app_action', 'create_task', 'create_social_post', 'update_custom_value', 'date_format', 'number_format'].includes(node.type);
+    const needsContact = !['internal_notification', 'webhook', 'app_action', 'create_task', 'create_social_post', 'update_custom_value', 'date_format', 'number_format', 'create_contact', 'find_contact'].includes(node.type);
     if (needsContact && !contact) return 'sem contato';
     const message = (channel, body, subject = '') => add(s, 'messages', { contactId: contact.id, body: text(body).slice(0, 5000), subject, channel, direction: 'Outbound', read: true, starred: false, origin: 'workflow', workflowId: run.workflowId });
     switch (node.type) {
@@ -394,6 +401,8 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         return `${target.name}: na fila`;
       }
       case 'make_affiliate': return makeAffiliate ? makeAffiliate(s, contact, c.campaignId) : 'erro: afiliados indisponíveis';
+      case 'update_affiliate': case 'add_affiliate_campaign': case 'remove_affiliate_campaign': case 'assign_affiliate_lead': case 'affiliate_manual_sale':
+        return affiliateAction ? affiliateAction(s, contact, node.type, { ...c, note: text(c.note || '') }, depth) : 'erro: afiliados indisponíveis';
       case 'review_request': {
         const channel = ['WhatsApp', 'SMS', 'Email'].includes(c.channel) ? c.channel : 'WhatsApp';
         if (contact.dnd) return 'contato em não perturbe';
@@ -543,6 +552,59 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         run.contactId = '';
         return `${name} foi para a lixeira`;
       }
+      case 'create_contact': {
+        const name = text(c.name).trim().slice(0, 240), email = lower(text(c.email).trim()).slice(0, 254), phone = text(c.phone).trim().slice(0, 48);
+        if (!name && !email && !phone) return 'erro: informe nome, e-mail ou telefone';
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return `erro: e-mail inválido: ${email.slice(0, 60)}`;
+        const known = (email && s.contacts.find(row => lower(row.email) === email)) || (phone && s.contacts.find(row => samePhone(phone, row.phone)));
+        if (known) { output(run, id, { id: known.id, name: known.name, email: known.email || '', created: 'no' }); return `já existia: ${known.name}`; }
+        const tags = tagList(text(c.tags).split(','));
+        const made = add(s, 'contacts', { name: name || email || phone, email, phone, tags, company: '', notes: '', custom: {} });
+        output(run, id, { id: made.id, name: made.name, email: made.email, created: 'yes' });
+        emit(s, 'contact_created', { contactId: made.id, depth });
+        for (const tag of tags) emit(s, 'contact_tag', { contactId: made.id, change: 'added', tag, depth });
+        return `criado: ${made.name}`;
+      }
+      case 'find_contact': {
+        const wanted = text(c.value).trim();
+        if (!wanted) return 'erro: informe o valor procurado';
+        const by = ['email', 'phone', 'field'].includes(c.by) ? c.by : 'email';
+        if (by === 'field' && !c.field) return 'erro: escolha o campo';
+        const match = row => by === 'email' ? lower(row.email) === lower(wanted)
+          : by === 'phone' ? samePhone(wanted, row.phone)
+          : lower(String(fieldValue(s, row, c.field) ?? '').trim()) === lower(wanted);
+        const found = s.contacts.find(match);
+        if (!found) { output(run, id, { found: 'no', id: '', name: '', email: '', phone: '' }); return 'não encontrado'; }
+        output(run, id, { found: 'yes', id: found.id, name: found.name, email: found.email || '', phone: found.phone || '' });
+        if (c.then === 'switch' && found.id !== run.contactId) { run.contactId = found.id; return `encontrado: ${found.name} (o fluxo segue com ele)`; }
+        return `encontrado: ${found.name}`;
+      }
+      case 'opportunity_owner': case 'opportunity_followers': {
+        const deal = s.opportunities.filter(row => row.contactId === contact.id && row.status === 'Open' && (!c.pipelineId || row.pipelineId === c.pipelineId))
+          .sort((a, b) => String(b.updated || b.created).localeCompare(String(a.updated || a.created)))[0];
+        if (!deal) return 'sem oportunidade aberta';
+        if (node.type === 'opportunity_owner') {
+          const owner = c.op === 'clear' ? '' : text(c.owner).trim().slice(0, 80);
+          if (c.op !== 'clear' && !owner) return 'erro: informe a pessoa';
+          deal.owner = owner; deal.updated = now();
+          return owner ? `${deal.title}: dono ${owner}` : `${deal.title}: sem dono`;
+        }
+        const names = text(c.users).split(',').map(name => name.trim().slice(0, 48)).filter(Boolean).slice(0, 20);
+        if (!names.length) return 'erro: informe as pessoas';
+        const gone = new Set(names.map(lower)), merged = new Map();
+        for (const name of [...(deal.followers || []), ...names]) if (!merged.has(lower(name))) merged.set(lower(name), name);
+        deal.followers = c.op === 'remove' ? (deal.followers || []).filter(name => !gone.has(lower(name))) : [...merged.values()].slice(0, 20);
+        deal.updated = now();
+        return `${deal.title}: seguidores ${deal.followers.join(', ') || 'ninguém'}`;
+      }
+      case 'find_opportunity': {
+        const deal = s.opportunities.filter(row => row.contactId === contact.id && (!c.pipelineId || row.pipelineId === c.pipelineId) && (!c.status || row.status === c.status))
+          .sort((a, b) => String(b.updated || b.created).localeCompare(String(a.updated || a.created)))[0];
+        if (!deal) { output(run, id, { found: 'no', id: '', title: '', value: '', stage: '', status: '', owner: '' }); return 'não encontrada'; }
+        const stage = s.stages.find(row => row.id === deal.stage);
+        output(run, id, { found: 'yes', id: deal.id, title: deal.title, value: deal.value, stage: stage?.name || '', status: deal.status, owner: deal.owner || '' });
+        return `encontrada: ${deal.title}`;
+      }
       case 'remove_opportunity': {
         if (!removeRecord) return 'erro: exclusão indisponível';
         const latest = s.opportunities.filter(row => row.contactId === contact.id && (!c.pipelineId || row.pipelineId === c.pipelineId))
@@ -629,9 +691,25 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       if (node.type === 'if_else') { const ok = passes(s, run, c.conditions, c.match); run.results.push(`${label}: ${ok ? 'sim' : 'não'}`); trace(ok ? 'sim' : 'não'); run.at = ok ? node.yes : node.no; continue; }
       if (node.type === 'router') { const route = node.routes.find(item => passes(s, run, item.conditions, item.match)); run.results.push(`${label}: ${route ? route.label : 'caso contrário'}`); trace(route ? route.label : 'caso contrário'); run.at = route ? route.first : node.otherwise; continue; }
       if (node.type === 'split') {
-        const route = node.routes[splitRoute(`${run.contactId || run.id}:${id}`, node.routes)];
-        run.results.push(`${label}: ${route ? route.label : 'sem caminho, seguindo'}`); trace(route ? route.label : 'sem caminho');
-        run.at = route ? route.first : node.next; continue;
+        const route = pickSplit(node.routes);
+        if (!route) { run.results.push(`${label}: sem caminhos`); trace('sem caminhos'); run.at = node.next; continue; }
+        run.results.push(`${label}: ${route.label}`); trace(route.label); run.at = route.first; continue;
+      }
+      if (node.type === 'drip') {
+        if (run.test) { run.results.push(`${label}: (teste) pulada`); trace('pulada no teste'); run.at = node.next; continue; }
+        // One slot per interval: the first contacts of a slot go now, later ones wait for the next slot with room.
+        const every = Math.max(1, Number(c.amount) || 1) * ({ minutes: 6e4, hours: 36e5, days: 864e5 }[c.unit] || 36e5), batch = Math.max(1, Number(c.batch) || 1), stamp = Date.now();
+        const counters = (s.workflowCounters ??= {}), key = `drip:${run.workflowId}:${id}`;
+        let slot = counters[key];
+        if (!slot || slot.at + every <= stamp) slot = { at: stamp, used: 1 };
+        else if (slot.used < batch) slot = { at: slot.at, used: slot.used + 1 };
+        else slot = { at: slot.at + every, used: 1 };
+        counters[key] = slot;
+        run.at = node.next;
+        if (slot.at <= stamp) { run.results.push(`${label}: liberado no lote atual`); trace('liberado'); continue; }
+        run.status = 'Waiting'; run.wakeAt = new Date(slot.at).toISOString();
+        run.results.push(`${label}: na fila do lote de ${run.wakeAt}`); trace('na fila');
+        return;
       }
       if (node.type === 'goal') {
         if (c.otherwise === 'end') { run.results.push(`${label}: meta não alcançada, fluxo encerrado`); run.at = ''; break; }
@@ -651,6 +729,13 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         for (const other of s.runs) if (other.id !== run.id && other.workflowId === target && other.contactId === run.contactId && ['Running', 'Waiting'].includes(other.status)) Object.assign(other, { status: 'Removed', at: '', waitFor: null, wakeAt: '' });
         run.results.push(`${label}: ok`);
         if (target === run.workflowId) { run.at = ''; break; }
+        run.at = node.next; continue;
+      }
+      if (node.type === 'remove_from_all_workflows') {
+        let removed = 0;
+        if (run.contactId) for (const other of s.runs) if (other.id !== run.id && other.contactId === run.contactId && ['Running', 'Waiting'].includes(other.status)) { Object.assign(other, { status: 'Removed', at: '', waitFor: null, wakeAt: '' }); removed++; }
+        run.results.push(`${label}: ${run.contactId ? `${removed} execução(ões) encerrada(s)` : 'sem contato'}`); trace(`${removed} encerrada(s)`);
+        if (c.scope === 'all') { run.at = ''; break; }
         run.at = node.next; continue;
       }
       if (node.type === 'manual_sms' || node.type === 'manual_call' || node.type === 'manual_whatsapp') {
@@ -778,6 +863,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       for (const tag of row.tags || []) if (!before.includes(lower(tag))) emit(s, 'contact_tag', { contactId: row.id, change: 'added', tag });
       for (const tag of prior.tags || []) if (!after.includes(lower(tag))) emit(s, 'contact_tag', { contactId: row.id, change: 'removed', tag });
       if (Boolean(prior.dnd) !== Boolean(row.dnd)) emit(s, 'contact_dnd', { contactId: row.id, state: row.dnd ? 'on' : 'off' });
+      if ((prior.notes || '') !== (row.notes || '')) emit(s, 'note_changed', { contactId: row.id, body: row.notes || '' });
     }
     if (key === 'tasks') { if (!prior) emit(s, 'task_added', base); else if (!prior.done && row.done) emit(s, 'task_completed', base); }
     if (key === 'appointments') { if (!prior) emit(s, 'appointment_booked', base); else if (prior.status !== row.status) emit(s, 'appointment_status', { ...base, status: row.status }); }

@@ -308,7 +308,9 @@ export function makeServer({
   });
   // A quiz, an assignment or a grade: the student's contact gets the course triggers in the workflows.
   const onCourseActivity = async (workspace, data) => { await change(workspace, { type: 'course-activity', data }); flushLater(workspace); };
-  const clientPortal = makeClientPortal({ ...portalOptions, store, onCourseActivity, loadState: workspace => store.load(workspace) });
+  // A member signed in to the portal: "Login no portal do cliente" (first sign-in = signup).
+  const onPortalLogin = async (workspace, data) => { await change(workspace, { type: 'portal-login', data }); flushLater(workspace); };
+  const clientPortal = makeClientPortal({ ...portalOptions, store, onCourseActivity, onLogin: onPortalLogin, loadState: workspace => store.load(workspace) });
   // A member confirmed or paid an event: find or create the contact and fire "Inscrição em evento da comunidade".
   const onEventJoin = async (workspace, { eventId, memberId, paid }) => {
     const member = (await clientPortal.directory(workspace)).members?.find(row => row.id === memberId);
@@ -325,7 +327,14 @@ export function makeServer({
     await change(workspace, { type: 'community-welcome', id: group.id, data: { items: [{ email: member.email, name: member.name, contactId: member.contactId || '', group: group.name, subject: `Boas-vindas à ${group.name}`, body }] } });
     flushLater(workspace);
   };
-  const community = makeCommunity({ store, onEventJoin, onMemberJoin });
+  // Posts, comments, join requests and lost access in a group: the community triggers on the member's contact.
+  const onCommunityActivity = async (workspace, { groupId, memberId, ...data }) => {
+    const member = (await clientPortal.directory(workspace)).members?.find(row => row.id === memberId);
+    if (!member?.email) return;
+    await change(workspace, { type: 'community-activity', id: groupId, data: { ...data, email: member.email, name: member.name, contactId: member.contactId || '' } });
+    flushLater(workspace);
+  };
+  const community = makeCommunity({ store, onEventJoin, onMemberJoin, onActivity: onCommunityActivity });
   // A paid ticket invoice: the member gets the seat (once per invoice).
   async function grantEventTicket(workspace, invoice) {
     await community.grantTicket(workspace, invoice.eventTicket, invoice.id);
@@ -1853,7 +1862,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (result.memberId && state.communities?.length) {
             await community.enroll(workspace, result.memberId, state.communities.map(g => g.id));
           }
-          const session = await clientPortal.exchange(workspace, result.token);
+          const session = await clientPortal.exchange(workspace, result.token, { staff: true });
           portalCookie(req, res, workspace, session, secure);
           return json({ ok: true });
         }
@@ -1891,7 +1900,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
             if (result.memberId && state.communities?.length) {
               await community.enroll(workspace, result.memberId, state.communities.map(g => g.id));
             }
-            const session = await clientPortal.exchange(workspace, result.token);
+            const session = await clientPortal.exchange(workspace, result.token, { staff: true });
             portalCookie(req, res, workspace, session, secure);
             page = await clientPortal.content(workspace, state, session, courseId, lessonId);
           } catch {}
