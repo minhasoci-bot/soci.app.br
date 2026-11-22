@@ -5230,5 +5230,7 @@
   "Site ou funil": "Sitio o embudo",
   "Qualquer site ou funil": "Cualquier sitio o embudo",
   "Página (endereço depois do site)": "Página (dirección después del sitio)",
-  "Ex.: obrigado (vazio = qualquer página; a inicial é index)": "Ej.: obrigado (vacío = cualquier página; la inicial es index)"
+  "Ex.: obrigado (vazio = qualquer página; a inicial é index)": "Ej.: obrigado (vacío = cualquier página; la inicial es index)",
+  "Aula iniciada": "Clase iniciada",
+  "Quando o aluno abre uma aula no portal pela primeira vez (abrir de novo e aulas já concluídas não contam). Use {{trigger.title}} para o nome da aula e {{trigger.course}} para o curso.": "Cuando el alumno abre una clase en el portal por primera vez (abrirla de nuevo y las clases ya completadas no cuentan). Usa {{trigger.title}} para el nombre de la clase y {{trigger.course}} para el curso."
 }

@@ -298,7 +298,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'ticket_created': return (!c.priority || c.priority === ctx.priority) && (!c.category || c.category === ctx.category);
       case 'ticket_status_changed': return (!c.status || c.status === ctx.status) && (!c.priority || c.priority === ctx.priority);
       case 'badge_issued': case 'certificate_issued': case 'course_completed':
-      case 'lesson_completed': case 'course_access_granted': case 'course_access_revoked':
+      case 'lesson_completed': case 'lesson_started': case 'course_access_granted': case 'course_access_revoked':
       case 'course_started': case 'course_module_started': case 'course_module_completed': return !c.courseId || c.courseId === ctx.courseId;
       case 'affiliate_campaign_enrolled': return !c.campaignId || c.campaignId === ctx.campaignId;
       case 'offer_access_granted': case 'offer_access_revoked': return !c.offerId || c.offerId === ctx.offerId;

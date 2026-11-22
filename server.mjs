@@ -2020,10 +2020,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           return json(await clientPortal.progress(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId, input));
         }
         if (method === 'POST' || !['home','course'].includes(operation)) throw error('Método indisponível.',405);
-        await publicAccountPolicy(workspace, false, 'memberships');
+        const active = await publicAccountPolicy(workspace, false, 'memberships');
         const state = await store.load(workspace);
         const lessonId = String(url.searchParams.get('lesson') || '').slice(0, 60);
-        let page = await clientPortal.content(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId, lessonId);
+        let page = await clientPortal.content(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId, lessonId, { track: active });
         if (operation === 'home' && !page.signedIn && auth?.hasSession(req)) {
           try {
             const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'], hide: true });
@@ -2037,7 +2037,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
             }
             const session = await clientPortal.exchange(workspace, result.token, { staff: true });
             portalCookie(req, res, workspace, session, secure);
-            page = await clientPortal.content(workspace, state, session, courseId, lessonId);
+            page = await clientPortal.content(workspace, state, session, courseId, lessonId, { track: active });
           } catch {}
         }
         if (operation === 'home' && page.signedIn) {
