@@ -402,7 +402,20 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       case 'send_email': if (contact.dnd) return 'contato em não perturbe'; if (!canMessage(contact, 'Email', c.topicId)) return 'contato não aceita este e-mail (preferências)'; message('Email', c.body, text(c.subject).slice(0, 240)); return 'registrada em Conversas';
       case 'send_sms': if (contact.dnd) return 'contato em não perturbe'; if (!canMessage(contact, 'SMS', c.topicId)) return 'contato não aceita SMS (preferências)'; message('SMS', c.body); return 'registrada em Conversas';
       case 'send_live_chat': message('Live chat', c.body); return 'enviada ao chat';
-      case 'send_instagram_dm': if (contact.dnd) return 'contato em não perturbe'; message('Instagram', c.body); return 'registrada em Conversas (Direct)';
+      case 'send_instagram_dm': case 'send_messenger': {
+        // Delivered through the page connected in the Social Planner, to the id Meta gave when the contact wrote first.
+        const network = node.type === 'send_messenger' ? 'facebook' : 'instagram', channel = network === 'facebook' ? 'Facebook' : 'Instagram';
+        const place = network === 'facebook' ? 'Messenger' : 'Direct';
+        if (contact.dnd) return 'contato em não perturbe';
+        if (!text(c.body).trim()) return 'erro: mensagem vazia';
+        const buttons = [...new Set(text(c.buttons).split('\n').map(line => line.trim().slice(0, 20)).filter(Boolean))].slice(0, 13);
+        const row = message(channel, c.body);
+        if (buttons.length) row.buttons = buttons;
+        const recipients = Object.fromEntries(Object.entries(contact.metaIds || {}).filter(([key]) => key.startsWith(`${network}:`)));
+        if (!Object.keys(recipients).length) { messageFailed(s, { messageId: row.id, reason: 'no_recipient' }, depth); return `erro: o contato ainda não escreveu pelo ${place}`; }
+        outbox(s, { kind: 'meta-message', runId: run.id, network, recipients, body: row.body, buttons, contactId: contact.id, messageId: row.id });
+        return `registrada e na fila de envio (${place})`;
+      }
       case 'create_social_post': {
         if (!createSocialPost) return 'erro: planejador social indisponível';
         const made = createSocialPost(s, c, text);
@@ -772,6 +785,8 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
             other.contactId = keeper.id;
           }
           for (const [vid, owner] of Object.entries(visitors)) if (owner === dup.id) visitors[vid] = keeper.id;
+          // Messenger and Direct ids keep reaching the kept contact (the kept one's own ids win).
+          if (dup.metaIds) keeper.metaIds = { ...dup.metaIds, ...(keeper.metaIds || {}) };
           removeRecord(s, 'contacts', dup.id);
         }
         keeper.tags = [...new Set(keeper.tags || [])];

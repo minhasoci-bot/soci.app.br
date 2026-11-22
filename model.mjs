@@ -491,7 +491,19 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (typeof type === 'string' && type.startsWith('social-')) {
     if (type === 'social-interaction-trigger') {
       const channel = d.network === 'facebook' ? 'Facebook' : 'Instagram';
+      // A direct message from Meta's webhook carries the sender's page-scoped id: that id, not the name, finds the contact.
+      const metaKey = /^\d{3,64}$/.test(String(d.senderId || '')) && /^\d{3,64}$/.test(String(d.accountId || '')) ? `${d.network === 'facebook' ? 'facebook' : 'instagram'}:${d.accountId}` : '';
+      const mid = str(d.mid, 200);
+      if (mid && s.messages.some(row => row.externalId === mid)) return { ok: true, duplicate: true, contactId: '', msgId: '' };
       let contact = d.contactId ? find(s, 'contacts', d.contactId) : null;
+      if (!contact && metaKey) {
+        contact = s.contacts.find(c => c.metaIds?.[metaKey] === String(d.senderId));
+        if (!contact) {
+          contact = add(s, 'contacts', { name: str(d.authorName, 120) || `Contato do ${channel}`, tags: [channel], source: channel });
+          run(s, 'Contact created', { contactId: contact.id });
+        }
+      }
+      if (contact && metaKey && contact.metaIds?.[metaKey] !== String(d.senderId)) contact.metaIds = { ...(contact.metaIds || {}), [metaKey]: String(d.senderId) };
       if (!contact && (d.authorName || d.handle)) {
         const query = (d.handle || d.authorName).toLowerCase().replace(/^@/, '');
         contact = s.contacts.find(c => (c.name || '').toLowerCase() === query || (c.company || '').toLowerCase() === query);
@@ -512,7 +524,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
           direction: 'Inbound',
           read: false,
           starred: false,
-          origin: 'human'
+          origin: 'human',
+          ...(mid ? { externalId: mid } : {})
         }).id;
         run(s, 'Customer replied', { contactId: contact.id, channel, body: d.body });
       }

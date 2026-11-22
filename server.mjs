@@ -100,6 +100,7 @@ import { snapshotAssets } from './ui/agency-data.js';
 import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, requireWorkspaceCommand, workspaceView } from './authorization.mjs';
 import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, reviewSocialCsv, settle } from './social-model.mjs';
 import { authUrl, availability, blueskyLogin, exchange as socialExchange, publish as socialPublish, seal, unseal } from './social-providers.mjs';
+import { metaInbound, metaSenderName, metaSignatureValid, quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
 import { network } from './ui/social-data.js';
 import { captionRequest, writeCaption } from './social-ai.mjs';
 import { findSharedReport, reportMailer, sharedReportPage } from './report-share.mjs';
@@ -269,7 +270,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 
 export function makeServer({
   dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
-  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, brandFetch=fetch, brandResolve=null, designAgentConfig=designAgent,
+  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, brandFetch=fetch, metaFetch=fetch, brandResolve=null, designAgentConfig=designAgent,
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
   evolutionBaseUrl=process.env.EVOLUTION_BASE_URL || '', evolutionApiKey=process.env.EVOLUTION_API_KEY || '',
@@ -1299,6 +1300,7 @@ export function makeServer({
       return attachAccounts(s, fresh, { uid, now: stamp });
     });
     await socialSecrets(workspace, row => ids.forEach((id, n) => { row.tokens[id] = seal(chosen[n].secret); }));
+    if (chosen.some(row => ['facebook', 'instagram'].includes(row.provider))) await routeMetaAccounts(workspace).catch(problem => console.error(`Meta routes (${workspace}): ${problem.message}`));
     return { connected: ids.length };
   }
   const fileBytes = data => { const [, mime, b64] = String(data).match(/^data:([^;]+);base64,(.*)$/) || []; return { mime, bytes: Buffer.from(b64 || '', 'base64') }; };
@@ -1341,6 +1343,12 @@ export function makeServer({
       if (!await accountIsActive(agencyId, workspace, 'marketing')) return 0;
     }
     if (!state.socialAccounts?.length) return 0;
+    // Pages and Instagram accounts connected before Messenger/Direct existed get their webhook route here, once.
+    const metaAccounts = state.socialAccounts.filter(row => ['facebook', 'instagram'].includes(row.provider));
+    if (metaAccounts.length && !privateSpace.test(workspace)) {
+      const routes = (await metaRoutesRow().catch(() => null))?.routes || {};
+      if (metaAccounts.some(row => !routes[row.externalId])) await routeMetaAccounts(workspace).catch(problem => console.error(`Meta routes (${workspace}): ${problem.message}`));
+    }
     const due = await store.change(workspace, s => {
       for (const copy of evergreenDue(s, new Date(at), s.profile.timezone)) s.socialPosts.push({ ...copy, id: uid(), created: stamp() });
       return claimDue(s, at);
@@ -1585,6 +1593,12 @@ export function makeServer({
         const shown = await whatsapp.sendWorkspacePresence(state.agencyId || AGENCY_ID, workspace, item.phone, item.seconds, (agencyId, id) => accountIsActive(agencyId, id, 'conversations')).catch(() => null);
         results.push({ runId: item.runId, kind: 'whatsapp', text: shown?.sent ? `"digitando…" por ${shown.seconds} s` : shown?.reason === 'not-connected' ? 'WhatsApp não conectado' : shown?.reason === 'unsupported' ? 'o provedor de WhatsApp não mostra "digitando"' : '"digitando" não mostrado' });
       }
+      if (item.kind === 'meta-message') {
+        const sent = await deliverMetaMessage(workspace, state, item).catch(() => ({ sent: false, reason: 'provider_error' }));
+        const place = item.network === 'facebook' ? 'Messenger' : 'Direct';
+        const why = { not_connected: 'conta não conectada no Social Planner', no_recipient: 'o contato ainda não escreveu nesse canal', window_closed: 'fora da janela de 24 horas', suspended: 'subconta suspensa' }[sent.reason] || 'erro da Meta';
+        results.push({ runId: item.runId, kind: 'meta', text: sent.sent ? `${place}: enviada` : `${place}: não enviada (${why})`, ...(sent.sent ? {} : { failed: sent.reason, messageId: item.messageId || '' }) });
+      }
     }
     if (results.length) {
       // A failed WhatsApp can start "Falha no envio de mensagem" workflows, which queue their own deliveries.
@@ -1745,6 +1759,48 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     }
     const changed = await changeMetaAudience(secret, item.audience, [item.row], item.remove);
     return `${item.remove ? 'removido do' : 'incluído no'} público ${item.audience}${changed.invalid ? ' (dados inválidos)' : ''}`;
+  }
+  // Messenger and Direct (meta-messaging.mjs). "social-meta-routes" maps each connected page / Instagram account to its
+  // sub-account, so the webhook knows where a message belongs; it is rebuilt whenever accounts change.
+  const metaRoutesRow = async () => { try { return await store.load('social-meta-routes'); } catch { await store.insert('social-meta-routes', { profile: { name: 'Meta routes' }, routes: {} }); return store.load('social-meta-routes'); } };
+  async function routeMetaAccounts(workspace) {
+    if (privateSpace.test(workspace)) return;
+    const accounts = ((await store.load(workspace)).socialAccounts || []).filter(row => ['facebook', 'instagram'].includes(row.provider));
+    const secrets = (await socialRow(`social-${workspace}`)).tokens || {};
+    await metaRoutesRow();
+    await store.change('social-meta-routes', row => {
+      row.routes ||= {};
+      for (const [key, value] of Object.entries(row.routes)) if (value.workspace === workspace) delete row.routes[key];
+      for (const account of accounts) row.routes[account.externalId] = { workspace, accountId: account.id, network: account.provider };
+    });
+    // Ask Meta to send each page's messages to this app (best effort: the page may lack the messaging permission).
+    for (const account of accounts.filter(row => row.provider === 'facebook')) {
+      const secret = (() => { try { return unseal(secrets[account.id]); } catch { return null; } })();
+      await subscribeMetaPage({ token: secret?.token, pageId: account.externalId }, metaFetch).catch(() => false);
+    }
+  }
+  // The page token and page id that send on this channel for this contact id key ("facebook:<pageId>").
+  async function metaSender(workspace, state, key) {
+    const [network, externalId] = key.split(':');
+    const account = (state.socialAccounts || []).find(row => row.provider === network && row.externalId === externalId);
+    if (!account) return null;
+    let secret = null;
+    try { secret = unseal(((await socialRow(`social-${workspace}`)).tokens || {})[account.id]); } catch { secret = null; }
+    if (!secret?.token) return null;
+    return { token: secret.token, pageId: network === 'instagram' ? secret.pageId : externalId };
+  }
+  // One message to a contact on Messenger or Direct, trying each connected account the contact has written to.
+  async function deliverMetaMessage(workspace, state, { network, recipients, body, buttons = [] }) {
+    if (privateSpace.test(workspace)) return { sent: false, reason: 'not_connected' };
+    if (!await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'conversations')) return { sent: false, reason: 'suspended' };
+    let last = { sent: false, reason: 'no_recipient' };
+    for (const [key, recipientId] of Object.entries(recipients || {}).filter(([key]) => key.startsWith(`${network}:`))) {
+      const sender = await metaSender(workspace, state, key);
+      if (!sender) { last = { sent: false, reason: 'not_connected' }; continue; }
+      last = await sendMetaMessage({ ...sender, recipientId, text: body, buttons: quickReplies(buttons.join('\n')) }, metaFetch);
+      if (last.sent) return last;
+    }
+    return last;
   }
   // Workflows: an event to the GA4 property, with the sealed Measurement Protocol secret.
   async function workflowGa4(workspace, item) {
@@ -2506,6 +2562,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const chosen = picks.map(n => candidates[n]);
           const ids = await store.change(id, s => attachAccounts(s, chosen, { uid, now: stamp }));
           await socialSecrets(id, r => { ids.forEach((accountId, n) => { r.tokens[accountId] = seal(chosen[n].secret); }); delete r.pending[input.requestId]; });
+          if (chosen.some(row => ['facebook', 'instagram'].includes(row.provider))) await routeMetaAccounts(id).catch(problem => console.error(`Meta routes (${id}): ${problem.message}`));
           return withState({ id: ids });
         }
         if (op === 'bluesky') {
@@ -2518,6 +2575,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (op === 'disconnect') {
           await change(id, { type: 'social-account-remove', id: String(input.id || '') });
           await socialSecrets(id, r => { delete r.tokens[input.id]; });
+          await routeMetaAccounts(id).catch(problem => console.error(`Meta routes (${id}): ${problem.message}`));
           return withState({});
         }
         throw error('Unknown social request.',404);
@@ -2616,6 +2674,19 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
                 (agencyId, workspace) => accountIsActive(agencyId, workspace, 'conversations'));
             } catch (err) { await failed('provider_error').catch(() => {}); throw err; }
             if (!delivery.sent) await failed(deliveryFailure(delivery.reason));
+          }
+        }
+        // A team reply on Messenger or Direct goes out through the page the contact wrote to.
+        if (!privateSpace.test(id) && command.type === 'message' && ['Facebook', 'Instagram'].includes(command.data?.channel) && command.data?.direction === 'Outbound') {
+          const contact = state.contacts.find(c => c.id === command.data.contactId);
+          const network = command.data.channel === 'Facebook' ? 'facebook' : 'instagram';
+          const sentBody = state.messages.find(m => m.id === result.id)?.body || command.data.body;
+          const sent = await deliverMetaMessage(id, state, { network, recipients: contact?.metaIds || {}, body: sentBody }).catch(() => ({ sent: false, reason: 'provider_error' }));
+          delivery = { sent: Boolean(sent.sent), ...(sent.sent ? {} : { reason: sent.reason }) };
+          if (!sent.sent) {
+            const marked = await change(id, { type: 'message-failed', data: { messageId: result.id, reason: sent.reason } });
+            state = marked.state;
+            if (state.workflowOutbox?.length) flushLater(id);
           }
         }
         if (!privateSpace.test(id) && ['save','delete','import','opportunity-import','opportunity-move','pipeline','pipeline-settings','pipeline-duplicate','pipeline-delete','stage-delete','smart-tag','smart-tag-delete','profile','bulk','workflow-enroll','workflow-restore','workflow-move'].includes(command.type)) {
@@ -2992,6 +3063,40 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (p.startsWith('/api/whatsapp/webhook/') && method === 'POST') {
         return await whatsapp.handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json });
+      }
+      // Messenger and Direct: Meta's verification (GET) and the messages of the connected pages (POST, signed).
+      if (p === '/api/meta/webhook') {
+        await ready;
+        if (method === 'GET') {
+          const verify = process.env.META_WEBHOOK_VERIFY_TOKEN || '';
+          if (!verify || url.searchParams.get('hub.mode') !== 'subscribe' || url.searchParams.get('hub.verify_token') !== verify) throw error('Forbidden.', 403);
+          return send(200, 'text/plain; charset=utf-8', String(url.searchParams.get('hub.challenge') || '').slice(0, 200));
+        }
+        if (method !== 'POST') throw error('Method not allowed.', 405);
+        let size = 0; const chunks = [];
+        for await (const chunk of req) { size += chunk.length; if (size > 1_000_000) throw error('Payload too large.', 413); chunks.push(chunk); }
+        const raw = Buffer.concat(chunks);
+        if (!metaSignatureValid(raw, req.headers['x-hub-signature-256'], process.env.META_APP_SECRET || '')) throw error('Invalid signature.', 401);
+        let body;
+        try { body = JSON.parse(raw.toString('utf8')); } catch { throw error('Invalid JSON.', 400); }
+        const routes = (await metaRoutesRow()).routes || {};
+        const touched = new Set();
+        for (const message of metaInbound(body)) {
+          const route = routes[message.accountId];
+          if (!route || route.network !== message.network) continue;
+          try {
+            if (!await publicAccountPolicy(route.workspace, false, 'conversations')) continue;
+            const state = await store.load(route.workspace);
+            const key = `${message.network}:${message.accountId}`;
+            const known = (state.contacts || []).some(row => row.metaIds?.[key] === message.senderId);
+            const sender = known ? null : await metaSender(route.workspace, state, key);
+            const authorName = sender ? await metaSenderName({ token: sender.token, senderId: message.senderId, network: message.network }, metaFetch) : '';
+            await change(route.workspace, { type: 'social-interaction-trigger', data: { kind: 'dm', network: message.network, body: message.body, senderId: message.senderId, accountId: message.accountId, mid: message.mid, authorName } });
+            touched.add(route.workspace);
+          } catch (problem) { console.error(`Meta webhook (${route.workspace}): ${problem.message}`); }
+        }
+        for (const workspace of touched) flushLater(workspace);
+        return json({ ok: true });
       }
       if (p.startsWith('/api/whatsapp/agency/')) {
         const who = await access(req, res);

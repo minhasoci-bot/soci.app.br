@@ -86,8 +86,9 @@ export const triggerCatalog = [
     { type: 'user_replied', label: 'Equipe respondeu', icon: 'chat', description: 'Quando alguém da equipe manda uma mensagem ao contato pela caixa de entrada (notas internas não contam). Use {{trigger.body}} para a mensagem e {{trigger.user}} para quem respondeu.', fields: [
       f('channel', 'Canal', 'select', { options: channels }), f('user', 'Usuário', 'text', { placeholder: 'Qualquer usuário (nome exato)' }), f('keyword', 'Contém a palavra', 'text', { placeholder: 'Ex.: proposta' })
     ] },
-    { type: 'message_failed', label: 'Falha no envio de mensagem', icon: 'close', description: 'Quando uma mensagem de WhatsApp da equipe ou de um fluxo não é entregue. Use {{trigger.reason}} para o motivo e {{trigger.body}} para a mensagem. Fluxos com este gatilho não disparam de novo com as falhas das próprias mensagens.', fields: [
-      f('reason', 'Motivo', 'select', { options: [any('Qualquer motivo'), ['not_connected', 'WhatsApp desconectado'], ['no_phone', 'Contato sem telefone'], ['invalid_phone', 'Telefone inválido'], ['suspended', 'Conta suspensa'], ['provider_error', 'Erro do provedor']] })
+    { type: 'message_failed', label: 'Falha no envio de mensagem', icon: 'close', description: 'Quando uma mensagem de WhatsApp, Messenger ou Direct da equipe ou de um fluxo não é entregue. Use {{trigger.reason}} para o motivo, {{trigger.channel}} para o canal e {{trigger.body}} para a mensagem. Fluxos com este gatilho não disparam de novo com as falhas das próprias mensagens.', fields: [
+      f('channel', 'Canal', 'select', { options: [any('Qualquer canal'), ['WhatsApp', 'WhatsApp'], ['Facebook', 'Messenger'], ['Instagram', 'Direct do Instagram']] }),
+      f('reason', 'Motivo', 'select', { options: [any('Qualquer motivo'), ['not_connected', 'Canal desconectado'], ['no_phone', 'Contato sem telefone'], ['invalid_phone', 'Telefone inválido'], ['suspended', 'Conta suspensa'], ['no_recipient', 'Contato ainda não escreveu nesse canal'], ['window_closed', 'Fora da janela de 24 horas'], ['provider_error', 'Erro do provedor']] })
     ] },
     { type: 'prospect_received', label: 'Prospect recebido da agência', icon: 'leads', description: 'Quando a agência envia um prospect da Prospecção para esta subconta (uma vez por prospect; reenviar não dispara de novo). O contato chega com a tag New Prospect Received. Use {{trigger.company}}, {{trigger.website}}, {{trigger.city}} e {{trigger.category}}.', fields: [
       f('isNew', 'Contato', 'select', { options: [any('Novo ou já existente'), ['yes', 'Contato novo'], ['no', 'Contato que já existia']] }),
@@ -354,7 +355,14 @@ export const actionCatalog = [
     { type: 'whatsapp_typing', label: 'Mostrar "digitando…" no WhatsApp', icon: 'whatsapp', description: 'Mostra "digitando…" para o contato por alguns segundos, antes da próxima mensagem do fluxo, para a conversa parecer natural. Disponível com a Evolution API.', fields: [
       f('seconds', 'Segundos', 'number', { min: 1, max: 25, value: 3 })
     ] },
-    { type: 'send_instagram_dm', label: 'Enviar Direct no Instagram', icon: 'send', fields: [f('body', 'Mensagem privada', 'textarea', { required: true })] },
+    { type: 'send_instagram_dm', label: 'Enviar Direct no Instagram', icon: 'send', description: 'Manda uma mensagem privada pela conta profissional do Instagram conectada no Social Planner, para quem já escreveu no Direct. A Meta só aceita a resposta até 24 horas depois da última mensagem do contato. Os botões viram respostas rápidas.', fields: [
+      f('body', 'Mensagem privada', 'textarea', { required: true }),
+      f('buttons', 'Botões de resposta rápida (um por linha, até 13; opcional)', 'textarea', { placeholder: 'Quero saber o preço\nFalar com atendente' })
+    ] },
+    { type: 'send_messenger', label: 'Enviar mensagem no Messenger', icon: 'send', description: 'Manda uma mensagem pelo Messenger da página do Facebook conectada no Social Planner, para quem já escreveu para a página. A Meta só aceita a resposta até 24 horas depois da última mensagem do contato. Os botões viram respostas rápidas.', fields: [
+      f('body', 'Mensagem', 'textarea', { required: true }),
+      f('buttons', 'Botões de resposta rápida (um por linha, até 13; opcional)', 'textarea', { placeholder: 'Quero saber o preço\nFalar com atendente' })
+    ] },
     { type: 'loyalty_points', label: 'Dar ou tirar pontos de fidelidade', icon: 'gift', description: 'Soma (ou subtrai, com número negativo) pontos no programa de fidelidade.', fields: [f('points', 'Pontos', 'number', { required: true, value: 50 }), f('reason', 'Motivo', 'text', { placeholder: 'Ex.: Indicação de amigo' })] },
     { type: 'add_to_sequence', label: 'Inscrever em sequência de e-mail', icon: 'mail', description: 'Coloca o contato numa sequência ativa (uma vez enquanto estiver nela).', fields: [f('sequenceId', 'Sequência', 'ref', { source: 'sequences', required: true, empty: 'Escolha a sequência' })] },
     { type: 'remove_from_sequence', label: 'Tirar de sequência de e-mail', icon: 'mail', description: 'Para os próximos e-mails da sequência para este contato.', fields: [f('sequenceId', 'Sequência', 'ref', { source: 'sequences', required: true, empty: 'Escolha a sequência' })] },
