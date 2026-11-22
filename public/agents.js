@@ -1,5 +1,4 @@
 import { icon } from './icons.js';
-import { loadingState } from './beautiful-ui.js';
 import { h } from './screens.js';
 import {
   agentDraft, agentFieldNames, agentIcons, agentLimits, agentResources, agentRevision, agentTemplates, changedAgentFields,
@@ -605,25 +604,9 @@ function mountStudio({ root, workspace, model = '', startAgent, request, updateA
   input.addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); testForm.requestSubmit(); }
   });
-  let loader = null;
-  const showLoader = () => {
-    const wrap = document.createElement('div');
-    wrap.className = 'agent-bubble assistant agent-bubble-loading';
-    wrap.innerHTML = `<strong>${h(agent.name)}</strong>`;
-    loader = loadingState({ label: 'Pensando', since: chat.pendingSince || Date.now() });
-    wrap.append(loader.el);
-    transcript.append(wrap);
-    transcript.scrollTop = transcript.scrollHeight;
-  };
-  const hideLoader = () => {
-    loader?.destroy();
-    loader?.el.closest('.agent-bubble')?.remove();
-    loader = null;
-  };
   if (chat.pending) {
     testForm.inert = true;
     testStatus.textContent = 'Aguardando resposta…';
-    showLoader();
   }
   testForm.addEventListener('submit', async event => {
     event.preventDefault();
@@ -635,9 +618,8 @@ function mountStudio({ root, workspace, model = '', startAgent, request, updateA
     const history = [...chat.messages.slice(-8), message];
     chat.log.push({ role: 'user', content: message });
     chat.pending = true;
-    chat.pendingSince = Date.now();
     transcript.insertAdjacentHTML('beforeend', bubble({ role: 'user', content: message }, agent.name));
-    showLoader();
+    transcript.scrollTop = transcript.scrollHeight;
     input.value = '';
     autoGrow(input, 160);
     testForm.inert = true;
@@ -647,12 +629,10 @@ function mountStudio({ root, workspace, model = '', startAgent, request, updateA
       chat.messages = [...history, reply];
       chat.log.push({ role: 'assistant', content: reply });
       chat.pending = false;
-      hideLoader();
       addRun(run);
     } catch (error) {
       chat.log.pop();
       chat.pending = false;
-      hideLoader();
       if (!root.isConnected) refresh();
       else {
         transcript.lastElementChild?.remove();

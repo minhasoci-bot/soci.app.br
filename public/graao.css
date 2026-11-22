@@ -775,11 +775,6 @@ input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color])
 .danger:hover{background:#b52a30;border-color:#b52a30}
 .danger.plain{background:transparent;border-color:transparent;color:#c0262d}
 .danger.plain:hover{background:#fff1f2;color:#a41f25}
-/* "secondary danger" = contorno neutro com texto vermelho (excluir em rodapés de formulário), não o vermelho cheio do .danger */
-.secondary.danger{background:#fff;border-color:var(--g-line-2);color:#c0262d}
-.secondary.danger:hover{background:#fff1f2;border-color:#f3b4b8;color:#a41f25}
-:root[data-theme=dark] .secondary.danger{background:var(--g-surface);border-color:var(--g-line-2);color:#ff8a8f}
-:root[data-theme=dark] .secondary.danger:hover{background:rgba(255,138,143,.1);border-color:rgba(255,138,143,.35);color:#ffb3b6}
 .text-link,.boot a:not(.primary){color:var(--g-brand-2-text)}
 .icon-btn:hover{background:var(--g-brand-2-surface);color:var(--g-brand-2-text)}
 .pill-button{background:var(--g-brand-2-surface);color:var(--g-brand-2-text)}

@@ -1180,21 +1180,17 @@
   border-radius: 12px;
 }
 
-/* Cursor de streaming do Beautiful UI (StreamText): barra sólida enquanto chega texto. */
-.sc-markdown.streaming > :last-child::after {
+.sc-markdown.streaming > :last-child::after,
+.sc-markdown.streaming:empty::after {
   content: "";
   display: inline-block;
-  width: 2px;
-  height: 1.05em;
-  margin-left: 1.5px;
-  translate: 0 -0.5px;
-  border-radius: 1px;
-  background: var(--sc-text);
-  vertical-align: text-bottom;
-}
-
-.sc-loading {
-  padding-top: 5px;
+  width: 9px;
+  height: 9px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: var(--g-brand, #ff00bb);
+  vertical-align: middle;
+  animation: sc-pulse 1.1s ease-in-out infinite;
 }
 
 @keyframes sc-pulse {
