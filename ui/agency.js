@@ -797,6 +797,8 @@ Authorization: Bearer soci_app_…
     const w = A.wa;
     const markup = String(D().saas.rebilling.whatsapp ?? 1).replace('.', ',');
     const subCfg = w?.subaccounts || {};
+    const pl = w?.providerLabel || 'Evolution API';
+    const customProvider = w?.customProvider === 'uazapi' ? 'uazapi' : 'evolution';
     const statusBannerBadge = w?.error
       ? badge('Erro ao consultar', 'red')
       : !w
@@ -804,17 +806,21 @@ Authorization: Bearer soci_app_…
         : w.managed && !w.hasCustomServer
           ? badge('Servidor gerenciado ativo', 'green')
           : w.configured
-            ? badge('UAZAPI conectada', 'green')
+            ? badge(`${pl} conectada`, 'green')
             : badge('Aguardando configuração');
 
     const serverForm = `
       <form class="settings-form" data-ag-form="wa-config">
         <div class="field-grid">
-          <label class="ag-full">URL do servidor UAZAPI<input name="baseUrl" type="url" required placeholder="https://suaagencia.uazapi.com" value="${h(w?.baseUrl || '')}"></label>
-          <label class="ag-full">Admin Token (<code>admintoken</code>)<input name="adminToken" type="password" autocomplete="off" ${w?.hasAdminToken ? '' : 'required'} placeholder="${w?.hasAdminToken ? `Token salvo (••••${h(w.adminTokenLast4)}) — deixe em branco para manter` : 'Cole o admintoken da sua conta UAZAPI'}"></label>
+          <label class="ag-full">Provedor<select name="provider">
+            <option value="evolution"${customProvider === 'evolution' ? ' selected' : ''}>Evolution API (recomendado)</option>
+            <option value="uazapi"${customProvider === 'uazapi' ? ' selected' : ''}>UAZAPI</option>
+          </select></label>
+          <label class="ag-full">URL do servidor<input name="baseUrl" type="url" required placeholder="https://whatsapp.suaagencia.com.br" value="${h(w?.baseUrl || '')}"></label>
+          <label class="ag-full">Chave de acesso <small class="dim">Evolution: API Key global (<code>AUTHENTICATION_API_KEY</code>) · UAZAPI: <code>admintoken</code></small><input name="adminToken" type="password" autocomplete="off" ${w?.hasAdminToken ? '' : 'required'} placeholder="${w?.hasAdminToken ? `Chave salva (••••${h(w.adminTokenLast4)}) — deixe em branco para manter` : 'Cole a chave de acesso do servidor'}"></label>
         </div>
         <div class="inline-gap">
-          <button class="primary">Salvar servidor UAZAPI</button>
+          <button class="primary">Salvar servidor de WhatsApp</button>
           ${w?.hasCustomServer ? btn('Remover servidor próprio', 'wa-disconnect-server') : ''}
         </div>
         <p class="form-status" role="alert"></p>
@@ -846,7 +852,7 @@ Authorization: Bearer soci_app_…
             <form class="settings-form" data-ag-form="wa-sub-test" data-id="${focus.workspace}">
               <h3>Enviar mensagem de teste</h3>
               <label>Número destino (com DDI)<input name="phone" required inputmode="numeric" placeholder="5511999999999"></label>
-              <label>Mensagem<textarea name="text" required maxlength="2000" placeholder="Olá! WhatsApp conectado na Soci via UAZAPI."></textarea></label>
+              <label>Mensagem<textarea name="text" required maxlength="2000" placeholder="Olá! WhatsApp conectado na Soci via ${h(pl)}."></textarea></label>
               <button class="primary">Enviar teste</button>
               <p class="form-status" role="alert"></p>
             </form>
@@ -899,8 +905,8 @@ Authorization: Bearer soci_app_…
         ${shcLayers()}
         <span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('whatsapp', 22)}</span></span>
         <div>
-          <div class="inline-gap"><b>Integração com WhatsApp (UAZAPI)</b>${statusBannerBadge}</div>
-          <p>Conecte sua conta <a class="text-link" href="https://uazapi.com" target="_blank" rel="noopener">UAZAPI</a> uma única vez para que <b>cada subconta</b> conecte o próprio número apenas lendo o QR Code. Markup SaaS atual: <b>${h(markup)}×</b>.</p>
+          <div class="inline-gap"><b>Integração com WhatsApp (${h(pl)})</b>${statusBannerBadge}</div>
+          <p>Conecte uma única vez o servidor de WhatsApp da agência (<a class="text-link" href="https://doc.evolution-api.com" target="_blank" rel="noopener">Evolution API</a> ou UAZAPI) para que <b>cada subconta</b> conecte o próprio número apenas lendo o QR Code. Markup SaaS atual: <b>${h(markup)}×</b>.</p>
           ${w?.error ? `<p class="form-status">${h(w.error)}</p>` : ''}
         </div>
         <a class="secondary" href="#agency/saas/rebilling">Ajustar markup</a>
@@ -908,14 +914,14 @@ Authorization: Bearer soci_app_…
 
       ${w?.managed && !w?.hasCustomServer ? `
         <div class="surface padded ag-gap">
-          <div class="inline-gap">${badge('Modo 1-clique ativo', 'green')}<b>Servidor UAZAPI gerenciado pela plataforma</b></div>
+          <div class="inline-gap">${badge('Modo 1-clique ativo', 'green')}<b>Servidor ${h(pl)} gerenciado pela plataforma</b></div>
           <p class="dim">Os usuários de cada subconta já podem abrir <b>Configurações → WhatsApp</b> e conectar o número apenas escaneando o QR Code — sem digitar URL nem chaves.</p>
-          <details class="ag-wa-details"><summary>Usar servidor UAZAPI próprio (opcional)</summary>${serverForm}</details>
+          <details class="ag-wa-details"><summary>Usar servidor de WhatsApp próprio (opcional)</summary>${serverForm}</details>
         </div>
       ` : `
         <div class="surface padded ag-gap">
-          <h2>Servidor UAZAPI da agência</h2>
-          <p class="dim">Informe uma única vez a URL e o <code>admintoken</code> da sua conta UAZAPI (armazenado criptografado no Supabase). Depois disso, cada subconta verá apenas o botão <b>Conectar WhatsApp</b> com QR Code.</p>
+          <h2>Servidor de WhatsApp da agência</h2>
+          <p class="dim">Informe uma única vez a URL e a chave de acesso do seu servidor Evolution API (ou UAZAPI). A chave fica criptografada no Supabase. Depois disso, cada subconta verá apenas o botão <b>Conectar WhatsApp</b> com QR Code.</p>
           ${serverForm}
         </div>
       `}
@@ -925,7 +931,7 @@ Authorization: Bearer soci_app_…
       <div class="page-head ag-gap">
         <div>
           <h3>Subcontas conectadas ${badge(`${accounts().length} subconta(s)`, 'blue')}</h3>
-          <p class="dim">Cada subconta recebe uma instância isolada na UAZAPI e pode parear seu próprio número via QR Code.</p>
+          <p class="dim">Cada subconta recebe uma instância isolada na ${h(pl)} e pode parear seu próprio número via QR Code.</p>
         </div>
         <div class="inline-gap">
           ${w?.configured ? btn('Atualizar status', 'wa-refresh', '', 'secondary', 'refresh') : ''}
@@ -1201,7 +1207,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           break;
         }
         case 'abacate-cancel': confirmBox(`Cancelar a assinatura de ${accountName(id)}?`, 'A cobrança recorrente é cancelada no AbacatePay. A subconta continua ativa até você mudar o status.', 'abacate-cancel', id, 'Cancelar assinatura'); break;
-        case 'wa-disconnect-server': confirmBox('Remover servidor UAZAPI próprio?', 'A URL e o admintoken cadastrados pela agência serão removidos.', 'wa-disconnect-server', '', 'Remover'); break;
+        case 'wa-disconnect-server': confirmBox('Remover servidor de WhatsApp próprio?', 'A URL e a chave de acesso cadastradas pela agência serão removidas.', 'wa-disconnect-server', '', 'Remover'); break;
         case 'wa-focus-close': stopWaPoll(); A.waFocus = null; render(); break;
         case 'wa-sub-open': {
           stopWaPoll();
@@ -1498,14 +1504,14 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           stopWaPoll();
           A.waFocus = null;
           A.wa = await api('/api/whatsapp/agency/config', data);
-          msg = 'Servidor UAZAPI salvo. As subcontas já podem conectar por QR Code!';
+          msg = 'Servidor de WhatsApp salvo. As subcontas já podem conectar por QR Code!';
           break;
         }
         case 'wa-disconnect-server': {
           stopWaPoll();
           A.waFocus = null;
           A.wa = await api('/api/whatsapp/agency/disconnect-server', {});
-          msg = 'Servidor UAZAPI próprio removido.';
+          msg = 'Servidor de WhatsApp próprio removido.';
           break;
         }
         case 'wa-sub-pair': {

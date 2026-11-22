@@ -1,0 +1,17 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip
+	header -Server
+
+	reverse_proxy evolution:8080 {
+		# Enquanto a Evolution reinicia, segura a requisição alguns segundos em vez de responder 502 na hora.
+		lb_try_duration 20s
+		lb_try_interval 1s
+		health_uri /
+		health_interval 30s
+		health_timeout 10s
+	}
+}

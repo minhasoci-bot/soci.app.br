@@ -1,0 +1,156 @@
+# Evolution API v2 para o WhatsApp do soci.app — pensado para ficar no ar sozinho.
+#
+#   evolution  API do WhatsApp (Baileys). Sessões salvas no Postgres: reiniciar não pede QR de novo.
+#   postgres   banco das instâncias e das mensagens recentes (o WhatsApp pede reenvio de mensagens).
+#   redis      cache (LID, grupos). Pode ser perdido sem derrubar nada: sessão não fica aqui.
+#   caddy      HTTPS automático (Let's Encrypt) na frente da API.
+#   autoheal   reinicia qualquer container que falhar o healthcheck (travou mas não morreu).
+#   watchdog   reconecta número que caiu e reinicia instância presa em "connecting".
+#
+# Uso: sudo bash install.sh whatsapp.seudominio.com.br voce@email.com   (veja README.md)
+name: evolution
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  evolution:
+    # Versão fixa de propósito: nunca use "latest". A 2.4 passa a exigir ativação de licença.
+    image: evoapicloud/evolution-api:v2.3.7
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SERVER_URL: https://${DOMAIN}
+      DATABASE_CONNECTION_URI: postgresql://evolution:${POSTGRES_PASSWORD}@postgres:5432/evolution?schema=public&connection_limit=20
+      CACHE_REDIS_URI: redis://redis:6379/6
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - evolution_instances:/evolution/instances
+    ports:
+      # Só na própria VPS (para testes via SSH). O acesso público passa pelo Caddy com HTTPS.
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 4
+      start_period: 90s
+    # Tempo para fechar as conexões do WhatsApp com calma antes de matar o processo.
+    stop_grace_period: 30s
+    mem_limit: ${EVOLUTION_MEM_LIMIT:-2g}
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    labels:
+      autoheal: "true"
+    logging: *logging
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: evolution
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-America/Sao_Paulo}
+    command:
+      - postgres
+      - -c
+      - max_connections=100
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - idle_in_transaction_session_timeout=60000
+    shm_size: 256mb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution -d evolution"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    labels:
+      autoheal: "true"
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", "300", "10"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    labels:
+      autoheal: "true"
+    logging: *logging
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - evolution
+    logging: *logging
+
+  autoheal:
+    image: willfarrell/autoheal:1.2.0
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: 30
+      AUTOHEAL_START_PERIOD: 120
+      AUTOHEAL_DEFAULT_STOP_TIMEOUT: 30
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    logging: *logging
+
+  watchdog:
+    image: alpine:3.20
+    restart: unless-stopped
+    environment:
+      EVOLUTION_URL: http://evolution:8080
+      AUTHENTICATION_API_KEY: ${AUTHENTICATION_API_KEY}
+      WATCHDOG_INTERVAL: ${WATCHDOG_INTERVAL:-60}
+      WATCHDOG_STUCK_CYCLES: ${WATCHDOG_STUCK_CYCLES:-10}
+      TZ: ${TZ:-America/Sao_Paulo}
+    volumes:
+      - ./watchdog.sh:/watchdog.sh:ro
+    command: ["sh", "-c", "apk add --no-cache curl jq tzdata >/dev/null && exec sh /watchdog.sh"]
+    depends_on:
+      - evolution
+    logging: *logging
+
+volumes:
+  evolution_instances:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
