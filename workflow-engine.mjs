@@ -282,7 +282,7 @@ export function compile(steps) {
 
 /* ───────── Motor ───────── */
 
-export function createEngine({ add, now, preferencePath = null, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null, affiliateAction = null, bookingLink = null, appointmentNote = null, bookAppointment = null, companyAction = null, freeSlots = null, zonedTime = null }) {
+export function createEngine({ add, now, preferencePath = null, makeAffiliate = null, requestReview = null, sendDocument = null, sendEstimate = null, sendInvoice = null, startRecurring = null, updateInventory = null, createSocialPost = null, issueCredential = null, ticketAction = null, sequenceAction = null, loyaltyAction = null, onEvent = null, adjustScore = null, removeRecord = null, affiliateAction = null, bookingLink = null, appointmentNote = null, bookAppointment = null, companyAction = null, freeSlots = null, zonedTime = null, dialerAdd = null }) {
   const contactOf = (s, id) => s.contacts.find(row => row.id === id);
   const fieldValue = (s, contact, key) => {
     if (!contact) return '';
@@ -356,6 +356,7 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       case 'call_details': return (!c.direction || c.direction === ctx.direction) && (!c.status || c.status === ctx.status) && (!c.numberId || c.numberId === ctx.numberId);
       case 'phone_validated': return (!c.result || c.result === (ctx.valid === 'sim' ? 'valid' : 'invalid')) && (!c.lineType || c.lineType === ctx.lineType);
       case 'ivr_call': return !c.numberId || c.numberId === ctx.numberId;
+      case 'dialer_disposition': return !c.disposition || c.disposition === ctx.disposition;
       case 'voice_ai_ended': return (!c.outcome || c.outcome === ctx.outcome) && (!c.agentId || c.agentId === ctx.agentId) && (!c.direction || c.direction === ctx.direction);
       case 'portal_file_uploaded': return !c.kind || c.kind === ctx.kind;
       case 'video_watched': return Number(ctx.percent) === (Number(c.percent) || 25) && (!c.video || lower(ctx.video).includes(lower(c.video))) && (!c.url || lower(ctx.url).includes(lower(c.url)));
@@ -515,6 +516,12 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
         const buttons = [...new Set(text(c.buttons).split('\n').map(line => line.trim().slice(0, 30)).filter(Boolean))].slice(0, 6);
         if (buttons.length) row.buttons = buttons;
         return buttons.length ? `enviada ao chat com ${buttons.length} botão(ões)` : 'enviada ao chat';
+      }
+      case 'dialer_add': {
+        // "Adicionar ao discador": the contact goes to the power dialer queue (Conversas → Discador).
+        if (!dialerAdd) return 'erro: discador indisponível';
+        if (!e164(contact.phone)) return 'erro: contato sem telefone válido';
+        return dialerAdd(s, contact) ? 'na fila do discador' : 'já estava na fila do discador';
       }
       case 'voice_ai_call': {
         // "Ligação do Voice AI": the server dials the contact and the agent talks (voice-ai.mjs), with this flow's OpenAI.
