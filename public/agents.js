@@ -187,8 +187,8 @@ const TEST_COMMANDS = [
 
 const runDetails = run => [
   run.model && { label: 'Modelo', meta: run.model },
-  run.inputTokens !== undefined && { label: 'Tokens', meta: `${run.inputTokens} → ${run.outputTokens}` },
-  run.ms !== undefined && { label: 'Duração', meta: `${(run.ms / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s` },
+  (run.inputTokens || run.outputTokens) && { label: 'Tokens', meta: `${run.inputTokens || 0} → ${run.outputTokens || 0}` },
+  run.ms > 0 && { label: 'Duração', meta: `${(run.ms / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s` },
   run.sources?.length && { label: 'Fontes consultadas', meta: String(run.sources.length) },
   { label: run.error ? 'Erro' : 'Resposta', meta: (run.error || run.output || '').slice(0, 48) + ((run.error || run.output || '').length > 48 ? '…' : '') }
 ].filter(Boolean);
@@ -690,7 +690,7 @@ function mountStudio({ root, workspace, model = '', startAgent, request, updateA
         text: last.content,
         wordMs: 28,
         actions: ['copy', 'retry'],
-        sources: (last.sources || []).map(name => ({ name, domain: name, href: '#ai-agents/knowledge' })),
+        sources: (last.sources || []).map(name => ({ name, domain: 'base de conhecimento', href: '#ai-agents/knowledge' })),
         labels: { sources: `${(last.sources || []).length} ${(last.sources || []).length === 1 ? 'base consultada' : 'bases consultadas'}` },
         onAction: key => {
           if (key !== 'retry') return;

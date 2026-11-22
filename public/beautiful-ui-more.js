@@ -363,8 +363,11 @@ export function streamingText({ text = '', sources = [], followUps = [], labels 
   let i = 0;
   p.append(caret);
   const timer = setInterval(() => {
-    const tok = tokens[i++];
-    if (tok) caret.before(tok.cite ? chip(tok.cite) : document.createTextNode(tok.text));
+    // Com a aba em segundo plano o navegador atrasa os timers: mostra o resto de uma vez.
+    do {
+      const tok = tokens[i++];
+      if (tok) caret.before(tok.cite ? chip(tok.cite) : document.createTextNode(tok.text));
+    } while (document.hidden && i < tokens.length);
     if (i >= tokens.length) {
       clearInterval(timer);
       caret.remove();

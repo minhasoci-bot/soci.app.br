@@ -170,7 +170,8 @@ export function streamText(target, text, { charsPerTick = 2, tickMs = 9, blurTai
   const car = caret ? streamCaret(true) : null;
   target.replaceChildren(head, tail, ...(car ? [car] : []));
   const timer = setInterval(() => {
-    count = Math.min(count + charsPerTick, text.length);
+    // Com a aba em segundo plano os timers ficam lentos: revela o resto de uma vez.
+    count = document.hidden ? text.length : Math.min(count + charsPerTick, text.length);
     const shown = text.slice(0, count);
     const streaming = count < text.length;
     const split = streaming ? Math.max(0, shown.length - blurTail) : shown.length;

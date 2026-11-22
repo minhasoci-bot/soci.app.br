@@ -70,7 +70,7 @@ export function installContentAI({ api, workspace, flash, enabled }) {
     if (!text.trim()) { showMessage('Escreva algo no campo antes de usar a IA.', { error: true }); return; }
     const head = partial ? before.slice(0, start) : '';
     const lead = head.length > 140 ? `…${head.slice(-140)}` : head;
-    menu.innerHTML = `<p class="ai-menu-scope">${partial ? 'Trecho selecionado' : 'Campo inteiro'} · a mudança só entra quando você manter</p>
+    menu.innerHTML = `<p class="ai-menu-scope">${partial ? 'Trecho selecionado' : 'Campo inteiro'} · a mudança só entra quando você clicar em Manter</p>
       <div class="ai-menu-tone"><label for="ai-tone">Tom</label><select id="ai-tone">${contentTones.map(([id, name]) => `<option value="${id}">${h(name)}</option>`).join('')}</select></div>`;
     bar = selectionActions({
       lead,
@@ -134,7 +134,8 @@ export function installContentAI({ api, workspace, flash, enabled }) {
       return;
     }
     if (menu.hidden) return;
-    if (!menu.contains(event.target)) { close(); return; }
+    // composedPath: o botão clicado pode já ter saído do DOM (a barra troca os botões no clique).
+    if (!event.composedPath().includes(menu)) { close(); return; }
     if (event.target.closest('[data-ai-back]')) { showActions(); place(); menu.querySelector('button')?.focus(); return; }
     if (event.target.closest('[data-ai-undo]') && undo) {
       const target = document.querySelector(undo.selector);
