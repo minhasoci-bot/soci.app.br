@@ -691,6 +691,22 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         if (!route) { run.results.push(`${label}: sem caminhos`); trace('sem caminhos'); run.at = node.next; continue; }
         run.results.push(`${label}: ${route.label}`); trace(route.label); run.at = route.first; continue;
       }
+      if (node.type === 'drip') {
+        if (run.test) { run.results.push(`${label}: (teste) pulada`); trace('pulada no teste'); run.at = node.next; continue; }
+        // One slot per interval: the first contacts of a slot go now, later ones wait for the next slot with room.
+        const every = Math.max(1, Number(c.amount) || 1) * ({ minutes: 6e4, hours: 36e5, days: 864e5 }[c.unit] || 36e5), batch = Math.max(1, Number(c.batch) || 1), stamp = Date.now();
+        const counters = (s.workflowCounters ??= {}), key = `drip:${run.workflowId}:${id}`;
+        let slot = counters[key];
+        if (!slot || slot.at + every <= stamp) slot = { at: stamp, used: 1 };
+        else if (slot.used < batch) slot = { at: slot.at, used: slot.used + 1 };
+        else slot = { at: slot.at + every, used: 1 };
+        counters[key] = slot;
+        run.at = node.next;
+        if (slot.at <= stamp) { run.results.push(`${label}: liberado no lote atual`); trace('liberado'); continue; }
+        run.status = 'Waiting'; run.wakeAt = new Date(slot.at).toISOString();
+        run.results.push(`${label}: na fila do lote de ${run.wakeAt}`); trace('na fila');
+        return;
+      }
       if (node.type === 'goal') {
         if (c.otherwise === 'end') { run.results.push(`${label}: meta não alcançada, fluxo encerrado`); run.at = ''; break; }
         if (c.otherwise === 'wait') { run.status = 'Waiting'; run.waitFor = { type: c.event, value: c.eventValue || '', goal: id }; run.wakeAt = ''; run.at = node.next; run.results.push(`${label}: aguardando a meta`); return; }
@@ -709,6 +725,13 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         for (const other of s.runs) if (other.id !== run.id && other.workflowId === target && other.contactId === run.contactId && ['Running', 'Waiting'].includes(other.status)) Object.assign(other, { status: 'Removed', at: '', waitFor: null, wakeAt: '' });
         run.results.push(`${label}: ok`);
         if (target === run.workflowId) { run.at = ''; break; }
+        run.at = node.next; continue;
+      }
+      if (node.type === 'remove_from_all_workflows') {
+        let removed = 0;
+        if (run.contactId) for (const other of s.runs) if (other.id !== run.id && other.contactId === run.contactId && ['Running', 'Waiting'].includes(other.status)) { Object.assign(other, { status: 'Removed', at: '', waitFor: null, wakeAt: '' }); removed++; }
+        run.results.push(`${label}: ${run.contactId ? `${removed} execução(ões) encerrada(s)` : 'sem contato'}`); trace(`${removed} encerrada(s)`);
+        if (c.scope === 'all') { run.at = ''; break; }
         run.at = node.next; continue;
       }
       if (node.type === 'manual_sms' || node.type === 'manual_call' || node.type === 'manual_whatsapp') {
@@ -836,6 +859,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
       for (const tag of row.tags || []) if (!before.includes(lower(tag))) emit(s, 'contact_tag', { contactId: row.id, change: 'added', tag });
       for (const tag of prior.tags || []) if (!after.includes(lower(tag))) emit(s, 'contact_tag', { contactId: row.id, change: 'removed', tag });
       if (Boolean(prior.dnd) !== Boolean(row.dnd)) emit(s, 'contact_dnd', { contactId: row.id, state: row.dnd ? 'on' : 'off' });
+      if ((prior.notes || '') !== (row.notes || '')) emit(s, 'note_changed', { contactId: row.id, body: row.notes || '' });
     }
     if (key === 'tasks') { if (!prior) emit(s, 'task_added', base); else if (!prior.done && row.done) emit(s, 'task_completed', base); }
     if (key === 'appointments') { if (!prior) emit(s, 'appointment_booked', base); else if (prior.status !== row.status) emit(s, 'appointment_status', { ...base, status: row.status }); }

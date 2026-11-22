@@ -4865,5 +4865,20 @@ export default {
   "Criado agora (yes ou no)": "Creado ahora (yes o no)",
   "Encontrado (yes ou no)": "Encontrado (yes o no)",
   "Encontrada (yes ou no)": "Encontrada (yes o no)",
-  "Dono": "Responsable"
+  "Dono": "Responsable",
+  "Nota alterada": "Nota modificada",
+  "Quando as notas do contato são editadas. Use {{trigger.body}} para o texto novo.": "Cuando se editan las notas del contacto. Use {{trigger.body}} para el texto nuevo.",
+  "Liberar em lotes": "Liberar por lotes",
+  "Deixa passar só um lote de contatos a cada intervalo; os outros esperam a vez nesta etapa. Útil para não disparar tudo de uma vez.": "Deja pasar solo un lote de contactos en cada intervalo; los demás esperan su turno en este paso. Útil para no enviar todo de una vez.",
+  "Contatos por lote": "Contactos por lote",
+  "A cada": "Cada",
+  "Unidade": "Unidad",
+  "Remover de todos os fluxos": "Quitar de todos los flujos",
+  "Tira o contato de todos os fluxos em que ele está rodando ou esperando.": "Saca al contacto de todos los flujos en los que está en ejecución o en espera.",
+  "Incluindo este fluxo?": "¿Incluido este flujo?",
+  "Não: este fluxo continua": "No: este flujo continúa",
+  "Sim: este fluxo também termina aqui": "Sí: este flujo también termina aquí",
+  "Inclusive este": "Incluido este",
+  "Menos este": "Excepto este",
+  "Texto novo da nota": "Texto nuevo de la nota"
 };
