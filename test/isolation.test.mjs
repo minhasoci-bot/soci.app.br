@@ -478,3 +478,23 @@ test('Public Sites previews verify identity and tenant and suspended accounts re
     assert.equal((await fetch(base + path)).status, 404, path);
   }
 });
+
+test('Copiar contato: saving the workflow needs access to the target sub-account, in the same agency', async t => {
+  const { ownerA, ownerB, member, call, createWorkspace, agencyAction } = await start(t);
+  const a1 = await createWorkspace(ownerA, 'A1');
+  const a2 = await createWorkspace(ownerA, 'A2');
+  const a3 = await createWorkspace(ownerA, 'A3');
+  const b1 = await createWorkspace(ownerB, 'B1');
+  await agencyAction(ownerA, {
+    type: 'save', key: 'users',
+    data: { first: 'Team', last: 'Member', email: member.email, loginEnabled: true, role: 'Account User', accounts: [a1, a2], permissions: ['contacts', 'automation'] }
+  });
+  const save = (user, target) => call(`/api/action?workspace=${a1}`, { user, body: { type: 'save', key: 'workflows',
+    data: { name: 'Copiar', active: true, triggers: [{ type: 'contact_created' }], steps: [{ type: 'copy_contact', config: { workspace: target } }] } } });
+  assert.equal((await save(member, a2)).status, 200, 'a sub-account the member can open');
+  const denied = await save(member, a3);
+  assert.equal(denied.status, 403);
+  assert.match(denied.body.error, /acesso aos contatos da subconta de destino/);
+  assert.equal((await save(ownerA, b1)).status, 403, 'another agency is never a target');
+  assert.equal((await save(ownerA, a3)).status, 200);
+});

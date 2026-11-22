@@ -793,6 +793,15 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         output(run, id, { [name]: formatted });
         return `${name} = ${formatted}`;
       }
+      case 'copy_contact': {
+        // The server copies it into the other sub-account (same agency) after the run is saved.
+        const target = String(c.workspace || '');
+        if (!target) return 'erro: escolha a subconta de destino';
+        const extra = tagList(text(c.tags).split(','));
+        outbox(s, { kind: 'copy-contact', runId: run.id, workspace: target, tags: extra,
+          contact: { name: contact.name || '', email: contact.email || '', phone: contact.phone || '', company: contact.company || '', tags: c.copyTags === 'yes' ? contact.tags || [] : [] } });
+        return 'na fila para copiar';
+      }
       case 'custom_event': {
         // "Disparar evento personalizado": starts the workflows whose "Evento personalizado" trigger has this name.
         const name = text(c.event).trim().slice(0, 60);

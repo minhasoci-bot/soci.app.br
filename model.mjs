@@ -459,7 +459,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'workflow-outbox-result') {
     for (const item of Array.isArray(d.results) ? d.results.slice(0, 500) : []) {
       const target = find(s, 'runs', item?.runId);
-      if (target) target.results.push(`${({ whatsapp: 'WhatsApp', email: 'E-mail', app: 'App', access: 'Acesso' })[item.kind] || 'Webhook'}: ${str(item.text, 120)}`);
+      if (target) target.results.push(`${({ whatsapp: 'WhatsApp', email: 'E-mail', app: 'App', access: 'Acesso', copy: 'Cópia' })[item.kind] || 'Webhook'}: ${str(item.text, 120)}`);
       if (item?.failed && item.messageId) engine.messageFailed(s, { messageId: str(item.messageId, 40), reason: str(item.failed, 40) }, 1);
       const doc = item?.docId ? find(s, 'documents', item.docId) : item?.estimateId ? find(s, 'estimates', item.estimateId) : item?.invoiceId ? find(s, 'invoices', item.invoiceId) : item?.checkoutId ? (s.abandonedCheckouts || []).find(row => row.id === item.checkoutId) : item?.giftCardId ? (s.giftCards || []).find(row => row.id === item.giftCardId) : null;
       if (doc) (doc.audit ||= []).push({ at: now(), event: 'delivered', detail: str(item.text, 200) });
@@ -840,6 +840,25 @@ function other(s, command, type, key, id, d, workspace) {
     if (channel === 'Note') run(s, 'note_added', { contactId: c, body });
     else if (direction === 'Outbound') run(s, 'user_replied', { contactId: c, channel, body, user: str(command.actor, 80) });
     return msgId;
+  }
+  // Server-internal (not accepted from /api/action): "Copiar contato" from another sub-account of the agency.
+  // An existing contact (same e-mail or phone) only gets its empty fields filled and the tags added.
+  if (type === 'contact-copy-in') {
+    const email = str(d.email, 160).toLowerCase(), phone = str(d.phone, 48), name = str(d.name, 120), company = str(d.company, 120);
+    const digits = value => String(value || '').replace(/\D/g, '');
+    // The same phone with or without the country code (+55): one ends with the other, 10+ digits in common.
+    const samePhone = (a, b) => { const [short, long] = [digits(a), digits(b)].sort((x, y) => x.length - y.length); return short.length >= 10 && long.endsWith(short); };
+    const incoming = tags(d.tags);
+    const existing = s.contacts.find(row => (email && String(row.email || '').toLowerCase() === email) || samePhone(row.phone, phone));
+    if (existing) {
+      execute(s, { type: 'save', key: 'contacts', id: existing.id, data: { ...existing, name: existing.name || name, email: existing.email || email,
+        phone: existing.phone || phone, company: existing.company || company, tags: [...new Set([...(existing.tags || []), ...incoming])] } });
+      return { id: existing.id, created: false };
+    }
+    if (!email && !phone && !name) fail('O contato não tem dados para copiar.');
+    const id = execute(s, { type: 'save', key: 'contacts', data: { name: name || email || phone, email, phone, company, tags: incoming, custom: {},
+      notes: d.from ? `Copiado da subconta ${str(d.from, 120)}` : '' } });
+    return { id, created: true };
   }
   // Server-internal (not accepted from /api/action): a message from the team that the provider did not deliver.
   if (type === 'message-failed') return engine.messageFailed(s, { messageId: str(d.messageId, 40), reason: str(d.reason, 40) });

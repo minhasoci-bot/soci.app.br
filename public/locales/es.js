@@ -5149,5 +5149,14 @@ export default {
   "Dados (um por linha, campo=valor, aceita variáveis)": "Datos (uno por línea, campo=valor, acepta variables)",
   "Evento personalizado": "Evento personalizado",
   "Quando outro fluxo usa a ação Disparar evento personalizado com este nome. Os dados enviados ficam em {{trigger.campo}} e o nome em {{trigger.event}}. Pode vir sem contato: aí use ações internas.": "Cuando otro flujo usa la acción Disparar evento personalizado con este nombre. Los datos enviados quedan en {{trigger.campo}} y el nombre en {{trigger.event}}. Puede llegar sin contacto: en ese caso use acciones internas.",
-  "Qualquer evento (ex.: pedido_aprovado)": "Cualquier evento (ej.: pedido_aprobado)"
+  "Qualquer evento (ex.: pedido_aprovado)": "Cualquier evento (ej.: pedido_aprobado)",
+  "Copiar contato para outra subconta": "Copiar contacto a otra subcuenta",
+  "Cria o contato (nome, e-mail, telefone e empresa) noutra subconta da agência. Se ele já existir lá (mesmo e-mail ou telefone), só completa os campos vazios e soma as tags. Campos personalizados não vão. Quem salva o fluxo precisa ter acesso aos contatos da subconta de destino.": "Crea el contacto (nombre, correo, teléfono y empresa) en otra subcuenta de la agencia. Si ya existe allí (mismo correo o teléfono), solo completa los campos vacíos y suma las etiquetas. Los campos personalizados no se copian. Quien guarda el flujo necesita acceso a los contactos de la subcuenta de destino.",
+  "Subconta de destino": "Subcuenta de destino",
+  "Escolha a subconta": "Elija la subcuenta",
+  "Levar as tags do contato": "Llevar las etiquetas del contacto",
+  "Tags a adicionar na cópia (separadas por vírgula)": "Etiquetas para agregar en la copia (separadas por coma)",
+  "ex.: veio da matriz": "ej.: vino de la matriz",
+  "Não": "No",
+  "Sim": "Sí"
 };

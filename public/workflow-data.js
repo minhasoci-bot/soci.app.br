@@ -43,6 +43,8 @@ export const refSources = {
   socialCategories: s => (s.socialCategories || []).map(row => [row.id, row.name]),
   socialAccounts: s => (s.socialAccounts || []).map(row => [row.id, `${row.name}${row.handle ? ` (${row.handle})` : ''} · ${socialNetworks.find(([id]) => id === row.provider)?.[1] || row.provider}`]),
   dateFields: s => (s.customFields || []).filter(row => row.object === 'Contact' && row.type === 'Date').map(row => [row.id, row.name]),
+  // The other sub-accounts this user can open (the app keeps them in c.workspaces).
+  accounts: (s, c) => (c?.workspaces || []).filter(row => row.id !== c.workspace && !/^user-/.test(row.id)).map(row => [row.id, row.name]),
   contactFields: s => [['name', 'Nome'], ['email', 'E-mail'], ['phone', 'Telefone'], ['company', 'Empresa'], ...(s.customFields || []).filter(row => row.object === 'Contact').map(row => [`custom:${row.id}`, row.name])],
   numberFields: s => [['score', 'Pontuação do lead'], ...(s.customFields || []).filter(row => row.object === 'Contact' && ['Number', 'Monetary'].includes(row.type)).map(row => [`custom:${row.id}`, row.name])],
   textFields: s => [['name', 'Nome'], ['company', 'Empresa'], ...(s.customFields || []).filter(row => row.object === 'Contact' && ['Single line', 'Multi line'].includes(row.type)).map(row => [`custom:${row.id}`, row.name])]
@@ -299,6 +301,11 @@ export const actionCatalog = [
     ] },
     { type: 'email_verify', label: 'Verificar e-mail', icon: 'mail', description: 'Confere o formato do e-mail do contato e se o domínio recebe e-mail (sem enviar nada). O fluxo espera a resposta: use {{vars.email_status}} (valid, invalid ou unknown) e {{vars.email_motivo}} num Se / Senão.', fields: [
       f('invalidTag', 'Tag para e-mail inválido (opcional)', 'text', { value: 'email-invalido', placeholder: 'email-invalido' })
+    ] },
+    { type: 'copy_contact', label: 'Copiar contato para outra subconta', icon: 'users', description: 'Cria o contato (nome, e-mail, telefone e empresa) noutra subconta da agência. Se ele já existir lá (mesmo e-mail ou telefone), só completa os campos vazios e soma as tags. Campos personalizados não vão. Quem salva o fluxo precisa ter acesso aos contatos da subconta de destino.', fields: [
+      f('workspace', 'Subconta de destino', 'ref', { source: 'accounts', required: true, empty: 'Escolha a subconta' }),
+      f('copyTags', 'Levar as tags do contato', 'select', { options: [['no', 'Não'], ['yes', 'Sim']] }),
+      f('tags', 'Tags a adicionar na cópia (separadas por vírgula)', 'text', { placeholder: 'ex.: veio da matriz' })
     ] },
     { type: 'merge_contact', label: 'Mesclar contato', icon: 'users', description: 'Junta os contatos duplicados (mesmo e-mail ou telefone) num só: tags, campos vazios, notas, conversas, tarefas, oportunidades, agendamentos e faturas passam para o contato mantido, e os duplicados vão para a lixeira.', fields: [
       f('by', 'Duplicado quando tiver o mesmo', 'select', { options: [['any', 'E-mail ou telefone'], ['email', 'E-mail'], ['phone', 'Telefone']] }),
@@ -615,6 +622,7 @@ export function stepSummary(step, s) {
     case 'list_format': return c.variable ? `→ vars.${c.variable}` : '';
     case 'whatsapp_window': return `→ vars.${c.variable || 'janela_whatsapp'}`;
     case 'custom_event': return c.event ? `evento ${c.event}` : '';
+    case 'copy_contact': return c.workspace ? 'para outra subconta' : '';
     case 'remove_from_all_workflows': return c.scope === 'all' ? 'Inclusive este' : 'Menos este';
     case 'update_affiliate': return ({ active: 'Ativo', paused: 'Pausado', pending: 'Aguardando aprovação' })[c.status] || '';
     case 'add_affiliate_campaign': case 'remove_affiliate_campaign': return ref('affiliateCampaigns', c.campaignId);

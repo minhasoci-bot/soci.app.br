@@ -186,7 +186,7 @@ function fieldInput(c, editor, field, config, target) {
   const label = `<span>${h(field.label)}${field.required ? ' <span class="wfb-req" aria-hidden="true">*</span>' : ''}</span>`;
   if (field.kind === 'select') return `<label>${label}<select ${attrs}>${opts(field.options, value)}</select></label>`;
   if (field.kind === 'ref') {
-    const entries = refSources[field.source]?.(c.s).filter(([id]) => !(field.source === 'workflows' && id === editor.key)) || [];
+    const entries = refSources[field.source]?.(c.s, c).filter(([id]) => !(field.source === 'workflows' && id === editor.key)) || [];
     return `<label>${label}<select ${attrs}>${opts([['', field.empty || 'Selecione…'], ...entries], value)}</select></label>`;
   }
   if (field.kind === 'step') {
