@@ -11,6 +11,9 @@ import { actionSpec, aiExtractFields, aiOptions, aiVariableName, allActions, all
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value) : '';
 const lower = value => String(value ?? '').trim().toLowerCase();
+// Phones compare by digits, with or without Brazil's +55: "+55 11 98888-0000" is "(11) 98888-0000".
+const digitsOf = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length >= 12 && digits.startsWith('55') ? digits.slice(2) : digits; };
+const samePhone = (a, b) => { const x = digitsOf(a); return x.length >= 8 && x === digitsOf(b); };
 const tagList = list => [...new Set((list || []).map(tag => str(tag, 48)).filter(Boolean))].slice(0, 20);
 const FAILURES = /^(erro|sem contato|sem nome|sem oportunidade|sem agendamento|sem conversa|campo removido|campo inválido|e-mail inválido|contato em não perturbe)/;
 
@@ -304,7 +307,7 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
 
   function perform(s, run, node, depth, id) {
     const contact = contactOf(s, run.contactId), c = node.config || {}, text = value => merge(value, s, contact, run);
-    const needsContact = !['internal_notification', 'webhook', 'app_action', 'create_task', 'create_social_post', 'update_custom_value', 'date_format', 'number_format'].includes(node.type);
+    const needsContact = !['internal_notification', 'webhook', 'app_action', 'create_task', 'create_social_post', 'update_custom_value', 'date_format', 'number_format', 'create_contact', 'find_contact'].includes(node.type);
     if (needsContact && !contact) return 'sem contato';
     const message = (channel, body, subject = '') => add(s, 'messages', { contactId: contact.id, body: text(body).slice(0, 5000), subject, channel, direction: 'Outbound', read: true, starred: false, origin: 'workflow', workflowId: run.workflowId });
     switch (node.type) {
@@ -544,6 +547,59 @@ export function createEngine({ add, now, makeAffiliate = null, requestReview = n
         removeRecord(s, 'contacts', contact.id);
         run.contactId = '';
         return `${name} foi para a lixeira`;
+      }
+      case 'create_contact': {
+        const name = text(c.name).trim().slice(0, 240), email = lower(text(c.email).trim()).slice(0, 254), phone = text(c.phone).trim().slice(0, 48);
+        if (!name && !email && !phone) return 'erro: informe nome, e-mail ou telefone';
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return `erro: e-mail inválido: ${email.slice(0, 60)}`;
+        const known = (email && s.contacts.find(row => lower(row.email) === email)) || (phone && s.contacts.find(row => samePhone(phone, row.phone)));
+        if (known) { output(run, id, { id: known.id, name: known.name, email: known.email || '', created: 'no' }); return `já existia: ${known.name}`; }
+        const tags = tagList(text(c.tags).split(','));
+        const made = add(s, 'contacts', { name: name || email || phone, email, phone, tags, company: '', notes: '', custom: {} });
+        output(run, id, { id: made.id, name: made.name, email: made.email, created: 'yes' });
+        emit(s, 'contact_created', { contactId: made.id, depth });
+        for (const tag of tags) emit(s, 'contact_tag', { contactId: made.id, change: 'added', tag, depth });
+        return `criado: ${made.name}`;
+      }
+      case 'find_contact': {
+        const wanted = text(c.value).trim();
+        if (!wanted) return 'erro: informe o valor procurado';
+        const by = ['email', 'phone', 'field'].includes(c.by) ? c.by : 'email';
+        if (by === 'field' && !c.field) return 'erro: escolha o campo';
+        const match = row => by === 'email' ? lower(row.email) === lower(wanted)
+          : by === 'phone' ? samePhone(wanted, row.phone)
+          : lower(String(fieldValue(s, row, c.field) ?? '').trim()) === lower(wanted);
+        const found = s.contacts.find(match);
+        if (!found) { output(run, id, { found: 'no', id: '', name: '', email: '', phone: '' }); return 'não encontrado'; }
+        output(run, id, { found: 'yes', id: found.id, name: found.name, email: found.email || '', phone: found.phone || '' });
+        if (c.then === 'switch' && found.id !== run.contactId) { run.contactId = found.id; return `encontrado: ${found.name} (o fluxo segue com ele)`; }
+        return `encontrado: ${found.name}`;
+      }
+      case 'opportunity_owner': case 'opportunity_followers': {
+        const deal = s.opportunities.filter(row => row.contactId === contact.id && row.status === 'Open' && (!c.pipelineId || row.pipelineId === c.pipelineId))
+          .sort((a, b) => String(b.updated || b.created).localeCompare(String(a.updated || a.created)))[0];
+        if (!deal) return 'sem oportunidade aberta';
+        if (node.type === 'opportunity_owner') {
+          const owner = c.op === 'clear' ? '' : text(c.owner).trim().slice(0, 80);
+          if (c.op !== 'clear' && !owner) return 'erro: informe a pessoa';
+          deal.owner = owner; deal.updated = now();
+          return owner ? `${deal.title}: dono ${owner}` : `${deal.title}: sem dono`;
+        }
+        const names = text(c.users).split(',').map(name => name.trim().slice(0, 48)).filter(Boolean).slice(0, 20);
+        if (!names.length) return 'erro: informe as pessoas';
+        const gone = new Set(names.map(lower)), merged = new Map();
+        for (const name of [...(deal.followers || []), ...names]) if (!merged.has(lower(name))) merged.set(lower(name), name);
+        deal.followers = c.op === 'remove' ? (deal.followers || []).filter(name => !gone.has(lower(name))) : [...merged.values()].slice(0, 20);
+        deal.updated = now();
+        return `${deal.title}: seguidores ${deal.followers.join(', ') || 'ninguém'}`;
+      }
+      case 'find_opportunity': {
+        const deal = s.opportunities.filter(row => row.contactId === contact.id && (!c.pipelineId || row.pipelineId === c.pipelineId) && (!c.status || row.status === c.status))
+          .sort((a, b) => String(b.updated || b.created).localeCompare(String(a.updated || a.created)))[0];
+        if (!deal) { output(run, id, { found: 'no', id: '', title: '', value: '', stage: '', status: '', owner: '' }); return 'não encontrada'; }
+        const stage = s.stages.find(row => row.id === deal.stage);
+        output(run, id, { found: 'yes', id: deal.id, title: deal.title, value: deal.value, stage: stage?.name || '', status: deal.status, owner: deal.owner || '' });
+        return `encontrada: ${deal.title}`;
       }
       case 'remove_opportunity': {
         if (!removeRecord) return 'erro: exclusão indisponível';

@@ -312,7 +312,10 @@ const triggerData = {
   community_access_revoked: [['community', 'Comunidade'], ['reason', 'Motivo (left, removed, banned ou workflow)']], portal_login: [['first', 'Primeiro acesso (yes ou no)']]
 };
 const outputKeys = { create_task: [['id', 'ID'], ['title', 'Título'], ['due', 'Prazo']], create_opportunity: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['stage', 'Etapa']],
-  create_invoice: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['due', 'Vencimento']], math: [['value', 'Resultado']] };
+  create_invoice: [['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['due', 'Vencimento']], math: [['value', 'Resultado']],
+  create_contact: [['id', 'ID'], ['name', 'Nome'], ['email', 'E-mail'], ['created', 'Criado agora (yes ou no)']],
+  find_contact: [['found', 'Encontrado (yes ou no)'], ['id', 'ID'], ['name', 'Nome'], ['email', 'E-mail'], ['phone', 'Telefone']],
+  find_opportunity: [['found', 'Encontrada (yes ou no)'], ['id', 'ID'], ['title', 'Título'], ['value', 'Valor'], ['stage', 'Etapa'], ['status', 'Status'], ['owner', 'Dono']] };
 const functionGroups = [
   ['Condicionais', ['if', 'ifempty', 'ifEmpty', 'switch']],
   ['Texto', ['concat', 'upper', 'lower', 'capitalize', 'startcase', 'trim', 'replace', 'substring', 'split', 'length', 'toString', 'urlEncode', 'urlDecode', 'base64', 'ascii', 'stripHTML', 'escapeHTML', 'escapeMarkdown', 'replaceEmojiCharacters', 'indexOf', 'md5', 'sha1', 'sha256', 'sha512', 'toBinary']],
