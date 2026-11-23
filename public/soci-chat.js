@@ -358,6 +358,7 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
                 <input type="password" id="sc-treg-token" data-sc="treg-token" placeholder="eyJ1aWQi..." autocomplete="off">
                 <button type="button" class="secondary" data-sc-action="test-treg">Testar conexão</button>
                 <button type="button" class="primary" data-sc-action="save-treg">Salvar conector</button>
+                <button type="button" class="secondary" data-sc="treg-remove" data-sc-action="remove-treg" hidden>Remover token</button>
               </div>
               <p class="sc-field-msg" data-sc="treg-status-msg"></p>
             </div>
@@ -484,6 +485,7 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     tregTeam: Q('treg-team'),
     tregTools: Q('treg-tools'),
     tregToken: Q('treg-token'),
+    tregRemove: Q('treg-remove'),
     tregStatusMsg: Q('treg-status-msg'),
     tregToggleMaps: Q('treg-toggle-maps'),
     tregToggleInstagram: Q('treg-toggle-instagram'),
@@ -1443,9 +1445,12 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
 
   function renderConnectorsUI() {
     const treg = state.connectors?.treg || {};
+    // O servidor nunca devolve o token: o campo fica vazio e só mostra que há um token salvo.
     if (els.tregToken) {
-      els.tregToken.value = treg.token || '';
+      els.tregToken.value = '';
+      els.tregToken.placeholder = treg.hasToken ? `Token salvo (…${treg.tokenLast4}). Digite outro para trocar.` : 'eyJ1aWQi...';
     }
+    if (els.tregRemove) els.tregRemove.hidden = !treg.hasToken;
     if (els.tregToggleMaps) {
       els.tregToggleMaps.checked = treg.googleMaps !== false;
     }
@@ -1453,7 +1458,7 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
       els.tregToggleInstagram.checked = treg.instagram !== false;
     }
 
-    if (treg.token) {
+    if (treg.hasToken) {
       els.tregBadge.className = 'sc-badge sc-badge-success';
       els.tregBadge.textContent = 'Token da agência ativo';
     } else if (treg.serverDefaultAvailable) {
@@ -1466,7 +1471,8 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
   }
 
   async function verifyTregInUI(customToken) {
-    const token = customToken !== undefined ? customToken : (els.tregToken?.value.trim() || state.connectors?.treg?.token);
+    // Sem token digitado, o servidor testa o token salvo da agência (ou o padrão do servidor).
+    const token = customToken !== undefined ? customToken : (els.tregToken?.value.trim() || undefined);
     els.tregStatusMsg.textContent = 'Verificando com o servidor Treg...';
     els.tregStatusMsg.className = 'sc-field-msg sc-msg-info';
 
@@ -1495,8 +1501,9 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     }
   }
 
-  async function saveTregConnector() {
-    const token = els.tregToken.value.trim();
+  async function saveTregConnector({ removeToken = false } = {}) {
+    // Campo vazio mantém o token salvo; só um token digitado o substitui.
+    const token = removeToken ? '' : els.tregToken.value.trim();
     const googleMaps = els.tregToggleMaps.checked;
     const instagram = els.tregToggleInstagram.checked;
     els.tregStatusMsg.textContent = 'Salvando conector...';
@@ -1504,8 +1511,8 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
 
     try {
       const res = await api('/api/ask/connectors', {
-        treg: { enabled: true, token, googleMaps, instagram },
-        verify: true
+        treg: { enabled: true, googleMaps, instagram, ...(token ? { token } : {}), ...(removeToken ? { removeToken: true } : {}) },
+        verify: Boolean(token)
       });
       state.connectors = res.connectors;
       renderConnectorsUI();
@@ -1873,6 +1880,9 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
         break;
       case 'save-treg':
         await saveTregConnector();
+        break;
+      case 'remove-treg':
+        await saveTregConnector({ removeToken: true });
         break;
       case 'import-skill-file':
         els.skillFileInput.click();

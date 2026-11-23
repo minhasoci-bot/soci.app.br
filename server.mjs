@@ -374,7 +374,7 @@ export function makeServer({
   const phone = createPhoneHandler({ store, change: (workspace, command) => change(workspace, command), flushLater: workspace => flushLater(workspace), request: twilioRequest, env: phoneEnv,
     accountActive: workspace => publicAccountPolicy(workspace, false, 'conversations'), agentReply: (workspace, options) => voiceAgentReply(workspace, options) });
   const phoneOrigin = () => String(phoneEnv.PHONE_PUBLIC_ORIGIN || phoneEnv.SOCIAL_PUBLIC_URL || phoneEnv.PORTAL_PUBLIC_ORIGIN || '').replace(/\/+$/, '');
-  const handleAsk = createAskHandler({ store, openAI, openAIRequest });
+  const handleAsk = createAskHandler({ store, openAI, openAIRequest, secret: openAISecret });
   const waha = createWahaHandler({ store, secret: openAISecret, request: wahaRequest });
   const abacate = createAbacatePayHandler({ store, secret: openAISecret, request: abacatePayRequest });
   const whatsapp = createWhatsAppHandler({

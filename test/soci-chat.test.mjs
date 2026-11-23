@@ -217,7 +217,7 @@ test('Pergunte à Soci persists conversations and custom instructions through Su
 });
 
 test('Pergunte à Soci manages agency connectors and custom skills (agentskills.io)', async t => {
-  const local = await start(); t.after(local.close);
+  const local = await start({ openAISecret: 'soci-chat-test-seal-secret-32ch!!' }); t.after(local.close);
 
   // 1. Initial state returns default connectors and empty skills
   const state0 = await local.call('/api/ask/state');
@@ -232,14 +232,17 @@ test('Pergunte à Soci manages agency connectors and custom skills (agentskills.
     verify: false
   });
   assert.equal(tregUpdate.status, 200);
-  assert.equal(tregUpdate.body.connectors.treg.token, 'test-agency-token-xyz');
+  assert.equal(tregUpdate.body.connectors.treg.token, undefined, 'o token nunca volta para o navegador');
+  assert.equal(tregUpdate.body.connectors.treg.hasToken, true);
+  assert.equal(tregUpdate.body.connectors.treg.tokenLast4, '-xyz');
   assert.equal(tregUpdate.body.connectors.treg.googleMaps, true);
   assert.equal(tregUpdate.body.connectors.treg.instagram, false);
 
   // 3. Verify GET /api/ask/connectors
   const getConn = await local.call('/api/ask/connectors');
   assert.equal(getConn.status, 200);
-  assert.equal(getConn.body.connectors.treg.token, 'test-agency-token-xyz');
+  assert.equal(getConn.body.connectors.treg.token, undefined);
+  assert.equal(getConn.body.connectors.treg.hasToken, true);
 
   // 4. Create a custom skill directly
   const skillRes1 = await local.call('/api/ask/skills', {

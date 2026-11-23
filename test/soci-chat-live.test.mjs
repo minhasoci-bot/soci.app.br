@@ -21,7 +21,8 @@ const sse = events => new Response(events.map(event => `data: ${typeof event ===
 const titleReply = () => Response.json({ choices: [{ message: { content: 'Padarias em Santos' } }] });
 
 async function start(t, openAIRequest) {
-  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, store: createSqliteStore(':memory:'), port: 0, openAIRequest });
+  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, store: createSqliteStore(':memory:'), port: 0, openAIRequest,
+    openAISecret: 'soci-chat-live-seal-secret-32ch!!' });
   await new Promise((resolve, reject) => { server.on('error', reject); server.listen(0, host, resolve); });
   t.after(() => new Promise(resolve => server.close(resolve)));
   const base = `http://${host}:${server.address().port}`;
