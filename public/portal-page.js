@@ -1,6 +1,6 @@
 import { icon } from './icons.js';
 import { communityCards, communityPage } from './portal-community.js';
-import { themeStyle } from './community-data.js';
+import { themeMode, themeStyle } from './community-data.js';
 import { loyaltyCard } from './portal-loyalty.js';
 import { assignmentBlock, certificateLink, coursePage, instructorCard, liveBlock, nextLessonCard, quizAnswers, quizBlock, themed } from './portal-course-extra.js';
 
@@ -88,7 +88,9 @@ function player(course) {
 let portal, course, community = null, courseView = 'lesson', redeemed = null;
 // A course opened from a community's Academia goes back there, not to the portal home.
 let cmReturn = '';
-const cmUi = { tab: 'discussion', channel: '', period: '30', feed: 'recent', openComments: new Set() };
+// The member's light/dark choice for communities lives in this browser only.
+const savedMode = () => { try { const value = localStorage.getItem('soci:cm-mode'); return value === 'light' || value === 'dark' ? value : ''; } catch { return ''; } };
+const cmUi = { tab: 'discussion', channel: '', period: '30', feed: 'recent', openComments: new Set(), mode: savedMode() };
 const uploadCard = files => `<section class="cp-public-card cp-upload"><h2>${icon('upload', 18)} Enviar um arquivo para a equipe</h2>
   <p>Imagem, vídeo, áudio, PDF, TXT ou CSV de até 700 KB.</p>
   <form data-portal-upload><label class="cp-sr" for="cp-upload-file">Arquivo</label><input id="cp-upload-file" type="file" name="file" required accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,application/pdf,text/plain,text/csv">
@@ -108,9 +110,20 @@ async function enablePush() {
   await api('push', { subscription: sub.toJSON() });
 }
 
+// Light/dark switch with the same diagonal wipe as the soci app (View Transitions); instant without support or
+// when the system asks for reduced motion.
+async function switchMode(mode) {
+  const swap = () => { draw(); root.querySelector('[data-cm-public="mode"]')?.focus(); };
+  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches || document.visibilityState !== 'visible') return swap();
+  document.documentElement.dataset.cmModeTo = mode;
+  const transition = document.startViewTransition(swap);
+  try { await transition.finished; } catch { /* skipped: the page is already in the new mode */ }
+  delete document.documentElement.dataset.cmModeTo;
+}
+
 // The open community paints the whole page with its theme (the portal header included).
 function paintCommunity(group) {
-  for (const rule of themeStyle(group?.theme).split(';')) {
+  for (const rule of themeStyle(themeMode(group?.theme, cmUi.mode)).split(';')) {
     const [name, value] = rule.split(':');
     if (group) document.body.style.setProperty(name, value); else document.body.style.removeProperty(name);
   }
@@ -225,6 +238,7 @@ root.addEventListener('click', async event => {
       if (verb === 'tab') { cmUi.tab = value; focus = `[data-cm-public="tab"][data-value="${value}"]`; }
       else if (verb === 'channel') { cmUi.channel = value; cmUi.tab = 'discussion'; focus = `[data-cm-public="channel"][data-value="${value}"]`; }
       else if (verb === 'events') { cmUi.events = value; focus = `[data-cm-public="events"][data-value="${value}"]`; }
+      else if (verb === 'mode') { cmUi.mode = value; try { localStorage.setItem('soci:cm-mode', value); } catch { /* private window: the choice lasts this visit */ } await switchMode(value); return; }
       else if (verb === 'feed') { cmUi.feed = value; focus = `[data-cm-public="feed"][data-value="${value}"]`; }
       else if (verb === 'comments-all') { cmUi.openComments.add(post); focus = `#post-${post} .cp-comments`; }
       else if (verb === 'comment-focus') { root.querySelector(`#post-${CSS.escape(post)} .cp-comment-form input`)?.focus(); return; }
@@ -248,7 +262,7 @@ root.addEventListener('click', async event => {
         if (reason === null) return;
         await communityAction({ action: 'report', postId: post, commentId: comment, reason });
       }
-      else if (verb === 'period') { cmUi.period = value; await loadCommunity(community.group.id); focus = `[data-cm-public="period"][data-value="${value}"]`; }
+      else if (verb === 'period') { cmUi.period = value; focus = `[data-cm-public="period"][data-value="${value}"]`; }
       else if (verb === 'delete' && !confirmDelete(button)) return;
       else if (['join','leave','like','vote','delete'].includes(verb)) {
         await communityAction({ action: verb, postId: post, commentId: comment, optionId: option });

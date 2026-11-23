@@ -1,7 +1,7 @@
 // Community screens of the client portal: the list on the home page and one group as a three-column app —
 // identity, sections and channels on the left; the section in the middle; the owner's blocks on the right.
 import { icon } from './icons.js';
-import { planPrice, themeStyle } from './community-data.js';
+import { planPrice, themeIsDark, themeMode, themeStyle } from './community-data.js';
 import { avatar, badgeChip, dateShort, empty, feedTab, h, segment } from './portal-community-feed.js';
 import { academyTab } from './portal-community-academy.js';
 
@@ -59,8 +59,8 @@ function membersTab(view) {
     <div><strong>${h(member.name)}</strong>${badgeChip(member)}<small>${member.role === 'moderator' ? 'Moderador · ' : ''}Nível ${member.level} · entrou em ${h(dateShort(member.joinedAt))}</small></div></li>`).join('')}</ul></section>`;
 }
 
-function rankingTab(view) {
-  const board = view.leaderboard;
+function rankingTab(view, ui) {
+  const board = view.leaderboards?.[ui.period] || view.leaderboard;
   return `<div class="cp-cm-toolbar">${segment('period', board.period, [['7', '7 dias'], ['30', '30 dias'], ['all', 'Todo o período']], 'Período')}</div>
     ${board.me ? `<p class="cp-public-card cp-me">Você está no <b>nível ${board.me.level}</b> com ${board.me.points} pontos${board.me.next ? ` · faltam ${board.me.next} para o próximo nível` : ' · nível máximo'}.</p>` : ''}
     ${board.top.length ? `<section class="cp-public-card"><ol class="cp-leaderboard">${board.top.map((row, index) => `<li><span class="cp-rank">${index + 1}</span>${avatar({ name: row.name, level: row.level, photo: row.photo })}<strong>${h(row.name)}</strong><b>${row.points} <small>pts</small></b></li>`).join('')}</ol></section>`
@@ -127,7 +127,7 @@ export function sideWidgets(view, tabs) {
         <div><strong>${h(event.title)}</strong><small>${h(new Intl.DateTimeFormat('pt-BR', { weekday: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(event.start)))}</small></div></li>`).join('')}</ul>${more('events')}`;
     },
     ranking: () => {
-      const top = (view.leaderboard?.top || []).slice(0, 5);
+      const top = ((view.leaderboards?.['30'] || view.leaderboard)?.top || []).slice(0, 5);
       return shown('ranking') && top.length && `<h2>Top do ranking</h2><ol class="cp-cm-mini">${top.map((row, index) => `<li><span class="cp-rank">${index + 1}</span>${avatar({ name: row.name, photo: row.photo }, 'sm')}<strong>${h(row.name)}</strong><b>${row.points}<small> pts</small></b></li>`).join('')}</ol>${more('ranking')}`;
     },
     members: () => {
@@ -152,15 +152,18 @@ export function communityPage(view, ui) {
   if (locked && tab !== 'academy') body = group.access === 'paid' ? '' : empty('lock', 'Comunidade privada', 'Somente membros aprovados veem as publicações.');
   else if (tab === 'events') body = eventsTab(view, ui);
   else if (tab === 'members') body = membersTab(view);
-  else if (tab === 'ranking') body = rankingTab(view);
+  else if (tab === 'ranking') body = rankingTab(view, ui);
   else if (tab === 'about') body = aboutTab(view);
   else if (tab === 'discussion') body = feedTab(view, ui);
   else if (tab === 'academy') body = academyTab(view);
   const current = tabs.find(row => row.key === tab), channel = tab === 'discussion' && group.channels.find(row => row.id === ui.channel);
   const aside = sideWidgets(view, tabs);
-  return `<div class="cp-cm${aside ? '' : ' cp-cm-no-aside'}" style="${h(themeStyle(group.theme))}">
+  // Light or dark: the member's choice (kept in their browser) over the owner's theme.
+  const theme = themeMode(group.theme, ui.mode), dark = themeIsDark(theme);
+  return `<div class="cp-cm${aside ? '' : ' cp-cm-no-aside'}" style="${h(themeStyle(theme))}">
     <aside class="cp-cm-side">
-      <button type="button" class="cp-public-link cp-cm-back" data-portal-public="back">${icon('left', 16)} Início</button>
+      <div class="cp-cm-top"><button type="button" class="cp-public-link cp-cm-back" data-portal-public="back">${icon('left', 16)} Início</button>
+        <button type="button" class="cp-cm-mode" data-cm-public="mode" data-value="${dark ? 'light' : 'dark'}" aria-label="${dark ? 'Ativar modo claro' : 'Ativar modo escuro'}" title="${dark ? 'Modo claro' : 'Modo escuro'}">${icon(dark ? 'sun' : 'moon', 17)}</button></div>
       <div class="cp-cm-id">${group.cover ? `<img src="${h(group.cover)}" alt="">` : `<span class="cp-cm-tile">${h(group.name.trim()[0]?.toUpperCase() || '?')}</span>`}
         <div><strong>${h(group.name)}</strong><small>${group.visibility === 'private' ? 'Privada' : 'Pública'} · ${plural(group.memberCount, 'membro', 'membros')}</small></div></div>
       <nav class="cp-cm-nav" aria-label="Seções da comunidade">${tabs.map(row => `<button type="button" data-cm-public="tab" data-value="${row.key}" ${tab === row.key ? 'aria-current="page"' : ''}>${icon(tabIcons[row.key] || 'list', 17)}<span>${h(row.label)}</span></button>`).join('')}</nav>

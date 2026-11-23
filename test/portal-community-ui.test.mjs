@@ -114,6 +114,23 @@ test('the channel filter runs on the page, without a new request', () => {
   assert.match(feedTab(makeView({ posts }), { channel: 'c9' }), /Nada neste canal ainda/);
 });
 
+test('the member switches the community between light and dark', () => {
+  const light = communityPage(makeView(), ui), dark = communityPage(makeView(), { ...ui, mode: 'dark' });
+  assert.match(light, /data-cm-public="mode" data-value="dark"[^>]*aria-label="Ativar modo escuro"/);
+  assert.match(dark, /data-cm-public="mode" data-value="light"[^>]*aria-label="Ativar modo claro"/);
+  assert.match(dark, /--cm-background:#0f1115/);
+  assert.doesNotMatch(light, /--cm-background:#0f1115/);
+});
+
+test('the ranking period switches on the page', () => {
+  const board = (period, name) => ({ period, levels: [{ level: 1, name: 'Nível 1', min: 0, share: 100 }], top: [{ name, points: 4, level: 1 }], me: null });
+  const view = { ...makeView(), leaderboards: { 7: board('7', 'Semana'), 30: board('30', 'Mes'), all: board('all', 'Sempre') } };
+  const page = period => communityPage(view, { ...ui, tab: 'ranking', period });
+  assert.match(page('7'), /<strong>Semana<\/strong>/);
+  assert.match(page('all'), /<strong>Sempre<\/strong>/);
+  assert.match(page('7'), /data-cm-public="period" data-value="7" aria-pressed="true"/);
+});
+
 test('composer uses the owner prompt', () => {
   const layout = { ...defaultLayout(), composerPrompt: 'Conte sua vitória' };
   assert.match(feedTab(makeView({ layout }), {}), /placeholder="Conte sua vitória"/);
