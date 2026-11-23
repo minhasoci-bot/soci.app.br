@@ -1,0 +1,40 @@
+---
+import { SITE_URL, MARKER } from '../config';
+
+interface Props {
+  title: string;
+  description: string;
+  noindex?: boolean;
+  jsonLd?: object[];
+}
+
+const { title, description, noindex = false, jsonLd = [] } = Astro.props;
+const canonical = SITE_URL + Astro.url.pathname;
+// Página com informação pendente ([[...]]) nunca vai para o Google.
+const body = await Astro.slots.render('default');
+const hidden = noindex || body.includes(MARKER);
+---
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {hidden && <meta name="robots" content="noindex, follow" />}
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="soci" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    {jsonLd.map((data) => <script type="application/ld+json" set:html={JSON.stringify(data)} />)}
+    <slot name="head" />
+  </head>
+  <body>
+    <Fragment set:html={body} />
+  </body>
+</html>
