@@ -4881,6 +4881,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           return goTo('/login?' + new URLSearchParams({ next }));
         }
         const f = staticFiles.has(p) ? p : (isLanding ? '/landing.html' : '/index.html');
+        // Setup illustrations are not mirrored in public/: without this every card refetched them from the
+        // function. The browser keeps them a day; the Vercel CDN until the next deploy purges it.
+        if (f.startsWith('/setup-art/')) res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=86400');
         return send(200,staticFiles.get(f)||'text/html; charset=utf-8',method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
       }
       throw error('Page not found.',404);
