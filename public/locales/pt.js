@@ -3203,5 +3203,14 @@ export default {
   "Criar subconta com este template": "Criar subconta com este template",
   "Salvar em Importados": "Salvar em Importados",
   "Ver em Importados": "Ver em Importados",
-  "Setup importado.": "Setup importado."
+  "Setup importado.": "Setup importado.",
+  "Tente outro nome ou limpe o filtro de categoria.": "Tente outro nome ou limpe o filtro de categoria.",
+  "Carregar em subcontas": "Carregar em subcontas",
+  "Ver histórico": "Ver histórico",
+  "Compartilhar por código": "Compartilhar por código",
+  "Código de compartilhamento": "Código de compartilhamento",
+  "Atualizar a partir da subconta": "Atualizar a partir da subconta",
+  "Publicar no marketplace": "Publicar no marketplace",
+  "Copiar ID": "Copiar ID",
+  "Renomear": "Renomear"
 };

@@ -1213,6 +1213,7 @@ export function makeServer({
             marketplaceId: listing.id,
             publishedVersion: listing.version,
             marketplaceCategory: listing.category,
+          ...(listing.segment ? { marketplaceSegment: listing.segment } : {}),
             marketplaceSummary: listing.summary,
             marketplaceDescription: listing.description,
             marketplaceTags: listing.tags
