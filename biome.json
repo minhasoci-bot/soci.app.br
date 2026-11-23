@@ -1,7 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.6.6/schema.json",
   "files": {
-    "includes": ["*.mjs", "api/**", "scripts/**", "test/**", "ui/*.js", "!ui/vendor", "!ui/locales"]
+    "includes": ["*.mjs", "api/**", "routes/**", "scripts/**", "test/**", "ui/*.js", "!ui/vendor", "!ui/locales"]
   },
   "formatter": { "enabled": false },
   "assist": { "enabled": false },
