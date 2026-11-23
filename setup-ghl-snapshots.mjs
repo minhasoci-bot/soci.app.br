@@ -1,6 +1,8 @@
-// Setups Oficiais Soci convertidos dos snapshots GHL da agência (agente IA IMOB, cold email, site inteligente e crewsystems pt-br).
+// Setups convertidos dos snapshots GHL da agência (agente IA IMOB, cold email, site inteligente e crewsystems pt-br).
 // Cada snapshot foi lido na subconta de origem (pipelines, workflows, agentes, campos, valores e tags) e reescrito em ativos nativos:
 // workflows no formato v2 do motor da Soci, campos/valores com as mesmas chaves usadas nas mensagens e dados de empresas reais trocados por campos a preencher.
+import { randomUUID } from 'node:crypto';
+import { agentTemplate } from './agent-model.mjs';
 import { slug } from './ui/crm-data.js';
 
 // ---- Construtores ----------------------------------------------------------------
@@ -43,7 +45,7 @@ Use a base de conhecimento "Imobiliária — Base de Atendimento" para unidades,
 Mensagens curtas, ideais para WhatsApp: no máximo 3 ou 4 parágrafos, com quebras de linha. Liste opções de forma simples. Termine sempre com uma pergunta ou chamada clara.`;
 
 export const imobIaSpec = {
-  id: 'official-imobiliaria-agente-ia',
+  id: 'ghl-imobiliaria-agente-ia',
   title: 'Imobiliária com Agente de IA — Sofia, Consultora Virtual',
   summary: 'Agente de IA que qualifica compradores, locatários e investidores e agenda visitas com o corretor: pipeline, 3 workflows, base de conhecimento, 2 calendários e campos de qualificação.',
   description: 'Convertido do snapshot "agente IA IMOB". A Sofia atende 24h no WhatsApp e no chat, entende a necessidade (compra, venda, aluguel ou investimento), o perfil do imóvel e a faixa de valor, capta os dados de contato e agenda visita ou call com o corretor. Workflows: Nova visita (confirmação + aviso ao corretor), Lead quente → corretor da região e Follow-up automático quando o contato para de responder. Preencha os valores personalizados e a base de conhecimento com os dados da sua imobiliária antes de ativar.',
@@ -156,7 +158,7 @@ const coldSequence = coldEmails.flatMap(([subjectA, bodyA, subjectB, bodyB], ind
 ]);
 
 export const coldEmailSpec = {
-  id: 'official-cold-email-ab',
+  id: 'ghl-cold-email-ab',
   title: 'Prospecção por Cold Email com Teste A/B',
   summary: 'Sequência de 5 e-mails frios com teste A/B de headline em cada envio, parada automática quando o lead responde ou agenda, pipeline de 5 etapas e notificações para o time.',
   description: 'Convertido do snapshot "snapshot cold email". O workflow principal cria a oportunidade, marca a tag cold-email e dispara 5 rodadas de e-mail, cada uma dividida 50/50 entre duas headlines, com 1 dia de intervalo. Quando o lead responde, ele sai da sequência, avança para "Lead Respondeu" e o time é avisado; quando agenda a reunião, vai para "Reunião agendada". Inscreva os contatos no workflow em massa pela lista de contatos. Preencha os valores personalizados (remetente, oferta, case e link de agendamento) antes de ativar.',
@@ -362,7 +364,7 @@ function localSetup({ prefix, id, title, summary, description, tags, extra = {} 
 
 export const siteInteligenteSpec = localSetup({
   prefix: 'si',
-  id: 'official-site-inteligente',
+  id: 'ghl-site-inteligente',
   title: 'Site Inteligente para Negócios Locais — Leads, Avaliações e Indicações',
   summary: 'Site de serviços locais com chat, ligação perdida que vira WhatsApp, confirmação multicanal, pedidos de avaliação, indique um amigo e reativação de base: 2 pipelines e 13 workflows.',
   description: 'Convertido do snapshot "site inteligente". Todo lead que chega pelo site, chat, formulário, Facebook, Instagram ou ligação perdida recebe resposta em 1 minuto e entra no Pipeline Comercial. Cliente fechado recebe pedido de avaliação, convite para indicar amigos com desconto e acompanhamento de 1 ano. Feedback negativo alerta a equipe na hora e a base antiga é reativada com oferta. O site e as mensagens usam 46 valores personalizados (empresa, links, serviços e áreas atendidas): preencha-os e o setup fica pronto para o cliente.',
@@ -372,7 +374,7 @@ export const siteInteligenteSpec = localSetup({
 const cs = steps('csw');
 export const crewSystemsSpec = localSetup({
   prefix: 'cs',
-  id: 'official-crewsystems-paisagismo',
+  id: 'ghl-crewsystems-paisagismo',
   title: 'CrewSystems — Paisagismo e Serviços Externos (PT/EN)',
   summary: 'Setup completo para paisagismo, jardinagem e serviços externos: tudo do Site Inteligente + gerador de orçamento, página de manutenção, assistente de IA, chat e pesquisa bilíngues.',
   description: 'Convertido do snapshot "crewsystems snapshot pt-br". Inclui toda a operação do Site Inteligente (13 workflows de leads, avaliações, indicações e reativação) e acrescenta o funil de Manutenção de Jardim, o formulário Gerador de Orçamento de Paisagismo, o formulário de avaliação com sequência de 1 ano, chat e pesquisa de avaliação também em inglês, o assistente de IA "Luxury Landscaping" e o lembrete sazonal de manutenção.',
@@ -401,3 +403,28 @@ export const crewSystemsSpec = localSetup({
 });
 
 export const ghlSnapshotSpecs = [imobIaSpec, coldEmailSpec, siteInteligenteSpec, crewSystemsSpec];
+
+// ---- Importação para a biblioteca de uma agência --------------------------------
+// Os 4 setups não são oficiais: entram em "Meus setups" da agência do usuário que os criou (scripts/seed-setups.mjs).
+// Idempotente: um setup já importado (mesmo seedId) não é duplicado.
+export function seedSetups(agency, specs = ghlSnapshotSpecs, { at = new Date().toISOString(), newId = () => randomUUID() } = {}) {
+  agency.snapshots ??= [];
+  const added = [], skipped = [];
+  for (const spec of specs) {
+    if (agency.snapshots.some(snap => snap.seedId === spec.id)) { skipped.push(spec.title); continue; }
+    if (agency.snapshots.length >= 50) throw new Error('A agência já tem 50 setups salvos; libere espaço antes de importar.');
+    const assets = structuredClone(spec.assets);
+    for (const page of assets.pages || []) page.active = false;
+    for (const workflow of assets.workflows || []) workflow.active = false;
+    for (const widget of assets.chatWidgets || []) widget.active = false;
+    if (assets.agents) assets.agents = assets.agents.map(agent => ({ ...agentTemplate(agent), baseRefs: agent.baseRefs || [] }));
+    const counts = Object.fromEntries(Object.entries(assets).map(([key, list]) => [key, list.length]).filter(([, count]) => count > 0));
+    agency.snapshots.push({
+      id: newId(), name: spec.title, kind: 'mine', workspace: '', include: Object.keys(assets), assets, studioSites: {}, counts, version: 1,
+      created: at, updated: at, shareCode: '', shared: false, seedId: spec.id,
+      marketplaceSummary: spec.summary, marketplaceDescription: spec.description, marketplaceTags: spec.tags, marketplaceCategory: spec.category
+    });
+    added.push(spec.title);
+  }
+  return { added, skipped };
+}

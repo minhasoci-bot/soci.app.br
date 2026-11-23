@@ -3190,5 +3190,18 @@ export default {
   "Código revogado.": "Código revogado.",
   "Setup importado para Meus setups.": "Setup importado para Meus setups.",
   "Selecione pelo menos uma subconta.": "Selecione pelo menos uma subconta.",
-  "Selecione pelo menos um recurso para carregar.": "Selecione pelo menos um recurso para carregar."
+  "Selecione pelo menos um recurso para carregar.": "Selecione pelo menos um recurso para carregar.",
+  "Crie e gerencie seus setups": "Crie e gerencie seus setups",
+  "Importados": "Importados",
+  "Templates de setup": "Templates de setup",
+  "Nome do setup": "Nome do setup",
+  "Segmento": "Segmento",
+  "Recursos": "Recursos",
+  "Detalhes": "Detalhes",
+  "Tente outro nome ou limpe o filtro de segmento.": "Tente outro nome ou limpe o filtro de segmento.",
+  "Ver templates de setup": "Ver templates de setup",
+  "Criar subconta com este template": "Criar subconta com este template",
+  "Salvar em Importados": "Salvar em Importados",
+  "Ver em Importados": "Ver em Importados",
+  "Setup importado.": "Setup importado."
 };

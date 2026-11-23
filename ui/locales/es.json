@@ -5856,5 +5856,16 @@
   "Código revogado.": "Código revocado.",
   "Setup importado para Meus setups.": "Setup importado a Mis setups.",
   "Selecione pelo menos uma subconta.": "Selecciona al menos una subcuenta.",
-  "Selecione pelo menos um recurso para carregar.": "Selecciona al menos un recurso para cargar."
+  "Selecione pelo menos um recurso para carregar.": "Selecciona al menos un recurso para cargar.",
+  "Crie e gerencie seus setups": "Crea y gestiona tus setups",
+  "Importados": "Importados",
+  "Templates de setup": "Plantillas de setup",
+  "Nome do setup": "Nombre del setup",
+  "Segmento": "Segmento",
+  "Tente outro nome ou limpe o filtro de segmento.": "Prueba otro nombre o limpia el filtro de segmento.",
+  "Ver templates de setup": "Ver plantillas de setup",
+  "Criar subconta com este template": "Crear subcuenta con esta plantilla",
+  "Salvar em Importados": "Guardar en Importados",
+  "Ver em Importados": "Ver en Importados",
+  "Setup importado.": "Setup importado."
 }

@@ -363,7 +363,7 @@ test('Setup marketplace serves official Soci setups, supports install into sub-a
   const initial = await local.call('/api/agency');
   assert.equal(initial.status, 200);
   const officials = initial.body.marketplace.filter(item => item.official);
-  assert.equal(officials.length, 10);
+  assert.equal(officials.length, 6);
   const full360 = officials.find(item => item.id === 'official-agencia-completa-360');
   assert.ok(full360);
   assert.equal(full360.counts.pipelines, 3);
