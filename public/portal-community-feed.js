@@ -118,8 +118,10 @@ const emptyFeed = {
 /** The discussion tab: first steps, welcome, composer, the feed filters and the posts. */
 export function feedTab(view, ui = {}, now = Date.now()) {
   const { group, membership } = view, filter = emptyFeed[ui.feed] ? ui.feed : 'recent';
-  const posts = filterFeed(view.posts, filter, now);
+  // The channel filter runs here: the page already has every post, so switching channels needs no request.
+  const posts = filterFeed(view.posts.filter(post => !ui.channel || post.channelId === ui.channel), filter, now);
+  const none = ui.channel && filter === 'recent' ? ['chat', 'Nada neste canal ainda', 'Seja a primeira pessoa a publicar aqui.'] : emptyFeed[filter];
   return `${onboardingCard(view)}${membership?.status === 'active' && group.welcome ? `<p class="cp-public-card cp-welcome">${h(group.welcome)}</p>` : ''}${composer(view, ui)}
     <div class="cp-cm-toolbar">${segment('feed', filter, [['recent', 'Recentes'], ['hot', 'Em alta'], ['mine', 'Minhas']], 'Filtrar publicações')}</div>
-    ${posts.length ? posts.map(post => postCard(post, membership, ui, now)).join('') : empty(...emptyFeed[filter])}`;
+    ${posts.length ? posts.map(post => postCard(post, membership, ui, now)).join('') : empty(...none)}`;
 }

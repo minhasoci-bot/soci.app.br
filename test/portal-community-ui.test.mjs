@@ -106,6 +106,14 @@ test('academy cards show the action for each state', () => {
   assert.match(communityPage(makeView({ academy }), { ...ui, tab: 'academy' }), /data-course="c1"/);
 });
 
+test('the channel filter runs on the page, without a new request', () => {
+  const posts = [post('p1', { channelId: 'c1' }), post('p2', { channelId: 'c2', channel: 'Dúvidas' }), post('p3', { channelId: 'c2', channel: 'Dúvidas' })];
+  const ids = html => [...html.matchAll(/id="post-([a-z0-9]+)"/g)].map(match => match[1]);
+  assert.deepEqual(ids(feedTab(makeView({ posts }), { channel: 'c2' })), ['p2', 'p3']);
+  assert.deepEqual(ids(feedTab(makeView({ posts }), { channel: '' })).sort(), ['p1', 'p2', 'p3']);
+  assert.match(feedTab(makeView({ posts }), { channel: 'c9' }), /Nada neste canal ainda/);
+});
+
 test('composer uses the owner prompt', () => {
   const layout = { ...defaultLayout(), composerPrompt: 'Conte sua vitória' };
   assert.match(feedTab(makeView({ layout }), {}), /placeholder="Conte sua vitória"/);
