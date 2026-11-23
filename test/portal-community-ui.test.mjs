@@ -122,6 +122,15 @@ test('the member switches the community between light and dark', () => {
   assert.doesNotMatch(light, /--cm-background:#0f1115/);
 });
 
+test('the ranking period switches on the page', () => {
+  const board = (period, name) => ({ period, levels: [{ level: 1, name: 'Nível 1', min: 0, share: 100 }], top: [{ name, points: 4, level: 1 }], me: null });
+  const view = { ...makeView(), leaderboards: { 7: board('7', 'Semana'), 30: board('30', 'Mes'), all: board('all', 'Sempre') } };
+  const page = period => communityPage(view, { ...ui, tab: 'ranking', period });
+  assert.match(page('7'), /<strong>Semana<\/strong>/);
+  assert.match(page('all'), /<strong>Sempre<\/strong>/);
+  assert.match(page('7'), /data-cm-public="period" data-value="7" aria-pressed="true"/);
+});
+
 test('composer uses the owner prompt', () => {
   const layout = { ...defaultLayout(), composerPrompt: 'Conte sua vitória' };
   assert.match(feedTab(makeView({ layout }), {}), /placeholder="Conte sua vitória"/);

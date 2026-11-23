@@ -74,6 +74,9 @@ test('Members join, post, comment, like, vote and climb the leaderboard; moderat
   const shown = seen.posts[0];
   assert.deepEqual([shown.likes, shown.liked, shown.comments.length, shown.poll.voted, shown.poll.total, shown.mine], [1, true, 1, post.poll.options[1].id, 1, false]);
   assert.deepEqual(seen.leaderboard.top.map(row => [row.name, row.points]), [['ana', 3], ['bia', 1]]);
+  assert.deepEqual(Object.keys(seen.leaderboards), ['7', '30', 'all'], 'every period comes at once, so switching needs no request');
+  assert.deepEqual(seen.leaderboards.all.top.map(row => [row.name, row.points]), [['ana', 3], ['bia', 1]]);
+  assert.equal(seen.leaderboards['7'].period, '7');
   assert.equal(seen.leaderboard.me.points, 1);
   assert.equal((await act(open, { action: 'delete', postId: post.id }, bia)).status, 403);
 

@@ -220,7 +220,9 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
       members: Object.entries(data.members).filter(([, row]) => row.status === 'active')
         .map(([id, row]) => ({ name: names.get(id) || 'Membro', photo: names.photoOf?.(id) || '', role: row.role, joinedAt: row.joinedAt, level: levelOf(scores(group, data).get(id) || 0), badges: badgeLabels(badges.get(id)) }))
         .sort((a, b) => a.name.localeCompare(b.name)),
-      leaderboard: leaderboard(group, data, names, member.id, ['7', '30', 'all'].includes(period) ? period : '30') };
+      leaderboard: leaderboard(group, data, names, member.id, ['7', '30', 'all'].includes(period) ? period : '30'),
+      // All three periods at once: the portal switches between them without asking again.
+      leaderboards: Object.fromEntries(['7', '30', 'all'].map(key => [key, leaderboard(group, data, names, member.id, key)])) };
   }
 
   async function home(workspace, state, member) {

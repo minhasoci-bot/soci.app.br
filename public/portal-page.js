@@ -262,7 +262,7 @@ root.addEventListener('click', async event => {
         if (reason === null) return;
         await communityAction({ action: 'report', postId: post, commentId: comment, reason });
       }
-      else if (verb === 'period') { cmUi.period = value; await loadCommunity(community.group.id); focus = `[data-cm-public="period"][data-value="${value}"]`; }
+      else if (verb === 'period') { cmUi.period = value; focus = `[data-cm-public="period"][data-value="${value}"]`; }
       else if (verb === 'delete' && !confirmDelete(button)) return;
       else if (['join','leave','like','vote','delete'].includes(verb)) {
         await communityAction({ action: verb, postId: post, commentId: comment, optionId: option });

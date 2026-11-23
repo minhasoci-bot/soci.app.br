@@ -59,8 +59,8 @@ function membersTab(view) {
     <div><strong>${h(member.name)}</strong>${badgeChip(member)}<small>${member.role === 'moderator' ? 'Moderador · ' : ''}Nível ${member.level} · entrou em ${h(dateShort(member.joinedAt))}</small></div></li>`).join('')}</ul></section>`;
 }
 
-function rankingTab(view) {
-  const board = view.leaderboard;
+function rankingTab(view, ui) {
+  const board = view.leaderboards?.[ui.period] || view.leaderboard;
   return `<div class="cp-cm-toolbar">${segment('period', board.period, [['7', '7 dias'], ['30', '30 dias'], ['all', 'Todo o período']], 'Período')}</div>
     ${board.me ? `<p class="cp-public-card cp-me">Você está no <b>nível ${board.me.level}</b> com ${board.me.points} pontos${board.me.next ? ` · faltam ${board.me.next} para o próximo nível` : ' · nível máximo'}.</p>` : ''}
     ${board.top.length ? `<section class="cp-public-card"><ol class="cp-leaderboard">${board.top.map((row, index) => `<li><span class="cp-rank">${index + 1}</span>${avatar({ name: row.name, level: row.level, photo: row.photo })}<strong>${h(row.name)}</strong><b>${row.points} <small>pts</small></b></li>`).join('')}</ol></section>`
@@ -127,7 +127,7 @@ export function sideWidgets(view, tabs) {
         <div><strong>${h(event.title)}</strong><small>${h(new Intl.DateTimeFormat('pt-BR', { weekday: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(event.start)))}</small></div></li>`).join('')}</ul>${more('events')}`;
     },
     ranking: () => {
-      const top = (view.leaderboard?.top || []).slice(0, 5);
+      const top = ((view.leaderboards?.['30'] || view.leaderboard)?.top || []).slice(0, 5);
       return shown('ranking') && top.length && `<h2>Top do ranking</h2><ol class="cp-cm-mini">${top.map((row, index) => `<li><span class="cp-rank">${index + 1}</span>${avatar({ name: row.name, photo: row.photo }, 'sm')}<strong>${h(row.name)}</strong><b>${row.points}<small> pts</small></b></li>`).join('')}</ol>${more('ranking')}`;
     },
     members: () => {
@@ -152,7 +152,7 @@ export function communityPage(view, ui) {
   if (locked && tab !== 'academy') body = group.access === 'paid' ? '' : empty('lock', 'Comunidade privada', 'Somente membros aprovados veem as publicações.');
   else if (tab === 'events') body = eventsTab(view, ui);
   else if (tab === 'members') body = membersTab(view);
-  else if (tab === 'ranking') body = rankingTab(view);
+  else if (tab === 'ranking') body = rankingTab(view, ui);
   else if (tab === 'about') body = aboutTab(view);
   else if (tab === 'discussion') body = feedTab(view, ui);
   else if (tab === 'academy') body = academyTab(view);
