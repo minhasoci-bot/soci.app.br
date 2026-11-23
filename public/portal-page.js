@@ -1,5 +1,6 @@
 import { icon } from './icons.js';
 import { communityCards, communityPage } from './portal-community.js';
+import { themeStyle } from './community-data.js';
 import { loyaltyCard } from './portal-loyalty.js';
 import { assignmentBlock, certificateLink, coursePage, instructorCard, liveBlock, nextLessonCard, quizAnswers, quizBlock, themed } from './portal-course-extra.js';
 
@@ -105,10 +106,20 @@ async function enablePush() {
   await api('push', { subscription: sub.toJSON() });
 }
 
+// The open community paints the whole page with its theme (the portal header included).
+function paintCommunity(group) {
+  for (const rule of themeStyle(group?.theme).split(';')) {
+    const [name, value] = rule.split(':');
+    if (group) document.body.style.setProperty(name, value); else document.body.style.removeProperty(name);
+  }
+  document.body.classList.toggle('cp-cm-on', Boolean(group));
+}
+
 function draw(message = '') {
   const { title, introduction, color, signedIn, courses, member } = portal || { title: 'Portal do cliente' };
   document.title = community ? `${community.group.name} · ${title}` : course ? `${course.name} · ${title}` : title;
   if (/^#[\da-f]{6}$/i.test(color)) document.body.style.setProperty('--portal-color',color);
+  paintCommunity(community?.group);
   root.innerHTML = `<div class="cp-public-shell ${course || community ? 'cp-wide' : ''}"><header class="cp-public-header">
       <div class="cp-public-brand">${icon('lock',20)}<span>${h(title)}</span></div>
       ${signedIn ? '<button type="button" class="cp-public-link" data-portal-public="logout">Sair</button>' : ''}
@@ -196,11 +207,11 @@ root.addEventListener('click', async event => {
       Object.assign(cmUi, { tab: 'discussion', channel: '', period: '30' });
       await loadCommunity(button.dataset.community);
       cmUi.tab = (community.group.tabs || []).find(tab => tab.visible !== false)?.key || 'discussion';
-      focus = '.cp-community-head h1';
+      focus = '.cp-cm h1';
     } else if (button.dataset.cmPublic) {
       const { cmPublic: verb, value, post, comment, option } = button.dataset;
       if (verb === 'tab') { cmUi.tab = value; focus = `[data-cm-public="tab"][data-value="${value}"]`; }
-      else if (verb === 'channel') { cmUi.channel = value; await loadCommunity(community.group.id); focus = `[data-cm-public="channel"][data-value="${value}"]`; }
+      else if (verb === 'channel') { cmUi.channel = value; cmUi.tab = 'discussion'; await loadCommunity(community.group.id); focus = `[data-cm-public="channel"][data-value="${value}"]`; }
       else if (verb === 'events') { cmUi.events = value; focus = `[data-cm-public="events"][data-value="${value}"]`; }
       else if (verb === 'ticket') {
         const result = await api(`community/${encodeURIComponent(community.group.id)}`, { action: 'ticket', eventId: button.dataset.event });
@@ -218,7 +229,7 @@ root.addEventListener('click', async event => {
       else if (verb === 'delete' && !confirmDelete(button)) return;
       else if (['join','leave','like','vote','delete'].includes(verb)) {
         await communityAction({ action: verb, postId: post, commentId: comment, optionId: option });
-        if (verb === 'join' || verb === 'leave') { portal = await api('home'); focus = '.cp-community-head h1'; }
+        if (verb === 'join' || verb === 'leave') { portal = await api('home'); focus = '.cp-cm h1'; }
       }
     } else if (button.dataset.course) {
       await openCourse(button.dataset.course);

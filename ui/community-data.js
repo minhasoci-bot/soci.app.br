@@ -24,7 +24,8 @@ export const themePresets = [
 export const defaultTheme = () => ({ preset: 'default', tokens: { ...themePresets[0].tokens } });
 
 /** The CSS variables a theme sets on the community page. */
-export const themeStyle = theme => themeTokens.map(([key]) => `--cm-${key}:${theme?.tokens?.[key] || themePresets[0].tokens[key]}`).join(';');
+// A token missing from a theme saved before it existed falls back to the theme's preset, then to the default.
+export const themeStyle = theme => themeTokens.map(([key]) => `--cm-${key}:${theme?.tokens?.[key] || themePresets.find(row => row.id === theme?.preset)?.tokens[key] || themePresets[0].tokens[key]}`).join(';');
 
 /** Tabs of the community in the portal; the admin renames, hides and reorders them. */
 export const communityTabKeys = [['discussion', 'Discussão'], ['academy', 'Academia'], ['events', 'Eventos'], ['members', 'Membros'], ['ranking', 'Ranking'], ['about', 'Sobre']];
