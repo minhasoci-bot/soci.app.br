@@ -11,9 +11,19 @@ import {
 } from '../model/document';
 import type { EditorState } from '../store/store';
 
-export const BLUE = '#0D99FF';
+/** Cor de seleção: segue a cor da marca da plataforma (--blue no tema do editor). */
+export let BLUE = '#0D99FF';
+/** Texto sobre a cor de seleção (branco ou escuro, conforme a marca). */
+let ON_BLUE = '#FFFFFF';
 export const PURPLE = '#9747FF';
 const GUIDE = '#F24822';
+const FONT = '"Plus Jakarta Sans", Inter, "Segoe UI", sans-serif';
+
+/** Lê as cores do tema antes de cada desenho (o canvas não herda CSS). */
+export function syncOverlayColors(styles: CSSStyleDeclaration) {
+  BLUE = styles.getPropertyValue('--blue').trim() || '#0D99FF';
+  ON_BLUE = styles.getPropertyValue('--on-blue').trim() || '#FFFFFF';
+}
 
 function polyline(ctx: CanvasRenderingContext2D, pts: Pt[], close = true) {
   ctx.beginPath();
@@ -34,14 +44,14 @@ function handle(ctx: CanvasRenderingContext2D, p: Pt, angle: number, size = 8, s
 }
 
 function pill(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, bg = BLUE) {
-  ctx.font = '500 11px Inter, "Segoe UI", sans-serif';
-  const w = ctx.measureText(text).width + 8;
-  const h = 16;
+  ctx.font = `600 11px ${FONT}`;
+  const w = ctx.measureText(text).width + 10;
+  const h = 18;
   ctx.fillStyle = bg;
   ctx.beginPath();
-  ctx.roundRect(Math.round(x - w / 2), Math.round(y), w, h, 2);
+  ctx.roundRect(Math.round(x - w / 2), Math.round(y), w, h, 4);
   ctx.fill();
-  ctx.fillStyle = '#FFFFFF';
+  ctx.fillStyle = bg === BLUE ? ON_BLUE : '#FFFFFF';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, Math.round(x), Math.round(y) + h / 2 + 0.5);
@@ -108,7 +118,7 @@ export function drawOverlay(
             const cx = (p0.x + p1.x) / 2;
             const cy = Math.min(p0.y, p1.y);
             const label = i === 0 ? '1 • Capa' : i === pages - 1 ? `${i + 1} • CTA Final` : `Slide ${i + 1}`;
-            const pillBg = isSelected ? '#25BFFF' : 'rgba(16, 16, 20, 0.85)';
+            const pillBg = isSelected ? BLUE : 'rgba(16, 16, 20, 0.85)';
             pill(ctx, label, cx, cy - 20, pillBg);
           }
         }

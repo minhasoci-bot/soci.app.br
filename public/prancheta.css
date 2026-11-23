@@ -1,28 +1,14 @@
-/* soci Prancheta Studio Styles */
+/* Prancheta: galeria de artes. Segue os tokens da plataforma (ui/graao.css): superfícies,
+   linhas e textos do tema claro/escuro e a cor da marca da agência. As prévias das artes e
+   dos modelos continuam escuras porque mostram a própria arte. */
 
-:root {
-  --pr-pink: #FF00BB;
-  --pr-pink-soft: rgba(255, 0, 187, 0.12);
-  --pr-pink-glow: rgba(255, 0, 187, 0.28);
-  --pr-dark: #101014;
-  --pr-surface: #17171E;
-  --pr-surface-hover: #22222D;
-  --pr-border: #2A2A38;
-  --pr-border-focus: #FF00BB;
-  --pr-text: #FFFFFF;
-  --pr-text-muted: #9D9DAF;
-  --pr-sky: #00F0FF;
-  --pr-yellow: #FFE600;
-  --pr-violet: #7000FF;
-}
-
-/* Gallery & Format Selector */
+/* Formatos */
 .pr-presets-bar {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   overflow-x: auto;
-  padding: 4px 0 16px;
-  margin-bottom: 20px;
+  padding: 2px 2px 14px;
+  margin-bottom: 8px;
   scrollbar-width: thin;
 }
 
@@ -30,190 +16,206 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 16px;
-  border-radius: 12px;
-  background: var(--surface, #17171E);
-  border: 1px solid var(--border, #2A2A38);
-  color: var(--text, #FFF);
+  padding: 9px 14px;
+  border-radius: var(--g-r, 12px);
+  background: var(--g-surface);
+  border: 1px solid var(--g-line);
+  box-shadow: var(--g-shadow);
+  color: var(--g-ink);
+  font: inherit;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color .2s ease, background-color .2s ease, transform .2s cubic-bezier(.16, 1, .3, 1);
 }
-
-.pr-preset-chip:hover {
-  border-color: var(--pr-pink);
-  background: var(--pr-pink-soft);
-  transform: translateY(-2px);
-  color: #FFF;
+.pr-preset-chip svg { color: var(--g-dim); }
+.pr-preset-chip:hover, .pr-preset-chip:focus-visible {
+  border-color: var(--g-brand-line);
+  background: var(--g-brand-surface);
+  transform: translateY(-1px);
 }
+.pr-preset-chip:hover svg { color: var(--g-brand); }
 
 .pr-preset-dim {
   font-size: 11px;
-  font-weight: 400;
-  color: var(--text-muted, #9D9DAF);
-  background: rgba(255, 255, 255, 0.06);
-  padding: 2px 6px;
+  font-weight: 600;
+  color: var(--g-dim);
+  background: var(--g-surface-2);
+  border: 1px solid var(--g-line);
+  padding: 1px 6px;
   border-radius: 6px;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Canonical Templates Section */
+/* Títulos de seção */
 .pr-section-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 28px 0 14px;
+  margin: 24px 0 12px;
 }
-
 .pr-section-title h2 {
   font-size: 16px;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -.01em;
   margin: 0;
   display: flex;
   align-items: center;
   gap: 8px;
+  color: var(--g-ink);
 }
+.pr-section-title h2 svg { color: var(--g-dim); }
 
 .pr-badge-pill {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--pr-pink-soft);
-  color: var(--pr-pink);
-  border: 1px solid rgba(255, 0, 187, 0.3);
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--g-brand-surface);
+  color: var(--g-brand);
+  border: 1px solid var(--g-brand-line);
 }
 
+/* Modelos */
 .pr-template-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
-  margin-bottom: 32px;
+  margin-bottom: 28px;
 }
 
 .pr-template-card {
   display: flex;
   flex-direction: column;
-  padding: 18px;
-  border-radius: 14px;
-  background: var(--surface, #17171E);
-  border: 1px solid var(--border, #2A2A38);
+  padding: 12px;
+  border-radius: var(--g-r, 12px);
+  background: var(--g-surface);
+  border: 1px solid var(--g-line);
+  box-shadow: var(--g-shadow);
   cursor: pointer;
   text-align: left;
-  transition: all 0.2s ease;
   position: relative;
   overflow: hidden;
+  transition: border-color .2s ease, transform .2s cubic-bezier(.16, 1, .3, 1), box-shadow .2s ease;
 }
-
 .pr-template-card:hover {
-  border-color: var(--pr-pink);
+  border-color: var(--g-brand-line);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--g-shadow-lift);
 }
 
 .pr-template-preview {
   height: 140px;
-  border-radius: 10px;
+  border-radius: var(--g-r-sm, 8px);
   background: #101014;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
   position: relative;
   overflow: hidden;
 }
-
 .pr-template-preview .tpl-badge {
   font-size: 9px;
   font-weight: 800;
-  color: var(--pr-pink);
-  letter-spacing: 0.1em;
+  color: var(--g-brand);
+  letter-spacing: .1em;
   margin-bottom: 6px;
 }
-
+/* Cores das prévias (são da arte, não da interface). */
+.pr-template-preview { --pr-sky: #00f0ff; --pr-yellow: #ffe600; --pr-pink: var(--g-brand); }
 .pr-template-preview .tpl-headline {
   font-size: 15px;
   font-weight: 800;
-  color: #FFF;
+  color: #fff;
   line-height: 1.2;
 }
-
 .pr-template-preview .tpl-sub {
   font-size: 11px;
-  color: #8E8E9A;
+  color: #a3a3b2;
   margin-top: 6px;
 }
 
+.pr-template-info { padding: 0 4px 4px; }
 .pr-template-info h3 {
   font-size: 14px;
   font-weight: 700;
   margin: 0 0 4px;
-  color: var(--text, #FFF);
+  color: var(--g-ink);
 }
-
 .pr-template-info p {
   font-size: 12px;
-  color: var(--text-muted, #9D9DAF);
+  color: var(--g-dim);
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
-/* User Design Files Grid */
+/* Artes */
 .pr-files-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 18px;
-  margin-top: 14px;
+  gap: 16px;
+  margin-top: 12px;
 }
 
 .pr-file-card {
-  border-radius: 14px;
-  background: var(--surface, #17171E);
-  border: 1px solid var(--border, #2A2A38);
+  border-radius: var(--g-r, 12px);
+  background: var(--g-surface);
+  border: 1px solid var(--g-line);
+  box-shadow: var(--g-shadow);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: all 0.2s ease;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s cubic-bezier(.16, 1, .3, 1);
 }
-
 .pr-file-card:hover {
-  border-color: rgba(255, 0, 187, 0.45);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  border-color: var(--g-brand-line);
+  box-shadow: var(--g-shadow-lift);
+  transform: translateY(-2px);
 }
 
 .pr-file-thumb {
   height: 170px;
-  background: #0D0D11;
+  background: var(--g-surface-2);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  border-bottom: 1px solid var(--border, #2A2A38);
+  border-bottom: 1px solid var(--g-line);
 }
-
 .pr-file-thumb img {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: #0D0D11;
+  padding: 10px;
 }
 
 .pr-file-thumb-fallback {
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  color: var(--text-muted, #9D9DAF);
-  font-size: 12px;
-  font-weight: 500;
+  padding: 14px 0 12px;
+  color: var(--g-dim);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.pr-file-board {
+  flex: 1;
+  min-height: 0;
+  max-width: 70%;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, .55);
+  box-shadow: 0 1px 2px rgba(15, 19, 26, .12), 0 0 0 1px rgba(15, 19, 26, .06);
 }
 
 .pr-file-format-tag {
@@ -222,12 +224,11 @@
   left: 10px;
   font-size: 10px;
   font-weight: 700;
-  background: rgba(16, 16, 20, 0.85);
-  backdrop-filter: blur(8px);
-  color: #FFF;
-  padding: 3px 8px;
+  background: var(--g-surface);
+  color: var(--g-ink-2, var(--g-ink));
+  padding: 2px 8px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--g-line);
 }
 
 .pr-file-slides-tag {
@@ -236,110 +237,115 @@
   right: 10px;
   font-size: 10px;
   font-weight: 700;
-  background: rgba(255, 0, 187, 0.85);
-  color: #FFF;
-  padding: 3px 8px;
+  background: var(--g-brand);
+  color: var(--g-brand-on, #fff);
+  padding: 2px 8px;
   border-radius: 6px;
 }
 
 .pr-file-body {
-  padding: 14px;
+  padding: 12px 14px 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   flex: 1;
 }
 
 .pr-file-title {
   font-size: 14px;
   font-weight: 700;
-  color: var(--text, #FFF);
+  color: var(--g-ink);
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
 }
-
-.pr-file-title:hover {
-  color: var(--pr-pink);
-}
+.pr-file-title:hover { color: var(--g-brand); }
 
 .pr-file-meta {
   font-size: 11px;
-  color: var(--text-muted, #9D9DAF);
+  color: var(--g-dim);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  font-variant-numeric: tabular-nums;
 }
 
 .pr-file-actions {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 8px 12px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--g-line);
 }
-
 .pr-file-actions button {
   flex: 1;
   padding: 6px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  border-radius: var(--g-r-sm, 8px);
   background: transparent;
   border: 1px solid transparent;
-  color: var(--text, #FFF);
+  color: var(--g-dim);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  transition: all 0.15s ease;
+  gap: 5px;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
 }
-
 .pr-file-actions button:hover {
-  background: var(--pr-surface-hover);
-  border-color: var(--border);
+  background: var(--g-surface-2);
+  border-color: var(--g-line);
+  color: var(--g-ink);
 }
-
 .pr-file-actions button.primary-btn {
-  background: var(--pr-pink);
-  color: #FFF;
+  flex: 1.6;
+  background: var(--g-brand);
+  color: var(--g-brand-on, #fff);
 }
-
 .pr-file-actions button.primary-btn:hover {
-  background: #E000A5;
+  background: var(--g-brand-hover);
+  border-color: transparent;
+  color: var(--g-brand-on, #fff);
 }
 
-/* Empty State */
+/* Estado vazio */
 .pr-empty-box {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  padding: 64px 24px;
-  border-radius: 16px;
-  background: var(--surface, #17171E);
-  border: 1px dashed var(--border, #2A2A38);
+  gap: 12px;
+  padding: 56px 24px;
+  border-radius: var(--g-r, 12px);
+  background: var(--g-surface);
+  border: 1px dashed var(--g-line-2);
   text-align: center;
-  margin-top: 14px;
+  margin-top: 12px;
+  color: var(--g-dim);
 }
-
 .pr-empty-box h3 {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   margin: 0;
+  color: var(--g-ink);
 }
-
 .pr-empty-box p {
   font-size: 13px;
-  color: var(--text-muted, #9D9DAF);
+  color: var(--g-dim);
   max-width: 420px;
   margin: 0;
   line-height: 1.5;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-preset-chip, .pr-template-card, .pr-file-card { transition: none; }
+  .pr-preset-chip:hover, .pr-template-card:hover, .pr-file-card:hover { transform: none; }
+}
+
 
 /* ==========================================================================
    EDITOR DA PRANCHETA (iframe em tela cheia sobre a galeria)
@@ -351,7 +357,7 @@
   width: 100%;
   height: 100%;
   border: 0;
-  background: #1e1e1e;
+  background: var(--g-surface-2);
 }
 html.pr-editor-open, html.pr-editor-open body {
   overflow: hidden;

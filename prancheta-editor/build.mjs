@@ -19,6 +19,8 @@ const result = await build({
   jsx: 'automatic',
   minify: true,
   legalComments: 'none',
+  // A fonte da plataforma já é servida pela soci em /fonts/.
+  external: ['/fonts/*'],
   define: { 'process.env.NODE_ENV': '"production"' },
   metafile: true,
   logLevel: 'warning',

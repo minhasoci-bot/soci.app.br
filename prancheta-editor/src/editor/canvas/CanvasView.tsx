@@ -6,7 +6,7 @@ import { store, useEditor } from '../store/store';
 import { rgba } from './color';
 import { CanvasController } from './controller';
 import { setImageLoadListener } from './images';
-import { drawOverlay } from './overlay';
+import { drawOverlay, syncOverlayColors } from './overlay';
 import { drawNodeList } from './renderer';
 import { fitTextBox, lineHeightPx } from './shapes';
 
@@ -48,6 +48,7 @@ export function CanvasView({ className = '' }: CanvasViewProps) {
       const styles = getComputedStyle(surface);
       const background = store.page.background || styles.getPropertyValue('--canvas-bg').trim() || (s.ui.theme === 'dark' ? '#1E1E1E' : '#E5E5E5');
       const textColor = styles.getPropertyValue('--canvas-text').trim() || (s.ui.theme === 'dark' ? '#F5F5F5' : '#333333');
+      syncOverlayColors(styles);
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -175,7 +176,7 @@ export function CanvasView({ className = '' }: CanvasViewProps) {
       overflow: 'hidden',
       background: 'transparent',
       color: fill?.type === 'SOLID' ? rgba(fill.color, fill.opacity) : 'transparent',
-      caretColor: '#0D99FF',
+      caretColor: 'var(--blue)',
       fontFamily: `"${textNode.fontFamily ?? 'Inter'}", Inter, sans-serif`,
       fontSize: textNode.fontSize ?? 12,
       fontWeight: textNode.fontWeight ?? 400,
@@ -245,8 +246,8 @@ export function CanvasView({ className = '' }: CanvasViewProps) {
         />
       )}
       {draggingImage && (
-        <div className="canvas-drop-hint" style={{ position: 'absolute', inset: 12, border: '2px solid #0D99FF', borderRadius: 8, background: 'rgba(13, 153, 255, 0.06)', display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 3 }}>
-          <span style={{ background: '#0D99FF', color: '#FFFFFF', borderRadius: 6, padding: '10px 16px', fontSize: 13 }}>Solte para inserir a imagem</span>
+        <div className="canvas-drop-hint" style={{ position: 'absolute', inset: 12, border: '2px solid var(--blue)', borderRadius: 12, background: 'color-mix(in srgb, var(--blue) 6%, transparent)', display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 3 }}>
+          <span style={{ background: 'var(--blue)', color: 'var(--on-blue)', borderRadius: 8, padding: '10px 16px', fontSize: 13 }}>Solte para inserir a imagem</span>
         </div>
       )}
     </div>

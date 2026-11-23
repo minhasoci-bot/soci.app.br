@@ -437,7 +437,7 @@ export function mainMenu(): MenuEntry[] {
     sub('Plugins', [empty]),
     sub('Widgets', [empty]),
     sep,
-    sub('Preferências', [item('prefs.light'), item('prefs.dark')]),
+
     sub('Ajuda', [item('help.actions'), item('help.shortcuts'), item('help.about')]),
   ];
 }

@@ -222,6 +222,13 @@ Decisões:
   não os traz.
 - **Galeria leve.** Ao salvar do editor, `pages` guarda só nome e fundo de
   cada frame (para a contagem de slides), sem copiar os nós.
+- **Visual da plataforma.** O editor não tem tema próprio: `main.tsx` copia
+  do app os tokens `--g-*` já calculados (superfícies, linhas, textos, cor da
+  marca da agência, raios, sombras) e o `data-theme`, e acompanha
+  `soci:theme-change`. Os tokens do editor (`--surface`, `--blue`…) apontam
+  para eles em `soci.css`; seleção, alças e rótulos do canvas usam a cor da
+  marca; a fonte é a Plus Jakarta Sans. A galeria (`ui/prancheta.css`) usa só
+  tokens `--g-*`; as prévias de arte continuam escuras porque mostram a arte.
 - **Mídia Drive e post.** Na subconta, o cabeçalho do editor ganha "Mídia
   Drive" e "Criar post": exporta a seleção (ou o primeiro frame) em PNG e
   manda. Os botões da galeria abrem o editor com `?action=drive|social`.

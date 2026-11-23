@@ -99,8 +99,8 @@ function renderGallery(c) {
             <div class="pr-file-thumb" data-act="pr-open-editor" data-id="${h(f.id)}">
               ${f.thumbnail ? `<img src="${h(f.thumbnail)}" alt="${h(f.name)}" loading="lazy">` : `
                 <div class="pr-file-thumb-fallback">
-                  ${i('palette', 36)}
-                  <span>${f.width || 1080} × ${f.height || 1080}</span>
+                  <span class="pr-file-board" style="aspect-ratio:${Number(f.width) || 1080} / ${Number(f.height) || 1080};background:${/^#[0-9a-f]{3,8}$/i.test(f.pages?.[0]?.background || '') ? f.pages[0].background : '#101014'}">${i('palette', 22)}</span>
+                  <span>${Number(f.width) || 1080} × ${Number(f.height) || 1080}</span>
                 </div>
               `}
               <span class="pr-file-format-tag">${h(f.format || 'custom')}</span>

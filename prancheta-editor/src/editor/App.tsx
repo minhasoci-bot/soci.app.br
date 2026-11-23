@@ -11,7 +11,7 @@ import { QuickActionsModal } from './ui/QuickActionsModal';
 import { RightPanel } from './ui/RightPanel';
 import { ShortcutsModal } from './ui/ShortcutsModal';
 import { Toolbar } from './ui/Toolbar';
-import { IconArrowLeft, IconCheck, IconChevronDown, IconKeyboard, IconMoon, IconSun, Logo } from './ui/icons';
+import { IconArrowLeft, IconCheck, IconChevronDown, IconKeyboard, Logo } from './ui/icons';
 
 function FileName() {
   const { doc } = useEditor();
@@ -84,10 +84,6 @@ function Header({ onBack, saveSlot, actionsSlot, busy }: EditorProps) {
       {actionsSlot}
       <button className="icon-btn" aria-label="Atalhos de teclado" title="Atalhos de teclado (Ctrl+Shift+?)"
         onClick={() => store.update((state) => { state.ui.showShortcuts = true; })}><IconKeyboard /></button>
-      <button className="icon-btn" aria-label={s.ui.theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'} title="Alterar tema"
-        onClick={() => store.setTheme(s.ui.theme === 'dark' ? 'light' : 'dark')}>
-        {s.ui.theme === 'dark' ? <IconSun /> : <IconMoon />}
-      </button>
       {anchor && <MenuPopup x={anchor.left} y={anchor.bottom + 6} items={mainMenu()} onClose={() => setAnchor(null)} />}
     </header>
   );

@@ -20,6 +20,49 @@ const repo = createSociRepo(workspace);
 const embedded = window.parent !== window;
 const messageOf = (error: unknown) => error instanceof Error ? error.message : "Não foi possível concluir. Tente novamente.";
 
+/**
+ * Tema da plataforma: o editor roda num iframe da mesma origem, então copia do app
+ * os tokens já calculados (inclusive a cor da marca da agência) e o tema claro/escuro.
+ */
+const PLATFORM_TOKENS = [
+  "--g-ink", "--g-ink-2", "--g-dim", "--g-faint", "--g-line", "--g-line-2", "--g-line-strong",
+  "--g-brand", "--g-brand-hover", "--g-brand-bright", "--g-brand-surface", "--g-brand-line", "--g-brand-tint", "--g-brand-on",
+  "--g-surface", "--g-surface-2", "--g-surface-3", "--g-menu-bg", "--g-menu-highlight",
+  "--g-shadow", "--g-shadow-lift", "--g-r-sm", "--g-r", "--g-mint",
+];
+
+function platformRoot(): HTMLElement | null {
+  try { return embedded ? window.parent.document.documentElement : null; } catch { return null; }
+}
+
+function syncPlatformTheme() {
+  const host = platformRoot();
+  const root = document.documentElement;
+  let theme: "light" | "dark";
+  if (host) {
+    const styles = window.parent.getComputedStyle(host);
+    for (const name of PLATFORM_TOKENS) {
+      const value = styles.getPropertyValue(name).trim();
+      if (value) root.style.setProperty(name, value); else root.style.removeProperty(name);
+    }
+    theme = host.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  } else {
+    theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  if (store.state.ui.theme !== theme || root.dataset.theme !== theme) store.setTheme(theme);
+  else store.emit(); // redesenha o canvas com a cor nova da marca
+}
+
+function followPlatformTheme() {
+  syncPlatformTheme();
+  const host = platformRoot();
+  if (!host) return;
+  const later = () => requestAnimationFrame(syncPlatformTheme);
+  try { window.parent.addEventListener("soci:theme-change", later); } catch { /* sem acesso ao app */ }
+  new MutationObserver(later).observe(host, { attributes: true, attributeFilter: ["data-theme", "style", "data-custom-brand"] });
+}
+followPlatformTheme();
+
 /** Avisa a soci (janela de fora) sobre o que aconteceu no editor. */
 function notify(message: Record<string, unknown>) {
   if (embedded) window.parent.postMessage({ source: "prancheta-editor", ...message }, location.origin);

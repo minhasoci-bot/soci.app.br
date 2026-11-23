@@ -1,5 +1,73 @@
-/* Casca da Prancheta dentro da soci: estados de carregamento, salvamento e avisos. */
-:root { --cm-accent: 255 0 187; --soci-pink: #ff00bb; }
+/* Casca da Prancheta dentro da soci: tema da plataforma, estados de carregamento, salvamento e avisos. */
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url(/fonts/plus-jakarta-sans.woff2) format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Valores padrão da soci (graao.css) para quando o editor abre sozinho, sem o app por trás. */
+:root {
+  --g-ink: #0f131a; --g-dim: #5d6673; --g-faint: #98a0ac;
+  --g-line: #e2e5ea; --g-line-2: #d2d7de; --g-line-strong: #b4bbc5;
+  --g-brand: #ff00bb; --g-brand-hover: #d9009f; --g-brand-surface: #fff0fa; --g-brand-line: #fccae9; --g-brand-on: #fff;
+  --g-surface: #ffffff; --g-surface-2: #f4f6f8; --g-surface-3: #dfe2e8;
+  --g-menu-bg: rgba(255,255,255,.96); --g-menu-highlight: #ebeef3;
+  --g-shadow: 0 1px 2px rgba(15,19,26,.05), 0 8px 24px -12px rgba(15,19,26,.12);
+  --g-shadow-lift: 0 2px 4px rgba(15,19,26,.06), 0 16px 36px -14px rgba(15,19,26,.18);
+  --g-r-sm: 8px; --g-r: 12px;
+}
+:root[data-theme='dark'] {
+  --g-ink: #f1f2f4; --g-dim: #8d939d; --g-faint: #68707c;
+  --g-line: #25292d; --g-line-2: #2b2f35; --g-line-strong: #343940;
+  --g-brand-hover: #ff33cc; --g-brand-surface: #260d19; --g-brand-line: #5c1837;
+  --g-surface: #111317; --g-surface-2: #1b1d22; --g-surface-3: #20252d;
+  --g-menu-bg: rgba(17,19,23,.96); --g-menu-highlight: #1f2228;
+  --g-shadow: inset 0 1px 0 rgba(255,255,255,.03), 0 12px 30px -18px rgba(0,0,0,.8);
+  --g-shadow-lift: inset 0 1px 0 rgba(255,255,255,.04), 0 24px 48px -20px rgba(0,0,0,.9);
+}
+
+/* Tokens do editor apontam para os da plataforma (main.tsx copia os valores do app, com a cor da marca). */
+:root, :root[data-theme='dark'] {
+  font-family: "Plus Jakarta Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  --bg: var(--g-surface-2);
+  --surface: var(--g-surface);
+  --surface-2: var(--g-surface-2);
+  --surface-hover: var(--g-surface-2);
+  --input: var(--g-surface-2);
+  --border: var(--g-line);
+  --text: var(--g-ink);
+  --muted: var(--g-dim);
+  --blue: var(--g-brand);
+  --blue-hover: var(--g-brand-hover);
+  --on-blue: var(--g-brand-on, #fff);
+  --selected: var(--g-brand-surface);
+  --canvas-bg: var(--g-surface-2);
+  --canvas-text: var(--g-dim);
+  --radius: var(--g-r-sm);
+  --shadow: var(--g-shadow-lift);
+  --menu-bg: var(--g-menu-bg);
+  --menu-hover: var(--g-menu-highlight);
+  --cm-accent: 255 0 187;
+}
+body { background: var(--bg); color: var(--text); }
+::selection { background: color-mix(in srgb, var(--blue) 22%, transparent); }
+
+/* Formas no padrão da soci: cantos mais redondos, menus com respiro e foco na cor da marca. */
+.menu { border-radius: var(--g-r); padding: 6px; backdrop-filter: blur(14px); box-shadow: var(--g-shadow-lift); }
+.menu-item { border-radius: var(--g-r-sm); }
+.menu-item.open:not(.disabled), .menu-item:hover:not(.disabled) { background: var(--menu-hover); }
+.app-header { background: var(--surface); border-bottom-color: var(--border); }
+.left-panel, .right-panel { background: var(--surface); border-color: var(--border); }
+.toolbar { border-radius: 14px; border: 1px solid var(--border); box-shadow: var(--g-shadow-lift); background: var(--surface); }
+.tool-button { border-radius: 10px; }
+.tool-button.active { background: var(--blue); color: var(--on-blue); }
+.file-name { font-weight: 700; }
+.toast { border-radius: var(--g-r); font-weight: 600; }
+.pr-editor-beta-tag { color: var(--blue); background: var(--selected); border-color: color-mix(in srgb, var(--blue) 30%, transparent); }
 
 .prancheta-root { display: flex; flex-direction: column; height: 100%; }
 .prancheta-editor { flex: 1; min-height: 0; }
@@ -11,7 +79,7 @@
 .pr-state h1 { font-size: 18px; margin: 0; }
 .pr-state p { margin: 0; color: var(--muted); max-width: 420px; }
 .pr-spinner {
-  width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--soci-pink);
+  width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--blue);
   animation: pr-spin .8s linear infinite;
 }
 @keyframes pr-spin { to { transform: rotate(360deg); } }
@@ -22,14 +90,13 @@
   color: var(--text); font-weight: 500; white-space: nowrap;
 }
 .pr-btn:hover:not(:disabled) { background: var(--surface-hover); }
-.pr-btn--accent { background: var(--soci-pink); border-color: transparent; color: #fff; }
-.pr-btn--accent:hover:not(:disabled) { background: #e000a5; }
+.pr-btn--accent { background: var(--blue); border-color: transparent; color: var(--on-blue); }
+.pr-btn--accent:hover:not(:disabled) { background: var(--blue-hover); }
 
 .pr-banner {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 14px;
-  background: #fff1f8; color: #6b0050; border-bottom: 1px solid #ffc2e8; font-size: 12px;
+  background: var(--selected); color: var(--text); border-bottom: 1px solid var(--g-brand-line); font-size: 12px;
 }
-:root[data-theme='dark'] .pr-banner { background: #3a1030; color: #ffd6f1; border-color: #6b1f58; }
 .pr-banner p { margin: 0 auto 0 0; }
 
 .pr-save { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
@@ -42,5 +109,5 @@
   height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--border); font-weight: 500; white-space: nowrap;
 }
 .pr-head-btn:hover:not(:disabled) { background: var(--surface-hover); }
-.pr-head-btn--accent { background: var(--soci-pink); border-color: transparent; color: #fff; }
-.pr-head-btn--accent:hover:not(:disabled) { background: #e000a5; }
+.pr-head-btn--accent { background: var(--blue); border-color: transparent; color: var(--on-blue); }
+.pr-head-btn--accent:hover:not(:disabled) { background: var(--blue-hover); }

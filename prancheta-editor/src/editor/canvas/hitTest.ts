@@ -158,7 +158,7 @@ export interface FrameLabel {
 }
 
 let labelCtx: CanvasRenderingContext2D | null = null;
-export const LABEL_FONT = '450 11px Inter, "Segoe UI", sans-serif';
+export const LABEL_FONT = '500 11px "Plus Jakarta Sans", Inter, "Segoe UI", sans-serif';
 
 function truncate(text: string, maxWidth: number): { text: string; width: number } {
   if (!labelCtx) labelCtx = document.createElement('canvas').getContext('2d')!;
