@@ -5,7 +5,7 @@ import { resolve, posix } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
 const ui = resolve(process.argv[2] || '.', 'ui');
 const br = b => brotliCompressSync(b, { params: { [constants.BROTLI_PARAM_QUALITY]: 11 } }).length;
-const html = readFileSync(resolve(ui, 'index.html'), 'utf8');
+const html = readFileSync(resolve(ui, 'app.html'), 'utf8'); // o app; index.html é a tela de login
 const css = [...html.matchAll(/<link[^>]+href="\/?([^"?#]+\.css)"/g)].map(m => m[1]);
 const entry = [...html.matchAll(/<script[^>]+src="\/?([^"?#]+\.js)"/g)].map(m => m[1]);
 const seen = new Map(), lazy = new Set();
@@ -26,7 +26,7 @@ const eager = [...seen].filter(([f]) => !lazy.has(f)), later = [...seen].filter(
 const cssFiles = css.map(f => [f, readFileSync(resolve(ui, f))]);
 const kb = n => (n / 1024).toFixed(0) + ' KB';
 const out = (label, files) => { const [r, b] = sum(files); console.log(`${label.padEnd(28)} ${String(files.length).padStart(3)} arq.  bruto ${kb(r).padStart(8)}  brotli ${kb(b).padStart(7)}`); return [r, b]; };
-const totals = [out('index.html', [['index.html', Buffer.from(html)]]), out('CSS', cssFiles), out('JS carregado na abertura', eager)];
+const totals = [out('app.html', [['app.html', Buffer.from(html)]]), out('CSS', cssFiles), out('JS carregado na abertura', eager)];
 out('JS sob demanda (import())', later);
 const [r, b] = totals.reduce((a, x) => [a[0] + x[0], a[1] + x[1]], [0, 0]);
 console.log(`ABERTURA TOTAL bruto ${kb(r)}  brotli ${kb(b)}`);

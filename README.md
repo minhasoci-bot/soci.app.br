@@ -10,7 +10,7 @@ No PowerShell, na pasta deste projeto, com Node.js 24 ou superior:
 npm.cmd start
 ```
 
-Abra <http://127.0.0.1:4317/> e clique em **Entrar na plataforma** para acessar com Google. Para outra porta, defina `$env:GO_PORT` antes de iniciar e cadastre a URL de retorno dessa porta no Supabase. Nesta instalação, o servidor usa o projeto Supabase `graao-club`. O arquivo local `.env.local` guarda a configuração usada pelo servidor.
+Abra <http://127.0.0.1:4317/> para ver a tela de login e clique em **Continuar com Google** para acessar a plataforma. Para outra porta, defina `$env:GO_PORT` antes de iniciar e cadastre a URL de retorno dessa porta no Supabase. Nesta instalação, o servidor usa o projeto Supabase `graao-club`. O arquivo local `.env.local` guarda a configuração usada pelo servidor.
 
 O banco usa uma linha JSONB por workspace em `public.go_workspaces`. O servidor grava sob controle de revisão para evitar sobrescrever mutações concorrentes. A política de segurança por linha exige a credencial do servidor, além da chave pública do projeto. Em outra instalação, aplique a migração SQL. Gere uma chave aleatória de 32 bytes em formato hexadecimal, calcule o SHA-256 desse texto e aplique `supabase/provision-storage.sql` com o marcador substituído pelo hash. Guarde a chave original em `.env.local`, nas variáveis indicadas em `.env.example`. Sem as variáveis do Supabase, o servidor usa SQLite local para desenvolvimento.
 

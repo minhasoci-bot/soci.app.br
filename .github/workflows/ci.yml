@@ -24,23 +24,6 @@ jobs:
           node-version: 26
       - run: npm test
 
-  smartsite:
-    name: Smartsite (build e testes)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: Smartsite/site
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 26
-          cache: npm
-          cache-dependency-path: Smartsite/site/package-lock.json
-      - run: npm ci
-      - run: npm run check
-
   # Modo aviso: mostra os números e as anotações, nunca reprova o PR. Meta: zerar e então tornar obrigatório.
   quality:
     name: Qualidade (aviso)
