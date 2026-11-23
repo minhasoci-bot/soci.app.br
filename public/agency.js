@@ -20,9 +20,10 @@ import { presentationsHtml, attachPresentationListeners, closePresentationEditor
 import { pranchetaScreen } from './prancheta.js';
 import {
   affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, learningTracks,
-  marketplaceCategories, mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
+  marketplaceCategories, mobileModules, resellProducts, snapshotAssets, snapshotAssetGroups, subAccountModules, systemEmailKeys, templateCatalog,
   appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav, walletProducts
 } from './agency-data.js';
+import { setupArt } from './setup-art.js';
 
 export { agencyNav };
 const h = x => String(x ?? '').replace(/[&<>"']/g, v => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[v]);
@@ -34,7 +35,7 @@ const tone = s => statusTone[s] || '';
 const initials = s => (s || '').split(/\s+/).slice(0, 2).map(p => p[0] || '').join('').toUpperCase() || 'AG';
 const subTabs = {
   prospecting: prospectRoutes,
-  snapshots: [['marketplace', 'Marketplace'], ['mine', 'Meus setups'], ['published', 'Publicados por mim'], ['history', 'Histórico de cargas']],
+  snapshots: [['mine', 'Meus setups'], ['imported', 'Importados'], ['shared', 'Compartilhados'], ['templates', 'Templates de setup'], ['marketplace', 'Marketplace'], ['published', 'Publicados por mim'], ['history', 'Histórico de cargas']],
   affiliate: [['dashboard', 'Painel'], ['reports', 'Relatórios de indicações'], ['payment', 'Dados de pagamento'], ['history', 'Histórico de pagamentos']],
   templates: [['all', 'Todos os templates'], ['mine', 'Meus templates'], ['installs', 'Instalações']],
   ideas: [['all', 'Todas'], ['Under review', 'Em análise'], ['Planned', 'Planejadas'], ['In progress', 'Em andamento'], ['Completed', 'Concluídas']],
@@ -388,25 +389,106 @@ export function startAgency(env) {
       ${phoneField({ name: 'phone', label: 'Telefone', value: preset.phone || '', id: 'ag-preset-phone' })}<label>Endereço<input name="address" value="${h(preset.address || '')}"></label>
       <label>Fuso horário<select name="timezone">${['America/Sao_Paulo', 'America/New_York', 'Europe/London', 'UTC'].map(z => `<option>${z}</option>`).join('')}</select></label>
       <label>Moeda<input readonly value="Real brasileiro (BRL)"></label>
-      <label>Setup inicial<select name="snapshotId"><option value="">Começar em branco</option>${snaps.map(s => `<option value="${s.id}">${h(s.name)}</option>`).join('')}</select></label>
+      ${preset.templateId ? `<input type="hidden" name="templateId" value="${h(preset.templateId)}"><label>Template de setup<input readonly value="${h(preset.templateName || '')}"></label>` : ''}<label ${preset.templateId ? 'hidden' : ''}>Setup inicial<select name="snapshotId"><option value="">Começar em branco</option>${snaps.map(s => `<option value="${s.id}" ${preset.snapshotId === s.id ? 'selected' : ''}>${h(s.name)}</option>`).join('')}</select></label>
       <label>Plano SaaS<select name="plan"><option value="">Sem plano</option>${D().plans.map(p => `<option value="${p.id}">${h(p.name)} · ${money(p.price)}/mês</option>`).join('')}</select></label></div>`;
   }
 
   const assetLabelsPt = {
     pipelines: 'Pipelines', stages: 'Etapas', workflows: 'Workflows', forms: 'Formulários', pages: 'Páginas',
     snippetFolders: 'Pastas de snippets', snippets: 'Snippets', triggerLinks: 'Links de gatilho',
-    courses: 'Cursos', agents: 'Agentes de IA', studioProjects: 'Sites do Studio', workflowFolders: 'Pastas de workflow'
+    courses: 'Cursos', agents: 'Agentes de IA', studioProjects: 'Sites do Studio', workflowFolders: 'Pastas de workflow',
+    customFields: 'Campos personalizados', customValues: 'Valores personalizados', tags: 'Tags', services: 'Calendários',
+    knowledgeBases: 'Bases de conhecimento', emailTemplates: 'Modelos de e-mail', documentTemplates: 'Contratos e documentos',
+    chatWidgets: 'Chat widgets', brandBoards: 'Brand boards'
   };
+  // Collections that follow the records using them and never show up on their own in the asset picker.
+  const snapshotHelperKeys = ['stages', 'workflowFolders', 'snippetFolders'];
+  const linkedAccounts = snapId => new Set(D().snapshotLoads.filter(l => l.snapshotId === snapId).map(l => l.workspace));
+  const snapRowName = row => row.name || row.title || row.key || 'Sem nome';
   const assetSummary = counts => Object.entries(counts || {}).filter(([, n]) => n).map(([k, n]) => `${n} ${(assetLabelsPt[k] || snapshotAssets.find(a => a[0] === k)?.[1] || k).toLowerCase()}`).join(' · ') || 'Sem recursos';
   const assetChips = counts => Object.entries(counts || {}).filter(([k, n]) => n && k !== 'stages' && k !== 'snippetFolders' && k !== 'workflowFolders').slice(0, 5)
     .map(([k, n]) => `<span class="ag-mkt-chip">${n} ${h((assetLabelsPt[k] || k).toLowerCase())}</span>`).join('');
 
+  // GHL-style library table: name with verified badge, version, date, then + (new sub-account), rename, load and a ⋮ menu.
+  const verified = '<svg class="ag-verified" viewBox="0 0 16 16" role="img" aria-label="Verificado"><path d="M8 1.5l5 1.8v3.9c0 3.3-2.2 5.7-5 7.3-2.8-1.6-5-4-5-7.3V3.3z"/><path d="M5.6 8.1l1.7 1.7 3.2-3.3"/></svg>';
+  const categorySegments = {
+    'Saúde e Estética': 'beauty', 'Imobiliário': 'realestate', 'Agências e Serviços': 'agency', 'Educação e Infoprodutos': 'coaching', 'Negócios Locais': 'home',
+    'E-commerce': 'other', 'B2B e SaaS': 'agency', 'Outro': 'other', 'Automotivo': 'auto', 'Beleza e Moda': 'beauty', 'Negócios, Coaching e Consultoria': 'coaching',
+    'Criativo': 'creative', 'Finanças': 'finance', 'Saúde e Bem-estar': 'health', 'Serviços Residenciais': 'home', 'Seguros': 'insurance', 'Jurídico': 'legal',
+    'Agências e Marketing': 'agency', 'Clínicas e Saúde': 'medical', 'Outros Serviços': 'other', 'Restaurantes e Bares': 'food', 'Viagem e Hospitalidade': 'travel'
+  };
+  const setupCategory = s => s.marketplaceCategory || (s.kind === 'mine' ? 'Setup da agência' : s.kind === 'imported' ? 'Importado por código' : 'Marketplace');
+  const setupSegment = s => s.marketplaceSegment || categorySegments[s.marketplaceCategory] || (s.kind === 'mine' ? 'agency' : 'other');
+  // Search, category filter and grid/list switch shared by the setup galleries (scope keeps each tab's choices apart).
+  function galleryToolbar(scope, cats, placeholder, extra = '') {
+    const view = A.galView?.[scope] === 'list' ? 'list' : 'grid', cat = A.galCat?.[scope] || '';
+    return `<div class="toolbar ag-tpl-toolbar">${search(placeholder)}
+      <div class="inline-gap">${extra}<label class="ag-tpl-filter">${i('filter', 15)}<select data-ag-gal-category="${scope}" aria-label="Filtrar por categoria"><option value="">Todas as categorias</option>${cats.map(c => `<option ${cat === c ? 'selected' : ''}>${h(c)}</option>`).join('')}</select></label>
+      <div class="ag-seg" role="group" aria-label="Visualização">${[['grid', 'grid', 'Grade'], ['list', 'list', 'Lista']].map(([v, ico, l]) => `<button class="icon-btn${view === v ? ' on' : ''}" data-ag="gal-view" data-scope="${scope}" data-view="${v}" aria-pressed="${view === v}" aria-label="${l}" title="${l}">${i(ico, 16)}</button>`).join('')}</div></div></div>`;
+  }
+  function setupGallery(list) {
+    const rows = list.filter(s => match(s.name, s.marketplaceAuthor, setupCategory(s)));
+    if (!rows.length) return empty('Nenhum setup encontrado', 'Tente outro nome ou limpe o filtro de categoria.');
+    return `<div class="ag-tpl-grid">${rows.map(s => `<button class="ag-tpl-card" data-ag="setup-open" data-id="${s.id}">
+      <span class="ag-tpl-top"><span class="ag-tpl-badge">${h(setupCategory(s))}</span><span class="ag-ver">v${s.version || 1}</span></span>
+      ${setupArt(setupSegment(s), s.id, s.name)}
+      <span class="ag-tpl-name">${s.official || s.kind === 'marketplace' ? verified : ''}${h(s.name)}</span>
+      ${s.shared || s.protected ? `<span class="ag-tpl-flags">${s.shared ? '<span class="badge green">Compartilhado</span>' : ''}${s.protected ? '<span class="badge blue">Protegido</span>' : ''}</span>` : ''}
+    </button>`).join('')}</div>`;
+  }
+  function libraryTable(list, mine, withSearch = true) {
+    const dateOf = s => mine ? s.created || s.updated : s.importedAt || s.created || s.updated;
+    const dir = A.snapSort === 'asc' ? 1 : -1;
+    const rows = list.filter(s => match(s.name, s.marketplaceAuthor, s.marketplaceCategory)).sort((a, b) => dir * String(dateOf(a) || '').localeCompare(String(dateOf(b) || '')));
+    const publishedIds = new Set(M().filter(item => item.mine && item.sourceSnapshotId).map(item => item.sourceSnapshotId));
+    const kebab = s => {
+      const items = [['copy', 'Copiar ID do setup', `data-text="${h(s.id)}"`], ['snapshot-history', 'Ver histórico', `data-id="${s.id}"`],
+        s.protected ? null : ['snapshot-share', s.shared ? 'Código de compartilhamento' : 'Compartilhar por código', `data-id="${s.id}"`],
+        s.kind === 'mine' && s.workspace ? ['snapshot-refresh', 'Atualizar a partir da subconta', `data-id="${s.id}"`] : null,
+        s.kind === 'mine' ? ['marketplace-publish', publishedIds.has(s.id) ? 'Atualizar no marketplace' : 'Publicar no marketplace', `data-id="${s.id}"`] : null,
+        ['snapshot-delete', 'Excluir setup', `data-id="${s.id}"`, 'danger']].filter(Boolean);
+      return `<details class="ag-kebab"><summary class="icon-btn" aria-label="Mais ações para ${h(s.name)}" title="Mais ações">${i('dots', 16)}</summary><div class="ag-kebab-menu" role="menu">${items.map(([ag, label, attrs, cls]) => `<button type="button" role="menuitem" class="${cls || ''}" data-ag="${ag}" ${attrs}>${h(label)}</button>`).join('')}</div></details>`;
+    };
+    const icon = (ag, ico, label, s) => `<button class="icon-btn" data-ag="${ag}" data-id="${s.id}" aria-label="${h(label)}: ${h(s.name)}" title="${h(label)}">${i(ico, 16)}</button>`;
+    return `${withSearch ? `<div class="toolbar">${search('Nome do setup')}</div>` : ''}
+      <div class="surface table-shell ag-lib"><table><thead><tr><th scope="col">Nome do setup</th><th scope="col">Versão</th><th scope="col"><button class="ag-sort" data-ag="snap-sort" aria-label="Ordenar por data">${mine ? 'Criado em' : 'Importado em'} ${i(dir === 1 ? 'arrowUp' : 'arrowDown', 13)}</button></th><th scope="col" class="right">Ações</th></tr></thead>
+      <tbody>${rows.map(s => {
+        const linked = linkedAccounts(s.id).size;
+        const badges = [s.official || s.kind === 'marketplace' ? verified : '', s.shared ? '<span class="badge green">Compartilhado</span>' : '', s.protected ? '<span class="badge blue">Protegido</span>' : '', publishedIds.has(s.id) ? '<span class="badge">No marketplace</span>' : ''].join('');
+        const origin = s.kind === 'marketplace' ? `${s.official ? 'Soci' : h(s.marketplaceAuthor || 'Marketplace')}${s.marketplaceCategory ? ` · ${h(s.marketplaceCategory)}` : ''}` : s.kind === 'imported' ? 'Importado por código' : (s.workspace ? h(accountName(s.workspace)) : 'Setup da agência');
+        return `<tr><td><div class="ag-lib-name"><b>${h(s.name)}</b>${badges}</div><small class="dim">${origin} · ${linked ? `${linked} subconta(s) vinculada(s)` : 'nenhuma subconta vinculada'} · ${h(assetSummary(s.counts))}</small></td>
+          <td><span class="ag-ver">v${s.version || 1}</span></td><td>${day(dateOf(s), true)}</td>
+          <td class="right"><div class="ag-lib-actions">${icon('snapshot-account', 'plus', 'Criar subconta com este setup', s)}${icon('snapshot-rename', 'edit', 'Renomear', s)}${icon('snapshot-load', 'upload', 'Carregar em subcontas', s)}${kebab(s)}</div></td></tr>`;
+      }).join('')}</tbody></table>${rows.length ? '' : '<p class="dim padded">Nenhum setup com esse nome.</p>'}</div>`;
+  }
+  async function loadTemplates() {
+    if (A.templatesLoading) return;
+    A.templatesLoading = true;
+    try { A.templates = (await api('/api/agency/setup-templates', {})).result || []; }
+    catch (e) { A.templates = []; flash(e.message, true); }
+    finally { A.templatesLoading = false; }
+    if (location.hash.startsWith('#agency/snapshots/templates')) render();
+  }
+
   pages.snapshots = () => {
-    const sub = A.sub || 'marketplace';
-    const actions = `${btn('Publicar no marketplace', 'marketplace-publish', '', 'secondary', 'upload')}${primary('Criar setup', 'snapshot-create')}`;
+    const sub = A.sub || 'mine';
+    const actions = `${btn('Importar setup', 'snapshot-import', '', 'secondary', 'download')}${btn('Publicar no marketplace', 'marketplace-publish', '', 'secondary', 'upload')}${primary('Criar setup', 'snapshot-create')}`;
+
+    if (sub === 'shared') {
+      const list = D().snapshots.filter(s => s.shared && s.shareCode);
+      const body = list.length ? table(['Setup', 'Código de importação', 'Proteção de ativos', 'Compartilhado em', ''], list.map(s => `<tr>
+          <td><b>${h(s.name)}</b><br><small class="dim">${h(assetSummary(s.counts))}</small></td>
+          <td><code>${h(s.shareCode)}</code></td>
+          <td>${s.shareProtected ? '<span class="badge blue">Protegido</span>' : '<span class="badge">Aberto</span>'}</td>
+          <td>${s.sharedAt ? day(s.sharedAt, true) : '—'}</td>
+          <td class="right inline-gap">${btn('Copiar código', 'copy', `data-text="${h(s.shareCode)}"`)}${btn('Alterar proteção', 'snapshot-share', `data-id="${s.id}"`)}${btn('Revogar link', 'snapshot-unshare', `data-id="${s.id}"`)}</td>
+        </tr>`), '')
+        : `<div class="surface padded ag-explain"><h2>Compartilhe setups com outras agências</h2><ul><li><b>Código de importação:</b> gere um código e envie para quem vai importar. A outra agência cola o código em <b>Importar setup</b>.</li><li><b>Proteção de ativos:</b> com a proteção ligada, quem importa carrega o setup nas subcontas, mas não vê o conteúdo e não pode compartilhá-lo de novo.</li><li><b>Controle:</b> revogue o código quando quiser; quem já importou mantém a cópia.</li></ul><div class="inline-gap">${D().snapshots.some(s => s.kind === 'mine') ? primary('Compartilhar um setup', 'snapshot-share') : primary('Criar meu primeiro setup', 'snapshot-create')}</div></div>`;
+      return `<div class="page">${head('Setups de conta', 'Crie e gerencie seus setups', actions)}${tabCard('snapshots', body, 'Seções de setups')}</div>`;
+    }
 
     if (sub === 'history') {
-      return `<div class="page">${head('Setups de conta', 'Histórico de setups carregados nas subcontas.', actions)}${tabCard('snapshots', table(['Setup', 'Subconta', 'Modo', 'Adicionados', 'Sobrescritos', 'Ignorados', 'Carregado em'], [...D().snapshotLoads].reverse().map(l => `<tr><td><b>${h(l.snapshot)}</b></td><td>${h(l.account)}</td><td>${l.mode === 'overwrite' ? 'Sobrescrever' : 'Manter existentes'}</td><td>${l.added}</td><td>${l.overwritten}</td><td>${l.skipped}</td><td>${day(l.at, true)}</td></tr>`), empty('Nenhum carregamento registrado', 'Ao carregar um setup em uma subconta, o histórico aparecerá aqui.')), 'Seções de setups')}</div>`;
+      return `<div class="page">${head('Setups de conta', 'Crie e gerencie seus setups', actions)}${tabCard('snapshots', table(['Setup', 'Subconta', 'Modo', 'Adicionados', 'Sobrescritos', 'Ignorados', 'Carregado em'], [...D().snapshotLoads].reverse().map(l => `<tr><td><b>${h(l.snapshot)}</b></td><td>${h(l.account)}</td><td>${l.mode === 'overwrite' ? 'Sobrescrever' : 'Manter existentes'}${l.partial ? ' · seleção' : ''}</td><td>${l.added}</td><td>${l.overwritten}</td><td>${l.skipped}</td><td>${day(l.at, true)}</td></tr>`), empty('Nenhum carregamento registrado', 'Ao carregar um setup em uma subconta, o histórico aparecerá aqui.')), 'Seções de setups')}</div>`;
     }
 
     if (sub === 'published') {
@@ -421,40 +503,57 @@ export function startAgency(env) {
           <td class="right inline-gap">${btn('Ver detalhes', 'marketplace-preview', `data-id="${item.id}"`)}${item.sourceSnapshotId ? btn('Editar / Atualizar', 'marketplace-publish', `data-id="${item.sourceSnapshotId}"`, 'primary') : ''}${btn('Retirar', 'marketplace-unpublish', `data-id="${item.id}"`)}</td>
         </tr>`), '')
         : `<div class="surface padded ag-explain"><h2>Compartilhe seus melhores setups no marketplace</h2><p class="dim">Publique estruturas prontas para ajudar outras agências e empresas na Soci — gratuitamente e sem expor nenhum dado real de clientes.</p><ul><li><b>Publicação imediata:</b> escolha um dos seus setups, adicione nicho e descrição e ele já entra no ar.</li><li><b>Controle total:</b> atualize para novas versões ou retire do marketplace quando quiser.</li><li><b>Privacidade garantida:</b> contatos, conversas e pagamentos nunca são publicados.</li></ul><div class="inline-gap">${D().snapshots.some(s => s.kind === 'mine') ? primary('Publicar um setup', 'marketplace-publish') : primary('Criar meu primeiro setup', 'snapshot-create')}</div></div>`;
-      return `<div class="page">${head('Setups de conta', 'Gerencie os setups que você publicou no marketplace para outros usuários.', actions)}${tabCard('snapshots', body, 'Seções de setups')}</div>`;
+      return `<div class="page">${head('Setups de conta', 'Crie e gerencie seus setups', actions)}${tabCard('snapshots', body, 'Seções de setups')}</div>`;
     }
 
-    if (sub === 'mine') {
-      const list = D().snapshots;
-      const publishedMap = new Map(M().filter(item => item.mine && item.sourceSnapshotId).map(item => [item.sourceSnapshotId, item]));
-      const body = list.length ? table(['Setup', 'Origem', 'Recursos inclusos', 'Versão', 'Atualizado em', ''], list.map(s => {
-          const pub = publishedMap.get(s.id);
-          const origin = s.kind === 'mine'
-            ? `${h(accountName(s.workspace))}${pub ? ` <span class="badge green">No marketplace</span>` : ''}`
-            : s.kind === 'marketplace'
-              ? `Marketplace · ${h(s.marketplaceAuthor || 'Soci')}${s.official ? ` <span class="badge blue">Oficial</span>` : ''}`
-              : 'Importado';
-          return `<tr><td><b>${h(s.name)}</b></td><td>${origin}</td><td><small>${h(assetSummary(s.counts))}</small></td><td>v${s.version || 1}</td><td>${day(s.updated, true)}</td>
-            <td class="right inline-gap">${btn('Carregar', 'snapshot-load', `data-id="${s.id}"`, 'primary')}${s.kind === 'mine' ? btn(pub ? 'Atualizar no marketplace' : 'Publicar', 'marketplace-publish', `data-id="${s.id}"`) : ''}${s.kind === 'mine' ? btn('Atualizar', 'snapshot-refresh', `data-id="${s.id}"`) : ''}${btn('Renomear', 'snapshot-rename', `data-id="${s.id}"`)}<button class="icon-btn" data-ag="snapshot-delete" data-id="${s.id}" aria-label="Excluir ${h(s.name)}">${i('trash', 16)}</button></td></tr>`;
-        }), '')
-        : `<div class="surface padded ag-explain"><h2>Para que servem os setups de conta</h2><ul><li><b>Reutilização:</b> empacote pipelines, automações, formulários, páginas, agentes de IA e sites da sua melhor subconta.</li><li><b>Consistência:</b> carregue o mesmo setup estruturado em cada novo cliente em poucos cliques.</li><li><b>Marketplace:</b> comece ainda mais rápido adicionando setups oficiais da Soci ou criados pela comunidade.</li><li><b>Segurança:</b> contatos, conversas e pagamentos nunca entram no setup.</li></ul><div class="inline-gap">${primary('Criar setup', 'snapshot-create')}${btn('Explorar marketplace', 'go-marketplace')}</div></div>`;
-      return `<div class="page">${head('Setups de conta', 'Todos os setups da sua agência: criados por você ou adicionados do marketplace.', actions)}${tabCard('snapshots', body, 'Seções de setups')}</div>`;
+    if (sub === 'mine' || sub === 'imported') {
+      const mine = sub === 'mine';
+      const list = D().snapshots.filter(s => mine ? s.kind === 'mine' : s.kind !== 'mine');
+      const emptyHtml = mine
+        ? `<div class="surface padded ag-explain"><h2>Para que servem os setups de conta</h2><ul><li><b>Reutilização:</b> empacote pipelines, automações, formulários, páginas, agentes de IA e sites da sua melhor subconta.</li><li><b>Consistência:</b> carregue o mesmo setup em cada novo cliente em poucos cliques.</li><li><b>Templates:</b> comece por um dos templates prontos por segmento.</li><li><b>Segurança:</b> contatos, conversas e pagamentos nunca entram no setup.</li></ul><div class="inline-gap">${primary('Criar setup', 'snapshot-create')}${btn('Ver templates de setup', 'go-templates')}</div></div>`
+        : `<div class="surface padded ag-explain"><h2>Nenhum setup importado ainda</h2><p class="dim">Setups que você importar por código ou adicionar do marketplace e dos templates aparecem aqui.</p><div class="inline-gap">${primary('Importar setup', 'snapshot-import')}${btn('Explorar marketplace', 'go-marketplace')}</div></div>`;
+      const cat = A.galCat?.[sub] || '', shown = list.filter(s => !cat || setupCategory(s) === cat);
+      const body = list.length ? `${galleryToolbar(sub, [...new Set(list.map(setupCategory))], 'Nome do setup')}${A.galView?.[sub] === 'list' ? libraryTable(shown, mine, false) : setupGallery(shown)}` : emptyHtml;
+      return `<div class="page">${head('Setups de conta', 'Crie e gerencie seus setups', actions)}${tabCard('snapshots', `<div class="ag-snap-head"><h2>${mine ? 'Meus setups' : 'Setups importados'}</h2><p class="dim">${mine ? 'Setups criados por você aparecem aqui' : 'Setups importados por você aparecem aqui'}</p></div>${body}`, 'Seções de setups')}</div>`;
+    }
+
+    if (sub === 'templates') {
+      if (!A.templates) {
+        loadTemplates();
+        return `<div class="page">${head('Setups de conta', 'Crie e gerencie seus setups', actions)}${tabCard('snapshots', '<p class="dim" role="status">Carregando templates…</p>', 'Seções de setups')}</div>`;
+      }
+      const cats = [...new Set(A.templates.map(t => t.category))];
+      const list = A.templates.filter(t => (!A.tplCategory || t.category === A.tplCategory) && match(t.title, t.category, ...(t.tags || [])));
+      const view = A.tplView === 'list' ? 'list' : 'grid';
+      const toolbar = `<div class="toolbar ag-tpl-toolbar">${search('Nome do template')}
+        <div class="inline-gap"><label class="ag-tpl-filter">${i('filter', 15)}<select data-ag-tpl-category aria-label="Filtrar por segmento"><option value="">Todos os segmentos</option>${cats.map(c => `<option ${A.tplCategory === c ? 'selected' : ''}>${h(c)}</option>`).join('')}</select></label>
+        <div class="ag-seg" role="group" aria-label="Visualização">${[['grid', 'grid', 'Grade'], ['list', 'list', 'Lista']].map(([v, ico, l]) => `<button class="icon-btn${view === v ? ' on' : ''}" data-ag="tpl-view" data-view="${v}" aria-pressed="${view === v}" aria-label="${l}" title="${l}">${i(ico, 16)}</button>`).join('')}</div></div></div>`;
+      const cards = view === 'grid'
+        ? `<div class="ag-tpl-grid">${list.map(t => `<button class="ag-tpl-card" data-ag="template-open" data-id="${t.id}"><span class="ag-tpl-badge">${h(t.category)}</span>${setupArt(t.segment, t.id, t.title)}<span class="ag-tpl-name">${h(t.title)}</span></button>`).join('')}</div>`
+        : table(['Template', 'Segmento', 'Recursos', ''], list.map(t => `<tr><td><div class="ag-tpl-row">${setupArt(t.segment, t.id, t.title)}<b>${h(t.title)}</b></div></td><td><span class="ag-tpl-badge">${h(t.category)}</span></td><td><small>${h(assetSummary(t.counts))}</small></td>
+            <td class="right inline-gap">${btn('Detalhes', 'template-open', `data-id="${t.id}"`)}${btn('Criar subconta', 'template-account', `data-id="${t.id}"`, 'primary', 'plus')}</td></tr>`));
+      const body = `<div class="ag-snap-head"><h2>Templates de setup</h2><p class="dim">Templates de setup são usados para criar novas subcontas</p></div>${toolbar}${list.length ? cards : empty('Nenhum template encontrado', 'Tente outro nome ou limpe o filtro de segmento.')}`;
+      return `<div class="page">${head('Setups de conta', 'Crie e gerencie seus setups', actions)}${tabCard('snapshots', body, 'Seções de setups')}</div>`;
     }
 
     // Default tab: Marketplace
     const installedIds = new Set(D().snapshots.map(s => s.marketplaceId).filter(Boolean));
     const catalog = M().filter(item => {
-      if (A.category && item.category !== A.category) return false;
+      if (A.galCat?.marketplace && item.category !== A.galCat.marketplace) return false;
       if (A.mktOrigin === 'official' && !item.official) return false;
       if (A.mktOrigin === 'community' && item.official) return false;
       return match(item.title, item.summary, item.description, item.category, item.author, ...(item.tags || []));
     });
-    const body = `<div class="toolbar">
-        ${search('Buscar por nicho, nome ou recurso…')}
-        <select data-ag-category aria-label="Categoria"><option value="">Todas as categorias</option>${marketplaceCategories.map(c => `<option value="${h(c)}" ${A.category === c ? 'selected' : ''}>${h(c)}</option>`).join('')}</select>
-        <select data-ag-mkt-origin aria-label="Origem"><option value="">Todos os setups</option><option value="official" ${A.mktOrigin === 'official' ? 'selected' : ''}>Oficiais Soci</option><option value="community" ${A.mktOrigin === 'community' ? 'selected' : ''}>Comunidade</option></select>
-      </div>
-      ${catalog.length ? `<div class="ag-mkt-grid">${catalog.map(item => {
+    const mktGrid = A.galView?.marketplace !== 'list';
+    const body = `<div class="ag-snap-head"><h2>Marketplace de setups</h2><p class="dim">Setups da Soci e da comunidade para replicar nas suas subcontas</p></div>
+      ${galleryToolbar('marketplace', marketplaceCategories, 'Buscar por nicho, nome ou recurso…', `<select data-ag-mkt-origin aria-label="Origem"><option value="">Todos os setups</option><option value="official" ${A.mktOrigin === 'official' ? 'selected' : ''}>Oficiais Soci</option><option value="community" ${A.mktOrigin === 'community' ? 'selected' : ''}>Comunidade</option></select>`)}
+      ${catalog.length && mktGrid ? `<div class="ag-tpl-grid">${catalog.map(item => `<button class="ag-tpl-card" data-ag="marketplace-preview" data-id="${item.id}">
+          <span class="ag-tpl-top"><span class="ag-tpl-badge">${h(item.category)}</span>${installedIds.has(item.id) ? '<span class="badge green">Na biblioteca</span>' : item.mine ? '<span class="badge pink">Seu setup</span>' : ''}</span>
+          ${setupArt(categorySegments[item.category] || 'other', item.id, item.title)}
+          <span class="ag-tpl-name">${item.official ? verified : ''}${h(item.title)}</span>
+          <span class="ag-tpl-meta">${item.official ? 'Soci Oficial' : `Por ${h(item.author)}`} · ${item.installs === 1 ? '1 uso' : `${item.installs || 0} usos`}</span>
+        </button>`).join('')}</div>` : ''}
+      ${catalog.length && !mktGrid ? `<div class="ag-mkt-grid">${catalog.map(item => {
         const installed = installedIds.has(item.id);
         return `<article class="surface ag-mkt-card">
           <div class="ag-mkt-top">
@@ -471,9 +570,9 @@ export function startAgency(env) {
               : btn(installed ? 'Usar novamente' : 'Usar setup', 'marketplace-install', `data-id="${item.id}"`, installed ? 'secondary' : 'primary')}</div>
           </div>
         </article>`;
-      }).join('')}</div>`
-      : empty('Nenhum setup encontrado', 'Tente outro termo de busca, limpe os filtros ou publique o primeiro setup deste nicho.')}`;
-    return `<div class="page">${head('Setups de conta', 'Descubra setups completos da Soci e da comunidade para replicar em suas subcontas.', actions)}${tabCard('snapshots', body, 'Seções de setups')}</div>`;
+      }).join('')}</div>` : ''}
+      ${catalog.length ? '' : empty('Nenhum setup encontrado', 'Tente outro termo de busca, limpe os filtros ou publique o primeiro setup deste nicho.')}`;
+    return `<div class="page">${head('Setups de conta', 'Crie e gerencie seus setups', actions)}${tabCard('snapshots', body, 'Seções de setups')}</div>`;
   };
 
   pages.reselling = () => {
@@ -1150,6 +1249,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const profBtn = ev.target.closest('[data-ag-profile]');
     if (profBtn) { go('settings', 'company'); return; }
 
+    for (const menu of document.querySelectorAll('.ag-kebab[open]')) if (!menu.contains(ev.target) || ev.target.closest('.ag-kebab-menu [data-ag]')) menu.open = false;
     const b = ev.target.closest('[data-ag]'); if (!b) return;
     const d = b.dataset, id = d.id;
     try {
@@ -1287,13 +1387,60 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'prospect-report': { const p = D().prospects.find(x => x.id === id); dialog('Relatório de auditoria', prospectReport(p) + `<div class="inline-gap">${btn('Baixar HTML', 'prospect-download', `data-id="${id}"`, 'primary', 'download')}</div>`, { wide: true }); break; }
         case 'prospect-download': { const p = D().prospects.find(x => x.id === id); download(`${p.name.replace(/[^\w-]+/g, '-')}-auditoria.html`, reportHtml(p), 'text/html'); break; }
         case 'prospect-convert': dialog('Criar subconta para este prospect', `<label>Setup inicial<select name="snapshotId"><option value="">Começar em branco</option>${D().snapshots.map(s => `<option value="${s.id}">${h(s.name)}</option>`).join('')}</select></label>`, { form: 'prospect-convert', id, submit: 'Criar subconta' }); break;
-        case 'snapshot-create': dialog('Criar setup', `<label>Nome do setup<input name="name" required maxlength="100"></label>${oneAccount('Subconta de origem')}<fieldset class="ag-checks"><legend>Recursos a incluir</legend>${snapshotAssets.map(([k, l]) => `<label class="check"><input type="checkbox" name="include" value="${k}" checked> ${h(assetLabelsPt[k] || l)}</label>`).join('')}</fieldset><p class="dim">Contatos, conversas e pagamentos nunca são incluídos. Páginas e fluxos entram como rascunhos.</p>`, { form: 'snapshot-create', submit: 'Criar setup' }); break;
-        case 'snapshot-load': { const s = D().snapshots.find(x => x.id === id); dialog(`Carregar “${s.name}”`, `<p class="dim">${h(assetSummary(s.counts))}</p>${pickAccounts()}${loadMode()}`, { form: 'snapshot-load', id, submit: 'Carregar setup' }); break; }
+        case 'snapshot-create': dialog('Criar setup', `<label>Nome do setup<input name="name" required maxlength="100"></label>${oneAccount('Subconta de origem')}${snapshotAssetGroups.map(([group, keys]) => `<fieldset class="ag-checks"><legend>${h(group)}</legend>${keys.filter(k => k !== 'stages' && k !== 'snippetFolders').map(k => `<label class="check"><input type="checkbox" name="include" value="${k}" checked> ${h(assetLabelsPt[k] || k)}</label>`).join('')}</fieldset>`).join('')}<p class="dim">Contatos, conversas e pagamentos nunca são incluídos. Etapas acompanham os pipelines e pastas acompanham workflows e snippets. Páginas, fluxos e chats entram desligados.</p>`, { form: 'snapshot-create', submit: 'Criar setup' }); break;
+        case 'snapshot-load': { const s = D().snapshots.find(x => x.id === id); dialog(`Carregar “${s.name}”`, loadWizard(s), { form: 'snapshot-load', id, submit: 'Carregar setup', wide: true }); break; }
+        case 'snapshot-preview': {
+          const form = b.closest('form'), out = form.querySelector('[data-snap-conflicts]'), picked = loadPicks(form);
+          if (!picked.workspaces.length) { out.innerHTML = '<p class="form-status">Selecione pelo menos uma subconta na etapa 1.</p>'; break; }
+          out.innerHTML = '<p class="dim">Verificando conflitos…</p>';
+          const result = await call('snapshot-preview', { id: form.dataset.id, workspaces: picked.workspaces, items: picked.items });
+          out.innerHTML = conflictTable(result, D().snapshots.find(x => x.id === form.dataset.id)?.protected);
+          break;
+        }
+        case 'snapshot-account': dialog('Criar subconta com este setup', accountForm({ snapshotId: id }), { form: 'account', submit: 'Criar subconta' }); break;
+        case 'snapshot-history': {
+          const s = D().snapshots.find(x => x.id === id), loads = D().snapshotLoads.filter(l => l.snapshotId === id).reverse();
+          dialog(`Histórico de “${s.name}”`, loads.length ? table(['Subconta', 'Modo', 'Adicionados', 'Sobrescritos', 'Mantidos', 'Quando'], loads.map(l => `<tr><td>${h(l.account)}</td><td>${l.mode === 'overwrite' ? 'Sobrescrever' : 'Manter existentes'}${l.partial ? ' · seleção' : ''}</td><td>${l.added}</td><td>${l.overwritten}</td><td>${l.skipped}</td><td>${day(l.at, true)}</td></tr>`)) : empty('Ainda não carregado', 'Quando este setup for carregado em uma subconta, o registro aparece aqui.'), { wide: true });
+          break;
+        }
+        case 'snapshot-share': {
+          const mine = D().snapshots.filter(s => !s.protected);
+          const s = id ? D().snapshots.find(x => x.id === id) : null;
+          dialog('Compartilhar setup por código', `${s ? `<input type="hidden" name="id" value="${h(s.id)}"><p><b>${h(s.name)}</b> · <span class="dim">${h(assetSummary(s.counts))}</span></p>` : `<label>Setup<select name="id" required>${mine.map(x => `<option value="${x.id}">${h(x.name)}</option>`).join('')}</select></label>`}
+            <label class="check"><input type="checkbox" name="protect" ${s?.shareProtected ? 'checked' : ''}> Proteger os ativos (quem importa não vê o conteúdo e não pode compartilhar de novo)</label>
+            ${s?.shareCode ? `<div class="ag-copy"><input readonly value="${h(s.shareCode)}" aria-label="Código de importação">${btn('Copiar', 'copy', `type="button" data-text="${h(s.shareCode)}"`)}</div>` : '<p class="dim">Vamos gerar um código de 12 caracteres para você enviar à outra agência.</p>'}`, { form: 'snapshot-share', submit: s?.shareCode ? 'Salvar proteção' : 'Gerar código' });
+          break;
+        }
+        case 'snapshot-unshare': confirmBox('Revogar o código de importação?', 'O código deixa de funcionar imediatamente. Quem já importou mantém a cópia.', 'snapshot-unshare', id, 'Revogar'); break;
+        case 'snapshot-import': dialog('Importar setup', `<label>Código de importação<input name="code" required maxlength="40" pattern="[0-9a-fA-F]{12}" placeholder="ex.: 3f9a1c0b7d2e" autocomplete="off"></label><p class="dim">Peça o código para a agência que compartilhou o setup. Ele aparece em <b>Meus setups</b> como importado e pode ser carregado em qualquer subconta.</p>`, { form: 'snapshot-import', submit: 'Importar' }); break;
         case 'snapshot-refresh': confirmBox('Atualizar setup?', `Substituir o conteúdo do setup pelos ativos mais recentes de ${accountName(D().snapshots.find(x => x.id === id).workspace)}.`, 'snapshot-refresh', id, 'Atualizar'); break;
         case 'snapshot-rename': { const s = D().snapshots.find(x => x.id === id); dialog('Renomear setup', `<label>Novo nome<input name="name" required maxlength="100" value="${h(s.name)}"></label>`, { form: 'snapshot-rename', id, submit: 'Renomear' }); break; }
         case 'snapshot-delete': confirmBox('Excluir setup?', 'As subcontas que já carregaram este setup manterão seus recursos normalmente.', 'snapshot-delete', id, 'Excluir'); break;
         case 'go-marketplace': close(); go('snapshots', 'marketplace'); break;
-        case 'go-my-setups': close(); go('snapshots', 'mine'); break;
+        case 'go-my-setups': close(); go('snapshots', 'imported'); break;
+        case 'go-templates': close(); go('snapshots', 'templates'); break;
+        case 'snap-sort': A.snapSort = A.snapSort === 'asc' ? 'desc' : 'asc'; render(); G('[data-ag="snap-sort"]')?.focus(); break;
+        case 'gal-view': A.galView = { ...A.galView, [d.scope]: d.view }; render(); G(`[data-ag="gal-view"][data-scope="${d.scope}"][data-view="${d.view}"]`)?.focus(); break;
+        case 'setup-open': {
+          const s = D().snapshots.find(x => x.id === id); if (!s) break;
+          const published = M().some(item => item.mine && item.sourceSnapshotId === s.id), linked = linkedAccounts(s.id).size;
+          const extra = [['snapshot-rename', 'Renomear'], s.protected ? null : ['snapshot-share', s.shared ? 'Código de compartilhamento' : 'Compartilhar por código'],
+            ['snapshot-history', 'Ver histórico'], s.kind === 'mine' && s.workspace ? ['snapshot-refresh', 'Atualizar a partir da subconta'] : null,
+            s.kind === 'mine' ? ['marketplace-publish', published ? 'Atualizar no marketplace' : 'Publicar no marketplace'] : null].filter(Boolean);
+          dialog(s.name, `<div class="ag-tpl-detail">${setupArt(setupSegment(s), s.id, s.name)}<div><div class="inline-gap"><span class="ag-tpl-badge">${h(setupCategory(s))}</span><span class="ag-ver">v${s.version || 1}</span>${s.protected ? '<span class="badge blue">Protegido</span>' : ''}${s.shared ? '<span class="badge green">Compartilhado</span>' : ''}</div>
+              <p class="dim">${linked ? `${linked} subconta(s) vinculada(s)` : 'Nenhuma subconta vinculada'} · atualizado em ${day(s.updated || s.created, true)}</p><div class="ag-mkt-chips">${assetChips(s.counts)}</div></div></div>
+            <div class="inline-gap">${btn('Carregar em subcontas', 'snapshot-load', `data-id="${s.id}"`, 'primary', 'upload')}${btn('Criar subconta com este setup', 'snapshot-account', `data-id="${s.id}"`, 'secondary', 'plus')}</div>
+            <div class="inline-gap ag-setup-more">${extra.map(([ag, label]) => btn(label, ag, `data-id="${s.id}"`)).join('')}${btn('Copiar ID', 'copy', `data-text="${h(s.id)}"`)}${btn('Excluir', 'snapshot-delete', `data-id="${s.id}"`, 'secondary danger')}</div>`, { wide: true });
+          break;
+        }
+        case 'tpl-view': A.tplView = d.view; render(); G(`[data-ag="tpl-view"][data-view="${d.view}"]`)?.focus(); break;
+        case 'template-open': {
+          const t = (A.templates || []).find(x => x.id === id); if (!t) break;
+          dialog(t.title, `<div class="ag-tpl-detail">${setupArt(t.segment, t.id, t.title)}<div><span class="ag-tpl-badge">${h(t.category)}</span><p>${h(t.summary)}</p><p class="dim">${h(t.description)}</p><div class="ag-mkt-chips">${assetChips(t.counts)}</div></div></div>
+            <div class="inline-gap">${btn('Criar subconta com este template', 'template-account', `data-id="${t.id}"`, 'primary', 'plus')}${btn('Salvar em Importados', 'marketplace-install', `data-id="${t.id}"`)}</div>`, { wide: true });
+          break;
+        }
+        case 'template-account': { const t = (A.templates || []).find(x => x.id === id); close(); dialog(`Criar subconta: ${t?.title || 'template'}`, accountForm({ templateId: id, templateName: t?.title }), { form: 'account', submit: 'Criar subconta' }); break; }
         case 'marketplace-preview': {
           const item = M().find(x => x.id === id);
           if (!item) break;
@@ -1308,6 +1455,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
             ? `${item.sourceSnapshotId ? btn('Editar / Atualizar publicação', 'marketplace-publish', `data-id="${item.sourceSnapshotId}"`, 'primary') : ''}${btn('Retirar do marketplace', 'marketplace-unpublish', `data-id="${item.id}"`)}`
             : btn(installed ? 'Adicionar outra cópia à biblioteca' : 'Usar este setup gratuitamente', 'marketplace-install', `data-id="${item.id}"`, 'primary');
           dialog(item.title, `<div class="ag-mkt-detail">
+            <div class="ag-mkt-art">${setupArt(item.segment || categorySegments[item.category] || 'other', item.id, item.title)}</div>
             <div class="inline-gap"><span class="badge">${h(item.category)}</span>${item.official ? '<span class="badge blue">Soci Oficial</span>' : '<span class="badge">Comunidade</span>'}<span class="badge green">Gratuito</span><span class="dim">Por <b>${h(item.author)}</b> · v${item.version || 1} · ${item.installs === 1 ? '1 uso' : `${item.installs || 0} usos`}</span></div>
             <p class="ag-mkt-desc">${h(item.description || item.summary)}</p>
             ${tagsHtml}
@@ -1320,7 +1468,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'marketplace-install': {
           const installed = await call('marketplace-install', { id });
           render();
-          dialog('Setup adicionado à sua biblioteca', `<p><b>${h(installed.name)}</b> foi salvo em <b>Meus setups</b> e já pode ser carregado em qualquer subconta ou usado como setup inicial.</p><div class="inline-gap">${btn('Carregar em uma subconta agora', 'snapshot-load', `data-id="${installed.snapshotId}"`, 'primary')}${btn('Ver em Meus setups', 'go-my-setups')}</div>`);
+          dialog('Setup adicionado à sua biblioteca', `<p><b>${h(installed.name)}</b> foi salvo em <b>Importados</b> e já pode ser carregado em qualquer subconta ou usado como setup inicial.</p><div class="inline-gap">${btn('Carregar em uma subconta agora', 'snapshot-load', `data-id="${installed.snapshotId}"`, 'primary')}${btn('Ver em Importados', 'go-my-setups')}</div>`);
           break;
         }
         case 'marketplace-publish': {
@@ -1391,12 +1539,65 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
 
   const loadMode = () => `<fieldset class="ag-checks"><legend>Quando já existir um recurso com o mesmo nome</legend><label class="check"><input type="radio" name="mode" value="skip" checked> Manter o recurso existente</label><label class="check"><input type="radio" name="mode" value="overwrite"> Sobrescrever com a versão do setup</label></fieldset>`;
 
+  // Load wizard (GHL parity): 1. sub-accounts (linked / available / all) · 2. assets picked per record · 3. conflict check with a rule per type.
+  function loadWizard(s) {
+    const linked = linkedAccounts(s.id);
+    const filter = linked.size ? 'linked' : 'all';
+    const accountsList = accounts().map(a => `<label class="check" data-snap-account="${linked.has(a.id) ? 'linked' : 'available'}" ${filter === 'linked' && !linked.has(a.id) ? 'hidden' : ''}><input type="checkbox" name="workspaces" value="${a.id}"> ${h(a.name)}${linked.has(a.id) ? ' <span class="badge">Vinculada</span>' : ''}</label>`).join('');
+    const keys = Object.entries(s.counts || {}).filter(([k, n]) => n && !snapshotHelperKeys.includes(k)).map(([k]) => k);
+    const assetsHtml = s.protected || !s.assets
+      ? `<p class="dim">Setup protegido: você escolhe os tipos de recurso, mas o conteúdo não é exibido.</p>${keys.map(k => `<label class="check"><input type="checkbox" name="cat" value="${k}" checked> ${h(assetLabelsPt[k] || k)} <span class="dim">(${s.counts[k]})</span></label>`).join('')}`
+      : `<input type="search" data-snap-search placeholder="Buscar recurso pelo nome" aria-label="Buscar recurso">${keys.map(k => `<details class="ag-snap-cat"><summary><label class="check"><input type="checkbox" data-snap-cat="${k}" checked> ${h(assetLabelsPt[k] || k)} <span class="dim" data-snap-count="${k}">(${s.counts[k]}/${s.counts[k]})</span></label></summary>
+          ${(s.assets[k] || []).map(row => `<label class="check ag-snap-item" data-snap-name="${h(snapRowName(row).toLowerCase())}"><input type="checkbox" name="item" value="${k}:${h(row.id)}" checked> ${h(snapRowName(row))}</label>`).join('')}</details>`).join('')}`;
+    return `<ol class="ag-snap-steps">
+      <li><fieldset class="ag-checks"><legend>1. Subcontas</legend>
+        <div class="inline-gap" role="radiogroup" aria-label="Filtrar subcontas">${[['linked', 'Vinculadas'], ['available', 'Disponíveis'], ['all', 'Todas']].map(([v, l]) => `<label class="check"><input type="radio" name="accountFilter" value="${v}" data-snap-filter ${filter === v ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+        ${accountsList || '<p class="dim">Nenhuma subconta criada ainda.</p>'}
+        <p class="dim">Vinculadas são as subcontas que já receberam este setup.</p></fieldset></li>
+      <li><fieldset class="ag-checks"><legend>2. Recursos</legend>${assetsHtml}<p class="dim">Etapas, pastas, formulários e links usados pelos recursos escolhidos vêm junto automaticamente.</p></fieldset></li>
+      <li><fieldset class="ag-checks"><legend>3. Conflitos</legend>${loadMode()}
+        <div class="inline-gap">${btn('Verificar conflitos', 'snapshot-preview', 'type="button"', 'secondary', 'search')}<span class="dim">Opcional: veja o que já existe nas subcontas e escolha a regra por tipo.</span></div>
+        <div data-snap-conflicts></div></fieldset></li>
+    </ol>`;
+  }
+  // What the wizard asks to load: sub-accounts, records per type ('*' for a whole protected type) and per-type conflict rules.
+  function loadPicks(form) {
+    const workspaces = [...form.querySelectorAll('input[name="workspaces"]:checked')].map(x => x.value);
+    const items = {};
+    for (const box of form.querySelectorAll('input[name="item"]:checked')) { const at = box.value.indexOf(':'); (items[box.value.slice(0, at)] ??= []).push(box.value.slice(at + 1)); }
+    for (const box of form.querySelectorAll('input[name="cat"]:checked')) items[box.value] = '*';
+    const modes = {};
+    for (const sel of form.querySelectorAll('select[data-snap-mode]')) if (sel.value) modes[sel.dataset.snapMode] = sel.value;
+    return { workspaces, items, modes };
+  }
+  function conflictTable(result, protectedSnap) {
+    const byKey = new Map();
+    for (const target of result) for (const c of target.categories) {
+      const row = byKey.get(c.key) || { total: c.total, fresh: 0, conflicts: 0, names: new Set() };
+      row.fresh += c.fresh; row.conflicts += c.conflicts.length; c.conflicts.forEach(n => n && row.names.add(n));
+      byKey.set(c.key, row);
+    }
+    if (!byKey.size) return '<p class="dim">Nenhum recurso selecionado.</p>';
+    const totalConflicts = [...byKey.values()].reduce((n, r) => n + r.conflicts, 0);
+    return `<p>${totalConflicts ? `<b>${totalConflicts} conflito(s)</b> em ${result.length} subconta(s). Escolha o que fazer em cada tipo:` : 'Nenhum conflito: tudo será adicionado como novo.'}</p>
+      ${table(['Recurso', 'Novos', 'Já existem', 'Quando já existir'], [...byKey].map(([key, r]) => `<tr><td><b>${h(assetLabelsPt[key] || key)}</b>${r.names.size && !protectedSnap ? `<br><small class="dim">${h([...r.names].slice(0, 6).join(', '))}${r.names.size > 6 ? '…' : ''}</small>` : ''}</td><td>${r.fresh}</td><td>${r.conflicts}</td>
+        <td>${r.conflicts ? `<select data-snap-mode="${key}" aria-label="Regra para ${h(assetLabelsPt[key] || key)}"><option value="">Usar a regra geral</option><option value="skip">Manter o existente</option><option value="overwrite"${key === 'pipelines' ? ' disabled' : ''}>Sobrescrever</option></select>` : '—'}</td></tr>`))}`;
+  }
+
   document.addEventListener('input', ev => {
     if (!active()) return;
     const el = ev.target;
     if (el.matches('[data-ag-search]')) {
       A.query = el.value; A.auditPage = 0; const pos = el.selectionStart; render();
       const next = G('[data-ag-search]'); next.focus(); next.setSelectionRange(pos, pos);
+    }
+    if (el.matches('[data-snap-search]')) {
+      const q = el.value.trim().toLowerCase();
+      for (const cat of el.form.querySelectorAll('.ag-snap-cat')) {
+        let hits = 0;
+        for (const row of cat.querySelectorAll('.ag-snap-item')) { const show = !q || row.dataset.snapName.includes(q); row.hidden = !show; if (show) hits++; }
+        cat.hidden = Boolean(q) && !hits; if (q && hits) cat.open = true;
+      }
     }
     if (el.matches('[data-ag-price]')) el.form.querySelector('[data-ag-profit]').textContent = money((Number(el.value) || 0) - Number(el.dataset.agPrice));
     if (el.matches('[data-ag-app-price],[data-ag-app-cost]')) { const price = Number(el.form.price.value) || 0; el.form.querySelector('[data-ag-profit]').textContent = money(price ? price - (Number(el.form.cost.value) || 0) : 0); }
@@ -1420,6 +1621,20 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       D().company[el.name] = el.value.toLowerCase();
       applyBrandColor(D().company.primary, D().company.secondary);
     }
+    // Load wizard: account filter and the category/record checkboxes (no server call).
+    if (el.matches('[data-snap-filter]')) {
+      for (const row of el.form.querySelectorAll('[data-snap-account]')) row.hidden = el.value !== 'all' && row.dataset.snapAccount !== el.value;
+      return;
+    }
+    if (el.matches('[data-snap-cat]') || (el.name === 'item' && el.closest('.ag-snap-cat'))) {
+      const cat = el.closest('.ag-snap-cat'), boxes = [...cat.querySelectorAll('input[name="item"]')], head = cat.querySelector('[data-snap-cat]');
+      if (el === head) boxes.forEach(box => { box.checked = head.checked; });
+      const on = boxes.filter(box => box.checked).length;
+      head.checked = on > 0; head.indeterminate = on > 0 && on < boxes.length;
+      cat.querySelector('[data-snap-count]').textContent = `(${on}/${boxes.length})`;
+      cat.closest('form').querySelector('[data-snap-conflicts]').innerHTML = '';
+      return;
+    }
     try {
       if (el.matches('[data-ag-user]')) { if (el.value) localStorage.setItem('go.user', el.value); else localStorage.removeItem('go.user'); location.reload(); }
       if (el.matches('[data-ag-status]')) { A.status = el.value; render(); G('[data-ag-status]').focus(); }
@@ -1434,6 +1649,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         await act('labs', { data: { [key]: el.value } }); render(); G(`[data-ag-lab="${key}"]`)?.focus(); flash('Recursos experimentais atualizados.');
       }
       if (el.matches('[data-ag-category]')) { A.category = el.value; render(); G('[data-ag-category]').focus(); }
+      if (el.matches('[data-ag-gal-category]')) { const scope = el.dataset.agGalCategory; A.galCat = { ...A.galCat, [scope]: el.value }; render(); G(`[data-ag-gal-category="${scope}"]`)?.focus(); }
+      if (el.matches('[data-ag-tpl-category]')) { A.tplCategory = el.value; render(); G('[data-ag-tpl-category]').focus(); }
       if (el.matches('[data-ag-mkt-origin]')) { A.mktOrigin = el.value; render(); G('[data-ag-mkt-origin]').focus(); }
       if (el.matches('[data-ag-mkt-pick]')) {
         const snap = D().snapshots.find(s => s.id === el.value);
@@ -1564,7 +1781,23 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'prospect-convert': { const newId = await call('prospect-convert', { id, snapshotId: data.snapshotId }); msg = 'Subconta criada.'; close(); dialog('Subconta criada com sucesso', `<div class="inline-gap">${btn('Acessar subconta agora', 'open-account', `data-id="${newId}"`, 'primary')}</div>`); keepOpen = true; break; }
         case 'snapshot-create': await call('snapshot-create', data); msg = 'Setup criado com sucesso.'; break;
         case 'snapshot-refresh': await call('snapshot-refresh', { id }); msg = 'Setup atualizado com sucesso.'; break;
-        case 'snapshot-load': { const loads = await call('snapshot-load', { id, workspaces: data.workspaces, mode: data.mode }); msg = `Carregado em ${loads.length} subconta(s): ${loads.reduce((s, l) => s + l.added, 0)} adicionados, ${loads.reduce((s, l) => s + l.overwritten, 0)} sobrescritos, ${loads.reduce((s, l) => s + l.skipped, 0)} mantidos.`; break; }
+        case 'snapshot-load': {
+          const picked = loadPicks(f);
+          if (!picked.workspaces.length) throw Error('Selecione pelo menos uma subconta.');
+          if (!Object.values(picked.items).some(v => v === '*' || v.length)) throw Error('Selecione pelo menos um recurso para carregar.');
+          const loads = await call('snapshot-load', { id, workspaces: picked.workspaces, mode: data.mode, items: picked.items, modes: picked.modes });
+          msg = `Carregado em ${loads.length} subconta(s): ${loads.reduce((s, l) => s + l.added, 0)} adicionados, ${loads.reduce((s, l) => s + l.overwritten, 0)} sobrescritos, ${loads.reduce((s, l) => s + l.skipped, 0)} mantidos.`;
+          break;
+        }
+        case 'snapshot-share': {
+          const code = await act('snapshot-share', { id: data.id, data: { protect: Boolean(data.protect) } });
+          close(); render(); keepOpen = true;
+          dialog('Código de importação', `<p>Envie este código para a agência que vai importar o setup${data.protect ? ' (com proteção de ativos)' : ''}.</p><div class="ag-copy"><input readonly value="${h(code)}" aria-label="Código de importação">${btn('Copiar', 'copy', `data-text="${h(code)}"`)}</div><p class="dim">A outra agência cola o código em Setups de conta → Importar setup.</p>`);
+          msg = 'Código de importação pronto.';
+          break;
+        }
+        case 'snapshot-unshare': await act('snapshot-unshare', { id }); msg = 'Código revogado.'; break;
+        case 'snapshot-import': { await act('snapshot-import', { data: { code: data.code } }); msg = 'Setup importado.'; close(); go('snapshots', 'imported'); keepOpen = true; break; }
         case 'snapshot-rename': await act('snapshot-rename', { id, data }); msg = 'Setup renomeado.'; break;
         case 'snapshot-delete': await act('snapshot-delete', { id }); msg = 'Setup excluído.'; break;
         case 'marketplace-publish': { const r = await call('marketplace-publish', { ...data, listingId: id }); msg = r.updated ? 'Publicação atualizada no marketplace.' : 'Setup publicado no marketplace!'; break; }

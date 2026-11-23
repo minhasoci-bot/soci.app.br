@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { agentTemplate } from './agent-model.mjs';
 import { marketplaceCategories } from './ui/agency-data.js';
 import { agenciaCompleta360Spec } from './setup-agencia-360.mjs';
+import { setupTemplateSpecs } from './setup-templates.mjs';
 
 export const MARKETPLACE_DOC_ID = 'marketplace-setups';
 export const MAX_MARKETPLACE_LISTINGS = 500;
@@ -42,7 +43,15 @@ export function buildSetupPreview(assets = {}) {
     triggerLinks: names('triggerLinks'),
     courses: names('courses'),
     agents: names('agents'),
-    studioProjects: names('studioProjects')
+    studioProjects: names('studioProjects'),
+    services: names('services'),
+    knowledgeBases: names('knowledgeBases'),
+    emailTemplates: names('emailTemplates'),
+    documentTemplates: names('documentTemplates'),
+    chatWidgets: names('chatWidgets'),
+    tags: names('tags'),
+    customValues: names('customValues'),
+    customFields: names('customFields')
   };
   return Object.fromEntries(Object.entries(preview).filter(([, list]) => list.length));
 }
@@ -70,8 +79,8 @@ function buildOfficial(spec) {
     assets,
     studioSites: {},
     installs: 0,
-    publishedAt: '2026-01-15T12:00:00.000Z',
-    updatedAt: '2026-01-15T12:00:00.000Z'
+    publishedAt: spec.publishedAt || '2026-01-15T12:00:00.000Z',
+    updatedAt: spec.publishedAt || '2026-01-15T12:00:00.000Z'
   };
 }
 
@@ -353,6 +362,9 @@ const OFFICIAL_SETUPS = [
     }
   })
 ];
+// Templates de setup por segmento (aba Templates de setup), usados para criar subcontas.
+const TEMPLATE_SETUPS = setupTemplateSpecs.map(spec => ({ ...buildOfficial({ ...spec, publishedAt: '2026-11-22T12:00:00.000Z' }), template: true, segment: spec.segment }));
+export const setupTemplates = () => TEMPLATE_SETUPS;
 
 export function officialSetups() {
   return OFFICIAL_SETUPS;
@@ -360,7 +372,7 @@ export function officialSetups() {
 
 export function findMarketplaceSetup(doc, id) {
   const mkt = hydrateMarketplace(doc);
-  const official = OFFICIAL_SETUPS.find(item => item.id === id);
+  const official = OFFICIAL_SETUPS.find(item => item.id === id) || TEMPLATE_SETUPS.find(item => item.id === id);
   if (official) return { ...official, installs: mkt.officialInstalls[official.id] || 0 };
   return mkt.listings.find(item => item.id === id) || null;
 }
@@ -377,6 +389,7 @@ export function publicMarketplaceList(doc, myAgencyId = '') {
     author: item.author,
     sourceSnapshotId: item.authorAgencyId === myAgencyId ? item.sourceSnapshotId : '',
     official: Boolean(item.official),
+    ...(item.template ? { template: true, segment: item.segment } : {}),
     mine: Boolean(myAgencyId && item.authorAgencyId === myAgencyId),
     version: item.version || 1,
     counts: item.counts || {},
@@ -390,6 +403,12 @@ export function publicMarketplaceList(doc, myAgencyId = '') {
     .map(strip);
   const officials = OFFICIAL_SETUPS.map(strip);
   return [...officials, ...community];
+}
+
+// The template gallery is static and large, so it is served on demand (op setup-templates) instead of with every agency response.
+export function templateGallery(doc) {
+  const mkt = hydrateMarketplace(doc);
+  return TEMPLATE_SETUPS.map(({ assets: _assets, studioSites: _sites, ...item }) => ({ ...item, installs: mkt.officialInstalls[item.id] || 0 }));
 }
 
 export function publishToMarketplace(doc, { agencyId, author, snap, studioSites = {}, input = {} }) {
@@ -459,7 +478,7 @@ export function unpublishFromMarketplace(doc, { agencyId, listingId }) {
 
 export function recordMarketplaceInstall(doc, id) {
   const mkt = hydrateMarketplace(doc);
-  const official = OFFICIAL_SETUPS.find(item => item.id === id);
+  const official = OFFICIAL_SETUPS.find(item => item.id === id) || TEMPLATE_SETUPS.find(item => item.id === id);
   if (official) {
     mkt.officialInstalls[id] = (mkt.officialInstalls[id] || 0) + 1;
     doc.listings = mkt.listings;

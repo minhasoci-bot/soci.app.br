@@ -40,8 +40,8 @@ function meteredUsage() {
 import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
-import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, userAccess } from './agency-model.mjs';
-import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, unpublishFromMarketplace } from './setup-marketplace.mjs';
+import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, previewSnapshot, userAccess } from './agency-model.mjs';
+import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
 import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
 import { importedFile, mediaLimitBytes } from './media-model.mjs';
@@ -172,7 +172,7 @@ const staticFiles = new Map([
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
   ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
-  ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
+  ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/setup-art.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
   ['/beautiful-ui.js','text/javascript; charset=utf-8'], ['/beautiful-ui.css','text/css; charset=utf-8'],
@@ -275,9 +275,29 @@ function publicAgency(agency, who) {
     view.accounts = Object.fromEntries(Object.entries(agency.accounts).map(([id, { statusHistory, ignoredWebhooks, suspendedReason, billing, ...meta }]) => [id, meta]));
   }
   if (who.modules !== null || !who.settings) view.snapshots = view.snapshots.map(({ assets, shareCode, ...snap }) => snap);
+  // Setups imported with asset protection show only how many records each type has, never the records.
+  view.snapshots = view.snapshots.map(({ assets, ...snap }) => snap.protected || !assets ? snap : { ...snap, assets });
   return view;
 }
 const stamp = () => new Date().toISOString();
+// What a snapshot load or preview asked for: the records picked per asset type and the conflict rule per type.
+function loadChoices(input) {
+  const known = new Set(snapshotAssets.map(([key]) => key));
+  let items = null;
+  if (input.items && typeof input.items === 'object' && !Array.isArray(input.items)) {
+    items = {};
+    for (const [key, value] of Object.entries(input.items)) {
+      if (!known.has(key)) continue;
+      if (value === '*') items[key] = '*';
+      else if (Array.isArray(value)) items[key] = value.filter(id => typeof id === 'string').slice(0, 2000);
+    }
+  }
+  const modes = {};
+  if (input.modes && typeof input.modes === 'object') for (const [key, value] of Object.entries(input.modes)) {
+    if (known.has(key) && (value === 'skip' || value === 'overwrite')) modes[key] = value;
+  }
+  return { items, modes };
+}
 
 const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) : (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
   ? resolve(tmpdir(), 'go.sqlite')
@@ -755,8 +775,10 @@ export function makeServer({
     const newId = uid();
     let loaded = null;
     const studioMap = new Map();
-    if (input.snapshotId) {
-      const snap = agency.snapshots.find(item => item.id === input.snapshotId);
+    if (input.snapshotId || input.templateId) {
+      // A setup from the agency library, or a segment template straight from the gallery (like GHL snapshot templates).
+      const template = input.templateId ? findMarketplaceSetup(await loadMarketplace(), input.templateId) : null;
+      const snap = template?.template ? { id: template.id, name: template.title, assets: template.assets, studioSites: template.studioSites || {} } : agency.snapshots.find(item => item.id === input.snapshotId);
       if (!snap) throw error('Choose a valid snapshot.',400);
       const planned = { ...agency, accounts: { [newId]: { plan: input.plan } } };
       requireSetupModules(effectiveAccess(planned, who, newId), Object.keys(snap.assets || {}));
@@ -769,6 +791,7 @@ export function makeServer({
     setLabsOffer(state, agency.labs);
     await store.insert(newId, state);
     if (loaded) await applyStudioSites(loaded.snap, studioMap, newId);
+    if (loaded && input.templateId && loaded.snap.id === input.templateId) await changeMarketplace(doc => recordMarketplaceInstall(doc, input.templateId));
     await changeAgency(who.agencyId, a => {
       a.accounts[newId] = { name, status: 'Active', created: stamp(), lastLogin: '', plan: input.plan || '', address: String(input.address || '').slice(0,240), phone: state.profile.phone, website: '' };
       logTo(a, who, 'Sub-account created', name, loaded ? `Snapshot ${loaded.snap.name}` : '');
@@ -1129,6 +1152,23 @@ export function makeServer({
         return snap.id;
       });
     }
+    if (op === 'snapshot-preview') {
+      // Conflict check before a load: nothing is written.
+      const agency = await loadAgency(who.agencyId);
+      const snap = agency.snapshots.find(s => s.id === input.id);
+      if (!snap) throw error('Snapshot not found.',404);
+      const targets = Array.isArray(input.workspaces) ? (await listWorkspaces(who.agencyId)).filter(w => input.workspaces.includes(w.id)) : [];
+      if (!targets.length) throw error('Choose at least one sub-account.',400);
+      const { items } = loadChoices(input);
+      const out = [];
+      for (const target of targets) {
+        await requireWorkspaceAccess(agency, who, target.id);
+        const categories = previewSnapshot(await store.load(target.id), snap, items);
+        // A protected setup reveals counts, never record names.
+        out.push({ workspace: target.id, account: target.name, categories: snap.protected ? categories.map(({ conflicts, ...c }) => ({ ...c, conflicts: conflicts.map(() => '') })) : categories });
+      }
+      return out;
+    }
     if (op === 'snapshot-load') {
       const agency = await loadAgency(who.agencyId);
       const snap = agency.snapshots.find(s => s.id === input.id);
@@ -1140,12 +1180,14 @@ export function makeServer({
         requireSetupModules(targetAccess, Object.keys(snap.assets || {}));
       }
       const mode = input.mode === 'overwrite' ? 'overwrite' : 'skip';
+      const { items, modes } = loadChoices(input);
       const loads = [];
       for (const target of targets) {
         const studioMap = new Map();
-        const report = await store.change(target.id, state => applySnapshot(state, snap, mode, studioMap));
+        const report = await store.change(target.id, state => applySnapshot(state, snap, mode, studioMap, { items, modes }));
         await applyStudioSites(snap, studioMap, target.id);
-        loads.push({ id: uid(), snapshotId: snap.id, snapshot: snap.name, workspace: target.id, account: target.name, at: stamp(), mode, ...report });
+        loads.push({ id: uid(), snapshotId: snap.id, snapshot: snap.name, workspace: target.id, account: target.name, at: stamp(), mode,
+          ...(items ? { partial: true } : {}), ...(Object.keys(modes).length ? { modes } : {}), ...report });
       }
       await changeAgency(who.agencyId, a => {
         a.snapshotLoads.push(...loads);
@@ -1171,6 +1213,7 @@ export function makeServer({
             marketplaceId: listing.id,
             publishedVersion: listing.version,
             marketplaceCategory: listing.category,
+          ...(listing.segment ? { marketplaceSegment: listing.segment } : {}),
             marketplaceSummary: listing.summary,
             marketplaceDescription: listing.description,
             marketplaceTags: listing.tags
@@ -1193,6 +1236,7 @@ export function makeServer({
       });
       return removed.id;
     }
+    if (op === 'setup-templates') return templateGallery(await loadMarketplace());
     if (op === 'marketplace-install') {
       const listing = findMarketplaceSetup(await loadMarketplace(), input.id);
       if (!listing) throw error('Setup não encontrado no marketplace.',404);

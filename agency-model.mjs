@@ -733,18 +733,31 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
     }
     case 'snapshot-share': {
       const snap = pick(state, 'snapshots', id);
+      if (snap.protected) fail('Este setup foi importado com proteção de ativos e não pode ser compartilhado novamente.', 403);
       snap.shareCode ||= randomBytes(6).toString('hex');
       snap.shared = true;
-      log('Snapshot share link created', snap.name);
+      // Asset protection: the agency that imports can load the setup into its sub-accounts, but cannot see what is inside or pass it on.
+      snap.shareProtected = Boolean(d.protect);
+      snap.sharedAt = now();
+      log('Snapshot share link created', snap.name, snap.shareProtected ? 'Asset protection on' : '');
       return snap.shareCode;
+    }
+    case 'snapshot-unshare': {
+      const snap = pick(state, 'snapshots', id);
+      snap.shareCode = ''; snap.shared = false; snap.shareProtected = false;
+      log('Snapshot share link revoked', snap.name);
+      return id;
     }
     case 'snapshot-import': {
       const code = req(d.code, 'Share code', 40).toLowerCase();
-      const source = state.snapshots.find(s => s.shareCode === code) ||
+      const source = state.snapshots.find(s => s.shareCode === code && s.shared) ||
         (sharedSnapshot?.shareCode === code && sharedSnapshot) || fail('No snapshot uses this share code.', 404);
-      const copy = { ...structuredClone(source), id: uid(), name: `${source.name} (imported)`, kind: 'imported', shareCode: '', shared: false, created: now(), updated: now() };
+      if (state.snapshots.length >= 50) fail('You can keep up to 50 snapshots.');
+      const { shareCode: _code, shared: _shared, shareProtected, sharedAt: _at, marketplaceId: _mkt, ...rest } = structuredClone(source);
+      const copy = { ...rest, id: uid(), name: `${source.name} (importado)`, kind: 'imported', protected: Boolean(shareProtected || source.protected),
+        shareCode: '', shared: false, importedAt: now(), created: now(), updated: now() };
       state.snapshots.push(copy);
-      log('Snapshot imported', copy.name);
+      log('Snapshot imported', copy.name, copy.protected ? 'Asset protection on' : '');
       return copy.id;
     }
     default: return fail('Unknown agency action.');
@@ -755,49 +768,142 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
 
 const refs = { stages: { pipelineId: 'pipelines' }, pages: { formId: 'forms' }, snippets: { folderId: 'snippetFolders' },
   workflows: { linkId: 'triggerLinks', formId: 'forms', stageId: 'stages', folderId: 'workflowFolders' } };
-const label = (key, item) => key === 'stages' ? `${item.pipelineId}:${item.name}` : (item.name || item.title || '').toLowerCase();
+// Two records are "the same" when they share this identity; custom fields and values match on their merge key.
+const label = (key, item) => key === 'stages' ? `${item.pipelineId}:${item.name}`
+  : (key === 'customFields' || key === 'customValues') && item.key ? item.key
+    : (item.name || item.title || '').toLowerCase();
+// Load order: a record is created after everything it points to.
+const loadOrder = ['customFields', 'customValues', 'tags', 'pipelines', 'stages', 'snippetFolders', 'forms', 'triggerLinks', 'pages', 'snippets',
+  'workflowFolders', 'workflows', 'courses', 'services', 'emailTemplates', 'documentTemplates', 'brandBoards', 'knowledgeBases', 'agents', 'chatWidgets', 'studioProjects'];
+// Helper collections that never appear on their own in the asset picker: they follow the records that use them.
+export const snapshotHelperKeys = ['stages', 'workflowFolders', 'snippetFolders'];
 
 export function extractSnapshot(workspace, include = snapshotAssets.map(a => a[0])) {
   const assets = {};
   for (const [key] of snapshotAssets) if (include.includes(key)) assets[key] = structuredClone(workspace[key] || []);
   if (assets.stages && !assets.pipelines) assets.pipelines = structuredClone(workspace.pipelines);
+  if (assets.pipelines && !assets.stages) assets.stages = structuredClone((workspace.stages || []).filter(s => assets.pipelines.some(p => p.id === s.pipelineId)));
   if (assets.pages && !assets.forms) assets.forms = structuredClone(workspace.forms.filter(f => assets.pages.some(p => p.formId === f.id)));
+  if (assets.snippets && !assets.snippetFolders) assets.snippetFolders = structuredClone((workspace.snippetFolders || [])
+    .filter(folder => assets.snippets.some(snippet => snippet.folderId === folder.id)));
   if (assets.workflows) assets.workflowFolders = structuredClone((workspace.workflowFolders || [])
     .filter(folder => assets.workflows.some(workflow => workflow.folderId === folder.id)));
   for (const page of assets.pages || []) page.active = false;
   for (const workflow of assets.workflows || []) workflow.active = false;
-  if (assets.agents) assets.agents = assets.agents.map(agentTemplate);
+  for (const widget of assets.chatWidgets || []) widget.active = false;
+  // Agents travel without memory or publication, but remember which knowledge bases they used.
+  if (assets.agents) assets.agents = assets.agents.map(agent => ({ ...agentTemplate(agent), baseRefs: assets.knowledgeBases ? [...(agent.bases || [])] : [] }));
   const counts = Object.fromEntries(Object.entries(assets).map(([key, list]) => [key, list.length]));
   return { assets, counts };
 }
 
-export function applySnapshot(target, snapshot, mode = 'skip', studioMap = null) {
-  const map = {};
-  const order = ['pipelines', 'stages', 'snippetFolders', 'forms', 'triggerLinks', 'pages', 'snippets', 'workflowFolders', 'workflows', 'courses', 'agents', 'studioProjects'];
+// Properties whose string values point at other records (formId, stageIds, pipelineId, value of a trigger…).
+const refKey = key => /(^|[a-z])(Id|Ids)$/.test(key) || /^(id|ids|value|values|form|forms|pipeline|stage|link|workflow|calendar|template|service|agent|widget|baseRefs)$/i.test(key);
+// Every record id a snapshot record points to, at any depth (workflow triggers and steps keep their links in nested configs).
+function referencedIds(value, out = new Set(), key = '') {
+  if (typeof value === 'string') { if (key && refKey(key) && value.length >= 3) out.add(value); return out; }
+  if (Array.isArray(value)) { for (const entry of value) referencedIds(entry, out, key); return out; }
+  if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) if (k !== 'id') referencedIds(v, out, k);
+  return out;
+}
+// Rewrites every link inside a record with the ids the records received in the target account.
+function remapIds(value, idMap, key = '') {
+  if (typeof value === 'string') return key && refKey(key) && idMap.has(value) ? idMap.get(value) : value;
+  if (Array.isArray(value)) return value.map(entry => remapIds(entry, idMap, key));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, k === 'id' ? v : remapIds(v, idMap, k)]));
+  return value;
+}
+
+// Which records of the snapshot a load touches. `items` maps an asset type to the ids picked in it;
+// without `items` everything loads. Picking a record brings along what it depends on.
+export function snapshotSelection(snapshot, items) {
+  const assets = snapshot.assets || {};
+  const all = key => new Set((assets[key] || []).map(row => row.id));
+  if (!items || typeof items !== 'object') return Object.fromEntries(Object.keys(assets).map(key => [key, all(key)]));
+  const picked = {};
+  for (const key of Object.keys(assets)) {
+    if (snapshotHelperKeys.includes(key)) continue;
+    // '*' picks the whole type (used for protected setups, whose records the agency cannot see).
+    if (items[key] === '*') { picked[key] = all(key); continue; }
+    const ids = Array.isArray(items[key]) ? items[key].map(String) : [];
+    picked[key] = new Set(ids.filter(id => assets[key].some(row => row.id === id)));
+  }
+  const owner = new Map();
+  for (const [key, rows] of Object.entries(assets)) for (const row of rows || []) if (row?.id) owner.set(row.id, key);
+  // Pipelines bring all their stages; then follow links until nothing new is pulled in.
+  for (const row of assets.stages || []) if (picked.pipelines?.has(row.pipelineId)) (picked.stages ??= new Set()).add(row.id);
+  const queue = Object.entries(picked).flatMap(([key, ids]) => [...ids].map(id => [key, id]));
+  while (queue.length) {
+    const [key, id] = queue.pop();
+    const row = assets[key]?.find(r => r.id === id);
+    const links = referencedIds(row);
+    for (const ref of links) {
+      const refType = owner.get(ref);
+      if (!refType || picked[refType]?.has(ref)) continue;
+      (picked[refType] ??= new Set()).add(ref);
+      queue.push([refType, ref]);
+      if (refType === 'stages') { const stage = assets.stages.find(s => s.id === ref); if (stage && !picked.pipelines?.has(stage.pipelineId)) { (picked.pipelines ??= new Set()).add(stage.pipelineId); queue.push(['pipelines', stage.pipelineId]); } }
+      if (refType === 'pipelines') for (const stage of assets.stages || []) if (stage.pipelineId === ref) (picked.stages ??= new Set()).add(stage.id);
+    }
+  }
+  return picked;
+}
+
+// Pass 1 of a load: the id every picked record will have in the target (an existing look-alike, or a new one).
+function planSnapshot(target, snapshot, picked) {
+  const idMap = new Map(), plan = [];
+  for (const key of loadOrder) {
+    for (const original of (snapshot.assets?.[key] || []).filter(row => picked[key]?.has(row.id))) {
+      const probe = key === 'stages' ? { ...original, pipelineId: idMap.get(original.pipelineId) ?? original.pipelineId } : original;
+      const match = (target[key] || []).find(existing => label(key, existing) === label(key, probe));
+      const id = match ? match.id : uid();
+      idMap.set(original.id, id);
+      plan.push({ key, original, match });
+    }
+  }
+  return { idMap, plan };
+}
+
+// Dry run of a load: per asset type, how many records are picked and which already exist in the target.
+export function previewSnapshot(target, snapshot, items) {
+  const { plan } = planSnapshot(target, snapshot, snapshotSelection(snapshot, items));
+  const out = new Map();
+  for (const { key, original, match } of plan) {
+    if (snapshotHelperKeys.includes(key)) continue;
+    const row = out.get(key) || { key, total: 0, fresh: 0, conflicts: [] };
+    row.total++;
+    if (match) row.conflicts.push(original.name || original.title || original.key || ''); else row.fresh++;
+    out.set(key, row);
+  }
+  return [...out.values()];
+}
+
+export function applySnapshot(target, snapshot, mode = 'skip', studioMap = null, { items, modes = {} } = {}) {
+  const { idMap, plan } = planSnapshot(target, snapshot, snapshotSelection(snapshot, items));
   const report = { added: 0, overwritten: 0, skipped: 0 };
-  for (const key of order) {
-    const items = snapshot.assets[key];
-    if (!items) continue;
-    map[key] = new Map();
+  const exists = (refType, id) => (target[refType] || []).some(r => r.id === id);
+  for (const { key, original, match } of plan) {
+    const rule = modes[key] === 'overwrite' || modes[key] === 'skip' ? modes[key] : mode;
     target[key] ??= [];
-    for (const original of items) {
-      const item = structuredClone(key === 'agents' ? agentTemplate(original) : original);
-      for (const [field, refKey] of Object.entries(refs[key] || {})) if (item[field]) item[field] = map[refKey]?.get(item[field]) ?? (target[refKey]?.some(r => r.id === item[field]) ? item[field] : '');
-      const match = target[key].find(existing => label(key, existing) === label(key, item));
-      if (match) {
-        map[key].set(original.id, match.id);
-        if (mode === 'overwrite' && key !== 'pipelines') {
-          if (key === 'agents') Object.assign(item, { active: Boolean(match.published), revision: uid() });
-          Object.assign(match, { ...item, id: match.id, updated: now() });
-          if (key === 'studioProjects' && studioMap) studioMap.set(original.id, match.id);
-          report.overwritten++;
-        } else report.skipped++;
-        continue;
-      }
-      const id = uid();
-      map[key].set(original.id, id);
+    const id = idMap.get(original.id);
+    if (key === 'studioProjects' && studioMap) studioMap.set(original.id, id);
+    if (match && !(rule === 'overwrite' && key !== 'pipelines')) { report.skipped++; continue; }
+    const item = remapIds(structuredClone(key === 'agents' ? agentTemplate(original) : original), idMap);
+    // Direct links to records that are neither in the load nor in the account are cleared.
+    for (const [field, refType] of Object.entries(refs[key] || {})) if (item[field] && !exists(refType, item[field]) && ![...idMap.values()].includes(item[field])) item[field] = '';
+    if (key === 'agents') item.bases = (original.baseRefs || []).map(base => idMap.get(base)).filter(Boolean);
+    delete item.baseRefs;
+    if (key === 'services') {
+      // Staff and rooms belong to the account that made the snapshot; keep only links that also exist here.
+      item.staffIds = (item.staffIds || []).filter(staff => (target.scheduling?.staff || []).some(p => p.id === staff));
+      item.resourceIds = (item.resourceIds || []).filter(room => (target.resources || []).some(r => r.id === room));
+    }
+    if (match) {
+      if (key === 'agents') Object.assign(item, { active: Boolean(match.published), revision: uid() });
+      Object.assign(match, { ...item, id: match.id, updated: now() });
+      report.overwritten++;
+    } else {
       target[key].push({ ...item, id, created: now() });
-      if (key === 'studioProjects' && studioMap) studioMap.set(original.id, id);
       report.added++;
     }
   }

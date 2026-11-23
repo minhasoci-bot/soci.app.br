@@ -449,6 +449,25 @@ export const agenciaCompleta360Spec = {
         description: 'Responde automaticamente avaliações do Google: tom grato e conciso para 3+ estrelas; tom empático, otimista e profissional para ≤ 2 estrelas.',
         instructions: 'Você responde avaliações públicas recebidas no Google. REGRA DE TOM: 1) Para avaliações de 3 a 5 estrelas, responda de forma concisa, calorosa e genuinamente grata, mencionando o nome do cliente se disponível. 2) Para avaliações de 1 a 2 estrelas, mantenha tom otimista, calmo e profissional: agradeça o feedback, lamente o ocorrido sem entrar em discussão pública e convide o cliente a falar diretamente com o time pelo canal privado para resolvermos imediatamente.'
       }
-    ]
+    ],
+    // Dados da conta que o snapshot "Agência" da GHL leva junto (tags, calendários e valores personalizados).
+    tags: ['Blacklist', 'Churn', 'Cliente-Ativo', 'Cliente-Em-Risco', 'Contrato-Assinado', 'Contrato-Enviado', 'Disparo-Wpp', 'Followup-Pendente',
+      'Funil-Consultoria-Gratuita', 'Ia-Call', 'Lead-Anuncio-Google', 'Lead-Anuncio-Meta', 'Lead-Desqualificado', 'Lead-Em-Negociacao', 'Lead-Evento',
+      'Lead-Fb-Messenger', 'Lead-Ganho', 'Lead-Indicacao', 'Lead-Instagram', 'Lead-Nao-Responde', 'Lead-Organico', 'Lead-Perdido', 'Lead-Qualificado',
+      'Lead-Whatsapp', 'No-Show', 'Novo-Lead', 'Onboarding-Concluido', 'Onboarding-Iniciado', 'Proposta-Aprovada', 'Proposta-Enviada', 'Proposta-Recusada',
+      'Reativacao', 'Reuniao-Agendada', 'Reuniao-Cancelada', 'Reuniao-Realizada', 'Upsell-Potencial'
+    ].map(name => ({ id: `tg360-${name.toLowerCase()}`, name: name.toLowerCase(), description: '', category: 'Agência 360' })),
+    services: [
+      ['diag', 'Diagnóstico Gratuito', 30, 'Consultoria comercial gratuita de 15 a 30 minutos com o lead.'],
+      ['proposta', 'Reunião de Proposta', 45, 'Apresentação da proposta comercial e próximos passos.'],
+      ['onb', 'Reunião de Onboarding', 60, 'Alinhamento de acessos, metas e cronograma com o novo cliente.'],
+      ['kickoff', 'Reunião de Kickoff', 60, 'Início oficial do projeto com toda a equipe.'],
+      ['demo', 'Demonstração da Plataforma', 30, 'Apresentação guiada do CRM e das automações.']
+    ].map(([key, name, duration, description]) => ({ id: `sv360-${key}`, name, description, kind: 'appointment', duration, buffer: 0, price: 0, staffIds: [], resourceIds: [], rentalUnit: '', maxUnits: 1, active: true, color: '#b71889' })),
+    customValues: [
+      ['Nome Agência', 'Agência', 'Sua Agência'], ['Link de Agendamento', 'Agência', 'https://'], ['Link do Formulário de Onboarding', 'Agência', 'https://'],
+      ['UTM Source', '[HTC] Tracking Ads', ''], ['UTM Campaign', '[HTC] Tracking Ads', ''], ['Valor do Contrato', '[HTC] Campos Adicionais', ''], ['Dono do Negócio', '[HTC] Campos Adicionais', '']
+    ].map(([name, folder, value]) => ({ id: `cv360-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, name, folder, value,
+      key: `custom_values.${name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}` }))
   }
 };

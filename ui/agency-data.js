@@ -196,7 +196,20 @@ export const mobileModules = [['dashboard', 'Dashboard'], ['conversations', 'Con
 export const snapshotAssets = [
   ['pipelines', 'Pipelines'], ['stages', 'Pipeline stages'], ['workflows', 'Workflows'], ['forms', 'Forms'], ['pages', 'Pages'],
   ['snippetFolders', 'Snippet folders'], ['snippets', 'Snippets'], ['triggerLinks', 'Trigger links'], ['courses', 'Courses'],
-  ['agents', 'AI agents'], ['studioProjects', 'Studio projects']
+  ['agents', 'AI agents'], ['studioProjects', 'Studio projects'],
+  // GHL parity: the account configuration that travels with a snapshot besides the funnels and automations.
+  ['customFields', 'Custom fields'], ['customValues', 'Custom values'], ['tags', 'Tags'], ['services', 'Calendars'],
+  ['knowledgeBases', 'Knowledge bases'], ['emailTemplates', 'Email templates'], ['documentTemplates', 'Documents & contracts'],
+  ['chatWidgets', 'Chat widgets'], ['brandBoards', 'Brand boards']
+];
+// Asset types picked by default when a setup is created; the rest are opt-in.
+export const snapshotAssetGroups = [
+  ['Funis e automações', ['pipelines', 'stages', 'workflows', 'triggerLinks']],
+  ['Sites e formulários', ['forms', 'pages', 'studioProjects', 'chatWidgets']],
+  ['Conversas e marketing', ['snippetFolders', 'snippets', 'emailTemplates', 'brandBoards']],
+  ['Dados da conta', ['customFields', 'customValues', 'tags']],
+  ['Calendários e pagamentos', ['services', 'documentTemplates']],
+  ['IA e cursos', ['agents', 'knowledgeBases', 'courses']]
 ];
 
 export const marketplaceCategories = [
