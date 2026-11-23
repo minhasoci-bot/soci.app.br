@@ -1,6 +1,7 @@
 import { icon } from './icons.js';
 import { communityCards, communityPage } from './portal-community.js';
 import { themeMode, themeStyle } from './community-data.js';
+import { smoothScroll } from './portal-smooth-scroll.js';
 import { loyaltyCard } from './portal-loyalty.js';
 import { assignmentBlock, certificateLink, coursePage, instructorCard, liveBlock, nextLessonCard, quizAnswers, quizBlock, themed } from './portal-course-extra.js';
 
@@ -121,13 +122,17 @@ async function switchMode(mode) {
   delete document.documentElement.dataset.cmModeTo;
 }
 
-// The open community paints the whole page with its theme (the portal header included).
+// The open community paints the whole page with its theme (the portal header and the page scrollbar included,
+// so the tokens live on <html>) and turns on the smooth wheel scrolling.
 function paintCommunity(group) {
+  const page = document.documentElement;
   for (const rule of themeStyle(themeMode(group?.theme, cmUi.mode)).split(';')) {
     const [name, value] = rule.split(':');
-    if (group) document.body.style.setProperty(name, value); else document.body.style.removeProperty(name);
+    if (group) page.style.setProperty(name, value); else page.style.removeProperty(name);
   }
+  page.classList.toggle('cp-cm-on', Boolean(group));
   document.body.classList.toggle('cp-cm-on', Boolean(group));
+  smoothScroll(Boolean(group));
 }
 
 function draw(message = '') {

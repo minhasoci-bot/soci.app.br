@@ -5,6 +5,28 @@ body.cp-cm-on .cp-public-brand,body.cp-cm-on .cp-public-brand svg{color:var(--cm
 body.cp-cm-on .cp-public-header .cp-public-link{color:var(--cm-primary)}
 .cp-public-shell.cp-wide:has(.cp-cm){width:min(1340px,100%)}
 
+/* Rolagem: âncoras e "ir para" deslizam; a barra vertical usa as cores do tema (cápsula na cor principal sobre o fundo). */
+html.cp-cm-on{scroll-behavior:smooth;
+  --cm-scroll-track:var(--cm-background);
+  --cm-scroll-thumb:color-mix(in srgb,var(--cm-primary) 55%,var(--cm-background));
+  --cm-scroll-thumb-hover:var(--cm-primary)}
+html.cp-cm-on::-webkit-scrollbar{width:12px}
+html.cp-cm-on::-webkit-scrollbar-track{background:var(--cm-scroll-track)}
+html.cp-cm-on::-webkit-scrollbar-thumb{min-height:48px;border:3px solid var(--cm-scroll-track);border-radius:999px;background:var(--cm-scroll-thumb);background-clip:padding-box}
+html.cp-cm-on::-webkit-scrollbar-thumb:hover{background:var(--cm-scroll-thumb-hover);background-clip:padding-box}
+html.cp-cm-on::-webkit-scrollbar-thumb:active{background:var(--cm-scroll-thumb-hover);background-clip:padding-box;border-width:2px}
+html.cp-cm-on::-webkit-scrollbar-corner{background:var(--cm-scroll-track)}
+.cp-cm ::-webkit-scrollbar{width:8px;height:8px}
+.cp-cm ::-webkit-scrollbar-track{background:transparent}
+.cp-cm ::-webkit-scrollbar-thumb{border:2px solid transparent;border-radius:999px;background:color-mix(in srgb,var(--cm-primary) 45%,transparent);background-clip:padding-box}
+.cp-cm ::-webkit-scrollbar-thumb:hover{background:var(--cm-primary);background-clip:padding-box}
+/* Firefox (sem os pseudo-elementos acima): cores do tema na barra padrão. */
+@supports not selector(::-webkit-scrollbar){
+  html.cp-cm-on{scrollbar-color:var(--cm-scroll-thumb) var(--cm-scroll-track)}
+  .cp-cm *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--cm-primary) 45%,transparent) transparent}
+}
+@media (prefers-reduced-motion:reduce){html.cp-cm-on{scroll-behavior:auto}}
+
 .cp-cm{
   --c-bg:var(--cm-background);--c-side:var(--cm-sidebar);--c-surface:var(--cm-surface);--c-line:var(--cm-border);--c-text:var(--cm-font);
   --c-muted:color-mix(in srgb,var(--cm-font) 62%,var(--cm-background));--c-soft:var(--cm-tertiary);--c-accent:var(--cm-primary);--c-on-accent:var(--cm-onPrimary,#fff);
