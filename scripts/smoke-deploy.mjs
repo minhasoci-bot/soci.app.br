@@ -8,7 +8,7 @@
 import { pathToFileURL } from 'node:url';
 import { staticFiles } from '../server.mjs';
 
-/** '/login' sempre serve a landing; '/index.html' e '/' exigem sessão no domínio do app. */
+/** '/login', '/' e '/index.html' servem a tela de login (pública); '/login' basta para conferi-la. */
 export function smokePaths(files = staticFiles) {
   return ['/login', ...[...files.keys()].filter(path => path !== '/index.html')];
 }
