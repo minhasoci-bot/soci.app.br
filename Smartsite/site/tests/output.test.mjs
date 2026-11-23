@@ -183,3 +183,27 @@ test('og:image aponta para um arquivo que existe', () => {
     assert.ok(img && resolves(img.replace(SITE_URL, '')), `${route}: og:image ${img}`);
   }
 });
+
+test('conteúdo não sobrescreve slug: o id vem só do nome do arquivo', async () => {
+  const { readdirSync, readFileSync } = await import('node:fs');
+  for (const dir of ['funcionalidades', 'solucoes']) {
+    const base = new URL(`../src/content/${dir}/`, import.meta.url);
+    for (const f of readdirSync(base).filter((n) => n.endsWith('.md'))) {
+      const fm = readFileSync(new URL(f, base), 'utf8').split('---')[1] || '';
+      assert.doesNotMatch(fm, /^slug\s*:/m, `${dir}/${f} define slug no frontmatter`);
+    }
+  }
+});
+
+test('nenhuma página usa as capturas fracas (painel da agência zerado, conversas em inglês)', () => {
+  for (const { route, html } of pages()) {
+    assert.ok(!/\/produto\/(agencia|conversas)\.webp/.test(html), `${route} usa captura fraca`);
+  }
+});
+
+test('páginas indexáveis não afirmam que preços ou cancelamento já estão publicados', () => {
+  for (const { route, html } of pages()) {
+    if (/<meta name="robots" content="noindex/.test(html)) continue;
+    assert.doesNotMatch(textOf(html), /(ficam na|são publicadas junto com os planos, na) <a[^>]*>?\s*página de planos|ficam na <a class="link" href="\/planos\/">página de planos/, route);
+  }
+});

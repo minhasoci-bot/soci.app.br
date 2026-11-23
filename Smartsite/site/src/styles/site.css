@@ -67,10 +67,7 @@
 
 /* ---------- Home ---------- */
 /* o fundo iluminado da arte do hero: superfície rosada com uma luz suave (sem degradê decorativo fora do frame) */
-.hero__art { background:
-    radial-gradient(70% 60% at 18% 12%, #fff 0%, transparent 70%),
-    radial-gradient(60% 50% at 90% 100%, #ffd6f2 0%, transparent 70%),
-    #fbe3f3; }
+.hero__art { background: #fbe3f3; }
 .hero-shot { border-radius: var(--r-md); overflow: hidden; box-shadow: 0 0 0 1px rgb(28 21 25 / .08), 0 24px 48px -24px rgb(28 21 25 / .35); background: #fff; }
 .hero-shot img { display: block; width: 100%; height: auto; max-width: none; }
 .hero__art > .ly-piece--note { left: var(--s-6); bottom: var(--s-6); width: 300px; z-index: 2; }

@@ -29,7 +29,7 @@ const objetivos = [
     <section class="section" id="lista" aria-labelledby="lista-h">
       <div class="wrap">
         <h2 id="lista-h" class="visually-hidden">Lista de funcionalidades</h2>
-        <div class="filter" role="group" aria-label="Filtrar por objetivo" data-filter>
+        <div class="filter" role="group" aria-label="Filtrar por objetivo" data-filter hidden>
           <button type="button" class="chip-btn" aria-pressed="true" data-objetivo="">Todas</button>
           {objetivos.map((o) => <button type="button" class="chip-btn" aria-pressed="false" data-objetivo={o.id}>{o.label}</button>)}
         </div>
@@ -52,6 +52,7 @@ const objetivos = [
     (() => {
       const group = document.querySelector('[data-filter]');
       if (!group) return;
+      group.hidden = false;
       const cards = [...document.querySelectorAll('[data-objetivos]')];
       const count = document.querySelector('[data-filter-count]');
       group.addEventListener('click', (e) => {

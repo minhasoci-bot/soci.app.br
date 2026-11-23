@@ -17,6 +17,6 @@ Atualizado em 2026-11-23. Cada item aparece no site como marcador visível `[[..
 | Domínio: `www.soci.app.br` precisa apontar para o novo site | publicação | não publicado |
 
 ## Capturas de tela pendentes
-Capturadas do workspace de demonstração local (dados fictícios): CRM/oportunidades, contatos, conversas, planejador social, agentes de IA, Pergunte à Soci, painel, painel da agência, calendário, setups.
+Em uso, capturadas do workspace de demonstração local (dados fictícios): oportunidades, contatos, planejador social, agentes de IA, Pergunte à Soci, painel, calendário, setups. Descartadas por parecerem produto vazio ou em inglês: painel da agência (R$0,00, tudo pendente) e conversas (mensagens em inglês).
 
-Pendentes (a tela de demonstração está vazia; precisa de dados fictícios ou captura fornecida): sites com IA, funis, formulários, automações, prospecção, e-mail marketing, reputação, pagamentos/Pix, cursos e portal, telefone e discador.
+Pendentes (a tela de demonstração está vazia ou em inglês; precisa de dados fictícios em pt-BR ou captura fornecida) — **bloqueiam a publicação**: WhatsApp e atendimento, sites com IA, funis, formulários, automações, prospecção, e-mail marketing, reputação, pagamentos/Pix, cursos e portal, telefone e discador.

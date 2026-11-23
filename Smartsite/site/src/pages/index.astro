@@ -20,8 +20,8 @@ const etapas = [
     links: [['crm', 'CRM'], ['funis-e-landing-pages', 'Funis e landing pages'], ['automacoes', 'Automações']],
   },
   {
-    id: 'atender', tab: 'Atender clientes', screen: 'conversas',
-    alt: 'Caixa de entrada de conversas da soci',
+    id: 'atender', tab: 'Atender clientes', screen: 'agentes',
+    alt: 'Estúdio de agentes de IA da soci com casos de uso prontos, como atendimento ao cliente',
     texto: 'WhatsApp, Instagram, Messenger, e-mail e o chat do site numa caixa só. Agentes de IA e telefone com Voice AI ajudam no volume.',
     links: [['whatsapp-e-atendimento', 'WhatsApp e atendimento'], ['inteligencia-artificial', 'Inteligência artificial'], ['telefone-e-voz', 'Telefone e voz']],
   },
@@ -32,8 +32,8 @@ const etapas = [
     links: [['email-marketing', 'E-mail marketing'], ['reputacao', 'Reputação'], ['cursos-e-area-de-membros', 'Cursos e área de membros']],
   },
   {
-    id: 'gerir', tab: 'Gerir a agência', screen: 'agencia',
-    alt: 'Painel da agência na soci com receita recorrente e subcontas',
+    id: 'gerir', tab: 'Gerir a agência', screen: 'painel',
+    alt: 'Painel de controle da soci com status e valor das oportunidades e taxa de conversão',
     texto: 'Uma subconta por cliente, relatórios com link público e o painel da agência com a receita recorrente de todas elas.',
     links: [['gestao-de-agencias', 'Gestão de agências'], ['relatorios', 'Relatórios']],
   },
@@ -64,9 +64,9 @@ const arrow = '<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path
       <div class="wrap"><div class="hero-text grid hero__grid">
         <div class="hero__text span-5">
           <h1 id="hero-h">A plataforma brasileira para Marketing 360.</h1>
-          <p class="hero__lead">Tudo que seu marketing precisa. Inclusive bom gosto. CRM, WhatsApp, sites com IA, nove redes sociais e 170 ações de automação num lugar só.</p>
+          <p class="hero__lead">Tudo que seu marketing precisa. Inclusive bom gosto. CRM, WhatsApp, sites com IA, nove redes sociais e automações com 137 gatilhos num lugar só.</p>
           <div class="btn-row">
-            <a class="btn btn--primary" href="https://soci.app.br/login" data-cta="comecar">Começar com a soci<Fragment set:html={arrow} /></a>
+            <Cta kind="comecar" />
             <a class="btn btn--secondary" href="/planos/" data-cta="planos">Ver os planos</a>
           </div>
           <p class="hero__proof">Suporte brasileiro. Calls todos os dias. Comunidade ativa. Receba via Pix.</p>
@@ -76,7 +76,7 @@ const arrow = '<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path
             <img src="/produto/oportunidades.webp" alt="" width="1440" height="900" fetchpriority="high" />
           </div>
           <div class="ly-piece ly-piece--note note-card" aria-hidden="true" data-ly-steps="700">
-            <div class="note-card__head"><b>Novo lead pelo formulário</b><span class="note-chip" data-step data-step-at="4">Automação</span></div>
+            <div class="note-card__head"><b>Novo lead pelo formulário</b><span class="note-chip" data-step data-step-at="4">Exemplo</span></div>
             <div class="note-card__line" data-step><i>1</i><span><b>Ana Martins</b> entrou pelo site</span></div>
             <div class="note-card__line" data-step><i>2</i><span>WhatsApp de boas-vindas <b>enviado</b></span></div>
             <div class="note-card__line" data-step><i>3</i><span>Oportunidade em <b>Novo lead</b></span></div>

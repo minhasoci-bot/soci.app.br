@@ -11,7 +11,7 @@ funcionalidades: ["gestao-de-agencias","crm","redes-sociais","relatorios","sites
 faq: [{"q":"Quantos clientes posso atender na soci?","a":"Cada cliente vira uma subconta. Os limites de cada plano estarão na página de planos."},{"q":"Os clientes enxergam a soci ou a minha agência?","a":"Você pode oferecer o aplicativo com o nome e as cores da sua agência."}]
 ---
 
-- **Cliente novo em minutos.** Crie a subconta e instale um setup pronto com funis, automações e páginas.
+- **Cliente novo com estrutura pronta.** Crie a subconta e instale um setup pronto com funis, automações e páginas.
 - **Rotina em um lugar.** Posts das nove redes, conversas e oportunidades de cada cliente sem trocar de ferramenta.
 - **Relatório que se explica.** Link público com GA4, Search Console e Perfil no Google, enviado por e-mail.
 - **Prospecção.** Encontre empresas do nicho e mande uma auditoria do marketing delas.

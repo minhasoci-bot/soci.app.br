@@ -1,10 +1,10 @@
 ---
 title: "Automações de marketing e vendas | soci"
-description: "Automações com 137 gatilhos e 170 ações: e-mail, WhatsApp, Instagram, push, webhooks e 27 apps conectados, montadas sem código."
-h1: "Automações de marketing com 137 gatilhos e 170 ações"
+description: "Automações com 137 gatilhos: e-mail, WhatsApp, Instagram, push, webhooks e 27 apps conectados, montadas sem código."
+h1: "Automações de marketing com 137 gatilhos"
 nome: "Automações"
 pergunta: "O que dá para automatizar na soci?"
-resposta: "Na soci uma automação começa com um gatilho (formulário enviado, mensagem recebida, etapa do funil, pagamento, aula iniciada) e segue com ações como mandar WhatsApp, e-mail ou push, mover a oportunidade e avisar a equipe. São 137 gatilhos e 170 ações, montados sem código."
+resposta: "Na soci uma automação começa com um gatilho (formulário enviado, mensagem recebida, etapa do funil, pagamento, aula iniciada) e segue com ações como mandar WhatsApp, e-mail ou push, mover a oportunidade e avisar a equipe. São 137 gatilhos e dezenas de ações, montados sem código."
 resumo: "O próximo passo acontece sozinho, sem código."
 ordem: 7
 evidencia: A

@@ -25,3 +25,4 @@ pnpm-debug.log*
 
 # design kit scratch (history, gate state)
 .taste-skill/
+.vscode/

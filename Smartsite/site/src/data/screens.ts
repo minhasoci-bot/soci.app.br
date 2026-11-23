@@ -9,10 +9,10 @@ const pendente = (legenda: string): ScreenShot => ({ src: null, alt: '', legenda
 
 export const SCREENS: Record<string, ScreenShot> = {
   crm: shot('oportunidades', 'Funil de oportunidades da soci com as etapas Novo lead, Qualificado, Proposta e Ganha'),
-  'whatsapp-e-atendimento': shot('conversas', 'Caixa de entrada de conversas da soci com a lista de conversas da equipe'),
+  'whatsapp-e-atendimento': pendente('caixa de entrada de conversas'),
   'redes-sociais': shot('marketing', 'Planejador social da soci com as redes para conectar: Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest, Threads, Bluesky e Google Business'),
   'inteligencia-artificial': shot('agentes', 'Estúdio de agentes de IA da soci com casos de uso prontos, como atendimento ao cliente e qualificação de leads'),
-  'gestao-de-agencias': shot('agencia', 'Painel da agência na soci com receita recorrente, subcontas e checklist de configuração'),
+  'gestao-de-agencias': shot('setups', 'Setups de conta da soci para instalar estruturas prontas em subcontas novas'),
   relatorios: shot('painel', 'Painel de controle da soci com status, valor das oportunidades e taxa de conversão'),
   agendamentos: shot('agenda', 'Calendário da soci com a visão do mês e as abas de agendamentos, serviços e recursos'),
   sites: pendente('criador de sites com IA'),

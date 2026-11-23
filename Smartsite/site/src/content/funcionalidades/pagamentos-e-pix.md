@@ -4,7 +4,7 @@ description: "Receba via Pix e cartão com faturas, orçamentos, loja, assinatur
 h1: "Receba via Pix e cartão sem sair do CRM"
 nome: "Pagamentos e Pix"
 pergunta: "A soci recebe pagamentos via Pix?"
-resposta: "Sim. Seus clientes pagam via Pix ou cartão num checkout da AbacatePay, a partir de uma fatura, de um orçamento aprovado, da loja ou de um plano de comunidade. O pagamento fica registrado no contato e pode disparar a próxima automação. Porque estamos no Brasil."
+resposta: "Sim. Seus clientes pagam via Pix ou cartão num checkout da AbacatePay, a partir de uma fatura, de um orçamento aprovado, da loja ou de um plano de comunidade. O pagamento fica registrado no contato e pode disparar a próxima automação."
 resumo: "Faturas, orçamentos e loja com Pix e cartão."
 ordem: 14
 evidencia: A

@@ -1,6 +1,6 @@
 # Final Report — Smartsite soci (2026-11-23)
 
-**Status geral: PARTIAL** — site completo, testado e pronto para publicar, aguardando dados do responsável (13-pending-information.md) e autorização de publicação.
+**Status geral: PARTIAL** — site completo e testado (20/20), mas **não está pronto para publicar**: faltam os dados do responsável e as capturas listadas em 13-pending-information.md, além da autorização de publicação.
 
 ## Entregue
 - 36 páginas estáticas em `Smartsite/site/` (Astro 7): home, 9 core, hub + 17 funcionalidades, hub + 8 soluções.
@@ -17,6 +17,8 @@ npm run check     # build + testes
 npm run dev       # http://localhost:4321
 ```
 
-## Bloqueios
+## Bloqueios para publicar
+- 11 páginas de funcionalidade mostram "Captura da tela pendente" no topo e são indexáveis: capturar com dados fictícios em pt-BR (ou fornecer) antes de publicar.
+- "Ver os planos" aparece em todas as páginas e leva a /planos/, que ainda só tem marcadores: publicar preços ou trocar esse botão antes de ir ao ar.
 - Publicação, deploy e DNS: não autorizados.
 - Pendências de conteúdo: ver 13-pending-information.md.
