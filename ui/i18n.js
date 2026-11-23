@@ -2,8 +2,9 @@
 // O idioma padrão é Português. O usuário escolhe o idioma via interface,
 // e a seleção persiste no localStorage ('soci_lang').
 // O catálogo de traduções fica em ui/locales/*.js (public/ é o espelho de ui/: scripts/sync-public.mjs).
-
-import esLocale from './locales/es.js';
+// O catálogo espanhol (~440 KB) é baixado sob demanda no navegador: na abertura só se o idioma salvo for
+// espanhol, ou quando a pessoa troca para espanhol. No servidor (sem window) ele carrega já na importação,
+// para tr() e setLanguage() continuarem síncronos (relatórios compartilhados, testes).
 
 let currentLang = 'pt';
 try {
@@ -22,10 +23,21 @@ export const languages = [
   { id: 'es', label: 'Español Latino', flag: 'ES' }
 ];
 
-// Registro dinâmico de novos idiomas (ex: en, fr, de)
-export const TRANSLATIONS = {
-  es: esLocale
-};
+// Registro dinâmico de novos idiomas (ex: en, fr, de). O espanhol entra aqui quando carregado.
+export const TRANSLATIONS = {};
+
+// Referência canônica exportada para compatibilidade total (preenchida junto com o catálogo espanhol).
+export let PT_TO_ES = {};
+
+let spanishLoading = null;
+function loadSpanish() {
+  spanishLoading ??= import('./locales/es.js').then(module => {
+    TRANSLATIONS.es = module.default;
+    PT_TO_ES = module.default;
+  }).catch(error => { spanishLoading = null; throw error; });
+  return spanishLoading;
+}
+if (typeof window === 'undefined' || currentLang === 'es') await loadSpanish();
 
 export function registerLanguage(id, { label, flag, translations = {} }) {
   if (!id) return;
@@ -35,8 +47,11 @@ export function registerLanguage(id, { label, flag, translations = {} }) {
   TRANSLATIONS[id] = translations;
 }
 
+// Síncrono quando o catálogo já está carregado. Antes do primeiro uso do espanhol no navegador devolve uma
+// promessa: o idioma só muda (e o aviso soci:languagechange só sai) depois que o catálogo chegou.
 export function setLanguage(lang) {
   if (lang !== 'es' && lang !== 'pt' && !TRANSLATIONS[lang]) return;
+  if (lang === 'es' && !TRANSLATIONS.es) return loadSpanish().then(() => setLanguage(lang));
   currentLang = lang;
   try {
     if (typeof localStorage !== 'undefined') {
@@ -194,16 +209,13 @@ export const ES = {
   'Let sub-accounts buy domains from inside Sites settings.': 'Permite a las subcuentas comprar dominios desde la configuración de Sitios.'
 };
 
-// Referência canônica exportada para compatibilidade total
-export const PT_TO_ES = esLocale;
-
 export const tr = (value, lang = getLanguage()) => {
   if (typeof value !== 'string') return value;
   if (lang === 'pt') {
     return PT[value] ?? value;
   }
   // Lookup in active language dictionary
-  const dict = TRANSLATIONS[lang] || TRANSLATIONS.es;
+  const dict = TRANSLATIONS[lang] || TRANSLATIONS.es || {};
   if (dict[value]) return dict[value];
   if (ES[value]) return ES[value];
 
@@ -257,7 +269,7 @@ export function translateText(text) {
   const trimmed = text.trim();
   if (!trimmed) return text;
 
-  const dict = TRANSLATIONS[currentLang] || TRANSLATIONS.es;
+  const dict = TRANSLATIONS[currentLang] || TRANSLATIONS.es || {};
 
   // 1. Direct dictionary match
   if (dict[trimmed]) {
