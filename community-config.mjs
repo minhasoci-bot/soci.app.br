@@ -2,6 +2,7 @@
 // welcome message and onboarding steps, moderation, newsletter, tabs) and what is computed from activity
 // (badges, analytics, the newsletter digest). Membership and activity live in the community document.
 import { randomUUID } from 'node:crypto';
+import { academyConfig } from './community-academy.mjs';
 import { badgeCatalog, communityTabKeys, defaultLayout, defaultTheme, planIntervals, spamPack, themePresets, themeTokens, widgetKeys } from './ui/community-data.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
@@ -70,7 +71,8 @@ export function communityConfig(d, prior = {}, s = null) {
   if (prompt.length > 80) fail('O convite para publicar tem até 80 caracteres.');
   const layout = { widgets, composerPrompt: prompt };
   const badgesOff = (Array.isArray(pick('badgesOff')) ? pick('badgesOff') : []).filter(key => badgeCatalog.some(row => row.key === key));
-  return { access, plans, trialDays, questions, welcomeDm: str(pick('welcomeDm'), 1500), onboarding, theme, tabs, moderation, newsletter, badgesOff, layout };
+  return { access, plans, trialDays, questions, welcomeDm: str(pick('welcomeDm'), 1500), onboarding, theme, tabs, moderation, newsletter, badgesOff, layout,
+    academy: academyConfig(s, d.academy, prior.academy) };
 }
 
 /** Does a paid group give this membership access? Staff-added and older members keep access (no paidUntil). */

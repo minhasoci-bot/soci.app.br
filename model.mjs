@@ -40,6 +40,7 @@ import { walletCharge, walletDefaults } from './wallet-model.mjs';
 import { labsDefaults, rejectDuplicateContact, toggleLab } from './labs-model.mjs';
 import { onAiAlert } from './ai-model.mjs';
 import { appLog, appTrigger, dropInstalledApp, queueAppEvents, setInstalledApp } from './app-studio-model.mjs';
+import { academyBeforeDelete } from './community-academy.mjs';
 import { offerBeforeDelete, offerAccessCommand, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
@@ -875,6 +876,7 @@ function remove(s, key, id) {
     webinarBeforeDelete(s, key, id);
     mediaBeforeDelete(s, key, id);
     offerBeforeDelete(s, key, id);
+    academyBeforeDelete(s, key, id);
     communityEventBeforeDelete(s, key, id);
     courseOfferBeforeDelete(s, key, id);
     certificateBeforeDelete(s, key, id);
