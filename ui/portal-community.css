@@ -40,7 +40,7 @@ body.cp-cm-on .cp-public-header .cp-public-link{color:var(--cm-primary)}
 .cp-cm .cp-avatar img{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover;background:var(--c-surface)}
 .cp-cm .cp-avatar.staff{background:var(--c-accent);color:var(--c-on-accent)}
 .cp-cm .cp-avatar b{position:absolute;right:-4px;bottom:-3px;display:grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:9px;
-  background:var(--c-text);color:var(--c-bg);font-size:10px;border:2px solid var(--c-surface)}
+  background:var(--c-text);color:var(--c-bg);font-size:10px;line-height:1;font-weight:800;margin:0;z-index:1;border:2px solid var(--c-surface)}
 .cp-cm .cp-avatar-sm{width:30px;height:30px;font-size:11px}
 
 /* Coluna esquerda */
@@ -101,7 +101,7 @@ body.cp-cm-on .cp-public-header .cp-public-link{color:var(--cm-primary)}
 .cp-cm .cp-member-list li,.cp-cm .cp-leaderboard li,.cp-cm .cp-levels li{display:flex;align-items:center;gap:12px;padding:8px;border-radius:14px}
 .cp-cm .cp-member-list li:hover,.cp-cm .cp-leaderboard li:hover{background:var(--c-hover)}
 .cp-cm .cp-member-list small,.cp-cm .cp-levels small{display:block;font-size:12.5px}
-.cp-cm .cp-leaderboard li b{margin-left:auto;font-size:18px}
+.cp-cm .cp-leaderboard li>b{margin-left:auto;font-size:18px}
 .cp-cm .cp-rank{width:22px;text-align:center;font-weight:800;color:var(--c-muted)}
 .cp-cm .cp-level{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--c-soft);color:var(--c-text);font-weight:800;font-size:12px}
 .cp-cm .cp-me{margin:0;background:var(--c-soft)}
