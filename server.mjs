@@ -159,6 +159,7 @@ import { eachStep } from './ui/workflow-data.js';
 import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
 import { deviceOf, qrTarget } from './qr-model.mjs';
 import { inBackground } from './background.mjs';
+import { runInBatches, sameSecret } from './cron-batch.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 export const staticFiles = new Map([
@@ -307,7 +308,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
   : resolve(root, '.data', 'go.sqlite');
 
 export function makeServer({
-  pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
+  pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL, cronConcurrency=4, cronBudgetMs=45_000,
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, inboundFetch=fetch, twilioRequest=fetch, phoneEnv=process.env, brandResolve=null, designAgentConfig=designAgent,
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
@@ -1885,9 +1886,10 @@ export function makeServer({
     } finally { emailRuns.delete(workspace); }
   }
   const emailLater = workspace => { inBackground(`E-mail campaigns (${workspace})`, () => runEmailCampaigns(workspace)); };
-  async function runAllSocial(base) {
+  async function runAllSocial(base, at = Date.now()) {
     let total = 0;
-    for (const w of (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id))) {
+    const spaces = (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id));
+    const { skipped } = await runInBatches(spaces, async w => {
       try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
       try { await runWebinarReminders(w.id, base); } catch (e) { console.error(`Webinar reminders (${w.id}): ${e.message}`); }
       try { await runEventReminders(w.id, base); } catch (e) { console.error(`Community event reminders (${w.id}): ${e.message}`); }
@@ -1898,7 +1900,8 @@ export function makeServer({
       try { await runAbandonedCheckouts(w.id); } catch (e) { console.error(`Abandoned checkouts (${w.id}): ${e.message}`); }
       try { await runEmailCampaigns(w.id); } catch (e) { console.error(`E-mail campaigns (${w.id}): ${e.message}`); }
       try { await runAllAds(w.id); } catch (e) { console.error(`Ads (${w.id}): ${e.message}`); }
-    }
+    }, { concurrency: cronConcurrency, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+    if (skipped.length) console.warn(`Cron: ${skipped.length} de ${spaces.length} workspaces ficaram para o próximo minuto.`);
     return total;
   }
   const socialTimer = socialScheduler ? setInterval(() => { ready.then(() => runAllSocial(process.env.SOCIAL_PUBLIC_URL || `http://${host}:${port}`)).catch(() => {}); }, 60_000) : null;
@@ -2444,7 +2447,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         return json({workspaces:await visibleWorkspaces(who), agency:who.agency});
       }
       if (p === '/api/social/cron' && (method === 'GET' || method === 'POST')) {
-        if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) throw error('Not allowed.',401);
+        if (!sameSecret(String(req.headers.authorization || ''), process.env.CRON_SECRET && `Bearer ${process.env.CRON_SECRET}`)) throw error('Not allowed.',401);
         return json({ published: await runAllSocial(publicBase(req)) });
       }
       // "Gerar vídeo com IA": the finished video, public (it is made to be sent).
