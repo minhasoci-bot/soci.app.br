@@ -9,6 +9,7 @@ import {launchpad} from './launchpad.js';
 import {studio} from './studio.js';
 import {bulkBar, contactsTab, crmTabs, opportunitiesTab, paymentsTab, pickBox, pickHead, settingsTab} from './crm.js';
 import {socialPlanner} from './social.js';
+import {eventPlanner} from './event-planner.js';
 import {agentsScreen} from './agents.js';
 import {sitesScreen} from './sites.js';
 import { formsScreen, formTabs } from './forms.js';
@@ -269,12 +270,13 @@ function payments(c){
 }
 function marketing(c){
   const t=c.tab||'social';
-  const marketingTabs = [['social','Planejador social'],['email','E-mails'],['countdown','Contadores'],['affiliates','Afiliados'],['ads','Anúncios'],['loyalty','Fidelidade'],['brand','Marca']];
+  const marketingTabs = [['social','Planejador social'],['events','Eventos'],['email','E-mails'],['countdown','Contadores'],['affiliates','Afiliados'],['ads','Anúncios'],['loyalty','Fidelidade'],['brand','Marca']];
   if(t==='affiliates') return affiliatesScreen(c,{ marketingTabs });
   if(t==='ads') return adsScreen(c,{ marketingTabs });
   if(t==='brand') return brandScreen(c,{ marketingTabs });
   if(t==='loyalty') return loyaltyScreen(c,{ marketingTabs });
   if(t==='social') return socialPlanner(c,{ pageShell, utabs, marketingTabs });
+  if(t==='events') return eventPlanner(c,{ pageShell, marketingTabs });
   if(t==='countdown') return countdownScreen(c,{ marketingTabs });
   return emailMarketingScreen(c,{ marketingTabs });
 }

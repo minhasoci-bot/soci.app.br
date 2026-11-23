@@ -17,6 +17,7 @@ import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm.js';
 import { socialEvents } from './social.js';
+import { installEventPlanner } from './event-planner.js';
 import { mountAgentScreen } from './agents.js';
 import { mountAgentHub } from './agent-hub.js';
 import { installContentAI } from './content-ai.js';
@@ -207,7 +208,7 @@ const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments','services','resources','field','booking','meetings'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social',...emailTabs,'countdown','affiliates','ads','loyalty','brand','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers','certificates'],reporting:['reports','attribution','google-ads','meta-ads','overview','calls','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],reputation:reputationTabs,'ai-agents':['agent','edit','knowledge','base','templates','logs','usage'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments','services','resources','field','booking','meetings'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social','events',...emailTabs,'countdown','affiliates','ads','loyalty','brand','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers','certificates'],reporting:['reports','attribution','google-ads','meta-ads','overview','calls','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],reputation:reputationTabs,'ai-agents':['agent','edit','knowledge','base','templates','logs','usage'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -1304,6 +1305,7 @@ if(viewPath){
   void installMobileShell({ c, api, url, flash });
   installAppMarketplace({ c, api, url, flash, render });
   installContentAI({ api, flash, workspace: () => c.workspace, enabled: kind => Boolean(c.features?.contentAI || (kind === 'gbp' && c.features?.reviewAI)) });
+  installEventPlanner({ c, mutate, flash, dialog, close, render });
   installCountdowns({ c, mutate, flash, dialog, close, render });
   installAffiliates({ c, api, url, mutate, flash, dialog, close, render });
   installAds({ c, api, url, mutate, flash, dialog, close, render });
