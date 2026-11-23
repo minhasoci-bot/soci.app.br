@@ -143,3 +143,20 @@ test('privacidade contém o texto de ui/privacidade.html', async () => {
     assert.ok(html.includes(trecho), `página sem "${trecho}"`);
   }
 });
+
+test('home tem o H1 oficial e liga aos dois hubs e a todas as etapas da jornada', () => {
+  const { html } = page('/');
+  assert.match(html, /<h1[^>]*>A plataforma brasileira para Marketing 360\.<\/h1>/);
+  const main = html.match(/<main[\s\S]*<\/main>/)?.[0] || '';
+  for (const hub of ['/funcionalidades/', '/solucoes/']) assert.ok(main.includes(`href="${hub}"`), `home sem ${hub}`);
+  const etapa = {
+    atrair: ['redes-sociais', 'sites', 'prospeccao'],
+    converter: ['crm', 'funis-e-landing-pages', 'automacoes'],
+    atender: ['whatsapp-e-atendimento', 'inteligencia-artificial', 'telefone-e-voz'],
+    reter: ['email-marketing', 'reputacao', 'cursos-e-area-de-membros'],
+    gerir: ['gestao-de-agencias', 'relatorios'],
+  };
+  for (const [nome, slugs] of Object.entries(etapa)) {
+    assert.ok(slugs.some((s) => main.includes(`href="/funcionalidades/${s}/"`)), `etapa ${nome} sem link`);
+  }
+});

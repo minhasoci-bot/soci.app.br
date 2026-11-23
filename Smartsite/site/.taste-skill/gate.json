@@ -1,9 +1,9 @@
 {
  "start": "2026-11-23T04:28:26.636Z",
- "round": 0,
+ "round": 3,
  "idle": 0,
  "errors": 0,
- "status": "fail",
+ "status": "open",
  "history": [
   {
    "at": "2026-11-23T04:36:08.091Z",
@@ -28,140 +28,95 @@
    "stopHookActive": true,
    "decision": "block",
    "reason": "7 FAILs remain (not a round: the gate has not been run by hand in this build yet):"
+  },
+  {
+   "at": "2026-11-23T04:52:14.978Z",
+   "mode": "manual",
+   "status": "fail",
+   "fails": 44,
+   "round": 1,
+   "reused": false,
+   "stopHookActive": false
+  },
+  {
+   "at": "2026-11-23T04:54:57.973Z",
+   "mode": "manual",
+   "status": "fail",
+   "fails": 6,
+   "round": 2,
+   "reused": false,
+   "stopHookActive": false
+  },
+  {
+   "at": "2026-11-23T04:56:59.153Z",
+   "mode": "manual",
+   "status": "open",
+   "fails": 1,
+   "round": 3,
+   "reused": false,
+   "stopHookActive": false
   }
  ],
  "max": 3,
  "marker": {
-  "page": null,
+  "page": "dist/index.html",
   "dir": "D:\\meus documentos\\soci.app\\Smartsite\\site",
   "kind": "software",
   "start": "2026-11-23T04:28:26.636Z",
-  "by": "start.mjs"
+  "by": "start.mjs",
+  "url": null,
+  "root": "dist",
+  "category": "plataforma de marketing 360",
+  "primary": "Começar com a soci"
  },
- "roundKey": "562222cd9f691513:da39a3ee",
- "roundFree": true,
+ "roundKey": "2bbd02e870fbe211:da39a3ee",
+ "roundFree": false,
  "idleFree": false,
- "blockKey": "562222cd9f691513:da39a3ee",
- "fp": "562222cd9f691513",
+ "blockKey": null,
+ "fp": "2bbd02e870fbe211",
  "page": "dist/index.html",
  "found": {
   "fails": [
    {
-    "check": "overlap-text",
-    "where": "div.closing__links > div.footer__legal > div.socials > a:nth-of-type(2) \"YouTube\"",
-    "msg": "lies over the text \"Instagram\" (div.socials > a:nth-of-type(1))",
-    "fix": "move the box off the text (or the text off the box)",
+    "check": "copy-headings",
+    "where": "div.span-6.stack-6 > div.perks > article.perk:nth-of-type(1) > h3 \"Atende em português\"",
+    "msg": "\"Atende em português\" names no product, part, place or section (5 headings like it; at most one brand line per page) (and 4 more like it: \"Tira dúvidas em call tod\", \"Reúne clientes numa comu\", \"Recebe via Pix e cartão\", \"Feita para agências com \")",
+    "fix": "name the thing in every heading: the product, a part, the place or a section noun",
     "widths": [
      1440
     ],
     "from": "consistency",
     "ids": [
-     "overlap-text"
+     "copy-headings"
     ],
     "wheres": [
-     "div.closing__links > div.footer__legal > div.socials > a:nth-of-type(2) \"YouTube\""
+     "div.span-6.stack-6 > div.perks > article.perk:nth-of-type(1) > h3 \"Atende em português\""
     ]
+   }
+  ],
+  "warns": [
+   {
+    "check": "scroll-reveal",
+    "where": "section#por-que > div.wrap > p.mo-wh__text \"Marketing 360 não deveria custar 360 ass\"",
+    "msg": "starts \"color\" (0.2 s) the moment it is scrolled into view (an IntersectionObserver) on span.mo-w:nth-of-type(1) (inside a dealt moment's section, [data-moment]: an enter moment is expected on every kind; its still is judged under reduced motion)",
+    "fix": "show it at rest: no fade, rise or unmask when it is scrolled into view",
+    "widths": [
+     1440,
+     390
+    ],
+    "from": "consistency"
    },
    {
     "check": "no-visual",
-    "where": "main#top > section.hero \"A plataforma brasileira para Marketing 3\"",
-    "msg": "no picture, effect or mock in this section; a feature section needs a visual",
+    "where": "section#gente \"Suporte brasileiro e Pix. Porque estamos\"",
+    "msg": "pictures, effects and mocks cover 20% of this section; a feature section needs a visual (about 25% or more)",
     "fix": "give the section a visual: a UI fragment on a ground, real icons, or a photograph that fits",
     "widths": [
      1440,
      390
     ],
-    "from": "consistency",
-    "ids": [
-     "no-visual"
-    ],
-    "wheres": [
-     "main#top > section.hero \"A plataforma brasileira para Marketing 3\""
-    ]
+    "from": "consistency"
    },
-   {
-    "check": "empty-area",
-    "where": "main#top > section.hero \"A plataforma brasileira para Marketing 3\"",
-    "msg": "79% of the section is empty: 528px under its last (a.btn.btn--primary), 8% beside content that covers under half the container, in its 728px of rows (WARN over 35%, FAIL over 50%)",
-    "fix": "fill the section: a picture or a second column beside the words, or more of its own content; the section stays one or two screens tall (T-height)",
-    "widths": [
-     1440,
-     390
-    ],
-    "from": "consistency",
-    "ids": [
-     "empty-area"
-    ],
-    "wheres": [
-     "main#top > section.hero \"A plataforma brasileira para Marketing 3\""
-    ]
-   },
-   {
-    "check": "moment-none",
-    "where": "(the page)",
-    "msg": "a software page (--type) deals no moment: every kind carries one, two on a long page (moments.md)",
-    "fix": "deal one (moments.mjs pick --page software) and mount it in its own section",
-    "widths": [
-     1440
-    ],
-    "from": "consistency",
-    "ids": [
-     "moment-none"
-    ],
-    "wheres": [
-     "(the page)"
-    ]
-   },
-   {
-    "check": "container-edges",
-    "where": "main#top > section.hero > div.wrap \"A plataforma brasileira para Marketing 3\"",
-    "msg": "the hero's .wrap holds 2 children, 0 of them .hero-text: one .hero-text and at most one strip (SR-6)",
-    "fix": "build the page as header.nav, a main of sections (each one in-flow .wrap plus background layers) and footer.closing",
-    "widths": [
-     1440
-    ],
-    "from": "consistency",
-    "ids": [
-     "container-edges"
-    ],
-    "wheres": [
-     "main#top > section.hero > div.wrap \"A plataforma brasileira para Marketing 3\""
-    ]
-   },
-   {
-    "check": "container-edges",
-    "where": "div.closing__links > div.footer__legal > div.socials > a:nth-of-type(2) \"YouTube\"",
-    "msg": "\"YouTube\" runs 1329-1376px, outside the container lines of section 2 at 80-1360px: full width is for background layers and grounds only (SR-6)",
-    "fix": "keep it inside the container lines (.wrap): full width is for background layers and grounds only",
-    "widths": [
-     1440
-    ],
-    "from": "consistency",
-    "ids": [
-     "container-edges"
-    ],
-    "wheres": [
-     "div.closing__links > div.footer__legal > div.socials > a:nth-of-type(2) \"YouTube\""
-    ]
-   },
-   {
-    "check": "row-lines",
-    "where": "div.closing__links > div.footer__legal > div.socials > a:nth-of-type(2) \"YouTube\"",
-    "msg": "\"YouTube\" ends at 1376px, past the container's right line at 1360px (SR-7)",
-    "fix": "end it at the container's right line",
-    "widths": [
-     1440
-    ],
-    "from": "consistency",
-    "ids": [
-     "row-lines"
-    ],
-    "wheres": [
-     "div.closing__links > div.footer__legal > div.socials > a:nth-of-type(2) \"YouTube\""
-    ]
-   }
-  ],
-  "warns": [
    {
     "check": "copy-buttons",
     "where": "header.nav > div.wrap.nav__bar > div.nav__actions > a.btn.btn--primary \"Começar com a soci\"",
@@ -173,80 +128,42 @@
     "from": "consistency"
    },
    {
-    "check": "links",
-    "where": "div.nav__menu > div.wrap.grid > div.menu-col.span-3:nth-of-type(1) > a:nth-of-type(1) \"Sites com IAGerados e revisados por IA\"",
-    "msg": "\"Sites com IAGerados e revisados por IA\" goes to /funcionalidades/sites/, which does not exist here",
-    "fix": "point every link at a real section, page or file",
+    "check": "section-gaps",
+    "where": "main#top > section.hero.hero--collage / section#jornada",
+    "msg": "180px between these sections, -55% against the median 397px",
+    "fix": "use one gap between sections (all within 25% of each other)",
     "widths": [
      1440
     ],
     "from": "consistency"
    },
    {
-    "check": "links",
-    "where": "div.nav__menu > div.wrap.grid > div.menu-col.span-3:nth-of-type(1) > a:nth-of-type(2) \"Redes sociaisNove redes num calendário\"",
-    "msg": "\"Redes sociaisNove redes num calendário\" goes to /funcionalidades/redes-sociais/, which does not exist here",
-    "fix": "point every link at a real section, page or file",
+    "check": "section-gaps",
+    "where": "section#gente / section#agencias",
+    "msg": "uneven space at the edge of a band: 116px outside its edge, 311px inside it (the space on either side of a change of ground reads as one gap only when the two match)",
+    "fix": "use one gap between sections (all within 25% of each other)",
     "widths": [
-     1440
+     1440,
+     390
     ],
     "from": "consistency"
    },
    {
-    "check": "links",
-    "where": "div.nav__menu > div.wrap.grid > div.menu-col.span-3:nth-of-type(1) > a:nth-of-type(3) \"ProspecçãoEmpresas do Google Maps\"",
-    "msg": "\"ProspecçãoEmpresas do Google Maps\" goes to /funcionalidades/prospeccao/, which does not exist here",
-    "fix": "point every link at a real section, page or file",
+    "check": "section-gaps",
+    "where": "section#agencias / footer#contato-rodape",
+    "msg": "uneven space at the edge of a band: 281px outside its edge, 116px inside it (the space on either side of a change of ground reads as one gap only when the two match)",
+    "fix": "use one gap between sections (all within 25% of each other)",
     "widths": [
-     1440
+     1440,
+     390
     ],
     "from": "consistency"
    },
    {
-    "check": "links",
-    "where": "div.nav__menu > div.wrap.grid > div.menu-col.span-3:nth-of-type(2) > a:nth-of-type(1) \"CRMContatos e oportunidades\"",
-    "msg": "\"CRMContatos e oportunidades\" goes to /funcionalidades/crm/, which does not exist here",
-    "fix": "point every link at a real section, page or file",
-    "widths": [
-     1440
-    ],
-    "from": "consistency"
-   },
-   {
-    "check": "links",
-    "where": "div.nav__menu > div.wrap.grid > div.menu-col.span-3:nth-of-type(2) > a:nth-of-type(2) \"Funis e landing pagesPáginas que captura\"",
-    "msg": "\"Funis e landing pagesPáginas que captura\" goes to /funcionalidades/funis-e-landing-pages/, which does not exist here",
-    "fix": "point every link at a real section, page or file",
-    "widths": [
-     1440
-    ],
-    "from": "consistency"
-   },
-   {
-    "check": "links",
-    "where": "div.nav__menu > div.wrap.grid > div.menu-col.span-3:nth-of-type(2) > a:nth-of-type(3) \"AutomaçõesO próximo passo sozinho\"",
-    "msg": "\"AutomaçõesO próximo passo sozinho\" goes to /funcionalidades/automacoes/, which does not exist here",
-    "fix": "point every link at a real section, page or file",
-    "widths": [
-     1440
-    ],
-    "from": "consistency"
-   },
-   {
-    "check": "links",
-    "where": "div.nav__menu > div.wrap.grid > div.menu-col.span-3:nth-of-type(3) > a:nth-of-type(1) \"WhatsApp e atendimentoConversas numa cai\"",
-    "msg": "\"WhatsApp e atendimentoConversas numa cai\" goes to /funcionalidades/whatsapp-e-atendimento/, which does not exist here",
-    "fix": "point every link at a real section, page or file",
-    "widths": [
-     1440
-    ],
-    "from": "consistency"
-   },
-   {
-    "check": "links",
-    "where": "div.nav__menu > div.wrap.grid > div.menu-col.span-3:nth-of-type(3) > a:nth-of-type(2) \"Inteligência artificialAgentes e assiste\"",
-    "msg": "\"Inteligência artificialAgentes e assiste\" goes to /funcionalidades/inteligencia-artificial/, which does not exist here",
-    "fix": "point every link at a real section, page or file",
+    "check": "copy-length",
+    "where": "h2#jornada-h \"Marketing 360 em cinco etapas. Cada uma \"",
+    "msg": "a section heading of 14 words on 4 lines at 48px: a paragraph set in display type",
+    "fix": "cut the heading to one short line (2 to 12 words) and move the rest into the text under it",
     "widths": [
      1440
     ],
@@ -273,6 +190,16 @@
     "from": "consistency"
    },
    {
+    "check": "section-air",
+    "where": "section#gente \"Suporte brasileiro e Pix. Porque estamos\"",
+    "msg": "the content fills 52.5% of the section's height (473 of 900px): 55% or more (40% WARN) (SR-3)",
+    "fix": "fill the section to 55%: more content, a picture or a background layer, or merge it into the section above as its last block",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
     "check": "nav",
     "where": "header.nav > div.wrap.nav__bar > button.nav__toggle",
     "msg": "the nav is lopsided: its last item ends 13px inside the content's edge (366px), while its first starts on the other edge",
@@ -281,132 +208,66 @@
      390
     ],
     "from": "consistency"
+   },
+   {
+    "check": "no-visual",
+    "where": "section#jornada \"Marketing 360 em cinco etapas. Cada uma \"",
+    "msg": "pictures, effects and mocks cover 22% of this section; a feature section needs a visual (about 25% or more)",
+    "fix": "give the section a visual: a UI fragment on a ground, real icons, or a photograph that fits",
+    "widths": [
+     390
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "button-styles",
+    "where": "button#tab-atrair \"Atrair clientes\"",
+    "msg": "the selected tab \"Atrair clientes\" is drawn as a filled soft in #1c1519 (its sliding indicator), a fill none of the page's buttons use (#b8008a): it reads as one more button style",
+    "fix": "draw the selected tab as a line under its word, or in the primary button's fill",
+    "widths": [
+     390
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "tab-wrap",
+    "where": "button#tab-gerir \"Gerir a agência\"",
+    "msg": "the row of 5 tabs wraps onto 3 lines and leaves \"Gerir a agência\" alone on the last",
+    "fix": "fit the tabs on one line at this width (shorter labels, a scrolling row), or let them stack evenly",
+    "widths": [
+     390
+    ],
+    "from": "consistency"
    }
   ],
   "crashed": [],
   "seconds": {
-   "consistency": 58,
-   "layout": 4
+   "consistency": 93,
+   "layout": 5
   }
  },
  "open": [
   {
-   "check": "overlap-text",
-   "where": "div.closing__links > div.footer__legal > div.socials > a:nth-of-type(2) \"YouTube\"",
-   "msg": "lies over the text \"Instagram\" (div.socials > a:nth-of-type(1))",
-   "fix": "move the box off the text (or the text off the box)",
+   "check": "copy-headings",
+   "where": "div.span-6.stack-6 > div.perks > article.perk:nth-of-type(1) > h3 \"Atende em português\"",
+   "msg": "\"Atende em português\" names no product, part, place or section (5 headings like it; at most one brand line per page) (and 4 more like it: \"Tira dúvidas em call tod\", \"Reúne clientes numa comu\", \"Recebe via Pix e cartão\", \"Feita para agências com \")",
+   "fix": "name the thing in every heading: the product, a part, the place or a section noun",
    "widths": [
     1440
    ],
    "from": "consistency",
    "ids": [
-    "overlap-text"
+    "copy-headings"
    ],
    "wheres": [
-    "div.closing__links > div.footer__legal > div.socials > a:nth-of-type(2) \"YouTube\""
-   ]
-  },
-  {
-   "check": "no-visual",
-   "where": "main#top > section.hero \"A plataforma brasileira para Marketing 3\"",
-   "msg": "no picture, effect or mock in this section; a feature section needs a visual",
-   "fix": "give the section a visual: a UI fragment on a ground, real icons, or a photograph that fits",
-   "widths": [
-    1440,
-    390
-   ],
-   "from": "consistency",
-   "ids": [
-    "no-visual"
-   ],
-   "wheres": [
-    "main#top > section.hero \"A plataforma brasileira para Marketing 3\""
-   ]
-  },
-  {
-   "check": "empty-area",
-   "where": "main#top > section.hero \"A plataforma brasileira para Marketing 3\"",
-   "msg": "79% of the section is empty: 528px under its last (a.btn.btn--primary), 8% beside content that covers under half the container, in its 728px of rows (WARN over 35%, FAIL over 50%)",
-   "fix": "fill the section: a picture or a second column beside the words, or more of its own content; the section stays one or two screens tall (T-height)",
-   "widths": [
-    1440,
-    390
-   ],
-   "from": "consistency",
-   "ids": [
-    "empty-area"
-   ],
-   "wheres": [
-    "main#top > section.hero \"A plataforma brasileira para Marketing 3\""
-   ]
-  },
-  {
-   "check": "moment-none",
-   "where": "(the page)",
-   "msg": "a software page (--type) deals no moment: every kind carries one, two on a long page (moments.md)",
-   "fix": "deal one (moments.mjs pick --page software) and mount it in its own section",
-   "widths": [
-    1440
-   ],
-   "from": "consistency",
-   "ids": [
-    "moment-none"
-   ],
-   "wheres": [
-    "(the page)"
-   ]
-  },
-  {
-   "check": "container-edges",
-   "where": "main#top > section.hero > div.wrap \"A plataforma brasileira para Marketing 3\"",
-   "msg": "the hero's .wrap holds 2 children, 0 of them .hero-text: one .hero-text and at most one strip (SR-6)",
-   "fix": "build the page as header.nav, a main of sections (each one in-flow .wrap plus background layers) and footer.closing",
-   "widths": [
-    1440
-   ],
-   "from": "consistency",
-   "ids": [
-    "container-edges"
-   ],
-   "wheres": [
-    "main#top > section.hero > div.wrap \"A plataforma brasileira para Marketing 3\""
-   ]
-  },
-  {
-   "check": "container-edges",
-   "where": "div.closing__links > div.footer__legal > div.socials > a:nth-of-type(2) \"YouTube\"",
-   "msg": "\"YouTube\" runs 1329-1376px, outside the container lines of section 2 at 80-1360px: full width is for background layers and grounds only (SR-6)",
-   "fix": "keep it inside the container lines (.wrap): full width is for background layers and grounds only",
-   "widths": [
-    1440
-   ],
-   "from": "consistency",
-   "ids": [
-    "container-edges"
-   ],
-   "wheres": [
-    "div.closing__links > div.footer__legal > div.socials > a:nth-of-type(2) \"YouTube\""
-   ]
-  },
-  {
-   "check": "row-lines",
-   "where": "div.closing__links > div.footer__legal > div.socials > a:nth-of-type(2) \"YouTube\"",
-   "msg": "\"YouTube\" ends at 1376px, past the container's right line at 1360px (SR-7)",
-   "fix": "end it at the container's right line",
-   "widths": [
-    1440
-   ],
-   "from": "consistency",
-   "ids": [
-    "row-lines"
-   ],
-   "wheres": [
-    "div.closing__links > div.footer__legal > div.socials > a:nth-of-type(2) \"YouTube\""
+    "div.span-6.stack-6 > div.perks > article.perk:nth-of-type(1) > h3 \"Atende em português\""
    ]
   }
  ],
  "waived": [],
- "warnCount": 12,
- "at": "2026-11-23T04:39:07.064Z",
- "session": "18cae9e4-faa5-491b-883b-3d425c8829ee"
+ "warnCount": 14,
+ "at": "2026-11-23T04:56:59.155Z",
+ "session": "18cae9e4-faa5-491b-883b-3d425c8829ee",
+ "manual": true,
+ "openTold": true
 }
