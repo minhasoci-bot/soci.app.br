@@ -82,3 +82,21 @@ test('Event plan lifecycle emits custom events for the automation engine', () =>
   save(state, 'eventPlans', { title: 'Evento com automação', eventDate: '2026-12-05', plan: plan() });
   assert.ok(state.runs.some(run => run.workflowId === workflowId && run.event === 'Evento personalizado'));
 });
+
+test('Event planner commands are authorised under the marketing module', async () => {
+  const { requireWorkspaceCommand } = await import('../authorization.mjs');
+  const marketing = { modules: ['marketing'] }, other = { modules: ['contacts'] };
+  for (const command of [{ type: 'save', key: 'eventPlans', data: {} }, { type: 'delete', key: 'eventPlans' }, { type: 'event-plan-duplicate', id: 'x' }]) {
+    assert.doesNotThrow(() => requireWorkspaceCommand(marketing, command), command.type);
+    assert.throws(() => requireWorkspaceCommand(other, command), /módulo|module|acesso|permiss/i, command.type);
+  }
+});
+
+test('Event plan orchestration also needs the modules it writes into', async () => {
+  const { requireWorkspaceCommand } = await import('../authorization.mjs');
+  const orchestrate = { type: 'event-plan-orchestrate', id: 'x' };
+  assert.doesNotThrow(() => requireWorkspaceCommand({ modules: ['marketing', 'contacts', 'calendars'] }, orchestrate));
+  for (const modules of [['marketing'], ['marketing', 'contacts'], ['marketing', 'calendars'], ['contacts', 'calendars']]) {
+    assert.throws(() => requireWorkspaceCommand({ modules }, orchestrate), /permissão/, modules.join('+'));
+  }
+});
