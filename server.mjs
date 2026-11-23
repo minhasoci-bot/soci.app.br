@@ -1,6 +1,7 @@
 import { createSocialRoutes } from './routes/social.mjs';
 import { createPortalRoutes } from './routes/portal.mjs';
 import { createPranchetaRoutes } from './routes/prancheta.mjs';
+import { createActionRoutes } from './routes/action.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -158,7 +159,6 @@ import { catalog, methodLabel, storeCart, storeHome, storeProduct } from './ui/s
 import { quoteOrder } from './store-model.mjs';
 import { renderOfferPage, offerPageCsp } from './offer-page.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
-import { eachStep } from './ui/workflow-data.js';
 import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
 import { deviceOf, qrTarget } from './qr-model.mjs';
 import { ASSET_PATH, assetBytes, extractAssets, saveAssets } from './asset-store.mjs';
@@ -2116,6 +2116,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   };
   // Rotas por domínio (P2.1): cada módulo recebe o que vive neste fechamento e devolve NEXT_ROUTE quando a rota não é dele.
   const socialRoute = createSocialRoutes({ store, auth, localAccess, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
+  const actionRoute = createActionRoutes({ store, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const server=createServer(async (req,res) => {
@@ -2461,91 +2462,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await change(id, { type: 'tracking-ga4-secret', data: { set: Boolean(secret) } });
         return json(workspaceView(who, result.state));
       }
-      if (p==='/api/action' && method==='POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const command = await payload(req);
-        const who = await workspaceAccess(req, res, id);
-        requireWorkspaceCommand(who, command);
-        command.actor = who.name;
-        // Whose OpenAI key the workflow's AI steps use: always the saving user, never a value from the client.
-        if (command.type === 'save' && command.key === 'workflows' && command.data && typeof command.data === 'object') {
-          // "Copiar contato": whoever saves the workflow must be able to open the target sub-account's contacts.
-          const targets = new Set();
-          eachStep(Array.isArray(command.data.steps) ? command.data.steps : [], step => { if (step?.type === 'copy_contact' && step.config?.workspace) targets.add(String(step.config.workspace)); });
-          for (const target of targets) {
-            if (target === id) throw error('Copiar contato: escolha outra subconta como destino.', 400);
-            await workspaceAccess(req, res, target, { modules: ['contacts'] }).catch(() => { throw error('Copiar contato: seu usuário não tem acesso aos contatos da subconta de destino.', 403); });
-          }
-          command.data = { ...command.data, aiKey: who.session ? { session: who.session.id, user: who.userId || '', agency: who.agencyId || '' } : null };
-        }
-        if (command.type === 'phone-number-save' && command.data && typeof command.data === 'object') {
-          command.data = { ...command.data, voiceKey: command.data.mode === 'voice_ai' && who.session ? { session: who.session.id, user: who.userId || '', agency: who.agencyId || '' } : null };
-        }
-        if (['document-send', 'document-link', 'estimate-send', 'estimate-link', 'invoice-send', 'invoice-from-template', 'checkout-remind', 'email-campaign-schedule', 'message', 'review-request', 'reputation-settings'].includes(command.type)) command.data = { ...(command.data && typeof command.data === 'object' ? command.data : {}), origin: publicBase(req) };
-        const removedVideo = command.type === 'delete' && command.key === 'videoTestimonials' ? (await store.load(id)).videoTestimonials?.find(row => row.id === command.id) : null;
-        const result = await change(id,command,who);
-        if (removedVideo) for (let index = 0; index < removedVideo.chunks; index++) await Promise.resolve().then(() => store.change(mediaRowId(id, removedVideo.id, index), row => { row.data = ''; row.deleted = true; })).catch(() => {});
-        let delivery = null;
-        let state = result.state;
-        if (!privateSpace.test(id) && command.type === 'message' && command.data?.channel === 'WhatsApp' && command.data?.direction === 'Outbound') {
-          const contact = state.contacts.find(c => c.id === command.data.contactId);
-          // An undelivered message is marked and fires "Falha no envio de mensagem"; the provider error still reaches the user.
-          const failed = async reason => {
-            const marked = await change(id, { type: 'message-failed', data: { messageId: result.id, reason } });
-            state = marked.state;
-            if (state.workflowOutbox?.length) flushLater(id);
-          };
-          if (!contact?.phone) await failed('no_phone');
-          else {
-            // The stored body: trigger links already replaced by this contact's tracked URLs.
-            const sentBody = state.messages.find(m => m.id === result.id)?.body || command.data.body;
-            try {
-              delivery = await whatsapp.sendWorkspaceText(who.agencyId, id, contact.phone, sentBody,
-                (agencyId, workspace) => accountIsActive(agencyId, workspace, 'conversations'));
-            } catch (err) { await failed('provider_error').catch(() => {}); throw err; }
-            if (!delivery.sent) await failed(deliveryFailure(delivery.reason));
-          }
-        }
-        // A team e-mail in Conversas goes out from the sub-account's sending domain (or the platform address).
-        if (!privateSpace.test(id) && command.type === 'message' && command.data?.channel === 'Email' && command.data?.direction === 'Outbound') {
-          const contact = state.contacts.find(c => c.id === command.data.contactId);
-          const row = state.messages.find(m => m.id === result.id);
-          let reason = '';
-          if (!contact?.email) reason = 'no_email';
-          else {
-            const outcome = await documentMail.email(contact.email, { subject: row?.subject || `Mensagem de ${state.profile?.name || 'Soci'}`, text: row?.body || String(command.data.body || '') },
-              `team-email-${id}-${result.id}`, { fromName: state.profile?.name || '', fromAddress: await sendingAddress(id), replyTo: inboundAddress(id) }).catch(problem => problem.message);
-            if (!mailSent(outcome)) reason = /não configurado/.test(String(outcome)) ? 'not_connected' : 'provider_error';
-          }
-          delivery = { sent: !reason, ...(reason ? { reason } : {}) };
-          if (reason) {
-            const marked = await change(id, { type: 'message-failed', data: { messageId: result.id, reason } });
-            state = marked.state;
-            if (state.workflowOutbox?.length) flushLater(id);
-          }
-        }
-        // A team reply on Messenger or Direct goes out through the page the contact wrote to.
-        if (!privateSpace.test(id) && command.type === 'message' && ['Facebook', 'Instagram'].includes(command.data?.channel) && command.data?.direction === 'Outbound') {
-          const contact = state.contacts.find(c => c.id === command.data.contactId);
-          const network = command.data.channel === 'Facebook' ? 'facebook' : 'instagram';
-          const sentBody = state.messages.find(m => m.id === result.id)?.body || command.data.body;
-          const sent = await deliverMetaMessage(id, state, { network, recipients: contact?.metaIds || {}, body: sentBody }).catch(() => ({ sent: false, reason: 'provider_error' }));
-          delivery = { sent: Boolean(sent.sent), ...(sent.sent ? {} : { reason: sent.reason }) };
-          if (!sent.sent) {
-            const marked = await change(id, { type: 'message-failed', data: { messageId: result.id, reason: sent.reason } });
-            state = marked.state;
-            if (state.workflowOutbox?.length) flushLater(id);
-          }
-        }
-        if (!privateSpace.test(id) && ['save','delete','import','opportunity-import','opportunity-move','pipeline','pipeline-settings','pipeline-duplicate','pipeline-delete','stage-delete','smart-tag','smart-tag-delete','profile','bulk','workflow-enroll','workflow-restore','workflow-move'].includes(command.type)) {
-          const account = (await listWorkspaces(who.agencyId)).find(w => w.id === id)?.name || id;
-          const label = command.type === 'bulk' ? `Bulk ${command.data?.operation || ''} on ${command.data?.object || ''}`.trim() : '';
-          await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);
-        }
-        if (state.workflowOutbox?.length) flushLater(id);
-        if (command.type === 'email-campaign-schedule') emailLater(id);
-        return json({ id: result.id, ...workspaceView(who, state), ...(delivery ? { delivery } : {}) });
-      }
+      const actionRouteHandled = await actionRoute({ req, res, p, method, url, id, json, send });
+      if (actionRouteHandled !== NEXT_ROUTE) return actionRouteHandled;
       if (p==='/api/agency' && method!=='POST') {
         return json(await agencyPayload(req,res));
       }
