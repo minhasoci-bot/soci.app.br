@@ -2,12 +2,26 @@
 // moderation, newsletter, badges), the moderation queue, the analytics tab and the members CSV.
 import { icon } from './icons.js';
 import { h, fmt } from './screens.js';
-import { badgeCatalog, communityTabKeys, defaultTabs, defaultTheme, planIntervals, planPrice, themePresets, themeStyle, themeTokens, weekdays } from './community-data.js';
+import { badgeCatalog, communityTabKeys, composerPromptDefault, defaultLayout, defaultTabs, defaultTheme, planIntervals, planPrice, themePresets, themeStyle, themeTokens, weekdays, widgetKeys, withAcademyTab } from './community-data.js';
 
 const money = value => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 const remove = label => `<button type="button" class="icon-btn" data-cm="row-remove" aria-label="Remover ${label}">${icon('trash', 15)}</button>`;
 
+// The workspace's courses and offers, for the Academia rows (set each time the settings form is drawn).
+let catalog = { courses: [], offers: [] };
+const offerOptions = (courseId, chosen = '') => `<option value="">Oferta automática</option>${catalog.offers.filter(offer => offer.courseIds?.includes(courseId))
+  .map(offer => `<option value="${h(offer.id)}"${offer.id === chosen ? ' selected' : ''}>${h(offer.title)}${offer.status === 'published' ? '' : ' (rascunho)'}</option>`).join('')}`;
+const moveButtons = `<span class="ca-move"><button type="button" class="icon-btn" data-cm="row-up" aria-label="Subir"><span aria-hidden="true">↑</span></button><button type="button" class="icon-btn" data-cm="row-down" aria-label="Descer"><span aria-hidden="true">↓</span></button></span>`;
+
 export const rowTemplates = {
+  academy: (row = {}) => {
+    const courseId = row.courseId || catalog.courses[0]?.id || '', mode = row.mode === 'separate' ? 'separate' : 'included';
+    return `<li class="ca-row ca-academy">
+    <select name="academy.courseId" aria-label="Curso">${catalog.courses.map(course => `<option value="${h(course.id)}"${course.id === courseId ? ' selected' : ''}>${h(course.name)}${course.active === false ? ' (inativo)' : ''}</option>`).join('')}</select>
+    <select name="academy.mode" aria-label="Acesso"><option value="included"${mode === 'included' ? ' selected' : ''}>Incluso para membros</option><option value="separate"${mode === 'separate' ? ' selected' : ''}>Vendido à parte</option></select>
+    <select name="academy.offerId" aria-label="Oferta"${mode === 'separate' ? '' : ' disabled'}>${offerOptions(courseId, row.offerId)}</select>
+    ${moveButtons}${remove('curso')}</li>`;
+  },
   plans: (row = {}) => `<li class="ca-row ca-plan"><input type="hidden" name="plan.id" value="${h(row.id || '')}">
     <input name="plan.name" maxlength="60" placeholder="Nome (ex.: Mensal)" value="${h(row.name || '')}" aria-label="Nome do plano">
     <input name="plan.price" type="number" min="1" step="0.01" placeholder="Preço" value="${h(row.price ?? '')}" aria-label="Preço do plano">
@@ -27,13 +41,19 @@ const tabRow = row => `<li class="ca-row ca-tab"><input type="hidden" name="tab.
   <span class="ca-move"><button type="button" class="icon-btn" data-cm="row-up" aria-label="Subir"><span aria-hidden="true">↑</span></button><button type="button" class="icon-btn" data-cm="row-down" aria-label="Descer"><span aria-hidden="true">↓</span></button></span></li>`;
 
 const preview = theme => `<div class="ca-preview" data-ca-preview style="${themeStyle(theme)}">
-  <div class="ca-preview-side"><b>Canais</b><span># Avisos</span><span># Dúvidas</span></div>
-  <div class="ca-preview-main"><div class="ca-preview-card"><b>Bem-vindos!</b><p>Assim fica uma publicação.</p><span class="ca-preview-button">Participar</span> <span class="ca-preview-error">Erro</span></div></div></div>`;
+  <div class="ca-preview-side"><b>Comunidade</b><span class="on">Discussão</span><span>Academia</span><span>Eventos</span><small>Canais</small><span># Avisos</span></div>
+  <div class="ca-preview-main"><div class="ca-preview-card"><b>Bem-vindos!</b><p>Assim fica uma publicação.</p><span class="ca-preview-button">Publicar</span> <span class="ca-preview-error">Erro</span></div></div>
+  <div class="ca-preview-aside"><div class="ca-preview-card"><b>Top do ranking</b><p>1 · Ana</p></div></div></div>`;
+
+const widgetRow = row => `<li class="ca-row ca-tab"><input type="hidden" name="widget.key" value="${h(row.key)}"><span>${h(widgetKeys.find(([key]) => key === row.key)?.[1] || row.key)}</span>
+  <label class="cp-checkbox"><input type="checkbox" name="widget.visible" value="${h(row.key)}"${row.visible !== false ? ' checked' : ''}><span>Visível</span></label>${moveButtons}</li>`;
 
 /** The 6.2 sections of the settings form. */
-export function settingsSections(group) {
-  const theme = group.theme || defaultTheme(), tabs = group.tabs || defaultTabs(), news = group.newsletter || { enabled: false, frequency: 'weekly', weekday: 1, hour: 9 };
-  const nav = [['ca-access', 'Assinatura'], ['ca-join', 'Adesão'], ['ca-welcome', 'Boas-vindas'], ['ca-look', 'Aparência'], ['ca-tabs', 'Abas'], ['ca-moderation', 'Moderação'], ['ca-news', 'Newsletter'], ['ca-badges', 'Emblemas']];
+export function settingsSections(group, { courses = [], offers = [] } = {}) {
+  catalog = { courses, offers };
+  const layout = group.layout || defaultLayout();
+  const theme = group.theme || defaultTheme(), tabs = withAcademyTab(group.tabs || defaultTabs()), news = group.newsletter || { enabled: false, frequency: 'weekly', weekday: 1, hour: 9 };
+  const nav = [['ca-access', 'Assinatura'], ['ca-join', 'Adesão'], ['ca-welcome', 'Boas-vindas'], ['ca-look', 'Aparência'], ['ca-layout', 'Layout'], ['ca-academy', 'Academia'], ['ca-tabs', 'Abas'], ['ca-moderation', 'Moderação'], ['ca-news', 'Newsletter'], ['ca-badges', 'Emblemas']];
   return `<nav class="ca-jump" aria-label="Seções das configurações">${nav.map(([id, label]) => `<button type="button" data-cm="jump" data-id="${id}">${label}</button>`).join('')}</nav>
     <section class="cm-panel" id="ca-access"><h2>Assinatura</h2>
       <fieldset class="co-kinds"><legend>Acesso</legend>
@@ -58,6 +78,14 @@ export function settingsSections(group) {
         <label class="ca-preset"><input type="radio" name="theme.preset" value="custom"${theme.preset === 'custom' ? ' checked' : ''}><span class="ca-swatch ca-custom">${icon('edit', 14)}</span><b>Personalizar</b></label></div>
       <div class="ca-tokens">${themeTokens.map(([key, label]) => `<label>${label}<input type="color" name="theme.${key}" value="${h(theme.tokens[key])}" data-ca-token="${key}"></label>`).join('')}</div>
       ${preview(theme)}</section>
+    <section class="cm-panel" id="ca-layout"><h2>Layout</h2>
+      <label>Convite para publicar<input name="layout.composerPrompt" maxlength="80" placeholder="${h(composerPromptDefault)}" value="${h(layout.composerPrompt || '')}"></label>
+      <p class="co-hint">O texto que aparece no campo de publicar do feed. Vazio, usa o padrão.</p>
+      <h3>Blocos da lateral</h3><p class="co-hint">Mostre, esconda e ordene os blocos da coluna direita. Um bloco só aparece quando a aba dele está visível e tem conteúdo.</p>
+      <ol class="ca-rows" data-ca-list="widgets">${layout.widgets.map(widgetRow).join('')}</ol></section>
+    <section class="cm-panel" id="ca-academy"><h2>Academia</h2><p class="co-hint">Escolha os cursos que aparecem na aba Academia. <b>Incluso para membros</b>: abre para quem é membro com acesso em dia. <b>Vendido à parte</b>: mostra o botão Quero acesso, que leva à oferta escolhida (ou à primeira oferta publicada com o curso).</p>
+      ${courses.length ? `<ol class="ca-rows" data-ca-list="academy">${(group.academy?.courses || []).map(rowTemplates.academy).join('')}</ol>
+      <button type="button" class="secondary" data-cm="row-add" data-list="academy">${icon('plus', 15)} Adicionar curso</button>` : '<p class="co-hint">Crie um curso em Cursos para montar a Academia.</p>'}</section>
     <section class="cm-panel" id="ca-tabs"><h2>Abas da comunidade</h2><p class="co-hint">Renomeie, esconda e mude a ordem das abas no portal.</p>
       <ol class="ca-rows" data-ca-list="tabs">${tabs.map(tabRow).join('')}</ol></section>
     <section class="cm-panel" id="ca-moderation"><h2>Moderação de conteúdo</h2>
@@ -82,6 +110,9 @@ export function readSettings(form) {
   const requiredFlags = [...form.querySelectorAll('[name="question.required"]')].map(box => box.checked);
   const stepIds = all('step.id'), titles = all('step.title'), descriptions = all('step.description'), links = all('step.link');
   const tabKeys = all('tab.key'), tabLabels = all('tab.label'), visible = new Set(all('tab.visible'));
+  const academyCourses = all('academy.courseId'), academyModes = all('academy.mode');
+  const academyOffers = [...form.querySelectorAll('[name="academy.offerId"]')].map(select => select.value);
+  const widgetShown = new Set(all('widget.visible'));
   const presetValue = f.get('theme.preset') || 'custom';
   const tokens = Object.fromEntries(themeTokens.map(([key]) => [key, f.get(`theme.${key}`)]));
   const preset = themePresets.find(row => row.id === presetValue);
@@ -96,8 +127,19 @@ export function readSettings(form) {
     tabs: tabKeys.map((key, i) => ({ key, label: tabLabels[i], visible: visible.has(key) })),
     moderation: { keywords: f.get('moderation.keywords'), spamPack: f.has('moderation.spamPack') },
     newsletter: { enabled: f.has('newsletter.enabled'), frequency: f.get('newsletter.frequency'), weekday: Number(f.get('newsletter.weekday')), hour: Number(f.get('newsletter.hour')) },
-    badgesOff: badgeCatalog.map(row => row.key).filter(key => !all('badge.on').includes(key))
+    badgesOff: badgeCatalog.map(row => row.key).filter(key => !all('badge.on').includes(key)),
+    layout: { composerPrompt: f.get('layout.composerPrompt') || '', widgets: all('widget.key').map(key => ({ key, visible: widgetShown.has(key) })) },
+    ...(form.querySelector('[data-ca-list="academy"]') ? { academy: { courses: academyCourses.map((courseId, i) => ({ courseId, mode: academyModes[i], offerId: academyModes[i] === 'separate' ? academyOffers[i] : '' })) } } : {})
   };
+}
+
+/** An Academia row: the offer list follows the course, and only "sold separately" picks an offer. */
+export function academyInput(target) {
+  const row = target.closest('.ca-academy');
+  if (!row || !target.matches('[name="academy.courseId"], [name="academy.mode"]')) return;
+  const offer = row.querySelector('[name="academy.offerId"]');
+  if (target.name === 'academy.courseId') offer.innerHTML = offerOptions(target.value);
+  offer.disabled = row.querySelector('[name="academy.mode"]').value !== 'separate';
 }
 
 /** Repaint the theme preview after a preset or a color changes. */

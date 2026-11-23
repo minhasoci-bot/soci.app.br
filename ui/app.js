@@ -13,7 +13,6 @@ import { opportunityEvents } from './opportunities.js';
 import { parseCsv } from './social-data.js';
 import { afterStudioRender, exportStudioProject, installStudio, studioBlock } from './studio.js';
 import { studioTemplates } from './studio-data.js';
-import { startAgency } from './agency.js';
 import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm.js';
@@ -198,7 +197,12 @@ async function load(){
   }
 }
 const allowedView = id => id === 'launchpad' ? !c.access?.modules || c.access.modules.length > 0 : !c.access?.modules || c.access.modules.includes(id) || (id === 'prancheta' && (!c.access?.modules || c.access.modules.includes('marketing') || c.access.modules.includes('prancheta')));
-let agencyUI, openingWorkspace;
+let agencyUI, agencyEnv, agencyLoading, openingWorkspace;
+// O painel da agência (agency.js e os módulos que só ele usa) é baixado na primeira vez que #agency abre:
+// quem trabalha só na subconta não carrega esse código. Os ouvintes dele só agem em #agency.
+const loadAgency = () => agencyLoading ??= import('./agency.js')
+  .then(({ startAgency }) => (agencyUI = startAgency(agencyEnv)))
+  .catch(error => { agencyLoading = null; throw error; });
 const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
@@ -231,9 +235,14 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(key==='agency'){
     if (c.access && !c.access.agency) { location.replace('#dashboard'); return; }
     stopSubWaPoll();
-    c.mode='agency'; leaveAgentEditor(); close(); agencyUI.show(tab,project); return;
+    c.mode='agency'; leaveAgentEditor(); close();
+    if (agencyUI) { agencyUI.show(tab,project); return; }
+    app.innerHTML = bootScreen('Abrindo o painel da agência…');
+    loadAgency().then(() => { if (location.hash.startsWith('#agency')) route(); })
+      .catch(e => { app.innerHTML = `<div class="boot"><h1>Painel indisponível</h1><p>${h(e.message)}</p><a href="/app?recarregar=${Date.now()}${h(location.hash)}">Tentar de novo</a></div>`; });
+    return;
   }
-  if(c.mode==='agency'){ agencyUI.leave(); c.mode=''; renderedView=''; }
+  if(c.mode==='agency'){ agencyUI?.leave(); c.mode=''; renderedView=''; }
   if (c.account) { renderAccountLifecycle(); return; }
   if (!c.s) {
     app.innerHTML = bootScreen('Abrindo a soci…');
@@ -824,7 +833,7 @@ document.addEventListener('click',async ev=>{
       case 'agency-view':close();location.hash='#agency/dashboard';break;
       case 'stop-acting':localStorage.removeItem('go.user');location.reload();break;
       case 'account': {
-        const session = c.access?.session || agencyUI.session();
+        const session = c.access?.session || agencyUI?.session();
         if (session) dialog('Minha conta', '<p>' + h(session.name) + '<br>' + h(session.email) + '</p><button type="button" class="secondary" data-act="sign-out">Sair da conta</button>');
         break;
       }
@@ -1248,7 +1257,7 @@ if(viewPath){
   catch(e){app.innerHTML=`<div class="boot"><h1>Página indisponível</h1><p>${h(e.message)}</p><a href="/">Voltar para a plataforma</a></div>`;}
 }else{
   installDashboardControls({ c,dialog,close,render,load,mutate,flash,go,download:downloads });
-  agencyUI = startAgency({ app, overlay, api, flash, openWorkspace: useWorkspace, onBrandColorChange: (primary, secondary) => {
+  agencyEnv = { app, overlay, api, flash, openWorkspace: useWorkspace, onBrandColorChange: (primary, secondary) => {
     if (!c.agency || c.workspace.startsWith('user-')) return;
     c.agency.primary = primary;
     if (secondary) c.agency.secondary = secondary;
@@ -1257,7 +1266,7 @@ if(viewPath){
     if (!c.features) return;
     c.features.studioAI = connection.configured;
     c.features.agentModel = connection.configured && allowedView('ai-agents') ? connection.model : '';
-  } });
+  } };
   installStudio({ c, api, url, flash, render });
   installSites({ c, api, url, mutate, flash, render });
   installForms({ c, api, url, mutate, flash, render });
@@ -1308,21 +1317,21 @@ if(viewPath){
     url,
     mutate: async (command) => {
       if (location.hash.startsWith('#agency')) {
-        return agencyUI.act(command.type, command);
+        return (agencyUI || await loadAgency()).act(command.type, command);
       }
       return mutate(command);
     },
     flash,
     render: () => {
       if (location.hash.startsWith('#agency')) {
-        agencyUI.render();
+        agencyUI?.render();
         return;
       }
       render();
     },
     getState: () => {
       if (location.hash.startsWith('#agency')) {
-        return agencyUI.agency();
+        return agencyUI?.agency();
       }
       return c.s;
     }

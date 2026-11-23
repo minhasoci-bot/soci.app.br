@@ -1,0 +1,17 @@
+{
+  // Checagem de tipos do servidor sem build: só lê os .mjs (com JSDoc quando houver) e não gera nada.
+  // Começa em modo aviso no CI (npm run typecheck); a meta é zerar e então tornar obrigatório.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "target": "es2024",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["es2024", "dom"],
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": ["*.mjs", "api/*.mjs", "routes/*.mjs", "scripts/*.mjs"]
+}

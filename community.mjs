@@ -3,6 +3,8 @@
 import { randomUUID } from 'node:crypto';
 import { eventView, nextOccurrence, occurrences, REMINDER_BEFORE } from './community-events.mjs';
 import { badgeLabels, badgesOf, communityAnalytics, communityConfig, digestPosts, extendAccess, hasAccess, heldReason, newsletterDue } from './community-config.mjs';
+import { academyView, includedCourseGrants } from './community-academy.mjs';
+import { defaultLayout, withAcademyTab } from './ui/community-data.js';
 
 export const communityCollections = ['communities'];
 export const levelThresholds = [0, 5, 20, 65, 155, 515, 2015, 8015, 33015];
@@ -49,7 +51,7 @@ export const communityFields = {
       active: d.active === undefined ? prior?.active !== false : Boolean(d.active),
       memberPosts: d.memberPosts === undefined ? prior?.memberPosts !== false : Boolean(d.memberPosts),
       welcome: str(d.welcome ?? prior?.welcome, 1000),
-      channels, levels, points: points(d.points, prior?.points), ...communityConfig(d, prior || {})
+      channels, levels, points: points(d.points, prior?.points), ...communityConfig(d, prior || {}, s)
     };
   }
 };
@@ -123,17 +125,22 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
   }
   const groupOf = (state, id) => state.communities.find(row => row.id === id && row.active !== false) || fail('Comunidade não encontrada.', 404);
   const people = portal => new Map((portal?.members || []).map(member => [member.id, member]));
+  // Display names of the portal members, plus their photo (the team account photo, when there is one).
+  const nameBook = portal => {
+    const rows = people(portal);
+    return Object.assign(new Map([...rows].map(([id, row]) => [id, displayName(row)])), { photoOf: id => rows.get(id)?.photo || '' });
+  };
 
   function postView(state, group, data, post, viewer, names, levels, badges = new Map()) {
     const person = id => id === 'staff' ? { name: state.profile.name, staff: true, level: 0, badges: [] }
-      : { name: names.get(id) || 'Membro', staff: false, level: levels.get(id) || 1, badges: badgeLabels(badges.get(id)) };
+      : { name: names.get(id) || 'Membro', photo: names.photoOf?.(id) || '', staff: false, level: levels.get(id) || 1, badges: badgeLabels(badges.get(id)) };
     const author = person(post.authorId);
     const moderator = viewer === 'staff' || data.members[viewer]?.role === 'moderator';
     const seeComment = comment => !comment.held || moderator || comment.authorId === viewer;
     const image = post.imageFileId && state.files.find(file => file.id === post.imageFileId && file.data.startsWith('data:image/'));
     return {
       id: post.id, channelId: post.channelId, channel: group.channels.find(channel => channel.id === post.channelId)?.name || '',
-      title: post.title, body: post.body, link: post.link || '', image: image?.data || '', pinned: Boolean(post.pinned), created: post.created,
+      title: post.title, titleAuto: Boolean(post.titleAuto), body: post.body, link: post.link || '', image: image?.data || '', pinned: Boolean(post.pinned), created: post.created,
       author, mine: post.authorId === viewer, canDelete: post.authorId === viewer || moderator, commentsEnabled: post.commentsEnabled !== false,
       held: post.held ? (moderator ? post.held : 'Em análise') : '', reports: moderator ? (post.reports || []).length : 0, reported: (post.reports || []).some(row => row.memberId === viewer),
       likes: post.likes.length, liked: post.likes.some(like => like.memberId === viewer),
@@ -163,7 +170,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
     return {
       period, levels: group.levels.map((level, index) => ({ level: index + 1, name: level.name, min: levelThresholds[index],
         share: Math.round(active.filter(id => levelOf(all.get(id) || 0) === index + 1).length / total * 100) })),
-      top: active.map(id => ({ id, name: names.get(id) || 'Membro', points: recent.get(id) || 0, level: levelOf(all.get(id) || 0) }))
+      top: active.map(id => ({ id, name: names.get(id) || 'Membro', photo: names.photoOf?.(id) || '', points: recent.get(id) || 0, level: levelOf(all.get(id) || 0) }))
         .filter(row => row.points > 0).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).slice(0, 10)
         .map(({ id, ...row }) => row),
       me: data.members[viewer] ? (() => { const mine = all.get(viewer) || 0, level = levelOf(mine);
@@ -176,7 +183,9 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
     return { id: group.id, name: group.name, slug: group.slug, description: group.description, cover: cover || '', visibility: group.visibility,
       welcome: group.welcome, memberPosts: group.memberPosts, channels: group.channels,
       access: group.access || 'free', plans: group.plans || [], trialDays: group.trialDays || 0, questions: group.questions || [], onboarding: group.onboarding || [],
-      theme: group.theme || null, tabs: group.tabs || null,
+      theme: group.theme || null, layout: group.layout || defaultLayout(),
+      // Groups saved before the Academia get its tab; it only shows while the academy has courses.
+      tabs: withAcademyTab(group.tabs).map(tab => tab.key === 'academy' && !group.academy?.courses?.length ? { ...tab, visible: false } : tab),
       memberCount: Object.values(data.members).filter(row => row.status === 'active').length, postCount: data.posts.length };
   }
 
@@ -194,23 +203,26 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
   };
 
   // What a signed-in portal member sees of one group.
-  function memberView(state, portal, group, data, member, { channelId = '', period = '30' } = {}) {
+  function memberView(state, portal, group, data, member, { channelId = '', period = '30', workspace = '' } = {}) {
     const membership = data.members[member.id];
     if (membership?.status === 'banned') fail('Você não tem mais acesso a esta comunidade.', 403);
-    const names = new Map([...people(portal)].map(([id, row]) => [id, displayName(row)]));
+    const names = nameBook(portal);
     const paid = group.access === 'paid', allowed = hasAccess(group, membership);
     const open = allowed || (!paid && ((!membership && group.visibility === 'public') || (membership?.status === 'requested' && group.visibility === 'public')));
     const header = groupHeader(state, group, data);
     const view = { group: { ...header, channels: header.channels.filter(channel => channelOpen(group, data, member.id, channel.id)) }, membership: membership ? { status: membership.status, role: membership.role, planId: membership.planId || '',
       paidUntil: membership.paidUntil || '', expired: paid && membership.status === 'active' && !allowed, trialUsed: Boolean(membership.trialUsed),
-      onboardingDone: membership.onboardingDone || [] } : null };
+      onboardingDone: membership.onboardingDone || [] } : null,
+      academy: academyView(state, group, member, { workspace, allowed: hasAccess(group, membership) }) };
     if (!open) return view;
     const badges = badgesOf(group, data);
     return { ...view, posts: feed(state, group, data, member.id, names, channelId), events: eventsOf(state, group, data, member.id, names), live: liveBanner(state, data),
       members: Object.entries(data.members).filter(([, row]) => row.status === 'active')
-        .map(([id, row]) => ({ name: names.get(id) || 'Membro', role: row.role, joinedAt: row.joinedAt, level: levelOf(scores(group, data).get(id) || 0), badges: badgeLabels(badges.get(id)) }))
+        .map(([id, row]) => ({ name: names.get(id) || 'Membro', photo: names.photoOf?.(id) || '', role: row.role, joinedAt: row.joinedAt, level: levelOf(scores(group, data).get(id) || 0), badges: badgeLabels(badges.get(id)) }))
         .sort((a, b) => a.name.localeCompare(b.name)),
-      leaderboard: leaderboard(group, data, names, member.id, ['7', '30', 'all'].includes(period) ? period : '30') };
+      leaderboard: leaderboard(group, data, names, member.id, ['7', '30', 'all'].includes(period) ? period : '30'),
+      // All three periods at once: the portal switches between them without asking again.
+      leaderboards: Object.fromEntries(['7', '30', 'all'].map(key => [key, leaderboard(group, data, names, member.id, key)])) };
   }
 
   async function home(workspace, state, member) {
@@ -225,7 +237,13 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
 
   async function read(workspace, state, portal, member, groupId, options) {
     const group = groupOf(state, groupId), doc = await load(workspace);
-    return memberView(state, portal, group, doc.groups[groupId] || { members: {}, posts: [] }, member, options);
+    return memberView(state, portal, group, doc.groups[groupId] || { members: {}, posts: [] }, member, { ...options, workspace });
+  }
+
+  // Academia: the included courses a portal member opens through the communities they have access to
+  // ({ courseId: day access began }, the start of drip lessons).
+  async function includedCourses(workspace, state, memberId) {
+    return includedCourseGrants(state, await load(workspace), memberId);
   }
 
   const findPost = (data, id) => data.posts.find(post => post.id === id) || fail('Publicação não encontrada.', 404);
@@ -236,8 +254,10 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
     const channelId = open.some(channel => channel.id === input.channelId) ? input.channelId : (open[0] || group.channels[0]).id;
     const pollInput = Array.isArray(input.poll) ? input.poll.map(text => str(text, 80)).filter(Boolean) : [];
     if (pollInput.length === 1 || pollInput.length > 6) fail('A enquete precisa de 2 a 6 opções.');
+    // The title is optional: without one, the first line of the text stands in (moderation, workflows, newsletter).
+    const body = str(input.body, 10000) || fail('Escreva o texto da publicação.'), title = str(input.title, 200);
     const post = { id: randomUUID(), channelId, authorId, created: new Date().toISOString(),
-      title: str(input.title, 200) || fail('Dê um título à publicação.'), body: str(input.body, 10000) || fail('Escreva o texto da publicação.'),
+      title: title || body.split('\n').map(line => line.trim()).find(Boolean).slice(0, 80), ...(title ? {} : { titleAuto: true }), body,
       link: https(input.link), commentsEnabled: input.commentsEnabled !== false, likes: [], comments: [],
       poll: pollInput.length ? pollInput.map(text => ({ id: randomUUID(), text, votes: [] })) : null };
     data.posts.push(post);
@@ -259,7 +279,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
       const reach = (rows, postId) => { const post = findPost(rows, postId); if (!channelOpen(group, rows, member.id, post.channelId)) fail('Você não tem acesso a este canal.', 403); return post; };
       if (membership?.status === 'banned') fail('Você não tem mais acesso a esta comunidade.', 403);
       if (action === 'join') {
-        if (membership?.status === 'active' || membership?.status === 'requested') return memberView(state, portal, group, data, member, {});
+        if (membership?.status === 'active' || membership?.status === 'requested') return memberView(state, portal, group, data, member, { workspace });
         const answers = (group.questions || []).map(question => {
           const answer = str((Array.isArray(input.answers) ? input.answers : []).find(row => row?.id === question.id)?.answer, 1000);
           if (question.required && !answer) fail(`Responda: ${question.text}`);
@@ -344,7 +364,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
           }
         } else fail('Ação da comunidade não encontrada.', 404);
       }
-      return memberView(state, portal, group, data, member, { channelId: input.channelFilter || '' });
+      return memberView(state, portal, group, data, member, { channelId: input.channelFilter || '', workspace });
     }));
     if (joined) await onEventJoin?.(workspace, joined);
     if (welcomed) await onMemberJoin?.(workspace, { groupId, memberId: member.id });
@@ -463,7 +483,7 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
 
   // Staff view of one group (or a summary of all) for the admin panel.
   function adminView(state, portal, doc, groupId, { days = 30 } = {}) {
-    const names = new Map([...people(portal)].map(([id, row]) => [id, displayName(row)]));
+    const names = nameBook(portal);
     if (!groupId) return { groups: state.communities.map(group => {
       const data = doc.groups[group.id] || { members: {}, posts: [] }, members = Object.values(data.members);
       return { id: group.id, memberCount: members.filter(row => row.status === 'active').length,
@@ -664,5 +684,5 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
     return outcome;
   }
 
-  return { home, read, act, admin, enroll, unenroll, grantPoints, channelAccess, registerEvent, reserve, markPending, grantTicket, dueReminders, reservePlan, markPlanPending, grantPlan, dueNewsletters };
+  return { home, read, includedCourses, act, admin, enroll, unenroll, grantPoints, channelAccess, registerEvent, reserve, markPending, grantTicket, dueReminders, reservePlan, markPlanPending, grantPlan, dueNewsletters };
 }

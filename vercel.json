@@ -5,6 +5,9 @@
   "functions": {
     "api/index.mjs": {
       "includeFiles": "ui/**"
+    },
+    "server.mjs": {
+      "includeFiles": "ui/**"
     }
   },
   "rewrites": [

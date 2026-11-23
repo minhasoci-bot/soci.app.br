@@ -2,6 +2,7 @@ import { usageSummary } from './ui/ai-data.js';
 import { desktopDefaults, publishDesktop, saveDesktop } from './agency-desktop.mjs';
 import { mobileOf, publishMobile, saveMobileStore } from './agency-mobile.mjs';
 import { createHash, randomBytes } from 'node:crypto';
+import { isAssetUrl } from './asset-store.mjs';
 import { defaults, metrics, uid, now } from './model.mjs';
 import { hydrateProspecting } from './prospecting-model.mjs';
 import { agentTemplate } from './agent-model.mjs';
@@ -45,6 +46,8 @@ const url = (value, label) => {
 const color = value => /^#[0-9a-f]{6}$/i.test(value || '') ? value.toLowerCase() : fail('Choose a valid color.');
 const image = value => {
   if (!value) return '';
+  // Imagem já guardada fora do documento (asset-store.mjs): o formulário reenvia o endereço.
+  if (isAssetUrl(value)) return value;
   if (typeof value !== 'string' || value.length > 400000 || !/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(value)) fail('Choose a PNG, JPEG, WebP or GIF image under 300 KB.');
   return value;
 };

@@ -1,3 +1,5 @@
+import { createSocialRoutes } from './routes/social.mjs';
+import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -98,8 +100,8 @@ import { folded, prospectSearchText } from './ui/prospecting-data.js';
 import { shareReportHtml, widgetHtml } from './ui/prospect-report.js';
 import { snapshotAssets } from './ui/agency-data.js';
 import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, requireWorkspaceCommand, workspaceView } from './authorization.mjs';
-import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, reviewSocialCsv, settle } from './social-model.mjs';
-import { authUrl, availability, blueskyLogin, exchange as socialExchange, publish as socialPublish, seal, unseal } from './social-providers.mjs';
+import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, settle } from './social-model.mjs';
+import { authUrl, availability, publish as socialPublish, seal, unseal } from './social-providers.mjs';
 import { fetchMetaLead, metaInbound, metaLeads, metaSenderName, metaSignatureValid, quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
 import { googleLeadFields, googleLeadKeyValid, metaLeadFields } from './lead-forms.mjs';
 import { generateImage, startVideo, videoContent, videoStatus } from './openai-media.mjs';
@@ -107,7 +109,7 @@ import { inboundAddress, inboundEmail, inboundWorkspace, svixValid } from './ema
 import { createPhoneHandler } from './phone-server.mjs';
 import { CHUNK_BYTES } from './reputation-media.mjs';
 import { network } from './ui/social-data.js';
-import { captionRequest, writeCaption } from './social-ai.mjs';
+import { writeCaption } from './social-ai.mjs';
 import { findSharedReport, reportMailer, sharedReportPage } from './report-share.mjs';
 import { documentMailer, documentMessage } from './document-mail.mjs';
 import { campaignMailer } from './email-campaign-send.mjs';
@@ -158,9 +160,12 @@ import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-d
 import { eachStep } from './ui/workflow-data.js';
 import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
 import { deviceOf, qrTarget } from './qr-model.mjs';
+import { ASSET_PATH, assetBytes, extractAssets, saveAssets } from './asset-store.mjs';
+import { inBackground } from './background.mjs';
+import { runInBatches } from './cron-batch.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
-const staticFiles = new Map([
+export const staticFiles = new Map([
   ['/launchpad.js','text/javascript; charset=utf-8'], ['/launchpad-data.js','text/javascript; charset=utf-8'], ['/launchpad.css','text/css; charset=utf-8'],
   ['/app.js','text/javascript; charset=utf-8'], ['/icons.js','text/javascript; charset=utf-8'],
   ['/screens.js','text/javascript; charset=utf-8'], ['/conversations.js','text/javascript; charset=utf-8'], ['/conversation-analytics.js','text/javascript; charset=utf-8'], ['/conversation-sla.js','text/javascript; charset=utf-8'],
@@ -170,7 +175,7 @@ const staticFiles = new Map([
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/setup-art.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
@@ -305,7 +310,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
   : resolve(root, '.data', 'go.sqlite');
 
 export function makeServer({
-  pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
+  pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL, cronConcurrency=4, cronBudgetMs=45_000,
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, inboundFetch=fetch, twilioRequest=fetch, phoneEnv=process.env, brandResolve=null, designAgentConfig=designAgent,
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
@@ -370,7 +375,7 @@ export function makeServer({
   const phone = createPhoneHandler({ store, change: (workspace, command) => change(workspace, command), flushLater: workspace => flushLater(workspace), request: twilioRequest, env: phoneEnv,
     accountActive: workspace => publicAccountPolicy(workspace, false, 'conversations'), agentReply: (workspace, options) => voiceAgentReply(workspace, options) });
   const phoneOrigin = () => String(phoneEnv.PHONE_PUBLIC_ORIGIN || phoneEnv.SOCIAL_PUBLIC_URL || phoneEnv.PORTAL_PUBLIC_ORIGIN || '').replace(/\/+$/, '');
-  const handleAsk = createAskHandler({ store, openAI, openAIRequest });
+  const handleAsk = createAskHandler({ store, openAI, openAIRequest, secret: openAISecret });
   const waha = createWahaHandler({ store, secret: openAISecret, request: wahaRequest });
   const abacate = createAbacatePayHandler({ store, secret: openAISecret, request: abacatePayRequest });
   const whatsapp = createWhatsAppHandler({
@@ -381,7 +386,8 @@ export function makeServer({
   const onCourseActivity = async (workspace, data) => { await change(workspace, { type: 'course-activity', data }); flushLater(workspace); };
   // A member signed in to the portal: "Login no portal do cliente" (first sign-in = signup).
   const onPortalLogin = async (workspace, data) => { await change(workspace, { type: 'portal-login', data }); flushLater(workspace); };
-  const clientPortal = makeClientPortal({ ...portalOptions, store, onCourseActivity, onLogin: onPortalLogin, loadState: workspace => store.load(workspace) });
+  const clientPortal = makeClientPortal({ ...portalOptions, store, onCourseActivity, onLogin: onPortalLogin, loadState: workspace => store.load(workspace),
+    extraCourses: (workspace, state, memberId) => community.includedCourses(workspace, state, memberId) });
   // A member confirmed or paid an event: find or create the contact and fire "Inscrição em evento da comunidade".
   const onEventJoin = async (workspace, { eventId, memberId, paid }) => {
     const member = (await clientPortal.directory(workspace)).members?.find(row => row.id === memberId);
@@ -539,9 +545,13 @@ export function makeServer({
     agencyCache.set(id, { data: structuredClone(fresh), expiresAt: now + AGENCY_CACHE_TTL });
     return fresh;
   };
+  // Imagens grandes em base64 saem do documento da agência a cada gravação (asset-store.mjs):
+  // o documento guarda só /asset/<hash>; as linhas das imagens são gravadas antes da resposta.
   const changeAgency = async (id, mutate) => {
     agencyCache.delete(id);
-    const result = await store.change(id, state => mutate(hydrateAgency(state)));
+    const images = new Map();
+    const result = await store.change(id, state => { const out = mutate(hydrateAgency(state)); extractAssets(state, images); return out; });
+    if (images.size) await saveAssets(store, images);
     agencyCache.delete(id);
     return result;
   };
@@ -1744,15 +1754,15 @@ export function makeServer({
     }
     return results.length + aiResults.length;
   }
-  const flushLater = workspace => { Promise.resolve().then(() => flushWorkflows(workspace)).catch(e => console.error(`Workflow delivery (${workspace}): ${e.message}`)); };
+  const flushLater = workspace => { inBackground(`Workflow delivery (${workspace})`, () => flushWorkflows(workspace)); };
   // "Gerar auditoria de marketing": the audit can take a minute (PageSpeed), so it runs apart from the delivery queue
   // and resumes the waiting run with the result. The audit fetches only public addresses (prospect-audit.mjs).
   const auditLater = (workspace, item) => {
-    Promise.resolve().then(async () => {
+    inBackground(`Marketing audit (${workspace})`, async () => {
       const audit = await prospectAudit({ website: item.website, name: item.business, city: item.city }).catch(() => null);
       const done = await change(workspace, { type: 'workflow-ai-result', data: { results: [{ runId: item.runId, stepId: item.stepId, ...marketingAuditVars(audit, item.variable) }] } });
       if (done.state.workflowOutbox?.length) flushLater(workspace);
-    }).catch(e => console.error(`Marketing audit (${workspace}): ${e.message}`));
+    });
   };
   // "Gerar vídeo com IA": each running job is checked; a finished video is stored in chunks and resumes the run
   // with its public link, a failed one resumes it with the error (and a job older than 40 minutes gives up).
@@ -1881,10 +1891,11 @@ export function makeServer({
       return sent;
     } finally { emailRuns.delete(workspace); }
   }
-  const emailLater = workspace => { Promise.resolve().then(() => runEmailCampaigns(workspace)).catch(e => console.error(`E-mail campaigns (${workspace}): ${e.message}`)); };
-  async function runAllSocial(base) {
+  const emailLater = workspace => { inBackground(`E-mail campaigns (${workspace})`, () => runEmailCampaigns(workspace)); };
+  async function runAllSocial(base, at = Date.now()) {
     let total = 0;
-    for (const w of (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id))) {
+    const spaces = (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id));
+    const { skipped } = await runInBatches(spaces, async w => {
       try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
       try { await runWebinarReminders(w.id, base); } catch (e) { console.error(`Webinar reminders (${w.id}): ${e.message}`); }
       try { await runEventReminders(w.id, base); } catch (e) { console.error(`Community event reminders (${w.id}): ${e.message}`); }
@@ -1895,7 +1906,8 @@ export function makeServer({
       try { await runAbandonedCheckouts(w.id); } catch (e) { console.error(`Abandoned checkouts (${w.id}): ${e.message}`); }
       try { await runEmailCampaigns(w.id); } catch (e) { console.error(`E-mail campaigns (${w.id}): ${e.message}`); }
       try { await runAllAds(w.id); } catch (e) { console.error(`Ads (${w.id}): ${e.message}`); }
-    }
+    }, { concurrency: cronConcurrency, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+    if (skipped.length) console.warn(`Cron: ${skipped.length} de ${spaces.length} workspaces ficaram para o próximo minuto.`);
     return total;
   }
   const socialTimer = socialScheduler ? setInterval(() => { ready.then(() => runAllSocial(process.env.SOCIAL_PUBLIC_URL || `http://${host}:${port}`)).catch(() => {}); }, 60_000) : null;
@@ -2100,6 +2112,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     try { const v=JSON.parse(Buffer.concat(chunks).toString('utf8')); if(!v||typeof v!=='object'||Array.isArray(v)) throw Error(); return v; }
     catch { throw error('Invalid JSON request.',400); }
   };
+  // Rotas por domínio (P2.1): cada módulo recebe o que vive neste fechamento e devolve NEXT_ROUTE quando a rota não é dele.
+  const socialRoute = createSocialRoutes({ store, auth, localAccess, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
   const server=createServer(async (req,res) => {
     const requestPath = String(req.url || '/').split('?')[0];
     const touches = touchesOf(req), landing = requestPath.match(landingPath);
@@ -2239,7 +2253,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (input?.action === 'staff-enter') {
             const staffUser = {
               email: who.session?.email || state.profile?.email || 'admin@soci.app.br',
-              name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador'
+              name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador',
+              photo: who.session?.picture || who.session?.user_metadata?.avatar_url || ''
             };
             const result = await clientPortal.admin(workspace, state, { ...input, ...staffUser });
             if (result.memberId && state.communities?.length) {
@@ -2256,7 +2271,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const state = await store.load(workspace);
           const staffUser = {
             email: who.session?.email || state.profile?.email || 'admin@soci.app.br',
-            name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador'
+            name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador',
+              photo: who.session?.picture || who.session?.user_metadata?.avatar_url || ''
           };
           const result = await clientPortal.admin(workspace, state, { action: 'staff-enter', ...staffUser });
           if (result.memberId && state.communities?.length) {
@@ -2294,7 +2310,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
             const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'], hide: true });
             const staffUser = {
               email: who.session?.email || state.profile?.email || 'admin@soci.app.br',
-              name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador'
+              name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador',
+              photo: who.session?.picture || who.session?.user_metadata?.avatar_url || ''
             };
             const result = await clientPortal.admin(workspace, state, { action: 'staff-enter', ...staffUser });
             if (result.memberId && state.communities?.length) {
@@ -2318,7 +2335,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (portal && method !== 'POST') {
         await ready;
         await publicAccountPolicy(portal[1], false, 'memberships');
-        res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; form-action 'self'");
+        res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; form-action 'self'");
         return send(200,'text/html; charset=utf-8',method==='HEAD' ? undefined : readFileSync(resolve(root,'ui','client-portal.html')));
       }
       if (p === '/favicon.ico') { res.writeHead(302, { Location: '/favicon.svg' }); return res.end(); }
@@ -2437,11 +2454,18 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         return json({workspaces:await visibleWorkspaces(who), agency:who.agency});
       }
-      if (p === '/api/social/cron' && (method === 'GET' || method === 'POST')) {
-        if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) throw error('Not allowed.',401);
-        return json({ published: await runAllSocial(publicBase(req)) });
-      }
+      const socialHandled = await socialRoute({ req, res, p, method, url, id, json, send });
+      if (socialHandled !== NEXT_ROUTE) return socialHandled;
       // "Gerar vídeo com IA": the finished video, public (it is made to be sent).
+      // Imagens guardadas fora dos documentos (asset-store.mjs): públicas e imutáveis (o endereço é o hash do conteúdo).
+      const assetMatch = p.match(ASSET_PATH);
+      if (assetMatch && (method === 'GET' || method === 'HEAD')) {
+        const image = await assetBytes(store, p);
+        if (!image) throw error('Imagem não encontrada.', 404);
+        res.writeHead(200, { 'Content-Type': image.mime, 'Content-Length': image.bytes.length, 'Cache-Control': 'public, max-age=31536000, immutable',
+          'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'", 'Cross-Origin-Resource-Policy': 'cross-origin' });
+        return res.end(method === 'HEAD' ? undefined : image.bytes);
+      }
       const aiVideo = p.match(new RegExp(`^/m/${workspaceSegment}/video/([0-9a-f-]{36})$`));
       if (aiVideo && (method === 'GET' || method === 'HEAD')) {
         await ready;
@@ -2451,43 +2475,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!row) throw error('Vídeo indisponível.', 404);
         return await sendVideo(req, res, method, workspace, row, 'public, max-age=86400');
       }
-      const socialFile = p.match(socialFilePath);
-      if (socialFile && method === 'GET') {
-        await ready;
-        const [, workspace, fileId] = socialFile;
-        await publicAccountPolicy(workspace);
-        const state = await store.load(workspace);
-        const referenced = state.socialPosts.some(post => ['in_progress', 'published'].includes(post.status) &&
-          post.media?.some(item => item.fileId === fileId)) || state.files.some(f => f.id === fileId && f.public === true);
-        if (referenced) {
-          await publicAccountPolicy(workspace, false, 'marketing');
-        } else {
-          if (!localAccess && !auth?.hasSession(req)) throw error('File not found.',404);
-          try { await workspaceAccess(req, res, workspace, { modules: ['media'], support: true, hide: true }); }
-          catch (e) {
-            if ([401, 403, 404].includes(e.status)) throw error('File not found.',404);
-            throw e;
-          }
-        }
-        const file = state.files.find(f => f.id === fileId);
-        if (!file || !file.data.startsWith('data:image/')) throw error('File not found.',404);
-        const { mime, bytes } = fileBytes(file.data);
-        res.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length });
-        return res.end(bytes);
-      }
-      const socialStart = p.match(/^\/api\/social\/connect\/([a-z]+)$/);
-      const invitePage = p.match(socialInvitePath);
-      if (invitePage && method === 'GET') {
-        await ready;
-        await publicAccountPolicy(invitePage[1], false, 'marketing');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
-        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/social-connect.html')));
-      }
       const signPage = p.match(signPagePath);
       if (signPage && method === 'GET') {
         await ready;
         await publicAccountPolicy(signPage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         res.setHeader('Referrer-Policy', 'no-referrer');
         res.setHeader('X-Robots-Tag', 'noindex');
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/document-sign.html')));
@@ -2527,7 +2519,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (estimatePage && method === 'GET') {
         await ready;
         await publicAccountPolicy(estimatePage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         res.setHeader('Referrer-Policy', 'no-referrer');
         res.setHeader('X-Robots-Tag', 'noindex');
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/estimate-view.html')));
@@ -2562,7 +2554,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (invoicePage && method === 'GET') {
         await ready;
         await publicAccountPolicy(invoicePage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         res.setHeader('Referrer-Policy', 'no-referrer');
         res.setHeader('X-Robots-Tag', 'noindex');
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/invoice-view.html')));
@@ -2590,215 +2582,6 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await change(workspace, { type: 'invoice-open', data: { tokenHash: digest } });
         result.id.online = result.id.payable ? await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false) : false;
         return json(result.id);
-      }
-      const approvePage = p.match(socialApprovePath);
-      if (approvePage && method === 'GET') {
-        await ready;
-        await publicAccountPolicy(approvePage[1], false, 'marketing');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; media-src https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
-        res.setHeader('Referrer-Policy', 'no-referrer');
-        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/social-approve.html')));
-      }
-      if (p === '/api/social/approval' && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Link de aprovação inválido.',404);
-        const input = await payload(req);
-        if (typeof input.token !== 'string' || !/^[a-f0-9]{64}$/.test(input.token)) throw error('Link de aprovação inválido.',404);
-        const key = hash(input.token);
-        const link = validateApproval(await socialRow(`social-${id}`), key);
-        await publicAccountPolicy(id, input.action === 'decide', 'marketing');
-        if (input.action === 'list') return json({ expires: link.expires, ...approvalView(await store.load(id)) });
-        if (input.action === 'decide') {
-          const name = String(input.name || '').replace(/\s+/g, ' ').trim().slice(0, 80);
-          if (!name) throw error('Informe seu nome para registrar a decisão.',400);
-          if (!['approved', 'rejected'].includes(input.decision)) throw error('Escolha aprovar ou pedir ajustes.',400);
-          if (input.decision === 'rejected' && !String(input.note || '').trim()) throw error('Conte o que precisa mudar neste post.',400);
-          await change(id, { type: 'social-review', id: String(input.postId || ''), data: { decision: input.decision, note: input.note }, actor: `${name} (cliente)` });
-          return json({ expires: link.expires, ...approvalView(await store.load(id)) });
-        }
-        throw error('Ação inválida para este link.',400);
-      }
-      if (p === '/api/social/invited' && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Convite inválido.',404);
-        const input = await payload(req);
-        if (typeof input.token !== 'string' || !/^[a-f0-9]{64}$/.test(input.token)) throw error('Convite inválido.',404);
-        const key = hash(input.token);
-        const row = await store.load(`social-${id}`);
-        const invite = validateInvite(row, key);
-        await publicAccountPolicy(id, input.action !== 'info', 'marketing');
-        if (input.action === 'info') return json({ expires: invite.expires, providers: availability() });
-        if (input.action === 'start') return json({ url: await startSocialOAuth(req, id, input.provider, key) });
-        if (input.action === 'bluesky') {
-          const candidates = await blueskyLogin(input.identifier, input.password);
-          return json(await inviteAttach(id, key, candidates));
-        }
-        if (input.action === 'candidates' || input.action === 'attach') {
-          const requestId = String(input.requestId || ''), pending = row.pending[requestId];
-          if (!pending || pending.inviteKey !== key || Date.parse(pending.at) < Date.now() - 30 * 60_000) throw error('Esta autorização expirou.',404);
-          const candidates = unseal(pending.candidates) || [];
-          const state = await store.load(id);
-          if (input.action === 'candidates') return json({ candidates: candidates.map((c, index) => ({ index, provider: c.provider, name: c.name }))
-            .filter((_, n) => !state.socialAccounts.some(a => a.provider === candidates[n].provider && a.externalId === candidates[n].externalId)) });
-          const picks = [...new Set(Array.isArray(input.picks) ? input.picks : [])].filter(n => Number.isInteger(n) && candidates[n]);
-          if (!picks.length) throw error('Escolha ao menos uma conta.',400);
-          await socialSecrets(id, current => {
-            validateInvite(current, key);
-            if (current.pending[requestId]?.inviteKey !== key) throw error('Esta autorização expirou.',404);
-            delete current.pending[requestId];
-          });
-          return json(await inviteAttach(id, key, picks.map(n => candidates[n])));
-        }
-        throw error('Ação inválida para este convite.',400);
-      }
-      if (socialStart && method === 'GET') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        if (localAccess) req.localSocialUser = url.searchParams.get('user');
-        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
-        const target = await startSocialOAuth(req, id, socialStart[1], '', socialActor(who));
-        res.writeHead(302, { Location: target }); return res.end();
-      }
-      const socialBack = p.match(/^\/api\/social\/callback\/([a-z]+)$/);
-      if (socialBack && method === 'GET') {
-        const base = publicBase(req);
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'");
-        let provider = socialBack[1];
-        try {
-          await socialRow('social-oauth');
-          const nonce = url.searchParams.get('state') || '';
-          const pending = await store.change('social-oauth', row => { const v = row.states[nonce]; delete row.states[nonce]; return v; });
-          if (!pending || Date.parse(pending.at) < Date.now() - 15 * 60_000 || callbackPath(pending.provider) !== p) throw error('Este login expirou. Tente conectar de novo.',400);
-          if (pending.inviteKey) {
-            validateInvite(await store.load(`social-${pending.workspace}`), pending.inviteKey);
-          } else {
-            if (localAccess && pending.actor !== 'local-owner') req.localSocialUser = pending.actor;
-            const who = await workspaceAccess(req, res, pending.workspace, { modules: ['marketing'] });
-            if (pending.actor !== socialActor(who)) throw error('Esta autorização pertence a outra sessão.',403);
-          }
-          await publicAccountPolicy(pending.workspace, true, 'marketing');
-          provider = pending.provider;
-          if (url.searchParams.get('error')) throw error(url.searchParams.get('error_description') || 'A autorização foi cancelada.',400);
-          const candidates = await socialExchange(provider, { code: url.searchParams.get('code') || '', redirectUri: base + callbackPath(provider) });
-          await publicAccountPolicy(pending.workspace, true, 'marketing');
-          const requestId = uid();
-          await socialSecrets(pending.workspace, row => {
-            for (const [k, v] of Object.entries(row.pending)) if (Date.parse(v.at) < Date.now() - 30 * 60_000) delete row.pending[k];
-            if (pending.inviteKey) validateInvite(row, pending.inviteKey);
-            row.pending[requestId] = { provider, at: stamp(), candidates: seal(candidates), inviteKey: pending.inviteKey || '', actor: pending.actor };
-          });
-          return send(200,'text/html; charset=utf-8',socialPopup(base, { requestId, provider }));
-        } catch (e) {
-          return send(200,'text/html; charset=utf-8',socialPopup(base, { provider, error: e.message }));
-        }
-      }
-      if (p.startsWith('/api/social/') && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const input = await payload(req), op = p.slice('/api/social/'.length);
-        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
-        if (op === 'csv-preview') return json({ rows: reviewSocialCsv(await store.load(id), input).map(({ index, fields, error }) =>
-          fields ? { index, status: fields.status, date: fields.scheduleDate, accounts: fields.accountIds.length } : { index, error }) });
-        if (op === 'invite') {
-          if (input.action === 'status') {
-            const invite = (await socialRow(`social-${id}`)).invite;
-            return json({ expires: invite?.expires > Date.now() ? invite.expires : null });
-          }
-          if (input.action === 'revoke') {
-            await socialSecrets(id, row => { delete row.invite; });
-            return json({ expires: null });
-          }
-          if (input.action !== 'create' || ![1, 24, 72, 168].includes(input.hours)) throw error('Escolha um prazo para o convite.',400);
-          const token = (uid() + uid()).replaceAll('-', ''), expires = Date.now() + input.hours * 3_600_000;
-          await socialSecrets(id, row => { row.invite = { hash: hash(token), expires }; });
-          return json({ url: `${publicBase(req)}/social-connect/${id}#${token}`, expires });
-        }
-        if (op === 'interactions' || op === 'incoming-interaction') {
-          const result = await change(id, { type: 'social-interaction-trigger', data: input }, who);
-          return json({ ok: true, ...(typeof result?.id === 'object' ? result.id : { result: result?.id }) });
-        }
-        if (op === 'approval-link') {
-          const current = (await socialRow(`social-${id}`)).approval;
-          if (input.action === 'status') return json({ expires: current?.expires > Date.now() ? current.expires : null });
-          if (input.action === 'revoke') {
-            await socialSecrets(id, row => { delete row.approval; });
-            return json({ expires: null });
-          }
-          if (input.action === 'send-whatsapp') {
-            const rawPhone = String(input.phone || '').trim();
-            if (!rawPhone) throw error('Informe o número de WhatsApp para envio.', 400);
-            const hours = [24, 72, 168, 720].includes(Number(input.hours)) ? Number(input.hours) : 168;
-            let token = '';
-            let expires = current?.expires > Date.now() ? current.expires : 0;
-            if (!expires || !input.url) {
-              token = (uid() + uid()).replaceAll('-', '');
-              expires = Date.now() + hours * 3_600_000;
-              await socialSecrets(id, row => { row.approval = { hash: hash(token), expires }; });
-            }
-            const approvalUrl = token ? `${publicBase(req)}/aprovar/${id}#${token}` : input.url;
-            const state = await store.load(id);
-            const pending = state.socialPosts.filter(p => p.status === 'in_review').length;
-            const brand = state.profile?.name || '';
-            const defaultMsg = `Olá! ${pending ? `Há ${pending} post(s)` : 'Os próximos posts'}${brand ? ` da marca *${brand}*` : ''} aguardando sua aprovação.\n\nRevise, aprove ou solicite ajustes com um comentário por este link:\n${approvalUrl}`;
-            const message = String(input.message || '').trim() || defaultMsg;
-            const agencyId = state.agencyId || who.agencyId || AGENCY_ID;
-            const sent = await whatsapp.sendWorkspaceText(
-              agencyId, id, rawPhone, message,
-              (agId, ws) => accountIsActive(agId, ws, 'conversations')
-            ).catch(err => {
-              throw error(err.message || 'Erro ao enviar pelo WhatsApp.', err.status || 502);
-            });
-            if (!sent?.sent) {
-              if (sent?.reason === 'not-connected') throw error('O WhatsApp desta subconta não está conectado. Conecte em Conversas para disparar.', 400);
-              if (sent?.reason === 'invalid-phone') throw error('Número de WhatsApp inválido. Digite com DDD (ex.: 11999999999).', 400);
-              throw error('Não foi possível enviar a mensagem por WhatsApp.', 502);
-            }
-            return json({ ok: true, sent: true, phone: rawPhone, expires, url: approvalUrl });
-          }
-          if (input.action !== 'create' || ![24, 72, 168, 720].includes(input.hours)) throw error('Escolha um prazo para o link de aprovação.',400);
-          const token = (uid() + uid()).replaceAll('-', ''), expires = Date.now() + input.hours * 3_600_000;
-          await socialSecrets(id, row => { row.approval = { hash: hash(token), expires }; });
-          return json({ url: `${publicBase(req)}/aprovar/${id}#${token}`, expires });
-        }
-        if (op === 'ai') {
-          captionRequest(input);
-          input.voice = await brandVoiceOf(id);
-          const status = who.session ? await openAI.status(who.session) : { configured: false };
-          if (!status.configured) throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para gerar legendas com IA.',409);
-          return json(await meteredAI(who, id, 'social', connection => content.writeCaption(connection, input)));
-        }
-        const withState = async extra => {
-          const state = await store.load(id);
-          return json({ ...workspaceView(who, state), ...extra });
-        };
-        if (op === 'candidates' || op === 'attach') {
-          const row = await socialRow(`social-${id}`), pending = row.pending[String(input.requestId || '')];
-          if (!pending || pending.inviteKey || pending.actor !== socialActor(who) ||
-              Date.parse(pending.at) < Date.now() - 30 * 60_000) throw error('Esta autorização expirou. Conecte a conta de novo.',404);
-          const candidates = unseal(pending.candidates) || [];
-          if (op === 'candidates') {
-            const state = await store.load(id);
-            return json({ provider: pending.provider, candidates: candidates.map((c, index) => ({ index, provider: c.provider, name: c.name, handle: c.handle || '', avatar: c.avatar || '', kind: c.kind || '',
-              connected: state.socialAccounts.some(a => a.provider === c.provider && a.externalId === c.externalId) })) });
-          }
-          const picks = [...new Set((Array.isArray(input.picks) ? input.picks : []).map(Number))].filter(n => candidates[n]);
-          if (!picks.length) throw error('Escolha ao menos uma conta.',400);
-          const chosen = picks.map(n => candidates[n]);
-          const ids = await store.change(id, s => attachAccounts(s, chosen, { uid, now: stamp }));
-          await socialSecrets(id, r => { ids.forEach((accountId, n) => { r.tokens[accountId] = seal(chosen[n].secret); }); delete r.pending[input.requestId]; });
-          if (chosen.some(row => ['facebook', 'instagram'].includes(row.provider))) await routeMetaAccounts(id).catch(problem => console.error(`Meta routes (${id}): ${problem.message}`));
-          return withState({ id: ids });
-        }
-        if (op === 'bluesky') {
-          const [found] = await blueskyLogin(input.identifier, input.password);
-          const [accountId] = await store.change(id, s => attachAccounts(s, [found], { uid, now: stamp }));
-          await socialSecrets(id, r => { r.tokens[accountId] = seal(found.secret); });
-          return withState({ id: accountId });
-        }
-        if (op === 'run') { const published = await runSocial(id, publicBase(req)); return withState({ published }); }
-        if (op === 'disconnect') {
-          await change(id, { type: 'social-account-remove', id: String(input.id || '') });
-          await socialSecrets(id, r => { delete r.tokens[input.id]; });
-          await routeMetaAccounts(id).catch(problem => console.error(`Meta routes (${id}): ${problem.message}`));
-          return withState({});
-        }
-        throw error('Unknown social request.',404);
       }
       if (p==='/api/state' && method!=='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
@@ -4165,7 +3948,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!webinar || (!webinar.active && !preview)) throw error('Este webinar não está disponível.',404);
         const zone = state.profile?.timezone || 'America/Sao_Paulo';
         const page = body => { res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }); return res.end(method === 'HEAD' ? undefined : body); };
+          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }); return res.end(method === 'HEAD' ? undefined : body); };
         if (!part) return page(registrationPage(webinar, { workspace, zone }));
         const registration = state.webinarRegistrations.find(item => item.webinarId === webinarId && item.token === String(url.searchParams.get('t') || ''));
         if (!registration) throw error('Inscrição não encontrada. Use o link que você recebeu.',404);
@@ -4227,7 +4010,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         else if (slug) { const item = catalog(state, shop).find(row => row.slug === slug); if (!item) throw error('Produto não encontrado.',404); body = storeProduct(state, shop, item, { base }); }
         else body = storeHome(state, shop, { base, category:String(url.searchParams.get('categoria') || '').slice(0,40), collection:String(url.searchParams.get('colecao') || '').slice(0,80) });
         const [storeHeaders, storeBody] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, body);
+          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, body);
         res.writeHead(200, storeHeaders);
         return res.end(method === 'HEAD' ? undefined : storeBody);
       }
@@ -4436,8 +4219,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (part === 'config.json') return done('application/json; charset=utf-8', JSON.stringify(mobileConfig(app, agencyId)));
         if (part.startsWith('icon-')) {
           const size = part.slice(5, -4), source = (size === '192' && app.icon192) || (size === '512' && app.icon512) || app.icon;
-          if (!source) throw error('Ícone não encontrado.',404);
-          return done('image/png', Buffer.from(source.split(',')[1], 'base64'));
+          const image = source && await assetBytes(store, source);
+          if (!image) throw error('Ícone não encontrado.',404);
+          return done('image/png', image.bytes);
         }
         return done('text/html; charset=utf-8', mobileLaunchPage(app, agencyId), { 'Content-Security-Policy':mobileCsp, 'Referrer-Policy':'no-referrer' });
       }
@@ -4468,8 +4252,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (part === 'sw.js') return done('text/javascript; charset=utf-8', desktopWorker, { 'Service-Worker-Allowed':`/desktop/${agencyId}/` });
         if (part.startsWith('icon-')) {
           const size = part.slice(5, -4), source = (size === '192' && app.icon192) || (size === '512' && app.icon512) || app.icon;
-          if (!source) throw error('Ícone não encontrado.',404);
-          return done('image/png', Buffer.from(source.split(',')[1], 'base64'));
+          const image = source && await assetBytes(store, source);
+          if (!image) throw error('Ícone não encontrado.',404);
+          return done('image/png', image.bytes);
         }
         return done('text/html; charset=utf-8', desktopLaunchPage(app, agencyId, { signedIn: Boolean(auth?.hasSession?.(req)) }), { 'Content-Security-Policy':desktopCsp, 'Referrer-Policy':'no-referrer' });
       }
@@ -4619,7 +4404,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!blog || (!blog.active && !preview)) throw error('Este blog não está publicado.',404);
         const base = `/b/${workspace}/${blogId}`, origin = publicBase(req);
         const html = (status, page) => { const [headers, body] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Cache-Control':'no-store',
-          'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, page); res.writeHead(status, headers); return res.end(method === 'HEAD' ? undefined : body); };
+          'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, page); res.writeHead(status, headers); return res.end(method === 'HEAD' ? undefined : body); };
         if (slug === 'rss.xml') {
           if (blog.rss === false) throw error('Este blog não tem RSS.',404);
           res.writeHead(200, { 'Content-Type':'application/rss+xml; charset=utf-8', 'Cache-Control':'no-store' });
@@ -4662,7 +4447,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           return res.end(method === 'HEAD' ? undefined : demoPage(widget, { workspace, brand:state.profile?.name || '' }));
         }
         res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors *" });
+          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors *" });
         return res.end(method === 'HEAD' ? undefined : chatPage(widget, { workspace }));
       }
       const chatCall = p.match(chatApi);
@@ -4703,7 +4488,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const redirects = form.onSubmit?.action === 'redirect' && form.onSubmit.url;
         const page = (status, options) => {
           const [headers, body] = withPixels(preview ? null : state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; object-src 'none'; form-action 'self'${redirects ? ' https: http:' : ''}; frame-ancestors *` },
+            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'${redirects ? ' https: http:' : ''}; frame-ancestors *` },
             formPage(form, { action:`/form/${workspace}/${formId}${embed ? '?embed=1' : preview ? '?preview=1' : ''}`, target:embed && redirects ? '_top' : '',
             customFields:state.customFields || [], embed, brand:state.profile?.name || '', ...options }));
           res.writeHead(status, headers);
@@ -4855,6 +4640,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           return goTo('/login?' + new URLSearchParams({ next }));
         }
         const f = isLogin ? '/index.html' : (platformPaths.includes(p) ? '/app.html' : p);
+        // Setup illustrations are not mirrored in public/: without this every card refetched them from the
+        // function. The browser keeps them a day; the Vercel CDN until the next deploy purges it.
+        if (f.startsWith('/setup-art/')) res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=86400');
         return send(200,staticFiles.get(f)||'text/html; charset=utf-8',method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
       }
       throw error('Page not found.',404);

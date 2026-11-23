@@ -3,7 +3,7 @@ import { icon } from './icons.js';
 import { h, fmt, pageShell } from './screens.js';
 import { portalTabs } from './client-portal.js';
 import { attendeeDialog, eventData, eventForm, eventsTab, recordingRow } from './community-events.js';
-import { analyticsTab, memberDetails, membersCsv, moderationTab, readSettings, rowTemplates, settingsSections, themeInput } from './community-admin.js';
+import { academyInput, analyticsTab, memberDetails, membersCsv, moderationTab, readSettings, rowTemplates, settingsSections, themeInput } from './community-admin.js';
 
 const levelThresholds = [0, 5, 20, 65, 155, 515, 2015, 8015, 33015];
 const roleLabel = { member: 'Membro', moderator: 'Moderador' };
@@ -68,7 +68,7 @@ function settings(c, group) {
         `<label>${label}<span><input type="number" name="points.${key}" min="0" max="100" step="1" value="${Number(group.points?.[key] ?? 0)}"> pts</span></label>`).join('')}</div>
       <h3>Níveis</h3><div class="cm-levels">${levelThresholds.map((min, index) => `<label><span class="cm-level-badge">${index + 1}</span>
         <input name="level.${index}" maxlength="30" value="${h(group.levels?.[index]?.name || `Nível ${index + 1}`)}" aria-label="Nome do nível ${index + 1}"><small>${min} pts</small></label>`).join('')}</div></section>
-    ${settingsSections(group)}
+    ${settingsSections(group, { courses: c.s.courses || [], offers: c.s.offers || [] })}
     <p class="form-status" role="alert" data-cm-error></p>
     <div class="cm-settings-actions"><button type="button" class="danger plain" data-cm="delete" data-id="${h(group.id)}">${icon('trash',15)} Excluir comunidade</button>
       <button type="submit" class="primary">${icon('check',16)} Salvar configurações</button></div></form>`;
@@ -212,7 +212,7 @@ export function installCommunities({ c, api, mutate, flash, dialog, close, rende
       if (action === 'event-recording-add') { document.querySelector('[data-ce-recordings]').insertAdjacentHTML('beforeend', recordingRow()); document.querySelector('[data-ce-recordings] li:last-child input[name="recording.title"]').focus(); }
       if (action === 'event-recording-remove') control.closest('li').remove();
       if (action === 'event-jump' || action === 'jump') document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      if (action === 'row-add') { const list = document.querySelector(`[data-ca-list="${control.dataset.list}"]`); list.insertAdjacentHTML('beforeend', rowTemplates[control.dataset.list]()); list.lastElementChild.querySelector('input:not([type=hidden])')?.focus(); }
+      if (action === 'row-add') { const list = document.querySelector(`[data-ca-list="${control.dataset.list}"]`); list.insertAdjacentHTML('beforeend', rowTemplates[control.dataset.list]()); list.lastElementChild.querySelector('input:not([type=hidden]), select')?.focus(); }
       if (action === 'row-remove') control.closest('li').remove();
       if (action === 'row-up' || action === 'row-down') { const row = control.closest('li'), other = action === 'row-up' ? row.previousElementSibling : row.nextElementSibling; if (other) other.insertAdjacentElement(action === 'row-up' ? 'beforebegin' : 'afterend', row); control.focus(); }
       if (action === 'mod') { await send({ action: control.dataset.act, postId: id, commentId: control.dataset.comment || undefined }); flash({ approve: 'Aprovado: agora todos veem.', reject: 'Excluído.', dismiss: 'Denúncias limpas.' }[control.dataset.act]); }
@@ -292,7 +292,7 @@ export function installCommunities({ c, api, mutate, flash, dialog, close, rende
   for (const type of ['input', 'change']) document.addEventListener(type, event => {
     if (!active()) return;
     const form = event.target.closest('[data-cm-form="settings"]');
-    if (form) themeInput(form, event.target);
+    if (form) { themeInput(form, event.target); academyInput(event.target); }
     if (type === 'change' && event.target.matches('[data-ca-days]')) { ui.days = Number(event.target.value); void load(groupId()); }
   });
 
