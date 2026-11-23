@@ -110,6 +110,17 @@ async function enablePush() {
   await api('push', { subscription: sub.toJSON() });
 }
 
+// Light/dark switch with the same diagonal wipe as the soci app (View Transitions); instant without support or
+// when the system asks for reduced motion.
+async function switchMode(mode) {
+  const swap = () => { draw(); root.querySelector('[data-cm-public="mode"]')?.focus(); };
+  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches || document.visibilityState !== 'visible') return swap();
+  document.documentElement.dataset.cmModeTo = mode;
+  const transition = document.startViewTransition(swap);
+  try { await transition.finished; } catch { /* skipped: the page is already in the new mode */ }
+  delete document.documentElement.dataset.cmModeTo;
+}
+
 // The open community paints the whole page with its theme (the portal header included).
 function paintCommunity(group) {
   for (const rule of themeStyle(themeMode(group?.theme, cmUi.mode)).split(';')) {
@@ -227,7 +238,7 @@ root.addEventListener('click', async event => {
       if (verb === 'tab') { cmUi.tab = value; focus = `[data-cm-public="tab"][data-value="${value}"]`; }
       else if (verb === 'channel') { cmUi.channel = value; cmUi.tab = 'discussion'; focus = `[data-cm-public="channel"][data-value="${value}"]`; }
       else if (verb === 'events') { cmUi.events = value; focus = `[data-cm-public="events"][data-value="${value}"]`; }
-      else if (verb === 'mode') { cmUi.mode = value; try { localStorage.setItem('soci:cm-mode', value); } catch { /* private window: the choice lasts this visit */ } focus = '[data-cm-public="mode"]'; }
+      else if (verb === 'mode') { cmUi.mode = value; try { localStorage.setItem('soci:cm-mode', value); } catch { /* private window: the choice lasts this visit */ } await switchMode(value); return; }
       else if (verb === 'feed') { cmUi.feed = value; focus = `[data-cm-public="feed"][data-value="${value}"]`; }
       else if (verb === 'comments-all') { cmUi.openComments.add(post); focus = `#post-${post} .cp-comments`; }
       else if (verb === 'comment-focus') { root.querySelector(`#post-${CSS.escape(post)} .cp-comment-form input`)?.focus(); return; }
