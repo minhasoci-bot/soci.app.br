@@ -1,10 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { publicMirrorPlan } from '../scripts/sync-public.mjs';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { PUBLIC_DIR, PUBLIC_HTML, publicMirrorPlan } from '../scripts/sync-public.mjs';
+import { staticFiles } from '../server.mjs';
 
-// On Vercel the browser gets the front-end from public/; a ui/ module missing there answers 500 and the
-// app never leaves "Abrindo a soci…" (2026-11-21: invoices.js, orders.js, estimates.js and 37 others).
-test('public/ mirrors every front-end module and stylesheet in ui/', () => {
+// public/ é o espelho de ui/ servido pela CDN da Vercel. Um arquivo que falte nele vira chamada à função
+// (sem cache); antes da correção do includeFiles, respondia 500 (21/11/2026: invoices.js e outros 39).
+test('public/ espelha todo módulo, estilo e página estática de ui/', () => {
   const pending = publicMirrorPlan().map(row => row.path);
   assert.deepEqual(pending, [], `Fora de sincronia com ui/ — rode "node scripts/sync-public.mjs": ${pending.join(', ')}`);
+});
+
+test('todo estático que o app serve também está em public/', () => {
+  const missing = [...staticFiles.keys()]
+    .filter(path => !path.startsWith('/setup-art/'))
+    .filter(path => !/\.html$/.test(path) || PUBLIC_HTML.includes(path.slice(1)))
+    .filter(path => !existsSync(join(PUBLIC_DIR, path)));
+  assert.deepEqual(missing, []);
+});
+
+test('a Vercel inclui ui/ na função que de fato atende (server.mjs), para nada faltar se public/ falhar', async () => {
+  const { default: config } = await import('../vercel.json', { with: { type: 'json' } });
+  assert.equal(config.functions?.['server.mjs']?.includeFiles, 'ui/**');
 });
