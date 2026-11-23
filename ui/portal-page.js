@@ -63,7 +63,7 @@ function player(course) {
   const index = flat.findIndex(lesson => lesson.id === course.lesson?.id);
   const current = flat[index], next = flat.slice(index + 1).find(lesson => !lesson.locked);
   return `<div class="cp-player${themed(course)}">
-    <div class="cp-player-top"><button type="button" class="cp-public-link" data-portal-public="${course.page?.productPage === false ? 'back' : 'course-page'}">${icon('left',16)} ${course.page?.productPage === false ? 'Meus cursos' : 'Página do curso'}</button>
+    <div class="cp-player-top"><button type="button" class="cp-public-link" data-portal-public="${course.page?.productPage === false ? 'back' : 'course-page'}">${icon('left',16)} ${course.page?.productPage === false ? (cmReturn ? 'Academia' : 'Meus cursos') : 'Página do curso'}</button>
       <div class="cp-player-title"><h1>${h(course.name)}</h1><div class="cp-course-progress">${bar(course.progress)}<small>${course.progress.percent}% concluído</small></div></div></div>
     <div class="cp-player-grid">
       <div class="cp-player-side"><nav class="cp-public-card cp-outline" aria-label="Aulas do curso">${course.modules.map(module => {
@@ -86,6 +86,8 @@ function player(course) {
 }
 
 let portal, course, community = null, courseView = 'lesson', redeemed = null;
+// A course opened from a community's Academia goes back there, not to the portal home.
+let cmReturn = '';
 const cmUi = { tab: 'discussion', channel: '', period: '30', feed: 'recent', openComments: new Set() };
 const uploadCard = files => `<section class="cp-public-card cp-upload"><h2>${icon('upload', 18)} Enviar um arquivo para a equipe</h2>
   <p>Imagem, vídeo, áudio, PDF, TXT ou CSV de até 700 KB.</p>
@@ -126,7 +128,7 @@ function draw(message = '') {
       ${signedIn ? '<button type="button" class="cp-public-link" data-portal-public="logout">Sair</button>' : ''}
     </header>
     ${message ? `<p class="cp-public-error" role="alert">${h(message)}</p>` : ''}
-    ${signedIn ? (community ? communityPage(community, cmUi) : course ? (courseView === 'page' ? coursePage(course, bar) : player(course)) : `<section class="cp-public-welcome">
+    ${signedIn ? (community ? communityPage(community, cmUi) : course ? (courseView === 'page' ? coursePage(course, bar).replace('Meus cursos</button>', `${cmReturn ? 'Academia' : 'Meus cursos'}</button>`) : player(course)) : `<section class="cp-public-welcome">
       <h1>${member?.name ? `Olá, ${h(member.name)}` : 'Bem-vindo ao portal'}</h1>
       ${introduction ? `<p>${h(introduction)}</p>` : ''}</section>${library(courses)}${communityCards(portal?.communities)}${loyaltyCard(portal?.loyalty, redeemed)}${uploadCard(portal?.files)}${pushCard()}`) :
       `<section class="cp-public-card cp-signin"><div class="cp-course-icon">${icon('key',24)}</div>
@@ -178,7 +180,15 @@ root.addEventListener('click', async event => {
     } else if (action === 'logout') {
       await api('logout',{});
       course = null;
+      cmReturn = '';
       portal = await api('home');
+    } else if (action === 'back' && cmReturn) {
+      course = null;
+      const id = cmReturn;
+      cmReturn = '';
+      await loadCommunity(id);
+      cmUi.tab = 'academy';
+      focus = '.cp-cm h1';
     } else if (action === 'back') {
       course = null;
       community = null;
@@ -218,6 +228,13 @@ root.addEventListener('click', async event => {
       else if (verb === 'comments-all') { cmUi.openComments.add(post); focus = `#post-${post} .cp-comments`; }
       else if (verb === 'comment-focus') { root.querySelector(`#post-${CSS.escape(post)} .cp-comment-form input`)?.focus(); return; }
       else if (verb === 'share') { await sharePost(button, post); return; }
+      else if (verb === 'course') {
+        cmReturn = community.group.id;
+        await openCourse(button.dataset.course);
+        community = null;
+        courseView = course.page?.productPage === false ? 'lesson' : 'page';
+        focus = '.cp-lesson-title';
+      }
       else if (verb === 'ticket') {
         const result = await api(`community/${encodeURIComponent(community.group.id)}`, { action: 'ticket', eventId: button.dataset.event });
         community = result.community;

@@ -3,6 +3,7 @@
 import { icon } from './icons.js';
 import { planPrice, themeStyle } from './community-data.js';
 import { avatar, badgeChip, dateShort, empty, feedTab, h, segment } from './portal-community-feed.js';
+import { academyTab } from './portal-community-academy.js';
 
 export const communityTabs = [['discussion', 'Discussão'], ['academy', 'Academia'], ['events', 'Eventos'], ['members', 'Membros'], ['ranking', 'Ranking'], ['about', 'Sobre']];
 const tabIcons = { discussion: 'chat', academy: 'book', events: 'cal', members: 'users', ranking: 'award', about: 'note' };
@@ -154,6 +155,7 @@ export function communityPage(view, ui) {
   else if (tab === 'ranking') body = rankingTab(view);
   else if (tab === 'about') body = aboutTab(view);
   else if (tab === 'discussion') body = feedTab(view, ui);
+  else if (tab === 'academy') body = academyTab(view);
   const current = tabs.find(row => row.key === tab), channel = tab === 'discussion' && group.channels.find(row => row.id === ui.channel);
   const aside = sideWidgets(view, tabs);
   return `<div class="cp-cm${aside ? '' : ' cp-cm-no-aside'}" style="${h(themeStyle(group.theme))}">

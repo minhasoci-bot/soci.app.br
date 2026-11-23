@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { communityPage } from '../ui/portal-community.js';
 import { defaultLayout, defaultTabs } from '../ui/community-data.js';
 import { feedTab, filterFeed, relativeTime } from '../ui/portal-community-feed.js';
+import { academyTab } from '../ui/portal-community-academy.js';
 
 const NOW = Date.parse('2026-11-23T12:00:00Z');
 const ago = ms => new Date(NOW - ms).toISOString();
@@ -87,6 +88,22 @@ test('cards hide auto titles and collapse comments', () => {
   assert.match(card(html, 'p2'), /Ver todos os 4 comentários/);
   const open = feedTab(makeView({ posts }), { feed: 'recent', openComments: new Set(['p2']) });
   assert.equal((card(open, 'p2').match(/<li[ >]/g) || []).length, 4);
+});
+
+test('academy cards show the action for each state', () => {
+  const card = (id, state, extra = {}) => ({ id, name: `Curso ${id}`, description: 'Descrição', cover: '', progress: { done: 3, total: 10, percent: 30 }, mode: 'included', state, offerUrl: '', priceLabel: '', ...extra });
+  const academy = [card('c1', 'open'), card('c2', 'join'), card('c3', 'buy', { mode: 'separate', offerUrl: '/oferta/demo/o1', priceLabel: 'R$ 97,00' }), card('c4', 'unavailable', { mode: 'separate' })];
+  const html = academyTab(makeView({ academy }));
+  assert.match(html, /data-cm-public="course" data-course="c1"/);
+  assert.match(html, /Continuar/);
+  assert.match(html, /Entre na comunidade para assistir/);
+  assert.match(html, /href="\/oferta\/demo\/o1"/);
+  assert.match(html, /R\$ 97,00/);
+  assert.match(html, /Indisponível no momento/);
+  assert.match(html, /Incluso/);
+  assert.match(academyTab(makeView({ academy: [card('c5', 'open', { progress: { done: 0, total: 4, percent: 0 } })] })), /Começar/);
+  assert.match(academyTab(makeView({ academy: [] })), /cp-cm-empty/);
+  assert.match(communityPage(makeView({ academy }), { ...ui, tab: 'academy' }), /data-course="c1"/);
 });
 
 test('composer uses the owner prompt', () => {
