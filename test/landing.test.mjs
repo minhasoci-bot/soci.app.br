@@ -34,7 +34,7 @@ test('Root is a Google login page and the platform stays under /app', async t =>
   assert.equal(jsRes.status, 200);
   assert.match(jsRes.headers.get('content-type'), /text\/javascript/);
 
-  for (const path of ['/landing.html', '/landing.css', '/landing.js', '/privacidade', '/privacidade.html']) {
+  for (const path of ['/landing.html', '/landing.css', '/landing.js']) {
     assert.equal((await fetch(local.base + path)).status, 404, `${path} must no longer expose a public page`);
   }
 
@@ -293,4 +293,23 @@ test('Agency profiles force Brazilian Portuguese even with a legacy language val
     assert.equal(saved.status, 200);
     assert.equal((await saved.json()).agency.profile.language, 'Português (Brasil)');
   }
+});
+
+// O login com Google exige uma política de privacidade publicada (e a LGPD também): ela fica pública,
+// sem sessão, mesmo com a autenticação ligada.
+test('A política de privacidade é pública em /privacidade, sem sessão', async t => {
+  const authOn = { auth: { hasSession: () => false, user: async () => null, session: async () => null }, allowLocalAccess: false };
+  const server = await start(authOn);
+  t.after(server.close);
+  for (const path of ['/privacidade', '/privacidade/', '/privacidade.html']) {
+    const res = await fetch(server.base + path, { redirect: 'manual' });
+    assert.equal(res.status, 200, path);
+    assert.match(res.headers.get('content-type'), /text\/html/);
+    const html = await res.text();
+    assert.match(html, /Política de Privacidade/);
+    assert.match(html, /LGPD/);
+  }
+  const art = await fetch(server.base + '/skull_flame_animated.svg');
+  assert.equal(art.status, 200);
+  assert.equal(art.headers.get('content-type'), 'image/svg+xml');
 });

@@ -196,6 +196,7 @@ export const staticFiles = new Map([
   ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
   ['/fonts/plus-jakarta-sans.woff2','font/woff2'], ['/favicon.svg','image/svg+xml'],
+  ['/privacidade.html','text/html; charset=utf-8'], ['/skull_flame_animated.svg','image/svg+xml'],
   ['/login.css','text/css; charset=utf-8'], ['/login.js','text/javascript; charset=utf-8'],
 ]);
 // Ilustrações dos templates de setup (ui/setup-art/*.svg), uma por segmento.
@@ -4630,6 +4631,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         await publicAccountPolicy(legacyPage[2], false, legacyPage[1] === 'course' ? 'memberships' : 'sites');
       }
       if (method === 'GET' && legacyPage?.[1] === 'f') { res.writeHead(302, { Location:`/form/${legacyPage[2]}/${legacyPage[3]}` }); return res.end(); }
+      // Política de privacidade pública (LGPD e o link exigido pelo login com Google).
+      if (p === '/privacidade' || p === '/privacidade/') p = '/privacidade.html';
       const platformPaths = ['/app','/app/','/painel','/painel/'];
       const loginPaths = ['/','/login','/index.html'];
       if ((method==='GET'||method==='HEAD') && (loginPaths.includes(p) || platformPaths.includes(p) || paths.test(p) || staticFiles.has(p))) {
