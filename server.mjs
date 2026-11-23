@@ -2241,7 +2241,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (input?.action === 'staff-enter') {
             const staffUser = {
               email: who.session?.email || state.profile?.email || 'admin@soci.app.br',
-              name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador'
+              name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador',
+              photo: who.session?.picture || who.session?.user_metadata?.avatar_url || ''
             };
             const result = await clientPortal.admin(workspace, state, { ...input, ...staffUser });
             if (result.memberId && state.communities?.length) {
@@ -2258,7 +2259,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const state = await store.load(workspace);
           const staffUser = {
             email: who.session?.email || state.profile?.email || 'admin@soci.app.br',
-            name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador'
+            name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador',
+              photo: who.session?.picture || who.session?.user_metadata?.avatar_url || ''
           };
           const result = await clientPortal.admin(workspace, state, { action: 'staff-enter', ...staffUser });
           if (result.memberId && state.communities?.length) {
@@ -2296,7 +2298,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
             const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'], hide: true });
             const staffUser = {
               email: who.session?.email || state.profile?.email || 'admin@soci.app.br',
-              name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador'
+              name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador',
+              photo: who.session?.picture || who.session?.user_metadata?.avatar_url || ''
             };
             const result = await clientPortal.admin(workspace, state, { action: 'staff-enter', ...staffUser });
             if (result.memberId && state.communities?.length) {
@@ -2320,7 +2323,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (portal && method !== 'POST') {
         await ready;
         await publicAccountPolicy(portal[1], false, 'memberships');
-        res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; form-action 'self'");
+        res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; form-action 'self'");
         return send(200,'text/html; charset=utf-8',method==='HEAD' ? undefined : readFileSync(resolve(root,'ui','client-portal.html')));
       }
       if (p === '/favicon.ico') { res.writeHead(302, { Location: '/favicon.svg' }); return res.end(); }

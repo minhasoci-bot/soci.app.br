@@ -123,6 +123,7 @@ function draw(message = '') {
   if (/^#[\da-f]{6}$/i.test(color)) document.body.style.setProperty('--portal-color',color);
   paintCommunity(community?.group);
   cmUi.me = member?.name || '';
+  cmUi.mePhoto = member?.photo || '';
   root.innerHTML = `<div class="cp-public-shell ${course || community ? 'cp-wide' : ''}"><header class="cp-public-header">
       <div class="cp-public-brand">${icon('lock',20)}<span>${h(title)}</span></div>
       ${signedIn ? '<button type="button" class="cp-public-link" data-portal-public="logout">Sair</button>' : ''}
@@ -292,6 +293,8 @@ root.addEventListener('input', event => {
   if (count) count.textContent = `${area.value.length}/10000`;
 });
 // A click outside closes an open "⋯" menu.
+// A member photo that fails to load (an expired link) leaves the initials underneath.
+root.addEventListener('error', event => { if (event.target.matches?.('.cp-avatar img')) event.target.remove(); }, true);
 document.addEventListener('click', event => {
   for (const open of root.querySelectorAll('.cp-cm-menu[open]')) if (!open.contains(event.target)) open.open = false;
 });
