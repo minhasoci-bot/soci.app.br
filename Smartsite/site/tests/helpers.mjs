@@ -8,7 +8,8 @@ export const LOGIN_URL = 'https://soci.app.br/login';
 
 function walk(dir, ext) {
   if (!existsSync(dir)) return [];
-  return readdirSync(dir).flatMap((name) => {
+  // Pastas e arquivos ocultos (ex.: .taste-skill deixada por ferramentas de design) não são páginas do site.
+  return readdirSync(dir).filter((name) => !name.startsWith('.')).flatMap((name) => {
     const full = join(dir, name);
     return statSync(full).isDirectory() ? walk(full, ext) : full.endsWith(ext) ? [full] : [];
   });
