@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { agentTemplate } from './agent-model.mjs';
 import { marketplaceCategories } from './ui/agency-data.js';
 import { agenciaCompleta360Spec } from './setup-agencia-360.mjs';
+import { ghlSnapshotSpecs } from './setup-ghl-snapshots.mjs';
 
 export const MARKETPLACE_DOC_ID = 'marketplace-setups';
 export const MAX_MARKETPLACE_LISTINGS = 500;
@@ -42,7 +43,15 @@ export function buildSetupPreview(assets = {}) {
     triggerLinks: names('triggerLinks'),
     courses: names('courses'),
     agents: names('agents'),
-    studioProjects: names('studioProjects')
+    studioProjects: names('studioProjects'),
+    services: names('services'),
+    knowledgeBases: names('knowledgeBases'),
+    emailTemplates: names('emailTemplates'),
+    documentTemplates: names('documentTemplates'),
+    chatWidgets: names('chatWidgets'),
+    tags: names('tags'),
+    customValues: names('customValues'),
+    customFields: names('customFields')
   };
   return Object.fromEntries(Object.entries(preview).filter(([, list]) => list.length));
 }
@@ -70,8 +79,8 @@ function buildOfficial(spec) {
     assets,
     studioSites: {},
     installs: 0,
-    publishedAt: '2026-01-15T12:00:00.000Z',
-    updatedAt: '2026-01-15T12:00:00.000Z'
+    publishedAt: spec.publishedAt || '2026-01-15T12:00:00.000Z',
+    updatedAt: spec.publishedAt || '2026-01-15T12:00:00.000Z'
   };
 }
 
@@ -351,7 +360,9 @@ const OFFICIAL_SETUPS = [
         }
       ]
     }
-  })
+  }),
+  // Convertidos dos snapshots GHL da agência (ver setup-ghl-snapshots.mjs).
+  ...ghlSnapshotSpecs.map(spec => buildOfficial({ ...spec, publishedAt: '2026-11-22T12:00:00.000Z' }))
 ];
 
 export function officialSetups() {

@@ -179,6 +179,76 @@ test('A snapshot copies assets into a new sub-account as drafts and keeps existi
   assert.deepEqual((await local.call(`/api/state?workspace=${id}`)).body.state, state);
 });
 
+test('Snapshots carry account data (fields, values, tags, calendars, templates), load picked records with a conflict preview, and share with asset protection', async t => {
+  const local = await start(); t.after(local.close);
+  const save = async (key, data) => {
+    const r = await local.call('/api/action?workspace=demo', { type: 'save', key, data });
+    assert.equal(r.status, 200, `${key}: ${JSON.stringify(r.body)}`);
+    return r.body.id;
+  };
+  await save('customFields', { name: 'Bairro de interesse', object: 'Contact', type: 'Single line', folder: 'Imóvel' });
+  await save('customValues', { name: 'Company Name', value: 'F1 Imobiliária', folder: 'Branding' });
+  await save('tags', { name: 'Lead-Instagram' });
+  await save('services', { name: 'Visita ao imóvel', duration: 60 });
+  await save('emailTemplates', { name: 'Boas-vindas' });
+  await save('chatWidgets', { name: 'Chat do site', active: true, askEmail: 'required' });
+  const form = await save('forms', { name: 'Quero visitar', active: true });
+  const folder = await save('workflowFolders', { name: 'Leads' });
+  const flow = await save('workflows', { name: 'Nova visita', trigger: 'Form submitted', formId: form, folderId: folder, active: true, actions: [{ type: 'Add tag', value: 'visita' }] });
+  await save('workflows', { name: 'Outro fluxo', trigger: 'Contact created', active: true, actions: [{ type: 'Add tag', value: 'x' }] });
+
+  const created = await local.call('/api/agency/snapshot-create', { workspace: 'demo', name: 'Imob' });
+  assert.equal(created.status, 200);
+  const snap = created.body.agency.snapshots[0];
+  for (const key of ['customFields', 'customValues', 'tags', 'services', 'emailTemplates', 'chatWidgets']) assert.ok(snap.counts[key] >= 1, `${key} is packed`);
+  assert.ok(snap.assets.chatWidgets.every(w => w.active === false), 'chat widgets arrive switched off');
+
+  const account = (await local.call('/api/agency/accounts', { name: 'Imob Cliente' })).body.result;
+  await local.call(`/api/action?workspace=${account}`, { type: 'save', key: 'tags', data: { name: 'Lead-Instagram' } });
+
+  // Picking one workflow brings its form and folder along; the preview names what already exists and writes nothing.
+  const items = { workflows: [flow], tags: '*', customValues: '*' };
+  const preview = await local.call('/api/agency/snapshot-preview', { id: snap.id, workspaces: [account], items });
+  assert.equal(preview.status, 200);
+  const cats = Object.fromEntries(preview.body.result[0].categories.map(c => [c.key, c]));
+  assert.deepEqual(cats.tags.conflicts, ['Lead-Instagram']);
+  assert.equal(cats.workflows.total, 1);
+  assert.equal(cats.forms.total, 1, 'the form the workflow listens to is included');
+  assert.equal((await local.call(`/api/state?workspace=${account}`)).body.state.workflows.length, 0, 'preview does not write');
+
+  const loaded = await local.call('/api/agency/snapshot-load', { id: snap.id, workspaces: [account], mode: 'skip', items, modes: { tags: 'overwrite' } });
+  assert.equal(loaded.status, 200);
+  assert.equal(loaded.body.result[0].partial, true);
+  assert.equal(loaded.body.result[0].overwritten, 1);
+  const state = (await local.call(`/api/state?workspace=${account}`)).body.state;
+  assert.deepEqual(state.workflows.map(w => w.name), ['Nova visita']);
+  assert.equal(state.workflows[0].triggers[0].config.formId, state.forms[0].id, 'the trigger points at the form copied into this account');
+  assert.ok(!JSON.stringify(state.workflows[0]).includes(form), 'no link to the source account survives');
+  assert.equal(state.workflows[0].folderId, state.workflowFolders[0].id);
+  assert.equal(state.customValues[0].value, 'F1 Imobiliária');
+  assert.equal(state.services.length, 0, 'types that were not picked stay out');
+
+  // Share with asset protection: the importer can load it but sees no records and cannot pass it on.
+  const code = (await action(local, { type: 'snapshot-share', id: snap.id, data: { protect: true } })).body.result;
+  assert.match(code, /^[0-9a-f]{12}$/);
+  const imported = await action(local, { type: 'snapshot-import', data: { code } });
+  assert.equal(imported.status, 200);
+  const copy = imported.body.agency.snapshots.find(s => s.id === imported.body.result);
+  assert.equal(copy.kind, 'imported');
+  assert.equal(copy.protected, true);
+  assert.equal(copy.assets, undefined, 'protected setups never expose their records');
+  assert.ok(copy.counts.workflows >= 2, 'but still show how much they bring');
+  assert.equal((await action(local, { type: 'snapshot-share', id: copy.id })).status, 403);
+  const other = (await local.call('/api/agency/accounts', { name: 'Imob Dois' })).body.result;
+  const whole = await local.call('/api/agency/snapshot-load', { id: copy.id, workspaces: [other], mode: 'skip', items: { workflows: '*', services: '*' } });
+  assert.equal(whole.status, 200);
+  const otherState = (await local.call(`/api/state?workspace=${other}`)).body.state;
+  assert.equal(otherState.workflows.length, 2);
+  assert.equal(otherState.services[0].name, 'Visita ao imóvel');
+  assert.equal((await action(local, { type: 'snapshot-unshare', id: snap.id })).status, 200);
+  assert.equal((await action(local, { type: 'snapshot-import', data: { code } })).status, 404, 'a revoked link stops working');
+});
+
 test('API keys are shown once, stored as hashes, and private integrations respect scopes', async t => {
   const local = await start(); t.after(local.close);
   const key = await action(local, { type: 'api-key', data: { name: 'Script' } });
@@ -293,7 +363,7 @@ test('Setup marketplace serves official Soci setups, supports install into sub-a
   const initial = await local.call('/api/agency');
   assert.equal(initial.status, 200);
   const officials = initial.body.marketplace.filter(item => item.official);
-  assert.equal(officials.length, 6);
+  assert.equal(officials.length, 10);
   const full360 = officials.find(item => item.id === 'official-agencia-completa-360');
   assert.ok(full360);
   assert.equal(full360.counts.pipelines, 3);

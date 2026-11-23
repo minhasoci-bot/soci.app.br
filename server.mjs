@@ -40,7 +40,7 @@ function meteredUsage() {
 import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
-import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, userAccess } from './agency-model.mjs';
+import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, previewSnapshot, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
 import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
@@ -275,9 +275,29 @@ function publicAgency(agency, who) {
     view.accounts = Object.fromEntries(Object.entries(agency.accounts).map(([id, { statusHistory, ignoredWebhooks, suspendedReason, billing, ...meta }]) => [id, meta]));
   }
   if (who.modules !== null || !who.settings) view.snapshots = view.snapshots.map(({ assets, shareCode, ...snap }) => snap);
+  // Setups imported with asset protection show only how many records each type has, never the records.
+  view.snapshots = view.snapshots.map(({ assets, ...snap }) => snap.protected || !assets ? snap : { ...snap, assets });
   return view;
 }
 const stamp = () => new Date().toISOString();
+// What a snapshot load or preview asked for: the records picked per asset type and the conflict rule per type.
+function loadChoices(input) {
+  const known = new Set(snapshotAssets.map(([key]) => key));
+  let items = null;
+  if (input.items && typeof input.items === 'object' && !Array.isArray(input.items)) {
+    items = {};
+    for (const [key, value] of Object.entries(input.items)) {
+      if (!known.has(key)) continue;
+      if (value === '*') items[key] = '*';
+      else if (Array.isArray(value)) items[key] = value.filter(id => typeof id === 'string').slice(0, 2000);
+    }
+  }
+  const modes = {};
+  if (input.modes && typeof input.modes === 'object') for (const [key, value] of Object.entries(input.modes)) {
+    if (known.has(key) && (value === 'skip' || value === 'overwrite')) modes[key] = value;
+  }
+  return { items, modes };
+}
 
 const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) : (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
   ? resolve(tmpdir(), 'go.sqlite')
@@ -1129,6 +1149,23 @@ export function makeServer({
         return snap.id;
       });
     }
+    if (op === 'snapshot-preview') {
+      // Conflict check before a load: nothing is written.
+      const agency = await loadAgency(who.agencyId);
+      const snap = agency.snapshots.find(s => s.id === input.id);
+      if (!snap) throw error('Snapshot not found.',404);
+      const targets = Array.isArray(input.workspaces) ? (await listWorkspaces(who.agencyId)).filter(w => input.workspaces.includes(w.id)) : [];
+      if (!targets.length) throw error('Choose at least one sub-account.',400);
+      const { items } = loadChoices(input);
+      const out = [];
+      for (const target of targets) {
+        await requireWorkspaceAccess(agency, who, target.id);
+        const categories = previewSnapshot(await store.load(target.id), snap, items);
+        // A protected setup reveals counts, never record names.
+        out.push({ workspace: target.id, account: target.name, categories: snap.protected ? categories.map(({ conflicts, ...c }) => ({ ...c, conflicts: conflicts.map(() => '') })) : categories });
+      }
+      return out;
+    }
     if (op === 'snapshot-load') {
       const agency = await loadAgency(who.agencyId);
       const snap = agency.snapshots.find(s => s.id === input.id);
@@ -1140,12 +1177,14 @@ export function makeServer({
         requireSetupModules(targetAccess, Object.keys(snap.assets || {}));
       }
       const mode = input.mode === 'overwrite' ? 'overwrite' : 'skip';
+      const { items, modes } = loadChoices(input);
       const loads = [];
       for (const target of targets) {
         const studioMap = new Map();
-        const report = await store.change(target.id, state => applySnapshot(state, snap, mode, studioMap));
+        const report = await store.change(target.id, state => applySnapshot(state, snap, mode, studioMap, { items, modes }));
         await applyStudioSites(snap, studioMap, target.id);
-        loads.push({ id: uid(), snapshotId: snap.id, snapshot: snap.name, workspace: target.id, account: target.name, at: stamp(), mode, ...report });
+        loads.push({ id: uid(), snapshotId: snap.id, snapshot: snap.name, workspace: target.id, account: target.name, at: stamp(), mode,
+          ...(items ? { partial: true } : {}), ...(Object.keys(modes).length ? { modes } : {}), ...report });
       }
       await changeAgency(who.agencyId, a => {
         a.snapshotLoads.push(...loads);
