@@ -158,6 +158,7 @@ import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-d
 import { eachStep } from './ui/workflow-data.js';
 import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
 import { deviceOf, qrTarget } from './qr-model.mjs';
+import { ASSET_PATH, assetBytes, extractAssets, saveAssets } from './asset-store.mjs';
 import { inBackground } from './background.mjs';
 import { runInBatches, sameSecret } from './cron-batch.mjs';
 
@@ -543,9 +544,13 @@ export function makeServer({
     agencyCache.set(id, { data: structuredClone(fresh), expiresAt: now + AGENCY_CACHE_TTL });
     return fresh;
   };
+  // Imagens grandes em base64 saem do documento da agência a cada gravação (asset-store.mjs):
+  // o documento guarda só /asset/<hash>; as linhas das imagens são gravadas antes da resposta.
   const changeAgency = async (id, mutate) => {
     agencyCache.delete(id);
-    const result = await store.change(id, state => mutate(hydrateAgency(state)));
+    const images = new Map();
+    const result = await store.change(id, state => { const out = mutate(hydrateAgency(state)); extractAssets(state, images); return out; });
+    if (images.size) await saveAssets(store, images);
     agencyCache.delete(id);
     return result;
   };
@@ -2451,6 +2456,15 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         return json({ published: await runAllSocial(publicBase(req)) });
       }
       // "Gerar vídeo com IA": the finished video, public (it is made to be sent).
+      // Imagens guardadas fora dos documentos (asset-store.mjs): públicas e imutáveis (o endereço é o hash do conteúdo).
+      const assetMatch = p.match(ASSET_PATH);
+      if (assetMatch && (method === 'GET' || method === 'HEAD')) {
+        const image = await assetBytes(store, p);
+        if (!image) throw error('Imagem não encontrada.', 404);
+        res.writeHead(200, { 'Content-Type': image.mime, 'Content-Length': image.bytes.length, 'Cache-Control': 'public, max-age=31536000, immutable',
+          'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'", 'Cross-Origin-Resource-Policy': 'cross-origin' });
+        return res.end(method === 'HEAD' ? undefined : image.bytes);
+      }
       const aiVideo = p.match(new RegExp(`^/m/${workspaceSegment}/video/([0-9a-f-]{36})$`));
       if (aiVideo && (method === 'GET' || method === 'HEAD')) {
         await ready;
@@ -2496,7 +2510,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (signPage && method === 'GET') {
         await ready;
         await publicAccountPolicy(signPage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         res.setHeader('Referrer-Policy', 'no-referrer');
         res.setHeader('X-Robots-Tag', 'noindex');
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/document-sign.html')));
@@ -2536,7 +2550,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (estimatePage && method === 'GET') {
         await ready;
         await publicAccountPolicy(estimatePage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         res.setHeader('Referrer-Policy', 'no-referrer');
         res.setHeader('X-Robots-Tag', 'noindex');
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/estimate-view.html')));
@@ -2571,7 +2585,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (invoicePage && method === 'GET') {
         await ready;
         await publicAccountPolicy(invoicePage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         res.setHeader('Referrer-Policy', 'no-referrer');
         res.setHeader('X-Robots-Tag', 'noindex');
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/invoice-view.html')));
@@ -2604,7 +2618,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (approvePage && method === 'GET') {
         await ready;
         await publicAccountPolicy(approvePage[1], false, 'marketing');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; media-src https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; media-src https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         res.setHeader('Referrer-Policy', 'no-referrer');
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/social-approve.html')));
       }
@@ -4174,7 +4188,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!webinar || (!webinar.active && !preview)) throw error('Este webinar não está disponível.',404);
         const zone = state.profile?.timezone || 'America/Sao_Paulo';
         const page = body => { res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }); return res.end(method === 'HEAD' ? undefined : body); };
+          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }); return res.end(method === 'HEAD' ? undefined : body); };
         if (!part) return page(registrationPage(webinar, { workspace, zone }));
         const registration = state.webinarRegistrations.find(item => item.webinarId === webinarId && item.token === String(url.searchParams.get('t') || ''));
         if (!registration) throw error('Inscrição não encontrada. Use o link que você recebeu.',404);
@@ -4236,7 +4250,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         else if (slug) { const item = catalog(state, shop).find(row => row.slug === slug); if (!item) throw error('Produto não encontrado.',404); body = storeProduct(state, shop, item, { base }); }
         else body = storeHome(state, shop, { base, category:String(url.searchParams.get('categoria') || '').slice(0,40), collection:String(url.searchParams.get('colecao') || '').slice(0,80) });
         const [storeHeaders, storeBody] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, body);
+          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, body);
         res.writeHead(200, storeHeaders);
         return res.end(method === 'HEAD' ? undefined : storeBody);
       }
@@ -4445,8 +4459,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (part === 'config.json') return done('application/json; charset=utf-8', JSON.stringify(mobileConfig(app, agencyId)));
         if (part.startsWith('icon-')) {
           const size = part.slice(5, -4), source = (size === '192' && app.icon192) || (size === '512' && app.icon512) || app.icon;
-          if (!source) throw error('Ícone não encontrado.',404);
-          return done('image/png', Buffer.from(source.split(',')[1], 'base64'));
+          const image = source && await assetBytes(store, source);
+          if (!image) throw error('Ícone não encontrado.',404);
+          return done('image/png', image.bytes);
         }
         return done('text/html; charset=utf-8', mobileLaunchPage(app, agencyId), { 'Content-Security-Policy':mobileCsp, 'Referrer-Policy':'no-referrer' });
       }
@@ -4477,8 +4492,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (part === 'sw.js') return done('text/javascript; charset=utf-8', desktopWorker, { 'Service-Worker-Allowed':`/desktop/${agencyId}/` });
         if (part.startsWith('icon-')) {
           const size = part.slice(5, -4), source = (size === '192' && app.icon192) || (size === '512' && app.icon512) || app.icon;
-          if (!source) throw error('Ícone não encontrado.',404);
-          return done('image/png', Buffer.from(source.split(',')[1], 'base64'));
+          const image = source && await assetBytes(store, source);
+          if (!image) throw error('Ícone não encontrado.',404);
+          return done('image/png', image.bytes);
         }
         return done('text/html; charset=utf-8', desktopLaunchPage(app, agencyId, { signedIn: Boolean(auth?.hasSession?.(req)) }), { 'Content-Security-Policy':desktopCsp, 'Referrer-Policy':'no-referrer' });
       }
@@ -4628,7 +4644,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!blog || (!blog.active && !preview)) throw error('Este blog não está publicado.',404);
         const base = `/b/${workspace}/${blogId}`, origin = publicBase(req);
         const html = (status, page) => { const [headers, body] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Cache-Control':'no-store',
-          'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, page); res.writeHead(status, headers); return res.end(method === 'HEAD' ? undefined : body); };
+          'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, page); res.writeHead(status, headers); return res.end(method === 'HEAD' ? undefined : body); };
         if (slug === 'rss.xml') {
           if (blog.rss === false) throw error('Este blog não tem RSS.',404);
           res.writeHead(200, { 'Content-Type':'application/rss+xml; charset=utf-8', 'Cache-Control':'no-store' });
@@ -4671,7 +4687,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           return res.end(method === 'HEAD' ? undefined : demoPage(widget, { workspace, brand:state.profile?.name || '' }));
         }
         res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors *" });
+          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors *" });
         return res.end(method === 'HEAD' ? undefined : chatPage(widget, { workspace }));
       }
       const chatCall = p.match(chatApi);
@@ -4712,7 +4728,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const redirects = form.onSubmit?.action === 'redirect' && form.onSubmit.url;
         const page = (status, options) => {
           const [headers, body] = withPixels(preview ? null : state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; object-src 'none'; form-action 'self'${redirects ? ' https: http:' : ''}; frame-ancestors *` },
+            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'${redirects ? ' https: http:' : ''}; frame-ancestors *` },
             formPage(form, { action:`/form/${workspace}/${formId}${embed ? '?embed=1' : preview ? '?preview=1' : ''}`, target:embed && redirects ? '_top' : '',
             customFields:state.customFields || [], embed, brand:state.profile?.name || '', ...options }));
           res.writeHead(status, headers);
