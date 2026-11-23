@@ -158,6 +158,7 @@ import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-d
 import { eachStep } from './ui/workflow-data.js';
 import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
 import { deviceOf, qrTarget } from './qr-model.mjs';
+import { inBackground } from './background.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 export const staticFiles = new Map([
@@ -1746,15 +1747,15 @@ export function makeServer({
     }
     return results.length + aiResults.length;
   }
-  const flushLater = workspace => { Promise.resolve().then(() => flushWorkflows(workspace)).catch(e => console.error(`Workflow delivery (${workspace}): ${e.message}`)); };
+  const flushLater = workspace => { inBackground(`Workflow delivery (${workspace})`, () => flushWorkflows(workspace)); };
   // "Gerar auditoria de marketing": the audit can take a minute (PageSpeed), so it runs apart from the delivery queue
   // and resumes the waiting run with the result. The audit fetches only public addresses (prospect-audit.mjs).
   const auditLater = (workspace, item) => {
-    Promise.resolve().then(async () => {
+    inBackground(`Marketing audit (${workspace})`, async () => {
       const audit = await prospectAudit({ website: item.website, name: item.business, city: item.city }).catch(() => null);
       const done = await change(workspace, { type: 'workflow-ai-result', data: { results: [{ runId: item.runId, stepId: item.stepId, ...marketingAuditVars(audit, item.variable) }] } });
       if (done.state.workflowOutbox?.length) flushLater(workspace);
-    }).catch(e => console.error(`Marketing audit (${workspace}): ${e.message}`));
+    });
   };
   // "Gerar vídeo com IA": each running job is checked; a finished video is stored in chunks and resumes the run
   // with its public link, a failed one resumes it with the error (and a job older than 40 minutes gives up).
@@ -1883,7 +1884,7 @@ export function makeServer({
       return sent;
     } finally { emailRuns.delete(workspace); }
   }
-  const emailLater = workspace => { Promise.resolve().then(() => runEmailCampaigns(workspace)).catch(e => console.error(`E-mail campaigns (${workspace}): ${e.message}`)); };
+  const emailLater = workspace => { inBackground(`E-mail campaigns (${workspace})`, () => runEmailCampaigns(workspace)); };
   async function runAllSocial(base) {
     let total = 0;
     for (const w of (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id))) {
