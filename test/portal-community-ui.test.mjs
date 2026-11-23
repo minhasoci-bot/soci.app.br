@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { communityPage } from '../ui/portal-community.js';
 import { defaultLayout, defaultTabs } from '../ui/community-data.js';
+import { feedTab, filterFeed, relativeTime } from '../ui/portal-community-feed.js';
 
 const NOW = Date.parse('2026-11-23T12:00:00Z');
 const ago = ms => new Date(NOW - ms).toISOString();
@@ -52,4 +53,45 @@ test('academy tab hidden when not visible', () => {
   const hidden = defaultTabs().map(tab => tab.key === 'academy' ? { ...tab, visible: false } : tab);
   assert.doesNotMatch(communityPage(makeView({ tabs: hidden }), ui), /data-value="academy"/);
   assert.match(communityPage(makeView(), ui), /data-cm-public="tab" data-value="academy"/);
+});
+
+const DAY = 86400e3;
+test('filterFeed orders recent, hot and mine', () => {
+  const posts = [
+    post('p1', { pinned: true, created: ago(10 * DAY) }),
+    post('p2', { likes: 5, comments: [{}, {}], created: ago(2 * DAY) }),
+    post('p3', { likes: 1, mine: true, created: ago(3600e3) }),
+    post('p4', { likes: 50, created: ago(40 * DAY) })
+  ];
+  const ids = filter => filterFeed(posts, filter, NOW).map(row => row.id);
+  assert.deepEqual(ids('recent'), ['p1', 'p3', 'p2', 'p4']);
+  assert.deepEqual(ids('hot'), ['p2', 'p3', 'p1']);
+  assert.deepEqual(ids('mine'), ['p3']);
+});
+
+test('relativeTime', () => {
+  assert.equal(relativeTime(ago(30e3), NOW), 'agora');
+  assert.equal(relativeTime(ago(5 * 60e3), NOW), '5 min');
+  assert.equal(relativeTime(ago(3 * 3600e3), NOW), '3 h');
+  assert.equal(relativeTime(ago(2 * DAY), NOW), '2 d');
+  assert.match(relativeTime(ago(20 * DAY), NOW), /^\d{2} [a-zç]{3}/);
+});
+
+test('cards hide auto titles and collapse comments', () => {
+  const comment = n => ({ id: `k${n}`, body: `Comentário ${n}`, created: ago(n * 60e3), author: author('Bia'), likes: 0, liked: false, mine: false, canDelete: false, held: '', reported: false });
+  const posts = [post('p1', { titleAuto: true, title: 'Primeira linha' }), post('p2', { comments: [1, 2, 3, 4].map(comment) })];
+  const card = (html, id) => html.split(`id="post-${id}"`)[1].split('</article>')[0];
+  const html = feedTab(makeView({ posts }), { feed: 'recent' });
+  assert.doesNotMatch(card(html, 'p1'), /<h3/);
+  assert.equal((card(html, 'p2').match(/<li[ >]/g) || []).length, 2);
+  assert.match(card(html, 'p2'), /Ver todos os 4 comentários/);
+  const open = feedTab(makeView({ posts }), { feed: 'recent', openComments: new Set(['p2']) });
+  assert.equal((card(open, 'p2').match(/<li[ >]/g) || []).length, 4);
+});
+
+test('composer uses the owner prompt', () => {
+  const layout = { ...defaultLayout(), composerPrompt: 'Conte sua vitória' };
+  assert.match(feedTab(makeView({ layout }), {}), /placeholder="Conte sua vitória"/);
+  assert.match(feedTab(makeView(), {}), /placeholder="Compartilhe algo com a comunidade…"/);
+  assert.doesNotMatch(feedTab(makeView({ membership: null }), {}), /data-cm-public-form="post"/);
 });

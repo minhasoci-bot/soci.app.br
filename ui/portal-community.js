@@ -2,7 +2,7 @@
 // identity, sections and channels on the left; the section in the middle; the owner's blocks on the right.
 import { icon } from './icons.js';
 import { planPrice, themeStyle } from './community-data.js';
-import { avatar, badgeChip, dateShort, empty, feedTab, h } from './portal-community-feed.js';
+import { avatar, badgeChip, dateShort, empty, feedTab, h, segment } from './portal-community-feed.js';
 
 export const communityTabs = [['discussion', 'Discussão'], ['academy', 'Academia'], ['events', 'Eventos'], ['members', 'Membros'], ['ranking', 'Ranking'], ['about', 'Sobre']];
 const tabIcons = { discussion: 'chat', academy: 'book', events: 'cal', members: 'users', ranking: 'award', about: 'note' };
@@ -43,9 +43,6 @@ function eventCard(event, membership, filter) {
       <div class="cp-event-actions">${eventAction(event, active)}</div></footer>
   </article>`;
 }
-
-const segment = (verb, current, options, label) => `<div class="cp-segment" role="group" aria-label="${h(label)}">${options.map(([value, text]) =>
-  `<button type="button" data-cm-public="${verb}" data-value="${value}" aria-pressed="${current === value}">${text}</button>`).join('')}</div>`;
 
 function eventsTab(view, ui) {
   const filter = ui.events || 'upcoming', events = view.events || [];
