@@ -251,6 +251,7 @@ export function startAgency(env) {
 
   pages.presentations = () => presentationsHtml(D(), {
     agency: D(),
+    getAgency: D,
     act,
     dialog,
     closeDialog: close,
@@ -1096,6 +1097,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     if (A.page === 'presentations') {
       attachPresentationListeners(app, {
         agency: D(),
+        getAgency: D,
         act,
         dialog,
         closeDialog: close,
