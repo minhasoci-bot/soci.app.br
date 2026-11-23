@@ -2,7 +2,7 @@
 // welcome message and onboarding steps, moderation, newsletter, tabs) and what is computed from activity
 // (badges, analytics, the newsletter digest). Membership and activity live in the community document.
 import { randomUUID } from 'node:crypto';
-import { badgeCatalog, communityTabKeys, defaultTheme, planIntervals, spamPack, themePresets, themeTokens } from './ui/community-data.js';
+import { badgeCatalog, communityTabKeys, defaultLayout, defaultTheme, planIntervals, spamPack, themePresets, themeTokens, widgetKeys } from './ui/community-data.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : '';
@@ -12,7 +12,7 @@ const https = (value, label) => { const link = str(value, 500); if (link && !/^h
 const DAY = 86400000;
 
 /** The 6.2 settings of a group, merged over what it had. */
-export function communityConfig(d, prior = {}) {
+export function communityConfig(d, prior = {}, s = null) {
   const pick = key => d[key] === undefined ? prior[key] : d[key];
   // Access: free, or paid with up to 4 plans (monthly, yearly or once) and an optional free trial.
   const planInput = Array.isArray(pick('plans')) ? pick('plans') : [];
@@ -60,8 +60,17 @@ export function communityConfig(d, prior = {}) {
   const hour = Math.round(Number(newsInput.hour ?? 9)), weekday = Math.round(Number(newsInput.weekday ?? 1));
   if (hour < 0 || hour > 23 || weekday < 0 || weekday > 6) fail('Escolha um dia e uma hora válidos para a newsletter.');
   const newsletter = { enabled: Boolean(newsInput.enabled), frequency: newsInput.frequency === 'daily' ? 'daily' : 'weekly', weekday, hour };
+  // Layout: the right-column blocks (known keys, in the order given, the rest appended) and the composer prompt.
+  const layoutInput = d.layout === undefined ? prior.layout || defaultLayout() : d.layout || {};
+  const widgetInput = Array.isArray(layoutInput.widgets) ? layoutInput.widgets : [];
+  const widgets = [...widgetInput.filter(row => widgetKeys.some(([key]) => key === row?.key)), ...widgetKeys.filter(([key]) => !widgetInput.some(row => row?.key === key)).map(([key]) => ({ key }))]
+    .filter((row, index, list) => list.findIndex(other => other.key === row.key) === index)
+    .map(row => ({ key: row.key, visible: row.visible !== false }));
+  const prompt = typeof layoutInput.composerPrompt === 'string' ? layoutInput.composerPrompt.trim() : '';
+  if (prompt.length > 80) fail('O convite para publicar tem até 80 caracteres.');
+  const layout = { widgets, composerPrompt: prompt };
   const badgesOff = (Array.isArray(pick('badgesOff')) ? pick('badgesOff') : []).filter(key => badgeCatalog.some(row => row.key === key));
-  return { access, plans, trialDays, questions, welcomeDm: str(pick('welcomeDm'), 1500), onboarding, theme, tabs, moderation, newsletter, badgesOff };
+  return { access, plans, trialDays, questions, welcomeDm: str(pick('welcomeDm'), 1500), onboarding, theme, tabs, moderation, newsletter, badgesOff, layout };
 }
 
 /** Does a paid group give this membership access? Staff-added and older members keep access (no paidUntil). */

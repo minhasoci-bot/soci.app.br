@@ -49,7 +49,7 @@ export const communityFields = {
       active: d.active === undefined ? prior?.active !== false : Boolean(d.active),
       memberPosts: d.memberPosts === undefined ? prior?.memberPosts !== false : Boolean(d.memberPosts),
       welcome: str(d.welcome ?? prior?.welcome, 1000),
-      channels, levels, points: points(d.points, prior?.points), ...communityConfig(d, prior || {})
+      channels, levels, points: points(d.points, prior?.points), ...communityConfig(d, prior || {}, s)
     };
   }
 };
