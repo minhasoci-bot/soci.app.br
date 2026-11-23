@@ -1,0 +1,39 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import Cta from '../../components/Cta.astro';
+
+const itens = (await getCollection('solucoes')).sort((a, b) => a.data.ordem - b.data.ordem);
+---
+<Base
+  title="Soluções da soci: Marketing 360 para cada negócio"
+  description="Como agências, profissionais de marketing, pequenas empresas e negócios locais usam a soci para captar, vender, atender e fazer o cliente voltar."
+  current="/solucoes/"
+>
+  <main id="top">
+    <section class="section page-head" aria-labelledby="page-h">
+      <div class="wrap">
+        <Breadcrumbs trail={[{ label: 'Início', href: '/' }, { label: 'Soluções', href: '/solucoes/' }]} />
+        <h1 id="page-h">Soluções com a soci</h1>
+        <p class="t-lead">Por quem você é ou pelo que precisa resolver agora. Cada página mostra quais partes da soci entram no seu dia.</p>
+      </div>
+    </section>
+    <section class="section" id="lista" aria-labelledby="lista-h">
+      <div class="wrap">
+        <div class="section-head"><h2 id="lista-h">Soluções por público e objetivo</h2></div>
+        <ul class="feature-grid">
+          {itens.map((s) => (
+            <li>
+              <a class="card feature-card" href={`/solucoes/${s.id}/`}>
+                <h3>{s.data.nome}</h3>
+                <p>{s.data.resumo}</p>
+              </a>
+            </li>
+          ))}
+        </ul>
+        <div class="btn-row"><Cta kind="comecar" /></div>
+      </div>
+    </section>
+  </main>
+</Base>

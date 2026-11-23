@@ -1,0 +1,73 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import Cta from '../../components/Cta.astro';
+
+const itens = (await getCollection('funcionalidades')).sort((a, b) => a.data.ordem - b.data.ordem);
+const objetivos = [
+  { id: 'atrair', label: 'Atrair' },
+  { id: 'converter', label: 'Converter' },
+  { id: 'atender', label: 'Atender' },
+  { id: 'reter', label: 'Reter' },
+  { id: 'gerir', label: 'Gerir' },
+];
+---
+<Base
+  title="Funcionalidades da soci: Marketing 360 numa plataforma"
+  description={`As ${itens.length} funcionalidades da soci: CRM, WhatsApp, redes sociais, sites com IA, automações, prospecção e mais, filtradas pelo que você quer resolver.`}
+  current="/funcionalidades/"
+>
+  <main id="top">
+    <section class="section page-head" aria-labelledby="page-h">
+      <div class="wrap">
+        <Breadcrumbs trail={[{ label: 'Início', href: '/' }, { label: 'Funcionalidades', href: '/funcionalidades/' }]} />
+        <h1 id="page-h">Funcionalidades da soci</h1>
+        <p class="t-lead">{itens.length} partes de uma plataforma só. Escolha o que você quer resolver ou veja tudo de uma vez.</p>
+      </div>
+    </section>
+    <section class="section" id="lista" aria-labelledby="lista-h">
+      <div class="wrap">
+        <h2 id="lista-h" class="visually-hidden">Lista de funcionalidades</h2>
+        <div class="filter" role="group" aria-label="Filtrar por objetivo" data-filter hidden>
+          <button type="button" class="chip-btn" aria-pressed="true" data-objetivo="">Todas</button>
+          {objetivos.map((o) => <button type="button" class="chip-btn" aria-pressed="false" data-objetivo={o.id}>{o.label}</button>)}
+        </div>
+        <p class="filter__count" role="status" data-filter-count>Mostrando {itens.length} de {itens.length}</p>
+        <ul class="feature-grid">
+          {itens.map((f) => (
+            <li data-objetivos={f.data.objetivos.join(' ')}>
+              <a class="card feature-card" href={`/funcionalidades/${f.id}/`}>
+                <h3>{f.data.nome}</h3>
+                <p>{f.data.resumo}</p>
+              </a>
+            </li>
+          ))}
+        </ul>
+        <div class="btn-row"><Cta kind="comecar" /></div>
+      </div>
+    </section>
+  </main>
+  <script is:inline>
+    (() => {
+      const group = document.querySelector('[data-filter]');
+      if (!group) return;
+      group.hidden = false;
+      const cards = [...document.querySelectorAll('[data-objetivos]')];
+      const count = document.querySelector('[data-filter-count]');
+      group.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-objetivo]');
+        if (!btn) return;
+        const want = btn.dataset.objetivo;
+        group.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+        let shown = 0;
+        cards.forEach((li) => {
+          const on = !want || li.dataset.objetivos.split(' ').includes(want);
+          li.hidden = !on;
+          if (on) shown++;
+        });
+        count.textContent = `Mostrando ${shown} de ${cards.length}`;
+      });
+    })();
+  </script>
+</Base>
