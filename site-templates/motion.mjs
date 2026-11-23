@@ -18,17 +18,22 @@ export function siteMotion() {
   // 1. Títulos revelados palavra por palavra ([data-split]).
   for (const el of all('[data-split]')) {
     let i = 0;
+    let last = null;
     const walk = node => {
       for (const child of Array.from(node.childNodes)) {
         if (child.nodeType === 3) {
           const parts = child.textContent.split(/(\s+)/);
           const frag = d.createDocumentFragment();
+          // Texto colado num elemento anterior ("<i>almofada</i>.") continua a mesma palavra:
+          // vai para dentro dela, senão o ponto pode quebrar sozinho para a linha de baixo.
+          const prev = child.previousSibling;
+          if (last && parts[0] && prev && prev.nodeType === 1 && prev.contains(last) && !/\s$/.test(prev.textContent)) last.append(parts.shift());
           for (const part of parts) {
             if (!part) continue;
             if (/^\s+$/.test(part)) { frag.append(part); continue; }
             const w = d.createElement('span'); w.className = 'w';
             const inner = d.createElement('span'); inner.textContent = part; inner.style.setProperty('--i', String(i++));
-            w.append(inner); frag.append(w);
+            w.append(inner); frag.append(w); last = inner;
           }
           child.replaceWith(frag);
         } else if (child.nodeType === 1 && !child.matches('br')) walk(child);

@@ -65,7 +65,7 @@ h3{margin:0}p{margin:0}
 .reviews{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .rev{padding:30px;border-radius:var(--r);background:var(--paper);display:grid;gap:18px;align-content:space-between}
 .rev p{font-family:Newsreader,serif;font-size:24px;line-height:1.25;letter-spacing:-.01em}.rev small{color:var(--muted);font-size:14px}.stars{color:#c99a3b;letter-spacing:3px;font-size:13px}
-.news{border-radius:var(--r);background:var(--accent);color:#f0f2ea;padding:clamp(32px,5vw,80px);display:grid;grid-template-columns:1fr 1fr;gap:clamp(30px,5vw,80px);align-items:center;--line:rgba(255,255,255,.22);--accent:#f0f2ea;--on-accent:#25241f;--field:rgba(255,255,255,.08)}
+.news{border-radius:var(--r);background:#41533b;color:#f0f2ea;padding:clamp(32px,5vw,80px);display:grid;grid-template-columns:1fr 1fr;gap:clamp(30px,5vw,80px);align-items:center;--line:rgba(255,255,255,.22);--accent:#f0f2ea;--on-accent:#25241f;--field:rgba(255,255,255,.08)}
 .news h2{font-size:clamp(44px,5vw,80px)}.news h2 i{color:#d9e4c9}.news p{color:rgba(240,242,234,.78);margin-top:18px;max-width:420px}
 .form input,.form select,.form textarea{border-radius:12px}.form label{font-weight:500;letter-spacing:0}.form button{height:52px}
 .foot{padding:80px 0 30px}

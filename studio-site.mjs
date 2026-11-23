@@ -226,7 +226,9 @@ function withSeo(html, seo) {
 // Animações dos modelos de site: páginas com <html data-motion> recebem o script do kit (site-templates/motion.mjs)
 // na hora de servir, e a CSP libera só esse texto exato pelo hash. O HTML guardado nunca tem script
 // (o sanitizador remove), então uma página editada não consegue rodar nada além disso.
-const motionSource = `(${siteMotion})();`;
+// O navegador troca \r\n por \n ao ler o HTML e só depois confere o hash: com o checkout do Windows
+// (autocrlf) o código da função vem com \r\n, então normalizamos antes de calcular.
+const motionSource = `(${siteMotion})();`.replace(/\r\n?/g, '\n');
 const motionHash = `'sha256-${createHash('sha256').update(motionSource).digest('base64')}'`;
 export function withMotion(headers, html) {
   if (typeof html !== 'string' || !/<html\b[^>]*\sdata-motion\b/i.test(html)) return [headers, html];
