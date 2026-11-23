@@ -8,7 +8,7 @@ import { hydrateProspecting } from './prospecting-model.mjs';
 import { agentTemplate } from './agent-model.mjs';
 import { sanitizePresentation } from './presentation-model.mjs';
 import { isDeck, sanitizeDeck, applyOps as applyDeckOps, LIMITS as DECK_LIMITS } from './ui/deck-model.js';
-import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
+import { pranchetaFileRecord, createCanonicalTemplates, checkPranchetaSave, applyPranchetaSave, isThumbnailOnlySave } from './prancheta-model.mjs';
 import { walletKeys, walletProducts, walletSummary } from './wallet-model.mjs';
 import { labCatalog, labModes } from './ui/labs-data.js';
 import { deleteStudioApp, marketplaceFor, publishStudioApp, rotateAppSecret, saveStudioApp } from './app-studio-model.mjs';
@@ -330,14 +330,17 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
     // Prancheta: Design files and vector artwork created at the agency level
     case 'prancheta-save': {
       state.pranchetaFiles ??= [];
-      const record = pranchetaFileRecord(state, d);
       const targetId = id || d.id;
       const existing = targetId ? state.pranchetaFiles.find(item => item.id === targetId) : null;
+      checkPranchetaSave(existing, d, fail);
       if (existing) {
-        Object.assign(existing, record, { updated: now() });
-        log('Prancheta updated', existing.name);
+        // Miniatura e salvamento automático do editor não entram no histórico um a um.
+        const quiet = isThumbnailOnlySave(d) || d.expectedUpdatedAt !== undefined;
+        applyPranchetaSave(existing, state, d, now);
+        if (!quiet) log('Prancheta updated', existing.name);
         return existing.id;
       }
+      const record = pranchetaFileRecord(state, d);
       if (state.pranchetaFiles.length >= 200) fail('A agência pode ter até 200 arquivos na prancheta.');
       const row = { ...record, id: targetId || uid(), created: now(), updated: now() };
       state.pranchetaFiles.unshift(row);

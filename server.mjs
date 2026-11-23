@@ -197,6 +197,7 @@ export const staticFiles = new Map([
   ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'], ['/event-planner.js','text/javascript; charset=utf-8'], ['/event-planner-data.js','text/javascript; charset=utf-8'], ['/event-planner.css','text/css; charset=utf-8'],
   ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
+  ['/prancheta-editor.html','text/html; charset=utf-8'], ['/vendor/prancheta-editor.js','text/javascript; charset=utf-8'], ['/vendor/prancheta-editor.css','text/css; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
@@ -208,6 +209,11 @@ export const staticFiles = new Map([
 for (const file of readdirSync(resolve(root, 'ui', 'setup-art'))) if (/^[a-z0-9-]+\.svg$/.test(file)) staticFiles.set(`/setup-art/${file}`, 'image/svg+xml');
 const host = '127.0.0.1';
 const defaultPort = Number(process.env.GO_PORT || 4317);
+// Editor da Prancheta: abre num iframe da própria soci e baixa o MediaPipe (remoção de fundo) por CDN.
+const pranchetaEditorCsp = () => csp
+  .replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+  .replace("script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'")
+  .replace("connect-src 'self'", "connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://storage.googleapis.com https://fonts.googleapis.com https://fonts.gstatic.com");
 const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://accounts.google.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; media-src 'self' data: https:; connect-src 'self' https://accounts.google.com; frame-src 'self' https: https://accounts.google.com; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'";
 const error = (message,status) => Object.assign(new Error(message),{status});
 const spaceId = /^[0-9a-f-]{36}$|^demo$/;
@@ -4174,7 +4180,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       const loginPaths = ['/','/login','/index.html'];
       if ((method==='GET'||method==='HEAD') && (loginPaths.includes(p) || platformPaths.includes(p) || paths.test(p) || staticFiles.has(p))) {
         const isLogin = loginPaths.includes(p);
-        if (!isLogin && !paths.test(p) && !staticFiles.has(p) && !localAccess && !auth?.hasSession(req)) {
+        // A página do editor da Prancheta é estática, mas só abre com sessão (como o app).
+        if (!isLogin && !paths.test(p) && (!staticFiles.has(p) || p === '/prancheta-editor.html') && !localAccess && !auth?.hasSession(req)) {
           const search = new URLSearchParams(url.search); search.delete('__path');
           const next = afterLogin(p + (search.size ? '?' + search : ''));
           return goTo('/login?' + new URLSearchParams({ next }));
@@ -4183,6 +4190,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         // Setup illustrations are not mirrored in public/: without this every card refetched them from the
         // function. The browser keeps them a day; the Vercel CDN until the next deploy purges it.
         if (f.startsWith('/setup-art/')) res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=86400');
+        if (f === '/prancheta-editor.html') res.setHeader('Content-Security-Policy', pranchetaEditorCsp());
         return send(200,staticFiles.get(f)||'text/html; charset=utf-8',method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
       }
       throw error('Page not found.',404);
