@@ -235,11 +235,13 @@ label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:no
 .ag-tpl-badge{align-self:flex-start;display:inline-block;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;background:color-mix(in srgb,var(--primary,#155eef) 10%,transparent);color:var(--primary,#155eef)}
 .ag-tpl-name{text-align:center;font-size:13.5px;font-weight:500}
 .ag-art{width:100%;height:auto;display:block}
+/* Ilustrações dos setups: pink e laranja seguem as duas cores da conta (Cor principal 1 e 2). */
+.ag-ilu{aspect-ratio:4/3;--ilu-primaria:var(--g-brand,#ff00bb);--ilu-secundaria:var(--g-brand-2,#fc972d);--ilu-contorno:#000;--ilu-fundo:#fff}
+.ag-ilu:not([data-ilu-ok]){border-radius:8px;background:color-mix(in srgb,var(--line,#e4e7ec) 45%,transparent)}
+.ag-ilu svg{width:100%;height:100%;display:block}
 .ag-tpl-row{display:flex;align-items:center;gap:10px}.ag-tpl-row .ag-art{width:72px;flex:none}
 .ag-tpl-detail{display:grid;grid-template-columns:minmax(0,220px) 1fr;gap:16px;align-items:start;margin-bottom:12px}
 @media (max-width:640px){.ag-tpl-detail{grid-template-columns:1fr}}
-:root{--art-bg:#e7e9ef;--art-ink:#2b3270;--art-paper:#fff;--art-skin:#f2c9a5;--art-acc-1:#5b67d8;--art-acc-2:#2bb3a3;--art-acc-3:#e2558f;--art-acc-4:#f0a93b}
-:root[data-theme=dark]{--art-bg:#272b36;--art-ink:#c7ccf5;--art-paper:#1b1e26;--art-skin:#d9ad8a;--art-acc-1:#7c86ee;--art-acc-2:#3cc5b4;--art-acc-3:#ec6fa2;--art-acc-4:#f3b55a}
 @media (prefers-reduced-motion:reduce){.ag-tpl-card{transition:none}.ag-tpl-card:hover{transform:none}}
 .toolbar .ag-tpl-filter{display:inline-flex;flex-direction:row;align-items:center;gap:6px;margin:0}
 .ag-tpl-toolbar>.inline-gap{display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
