@@ -1,0 +1,29 @@
+---
+import Base from './Base.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  h1: string;
+  lead?: string;
+  crumb: string;
+  href: string;
+  current?: string;
+  noindex?: boolean;
+}
+const { title, description, h1, lead, crumb, href, current, noindex } = Astro.props;
+---
+<Base title={title} description={description} current={current} noindex={noindex}>
+  <main id="top">
+    <section class="section page-head" aria-labelledby="page-h">
+      <div class="wrap">
+        <Breadcrumbs trail={[{ label: 'Início', href: '/' }, { label: crumb, href }]} />
+        <h1 id="page-h">{h1}</h1>
+        {lead && <p class="t-lead">{lead}</p>}
+        <slot name="head" />
+      </div>
+    </section>
+    <slot />
+  </main>
+</Base>

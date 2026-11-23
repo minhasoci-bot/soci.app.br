@@ -1,0 +1,15 @@
+---
+import { screen } from '../data/screens';
+interface Props { id: string; priority?: boolean }
+const { id, priority = false } = Astro.props;
+const s = screen(id);
+---
+{s.src ? (
+  <figure class="screen">
+    <img src={s.src} alt={s.alt} width={s.width} height={s.height} loading={priority ? 'eager' : 'lazy'} fetchpriority={priority ? 'high' : undefined} decoding="async" />
+  </figure>
+) : (
+  <div class="screen screen--pending" role="img" aria-label={`Captura da tela pendente: ${s.legenda}`}>
+    <span>Captura da tela pendente</span>
+  </div>
+)}

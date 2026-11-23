@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pages, cssFiles, sitemapUrls, textOf, hrefs, resolves, SITE_URL, LOGIN_URL } from './helpers.mjs';
+import { pages, page, cssFiles, sitemapUrls, textOf, hrefs, resolves, SITE_URL, LOGIN_URL } from './helpers.mjs';
 
 const FORBIDDEN = [
   'highlevel', 'gohighlevel', 'ghl', 'hubspot', 'rd station', 'kommo', 'activecampaign', 'wix', 'hotmart', 'kajabi',
@@ -83,6 +83,63 @@ test('menu e filtro funcionam sem JS: todo link do NAV está no header como <a h
   }
 });
 
+const FUNCIONALIDADES = [
+  'crm', 'whatsapp-e-atendimento', 'redes-sociais', 'sites', 'funis-e-landing-pages', 'formularios', 'automacoes',
+  'inteligencia-artificial', 'prospeccao', 'agendamentos', 'email-marketing', 'reputacao', 'relatorios',
+  'pagamentos-e-pix', 'cursos-e-area-de-membros', 'telefone-e-voz', 'gestao-de-agencias',
+];
+
+test('hub de funcionalidades lista as 17 páginas', () => {
+  const { html } = page('/funcionalidades/');
+  for (const slug of FUNCIONALIDADES) {
+    assert.ok(html.includes(`href="/funcionalidades/${slug}/"`), `hub sem ${slug}`);
+    page(`/funcionalidades/${slug}/`);
+  }
+});
+
+test('filtro tem lista completa por padrão (nenhum card escondido no HTML)', () => {
+  const { html } = page('/funcionalidades/');
+  const cards = html.match(/data-objetivos="[^"]*"/g) || [];
+  assert.equal(cards.length, FUNCIONALIDADES.length);
+  assert.doesNotMatch(html, /<[^>]+data-objetivos="[^"]*"[^>]*\shidden/);
+  assert.match(html, /aria-pressed="true"[^>]*>\s*Todas/);
+});
+
 test('pink não é cor de texto', () => {
   for (const css of cssFiles()) assert.doesNotMatch(css, /(^|[;{\s])color:\s*#ff00bb/i);
+});
+
+const SOLUCOES = [
+  'agencias', 'profissionais-de-marketing', 'pequenas-empresas', 'negocios-locais',
+  'captacao-de-leads', 'conversao-de-vendas', 'atendimento-ao-cliente', 'relacionamento-e-recompra',
+];
+
+test('cada solução liga a pelo menos 3 funcionalidades e cada funcionalidade é ligada por pelo menos 1 solução', () => {
+  const linked = new Set();
+  for (const slug of SOLUCOES) {
+    const { html } = page(`/solucoes/${slug}/`);
+    const main = html.match(/<main[\s\S]*<\/main>/)?.[0] || '';
+    const funcs = new Set([...main.matchAll(/href="\/funcionalidades\/([a-z-]+)\/"/g)].map((m) => m[1]));
+    assert.ok(funcs.size >= 3, `${slug} liga a ${funcs.size} funcionalidades`);
+    funcs.forEach((f) => linked.add(f));
+  }
+  const orphans = FUNCIONALIDADES.filter((f) => !linked.has(f));
+  assert.deepEqual(orphans, []);
+});
+
+test('planos e termos têm noindex enquanto houver marcador', () => {
+  for (const route of ['/planos/', '/termos/']) {
+    const { html } = page(route);
+    if (textOf(html).includes('[[')) assert.match(html, /<meta name="robots" content="noindex/, route);
+  }
+});
+
+test('privacidade contém o texto de ui/privacidade.html', async () => {
+  const { readFileSync } = await import('node:fs');
+  const original = readFileSync(new URL('../../../ui/privacidade.html', import.meta.url), 'utf8');
+  const { html } = page('/privacidade/');
+  for (const trecho of ['Lei Geral de Proteção de Dados', 'Quais dados coletamos', 'Transferência internacional']) {
+    assert.ok(original.includes(trecho), `original sem "${trecho}"`);
+    assert.ok(html.includes(trecho), `página sem "${trecho}"`);
+  }
 });

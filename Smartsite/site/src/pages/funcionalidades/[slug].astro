@@ -1,0 +1,12 @@
+---
+import { getCollection, render } from 'astro:content';
+import Funcionalidade from '../../layouts/Funcionalidade.astro';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('funcionalidades');
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+<Funcionalidade entry={entry}><Content /></Funcionalidade>

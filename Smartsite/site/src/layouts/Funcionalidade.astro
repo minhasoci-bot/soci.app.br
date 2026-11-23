@@ -1,0 +1,61 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { getCollection } from 'astro:content';
+import Base from './Base.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import Cta from '../components/Cta.astro';
+import Faq from '../components/Faq.astro';
+import Screen from '../components/Screen.astro';
+
+interface Props { entry: CollectionEntry<'funcionalidades'> }
+const { entry } = Astro.props;
+const d = entry.data;
+
+// Soluções que usam esta funcionalidade (referência só existe de soluções → funcionalidades).
+const solucoes = (await getCollection('solucoes'))
+  .filter((s) => s.data.funcionalidades.some((f) => f.id === entry.id))
+  .sort((a, b) => a.data.ordem - b.data.ordem);
+---
+<Base title={d.title} description={d.description} current="/funcionalidades/">
+  <main id="top">
+    <section class="section page-head" aria-labelledby="page-h">
+      <div class="wrap">
+        <Breadcrumbs trail={[{ label: 'Início', href: '/' }, { label: 'Funcionalidades', href: '/funcionalidades/' }, { label: d.nome, href: `/funcionalidades/${entry.id}/` }]} />
+        <div class="grid">
+          <div class="span-6 stack-5">
+            <h1 id="page-h">{d.h1}</h1>
+            <p class="answer">{d.resposta}</p>
+            <div class="btn-row"><Cta kind="comecar" /><Cta kind="planos" /></div>
+          </div>
+          <div class="span-6 start-7">
+            <Screen id={entry.id} />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="recursos" aria-labelledby="recursos-h">
+      <div class="wrap grid">
+        <div class="span-4"><h2 id="recursos-h">Recursos de {d.nome}</h2></div>
+        <div class="span-8 prose-soci">
+          <slot />
+        </div>
+      </div>
+    </section>
+
+    {solucoes.length > 0 && (
+      <section class="section" id="solucoes" aria-labelledby="solucoes-h">
+        <div class="wrap">
+          <div class="section-head"><h2 id="solucoes-h">Onde isso entra no seu dia</h2></div>
+          <ul class="link-list">
+            {solucoes.map((s) => (
+              <li><a class="link" href={`/solucoes/${s.id}/`}>{s.data.nome}</a><span class="muted">{s.data.resumo}</span></li>
+            ))}
+          </ul>
+        </div>
+      </section>
+    )}
+
+    <Faq items={d.faq} />
+  </main>
+</Base>

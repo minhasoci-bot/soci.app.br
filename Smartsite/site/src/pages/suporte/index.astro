@@ -1,0 +1,34 @@
+---
+import Core from '../../layouts/Core.astro';
+import Cta from '../../components/Cta.astro';
+import Faq from '../../components/Faq.astro';
+---
+<Core
+  title="Suporte da soci: brasileiro, com calls todos os dias"
+  description="Suporte da soci em português, feito por gente do Brasil, com calls de suporte todos os dias para tirar dúvidas ao vivo."
+  h1="Suporte brasileiro, com calls todos os dias"
+  lead="Dúvida acontece todo dia. Por isso as calls de suporte também. Você fala em português com quem conhece a plataforma por dentro."
+  crumb="Suporte"
+  href="/suporte/"
+  current="/suporte/"
+>
+  <section class="section" id="como-funciona" aria-labelledby="como-h">
+    <div class="wrap grid">
+      <div class="span-4"><h2 id="como-h">Como o suporte funciona</h2></div>
+      <div class="span-8 prose-soci">
+        <ul>
+          <li><b>Calls de suporte todos os dias.</b> Você entra, mostra a tela e resolve a dúvida ao vivo.</li>
+          <li><b>Atendimento em português.</b> Suporte totalmente brasileiro, sem tradução no meio do caminho.</li>
+          <li><b>Comunidade de clientes.</b> Para trocar ideias com quem usa a soci no mesmo tipo de negócio.</li>
+        </ul>
+        <p>Horário das calls: <span class="pending">[[horário e link de acesso das calls de suporte]]</span></p>
+        <div class="btn-row"><Cta kind="comecar" /><Cta kind="link" href="/comunidade/" label="Ver a comunidade" /></div>
+      </div>
+    </div>
+  </section>
+  <Faq items={[
+    { q: 'O suporte da soci é em português?', a: 'Sim. O suporte é totalmente brasileiro, em português.' },
+    { q: 'Com que frequência acontecem as calls de suporte?', a: 'Todos os dias. Os horários ficam na plataforma para quem é cliente.' },
+    { q: 'Preciso ser cliente para usar o suporte?', a: 'O suporte e as calls são para quem tem conta na soci. Para criar a sua, entre com a conta Google em soci.app.br.' },
+  ]} />
+</Core>
