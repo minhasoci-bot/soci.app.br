@@ -13,11 +13,11 @@ import { opportunityEvents } from './opportunities.js';
 import { parseCsv } from './social-data.js';
 import { afterStudioRender, exportStudioProject, installStudio, studioBlock } from './studio.js';
 import { studioTemplates } from './studio-data.js';
-import { startAgency } from './agency.js';
 import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm.js';
 import { socialEvents } from './social.js';
+import { installEventPlanner } from './event-planner.js';
 import { mountAgentScreen } from './agents.js';
 import { mountAgentHub } from './agent-hub.js';
 import { installContentAI } from './content-ai.js';
@@ -198,12 +198,17 @@ async function load(){
   }
 }
 const allowedView = id => id === 'launchpad' ? !c.access?.modules || c.access.modules.length > 0 : !c.access?.modules || c.access.modules.includes(id) || (id === 'prancheta' && (!c.access?.modules || c.access.modules.includes('marketing') || c.access.modules.includes('prancheta')));
-let agencyUI, openingWorkspace;
+let agencyUI, agencyEnv, agencyLoading, openingWorkspace;
+// O painel da agência (agency.js e os módulos que só ele usa) é baixado na primeira vez que #agency abre:
+// quem trabalha só na subconta não carrega esse código. Os ouvintes dele só agem em #agency.
+const loadAgency = () => agencyLoading ??= import('./agency.js')
+  .then(({ startAgency }) => (agencyUI = startAgency(agencyEnv)))
+  .catch(error => { agencyLoading = null; throw error; });
 const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments','services','resources','field','booking','meetings'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social',...emailTabs,'countdown','affiliates','ads','loyalty','brand','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers','certificates'],reporting:['reports','attribution','google-ads','meta-ads','overview','calls','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],reputation:reputationTabs,'ai-agents':['agent','edit','knowledge','base','templates','logs','usage'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments','services','resources','field','booking','meetings'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social','events',...emailTabs,'countdown','affiliates','ads','loyalty','brand','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers','certificates'],reporting:['reports','attribution','google-ads','meta-ads','overview','calls','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],reputation:reputationTabs,'ai-agents':['agent','edit','knowledge','base','templates','logs','usage'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -231,9 +236,14 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
   if(key==='agency'){
     if (c.access && !c.access.agency) { location.replace('#dashboard'); return; }
     stopSubWaPoll();
-    c.mode='agency'; leaveAgentEditor(); close(); agencyUI.show(tab,project); return;
+    c.mode='agency'; leaveAgentEditor(); close();
+    if (agencyUI) { agencyUI.show(tab,project); return; }
+    app.innerHTML = bootScreen('Abrindo o painel da agência…');
+    loadAgency().then(() => { if (location.hash.startsWith('#agency')) route(); })
+      .catch(e => { app.innerHTML = `<div class="boot"><h1>Painel indisponível</h1><p>${h(e.message)}</p><a href="/app?recarregar=${Date.now()}${h(location.hash)}">Tentar de novo</a></div>`; });
+    return;
   }
-  if(c.mode==='agency'){ agencyUI.leave(); c.mode=''; renderedView=''; }
+  if(c.mode==='agency'){ agencyUI?.leave(); c.mode=''; renderedView=''; }
   if (c.account) { renderAccountLifecycle(); return; }
   if (!c.s) {
     app.innerHTML = bootScreen('Abrindo a soci…');
@@ -824,7 +834,7 @@ document.addEventListener('click',async ev=>{
       case 'agency-view':close();location.hash='#agency/dashboard';break;
       case 'stop-acting':localStorage.removeItem('go.user');location.reload();break;
       case 'account': {
-        const session = c.access?.session || agencyUI.session();
+        const session = c.access?.session || agencyUI?.session();
         if (session) dialog('Minha conta', '<p>' + h(session.name) + '<br>' + h(session.email) + '</p><button type="button" class="secondary" data-act="sign-out">Sair da conta</button>');
         break;
       }
@@ -1248,7 +1258,7 @@ if(viewPath){
   catch(e){app.innerHTML=`<div class="boot"><h1>Página indisponível</h1><p>${h(e.message)}</p><a href="/">Voltar para a plataforma</a></div>`;}
 }else{
   installDashboardControls({ c,dialog,close,render,load,mutate,flash,go,download:downloads });
-  agencyUI = startAgency({ app, overlay, api, flash, openWorkspace: useWorkspace, onBrandColorChange: (primary, secondary) => {
+  agencyEnv = { app, overlay, api, flash, openWorkspace: useWorkspace, onBrandColorChange: (primary, secondary) => {
     if (!c.agency || c.workspace.startsWith('user-')) return;
     c.agency.primary = primary;
     if (secondary) c.agency.secondary = secondary;
@@ -1257,7 +1267,7 @@ if(viewPath){
     if (!c.features) return;
     c.features.studioAI = connection.configured;
     c.features.agentModel = connection.configured && allowedView('ai-agents') ? connection.model : '';
-  } });
+  } };
   installStudio({ c, api, url, flash, render });
   installSites({ c, api, url, mutate, flash, render });
   installForms({ c, api, url, mutate, flash, render });
@@ -1295,6 +1305,7 @@ if(viewPath){
   void installMobileShell({ c, api, url, flash });
   installAppMarketplace({ c, api, url, flash, render });
   installContentAI({ api, flash, workspace: () => c.workspace, enabled: kind => Boolean(c.features?.contentAI || (kind === 'gbp' && c.features?.reviewAI)) });
+  installEventPlanner({ c, mutate, flash, dialog, close, render });
   installCountdowns({ c, mutate, flash, dialog, close, render });
   installAffiliates({ c, api, url, mutate, flash, dialog, close, render });
   installAds({ c, api, url, mutate, flash, dialog, close, render });
@@ -1308,21 +1319,21 @@ if(viewPath){
     url,
     mutate: async (command) => {
       if (location.hash.startsWith('#agency')) {
-        return agencyUI.act(command.type, command);
+        return (agencyUI || await loadAgency()).act(command.type, command);
       }
       return mutate(command);
     },
     flash,
     render: () => {
       if (location.hash.startsWith('#agency')) {
-        agencyUI.render();
+        agencyUI?.render();
         return;
       }
       render();
     },
     getState: () => {
       if (location.hash.startsWith('#agency')) {
-        return agencyUI.agency();
+        return agencyUI?.agency();
       }
       return c.s;
     }

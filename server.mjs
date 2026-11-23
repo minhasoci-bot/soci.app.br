@@ -1,3 +1,9 @@
+import { createSocialRoutes } from './routes/social.mjs';
+import { createPortalRoutes } from './routes/portal.mjs';
+import { createPranchetaRoutes } from './routes/prancheta.mjs';
+import { createActionRoutes } from './routes/action.mjs';
+import { createAdsRoutes } from './routes/ads.mjs';
+import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -37,8 +43,10 @@ function meteredUsage() {
     }
   };
 }
-import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
+import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withMotion } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
+import { findSiteTemplate } from './ui/site-template-data.js';
+import { hasSiteTemplate, siteTemplatePages, siteTemplatePreview } from './site-templates/index.mjs';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, previewSnapshot, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
@@ -47,9 +55,9 @@ import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } fro
 import { importedFile, mediaLimitBytes } from './media-model.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
-import { adsAuthUrl, adsConfigured, adsExchange, changeMetaAudience, createMetaAd, freshAdsSecret, sendMetaEvents, setCampaignBudget, setCampaignStatus, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
+import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
 import { hasPixels, injectPixels, originAllowed, pixelsScript, trackerScript, trackingOf, touchesFrom, widenCsp } from './tracking.mjs';
-import { adSettingsOf, markAdConnection, metaAdInput, patchAdCampaign, storeAdSync } from './ads-model.mjs';
+import { adSettingsOf, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
 import { exchangeGoogle, freshSecret, googleAuthUrl, googleConfigured, googleError, googleReports, listGoogleReviews, listLocations, locationDetails, replyGoogleReview, revokeGoogle, searchError, searchReport, updateLocation } from './google-integrations.mjs';
 import { gbpChecklist, hoursPeriods } from './ui/gbp-data.js';
@@ -98,8 +106,8 @@ import { folded, prospectSearchText } from './ui/prospecting-data.js';
 import { shareReportHtml, widgetHtml } from './ui/prospect-report.js';
 import { snapshotAssets } from './ui/agency-data.js';
 import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, requireWorkspaceCommand, workspaceView } from './authorization.mjs';
-import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, reviewSocialCsv, settle } from './social-model.mjs';
-import { authUrl, availability, blueskyLogin, exchange as socialExchange, publish as socialPublish, seal, unseal } from './social-providers.mjs';
+import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, settle } from './social-model.mjs';
+import { authUrl, availability, publish as socialPublish, seal, unseal } from './social-providers.mjs';
 import { fetchMetaLead, metaInbound, metaLeads, metaSenderName, metaSignatureValid, quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
 import { googleLeadFields, googleLeadKeyValid, metaLeadFields } from './lead-forms.mjs';
 import { generateImage, startVideo, videoContent, videoStatus } from './openai-media.mjs';
@@ -107,7 +115,7 @@ import { inboundAddress, inboundEmail, inboundWorkspace, svixValid } from './ema
 import { createPhoneHandler } from './phone-server.mjs';
 import { CHUNK_BYTES } from './reputation-media.mjs';
 import { network } from './ui/social-data.js';
-import { captionRequest, writeCaption } from './social-ai.mjs';
+import { writeCaption } from './social-ai.mjs';
 import { findSharedReport, reportMailer, sharedReportPage } from './report-share.mjs';
 import { documentMailer, documentMessage } from './document-mail.mjs';
 import { campaignMailer } from './email-campaign-send.mjs';
@@ -127,11 +135,10 @@ import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
 import { createAbacatePayHandler } from './abacatepay.mjs';
-import { makeClientPortal, portalCookie } from './client-portal.mjs';
+import { makeClientPortal } from './client-portal.mjs';
 import { makeCommunity } from './community.mjs';
 import { fillWelcome } from './community-config.mjs';
 import { certificateCsp, certificatePage } from './course-credentials.mjs';
-import { loyaltyView } from './loyalty-model.mjs';
 import { preferenceCsp, preferencePage, preferenceView } from './preference-model.mjs';
 import { bookingCsp, bookingPage, bookingView, clockIn, zoneOf } from './scheduling-model.mjs';
 import { audioLimit, audioTypes, summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
@@ -155,22 +162,24 @@ import { catalog, methodLabel, storeCart, storeHome, storeProduct } from './ui/s
 import { quoteOrder } from './store-model.mjs';
 import { renderOfferPage, offerPageCsp } from './offer-page.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
-import { eachStep } from './ui/workflow-data.js';
 import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
 import { deviceOf, qrTarget } from './qr-model.mjs';
+import { ASSET_PATH, assetBytes, extractAssets, saveAssets } from './asset-store.mjs';
+import { inBackground } from './background.mjs';
+import { runInBatches } from './cron-batch.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
-const staticFiles = new Map([
+export const staticFiles = new Map([
   ['/launchpad.js','text/javascript; charset=utf-8'], ['/launchpad-data.js','text/javascript; charset=utf-8'], ['/launchpad.css','text/css; charset=utf-8'],
   ['/app.js','text/javascript; charset=utf-8'], ['/icons.js','text/javascript; charset=utf-8'],
   ['/screens.js','text/javascript; charset=utf-8'], ['/conversations.js','text/javascript; charset=utf-8'], ['/conversation-analytics.js','text/javascript; charset=utf-8'], ['/conversation-sla.js','text/javascript; charset=utf-8'],
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
   ['/reports.js','text/javascript; charset=utf-8'], ['/report-data.js','text/javascript; charset=utf-8'], ['/reports.css','text/css; charset=utf-8'],
-  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
+  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/site-template-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/setup-art.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
@@ -184,7 +193,7 @@ const staticFiles = new Map([
   ['/prospect-report.js','text/javascript; charset=utf-8'], ['/prospecting.css','text/css; charset=utf-8'],
   ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
   ['/opportunity-data.js','text/javascript; charset=utf-8'], ['/opportunity-filters.js','text/javascript; charset=utf-8'], ['/opportunities.js','text/javascript; charset=utf-8'], ['/opportunities.css','text/css; charset=utf-8'],
-  ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'],
+  ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'], ['/event-planner.js','text/javascript; charset=utf-8'], ['/event-planner-data.js','text/javascript; charset=utf-8'], ['/event-planner.css','text/css; charset=utf-8'],
   ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
   ['/prancheta-editor.html','text/html; charset=utf-8'], ['/vendor/prancheta-editor.js','text/javascript; charset=utf-8'], ['/vendor/prancheta-editor.css','text/css; charset=utf-8'],
@@ -192,8 +201,8 @@ const staticFiles = new Map([
   ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
   ['/fonts/plus-jakarta-sans.woff2','font/woff2'], ['/favicon.svg','image/svg+xml'],
-  ['/landing.html','text/html; charset=utf-8'], ['/landing.css','text/css; charset=utf-8'], ['/landing.js','text/javascript; charset=utf-8'],
-  ['/privacidade.html','text/html; charset=utf-8'], ['/skull_flame.svg','image/svg+xml'], ['/skull_flame_animated.svg','image/svg+xml']
+  ['/privacidade.html','text/html; charset=utf-8'], ['/skull_flame_animated.svg','image/svg+xml'],
+  ['/login.css','text/css; charset=utf-8'], ['/login.js','text/javascript; charset=utf-8'],
 ]);
 // Ilustrações dos templates de setup (ui/setup-art/*.svg), uma por segmento.
 for (const file of readdirSync(resolve(root, 'ui', 'setup-art'))) if (/^[a-z0-9-]+\.svg$/.test(file)) staticFiles.set(`/setup-art/${file}`, 'image/svg+xml');
@@ -261,6 +270,7 @@ const invoiceApiPath = new RegExp(`^/api/fatura/${workspaceSegment}$`);
 const brandGroupRoute = /^\/marcas\/([0-9a-f]{64})\/?$/;
 const presentationRoute = /^\/apresentacao\/([0-9a-f]{64})\/?$/;
 const sharedReportRoute = new RegExp(`^/relatorio/${workspaceSegment}/([0-9a-f]{64})/?$`);
+const templatePreviewPath = /^\/studio-template\/([a-z0-9-]{1,40})\/([a-z0-9-]{1,40})$/;
 const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{36})/([0-9a-f-]{36})$`);
 // Pages a visitor lands on (sites, forms, offers, store, blog, webinars, QR codes and links): they remember the visit's source.
 // The tracking script (/t/<workspace>.js), the pixels loader (/t/<workspace>/pixels.js) and events (/t/<workspace>/e).
@@ -312,7 +322,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
   : resolve(root, '.data', 'go.sqlite');
 
 export function makeServer({
-  pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL,
+  pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL, cronConcurrency=4, cronBudgetMs=45_000,
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, inboundFetch=fetch, twilioRequest=fetch, phoneEnv=process.env, brandResolve=null, designAgentConfig=designAgent,
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
@@ -377,7 +387,7 @@ export function makeServer({
   const phone = createPhoneHandler({ store, change: (workspace, command) => change(workspace, command), flushLater: workspace => flushLater(workspace), request: twilioRequest, env: phoneEnv,
     accountActive: workspace => publicAccountPolicy(workspace, false, 'conversations'), agentReply: (workspace, options) => voiceAgentReply(workspace, options) });
   const phoneOrigin = () => String(phoneEnv.PHONE_PUBLIC_ORIGIN || phoneEnv.SOCIAL_PUBLIC_URL || phoneEnv.PORTAL_PUBLIC_ORIGIN || '').replace(/\/+$/, '');
-  const handleAsk = createAskHandler({ store, openAI, openAIRequest });
+  const handleAsk = createAskHandler({ store, openAI, openAIRequest, secret: openAISecret });
   const waha = createWahaHandler({ store, secret: openAISecret, request: wahaRequest });
   const abacate = createAbacatePayHandler({ store, secret: openAISecret, request: abacatePayRequest });
   const whatsapp = createWhatsAppHandler({
@@ -388,7 +398,8 @@ export function makeServer({
   const onCourseActivity = async (workspace, data) => { await change(workspace, { type: 'course-activity', data }); flushLater(workspace); };
   // A member signed in to the portal: "Login no portal do cliente" (first sign-in = signup).
   const onPortalLogin = async (workspace, data) => { await change(workspace, { type: 'portal-login', data }); flushLater(workspace); };
-  const clientPortal = makeClientPortal({ ...portalOptions, store, onCourseActivity, onLogin: onPortalLogin, loadState: workspace => store.load(workspace) });
+  const clientPortal = makeClientPortal({ ...portalOptions, store, onCourseActivity, onLogin: onPortalLogin, loadState: workspace => store.load(workspace),
+    extraCourses: (workspace, state, memberId) => community.includedCourses(workspace, state, memberId) });
   // A member confirmed or paid an event: find or create the contact and fire "Inscrição em evento da comunidade".
   const onEventJoin = async (workspace, { eventId, memberId, paid }) => {
     const member = (await clientPortal.directory(workspace)).members?.find(row => row.id === memberId);
@@ -546,9 +557,13 @@ export function makeServer({
     agencyCache.set(id, { data: structuredClone(fresh), expiresAt: now + AGENCY_CACHE_TTL });
     return fresh;
   };
+  // Imagens grandes em base64 saem do documento da agência a cada gravação (asset-store.mjs):
+  // o documento guarda só /asset/<hash>; as linhas das imagens são gravadas antes da resposta.
   const changeAgency = async (id, mutate) => {
     agencyCache.delete(id);
-    const result = await store.change(id, state => mutate(hydrateAgency(state)));
+    const images = new Map();
+    const result = await store.change(id, state => { const out = mutate(hydrateAgency(state)); extractAssets(state, images); return out; });
+    if (images.size) await saveAssets(store, images);
     agencyCache.delete(id);
     return result;
   };
@@ -1751,15 +1766,15 @@ export function makeServer({
     }
     return results.length + aiResults.length;
   }
-  const flushLater = workspace => { Promise.resolve().then(() => flushWorkflows(workspace)).catch(e => console.error(`Workflow delivery (${workspace}): ${e.message}`)); };
+  const flushLater = workspace => { inBackground(`Workflow delivery (${workspace})`, () => flushWorkflows(workspace)); };
   // "Gerar auditoria de marketing": the audit can take a minute (PageSpeed), so it runs apart from the delivery queue
   // and resumes the waiting run with the result. The audit fetches only public addresses (prospect-audit.mjs).
   const auditLater = (workspace, item) => {
-    Promise.resolve().then(async () => {
+    inBackground(`Marketing audit (${workspace})`, async () => {
       const audit = await prospectAudit({ website: item.website, name: item.business, city: item.city }).catch(() => null);
       const done = await change(workspace, { type: 'workflow-ai-result', data: { results: [{ runId: item.runId, stepId: item.stepId, ...marketingAuditVars(audit, item.variable) }] } });
       if (done.state.workflowOutbox?.length) flushLater(workspace);
-    }).catch(e => console.error(`Marketing audit (${workspace}): ${e.message}`));
+    });
   };
   // "Gerar vídeo com IA": each running job is checked; a finished video is stored in chunks and resumes the run
   // with its public link, a failed one resumes it with the error (and a job older than 40 minutes gives up).
@@ -1888,10 +1903,11 @@ export function makeServer({
       return sent;
     } finally { emailRuns.delete(workspace); }
   }
-  const emailLater = workspace => { Promise.resolve().then(() => runEmailCampaigns(workspace)).catch(e => console.error(`E-mail campaigns (${workspace}): ${e.message}`)); };
-  async function runAllSocial(base) {
+  const emailLater = workspace => { inBackground(`E-mail campaigns (${workspace})`, () => runEmailCampaigns(workspace)); };
+  async function runAllSocial(base, at = Date.now()) {
     let total = 0;
-    for (const w of (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id))) {
+    const spaces = (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id));
+    const { skipped } = await runInBatches(spaces, async w => {
       try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
       try { await runWebinarReminders(w.id, base); } catch (e) { console.error(`Webinar reminders (${w.id}): ${e.message}`); }
       try { await runEventReminders(w.id, base); } catch (e) { console.error(`Community event reminders (${w.id}): ${e.message}`); }
@@ -1902,7 +1918,8 @@ export function makeServer({
       try { await runAbandonedCheckouts(w.id); } catch (e) { console.error(`Abandoned checkouts (${w.id}): ${e.message}`); }
       try { await runEmailCampaigns(w.id); } catch (e) { console.error(`E-mail campaigns (${w.id}): ${e.message}`); }
       try { await runAllAds(w.id); } catch (e) { console.error(`Ads (${w.id}): ${e.message}`); }
-    }
+    }, { concurrency: cronConcurrency, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+    if (skipped.length) console.warn(`Cron: ${skipped.length} de ${spaces.length} workspaces ficaram para o próximo minuto.`);
     return total;
   }
   const socialTimer = socialScheduler ? setInterval(() => { ready.then(() => runAllSocial(process.env.SOCIAL_PUBLIC_URL || `http://${host}:${port}`)).catch(() => {}); }, 60_000) : null;
@@ -2107,6 +2124,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     try { const v=JSON.parse(Buffer.concat(chunks).toString('utf8')); if(!v||typeof v!=='object'||Array.isArray(v)) throw Error(); return v; }
     catch { throw error('Invalid JSON request.',400); }
   };
+  // Rotas por domínio (P2.1): cada módulo recebe o que vive neste fechamento e devolve NEXT_ROUTE quando a rota não é dele.
+  const socialRoute = createSocialRoutes({ store, auth, localAccess, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
+  const adsRoute = createAdsRoutes({ store, localAccess, error, spaceId, privateSpace, stamp, adsAccess, adsCallbackPath, adsPopup, adsView, payload, publicBase, recordAudit, runAds, socialActor, socialRow, workspaceAccess });
+  const actionRoute = createActionRoutes({ store, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
+  const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
+  const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const server=createServer(async (req,res) => {
     const requestPath = String(req.url || '/').split('?')[0];
     const touches = touchesOf(req), landing = requestPath.match(landingPath);
@@ -2149,185 +2172,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (method==='POST' && !trackingPath.test(p) && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
       if (p.startsWith('/api/') && !p.startsWith('/api/auth/')) await ready;
       const id=url.searchParams.get('workspace') || 'demo';
-      const portalMatch = p.match(portalApi);
-      if (portalMatch) {
-        const [, workspace, operation, courseId] = portalMatch;
-        if (operation === 'offer-grant') {
-          if (method !== 'POST' || !courseId) throw error('Método indisponível.',405);
-          const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'] });
-          await requireActiveAccount(who.agencyId, workspace, true);
-          const invoice = (await store.load(workspace)).invoices.find(row => row.id === courseId && row.offerId);
-          if (!invoice) throw error('Venda não encontrada.',404);
-          return json(await grantOffer(workspace, invoice.offerId, invoice.contactId, invoice.id));
-        }
-        if (operation !== 'community-admin' && Boolean(courseId) !== ['course','progress','community'].includes(operation)) throw error('Página do portal não encontrada.',404);
-        if (operation === 'community-admin') {
-          const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'] });
-          const input = method === 'POST' ? await payload(req) : null;
-          await requireActiveAccount(who.agencyId, workspace, true);
-          const state = await store.load(workspace);
-          const days = [7, 30, 90, 365].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 30;
-          return json(await community.admin(workspace, state, await clientPortal.directory(workspace), courseId, input, { days }));
-        }
-        // Fidelidade: the member redeems a reward with their points (their contact is found by the portal access).
-        // The client sends a file to the team (Arquivos, a note in Conversas and the workflow trigger).
-        if (operation === 'push') {
-          if (method !== 'POST') throw error('Método indisponível.',405);
-          await publicAccountPolicy(workspace, true, 'memberships');
-          const { member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,proto === 'https'));
-          const input = await payload(req), sub = pushSubscription(input.subscription);
-          if (!sub) throw error('Inscrição de notificação inválida.',400);
-          const state = await store.load(workspace);
-          const contact = state.contacts.find(row => row.id === member.contactId) || state.contacts.find(row => (row.email || '').toLowerCase() === member.email);
-          if (!contact) throw error('Contato não encontrado.',404);
-          await change(workspace, { type: 'push-subscribe', data: { ...sub, kind: 'contact', contactId: contact.id } });
-          return json({ ok: true }, 201);
-        }
-        if (operation === 'files') {
-          await publicAccountPolicy(workspace, method === 'POST', 'memberships');
-          const { member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,proto === 'https'));
-          const mine = st => { const contact = st.contacts.find(row => row.id === member.contactId) || st.contacts.find(row => (row.email || '').toLowerCase() === member.email);
-            return (st.files || []).filter(row => row.source === 'portal' && contact && row.contactId === contact.id).slice(-20).reverse().map(row => ({ id: row.id, name: row.name, created: row.created })); };
-          if (method === 'GET') return json({ files: mine(await store.load(workspace)) });
-          if (method !== 'POST') throw error('Método indisponível.',405);
-          const input = await payload(req);
-          const result = await change(workspace, { type: 'portal-file', data: { contactId: member.contactId || '', email: member.email, name: member.name || '', fileName: String(input.name || ''), data: String(input.data || '') } });
-          flushLater(workspace);
-          return json({ files: mine(result.state) }, 201);
-        }
-        if (operation === 'loyalty') {
-          if (method !== 'POST') throw error('Método indisponível.',405);
-          const input = await payload(req);
-          await publicAccountPolicy(workspace, true, 'memberships');
-          const { member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,proto === 'https'));
-          const state = await store.load(workspace);
-          const contact = state.contacts.find(row => row.id === member.contactId) || state.contacts.find(row => (row.email || '').toLowerCase() === member.email);
-          if (!contact) throw error('Ainda não há pontos na sua conta.',409);
-          const result = await change(workspace, { type: 'loyalty-redeem', data: { contactId: contact.id, rewardId: String(input.rewardId || '') } });
-          flushLater(workspace);
-          return json({ redeemed: result.id, loyalty: loyaltyView(result.state, contact.id) });
-        }
-        if (operation === 'community') {
-          const input = method === 'POST' ? await payload(req) : null;
-          await publicAccountPolicy(workspace, method === 'POST', 'memberships');
-          const { doc, member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,proto === 'https'));
-          const state = await store.load(workspace);
-          // Paid access to the community: an invoice for the chosen plan; access opens (or is extended) with the payment.
-          if (input?.action === 'subscribe') {
-            const { group, plan } = await community.reservePlan(workspace, state, member, courseId, String(input.planId || ''), input.answers);
-            const agencyId = state.agencyId || AGENCY_ID;
-            if (!(await abacate.connected(agencyId, workspace))) throw error('A assinatura desta comunidade ainda não está disponível. Fale com a equipe.',409);
-            const invoiceId = (await change(workspace,{ type:'community-plan-invoice', id:group.id, data:{ planId:plan.id, email:member.email, name:member.name, contactId:member.contactId || '', memberId:member.id } })).id;
-            const origin = publicBase(req), page = `${origin}/portal/${workspace}`;
-            const payment = await abacate.chargeInvoice(agencyId, workspace, invoiceId, origin, { returnUrl:`${page}?plano=voltou`, completionUrl:`${page}?plano=pago` });
-            await community.markPlanPending(workspace, courseId, member.id, invoiceId, input.answers);
-            return json({ community: await community.read(workspace, await store.load(workspace), doc, member, courseId, {}), payUrl: payment.url });
-          }
-          // A paid event ticket: an invoice for the member, charged by AbacatePay; the seat comes with the payment.
-          if (input?.action === 'ticket') {
-            const event = await community.reserve(workspace, state, member, courseId, String(input.eventId || ''));
-            const agencyId = state.agencyId || AGENCY_ID;
-            if (!(await abacate.connected(agencyId, workspace))) throw error('A venda de ingressos ainda não está disponível. Fale com a equipe.',409);
-            const invoiceId = (await change(workspace,{ type:'community-event-ticket', id:event.id, data:{ email:member.email, name:member.name, contactId:member.contactId || '', memberId:member.id } })).id;
-            const origin = publicBase(req), page = `${origin}/portal/${workspace}`;
-            const payment = await abacate.chargeInvoice(agencyId, workspace, invoiceId, origin, { returnUrl:`${page}?evento=voltou`, completionUrl:`${page}?evento=pago` });
-            await community.markPending(workspace, courseId, event.id, member.id, invoiceId);
-            return json({ community: await community.read(workspace, state, doc, member, courseId, {}), payUrl: payment.url });
-          }
-          const result = input ? await community.act(workspace, state, doc, member, courseId, input)
-            : await community.read(workspace, state, doc, member, courseId, { channelId: String(url.searchParams.get('channel') || '').slice(0, 60), period: url.searchParams.get('period') || '30' });
-          return json({ community: result });
-        }
-        if (operation === 'admin') {
-          const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'] });
-          const input = method === 'POST' ? await payload(req) : null;
-          await requireActiveAccount(who.agencyId, workspace, true);
-          const state = await store.load(workspace);
-          if (input?.action === 'staff-enter') {
-            const staffUser = {
-              email: who.session?.email || state.profile?.email || 'admin@soci.app.br',
-              name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador'
-            };
-            const result = await clientPortal.admin(workspace, state, { ...input, ...staffUser });
-            if (result.memberId && state.communities?.length) {
-              await community.enroll(workspace, result.memberId, state.communities.map(g => g.id));
-            }
-            return json(result);
-          }
-          return json(await clientPortal.admin(workspace, state, input));
-        }
-        const secure = proto === 'https';
-        if (method === 'POST' && operation === 'admin-enter') {
-          const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'] });
-          await requireActiveAccount(who.agencyId, workspace, true);
-          const state = await store.load(workspace);
-          const staffUser = {
-            email: who.session?.email || state.profile?.email || 'admin@soci.app.br',
-            name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador'
-          };
-          const result = await clientPortal.admin(workspace, state, { action: 'staff-enter', ...staffUser });
-          if (result.memberId && state.communities?.length) {
-            await community.enroll(workspace, result.memberId, state.communities.map(g => g.id));
-          }
-          const session = await clientPortal.exchange(workspace, result.token, { staff: true });
-          portalCookie(req, res, workspace, session, secure);
-          return json({ ok: true });
-        }
-        if (method === 'POST' && operation === 'exchange') {
-          const { token } = await payload(req);
-          await publicAccountPolicy(workspace, true, 'memberships');
-          const session = await clientPortal.exchange(workspace, token);
-          portalCookie(req, res, workspace, session, secure);
-          return json({ ok:true });
-        }
-        if (method === 'POST' && operation === 'logout') {
-          await clientPortal.signOut(workspace, portalCookie(req,res,workspace,undefined,secure));
-          portalCookie(req,res,workspace,'',secure);
-          return json({ ok:true });
-        }
-        if (method === 'POST' && operation === 'progress') {
-          const input = await payload(req);
-          await publicAccountPolicy(workspace, true, 'memberships');
-          const state = await store.load(workspace);
-          return json(await clientPortal.progress(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId, input));
-        }
-        if (method === 'POST' || !['home','course'].includes(operation)) throw error('Método indisponível.',405);
-        const active = await publicAccountPolicy(workspace, false, 'memberships');
-        const state = await store.load(workspace);
-        const lessonId = String(url.searchParams.get('lesson') || '').slice(0, 60);
-        let page = await clientPortal.content(workspace, state, portalCookie(req,res,workspace,undefined,secure), courseId, lessonId, { track: active });
-        if (operation === 'home' && !page.signedIn && auth?.hasSession(req)) {
-          try {
-            const who = await workspaceAccess(req, res, workspace, { modules: ['memberships'], hide: true });
-            const staffUser = {
-              email: who.session?.email || state.profile?.email || 'admin@soci.app.br',
-              name: who.session?.user_metadata?.name || who.session?.name || state.profile?.name || 'Administrador'
-            };
-            const result = await clientPortal.admin(workspace, state, { action: 'staff-enter', ...staffUser });
-            if (result.memberId && state.communities?.length) {
-              await community.enroll(workspace, result.memberId, state.communities.map(g => g.id));
-            }
-            const session = await clientPortal.exchange(workspace, result.token, { staff: true });
-            portalCookie(req, res, workspace, session, secure);
-            page = await clientPortal.content(workspace, state, session, courseId, lessonId, { track: active });
-          } catch {}
-        }
-        if (operation === 'home' && page.signedIn) {
-          const { member } = await clientPortal.session(workspace, portalCookie(req,res,workspace,undefined,secure));
-          page.communities = await community.home(workspace, state, member);
-          const contact = state.contacts.find(row => row.id === member.contactId) || state.contacts.find(row => (row.email || '').toLowerCase() === member.email);
-          page.loyalty = loyaltyView(state, contact?.id || '');
-          page.files = (state.files || []).filter(row => row.source === 'portal' && contact && row.contactId === contact.id).slice(-20).reverse().map(row => ({ id: row.id, name: row.name, created: row.created }));
-        }
-        return json(page);
-      }
-      const portal = p.match(portalPage);
-      if (portal && method !== 'POST') {
-        await ready;
-        await publicAccountPolicy(portal[1], false, 'memberships');
-        res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; form-action 'self'");
-        return send(200,'text/html; charset=utf-8',method==='HEAD' ? undefined : readFileSync(resolve(root,'ui','client-portal.html')));
-      }
+      const portalRouteHandled = await portalRoute({ req, res, p, method, url, id, json, send, proto });
+      if (portalRouteHandled !== NEXT_ROUTE) return portalRouteHandled;
       if (p === '/favicon.ico') { res.writeHead(302, { Location: '/favicon.svg' }); return res.end(); }
       if (['/prospecting','/prospecting/','/prospecting/add-prospect'].includes(p) && method !== 'POST') {
         res.writeHead(302,{Location:p.endsWith('add-prospect') ? '/#agency/prospecting/search' : '/#agency/prospecting'});
@@ -2444,11 +2290,18 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         return json({workspaces:await visibleWorkspaces(who), agency:who.agency});
       }
-      if (p === '/api/social/cron' && (method === 'GET' || method === 'POST')) {
-        if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) throw error('Not allowed.',401);
-        return json({ published: await runAllSocial(publicBase(req)) });
-      }
+      const socialHandled = await socialRoute({ req, res, p, method, url, id, json, send });
+      if (socialHandled !== NEXT_ROUTE) return socialHandled;
       // "Gerar vídeo com IA": the finished video, public (it is made to be sent).
+      // Imagens guardadas fora dos documentos (asset-store.mjs): públicas e imutáveis (o endereço é o hash do conteúdo).
+      const assetMatch = p.match(ASSET_PATH);
+      if (assetMatch && (method === 'GET' || method === 'HEAD')) {
+        const image = await assetBytes(store, p);
+        if (!image) throw error('Imagem não encontrada.', 404);
+        res.writeHead(200, { 'Content-Type': image.mime, 'Content-Length': image.bytes.length, 'Cache-Control': 'public, max-age=31536000, immutable',
+          'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'", 'Cross-Origin-Resource-Policy': 'cross-origin' });
+        return res.end(method === 'HEAD' ? undefined : image.bytes);
+      }
       const aiVideo = p.match(new RegExp(`^/m/${workspaceSegment}/video/([0-9a-f-]{36})$`));
       if (aiVideo && (method === 'GET' || method === 'HEAD')) {
         await ready;
@@ -2458,43 +2311,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!row) throw error('Vídeo indisponível.', 404);
         return await sendVideo(req, res, method, workspace, row, 'public, max-age=86400');
       }
-      const socialFile = p.match(socialFilePath);
-      if (socialFile && method === 'GET') {
-        await ready;
-        const [, workspace, fileId] = socialFile;
-        await publicAccountPolicy(workspace);
-        const state = await store.load(workspace);
-        const referenced = state.socialPosts.some(post => ['in_progress', 'published'].includes(post.status) &&
-          post.media?.some(item => item.fileId === fileId)) || state.files.some(f => f.id === fileId && f.public === true);
-        if (referenced) {
-          await publicAccountPolicy(workspace, false, 'marketing');
-        } else {
-          if (!localAccess && !auth?.hasSession(req)) throw error('File not found.',404);
-          try { await workspaceAccess(req, res, workspace, { modules: ['media'], support: true, hide: true }); }
-          catch (e) {
-            if ([401, 403, 404].includes(e.status)) throw error('File not found.',404);
-            throw e;
-          }
-        }
-        const file = state.files.find(f => f.id === fileId);
-        if (!file || !file.data.startsWith('data:image/')) throw error('File not found.',404);
-        const { mime, bytes } = fileBytes(file.data);
-        res.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length });
-        return res.end(bytes);
-      }
-      const socialStart = p.match(/^\/api\/social\/connect\/([a-z]+)$/);
-      const invitePage = p.match(socialInvitePath);
-      if (invitePage && method === 'GET') {
-        await ready;
-        await publicAccountPolicy(invitePage[1], false, 'marketing');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
-        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/social-connect.html')));
-      }
       const signPage = p.match(signPagePath);
       if (signPage && method === 'GET') {
         await ready;
         await publicAccountPolicy(signPage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         res.setHeader('Referrer-Policy', 'no-referrer');
         res.setHeader('X-Robots-Tag', 'noindex');
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/document-sign.html')));
@@ -2534,7 +2355,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (estimatePage && method === 'GET') {
         await ready;
         await publicAccountPolicy(estimatePage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         res.setHeader('Referrer-Policy', 'no-referrer');
         res.setHeader('X-Robots-Tag', 'noindex');
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/estimate-view.html')));
@@ -2569,7 +2390,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (invoicePage && method === 'GET') {
         await ready;
         await publicAccountPolicy(invoicePage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
         res.setHeader('Referrer-Policy', 'no-referrer');
         res.setHeader('X-Robots-Tag', 'noindex');
         return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/invoice-view.html')));
@@ -2597,215 +2418,6 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await change(workspace, { type: 'invoice-open', data: { tokenHash: digest } });
         result.id.online = result.id.payable ? await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false) : false;
         return json(result.id);
-      }
-      const approvePage = p.match(socialApprovePath);
-      if (approvePage && method === 'GET') {
-        await ready;
-        await publicAccountPolicy(approvePage[1], false, 'marketing');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src data: https:; media-src https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
-        res.setHeader('Referrer-Policy', 'no-referrer');
-        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/social-approve.html')));
-      }
-      if (p === '/api/social/approval' && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Link de aprovação inválido.',404);
-        const input = await payload(req);
-        if (typeof input.token !== 'string' || !/^[a-f0-9]{64}$/.test(input.token)) throw error('Link de aprovação inválido.',404);
-        const key = hash(input.token);
-        const link = validateApproval(await socialRow(`social-${id}`), key);
-        await publicAccountPolicy(id, input.action === 'decide', 'marketing');
-        if (input.action === 'list') return json({ expires: link.expires, ...approvalView(await store.load(id)) });
-        if (input.action === 'decide') {
-          const name = String(input.name || '').replace(/\s+/g, ' ').trim().slice(0, 80);
-          if (!name) throw error('Informe seu nome para registrar a decisão.',400);
-          if (!['approved', 'rejected'].includes(input.decision)) throw error('Escolha aprovar ou pedir ajustes.',400);
-          if (input.decision === 'rejected' && !String(input.note || '').trim()) throw error('Conte o que precisa mudar neste post.',400);
-          await change(id, { type: 'social-review', id: String(input.postId || ''), data: { decision: input.decision, note: input.note }, actor: `${name} (cliente)` });
-          return json({ expires: link.expires, ...approvalView(await store.load(id)) });
-        }
-        throw error('Ação inválida para este link.',400);
-      }
-      if (p === '/api/social/invited' && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Convite inválido.',404);
-        const input = await payload(req);
-        if (typeof input.token !== 'string' || !/^[a-f0-9]{64}$/.test(input.token)) throw error('Convite inválido.',404);
-        const key = hash(input.token);
-        const row = await store.load(`social-${id}`);
-        const invite = validateInvite(row, key);
-        await publicAccountPolicy(id, input.action !== 'info', 'marketing');
-        if (input.action === 'info') return json({ expires: invite.expires, providers: availability() });
-        if (input.action === 'start') return json({ url: await startSocialOAuth(req, id, input.provider, key) });
-        if (input.action === 'bluesky') {
-          const candidates = await blueskyLogin(input.identifier, input.password);
-          return json(await inviteAttach(id, key, candidates));
-        }
-        if (input.action === 'candidates' || input.action === 'attach') {
-          const requestId = String(input.requestId || ''), pending = row.pending[requestId];
-          if (!pending || pending.inviteKey !== key || Date.parse(pending.at) < Date.now() - 30 * 60_000) throw error('Esta autorização expirou.',404);
-          const candidates = unseal(pending.candidates) || [];
-          const state = await store.load(id);
-          if (input.action === 'candidates') return json({ candidates: candidates.map((c, index) => ({ index, provider: c.provider, name: c.name }))
-            .filter((_, n) => !state.socialAccounts.some(a => a.provider === candidates[n].provider && a.externalId === candidates[n].externalId)) });
-          const picks = [...new Set(Array.isArray(input.picks) ? input.picks : [])].filter(n => Number.isInteger(n) && candidates[n]);
-          if (!picks.length) throw error('Escolha ao menos uma conta.',400);
-          await socialSecrets(id, current => {
-            validateInvite(current, key);
-            if (current.pending[requestId]?.inviteKey !== key) throw error('Esta autorização expirou.',404);
-            delete current.pending[requestId];
-          });
-          return json(await inviteAttach(id, key, picks.map(n => candidates[n])));
-        }
-        throw error('Ação inválida para este convite.',400);
-      }
-      if (socialStart && method === 'GET') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        if (localAccess) req.localSocialUser = url.searchParams.get('user');
-        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
-        const target = await startSocialOAuth(req, id, socialStart[1], '', socialActor(who));
-        res.writeHead(302, { Location: target }); return res.end();
-      }
-      const socialBack = p.match(/^\/api\/social\/callback\/([a-z]+)$/);
-      if (socialBack && method === 'GET') {
-        const base = publicBase(req);
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'");
-        let provider = socialBack[1];
-        try {
-          await socialRow('social-oauth');
-          const nonce = url.searchParams.get('state') || '';
-          const pending = await store.change('social-oauth', row => { const v = row.states[nonce]; delete row.states[nonce]; return v; });
-          if (!pending || Date.parse(pending.at) < Date.now() - 15 * 60_000 || callbackPath(pending.provider) !== p) throw error('Este login expirou. Tente conectar de novo.',400);
-          if (pending.inviteKey) {
-            validateInvite(await store.load(`social-${pending.workspace}`), pending.inviteKey);
-          } else {
-            if (localAccess && pending.actor !== 'local-owner') req.localSocialUser = pending.actor;
-            const who = await workspaceAccess(req, res, pending.workspace, { modules: ['marketing'] });
-            if (pending.actor !== socialActor(who)) throw error('Esta autorização pertence a outra sessão.',403);
-          }
-          await publicAccountPolicy(pending.workspace, true, 'marketing');
-          provider = pending.provider;
-          if (url.searchParams.get('error')) throw error(url.searchParams.get('error_description') || 'A autorização foi cancelada.',400);
-          const candidates = await socialExchange(provider, { code: url.searchParams.get('code') || '', redirectUri: base + callbackPath(provider) });
-          await publicAccountPolicy(pending.workspace, true, 'marketing');
-          const requestId = uid();
-          await socialSecrets(pending.workspace, row => {
-            for (const [k, v] of Object.entries(row.pending)) if (Date.parse(v.at) < Date.now() - 30 * 60_000) delete row.pending[k];
-            if (pending.inviteKey) validateInvite(row, pending.inviteKey);
-            row.pending[requestId] = { provider, at: stamp(), candidates: seal(candidates), inviteKey: pending.inviteKey || '', actor: pending.actor };
-          });
-          return send(200,'text/html; charset=utf-8',socialPopup(base, { requestId, provider }));
-        } catch (e) {
-          return send(200,'text/html; charset=utf-8',socialPopup(base, { provider, error: e.message }));
-        }
-      }
-      if (p.startsWith('/api/social/') && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const input = await payload(req), op = p.slice('/api/social/'.length);
-        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
-        if (op === 'csv-preview') return json({ rows: reviewSocialCsv(await store.load(id), input).map(({ index, fields, error }) =>
-          fields ? { index, status: fields.status, date: fields.scheduleDate, accounts: fields.accountIds.length } : { index, error }) });
-        if (op === 'invite') {
-          if (input.action === 'status') {
-            const invite = (await socialRow(`social-${id}`)).invite;
-            return json({ expires: invite?.expires > Date.now() ? invite.expires : null });
-          }
-          if (input.action === 'revoke') {
-            await socialSecrets(id, row => { delete row.invite; });
-            return json({ expires: null });
-          }
-          if (input.action !== 'create' || ![1, 24, 72, 168].includes(input.hours)) throw error('Escolha um prazo para o convite.',400);
-          const token = (uid() + uid()).replaceAll('-', ''), expires = Date.now() + input.hours * 3_600_000;
-          await socialSecrets(id, row => { row.invite = { hash: hash(token), expires }; });
-          return json({ url: `${publicBase(req)}/social-connect/${id}#${token}`, expires });
-        }
-        if (op === 'interactions' || op === 'incoming-interaction') {
-          const result = await change(id, { type: 'social-interaction-trigger', data: input }, who);
-          return json({ ok: true, ...(typeof result?.id === 'object' ? result.id : { result: result?.id }) });
-        }
-        if (op === 'approval-link') {
-          const current = (await socialRow(`social-${id}`)).approval;
-          if (input.action === 'status') return json({ expires: current?.expires > Date.now() ? current.expires : null });
-          if (input.action === 'revoke') {
-            await socialSecrets(id, row => { delete row.approval; });
-            return json({ expires: null });
-          }
-          if (input.action === 'send-whatsapp') {
-            const rawPhone = String(input.phone || '').trim();
-            if (!rawPhone) throw error('Informe o número de WhatsApp para envio.', 400);
-            const hours = [24, 72, 168, 720].includes(Number(input.hours)) ? Number(input.hours) : 168;
-            let token = '';
-            let expires = current?.expires > Date.now() ? current.expires : 0;
-            if (!expires || !input.url) {
-              token = (uid() + uid()).replaceAll('-', '');
-              expires = Date.now() + hours * 3_600_000;
-              await socialSecrets(id, row => { row.approval = { hash: hash(token), expires }; });
-            }
-            const approvalUrl = token ? `${publicBase(req)}/aprovar/${id}#${token}` : input.url;
-            const state = await store.load(id);
-            const pending = state.socialPosts.filter(p => p.status === 'in_review').length;
-            const brand = state.profile?.name || '';
-            const defaultMsg = `Olá! ${pending ? `Há ${pending} post(s)` : 'Os próximos posts'}${brand ? ` da marca *${brand}*` : ''} aguardando sua aprovação.\n\nRevise, aprove ou solicite ajustes com um comentário por este link:\n${approvalUrl}`;
-            const message = String(input.message || '').trim() || defaultMsg;
-            const agencyId = state.agencyId || who.agencyId || AGENCY_ID;
-            const sent = await whatsapp.sendWorkspaceText(
-              agencyId, id, rawPhone, message,
-              (agId, ws) => accountIsActive(agId, ws, 'conversations')
-            ).catch(err => {
-              throw error(err.message || 'Erro ao enviar pelo WhatsApp.', err.status || 502);
-            });
-            if (!sent?.sent) {
-              if (sent?.reason === 'not-connected') throw error('O WhatsApp desta subconta não está conectado. Conecte em Conversas para disparar.', 400);
-              if (sent?.reason === 'invalid-phone') throw error('Número de WhatsApp inválido. Digite com DDD (ex.: 11999999999).', 400);
-              throw error('Não foi possível enviar a mensagem por WhatsApp.', 502);
-            }
-            return json({ ok: true, sent: true, phone: rawPhone, expires, url: approvalUrl });
-          }
-          if (input.action !== 'create' || ![24, 72, 168, 720].includes(input.hours)) throw error('Escolha um prazo para o link de aprovação.',400);
-          const token = (uid() + uid()).replaceAll('-', ''), expires = Date.now() + input.hours * 3_600_000;
-          await socialSecrets(id, row => { row.approval = { hash: hash(token), expires }; });
-          return json({ url: `${publicBase(req)}/aprovar/${id}#${token}`, expires });
-        }
-        if (op === 'ai') {
-          captionRequest(input);
-          input.voice = await brandVoiceOf(id);
-          const status = who.session ? await openAI.status(who.session) : { configured: false };
-          if (!status.configured) throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para gerar legendas com IA.',409);
-          return json(await meteredAI(who, id, 'social', connection => content.writeCaption(connection, input)));
-        }
-        const withState = async extra => {
-          const state = await store.load(id);
-          return json({ ...workspaceView(who, state), ...extra });
-        };
-        if (op === 'candidates' || op === 'attach') {
-          const row = await socialRow(`social-${id}`), pending = row.pending[String(input.requestId || '')];
-          if (!pending || pending.inviteKey || pending.actor !== socialActor(who) ||
-              Date.parse(pending.at) < Date.now() - 30 * 60_000) throw error('Esta autorização expirou. Conecte a conta de novo.',404);
-          const candidates = unseal(pending.candidates) || [];
-          if (op === 'candidates') {
-            const state = await store.load(id);
-            return json({ provider: pending.provider, candidates: candidates.map((c, index) => ({ index, provider: c.provider, name: c.name, handle: c.handle || '', avatar: c.avatar || '', kind: c.kind || '',
-              connected: state.socialAccounts.some(a => a.provider === c.provider && a.externalId === c.externalId) })) });
-          }
-          const picks = [...new Set((Array.isArray(input.picks) ? input.picks : []).map(Number))].filter(n => candidates[n]);
-          if (!picks.length) throw error('Escolha ao menos uma conta.',400);
-          const chosen = picks.map(n => candidates[n]);
-          const ids = await store.change(id, s => attachAccounts(s, chosen, { uid, now: stamp }));
-          await socialSecrets(id, r => { ids.forEach((accountId, n) => { r.tokens[accountId] = seal(chosen[n].secret); }); delete r.pending[input.requestId]; });
-          if (chosen.some(row => ['facebook', 'instagram'].includes(row.provider))) await routeMetaAccounts(id).catch(problem => console.error(`Meta routes (${id}): ${problem.message}`));
-          return withState({ id: ids });
-        }
-        if (op === 'bluesky') {
-          const [found] = await blueskyLogin(input.identifier, input.password);
-          const [accountId] = await store.change(id, s => attachAccounts(s, [found], { uid, now: stamp }));
-          await socialSecrets(id, r => { r.tokens[accountId] = seal(found.secret); });
-          return withState({ id: accountId });
-        }
-        if (op === 'run') { const published = await runSocial(id, publicBase(req)); return withState({ published }); }
-        if (op === 'disconnect') {
-          await change(id, { type: 'social-account-remove', id: String(input.id || '') });
-          await socialSecrets(id, r => { delete r.tokens[input.id]; });
-          await routeMetaAccounts(id).catch(problem => console.error(`Meta routes (${id}): ${problem.message}`));
-          return withState({});
-        }
-        throw error('Unknown social request.',404);
       }
       if (p==='/api/state' && method!=='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
@@ -2861,91 +2473,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await change(id, { type: 'tracking-ga4-secret', data: { set: Boolean(secret) } });
         return json(workspaceView(who, result.state));
       }
-      if (p==='/api/action' && method==='POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const command = await payload(req);
-        const who = await workspaceAccess(req, res, id);
-        requireWorkspaceCommand(who, command);
-        command.actor = who.name;
-        // Whose OpenAI key the workflow's AI steps use: always the saving user, never a value from the client.
-        if (command.type === 'save' && command.key === 'workflows' && command.data && typeof command.data === 'object') {
-          // "Copiar contato": whoever saves the workflow must be able to open the target sub-account's contacts.
-          const targets = new Set();
-          eachStep(Array.isArray(command.data.steps) ? command.data.steps : [], step => { if (step?.type === 'copy_contact' && step.config?.workspace) targets.add(String(step.config.workspace)); });
-          for (const target of targets) {
-            if (target === id) throw error('Copiar contato: escolha outra subconta como destino.', 400);
-            await workspaceAccess(req, res, target, { modules: ['contacts'] }).catch(() => { throw error('Copiar contato: seu usuário não tem acesso aos contatos da subconta de destino.', 403); });
-          }
-          command.data = { ...command.data, aiKey: who.session ? { session: who.session.id, user: who.userId || '', agency: who.agencyId || '' } : null };
-        }
-        if (command.type === 'phone-number-save' && command.data && typeof command.data === 'object') {
-          command.data = { ...command.data, voiceKey: command.data.mode === 'voice_ai' && who.session ? { session: who.session.id, user: who.userId || '', agency: who.agencyId || '' } : null };
-        }
-        if (['document-send', 'document-link', 'estimate-send', 'estimate-link', 'invoice-send', 'invoice-from-template', 'checkout-remind', 'email-campaign-schedule', 'message', 'review-request', 'reputation-settings'].includes(command.type)) command.data = { ...(command.data && typeof command.data === 'object' ? command.data : {}), origin: publicBase(req) };
-        const removedVideo = command.type === 'delete' && command.key === 'videoTestimonials' ? (await store.load(id)).videoTestimonials?.find(row => row.id === command.id) : null;
-        const result = await change(id,command,who);
-        if (removedVideo) for (let index = 0; index < removedVideo.chunks; index++) await Promise.resolve().then(() => store.change(mediaRowId(id, removedVideo.id, index), row => { row.data = ''; row.deleted = true; })).catch(() => {});
-        let delivery = null;
-        let state = result.state;
-        if (!privateSpace.test(id) && command.type === 'message' && command.data?.channel === 'WhatsApp' && command.data?.direction === 'Outbound') {
-          const contact = state.contacts.find(c => c.id === command.data.contactId);
-          // An undelivered message is marked and fires "Falha no envio de mensagem"; the provider error still reaches the user.
-          const failed = async reason => {
-            const marked = await change(id, { type: 'message-failed', data: { messageId: result.id, reason } });
-            state = marked.state;
-            if (state.workflowOutbox?.length) flushLater(id);
-          };
-          if (!contact?.phone) await failed('no_phone');
-          else {
-            // The stored body: trigger links already replaced by this contact's tracked URLs.
-            const sentBody = state.messages.find(m => m.id === result.id)?.body || command.data.body;
-            try {
-              delivery = await whatsapp.sendWorkspaceText(who.agencyId, id, contact.phone, sentBody,
-                (agencyId, workspace) => accountIsActive(agencyId, workspace, 'conversations'));
-            } catch (err) { await failed('provider_error').catch(() => {}); throw err; }
-            if (!delivery.sent) await failed(deliveryFailure(delivery.reason));
-          }
-        }
-        // A team e-mail in Conversas goes out from the sub-account's sending domain (or the platform address).
-        if (!privateSpace.test(id) && command.type === 'message' && command.data?.channel === 'Email' && command.data?.direction === 'Outbound') {
-          const contact = state.contacts.find(c => c.id === command.data.contactId);
-          const row = state.messages.find(m => m.id === result.id);
-          let reason = '';
-          if (!contact?.email) reason = 'no_email';
-          else {
-            const outcome = await documentMail.email(contact.email, { subject: row?.subject || `Mensagem de ${state.profile?.name || 'Soci'}`, text: row?.body || String(command.data.body || '') },
-              `team-email-${id}-${result.id}`, { fromName: state.profile?.name || '', fromAddress: await sendingAddress(id), replyTo: inboundAddress(id) }).catch(problem => problem.message);
-            if (!mailSent(outcome)) reason = /não configurado/.test(String(outcome)) ? 'not_connected' : 'provider_error';
-          }
-          delivery = { sent: !reason, ...(reason ? { reason } : {}) };
-          if (reason) {
-            const marked = await change(id, { type: 'message-failed', data: { messageId: result.id, reason } });
-            state = marked.state;
-            if (state.workflowOutbox?.length) flushLater(id);
-          }
-        }
-        // A team reply on Messenger or Direct goes out through the page the contact wrote to.
-        if (!privateSpace.test(id) && command.type === 'message' && ['Facebook', 'Instagram'].includes(command.data?.channel) && command.data?.direction === 'Outbound') {
-          const contact = state.contacts.find(c => c.id === command.data.contactId);
-          const network = command.data.channel === 'Facebook' ? 'facebook' : 'instagram';
-          const sentBody = state.messages.find(m => m.id === result.id)?.body || command.data.body;
-          const sent = await deliverMetaMessage(id, state, { network, recipients: contact?.metaIds || {}, body: sentBody }).catch(() => ({ sent: false, reason: 'provider_error' }));
-          delivery = { sent: Boolean(sent.sent), ...(sent.sent ? {} : { reason: sent.reason }) };
-          if (!sent.sent) {
-            const marked = await change(id, { type: 'message-failed', data: { messageId: result.id, reason: sent.reason } });
-            state = marked.state;
-            if (state.workflowOutbox?.length) flushLater(id);
-          }
-        }
-        if (!privateSpace.test(id) && ['save','delete','import','opportunity-import','opportunity-move','pipeline','pipeline-settings','pipeline-duplicate','pipeline-delete','stage-delete','smart-tag','smart-tag-delete','profile','bulk','workflow-enroll','workflow-restore','workflow-move'].includes(command.type)) {
-          const account = (await listWorkspaces(who.agencyId)).find(w => w.id === id)?.name || id;
-          const label = command.type === 'bulk' ? `Bulk ${command.data?.operation || ''} on ${command.data?.object || ''}`.trim() : '';
-          await recordAudit(who, command.type === 'delete' ? `Deleted ${command.key}` : command.type === 'save' ? `Saved ${command.key}` : label || `Ran ${command.type}`, account);
-        }
-        if (state.workflowOutbox?.length) flushLater(id);
-        if (command.type === 'email-campaign-schedule') emailLater(id);
-        return json({ id: result.id, ...workspaceView(who, state), ...(delivery ? { delivery } : {}) });
-      }
+      const actionRouteHandled = await actionRoute({ req, res, p, method, url, id, json, send });
+      if (actionRouteHandled !== NEXT_ROUTE) return actionRouteHandled;
       if (p==='/api/agency' && method!=='POST') {
         return json(await agencyPayload(req,res));
       }
@@ -3015,123 +2544,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         throw error('Not found.', 404);
       }
-      // Anúncios: OAuth of Meta Ads / Google Ads, account choice, sync, campaign changes and Meta ad creation.
-      if (p === adsCallbackPath && method === 'GET') {
-        const base = publicBase(req);
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'");
-        try {
-          await socialRow('ads-oauth');
-          const nonce = url.searchParams.get('state') || '';
-          const pending = await store.change('ads-oauth', row => { const v = row.states[nonce]; delete row.states[nonce]; return v; });
-          if (!pending || Date.parse(pending.at) < Date.now() - 15 * 60_000) throw error('Este login expirou. Tente conectar de novo.',400);
-          if (localAccess && pending.actor !== 'local-owner') req.localSocialUser = pending.actor;
-          const who = await workspaceAccess(req, res, pending.workspace, { modules: ['marketing'] });
-          if (pending.actor !== socialActor(who)) throw error('Esta autorização pertence a outra sessão.',403);
-          if (url.searchParams.get('error')) throw error('A autorização foi cancelada.',400);
-          const network = pending.network, label = network === 'meta' ? 'Meta Ads' : 'Google Ads';
-          const found = await adsExchange(network, { code: url.searchParams.get('code') || '', redirectUri: base + adsCallbackPath });
-          const rowId = `ads-${pending.workspace}`;
-          await socialRow(rowId);
-          const accountId = await store.change(rowId, row => {
-            const prior = row[network] || {};
-            const keep = (list, value) => list.some(item => item.id === value) ? value : '';
-            row[network] = { token: seal(found.secret), user: found.user, accounts: found.accounts, pages: found.pages || [], connectedAt: stamp(),
-              accountId: keep(found.accounts, prior.accountId) || (found.accounts.length === 1 ? found.accounts[0].id : ''),
-              pageId: keep(found.pages || [], prior.pageId) || (found.pages?.length === 1 ? found.pages[0].id : '') };
-            return row[network].accountId;
-          });
-          await store.change(pending.workspace, s => markAdConnection(s, network, true));
-          await recordAudit(who, `${label} conectado`, found.user || pending.workspace).catch(() => {});
-          if (accountId) runAds(pending.workspace, network, { full: true }).catch(() => {});
-          return send(200,'text/html; charset=utf-8',adsPopup(base, { network }));
-        } catch (e) {
-          return send(200,'text/html; charset=utf-8',adsPopup(base, { error: e.message }));
-        }
-      }
-      if (p.startsWith('/api/ads/workspace/')) {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.', 404);
-        const op = p.slice('/api/ads/workspace/'.length).replace(/\/+$/, '');
-        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
-        const rowId = `ads-${id}`;
-        if (op === 'connect' && method === 'GET') {
-          const network = url.searchParams.get('network');
-          if (!['meta', 'google'].includes(network)) throw error('Escolha a rede de anúncios.', 400);
-          const nonce = uid();
-          const target = adsAuthUrl(network, { redirectUri: publicBase(req) + adsCallbackPath, state: nonce });
-          await socialRow('ads-oauth');
-          await store.change('ads-oauth', row => {
-            for (const [k, v] of Object.entries(row.states)) if (Date.parse(v.at) < Date.now() - 15 * 60_000) delete row.states[k];
-            row.states[nonce] = { workspace: id, network, at: stamp(), actor: socialActor(who) };
-          });
-          res.writeHead(302, { Location: target }); return res.end();
-        }
-        if (op === 'status' && method === 'GET') return json(adsView(await socialRow(rowId)));
-        if (method !== 'POST') throw error('Method not allowed.', 405);
-        const body = await payload(req);
-        const net = ['meta', 'google'].includes(body.network) ? body.network : null;
-        if (!net) throw error('Escolha a rede de anúncios.', 400);
-        const label = net === 'meta' ? 'Meta Ads' : 'Google Ads';
-        const reply = async extra => json({ ...workspaceView(who, await store.load(id)), ads: adsView(await socialRow(rowId)), ...extra });
-        if (op === 'select') {
-          await socialRow(rowId);
-          const changed = await store.change(rowId, row => {
-            const a = row[net];
-            if (!a?.token) throw error(`Conecte o ${label} primeiro.`, 409);
-            let moved = false;
-            if (body.accountId !== undefined) {
-              if (!a.accounts.some(item => item.id === body.accountId)) throw error('Escolha uma conta de anúncios desta conexão.', 400);
-              moved = a.accountId !== body.accountId; a.accountId = body.accountId;
-            }
-            if (body.pageId !== undefined) {
-              if (body.pageId && !(a.pages || []).some(item => item.id === body.pageId)) throw error('Escolha uma Página desta conexão.', 400);
-              a.pageId = body.pageId;
-            }
-            return moved;
-          });
-          if (changed) {
-            // Another ad account: its numbers replace the old account's.
-            await store.change(id, s => { s.adCampaigns = (s.adCampaigns || []).filter(c => c.network !== net); s.adStats = (s.adStats || []).filter(r => r.network !== net); delete adSettingsOf(s).lastSync[net]; });
-            const synced = await runAds(id, net, { full: true }).then(() => '', e => e.message);
-            return reply({ syncError: synced });
-          }
-          return reply({});
-        }
-        if (op === 'sync') return reply({ synced: await runAds(id, net, { full: body.full === true }) });
-        if (op === 'campaign') {
-          const camp = (await store.load(id)).adCampaigns?.find(c => c.network === net && c.id === String(body.id || ''));
-          if (!camp) throw error('Campanha não encontrada. Sincronize de novo.', 404);
-          const { secret, account } = await adsAccess(id, net);
-          if (body.action === 'pause' || body.action === 'activate') {
-            const on = body.action === 'activate';
-            await setCampaignStatus(net, secret, account, camp.id, on);
-            await store.change(id, s => patchAdCampaign(s, net, camp.id, { status: on ? 'active' : 'paused', rawStatus: on ? (net === 'meta' ? 'ACTIVE' : 'ENABLED') : 'PAUSED' }));
-            await recordAudit(who, `Campanha ${on ? 'ativada' : 'pausada'} (${label})`, camp.name).catch(() => {});
-          } else if (body.action === 'budget') {
-            await setCampaignBudget(net, secret, account, camp, body.budget);
-            await store.change(id, s => patchAdCampaign(s, net, camp.id, { budget: Math.round(Number(body.budget) * 100) / 100 }));
-            await recordAudit(who, `Orçamento da campanha alterado (${label})`, `${camp.name}: ${body.budget}`).catch(() => {});
-          } else throw error('Ação inválida.', 400);
-          return reply({});
-        }
-        if (op === 'create') {
-          if (net !== 'meta') throw error('A criação de anúncios pelo Soci está disponível para o Meta Ads.', 400);
-          const { ad, image } = metaAdInput(await store.load(id), body);
-          const { secret, account, page } = await adsAccess(id, 'meta');
-          if (!page) throw error('Escolha a Página do Facebook que vai assinar o anúncio.', 409);
-          const created = await createMetaAd(secret, account, page, ad, image);
-          await recordAudit(who, 'Anúncio criado no Meta Ads (pausado)', ad.name).catch(() => {});
-          await runAds(id, 'meta').catch(() => null);
-          return reply({ created });
-        }
-        if (op === 'disconnect') {
-          await socialRow(rowId);
-          await store.change(rowId, row => { delete row[net]; });
-          await store.change(id, s => markAdConnection(s, net, false));
-          await recordAudit(who, `${label} desconectado`, id).catch(() => {});
-          return reply({});
-        }
-        throw error('Not found.', 404);
-      }
+      const adsRouteHandled = await adsRoute({ req, res, p, method, url, id, json, send });
+      if (adsRouteHandled !== NEXT_ROUTE) return adsRouteHandled;
       if (p === googleCallbackPath && method === 'GET') {
         const base = publicBase(req);
         res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'");
@@ -3881,120 +3295,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         return json({ agent }, operation === 'create' ? 201 : 200);
       }
-      if (p.startsWith('/api/prancheta/')) {
-        const isAgencyTarget = id === 'agency' || !id;
-        const who = isAgencyTarget
-          ? await access(req, res)
-          : await workspaceAccess(req, res, id, { modules: ['marketing'] });
-        if (isAgencyTarget) {
-          requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
-        } else {
-          await requireActiveAccount(who.agencyId, id, true);
-        }
-        const action = p.slice('/api/prancheta/'.length);
-        const formatPranchetaMeta = (f) => ({
-          id: f.id,
-          name: f.name,
-          size_bytes: f.size_bytes || (f.document ? JSON.stringify(f.document).length : JSON.stringify(f).length),
-          thumbnail: f.thumbnail || null,
-          created_at: f.created_at || f.created,
-          updated_at: f.updated_at || f.updated || f.created,
-          format: f.format || 'custom',
-          width: f.width || 1080,
-          height: f.height || 1080,
-          pages: f.pages || []
-        });
-
-        const loadTarget = async () => isAgencyTarget ? loadAgency(who.agencyId) : store.load(id);
-        const changeTarget = async (cmd) => {
-          if (isAgencyTarget) {
-            return changeAgency(who.agencyId, a => executeAgency(a, cmd, { actor: who.name }));
-          }
-          const res = await change(id, cmd);
-          return res.id;
-        };
-
-        if (action === 'files') {
-          if (method === 'GET') {
-            const state = await loadTarget();
-            const raw = state.pranchetaFiles || [];
-            return json({ files: raw.map(formatPranchetaMeta) });
-          }
-          if (method === 'POST') {
-            const input = await payload(req);
-            const savedId = await changeTarget({ type: 'prancheta-save', data: input, id: input.id });
-            const state = await loadTarget();
-            const raw = state.pranchetaFiles || [];
-            return json({ id: savedId, files: raw.map(formatPranchetaMeta) });
-          }
-        }
-        if (action === 'file') {
-          const fileId = url.searchParams.get('id') || url.searchParams.get('fileId');
-          const state = await loadTarget();
-          const raw = state.pranchetaFiles || [];
-          const found = raw.find(f => f.id === fileId);
-          if (method === 'GET') {
-            if (!found) throw error('Arquivo da prancheta não encontrado.', 404);
-            const { sociToDocument } = await import('./prancheta-model.mjs');
-            const document = found.document || sociToDocument(found);
-            return json({
-              ...formatPranchetaMeta(found),
-              document
-            });
-          }
-          if (method === 'POST') {
-            const input = await payload(req);
-            const targetId = input.id || fileId;
-            const savedId = await changeTarget({ type: 'prancheta-save', data: input, id: targetId });
-            const nextState = await loadTarget();
-            const nextFound = (nextState.pranchetaFiles || []).find(f => f.id === savedId);
-            return json({ id: savedId, file: nextFound ? formatPranchetaMeta(nextFound) : null });
-          }
-        }
-        if (action === 'save' && method === 'POST') {
-          const input = await payload(req);
-          const savedId = await changeTarget({ type: 'prancheta-save', data: input, id: input.id });
-          const state = await loadTarget();
-          const raw = state.pranchetaFiles || [];
-          const found = raw.find(f => f.id === savedId);
-          return json({ id: savedId, file: found ? formatPranchetaMeta(found) : null, files: raw.map(formatPranchetaMeta) });
-        }
-        if (action === 'templates' && method === 'GET') {
-          const { createCanonicalTemplates, pranchetaPresets } = await import('./prancheta-model.mjs');
-          return json({ templates: createCanonicalTemplates(), presets: pranchetaPresets });
-        }
-        if (action === 'template-use' && method === 'POST') {
-          const input = await payload(req);
-          const savedId = await changeTarget({ type: 'prancheta-template', data: input });
-          const state = await loadTarget();
-          return json({ id: savedId, files: state.pranchetaFiles || [] }, 201);
-        }
-        if (action === 'delete' && method === 'POST') {
-          const input = await payload(req);
-          await changeTarget({ type: 'prancheta-delete', id: input.id });
-          const state = await loadTarget();
-          return json({ ok: true, files: state.pranchetaFiles || [] });
-        }
-        if (action === 'duplicate' && method === 'POST') {
-          const input = await payload(req);
-          const copyId = await changeTarget({ type: 'prancheta-duplicate', id: input.id });
-          const state = await loadTarget();
-          return json({ id: copyId, files: state.pranchetaFiles || [] }, 201);
-        }
-        if (action === 'export-media' && method === 'POST') {
-          const input = await payload(req);
-          const fileId = await changeTarget({ type: 'prancheta-export-media', id: input.id, data: input });
-          const state = await loadTarget();
-          return json({ ok: true, fileId, files: state.files || [] });
-        }
-        if (action === 'to-social' && method === 'POST') {
-          const input = await payload(req);
-          const result = await changeTarget({ type: 'prancheta-to-social', id: input.id, data: input });
-          const state = await store.load(id);
-          return json({ ok: true, ...(result || {}), posts: state.socialPosts || [] });
-        }
-        throw error('Rota da prancheta não encontrada.', 404);
-      }
+      const pranchetaRouteHandled = await pranchetaRoute({ req, res, p, method, url, id, json, send });
+      if (pranchetaRouteHandled !== NEXT_ROUTE) return pranchetaRouteHandled;
       if (p==='/api/studio' && method==='POST') {
         const who = await studioGuard(req,res,id);
         const input = await payload(req);
@@ -4006,6 +3308,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!brief || brief.length > 4000) throw error('Enter a project description of up to 4,000 characters.',400);
         if (!studioTemplates.some(item => item[0] === template)) throw error('Choose a valid template.',400);
         if (!['model','starter','blank'].includes(input.mode)) throw error('Choose how to create the project.',400);
+        const siteTemplate = input.mode === 'starter' && input.siteTemplate ? String(input.siteTemplate) : '';
+        if (siteTemplate && !hasSiteTemplate(siteTemplate)) throw error('Escolha um modelo de site válido.',400);
         const existing = await store.load(id);
         if (existing.studioProjects.length >= 60) throw error('A workspace can have up to 60 Studio projects.',400);
         const connection = input.mode === 'model' ? await openAI.requireConnection(who.session) : null;
@@ -4023,13 +3327,17 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         } else if (input.mode === 'blank') {
           draft = { name:blankName, headline:blankName, summary:'', theme:'indigo', blocks:[] };
           html = pageFromStructure(draft, blankName);
+        } else if (siteTemplate) {
+          const name = (typeof input.name === 'string' && input.name.trim().slice(0,80)) || findSiteTemplate(siteTemplate).brand;
+          draft = { name, headline:name, summary:findSiteTemplate(siteTemplate).description, theme:'indigo', blocks:[] };
         } else {
           draft = starterProject(brief,template);
           html = pageFromStructure(draft);
         }
         if (plan) Object.assign(draft, { name:plan.name, headline:plan.name, summary:plan.summary || draft.summary });
-        const pages = [{ name:plan ? plan.pages[0].name : kind === 'funnel' ? 'Página de captura' : 'Home', slug:'index', html }];
-        if (kind === 'funnel' && !plan) pages.push({ name:'Obrigado', slug:'obrigado', html:thankYouPage(draft) });
+        let pages = [{ name:plan ? plan.pages[0].name : kind === 'funnel' ? 'Página de captura' : 'Home', slug:'index', html }];
+        if (siteTemplate) pages = siteTemplatePages(siteTemplate, { brand:draft.name, kind });
+        else if (kind === 'funnel' && !plan) pages.push({ name:'Obrigado', slug:'obrigado', html:thankYouPage(draft) });
         const doc = newSiteDoc({ workspace:id, project:{ id:'pending' }, pages });
         const created = await change(id,{type:'save',key:'studioProjects',data:{...draft,brief,template,kind,design,reference:reference?.url || ''}});
         doc.project = created.id; doc.profile.name = `AI Studio ${created.id}`;
@@ -4068,6 +3376,17 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const doc = await siteDoc(id, input.id);
         const synced = await syncMeta(id, input.id, doc);
         return json({ id: synced.id, ...workspaceView(who, synced.state), doc: publicDoc(doc), result });
+      }
+      // Prévia dos modelos de site da galeria: conteúdo fixo do catálogo, sem dados de cliente.
+      const templatePreview = p.match(templatePreviewPath);
+      if (templatePreview && method === 'GET') {
+        const [, templateId, slug] = templatePreview;
+        if (!hasSiteTemplate(templateId)) throw error('Modelo de site não encontrado.',404);
+        const thumb = url.searchParams.has('thumb');
+        const html = siteTemplatePreview(templateId, slug, { thumb });
+        const [headers, body] = thumb ? [previewHeaders, html] : withMotion(previewHeaders, html);
+        res.writeHead(200, { ...headers, 'Cache-Control': 'no-cache' });
+        return res.end(body);
       }
       const preview = p.match(previewPath);
       if (preview && method === 'GET') {
@@ -4156,7 +3475,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const pt = /<html\b[^>]*\blang\s*=\s*["']?pt/i.test(page.html), es = /<html\b[^>]*\blang\s*=\s*["']?es/i.test(page.html);
         const notice = url.searchParams.has('sent') ? { ok:true, text:pt ? 'Obrigado! Seus dados foram enviados.' : es ? '¡Gracias! Tus datos fueron enviados.' : 'Thank you! Your details were sent.' }
           : url.searchParams.has('error') ? { ok:false, text:pt ? 'Não foi possível enviar. Confira o nome e o e-mail e tente de novo.' : es ? 'No se pudo enviar. Revisa el nombre y el correo e inténtalo de nuevo.' : 'Your details could not be sent. Check the name and email and try again.' } : '';
-        const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, publicHeaders, renderPublic(page,{ base, notice }));
+        const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, ...withMotion(publicHeaders, renderPublic(page,{ base, notice })));
         res.writeHead(200, siteHeaders);
         return res.end(siteBody);
       }
@@ -4172,7 +3491,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!webinar || (!webinar.active && !preview)) throw error('Este webinar não está disponível.',404);
         const zone = state.profile?.timezone || 'America/Sao_Paulo';
         const page = body => { res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }); return res.end(method === 'HEAD' ? undefined : body); };
+          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }); return res.end(method === 'HEAD' ? undefined : body); };
         if (!part) return page(registrationPage(webinar, { workspace, zone }));
         const registration = state.webinarRegistrations.find(item => item.webinarId === webinarId && item.token === String(url.searchParams.get('t') || ''));
         if (!registration) throw error('Inscrição não encontrada. Use o link que você recebeu.',404);
@@ -4234,7 +3553,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         else if (slug) { const item = catalog(state, shop).find(row => row.slug === slug); if (!item) throw error('Produto não encontrado.',404); body = storeProduct(state, shop, item, { base }); }
         else body = storeHome(state, shop, { base, category:String(url.searchParams.get('categoria') || '').slice(0,40), collection:String(url.searchParams.get('colecao') || '').slice(0,80) });
         const [storeHeaders, storeBody] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, body);
+          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, body);
         res.writeHead(200, storeHeaders);
         return res.end(method === 'HEAD' ? undefined : storeBody);
       }
@@ -4443,8 +3762,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (part === 'config.json') return done('application/json; charset=utf-8', JSON.stringify(mobileConfig(app, agencyId)));
         if (part.startsWith('icon-')) {
           const size = part.slice(5, -4), source = (size === '192' && app.icon192) || (size === '512' && app.icon512) || app.icon;
-          if (!source) throw error('Ícone não encontrado.',404);
-          return done('image/png', Buffer.from(source.split(',')[1], 'base64'));
+          const image = source && await assetBytes(store, source);
+          if (!image) throw error('Ícone não encontrado.',404);
+          return done('image/png', image.bytes);
         }
         return done('text/html; charset=utf-8', mobileLaunchPage(app, agencyId), { 'Content-Security-Policy':mobileCsp, 'Referrer-Policy':'no-referrer' });
       }
@@ -4475,8 +3795,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (part === 'sw.js') return done('text/javascript; charset=utf-8', desktopWorker, { 'Service-Worker-Allowed':`/desktop/${agencyId}/` });
         if (part.startsWith('icon-')) {
           const size = part.slice(5, -4), source = (size === '192' && app.icon192) || (size === '512' && app.icon512) || app.icon;
-          if (!source) throw error('Ícone não encontrado.',404);
-          return done('image/png', Buffer.from(source.split(',')[1], 'base64'));
+          const image = source && await assetBytes(store, source);
+          if (!image) throw error('Ícone não encontrado.',404);
+          return done('image/png', image.bytes);
         }
         return done('text/html; charset=utf-8', desktopLaunchPage(app, agencyId, { signedIn: Boolean(auth?.hasSession?.(req)) }), { 'Content-Security-Policy':desktopCsp, 'Referrer-Policy':'no-referrer' });
       }
@@ -4626,7 +3947,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!blog || (!blog.active && !preview)) throw error('Este blog não está publicado.',404);
         const base = `/b/${workspace}/${blogId}`, origin = publicBase(req);
         const html = (status, page) => { const [headers, body] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Cache-Control':'no-store',
-          'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, page); res.writeHead(status, headers); return res.end(method === 'HEAD' ? undefined : body); };
+          'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, page); res.writeHead(status, headers); return res.end(method === 'HEAD' ? undefined : body); };
         if (slug === 'rss.xml') {
           if (blog.rss === false) throw error('Este blog não tem RSS.',404);
           res.writeHead(200, { 'Content-Type':'application/rss+xml; charset=utf-8', 'Cache-Control':'no-store' });
@@ -4669,7 +3990,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           return res.end(method === 'HEAD' ? undefined : demoPage(widget, { workspace, brand:state.profile?.name || '' }));
         }
         res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors *" });
+          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors *" });
         return res.end(method === 'HEAD' ? undefined : chatPage(widget, { workspace }));
       }
       const chatCall = p.match(chatApi);
@@ -4710,7 +4031,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const redirects = form.onSubmit?.action === 'redirect' && form.onSubmit.url;
         const page = (status, options) => {
           const [headers, body] = withPixels(preview ? null : state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; object-src 'none'; form-action 'self'${redirects ? ' https: http:' : ''}; frame-ancestors *` },
+            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'${redirects ? ' https: http:' : ''}; frame-ancestors *` },
             formPage(form, { action:`/form/${workspace}/${formId}${embed ? '?embed=1' : preview ? '?preview=1' : ''}`, target:embed && redirects ? '_top' : '',
             customFields:state.customFields || [], embed, brand:state.profile?.name || '', ...options }));
           res.writeHead(status, headers);
@@ -4852,17 +4173,22 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         await publicAccountPolicy(legacyPage[2], false, legacyPage[1] === 'course' ? 'memberships' : 'sites');
       }
       if (method === 'GET' && legacyPage?.[1] === 'f') { res.writeHead(302, { Location:`/form/${legacyPage[2]}/${legacyPage[3]}` }); return res.end(); }
+      // Política de privacidade pública (LGPD e o link exigido pelo login com Google).
       if (p === '/privacidade' || p === '/privacidade/') p = '/privacidade.html';
-      if ((method==='GET'||method==='HEAD') && (p==='/' || p==='/login' || ['/app','/app/','/painel','/painel/'].includes(p) || paths.test(p) || staticFiles.has(p))) {
-        const hostHeader = (req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
-        const isAppDomain = hostHeader.startsWith('app.');
-        const isLanding = p === '/login' || (p === '/' && !isAppDomain);
-        if (!isLanding && !paths.test(p) && (!staticFiles.has(p) || p === '/index.html' || p === '/prancheta-editor.html') && !localAccess && !auth?.hasSession(req)) {
+      const platformPaths = ['/app','/app/','/painel','/painel/'];
+      const loginPaths = ['/','/login','/index.html'];
+      if ((method==='GET'||method==='HEAD') && (loginPaths.includes(p) || platformPaths.includes(p) || paths.test(p) || staticFiles.has(p))) {
+        const isLogin = loginPaths.includes(p);
+        // A página do editor da Prancheta é estática, mas só abre com sessão (como o app).
+        if (!isLogin && !paths.test(p) && (!staticFiles.has(p) || p === '/prancheta-editor.html') && !localAccess && !auth?.hasSession(req)) {
           const search = new URLSearchParams(url.search); search.delete('__path');
-          const next = afterLogin((p === '/' || p === '/index.html' ? '/app' : p) + (search.size ? '?' + search : ''));
+          const next = afterLogin(p + (search.size ? '?' + search : ''));
           return goTo('/login?' + new URLSearchParams({ next }));
         }
-        const f = staticFiles.has(p) ? p : (isLanding ? '/landing.html' : '/index.html');
+        const f = isLogin ? '/index.html' : (platformPaths.includes(p) ? '/app.html' : p);
+        // Setup illustrations are not mirrored in public/: without this every card refetched them from the
+        // function. The browser keeps them a day; the Vercel CDN until the next deploy purges it.
+        if (f.startsWith('/setup-art/')) res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=86400');
         if (f === '/prancheta-editor.html') res.setHeader('Content-Security-Policy', pranchetaEditorCsp());
         return send(200,staticFiles.get(f)||'text/html; charset=utf-8',method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
       }

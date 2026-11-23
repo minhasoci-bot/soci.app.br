@@ -5,11 +5,14 @@
 // Web Activity for Google Play (Bubblewrap) and the PWABuilder project for the App Store — published with the
 // agency's own developer accounts.
 import { mobileModules } from './ui/agency-data.js';
+import { isAssetUrl } from './asset-store.mjs';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : '';
 const picture = (value, label, limit) => {
   if (!value) return '';
+  // Imagem já guardada fora do documento (asset-store.mjs): o formulário reenvia o endereço.
+  if (isAssetUrl(value) && value.endsWith('.png')) return value;
   if (typeof value !== 'string' || !/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(value)) fail(`${label}: use uma imagem PNG.`);
   if (value.length > limit) fail(`${label}: imagem grande demais (até ${Math.round(limit * 0.75 / 1024)} KB).`);
   return value;

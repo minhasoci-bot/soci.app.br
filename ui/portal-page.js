@@ -1,5 +1,7 @@
 import { icon } from './icons.js';
 import { communityCards, communityPage } from './portal-community.js';
+import { themeMode, themeStyle } from './community-data.js';
+import { smoothScroll } from './portal-smooth-scroll.js';
 import { loyaltyCard } from './portal-loyalty.js';
 import { assignmentBlock, certificateLink, coursePage, instructorCard, liveBlock, nextLessonCard, quizAnswers, quizBlock, themed } from './portal-course-extra.js';
 
@@ -62,7 +64,7 @@ function player(course) {
   const index = flat.findIndex(lesson => lesson.id === course.lesson?.id);
   const current = flat[index], next = flat.slice(index + 1).find(lesson => !lesson.locked);
   return `<div class="cp-player${themed(course)}">
-    <div class="cp-player-top"><button type="button" class="cp-public-link" data-portal-public="${course.page?.productPage === false ? 'back' : 'course-page'}">${icon('left',16)} ${course.page?.productPage === false ? 'Meus cursos' : 'Página do curso'}</button>
+    <div class="cp-player-top"><button type="button" class="cp-public-link" data-portal-public="${course.page?.productPage === false ? 'back' : 'course-page'}">${icon('left',16)} ${course.page?.productPage === false ? (cmReturn ? 'Academia' : 'Meus cursos') : 'Página do curso'}</button>
       <div class="cp-player-title"><h1>${h(course.name)}</h1><div class="cp-course-progress">${bar(course.progress)}<small>${course.progress.percent}% concluído</small></div></div></div>
     <div class="cp-player-grid">
       <div class="cp-player-side"><nav class="cp-public-card cp-outline" aria-label="Aulas do curso">${course.modules.map(module => {
@@ -85,7 +87,11 @@ function player(course) {
 }
 
 let portal, course, community = null, courseView = 'lesson', redeemed = null;
-const cmUi = { tab: 'discussion', channel: '', period: '30' };
+// A course opened from a community's Academia goes back there, not to the portal home.
+let cmReturn = '';
+// The member's light/dark choice for communities lives in this browser only.
+const savedMode = () => { try { const value = localStorage.getItem('soci:cm-mode'); return value === 'light' || value === 'dark' ? value : ''; } catch { return ''; } };
+const cmUi = { tab: 'discussion', channel: '', period: '30', feed: 'recent', openComments: new Set(), mode: savedMode() };
 const uploadCard = files => `<section class="cp-public-card cp-upload"><h2>${icon('upload', 18)} Enviar um arquivo para a equipe</h2>
   <p>Imagem, vídeo, áudio, PDF, TXT ou CSV de até 700 KB.</p>
   <form data-portal-upload><label class="cp-sr" for="cp-upload-file">Arquivo</label><input id="cp-upload-file" type="file" name="file" required accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,application/pdf,text/plain,text/csv">
@@ -105,16 +111,43 @@ async function enablePush() {
   await api('push', { subscription: sub.toJSON() });
 }
 
+// Light/dark switch with the same diagonal wipe as the soci app (View Transitions); instant without support or
+// when the system asks for reduced motion.
+async function switchMode(mode) {
+  const swap = () => { draw(); root.querySelector('[data-cm-public="mode"]')?.focus(); };
+  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches || document.visibilityState !== 'visible') return swap();
+  document.documentElement.dataset.cmModeTo = mode;
+  const transition = document.startViewTransition(swap);
+  try { await transition.finished; } catch { /* skipped: the page is already in the new mode */ }
+  delete document.documentElement.dataset.cmModeTo;
+}
+
+// The open community paints the whole page with its theme (the portal header and the page scrollbar included,
+// so the tokens live on <html>) and turns on the smooth wheel scrolling.
+function paintCommunity(group) {
+  const page = document.documentElement;
+  for (const rule of themeStyle(themeMode(group?.theme, cmUi.mode)).split(';')) {
+    const [name, value] = rule.split(':');
+    if (group) page.style.setProperty(name, value); else page.style.removeProperty(name);
+  }
+  page.classList.toggle('cp-cm-on', Boolean(group));
+  document.body.classList.toggle('cp-cm-on', Boolean(group));
+  smoothScroll(Boolean(group));
+}
+
 function draw(message = '') {
   const { title, introduction, color, signedIn, courses, member } = portal || { title: 'Portal do cliente' };
   document.title = community ? `${community.group.name} · ${title}` : course ? `${course.name} · ${title}` : title;
   if (/^#[\da-f]{6}$/i.test(color)) document.body.style.setProperty('--portal-color',color);
+  paintCommunity(community?.group);
+  cmUi.me = member?.name || '';
+  cmUi.mePhoto = member?.photo || '';
   root.innerHTML = `<div class="cp-public-shell ${course || community ? 'cp-wide' : ''}"><header class="cp-public-header">
       <div class="cp-public-brand">${icon('lock',20)}<span>${h(title)}</span></div>
       ${signedIn ? '<button type="button" class="cp-public-link" data-portal-public="logout">Sair</button>' : ''}
     </header>
     ${message ? `<p class="cp-public-error" role="alert">${h(message)}</p>` : ''}
-    ${signedIn ? (community ? communityPage(community, cmUi) : course ? (courseView === 'page' ? coursePage(course, bar) : player(course)) : `<section class="cp-public-welcome">
+    ${signedIn ? (community ? communityPage(community, cmUi) : course ? (courseView === 'page' ? coursePage(course, bar).replace('Meus cursos</button>', `${cmReturn ? 'Academia' : 'Meus cursos'}</button>`) : player(course)) : `<section class="cp-public-welcome">
       <h1>${member?.name ? `Olá, ${h(member.name)}` : 'Bem-vindo ao portal'}</h1>
       ${introduction ? `<p>${h(introduction)}</p>` : ''}</section>${library(courses)}${communityCards(portal?.communities)}${loyaltyCard(portal?.loyalty, redeemed)}${uploadCard(portal?.files)}${pushCard()}`) :
       `<section class="cp-public-card cp-signin"><div class="cp-course-icon">${icon('key',24)}</div>
@@ -125,11 +158,11 @@ function draw(message = '') {
 }
 
 const loadCommunity = async id => {
-  const query = new URLSearchParams({ channel: cmUi.channel, period: cmUi.period });
+  const query = new URLSearchParams({ channel: '', period: cmUi.period });
   community = (await api(`community/${encodeURIComponent(id)}?${query}`)).community;
 };
 const communityAction = async body => {
-  community = (await api(`community/${encodeURIComponent(community.group.id)}`, { ...body, channelFilter: cmUi.channel })).community;
+  community = (await api(`community/${encodeURIComponent(community.group.id)}`, { ...body, channelFilter: '' })).community;
 };
 
 const openCourse = async (id, lesson = '') => {
@@ -159,14 +192,22 @@ root.addEventListener('click', async event => {
       const hash = new URLSearchParams(location.hash.slice(1));
       const targetCommunity = new URLSearchParams(location.search).get('comunidade') || hash.get('comunidade');
       if (targetCommunity) {
-        Object.assign(cmUi, { tab: 'discussion', channel: '', period: '30' });
+        Object.assign(cmUi, { tab: 'discussion', channel: '', period: '30', feed: 'recent', openComments: new Set() });
         await loadCommunity(targetCommunity);
         cmUi.tab = (community?.group?.tabs || []).find(tab => tab.visible !== false)?.key || 'discussion';
       }
     } else if (action === 'logout') {
       await api('logout',{});
       course = null;
+      cmReturn = '';
       portal = await api('home');
+    } else if (action === 'back' && cmReturn) {
+      course = null;
+      const id = cmReturn;
+      cmReturn = '';
+      await loadCommunity(id);
+      cmUi.tab = 'academy';
+      focus = '.cp-cm h1';
     } else if (action === 'back') {
       course = null;
       community = null;
@@ -193,15 +234,27 @@ root.addEventListener('click', async event => {
       await openCourse(course.id, button.dataset.lesson);
       focus = '.cp-lesson-title';
     } else if (button.dataset.community) {
-      Object.assign(cmUi, { tab: 'discussion', channel: '', period: '30' });
+      Object.assign(cmUi, { tab: 'discussion', channel: '', period: '30', feed: 'recent', openComments: new Set() });
       await loadCommunity(button.dataset.community);
       cmUi.tab = (community.group.tabs || []).find(tab => tab.visible !== false)?.key || 'discussion';
-      focus = '.cp-community-head h1';
+      focus = '.cp-cm h1';
     } else if (button.dataset.cmPublic) {
       const { cmPublic: verb, value, post, comment, option } = button.dataset;
       if (verb === 'tab') { cmUi.tab = value; focus = `[data-cm-public="tab"][data-value="${value}"]`; }
-      else if (verb === 'channel') { cmUi.channel = value; await loadCommunity(community.group.id); focus = `[data-cm-public="channel"][data-value="${value}"]`; }
+      else if (verb === 'channel') { cmUi.channel = value; cmUi.tab = 'discussion'; focus = `[data-cm-public="channel"][data-value="${value}"]`; }
       else if (verb === 'events') { cmUi.events = value; focus = `[data-cm-public="events"][data-value="${value}"]`; }
+      else if (verb === 'mode') { cmUi.mode = value; try { localStorage.setItem('soci:cm-mode', value); } catch { /* private window: the choice lasts this visit */ } await switchMode(value); return; }
+      else if (verb === 'feed') { cmUi.feed = value; focus = `[data-cm-public="feed"][data-value="${value}"]`; }
+      else if (verb === 'comments-all') { cmUi.openComments.add(post); focus = `#post-${post} .cp-comments`; }
+      else if (verb === 'comment-focus') { root.querySelector(`#post-${CSS.escape(post)} .cp-comment-form input`)?.focus(); return; }
+      else if (verb === 'share') { await sharePost(button, post); return; }
+      else if (verb === 'course') {
+        cmReturn = community.group.id;
+        await openCourse(button.dataset.course);
+        community = null;
+        courseView = course.page?.productPage === false ? 'lesson' : 'page';
+        focus = '.cp-lesson-title';
+      }
       else if (verb === 'ticket') {
         const result = await api(`community/${encodeURIComponent(community.group.id)}`, { action: 'ticket', eventId: button.dataset.event });
         community = result.community;
@@ -214,11 +267,11 @@ root.addEventListener('click', async event => {
         if (reason === null) return;
         await communityAction({ action: 'report', postId: post, commentId: comment, reason });
       }
-      else if (verb === 'period') { cmUi.period = value; await loadCommunity(community.group.id); focus = `[data-cm-public="period"][data-value="${value}"]`; }
+      else if (verb === 'period') { cmUi.period = value; focus = `[data-cm-public="period"][data-value="${value}"]`; }
       else if (verb === 'delete' && !confirmDelete(button)) return;
       else if (['join','leave','like','vote','delete'].includes(verb)) {
         await communityAction({ action: verb, postId: post, commentId: comment, optionId: option });
-        if (verb === 'join' || verb === 'leave') { portal = await api('home'); focus = '.cp-community-head h1'; }
+        if (verb === 'join' || verb === 'leave') { portal = await api('home'); focus = '.cp-cm h1'; }
       }
     } else if (button.dataset.course) {
       await openCourse(button.dataset.course);
@@ -238,6 +291,31 @@ root.addEventListener('click', async event => {
   } finally {
     button.disabled = false;
   }
+});
+
+// "Compartilhar": copies the link that opens the community on this post.
+async function sharePost(button, postId) {
+  const link = `${location.origin}${location.pathname}?comunidade=${encodeURIComponent(community.group.id)}#post-${encodeURIComponent(postId)}`;
+  const label = button.querySelector('span');
+  try { await navigator.clipboard.writeText(link); label.textContent = 'Link copiado'; }
+  catch { prompt('Copie o link da publicação:', link); }
+  setTimeout(() => { if (label.isConnected) label.textContent = 'Compartilhar'; }, 2000);
+}
+
+// The composer opens its extra fields once there is text, and counts characters.
+root.addEventListener('input', event => {
+  const area = event.target.closest('.cp-cm-composer textarea[name="body"]');
+  if (!area) return;
+  const form = area.form;
+  form.toggleAttribute('data-open', Boolean(area.value));
+  const count = form.querySelector('[data-cm-count]');
+  if (count) count.textContent = `${area.value.length}/10000`;
+});
+// A click outside closes an open "⋯" menu.
+// A member photo that fails to load (an expired link) leaves the initials underneath.
+root.addEventListener('error', event => { if (event.target.matches?.('.cp-avatar img')) event.target.remove(); }, true);
+document.addEventListener('click', event => {
+  for (const open of root.querySelectorAll('.cp-cm-menu[open]')) if (!open.contains(event.target)) open.open = false;
 });
 
 // Deleting asks twice: the first click turns the button into a confirmation.
@@ -335,7 +413,7 @@ try {
   const hash = new URLSearchParams(location.hash.slice(1));
   const targetCommunity = query.get('comunidade') || hash.get('comunidade');
   if (targetCommunity && portal?.signedIn) {
-    Object.assign(cmUi, { tab: 'discussion', channel: '', period: '30' });
+    Object.assign(cmUi, { tab: 'discussion', channel: '', period: '30', feed: 'recent', openComments: new Set() });
     await loadCommunity(targetCommunity);
     cmUi.tab = (community?.group?.tabs || []).find(tab => tab.visible !== false)?.key || 'discussion';
   }
@@ -344,6 +422,7 @@ try {
   draw(ticket === 'pago' ? 'Pagamento recebido. Seu ingresso aparece na aba Eventos da comunidade assim que o pagamento for confirmado.' : ticket === 'voltou' ? 'O pagamento do ingresso não foi concluído. Você pode tentar de novo na aba Eventos.'
     : plan === 'pago' ? 'Pagamento recebido. O acesso à comunidade é liberado assim que o pagamento for confirmado.' : plan === 'voltou' ? 'A assinatura não foi concluída. Você pode tentar de novo na página da comunidade.' : '');
   if (location.hash === '#cursos') root.querySelector('#cursos')?.scrollIntoView();
+  if (location.hash.startsWith('#post-')) root.querySelector(`#${CSS.escape(location.hash.slice(1))}`)?.scrollIntoView({ block: 'center' });
 } catch (error) {
   access = null;
   draw(error.message);

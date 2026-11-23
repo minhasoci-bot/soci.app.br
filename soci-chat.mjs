@@ -1,6 +1,6 @@
 // Pergunte à Soci — backend de conversas com árvore de ramos, streaming SSE,
 // contexto vivo da agência e integração com OpenAI / provedores compatíveis.
-import { randomUUID } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { searchGoogleBusinesses, searchInstagramBusinesses, getInstagramProfile, tregConfigured, tregToken, verifyTregToken } from './treg.mjs';
 
 export const DEFAULT_TITLE = 'Novo chat';
@@ -18,6 +18,61 @@ const nowSec = () => Date.now() / 1000;
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
 
 const chatRowId = agencyId => `chat-${agencyId}`;
+
+// Token do Treg da agência (gasta créditos): guardado cifrado com GO_STORAGE_KEY, como a chave da OpenAI,
+// e nunca devolvido ao navegador. A tela só recebe se há token e os 4 últimos caracteres.
+const TREG_TOKEN = /^[!-~]{8,512}$/;
+export function createTregSealer(secret) {
+  const key = secret && createHmac('sha256', String(secret)).update('soci:treg:v1').digest();
+  return {
+    available: Boolean(key),
+    seal(token, aad) {
+      const iv = randomBytes(12);
+      const cipher = createCipheriv('aes-256-gcm', key, iv);
+      cipher.setAAD(Buffer.from(aad));
+      const ciphertext = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
+      return [iv, cipher.getAuthTag(), ciphertext].map(part => part.toString('base64url')).join('.');
+    },
+    open(sealed, aad) {
+      if (!key || typeof sealed !== 'string') return '';
+      try {
+        const [iv, tag, ciphertext] = sealed.split('.').map(part => Buffer.from(part, 'base64url'));
+        const decipher = createDecipheriv('aes-256-gcm', key, iv);
+        decipher.setAAD(Buffer.from(aad));
+        decipher.setAuthTag(tag);
+        return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+      } catch {
+        return '';
+      }
+    }
+  };
+}
+
+/** Conector do Treg como o servidor usa (com o token aberto). Nunca vai para o navegador. */
+function readTreg(row, agencyId, sealer) {
+  const treg = row.connectors?.treg || {};
+  const token = treg.tokenSealed ? sealer.open(treg.tokenSealed, chatRowId(agencyId)) : (typeof treg.token === 'string' ? treg.token : '');
+  return { enabled: treg.enabled !== false, googleMaps: treg.googleMaps !== false, instagram: treg.instagram !== false, token };
+}
+
+/** Token em texto puro de gravações antigas passa a ser guardado cifrado. */
+function sealLegacyTreg(row, agencyId, sealer) {
+  const treg = row.connectors?.treg;
+  if (!sealer.available || !treg || typeof treg.token !== 'string') return;
+  if (treg.token && !treg.tokenSealed) treg.tokenSealed = sealer.seal(treg.token, chatRowId(agencyId));
+  delete treg.token;
+}
+
+/** O que a tela recebe do conector: sem o token. */
+export function publicTreg(treg = {}) {
+  const token = typeof treg.token === 'string' ? treg.token : '';
+  return {
+    enabled: treg.enabled !== false, googleMaps: treg.googleMaps !== false, instagram: treg.instagram !== false,
+    hasToken: Boolean(token), tokenLast4: token ? token.slice(-4) : '',
+    isConfigured: Boolean(token || tregConfigured), serverDefaultAvailable: tregConfigured
+  };
+}
+const publicConnectors = connectors => ({ ...connectors, treg: publicTreg(connectors?.treg) });
 
 export function messageText(message) {
   const parts = message?.content?.parts;
@@ -126,7 +181,7 @@ export function parseSkillMd(raw) {
 
 // ---------- Persistência via store da Soci ----------
 
-function createChatStore(store) {
+function createChatStore(store, sealer = createTregSealer()) {
   const tempByAgency = new Map();
 
   function tempMap(agencyId) {
@@ -182,6 +237,7 @@ function createChatStore(store) {
         row.connectors = { treg: { enabled: true, token: '', googleMaps: true, instagram: true } };
       }
       if (!Array.isArray(row.skills)) row.skills = [];
+      sealLegacyTreg(row, agencyId, sealer);
       return mutate(row);
     });
   }
@@ -214,25 +270,28 @@ function createChatStore(store) {
 
     async getConnectors(agencyId) {
       const row = await ensureRow(agencyId);
-      return row.connectors || {
-        treg: { enabled: true, token: '', googleMaps: true, instagram: true }
-      };
+      return { ...(row.connectors || {}), treg: readTreg(row, agencyId, sealer) };
     },
 
+    // Só aceita os campos conhecidos. Token vazio ou ausente mantém o atual; removeToken apaga.
     async setConnectors(agencyId, patch) {
+      const input = patch?.treg && typeof patch.treg === 'object' ? patch.treg : {};
+      const token = typeof input.token === 'string' ? input.token.trim() : '';
+      if (token && !TREG_TOKEN.test(token)) throw fail('Token do Treg inválido.', 400);
+      if (token && !sealer.available) throw fail('O armazenamento seguro de chaves está indisponível.', 503);
       return changeRow(agencyId, row => {
-        row.connectors = {
-          ...(row.connectors || {}),
-          treg: {
-            enabled: true,
-            token: '',
-            googleMaps: true,
-            instagram: true,
-            ...(row.connectors?.treg || {}),
-            ...(patch.treg || {})
-          }
+        const current = row.connectors?.treg || {};
+        const flag = (value, fallback) => typeof value === 'boolean' ? value : fallback;
+        const next = {
+          enabled: flag(input.enabled, current.enabled !== false),
+          googleMaps: flag(input.googleMaps, current.googleMaps !== false),
+          instagram: flag(input.instagram, current.instagram !== false)
         };
-        return row.connectors;
+        if (token) next.tokenSealed = sealer.seal(token, chatRowId(agencyId));
+        else if (input.removeToken !== true && current.tokenSealed) next.tokenSealed = current.tokenSealed;
+        else if (input.removeToken !== true && current.token) next.token = current.token;
+        row.connectors = { ...(row.connectors || {}), treg: next };
+        return { ...row.connectors, treg: readTreg(row, agencyId, sealer) };
       });
     },
 
@@ -1040,8 +1099,8 @@ function openSSE(res) {
 
 // ---------- Router principal para /api/ask/* ----------
 
-export function createAskHandler({ store, openAI, openAIRequest = fetch }) {
-  const chatStore = createChatStore(store);
+export function createAskHandler({ store, openAI, openAIRequest = fetch, secret }) {
+  const chatStore = createChatStore(store, createTregSealer(secret));
 
   return async function handleAsk({ req, res, url, method, who, loadContext, json }) {
     let rawPath = url.searchParams.get('__path') || url.pathname;
@@ -1068,36 +1127,21 @@ export function createAskHandler({ store, openAI, openAIRequest = fetch }) {
         },
         items,
         instructions,
-        connectors: {
-          ...connectors,
-          treg: {
-            ...connectors.treg,
-            isConfigured: Boolean(connectors.treg?.token || tregConfigured),
-            serverDefaultAvailable: tregConfigured
-          }
-        },
+        connectors: publicConnectors(connectors),
         skills
       });
     }
 
     if (op === 'connectors' && method === 'GET') {
       const connectors = await chatStore.getConnectors(agencyId);
-      return json({
-        connectors: {
-          ...connectors,
-          treg: {
-            ...connectors.treg,
-            isConfigured: Boolean(connectors.treg?.token || tregConfigured),
-            serverDefaultAvailable: tregConfigured
-          }
-        }
-      });
+      return json({ connectors: publicConnectors(connectors) });
     }
 
     if (op === 'connectors' && method === 'POST') {
       const body = await readLargeJson(req);
       if (body.action === 'verify') {
-        const tokenToVerify = body.token || (await chatStore.getConnectors(agencyId))?.treg?.token || tregToken;
+        const typed = typeof body.token === 'string' ? body.token.trim() : '';
+        const tokenToVerify = typed || (await chatStore.getConnectors(agencyId))?.treg?.token || tregToken;
         const verification = await verifyTregToken(tokenToVerify);
         return json(verification);
       }
@@ -1106,17 +1150,7 @@ export function createAskHandler({ store, openAI, openAIRequest = fetch }) {
       if (body.verify !== false && updated.treg?.token) {
         verification = await verifyTregToken(updated.treg.token);
       }
-      return json({
-        connectors: {
-          ...updated,
-          treg: {
-            ...updated.treg,
-            isConfigured: Boolean(updated.treg?.token || tregConfigured),
-            serverDefaultAvailable: tregConfigured
-          }
-        },
-        verification
-      });
+      return json({ connectors: publicConnectors(updated), verification });
     }
 
     if (op === 'skills' && method === 'GET') {

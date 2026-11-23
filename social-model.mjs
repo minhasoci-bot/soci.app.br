@@ -70,7 +70,7 @@ function postFields(s, d, prior) {
     location: str(d.location, 120), userTags: str(d.userTags, 240),
     categoryId: d.categoryId ? (s.socialCategories.find(c => c.id === d.categoryId)?.id ?? fail('Escolha uma categoria válida.')) : '',
     tags: [...new Set(list(d.tags).map(t => str(t, 40)).filter(Boolean))].slice(0, 20),
-    needsApproval: Boolean(d.needsApproval), source: prior?.source || one(d.source || 'post', ['post', 'csv', 'rss', 'recurring', 'queue'], 'uma origem')
+    needsApproval: Boolean(d.needsApproval), source: prior?.source || one(d.source || 'post', ['post', 'csv', 'rss', 'recurring', 'queue', 'event-planner'], 'uma origem')
   };
   const mode = one(d.mode || 'draft', ['draft', 'schedule', 'now'], 'como publicar');
   post.scheduleDate = mode === 'now' ? new Date().toISOString() : instant(d.scheduleDate, 'uma data de publicação');

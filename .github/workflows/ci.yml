@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: App (node --test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - run: npm test
+
+  # Modo aviso: mostra os números e as anotações, nunca reprova o PR. Meta: zerar e então tornar obrigatório.
+  quality:
+    name: Qualidade (aviso)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - name: Lint (Biome)
+        run: |
+          npx biome lint --reporter=github --max-diagnostics=none . > biome.txt 2>&1 || true
+          head -n 50 biome.txt
+          echo "### Lint (Biome): $(grep -cE '^::error' biome.txt) erros, $(grep -cE '^::warning' biome.txt) avisos" >> "$GITHUB_STEP_SUMMARY"
+      - name: Tipos (tsc checkJs)
+        run: |
+          npx tsc -p tsconfig.json > tsc.txt 2>&1 || true
+          echo "### Tipos (checkJs): $(grep -c 'error TS' tsc.txt) erros" >> "$GITHUB_STEP_SUMMARY"
+      - name: Shell (shellcheck)
+        run: |
+          shellcheck deploy/evolution/*.sh > shellcheck.txt 2>&1 || true
+          cat shellcheck.txt
+          echo "### Shell (shellcheck): $(grep -cE '^In .* line [0-9]+:' shellcheck.txt) apontamentos" >> "$GITHUB_STEP_SUMMARY"

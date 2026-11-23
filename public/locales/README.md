@@ -3,8 +3,10 @@
 Este diretório contém os catálogos completos de tradução de toda a plataforma Soci.
 
 ## Idiomas Disponíveis
-- **Português (Brasil)**: `pt.json` (Idioma canônico / padrão)
-- **Español Latinoamericano**: `es.json` (es-419)
+- **Português (Brasil)**: `pt.js` (idioma canônico; as chaves de todos os catálogos são os textos em português)
+- **Español Latinoamericano**: `es.js` (es-419), importado por `ui/i18n.js`
+
+Cada catálogo é um módulo `export default { "texto em português": "tradução" }`. Não há cópia `.json`: edite só o `.js`. Depois de editar, rode `node scripts/sync-public.mjs` para atualizar o espelho em `public/`.
 
 ---
 
@@ -13,27 +15,26 @@ Este diretório contém os catálogos completos de tradução de toda a platafor
 Para adicionar qualquer novo idioma à plataforma, o processo é simples e 100% modular:
 
 ### Passo 1: Criar o arquivo de tradução
-Copie o arquivo canônico `pt.json` com o código do novo idioma (ex.: `en.json` ou `fr.json`):
+Copie o catálogo canônico com o código do novo idioma (ex.: `en.js` ou `fr.js`):
 ```bash
-cp ui/locales/pt.json ui/locales/en.json
-cp ui/locales/pt.json public/locales/en.json
+cp ui/locales/pt.js ui/locales/en.js
 ```
 
 ### Passo 2: Traduzir os valores
-No novo arquivo `en.json`, mantenha as chaves em português idênticas e substitua os valores pelo texto traduzido no idioma de destino.
+No novo arquivo `en.js`, mantenha as chaves em português idênticas e substitua os valores pelo texto traduzido no idioma de destino.
 Exemplo:
-```json
-{
+```javascript
+export default {
   "Configurações": "Settings",
   "Meu perfil": "My profile",
   "Salvar alterações": "Save changes"
-}
+};
 ```
 
 ### Passo 3: Registrar o idioma em `i18n.js`
-Abra `ui/i18n.js` (e `public/i18n.js`) e adicione o idioma na lista `languages`:
+Abra `ui/i18n.js` e adicione o idioma na lista `languages`:
 ```javascript
-import enDict from './locales/en.json' with { type: 'json' }; // ou carregado via registerLanguage
+import enDict from './locales/en.js';
 
 export const languages = [
   { id: 'pt', label: 'Português', flag: 'PT' },

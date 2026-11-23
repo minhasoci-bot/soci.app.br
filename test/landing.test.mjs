@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { runInNewContext } from 'node:vm';
 import { createSupabaseAuth } from '../auth.mjs';
 import { blank } from '../model.mjs';
 import { makeServer } from '../server.mjs';
@@ -14,64 +13,39 @@ async function start(options = { auth: null, allowLocalAccess: true }) {
   return { base, close: () => new Promise(resolve => server.close(resolve)) };
 }
 
-test('Landing page serves static content and preserves app and login entry points', async t => {
+test('Root is a Google login page and the platform stays under /app', async t => {
   const local = await start();
   t.after(local.close);
 
-  // 1. GET / returns landing page
-  const res = await fetch(local.base + '/');
-  assert.equal(res.status, 200);
-  assert.match(res.headers.get('content-type'), /text\/html/);
-  const html = await res.text();
-  assert.match(html, /<h1[^>]*>[^<]+<\/h1>/);
-  assert.match(html, /Entrar na plataforma/);
-  assert.match(html, /href="\/app"/);
-  assert.match(html, /<details>\s*<summary>/);
-  assert.doesNotMatch(html, /<(?:script|link)\b[^>]*(?:src|href)="(?:https?:)?\/\//);
-  assert.match(html, /id="login-dialog"/);
+  for (const path of ['/', '/login', '/index.html']) {
+    const res = await fetch(local.base + path);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type'), /text\/html/);
+    const html = await res.text();
+    assert.match(html, /id="google-signin-btn"/);
+    assert.match(html, /Continuar com Google/);
+    assert.doesNotMatch(html, /Entrar na plataforma|<nav\b|<footer\b|<details\b/);
+  }
 
-  // 1.1 GET / on app.soci.com serves the platform app directly
-  const appSubdomainRes = await fetch(local.base + '/', { headers: { 'x-forwarded-host': 'app.soci.com' } });
-  assert.equal(appSubdomainRes.status, 200);
-  const appSubdomainHtml = await appSubdomainRes.text();
-  assert.match(appSubdomainHtml, /<div id="app">/);
-
-  // 2. GET /app and /painel serve the platform app
-  const appRes = await fetch(local.base + '/app');
-  assert.equal(appRes.status, 200);
-  const appHtml = await appRes.text();
-  assert.match(appHtml, /<div id="app">/);
-  assert.match(appHtml, /src="\/app\.js"/);
-
-  const painelRes = await fetch(local.base + '/painel');
-  assert.equal(painelRes.status, 200);
-  const painelHtml = await painelRes.text();
-  assert.match(painelHtml, /<div id="app">/);
-
-  // 3. Static assets for landing page
-  const cssRes = await fetch(local.base + '/landing.css');
+  const cssRes = await fetch(local.base + '/login.css');
   assert.equal(cssRes.status, 200);
   assert.match(cssRes.headers.get('content-type'), /text\/css/);
-
-  const jsRes = await fetch(local.base + '/landing.js');
+  const jsRes = await fetch(local.base + '/login.js');
   assert.equal(jsRes.status, 200);
   assert.match(jsRes.headers.get('content-type'), /text\/javascript/);
 
-  // 4. Google Auth elements in landing HTML
-  assert.match(html, /id="nav-google-btn"/);
-  assert.match(html, /id="google-signin-btn"/);
-  assert.doesNotMatch(html, /id="login-form"|type="password"/);
-  assert.doesNotMatch(html, /id="google-picker-dialog"/);
+  for (const path of ['/landing.html', '/landing.css', '/landing.js']) {
+    assert.equal((await fetch(local.base + path)).status, 404, `${path} must no longer expose a public page`);
+  }
 
-  const redirectScript = html.match(/<script>([\s\S]*?)<\/script>/)[1];
-  const redirects = [];
-  const location = { pathname: '/login', search: '?next=%2Fapp', hash: '#agency/dashboard', replace: path => redirects.push(path) };
-  runInNewContext(redirectScript, { location });
-  assert.deepEqual(redirects, []);
-  runInNewContext(redirectScript, { location: { ...location, pathname: '/' } });
-  assert.deepEqual(redirects, ['/app?next=%2Fapp#agency/dashboard']);
+  for (const path of ['/app', '/painel']) {
+    const res = await fetch(local.base + path);
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.match(html, /<div id="app">/);
+    assert.match(html, /src="\/app\.js"/);
+  }
 });
-
 
 const alice = { id: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', email: 'alice@example.com', email_confirmed_at: '2026-01-01', identities: [{ provider: 'google' }] };
 const bob = { id: 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb', email: 'bob@example.com', email_confirmed_at: '2026-01-01', identities: [{ provider: 'google' }] };
@@ -319,4 +293,23 @@ test('Agency profiles force Brazilian Portuguese even with a legacy language val
     assert.equal(saved.status, 200);
     assert.equal((await saved.json()).agency.profile.language, 'Português (Brasil)');
   }
+});
+
+// O login com Google exige uma política de privacidade publicada (e a LGPD também): ela fica pública,
+// sem sessão, mesmo com a autenticação ligada.
+test('A política de privacidade é pública em /privacidade, sem sessão', async t => {
+  const authOn = { auth: { hasSession: () => false, user: async () => null, session: async () => null }, allowLocalAccess: false };
+  const server = await start(authOn);
+  t.after(server.close);
+  for (const path of ['/privacidade', '/privacidade/', '/privacidade.html']) {
+    const res = await fetch(server.base + path, { redirect: 'manual' });
+    assert.equal(res.status, 200, path);
+    assert.match(res.headers.get('content-type'), /text\/html/);
+    const html = await res.text();
+    assert.match(html, /Política de Privacidade/);
+    assert.match(html, /LGPD/);
+  }
+  const art = await fetch(server.base + '/skull_flame_animated.svg');
+  assert.equal(art.status, 200);
+  assert.equal(art.headers.get('content-type'), 'image/svg+xml');
 });

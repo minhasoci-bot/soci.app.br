@@ -34,6 +34,7 @@ const commandModules = {
   'social-retry': 'marketing', 'social-csv': 'marketing', 'social-account-remove': 'marketing',
   'prancheta-save': 'marketing', 'prancheta-delete': 'marketing', 'prancheta-duplicate': 'marketing',
   'email-campaign-schedule': 'marketing', 'email-campaign-cancel': 'marketing', 'email-campaign-duplicate': 'marketing',
+  'event-plan-duplicate': 'marketing', 'event-plan-orchestrate': 'marketing',
   'prancheta-export-media': 'marketing', 'prancheta-to-social': 'marketing', 'prancheta-template': 'marketing',
   message: 'conversations', thread: 'conversations', 'team-message': 'conversations',
   'manual-action': 'conversations', 'conversation-sla': 'conversations', 'dismiss-sla': 'conversations',
@@ -116,6 +117,7 @@ export function requireWorkspaceCommand(access, command) {
   if (!module) throw denies('Unknown operation.', 400);
   requireModule(access, module);
   if (type === 'dashboard-report') requireModule(access, 'reporting', ...snapshotSources);
+  if (type === 'event-plan-orchestrate') requireModule(access, 'contacts', 'calendars');
 }
 
 export function requireSetupModules(access, keys) {

@@ -142,10 +142,10 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-brand);outline-of
 @keyframes g-label-in{from{opacity:0;transform:translateX(-6px)}}
 
 .side-head{position:relative;display:flex;align-items:center;justify-content:center;height:40px;padding:0 16px;margin-bottom:12px}
-.shell.wide:not(.ag-shell) .side-head{justify-content:flex-start;padding:0 46px 0 14px}
+.shell.wide:not(.ag-shell) .side-head{justify-content:center;padding:0 46px}
 .shell:not(.wide) .side-head{justify-content:center;padding:0}
 .g-side .logo{display:flex;align-items:center;justify-content:center;gap:0;min-width:0;max-width:100%;min-height:0;padding:0;line-height:1;color:var(--g-ink);font-weight:800;font-size:20px;letter-spacing:-.05em;border-radius:12px}
-.shell.wide:not(.ag-shell) .g-side .logo{justify-content:flex-start;font-size:16px;letter-spacing:-.025em}
+.shell.wide:not(.ag-shell) .g-side .logo{justify-content:center;font-size:16px;letter-spacing:-.025em}
 .g-side .logo .g-mark{margin-right:-2px}
 .g-side .logo .ag-logo{margin-right:6px}
 .g-side .logo .g-mark,.g-side .logo .ag-logo{flex:none;width:34px;height:34px;transition:transform .5s var(--ease-out)}

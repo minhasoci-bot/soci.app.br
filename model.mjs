@@ -21,6 +21,7 @@ import { mediaBeforeDelete, mediaCollections as driveCollections, mediaCommand, 
 import { courseFields } from './course-model.mjs';
 import { communityCollections, communityFields } from './community.mjs';
 import { communityEventBeforeDelete, communityEventCollections, communityEventCommand, communityEventFields } from './community-events.mjs';
+import { eventPlanAfterSave, eventPlanCollections, eventPlanCommand, eventPlanFields } from './event-planner-model.mjs';
 import { communityCommand } from './community-config.mjs';
 import { courseActivityCommand } from './course-learning.mjs';
 import { courseOfferBeforeDelete, credentialCollections } from './course-credentials.mjs';
@@ -40,6 +41,7 @@ import { walletCharge, walletDefaults } from './wallet-model.mjs';
 import { labsDefaults, rejectDuplicateContact, toggleLab } from './labs-model.mjs';
 import { onAiAlert } from './ai-model.mjs';
 import { appLog, appTrigger, dropInstalledApp, queueAppEvents, setInstalledApp } from './app-studio-model.mjs';
+import { academyBeforeDelete } from './community-academy.mjs';
 import { offerBeforeDelete, offerAccessCommand, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
@@ -67,7 +69,7 @@ export const defaults = {
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[], pranchetaFiles:[],
-  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...credentialCollections, ...certificateCollections, ...ticketCollections, ...sequenceCollections, ...loyaltyCollections, ...schedulingCollections, ...meetingCollections, ...offerCollections, ...driveCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...eventPlanCollections, ...credentialCollections, ...certificateCollections, ...ticketCollections, ...sequenceCollections, ...loyaltyCollections, ...schedulingCollections, ...meetingCollections, ...offerCollections, ...driveCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
   paymentSettings: paymentDefaults(),
   ai: { limit: 0, alertAt: 0.8, ledger: [] },
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
@@ -91,7 +93,7 @@ export function hydrateWorkspace(state) {
   adSettingsOf(state);
   trackingOf(state);
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...driveCollections,...affiliateCollections,...adCollections,...trackingCollections,...leadFormCollections,'calls','aiVideoJobs','aiVideos',...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...credentialCollections,...certificateCollections,...ticketCollections,...sequenceCollections,...loyaltyCollections,...schedulingCollections,...meetingCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...driveCollections,...affiliateCollections,...adCollections,...trackingCollections,...leadFormCollections,'calls','aiVideoJobs','aiVideos',...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...eventPlanCollections,...credentialCollections,...certificateCollections,...ticketCollections,...sequenceCollections,...loyaltyCollections,...schedulingCollections,...meetingCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -201,6 +203,7 @@ const fields = {
   ...courseFields,
   ...communityFields,
   ...communityEventFields,
+  ...eventPlanFields,
   ...certificateFields,
   ...sequenceFields,
   ...loyaltyFields,
@@ -636,6 +639,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'blog-view') return blogView(s, id);
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
   if (type === 'offer-access') return offerAccessCommand(s, d, { run });
+  if (typeof type === 'string' && type.startsWith('event-plan-')) { const out = eventPlanCommand(s, { ...command, data:d }, { add, now, save: (key, data, itemId = '') => executeCommand(s, { type: 'save', key, id: itemId, data }, { workspace }), createSocial: data => executeCommand(s, { type: 'social-post', data }, { workspace }), emit: (event, ctx) => run(s, event, ctx), calendarInstant: (day, time) => zonedInstant(day, time, s.profile?.timezone || 'America/Sao_Paulo') }); if (out !== undefined) return out; }
   if (typeof type === 'string' && type.startsWith('community-event-')) return communityEventCommand(s, { ...command, data:d }, { add, run, now });
   if (['community-plan-invoice', 'community-welcome', 'community-newsletter', 'community-activity', 'portal-login'].includes(type)) return communityCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'course-activity') return courseActivityCommand(s, { ...command, data:d }, { add, run });
@@ -682,7 +686,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     checkPranchetaSave(existing, d, fail);
     if (existing) return applyPranchetaSave(existing, s, d, now).id;
     const record = pranchetaFileRecord(s, d);
-    const created = add(s, 'pranchetaFiles', { ...record, id: id || uid(), created: now(), updated: now() });
+    const at = now();
+    const created = add(s, 'pranchetaFiles', { ...record, id: id || uid(), created: at, updated: at });
     return created.id;
   }
   if (type === 'prancheta-delete') {
@@ -816,7 +821,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     const stage = find(s,'stages',d.stage);
     if (!stage) fail('Selecione uma etapa válida.');
     if (record.stage !== stage.id) {
-      Object.assign(record,{ stage:stage.id, pipelineId:stage.pipelineId, updated:now(), stageChangedAt:now() });
+      const at = now(); // um só instante: updated e stageChangedAt iguais
+      Object.assign(record,{ stage:stage.id, pipelineId:stage.pipelineId, updated:at, stageChangedAt:at });
       run(s,'Opportunity stage changed',record);
     }
     return id;
@@ -830,13 +836,15 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     const details = fields[key](s, key === 'workflows' ? { ...prior, ...d, id } : { ...d, id });
     if (key === 'contacts') rejectDuplicateContact(s, { ...prior, ...details }, prior);
     const row = prior ? { ...prior, ...details, updated: now() } : add(s,key,details);
+    // Datas de mudança da oportunidade: o mesmo instante da gravação (updated, ou created se o registro é novo).
+    const savedAt = prior ? row.updated : row.created;
     if (key==='agents' && prior) {
       row.revision = uid();
       if (prior.published) row.active = true;
     }
     if (key === 'opportunities') {
-      row.statusChangedAt = !prior || row.status !== prior.status ? now() : prior.statusChangedAt || prior.created;
-      row.stageChangedAt = !prior || row.stage !== prior.stage ? now() : prior.stageChangedAt || prior.created;
+      row.statusChangedAt = !prior || row.status !== prior.status ? savedAt : prior.statusChangedAt || prior.created;
+      row.stageChangedAt = !prior || row.stage !== prior.stage ? savedAt : prior.stageChangedAt || prior.created;
     }
     if (key === 'studioProjects' && !prior) row.viewedAt = row.created;
     if (['bulkActions','imports'].includes(key)) fail('Unknown record type.');
@@ -848,6 +856,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     invoiceAfterSave(s, key, prior, row, workspace);
     if (prior) s[key] = s[key].map(r=>r.id===id ? row : r);
     engine.recordChange(s, key, prior, row);
+    if (key === 'eventPlans') eventPlanAfterSave(prior, row, (event, ctx) => run(s, event, ctx));
     if (key === 'affiliates') affiliateCampaignChanges(s, prior, row, { emit: (st, event, ctx) => engine.emit(st, event, ctx) });
     return row.id;
   }
@@ -873,6 +882,7 @@ function remove(s, key, id) {
     webinarBeforeDelete(s, key, id);
     mediaBeforeDelete(s, key, id);
     offerBeforeDelete(s, key, id);
+    academyBeforeDelete(s, key, id);
     communityEventBeforeDelete(s, key, id);
     courseOfferBeforeDelete(s, key, id);
     certificateBeforeDelete(s, key, id);

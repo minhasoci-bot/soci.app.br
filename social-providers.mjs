@@ -10,7 +10,15 @@ const fail = (message, status = 400) => { throw Object.assign(new Error(message)
 const env = name => process.env[name] || '';
 
 // ---- Token sealing -----------------------------------------------------------------------------
-const key = (legacy = false) => createHash('sha256').update(env('SOCIAL_TOKEN_KEY') || env('GO_STORAGE_KEY') || (legacy ? 'graao-local-social-key' : 'soci-local-social-key')).digest();
+// The fixed keys below only exist for local development. On the host (Vercel/Lambda) a missing
+// SOCIAL_TOKEN_KEY/GO_STORAGE_KEY is a configuration error: refuse instead of sealing with a public key.
+const hosted = () => Boolean(env('VERCEL') || env('AWS_LAMBDA_FUNCTION_NAME'));
+const keySecret = () => {
+  const secret = env('SOCIAL_TOKEN_KEY') || env('GO_STORAGE_KEY');
+  if (!secret && hosted()) fail('Configure SOCIAL_TOKEN_KEY ou GO_STORAGE_KEY no servidor para guardar os acessos às redes.', 500);
+  return secret;
+};
+const key = (legacy = false) => createHash('sha256').update(keySecret() || (legacy ? 'graao-local-social-key' : 'soci-local-social-key')).digest();
 export function seal(value) {
   const iv = randomBytes(12), c = createCipheriv('aes-256-gcm', key(), iv);
   const data = Buffer.concat([c.update(JSON.stringify(value), 'utf8'), c.final()]);
@@ -19,9 +27,9 @@ export function seal(value) {
 export function unseal(text) {
   const [v, iv, tag, data] = String(text || '').split('.');
   if (v !== 'v1') return null;
-  for (const leg of [false, true]) {
+  for (const k of [key(false), key(true)]) {
     try {
-      const d = createDecipheriv('aes-256-gcm', key(leg), Buffer.from(iv, 'base64url')); d.setAuthTag(Buffer.from(tag, 'base64url'));
+      const d = createDecipheriv('aes-256-gcm', k, Buffer.from(iv, 'base64url')); d.setAuthTag(Buffer.from(tag, 'base64url'));
       return JSON.parse(Buffer.concat([d.update(Buffer.from(data, 'base64url')), d.final()]).toString('utf8'));
     } catch {}
   }

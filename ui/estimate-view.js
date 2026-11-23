@@ -11,7 +11,7 @@ const day = value => /^\d{4}-\d{2}-\d{2}/.test(value || '') ? value.slice(0, 10)
 const say = (pt, es) => getLanguage() === 'es' ? es : pt;
 let view = null;
 
-try { if (!localStorage.getItem('soci_lang') && /^es/i.test(navigator.language || '')) setLanguage('es'); } catch {}
+try { if (!localStorage.getItem('soci_lang') && /^es/i.test(navigator.language || '')) await setLanguage('es'); } catch {}
 
 async function api(action, data = {}) {
   const response = await fetch(`/api/orcamento/${encodeURIComponent(workspace)}`, {
@@ -110,10 +110,10 @@ $('refuse-ok').addEventListener('click', async () => {
 });
 $('print').addEventListener('click', () => print());
 $('lang').innerHTML = langToggle();
-$('lang').addEventListener('click', event => {
+$('lang').addEventListener('click', async event => {
   const button = event.target.closest('[data-lang-choice]');
   if (!button) return;
-  setLanguage(button.dataset.langChoice);
+  await setLanguage(button.dataset.langChoice);
   if (view) render();
 });
 

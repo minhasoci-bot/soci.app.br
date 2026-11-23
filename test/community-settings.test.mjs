@@ -5,6 +5,7 @@ import { makeServer } from '../server.mjs';
 import { makeCommunity } from '../community.mjs';
 import { badgesOf, communityAnalytics, extendAccess, hasAccess, heldReason, newsletterDue } from '../community-config.mjs';
 import { createSqliteStore } from '../storage.mjs';
+import { withAcademyTab } from '../ui/community-data.js';
 import { signBody } from '../abacatepay.mjs';
 
 const KEY = 'abc_dev_shopkey_0000dddd';
@@ -15,12 +16,12 @@ test('Group settings: plans, theme tokens, join questions, onboarding, tabs, mod
   const s = blank();
   const id = save(s, { name: 'Clube' });
   const group = () => s.communities.find(row => row.id === id);
-  assert.deepEqual([group().access, group().theme.preset, group().tabs.map(row => row.key), group().newsletter.enabled], ['free', 'default', ['discussion', 'events', 'members', 'ranking', 'about'], false]);
+  assert.deepEqual([group().access, group().theme.preset, group().tabs.map(row => row.key), group().newsletter.enabled], ['free', 'default', ['discussion', 'academy', 'events', 'members', 'ranking', 'about'], false]);
   assert.throws(() => save(s, { access: 'paid' }, id), /pelo menos um plano/);
   assert.throws(() => save(s, { access: 'paid', plans: [{ name: 'Mensal', price: 0.5 }] }, id), /R\$ 1/);
   assert.throws(() => save(s, { theme: { preset: 'custom', tokens: { primary: 'red' } } }, id), /Principal/);
   assert.throws(() => save(s, { questions: Array.from({ length: 6 }, () => ({ text: 'P?' })) }, id), /até 5/);
-  assert.throws(() => save(s, { tabs: [{ key: 'discussion', visible: false }, { key: 'events', visible: false }, { key: 'members', visible: false }, { key: 'ranking', visible: false }, { key: 'about', visible: false }] }, id), /aba visível/);
+  assert.throws(() => save(s, { tabs: [{ key: 'discussion', visible: false }, { key: 'academy', visible: false }, { key: 'events', visible: false }, { key: 'members', visible: false }, { key: 'ranking', visible: false }, { key: 'about', visible: false }] }, id), /aba visível/);
   assert.throws(() => save(s, { onboarding: [{ title: 'Leia', link: 'http://x.com' }] }, id), /https/);
   save(s, { access: 'paid', trialDays: 7, plans: [{ name: 'Mensal', price: 49.9, interval: 'month' }, { name: 'Vitalício', price: 497, interval: 'once' }],
     theme: { preset: 'oceano' }, tabs: [{ key: 'about', label: 'Comece aqui' }, { key: 'events', visible: false }, { key: 'nada' }],
@@ -30,12 +31,34 @@ test('Group settings: plans, theme tokens, join questions, onboarding, tabs, mod
   assert.equal(g.name, 'Clube', 'settings saved alone keep the name');
   assert.deepEqual(g.plans.map(row => [row.name, row.price, row.interval]), [['Mensal', 49.9, 'month'], ['Vitalício', 497, 'once']]);
   assert.deepEqual([g.theme.preset, g.theme.tokens.primary], ['oceano', '#0e6ba8']);
-  assert.deepEqual(g.tabs.map(row => [row.key, row.label, row.visible]), [['about', 'Comece aqui', true], ['events', 'Eventos', false], ['discussion', 'Discussão', true], ['members', 'Membros', true], ['ranking', 'Ranking', true]]);
+  assert.deepEqual(g.tabs.map(row => [row.key, row.label, row.visible]), [['about', 'Comece aqui', true], ['events', 'Eventos', false], ['discussion', 'Discussão', true], ['academy', 'Academia', true], ['members', 'Membros', true], ['ranking', 'Ranking', true]]);
   assert.deepEqual(g.moderation, { keywords: ['golpe', 'pirâmide'], spamPack: true });
   assert.equal(heldReason(g, 'Entre nessa PIRÂMIDE'), 'Palavra-chave: pirâmide');
   assert.equal(heldReason(g, 'Me chama: wa.me/5511'), 'Anti-spam: wa.me/');
   assert.equal(heldReason(g, 'https://a https://b https://c'), 'Anti-spam: muitos links');
   assert.equal(heldReason(g, 'Bom dia, pessoal'), '');
+});
+
+test('Layout: widgets keep known keys in order, composer prompt is trimmed, old groups get defaults', () => {
+  const s = blank();
+  const id = save(s, { name: 'Clube' });
+  const g = () => s.communities.find(row => row.id === id);
+  assert.deepEqual(g().layout, { widgets: [['about', true], ['events', true], ['ranking', true], ['members', true]].map(([key, visible]) => ({ key, visible })), composerPrompt: '' });
+  save(s, { layout: { widgets: [{ key: 'ranking', visible: false }, { key: 'x' }, { key: 'about' }], composerPrompt: '  Conte sua vitória da semana  ' } }, id);
+  assert.deepEqual(g().layout.widgets.map(row => [row.key, row.visible]), [['ranking', false], ['about', true], ['events', true], ['members', true]]);
+  assert.equal(g().layout.composerPrompt, 'Conte sua vitória da semana');
+  assert.throws(() => save(s, { layout: { composerPrompt: 'x'.repeat(81) } }, id), /80/);
+  assert.equal(g().name, 'Clube');
+});
+
+test('Themes: onPrimary token, dark presets and withAcademyTab', () => {
+  const s = blank();
+  const id = save(s, { name: 'Clube', theme: { preset: 'noite-neon' } });
+  assert.equal(s.communities.find(row => row.id === id).theme.tokens.onPrimary, '#0b0d10');
+  save(s, { theme: { preset: 'custom', tokens: { primary: '#123456', background: '#ffffff', tertiary: '#eeeeee', font: '#111111', sidebar: '#ffffff', surface: '#ffffff', border: '#dddddd', error: '#cc0000' } } }, id);
+  assert.equal(s.communities.find(row => row.id === id).theme.tokens.onPrimary, '#ffffff', 'a custom theme saved before onPrimary existed still validates');
+  assert.deepEqual(withAcademyTab([{ key: 'about', label: 'Sobre' }, { key: 'discussion', label: 'Feed' }]).map(row => row.key), ['about', 'discussion', 'academy']);
+  assert.deepEqual(withAcademyTab([{ key: 'academy', label: 'Trilhas', visible: false }, { key: 'discussion' }]).map(row => row.label), ['Trilhas', undefined]);
 });
 
 test('Paid access lasts the plan period, stacks on renewal and lifetime plans never expire', () => {
