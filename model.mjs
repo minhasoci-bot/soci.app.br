@@ -17,7 +17,7 @@ import { blogBeforeDelete, blogCollections, blogFields, blogView } from './blog-
 import { storeAfterSave, storeBeforeDelete, storeCheckout, storeCollections, storeFields } from './store-model.mjs';
 import { webinarBeforeDelete, webinarCollections, webinarCommand, webinarFields } from './webinar-model.mjs';
 import { qrCollections, qrFields, qrScan } from './qr-model.mjs';
-import { mediaBeforeDelete, mediaCollections as driveCollections, mediaCommand, mediaCommandTypes, mediaFields as driveFields, mediaFile, mediaKind } from './media-model.mjs';
+import { mediaBeforeDelete, mediaCollections as driveCollections, mediaCommand, mediaCommandTypes, mediaFields as driveFields, mediaFile, mediaKind, storedFile } from './media-model.mjs';
 import { courseFields } from './course-model.mjs';
 import { communityCollections, communityFields } from './community.mjs';
 import { communityEventBeforeDelete, communityEventCollections, communityEventCommand, communityEventFields } from './community-events.mjs';
@@ -523,8 +523,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   }
   if (type === 'ai-video-done') {
     s.aiVideoJobs = (s.aiVideoJobs || []).filter(row => row.jobId !== d.jobId);
-    if (!d.chunks) return '';
-    const video = add(s, 'aiVideos', { id: str(d.id, 60), mime: 'video/mp4', chunks: Number(d.chunks) || 0, bytes: Number(d.bytes) || 0, prompt: str(d.prompt, 500), workflowId: str(d.workflowId, 60) });
+    if (!d.chunks && !d.r2Key) return '';
+    const video = add(s, 'aiVideos', { id: str(d.id, 60), mime: 'video/mp4', ...(d.r2Key && { r2Key: str(d.r2Key, 200) }), chunks: Number(d.chunks) || 0, bytes: Number(d.bytes) || 0, prompt: str(d.prompt, 500), workflowId: str(d.workflowId, 60) });
     if (s.aiVideos.length > 50) s.aiVideos.splice(0, s.aiVideos.length - 50);
     return video.id;
   }
@@ -670,6 +670,15 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (['webinar-register','webinar-attend','webinar-reminders'].includes(type)) return webinarCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'qr-scan') return qrScan(s, id, d);
   if (mediaCommandTypes.includes(type)) return mediaCommand(s, type, d, remove);
+  // Server-only (not in the client command list): records written after the bytes landed in R2.
+  if (type === 'media-stored') return storedFile(s, d, workspace);
+  if (type === 'video-stored') {
+    const row = s.videoTestimonials.find(item => item.id === d.id);
+    if (!row || typeof d.r2Key !== 'string' || d.r2Key !== `ws/${workspace}/videos/${row.id}`) return '';
+    row.r2Key = d.r2Key;
+    row.chunks = 0;
+    return row.id;
+  }
   if (type === 'studio-meta') return studioMeta(s, id, d);
   if (type === 'studio-visit' || type === 'studio-star') {
     const project = find(s,'studioProjects',id);

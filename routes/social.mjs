@@ -15,7 +15,7 @@ import { NEXT_ROUTE } from './next-route.mjs';
 
 export function createSocialRoutes(deps) {
   const {
-    store, auth, localAccess, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess
+    store, auth, localAccess, redirectToR2, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess
   } = deps;
   return async function socialRoute({ req, res, p, method, url, id, json, send }) {
     if (p === '/api/social/cron' && (method === 'GET' || method === 'POST')) {
@@ -41,6 +41,8 @@ export function createSocialRoutes(deps) {
         }
       }
       const file = state.files.find(f => f.id === fileId);
+      // A file kept in R2 is served by the bucket, through a short-lived signed link.
+      if (file?.r2Key) return redirectToR2(res, file.r2Key, { filename: file.name, type: file.mime, attachment: url.searchParams.get('download') === '1' });
       if (!file || !file.data.startsWith('data:image/')) throw error('File not found.',404);
       const { mime, bytes } = fileBytes(file.data);
       res.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length });
