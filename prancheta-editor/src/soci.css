@@ -1,0 +1,46 @@
+/* Casca da Prancheta dentro da soci: estados de carregamento, salvamento e avisos. */
+:root { --cm-accent: 255 0 187; --soci-pink: #ff00bb; }
+
+.prancheta-root { display: flex; flex-direction: column; height: 100%; }
+.prancheta-editor { flex: 1; min-height: 0; }
+
+.pr-state {
+  height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  background: var(--bg); color: var(--text); font-size: 13px; text-align: center; padding: 24px;
+}
+.pr-state h1 { font-size: 18px; margin: 0; }
+.pr-state p { margin: 0; color: var(--muted); max-width: 420px; }
+.pr-spinner {
+  width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--soci-pink);
+  animation: pr-spin .8s linear infinite;
+}
+@keyframes pr-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pr-spinner { animation-duration: 2.4s; } }
+
+.pr-btn {
+  height: 28px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); font-weight: 500; white-space: nowrap;
+}
+.pr-btn:hover:not(:disabled) { background: var(--surface-hover); }
+.pr-btn--accent { background: var(--soci-pink); border-color: transparent; color: #fff; }
+.pr-btn--accent:hover:not(:disabled) { background: #e000a5; }
+
+.pr-banner {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 14px;
+  background: #fff1f8; color: #6b0050; border-bottom: 1px solid #ffc2e8; font-size: 12px;
+}
+:root[data-theme='dark'] .pr-banner { background: #3a1030; color: #ffd6f1; border-color: #6b1f58; }
+.pr-banner p { margin: 0 auto 0 0; }
+
+.pr-save { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.pr-save::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pr-save--saved { color: #14ae5c; }
+.pr-save--saving, .pr-save--dirty { color: var(--muted); }
+.pr-save--error, .pr-save--conflict { color: #e5484d; }
+
+.pr-head-btn {
+  height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--border); font-weight: 500; white-space: nowrap;
+}
+.pr-head-btn:hover:not(:disabled) { background: var(--surface-hover); }
+.pr-head-btn--accent { background: var(--soci-pink); border-color: transparent; color: #fff; }
+.pr-head-btn--accent:hover:not(:disabled) { background: #e000a5; }

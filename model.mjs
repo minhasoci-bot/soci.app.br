@@ -43,7 +43,7 @@ import { appLog, appTrigger, dropInstalledApp, queueAppEvents, setInstalledApp }
 import { offerBeforeDelete, offerAccessCommand, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
-import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
+import { pranchetaFileRecord, createCanonicalTemplates, checkPranchetaSave, applyPranchetaSave } from './prancheta-model.mjs';
 import { directories } from './ui/gbp-data.js';
 import { brandCollections, brandFields } from './brand-model.mjs';
 import { addAffiliateFromContact, affiliateCampaignChanges, affiliateWorkflow, affiliateClick, affiliateCollections, affiliateDefaults, affiliateFields, affiliateSettings, affiliateSignup, attributeContacts, issuePortalToken, recordPayout, reviewCommission, saveAffiliateSettings, settleAffiliates } from './affiliate-model.mjs';
@@ -678,12 +678,10 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     return id;
   }
   if (type === 'prancheta-save') {
+    const existing = id ? s.pranchetaFiles.find(item => item.id === id) : null;
+    checkPranchetaSave(existing, d, fail);
+    if (existing) return applyPranchetaSave(existing, s, d, now).id;
     const record = pranchetaFileRecord(s, d);
-    const existing = id ? find(s, 'pranchetaFiles', id) : null;
-    if (existing) {
-      Object.assign(existing, record, { updated: now() });
-      return existing.id;
-    }
     const created = add(s, 'pranchetaFiles', { ...record, id: id || uid(), created: now(), updated: now() });
     return created.id;
   }
