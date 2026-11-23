@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { blank, execute } from '../model.mjs';
-import { academyView, includedCourseIds } from '../community-academy.mjs';
+import { academyView, includedCourseGrants, includedCourseIds, withCommunityGrants } from '../community-academy.mjs';
+import { memberCourse } from '../course-model.mjs';
 
 const save = (s, key, data, id) => execute(s, { type: 'save', key, id, data });
 const setup = () => {
@@ -60,4 +61,31 @@ test('includedCourseIds respects access and deletes cascade', () => {
   assert.deepEqual(academy().courses.map(row => [row.courseId, row.offerId]), [[a, ''], [b, '']]);
   execute(s, { type: 'delete', key: 'courses', id: a });
   assert.deepEqual(academy().courses.map(row => row.courseId), [b]);
+});
+
+test('A chosen offer edited to drop the course no longer sells it', () => {
+  const { s, a, b, offer, group } = setup();
+  save(s, 'communities', { academy: { courses: [{ courseId: b, mode: 'separate', offerId: offer }] } }, group);
+  const g = () => s.communities.find(row => row.id === group);
+  const card = () => academyView(s, g(), { id: 'm1', courseIds: [] }, { workspace: 'demo', allowed: true })[0];
+  save(s, 'offers', { courseIds: [a] }, offer);
+  assert.deepEqual([card().state, card().offerUrl], ['unavailable', '']);
+  const other = save(s, 'offers', { title: 'B de novo', courseIds: [b], type: 'one_time', price: 50, status: 'published' });
+  assert.equal(card().offerUrl, `/oferta/demo/${other}`, 'falls back to a published offer that still has the course');
+});
+
+test('Included courses drip from the day the member joined the community', () => {
+  const { s, group } = setup();
+  const course = save(s, 'courses', { name: 'Com drip', active: true, modules: [{ title: 'M', lessons: [{ title: 'A', kind: 'text', body: 'x' }, { title: 'B', kind: 'text', body: 'y', dripDays: 7 }] }] });
+  save(s, 'communities', { academy: { courses: [{ courseId: course }] } }, group);
+  const now = Date.now(), joined = new Date(now - 86400e3).toISOString();
+  const doc = { groups: { [group]: { members: { m1: { status: 'active', joinedAt: joined } }, posts: [] } } };
+  const grants = includedCourseGrants(s, doc, 'm1');
+  assert.deepEqual(grants, { [course]: joined });
+  assert.deepEqual(includedCourseIds(s, doc, 'm1'), [course]);
+  const portalMember = { id: 'm1', courseIds: [], joinedAt: new Date(now - 100 * 86400e3).toISOString() };
+  const locked = member => memberCourse(s, s.courses.find(row => row.id === course), member, { now }).modules[0].lessons[1].locked;
+  assert.equal(locked(portalMember), false, 'without the grant the portal sign-up opens it');
+  assert.equal(locked(withCommunityGrants(portalMember, grants)), true);
+  assert.equal(locked(withCommunityGrants({ ...portalMember, courseIds: [course], grantedAt: { [course]: portalMember.joinedAt } }, grants)), false, 'an own grant keeps its date');
 });

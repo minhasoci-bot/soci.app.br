@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { courseOutline, memberCourse, memberCourseCard } from './course-model.mjs';
+import { withCommunityGrants } from './community-academy.mjs';
 import { gradeQuiz } from './course-learning.mjs';
 import { courseAnalytics, courseSummaries } from './course-analytics.mjs';
 
@@ -63,7 +64,9 @@ export function makeClientPortal({
   publicOrigin = process.env.PORTAL_PUBLIC_ORIGIN, request = fetch, onCourseActivity = null, loadState = null, onLogin = null, extraCourses = null
 }) {
   // Courses a member opens beyond their own grants (the Academia of the communities they have access to).
-  const extraFor = async (workspace, state, member) => member && extraCourses ? extraCourses(workspace, state, member.id) : [];
+  // { courseId: day access began }; drip lessons of those courses count from that day.
+  const extraFor = async (workspace, state, member) => member && extraCourses ? extraCourses(workspace, state, member.id) : {};
+  const opens = (member, extra, id) => member.courseIds.includes(id) || Object.hasOwn(extra, id);
   // The workspace again after a credential was issued (the server gives the loader; tests may not).
   const reload = async (workspace, state) => loadState ? loadState(workspace) : state;
   let mailOrigin;
@@ -310,8 +313,8 @@ export function makeClientPortal({
     return out.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 500);
   }
 
-  function grantedCourse(state, member, courseId, extra = []) {
-    const course = state.courses.find(row => row.id === courseId && row.active && (member.courseIds.includes(row.id) || extra.includes(row.id)));
+  function grantedCourse(state, member, courseId, extra = {}) {
+    const course = state.courses.find(row => row.id === courseId && row.active && opens(member, extra, row.id));
     if (!course) fail('Curso indisponível para este cliente.', 404);
     return course;
   }
@@ -355,13 +358,13 @@ export function makeClientPortal({
         await issue(workspace, member, course, 'opened');
         state = await reload(workspace, state);
       }
-      const page = memberCourse(state, course, member, { lessonId });
+      const page = memberCourse(state, course, withCommunityGrants(member, extra), { lessonId });
       // A lesson is opened when asked for by id; without one, only a course with no product page shows its lesson.
       if (page.lesson && track && (lessonId || course.page?.productPage === false)) await lessonStarted(workspace, token, member, course, page.lesson);
       return { ...base, signedIn: true, member: { name: member.name }, course: page };
     }
-    const courses = state.courses.filter(course => course.active && (member.courseIds.includes(course.id) || extra.includes(course.id)));
-    return { ...base, signedIn: true, member: { name: member.name }, courses: courses.map(course => memberCourseCard(state, course, member)) };
+    const courses = state.courses.filter(course => course.active && opens(member, extra, course.id));
+    return { ...base, signedIn: true, member: { name: member.name }, courses: courses.map(course => memberCourseCard(state, course, withCommunityGrants(member, extra))) };
   }
 
   // Marks one lesson as done (or not) for the signed-in member and returns the refreshed course.
@@ -372,14 +375,14 @@ export function makeClientPortal({
     let activity = null, lessonDone = null;
     const finished = {};
     const current = await load(workspace);
-    const extra = current ? await extraFor(workspace, state, signedMember(current, token)) : [];
+    const extra = current ? await extraFor(workspace, state, signedMember(current, token)) : {};
     try {
       const result = await store.change(portalId(workspace), doc => {
         requireEnabled(doc);
         const member = signedMember(doc, token);
         if (!member) fail('Entre no portal para acessar sua aula.', 401);
         const course = grantedCourse(state, member, courseId, extra);
-        memberCourse(state, course, member, { lessonId: input.lessonId });
+        memberCourse(state, course, withCommunityGrants(member, extra), { lessonId: input.lessonId });
         const lesson = lessonOf(state, courseId, input.lessonId);
         finished.member = structuredClone(member);
         member.progress ||= {};
@@ -409,7 +412,7 @@ export function makeClientPortal({
         }
         if (!finished.member.progress?.[courseId]?.[lesson.id] && done[lesson.id]) lessonDone = { ...who, event: 'lesson', done: Object.keys(done) };
         return { ...view(workspace, doc, state), signedIn: true, member: { name: member.name },
-          course: memberCourse(state, course, member, { lessonId: input.lessonId }) };
+          course: memberCourse(state, course, withCommunityGrants(member, extra), { lessonId: input.lessonId }) };
       });
       if (activity) await onCourseActivity?.(workspace, activity);
       if (lessonDone) await onCourseActivity?.(workspace, lessonDone);

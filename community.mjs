@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { eventView, nextOccurrence, occurrences, REMINDER_BEFORE } from './community-events.mjs';
 import { badgeLabels, badgesOf, communityAnalytics, communityConfig, digestPosts, extendAccess, hasAccess, heldReason, newsletterDue } from './community-config.mjs';
-import { academyView, includedCourseIds } from './community-academy.mjs';
+import { academyView, includedCourseGrants } from './community-academy.mjs';
 import { defaultLayout, withAcademyTab } from './ui/community-data.js';
 
 export const communityCollections = ['communities'];
@@ -233,9 +233,10 @@ export function makeCommunity({ store, onEventJoin = null, onMemberJoin = null, 
     return memberView(state, portal, group, doc.groups[groupId] || { members: {}, posts: [] }, member, { ...options, workspace });
   }
 
-  // Academia: the included courses a portal member opens through the communities they have access to.
+  // Academia: the included courses a portal member opens through the communities they have access to
+  // ({ courseId: day access began }, the start of drip lessons).
   async function includedCourses(workspace, state, memberId) {
-    return includedCourseIds(state, await load(workspace), memberId);
+    return includedCourseGrants(state, await load(workspace), memberId);
   }
 
   const findPost = (data, id) => data.posts.find(post => post.id === id) || fail('Publicação não encontrada.', 404);
