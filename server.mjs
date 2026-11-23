@@ -1,5 +1,6 @@
 import { createSocialRoutes } from './routes/social.mjs';
 import { createPortalRoutes } from './routes/portal.mjs';
+import { createPranchetaRoutes } from './routes/prancheta.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -2115,6 +2116,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   };
   // Rotas por domínio (P2.1): cada módulo recebe o que vive neste fechamento e devolve NEXT_ROUTE quando a rota não é dele.
   const socialRoute = createSocialRoutes({ store, auth, localAccess, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
+  const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const server=createServer(async (req,res) => {
     const requestPath = String(req.url || '/').split('?')[0];
@@ -3479,120 +3481,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         return json({ agent }, operation === 'create' ? 201 : 200);
       }
-      if (p.startsWith('/api/prancheta/')) {
-        const isAgencyTarget = id === 'agency' || !id;
-        const who = isAgencyTarget
-          ? await access(req, res)
-          : await workspaceAccess(req, res, id, { modules: ['marketing'] });
-        if (isAgencyTarget) {
-          requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
-        } else {
-          await requireActiveAccount(who.agencyId, id, true);
-        }
-        const action = p.slice('/api/prancheta/'.length);
-        const formatPranchetaMeta = (f) => ({
-          id: f.id,
-          name: f.name,
-          size_bytes: f.size_bytes || (f.document ? JSON.stringify(f.document).length : JSON.stringify(f).length),
-          thumbnail: f.thumbnail || null,
-          created_at: f.created_at || f.created,
-          updated_at: f.updated_at || f.updated || f.created,
-          format: f.format || 'custom',
-          width: f.width || 1080,
-          height: f.height || 1080,
-          pages: f.pages || []
-        });
-
-        const loadTarget = async () => isAgencyTarget ? loadAgency(who.agencyId) : store.load(id);
-        const changeTarget = async (cmd) => {
-          if (isAgencyTarget) {
-            return changeAgency(who.agencyId, a => executeAgency(a, cmd, { actor: who.name }));
-          }
-          const res = await change(id, cmd);
-          return res.id;
-        };
-
-        if (action === 'files') {
-          if (method === 'GET') {
-            const state = await loadTarget();
-            const raw = state.pranchetaFiles || [];
-            return json({ files: raw.map(formatPranchetaMeta) });
-          }
-          if (method === 'POST') {
-            const input = await payload(req);
-            const savedId = await changeTarget({ type: 'prancheta-save', data: input, id: input.id });
-            const state = await loadTarget();
-            const raw = state.pranchetaFiles || [];
-            return json({ id: savedId, files: raw.map(formatPranchetaMeta) });
-          }
-        }
-        if (action === 'file') {
-          const fileId = url.searchParams.get('id') || url.searchParams.get('fileId');
-          const state = await loadTarget();
-          const raw = state.pranchetaFiles || [];
-          const found = raw.find(f => f.id === fileId);
-          if (method === 'GET') {
-            if (!found) throw error('Arquivo da prancheta não encontrado.', 404);
-            const { sociToDocument } = await import('./prancheta-model.mjs');
-            const document = found.document || sociToDocument(found);
-            return json({
-              ...formatPranchetaMeta(found),
-              document
-            });
-          }
-          if (method === 'POST') {
-            const input = await payload(req);
-            const targetId = input.id || fileId;
-            const savedId = await changeTarget({ type: 'prancheta-save', data: input, id: targetId });
-            const nextState = await loadTarget();
-            const nextFound = (nextState.pranchetaFiles || []).find(f => f.id === savedId);
-            return json({ id: savedId, file: nextFound ? formatPranchetaMeta(nextFound) : null });
-          }
-        }
-        if (action === 'save' && method === 'POST') {
-          const input = await payload(req);
-          const savedId = await changeTarget({ type: 'prancheta-save', data: input, id: input.id });
-          const state = await loadTarget();
-          const raw = state.pranchetaFiles || [];
-          const found = raw.find(f => f.id === savedId);
-          return json({ id: savedId, file: found ? formatPranchetaMeta(found) : null, files: raw.map(formatPranchetaMeta) });
-        }
-        if (action === 'templates' && method === 'GET') {
-          const { createCanonicalTemplates, pranchetaPresets } = await import('./prancheta-model.mjs');
-          return json({ templates: createCanonicalTemplates(), presets: pranchetaPresets });
-        }
-        if (action === 'template-use' && method === 'POST') {
-          const input = await payload(req);
-          const savedId = await changeTarget({ type: 'prancheta-template', data: input });
-          const state = await loadTarget();
-          return json({ id: savedId, files: state.pranchetaFiles || [] }, 201);
-        }
-        if (action === 'delete' && method === 'POST') {
-          const input = await payload(req);
-          await changeTarget({ type: 'prancheta-delete', id: input.id });
-          const state = await loadTarget();
-          return json({ ok: true, files: state.pranchetaFiles || [] });
-        }
-        if (action === 'duplicate' && method === 'POST') {
-          const input = await payload(req);
-          const copyId = await changeTarget({ type: 'prancheta-duplicate', id: input.id });
-          const state = await loadTarget();
-          return json({ id: copyId, files: state.pranchetaFiles || [] }, 201);
-        }
-        if (action === 'export-media' && method === 'POST') {
-          const input = await payload(req);
-          const fileId = await changeTarget({ type: 'prancheta-export-media', id: input.id, data: input });
-          const state = await loadTarget();
-          return json({ ok: true, fileId, files: state.files || [] });
-        }
-        if (action === 'to-social' && method === 'POST') {
-          const input = await payload(req);
-          const result = await changeTarget({ type: 'prancheta-to-social', id: input.id, data: input });
-          const state = await store.load(id);
-          return json({ ok: true, ...(result || {}), posts: state.socialPosts || [] });
-        }
-        throw error('Rota da prancheta não encontrada.', 404);
-      }
+      const pranchetaRouteHandled = await pranchetaRoute({ req, res, p, method, url, id, json, send });
+      if (pranchetaRouteHandled !== NEXT_ROUTE) return pranchetaRouteHandled;
       if (p==='/api/studio' && method==='POST') {
         const who = await studioGuard(req,res,id);
         const input = await payload(req);
