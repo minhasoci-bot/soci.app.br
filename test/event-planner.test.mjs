@@ -100,3 +100,34 @@ test('Event plan orchestration also needs the modules it writes into', async () 
     assert.throws(() => requireWorkspaceCommand({ modules }, orchestrate), /permissão/, modules.join('+'));
   }
 });
+
+test('Event plan revision rejects stale saves and upgrades older records', () => {
+  const state = blank();
+  const id = save(state, 'eventPlans', { title: 'Aula', eventDate: '2026-12-05', plan: plan() });
+  assert.equal(state.eventPlans[0].revision, 1);
+  save(state, 'eventPlans', { title: 'Aula 2', revision: 1 }, id);
+  assert.equal(state.eventPlans[0].revision, 2);
+  assert.throws(() => save(state, 'eventPlans', { title: 'Aula 3', revision: 1 }, id), err => err.status === 409 && /outra sessão/.test(err.message));
+  assert.equal(state.eventPlans[0].title, 'Aula 2', 'a stale save changes nothing');
+  delete state.eventPlans[0].revision;
+  save(state, 'eventPlans', { title: 'Aula 4' }, id);
+  assert.equal(state.eventPlans[0].revision, 1);
+});
+
+test('Event plan items keep message code and owner id', () => {
+  const state = blank();
+  const items = plan().items.map(row => row.kind === 'message' ? { ...row, code: 'GRUPO-01', ownerId: 'u1' } : row);
+  save(state, 'eventPlans', { title: 'Com código', eventDate: '2026-12-05', plan: { ...plan(), items } });
+  const message = state.eventPlans[0].plan.items.find(row => row.kind === 'message');
+  assert.equal(message.code, 'GRUPO-01');
+  assert.equal(message.ownerId, 'u1');
+  assert.equal(state.eventPlans[0].plan.items.find(row => row.kind === 'task').code, undefined);
+});
+
+test('Duplicated event plans start at revision 1', () => {
+  const state = blank();
+  const id = save(state, 'eventPlans', { title: 'Origem', eventDate: '2026-12-05', plan: plan() });
+  save(state, 'eventPlans', { title: 'Origem', revision: 1 }, id);
+  const copyId = execute(state, { type: 'event-plan-duplicate', id });
+  assert.equal(state.eventPlans.find(row => row.id === copyId).revision, 1);
+});

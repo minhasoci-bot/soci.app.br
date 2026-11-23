@@ -53,7 +53,7 @@ function item(value) {
   const base = {
     id: id(value.id), kind, title: req(value.title, 'O título', 240),
     phase: one(value.phase || 'aquecimento', eventPlanPhases, 'a fase'),
-    owner: str(value.owner, 120), notes: str(value.notes, 10000), date: day(value.date)
+    owner: str(value.owner, 120), ownerId: str(value.ownerId, 64), notes: str(value.notes, 10000), date: day(value.date)
   };
   if (kind === 'task') return {
     ...base,
@@ -64,7 +64,7 @@ function item(value) {
     ...base,
     status: one(value.status || 'rascunho', ['rascunho', 'revisao', 'pronto', 'agendado', 'enviado', 'cancelado'], 'o status'),
     channel: one(value.channel || 'grupos', ['grupos', 'privado', 'instagram', 'email', 'outro'], 'o canal'),
-    time: time(value.time), team: one(value.team || 'copy', eventPlanTeams, 'o time')
+    time: time(value.time), team: one(value.team || 'copy', eventPlanTeams, 'o time'), code: str(value.code, 40)
   };
   if (kind === 'agenda') return {
     ...base,
@@ -96,6 +96,7 @@ export const eventPlanFields = {
   eventPlans: (s, d) => {
     const prior = d.id ? s.eventPlans.find(row => row.id === d.id) : null;
     const pick = key => d[key] === undefined ? prior?.[key] : d[key];
+    if (prior && d.revision !== undefined && Number(d.revision) !== (prior.revision || 0)) fail('O evento foi atualizado em outra sessão. Recarregue para ver a versão mais nova antes de salvar.', 409);
     const title = req(pick('title'), 'O nome do evento', 160);
     if (s.eventPlans.some(row => row.id !== d.id && row.title.toLocaleLowerCase('pt-BR') === title.toLocaleLowerCase('pt-BR'))) fail(`Já existe um evento chamado “${title}”.`);
     return {
@@ -103,7 +104,8 @@ export const eventPlanFields = {
       eventDate: day(pick('eventDate'), 'a data do evento'),
       status: one(pick('status') || 'planejado', eventPlanStatuses, 'o status do evento'),
       plan: plan(pick('plan') || { brief: {}, items: [] }),
-      orchestration: orchestrator(pick('orchestration'))
+      orchestration: orchestrator(pick('orchestration')),
+      revision: prior ? (prior.revision || 0) + 1 : 1
     };
   }
 };
@@ -140,7 +142,7 @@ export function eventPlanCommand(s, command, { add, now, save, createSocial, emi
       title: title.slice(0, 160),
       status: 'planejado',
       plan: { brief: data.plan?.brief || {}, items: (data.plan?.items || []).map(row => ({ ...row, id: randomUUID(), status: resetStatus(row) })) },
-      orchestration: orchestrator(), created: now()
+      orchestration: orchestrator(), revision: 1, created: now()
     };
     return add(s, 'eventPlans', copy).id;
   }
