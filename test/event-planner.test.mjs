@@ -47,3 +47,56 @@ test('Hydration gives older workspace state the event planner collection', () =>
   hydrateWorkspace(legacy);
   assert.deepEqual(legacy.eventPlans, []);
 });
+
+test('Event planner orchestrates tasks, calendar, Social drafts and e-mail drafts without duplication', () => {
+  const state = blank('Orquestradora');
+  const source = plan();
+  source.items.push(
+    { id: '47fa348a-bfa2-4ec1-a774-69120f72bd0b', kind: 'message', title: 'Post de convite', phase: 'aquecimento', status: 'rascunho', team: 'copy', channel: 'instagram', date: '2026-12-02', time: '12:00', owner: '', notes: 'Convite para o evento' },
+    { id: 'aebd4f88-6b33-4bb2-9781-47993e3c52d', kind: 'message', title: 'E-mail de convite', phase: 'aquecimento', status: 'rascunho', team: 'copy', channel: 'email', date: '2026-12-03', time: '09:00', owner: '', notes: 'Olá, {{contact.first_name}}! Participe.' }
+  );
+  const id = save(state, 'eventPlans', { title: 'Evento conectado', eventDate: '2026-12-05', plan: source });
+  const created = execute(state, { type: 'event-plan-orchestrate', id, data: {} });
+  assert.deepEqual(created, { tasks: 1, calendar: 1, social: 1, email: 1 });
+  assert.equal(state.tasks.length, 1);
+  assert.equal(state.appointments.length, 1);
+  assert.equal(state.socialPosts.length, 1);
+  assert.equal(state.socialPosts[0].source, 'event-planner');
+  assert.equal(state.emailCampaigns.length, 1);
+  assert.equal(state.emailCampaigns[0].status, 'draft');
+  const linked = state.eventPlans.find(row => row.id === id).orchestration;
+  assert.ok(linked.appointmentId);
+  assert.ok(linked.items['3c4ad2e7-7ec3-4b15-a35c-155e081bd240'].taskId);
+  assert.ok(linked.items['47fa348a-bfa2-4ec1-a774-69120f72bd0b'].socialPostId);
+  assert.ok(linked.items['aebd4f88-6b33-4bb2-9781-47993e3c52d'].emailCampaignId);
+  assert.deepEqual(execute(state, { type: 'event-plan-orchestrate', id, data: {} }), { tasks: 0, calendar: 0, social: 0, email: 0 });
+});
+
+test('Event plan lifecycle emits custom events for the automation engine', () => {
+  const state = blank();
+  const workflowId = save(state, 'workflows', {
+    name: 'Registrar novo evento', active: true,
+    triggers: [{ id: 'event-created', type: 'custom_event', config: { event: 'event_plan_created' } }],
+    steps: [{ id: 'event-note', type: 'add_note', config: { body: 'Evento criado' } }]
+  });
+  save(state, 'eventPlans', { title: 'Evento com automação', eventDate: '2026-12-05', plan: plan() });
+  assert.ok(state.runs.some(run => run.workflowId === workflowId && run.event === 'Evento personalizado'));
+});
+
+test('Event planner commands are authorised under the marketing module', async () => {
+  const { requireWorkspaceCommand } = await import('../authorization.mjs');
+  const marketing = { modules: ['marketing'] }, other = { modules: ['contacts'] };
+  for (const command of [{ type: 'save', key: 'eventPlans', data: {} }, { type: 'delete', key: 'eventPlans' }, { type: 'event-plan-duplicate', id: 'x' }]) {
+    assert.doesNotThrow(() => requireWorkspaceCommand(marketing, command), command.type);
+    assert.throws(() => requireWorkspaceCommand(other, command), /módulo|module|acesso|permiss/i, command.type);
+  }
+});
+
+test('Event plan orchestration also needs the modules it writes into', async () => {
+  const { requireWorkspaceCommand } = await import('../authorization.mjs');
+  const orchestrate = { type: 'event-plan-orchestrate', id: 'x' };
+  assert.doesNotThrow(() => requireWorkspaceCommand({ modules: ['marketing', 'contacts', 'calendars'] }, orchestrate));
+  for (const modules of [['marketing'], ['marketing', 'contacts'], ['marketing', 'calendars'], ['contacts', 'calendars']]) {
+    assert.throws(() => requireWorkspaceCommand({ modules }, orchestrate), /permissão/, modules.join('+'));
+  }
+});

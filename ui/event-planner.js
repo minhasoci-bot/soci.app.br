@@ -43,7 +43,7 @@ function gallery(c, pageShell, marketingTabs) {
 
 function hero(event) {
   const p = eventProgress(event);
-  return `<section class="ep-hero"><div class="ep-hero-copy"><button class="ep-back" data-ep-back>${i('left', 15)} Todos os eventos</button><div class="ep-hero-title"><div><span class="ep-eyebrow">${h(dateLabel(event.eventDate))}</span><h1>${h(event.title)}</h1></div>${statusPill(event.status, eventStatusLabel(event.status))}</div><div class="ep-hero-actions"><button class="secondary" data-ep-edit="${h(event.id)}">${i('edit', 15)} Editar evento</button><button class="secondary" data-ep-duplicate="${h(event.id)}">${i('copy', 15)} Duplicar</button><button class="secondary" data-ep-delete="${h(event.id)}">${i('trash', 15)} Excluir</button></div></div><dl class="ep-kpis"><div><dt>Tarefas</dt><dd>${p.done}<small>/${p.tasks.length}</small></dd><span>concluídas</span></div><div><dt>Comunicação</dt><dd>${p.sent}<small>/${p.messages.length}</small></dd><span>enviadas</span></div><div><dt>Roteiro</dt><dd>${Math.floor(p.minutes / 60)}h${String(p.minutes % 60).padStart(2, '0')}</dd><span>previstas</span></div><div><dt>Links</dt><dd>${p.ready}<small>/${p.links.length}</small></dd><span>validados</span></div></dl></section>`;
+  return `<section class="ep-hero"><div class="ep-hero-copy"><button class="ep-back" data-ep-back>${i('left', 15)} Todos os eventos</button><div class="ep-hero-title"><div><span class="ep-eyebrow">${h(dateLabel(event.eventDate))}</span><h1>${h(event.title)}</h1></div>${statusPill(event.status, eventStatusLabel(event.status))}</div><div class="ep-hero-actions"><button class="secondary" data-ep-orchestrate="${h(event.id)}">${i('flow', 15)} Orquestrar</button><button class="secondary" data-ep-edit="${h(event.id)}">${i('edit', 15)} Editar evento</button><button class="secondary" data-ep-duplicate="${h(event.id)}">${i('copy', 15)} Duplicar</button><button class="secondary" data-ep-delete="${h(event.id)}">${i('trash', 15)} Excluir</button></div></div><dl class="ep-kpis"><div><dt>Tarefas</dt><dd>${p.done}<small>/${p.tasks.length}</small></dd><span>concluídas</span></div><div><dt>Comunicação</dt><dd>${p.sent}<small>/${p.messages.length}</small></dd><span>enviadas</span></div><div><dt>Roteiro</dt><dd>${Math.floor(p.minutes / 60)}h${String(p.minutes % 60).padStart(2, '0')}</dd><span>previstas</span></div><div><dt>Links</dt><dd>${p.ready}<small>/${p.links.length}</small></dd><span>validados</span></div></dl></section>`;
 }
 
 function briefView(event) {
@@ -70,9 +70,16 @@ function linksView(event) {
   return `<section class="ep-section-head"><div><span class="ep-eyebrow">Ativos da campanha</span><h2>Links e materiais</h2><p>Concentre URLs importantes, materiais e páginas que precisam ser revisados.</p></div><button class="primary" data-ep-item-new="link" data-ep-event="${h(event.id)}">${i('plus', 15)} Novo link</button></section>${filterBar('link')}<div class="ep-link-grid">${rows.map(item => `<article class="surface ep-link"><div class="ep-link-title"><span class="ep-link-icon">${i('link', 17)}</span><div><h3>${h(item.title)}</h3><p>${h(phaseLabel(item.phase))}${item.owner ? ` · ${h(item.owner)}` : ''}</p></div></div>${item.url ? `<a class="ep-url" href="${h(item.url)}" target="_blank" rel="noopener noreferrer">${h(item.url.replace(/^https?:\/\//, ''))} ${i('up-right', 13)}</a>` : '<p class="ep-missing">URL ainda não adicionada</p>'}${item.notes ? `<p class="ep-note">${h(item.notes)}</p>` : ''}<div class="ep-link-foot"><span>${h(dateMeta(item))}</span><div><select aria-label="Status do link" data-ep-item-status="${h(item.id)}" data-ep-event="${h(event.id)}">${optionRows(itemStatus.link, item.status)}</select>${itemButtons(event, item)}</div></div></article>`).join('') || emptyList('Nenhum link nesta seleção', 'Guarde aqui as páginas, materiais e acessos necessários para a operação.', 'link')}</div>`;
 }
 
+function integrationsView(event) {
+  const binding = event.orchestration || {}, rows = Object.values(binding.items || {});
+  const counts = { tasks: rows.filter(row => row.taskId).length, social: rows.filter(row => row.socialPostId).length, email: rows.filter(row => row.emailCampaignId).length, calendar: binding.appointmentId ? 1 : 0 };
+  const synced = binding.syncedAt ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(binding.syncedAt)) : 'Ainda não sincronizado';
+  return `<section class="ep-section-head"><div><span class="ep-eyebrow">Execução conectada</span><h2>Automações e integrações</h2><p>Crie entregas nos módulos da Soci e publique eventos para os seus fluxos e webhooks.</p></div><button class="primary" data-ep-orchestrate="${h(event.id)}">${i('flow', 15)} Sincronizar agora</button></section><div class="ep-orch-grid"><article class="surface ep-orch-card"><span>CRM</span><b>${counts.tasks}</b><p>Tarefas vinculadas ao evento.</p></article><article class="surface ep-orch-card"><span>Calendário</span><b>${counts.calendar ? 'Ligado' : 'Pendente'}</b><p>Um compromisso com o roteiro do dia.</p></article><article class="surface ep-orch-card"><span>Social</span><b>${counts.social}</b><p>Rascunhos para comunicações no Instagram.</p></article><article class="surface ep-orch-card"><span>E-mail</span><b>${counts.email}</b><p>Campanhas em rascunho para revisão.</p></article></div><section class="surface ep-automation-guide"><div><span class="ep-eyebrow">Automação e API</span><h3>Eventos que os fluxos podem ouvir</h3><p>Configure em <a href="#automation/workflows">Automações</a> o gatilho <b>Evento personalizado</b> e conecte ações, integrações ou webhooks.</p></div><ul><li><code>event_plan_created</code></li><li><code>event_plan_updated</code></li><li><code>event_plan_status_changed</code></li><li><code>event_plan_orchestrated</code></li></ul><small>Última sincronização: ${h(synced)}. A sincronização cria somente rascunhos de Social e E-mail: a revisão e o envio continuam sob controle da equipe.</small></section>`;
+}
+
 function detail(c, pageShell, marketingTabs, event) {
-  const sections = [['strategy', 'Estratégia', 'target'], ['tasks', 'Tarefas', 'check-square'], ['messages', 'Comunicação', 'send'], ['agenda', 'Roteiro do dia', 'list'], ['links', 'Links', 'link']].map(([value, label, icon]) => ({ value, label, icon, attrs: `data-ep-section="${value}" aria-pressed="${ui.section === value}"` }));
-  const content = { strategy: briefView, tasks: tasksView, messages: messagesView, agenda: agendaView, links: linksView }[ui.section](event);
+  const sections = [['strategy', 'Estratégia', 'target'], ['tasks', 'Tarefas', 'check-square'], ['messages', 'Comunicação', 'send'], ['agenda', 'Roteiro do dia', 'list'], ['links', 'Links', 'link'], ['integrations', 'Integrações', 'flow']].map(([value, label, icon]) => ({ value, label, icon, attrs: `data-ep-section="${value}" aria-pressed="${ui.section === value}"` }));
+  const content = { strategy: briefView, tasks: tasksView, messages: messagesView, agenda: agendaView, links: linksView, integrations: integrationsView }[ui.section](event);
   return pageShell({ title: 'Planejador de eventos', desc: 'Coordene todas as frentes deste lançamento.', className: 'ep', tabs: { key: 'marketing', items: marketingTabs, current: 'events', label: 'Seções de marketing' }, content: `${hero(event)}<section class="ep-workspace"><div class="ep-subtabs">${sections.map(item => `<button class="${item.value === ui.section ? 'active' : ''}" ${item.attrs}>${i(item.icon, 15)} ${h(item.label)}</button>`).join('')}</div><div class="ep-panel">${content}</div></section>` });
 }
 export function eventPlanner(c, { pageShell, marketingTabs }) {
@@ -107,6 +114,10 @@ function itemDialog(dialog, event, kind, item = null) {
   const label = itemKinds.find(([key]) => key === kind)?.[1].toLowerCase() || 'item';
   dialog(item ? `Editar ${label}` : `Novo ${label}`, `<form data-ep-form="item" data-id="${h(event.id)}" data-kind="${h(kind)}" data-item-id="${h(item?.id || '')}">${content}<p class="form-status" role="alert"></p><footer class="ep-form-foot">${item ? `<button class="danger plain" type="button" data-ep-item-delete="${h(item.id)}" data-ep-event="${h(event.id)}">Excluir</button>` : ''}<span class="spacer"></span><button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Salvar</button></footer></form>`, { description: 'As alterações ficam disponíveis apenas neste evento.' });
 }
+function orchestrateDialog(dialog, event) {
+  dialog('Orquestrar evento', `<form data-ep-form="orchestrate" data-id="${h(event.id)}"><p class="dim">A Soci vai criar somente os registros que ainda não estão vinculados a este evento.</p><label class="check"><input type="checkbox" name="tasks" checked> Criar tarefas no CRM</label><label class="check"><input type="checkbox" name="calendar" checked> Criar compromisso no Calendário a partir do roteiro</label><label class="check"><input type="checkbox" name="social" checked> Criar rascunhos do Instagram no Social Planner</label><label class="check"><input type="checkbox" name="email" checked> Criar rascunhos de e-mail para revisão</label><p class="dim">Também será emitido o evento <code>event_plan_orchestrated</code> para fluxos e webhooks configurados em Automações.</p><p class="form-status" role="alert"></p><footer class="ep-form-foot"><button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Sincronizar</button></footer></form>`, { description: 'Nenhum envio será disparado automaticamente.' });
+}
+
 function valueOf(form, key) { return form.elements[key]?.value || ''; }
 function savedItem(form, previous) {
   const kind = form.dataset.kind;
@@ -124,13 +135,14 @@ async function copyText(text) {
 
 export function installEventPlanner({ c, mutate, flash, dialog, close, render }) {
   document.addEventListener('click', async event => {
-    const target = event.target.closest('[data-ep-open],[data-ep-back],[data-ep-new],[data-ep-edit],[data-ep-duplicate],[data-ep-delete],[data-ep-section],[data-ep-edit-brief],[data-ep-item-new],[data-ep-item-edit],[data-ep-item-delete],[data-ep-copy]');
+    const target = event.target.closest('[data-ep-open],[data-ep-back],[data-ep-new],[data-ep-edit],[data-ep-duplicate],[data-ep-delete],[data-ep-section],[data-ep-edit-brief],[data-ep-item-new],[data-ep-item-edit],[data-ep-item-delete],[data-ep-copy],[data-ep-orchestrate]');
     if (!target) return;
     const data = target.dataset;
     try {
       if (data.epOpen) { ui.selectedId = data.epOpen; ui.section = 'strategy'; ui.phase = 'all'; ui.status = 'all'; render(); return; }
       if (data.epBack !== undefined) { ui.selectedId = ''; render(); return; }
       if (data.epNew !== undefined) { eventDialog(c, dialog, '', data.epStarter || 'blank'); return; }
+      if (data.epOrchestrate) { const plan = c.s.eventPlans.find(item => item.id === data.epOrchestrate); if (plan) orchestrateDialog(dialog, plan); return; }
       if (data.epEdit) { eventDialog(c, dialog, data.epEdit); return; }
       if (data.epDuplicate) { const id = await mutate({ type: 'event-plan-duplicate', id: data.epDuplicate }); ui.selectedId = id; ui.section = 'strategy'; render(); flash('Evento duplicado como novo plano.'); return; }
       if (data.epDelete) { const row = c.s.eventPlans.find(item => item.id === data.epDelete); if (!row || !confirm(`Excluir “${row.title}” e todo o seu plano?`)) return; await mutate({ type: 'delete', key: 'eventPlans', id: row.id }); ui.selectedId = ''; render(); flash('Evento excluído.'); return; }
@@ -161,6 +173,10 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render })
         const plan = existing ? planOf(existing) : (form.elements.template?.checked ? launchEventPlan(eventDate) : blankEventPlan());
         const id = await mutate({ type: 'save', key: 'eventPlans', id: existing?.id || '', data: { title: valueOf(form, 'title'), eventDate, status: valueOf(form, 'status'), plan } });
         ui.selectedId = id; ui.section = 'strategy'; close(); render(); flash(existing ? 'Evento atualizado.' : 'Evento criado.');
+      }
+      if (form.dataset.epForm === 'orchestrate') {
+        const result = await mutate({ type: 'event-plan-orchestrate', id: form.dataset.id, data: { tasks: form.elements.tasks.checked, calendar: form.elements.calendar.checked, social: form.elements.social.checked, email: form.elements.email.checked } });
+        close(); render(); flash(result && typeof result === 'object' ? 'Integrações sincronizadas.' : 'Integrações sincronizadas.');
       }
       if (form.dataset.epForm === 'brief') {
         const plan = c.s.eventPlans.find(row => row.id === form.dataset.id); if (!plan) throw Error('Evento não encontrado.');

@@ -102,30 +102,92 @@ export const eventPlanFields = {
       title,
       eventDate: day(pick('eventDate'), 'a data do evento'),
       status: one(pick('status') || 'planejado', eventPlanStatuses, 'o status do evento'),
-      plan: plan(pick('plan') || { brief: {}, items: [] })
+      plan: plan(pick('plan') || { brief: {}, items: [] }),
+      orchestration: orchestrator(pick('orchestration'))
     };
   }
 };
 
-export function eventPlanCommand(s, command, { add, now }) {
-  if (command.type !== 'event-plan-duplicate') return undefined;
-  const source = s.eventPlans.find(row => row.id === command.id) || fail('Evento não encontrado.', 404);
-  if (s.eventPlans.length >= 100) fail('A subconta pode ter até 100 eventos planejados.');
-  const { id: ignoredId, created: ignoredCreated, updated: ignoredUpdated, ...data } = structuredClone(source);
-  const stem = source.title.replace(/ \(Cópia(?: \d+)?\)$/, '');
-  let suffix = 1, title = `${stem} (Cópia)`;
-  while (s.eventPlans.some(row => row.title === title)) title = `${stem} (Cópia ${++suffix})`;
-  const copy = {
-    ...data,
-    title: title.slice(0, 160),
-    status: 'planejado',
-    plan: {
-      brief: data.plan?.brief || {},
-      items: (data.plan?.items || []).map(row => ({ ...row, id: randomUUID(), status: resetStatus(row) }))
-    },
-    created: now()
-  };
-  return add(s, 'eventPlans', copy).id;
+const orchestrator = value => {
+  const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const items = raw.items && typeof raw.items === 'object' && !Array.isArray(raw.items) ? raw.items : {};
+  const cleaned = {};
+  for (const [itemId, binding] of Object.entries(items)) {
+    if (!/^[0-9a-f-]{16,64}$/i.test(itemId) || !binding || typeof binding !== 'object') continue;
+    cleaned[itemId] = {
+      taskId: str(binding.taskId, 64), socialPostId: str(binding.socialPostId, 64), emailCampaignId: str(binding.emailCampaignId, 64), updated: str(binding.updated, 40)
+    };
+  }
+  return { appointmentId: str(raw.appointmentId, 64), items: cleaned, syncedAt: str(raw.syncedAt, 40) };
+};
+const eventPayload = event => ({ eventId: event.id, title: event.title, eventDate: event.eventDate, status: event.status });
+
+export function eventPlanAfterSave(prior, event, emit) {
+  emit('custom_event', { event: prior ? 'event_plan_updated' : 'event_plan_created', ...eventPayload(event), payload: eventPayload(event) });
+  if (prior && prior.status !== event.status) emit('custom_event', { event: 'event_plan_status_changed', ...eventPayload(event), previousStatus: prior.status, payload: { ...eventPayload(event), previousStatus: prior.status } });
+}
+
+export function eventPlanCommand(s, command, { add, now, save, createSocial, emit, calendarInstant }) {
+  if (command.type === 'event-plan-duplicate') {
+    const source = s.eventPlans.find(row => row.id === command.id) || fail('Evento não encontrado.', 404);
+    if (s.eventPlans.length >= 100) fail('A subconta pode ter até 100 eventos planejados.');
+    const { id: ignoredId, created: ignoredCreated, updated: ignoredUpdated, orchestration: ignoredOrchestration, ...data } = structuredClone(source);
+    const stem = source.title.replace(/ \(Cópia(?: \d+)?\)$/, '');
+    let suffix = 1, title = stem + ' (Cópia)';
+    while (s.eventPlans.some(row => row.title === title)) title = stem + ' (Cópia ' + (++suffix) + ')';
+    const copy = {
+      ...data,
+      title: title.slice(0, 160),
+      status: 'planejado',
+      plan: { brief: data.plan?.brief || {}, items: (data.plan?.items || []).map(row => ({ ...row, id: randomUUID(), status: resetStatus(row) })) },
+      orchestration: orchestrator(), created: now()
+    };
+    return add(s, 'eventPlans', copy).id;
+  }
+  if (command.type !== 'event-plan-orchestrate') return undefined;
+  const event = s.eventPlans.find(row => row.id === command.id) || fail('Evento não encontrado.', 404);
+  const options = command.data && typeof command.data === 'object' ? command.data : {};
+  const integration = orchestrator(event.orchestration);
+  const items = event.plan?.items || [];
+  const result = { tasks: 0, calendar: 0, social: 0, email: 0 };
+
+  if (options.tasks !== false) for (const item of items.filter(row => row.kind === 'task')) {
+    const bound = integration.items[item.id] || {};
+    if (bound.taskId && s.tasks.some(row => row.id === bound.taskId)) continue;
+    const taskId = save('tasks', { title: item.title, due: item.date || event.eventDate, owner: item.owner, notes: ['Evento: ' + event.title, item.notes].filter(Boolean).join('\n\n') });
+    integration.items[item.id] = { ...bound, taskId, updated: now() }; result.tasks++;
+  }
+
+  if (options.calendar !== false && !integration.appointmentId) {
+    const agenda = items.filter(row => row.kind === 'agenda' && row.date && row.time && Number(row.duration) > 0).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+    if (agenda.length) {
+      const first = agenda[0], last = agenda.reduce((picked, row) => (row.date + row.time > picked.date + picked.time ? row : picked), first);
+      const startAt = calendarInstant(first.date, first.time);
+      const start = new Date(startAt).toISOString();
+      const endDate = new Date(calendarInstant(last.date, last.time) + Math.max(1, Number(last.duration) || 30) * 60000).toISOString();
+      integration.appointmentId = save('appointments', { title: event.title, start, end: endDate, notes: agenda.map(row => row.time + ' · ' + row.title + ' (' + row.duration + ' min)').join('\n'), source: 'event-planner' });
+      result.calendar++;
+    }
+  }
+
+  if (options.social !== false) for (const item of items.filter(row => row.kind === 'message' && row.channel === 'instagram' && row.notes)) {
+    const bound = integration.items[item.id] || {};
+    if (bound.socialPostId && s.socialPosts.some(row => row.id === bound.socialPostId)) continue;
+    const socialPostId = createSocial({ type: 'post', summary: item.notes, overrides: {}, accountIds: [], media: [], link: '', firstComment: '', location: '', userTags: '', categoryId: '', tags: [event.title], needsApproval: false, source: 'event-planner', mode: 'draft', scheduleDate: '', recurrence: null });
+    integration.items[item.id] = { ...bound, socialPostId, updated: now() }; result.social++;
+  }
+
+  if (options.email !== false) for (const item of items.filter(row => row.kind === 'message' && row.channel === 'email' && row.notes)) {
+    const bound = integration.items[item.id] || {};
+    if (bound.emailCampaignId && s.emailCampaigns.some(row => row.id === bound.emailCampaignId)) continue;
+    const emailCampaignId = save('emailCampaigns', { name: (event.title + ' · ' + item.title).slice(0, 120), subject: item.title, preheader: '', fromName: s.profile?.name || '', replyTo: '', blocks: [{ type: 'heading', text: event.title, level: 1, align: 'left' }, { type: 'text', text: item.notes, align: 'left' }], style: {}, audience: { mode: 'all', tags: [] }, ab: { enabled: false } });
+    integration.items[item.id] = { ...bound, emailCampaignId, updated: now() }; result.email++;
+  }
+
+  integration.syncedAt = now(); event.orchestration = integration; event.updated = now();
+  const payload = { ...eventPayload(event), created: result, appointmentId: integration.appointmentId };
+  emit('custom_event', { event: 'event_plan_orchestrated', ...payload, payload });
+  return result;
 }
 
 function resetStatus(row) {
