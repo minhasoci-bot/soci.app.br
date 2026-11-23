@@ -1,10 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": false,
-  "buildCommand": "npm run vercel-build",
   "regions": ["gru1"],
   "functions": {
     "api/index.mjs": {
+      "includeFiles": "ui/**"
+    },
+    "server.mjs": {
       "includeFiles": "ui/**"
     }
   },
