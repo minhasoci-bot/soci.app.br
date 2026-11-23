@@ -120,10 +120,11 @@ export async function searchInstagramBusinesses(query, { token } = {}) {
   const results = [];
 
   for (const u of rawUsers) {
-    const username = u.username || u.user?.username;
-    if (!username) continue;
+    const raw = u.username || u.user?.username;
+    if (!raw) continue;
+    const username = raw.replace(/^@/, '');
     results.push({
-      username: username.replace(/^@/, ''),
+      username,
       name: u.full_name || u.user?.full_name || username,
       bio: (u.biography || u.user?.biography || '').slice(0, 300),
       followers: u.follower_count ?? u.followers ?? u.user?.follower_count ?? null,
