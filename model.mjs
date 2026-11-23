@@ -21,7 +21,7 @@ import { mediaBeforeDelete, mediaCollections as driveCollections, mediaCommand, 
 import { courseFields } from './course-model.mjs';
 import { communityCollections, communityFields } from './community.mjs';
 import { communityEventBeforeDelete, communityEventCollections, communityEventCommand, communityEventFields } from './community-events.mjs';
-import { eventPlanCollections, eventPlanCommand, eventPlanFields } from './event-planner-model.mjs';
+import { eventPlanAfterSave, eventPlanCollections, eventPlanCommand, eventPlanFields } from './event-planner-model.mjs';
 import { communityCommand } from './community-config.mjs';
 import { courseActivityCommand } from './course-learning.mjs';
 import { courseOfferBeforeDelete, credentialCollections } from './course-credentials.mjs';
@@ -639,7 +639,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'blog-view') return blogView(s, id);
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
   if (type === 'offer-access') return offerAccessCommand(s, d, { run });
-  if (typeof type === 'string' && type.startsWith('event-plan-')) { const out = eventPlanCommand(s, { ...command, data:d }, { add, now }); if (out !== undefined) return out; }
+  if (typeof type === 'string' && type.startsWith('event-plan-')) { const out = eventPlanCommand(s, { ...command, data:d }, { add, now, save: (key, data, itemId = '') => executeCommand(s, { type: 'save', key, id: itemId, data }, { workspace }), createSocial: data => executeCommand(s, { type: 'social-post', data }, { workspace }), emit: (event, ctx) => run(s, event, ctx), calendarInstant: (day, time) => zonedInstant(day, time, s.profile?.timezone || 'America/Sao_Paulo') }); if (out !== undefined) return out; }
   if (typeof type === 'string' && type.startsWith('community-event-')) return communityEventCommand(s, { ...command, data:d }, { add, run, now });
   if (['community-plan-invoice', 'community-welcome', 'community-newsletter', 'community-activity', 'portal-login'].includes(type)) return communityCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'course-activity') return courseActivityCommand(s, { ...command, data:d }, { add, run });
@@ -688,7 +688,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
       Object.assign(existing, record, { updated: now() });
       return existing.id;
     }
-    const created = add(s, 'pranchetaFiles', { ...record, id: id || uid(), created: now(), updated: now() });
+    const at = now();
+    const created = add(s, 'pranchetaFiles', { ...record, id: id || uid(), created: at, updated: at });
     return created.id;
   }
   if (type === 'prancheta-delete') {
@@ -822,7 +823,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     const stage = find(s,'stages',d.stage);
     if (!stage) fail('Selecione uma etapa válida.');
     if (record.stage !== stage.id) {
-      Object.assign(record,{ stage:stage.id, pipelineId:stage.pipelineId, updated:now(), stageChangedAt:now() });
+      const at = now(); // um só instante: updated e stageChangedAt iguais
+      Object.assign(record,{ stage:stage.id, pipelineId:stage.pipelineId, updated:at, stageChangedAt:at });
       run(s,'Opportunity stage changed',record);
     }
     return id;
@@ -836,13 +838,15 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     const details = fields[key](s, key === 'workflows' ? { ...prior, ...d, id } : { ...d, id });
     if (key === 'contacts') rejectDuplicateContact(s, { ...prior, ...details }, prior);
     const row = prior ? { ...prior, ...details, updated: now() } : add(s,key,details);
+    // Datas de mudança da oportunidade: o mesmo instante da gravação (updated, ou created se o registro é novo).
+    const savedAt = prior ? row.updated : row.created;
     if (key==='agents' && prior) {
       row.revision = uid();
       if (prior.published) row.active = true;
     }
     if (key === 'opportunities') {
-      row.statusChangedAt = !prior || row.status !== prior.status ? now() : prior.statusChangedAt || prior.created;
-      row.stageChangedAt = !prior || row.stage !== prior.stage ? now() : prior.stageChangedAt || prior.created;
+      row.statusChangedAt = !prior || row.status !== prior.status ? savedAt : prior.statusChangedAt || prior.created;
+      row.stageChangedAt = !prior || row.stage !== prior.stage ? savedAt : prior.stageChangedAt || prior.created;
     }
     if (key === 'studioProjects' && !prior) row.viewedAt = row.created;
     if (['bulkActions','imports'].includes(key)) fail('Unknown record type.');
@@ -854,6 +858,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     invoiceAfterSave(s, key, prior, row, workspace);
     if (prior) s[key] = s[key].map(r=>r.id===id ? row : r);
     engine.recordChange(s, key, prior, row);
+    if (key === 'eventPlans') eventPlanAfterSave(prior, row, (event, ctx) => run(s, event, ctx));
     if (key === 'affiliates') affiliateCampaignChanges(s, prior, row, { emit: (st, event, ctx) => engine.emit(st, event, ctx) });
     return row.id;
   }
