@@ -173,6 +173,8 @@ export function makeClientPortal({
     if (action === 'staff-enter') {
       const email = emailOf(input.email || state.profile?.email || 'admin@soci.app.br');
       const name = text(input.name || state.profile?.name || 'Administrador', 120);
+      // The team account photo (Google sign-in), https only; a bad value never replaces a good one.
+      const photo = typeof input.photo === 'string' && /^https:\/\/[^\s"'<>]+$/i.test(input.photo) ? input.photo.slice(0, 1024) : '';
       const token = secret(), fingerprint = digest(token);
       const allCourses = (state.courses || []).map(c => c.id);
       const memberId = await change(workspace, doc => {
@@ -183,6 +185,7 @@ export function makeClientPortal({
           doc.members.push(member);
         }
         member.name ||= name;
+        if (photo) member.photo = photo;
         member.joinedAt ||= created;
         delete member.revokedAt;
         grant(member, [...new Set([...(member.courseIds || []), ...allCourses])]);
@@ -361,10 +364,10 @@ export function makeClientPortal({
       const page = memberCourse(state, course, withCommunityGrants(member, extra), { lessonId });
       // A lesson is opened when asked for by id; without one, only a course with no product page shows its lesson.
       if (page.lesson && track && (lessonId || course.page?.productPage === false)) await lessonStarted(workspace, token, member, course, page.lesson);
-      return { ...base, signedIn: true, member: { name: member.name }, course: page };
+      return { ...base, signedIn: true, member: { name: member.name, ...(member.photo ? { photo: member.photo } : {}) }, course: page };
     }
     const courses = state.courses.filter(course => course.active && opens(member, extra, course.id));
-    return { ...base, signedIn: true, member: { name: member.name }, courses: courses.map(course => memberCourseCard(state, course, withCommunityGrants(member, extra))) };
+    return { ...base, signedIn: true, member: { name: member.name, ...(member.photo ? { photo: member.photo } : {}) }, courses: courses.map(course => memberCourseCard(state, course, withCommunityGrants(member, extra))) };
   }
 
   // Marks one lesson as done (or not) for the signed-in member and returns the refreshed course.
@@ -411,7 +414,7 @@ export function makeClientPortal({
           activity = { ...who, event: 'assignment' };
         }
         if (!finished.member.progress?.[courseId]?.[lesson.id] && done[lesson.id]) lessonDone = { ...who, event: 'lesson', done: Object.keys(done) };
-        return { ...view(workspace, doc, state), signedIn: true, member: { name: member.name },
+        return { ...view(workspace, doc, state), signedIn: true, member: { name: member.name, ...(member.photo ? { photo: member.photo } : {}) },
           course: memberCourse(state, course, withCommunityGrants(member, extra), { lessonId: input.lessonId }) };
       });
       if (activity) await onCourseActivity?.(workspace, activity);

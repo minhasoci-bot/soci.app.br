@@ -8,7 +8,11 @@ export const dateShort = value => new Intl.DateTimeFormat('pt-BR', { day: '2-dig
 export const initials = name => String(name || '?').trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || '?';
 // A stable hue per name, so each person keeps the same avatar color.
 const hue = name => [...String(name || '')].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 360, 7);
-export const avatar = (author, size = '') => `<span class="cp-avatar${author.staff ? ' staff' : ''}${size ? ` cp-avatar-${size}` : ''}" style="--av:${hue(author.name)}" aria-hidden="true">${h(initials(author.name))}${author.staff || !author.level ? '' : `<b>${author.level}</b>`}</span>`;
+// The member's photo (https only) over the initials, which show again if the photo fails to load (the portal
+// page removes a broken image); the level badge stays on top.
+const photoOf = author => typeof author.photo === 'string' && /^https:\/\//i.test(author.photo) ? author.photo : '';
+export const avatar = (author, size = '') => `<span class="cp-avatar${author.staff ? ' staff' : ''}${size ? ` cp-avatar-${size}` : ''}" style="--av:${hue(author.name)}" aria-hidden="true">${h(initials(author.name))}${photoOf(author)
+  ? `<img src="${h(photoOf(author))}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}${author.staff || !author.level ? '' : `<b>${author.level}</b>`}</span>`;
 export const badgeChip = author => author.badges?.length ? ` <span class="cp-tag cp-badge" title="${h(author.badges.map(row => row.label).join(', '))}">${icon('award', 12)} ${h(author.badges[0].label)}${author.badges.length > 1 ? ` +${author.badges.length - 1}` : ''}</span>` : '';
 /** The empty state: an icon in a circle, a title, one line and an optional action. */
 export const empty = (name, title, text, action = '') => `<section class="cp-cm-empty"><span class="cp-cm-empty-icon">${icon(name, 20)}</span><h2>${h(title)}</h2><p>${h(text)}</p>${action}</section>`;
@@ -86,7 +90,7 @@ function composer(view, ui) {
   if (membership?.status !== 'active' || (!group.memberPosts && membership.role !== 'moderator')) return '';
   const prompt = group.layout?.composerPrompt || composerPromptDefault;
   return `<form class="cp-public-card cp-cm-composer" data-cm-public-form="post">
-    <div class="cp-cm-composer-row">${avatar({ name: ui.me || 'Você' })}<textarea name="body" required rows="2" maxlength="10000" placeholder="${h(prompt)}" aria-label="${h(prompt)}"></textarea></div>
+    <div class="cp-cm-composer-row">${avatar({ name: ui.me || 'Você', photo: ui.mePhoto })}<textarea name="body" required rows="2" maxlength="10000" placeholder="${h(prompt)}" aria-label="${h(prompt)}"></textarea></div>
     <div class="cp-cm-composer-more">
       <input name="title" maxlength="200" placeholder="Título (opcional)" aria-label="Título (opcional)">
       <div class="cp-cm-composer-fields"><label>${icon('list', 15)}<select name="channelId" aria-label="Canal">${group.channels.map(channel => `<option value="${h(channel.id)}"${ui.channel === channel.id ? ' selected' : ''}>#${h(channel.name)}</option>`).join('')}</select></label>
@@ -114,8 +118,10 @@ const emptyFeed = {
 /** The discussion tab: first steps, welcome, composer, the feed filters and the posts. */
 export function feedTab(view, ui = {}, now = Date.now()) {
   const { group, membership } = view, filter = emptyFeed[ui.feed] ? ui.feed : 'recent';
-  const posts = filterFeed(view.posts, filter, now);
+  // The channel filter runs here: the page already has every post, so switching channels needs no request.
+  const posts = filterFeed(view.posts.filter(post => !ui.channel || post.channelId === ui.channel), filter, now);
+  const none = ui.channel && filter === 'recent' ? ['chat', 'Nada neste canal ainda', 'Seja a primeira pessoa a publicar aqui.'] : emptyFeed[filter];
   return `${onboardingCard(view)}${membership?.status === 'active' && group.welcome ? `<p class="cp-public-card cp-welcome">${h(group.welcome)}</p>` : ''}${composer(view, ui)}
     <div class="cp-cm-toolbar">${segment('feed', filter, [['recent', 'Recentes'], ['hot', 'Em alta'], ['mine', 'Minhas']], 'Filtrar publicações')}</div>
-    ${posts.length ? posts.map(post => postCard(post, membership, ui, now)).join('') : empty(...emptyFeed[filter])}`;
+    ${posts.length ? posts.map(post => postCard(post, membership, ui, now)).join('') : empty(...none)}`;
 }

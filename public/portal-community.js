@@ -55,7 +55,7 @@ function eventsTab(view, ui) {
 
 function membersTab(view) {
   if (!view.members.length) return empty('users', 'Ninguém entrou ainda', 'Os membros da comunidade aparecem aqui.');
-  return `<section class="cp-public-card"><ul class="cp-member-list">${view.members.map(member => `<li>${avatar({ name: member.name, level: member.level })}
+  return `<section class="cp-public-card"><ul class="cp-member-list">${view.members.map(member => `<li>${avatar({ name: member.name, level: member.level, photo: member.photo })}
     <div><strong>${h(member.name)}</strong>${badgeChip(member)}<small>${member.role === 'moderator' ? 'Moderador · ' : ''}Nível ${member.level} · entrou em ${h(dateShort(member.joinedAt))}</small></div></li>`).join('')}</ul></section>`;
 }
 
@@ -63,7 +63,7 @@ function rankingTab(view) {
   const board = view.leaderboard;
   return `<div class="cp-cm-toolbar">${segment('period', board.period, [['7', '7 dias'], ['30', '30 dias'], ['all', 'Todo o período']], 'Período')}</div>
     ${board.me ? `<p class="cp-public-card cp-me">Você está no <b>nível ${board.me.level}</b> com ${board.me.points} pontos${board.me.next ? ` · faltam ${board.me.next} para o próximo nível` : ' · nível máximo'}.</p>` : ''}
-    ${board.top.length ? `<section class="cp-public-card"><ol class="cp-leaderboard">${board.top.map((row, index) => `<li><span class="cp-rank">${index + 1}</span>${avatar({ name: row.name, level: row.level })}<strong>${h(row.name)}</strong><b>${row.points} <small>pts</small></b></li>`).join('')}</ol></section>`
+    ${board.top.length ? `<section class="cp-public-card"><ol class="cp-leaderboard">${board.top.map((row, index) => `<li><span class="cp-rank">${index + 1}</span>${avatar({ name: row.name, level: row.level, photo: row.photo })}<strong>${h(row.name)}</strong><b>${row.points} <small>pts</small></b></li>`).join('')}</ol></section>`
       : empty('award', 'Ninguém pontuou neste período', 'Publique, comente e curta para aparecer no ranking.')}
     <section class="cp-public-card"><h2>Níveis</h2><ul class="cp-levels">${board.levels.map(level => `<li><span class="cp-level">${level.level}</span><strong>${h(level.name)}</strong><small>a partir de ${level.min} pts · ${level.share}% dos membros</small></li>`).join('')}</ul></section>`;
 }
@@ -108,7 +108,7 @@ function hero(view, joinButton) {
   return `<section class="cp-cm-hero">
     <div class="cp-cm-hero-band">${group.cover ? `<img src="${h(group.cover)}" alt="">` : ''}</div>
     <div class="cp-cm-hero-body"><h1>${h(group.name)}</h1>${group.description ? `<p>${h(group.description)}</p>` : ''}
-      <div class="cp-cm-hero-foot">${faces.length ? `<span class="cp-cm-faces">${faces.map(member => avatar({ name: member.name }, 'sm')).join('')}</span>` : ''}
+      <div class="cp-cm-hero-foot">${faces.length ? `<span class="cp-cm-faces">${faces.map(member => avatar({ name: member.name, photo: member.photo }, 'sm')).join('')}</span>` : ''}
         <small>${plural(group.memberCount, 'membro', 'membros')}${group.access === 'paid' ? ' · Comunidade paga' : group.visibility === 'private' ? ' · Entrada com aprovação' : ''}</small>
         ${joinButton}</div></div></section>`;
 }
@@ -128,11 +128,11 @@ export function sideWidgets(view, tabs) {
     },
     ranking: () => {
       const top = (view.leaderboard?.top || []).slice(0, 5);
-      return shown('ranking') && top.length && `<h2>Top do ranking</h2><ol class="cp-cm-mini">${top.map((row, index) => `<li><span class="cp-rank">${index + 1}</span>${avatar({ name: row.name }, 'sm')}<strong>${h(row.name)}</strong><b>${row.points}<small> pts</small></b></li>`).join('')}</ol>${more('ranking')}`;
+      return shown('ranking') && top.length && `<h2>Top do ranking</h2><ol class="cp-cm-mini">${top.map((row, index) => `<li><span class="cp-rank">${index + 1}</span>${avatar({ name: row.name, photo: row.photo }, 'sm')}<strong>${h(row.name)}</strong><b>${row.points}<small> pts</small></b></li>`).join('')}</ol>${more('ranking')}`;
     },
     members: () => {
       const recent = [...(view.members || [])].sort((a, b) => String(b.joinedAt).localeCompare(String(a.joinedAt))).slice(0, 8), rest = group.memberCount - recent.length;
-      return shown('members') && recent.length && `<h2>Membros recentes</h2><div class="cp-cm-faces">${recent.map(member => avatar({ name: member.name }, 'sm').replace('aria-hidden="true"', `title="${h(member.name)}"`)).join('')}${rest > 0 ? `<span class="cp-cm-rest">+${rest}</span>` : ''}</div>${more('members')}`;
+      return shown('members') && recent.length && `<h2>Membros recentes</h2><div class="cp-cm-faces">${recent.map(member => avatar({ name: member.name, photo: member.photo }, 'sm').replace('aria-hidden="true"', `title="${h(member.name)}"`)).join('')}${rest > 0 ? `<span class="cp-cm-rest">+${rest}</span>` : ''}</div>${more('members')}`;
     }
   };
   return (group.layout?.widgets || []).filter(row => row.visible !== false && blocks[row.key])

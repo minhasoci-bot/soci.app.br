@@ -123,6 +123,7 @@ function draw(message = '') {
   if (/^#[\da-f]{6}$/i.test(color)) document.body.style.setProperty('--portal-color',color);
   paintCommunity(community?.group);
   cmUi.me = member?.name || '';
+  cmUi.mePhoto = member?.photo || '';
   root.innerHTML = `<div class="cp-public-shell ${course || community ? 'cp-wide' : ''}"><header class="cp-public-header">
       <div class="cp-public-brand">${icon('lock',20)}<span>${h(title)}</span></div>
       ${signedIn ? '<button type="button" class="cp-public-link" data-portal-public="logout">Sair</button>' : ''}
@@ -139,11 +140,11 @@ function draw(message = '') {
 }
 
 const loadCommunity = async id => {
-  const query = new URLSearchParams({ channel: cmUi.channel, period: cmUi.period });
+  const query = new URLSearchParams({ channel: '', period: cmUi.period });
   community = (await api(`community/${encodeURIComponent(id)}?${query}`)).community;
 };
 const communityAction = async body => {
-  community = (await api(`community/${encodeURIComponent(community.group.id)}`, { ...body, channelFilter: cmUi.channel })).community;
+  community = (await api(`community/${encodeURIComponent(community.group.id)}`, { ...body, channelFilter: '' })).community;
 };
 
 const openCourse = async (id, lesson = '') => {
@@ -222,7 +223,7 @@ root.addEventListener('click', async event => {
     } else if (button.dataset.cmPublic) {
       const { cmPublic: verb, value, post, comment, option } = button.dataset;
       if (verb === 'tab') { cmUi.tab = value; focus = `[data-cm-public="tab"][data-value="${value}"]`; }
-      else if (verb === 'channel') { cmUi.channel = value; cmUi.tab = 'discussion'; await loadCommunity(community.group.id); focus = `[data-cm-public="channel"][data-value="${value}"]`; }
+      else if (verb === 'channel') { cmUi.channel = value; cmUi.tab = 'discussion'; focus = `[data-cm-public="channel"][data-value="${value}"]`; }
       else if (verb === 'events') { cmUi.events = value; focus = `[data-cm-public="events"][data-value="${value}"]`; }
       else if (verb === 'feed') { cmUi.feed = value; focus = `[data-cm-public="feed"][data-value="${value}"]`; }
       else if (verb === 'comments-all') { cmUi.openComments.add(post); focus = `#post-${post} .cp-comments`; }
@@ -292,6 +293,8 @@ root.addEventListener('input', event => {
   if (count) count.textContent = `${area.value.length}/10000`;
 });
 // A click outside closes an open "⋯" menu.
+// A member photo that fails to load (an expired link) leaves the initials underneath.
+root.addEventListener('error', event => { if (event.target.matches?.('.cp-avatar img')) event.target.remove(); }, true);
 document.addEventListener('click', event => {
   for (const open of root.querySelectorAll('.cp-cm-menu[open]')) if (!open.contains(event.target)) open.open = false;
 });
