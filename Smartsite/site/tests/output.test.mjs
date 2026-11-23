@@ -160,3 +160,26 @@ test('home tem o H1 oficial e liga aos dois hubs e a todas as etapas da jornada'
     assert.ok(slugs.some((s) => main.includes(`href="/funcionalidades/${s}/"`)), `etapa ${nome} sem link`);
   }
 });
+
+const ldTypes = (html) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1])['@type']);
+
+test('home tem Organization e SoftwareApplication; páginas com FAQ têm FAQPage', () => {
+  const home = ldTypes(page('/').html);
+  assert.ok(home.includes('Organization') && home.includes('SoftwareApplication'), home.join(','));
+  for (const { route, html } of pages()) {
+    if (/class="faq"/.test(html) && !textOf(html).includes('[[')) assert.ok(ldTypes(html).includes('FAQPage'), `${route} sem FAQPage`);
+  }
+});
+
+test('no máximo um FAQPage por página', () => {
+  for (const { route, html } of pages()) {
+    assert.ok(ldTypes(html).filter((t) => t === 'FAQPage').length <= 1, `${route} com mais de um FAQPage`);
+  }
+});
+
+test('og:image aponta para um arquivo que existe', () => {
+  for (const { route, html } of pages()) {
+    const img = html.match(/<meta property="og:image" content="([^"]+)"/)?.[1];
+    assert.ok(img && resolves(img.replace(SITE_URL, '')), `${route}: og:image ${img}`);
+  }
+});

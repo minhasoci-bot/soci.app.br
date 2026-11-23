@@ -19,6 +19,8 @@ const ajuda = [
   { q: 'Existe uma comunidade de clientes?', a: 'Sim. Clientes participam de um grupo para trocar o que funciona; o acesso fica dentro da plataforma.' },
   { q: 'Meus dados e os dos meus clientes ficam seguros?', a: 'Cada subconta é isolada das outras, o acesso é feito com a conta Google e cada pessoa da equipe tem permissões próprias. A <a class="link" href="/privacidade/">política de privacidade</a> explica como tratamos os dados conforme a LGPD.' },
 ];
+const todas = [...comecar, ...dinheiro, ...ajuda];
+const faqLd = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: todas.map((i) => ({ '@type': 'Question', name: i.q, acceptedAnswer: { '@type': 'Answer', text: i.a.replace(/<[^>]+>/g, '') } })) };
 ---
 <Core
   title="Perguntas frequentes sobre a soci"
@@ -28,9 +30,10 @@ const ajuda = [
   crumb="Perguntas frequentes"
   href="/perguntas-frequentes/"
 >
-  <Faq id="comecar" title="Começar e migrar" items={comecar} />
-  <Faq id="dinheiro" title="Planos, Pix e cancelamento" items={dinheiro} />
-  <Faq id="ajuda" title="Suporte, comunidade e segurança" items={ajuda} />
+  <Faq id="comecar" title="Começar e migrar" items={comecar} jsonLd={false} />
+  <Faq id="dinheiro" title="Planos, Pix e cancelamento" items={dinheiro} jsonLd={false} />
+  <Faq id="ajuda" title="Suporte, comunidade e segurança" items={ajuda} jsonLd={false} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqLd)} />
   <section class="section" aria-label="Começar">
     <div class="wrap"><div class="btn-row"><Cta kind="comecar" /><Cta kind="planos" /></div></div>
   </section>

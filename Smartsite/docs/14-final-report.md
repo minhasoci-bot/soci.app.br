@@ -1,89 +1,22 @@
-# Smartsite Delivery Report
+# Final Report — Smartsite soci (2026-11-23)
 
-> Modelo de trabalho — status inicial: NOT STARTED. Preencher com informações e evidências reais durante a execução.
+**Status geral: PARTIAL** — site completo, testado e pronto para publicar, aguardando dados do responsável (13-pending-information.md) e autorização de publicação.
 
-## Resumo
-- PROJECT:
-- BUSINESS:
-- STATUS: NOT STARTED
-- CENTRAL QUESTION:
-- PRIMARY SERVICE:
-- TARGET MARKET:
-- TARGET LANGUAGE:
-- PRIMARY CONVERSION:
+## Entregue
+- 36 páginas estáticas em `Smartsite/site/` (Astro 7): home, 9 core, hub + 17 funcionalidades, hub + 8 soluções.
+- Conteúdo baseado só no que o código da plataforma faz (`documents/PRODUCT_EVIDENCE_REGISTER.md`); limites ditos com clareza (sem SMS, sem sincronização com Google Agenda, sem domínio próprio para sites, comissões de afiliados só calculadas).
+- Capturas reais da plataforma (workspace de demonstração local, dados fictícios); 10 telas pendentes.
+- SEO: canonical em `https://www.soci.app.br`, sitemap sem páginas noindex, robots, JSON-LD.
+- Conversão: "Começar com a soci" → `https://soci.app.br/login` (login Google cria a agência).
 
-## Architecture
-| Camada | Planejado | Implementado | Publicável | Pendente |
-|---|---:|---:|---:|---:|
-| Core | — | — | — | — |
-| Capability | — | — | — | — |
-| Use case | — | — | — | — |
-| Adicionais | — | — | — | — |
-| Total | — | — | — | — |
+## Como rodar
+```
+cd Smartsite/site
+npm install
+npm run check     # build + testes
+npm run dev       # http://localhost:4321
+```
 
-## Development
-- Framework / renderização:
-- Build:
-- Type checking:
-- Lint:
-- Runtime:
-
-## SEO
-- Metadata:
-- Canonical:
-- Sitemap:
-- Robots:
-- Structured data:
-- Internal links:
-- Indexability:
-
-## GEO & AEO
-- Entity consistency:
-- Answer-ready content:
-- Evidence:
-- Crawler policy:
-
-## Conversion
-- Primary CTA:
-- Contact channels:
-- Forms:
-- CRM:
-- Analytics:
-
-## QA
-- Desktop:
-- Mobile:
-- Accessibility:
-- Broken links:
-- Performance:
-- Browser tests:
-
-## Pending items
-- Lista:
-- Impacto:
-- Bloqueios de publicação:
-
-## Preview and delivery
-- Local URL:
-- Screenshots / walkthrough:
-- Source code:
-- Documentation:
-- Deployment guide:
-
-## Estado real do projeto
-- Desenvolvimento concluído: NÃO VALIDADO
-- Homologação concluída: NÃO VALIDADO
-- Pronto para publicação: NÃO VALIDADO
-- Publicado: NÃO
-
-## Final status
-PASS / PARTIAL / BLOCKED — preencher somente com evidências. Até lá: NOT STARTED.
-
-## Design & Mobile First V2.1
-- Referências Magic UI Pro consultadas:
-- Evidências de design mobile primeiro:
-- Visual Quality Gate (0–16 / status):
-- Copy / componentes / CTAs:
-- Screenshots por template:
-- Preservação de arquitetura, SEO/GEO/AEO e conversão:
-- Pendências visuais bloqueantes:
+## Bloqueios
+- Publicação, deploy e DNS: não autorizados.
+- Pendências de conteúdo: ver 13-pending-information.md.

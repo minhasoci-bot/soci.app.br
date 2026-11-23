@@ -1,10 +1,10 @@
 ---
-interface Props { items: { q: string; a: string }[]; title?: string; id?: string }
-const { items, title = 'Perguntas frequentes', id = 'faq' } = Astro.props;
+interface Props { items: { q: string; a: string }[]; title?: string; id?: string; jsonLd?: boolean }
+const { items, title = 'Perguntas frequentes', id = 'faq', jsonLd: emitLd = true } = Astro.props;
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
-  mainEntity: items.map((i) => ({ '@type': 'Question', name: i.q, acceptedAnswer: { '@type': 'Answer', text: i.a } })),
+  mainEntity: items.map((i) => ({ '@type': 'Question', name: i.q, acceptedAnswer: { '@type': 'Answer', text: i.a.replace(/<[^>]+>/g, '') } })),
 };
 ---
 {items.length > 0 && (
@@ -16,7 +16,7 @@ const jsonLd = {
           <div class="faq__item"><h3>{i.q}</h3><p set:html={i.a} /></div>
         ))}
       </div>
-      {!items.some((i) => i.a.includes('[[')) && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+      {emitLd && !items.some((i) => i.a.includes('[[')) && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
     </div>
   </section>
 )}

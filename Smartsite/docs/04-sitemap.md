@@ -1,3 +1,19 @@
+# Sitemap — implementado (2026-11-23)
+
+Rotas geradas no build (`Smartsite/site/dist/`). Consolidações em relação às 39 candidatas: WhatsApp + atendimento, landing pages + funis, calls dentro de Suporte, fidelização + reativação = relacionamento e recompra; Demonstração e Cases ficam fora até haver evidência.
+
+| Camada | URL | Estado |
+|---|---|---|
+| Core | `/` | indexável |
+| Core | `/planos/`, `/sobre/`, `/suporte/`, `/contato/`, `/termos/` | noindex até preencher pendências |
+| Core | `/comunidade/`, `/perguntas-frequentes/`, `/privacidade/` | indexável |
+| Funcionalidades | `/funcionalidades/` + 17 páginas | indexável |
+| Soluções | `/solucoes/` + 8 páginas | indexável |
+
+---
+
+## Proposta original
+
 # Sitemap — proposta inicial, não aprovada para publicação
 
 39 rotas candidatas, não quota. Auditar disponibilidade e intenção; consolidar duplicatas (ex.: atendimento/WhatsApp, agências/gestão de agências, FAQ/suporte), validar planos, cases e Pix. Não publicar páginas vazias.
