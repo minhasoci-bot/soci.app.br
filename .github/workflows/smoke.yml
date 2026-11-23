@@ -1,10 +1,11 @@
 name: Smoke pós-deploy
 
-# A Vercel avisa o GitHub quando um deploy termina (deployment_status). Produção roda sempre.
-# Previews têm proteção da Vercel: para testá-los, crie a variável SMOKE_PREVIEWS=true e o
-# segredo VERCEL_AUTOMATION_BYPASS_SECRET (Vercel → Settings → Deployment Protection).
+# A Vercel avisa o GitHub com um commit status de contexto "Vercel" (não com Deployments).
+# Quando esse status fica "success" num commit da main, o deploy de produção está pronto:
+# o smoke confere https://soci.app.br. Também dá para rodar à mão (Actions → Run workflow),
+# inclusive contra um preview protegido, com o segredo VERCEL_AUTOMATION_BYPASS_SECRET.
 on:
-  deployment_status:
+  status:
   workflow_dispatch:
     inputs:
       url:
@@ -19,18 +20,18 @@ jobs:
   smoke:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.deployment_status.state == 'success' &&
-       (github.event.deployment.environment == 'Production' || vars.SMOKE_PREVIEWS == 'true'))
+      (github.event.context == 'Vercel' && github.event.state == 'success' &&
+       contains(github.event.branches.*.name, 'main'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.deployment.sha || github.sha }}
+          ref: ${{ github.event.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 26
       - run: npm run smoke -- "$SMOKE_URL"
         env:
-          SMOKE_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url || inputs.url }}
+          SMOKE_URL: ${{ inputs.url || 'https://soci.app.br' }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
