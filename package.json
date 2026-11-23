@@ -8,6 +8,7 @@
     "start": "node --env-file-if-exists=.env.local server.mjs",
     "migrate:sqlite": "node --env-file-if-exists=.env.local migrate-sqlite.mjs",
     "build:dark": "node scripts/build-dark.mjs",
-    "test": "node --test --test-isolation=none"
+    "test": "node --test --test-isolation=none \"test/**/*.test.mjs\"",
+    "smoke": "node scripts/smoke-deploy.mjs"
   }
 }

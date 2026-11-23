@@ -1,0 +1,36 @@
+name: Smoke pós-deploy
+
+# A Vercel avisa o GitHub quando um deploy termina (deployment_status). Produção roda sempre.
+# Previews têm proteção da Vercel: para testá-los, crie a variável SMOKE_PREVIEWS=true e o
+# segredo VERCEL_AUTOMATION_BYPASS_SECRET (Vercel → Settings → Deployment Protection).
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Endereço a testar
+        required: true
+        default: https://soci.app.br
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       (github.event.deployment.environment == 'Production' || vars.SMOKE_PREVIEWS == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - run: npm run smoke -- "$SMOKE_URL"
+        env:
+          SMOKE_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url || inputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
