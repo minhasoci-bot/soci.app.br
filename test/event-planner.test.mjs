@@ -47,3 +47,12 @@ test('Hydration gives older workspace state the event planner collection', () =>
   hydrateWorkspace(legacy);
   assert.deepEqual(legacy.eventPlans, []);
 });
+
+test('Event planner commands are authorised under the marketing module', async () => {
+  const { requireWorkspaceCommand } = await import('../authorization.mjs');
+  const marketing = { modules: ['marketing'] }, other = { modules: ['contacts'] };
+  for (const command of [{ type: 'save', key: 'eventPlans', data: {} }, { type: 'delete', key: 'eventPlans' }, { type: 'event-plan-duplicate', id: 'x' }]) {
+    assert.doesNotThrow(() => requireWorkspaceCommand(marketing, command), command.type);
+    assert.throws(() => requireWorkspaceCommand(other, command), /módulo|module|acesso|permiss/i, command.type);
+  }
+});

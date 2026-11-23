@@ -34,7 +34,7 @@ export const moduleOfRecord = {
   products: 'payments', paymentLinks: 'payments', subscriptions: 'payments', transactions: 'payments', coupons: 'payments',
   documents: 'payments', documentTemplates: 'payments', contentBlocks: 'payments', estimates: 'payments', invoiceTemplates: 'payments', recurringInvoices: 'payments', abandonedCheckouts: 'payments', productCollections: 'payments', productReviews: 'payments', giftCards: 'payments', inventoryLog: 'payments',
   socialCategories: 'marketing', socialHashtags: 'marketing', socialFeeds: 'marketing', socialWebhooks: 'marketing', socialCompetitors: 'marketing',
-  pranchetaFiles: 'marketing'
+  pranchetaFiles: 'marketing', eventPlans: 'marketing'
 };
 
 export const accountStatuses = ['Active', 'Paused', 'Closed'];
