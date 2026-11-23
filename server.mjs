@@ -382,7 +382,8 @@ export function makeServer({
   const onCourseActivity = async (workspace, data) => { await change(workspace, { type: 'course-activity', data }); flushLater(workspace); };
   // A member signed in to the portal: "Login no portal do cliente" (first sign-in = signup).
   const onPortalLogin = async (workspace, data) => { await change(workspace, { type: 'portal-login', data }); flushLater(workspace); };
-  const clientPortal = makeClientPortal({ ...portalOptions, store, onCourseActivity, onLogin: onPortalLogin, loadState: workspace => store.load(workspace) });
+  const clientPortal = makeClientPortal({ ...portalOptions, store, onCourseActivity, onLogin: onPortalLogin, loadState: workspace => store.load(workspace),
+    extraCourses: (workspace, state, memberId) => community.includedCourses(workspace, state, memberId) });
   // A member confirmed or paid an event: find or create the contact and fire "Inscrição em evento da comunidade".
   const onEventJoin = async (workspace, { eventId, memberId, paid }) => {
     const member = (await clientPortal.directory(workspace)).members?.find(row => row.id === memberId);
