@@ -73,6 +73,16 @@ test('JSON-LD é JSON válido', () => {
   }
 });
 
+test('menu e filtro funcionam sem JS: todo link do NAV está no header como <a href>', async () => {
+  const { default: NAV } = await import('../src/data/nav.json', { with: { type: 'json' } });
+  const wanted = NAV.primary.flatMap((item) => [item.href, ...(item.groups || []).flatMap((g) => g.links.map((l) => l.href))]);
+  for (const { route, html } of pages()) {
+    const header = html.match(/<header[\s\S]*?<\/header>/)?.[0] || '';
+    for (const href of wanted) assert.ok(header.includes(`href="${href}"`), `${route}: header sem ${href}`);
+    assert.match(header, /aria-expanded="false"/, `${route}: botão de menu com estado`);
+  }
+});
+
 test('pink não é cor de texto', () => {
   for (const css of cssFiles()) assert.doesNotMatch(css, /(^|[;{\s])color:\s*#ff00bb/i);
 });

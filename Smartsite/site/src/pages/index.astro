@@ -1,13 +1,17 @@
 ---
 import Base from '../layouts/Base.astro';
-import { LOGIN_URL } from '../config';
+import Cta from '../components/Cta.astro';
 ---
 <Base
-  title="soci — A plataforma brasileira para Marketing 360"
-  description="CRM, sites, WhatsApp, redes sociais, automações e IA em uma plataforma brasileira, bonita e fácil de usar."
+  title="soci: a plataforma brasileira para Marketing 360"
+  description="CRM, sites, WhatsApp, redes sociais, automações e IA numa plataforma brasileira, bonita e fácil de usar, com suporte brasileiro."
 >
-  <main>
-    <h1>A plataforma brasileira para Marketing 360.</h1>
-    <a href={LOGIN_URL} data-cta="comecar">Começar com a soci</a>
+  <main id="top">
+    <section class="hero" data-enter aria-labelledby="hero-h">
+      <div class="wrap">
+        <h1 id="hero-h">A plataforma brasileira para Marketing 360.</h1>
+        <div class="btn-row"><Cta kind="comecar" /><Cta kind="planos" /></div>
+      </div>
+    </section>
   </main>
 </Base>

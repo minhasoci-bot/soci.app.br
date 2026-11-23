@@ -1,0 +1,38 @@
+/* Page CSS da soci: só o que o kit (public/assets/system.css) não traz. Tokens vêm do :root em Base.astro. */
+:root {
+  --pink: #ff00bb;       /* marca: superfícies, mascote, destaques grandes. Nunca cor de texto. */
+  --pink-ink: #a00070;   /* texto/links de destaque sobre fundo claro (AA) */
+  --orange: #ff7a1a;     /* laranja secundário PROPOSTO (HEX oficial pendente) — só superfícies */
+}
+
+.logo-mark { width: 28px; height: 28px; margin-right: 8px; flex: none; }
+.nav__logo { display: inline-flex; align-items: center; }
+
+/* Páginas internas: cabeçalho de página e breadcrumbs */
+.crumbs { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: 0 0 var(--s-5); padding: 0; list-style: none; font-size: var(--t-small); color: var(--muted); }
+.crumbs li + li::before { content: "/"; margin-right: var(--s-2); color: var(--line); }
+.crumbs a { color: var(--muted); }
+.page-head { padding-top: calc(var(--nav) + var(--s-9)); padding-bottom: var(--s-8); }
+.page-head h1 { font: var(--display-weight) var(--t-h2)/1.05 var(--font-display); letter-spacing: var(--display-tracking); max-width: 22ch; margin: 0 0 var(--s-5); }
+.page-head .t-lead { max-width: 62ch; }
+.answer { font-size: var(--t-lead); line-height: 1.5; max-width: 62ch; }
+
+/* Lista de itens com regra (o que dá para fazer) */
+.does { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.does li { padding: var(--s-4) 0; border-top: 1px solid var(--line); display: grid; gap: var(--s-1); }
+.does li:last-child { border-bottom: 1px solid var(--line); }
+.does b { font-weight: 500; }
+
+/* Aviso honesto de recurso nível B */
+.note-b { border-left: 3px solid var(--orange); padding: var(--s-3) var(--s-4); background: var(--surface); max-width: 62ch; }
+
+/* Marcador de informação pendente: visível de propósito */
+.pending { display: inline-block; padding: 2px 8px; border: 1px dashed var(--pink-ink); color: var(--pink-ink); border-radius: var(--r-sm); font-size: var(--t-small); }
+
+/* Captura de tela */
+.screen { margin: 0; border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
+.screen img { display: block; width: 100%; height: auto; }
+.screen--pending { display: grid; place-items: center; min-height: 240px; padding: var(--s-6); text-align: center; color: var(--muted); font-size: var(--t-small); }
+
+.socials { display: flex; gap: var(--s-4); }
+.socials a { color: inherit; }

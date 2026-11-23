@@ -16,7 +16,7 @@ function walk(dir, ext) {
 
 /** Every built page: { file, route, html }. route is like "/funcionalidades/crm/". */
 export function pages() {
-  const files = walk(DIST, '.html');
+  const files = walk(DIST, '.html').filter((f) => !relative(DIST, f).split(sep).join('/').startsWith('assets/'));
   if (!files.length) throw new Error('dist/ vazio: rode npm run build antes dos testes');
   return files.map((file) => {
     const rel = relative(DIST, file).split(sep).join('/');

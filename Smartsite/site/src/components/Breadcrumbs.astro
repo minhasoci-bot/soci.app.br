@@ -1,0 +1,18 @@
+---
+import { SITE_URL } from '../config';
+interface Props { trail: { label: string; href: string }[] }
+const { trail } = Astro.props;
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: trail.map((t, i) => ({ '@type': 'ListItem', position: i + 1, name: t.label, item: SITE_URL + t.href })),
+};
+---
+<nav aria-label="Você está em">
+  <ol class="crumbs">
+    {trail.map((t, i) => (
+      <li>{i === trail.length - 1 ? <span aria-current="page">{t.label}</span> : <a href={t.href}>{t.label}</a>}</li>
+    ))}
+  </ol>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+</nav>
