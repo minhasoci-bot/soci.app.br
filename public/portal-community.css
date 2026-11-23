@@ -46,6 +46,10 @@ body.cp-cm-on .cp-public-header .cp-public-link{color:var(--cm-primary)}
 /* Coluna esquerda */
 .cp-cm-side{position:sticky;top:16px;display:grid;gap:14px;padding:14px;border:1px solid var(--c-line);border-radius:22px;background:var(--c-side)}
 .cp-cm-back{justify-self:start;font-size:13px}
+.cp-cm-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cp-cm .cp-cm-mode{display:grid;place-items:center;width:34px;height:34px;padding:0;border:1px solid var(--c-line);border-radius:50%;background:var(--c-surface);color:var(--c-text);transition:transform .3s var(--c-ease),background .2s}
+.cp-cm .cp-cm-mode:hover{background:var(--c-hover)}
+.cp-cm .cp-cm-mode:active{transform:rotate(-20deg) scale(.92)}
 .cp-cm-id{display:flex;align-items:center;gap:12px;padding:4px 4px 12px;border-bottom:1px solid var(--c-line)}
 .cp-cm-id img,.cp-cm-tile{width:44px;height:44px;flex:none;border-radius:14px;object-fit:cover}
 .cp-cm-tile{display:grid;place-items:center;background:var(--c-accent);color:var(--c-on-accent);font-weight:800;font-size:19px}

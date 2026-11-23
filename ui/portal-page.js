@@ -1,6 +1,6 @@
 import { icon } from './icons.js';
 import { communityCards, communityPage } from './portal-community.js';
-import { themeStyle } from './community-data.js';
+import { themeMode, themeStyle } from './community-data.js';
 import { loyaltyCard } from './portal-loyalty.js';
 import { assignmentBlock, certificateLink, coursePage, instructorCard, liveBlock, nextLessonCard, quizAnswers, quizBlock, themed } from './portal-course-extra.js';
 
@@ -88,7 +88,9 @@ function player(course) {
 let portal, course, community = null, courseView = 'lesson', redeemed = null;
 // A course opened from a community's Academia goes back there, not to the portal home.
 let cmReturn = '';
-const cmUi = { tab: 'discussion', channel: '', period: '30', feed: 'recent', openComments: new Set() };
+// The member's light/dark choice for communities lives in this browser only.
+const savedMode = () => { try { const value = localStorage.getItem('soci:cm-mode'); return value === 'light' || value === 'dark' ? value : ''; } catch { return ''; } };
+const cmUi = { tab: 'discussion', channel: '', period: '30', feed: 'recent', openComments: new Set(), mode: savedMode() };
 const uploadCard = files => `<section class="cp-public-card cp-upload"><h2>${icon('upload', 18)} Enviar um arquivo para a equipe</h2>
   <p>Imagem, vídeo, áudio, PDF, TXT ou CSV de até 700 KB.</p>
   <form data-portal-upload><label class="cp-sr" for="cp-upload-file">Arquivo</label><input id="cp-upload-file" type="file" name="file" required accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,application/pdf,text/plain,text/csv">
@@ -110,7 +112,7 @@ async function enablePush() {
 
 // The open community paints the whole page with its theme (the portal header included).
 function paintCommunity(group) {
-  for (const rule of themeStyle(group?.theme).split(';')) {
+  for (const rule of themeStyle(themeMode(group?.theme, cmUi.mode)).split(';')) {
     const [name, value] = rule.split(':');
     if (group) document.body.style.setProperty(name, value); else document.body.style.removeProperty(name);
   }
@@ -225,6 +227,7 @@ root.addEventListener('click', async event => {
       if (verb === 'tab') { cmUi.tab = value; focus = `[data-cm-public="tab"][data-value="${value}"]`; }
       else if (verb === 'channel') { cmUi.channel = value; cmUi.tab = 'discussion'; focus = `[data-cm-public="channel"][data-value="${value}"]`; }
       else if (verb === 'events') { cmUi.events = value; focus = `[data-cm-public="events"][data-value="${value}"]`; }
+      else if (verb === 'mode') { cmUi.mode = value; try { localStorage.setItem('soci:cm-mode', value); } catch { /* private window: the choice lasts this visit */ } focus = '[data-cm-public="mode"]'; }
       else if (verb === 'feed') { cmUi.feed = value; focus = `[data-cm-public="feed"][data-value="${value}"]`; }
       else if (verb === 'comments-all') { cmUi.openComments.add(post); focus = `#post-${post} .cp-comments`; }
       else if (verb === 'comment-focus') { root.querySelector(`#post-${CSS.escape(post)} .cp-comment-form input`)?.focus(); return; }

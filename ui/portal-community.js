@@ -1,7 +1,7 @@
 // Community screens of the client portal: the list on the home page and one group as a three-column app —
 // identity, sections and channels on the left; the section in the middle; the owner's blocks on the right.
 import { icon } from './icons.js';
-import { planPrice, themeStyle } from './community-data.js';
+import { planPrice, themeIsDark, themeMode, themeStyle } from './community-data.js';
 import { avatar, badgeChip, dateShort, empty, feedTab, h, segment } from './portal-community-feed.js';
 import { academyTab } from './portal-community-academy.js';
 
@@ -158,9 +158,12 @@ export function communityPage(view, ui) {
   else if (tab === 'academy') body = academyTab(view);
   const current = tabs.find(row => row.key === tab), channel = tab === 'discussion' && group.channels.find(row => row.id === ui.channel);
   const aside = sideWidgets(view, tabs);
-  return `<div class="cp-cm${aside ? '' : ' cp-cm-no-aside'}" style="${h(themeStyle(group.theme))}">
+  // Light or dark: the member's choice (kept in their browser) over the owner's theme.
+  const theme = themeMode(group.theme, ui.mode), dark = themeIsDark(theme);
+  return `<div class="cp-cm${aside ? '' : ' cp-cm-no-aside'}" style="${h(themeStyle(theme))}">
     <aside class="cp-cm-side">
-      <button type="button" class="cp-public-link cp-cm-back" data-portal-public="back">${icon('left', 16)} Início</button>
+      <div class="cp-cm-top"><button type="button" class="cp-public-link cp-cm-back" data-portal-public="back">${icon('left', 16)} Início</button>
+        <button type="button" class="cp-cm-mode" data-cm-public="mode" data-value="${dark ? 'light' : 'dark'}" aria-label="${dark ? 'Ativar modo claro' : 'Ativar modo escuro'}" title="${dark ? 'Modo claro' : 'Modo escuro'}">${icon(dark ? 'sun' : 'moon', 17)}</button></div>
       <div class="cp-cm-id">${group.cover ? `<img src="${h(group.cover)}" alt="">` : `<span class="cp-cm-tile">${h(group.name.trim()[0]?.toUpperCase() || '?')}</span>`}
         <div><strong>${h(group.name)}</strong><small>${group.visibility === 'private' ? 'Privada' : 'Pública'} · ${plural(group.memberCount, 'membro', 'membros')}</small></div></div>
       <nav class="cp-cm-nav" aria-label="Seções da comunidade">${tabs.map(row => `<button type="button" data-cm-public="tab" data-value="${row.key}" ${tab === row.key ? 'aria-current="page"' : ''}>${icon(tabIcons[row.key] || 'list', 17)}<span>${h(row.label)}</span></button>`).join('')}</nav>

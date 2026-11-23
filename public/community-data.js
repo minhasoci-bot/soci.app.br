@@ -27,6 +27,33 @@ export const defaultTheme = () => ({ preset: 'default', tokens: { ...themePreset
 // A token missing from a theme saved before it existed falls back to the theme's preset, then to the default.
 export const themeStyle = theme => themeTokens.map(([key]) => `--cm-${key}:${theme?.tokens?.[key] || themePresets.find(row => row.id === theme?.preset)?.tokens[key] || themePresets[0].tokens[key]}`).join(';');
 
+// Light and dark mode for the member: the owner picks one theme; the other mode is derived from it, keeping
+// the owner's main color but moving it until text and buttons stay readable (WCAG 4.5:1).
+const rgb = color => [1, 3, 5].map(at => parseInt(color.slice(at, at + 2), 16));
+const toHex = channels => `#${channels.map(value => Math.round(Math.max(0, Math.min(255, value))).toString(16).padStart(2, '0')).join('')}`;
+const mixColor = (from, to, weight) => toHex(rgb(from).map((value, index) => value * (1 - weight) + rgb(to)[index] * weight));
+const luminance = color => {
+  const [r, g, b] = rgb(color).map(value => value / 255).map(value => value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+/** The WCAG contrast ratio of two #rrggbb colors. */
+export const contrast = (a, b) => { const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (high + 0.05) / (low + 0.05); };
+const tokensOf = theme => ({ ...themePresets[0].tokens, ...(themePresets.find(row => row.id === theme?.preset)?.tokens || {}), ...(theme?.tokens || {}) });
+export const themeIsDark = theme => luminance(tokensOf(theme).background) < 0.2;
+const readable = (color, toward, against) => { let out = color; for (let step = 0; step < 14 && contrast(out, against) < 4.5; step++) out = mixColor(out, toward, 0.12); return out; };
+const textOn = color => contrast('#ffffff', color) >= contrast('#0b0d10', color) ? '#ffffff' : '#0b0d10';
+const modeBases = {
+  dark: { background: '#0f1115', sidebar: '#15181d', surface: '#181b21', border: '#2a2e36', font: '#eceef2', error: '#ff6b6b' },
+  light: { background: '#f6f6f8', sidebar: '#ffffff', surface: '#ffffff', border: '#e4e4ea', font: '#17181c', error: '#c0262d' }
+};
+/** The theme in the mode the member chose ('light' | 'dark'); no choice, or the theme's own mode, keeps it as is. */
+export function themeMode(theme, mode) {
+  if (!modeBases[mode] || (mode === 'dark') === themeIsDark(theme)) return theme;
+  const base = modeBases[mode], dark = mode === 'dark';
+  const primary = readable(tokensOf(theme).primary, dark ? '#ffffff' : '#000000', dark ? base.background : base.surface);
+  return { preset: theme?.preset || 'default', mode, tokens: { ...base, primary, onPrimary: textOn(primary), tertiary: mixColor(base.surface, primary, dark ? 0.22 : 0.14) } };
+}
+
 /** Tabs of the community in the portal; the admin renames, hides and reorders them. */
 export const communityTabKeys = [['discussion', 'Discussão'], ['academy', 'Academia'], ['events', 'Eventos'], ['members', 'Membros'], ['ranking', 'Ranking'], ['about', 'Sobre']];
 export const defaultTabs = () => communityTabKeys.map(([key, label]) => ({ key, label, visible: true }));
