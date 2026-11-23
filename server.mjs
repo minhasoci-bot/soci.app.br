@@ -43,8 +43,10 @@ function meteredUsage() {
     }
   };
 }
-import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
+import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withMotion } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
+import { findSiteTemplate } from './ui/site-template-data.js';
+import { hasSiteTemplate, siteTemplatePages, siteTemplatePreview } from './site-templates/index.mjs';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, previewSnapshot, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
@@ -174,7 +176,7 @@ export const staticFiles = new Map([
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
   ['/reports.js','text/javascript; charset=utf-8'], ['/report-data.js','text/javascript; charset=utf-8'], ['/reports.css','text/css; charset=utf-8'],
-  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
+  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/site-template-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
   ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
@@ -262,6 +264,7 @@ const invoiceApiPath = new RegExp(`^/api/fatura/${workspaceSegment}$`);
 const brandGroupRoute = /^\/marcas\/([0-9a-f]{64})\/?$/;
 const presentationRoute = /^\/apresentacao\/([0-9a-f]{64})\/?$/;
 const sharedReportRoute = new RegExp(`^/relatorio/${workspaceSegment}/([0-9a-f]{64})/?$`);
+const templatePreviewPath = /^\/studio-template\/([a-z0-9-]{1,40})\/([a-z0-9-]{1,40})$/;
 const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{36})/([0-9a-f-]{36})$`);
 // Pages a visitor lands on (sites, forms, offers, store, blog, webinars, QR codes and links): they remember the visit's source.
 // The tracking script (/t/<workspace>.js), the pixels loader (/t/<workspace>/pixels.js) and events (/t/<workspace>/e).
@@ -3299,6 +3302,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!brief || brief.length > 4000) throw error('Enter a project description of up to 4,000 characters.',400);
         if (!studioTemplates.some(item => item[0] === template)) throw error('Choose a valid template.',400);
         if (!['model','starter','blank'].includes(input.mode)) throw error('Choose how to create the project.',400);
+        const siteTemplate = input.mode === 'starter' && input.siteTemplate ? String(input.siteTemplate) : '';
+        if (siteTemplate && !hasSiteTemplate(siteTemplate)) throw error('Escolha um modelo de site válido.',400);
         const existing = await store.load(id);
         if (existing.studioProjects.length >= 60) throw error('A workspace can have up to 60 Studio projects.',400);
         const connection = input.mode === 'model' ? await openAI.requireConnection(who.session) : null;
@@ -3316,13 +3321,17 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         } else if (input.mode === 'blank') {
           draft = { name:blankName, headline:blankName, summary:'', theme:'indigo', blocks:[] };
           html = pageFromStructure(draft, blankName);
+        } else if (siteTemplate) {
+          const name = (typeof input.name === 'string' && input.name.trim().slice(0,80)) || findSiteTemplate(siteTemplate).brand;
+          draft = { name, headline:name, summary:findSiteTemplate(siteTemplate).description, theme:'indigo', blocks:[] };
         } else {
           draft = starterProject(brief,template);
           html = pageFromStructure(draft);
         }
         if (plan) Object.assign(draft, { name:plan.name, headline:plan.name, summary:plan.summary || draft.summary });
-        const pages = [{ name:plan ? plan.pages[0].name : kind === 'funnel' ? 'Página de captura' : 'Home', slug:'index', html }];
-        if (kind === 'funnel' && !plan) pages.push({ name:'Obrigado', slug:'obrigado', html:thankYouPage(draft) });
+        let pages = [{ name:plan ? plan.pages[0].name : kind === 'funnel' ? 'Página de captura' : 'Home', slug:'index', html }];
+        if (siteTemplate) pages = siteTemplatePages(siteTemplate, { brand:draft.name, kind });
+        else if (kind === 'funnel' && !plan) pages.push({ name:'Obrigado', slug:'obrigado', html:thankYouPage(draft) });
         const doc = newSiteDoc({ workspace:id, project:{ id:'pending' }, pages });
         const created = await change(id,{type:'save',key:'studioProjects',data:{...draft,brief,template,kind,design,reference:reference?.url || ''}});
         doc.project = created.id; doc.profile.name = `AI Studio ${created.id}`;
@@ -3361,6 +3370,17 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const doc = await siteDoc(id, input.id);
         const synced = await syncMeta(id, input.id, doc);
         return json({ id: synced.id, ...workspaceView(who, synced.state), doc: publicDoc(doc), result });
+      }
+      // Prévia dos modelos de site da galeria: conteúdo fixo do catálogo, sem dados de cliente.
+      const templatePreview = p.match(templatePreviewPath);
+      if (templatePreview && method === 'GET') {
+        const [, templateId, slug] = templatePreview;
+        if (!hasSiteTemplate(templateId)) throw error('Modelo de site não encontrado.',404);
+        const thumb = url.searchParams.has('thumb');
+        const html = siteTemplatePreview(templateId, slug, { thumb });
+        const [headers, body] = thumb ? [previewHeaders, html] : withMotion(previewHeaders, html);
+        res.writeHead(200, { ...headers, 'Cache-Control': 'no-cache' });
+        return res.end(body);
       }
       const preview = p.match(previewPath);
       if (preview && method === 'GET') {
@@ -3449,7 +3469,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const pt = /<html\b[^>]*\blang\s*=\s*["']?pt/i.test(page.html), es = /<html\b[^>]*\blang\s*=\s*["']?es/i.test(page.html);
         const notice = url.searchParams.has('sent') ? { ok:true, text:pt ? 'Obrigado! Seus dados foram enviados.' : es ? '¡Gracias! Tus datos fueron enviados.' : 'Thank you! Your details were sent.' }
           : url.searchParams.has('error') ? { ok:false, text:pt ? 'Não foi possível enviar. Confira o nome e o e-mail e tente de novo.' : es ? 'No se pudo enviar. Revisa el nombre y el correo e inténtalo de nuevo.' : 'Your details could not be sent. Check the name and email and try again.' } : '';
-        const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, publicHeaders, renderPublic(page,{ base, notice }));
+        const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, ...withMotion(publicHeaders, renderPublic(page,{ base, notice })));
         res.writeHead(200, siteHeaders);
         return res.end(siteBody);
       }
