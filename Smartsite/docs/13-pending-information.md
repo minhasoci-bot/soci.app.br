@@ -1,15 +1,22 @@
-# Pending Information & Blockers
-> Registro inicial; investigar antes de solicitar. Não são dados verificados.
-| ID | Informação | Impacto | Status |
-|---|---|---|---|
-| P01 | Inventário de funcionalidades, demonstração, maturidade e evidências | escopo/publicação | PENDING |
-| P02 | Planos, preços, limites, taxas, cancelamento, trial | oferta | PENDING |
-| P03 | Recebimento Pix: fluxo, disponibilidade, taxas, elegibilidade | claim de pagamento | PENDING |
-| P04 | URL real de cadastro/checkout, contato, CRM, responsável | conversão | PENDING |
-| P05 | Agenda de calls, timezone, acesso e suporte | prova/operacional | PENDING |
-| P06 | Canal e evidências da comunidade | prova | PENDING |
-| P07 | Logotipo, HEX, fontes, ilustrações e licenças | design lock | PENDING |
-| P08 | Screenshots reais, exemplos de sites, depoimentos autorizados | prova | PENDING |
-| P09 | Razão social, endereço se aplicável, termos e privacidade | legal | PENDING |
-| P10 | Stack, hospedagem, domínio, analytics e acessos autorizados | publicação | PENDING |
-| P11 | Autorização de publicação | deploy | NOT GRANTED |
+# Pending Information
+
+Atualizado em 2026-11-23. Cada item aparece no site como marcador visível `[[...]]` (página sai com `noindex` e fora do sitemap) ou como "Captura da tela pendente".
+
+## Dados do negócio (responsável)
+| Item | Onde aparece | Efeito hoje |
+|---|---|---|
+| Planos, preços, limites e forma de cobrança da assinatura da soci | `/planos/` | página `noindex` |
+| Política de cancelamento e reembolso | `/planos/` | página `noindex` |
+| Horário e link das calls de suporte | `/suporte/` | página `noindex` |
+| Telefone, WhatsApp e e-mail comercial | `/contato/` | página `noindex` |
+| História e equipe | `/sobre/` | página `noindex` |
+| Texto dos termos de uso (jurídico) | `/termos/` | página `noindex` |
+| Razão social e CNPJ (rodapé/termos) | — | não exibidos |
+| HEX oficial do laranja e tipografia oficial | design system | laranja `#ff7a1a` e Familjen Grotesk são propostas |
+| Nota e permissão de uso das avaliações do Google | — | nenhuma avaliação exibida |
+| Domínio: `www.soci.app.br` precisa apontar para o novo site | publicação | não publicado |
+
+## Capturas de tela pendentes
+Capturadas do workspace de demonstração local (dados fictícios): CRM/oportunidades, contatos, conversas, planejador social, agentes de IA, Pergunte à Soci, painel, painel da agência, calendário, setups.
+
+Pendentes (a tela de demonstração está vazia; precisa de dados fictícios ou captura fornecida): sites com IA, funis, formulários, automações, prospecção, e-mail marketing, reputação, pagamentos/Pix, cursos e portal, telefone e discador.
