@@ -1,0 +1,32 @@
+/* Configurações → Rastreamento externo e Pontuação de leads */
+.tk-views{display:flex;gap:4px;margin:0 0 16px;flex-wrap:wrap}
+.tk-views button{padding:7px 14px;border-radius:999px;font:inherit;font-size:13px;font-weight:600;color:var(--muted,#59677a);background:none;border:1px solid transparent;cursor:pointer}
+.tk-views button:hover{background:var(--g-brand-surface,#fff0f6)}
+.tk-views button.active{background:var(--g-brand-surface,#fff0f6);color:var(--g-brand-text,#a00070);border-color:var(--g-brand-line,#fbc8e0)}
+.tk-page .tk-section{display:grid;gap:10px;margin-bottom:14px}
+.tk-page .tk-section h2{margin:0;font-size:16px}
+.tk-page .tk-section p{margin:0}
+.tk-status{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.tk-status>div{flex:1;min-width:0}
+.tk-status p{margin:2px 0 0;overflow-wrap:anywhere}
+.tk-code{display:grid;gap:8px;justify-items:start}
+.tk-code pre{margin:0;width:100%;box-sizing:border-box;padding:12px 14px;border-radius:10px;background:var(--surface-2,#f4f6f9);border:1px solid var(--line,#e3e8ef);overflow-x:auto;font-size:12.5px;line-height:1.5}
+.tk-list{margin:0;padding-left:18px;display:grid;gap:6px}
+.tk-page .metrics{margin-bottom:14px}
+.sc-score{font-variant-numeric:tabular-nums}
+.sc-score.neg{color:var(--danger,#c0262d)}
+.sc-starters{display:grid;gap:6px}
+.sc-starter{display:flex;align-items:center;gap:10px;font-weight:400}
+.sc-toggle input{width:18px;height:18px}
+.sc-form .sc-config{display:grid;gap:12px}
+.sc-form .sc-config:empty{display:none}
+.sc-form .rp-save{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.sc-form .rp-save .form-status{margin-right:auto}
+.sc-contact{margin:6px 0 4px;padding:10px 12px;border:1px solid var(--line,#e3e8ef);border-radius:10px}
+.sc-contact summary{cursor:pointer;display:flex;align-items:center;gap:6px;font-weight:600}
+.sc-contact ul{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:6px}
+.sc-contact li{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+
+/* Central de preferências (6b.4) */
+.pf-topics{list-style:none;margin:0;padding:0;display:grid;gap:8px}.pf-topic{display:grid;grid-template-columns:1fr 1.5fr auto;gap:8px;align-items:center}
+.pf-contact{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:6px 0;padding:10px 12px;border:1px solid var(--line,#e3e8ef);border-radius:10px;font-size:13px}

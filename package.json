@@ -13,8 +13,7 @@
     "test": "node --test --test-isolation=none \"test/**/*.test.mjs\"",
     "smoke": "node scripts/smoke-deploy.mjs",
     "lint": "biome lint .",
-    "typecheck": "tsc -p tsconfig.json",
-    "vercel-build": "node scripts/sync-public.mjs"
+    "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",

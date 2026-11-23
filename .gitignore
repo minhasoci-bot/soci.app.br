@@ -9,6 +9,3 @@ supabase/.temp/
 
 .vercel
 .env*
-
-# Gerado no build da Vercel a partir de ui/ (npm run vercel-build). Não versionar.
-/public/

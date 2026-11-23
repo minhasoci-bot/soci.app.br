@@ -6,7 +6,7 @@ Este diretório contém os catálogos completos de tradução de toda a platafor
 - **Português (Brasil)**: `pt.js` (idioma canônico; as chaves de todos os catálogos são os textos em português)
 - **Español Latinoamericano**: `es.js` (es-419), importado por `ui/i18n.js`
 
-Cada catálogo é um módulo `export default { "texto em português": "tradução" }`. Não há cópia `.json`: edite só o `.js`. A pasta `public/` é gerada no build a partir de `ui/`.
+Cada catálogo é um módulo `export default { "texto em português": "tradução" }`. Não há cópia `.json`: edite só o `.js`. Depois de editar, rode `node scripts/sync-public.mjs` para atualizar o espelho em `public/`.
 
 ---
 

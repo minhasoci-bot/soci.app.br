@@ -1,7 +1,7 @@
 // i18n: Suporte completo a Português (Brasil) e Espanhol Latinoamericano (es-419).
 // O idioma padrão é Português. O usuário escolhe o idioma via interface,
 // e a seleção persiste no localStorage ('soci_lang').
-// O catálogo de traduções fica em ui/locales/*.js (public/ é gerado no build a partir de ui/).
+// O catálogo de traduções fica em ui/locales/*.js (public/ é o espelho de ui/: scripts/sync-public.mjs).
 
 import esLocale from './locales/es.js';
 

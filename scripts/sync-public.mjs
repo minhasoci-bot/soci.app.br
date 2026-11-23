@@ -1,12 +1,14 @@
-// Gera public/ a partir de ui/ no build da Vercel (npm run vercel-build).
+// Espelha o front-end de ui/ em public/.
 //
-// Na Vercel, public/ é servido como arquivo estático antes do rewrite para api/index.mjs, e a função
-// não lê de forma confiável os arquivos de ui/ que faltam em public/ (respondem 500). Um módulo que
-// exista só em ui/ quebra toda página que o importa: o app fica em "Abrindo a soci…" (21/11/2026).
-// ui/ é a fonte; public/ não é versionado e nasce aqui a cada build, sempre de ui/ para public/.
+// Na Vercel, public/ é servido pela CDN antes do rewrite para a função; sem ele, cada .js e .css vira uma
+// chamada à função, sem cache. O preset de Node da Vercel só publica o public/ que está no repositório
+// (um public/ gerado no build é ignorado), por isso ele é versionado. Se faltar um arquivo aqui, a função
+// ainda o serve de ui/ (includeFiles "ui/**" em server.mjs no vercel.json); antes dessa correção, o
+// arquivo faltando respondia 500 e o app ficava em "Abrindo a soci…" (21/11/2026).
+// ui/ é a fonte; este script só copia de ui/ para public/, nunca o contrário.
 //
 //   node scripts/sync-public.mjs             copia o que falta ou mudou em public/
-//   node scripts/sync-public.mjs --out <dir> gera o espelho em outra pasta (testes)
+//   node scripts/sync-public.mjs --out <dir> gera o espelho em outra pasta
 //   node scripts/sync-public.mjs --check     lista o que está fora de sincronia e sai com 1 se houver algo
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
