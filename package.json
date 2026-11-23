@@ -3,12 +3,21 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "start": "node --env-file-if-exists=.env.local server.mjs",
     "migrate:sqlite": "node --env-file-if-exists=.env.local migrate-sqlite.mjs",
     "build:dark": "node scripts/build-dark.mjs",
     "test": "node --test --test-isolation=none \"test/**/*.test.mjs\"",
-    "smoke": "node scripts/smoke-deploy.mjs"
+    "smoke": "node scripts/smoke-deploy.mjs",
+    "lint": "biome lint .",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.6",
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3"
   }
 }
