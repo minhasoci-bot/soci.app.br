@@ -685,7 +685,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
       Object.assign(existing, record, { updated: now() });
       return existing.id;
     }
-    const created = add(s, 'pranchetaFiles', { ...record, id: id || uid(), created: now(), updated: now() });
+    const at = now();
+    const created = add(s, 'pranchetaFiles', { ...record, id: id || uid(), created: at, updated: at });
     return created.id;
   }
   if (type === 'prancheta-delete') {
@@ -819,7 +820,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     const stage = find(s,'stages',d.stage);
     if (!stage) fail('Selecione uma etapa válida.');
     if (record.stage !== stage.id) {
-      Object.assign(record,{ stage:stage.id, pipelineId:stage.pipelineId, updated:now(), stageChangedAt:now() });
+      const at = now(); // um só instante: updated e stageChangedAt iguais
+      Object.assign(record,{ stage:stage.id, pipelineId:stage.pipelineId, updated:at, stageChangedAt:at });
       run(s,'Opportunity stage changed',record);
     }
     return id;
@@ -833,13 +835,15 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     const details = fields[key](s, key === 'workflows' ? { ...prior, ...d, id } : { ...d, id });
     if (key === 'contacts') rejectDuplicateContact(s, { ...prior, ...details }, prior);
     const row = prior ? { ...prior, ...details, updated: now() } : add(s,key,details);
+    // Datas de mudança da oportunidade: o mesmo instante da gravação (updated, ou created se o registro é novo).
+    const savedAt = prior ? row.updated : row.created;
     if (key==='agents' && prior) {
       row.revision = uid();
       if (prior.published) row.active = true;
     }
     if (key === 'opportunities') {
-      row.statusChangedAt = !prior || row.status !== prior.status ? now() : prior.statusChangedAt || prior.created;
-      row.stageChangedAt = !prior || row.stage !== prior.stage ? now() : prior.stageChangedAt || prior.created;
+      row.statusChangedAt = !prior || row.status !== prior.status ? savedAt : prior.statusChangedAt || prior.created;
+      row.stageChangedAt = !prior || row.stage !== prior.stage ? savedAt : prior.stageChangedAt || prior.created;
     }
     if (key === 'studioProjects' && !prior) row.viewedAt = row.created;
     if (['bulkActions','imports'].includes(key)) fail('Unknown record type.');
