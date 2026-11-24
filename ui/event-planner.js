@@ -40,8 +40,8 @@ function eventProgress(event) {
 
 /* ── Linha do tempo ── */
 const todayOf = c => new Intl.DateTimeFormat('en-CA', { timeZone: c.s.profile?.timezone || 'America/Sao_Paulo' }).format(new Date());
-const toggle = (attr, rows, current) => `<span class="ep-toggle" role="group">${rows.map(([value, label]) => `<button type="button" class="secondary" ${attr}="${value}" aria-pressed="${value === current}">${label}</button>`).join('')}</span>`;
-const timelineTools = () => `<span class="ep-send-tools">${toggle('data-ep-tl-zoom', [['day', 'Dia'], ['week', 'Semana']], ui.zoom)}<button type="button" class="secondary" data-ep-tl-today>Hoje</button></span>`;
+const toggle = (attr, rows, current) => `<span class="ep-toggle" role="group">${rows.map(([value, label]) => `<button type="button" ${attr}="${value}" aria-pressed="${value === current}">${label}</button>`).join('')}</span>`;
+const timelineTools = () => `<span class="ep-send-tools">${toggle('data-ep-tl-zoom', [['day', 'Dia'], ['week', 'Semana']], ui.zoom)}<button type="button" class="secondary" data-ep-tl-today>${i('k', 15)} Hoje</button></span>`;
 const timeline = (c, groups) => timelineHtml({ groups, zoom: ui.zoom, today: todayOf(c) });
 
 /* ── Galeria ── */
@@ -58,7 +58,7 @@ function gallery(c, pageShell, marketingTabs, shown = ui.view) {
   const create = primary(`${i('plus', 16)} Novo evento`, 'type="button" data-ep-new');
   const nothing = all.length
     ? empty('Nenhum evento com este status', 'Troque o filtro para ver os outros eventos.', 'filter')
-    : `<div class="empty">${i('calendar', 26)}<strong>Nenhum evento planejado</strong><p>Crie um plano com estratégia, tarefas, mensagens, roteiro e links do lançamento.</p>${create}</div>`;
+    : `<div class="empty">${i('k', 26)}<strong>Nenhum evento planejado</strong><p>Crie um plano com estratégia, tarefas, mensagens, roteiro e links do lançamento.</p>${create}</div>`;
   const filter = all.length ? `<div class="ep-toolbar"><label>Status<select data-ep-status-filter>${optionRows([['active', 'Ativos'], ['all', 'Todos'], ...eventPlanStatuses], ui.events)}</select></label><span class="spacer"></span>${shown === 'timeline' ? timelineTools() : ''}${toggle('data-ep-view', [['cards', 'Cartões'], ['timeline', 'Linha do tempo']], shown)}</div>` : '';
   return pageShell({ title: 'Planejador de eventos', desc: 'Organize estratégia, operação e comunicação de cada lançamento desta subconta.', className: 'ep', cta: create, tabs: { key: 'marketing', items: marketingTabs, current: 'events', label: 'Seções de marketing' }, content: `${filter}${shown === 'timeline' && events.length ? timeline(c, galleryGroups(events)) : `<section class="ep-gallery" aria-label="Eventos planejados">${events.map(eventCard).join('') || nothing}</section>`}` });
 }
@@ -115,7 +115,7 @@ function linksSection(c, event) {
 }
 function timelineSection(c, event) {
   const groups = eventGroups(event);
-  return `${sectionHead('Linha do tempo', 'Arraste para remarcar, ou use as setas do teclado. Clique para editar.', groups.length ? timelineTools() : '')}${groups.length ? timeline(c, groups) : empty('Nada para mostrar ainda', 'Crie tarefas ou mensagens com data para ver a linha do tempo.', 'calendar')}`;
+  return `${sectionHead('Linha do tempo', 'Arraste para remarcar, ou use as setas do teclado. Clique para editar.', groups.length ? timelineTools() : '')}${groups.length ? timeline(c, groups) : empty('Nada para mostrar ainda', 'Crie tarefas ou mensagens com data para ver a linha do tempo.', 'k')}`;
 }
 function integrationsSection(_c, event) {
   const sends = sendSummary(event);

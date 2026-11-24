@@ -106,8 +106,12 @@
 .ec-preview { min-height:220px; max-height:420px; overflow:auto; padding:10px 12px; border:1px dashed var(--g-line-strong); border-radius:var(--r-control); background:var(--g-surface-2); color:var(--g-ink-2); font-size:13px; line-height:1.55; }
 
 .ep-toolbar .spacer { flex:1; }
-.ep-toggle { display:inline-flex; gap:4px; }
-:root .ep .ep-toggle .secondary[aria-pressed="true"] { border-color:var(--g-brand-line); background:var(--g-brand-surface); color:var(--g-brand-text); }
+/* Mesmo desenho das abas do sistema: trilho e pílula. */
+.ep-toggle { display:inline-flex; padding:3px; border-radius:var(--r-pill); background:var(--g-fill); }
+:root .ep .ep-toggle button { min-height:30px; width:auto; padding:0 13px; border:0; border-radius:var(--r-pill); background:transparent; box-shadow:none; color:var(--g-ink-2); font-size:13px; font-weight:550; white-space:nowrap; }
+:root .ep .ep-toggle button:hover { color:var(--g-ink); }
+:root .ep .ep-toggle button:focus-visible { outline:2px solid var(--g-ink); outline-offset:-2px; }
+:root .ep .ep-toggle button[aria-pressed="true"] { background:var(--g-utabs-indicator); box-shadow:var(--g-shadow); color:var(--g-ink); font-weight:650; }
 .ep-tl { border:1px solid var(--g-line); border-radius:var(--g-r); background:var(--g-surface); overflow:hidden; }
 .ep-tl-scroll { position:relative; max-height:70vh; overflow:auto; }
 .ep-tl-scroll:focus-visible { outline:2px solid var(--g-brand); outline-offset:-2px; }
