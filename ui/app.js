@@ -12,6 +12,7 @@ import { cardFields, cardLayouts, opportunityCsv, opportunityCsvColumns, opportu
 import { opportunityEvents } from './opportunities.js';
 import { parseCsv } from './social-data.js';
 import { readFiscal } from './fiscal.js';
+import { installLedger } from './ledger.js';
 import { formatTaxId } from './tax-id.js';
 import { afterStudioRender, exportStudioProject, installStudio, studioBlock } from './studio.js';
 import { studioTemplates } from './studio-data.js';
@@ -356,7 +357,7 @@ function render(){
   applyBrandColor(c.agency?.primary, c.agency?.secondary, c.agency?.accent);
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
-  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.billingNotice==='past_due'?`<p class="surface padded ag-warn" role="status">${h(tr('O pagamento do plano desta subconta foi recusado. Confira o cartão ou fale com a sua agência para não perder o acesso.'))}</p>`:''}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}${c.launchpadReturn && c.view!=='launchpad' ? `<div class="lp-return"><a href="#launchpad/${h(c.launchpadReturn)}">${i('left',14)} Voltar ao guia</a><span>Continue a configuração. Seu progresso será reconhecido ao voltar.</span><button class="icon-btn" aria-label="Fechar lembrete do guia" data-act="launchpad-dismiss">${i('close',14)}</button></div>` : ''}<main id="screen" class="screen">${screenHtml}</main></div></div>`;
+  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}${c.launchpadReturn && c.view!=='launchpad' ? `<div class="lp-return"><a href="#launchpad/${h(c.launchpadReturn)}">${i('left',14)} Voltar ao guia</a><span>Continue a configuração. Seu progresso será reconhecido ao voltar.</span><button class="icon-btn" aria-label="Fechar lembrete do guia" data-act="launchpad-dismiss">${i('close',14)}</button></div>` : ''}<main id="screen" class="screen">${c.billingNotice==='past_due'?`<div class="page-notice"><p class="surface padded ag-warn" role="status">${h(tr('O pagamento do plano desta subconta foi recusado. Confira o cartão ou fale com a sua agência para não perder o acesso.'))}</p></div>`:''}${screenHtml}</main></div></div>`;
   if (getLanguage() === 'es') translateDom(app);
   mountBeautifulUI(G('#screen'), c, { render });
   if(c.view==='conversations'&&c.thread) {const area=G('.thread-messages');if(area)area.scrollTop=area.scrollHeight;}
@@ -1307,6 +1308,7 @@ if(viewPath){
   installEmailMarketing({ c, mutate, flash, dialog, close, render, api, url, load });
   installReputation({ c, api, url, mutate, flash, dialog, close, render });
   installSeo({ c, api, url, mutate, flash, dialog, close, render });
+  installLedger('account', { api, render });
   installWallet({ c, api, url, flash, render });
   installLabs({ c, mutate, flash, render });
   installConversationAi({ c, api, url, flash, render });

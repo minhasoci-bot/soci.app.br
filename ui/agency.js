@@ -13,6 +13,7 @@ import { money, utabs } from './screens.js';
 import { colorPicker, mountColorPicker } from './color-picker.js';
 import { phoneField } from './phone-input.js';
 import { fiscalForm, fiscalMissing, readFiscal } from './fiscal.js';
+import { installLedger, ledgerPanel } from './ledger.js';
 import { createProspecting, prospectRoutes } from './prospecting.js';
 import { createSociChat } from './soci-chat.js';
 import { enhanceCode } from './bui-mounts.js';
@@ -40,7 +41,7 @@ const subTabs = {
   affiliate: [['dashboard', 'Painel'], ['reports', 'Relatórios de indicações'], ['payment', 'Dados de pagamento'], ['history', 'Histórico de pagamentos']],
   ideas: [['all', 'Todas'], ['Under review', 'Em análise'], ['Planned', 'Planejadas'], ['In progress', 'Em andamento'], ['Completed', 'Concluídas']],
   saas: [['overview', 'Visão geral'], ['plans', 'Planos SaaS'], ['rebilling', 'Rebilling da carteira'], ['accounts', 'Subcontas SaaS']],
-  settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['fiscal', 'Cadastro fiscal'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'],
+  settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['fiscal', 'Cadastro fiscal'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'], ['ledger', 'Livro da cobrança'],
     ['whatsapp', 'WhatsApp'], ['email-services', 'Serviços de e-mail'], ['emails', 'E-mails do sistema'], ['announcements', 'Comunicados'],
     ['workflow-premium', 'Workflow: recursos premium'], ['external-ai', 'Workflow: IA externa'], ['domain-purchase', 'Compra de domínios'],
     ['openai', 'OpenAI'], ['private-integrations', 'Integrações privadas'], ['affiliates', 'Afiliados'], ['menu-links', 'Links de menu'], ['abacatepay', 'AbacatePay'], ['api-keys', 'Chaves de API'],
@@ -1155,6 +1156,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     'domain-purchase': () => featureTable('domain-purchase'),
     affiliates: () => { const aff = D().affiliate, link = `${location.origin}/?ref=${aff.code}`; return `<div class="surface padded"><h2>Configurações de afiliado</h2>${aff.accepted ? `<p>Este é o seu link de afiliado. Quem se cadastrar por ele gera ${Math.round(affiliateRate * 100)}% de comissão recorrente para você.</p><div class="ag-copy"><input readonly value="${h(link)}" aria-label="Link de afiliado">${btn('Copiar link', 'copy', `data-text="${h(link)}"`)}</div><p class="dim">Acrescente <code>?ref=${h(aff.code)}</code> ao final de qualquer URL do seu site.</p>` : `<p class="dim">Aceite os termos no Portal de afiliados para gerar seu link.</p><a class="secondary" href="#agency/affiliate">Abrir Portal de afiliados</a>`}</div>
       <form class="surface padded settings-form ag-gap" data-ag-form="affiliate-pixel"><h2>Configurações da página</h2><label>ID do Pixel do Facebook<input name="pixelId" inputmode="numeric" maxlength="20" placeholder="ID do Pixel" value="${h(aff.pixelId || '')}"></label><button class="primary">Salvar</button><p class="form-status" role="alert"></p></form>`; },
+    ledger: () => `<div class="page-head"><div><h2>Livro da cobrança</h2><p class="dim">O que a agência recebeu das subcontas: planos, recargas e o movimento das carteiras.</p></div></div>${ledgerPanel({ scope: 'agency', accounts: accounts() })}`,
     fiscal: () => fiscalForm(D().fiscal, { attr: 'data-ag-form="fiscal"', intro: 'Estes dados identificam a agência nos planos e créditos que ela vende às subcontas e vão para o livro que o contador usa.' }),
     abacatepay: abacateSettings,
     announcements: () => `<div class="page-head"><div><h2>Comunicados gerais</h2><p class="dim">Comunicados ativos são exibidos em banner de destaque no topo das subcontas selecionadas.</p></div>${primary('Novo comunicado', 'new-record', 'data-key="announcements"')}</div>${table(['Título', 'Estilo', 'Público-alvo', 'Status', ''], [...D().announcements].reverse().map(a => `<tr><td><b>${h(a.title)}</b><br><small class="dim">${h(a.body.slice(0, 90))}</small></td><td>${h(tr(a.tone))}</td><td><small>${a.accounts.length ? h(a.accounts.map(accountName).join(', ')) : 'Todas as subcontas'}</small></td><td>${badge(a.published ? 'Publicado' : 'Rascunho', a.published ? 'green' : '')}</td><td class="right">${btn('Editar', 'edit-record', `data-key="announcements" data-id="${a.id}"`)}</td></tr>`), empty('Nenhum comunicado', 'Crie comunicados informativos ou alertas para os clientes da agência.'))}`,
@@ -1291,6 +1293,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
   const oneAccount = (label = 'Subconta de destino') => `<label>${h(label)}<select name="workspace" required>${accounts().map(a => `<option value="${a.id}">${h(a.name)}</option>`).join('')}</select></label>`;
   const secretBox = (title, secret) => dialog(title, `<p>Copie este código agora. Ele não será exibido novamente.</p><div class="ag-copy"><input readonly value="${h(secret)}" aria-label="Código secreto">${btn('Copiar', 'copy', `data-text="${h(secret)}"`)}</div>`);
 
+  installLedger('agency', { api, render });
   document.addEventListener('click', async ev => {
     if (!active()) return;
 
