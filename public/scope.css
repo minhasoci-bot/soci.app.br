@@ -1,0 +1,133 @@
+/* Scope signature: tells the agency panel apart from a sub-account at a glance.
+   Agency  = aurora backdrop (sky → lilac → brand pink) under a frosted-glass sidebar and topbar.
+   Sub-account = the plain, quiet surface it always had.
+   Both shells also carry a scope pill at the start of the topbar, so the cue never relies on colour alone.
+   Hand-written (not part of scripts/build-dark.mjs); the dark rules live at the end of this file. */
+
+/* ───────── Agency aurora ───────── */
+.ag-shell{
+  --ag-sky:#7cc8f5;
+  --ag-lilac:#c7b3ee;
+  --ag-pink:color-mix(in srgb,var(--g-brand) 62%,#ffb3dd);
+  --ag-aurora-alpha:1;
+  --ag-glass:rgba(255,255,255,.4);
+  --ag-glass-line:rgba(255,255,255,.72);
+  position:relative;
+  isolation:isolate;
+}
+.ag-shell::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  z-index:-1;
+  pointer-events:none;
+  opacity:var(--ag-aurora-alpha);
+  background:
+    radial-gradient(70% 90% at -5% 105%,color-mix(in srgb,var(--ag-sky) 85%,transparent) 0%,transparent 62%),
+    radial-gradient(55% 70% at 42% -10%,color-mix(in srgb,var(--ag-lilac) 70%,transparent) 0%,transparent 66%),
+    radial-gradient(65% 85% at 108% 55%,color-mix(in srgb,var(--ag-pink) 70%,transparent) 0%,transparent 64%),
+    linear-gradient(112deg,#e3f1fc 0%,#ece6f8 46%,#fbe8f3 100%);
+}
+
+/* frosted glass over the aurora */
+.ag-shell .g-side{
+  --g-spot-bg:var(--ag-glass);
+  -webkit-backdrop-filter:blur(28px) saturate(1.5);
+  backdrop-filter:blur(28px) saturate(1.5);
+  border-right-color:var(--ag-glass-line);
+  box-shadow:1px 0 0 rgba(15,19,26,.04);
+}
+.ag-shell .topbar.g-top{
+  background:rgba(255,255,255,.36);
+  -webkit-backdrop-filter:blur(28px) saturate(1.5);
+  backdrop-filter:blur(28px) saturate(1.5);
+  border-bottom-color:var(--ag-glass-line);
+}
+.ag-shell .side-account{
+  background:rgba(255,255,255,.7);
+  border-color:var(--ag-glass-line);
+}
+.ag-shell .g-side .nav-link:hover,.ag-shell .g-side .nav-link:focus-visible{background:rgba(255,255,255,.62)}
+.ag-shell .g-side .nav-link.current{background:rgba(255,255,255,.78);box-shadow:0 1px 2px rgba(15,19,26,.05)}
+
+/* ───────── Scope pill (both shells) ───────── */
+.scope-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  flex:none;
+  height:26px;
+  margin-right:12px;
+  padding:0 11px 0 9px;
+  border:1px solid var(--g-line-2);
+  border-radius:999px;
+  background:var(--g-surface);
+  color:var(--g-dim);
+  font-size:12px;
+  font-weight:700;
+  line-height:1;
+  white-space:nowrap;
+}
+.scope-pill::before{
+  content:'';
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:var(--g-dim);
+  opacity:.55;
+}
+.scope-pill-agency{
+  border-color:transparent;
+  background:
+    linear-gradient(var(--g-surface),var(--g-surface)) padding-box,
+    linear-gradient(100deg,var(--ag-sky),var(--ag-lilac) 50%,var(--ag-pink)) border-box;
+  color:var(--g-ink);
+}
+.scope-pill-agency::before{
+  opacity:1;
+  background:linear-gradient(135deg,var(--ag-sky),var(--ag-lilac) 50%,var(--ag-pink));
+}
+@media (max-width:640px){
+  .scope-pill{width:24px;height:24px;margin-right:6px;padding:0;justify-content:center}
+  .scope-pill .scope-text{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+}
+
+/* ───────── Dark theme ───────── */
+:root[data-theme=dark] .ag-shell{
+  --ag-sky:#3d8fc4;
+  --ag-lilac:#7a62b8;
+  --ag-pink:color-mix(in srgb,var(--g-brand) 70%,#5a1240);
+  --ag-aurora-alpha:.9;
+  --ag-glass:rgba(14,15,19,.62);
+  --ag-glass-line:rgba(255,255,255,.07);
+}
+:root[data-theme=dark] .ag-shell::before{
+  background:
+    radial-gradient(70% 90% at -5% 105%,color-mix(in srgb,var(--ag-sky) 75%,transparent) 0%,transparent 62%),
+    radial-gradient(55% 70% at 42% -10%,color-mix(in srgb,var(--ag-lilac) 60%,transparent) 0%,transparent 66%),
+    radial-gradient(65% 85% at 108% 55%,color-mix(in srgb,var(--ag-pink) 70%,transparent) 0%,transparent 64%),
+    #0b0c0e;
+}
+:root[data-theme=dark] .ag-shell .g-side{background:var(--ag-glass);border-right-color:var(--ag-glass-line)}
+:root[data-theme=dark] .ag-shell .topbar.g-top{background:rgba(11,12,14,.55);border-bottom-color:var(--ag-glass-line)}
+:root[data-theme=dark] .ag-shell .side-account{background:rgba(255,255,255,.05);border-color:var(--ag-glass-line)}
+:root[data-theme=dark] .ag-shell .g-side .nav-link:hover,:root[data-theme=dark] .ag-shell .g-side .nav-link:focus-visible{background:rgba(255,255,255,.06)}
+:root[data-theme=dark] .ag-shell .g-side .nav-link.current{background:rgba(255,255,255,.09);box-shadow:none}
+:root[data-theme=dark] .scope-pill{background:var(--g-surface-2)}
+:root[data-theme=dark] .scope-pill-agency{
+  background:
+    linear-gradient(var(--g-surface-2),var(--g-surface-2)) padding-box,
+    linear-gradient(100deg,var(--ag-sky),var(--ag-lilac) 50%,var(--ag-pink)) border-box;
+}
+
+/* phone: the expanded sidebar becomes a drawer over the content, so the glass must hide what is behind it */
+@media (max-width:700px){
+  .ag-shell.wide{--ag-glass:rgba(255,255,255,.9)}
+  :root[data-theme=dark] .ag-shell.wide{--ag-glass:rgba(14,15,19,.94)}
+}
+
+@media (prefers-reduced-transparency:reduce){
+  .ag-shell .g-side,.ag-shell .topbar.g-top{-webkit-backdrop-filter:none;backdrop-filter:none}
+  .ag-shell{--ag-glass:rgba(255,255,255,.92)}
+  :root[data-theme=dark] .ag-shell{--ag-glass:rgba(14,15,19,.95)}
+}

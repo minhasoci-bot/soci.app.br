@@ -181,6 +181,7 @@ export function startAgency(env) {
       ]
     })}
     <div class="workspace">${topbar({
+      scope: 'agency',
       crumbs: [
         { label: company.name || tr('Agência'), href: '#agency/dashboard' },
         { label: currentPageLabel }

@@ -188,7 +188,7 @@ export const staticFiles = new Map([
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
   ['/beautiful-ui.js','text/javascript; charset=utf-8'], ['/beautiful-ui.css','text/css; charset=utf-8'],
   ['/beautiful-ui-more.js','text/javascript; charset=utf-8'], ['/beautiful-ui.html','text/html; charset=utf-8'], ['/bui-mounts.js','text/javascript; charset=utf-8'],
-  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'],
+  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'], ['/scope.css','text/css; charset=utf-8'],
   ['/vendor/marked.js','text/javascript; charset=utf-8'], ['/vendor/purify.js','text/javascript; charset=utf-8'],
   ['/color-picker.js','text/javascript; charset=utf-8'],
   ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],

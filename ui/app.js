@@ -316,7 +316,7 @@ function appTopbar(){
   const active=nav.find(x=>x[0]===c.view), page=c.view==='link'?c.agency?.menuLinks.find(l=>l.id===c.tab)?.title||'Link':tr(active?.[1]);
   const profileLabel = session?.name || tr('Perfil do workspace');
   const profileText = session?.name?.slice(0, 2).toUpperCase() || 'gr';
-  return topbar({crumbs:[{label:c.s.profile.name,href:'#launchpad'},{label:page}],search:'data-act="search"',
+  return topbar({scope:'account',crumbs:[{label:c.s.profile.name,href:'#launchpad'},{label:page}],search:'data-act="search"',
     tools:[{icon:'bell',label:tr('Notificações'),attr:'data-act="notifications"'}],
     profile:{text:profileText,picture:session?.picture||'',label:profileLabel,attr:session?'data-act="account"':'data-go="settings"'}});
 }
