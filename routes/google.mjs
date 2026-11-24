@@ -3,11 +3,12 @@
 // lead do Google Ads (/api/google-leads/<subconta>).
 // Extraído do server.mjs sem mudar comportamento (plano de melhoria P2.1). Recebe do servidor o que vive no
 // fechamento de makeServer (deps) e, a cada requisição, o contexto da rota (ctx).
-import { hasModule } from '../authorization.mjs';
-import { exchangeGoogle, googleAuthUrl, revokeGoogle } from '../google-integrations.mjs';
+import { hasModule, workspaceView } from '../authorization.mjs';
+import { exchangeGoogle, googleAuthUrl, googleError, listGoogleReviews, replyGoogleReview, revokeGoogle, updateLocation } from '../google-integrations.mjs';
 import { googleLeadFields, googleLeadKeyValid } from '../lead-forms.mjs';
 import { execute, uid } from '../model.mjs';
 import { seal, unseal } from '../social-providers.mjs';
+import { hoursPeriods } from '../ui/gbp-data.js';
 import { NEXT_ROUTE } from './next-route.mjs';
 
 export function createGoogleRoutes(deps) {
@@ -112,6 +113,64 @@ export function createGoogleRoutes(deps) {
         { workspace, attribution: { first: touch, last: touch } }));
       flushLater(workspace);
       return json({});
+    }
+    return NEXT_ROUTE;
+  };
+}
+
+// Perfil da Empresa no Google (/api/gbp/<op>): status do local, edição do perfil (descrição, telefone, site e horários),
+// importação das avaliações e respostas publicadas no Google. Mesma origem e mesmo contrato das rotas acima.
+export function createGbpRoutes(deps) {
+  const {
+    store, error, spaceId, change, flushLater, gbpAccess, gbpStatus, payload, recordAudit, workspaceAccess
+  } = deps;
+  return async function gbpRoute({ req, res, p, method, url, id, json }) {
+    const gbpAction = p.match(/^\/api\/gbp\/(status|profile|sync|reply)$/);
+    if (gbpAction) {
+      if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
+      const who = await workspaceAccess(req, res, id, { modules: ['reputation'] });
+      const op = gbpAction[1];
+      if (op === 'status' && method === 'GET') return json(await gbpStatus(id, url.searchParams.get('refresh') === '1'));
+      if (method !== 'POST') throw error('Method not allowed.', 405);
+      const input = await payload(req);
+      const access = await gbpAccess(id);
+      if (op === 'profile') {
+        const patch = {};
+        if (input.description !== undefined) {
+          const text = String(input.description || '').trim();
+          if (text.length > 750) throw error('A descrição do Google aceita até 750 caracteres.', 400);
+          if (/https?:\/\/|www\./i.test(text)) throw error('O Google não aceita links na descrição.', 400);
+          patch.description = text;
+        }
+        if (input.phone !== undefined) patch.phone = String(input.phone || '').trim().slice(0, 30);
+        if (input.website !== undefined) {
+          const site = String(input.website || '').trim();
+          if (site && !/^https?:\/\/[^\s]+$/i.test(site)) throw error('Use um site que comece com https://', 400);
+          patch.website = site;
+        }
+        if (Array.isArray(input.hours)) patch.hours = hoursPeriods(input.hours);
+        await updateLocation(access.token, access.location, patch).catch(problem => { throw problem.status === 400 ? problem : googleError(problem); });
+        await recordAudit(who, 'Perfil do Google atualizado', id, Object.keys(patch).join(', ')).catch(() => {});
+        return json(await gbpStatus(id, true));
+      }
+      if (op === 'sync') {
+        if (!access.account) throw error('Não encontramos a conta deste local. Escolha o local de novo em Configurações → Google.', 409);
+        const reviews = await listGoogleReviews(access.token, access.account, access.location).catch(problem => { throw googleError(problem); });
+        const result = await change(id, { type: 'gbp-reviews-import', data: { reviews } });
+        if (result.state.workflowOutbox?.length) flushLater(id);
+        return json({ ...result.id, total: reviews.length, ...workspaceView(who, result.state) });
+      }
+      if (op === 'reply') {
+        const state = await store.load(id);
+        const review = state.reviews.find(row => row.id === input.reviewId && row.googleName);
+        if (!review) throw error('Avaliação do Google não encontrada.', 404);
+        if (!review.googleName.startsWith(`${access.account}/${access.location}/`)) throw error('Esta avaliação é de outro local do Google.', 409);
+        const reply = String(input.reply || '').trim().slice(0, 2500);
+        await replyGoogleReview(access.token, review.googleName, reply).catch(problem => { throw googleError(problem); });
+        const result = await change(id, { type: 'save', key: 'reviews', id: review.id, data: { author: review.author, score: review.score, text: review.text, reply } }, who);
+        return json({ ok: true, ...workspaceView(who, result.state) });
+      }
+      throw error('Not found.', 404);
     }
     return NEXT_ROUTE;
   };
