@@ -50,6 +50,7 @@ import { osmLookup, osmSearch } from './prospecting-osm.mjs';
 import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
 import { hasPixels, injectPixels, pixelsScript, trackerScript, trackingOf, widenCsp } from './tracking.mjs';
 import { createTrackingLog } from './tracking-events.mjs';
+import { scopedReads } from './read-scope.mjs';
 import { AUDIT_IN_DOCUMENT, createAuditLog } from './agency-audit.mjs';
 import { adSettingsOf, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
@@ -329,6 +330,8 @@ export function makeServer({
   portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(), campaignMail=campaignMailer(),
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1', r2=r2FromEnv()
 }={}) {
+  const cronReads = scopedReads(store);
+  store = cronReads.store;
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
   const content = { transformText, writeEmail, writeReviewReply, writeBrandVoice, writeCaption, writePost, postSeo, transcribeAudio, summarizeMeeting, askAssistant, writeConversationReply, writeConversationSummary, ...contentAI };
   // The default brand board's voice, added by the server to every AI writer (never taken from the browser).
@@ -1948,10 +1951,13 @@ export function makeServer({
     }, { concurrency: 10, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
     await runInBatches(due, async id => { try { await eventSender.run(id); } catch (e) { console.error(`Event messages (${id}): ${e.message}`); } }, { concurrency: 25, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
   }
-  async function runAllSocial(base, at = Date.now()) {
+  // Each document is read once per round, not once per task (read-scope.mjs).
+  const runAllSocial = (base, at = Date.now()) => cronReads.run(() => runSocialRound(base, at));
+  async function runSocialRound(base, at) {
     let total = 0;
-    inBackground('Event messages', () => runAllEventSends());
     const spaces = (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id));
+    await cronReads.prime(spaces.map(w => w.id)).catch(e => console.error(`Cron (revisões): ${e.message}`));
+    inBackground('Event messages', () => runAllEventSends());
     const { skipped } = await runInBatches(spaces, async w => {
       try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
       try { await runWebinarReminders(w.id, base); } catch (e) { console.error(`Webinar reminders (${w.id}): ${e.message}`); }
