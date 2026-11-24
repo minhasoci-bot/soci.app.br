@@ -1307,7 +1307,7 @@ if(viewPath){
   void installMobileShell({ c, api, url, flash });
   installAppMarketplace({ c, api, url, flash, render });
   installContentAI({ api, flash, workspace: () => c.workspace, enabled: kind => Boolean(c.features?.contentAI || (kind === 'gbp' && c.features?.reviewAI)) });
-  installEventPlanner({ c, mutate, flash, dialog, close, render });
+  installEventPlanner({ c, mutate, flash, dialog, close, render, api, url, load });
   installCountdowns({ c, mutate, flash, dialog, close, render });
   installAffiliates({ c, api, url, mutate, flash, dialog, close, render });
   installAds({ c, api, url, mutate, flash, dialog, close, render });

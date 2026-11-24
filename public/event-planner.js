@@ -1,5 +1,6 @@
 import { icon as i } from './icons.js';
 import { ask } from './ask.js';
+import { deliveryActive, deliveryOf, deliveryView, installEventSends, sendBanner, sendSummary, sendTools, sendable, targetsField } from './event-sends.js';
 import { bindCopyEditor, copyEditorField, replaceText, whatsappHtml } from './event-copy-editor.js';
 import {
   audiences, blankEventPlan, briefGroups, channels, eventPlanPhases, eventPlanStatuses,
@@ -75,9 +76,11 @@ function filterBar(kind) {
   const pick = (label, name, rows) => `<label>${label}<select data-ep-filter="${name}">${optionRows(rows, ui[name])}</select></label>`;
   return `<div class="surface ep-filter">${pick('Fase', 'phase', [['all', 'Todas'], ...eventPlanPhases])}${pick('Status', 'status', [['all', 'Todos'], ...itemStatus[kind]])}${kind === 'message' ? pick('Canal', 'channel', [['all', 'Todos'], ...channels]) : ''}</div>`;
 }
+// "Agendado" em mensagem de WhatsApp é a fila quem marca: na mão, pareceria que vai sair algo que não vai.
+const manualStatuses = item => sendable(item) && item.status !== 'agendado' ? itemStatus.message.filter(([key]) => key !== 'agendado') : itemStatus[item.kind];
 function itemTools(event, item, extra = '') {
-  const ref = `data-ep-event="${h(event.id)}"`, title = h(item.title);
-  return `<select aria-label="Status de ${title}" data-ep-item-status="${h(item.id)}" ${ref}>${optionRows(itemStatus[item.kind], item.status)}</select><span class="ep-item-actions">${extra}<button type="button" class="icon-btn" aria-label="Editar ${title}" title="Editar" data-ep-item-edit="${h(item.id)}" ${ref}>${i('edit', 15)}</button><button type="button" class="icon-btn" aria-label="Excluir ${title}" title="Excluir" data-ep-item-delete="${h(item.id)}" ${ref}>${i('trash', 15)}</button></span>`;
+  const ref = `data-ep-event="${h(event.id)}"`, title = h(item.title), locked = item.kind === 'message' && deliveryActive(deliveryOf(event, item));
+  return `<select aria-label="Status de ${title}" data-ep-item-status="${h(item.id)}" ${ref}${locked ? ' disabled title="Cancele o envio para mudar o status"' : ''}>${optionRows(manualStatuses(item), item.status)}</select><span class="ep-item-actions">${extra}<button type="button" class="icon-btn" aria-label="Editar ${title}" title="Editar" data-ep-item-edit="${h(item.id)}" ${ref}>${i('edit', 15)}</button><button type="button" class="icon-btn" aria-label="Excluir ${title}" title="Excluir" data-ep-item-delete="${h(item.id)}" ${ref}>${i('trash', 15)}</button></span>`;
 }
 
 function strategySection(_c, event) {
@@ -91,9 +94,9 @@ function tasksSection(c, event) {
 function messagesSection(c, event) {
   const rows = visible(records(event, 'message')).sort(byDate), days = new Map();
   for (const item of rows) days.set(item.date || '', [...(days.get(item.date || '') || []), item]);
-  const card = item => `<li class="surface ep-item"><div class="ep-item-main"><h3>${h(item.title)}</h3><p class="ep-item-meta">${item.code ? `<span class="ep-code">${h(item.code)}</span> ` : ''}${[(channels.find(([key]) => key === item.channel) || ['', 'Outro'])[1], audienceLabel(item), item.time, phaseLabel(item.phase), ownerLabel(item, usersOf(c))].filter(Boolean).map(h).join(' · ')}</p>${item.notes ? `<details data-ep-details="${h(item.id)}"><summary>Ver copy</summary><div class="ep-copy">${whatsappHtml(item.notes)}</div></details>` : '<p class="ep-note">Sem texto definido.</p>'}</div><div class="ep-item-side">${itemTools(event, item, `<button type="button" class="icon-btn" aria-label="Copiar texto de ${h(item.title)}" title="Copiar texto" data-ep-copy="${h(item.id)}" data-ep-event="${h(event.id)}">${i('copy', 15)}</button>`)}</div></li>`;
+  const card = item => `<li class="surface ep-item"><div class="ep-item-main"><h3>${h(item.title)}</h3><p class="ep-item-meta">${item.code ? `<span class="ep-code">${h(item.code)}</span> ` : ''}${[(channels.find(([key]) => key === item.channel) || ['', 'Outro'])[1], audienceLabel(item), item.time, phaseLabel(item.phase), ownerLabel(item, usersOf(c))].filter(Boolean).map(h).join(' · ')}</p>${item.notes ? `<details data-ep-details="${h(item.id)}"><summary>Ver copy</summary><div class="ep-copy">${whatsappHtml(item.notes)}</div></details>` : '<p class="ep-note">Sem texto definido.</p>'}${deliveryView(c, event, item)}</div><div class="ep-item-side">${itemTools(event, item, `<button type="button" class="icon-btn" aria-label="Copiar texto de ${h(item.title)}" title="Copiar texto" data-ep-copy="${h(item.id)}" data-ep-event="${h(event.id)}">${i('copy', 15)}</button>`)}</div></li>`;
   const list = [...days].map(([day, items]) => `<section><h3 class="ep-day">${h(dateLabel(day) || 'Sem data')}</h3><ul class="ep-list">${items.map(card).join('')}</ul></section>`).join('');
-  return `${sectionHead('Calendário de comunicação', 'Planeje a copy e acompanhe a publicação nos grupos e canais privados.', newItem(event, 'message', 'Nova mensagem'))}${filterBar('message')}${list || nothingHere(event, 'message', 'Adicione convites, avisos e acompanhamentos da campanha.', 'send')}`;
+  return `${sectionHead('Calendário de comunicação', 'Planeje a copy e acompanhe a publicação nos grupos e canais privados.', `<span class="ep-head-tools">${sendTools(c, event)}${newItem(event, 'message', 'Nova mensagem')}</span>`)}${sendBanner(c)}${filterBar('message')}${list || nothingHere(event, 'message', 'Adicione convites, avisos e acompanhamentos da campanha.', 'send')}`;
 }
 function agendaSection(c, event) {
   const rows = visible(records(event, 'agenda')).sort((a, b) => numeric(a.order) - numeric(b.order) || byDate(a, b));
@@ -103,12 +106,13 @@ function linksSection(c, event) {
   const rows = visible(records(event, 'link')).sort(byDate);
   return `${sectionHead('Links da operação', 'Centralize páginas, grupos, pesquisas, materiais e checkout.', newItem(event, 'link', 'Novo link'))}${filterBar('link')}<div class="ep-link-grid">${rows.map(item => `<article class="surface ep-link"><div class="ep-item-main"><h3>${h(item.title)}</h3>${meta([phaseLabel(item.phase), dateLabel(item.date), ownerLabel(item, usersOf(c))])}</div>${item.url ? `<a class="ep-url" href="${h(item.url)}" target="_blank" rel="noopener noreferrer">${h(item.url.replace(/^https?:\/\//, ''))} ${i('external', 13)}</a>` : '<p class="ep-note">Endereço ainda não adicionado.</p>'}${note(item)}<div class="ep-link-foot">${itemTools(event, item)}</div></article>`).join('')}</div>${rows.length ? '' : nothingHere(event, 'link', 'Guarde aqui as páginas, materiais e acessos da operação.', 'link')}`;
 }
-function integrationsSection(_c, event) {
+function integrationsSection(c, event) {
+  const sends = sendSummary(c, event);
   const binding = event.orchestration || {}, rows = Object.values(binding.items || {});
   const count = key => rows.filter(row => row[key]).length;
   const synced = binding.syncedAt ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(binding.syncedAt)) : 'ainda não sincronizado';
   const card = (label, value, text) => `<article class="surface ep-orch-card"><span>${label}</span><b>${value}</b><p>${text}</p></article>`;
-  return `${sectionHead('Integrações', 'Crie entregas nos módulos da Soci e publique eventos para os seus fluxos e webhooks.', primary(`${i('flow', 15)} Sincronizar agora`, `type="button" data-ep-orchestrate="${h(event.id)}"`))}<div class="ep-integrations">${card('Tarefas', count('taskId'), 'Tarefas do CRM vinculadas ao evento.')}${card('Calendário', binding.appointmentId ? 'Ligado' : 'Pendente', 'Um compromisso com o roteiro do dia.')}${card('Social', count('socialPostId'), 'Rascunhos para comunicações no Instagram.')}${card('E-mail', count('emailCampaignId'), 'Campanhas em rascunho para revisão.')}</div><section class="surface ep-automation-guide"><h3>Eventos que os fluxos podem ouvir</h3><p class="dim">Em <a class="text-link" href="#automation/workflows">Automações</a>, use o gatilho <b>Evento personalizado</b> e conecte ações, integrações ou webhooks.</p><ul><li><code>event_plan_created</code></li><li><code>event_plan_updated</code></li><li><code>event_plan_status_changed</code></li><li><code>event_plan_orchestrated</code></li></ul><small class="dim">Última sincronização: ${h(synced)}. A sincronização cria somente rascunhos de Social e E-mail: a revisão e o envio continuam com a equipe.</small></section>`;
+  return `${sectionHead('Integrações', 'Crie entregas nos módulos da Soci e publique eventos para os seus fluxos e webhooks.', primary(`${i('flow', 15)} Sincronizar agora`, `type="button" data-ep-orchestrate="${h(event.id)}"`))}<div class="ep-integrations">${card('Tarefas', count('taskId'), 'Tarefas do CRM vinculadas ao evento.')}${card('Calendário', binding.appointmentId ? 'Ligado' : 'Pendente', 'Um compromisso com o roteiro do dia.')}${card('Social', count('socialPostId'), 'Rascunhos para comunicações no Instagram.')}${card('E-mail', count('emailCampaignId'), 'Campanhas em rascunho para revisão.')}${card('WhatsApp', `${sends.sent}/${sends.total}`, sends.failed ? `Mensagens enviadas. ${sends.failed} com falha.` : 'Mensagens enviadas pela fila do evento.')}</div><section class="surface ep-automation-guide"><h3>Eventos que os fluxos podem ouvir</h3><p class="dim">Em <a class="text-link" href="#automation/workflows">Automações</a>, use o gatilho <b>Evento personalizado</b> e conecte ações, integrações ou webhooks.</p><ul><li><code>event_plan_created</code></li><li><code>event_plan_updated</code></li><li><code>event_plan_status_changed</code></li><li><code>event_plan_orchestrated</code></li><li><code>event_message_scheduled</code></li><li><code>event_message_sent</code></li><li><code>event_message_failed</code></li><li><code>event_item_status_changed</code></li></ul><small class="dim">Última sincronização: ${h(synced)}. A sincronização cria somente rascunhos de Social e E-mail: a revisão e o envio continuam com a equipe.</small></section>`;
 }
 const sections = [
   { value: 'strategy', label: 'Estratégia', icon: 'bulb', content: strategySection },
@@ -183,7 +187,7 @@ export function itemDialogBody(c, event, kind, item = null) {
   const owner = ownerField(data, usersOf(c), kind === 'agenda' ? 'Quem conduz' : 'Responsável');
   const extra = {
     task: () => pair(date, team) + owner,
-    message: () => pair(date, time) + pair(field('Canal', 'channel', data.channel, { type: 'select', options: channels }), field('Código', 'code', data.code, { maxlength: 40 })) + `<div data-ep-audience${data.channel === 'grupos' ? '' : ' hidden'}>${field('Grupos de destino', 'audience', data.audience, { type: 'select', options: audiences })}</div>` + pair(team, owner),
+    message: () => pair(date, time) + pair(field('Canal', 'channel', data.channel, { type: 'select', options: channels }), field('Código', 'code', data.code, { maxlength: 40 })) + `<div data-ep-audience${data.channel === 'grupos' ? '' : ' hidden'}>${field('Grupos de destino', 'audience', data.audience, { type: 'select', options: audiences })}</div>` + targetsField(c, data) + pair(team, owner),
     agenda: () => pair(field('Ordem', 'order', data.order, { type: 'number', required: true, min: 0, max: 999 }), field('Duração em minutos', 'duration', data.duration, { type: 'number', required: true, min: 0, max: 1440 })) + pair(date, time) + pair(team, owner),
     link: () => pair(date, team) + owner + field('Endereço', 'url', data.url, { type: 'url', maxlength: 2000, placeholder: 'https://' })
   }[kind]();
@@ -191,7 +195,7 @@ export function itemDialogBody(c, event, kind, item = null) {
     ? `${copyEditorField({ name: 'notes', value: data.notes, variables })}${item && templateFor(event, item.code) ? `<button type="button" class="secondary ep-apply" data-ep-apply-template="${h(item.code)}" data-ep-event="${h(event.id)}">${i('refresh', 15)} Aplicar estrutura do modelo</button>` : ''}`
     : field('Observações', 'notes', data.notes, { type: 'textarea', maxlength: 10000 });
   const remove = item ? `<button class="danger plain" type="button" data-ep-item-delete="${h(item.id)}" data-ep-event="${h(event.id)}">${i('trash', 15)} Excluir</button>` : '';
-  return `${formHead('item', event, ` data-kind="${h(kind)}" data-item-id="${h(item?.id || '')}"`)}${field(kind === 'message' ? 'Assunto' : 'Título', 'title', data.title, { required: true, maxlength: 240 })}${pair(field('Fase', 'phase', data.phase, { type: 'select', options: eventPlanPhases }), field('Status', 'status', data.status, { type: 'select', options: itemStatus[kind] }))}${extra}${notes}${formFoot('Salvar', remove)}</form>`;
+  return `${formHead('item', event, ` data-kind="${h(kind)}" data-item-id="${h(item?.id || '')}"`)}${field(kind === 'message' ? 'Assunto' : 'Título', 'title', data.title, { required: true, maxlength: 240 })}${pair(field('Fase', 'phase', data.phase, { type: 'select', options: eventPlanPhases }), field('Status', 'status', data.status, { type: 'select', options: kind === 'message' ? manualStatuses({ ...data, kind }) : itemStatus[kind] }))}${extra}${notes}${formFoot('Salvar', remove)}</form>`;
 }
 
 // Regras do planejamento: valem no formulário e na troca rápida de status.
@@ -222,7 +226,7 @@ async function copyText(text) {
   const area = document.createElement('textarea'); area.value = text; area.style.position = 'fixed'; area.style.opacity = '0'; document.body.append(area); area.select(); document.execCommand('copy'); area.remove();
 }
 
-export function installEventPlanner({ c, mutate, flash, dialog, close, render }) {
+export function installEventPlanner({ c, mutate, flash, dialog, close, render, api, url, load }) {
   const find = id => (c.s.eventPlans || []).find(row => row.id === id);
   const itemOf = (event, id) => planOf(event).items.find(item => item.id === id);
   // Uma gravação por vez: cada uma lê o evento já com a revisão da anterior, senão duas trocas rápidas viram conflito.
@@ -242,6 +246,7 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render })
     for (const row of document.querySelectorAll('[data-ep-details]')) row.open = openItems.has(row.dataset.epDetails);
     document.querySelector('#screen')?.scrollTo({ top, behavior: 'instant' });
   };
+  installEventSends({ c, api, url, load, save, flash, dialog, close, repaint, find, itemOf, isOpen: () => c.view === 'marketing' && c.tab === 'events' && ui.section === 'messages' ? find(ui.selectedId) : null });
   const openItem = (event, kind, item = null) => {
     dialog(`${item ? 'Editar' : 'Adicionar'} ${kindLabel[kind]}`, itemDialogBody(c, event, kind, item));
     bindCopyEditor(document);
@@ -295,7 +300,7 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render })
       const launch = input.value === 'launch';
       input.form.elements.eventDate.required = launch; input.form.querySelector('[data-ep-template-hint]').hidden = !launch; return;
     }
-    if (input.name === 'channel' && input.form?.matches('[data-ep-form="item"]')) { input.form.querySelector('[data-ep-audience]').hidden = input.value !== 'grupos'; return; }
+    if (input.name === 'channel' && input.form?.matches('[data-ep-form="item"]')) { input.form.querySelector('[data-ep-audience]').hidden = input.value !== 'grupos'; input.form.querySelector('[data-ep-targets]').hidden = input.value !== 'privado'; return; }
     if (!input.matches('[data-ep-item-status]')) return;
     const event = find(input.dataset.epEvent), item = event && itemOf(event, input.dataset.epItemStatus);
     if (!item) return;
@@ -314,6 +319,11 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render })
     form.dataset.pending = '1';
     const button = form.querySelector('.primary'), status = form.querySelector('.form-status'), id = form.dataset.id, revision = Number(form.dataset.revision);
     const values = Object.fromEntries([...new FormData(form)].map(([key, value]) => [key, value.trim()]));
+    if (form.dataset.kind === 'message') {
+      const picked = new FormData(form);
+      values.targets = { tags: picked.getAll('targetTag'), excludeTags: picked.getAll('excludeTag') };
+      delete values.targetTag; delete values.excludeTag;
+    }
     button?.setAttribute('disabled', ''); if (status) status.textContent = '';
     const event = find(id);
     const done = message => { close(); repaint(); flash(message); };
