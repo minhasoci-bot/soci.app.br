@@ -55,7 +55,7 @@ const aiState = a => !a.aiEnabled ? 'off' : !a.aiLimit ? 'nolimit' : a.aiCost >=
 
 export function startAgency(env) {
   const { app, overlay, api, flash, openWorkspace } = env;
-  const A = { data: null, openAI: null, openAIOnly: false, wa: null, waFocus: null, waPairOpen: false, page: 'dashboard', sub: '', query: '', status: '', category: '', mktOrigin: '', selected: new Set(), chat: [], auditPage: 0, navOpen: true, aiFilter: '', aiPeriod: '30', aiUsage: null };
+  const A = { data: null, openAI: null, openAIOnly: false, wa: null, waFocus: null, waPairOpen: false, page: 'dashboard', sub: '', query: '', status: '', category: '', mktOrigin: '', selected: new Set(), chat: [], navOpen: true, aiFilter: '', aiPeriod: '30', aiUsage: null };
   let waPollTimer = null;
   function stopWaPoll() { if (waPollTimer) { clearInterval(waPollTimer); waPollTimer = null; } }
   const G = s => document.querySelector(s);
@@ -459,6 +459,42 @@ export function startAgency(env) {
           <td><span class="ag-ver">v${s.version || 1}</span></td><td>${day(dateOf(s), true)}</td>
           <td class="right"><div class="ag-lib-actions">${icon('snapshot-account', 'plus', 'Criar subconta com este setup', s)}${icon('snapshot-rename', 'edit', 'Renomear', s)}${icon('snapshot-load', 'upload', 'Carregar em subcontas', s)}${kebab(s)}</div></td></tr>`;
       }).join('')}</tbody></table>${rows.length ? '' : '<p class="dim padded">Nenhum setup com esse nome.</p>'}</div>`;
+  }
+  // The audit log has its own endpoint: a page at a time, and the search is made on the server (the whole log, not the
+  // page on screen). `trail` holds the cursor of each page already opened.
+  const AUDIT_FRESH = 15000;
+  let audit = { q: null, trail: [''], entries: [], next: '', at: 0, error: '', busy: false }, auditTimer = 0;
+  const onAudit = () => location.hash.startsWith('#agency/settings/audit');
+  const auditPage = (q, before, limit = '') => api(`/api/agency/audit?${new URLSearchParams({ q, before, limit })}`);
+  function scheduleAudit() {
+    const typing = audit.q !== null && audit.q !== A.query;
+    if (audit.q !== A.query) audit = { ...audit, q: A.query, trail: [''], entries: [], next: '', at: 0, error: '', busy: true };
+    else if (audit.busy) return;
+    clearTimeout(auditTimer);
+    auditTimer = setTimeout(() => loadAudit(), typing ? 300 : 0);
+  }
+  async function loadAudit(trail = audit.trail) {
+    audit = { ...audit, trail, busy: true };
+    const mine = audit;
+    try {
+      const page = await auditPage(mine.q || '', trail.at(-1));
+      mine.entries = page.entries; mine.next = page.next; mine.error = '';
+    } catch (e) { mine.entries = []; mine.next = ''; mine.error = e.message; }
+    mine.busy = false; mine.at = Date.now();
+    if (mine !== audit || !onAudit()) return;
+    const field = G('[data-ag-search]'), focused = field && field === document.activeElement ? field.selectionStart : -1;
+    render();
+    if (focused >= 0) { const next = G('[data-ag-search]'); next?.focus(); next?.setSelectionRange(focused, focused); }
+  }
+  async function exportAudit() {
+    const rows = [], cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    for (let before = '', pages = 0; pages < 40; pages++) {
+      const page = await auditPage(A.query, before, 500);
+      rows.push(...page.entries);
+      before = page.next;
+      if (!before) break;
+    }
+    download('auditoria-agencia.csv', ['Data,Usuario,Acao,Alvo,Detalhes', ...rows.map(a => [a.at, a.actor, a.action, a.target, a.details].map(cell).join(','))].join('\n'), 'text/csv');
   }
   async function loadTemplates() {
     if (A.templatesLoading) return;
@@ -1050,10 +1086,14 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     },
     compliance: () => { const c = D().compliance; return `<form class="surface padded settings-form" data-ag-form="compliance"><h2>Conformidade e privacidade (LGPD)</h2><div class="field-grid"><label>Período de retenção de dados (dias)<input name="retentionDays" type="number" min="0" max="3650" value="${c.retentionDays}"></label></div><label class="ag-full">Texto padrão de consentimento em formulários<textarea name="consent">${h(c.consent)}</textarea></label><label class="check"><input type="checkbox" name="cookieBanner" ${c.cookieBanner ? 'checked' : ''}> Exibir aviso e banner de cookies nas páginas publicadas</label><label class="check"><input type="checkbox" name="hipaa" ${c.hipaa ? 'checked' : ''}> Modo de dados sensíveis de saúde (requer o complemento correspondente)</label><button class="primary">Salvar conformidade</button><p class="form-status" role="alert"></p></form>`; },
     audit: () => {
-      const rows = [...D().audit].reverse().filter(a => match(a.actor, a.action, a.target, a.details));
-      const per = 50, pgs = Math.max(1, Math.ceil(rows.length / per)); A.auditPage = Math.min(A.auditPage, pgs - 1);
-      return `<div class="toolbar">${search('Buscar no log de auditoria…')}${btn('Exportar CSV', 'audit-csv', '', 'secondary', 'download')}</div>${table(['Data/Hora', 'Usuário', 'Ação', 'Alvo', 'Detalhes'], rows.slice(A.auditPage * per, A.auditPage * per + per).map(a => `<tr><td>${day(a.at, true)}</td><td>${h(a.actor)}</td><td><b>${h(a.action)}</b></td><td>${h(a.target)}</td><td><small>${h(a.details)}</small></td></tr>`), empty('Nenhuma atividade recente', 'Todas as alterações realizadas na agência e nas subcontas são auditadas aqui.'))}
-        ${pgs > 1 ? `<div class="inline-gap ag-gap">${btn('Anterior', 'audit-page', `data-step="-1" ${A.auditPage ? '' : 'disabled'}`)}<span>Página ${A.auditPage + 1} de ${pgs}</span>${btn('Próxima', 'audit-page', `data-step="1" ${A.auditPage < pgs - 1 ? '' : 'disabled'}`)}</div>` : ''}`;
+      if (audit.q !== A.query || Date.now() - audit.at > AUDIT_FRESH) scheduleAudit();
+      const none = audit.error ? empty('Não foi possível carregar o log', audit.error, btn('Tentar de novo', 'audit-reload'))
+        : audit.busy || !audit.at ? `<p class="dim" role="status">${h(tr('Carregando…'))}</p>`
+        : A.query ? empty('Nenhum registro encontrado', 'Tente outros termos de busca.')
+        : empty('Nenhuma atividade recente', 'Todas as alterações realizadas na agência e nas subcontas são auditadas aqui.');
+      const page = audit.trail.length;
+      return `<div class="toolbar">${search('Buscar no log de auditoria…')}${btn('Exportar CSV', 'audit-csv', '', 'secondary', 'download')}</div>${table(['Data/Hora', 'Usuário', 'Ação', 'Alvo', 'Detalhes'], audit.entries.map(a => `<tr><td>${day(a.at, true)}</td><td>${h(a.actor)}</td><td><b>${h(a.action)}</b></td><td>${h(a.target)}</td><td><small>${h(a.details)}</small></td></tr>`), none)}
+        ${page > 1 || audit.next ? `<div class="inline-gap ag-gap">${btn('Anterior', 'audit-page', `data-step="-1" ${page > 1 && !audit.busy ? '' : 'disabled'}`)}<span>${h(tr('Página'))} ${page}</span>${btn('Próxima', 'audit-page', `data-step="1" ${audit.next && !audit.busy ? '' : 'disabled'}`)}</div>` : ''}`;
     },
     storage: () => { const total = O().totals.storage, max = Math.max(1, ...accounts().map(a => a.storage)); return `<div class="metrics three">${metric('Total de arquivos armazenados', bytes(total))}${metric('Quantidade de arquivos', accounts().reduce((s, a) => s + a.files, 0))}${metric('Subcontas ativas', accounts().length)}</div>${table(['Subconta', 'Arquivos', 'Espaço utilizado', ''], [...accounts()].sort((a, b) => b.storage - a.storage).map(a => `<tr><td><b>${h(a.name)}</b></td><td>${a.files}</td><td>${bytes(a.storage)}</td><td>${bar((a.storage / max) * 100)}</td></tr>`), '')}`; }
   };
@@ -1098,7 +1138,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
 
   async function show(page, sub) {
     const nextPage = pages[page] ? page : 'dashboard';
-    if (nextPage !== A.page) { A.query = ''; A.status = ''; A.selected.clear(); A.auditPage = 0; A.bg = null; closePresentationEditor(); }
+    if (nextPage !== A.page) { A.query = ''; A.status = ''; A.selected.clear(); A.bg = null; closePresentationEditor(); }
     A.page = nextPage;
     const normalizedSub = A.page === 'settings' && sub === 'phone' ? 'whatsapp' : A.page === 'settings' && sub === 'stripe' ? 'abacatepay' : sub;
     A.sub = A.page === 'ask'
@@ -1454,8 +1494,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         }
         case 'app-uninstall': confirmBox('Desinstalar este app?', 'A instalação sai da lista e deixa de contar nos ganhos.', 'app-uninstall', id, 'Desinstalar'); break;
         case 'email-domain-remove': confirmBox('Remover o domínio dedicado?', 'As subcontas voltam a enviar pelo domínio compartilhado.', 'email-domain-remove', '', 'Remover'); break;
-        case 'audit-page': A.auditPage += Number(d.step); render(); break;
-        case 'audit-csv': { const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`; download('auditoria-agencia.csv', ['Data,Usuario,Acao,Alvo,Detalhes', ...D().audit.map(a => [a.at, a.actor, a.action, a.target, a.details].map(q).join(','))].join('\n'), 'text/csv'); break; }
+        case 'audit-page': if (!audit.busy) await loadAudit(Number(d.step) > 0 ? [...audit.trail, audit.next] : audit.trail.slice(0, -1)); break;
+        case 'audit-reload': await loadAudit(); break;
+        case 'audit-csv': await exportAudit(); break;
       }
     } catch (e) { flash(e.message, true); }
   });
@@ -1511,7 +1552,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     if (!active()) return;
     const el = ev.target;
     if (el.matches('[data-ag-search]')) {
-      A.query = el.value; A.auditPage = 0; const pos = el.selectionStart; render();
+      A.query = el.value; const pos = el.selectionStart; render();
       const next = G('[data-ag-search]'); next.focus(); next.setSelectionRange(pos, pos);
     }
     if (el.matches('[data-snap-search]')) {

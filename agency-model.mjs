@@ -1,3 +1,4 @@
+import { AUDIT_IN_DOCUMENT } from './agency-audit.mjs';
 import { usageSummary } from './ui/ai-data.js';
 import { desktopDefaults, publishDesktop, saveDesktop } from './agency-desktop.mjs';
 import { mobileOf, publishMobile, saveMobileStore } from './agency-mobile.mjs';
@@ -144,7 +145,7 @@ function sanitize(key, input, accountIds) {
 
 export function audit(state, actor, action, target = '', details = '') {
   state.audit.push({ id: uid(), at: now(), actor: str(actor, 120) || 'Agency Owner', action, target: str(target, 200), details: str(details, 500) });
-  if (state.audit.length > 1000) state.audit.splice(0, state.audit.length - 1000);
+  if (state.audit.length > AUDIT_IN_DOCUMENT) state.audit.splice(0, state.audit.length - AUDIT_IN_DOCUMENT);
 }
 
 export function accountLifecycle(agency, id) {

@@ -1,5 +1,10 @@
 // Español Latino (es-419) translation catalog
 export default {
+  "Não foi possível carregar o log": "No se pudo cargar el registro",
+  "Nenhum registro encontrado": "No se encontró ningún registro",
+  "Tente outros termos de busca.": "Pruebe con otros términos de búsqueda.",
+  "Carregar mais registros": "Cargar más registros",
+  "Seu usuário não tem acesso às configurações da agência.": "Su usuario no tiene acceso a la configuración de la agencia.",
   "Código do país": "Código de país",
   "?email=ana@exemplo.com": "?email=ana@exemplo.con",
   "(o link da sala).": "(o enlace da sala).",

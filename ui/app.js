@@ -192,10 +192,10 @@ async function load(){
   const workspace = c.workspace;
   try {
     const data = await api(url('/api/state'));
-    if (workspace === c.workspace) Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,audit:data.audit,account:data.account});
+    if (workspace === c.workspace) Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,account:data.account});
   } catch (e) {
     if (e.code !== 'ACCOUNT_SUSPENDED') throw e;
-    if (workspace === c.workspace) Object.assign(c,{s:null,m:null,account:e.account,audit:[]});
+    if (workspace === c.workspace) Object.assign(c,{s:null,m:null,account:e.account});
   }
 }
 const allowedView = id => id === 'launchpad' ? !c.access?.modules || c.access.modules.length > 0 : !c.access?.modules || c.access.modules.includes(id) || (id === 'prancheta' && (!c.access?.modules || c.access.modules.includes('marketing') || c.access.modules.includes('prancheta')));
@@ -1340,7 +1340,7 @@ if(viewPath){
     }
   });
   installReports({ c, dialog, close, render, mutate, flash, download:downloads });
-  crmEvents({ G, mutate, render, flash, dialog, close });
+  crmEvents({ G, mutate, render, flash, dialog, close, c, api });
   opportunityEvents({ c, G, mutate, render, flash, dialog, close });
   socialEvents({ c, G, api, url, mutate, render, flash, dialog, close, load });
   window.addEventListener('hashchange',route);

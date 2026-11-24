@@ -171,7 +171,7 @@ test('A snapshot copies assets into a new sub-account as drafts and keeps existi
   assert.equal((await local.call(`/api/state?workspace=${id}`)).body.state.pages.length, 1);
   const overview = again.body.overview;
   assert.equal(overview.totals.accounts, 2);
-  assert.ok(again.body.agency.audit.some(entry => entry.action === 'Snapshot loaded'));
+  assert.ok((await local.call('/api/agency/audit')).body.entries.some(entry => entry.action === 'Snapshot loaded'));
 
   assert.equal((await action(local, { type: 'account-meta', id, data: { status: 'Paused' } })).status, 200);
   const denied = await local.call('/api/agency/snapshot-load', { id: snap.id, workspaces: ['demo', id], mode: 'overwrite' });
@@ -287,7 +287,7 @@ test('Account users only reach their sub-accounts and permitted modules; agency 
   const staff = (await action(local, { type: 'save', key: 'users', data: { first: 'Bia', last: 'Reis', email: 'bia@example.test', role: 'Agency User' } })).body.result;
   assert.equal((await local.call('/api/agency', undefined, { 'X-Go-User': staff })).status, 200);
   assert.equal((await action(local, { type: 'api-key', data: { name: 'x' } }, { 'X-Go-User': staff })).status, 403);
-  const log = (await local.call('/api/agency')).body.agency.audit;
+  const log = (await local.call('/api/agency/audit')).body.entries;
   assert.ok(log.some(entry => entry.actor === 'Ana Lima' && entry.action === 'Saved contacts'));
 });
 

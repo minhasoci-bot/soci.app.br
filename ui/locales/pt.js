@@ -1,5 +1,11 @@
 // Português (Brasil) canonical catalog
 export default {
+  "Não foi possível carregar o log": "Não foi possível carregar o log",
+  "Nenhum registro encontrado": "Nenhum registro encontrado",
+  "Tente outros termos de busca.": "Tente outros termos de busca.",
+  "Carregar mais registros": "Carregar mais registros",
+  "Página": "Página",
+  "Seu usuário não tem acesso às configurações da agência.": "Seu usuário não tem acesso às configurações da agência.",
   "?email=ana@exemplo.com": "?email=ana@exemplo.com",
   "(o link da sala).": "(o link da sala).",
   "(sem OpenAI: as páginas saem do gerador local)": "(sem OpenAI: as páginas saem do gerador local)",
