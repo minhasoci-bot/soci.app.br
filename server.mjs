@@ -5,7 +5,7 @@ import { createActionRoutes } from './routes/action.mjs';
 import { createAdsRoutes } from './routes/ads.mjs';
 import { createEmailRoutes } from './routes/email.mjs';
 import { createMetaRoutes } from './routes/meta.mjs';
-import { createGoogleRoutes } from './routes/google.mjs';
+import { createGbpRoutes, createGoogleRoutes } from './routes/google.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -62,8 +62,8 @@ import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, send
 import { hasPixels, injectPixels, originAllowed, pixelsScript, trackerScript, trackingOf, touchesFrom, widenCsp } from './tracking.mjs';
 import { adSettingsOf, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
-import { freshSecret, googleConfigured, googleError, googleReports, listGoogleReviews, listLocations, locationDetails, replyGoogleReview, searchError, searchReport, updateLocation } from './google-integrations.mjs';
-import { gbpChecklist, hoursPeriods } from './ui/gbp-data.js';
+import { freshSecret, googleConfigured, googleError, googleReports, listLocations, locationDetails, searchError, searchReport } from './google-integrations.mjs';
+import { gbpChecklist } from './ui/gbp-data.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { affiliatePortal, portalTokenHash } from './affiliate-model.mjs';
 import { affiliatePageCsp, renderPortal, renderSignup } from './affiliate-page.mjs';
@@ -2135,6 +2135,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const emailRoute = createEmailRoutes({ store, ready, error, spaceId, privateSpace, stamp, campaignMail, emailDomainApi, flushLater, inboundFetch, payload, publicAccountPolicy, publicBase, recordAudit, sendingAddress, socialRow, testHits, workspaceAccess });
   const metaRoute = createMetaRoutes({ store, ready, error, change, flushLater, metaFetch, metaRoutesRow, metaSender, publicAccountPolicy });
   const googleRoute = createGoogleRoutes({ store, ready, localAccess, error, spaceId, privateSpace, stamp, workspaceSegment, flushLater, googleCache, googleCallbackPath, googleData, googlePopup, googleView, payload, publicAccountPolicy, publicBase, recordAudit, searchCache, socialActor, socialRow, workspaceAccess });
+  const gbpRoute = createGbpRoutes({ store, error, spaceId, change, flushLater, gbpAccess, gbpStatus, payload, recordAudit, workspaceAccess });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const server=createServer(async (req,res) => {
@@ -2721,53 +2722,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           }
         });
       }
-      const gbpAction = p.match(/^\/api\/gbp\/(status|profile|sync|reply)$/);
-      if (gbpAction) {
-        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
-        const who = await workspaceAccess(req, res, id, { modules: ['reputation'] });
-        const op = gbpAction[1];
-        if (op === 'status' && method === 'GET') return json(await gbpStatus(id, url.searchParams.get('refresh') === '1'));
-        if (method !== 'POST') throw error('Method not allowed.', 405);
-        const input = await payload(req);
-        const access = await gbpAccess(id);
-        if (op === 'profile') {
-          const patch = {};
-          if (input.description !== undefined) {
-            const text = String(input.description || '').trim();
-            if (text.length > 750) throw error('A descrição do Google aceita até 750 caracteres.', 400);
-            if (/https?:\/\/|www\./i.test(text)) throw error('O Google não aceita links na descrição.', 400);
-            patch.description = text;
-          }
-          if (input.phone !== undefined) patch.phone = String(input.phone || '').trim().slice(0, 30);
-          if (input.website !== undefined) {
-            const site = String(input.website || '').trim();
-            if (site && !/^https?:\/\/[^\s]+$/i.test(site)) throw error('Use um site que comece com https://', 400);
-            patch.website = site;
-          }
-          if (Array.isArray(input.hours)) patch.hours = hoursPeriods(input.hours);
-          await updateLocation(access.token, access.location, patch).catch(problem => { throw problem.status === 400 ? problem : googleError(problem); });
-          await recordAudit(who, 'Perfil do Google atualizado', id, Object.keys(patch).join(', ')).catch(() => {});
-          return json(await gbpStatus(id, true));
-        }
-        if (op === 'sync') {
-          if (!access.account) throw error('Não encontramos a conta deste local. Escolha o local de novo em Configurações → Google.', 409);
-          const reviews = await listGoogleReviews(access.token, access.account, access.location).catch(problem => { throw googleError(problem); });
-          const result = await change(id, { type: 'gbp-reviews-import', data: { reviews } });
-          if (result.state.workflowOutbox?.length) flushLater(id);
-          return json({ ...result.id, total: reviews.length, ...workspaceView(who, result.state) });
-        }
-        if (op === 'reply') {
-          const state = await store.load(id);
-          const review = state.reviews.find(row => row.id === input.reviewId && row.googleName);
-          if (!review) throw error('Avaliação do Google não encontrada.', 404);
-          if (!review.googleName.startsWith(`${access.account}/${access.location}/`)) throw error('Esta avaliação é de outro local do Google.', 409);
-          const reply = String(input.reply || '').trim().slice(0, 2500);
-          await replyGoogleReview(access.token, review.googleName, reply).catch(problem => { throw googleError(problem); });
-          const result = await change(id, { type: 'save', key: 'reviews', id: review.id, data: { author: review.author, score: review.score, text: review.text, reply } }, who);
-          return json({ ok: true, ...workspaceView(who, result.state) });
-        }
-        throw error('Not found.', 404);
-      }
+      const gbpRouteHandled = await gbpRoute({ req, res, p, method, url, id, json });
+      if (gbpRouteHandled !== NEXT_ROUTE) return gbpRouteHandled;
       if (p === '/api/video' && (method === 'GET' || method === 'HEAD')) {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
         await workspaceAccess(req, res, id, { modules: ['reputation'] });
