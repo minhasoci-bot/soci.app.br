@@ -168,6 +168,24 @@ export function paymentsTab(c, tab) {
 }
 
 // ---- Settings ------------------------------------------------------------------------------------
+// The audit log comes from its own endpoint, newest first; the search looks into what is already on screen.
+// After "load more" the list stays for longer, so a refresh does not drop the pages already opened.
+const AUDIT_FRESH = 15000, AUDIT_PAGED = 300000;
+let auditFeed = { key: '', at: 0, entries: [], next: '', error: '', busy: false }, fetchAudit = null, redrawAudit = () => {};
+async function loadAudit(c, more = false) {
+  if (!fetchAudit || (auditFeed.busy && auditFeed.key === c.workspace)) return;
+  if (!more && auditFeed.key === c.workspace && Date.now() - auditFeed.at < (auditFeed.paged ? AUDIT_PAGED : AUDIT_FRESH)) return;
+  if (auditFeed.key !== c.workspace) auditFeed = { key: c.workspace, at: 0, entries: [], next: '', error: '', busy: false };
+  const mine = auditFeed;
+  mine.busy = true;
+  try {
+    const page = await fetchAudit(mine.key, more ? mine.next : '');
+    mine.entries = more ? [...mine.entries, ...page.entries] : page.entries;
+    mine.next = page.next; mine.error = ''; mine.paged = more;
+  } catch (error) { mine.error = error.message; }
+  mine.busy = false; mine.at = Date.now();
+  if (mine === auditFeed) redrawAudit();
+}
 export function settingsTab(c, tab) {
   const tabCfg = { key: 'settings', items: crmTabs.settings, current: tab, label: 'Seções de configurações' };
   const s = c.s;
@@ -252,11 +270,15 @@ export function settingsTab(c, tab) {
     if (action.startsWith('Ran ')) return { title: `Execução: ${action.slice(4).trim()}`, module: 'Automações' };
     return { title: tr(action), module: auditModules[action] || action.split(' ').slice(1).join(' ') || '—' };
   };
-  const rows = [...(c.audit || [])].reverse().map(a => ({ ...a, ...formatAudit(a.action) }))
+  void loadAudit(c);
+  const feed = auditFeed.key === c.workspace ? auditFeed : { entries: [], next: '', error: '', at: 0 };
+  const rows = feed.entries.map(a => ({ ...a, ...formatAudit(a.action) }))
     .filter(a => match(c, a.actor, a.action, a.details, a.title, a.module));
   return wrapIt('', `<p class="dim crm-intro">Ações de usuários e alterações de dados neste workspace.</p><div class="toolbar">${search(c, 'Buscar no log…')}</div>` +
     table(['Ação', 'Módulo', 'Feito por', 'Data e hora'], rows.map(a => `<tr><td><b>${h(a.title)}</b>${a.details ? `<br><small class="dim">${h(a.details)}</small>` : ''}</td><td>${h(a.module)}</td><td>${h(a.actor)}</td><td>${date(a.at, c, true)}</td></tr>`),
-      empty('Nenhuma atividade registrada', c.audit ? 'As gravações feitas neste workspace aparecem aqui.' : 'Seu usuário não tem acesso às configurações.', 'list')));
+      feed.error ? empty('Não foi possível carregar o log', h(feed.error), 'list') : !feed.at ? '<p class="dim" role="status">Carregando…</p>'
+        : empty('Nenhuma atividade registrada', 'As gravações feitas neste workspace aparecem aqui.', 'list')) +
+    (feed.next ? '<div class="inline-gap"><button type="button" class="secondary" data-crm-audit-more>Carregar mais registros</button></div>' : ''));
 }
 
 // ---- Record dialogs ------------------------------------------------------------------------------
@@ -310,7 +332,16 @@ export function crmForm(c, key, r, preset = {}) {
 }
 
 // ---- Events ----------------------------------------------------------------------------------------
-export function crmEvents({ G, mutate, render, flash, dialog, close }) {
+export function crmEvents({ G, mutate, render, flash, dialog, close, c, api }) {
+  const onAudit = () => c.view === 'settings' && c.tab === 'audit';
+  fetchAudit = (workspace, before) => api(`/api/audit?${new URLSearchParams({ workspace, before, limit: '100' })}`);
+  redrawAudit = () => {
+    if (!onAudit()) return;
+    const top = G('#screen')?.scrollTop || 0, field = G('#page-search'), focused = field && field === document.activeElement ? field.selectionStart : -1;
+    render();
+    if (G('#screen')) G('#screen').scrollTop = top;
+    if (focused >= 0) { G('#page-search')?.focus(); G('#page-search')?.setSelectionRange(focused, focused); }
+  };
   let pending = null;
   const run = async (object, operation, value, label = '') => {
     const ids = [...picked[object]];
@@ -324,6 +355,8 @@ export function crmEvents({ G, mutate, render, flash, dialog, close }) {
     if (el.matches('[data-crm-forecast-pipeline]')) { forecastPipeline = el.value; render(); G('[data-crm-forecast-pipeline]')?.focus(); }
   });
   document.addEventListener('click', async ev => {
+    const more = ev.target.closest('[data-crm-audit-more]');
+    if (more) { more.disabled = true; await loadAudit(c, true); return; }
     const clear = ev.target.closest('[data-crm-clear]');
     if (clear) { picked[clear.dataset.crmClear].clear(); render(); return; }
     if (ev.target.closest('[data-crm-confirm]') && pending) { const p = pending; pending = null; try { await run(...p); } catch (e) { flash(e.message, true); } }

@@ -18,7 +18,8 @@ async function start() {
   const act = command => call(`/api/action?workspace=${workspace}`, command);
   const save = (key, data, id = '') => act({ type: 'save', key, id, data });
   const state = async () => (await call(`/api/state?workspace=${workspace}`)).body;
-  return { act, save, state, close: () => new Promise(resolve => server.close(resolve)) };
+  const audit = async () => (await call(`/api/audit?workspace=${workspace}`)).body.entries;
+  return { act, save, state, audit, close: () => new Promise(resolve => server.close(resolve)) };
 }
 
 test('Custom fields validate the values stored on contacts, opportunities and companies', async t => {
@@ -107,9 +108,9 @@ test('Bulk actions apply per record, log the result, run stage triggers and reac
 
   r = await local.act({ type: 'bulk', data: { object: 'contacts', ids: [ids[2]], operation: 'delete' } });
   assert.equal(r.body.state.contacts.length, 2);
-  const view = await local.state();
-  assert.ok(view.audit.some(a => a.action === 'Bulk add-tag on contacts'));
-  assert.ok(view.audit.some(a => a.action === 'Bulk delete on contacts'));
+  const entries = await local.audit();
+  assert.ok(entries.some(a => a.action === 'Bulk add-tag on contacts'));
+  assert.ok(entries.some(a => a.action === 'Bulk delete on contacts'));
 });
 
 test('Forecast uses opportunity or stage probability and flags slipped, late and incomplete deals', () => {

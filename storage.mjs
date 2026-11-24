@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { hydrateWorkspace, uid } from './model.mjs';
+import { auditOptions, auditPage, storedEntry } from './agency-audit.mjs';
 import { listedEvent, pageOf, pageOptions, storedEvent } from './tracking-events.mjs';
 
 export function workspaceMissing() {
@@ -48,6 +49,27 @@ function sqliteTracking(db) {
   };
 }
 
+/** The agency audit log of the local database: same answers as the Supabase table (P2.5). */
+function sqliteAudit(db) {
+  db.exec(`CREATE TABLE IF NOT EXISTS agency_audit (agency TEXT NOT NULL, id TEXT NOT NULL, created TEXT NOT NULL, target TEXT NOT NULL, search TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY (agency, id)) STRICT;
+    CREATE INDEX IF NOT EXISTS agency_audit_recent ON agency_audit (agency, created DESC, id DESC);`);
+  const insert = db.prepare('INSERT INTO agency_audit (agency, id, created, target, search, data) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING');
+  const page = db.prepare(`SELECT data FROM agency_audit WHERE agency = ?1 AND (?2 = '' OR instr(search, ?2) > 0)
+    AND (?3 = '' OR target IN (SELECT value FROM json_each(nullif(?3, ''))))
+    AND (?4 = '' OR created < ?4 OR (created = ?4 AND id < ?5)) ORDER BY created DESC, id DESC LIMIT ?6`);
+  const prune = db.prepare('DELETE FROM agency_audit WHERE created < ?');
+  return {
+    append(agency, rows) {
+      for (const { entry, search } of rows.map(storedEntry)) insert.run(agency, entry.id, entry.at, entry.target, search, JSON.stringify(entry));
+    },
+    page(agency, query) {
+      const { q, targets, cursor, limit } = auditOptions(query);
+      return auditPage(page.all(agency, q, targets ? JSON.stringify(targets) : '', cursor?.at || '', cursor?.id || '', limit + 1).map(row => JSON.parse(String(row.data))), limit);
+    },
+    prune(before) { prune.run(before); }
+  };
+}
+
 export function createSqliteStore(path) {
   if (path !== ':memory:') {
     try {
@@ -77,6 +99,7 @@ export function createSqliteStore(path) {
   return {
     kind: 'SQLite',
     tracking: sqliteTracking(db),
+    audit: sqliteAudit(db),
     load,
     list: agencyId => agencyId === undefined ? list.all() : listByAgency.all(agencyId),
     belongsToAgency: (id, agencyId) => Boolean(owned.get(id, agencyId)),
@@ -146,20 +169,23 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
     return response;
   }
 
-  // The tracking events table (P2.5). Until its migration and grants are applied to the project, every call answers
-  // 'tracking_unavailable' (remembered for five minutes) and the events stay in the sub-account document.
+  // The tables of P2.5. Until the migration and grants of one are applied to the project, every call to it answers
+  // '<name>_unavailable' (remembered for five minutes) and its rows stay in the document.
   const missingCodes = new Set(['PGRST202', 'PGRST205', '42P01', '42883', '42501']);
-  let missingUntil = 0;
-  const unavailable = () => Object.assign(new Error('The tracking events table is not available in this database.'), { code: 'tracking_unavailable' });
-  async function events(path, query, options) {
-    if (clock() < missingUntil) throw unavailable();
-    try { return await api(path, query, options); }
-    catch (error) {
-      if (!missingCodes.has(error.dataApiCode)) throw error;
-      missingUntil = clock() + 5 * 60_000;
-      throw unavailable();
-    }
+  function optionalTable(label, code) {
+    let missingUntil = 0;
+    const unavailable = () => Object.assign(new Error(`The ${label} table is not available in this database.`), { code });
+    return async (path, query, options) => {
+      if (clock() < missingUntil) throw unavailable();
+      try { return await api(path, query, options); }
+      catch (error) {
+        if (!missingCodes.has(error.dataApiCode)) throw error;
+        missingUntil = clock() + 5 * 60_000;
+        throw unavailable();
+      }
+    };
   }
+  const events = optionalTable('tracking events', 'tracking_unavailable');
   const tracking = {
     async append(workspace, rows) {
       const body = rows.map(storedEvent).map(row => ({ workspace, id: row.id, created_at: row.created, data: row }));
@@ -181,6 +207,29 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
     }
   };
 
+  const entries = optionalTable('agency audit', 'audit_unavailable');
+  // In LIKE, the search is literal text; PostgREST reads * as %, with no escape, so it becomes "any one character".
+  const likeText = value => value.replace(/[\\%_]/g, '\\$&').replace(/\*/g, '_');
+  const quoted = value => `"${value.replace(/["\\]/g, '\\$&')}"`;
+  const audit = {
+    async append(agency, rows) {
+      const body = rows.map(storedEntry).map(({ entry, search }) => ({ agency, id: entry.id, created_at: entry.at, target: entry.target, search, data: entry }));
+      for (let start = 0; start < body.length; start += 500) {
+        await entries('go_agency_audit', { on_conflict: 'agency,id' }, { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' }, body: body.slice(start, start + 500) });
+      }
+    },
+    async page(agency, query) {
+      const { q, targets, cursor, limit } = auditOptions(query);
+      const response = await entries('go_agency_audit', { select: 'data', agency: `eq.${agency}`, ...(q && { search: `like.*${likeText(q)}*` }),
+        ...(targets && { target: `in.(${targets.map(quoted).join(',')})` }), order: 'created_at.desc,id.desc', limit: String(limit + 1),
+        ...(cursor && { or: `(created_at.lt."${cursor.at}",and(created_at.eq."${cursor.at}",id.lt."${cursor.id}"))` }) });
+      return auditPage((await response.json()).map(row => row.data), limit);
+    },
+    async prune(before) {
+      await entries('go_agency_audit', { created_at: `lt.${before}` }, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+    }
+  };
+
   async function read(id) {
     const [row] = await table({ select: 'state,revision', id: `eq.${id}` });
     if (!row) throw workspaceMissing();
@@ -191,6 +240,7 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
   return {
     kind: 'Supabase',
     tracking,
+    audit,
     load: async id => (await read(id)).state,
     list: agencyId => table({ select: 'id,name', order: 'created_at.asc,id.asc',
       ...(agencyId !== undefined && { 'state->>agencyId': agencyFilter(agencyId) }) }),
@@ -244,6 +294,18 @@ export async function copyTrackingEvents(db, target) {
   for (const { workspace } of db.prepare('SELECT DISTINCT workspace FROM tracking_events').all()) {
     const rows = db.prepare('SELECT data FROM tracking_events WHERE workspace = ? ORDER BY created').all(workspace).map(row => JSON.parse(String(row.data)));
     await target.tracking.append(workspace, rows);
+    total += rows.length;
+  }
+  return total;
+}
+
+/** The audit log of the agencies of a local database, sent to another store (npm run migrate:sqlite). Says how many. */
+export async function copyAuditEntries(db, target) {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'agency_audit'").get()) return 0;
+  let total = 0;
+  for (const { agency } of db.prepare('SELECT DISTINCT agency FROM agency_audit').all()) {
+    const rows = db.prepare('SELECT data FROM agency_audit WHERE agency = ? ORDER BY created').all(agency).map(row => JSON.parse(String(row.data)));
+    await target.audit.append(agency, rows);
     total += rows.length;
   }
   return total;

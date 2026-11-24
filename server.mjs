@@ -50,6 +50,7 @@ import { osmLookup, osmSearch } from './prospecting-osm.mjs';
 import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
 import { hasPixels, injectPixels, pixelsScript, trackerScript, trackingOf, widenCsp } from './tracking.mjs';
 import { createTrackingLog } from './tracking-events.mjs';
+import { AUDIT_IN_DOCUMENT, createAuditLog } from './agency-audit.mjs';
 import { adSettingsOf, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
 import { freshSecret, googleConfigured, googleError, googleReports, listLocations, locationDetails, searchError, searchReport } from './google-integrations.mjs';
@@ -276,14 +277,16 @@ const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 function publicAgency(agency, who) {
-  const view = { ...agency,
+  // The audit log has its own endpoint (GET /api/agency/audit).
+  const { audit: _audit, ...shared } = agency;
+  const view = { ...shared,
     snapshots: agency.snapshots.map(({ studioSites: _studioSites, ...rest }) => rest),
     apiKeys: agency.apiKeys.map(({ hash: _hash, ...rest }) => rest),
     privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest)
   };
   if (!who.settings) {
     const empty = blankAgency();
-    for (const key of ['profile', 'users', 'billing', 'apiKeys', 'privateIntegrations', 'audit', 'emailServices', 'systemEmails', 'compliance']) {
+    for (const key of ['profile', 'users', 'billing', 'apiKeys', 'privateIntegrations', 'emailServices', 'systemEmails', 'compliance']) {
       if (Object.hasOwn(empty, key)) view[key] = empty[key];
     }
     view.accounts = Object.fromEntries(Object.entries(agency.accounts).map(([id, { statusHistory, ignoredWebhooks, suspendedReason, billing, ...meta }]) => [id, meta]));
@@ -555,11 +558,14 @@ export function makeServer({
   };
   // Imagens grandes em base64 saem do documento da agência a cada gravação (asset-store.mjs):
   // o documento guarda só /asset/<hash>; as linhas das imagens são gravadas antes da resposta.
+  const auditLog = createAuditLog({ store });
   const changeAgency = async (id, mutate) => {
     agencyCache.delete(id);
     const images = new Map();
-    const result = await store.change(id, state => { const out = mutate(hydrateAgency(state)); extractAssets(state, images); return out; });
+    let waiting = 0;
+    const result = await store.change(id, state => { const out = mutate(hydrateAgency(state)); extractAssets(state, images); waiting = state.audit.length; return out; });
     if (images.size) await saveAssets(store, images);
+    await auditLog.settle(id, waiting);
     agencyCache.delete(id);
     return result;
   };
@@ -605,10 +611,12 @@ export function makeServer({
       if (!inserted) await store.change(rowId, state => Object.assign(state, copy));
     }
   }
-  const logTo = (agency, who, action, target = '', details = '') => {
-    agency.audit.push({ id: uid(), at: stamp(), actor: who.name, action, target, details });
-    if (agency.audit.length > 1000) agency.audit.splice(0, agency.audit.length - 1000);
+  const auditEntry = (who, action, target = '', details = '') => ({ id: uid(), at: stamp(), actor: who.name, action, target, details });
+  const keepEntry = (agency, entry) => {
+    agency.audit.push(entry);
+    if (agency.audit.length > AUDIT_IN_DOCUMENT) agency.audit.splice(0, agency.audit.length - AUDIT_IN_DOCUMENT);
   };
+  const logTo = (agency, who, action, target, details) => keepEntry(agency, auditEntry(who, action, target, details));
   const ensureAccounts = (agency, workspaces) => {
     for (const w of workspaces) {
       agency.accounts[w.id] ??= { status: 'Active', created: w.id === 'demo' ? '' : stamp(), lastLogin: '', plan: '', address: '', phone: '', website: '' };
@@ -773,8 +781,13 @@ export function makeServer({
     const agency = await loadAgency(agencyId);
     for (const w of workspaces) await store.change(w.id, s => { setLabsOffer(s, agency.labs); });
   }
+  /** A loose entry goes straight to the table; only without it is the agency document written again. */
+  async function writeAudit(who, action, target, details) {
+    const entry = auditEntry(who, action, target, details);
+    if (!await auditLog.append(who.agencyId, entry)) await changeAgency(who.agencyId, agency => keepEntry(agency, entry));
+  }
   async function recordAudit(who, action, target, details = '') {
-    try { await changeAgency(who.agencyId, agency => logTo(agency, who, action, target, details)); }
+    try { await writeAudit(who, action, target, details); }
     catch { /* Audit entries are best effort and never undo the action itself. */ }
   }
   async function createAccount(who, input) {
@@ -1965,6 +1978,7 @@ export function makeServer({
       try { await runAllAds(w.id); } catch (e) { console.error(`Ads (${w.id}): ${e.message}`); }
     }, { concurrency: cronConcurrency, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
     await trackingLog.sweep(at);
+    await auditLog.sweep(at);
     if (skipped.length) console.warn(`Cron: ${skipped.length} de ${spaces.length} workspaces ficaram para o próximo minuto.`);
     return total;
   }
@@ -2480,15 +2494,13 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const [state, workspaces, aiStatus] = await Promise.all([
           store.load(id), visibleWorkspaces(who), !who.support && (studio || agents || marketing || reputation) ? openAI.status(who.session) : null
         ]);
-        const account = workspaces.find(w => w.id === id)?.name || id;
-        const audit = !isPersonal && (who.support || hasModule(who, 'settings')) ? agency.audit.filter(a => a.target === account || a.target === id).slice(-200) : [];
-        if (who.support) await changeAgency(who.agencyId, current => logTo(current, who, 'Sub-account support viewed', id, who.account.status));
+        if (who.support) await writeAudit(who, 'Sub-account support viewed', id, who.account.status);
         return json({ ...workspaceView(who, state), workspaces,
           features:{studioAI: Boolean(aiStatus?.configured && studio), socialAI: Boolean(aiStatus?.configured && marketing), contentAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && (marketing || studio)), reviewAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && reputation), reportEmail: reportMail.configured, social: marketing ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
           agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id,who.settings),
           ...(who.support && { account: { ...who.account, support: true, statusHistory: agency.accounts[id]?.statusHistory || [],
             ignoredWebhooks: agency.accounts[id]?.ignoredWebhooks || {} } }),
-          access:{agency:who.agency,modules:who.modules,name:who.name,session:who.session},audit});
+          access:{agency:who.agency,modules:who.modules,name:who.name,session:who.session}});
       }
       // Dry run of a workflow draft for one contact, on a copy of the workspace: nothing is saved or sent.
       if (p==='/api/workflow-test' && method==='POST') {
@@ -2579,6 +2591,23 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (actionRouteHandled !== NEXT_ROUTE) return actionRouteHandled;
       if (p==='/api/agency' && method!=='POST') {
         return json(await agencyPayload(req,res));
+      }
+      // Configurações da agência → Logs de auditoria: newest first (?q=, ?before=<cursor>, ?limit=).
+      if (p==='/api/agency/audit' && method==='GET') {
+        const who = await access(req,res);
+        requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
+        if (!who.settings) throw error('Seu usuário não tem acesso às configurações da agência.',403);
+        return json(await auditLog.read(who.agencyId, { q: url.searchParams.get('q') || '', before: url.searchParams.get('before') || '', limit: url.searchParams.get('limit') || '' }));
+      }
+      // Configurações da subconta → Log de auditoria: só as entradas desta subconta.
+      if (p==='/api/audit' && method==='GET') {
+        if (privateSpace.test(id)) return json({ entries: [], next: '' });
+        if (!spaceId.test(id)) throw error('Workspace not found.',404);
+        const { agency, who: actor } = await accessContext(req,await verifiedUser(req,res));
+        const who = await requireWorkspaceAccess(agency, actor, id, { support: true });
+        if (!who.support && !hasModule(who, 'settings')) throw error('Seu usuário não tem acesso às configurações.',403);
+        const account = (await visibleWorkspaces(who)).find(w => w.id === id)?.name || id;
+        return json(await auditLog.read(who.agencyId, { targets: [account, id], before: url.searchParams.get('before') || '', limit: url.searchParams.get('limit') || '' }));
       }
       if (p.startsWith('/api/agency/') && method==='POST') {
         const who = await access(req,res);
