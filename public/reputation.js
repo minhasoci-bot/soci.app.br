@@ -6,6 +6,7 @@ import { qrSvg } from './qr.js';
 import { aiTool } from './content-ai.js';
 import { directories, hoursRows, listingStatuses } from './gbp-data.js';
 import { seoContent, visibilityContent } from './seo.js';
+import { ask } from './ask.js';
 
 export const reputationTabs = ['overview', 'reviews', 'requests', 'google', 'listings', 'seo', 'visibility', 'widgets', 'videos', 'settings'];
 const layouts = [['carousel', 'Carrossel'], ['grid', 'Grade'], ['list', 'Lista'], ['badge', 'Selo com a nota']];
@@ -366,8 +367,8 @@ export function installReputation({ c, api, url, mutate, flash, dialog, close, r
         render(); flash(el.dataset.status === 'approved' ? 'Depoimento aprovado. Ele já pode aparecer nos widgets com vídeos.' : 'Depoimento ocultado.');
       }
       if (act === 'delete') {
-        const what = { reviewWidgets: 'este widget? Sites que usam o código deixam de mostrá-lo', videoCollectors: 'este coletor? O link deixa de funcionar; os vídeos recebidos continuam', videoTestimonials: 'este depoimento? O vídeo é apagado' }[el.dataset.key];
-        if (!confirm(`Excluir ${what}.`)) return;
+        const [title, text] = { reviewWidgets: ['Excluir este widget?', 'Sites que usam o código deixam de mostrá-lo.'], videoCollectors: ['Excluir este coletor?', 'O link deixa de funcionar; os vídeos recebidos continuam.'], videoTestimonials: ['Excluir este depoimento?', 'O vídeo é apagado.'] }[el.dataset.key] || ['Excluir este item?', ''];
+        if (!await ask(title, { text, ok: 'Excluir' })) return;
         await mutate({ type: 'delete', key: el.dataset.key, id: el.dataset.id }); render(); flash('Excluído.');
       }
       if (act === 'ai-reply') {

@@ -3,6 +3,7 @@
 import { icon } from './icons.js';
 import { h, pageShell } from './screens.js';
 import { brandFonts, brandLimits, brandPresets, colorRoles, fontUrl, voiceTraits } from './brand-data.js';
+import { ask, askText } from './ask.js';
 
 const drafts = new Map();
 const roleLabel = Object.fromEntries(colorRoles);
@@ -144,7 +145,7 @@ export function installBrand({ c, api, url, mutate, flash, dialog, close, render
         render(); flash(`${board.name} agora é a marca padrão.`);
       }
       if (act === 'delete') {
-        if (!confirm('Excluir esta marca? A IA deixa de usar a voz dela.')) return;
+        if (!await ask('Excluir esta marca?', { text: 'A IA deixa de usar a voz dela.', ok: 'Excluir' })) return;
         await mutate({ type: 'delete', key: 'brandBoards', id: el.dataset.id }); render(); flash('Marca excluída.');
       }
       if (!d) return;
@@ -152,7 +153,7 @@ export function installBrand({ c, api, url, mutate, flash, dialog, close, render
       if (act === 'color-remove') { d.colors.splice(Number(el.dataset.index), 1); render(); }
       if (act === 'logo-remove') { d[el.dataset.key] = ''; render(); }
       if (act === 'voice-ai') {
-        const about = d.voice.summary || prompt('Conte em poucas frases o que a empresa faz e para quem:') || '';
+        const about = d.voice.summary || await askText('O que a empresa faz e para quem?', { text: 'Conte em poucas frases. A IA usa isso para escrever a voz da marca.', multiline: true, ok: 'Gerar voz' }) || '';
         if (!about.trim()) return;
         el.disabled = true;
         try {

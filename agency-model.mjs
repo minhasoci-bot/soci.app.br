@@ -7,7 +7,8 @@ import { defaults, metrics, uid, now } from './model.mjs';
 import { hydrateProspecting } from './prospecting-model.mjs';
 import { agentTemplate } from './agent-model.mjs';
 import { sanitizePresentation } from './presentation-model.mjs';
-import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
+import { isDeck, sanitizeDeck, applyOps as applyDeckOps, LIMITS as DECK_LIMITS } from './ui/deck-model.js';
+import { pranchetaFileRecord, createCanonicalTemplates, checkPranchetaSave, applyPranchetaSave, isThumbnailOnlySave } from './prancheta-model.mjs';
 import { walletKeys, walletProducts, walletSummary } from './wallet-model.mjs';
 import { labCatalog, labModes } from './ui/labs-data.js';
 import { deleteStudioApp, marketplaceFor, publishStudioApp, rotateAppSecret, saveStudioApp } from './app-studio-model.mjs';
@@ -20,8 +21,8 @@ import {
 export const AGENCY_ID = 'agency';
 const platformLanguage = 'Português (Brasil)';
 const platformBrand = 'soci';
-const defaultPrimary = '#ff00bb';
-const defaultSecondary = '#fc972d';
+const defaultPrimary = '#d62976';
+const defaultSecondary = '#962fbf';
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value).slice(0, limit) : '';
 const req = (value, label, limit) => str(value, limit) || fail(`${label} is required.`);
@@ -253,7 +254,12 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       const targetId = id || d.id;
       const existing = targetId ? state.presentations.find(item => item.id === targetId) : null;
       if (existing) {
-        Object.assign(existing, clean, { updated: now() });
+        // Replace the content wholesale: a deck saved over a legacy row (or the reverse) must not keep stale keys.
+        const keep = { id: existing.id, created: existing.created, share: existing.share };
+        for (const key of Object.keys(existing)) delete existing[key];
+        Object.assign(existing, clean, keep, { updated: now() });
+        if (isDeck(existing)) existing.rev = (Number(clean.rev) || 0) + 1;
+        if (!existing.share) delete existing.share;
         log('Presentation updated', existing.name || existing.title);
         return existing.id;
       }
@@ -262,6 +268,23 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       state.presentations.push(row);
       log('Presentation created', row.name || row.title, `${row.slides.length} lâmina(s)`);
       return row.id;
+    }
+    // Editor autosave: a batch of operations against the revision the editor last saw (Google Slides' /save model).
+    case 'presentation-ops': {
+      state.presentations ??= [];
+      const row = pick(state, 'presentations', id);
+      if (!isDeck(row)) fail('Abra a apresentação no editor para convertê-la antes de salvar alterações.');
+      const ops = Array.isArray(d.ops) && d.ops.length ? d.ops : fail('Envie as alterações da apresentação.');
+      if (ops.length > DECK_LIMITS.ops) fail('Alterações demais de uma vez. Tente salvar novamente.');
+      if (Number(d.rev) !== (Number(row.rev) || 0)) fail('Esta apresentação foi alterada em outra aba ou por outra pessoa. Recarregue para continuar editando.', 409);
+      const draft = JSON.parse(JSON.stringify(row));
+      applyDeckOps(draft, ops);
+      const clean = sanitizeDeck(draft, state.company);
+      const keep = { id: row.id, created: row.created, share: row.share };
+      for (const key of Object.keys(row)) delete row[key];
+      Object.assign(row, clean, keep, { rev: (Number(draft.rev) || 0) + 1, updated: now() });
+      if (!row.share) delete row.share;
+      return row.rev;
     }
     case 'presentation-delete': {
       state.presentations ??= [];
@@ -307,14 +330,17 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
     // Prancheta: Design files and vector artwork created at the agency level
     case 'prancheta-save': {
       state.pranchetaFiles ??= [];
-      const record = pranchetaFileRecord(state, d);
       const targetId = id || d.id;
       const existing = targetId ? state.pranchetaFiles.find(item => item.id === targetId) : null;
+      checkPranchetaSave(existing, d, fail);
       if (existing) {
-        Object.assign(existing, record, { updated: now() });
-        log('Prancheta updated', existing.name);
+        // Miniatura e salvamento automático do editor não entram no histórico um a um.
+        const quiet = isThumbnailOnlySave(d) || d.expectedUpdatedAt !== undefined;
+        applyPranchetaSave(existing, state, d, now);
+        if (!quiet) log('Prancheta updated', existing.name);
         return existing.id;
       }
+      const record = pranchetaFileRecord(state, d);
       if (state.pranchetaFiles.length >= 200) fail('A agência pode ter até 200 arquivos na prancheta.');
       const row = { ...record, id: targetId || uid(), created: now(), updated: now() };
       state.pranchetaFiles.unshift(row);

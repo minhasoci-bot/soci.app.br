@@ -251,6 +251,7 @@ export function startAgency(env) {
 
   pages.presentations = () => presentationsHtml(D(), {
     agency: D(),
+    getAgency: D,
     act,
     dialog,
     closeDialog: close,
@@ -999,8 +1000,8 @@ Authorization: Bearer soci_app_…
           <label>Endereço comercial<input name="address" value="${h(c.address)}"></label>
           <label>Fuso horário padrão<select name="timezone">${['America/Sao_Paulo', 'America/New_York', 'Europe/London', 'UTC'].map(z => `<option ${c.timezone === z ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
           <label>Moeda<input readonly value="Real brasileiro (BRL)"></label>
-          ${colorPicker(c.primary, { name: 'primary', label: 'Cor primária', fallback: '#FF00BB' })}
-          ${colorPicker(c.secondary, { name: 'secondary', label: 'Cor secundária', fallback: '#FC972D' })}
+          ${colorPicker(c.primary, { name: 'primary', label: 'Cor primária', fallback: '#D62976' })}
+          ${colorPicker(c.secondary, { name: 'secondary', label: 'Cor secundária', fallback: '#962FBF' })}
         </div>
         <div class="ag-brand-preview" aria-label="Prévia das cores primária e secundária">
           <span class="ag-brand-preview-bar" aria-hidden="true"></span>
@@ -1096,6 +1097,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     if (A.page === 'presentations') {
       attachPresentationListeners(app, {
         agency: D(),
+        getAgency: D,
         act,
         dialog,
         closeDialog: close,
@@ -1283,10 +1285,13 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           const view = d.view === 'ai-agents' ? d.view : '';
           const available = !view || !A.data.access.modules || A.data.access.modules.includes(view);
           const personal = A.data.personalWorkspace;
-          const personalChoice = personal ? `<button class="choice" data-ag="open-personal-workspace" data-view="${view}"><strong>${h(personal.name)}</strong><span>Workspace pessoal</span></button>` : '';
-          const choices = personalChoice + accounts().map(a => `<button class="choice" data-ag="open-account" data-id="${a.id}" data-view="${view}"><strong>${h(a.name)}</strong><span>${h(tr(a.status))} · ${a.contacts} contatos</span></button>`).join('');
+          const tile = name => `<span class="ws-tile" aria-hidden="true">${h(initials(name))}</span>`;
+          const personalChoice = personal ? `<button class="choice ws-choice" data-ag="open-personal-workspace" data-view="${view}">${tile(personal.name)}<span class="ws-text"><strong>${h(personal.name)}</strong><span>${tr('Workspace pessoal')}</span></span></button>` : '';
+          const choices = personalChoice + accounts().map(a => `<button class="choice ws-choice" data-ag="open-account" data-id="${a.id}" data-view="${view}">${tile(a.name)}<span class="ws-text"><strong>${h(a.name)}</strong><span>${h(tr(a.status))} · ${a.contacts} contatos</span></span></button>`).join('');
+          const company = D().company;
+          const here = view ? '' : `<p class="ws-label">${tr('Agência')}</p><div class="choice ws-choice ws-agency ws-here" aria-current="true"><span class="ws-tile" aria-hidden="true">${i('users', 18)}</span><span class="ws-text"><strong>${h(company.name || tr('Minha Agência'))}</strong><span>${tr('Você está no painel da agência')}</span></span><span class="ws-current">${i('check', 13)} ${tr('Atual')}</span></div><p class="ws-label">${tr('Subcontas')}</p>`;
           dialog(view ? 'Abrir Agentes de IA' : 'Trocar para uma subconta', available
-            ? `<div class="ag-switch">${choices || '<p class="dim">Nenhuma subconta disponível.</p>'}</div>`
+            ? `<div class="ag-switch ws-switch">${here}${choices || '<p class="dim">Nenhuma subconta disponível.</p>'}</div>`
             : '<p class="dim">Você não tem acesso a Agentes de IA.</p>');
           break;
         }

@@ -79,8 +79,8 @@
 .co-kinds label{display:flex!important;width:auto!important;position:relative}
 .co-kinds input{position:absolute;opacity:0;pointer-events:none}
 .co-kinds span{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--g-line,#d6dce6);border-radius:8px;font-weight:600;cursor:pointer}
-.co-kinds input:checked+span{border-color:var(--g-brand,#ff00bb);background:var(--g-brand-surface,#fff0fa);color:var(--g-brand-text,#a00070)}
-.co-kinds input:focus-visible+span{outline:2px solid var(--g-brand,#ff00bb);outline-offset:2px}
+.co-kinds input:checked+span{border-color:var(--g-brand,#d62976);background:var(--g-brand-surface,#fff0fa);color:var(--g-brand-text,#a00070)}
+.co-kinds input:focus-visible+span{outline:2px solid var(--g-brand,#d62976);outline-offset:2px}
 .co-drip{display:flex!important;align-items:center;flex-wrap:wrap;gap:8px!important}
 .co-drip input{width:80px!important}
 .co-cover-field{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:end;gap:12px}

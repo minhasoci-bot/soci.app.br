@@ -373,3 +373,119 @@ test('Prancheta: Agency initializes, hydrates and executes prancheta CRUD action
   assert.ok(!agency.pranchetaFiles.some(f => f.id === copyId));
 });
 
+
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+const editorDoc = (name = 'Arte do editor') => ({
+  version: 1,
+  name,
+  pages: [{ id: 'p1', name: 'Página 1', background: null, children: ['f1', 'f2'] }],
+  nodes: {
+    f1: { id: 'f1', type: 'FRAME', name: 'Capa', parentId: 'p1', x: 0, y: 0, width: 1080, height: 1350, fills: [{ type: 'SOLID', color: '#22222D', opacity: 1, visible: true }], children: [] },
+    f2: { id: 'f2', type: 'FRAME', name: 'Lâmina 2', parentId: 'p1', x: 1160, y: 0, width: 1080, height: 1350, fills: [], children: [] }
+  },
+  images: {}
+});
+
+test('Prancheta: salvar do editor resume as lâminas sem duplicar os nós e guarda o tamanho do frame', () => {
+  const ws = blank('Subconta');
+  const id = execute(ws, { type: 'prancheta-save', data: { name: 'Arte do editor', document: editorDoc() } });
+  const file = ws.pranchetaFiles.find(f => f.id === id);
+  assert.equal(file.width, 1080);
+  assert.equal(file.height, 1350);
+  assert.deepEqual(file.pages.map(p => p.name), ['Capa', 'Lâmina 2']);
+  assert.ok(file.pages.every(p => p.nodes.length === 0));
+  assert.equal(file.pages[0].background, '#22222D');
+  assert.equal(file.document.nodes.f1.name, 'Capa');
+});
+
+test('Prancheta: gravação só de miniatura não apaga a arte nem muda a data de alteração', () => {
+  for (const [state, run] of [
+    [blank('Subconta'), (s, cmd) => execute(s, cmd)],
+    [blankAgency('Agência'), (s, cmd) => executeAgency(s, cmd, { actor: 'Teste' })]
+  ]) {
+    const id = run(state, { type: 'prancheta-save', data: { name: 'Carrossel', format: 'instagram-carousel', tags: ['Template'], document: editorDoc('Carrossel') } });
+    const file = state.pranchetaFiles.find(f => f.id === id);
+    const before = file.updated;
+    run(state, { type: 'prancheta-save', id, data: { thumbnail: PNG } });
+    assert.equal(file.thumbnail, PNG);
+    assert.equal(file.name, 'Carrossel');
+    assert.equal(file.format, 'instagram-carousel');
+    assert.deepEqual(file.tags, ['Template']);
+    assert.ok(file.document?.nodes?.f1);
+    assert.equal(file.updated, before);
+
+    // O salvamento automático do editor (sem miniatura) mantém a miniatura, o formato e as etiquetas.
+    run(state, { type: 'prancheta-save', id, data: { name: 'Carrossel v2', document: editorDoc('Carrossel v2'), expectedUpdatedAt: before } });
+    assert.equal(file.name, 'Carrossel v2');
+    assert.equal(file.thumbnail, PNG);
+    assert.equal(file.format, 'instagram-carousel');
+    assert.deepEqual(file.tags, ['Template']);
+
+    assert.throws(() => run(state, { type: 'prancheta-save', id: 'nao-existe', data: { thumbnail: PNG } }), e => e.status === 404);
+    assert.throws(() => run(state, { type: 'prancheta-save', id, data: { thumbnail: 'javascript:alert(1)' } }), /Miniatura inválida/);
+  }
+});
+
+test('Prancheta: gravação com versão antiga é recusada com 409', () => {
+  const ws = blank('Subconta');
+  const id = execute(ws, { type: 'prancheta-save', data: { name: 'Arte', document: editorDoc('Arte') } });
+  assert.throws(
+    () => execute(ws, { type: 'prancheta-save', id, data: { name: 'Outra aba', document: editorDoc('Outra aba'), expectedUpdatedAt: '2000-01-01T00:00:00.000Z' } }),
+    e => e.status === 409
+  );
+  assert.equal(ws.pranchetaFiles.find(f => f.id === id).name, 'Arte');
+});
+
+test('Prancheta: arquivos antigos e modelos abrem no editor com um frame por lâmina', async () => {
+  const { sociToDocument } = await import('../prancheta-model.mjs');
+  const tpl = createCanonicalTemplates().find(t => t.id === 'template-head-carousel');
+  const doc = sociToDocument({ name: tpl.name, width: tpl.width, height: tpl.height, pages: tpl.pages });
+  assert.equal(doc.pages.length, 1);
+  const frames = doc.pages[0].children.map(id => doc.nodes[id]);
+  assert.equal(frames.length, tpl.pages.length);
+  assert.ok(frames.every(f => f.type === 'FRAME' && f.width === 1080 && f.height === 1350 && f.clipsContent));
+  assert.equal(frames[1].x, 1080 + 80);
+  assert.equal(frames[0].fills[0].color, '#101014');
+  const title = doc.nodes['title-1'];
+  assert.equal(title.parentId, frames[0].id);
+  assert.equal(title.lineHeight, Math.round(1.15 * 68), 'altura de linha vira px');
+  assert.equal(title.textAutoResize, 'HEIGHT');
+  assert.ok(title.width > 0);
+  assert.ok(Object.values(doc.nodes).every(n => n.fills.every(p => p.visible === true && p.opacity === 1)));
+});
+
+test('Prancheta: página do editor e pacote são servidos, com iframe só da própria soci', async (t) => {
+  const { makeServer } = await import('../server.mjs');
+  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, dbPath: ':memory:', port: 0, socialScheduler: false });
+  await new Promise((resolve, reject) => { server.on('error', reject); server.listen(0, host, resolve); });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const base = `http://${host}:${server.address().port}`;
+
+  const page = await fetch(`${base}/prancheta-editor.html`);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /\/vendor\/prancheta-editor\.js/);
+  const pageCsp = page.headers.get('content-security-policy');
+  assert.match(pageCsp, /frame-ancestors 'self'/);
+  assert.match(pageCsp, /'wasm-unsafe-eval'/);
+
+  const app = await fetch(`${base}/app`);
+  assert.match(app.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+  assert.doesNotMatch(app.headers.get('content-security-policy'), /wasm-unsafe-eval/);
+
+  for (const path of ['/vendor/prancheta-editor.js', '/vendor/prancheta-editor.css']) {
+    const r = await fetch(base + path);
+    assert.equal(r.status, 200, path);
+    assert.ok((await r.text()).length > 1000, path);
+  }
+
+  // Conflito pela API: o editor recebe 409 e mostra "Reabrir / salvar cópia".
+  const post = (path, body) => fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base }, body: JSON.stringify(body) });
+  const created = await (await post('/api/prancheta/save?workspace=demo', { name: 'Arte', document: editorDoc('Arte') })).json();
+  const opened = await (await fetch(`${base}/api/prancheta/file?workspace=demo&id=${created.id}`)).json();
+  const ok = await post('/api/prancheta/save?workspace=demo', { id: created.id, name: 'Arte', document: editorDoc('Arte'), expectedUpdatedAt: opened.updated_at });
+  assert.equal(ok.status, 200);
+  const saved = (await ok.json()).file;
+  assert.ok(saved.updated_at);
+  const stale = await post('/api/prancheta/save?workspace=demo', { id: created.id, name: 'Arte', document: editorDoc('Arte'), expectedUpdatedAt: '2000-01-01T00:00:00.000Z' });
+  assert.equal(stale.status, 409);
+});

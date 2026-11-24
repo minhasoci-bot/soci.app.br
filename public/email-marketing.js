@@ -8,6 +8,7 @@ import { contentTones } from './content-ai-data.js';
 import { icon } from './icons.js';
 import { h, pageShell, search } from './screens.js';
 import { BLOCK_TYPES, FONTS, MAX_BLOCKS, MERGE_FIELDS, mergeValues, newBlock, renderEmail, fillText, starterDesign } from './email-blocks.js';
+import { ask } from './ask.js';
 
 export const emailTabs = ['email', 'email-campaigns', 'email-templates', 'email-campaign', 'email-template', 'email-report', 'email-sequences', 'email-sequence'];
 const ed = { key: '', draft: null, dirty: false, open: 0, device: 'desktop' };
@@ -297,10 +298,10 @@ export function installEmailMarketing({ c, mutate, flash, dialog, close, render,
         }
         case 'duplicate': { const id = await mutate({ type: 'email-campaign-duplicate', id: ds.id }); flash('Campanha duplicada como rascunho.'); location.hash = `#marketing/email-campaign/${id}`; break; }
         case 'delete':
-          if (!confirm('Excluir? Não dá para desfazer.')) break;
+          if (!await ask('Excluir este item?', { text: 'Não dá para desfazer.', ok: 'Excluir' })) break;
           await mutate({ type: 'delete', key: ds.key, id: ds.id }); render(); flash('Excluído.'); break;
         case 'cancel':
-          if (!confirm('Cancelar? Quem ainda não recebeu não vai receber; um agendamento volta a ser rascunho.')) break;
+          if (!await ask('Cancelar este envio?', { text: 'Quem ainda não recebeu não vai receber; um agendamento volta a ser rascunho.', ok: 'Cancelar envio', cancel: 'Voltar' })) break;
           await mutate({ type: 'email-campaign-cancel', id: ds.id }); render(); flash('Envio cancelado.'); break;
         case 'refresh': await reload(); render(); break;
         case 'toggle': ed.open = ed.open === Number(ds.i) ? -1 : Number(ds.i); render(); break;

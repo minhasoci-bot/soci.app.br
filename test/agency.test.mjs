@@ -20,8 +20,8 @@ const prospectAction = (local, op, id, data) => local.call('/api/agency/prospect
 test('Company name is editable while the platform brand stays soci', async t => {
   const local = await start(); t.after(local.close);
   const { body: initial } = await local.call('/api/agency');
-  assert.equal(initial.agency.company.primary, '#ff00bb');
-  assert.equal(initial.agency.company.secondary, '#fc972d');
+  assert.equal(initial.agency.company.primary, '#d62976');
+  assert.equal(initial.agency.company.secondary, '#962fbf');
   const logo = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
   const data = { name: 'Empresa Teste', timezone: 'America/Sao_Paulo', currency: 'BRL',
     primary: '#7c5cf0', secondary: '#00c49a', logo, domain: 'app.empresa.example' };

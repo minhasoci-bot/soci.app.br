@@ -108,6 +108,20 @@ export function createCanonicalTemplates() {
   ];
 }
 
+/** Tipos de nó que o editor da Prancheta entende (prancheta-editor/src/editor/model/types.ts). */
+const EDITOR_NODE_TYPES = new Set(['FRAME', 'GROUP', 'COMPONENT', 'INSTANCE', 'BOOLEAN_OPERATION', 'RECTANGLE', 'ELLIPSE', 'POLYGON', 'STAR', 'LINE', 'TEXT', 'VECTOR']);
+const SLIDE_GAP = 80;
+
+const paintOf = p => p && typeof p === 'object'
+  ? { ...p, type: p.type || 'SOLID', opacity: typeof p.opacity === 'number' ? p.opacity : 1, visible: p.visible !== false }
+  : null;
+const paintsOf = list => (Array.isArray(list) ? list : []).map(paintOf).filter(Boolean);
+
+/**
+ * Converte um arquivo da galeria para o documento do editor. Arquivos salvos
+ * pelo editor já trazem `document`; os antigos (lâminas com nós soltos, presets
+ * e modelos canônicos) viram uma página com um frame do tamanho da arte por lâmina.
+ */
 export function sociToDocument(file) {
   if (file && file.document && file.document.nodes && file.document.pages) {
     return {
@@ -115,59 +129,119 @@ export function sociToDocument(file) {
       name: file.name || file.document.name || 'Sem título'
     };
   }
-  const pages = [];
+  const width = Number(file?.width) || 1080;
+  const height = Number(file?.height) || 1080;
   const nodes = {};
-  const images = file?.document?.images || {};
+  const frames = [];
+  const unique = (base) => {
+    let id = base, n = 2;
+    while (nodes[id] || id === 'page-1') id = `${base}-${n++}`;
+    return id;
+  };
 
-  (file.pages || []).forEach((p, pIdx) => {
-    const pageId = p.id || `page-${pIdx + 1}`;
-    const childIds = [];
+  (file?.pages || []).forEach((p, pIdx) => {
+    const frameId = unique(`slide-${p.id || pIdx + 1}`);
+    const children = [];
     (p.nodes || []).forEach((n, nIdx) => {
-      const nodeId = n.id || `node-${pIdx + 1}-${nIdx + 1}`;
-      childIds.push(nodeId);
-      nodes[nodeId] = {
+      if (!n || typeof n !== 'object') return;
+      const type = EDITOR_NODE_TYPES.has(n.type) ? n.type : 'RECTANGLE';
+      const nodeId = unique(n.id || `node-${pIdx + 1}-${nIdx + 1}`);
+      const x = Number(n.x) || 0;
+      const fontSize = Number(n.fontSize) || 16;
+      const rawLine = Number(n.lineHeight);
+      const node = {
+        ...n,
         id: nodeId,
-        type: n.type || 'RECTANGLE',
-        name: n.name || n.text || `Elemento ${nIdx + 1}`,
-        parentId: pageId,
-        x: Number(n.x) || 0,
+        type,
+        name: n.name || (type === 'TEXT' ? String(n.text || 'Texto').slice(0, 40) : `Elemento ${nIdx + 1}`),
+        parentId: frameId,
+        x,
         y: Number(n.y) || 0,
-        width: Number(n.width) || 200,
-        height: Number(n.height) || 100,
+        width: Number(n.width) || (type === 'TEXT' ? Math.max(100, width - x - 80) : 200),
+        height: Number(n.height) || (type === 'TEXT' ? Math.round(fontSize * 1.4) : 100),
         rotation: Number(n.rotation) || 0,
-        flipX: false,
-        flipY: false,
+        flipX: Boolean(n.flipX),
+        flipY: Boolean(n.flipY),
         visible: n.visible !== false,
         locked: Boolean(n.locked),
         opacity: typeof n.opacity === 'number' ? n.opacity : 1,
-        fills: Array.isArray(n.fills) ? n.fills : [{ type: 'SOLID', color: n.fill || '#FF00BB', opacity: 1, visible: true }],
-        strokes: Array.isArray(n.strokes) ? n.strokes : [],
+        fills: Array.isArray(n.fills) ? paintsOf(n.fills) : [{ type: 'SOLID', color: n.fill || '#FF00BB', opacity: 1, visible: true }],
+        strokes: paintsOf(n.strokes),
         strokeWeight: Number(n.strokeWeight) || 0,
-        strokeAlign: 'INSIDE',
+        strokeAlign: n.strokeAlign || 'INSIDE',
         effects: Array.isArray(n.effects) ? n.effects : [],
         cornerRadius: Number(n.cornerRadius) || 0,
-        constrainProportions: false,
-        text: n.text || '',
-        fontSize: Number(n.fontSize) || 16,
-        fontWeight: Number(n.fontWeight) || 500,
-        lineHeight: n.lineHeight || null
+        constrainProportions: false
       };
+      if (type === 'TEXT') {
+        Object.assign(node, {
+          text: String(n.text || ''),
+          fontFamily: n.fontFamily || 'Inter',
+          fontSize,
+          fontWeight: Number(n.fontWeight) || 500,
+          // A galeria antiga guardava a altura de linha como multiplicador (1.2); o editor usa px.
+          lineHeight: rawLine > 0 ? (rawLine < 4 ? Math.round(rawLine * fontSize) : rawLine) : null,
+          letterSpacing: Number(n.letterSpacing) || 0,
+          textAlign: ['LEFT', 'CENTER', 'RIGHT'].includes(n.textAlign) ? n.textAlign : 'LEFT',
+          textAutoResize: n.width ? (n.textAutoResize || 'HEIGHT') : 'HEIGHT'
+        });
+      }
+      nodes[nodeId] = node;
+      children.push(nodeId);
     });
-    pages.push({
-      id: pageId,
-      name: p.name || `Página ${pIdx + 1}`,
-      background: p.background || '#101014',
-      children: childIds
-    });
+    nodes[frameId] = {
+      id: frameId,
+      type: 'FRAME',
+      name: p.name || `Lâmina ${pIdx + 1}`,
+      parentId: 'page-1',
+      x: pIdx * (width + SLIDE_GAP),
+      y: 0,
+      width,
+      height,
+      rotation: 0, flipX: false, flipY: false, visible: true, locked: false, opacity: 1,
+      fills: [{ type: 'SOLID', color: p.background || '#101014', opacity: 1, visible: true }],
+      strokes: [], strokeWeight: 0, strokeAlign: 'INSIDE', effects: [], cornerRadius: 0,
+      constrainProportions: false,
+      clipsContent: true,
+      children
+    };
+    frames.push(frameId);
   });
 
   return {
     version: 1,
-    name: file.name || 'Sem título',
-    pages: pages.length ? pages : [{ id: 'page-1', name: 'Página 1', background: '#101014', children: [] }],
+    name: file?.name || 'Sem título',
+    pages: [{ id: 'page-1', name: 'Página 1', background: null, children: frames }],
     nodes,
-    images
+    images: file?.document?.images || {}
   };
+}
+
+export const MAX_PRANCHETA_BYTES = 25 * 1024 * 1024;
+const MAX_THUMBNAIL_CHARS = 2 * 1024 * 1024;
+const stampOf = f => f?.updated_at || f?.updated || f?.created_at || f?.created || '';
+const SAVE_FIELDS = ['name', 'document', 'pages', 'nodes', 'width', 'height', 'format', 'tags', 'background'];
+
+/** Gravação que só troca a miniatura (o editor manda ao fechar). Não muda a data de alteração. */
+export const isThumbnailOnlySave = d => typeof d?.thumbnail === 'string' && !SAVE_FIELDS.some(k => d[k] !== undefined);
+
+/**
+ * Regras comuns da gravação da Prancheta (agência e subconta):
+ * conflito de versão, tamanho máximo e miniatura válida.
+ */
+export function checkPranchetaSave(existing, d, fail) {
+  if (d?.expectedUpdatedAt !== undefined) {
+    if (!existing || stampOf(existing) !== d.expectedUpdatedAt) {
+      fail('Esta arte mudou em outra aba ou não está mais disponível. Reabra a versão salva ou salve seu trabalho como uma cópia.', 409);
+    }
+  }
+  if (typeof d?.thumbnail === 'string' && d.thumbnail && (!d.thumbnail.startsWith('data:image/') || d.thumbnail.length > MAX_THUMBNAIL_CHARS)) {
+    fail('Miniatura inválida.');
+  }
+  if (isThumbnailOnlySave(d) && !existing) fail('Design não encontrado.', 404);
+  if (d?.document && JSON.stringify(d.document).length > MAX_PRANCHETA_BYTES) {
+    fail('Esta arte passou de 25 MB. Reduza as imagens antes de salvar.', 413);
+  }
 }
 
 export function documentToSoci(doc, meta = {}) {
@@ -192,19 +266,13 @@ export function documentToSoci(doc, meta = {}) {
 
 export function pranchetaFileRecord(s, d) {
   const name = typeof d.name === 'string' && d.name.trim() ? d.name.trim().slice(0, 150) : (d.document?.name || 'Sem título');
-  const width = Math.min(4000, Math.max(100, Number(d.width) || 1080));
-  const height = Math.min(4000, Math.max(100, Number(d.height) || 1080));
+  const summary = documentSummary(d.document);
+  const width = Math.min(4000, Math.max(100, Number(d.width) || summary?.width || 1080));
+  const height = Math.min(4000, Math.max(100, Number(d.height) || summary?.height || 1080));
   const format = typeof d.format === 'string' ? d.format.slice(0, 50) : 'custom';
-  
+
   let pages = Array.isArray(d.pages) && d.pages.length ? d.pages : null;
-  if (!pages && d.document && Array.isArray(d.document.pages)) {
-    pages = d.document.pages.map((p, idx) => ({
-      id: p.id || `page-${idx + 1}`,
-      name: p.name || `Página ${idx + 1}`,
-      background: p.background || '#101014',
-      nodes: (p.children || []).map(cid => d.document.nodes?.[cid]).filter(Boolean)
-    }));
-  }
+  if (!pages && summary) pages = summary.pages;
   if (!pages || !pages.length) {
     pages = [
       {
@@ -230,4 +298,39 @@ export function pranchetaFileRecord(s, d) {
     tags,
     document
   };
+}
+
+/**
+ * Resumo leve de um documento do editor para a galeria: uma "lâmina" por frame
+ * de topo da primeira página (só nome e fundo, sem copiar os nós) e o tamanho
+ * do primeiro frame.
+ */
+function documentSummary(doc) {
+  if (!doc || !Array.isArray(doc.pages) || !doc.nodes || typeof doc.nodes !== 'object') return null;
+  const first = doc.pages[0];
+  const frames = (first?.children || []).map(id => doc.nodes[id]).filter(n => n && n.type === 'FRAME');
+  const pages = (frames.length ? frames : [null]).map((f, idx) => ({
+    id: f?.id || first?.id || `page-${idx + 1}`,
+    name: f?.name || first?.name || `Página ${idx + 1}`,
+    background: f?.fills?.find(p => p?.type === 'SOLID')?.color || first?.background || '#101014',
+    nodes: []
+  }));
+  return { pages, width: Math.round(frames[0]?.width || 0) || null, height: Math.round(frames[0]?.height || 0) || null };
+}
+
+/**
+ * Atualiza um arquivo existente. Campos que a gravação não trouxe (miniatura,
+ * formato, etiquetas) continuam como estavam; uma gravação só de miniatura não
+ * muda a data de alteração, para não gerar conflito com o editor aberto.
+ */
+export function applyPranchetaSave(existing, s, d, now) {
+  if (isThumbnailOnlySave(d)) {
+    existing.thumbnail = d.thumbnail;
+    return existing;
+  }
+  const record = pranchetaFileRecord(s, d);
+  if (d.thumbnail === undefined) delete record.thumbnail;
+  if (d.format === undefined && existing.format) delete record.format;
+  if (d.tags === undefined && Array.isArray(existing.tags)) delete record.tags;
+  return Object.assign(existing, record, { updated: now() });
 }

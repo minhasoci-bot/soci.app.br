@@ -17,6 +17,7 @@ import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm.js';
 import { socialEvents } from './social.js';
+import { installEventPlanner } from './event-planner.js';
 import { mountAgentScreen } from './agents.js';
 import { mountAgentHub } from './agent-hub.js';
 import { installContentAI } from './content-ai.js';
@@ -70,6 +71,7 @@ import { installReports } from './reports.js';
 import './phone-input.js';
 import { clickWith, mountBeautifulUI } from './bui-mounts.js';
 import { diffTable, searchList } from './beautiful-ui-more.js';
+import { ask, askText } from './ask.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
@@ -207,7 +209,7 @@ const sessionDismissed=new Set();
 const inboxContext=()=>({c,mutate,render,flash,dialog,close});
 async function mutate(command){ const workspace=c.workspace;const d=await api(url('/api/action'),command);if(workspace===c.workspace){c.s=d.state;c.m=d.metrics;}return d.id; }
 const go=(view,tab='')=>{const next=`#${view}${tab?`/${tab}`:''}`; if(location.hash===next) route(); else location.hash=next;};
-const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments','services','resources','field','booking','meetings'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social',...emailTabs,'countdown','affiliates','ads','loyalty','brand','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers','certificates'],reporting:['reports','attribution','google-ads','meta-ads','overview','calls','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],reputation:reputationTabs,'ai-agents':['agent','edit','knowledge','base','templates','logs','usage'],settings:crmTabs.settings.map(t=>t[0])};
+const validTabs={media:['trash','folder'],launchpad:['initial','marketing','sales','website','commerce'],contacts:crmTabs.contacts.map(t=>t[0]),conversations:['all','unread','recent','starred',...conversationSections],calendars:['calendar','appointments','services','resources','field','booking','meetings'],opportunities:crmTabs.opportunities.map(t=>t[0]),automation:['workflows','folder','smart','review','deleted','overview','builder','settings','enrollments','logs'],payments:[...crmTabs.payments.map(t=>t[0]),'document','estimate',...invoiceTabs],sites:['funnels','websites','forms','submissions','funnel','form','form-analytics','surveys','survey-analytics','survey-submissions','quizzes','quiz-analytics','quiz-submissions','chat-widget','chat-insights','chat','blogs','blog','post','blog-settings','stores','store','webinars','webinar','qr-codes','qr','analytics','editor','build'],marketing:['social','events',...emailTabs,'countdown','affiliates','ads','loyalty','brand','prancheta'],prancheta:['files','editor','templates'],memberships:['portal','portal-members','portal-settings','courses','course','communities','community','offers','certificates'],reporting:['reports','attribution','google-ads','meta-ads','overview','calls','snapshots','new','editor'],studio:['recent','projects','starred','templates','project','build'],reputation:reputationTabs,'ai-agents':['agent','edit','knowledge','base','templates','logs','usage'],settings:crmTabs.settings.map(t=>t[0])};
 function leaveAgentEditor() {
   if (editor) void editor.flush();
   editor = null;
@@ -512,10 +514,11 @@ function edit(key,id,preset={}){
 }
 
 function workspaces(){
-  const agency = c.access?.agency ? '<button class="choice" data-act="agency-view"><strong>Visão da agência</strong></button>' : '';
-  const choices = c.workspaces.map(w => `<button class="choice" data-workspace="${w.id}"><strong>${h(w.name)}</strong>${w.id === c.workspace ? '<span>Workspace atual</span>' : ''}</button>`).join('');
+  const ini = s => String(s || '').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('') || '·';
+  const agency = c.access?.agency ? `<p class="ws-label">${tr('Agência')}</p><button class="choice ws-choice ws-agency" data-act="agency-view"><span class="ws-tile" aria-hidden="true">${i('users',18)}</span><span class="ws-text"><strong>${tr('Visão da agência')}</strong><span>${tr('Painel da agência com todas as subcontas')}</span></span>${i('right',16)}</button>` : '';
+  const choices = c.workspaces.map(w => { const here = w.id === c.workspace; return `<button class="choice ws-choice${here ? ' ws-here' : ''}" data-workspace="${w.id}"${here ? ' aria-current="true"' : ''}><span class="ws-tile" aria-hidden="true">${h(ini(w.name))}</span><span class="ws-text"><strong>${h(w.name)}</strong><span>${tr('Subconta')}</span></span>${here ? `<span class="ws-current">${i('check',13)} ${tr('Atual')}</span>` : ''}</button>`; }).join('');
   const create = c.access?.agency ? `<button class="secondary" data-act="new-workspace">${i('plus',16)} Novo workspace</button>` : '';
-  dialog('Trocar de workspace', `${agency}${choices}${create}`);
+  dialog('Trocar de workspace', `<div class="ws-switch">${agency}${choices ? `<p class="ws-label">${tr('Subcontas')}</p>${choices}` : ''}${create}</div>`);
 }
 function switchingCover(name){
   const cover=document.createElement('div');
@@ -893,24 +896,24 @@ document.addEventListener('click',async ev=>{
       case 'dialer-hangup': await api(url('/api/phone/dialer/hangup'),{}); flash(tr('Ligação encerrada.')); setTimeout(async()=>{ await load(); render(); },1500); break;
       case 'dialer-stop': await api(url('/api/phone/dialer/stop'),{}); await load(); render(); flash(tr('Discador encerrado.')); break;
       case 'dialer-remove': await mutate({type:'dialer-queue-remove',data:{contactId:d.dialerContact}}); render(); break;
-      case 'dialer-clear': if(!confirm(tr('Tirar todos os contatos pendentes da fila?'))) break; await mutate({type:'dialer-queue-remove',data:{all:true}}); render(); break;
+      case 'dialer-clear': if(!await ask('Tirar todos os contatos pendentes da fila?', { ok: 'Esvaziar fila' })) break; await mutate({type:'dialer-queue-remove',data:{all:true}}); render(); break;
       case 'connectors-refresh': c.connectorStatus=null; render(); await refreshConnectors(); break;
       case 'connector-copy': await navigator.clipboard.writeText(d.connectorValue).then(()=>flash(tr('URL copiada.')),()=>flash(tr('Selecione a URL e copie.'),true)); break;
       case 'connector-disconnect': {
-        if(!confirm(tr('Desconectar este app? Os fluxos que usam os gatilhos e ações dele param de funcionar.'))) break;
+        if(!await ask('Desconectar este app?', { text: 'Os fluxos que usam os gatilhos e ações dele param de funcionar.', ok: 'Desconectar' })) break;
         c.connectorStatus={...await api(url('/api/connectors/disconnect'),{id:d.connectorId}),workspace:c.workspace}; await load(); render(); flash(tr('App desconectado.'));
         break;
       }
       case 'phone-refresh': c.phoneSetup=null; render(); await refreshPhone(); break;
       case 'phone-buy': {
         const number=d.phoneNumber;
-        if(!confirm(tr('Comprar este número? A Twilio cobra a mensalidade do número na conta da plataforma.'))) break;
+        if(!await ask('Comprar este número?', { text: 'A Twilio cobra a mensalidade do número na conta da plataforma.', ok: 'Comprar', danger: false })) break;
         c.phoneSetup={...c.phoneSetup,...await api(url('/api/phone/buy'),{number,name:''}),workspace:c.workspace}; c.phoneSearch=null;
         await load(); render(); flash(tr('Número comprado. Escolha onde as ligações tocam.'));
         break;
       }
       case 'phone-release': {
-        if(!confirm(tr('Liberar este número? Ele volta para a Twilio e pode não ser recuperado.'))) break;
+        if(!await ask('Liberar este número?', { text: 'Ele volta para a Twilio e pode não ser recuperado.', ok: 'Liberar' })) break;
         c.phoneSetup={...c.phoneSetup,...await api(url('/api/phone/release'),{id:d.phoneId}),workspace:c.workspace};
         await load(); render(); flash(tr('Número liberado.'));
         break;
@@ -918,7 +921,7 @@ document.addEventListener('click',async ev=>{
       case 'phone-call': {
         let agentPhone='';
         try{ agentPhone=localStorage.getItem('soci-agent-phone')||''; }catch{}
-        agentPhone=prompt(tr('A Soci liga primeiro para o seu telefone e, quando você atender, completa a ligação com o contato. Qual é o seu telefone?'),agentPhone);
+        agentPhone=await askText('Qual é o seu telefone?',{text:'A Soci liga primeiro para o seu telefone e, quando você atender, completa a ligação com o contato.',value:agentPhone,type:'tel',ok:'Ligar agora'});
         if(!agentPhone) break;
         try{ localStorage.setItem('soci-agent-phone',agentPhone); }catch{}
         await api(url('/api/phone/call'),{contactId:c.thread,agentPhone});
@@ -935,14 +938,14 @@ document.addEventListener('click',async ev=>{
         break;
       }
       case 'email-remove': {
-        if(!confirm('Remover o domínio de envio? Os e-mails desta subconta voltam a sair do endereço da plataforma.')) break;
+        if(!await ask('Remover o domínio de envio?', { text: 'Os e-mails desta subconta voltam a sair do endereço da plataforma.', ok: 'Remover' })) break;
         c.emailDomain={...await api(url('/api/email/workspace/remove'),{}),workspace:c.workspace};
         render(); flash('Domínio de envio removido.');
         break;
       }
       case 'google-connect': window.open(url('/api/google/workspace/connect'),'soci-google','width=560,height=720'); break;
       case 'google-disconnect': {
-        if(!confirm('Desconectar o Google desta subconta? Os widgets do Google Analytics e do Perfil da Empresa param de mostrar dados.')) break;
+        if(!await ask('Desconectar o Google desta subconta?', { text: 'Os widgets do Google Analytics e do Perfil da Empresa param de mostrar dados.', ok: 'Desconectar' })) break;
         c.google={...await api(url('/api/google/workspace/disconnect'),{}),workspace:c.workspace};
         render(); flash('Google desconectado.');
         break;
@@ -956,7 +959,7 @@ document.addEventListener('click',async ev=>{
         break;
       }
       case 'abacate-disconnect': {
-        if(!confirm('Desconectar o AbacatePay deste workspace? Links já enviados continuam valendo, mas as baixas automáticas param.')) break;
+        if(!await ask('Desconectar o AbacatePay deste workspace?', { text: 'Links já enviados continuam valendo, mas as baixas automáticas param.', ok: 'Desconectar' })) break;
         c.pay=await api(url('/api/abacatepay/workspace/disconnect'),{});
         render(); flash('AbacatePay desconectado.');
         break;
@@ -1304,6 +1307,7 @@ if(viewPath){
   void installMobileShell({ c, api, url, flash });
   installAppMarketplace({ c, api, url, flash, render });
   installContentAI({ api, flash, workspace: () => c.workspace, enabled: kind => Boolean(c.features?.contentAI || (kind === 'gbp' && c.features?.reviewAI)) });
+  installEventPlanner({ c, mutate, flash, dialog, close, render, api, url, load });
   installCountdowns({ c, mutate, flash, dialog, close, render });
   installAffiliates({ c, api, url, mutate, flash, dialog, close, render });
   installAds({ c, api, url, mutate, flash, dialog, close, render });

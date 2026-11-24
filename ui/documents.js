@@ -7,6 +7,7 @@ import { crmTabs } from './crm.js';
 import { designStage, mountDesignStage } from './design-workspace.js';
 import { buildWorkflowContext, resolveTemplate } from './expressions.js';
 import { recipientIndex, recipientStates, renderCertificate, renderDocument, roleNames } from './document-render.js';
+import { askText } from './ask.js';
 import {
   blockKinds, cloneBlocks, contactVariables, documentContext, documentFonts, documentKinds, documentStatuses, documentTotal, fieldKinds,
   libraryCategories, lineTotal, newBlock, newId, newRecipient, paymentModes, paymentParts, paymentTimings, recipientColors, recipientRoles, socLibrary, socTemplates, videoEmbed
@@ -587,10 +588,22 @@ export function installDocuments(environment) {
     const cmd = button.dataset.dcCmd;
     if (button.dataset.dcVar) document.execCommand('insertHTML', false, `<span class="dc-var" contenteditable="false">{{${h(button.dataset.dcVar)}}}</span>&nbsp;`);
     else if (['h1', 'h2', 'h3', 'p'].includes(cmd)) document.execCommand('formatBlock', false, cmd);
-    else if (cmd === 'link') { const url = prompt('Endereço do link (https://…)'); if (url && /^(https?:\/\/|mailto:)/i.test(url)) document.execCommand('createLink', false, url); }
+    else if (cmd === 'link') { insertLink(editableEl); return; }
     else document.execCommand(cmd, false);
     syncText(editableEl);
   });
+
+  // The dialog takes the focus, so the selected text is put back before the link is created.
+  async function insertLink(el) {
+    const selection = getSelection();
+    const range = selection.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+    const url = (await askText('Endereço do link', { type: 'url', placeholder: 'https://…', ok: 'Inserir link' }))?.trim();
+    if (!url || !/^(https?:\/\/|mailto:)/i.test(url) || !range || !el.isConnected) return;
+    el.focus();
+    selection.removeAllRanges(); selection.addRange(range);
+    document.execCommand('createLink', false, url);
+    syncText(el);
+  }
 
   function syncText(el) {
     const block = findBlock(dc.draft.blocks, el.dataset.dcText);

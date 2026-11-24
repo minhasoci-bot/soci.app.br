@@ -21,6 +21,8 @@ import { mediaBeforeDelete, mediaCollections as driveCollections, mediaCommand, 
 import { courseFields } from './course-model.mjs';
 import { communityCollections, communityFields } from './community.mjs';
 import { communityEventBeforeDelete, communityEventCollections, communityEventCommand, communityEventFields } from './community-events.mjs';
+import { eventPlanAfterSave, eventPlanCollections, eventPlanCommand, eventPlanFields } from './event-planner-model.mjs';
+import { eventSendCollections, eventSendCommand, eventSendDefaults, eventSendsAfterSave, eventSendsBeforeDelete, eventSendSettingsOf } from './event-send-model.mjs';
 import { communityCommand } from './community-config.mjs';
 import { courseActivityCommand } from './course-learning.mjs';
 import { courseOfferBeforeDelete, credentialCollections } from './course-credentials.mjs';
@@ -44,7 +46,7 @@ import { academyBeforeDelete } from './community-academy.mjs';
 import { offerBeforeDelete, offerAccessCommand, offerCheckout, offerCollections, offerFields } from './offer-model.mjs';
 import { pipelineCommand, stageColors } from './pipeline-model.mjs';
 import { createEngine, workflowRecord } from './workflow-engine.mjs';
-import { pranchetaFileRecord, createCanonicalTemplates } from './prancheta-model.mjs';
+import { pranchetaFileRecord, createCanonicalTemplates, checkPranchetaSave, applyPranchetaSave } from './prancheta-model.mjs';
 import { directories } from './ui/gbp-data.js';
 import { brandCollections, brandFields } from './brand-model.mjs';
 import { addAffiliateFromContact, affiliateCampaignChanges, affiliateWorkflow, affiliateClick, affiliateCollections, affiliateDefaults, affiliateFields, affiliateSettings, affiliateSignup, attributeContacts, issuePortalToken, recordPayout, reviewCommission, saveAffiliateSettings, settleAffiliates } from './affiliate-model.mjs';
@@ -68,7 +70,8 @@ export const defaults = {
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[], pranchetaFiles:[],
-  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...credentialCollections, ...certificateCollections, ...ticketCollections, ...sequenceCollections, ...loyaltyCollections, ...schedulingCollections, ...meetingCollections, ...offerCollections, ...driveCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...eventPlanCollections, ...eventSendCollections, ...credentialCollections, ...certificateCollections, ...ticketCollections, ...sequenceCollections, ...loyaltyCollections, ...schedulingCollections, ...meetingCollections, ...offerCollections, ...driveCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
+  eventSendSettings: eventSendDefaults(),
   paymentSettings: paymentDefaults(),
   ai: { limit: 0, alertAt: 0.8, ledger: [] },
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
@@ -88,11 +91,12 @@ export function hydrateWorkspace(state) {
   reputationOf(state);
   state.listings ??= {};
   state.wallet ??= walletDefaults(); state.labs ??= labsDefaults(); state.appInstalls ??= []; state.appLog ??= []; state.seo ??= seoDefaults(); state.seoAudits ??= []; state.visibility ??= visibilityDefaults(); state.visibilityRuns ??= [];
+  eventSendSettingsOf(state);
   affiliateSettings(state);
   adSettingsOf(state);
   trackingOf(state);
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...driveCollections,...affiliateCollections,...adCollections,...trackingCollections,...leadFormCollections,'calls','aiVideoJobs','aiVideos',...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...credentialCollections,...certificateCollections,...ticketCollections,...sequenceCollections,...loyaltyCollections,...schedulingCollections,...meetingCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...driveCollections,...affiliateCollections,...adCollections,...trackingCollections,...leadFormCollections,'calls','aiVideoJobs','aiVideos',...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...eventPlanCollections, ...eventSendCollections,...credentialCollections,...certificateCollections,...ticketCollections,...sequenceCollections,...loyaltyCollections,...schedulingCollections,...meetingCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -159,7 +163,7 @@ const digits = value => String(value || '').replace(/\D/g, '');
 const exists = (state, key, value, label, optional = false) => (!value && optional) ? '' : find(state, key, value)?.id ?? fail(`Choose a valid ${label}.`);
 function add(state, key, data) {
   const row = { id: uid(), created: now(), ...data }; state[key].push(row);
-  if (key === 'messages' && row.direction === 'Outbound' && ['Email', 'WhatsApp'].includes(row.channel) && ['human', 'workflow'].includes(row.origin)) walletCharge(state, row.channel === 'Email' ? 'email' : 'whatsapp', 1, row.created);
+  if (key === 'messages' && row.direction === 'Outbound' && ['Email', 'WhatsApp'].includes(row.channel) && ['human', 'workflow', 'event'].includes(row.origin)) walletCharge(state, row.channel === 'Email' ? 'email' : 'whatsapp', 1, row.created);
   return row;
 }
 const contactId = (s,v,optional = false) => exists(s, 'contacts', v, 'contact', optional);
@@ -202,6 +206,7 @@ const fields = {
   ...courseFields,
   ...communityFields,
   ...communityEventFields,
+  ...eventPlanFields,
   ...certificateFields,
   ...sequenceFields,
   ...loyaltyFields,
@@ -637,6 +642,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'blog-view') return blogView(s, id);
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
   if (type === 'offer-access') return offerAccessCommand(s, d, { run });
+  if (typeof type === 'string' && /^event-(message|send|groups)-/.test(type)) return eventSendCommand(s, { ...command, data: d }, { add, zone: s.profile?.timezone || 'America/Sao_Paulo', emit: (event, ctx) => run(s, event, ctx), instant: (day, time) => zonedInstant(day, time, s.profile?.timezone || 'America/Sao_Paulo') });
+  if (typeof type === 'string' && type.startsWith('event-plan-')) { const out = eventPlanCommand(s, { ...command, data:d }, { add, now, save: (key, data, itemId = '') => executeCommand(s, { type: 'save', key, id: itemId, data }, { workspace }), createSocial: data => executeCommand(s, { type: 'social-post', data }, { workspace }), emit: (event, ctx) => run(s, event, ctx), calendarInstant: (day, time) => zonedInstant(day, time, s.profile?.timezone || 'America/Sao_Paulo') }); if (out !== undefined) return out; }
   if (typeof type === 'string' && type.startsWith('community-event-')) return communityEventCommand(s, { ...command, data:d }, { add, run, now });
   if (['community-plan-invoice', 'community-welcome', 'community-newsletter', 'community-activity', 'portal-login'].includes(type)) return communityCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'course-activity') return courseActivityCommand(s, { ...command, data:d }, { add, run });
@@ -688,13 +695,12 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     return id;
   }
   if (type === 'prancheta-save') {
+    const existing = id ? s.pranchetaFiles.find(item => item.id === id) : null;
+    checkPranchetaSave(existing, d, fail);
+    if (existing) return applyPranchetaSave(existing, s, d, now).id;
     const record = pranchetaFileRecord(s, d);
-    const existing = id ? find(s, 'pranchetaFiles', id) : null;
-    if (existing) {
-      Object.assign(existing, record, { updated: now() });
-      return existing.id;
-    }
-    const created = add(s, 'pranchetaFiles', { ...record, id: id || uid(), created: now(), updated: now() });
+    const at = now();
+    const created = add(s, 'pranchetaFiles', { ...record, id: id || uid(), created: at, updated: at });
     return created.id;
   }
   if (type === 'prancheta-delete') {
@@ -828,7 +834,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     const stage = find(s,'stages',d.stage);
     if (!stage) fail('Selecione uma etapa válida.');
     if (record.stage !== stage.id) {
-      Object.assign(record,{ stage:stage.id, pipelineId:stage.pipelineId, updated:now(), stageChangedAt:now() });
+      const at = now(); // um só instante: updated e stageChangedAt iguais
+      Object.assign(record,{ stage:stage.id, pipelineId:stage.pipelineId, updated:at, stageChangedAt:at });
       run(s,'Opportunity stage changed',record);
     }
     return id;
@@ -842,13 +849,15 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     const details = fields[key](s, key === 'workflows' ? { ...prior, ...d, id } : { ...d, id });
     if (key === 'contacts') rejectDuplicateContact(s, { ...prior, ...details }, prior);
     const row = prior ? { ...prior, ...details, updated: now() } : add(s,key,details);
+    // Datas de mudança da oportunidade: o mesmo instante da gravação (updated, ou created se o registro é novo).
+    const savedAt = prior ? row.updated : row.created;
     if (key==='agents' && prior) {
       row.revision = uid();
       if (prior.published) row.active = true;
     }
     if (key === 'opportunities') {
-      row.statusChangedAt = !prior || row.status !== prior.status ? now() : prior.statusChangedAt || prior.created;
-      row.stageChangedAt = !prior || row.stage !== prior.stage ? now() : prior.stageChangedAt || prior.created;
+      row.statusChangedAt = !prior || row.status !== prior.status ? savedAt : prior.statusChangedAt || prior.created;
+      row.stageChangedAt = !prior || row.stage !== prior.stage ? savedAt : prior.stageChangedAt || prior.created;
     }
     if (key === 'studioProjects' && !prior) row.viewedAt = row.created;
     if (['bulkActions','imports'].includes(key)) fail('Unknown record type.');
@@ -860,6 +869,10 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     invoiceAfterSave(s, key, prior, row, workspace);
     if (prior) s[key] = s[key].map(r=>r.id===id ? row : r);
     engine.recordChange(s, key, prior, row);
+    if (key === 'eventPlans') {
+      eventSendsAfterSave(s, prior, row, { instant: (day, time) => zonedInstant(day, time, s.profile?.timezone || 'America/Sao_Paulo') });
+      eventPlanAfterSave(prior, row, (event, ctx) => run(s, event, ctx));
+    }
     if (key === 'affiliates') affiliateCampaignChanges(s, prior, row, { emit: (st, event, ctx) => engine.emit(st, event, ctx) });
     return row.id;
   }
@@ -893,6 +906,7 @@ function remove(s, key, id) {
     estimateBeforeDelete(s, key, id);
     invoiceBeforeDelete(s, key, id);
     emailBeforeDelete(s, key, id);
+    eventSendsBeforeDelete(s, key, id);
     checkoutBeforeDelete(s, key, id);
     catalogBeforeDelete(s, key, id);
     if (key==='contacts') {
@@ -1022,6 +1036,9 @@ function other(s, command, type, key, id, d, workspace) {
     if (!formOpen(form)) fail(form.schedule?.closedMessage || 'Este formulário não está recebendo respostas agora.',403);
     const read = readAnswers(form, d, s.customFields || []);
     if (!read.ok) fail(Object.entries(read.errors).map(([key, text]) => key === '_form' ? text : `${form.fields?.find(f => f.key === key)?.label || key}: ${text}`)[0]);
+    // O campo livre dos sites publicados (mensagem, assunto, interesse) não faz parte do formulário da subconta.
+    const message = str(d._message,2000);
+    if (message) read.answers.push({ key:'message', label:'Mensagem', value:message });
     const info = read.contact, addTags = tags([...(form.addTags || []), ...(read.result?.tierDetail?.tag ? [read.result.tierDetail.tag] : [])]);
     let c = (info.email && s.contacts.find(r=>r.email===info.email)) || (info.phone && s.contacts.find(r=>digits(r.phone) && digits(r.phone)===digits(info.phone)));
     if (!c) {

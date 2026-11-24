@@ -6,14 +6,20 @@
 // Uso:   node scripts/smoke-deploy.mjs https://soci.app.br
 // Deploy protegido da Vercel: defina VERCEL_AUTOMATION_BYPASS_SECRET.
 import { pathToFileURL } from 'node:url';
-import { staticFiles } from '../server.mjs';
+import { sessionOnlyFiles, staticFiles } from '../server.mjs';
 
-/** '/login' sempre serve a landing; '/index.html' e '/' exigem sessão no domínio do app. */
+/** '/login', '/' e '/index.html' servem a tela de login (pública); '/login' basta para conferi-la. */
 export function smokePaths(files = staticFiles) {
   return ['/login', ...[...files.keys()].filter(path => path !== '/index.html')];
 }
 
-export async function smoke(base, { request = fetch, paths = smokePaths(), headers = {}, concurrency = 8, timeoutMs = 15000 } = {}) {
+/** Sem sessão, um estático comum responde 200 e um que exige sessão manda para o login (303 para /login). */
+function answered(path, response, sessionOnly) {
+  if (!sessionOnly.has(path)) return response.status === 200;
+  return response.status === 303 && /^\/login(\?|$)/.test(response.headers.get('location') || '');
+}
+
+export async function smoke(base, { request = fetch, paths = smokePaths(), sessionOnly = sessionOnlyFiles, headers = {}, concurrency = 8, timeoutMs = 15000 } = {}) {
   const origin = new URL(base).origin;
   const queue = [...paths];
   const failures = [];
@@ -23,7 +29,7 @@ export async function smoke(base, { request = fetch, paths = smokePaths(), heade
       try {
         const response = await request(origin + path, { headers, redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
         await response.arrayBuffer();
-        if (response.status !== 200) failures.push({ path, status: response.status });
+        if (!answered(path, response, sessionOnly)) failures.push({ path, status: response.status });
       } catch (error) {
         failures.push({ path, status: 0, error: error.message });
       }
@@ -46,5 +52,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     for (const { path, status, error } of failures) console.error(`  ${status || 'ERRO'}  ${path}${error ? `  (${error})` : ''}`);
     process.exit(1);
   }
-  console.log(`Smoke ok em ${new URL(base).origin}: ${checked} endereços responderam 200.`);
+  console.log(`Smoke ok em ${new URL(base).origin}: ${checked} endereços responderam como esperado (200, ou 303 para o login nas páginas que exigem sessão).`);
 }

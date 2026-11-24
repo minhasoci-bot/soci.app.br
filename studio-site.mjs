@@ -2,7 +2,8 @@
 // so the workspace state only carries project metadata.
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { siteMotion } from './site-templates/motion.mjs';
 
 export const SITE_LIMITS = { pages: 8, html: 120000, versions: 12 };
 export const siteRowId = projectId => `studio-${projectId}`;
@@ -205,7 +206,7 @@ export const publicDoc = doc => ({
 
 // ---- Serving ----------------------------------------------------------------
 
-const pageCsp = ancestors => `default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src https: data:; form-action 'self'; base-uri 'none'; frame-ancestors ${ancestors}`;
+const pageCsp = ancestors => `default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src https: data:; media-src https:; form-action 'self'; base-uri 'none'; frame-ancestors ${ancestors}`;
 export const previewHeaders = { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': pageCsp("'self'"), 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' };
 // same-origin (not no-referrer) so the browser sends a real Origin header when the lead form posts back.
 export const publicHeaders = { ...previewHeaders, 'Content-Security-Policy': pageCsp("'none'"), 'Referrer-Policy': 'same-origin' };
@@ -222,9 +223,25 @@ function withSeo(html, seo) {
   return result;
 }
 
+// Animações dos modelos de site: páginas com <html data-motion> recebem o script do kit (site-templates/motion.mjs)
+// na hora de servir, e a CSP libera só esse texto exato pelo hash. O HTML guardado nunca tem script
+// (o sanitizador remove), então uma página editada não consegue rodar nada além disso.
+// O navegador troca \r\n por \n ao ler o HTML e só depois confere o hash: com o checkout do Windows
+// (autocrlf) o código da função vem com \r\n, então normalizamos antes de calcular.
+const motionSource = `(${siteMotion})();`.replace(/\r\n?/g, '\n');
+const motionHash = `'sha256-${createHash('sha256').update(motionSource).digest('base64')}'`;
+export function withMotion(headers, html) {
+  if (typeof html !== 'string' || !/<html\b[^>]*\sdata-motion\b/i.test(html)) return [headers, html];
+  const csp = String(headers['Content-Security-Policy'] || '');
+  const script = /(^|;\s*)script-src\s/.test(csp) ? csp.replace(/(^|;\s*)script-src\s([^;]*)/, (_, a, v) => `${a}script-src ${v.replace(/'none'\s*/g, '')} ${motionHash}`) : `${csp}; script-src ${motionHash}`;
+  const tag = `<script>${motionSource}</script>`;
+  const body = /<\/body>/i.test(html) ? html.replace(/<\/body>(?![\s\S]*<\/body>)/i, `${tag}</body>`) : html + tag;
+  return [{ ...headers, 'Content-Security-Policy': script }, body];
+}
+
 export function renderPublic(page, { base, notice = '' }) {
   let html = withSeo(page.html, page.seo)
-    .replace(/(href\s*=\s*["'])page:([a-z0-9-]+)(["'])/gi, (_, a, slug, b) => `${a}${slug === 'index' ? base : `${base}/${slug}`}${b}`)
+    .replace(/(href\s*=\s*["'])page:([a-z0-9-]+)(#[\w-]*)?(["'])/gi, (_, a, slug, hash = '', b) => `${a}${slug === 'index' ? base : `${base}/${slug}`}${hash}${b}`)
     .replace(/<form\b([^>]*)>/gi, (_, attrs) => `<form${attrs.replace(/\s(?:action|method|target|enctype)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')} action="${base}" method="post"><input type="hidden" name="_page" value="${esc(page.slug)}">`);
   if (notice) {
     const banner = `<div role="status" style="position:sticky;top:0;z-index:9999;padding:14px 18px;font:600 15px system-ui,sans-serif;text-align:center;${notice.ok ? 'background:#ecfdf3;color:#067647' : 'background:#fef3f2;color:#b42318'}">${esc(notice.text)}</div>`;

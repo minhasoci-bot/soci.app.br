@@ -3,6 +3,8 @@
 import { icon } from './icons.js';
 import { h, pageShell } from './screens.js';
 import { agentLimits } from './agents-data.js';
+import { ask } from './ask.js';
+import { tr } from './i18n.js';
 import {
   formatTokens, formatUsd, kbLimits, modelPrice, retrieveKnowledge, sourceKinds, usageKinds, usageMonths, usageSummary
 } from './ai-data.js';
@@ -294,7 +296,8 @@ export function mountAgentHub({ root, state, request, rerender, createAgent, fla
     });
     form.querySelector('[data-kb-delete]').addEventListener('click', async () => {
       const users = state().agents.filter(agent => agent.bases?.includes(form.dataset.id)).length;
-      if (!confirm(`Excluir a base “${form.elements.name.value}”?${users ? ` ${users} ${users === 1 ? 'agente deixa' : 'agentes deixam'} de usá-la.` : ''} Não dá para desfazer.`)) return;
+      const text = !users ? 'Não dá para desfazer.' : `${users} ${tr(users === 1 ? 'agente deixa de usá-la.' : 'agentes deixam de usá-la.')} ${tr('Não dá para desfazer.')}`;
+      if (!await ask(`${tr('Excluir')} “${form.elements.name.value}”?`, { text, ok: 'Excluir' })) return;
       try {
         await request('kb-delete', { id: form.dataset.id });
         const s = state();
@@ -365,7 +368,7 @@ export function mountAgentHub({ root, state, request, rerender, createAgent, fla
         use.disabled = true;
         try { await createAgent(use.dataset.tplUse); } catch (error) { fail(null, error); use.disabled = false; }
       }
-      if (remove && confirm('Excluir este modelo? Os agentes criados a partir dele continuam como estão.')) {
+      if (remove && await ask('Excluir este modelo?', { text: 'Os agentes criados a partir dele continuam como estão.', ok: 'Excluir' })) {
         try {
           await request('template-delete', { id: remove.dataset.tplDelete });
           state().agentTemplatesCustom = state().agentTemplatesCustom.filter(item => item.id !== remove.dataset.tplDelete);

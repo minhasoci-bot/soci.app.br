@@ -3212,5 +3212,9 @@ export default {
   "Atualizar a partir da subconta": "Atualizar a partir da subconta",
   "Publicar no marketplace": "Publicar no marketplace",
   "Copiar ID": "Copiar ID",
-  "Renomear": "Renomear"
+  "Renomear": "Renomear",
+  "Painel da agência com todas as subcontas": "Painel da agência com todas as subcontas",
+  "Você está no painel da agência": "Você está no painel da agência",
+  "Atual": "Atual",
+  "Workspace pessoal": "Workspace pessoal"
 };

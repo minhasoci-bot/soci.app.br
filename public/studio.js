@@ -1,8 +1,10 @@
 import { icon } from './icons.js';
 import { h, utabs } from './screens.js';
 import { studioTemplates, studioThemes } from './studio-data.js';
+import { blockGroups, blockHtml, cleanImage, cleanLink, sectionBlocks } from './studio-blocks.js';
 import { afterBuilderRender, builderView } from './studio-builder.js';
 import { designStage, mountDesignStage, resizeDesignStage } from './design-workspace.js';
+import { ask } from './ask.js';
 
 const templateName = key => studioTemplates.find(template => template[0] === key)?.[1] || 'Projeto';
 const projectLink = (id,label) => `<a href="#sites/editor/${id}" data-studio-open="${id}">${h(label)}</a>`;
@@ -136,7 +138,7 @@ function canvas(c, project, doc, page) {
     tools: `<button type="button" data-studio-visual aria-pressed="${st.visual}" title="Selecionar e editar" aria-label="Selecionar e editar">${icon('cursor',16)}</button>
       <button type="button" data-studio-preview aria-pressed="${!st.visual}" title="Navegar na prévia" aria-label="Navegar na prévia">${icon('play',16)}</button>
       ${st.visual ? `<details class="sx-insert"><summary title="Inserir elemento" aria-label="Inserir elemento">${icon('plus',16)}</summary>
-        <div>${[['h2','Título'],['p','Parágrafo'],['section','Seção']].map(([tag,label]) => `<button type="button" data-studio-insert="${tag}">${label}</button>`).join('')}</div></details>` : ''}
+        <div>${blockGroups.map(([group, items]) => `<section><h3>${group}</h3>${items.map(([id,label]) => `<button type="button" data-studio-insert="${id}">${label}</button>`).join('')}</section>`).join('')}</div></details>` : ''}
       <div class="sx-devices" role="group" aria-label="Tamanho da prévia">${devices.map(([id,label,ico]) => `<button type="button" data-studio-device="${id}" aria-pressed="${st.device === id}" aria-label="${label}" title="${label}">${icon(ico,16)}</button>`).join('')}</div>`
   });
 }
@@ -184,12 +186,36 @@ function colorHex(value) {
   return rgb ? `#${rgb.map(channel => Number(channel).toString(16).padStart(2,'0')).join('')}` : '#000000';
 }
 
+// Cabeçalho, rodapé e o conteúdo principal são a moldura da página: não se duplicam nem mudam de lugar.
+const movable = element => Boolean(element?.parentElement) && !element.matches('html, body, main, header, footer');
+const neighbour = (element, step) => {
+  let next = step < 0 ? element.previousElementSibling : element.nextElementSibling;
+  while (next && next.matches('script, style, template')) next = step < 0 ? next.previousElementSibling : next.nextElementSibling;
+  return next && !next.matches('header, footer') ? next : null;
+};
+function actionButtons() {
+  const parent = selected.parentElement && !selected.parentElement.matches('html, body') ? '<button class="secondary" data-studio-parent>Selecionar o de fora</button>' : '';
+  if (!movable(selected)) return parent;
+  return `<button class="secondary" data-studio-move-el="-1" ${neighbour(selected,-1) ? '' : 'disabled'}>Mover para cima</button>
+    <button class="secondary" data-studio-move-el="1" ${neighbour(selected,1) ? '' : 'disabled'}>Mover para baixo</button>
+    <button class="secondary" data-studio-duplicate-el>Duplicar</button>${parent}`;
+}
+function attributeFields() {
+  const link = selected.closest('a'), photo = selected.matches('img') ? selected : null;
+  const field = (name, label, value, extra = '') => `<label class="sx-field">${label}<input type="text" data-studio-attr="${name}" value="${h(value)}" maxlength="2000" spellcheck="false" ${extra}></label>`;
+  return `${link ? `${field('href','Link',link.getAttribute('href') || '','list="sx-links" placeholder="https:// ou page:contato"')}
+      <datalist id="sx-links">${(S().doc?.pages || []).map(page => `<option value="page:${h(page.slug)}">${h(page.name)}</option>`).join('')}</datalist>` : ''}
+    ${photo ? field('src','Endereço da foto',/^https:/i.test(photo.getAttribute('src') || '') ? photo.getAttribute('src') : '','placeholder="https://"') + field('alt','Descrição da foto',photo.getAttribute('alt') || '') : ''}
+    ${link || photo ? '<p class="sx-field-note dim" data-studio-attr-note role="status"></p>' : ''}`;
+}
+
 function inspectorHtml() {
   if (!S().visual) return '<p class="dim">Ative a edição visual para ajustar os elementos.</p>';
   if (!selected?.isConnected) return '<p class="dim">Selecione um elemento na página ou em Camadas para editar suas propriedades.</p>';
   const computed = selected.ownerDocument.defaultView.getComputedStyle(selected);
   return `<section class="sx-inspector"><div class="sx-inspector-head"><h2>&lt;${h(selected.localName)}&gt;</h2><button class="icon-btn" data-studio-unselect aria-label="Limpar seleção">${icon('close',14)}</button></div>
-    ${canEditText(selected) ? '<button class="secondary" data-studio-edit-text>Editar texto</button>' : ''}
+    <div class="sx-actions">${canEditText(selected) ? '<button class="secondary" data-studio-edit-text>Editar texto</button>' : ''}${actionButtons()}</div>
+    ${attributeFields()}
     ${styles.map(([name, label, type]) => {
       const value = selected.style.getPropertyValue(name) || computed.getPropertyValue(name);
       const match = value.match(/^(\d+(?:\.\d+)?)px$/);
@@ -279,7 +305,7 @@ function prepareFrame() {
     if (link || event.target.closest('button') || (S().visual && !event.target.isContentEditable)) event.preventDefault();
     if (!S().visual) {
       const href = link?.getAttribute('href') || '';
-      const slug = href.match(/^page:([a-z0-9-]+)$/)?.[1];
+      const slug = href.match(/^page:([a-z0-9-]+)(?:#[\w-]*)?$/)?.[1];
       const target = slug && S().doc.pages.find(item => item.slug === slug);
       if (target) { S().page = target.id; env.render(); }
       if (href.startsWith('#')) doc.getElementById(href.slice(1))?.scrollIntoView({ block: 'start', behavior: 'instant' });
@@ -313,28 +339,71 @@ function editText(element) {
   element.focus();
 }
 
+// O conteúdo de uma seção costuma ficar numa caixa única que centraliza e limita a largura.
+const innerBox = section => section.children.length === 1 && section.firstElementChild.matches('div') ? section.firstElementChild : section.querySelector(':scope > .wrap');
+// O botão novo segue a página: usa a classe do botão dela ou, sem classe, a cor do primeiro botão visível.
+function pageLook(doc) {
+  const buttonClass = doc.querySelector('main a.btn, main .btn') ? 'btn' : '';
+  const view = doc.defaultView;
+  for (const item of doc.querySelectorAll('main .btn, main button, main .cta, header .cta')) {
+    const style = view.getComputedStyle(item);
+    if (item.getClientRects().length && !/^(transparent|rgba\(.*, 0\))$/.test(style.backgroundColor)) return { buttonClass, accent: style.backgroundColor, onAccent: style.color };
+  }
+  return { buttonClass };
+}
+function afterChange(element) {
+  select(element);
+  showLayers();
+  element.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+  setDirty(true);
+}
+function duplicateElement() {
+  if (!movable(selected)) return;
+  const copy = clean(selected.cloneNode(true));
+  for (const item of [copy, ...copy.querySelectorAll('[id]')]) item.removeAttribute('id');
+  selected.after(copy);
+  afterChange(copy);
+}
+function moveElement(step) {
+  const other = movable(selected) && neighbour(selected, step);
+  if (!other) return;
+  if (step < 0) other.before(selected); else other.after(selected);
+  afterChange(selected);
+}
+function setAttribute(name, value) {
+  const target = name === 'href' ? selected?.closest('a') : selected;
+  if (!target?.isConnected) return '';
+  if (name === 'alt') { target.setAttribute('alt', value.trim()); setDirty(true); return ''; }
+  const safe = name === 'href' ? cleanLink(value) : cleanImage(value);
+  if (!safe) return name === 'href' ? 'Use um endereço https://, page:pagina, #secao, tel: ou mailto:.' : 'Use um endereço de foto que comece com https://.';
+  target.setAttribute(name, safe);
+  if (name === 'src') { target.removeAttribute('srcset'); target.removeAttribute('sizes'); }
+  setDirty(true);
+  return '';
+}
+
 function insertElement(tag) {
   const doc = frame()?.contentDocument;
   if (!doc?.body || !preparedDocs.has(doc)) return;
   const container = selected?.closest('main') || doc.querySelector('main') || doc.body;
-  const element = doc.createElement(tag);
-  if (tag === 'section') {
-    const title = doc.createElement('h2');
-    title.textContent = 'Nova seção';
-    element.append(title);
-  } else element.textContent = tag === 'h2' ? 'Novo título' : 'Novo parágrafo';
-  const textAnchor = tag !== 'section' && selected?.closest('h1,h2,h3,h4,h5,h6,p');
-  if (textAnchor && !textAnchor.closest('header,nav,form,footer')) textAnchor.after(element);
+  const holder = doc.createElement('div');
+  holder.innerHTML = blockHtml(tag, pageLook(doc));
+  const element = holder.firstElementChild;
+  if (!element) return;
+  const isSection = sectionBlocks.includes(tag);
+  const place = selected?.closest('form') || selected; // Depois do formulário, nunca no meio dos campos.
+  const anchor = !isSection && place?.isConnected && !place.closest('header,nav,footer') ? place : null;
+  const textAnchor = anchor?.closest('h1,h2,h3,h4,h5,h6,p');
+  if (textAnchor) textAnchor.after(element);
+  else if (anchor?.matches('section, article, aside')) (innerBox(anchor) || anchor).append(element);
+  else if (anchor && !anchor.matches('main, body')) (anchor.closest('a, button, li, label, summary') || anchor).after(element);
   else {
     let block = selected;
     while (block && block.parentElement !== container) block = block.parentElement;
     if (block && !block.matches('footer')) block.after(element);
     else container.insertBefore(element, container.querySelector(':scope > footer'));
   }
-  select(element);
-  showLayers();
-  element.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
-  setDirty(true);
+  afterChange(element);
 }
 export function afterStudioRender() {
   const iframe = frame();
@@ -438,6 +507,9 @@ export function installStudio(environment) {
       }
       if ('studioEditText' in d) { editText(selected); return; }
       if (d.studioResetStyle && selected?.style.getPropertyValue(d.studioResetStyle)) { selected.style.removeProperty(d.studioResetStyle); setDirty(true); showSelection(); return; }
+      if (d.studioMoveEl) { moveElement(Number(d.studioMoveEl)); return; }
+      if ('studioDuplicateEl' in d) { duplicateElement(); return; }
+      if ('studioParent' in d && selected?.parentElement) { select(selected.parentElement); return; }
       if ('studioRemoveEl' in d && selected) { selected.remove(); select(null); showLayers(); setDirty(true); return; }
       if ('studioUnselect' in d) { select(null); return; }
       if ('studioDiscard' in d) { setDirty(false); render(); return; }
@@ -454,6 +526,14 @@ export function installStudio(environment) {
     } catch (error) { flash(error.message, true); if (dirty) setDirty(true); else render(); }
   });
 
+  document.addEventListener('change', event => {
+    const input = event.target;
+    if (!input.dataset?.studioAttr || !selected?.isConnected) return;
+    const problem = setAttribute(input.dataset.studioAttr, input.value);
+    const note = document.querySelector('[data-studio-attr-note]');
+    if (note) { note.textContent = problem; note.classList.toggle('error', Boolean(problem)); }
+    if (!problem) showLayers();
+  });
   document.addEventListener('input', event => {
     const input = event.target;
     const name = input.dataset?.studioStyle;
@@ -500,11 +580,13 @@ export function installStudio(environment) {
       if (form.isConnected) buttons.forEach(b => { b.disabled = false; });
     }
   });
-  window.addEventListener('hashchange', event => {
+  window.addEventListener('hashchange', async event => {
     if (!dirty || !frame()) return;
-    if (confirm('Descartar as alterações não salvas desta página?')) { setDirty(false); return; }
+    const to = location.hash;
     event.stopImmediatePropagation();
     history.replaceState(null, '', event.oldURL);
+    if (!await ask('Descartar as alterações não salvas desta página?', { ok: 'Descartar', cancel: 'Continuar editando' })) return;
+    setDirty(false); location.hash = to;
   }, true);
   window.addEventListener('beforeunload', event => { if (dirty) event.preventDefault(); });
 }
