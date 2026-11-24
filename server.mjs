@@ -6,6 +6,7 @@ import { createAdsRoutes } from './routes/ads.mjs';
 import { createEmailRoutes } from './routes/email.mjs';
 import { createMetaRoutes } from './routes/meta.mjs';
 import { createGbpRoutes, createGoogleRoutes } from './routes/google.mjs';
+import { createAgentRoutes } from './routes/agents.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -20,12 +21,11 @@ import { discoverDesign, generatePage, generateSite, planSite, revisePage, sugge
 import { localPlan, questionsFor, validDesign, validPlan } from './ui/studio-design.js';
 import { designAgent, replyAsAgent } from './agent-ai.mjs';
 import { createOpenAI, openAIModel } from './openai.mjs';
-import { agentBuildRequest, agentWorkflowRequest, agentPreview, applyAgentDesign, editAgent, recordAgentRun } from './agent-model.mjs';
-import { agencyAiUsage, checkAiBudget, editAgentTemplate, editKnowledgeBase, setAiAccess, setAiLimit, usageMeter } from './ai-model.mjs';
+import { agentWorkflowRequest, recordAgentRun } from './agent-model.mjs';
+import { agencyAiUsage, checkAiBudget, setAiAccess, setAiLimit, usageMeter } from './ai-model.mjs';
 import { requireLab, setLabsOffer } from './labs-model.mjs';
 import { conversationRequest, writeConversationReply, writeConversationSummary } from './conversation-ai.mjs';
 import { addInstall, appSecret, appSignature, installedCopy, removeInstall, tokenHash as appTokenHash } from './app-studio-model.mjs';
-import { usageSummary } from './ui/ai-data.js';
 import { brandVoiceRequest, emailRequest, reviewReplyRequest, transformRequest, transformText, writeBrandVoice, writeEmail, writeReviewReply } from './content-ai.mjs';
 import { brandFromPage, fetchPublicPage } from './brand-model.mjs';
 import { brandVoicePrompt, defaultBoard, voiceTraits } from './ui/brand-data.js';
@@ -35,17 +35,6 @@ import { reviewTokenHash } from './reputation-model.mjs';
 import { renderReviewPage, reviewPageCsp } from './reputation-page.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { collectorCsp, renderCollector, renderWidget, widgetCsp, widgetLoader } from './reputation-widget.mjs';
-
-function meteredUsage() {
-  const meter = usageMeter();
-  return {
-    onUsage: meter.onUsage,
-    record(state, kind, agent, run, error = '') {
-      const charged = meter.charge(state, kind, agent, error);
-      return recordAgentRun(state, { ...run, ...charged, error });
-    }
-  };
-}
 import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withMotion } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
 import { findSiteTemplate } from './ui/site-template-data.js';
@@ -2136,6 +2125,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const metaRoute = createMetaRoutes({ store, ready, error, change, flushLater, metaFetch, metaRoutesRow, metaSender, publicAccountPolicy });
   const googleRoute = createGoogleRoutes({ store, ready, localAccess, error, spaceId, privateSpace, stamp, workspaceSegment, flushLater, googleCache, googleCallbackPath, googleData, googlePopup, googleView, payload, publicAccountPolicy, publicBase, recordAudit, searchCache, socialActor, socialRow, workspaceAccess });
   const gbpRoute = createGbpRoutes({ store, error, spaceId, change, flushLater, gbpAccess, gbpStatus, payload, recordAudit, workspaceAccess });
+  const agentRoute = createAgentRoutes({ store, localAccess, error, spaceId, privateSpace, agentModel, designAgentConfig, generateAgentReply, listWorkspaces, openAI, payload, recordAudit, workspaceAccess });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const server=createServer(async (req,res) => {
@@ -2936,86 +2926,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await meteredAI(who, id, kind === 'gbp' ? 'reputation' : kind, connection => email ? content.writeEmail(connection, input) : content.transformText(connection, input));
         return json(result);
       }
-      const aiAction = p.match(/^\/api\/ai\/(kb-create|kb-save|kb-delete|template-save|template-delete|limit|usage)$/);
-      if (aiAction && (method === 'POST' || aiAction[1] === 'usage')) {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['ai-agents'] });
-        const operation = aiAction[1];
-        if (operation === 'usage') {
-          const month = url.searchParams.get('month') || undefined;
-          if (month && !/^\d{4}-\d{2}$/.test(month)) throw error('Informe o mês como AAAA-MM.', 400);
-          return json({ usage: usageSummary((await store.load(id)).ai, month) });
-        }
-        const input = await payload(req);
-        if (operation === 'limit') {
-          requireCapability(who, 'agency', 'Só a agência pode alterar o limite de gastos com IA desta subconta.');
-          const usage = await store.change(id, state => setAiLimit(state, input));
-          return json({ usage });
-        }
-        if (operation.startsWith('template-')) {
-          const template = await store.change(id, state => editAgentTemplate(state, operation, input));
-          return json({ template }, template ? 201 : 200);
-        }
-        const kbOperation = operation.slice(3);
-        const base = await store.change(id, state => editKnowledgeBase(state, kbOperation, input));
-        if (!privateSpace.test(id) && kbOperation !== 'save') {
-          const account = (await listWorkspaces(who.agencyId)).find(w => w.id === id)?.name || id;
-          await recordAudit(who, kbOperation === 'create' ? 'Base de conhecimento criada' : 'Base de conhecimento excluída', account, base?.name || '');
-        }
-        return json({ base }, kbOperation === 'create' ? 201 : 200);
-      }
-      const agentAction = p.match(/^\/api\/agents\/(create|save|publish|unpublish|move|delete|memory|test|build)$/);
-      if (agentAction && method==='POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['ai-agents'] });
-        const operation = agentAction[1];
-        const input = await payload(req);
-        if (operation === 'test') {
-          const current = await store.load(id);
-          const preview = agentPreview(current, input);
-          checkAiBudget(current);
-          const meter = meteredUsage();
-          const connection = localAccess && generateAgentReply !== replyAsAgent ? { onUsage: meter.onUsage } : { ...await openAI.requireConnection(who.session), onUsage: meter.onUsage };
-          const message = preview.messages.at(-1).content;
-          const runInput = { agent: input.id, version: input.version, input: message, kind: 'test', sources: [...new Set(preview.retrieved.map(item => item.title))] };
-          let reply;
-          try {
-            reply = await generateAgentReply({ ...preview, model: preview.model || agentModel }, connection);
-          } catch (problem) {
-            await store.change(id, state => meter.record(state, 'agent-test', input.id, runInput, problem.message));
-            throw problem;
-          }
-          const run = await store.change(id, state => meter.record(state, 'agent-test', input.id, { ...runInput, output: reply }));
-          return json({ reply, run });
-        }
-        if (operation === 'build') {
-          const current = await store.load(id);
-          const build = agentBuildRequest(current, input);
-          checkAiBudget(current);
-          const meter = meteredUsage();
-          const connection = localAccess && designAgentConfig !== designAgent ? { onUsage: meter.onUsage } : { ...await openAI.requireConnection(who.session), onUsage: meter.onUsage };
-          const runInput = { agent: input.id, version: 'draft', input: build.request, kind: 'build' };
-          let design;
-          try {
-            design = await designAgentConfig(build, connection);
-          } catch (problem) {
-            await store.change(id, state => meter.record(state, 'agent-build', input.id, runInput, problem.message));
-            throw problem;
-          }
-          const agent = await store.change(id, state => {
-            meter.record(state, 'agent-build', input.id, { ...runInput, output: design.summary });
-            return applyAgentDesign(state, input, design.draft);
-          });
-          return json({ agent, summary: design.summary });
-        }
-        const agent = await store.change(id, state => editAgent(state, operation, { ...input, model: agentModel }));
-        if (!privateSpace.test(id) && operation !== 'save') {
-          const labels = { create: 'Agente criado', publish: 'Agente publicado', unpublish: 'Agente despublicado', delete: 'Agente excluído' };
-          const account = (await listWorkspaces(who.agencyId)).find(w => w.id === id)?.name || id;
-          await recordAudit(who, labels[operation], account, agent?.name || '');
-        }
-        return json({ agent }, operation === 'create' ? 201 : 200);
-      }
+      const agentRouteHandled = await agentRoute({ req, res, p, method, url, id, json });
+      if (agentRouteHandled !== NEXT_ROUTE) return agentRouteHandled;
       const pranchetaRouteHandled = await pranchetaRoute({ req, res, p, method, url, id, json, send });
       if (pranchetaRouteHandled !== NEXT_ROUTE) return pranchetaRouteHandled;
       if (p==='/api/studio' && method==='POST') {
