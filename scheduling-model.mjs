@@ -3,6 +3,7 @@
 // (rooms, equipment, vehicles, rental items) and appointments only conflict per professional and per resource.
 // Field jobs carry the customer's address and a status the technician moves along (a caminho, no local, concluído).
 import { randomBytes } from 'node:crypto';
+import { heightHash, heightScript, validDestination } from './destinations.mjs';
 
 export const schedulingCollections = ['services', 'resources'];
 export const serviceKinds = [['appointment', 'Atendimento no local'], ['field', 'Serviço em campo'], ['rental', 'Locação']];
@@ -27,6 +28,9 @@ export const schedulingDefaults = () => ({ enabled: false, title: 'Agende um hor
   hours: { 0: [], 1: ['09:00', '18:00'], 2: ['09:00', '18:00'], 3: ['09:00', '18:00'], 4: ['09:00', '18:00'], 5: ['09:00', '18:00'], 6: ['09:00', '13:00'] },
   step: 30, leadMinutes: 120, horizonDays: 30, staff: [] });
 export const schedulingOf = s => { s.scheduling = { ...schedulingDefaults(), ...(s.scheduling || {}) }; return s.scheduling; };
+// A service may have its own minimum notice and booking window; empty follows the account.
+const leadOf = (conf, service) => service?.leadMinutes ?? conf.leadMinutes;
+const horizonOf = (conf, service) => service?.horizonDays ?? conf.horizonDays;
 export const zoneOf = s => s.profile?.timezone || 'America/Sao_Paulo';
 const webOrigin = value => { try { const u = new URL(String(value || '')); return ['http:', 'https:'].includes(u.protocol) ? u.origin : ''; } catch { return ''; } };
 
@@ -38,13 +42,13 @@ export function bookingLinkOf(s, token, at = Date.now()) {
   return row && !row.usedAt && Date.parse(row.expires) > at && s.contacts.some(c => c.id === row.contactId) ? row : null;
 }
 /** A personal link to the public page for one contact (and optionally one service), valid for some days and one booking. */
-export function createBookingLink(s, workspace, contact, { serviceId = '', days = 7 } = {}, at = Date.now()) {
+export function createBookingLink(s, workspace, contact, { serviceId = '', days = 7, person = null, submissionId = '' } = {}, at = Date.now()) {
   const conf = schedulingOf(s);
   if (!conf.enabled) return { error: 'agendamento online desligado (Calendários → Página de agendamento)' };
   if (serviceId && !(s.services || []).some(x => x.id === serviceId && x.active)) return { error: 'serviço não encontrado ou inativo' };
   const valid = Math.min(Math.max(1, Math.trunc(Number(days)) || 7), 90);
   const token = randomBytes(16).toString('hex'), expires = new Date(at + valid * DAY).toISOString();
-  (s.bookingLinks ||= []).push({ token, contactId: contact.id, serviceId, created: new Date(at).toISOString(), expires, usedAt: '', appointmentId: '' });
+  (s.bookingLinks ||= []).push({ token, contactId: contact.id, serviceId, created: new Date(at).toISOString(), expires, usedAt: '', appointmentId: '', ...(person && { person }), ...(submissionId && { submissionId }) });
   s.bookingLinks = s.bookingLinks.filter(row => !row.usedAt && Date.parse(row.expires) > at - 30 * DAY || row.usedAt && Date.parse(row.usedAt) > at - 30 * DAY).slice(-5000);
   const path = `/agendar/${workspace}?${new URLSearchParams({ link: token, ...(serviceId ? { servico: serviceId } : {}) })}`;
   const base = conf.origin || webOrigin(s.reputation?.origin);
@@ -75,7 +79,7 @@ export function bookForContact(s, contact, { serviceId = '', afterDays = 0, addr
   const zone = zoneOf(s), first = addDays(dayIn(at, zone), Math.min(Math.max(0, Math.trunc(Number(afterDays)) || 0), 365));
   const wanted = start ? Date.parse(start) : NaN;
   if (start && !Number.isFinite(wanted)) return { error: 'horário inválido' };
-  for (let i = 0; i <= Math.min(conf.horizonDays, 120); i++) {
+  for (let i = 0; i <= Math.min(horizonOf(conf, service), 120); i++) {
     const slots = availableSlots(s, service.id, start ? dayIn(wanted, zone) : addDays(first, i), { at });
     const slot = start ? slots.find(row => Date.parse(row.start) === wanted) : slots[0];
     if (start && !slot) return { error: 'o horário escolhido não está mais livre' };
@@ -114,6 +118,8 @@ const ids = (s, key, list, label) => {
   return rows;
 };
 
+const blankOr = (value, read) => value === undefined || value === null || value === '' ? null : read(value);
+
 export const schedulingFields = {
   services: (s, d) => {
     const kind = serviceKinds.some(([k]) => k === d.kind) ? d.kind : 'appointment';
@@ -127,6 +133,8 @@ export const schedulingFields = {
       duration: kind === 'rental' ? (rentalUnit === 'day' ? 1440 : 60) : int(d.duration ?? 60, 5, 720, 'Duração (minutos)'),
       buffer: int(d.buffer ?? 0, 0, 240, 'Intervalo depois (minutos)'), price: money(d.price), staffIds, resourceIds, rentalUnit,
       maxUnits: kind === 'rental' ? int(d.maxUnits ?? (rentalUnit === 'day' ? 7 : 8), 1, 90, 'Duração máxima da locação') : 1,
+      leadMinutes: blankOr(d.leadMinutes, v => int(v, 0, 20160, 'Antecedência mínima (minutos)')), horizonDays: blankOr(d.horizonDays, v => int(v, 1, 365, 'Agenda aberta por (dias)')),
+      after: validDestination(s, d.after?.action === 'booking' || d.after?.action === 'default' ? { action: 'message' } : d.after, 'Depois de agendar'),
       active: d.active !== false && d.active !== 'false', color: /^#[0-9a-f]{6}$/i.test(d.color || '') ? d.color : '#b71889'
     };
   },
@@ -200,7 +208,7 @@ export function availableSlots(s, serviceId, day, { at = Date.now(), units = 1, 
   const service = (s.services || []).find(x => x.id === serviceId && x.active);
   if (!service || !/^\d{4}-\d{2}-\d{2}$/.test(day || '')) return [];
   const conf = schedulingOf(s), zone = zoneOf(s), today = dayIn(at, zone);
-  if (day < today || day > addDays(today, conf.horizonDays)) return [];
+  if (day < today || day > addDays(today, horizonOf(conf, service))) return [];
   const [open, close] = conf.hours[weekdayOf(day)] || [];
   if (!time(open) || !time(close)) return [];
   const length = service.kind === 'rental' ? Math.min(Math.max(1, units), service.maxUnits) * service.duration : service.duration;
@@ -209,7 +217,7 @@ export function availableSlots(s, serviceId, day, { at = Date.now(), units = 1, 
   for (let m = minutesOf(open); m <= last; m += conf.step) {
     const hhmm = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     const start = zonedInstant(day, hhmm, zone), end = start + length * MIN;
-    if (start < at + conf.leadMinutes * MIN) continue;
+    if (start < at + leadOf(conf, service) * MIN) continue;
     const staffId = pickStaff(s, service, start, end + service.buffer * MIN);
     if (staffId === null || !resourcesFit(s, service, start, end, quantity)) continue;
     slots.push({ start: new Date(start).toISOString(), end: new Date(end).toISOString(), time: hhmm, staffId });
@@ -222,7 +230,7 @@ export function upcomingSlots(s, serviceId, { count = 8, at = Date.now() } = {})
   const service = (s.services || []).find(x => x.id === serviceId && x.active);
   if (!service || service.kind === 'rental') return [];
   const conf = schedulingOf(s), zone = zoneOf(s), today = dayIn(at, zone), found = [];
-  for (let i = 0; i <= Math.min(conf.horizonDays, 60) && found.length < count; i++) {
+  for (let i = 0; i <= Math.min(horizonOf(conf, service), 60) && found.length < count; i++) {
     const day = addDays(today, i);
     // At most three times per day, spread over the day, so the offer covers several days.
     const slots = availableSlots(s, serviceId, day, { at });
@@ -242,10 +250,10 @@ export function bookingView(s, { serviceId = '', day = '', units = 1, quantity =
   const services = (s.services || []).filter(x => x.active).map(x => ({ id: x.id, name: x.name, description: x.description, kind: x.kind, duration: x.duration, price: x.price, rentalUnit: x.rentalUnit, maxUnits: x.maxUnits,
     maxQuantity: x.kind === 'rental' ? s.resources.find(r => r.id === x.resourceIds[0])?.quantity || 1 : 1 }));
   const service = services.find(x => x.id === serviceId) || null;
-  const days = Array.from({ length: Math.min(conf.horizonDays + 1, 14) }, (_, i) => addDays(today, i)).filter(d => (conf.hours[weekdayOf(d)] || []).length === 2);
+  const days = Array.from({ length: Math.min(horizonOf(conf, service && s.services.find(x => x.id === service.id)) + 1, 14) }, (_, i) => addDays(today, i)).filter(d => (conf.hours[weekdayOf(d)] || []).length === 2);
   const chosen = !service ? '' : days.includes(day) ? day : days.find(d => availableSlots(s, service.id, d, { at, units, quantity }).length) || days[0] || '';
   return { business: s.profile?.name || '', title: conf.title, intro: conf.intro, zone, services: personal?.serviceId ? services.filter(x => x.id === personal.serviceId) : services, service, days, day: chosen,
-    link: personal ? personal.token : '', person: owner ? { name: owner.name || '', email: owner.email || '', phone: owner.phone || '' } : null,
+    link: personal ? personal.token : '', person: personal?.person ? { name: personal.person.name || '', email: personal.person.email || '', phone: personal.person.phone || '' } : owner ? { name: owner.name || '', email: owner.email || '', phone: owner.phone || '' } : null,
     linkError: link && !personal ? 'Este link de agendamento já foi usado ou expirou. Você ainda pode agendar normalmente.' : '',
     units: Math.min(Math.max(1, units), service?.maxUnits || 1), quantity: Math.min(Math.max(1, quantity), service?.maxQuantity || 1),
     slots: service && chosen ? availableSlots(s, service.id, chosen, { at, units, quantity }) : [] };
@@ -336,42 +344,48 @@ export function fieldRoute(s, day, staffId = '') {
 // ---- Public page ----
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 export const bookingCsp = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+/** Inside a page of the business (or on its own website) the calendar may be framed and tells its height. */
+export const bookingEmbedCsp = `${bookingCsp.replace("frame-ancestors 'none'", 'frame-ancestors *')}; script-src ${heightHash}`;
 const brl = n => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
 const dayLabel = day => new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', timeZone: 'UTC' }).format(new Date(`${day}T12:00:00Z`));
 const durationText = x => x.kind === 'rental' ? `${brl(x.price)} por ${x.rentalUnit === 'day' ? 'dia' : 'hora'}` : `${x.duration} min${x.price ? ` · ${brl(x.price)}` : ''}`;
 
 /** The public booking page (plain HTML forms, no script). */
-export function bookingPage(view, { base, done = null, error = '', form = {} }) {
-  const link = params => `${base}?${new URLSearchParams(Object.entries({ ...params, link: view.link }).filter(([, v]) => v !== '' && v != null)).toString()}`;
+export function bookingPage(view, { base, done = null, error = '', form = {}, embed = false }) {
+  const link = params => `${base}?${new URLSearchParams(Object.entries({ ...params, link: view.link, embed: embed ? '1' : '' }).filter(([, v]) => v !== '' && v != null)).toString()}`;
   const s = view.service, personal = view.link ? `<input type="hidden" name="link" value="${esc(view.link)}">` : '';
+  // Inside a page the service is already chosen and the page has its own title: the steps start at the day.
+  let count = 0;
+  const step = text => `<h2>${++count}. ${text}</h2>`;
+  const tail = embed ? `<script>${heightScript}</script>` : '';
   form = view.person && !form.nome ? { ...form, nome: view.person.name, email: view.person.email, telefone: view.person.phone } : form;
-  const head = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(view.title)}</title>
+  const head = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${done?.event ? `<meta name="soci-event" content="${esc(done.event)}">` : ''}<title>${esc(view.title)}</title>
 <style>*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;background:#f6f5f8;color:#1e1821;padding:24px 16px}main{max-width:640px;margin:0 auto;background:#fff;border:1px solid #e8e1e9;border-radius:16px;padding:28px;display:grid;gap:16px}
 h1{margin:0;font-size:24px}h2{margin:0;font-size:17px}p{margin:0;color:#5d5560}a{color:#a00070}.list{display:grid;gap:8px;margin:0;padding:0;list-style:none}.svc{display:block;padding:12px 14px;border:1px solid #e8e1e9;border-radius:12px;text-decoration:none;color:inherit}.svc.on{border-color:#b71889;background:#fff4fa}.svc small{display:block;color:#7a727d}
 .chips{display:flex;flex-wrap:wrap;gap:8px}.chip{padding:8px 12px;border:1px solid #e8e1e9;border-radius:999px;text-decoration:none;color:inherit;font-size:14px}.chip.on{background:#b71889;border-color:#b71889;color:#fff}
 .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}.slots label{position:relative}.slots input{position:absolute;opacity:0}.slots span{display:block;text-align:center;padding:9px 0;border:1px solid #e8e1e9;border-radius:10px;cursor:pointer}.slots input:checked+span{background:#b71889;color:#fff;border-color:#b71889}.slots input:focus-visible+span{outline:2px solid #b71889;outline-offset:2px}
 form{display:grid;gap:12px}label{display:grid;gap:4px;font-size:14px;font-weight:600}input,textarea,select{font:inherit;padding:10px 12px;border:1px solid #d9d0da;border-radius:10px;width:100%}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 button{font:600 15px system-ui,sans-serif;background:#b71889;color:#fff;border:0;border-radius:10px;padding:12px 18px;cursor:pointer}.ok{background:#ecf8f0;border:1px solid #3aa66a;border-radius:10px;padding:12px 14px;color:#146c2e}.err{background:#fff4f3;border:1px solid #e3655b;border-radius:10px;padding:10px 12px;color:#9c1c12}
-@media (max-width:480px){main{padding:20px}.row{grid-template-columns:1fr}}</style></head><body><main><p>${esc(view.business)}</p><h1>${esc(view.title)}</h1>`;
-  if (done) return `${head}<div class="ok" role="status"><b>Agendado!</b><br>${esc(done.service)} em ${esc(done.when)}${done.staff ? ` com ${esc(done.staff)}` : ''}. Você vai receber a confirmação pelos nossos canais.</div><p><a href="${esc(base)}">Fazer outro agendamento</a></p></main></body></html>`;
+@media (max-width:480px){main{padding:20px}.row{grid-template-columns:1fr}}${embed ? 'body{background:transparent;padding:2px}main{max-width:none;padding:0;border:0;border-radius:0;background:none}' : ''}</style></head><body><main>${embed ? '' : `<p>${esc(view.business)}</p><h1>${esc(view.title)}</h1>`}`;
+  if (done) return `${head}<div class="ok" role="status"><b>Agendado!</b><br>${esc(done.service)} em ${esc(done.when)}${done.staff ? ` com ${esc(done.staff)}` : ''}. Você vai receber a confirmação pelos nossos canais.</div><p><a href="${esc(base)}${embed ? '?embed=1' : ''}">Fazer outro agendamento</a></p></main>${tail}</body></html>`;
   const services = `<ul class="list">${view.services.map(x => `<li><a class="svc${s?.id === x.id ? ' on' : ''}" href="${esc(link({ servico: x.id }))}"><b>${esc(x.name)}</b><small>${esc(durationText(x))}${x.kind === 'field' ? ' · no seu endereço' : ''}</small>${x.description ? `<small>${esc(x.description)}</small>` : ''}</a></li>`).join('')}</ul>`;
-  if (!view.services.length) return `${head}<p>Nenhum serviço disponível para agendar no momento.</p></main></body></html>`;
-  let body = `${view.linkError ? `<p class="err" role="alert">${esc(view.linkError)}</p>` : ''}${view.intro ? `<p>${esc(view.intro)}</p>` : ''}<h2>1. Serviço</h2>${services}`;
+  if (!view.services.length) return `${head}<p>Nenhum serviço disponível para agendar no momento.</p></main>${tail}</body></html>`;
+  let body = `${view.linkError ? `<p class="err" role="alert">${esc(view.linkError)}</p>` : ''}${embed ? '' : `${view.intro ? `<p>${esc(view.intro)}</p>` : ''}`}${embed && s ? `<p><b>${esc(s.name)}</b> · ${esc(durationText(s))}</p>` : `${step('Serviço')}${services}`}`;
   if (s) {
     const keep = { servico: s.id, unidades: view.units > 1 ? view.units : '', qtd: view.quantity > 1 ? view.quantity : '' };
     if (s.kind === 'rental') body += `<form method="get" action="${esc(base)}">${personal}<input type="hidden" name="servico" value="${esc(s.id)}"><input type="hidden" name="dia" value="${esc(view.day)}"><div class="row">
       <label>${s.rentalUnit === 'day' ? 'Dias' : 'Horas'}<select name="unidades">${Array.from({ length: s.maxUnits }, (_, i) => `<option${i + 1 === view.units ? ' selected' : ''}>${i + 1}</option>`).join('')}</select></label>
       <label>Quantidade<select name="qtd">${Array.from({ length: Math.min(s.maxQuantity, 20) }, (_, i) => `<option${i + 1 === view.quantity ? ' selected' : ''}>${i + 1}</option>`).join('')}</select></label></div><button type="submit">Ver disponibilidade</button></form>`;
-    body += `<h2>2. Dia</h2>${view.days.length ? `<div class="chips">${view.days.map(d => `<a class="chip${d === view.day ? ' on' : ''}" href="${esc(link({ ...keep, dia: d }))}">${esc(dayLabel(d))}</a>`).join('')}</div>` : '<p>Sem dias abertos para agendamento.</p>'}`;
-    body += `<h2>3. Horário</h2>${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}`;
+    body += `${step('Dia')}${view.days.length ? `<div class="chips">${view.days.map(d => `<a class="chip${d === view.day ? ' on' : ''}" href="${esc(link({ ...keep, dia: d }))}">${esc(dayLabel(d))}</a>`).join('')}</div>` : '<p>Sem dias abertos para agendamento.</p>'}`;
+    body += `${step('Horário')}${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}`;
     if (!view.slots.length) body += `<p>Nenhum horário livre neste dia. Tente outro.</p>`;
     else body += `<form method="post" action="${esc(link({ servico: s.id, dia: view.day }))}">${personal}<input type="hidden" name="servico" value="${esc(s.id)}"><input type="hidden" name="unidades" value="${view.units}"><input type="hidden" name="qtd" value="${view.quantity}">
       <fieldset style="border:0;padding:0;margin:0"><legend class="sr" style="position:absolute;left:-9999px">Horário</legend><div class="slots">${view.slots.map((x, i) => `<label><input type="radio" name="inicio" value="${esc(x.start)}" required${(form.inicio ? form.inicio === x.start : i === 0) ? ' checked' : ''}><span>${esc(x.time)}</span></label>`).join('')}</div></fieldset>
-      <h2>4. Seus dados</h2><label>Nome<input name="nome" required maxlength="120" autocomplete="name" value="${esc(form.nome || '')}"></label>
+      ${step('Seus dados')}<label>Nome<input name="nome" required maxlength="120" autocomplete="name" value="${esc(form.nome || '')}"></label>
       <div class="row"><label>E-mail<input name="email" type="email" maxlength="160" autocomplete="email" value="${esc(form.email || '')}"></label><label>Telefone<input name="telefone" maxlength="40" autocomplete="tel" value="${esc(form.telefone || '')}"></label></div>
       ${s.kind === 'field' ? `<label>Endereço do atendimento<input name="endereco" required maxlength="300" autocomplete="street-address" value="${esc(form.endereco || '')}"></label>` : ''}
       <label>Observações<textarea name="notas" rows="3" maxlength="1000">${esc(form.notas || '')}</textarea></label>
       <p>Horários no fuso ${esc(view.zone)}.</p><button type="submit">Confirmar agendamento</button></form>`;
   }
-  return `${head}${body}</main></body></html>`;
+  return `${head}${body}</main>${tail}</body></html>`;
 }

@@ -8,6 +8,7 @@ import { createMetaRoutes } from './routes/meta.mjs';
 import { createGbpRoutes, createGoogleRoutes } from './routes/google.mjs';
 import { createAgentRoutes } from './routes/agents.mjs';
 import { createStudioRoutes } from './routes/studio.mjs';
+import { createStoreApiRoutes, createStorePageRoutes } from './routes/stores.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -36,7 +37,7 @@ import { reviewTokenHash } from './reputation-model.mjs';
 import { renderReviewPage, reviewPageCsp } from './reputation-page.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { collectorCsp, renderCollector, renderWidget, widgetCsp, widgetLoader } from './reputation-widget.mjs';
-import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, previewHeaders, publicHeaders, publish, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withMotion } from './studio-site.mjs';
+import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, previewHeaders, publicHeaders, publish, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withEmbeds, withMotion } from './studio-site.mjs';
 import { hasSiteTemplate, siteTemplatePreview } from './site-templates/index.mjs';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess } from './agency-model.mjs';
@@ -51,6 +52,7 @@ import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, send
 import { hasPixels, injectPixels, pixelsScript, trackerScript, trackingOf, widenCsp } from './tracking.mjs';
 import { createTrackingLog } from './tracking-events.mjs';
 import { scopedReads } from './read-scope.mjs';
+import { localScheduler, startupLines } from './local-scheduler.mjs';
 import { AUDIT_IN_DOCUMENT, createAuditLog } from './agency-audit.mjs';
 import { adSettingsOf, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
@@ -119,7 +121,7 @@ import { emailDomains, workspaceSender } from './email-domain.mjs';
 import { tokenHash as documentTokenHash } from './document-model.mjs';
 import { estimateTokenHash } from './estimate-model.mjs';
 import { invoiceTokenHash } from './invoice-model.mjs';
-import { cartTokenHash, abandonedOf } from './checkout-model.mjs';
+import { abandonedOf } from './checkout-model.mjs';
 import { reportsDue } from './report-model.mjs';
 import { brandGroupData } from './ui/brand-group-data.js';
 import { brandGroupPage } from './brand-group-page.mjs';
@@ -133,7 +135,8 @@ import { makeCommunity } from './community.mjs';
 import { fillWelcome } from './community-config.mjs';
 import { certificateCsp, certificatePage } from './course-credentials.mjs';
 import { preferenceCsp, preferencePage, preferenceView } from './preference-model.mjs';
-import { bookingCsp, bookingPage, bookingView, clockIn, zoneOf } from './scheduling-model.mjs';
+import { leaveCsp, leavePage, outcomeOf, resolveDestination } from './destinations.mjs';
+import { bookingCsp, bookingEmbedCsp, bookingPage, bookingView, clockIn, zoneOf } from './scheduling-model.mjs';
 import { audioLimit, audioTypes, summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
 import { askAssistant } from './seo-ai.mjs';
 import { addTopup, paidTopup, pricingFor, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
@@ -151,8 +154,6 @@ import { chatHistory } from './chat-model.mjs';
 import { chatPage, demoPage, loaderScript } from './ui/chat-widget-data.js';
 import { blogHome, blogPost, blogRss, isLive } from './ui/blog-data.js';
 import { localDraft, postSeo, writePost } from './blog-ai.mjs';
-import { catalog, methodLabel, storeCart, storeHome, storeProduct } from './ui/store-data.js';
-import { quoteOrder } from './store-model.mjs';
 import { renderOfferPage, offerPageCsp } from './offer-page.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
 import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
@@ -175,7 +176,7 @@ export const staticFiles = new Map([
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
   ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
-  ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
+  ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/destination-field.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/setup-art.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/deck-model.js','text/javascript; charset=utf-8'], ['/deck-render.js','text/javascript; charset=utf-8'], ['/deck-editor.js','text/javascript; charset=utf-8'], ['/deck.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
@@ -193,7 +194,7 @@ export const staticFiles = new Map([
   ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
   ['/prancheta-editor.html','text/html; charset=utf-8'], ['/vendor/prancheta-editor.js','text/javascript; charset=utf-8'], ['/vendor/prancheta-editor.css','text/css; charset=utf-8'],
-  ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
+  ['/style.css','text/css; charset=utf-8'], ['/button-system.css','text/css; charset=utf-8'], ['/tokens.css','text/css; charset=utf-8'], ['/liquid-glass.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
   ['/fonts/plus-jakarta-sans.woff2','font/woff2'], ['/favicon.svg','image/svg+xml'],
@@ -322,7 +323,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
   : resolve(root, '.data', 'go.sqlite');
 
 export function makeServer({
-  pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL, cronConcurrency=4, cronBudgetMs=45_000,
+  pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=localScheduler(store.kind), cronConcurrency=4, cronBudgetMs=45_000,
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, inboundFetch=fetch, twilioRequest=fetch, phoneEnv=process.env, brandResolve=null, designAgentConfig=designAgent,
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
@@ -608,10 +609,14 @@ export function makeServer({
       copy.projectId = newId;
       copy.published = null;
       copy.updatedAt = stamp();
-      if (Array.isArray(copy.pages)) copy.pages = copy.pages.map(pg => ({ ...pg, id: uid() }));
+      // Forms and services shown inside the pages point at the records this account received.
+      const relink = html => String(html || '').replace(/(<div\b[^>]*\sdata-soci-embed=[^>]*\sdata-id=")([^"]*)(")/gi, (_, a, ref, b) => a + (studioMap.ids?.get(ref) || ref) + b);
+      for (const version of copy.versions || []) version.pages = version.pages.map(pg => ({ ...pg, html: relink(pg.html) }));
+      if (Array.isArray(copy.pages)) copy.pages = copy.pages.map(pg => ({ ...pg, id: uid(), html: relink(pg.html) }));
       const rowId = siteRowId(newId);
       const inserted = await store.insert(rowId, copy);
       if (!inserted) await store.change(rowId, state => Object.assign(state, copy));
+      siteDocCache.delete(newId);
     }
   }
   const auditEntry = (who, action, target = '', details = '') => ({ id: uid(), at: stamp(), actor: who.name, action, target, details });
@@ -1347,6 +1352,16 @@ export function makeServer({
   const withPixels = (state, workspace, headers, body) => {
     if (!hasPixels(state?.tracking) || typeof body !== 'string') return [headers, body];
     return [{ ...headers, 'Content-Security-Policy': widenCsp(headers['Content-Security-Policy']) }, injectPixels(body, workspace)];
+  };
+  // Sends the visitor to a destination: a plain redirect, or a short page when the whole window must change (inside a
+  // frame) or when the pixel needs a moment before an external address.
+  const leave = (res, state, workspace, target, { embed = false, event = '' } = {}) => {
+    const pixel = target.external && event;
+    if (!embed && !pixel) { res.writeHead(303, { Location: target.href }); return res.end(); }
+    const [headers, body] = withPixels(pixel ? state : null, workspace, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'same-origin', 'Content-Security-Policy': leaveCsp(embed ? '*' : "'none'") },
+      leavePage({ href: target.href, event: pixel ? event : '', wait: pixel ? 900 : 0 }));
+    res.writeHead(200, headers);
+    return res.end(body);
   };
   const allowSign = ip => {
     const at = Date.now(), hit = signHits.get(ip);
@@ -2187,6 +2202,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const gbpRoute = createGbpRoutes({ store, error, spaceId, change, flushLater, gbpAccess, gbpStatus, payload, recordAudit, workspaceAccess });
   const agentRoute = createAgentRoutes({ store, localAccess, error, spaceId, privateSpace, agentModel, designAgentConfig, generateAgentReply, listWorkspaces, openAI, payload, recordAudit, workspaceAccess });
   const studioRoute = createStudioRoutes({ store, error, change, openAI, payload, siteDoc, studioGuard, studioRequest, syncMeta });
+  const storePageRoute = createStorePageRoutes({ store, ready, error, publicAccountPolicy, publicPreview, storePath, withPixels });
+  const storeApiRoute = createStoreApiRoutes({ store, ready, error, abacate, allowSign, allowTracking, change, flushLater, payload, publicAccountPolicy, publicBase, storeApi });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const server=createServer(async (req,res) => {
@@ -3128,14 +3145,15 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           try {
             if (!project?.formId) throw error('This site is not accepting submissions.',404);
             const vid = siteVisitorOf(req, workspace) || randomBytes(12).toString('hex');
-            await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _message:fields.message, _source:'Site', _vid:vid } });
+            const sent = await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _message:fields.message, _source:'Site', _vid:vid } });
             const order = doc.published.pages;
             const from = order.findIndex(item => item.slug === (fields._page || 'index'));
             if (from >= 0) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, order[from].id, 'optins'))).catch(() => {});
             const next = project.kind === 'funnel' && from >= 0 ? order[from + 1] : null;
             const secure = String(req.headers['x-forwarded-proto'] || '').includes('https') || publicBase(req).startsWith('https') ? '; Secure' : '';
             res.setHeader('Set-Cookie', [...[res.getHeader('Set-Cookie') || []].flat(), `${siteVisitorCookie(workspace)}=${vid}; Max-Age=${365 * 86400}; Path=/; HttpOnly; SameSite=Lax${secure}`]);
-            res.writeHead(303,{ Location:next ? `${base}/${encodeURIComponent(next.slug)}` : `${back}?sent=1` });
+            const event = hasPixels((await store.load(workspace)).tracking) ? `soci_ev=lead.${sent.id}` : '';
+            res.writeHead(303,{ Location:next ? `${base}/${encodeURIComponent(next.slug)}${event && `?${event}`}` : `${back}?sent=1${event && `&${event}`}` });
           } catch {
             res.writeHead(303,{ Location:`${back}?error=1` });
           }
@@ -3154,7 +3172,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const pt = /<html\b[^>]*\blang\s*=\s*["']?pt/i.test(page.html), es = /<html\b[^>]*\blang\s*=\s*["']?es/i.test(page.html);
         const notice = url.searchParams.has('sent') ? { ok:true, text:pt ? 'Obrigado! Seus dados foram enviados.' : es ? '¡Gracias! Tus datos fueron enviados.' : 'Thank you! Your details were sent.' }
           : url.searchParams.has('error') ? { ok:false, text:pt ? 'Não foi possível enviar. Confira o nome e o e-mail e tente de novo.' : es ? 'No se pudo enviar. Revisa el nombre y el correo e inténtalo de nuevo.' : 'Your details could not be sent. Check the name and email and try again.' } : '';
-        const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, ...withMotion(publicHeaders, renderPublic(page,{ base, notice })));
+        const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, ...withEmbeds(...withMotion(publicHeaders, renderPublic(page,{ base, notice, workspace, link:url.searchParams.get('link') || '' }))));
         res.writeHead(200, siteHeaders);
         return res.end(siteBody);
       }
@@ -3216,26 +3234,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         res.writeHead(302, { Location:target, 'Cache-Control':'no-store' });
         return res.end();
       }
-      // Stores: catalog, product page and cart. Totals always come from quoteOrder on the server.
-      const storeRoute = p.match(storePath);
-      if (storeRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, storeId, cart, slug] = storeRoute;
-        await publicAccountPolicy(workspace, false, 'sites');
-        const state = await store.load(workspace);
-        const shop = state.stores?.find(item => item.id === storeId);
-        const preview = await publicPreview(req, res, url, workspace);
-        if (!shop || (!shop.active && !preview)) throw error('Esta loja não está aberta.',404);
-        const base = `/loja/${workspace}/${storeId}`;
-        let body;
-        if (cart) body = storeCart(state, shop, { base, workspace });
-        else if (slug) { const item = catalog(state, shop).find(row => row.slug === slug); if (!item) throw error('Produto não encontrado.',404); body = storeProduct(state, shop, item, { base }); }
-        else body = storeHome(state, shop, { base, category:String(url.searchParams.get('categoria') || '').slice(0,40), collection:String(url.searchParams.get('colecao') || '').slice(0,80) });
-        const [storeHeaders, storeBody] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, body);
-        res.writeHead(200, storeHeaders);
-        return res.end(method === 'HEAD' ? undefined : storeBody);
-      }
+      const storePageHandled = await storePageRoute({ req, res, p, method, url });
+      if (storePageHandled !== NEXT_ROUTE) return storePageHandled;
       // Affiliates: the referral link, the program sign-up and the affiliate's private dashboard.
       const referral = p.match(affiliateLink);
       if (referral && (method === 'GET' || method === 'HEAD')) {
@@ -3386,7 +3386,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         await ready;
         const [, workspace] = booking;
         await publicAccountPolicy(workspace, method === 'POST', 'calendars');
-        const q = url.searchParams, base = `/agendar/${workspace}`;
+        const q = url.searchParams, base = `/agendar/${workspace}`, embed = q.get('embed') === '1';
         let done = null, failure = '', status = 200, form = {};
         if (method === 'POST') {
           const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
@@ -3396,8 +3396,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           try {
             const result = await change(workspace, { type: 'scheduling-book', data: { serviceId: one(form.servico), start: one(form.inicio), name: one(form.nome), email: one(form.email), phone: one(form.telefone), address: one(form.endereco), notes: one(form.notas), units: one(form.unidades), quantity: one(form.qtd), link: one(form.link) } });
             flushLater(workspace);
-            const zone = zoneOf(await store.load(workspace)), booked = result.id;
-            done = { service: booked.service, staff: booked.staff, when: `${new Intl.DateTimeFormat('pt-BR', { timeZone: zone, weekday: 'long', day: '2-digit', month: 'long' }).format(new Date(booked.start))} às ${clockIn(Date.parse(booked.start), zone)}` };
+            const after = await store.load(workspace), zone = zoneOf(after), booked = result.id;
+            const event = hasPixels(after.tracking) ? `schedule.${booked.id}` : '';
+            const target = resolveDestination(after, workspace, after.services.find(x => x.id === one(form.servico))?.after, { event });
+            if (target) return leave(res, after, workspace, target, { embed, event });
+            done = { event, service: booked.service, staff: booked.staff, when: `${new Intl.DateTimeFormat('pt-BR', { timeZone: zone, weekday: 'long', day: '2-digit', month: 'long' }).format(new Date(booked.start))} às ${clockIn(Date.parse(booked.start), zone)}` };
           } catch (failed) {
             if (!failed.status || failed.status >= 500) throw failed;
             failure = failed.message; status = failed.status;
@@ -3406,8 +3409,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const one2 = value => Array.isArray(value) ? value[0] : value;
         const view = bookingView(await store.load(workspace), { serviceId: String(form.servico || q.get('servico') || ''), day: String(q.get('dia') || ''), units: Number(form.unidades || q.get('unidades')) || 1, quantity: Number(form.qtd || q.get('qtd')) || 1, link: String(one2(form.link) || q.get('link') || '') });
         if (!view) throw error('O agendamento online desta empresa está desligado.', 404);
-        res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'same-origin', 'Content-Security-Policy':bookingCsp });
-        return res.end(method === 'HEAD' ? undefined : bookingPage(view, { base, done, error: failure, form }));
+        const [bookingHeaders, bookingBody] = withPixels(await store.load(workspace), workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'same-origin', 'Content-Security-Policy':embed ? bookingEmbedCsp : bookingCsp }, bookingPage(view, { base, done, error: failure, form, embed }));
+        res.writeHead(status, bookingHeaders);
+        return res.end(method === 'HEAD' ? undefined : bookingBody);
       }
       // Central de preferências: the contact's own page (link with a private token) to choose channels and topics.
       const preference = p.match(preferencePath);
@@ -3513,54 +3517,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const payment = await abacate.chargeInvoice(agencyId, workspace, result.id, origin, { returnUrl:`${page}?status=voltou`, completionUrl:`${page}?status=pago` });
         return json({ payUrl:payment.url });
       }
-      const storeCall = p.match(storeApi);
-      if (storeCall) {
-        await ready;
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const [, workspace, storeId, op] = storeCall;
-        const input = await payload(req);
-        await publicAccountPolicy(workspace, true, 'sites');
-        await publicAccountPolicy(workspace, true, 'payments');
-        if (op === 'cart') {
-          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-          if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
-          return json((await change(workspace,{ type:'store-cart', id:storeId, data:{ session:input.session, name:input.name, email:input.email, phone:input.phone, items:input.items, coupon:input.coupon, delivery:input.delivery } })).id);
-        }
-        if (op === 'view') {
-          // "Produto visualizado": the contact comes from the cart session on the server, never from the page.
-          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-          if (!allowTracking(ip)) throw error('Muitas visualizações a partir desta conexão. Aguarde alguns minutos.',429);
-          const viewed = await change(workspace,{ type:'store-view', id:storeId, data:{ session:input.session, productId:input.productId } });
-          if (viewed.state.workflowOutbox?.length) flushLater(workspace);
-          return json({ tracked: Boolean(viewed.id?.tracked) });
-        }
-        if (op === 'review') {
-          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-          if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
-          return json((await change(workspace,{ type:'store-review', id:storeId, data:{ productId:input.productId, name:input.name, email:input.email, rating:input.rating, title:input.title, body:input.body, website:input.website } })).id,201);
-        }
-        if (op === 'restore') {
-          const digest = cartTokenHash(input.token);
-          if (!digest) throw error('Este link de recuperação não é válido.',404);
-          return json((await change(workspace,{ type:'store-cart-restore', id:storeId, data:{ tokenHash:digest } })).id);
-        }
-        if (op === 'quote') {
-          const state = await store.load(workspace);
-          const shop = state.stores?.find(item => item.id === storeId && item.active);
-          if (!shop) throw error('Esta loja não está aberta.',404);
-          const { coupon_, giftCard_, ...quote } = quoteOrder(state, shop, input);
-          return json(quote);
-        }
-        const result = await change(workspace,{ type:'store-checkout', id:storeId, data:input });
-        const order = result.state.orders.find(item => item.id === result.id), shop = result.state.stores.find(item => item.id === storeId);
-        let payUrl = '';
-        if (shop.payment.method === 'AbacatePay') {
-          const origin = publicBase(req), back = `${origin}/loja/${workspace}/${storeId}`;
-          payUrl = await abacate.chargeInvoice(result.state.agencyId || AGENCY_ID, workspace, order.invoiceId, origin, { returnUrl: back, completionUrl: back })
-            .then(payment => payment.url).catch(() => '');
-        }
-        return json({ number:order.number, total:order.total, method:methodLabel[shop.payment.method] || shop.payment.method, instructions:shop.payment.instructions, thanks:shop.thanks, payUrl },201);
-      }
+      const storeApiHandled = await storeApiRoute({ req, p, method, json });
+      if (storeApiHandled !== NEXT_ROUTE) return storeApiHandled;
       // Blogs: home with categories and pages, posts with SEO tags, and RSS. Drafts open with ?preview=1 when signed in.
       // Brand group reports shared by link: the token finds the agency, so no agency id is exposed.
       const brandGroupShare = p.match(brandGroupRoute);
@@ -3707,11 +3665,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const state = await store.load(workspace);
         const form = state.forms.find(item => item.id === formId);
         if (!form || (!form.active && !preview)) throw error('Este formulário não está publicado.',404);
-        const redirects = form.onSubmit?.action === 'redirect' && form.onSubmit.url;
+        const outside = [form.onSubmit, ...(form.routes || []).map(rule => rule.dest)].some(dest => dest?.action === 'redirect');
         const page = (status, options) => {
           const [headers, body] = withPixels(preview ? null : state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'${redirects ? ' https: http:' : ''}; frame-ancestors *` },
-            formPage(form, { action:`/form/${workspace}/${formId}${embed ? '?embed=1' : preview ? '?preview=1' : ''}`, target:embed && redirects ? '_top' : '',
+            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'${outside ? ' https: http:' : ''}; frame-ancestors *` },
+            formPage(form, { action:`/form/${workspace}/${formId}${embed ? '?embed=1' : preview ? '?preview=1' : ''}`,
             customFields:state.customFields || [], embed, brand:state.profile?.name || '', ...options }));
           res.writeHead(status, headers);
           return res.end(method === 'HEAD' ? undefined : body);
@@ -3727,12 +3685,17 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const read = readAnswers(form, input, state.customFields || []);
         if (!read.ok) return page(422, { values:read.values, errors:read.errors });
         await publicAccountPolicy(workspace, true, 'sites');
-        try { await change(workspace,{ type:'submit', id:formId, data:{ ...input, _vid:'', _source:embed ? 'Incorporado' : 'Link' } }); }
+        let sent;
+        try { sent = await change(workspace,{ type:'submit', id:formId, data:{ ...input, _vid:'', _source:embed ? 'Incorporado' : 'Link' } }); }
         catch (failure) { return page(failure.status && failure.status < 500 ? 422 : 500, { values:read.values, errors:{ _form:failure.status && failure.status < 500 ? failure.message : 'Não foi possível enviar agora. Tente de novo.' } }); }
-        if (redirects) { res.writeHead(303, { Location:form.onSubmit.url }); return res.end(); }
-        const tier = read.result?.tierDetail;
-        if (read.result) return page(200, { notice:{ result:read.result, text:tier?.message || form.onSubmit?.message || '', cta:tier?.ctaUrl ? { url:tier.ctaUrl, label:tier.ctaLabel } : null } });
-        return page(200, { notice:{ title:'Obrigado!', text:form.onSubmit?.message || 'Recebemos suas respostas.' } });
+        const { qualified, dest } = outcomeOf(form, read), after = await store.load(workspace);
+        // Só o lead qualificado conta como Lead no pixel, e depois de o envio ser aceito.
+        const event = qualified && hasPixels(after.tracking) ? `lead.${sent.id}` : '';
+        const target = resolveDestination(after, workspace, dest, { event, link:(after.bookingLinks || []).findLast(row => row.submissionId === sent.id)?.token || '' });
+        if (target) return leave(res, after, workspace, target, { embed, event });
+        const tier = read.result?.tierDetail, own = (form.routes || []).some(rule => rule.dest === dest) && dest.action === 'message' ? dest.message : '';
+        if (read.result) return page(200, { event, notice:{ result:read.result, text:own || tier?.message || form.onSubmit?.message || '', cta:tier?.ctaUrl ? { url:tier.ctaUrl, label:tier.ctaLabel } : null } });
+        return page(200, { event, notice:{ title:'Obrigado!', text:own || form.onSubmit?.message || 'Recebemos suas respostas.' } });
       }
       const hook = p.match(hookPath);
       if (hook && method === 'POST') {
@@ -3885,15 +3848,18 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     }
   });
   server.on('close',()=>{ if (socialTimer) clearInterval(socialTimer); store.close(); });
-  return {server,port,host,ready,backend:store.kind};
+  return {server,port,host,ready,backend:store.kind,scheduler:Boolean(socialTimer)};
 }
 
 if (process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   try {
     const store = supabaseFromEnv();
-    const { server,port,host,ready,backend } = makeServer(store ? { store } : {});
+    const { server,port,host,ready,backend,scheduler } = makeServer(store ? { store } : {});
     await ready;
-    server.listen(port,host,()=>console.log(`Local workspace (${backend}): http://${host}:${server.address().port}/`));
+    server.listen(port,host,()=>{
+      console.log(`Local workspace (${backend}): http://${host}:${server.address().port}/`);
+      for (const line of startupLines({ backend, scheduler, dbPath: defaultDbPath })) console.log(line);
+    });
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

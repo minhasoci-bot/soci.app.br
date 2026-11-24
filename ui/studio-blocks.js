@@ -28,6 +28,9 @@ function form({ accent = '#111111', onAccent = '#ffffff' } = {}) {
   return `<form data-go-lead style="display:grid;gap:14px;width:min(520px,100%);text-align:left">${label('Nome', `<input name="name" required autocomplete="name" style="${field}">`)}${label('E-mail', `<input name="email" type="email" required autocomplete="email" style="${field}">`)}${label('WhatsApp', `<input name="phone" type="tel" autocomplete="tel" style="${field}">`)}<button type="submit" style="font:inherit;font-weight:600;padding:14px 22px;border:0;border-radius:999px;background:${esc(accent)};color:${esc(onAccent)};cursor:pointer">Enviar</button></form>`;
 }
 
+// Vídeo, formulário e agenda: aqui só um marcador; o quadro é montado ao servir a página (site-embeds.mjs).
+const embed = (kind, text, ratio = '') => `<div data-soci-embed="${kind}" style="display:grid;place-items:center;width:100%;min-height:220px;${ratio}padding:24px;border-radius:16px;text-align:center;${line};${soft}"><span style="opacity:.75">${text}</span></div>`;
+
 // [id, nome, gerador]. Elementos entram junto do que está selecionado; seções entram entre as seções da página.
 export const blockGroups = [
   ['Elementos', [
@@ -35,7 +38,10 @@ export const blockGroups = [
     ['p', 'Parágrafo', () => '<p>Novo parágrafo</p>'],
     ['button', 'Botão', look => button('Novo botão', look)],
     ['image', 'Imagem', () => photo('3/2')],
-    ['form', 'Formulário', look => form(look)],
+    ['video', 'Vídeo', () => embed('video', 'Vídeo: cole o link no painel Design', 'aspect-ratio:16/9;')],
+    ['form', 'Formulário simples', look => form(look)],
+    ['soci-form', 'Formulário com perguntas', () => embed('form', 'Formulário: escolha no painel Design')],
+    ['booking', 'Agenda', () => embed('booking', 'Agenda: escolha o serviço no painel Design')],
     ['divider', 'Divisor', () => '<hr style="width:100%;border:0;border-top:1px solid currentColor;opacity:.2;margin:24px 0">']
   ]],
   ['Seções', [
@@ -63,5 +69,14 @@ export function cleanLink(value) {
   const text = String(value || '').trim();
   if (/^(https?:\/\/[^\s"'<>]+|mailto:[^\s"'<>]+|tel:[+\d\s().-]+|page:[a-z0-9-]+(#[\w-]*)?|#[\w-]*)$/i.test(text)) return text;
   return /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/[^\s"'<>]*)?$/i.test(text) ? `https://${text}` : '';
+}
+// Vídeos que a página sabe mostrar: YouTube, Vimeo, Loom, Panda Video ou um arquivo de vídeo em https.
+export function cleanVideo(value) {
+  const text = String(value || '').trim();
+  let url;
+  try { url = new URL(text); } catch { return ''; }
+  if (url.protocol !== 'https:') return '';
+  const known = /^(?:(?:www\.|m\.)?youtube\.com|youtu\.be|(?:www\.)?vimeo\.com|(?:www\.)?loom\.com|player-vz-[0-9a-f-]+\.tv\.pandavideo\.com\.br)$/i.test(url.hostname);
+  return known || /\.(mp4|webm|m4v)$/i.test(url.pathname) ? text : '';
 }
 export const cleanImage = value => (/^https:\/\/[^\s"'<>]+$/i.test(String(value || '').trim()) ? String(value).trim() : '');

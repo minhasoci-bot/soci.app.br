@@ -1,11 +1,11 @@
-// Ilustrações dos templates de setup (uma por segmento da GHL, 123 no total), no estilo editorial da soci.
+// Ilustrações dos templates de setup (uma por segmento da GHL, 123 no total, e a do funil de reuniões), no estilo editorial da soci.
 // Os SVGs ficam em /setup-art/<chave>.svg e usam 4 cores: o pink e o laranja viram as duas cores da conta
 // (--g-brand e --g-brand-2, via --ilu-primaria/--ilu-secundaria em agency.css); preto e branco são fixos.
 // Para herdar essas variáveis o SVG precisa estar no DOM, então setupArt() devolve um contêiner leve e o
 // arquivo é buscado e inserido quando o card entra na tela (e fica em cache para os próximos renders).
 
 export const setupArtBySegment = {
-  agency: ['affiliate-marketing-agency', 'content-creator', 'crm-software', 'event-marketing', 'marketing-agency', 'public-relations-firm', 'saas', 'visual-advertising-agency'],
+  agency: ['affiliate-marketing-agency', 'content-creator', 'crm-software', 'event-marketing', 'funil-reunioes-qualificadas', 'marketing-agency', 'public-relations-firm', 'saas', 'visual-advertising-agency'],
   auto: ['auto-body-and-painting', 'auto-dealer-sales', 'automotive-detailing', 'automotive-repair-mechanic', 'brake-muffler-shop', 'car-rental-agency', 'roadside-assistance', 'tire-shop', 'towing-service'],
   beauty: ['barber-shop', 'clothing-boutique-tailor', 'day-spa', 'eyelash-salon', 'hair-salon', 'jewelry-shop', 'modeling-agency', 'nail-salon', 'skin-care-clinic'],
   coaching: ['business-coaching', 'career-coach', 'education-tutor', 'financial-consultant', 'it-consultant', 'life-coach', 'real-estate-consultant', 'stocks-trading-advisor'],

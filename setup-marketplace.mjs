@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { agentTemplate } from './agent-model.mjs';
 import { marketplaceCategories } from './ui/agency-data.js';
 import { agenciaCompleta360Spec } from './setup-agencia-360.mjs';
+import { funilReunioesSpec } from './setup-funil-reunioes.mjs';
 import { setupTemplateSpecs } from './setup-templates.mjs';
 
 export const MARKETPLACE_DOC_ID = 'marketplace-setups';
@@ -77,7 +78,7 @@ function buildOfficial(spec) {
     counts,
     preview: buildSetupPreview(assets),
     assets,
-    studioSites: {},
+    studioSites: spec.studioSites ? structuredClone(spec.studioSites) : {},
     installs: 0,
     publishedAt: spec.publishedAt || '2026-01-15T12:00:00.000Z',
     updatedAt: spec.publishedAt || '2026-01-15T12:00:00.000Z'
@@ -362,8 +363,8 @@ const OFFICIAL_SETUPS = [
     }
   })
 ];
-// Templates de setup por segmento (aba Templates de setup), usados para criar subcontas.
-const TEMPLATE_SETUPS = setupTemplateSpecs.map(spec => ({ ...buildOfficial({ ...spec, publishedAt: '2026-11-22T12:00:00.000Z' }), template: true, segment: spec.segment }));
+// Templates de setup (aba Templates de setup), usados para criar subcontas: hoje, o funil de reuniões.
+const TEMPLATE_SETUPS = [funilReunioesSpec, ...setupTemplateSpecs].map(spec => ({ ...buildOfficial({ publishedAt: '2026-11-22T12:00:00.000Z', ...spec }), template: true, segment: spec.segment }));
 export const setupTemplates = () => TEMPLATE_SETUPS;
 
 export function officialSetups() {

@@ -6,7 +6,6 @@ import { AGENCY_ID, blankAgency } from '../agency-model.mjs';
 import { workflowRecord } from '../workflow-engine.mjs';
 import { eachStep } from '../ui/workflow-data.js';
 import { ghlSnapshotSpecs, seedSetups } from '../setup-ghl-snapshots.mjs';
-import { setupTemplateSpecs, templateCategories } from '../setup-templates.mjs';
 
 // `seed` runs on the agency document before the server first reads it (the server caches agencies).
 async function start(seed) {
@@ -81,41 +80,15 @@ test('The cold email sequence keeps the GHL A/B structure: 5 sends split 50/50 w
   assert.equal(sequence.steps.filter(step => step.type === 'wait').length, 4);
 });
 
-test('Setup templates mirror the 123 GHL segments in 15 categories and are served on demand, without bloating every agency response', async t => {
-  assert.equal(setupTemplateSpecs.length, 123);
-  assert.equal(templateCategories.length, 15);
-  assert.equal(new Set(setupTemplateSpecs.map(s => s.id)).size, 123);
+test('The setup template gallery offers only the meetings funnel and a removed template no longer creates a sub-account', async t => {
   const local = await start(); t.after(local.close);
   const agency = (await local.call('/api/agency')).body;
   assert.ok(!agency.marketplace.some(item => item.template), 'the marketplace list stays small');
   const gallery = (await local.call('/api/agency/setup-templates', {})).body.result;
-  assert.equal(gallery.length, 123);
+  assert.deepEqual(gallery.map(item => item.title), ['Funil de Reuniões Qualificadas']);
   assert.ok(gallery.every(item => item.template && item.segment && item.category && item.assets === undefined));
-  const dental = gallery.find(item => item.title === 'Odontologia');
-  assert.equal(dental.category, 'Clínicas e Saúde');
-  assert.equal(dental.counts.workflows, 6);
-});
-
-test('A template creates a sub-account directly (no library copy) and every template loads valid, re-linked workflows', async t => {
-  const local = await start(); t.after(local.close);
+  const before = Object.keys((await local.call('/api/agency')).body.agency.accounts || {}).length;
   const account = await local.call('/api/agency/accounts', { name: 'Clínica Sorriso', templateId: 'template-dental' });
-  assert.equal(account.status, 200, JSON.stringify(account.body));
-  const state = (await local.call(`/api/state?workspace=${account.body.result}`)).body.state;
-  assert.ok(state.pipelines.some(p => p.name === 'Vendas — Odontologia'));
-  assert.equal(state.workflows.length, 6);
-  assert.equal(state.agents[0].name, 'Recepcionista IA — Odontologia');
-  assertLoadedAccount(state, 'template-dental');
-  const after = (await local.call('/api/agency')).body.agency;
-  assert.equal(after.snapshots.length, 0, 'templates do not take a slot in the 50-setup library');
-  assert.equal(after.snapshotLoads.at(-1).snapshot, 'Odontologia');
-  // The other 122 templates, loaded straight into blank workspaces through the same code path.
-  const { applySnapshot } = await import('../agency-model.mjs');
-  const { blank } = await import('../model.mjs');
-  const { setupTemplates } = await import('../setup-marketplace.mjs');
-  for (const template of setupTemplates()) {
-    const target = blank(template.title);
-    const report = applySnapshot(target, template);
-    assert.ok(report.added > 20, `${template.id} adds its records`);
-    assertLoadedAccount(target, template.id);
-  }
+  assert.equal(account.status, 400);
+  assert.equal(Object.keys((await local.call('/api/agency')).body.agency.accounts || {}).length, before);
 });

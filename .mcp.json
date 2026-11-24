@@ -3,6 +3,19 @@
     "abacatepay": {
       "type": "http",
       "url": "https://mcp.abacatepay.com/mcp"
+    },
+    "transitions-ui": {
+      "type": "http",
+      "url": "https://api.transitions.dev/ui/mcp"
+    },
+    "awwwards": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "awwwards-mcp"]
+    },
+    "cloudflare": {
+      "type": "http",
+      "url": "https://bindings.mcp.cloudflare.com/mcp"
     }
   }
 }
