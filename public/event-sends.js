@@ -116,8 +116,8 @@ export function installEventSends({ c, api, url, load, save, flash, dialog, clos
         await save({ type: 'event-message-cancel', id: event.id, data: { itemId: item.id } }); repaint(); flash('Envio cancelado.'); return;
       }
       if (data.epRetry === 'all' && !await ask('Reenviar o que não foi confirmado?', { text: 'Essas mensagens podem ter chegado. Confira no WhatsApp antes, para ninguém receber duas vezes.', ok: 'Reenviar tudo' })) return;
-      const { total } = await save({ type: 'event-message-retry', id: event.id, data: { itemId: item.id, include: data.epRetry } });
-      close(); repaint(); flash(`${plural(total, 'envio voltou', 'envios voltaram')} para a fila.`);
+      const { total, dropped } = await save({ type: 'event-message-retry', id: event.id, data: { itemId: item.id, include: data.epRetry } });
+      close(); repaint(); flash(`${plural(total, 'envio voltou', 'envios voltaram')} para a fila.${dropped ? ` ${plural(dropped, 'ficou', 'ficaram')} de fora por não fazer mais parte dos destinos.` : ''}`);
     } catch (error) { flash(error.message, true); }
   });
   document.addEventListener('input', domEvent => {

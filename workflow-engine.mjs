@@ -1018,6 +1018,7 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
           for (const tag of dup.tags || []) if (!(keeper.tags || []).some(t => lower(t) === lower(tag))) { keeper.tags = [...(keeper.tags || []), tag]; added.push(tag); }
           if (dup.notes && !String(keeper.notes || '').includes(dup.notes)) keeper.notes = [keeper.notes, dup.notes].filter(Boolean).join('\n\n').slice(0, 20000);
           if (dup.dnd) keeper.dnd = true;
+          for (const [channel, off] of Object.entries(dup.optOut || {})) if (off) keeper.optOut = { ...keeper.optOut, [channel]: true };
           // One conversation per contact: followers and assignee join the kept thread.
           const thread = (s.threads || []).find(row => row.contactId === keeper.id);
           if (thread) {

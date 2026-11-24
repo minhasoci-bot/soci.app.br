@@ -14,7 +14,7 @@ stamp() { date '+%Y-%m-%d %H:%M:%S'; }
 mkdir -p backups
 chmod 700 backups
 file="backups/evolution-$(date +%Y%m%d-%H%M).sql.gz"
-if docker compose exec -T postgres pg_dump -U evolution -d evolution --no-owner | gzip -6 > "$file.tmp"; then
+if docker compose exec -T postgres pg_dump -U evolution -d evolution --no-owner --clean --if-exists | gzip -6 > "$file.tmp"; then
   mv "$file.tmp" "$file"
   echo "$(stamp) backup ok: $file ($(du -h "$file" | cut -f1))"
 else

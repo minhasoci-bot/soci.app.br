@@ -1,5 +1,5 @@
 import { accountLifecycle } from './agency-model.mjs';
-import { eventSendsView } from './event-send-model.mjs';
+import { eventSendsView, touchesDeliveries } from './event-send-model.mjs';
 import { blank, metrics } from './model.mjs';
 import { moduleOfRecord, subAccountModules } from './ui/agency-data.js';
 
@@ -131,6 +131,7 @@ export function requireSetupModules(access, keys) {
 export function requireRecordEffects(access, state, command) {
   if (access.modules === null) return;
   const { type, key, id, data } = command;
+  if (touchesDeliveries(state, command)) requireModule(access, 'conversations');
   const deletingContact = (type === 'delete' && key === 'contacts') ||
     (type === 'bulk' && data?.object === 'contacts' && data.operation === 'delete');
   if (deletingContact) {
