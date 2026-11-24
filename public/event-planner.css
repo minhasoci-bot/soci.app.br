@@ -35,12 +35,12 @@
 .ep-facts .ep-missing { color:var(--g-faint); font-style:italic; }
 
 .ep-filter { display:flex; flex-wrap:wrap; gap:10px; padding:10px 12px; margin-bottom:12px; }
-.ep-list { display:grid; gap:8px; padding:0; margin:0; list-style:none; }
+.ep-list { display:grid; grid-template-columns:minmax(0, 1fr); gap:8px; padding:0; margin:0; list-style:none; }
 .ep-item { display:flex; gap:14px; align-items:flex-start; padding:14px; }
 .ep-item-main { flex:1; min-width:0; }
 .ep-item-main h3 { margin:0; font-size:14px; color:var(--g-ink); }
 .ep-item-meta { margin:4px 0 0; color:var(--g-dim); font-size:12px; }
-.ep-item-side { display:flex; flex:0 0 auto; align-items:center; gap:8px; }
+.ep-item-side { display:flex; flex:0 0 auto; flex-wrap:wrap; align-items:center; gap:8px; }
 .ep-item-actions { display:flex; gap:2px; }
 .ep-code { display:inline-flex; padding:2px 6px; border-radius:6px; background:var(--g-surface-2); color:var(--g-ink-2); font-size:11px; font-weight:700; font-variant-numeric:tabular-nums; }
 .ep-item details { margin-top:8px; }
@@ -52,6 +52,24 @@
 .ep-copy ul, .ep-copy ol, .ec-preview ul, .ec-preview ol { margin:0 0 8px; padding-left:20px; }
 .ep-note { margin:8px 0 0; color:var(--g-ink-2); font-size:13px; line-height:1.5; white-space:pre-wrap; }
 
+.ep-head-tools, .ep-send-tools { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+.ep-delivery { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding-top:10px; margin-top:10px; border-top:1px solid var(--g-line); color:var(--g-ink-2); font-size:12px; font-weight:600; }
+.ep-delivery .spacer { flex:1; }
+.ep-banner { display:flex; gap:8px; align-items:flex-start; padding:10px 12px; margin:0 0 12px; border:1px solid var(--g-brand-line); border-radius:10px; background:var(--g-brand-surface); color:var(--g-ink); font-size:13px; line-height:1.5; }
+.ep-banner svg { flex:none; margin-top:2px; color:var(--g-brand-text); }
+.ep-parts { display:grid; gap:8px; max-height:320px; padding:10px; margin-top:6px; overflow:auto; border-radius:10px; background:var(--g-surface-2); }
+.ep-part { max-width:88%; padding:10px 12px; border:1px solid var(--g-line); border-radius:10px; background:var(--g-surface); color:var(--g-ink-2); font-size:13px; line-height:1.5; }
+.ep-part p, .ep-part ul, .ep-part ol { margin:0 0 6px; }
+.ep-part > :last-child { margin-bottom:0; }
+.ep-part small { display:block; color:var(--g-dim); }
+.ep-part ul, .ep-part ol { padding-left:18px; }
+.ep-picks { min-width:0; padding:10px 12px; margin:0; border:1px solid var(--g-line); border-radius:10px; }
+.ep-picks legend { padding:0 4px; color:var(--g-ink-2); font-size:13px; font-weight:650; }
+.ep-picks-list { display:grid; gap:8px; max-height:200px; overflow:auto; margin-top:6px; }
+.ep-failures { display:grid; gap:8px; max-height:360px; padding:0; margin:0; overflow:auto; list-style:none; }
+.ep-failures li { display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; }
+.ep-failures small { flex-basis:100%; }
+
 .ep-agenda .ep-item { align-items:center; }
 .ep-time { display:grid; flex:0 0 64px; place-items:center; height:42px; border-radius:10px; background:var(--g-surface-2); color:var(--g-ink); font-weight:800; font-variant-numeric:tabular-nums; }
 
@@ -60,7 +78,7 @@
 .ep-url { overflow:hidden; color:var(--g-brand-text); font-size:12px; font-weight:650; text-overflow:ellipsis; white-space:nowrap; }
 .ep-link-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; }
 
-.ep-integrations { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; margin-bottom:14px; }
+.ep-integrations { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-bottom:14px; }
 .ep-orch-card { padding:15px; }
 .ep-orch-card span { color:var(--g-dim); font-size:11px; font-weight:750; letter-spacing:.06em; text-transform:uppercase; }
 .ep-orch-card b { display:block; margin:6px 0 3px; color:var(--g-ink); font-size:20px; }
@@ -92,6 +110,7 @@
   .ep-item { flex-direction:column; }
   .ep-agenda .ep-item { flex-direction:row; }
   .ep-item-side { width:100%; justify-content:space-between; }
+  .ep-head-tools, .ep-send-tools { width:100%; justify-content:flex-start; }
   .ep-integrations, .ep-form-grid, .ec-panes { grid-template-columns:1fr; }
   .ep .ep-filter label, .ep .ep-toolbar label { width:100%; justify-content:space-between; }
 }

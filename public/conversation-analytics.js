@@ -2,7 +2,7 @@
 // who is still waiting for an answer and who answers (team, automations, AI). The SLA tab next to it
 // measures the same conversations against the targets set in Configurações.
 
-const ORIGIN = { human: 'Equipe', '': 'Equipe', workflow: 'Automações', agent: 'Agentes de IA', ai: 'Agentes de IA' };
+const ORIGIN = { human: 'Equipe', '': 'Equipe', workflow: 'Automações', event: 'Evento', agent: 'Agentes de IA', ai: 'Agentes de IA' };
 const DAY = 864e5;
 const median = list => { if (!list.length) return null; const s = [...list].sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
