@@ -12,14 +12,14 @@
 .cw-types { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
 .cw-types legend { margin-bottom: 4px; font-size: 13px; font-weight: 600; }
 .cw-preview { display: grid; gap: 8px; align-content: start; }
-.cw-site { position: relative; height: min(720px, calc(100dvh - 210px)); min-height: 520px; border: 1px solid var(--g-line); border-radius: 16px; background: linear-gradient(180deg, var(--g-surface-2), var(--g-surface)); overflow: hidden; }
+.cw-site { position: relative; height: min(720px, calc(100dvh - 210px)); min-height: 520px; border: 1px solid var(--g-line); border-radius: var(--r-card); background: linear-gradient(180deg, var(--g-surface-2), var(--g-surface)); overflow: hidden; }
 .cw-site-lines { display: grid; gap: 12px; padding: 32px; max-width: 420px; }
-.cw-site-lines i { display: block; height: 14px; border-radius: 7px; background: var(--g-line); }
+.cw-site-lines i { display: block; height: 14px; border-radius: var(--r-chip); background: var(--g-line); }
 .cw-site-lines i:first-child { width: 70%; height: 26px; }
 .cw-site-lines i:last-child { width: 55%; }
-.cw-frame { position: absolute; right: 20px; bottom: 92px; width: 360px; height: calc(100% - 116px); max-height: 560px; border: 0; border-radius: 16px; background: #fff; box-shadow: 0 16px 48px rgba(16, 24, 40, .28); }
+.cw-frame { position: absolute; right: 20px; bottom: 92px; width: 360px; height: calc(100% - 116px); max-height: 560px; border: 0; border-radius: var(--r-card); background: #fff; box-shadow: 0 16px 48px rgba(16, 24, 40, .28); }
 .cw-bubble { position: absolute; right: 20px; bottom: 20px; display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: var(--cw); color: #fff; box-shadow: 0 8px 24px rgba(16, 24, 40, .24); }
-.cw-prompt { position: absolute; right: 92px; bottom: 30px; max-width: 220px; margin: 0; padding: 10px 12px; border-radius: 14px; background: #fff; color: #101828; font-size: 13px; box-shadow: 0 8px 24px rgba(16, 24, 40, .18); }
+.cw-prompt { position: absolute; right: 92px; bottom: 30px; max-width: 220px; margin: 0; padding: 10px 12px; border-radius: var(--r-card); background: #fff; color: #101828; font-size: 13px; box-shadow: 0 8px 24px rgba(16, 24, 40, .18); }
 .cw-site.left .cw-frame, .cw-site.left .cw-bubble { right: auto; left: 20px; }
 .cw-site.left .cw-prompt { right: auto; left: 92px; }
 .cw-preview-note { margin: 0; font-size: 12.5px; }

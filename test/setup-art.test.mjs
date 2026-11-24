@@ -6,12 +6,12 @@ import { setupArt, setupArtKey, setupArtBySegment } from '../ui/setup-art.js';
 
 const dir = new URL('../ui/setup-art/', import.meta.url);
 
-test('Every setup template has its own illustration file, and every file belongs to a template', () => {
+test('Every illustration file is listed once under a segment, and every listed key has a file', () => {
   const files = readdirSync(dir).filter(f => f.endsWith('.svg')).map(f => f.slice(0, -4)).sort();
+  assert.deepEqual(Object.values(setupArtBySegment).flat().sort(), files);
   const templates = setupTemplates();
   const keys = templates.map(t => setupArtKey(t.segment, t.id));
   assert.equal(new Set(keys).size, templates.length, 'each template gets a different illustration');
-  assert.deepEqual([...keys].sort(), files);
   for (const t of templates) assert.ok(setupArtBySegment[t.segment].includes(setupArtKey(t.segment, t.id)), `${t.id} is listed under ${t.segment}`);
 });
 

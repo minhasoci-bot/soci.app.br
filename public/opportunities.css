@@ -43,7 +43,7 @@
 .opportunity-more > summary { list-style: none; cursor: pointer; }
 .opportunity-more > summary::-webkit-details-marker { display: none; }
 .opportunity-more-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; display: grid; min-width: 230px; padding: 4px; }
-.opportunity-more-menu button { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: none; padding: 8px 10px; border-radius: 6px; color: var(--g-ink); text-align: left; }
+.opportunity-more-menu button { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: none; padding: 8px 10px; border-radius: var(--r-chip); color: var(--g-ink); text-align: left; }
 .opportunity-more-menu button:hover, .opportunity-more-menu button:focus-visible { background: var(--g-surface-2); }
 .secondary.is-active { border-color: var(--g-brand-line); color: var(--g-brand-text); background: var(--g-brand-surface); }
 
@@ -76,12 +76,12 @@ dialog:has(.card-prefs) { width: min(620px, calc(100vw - 24px)); }
 .smart-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .smart-tag { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 650; color: var(--st); background: color-mix(in srgb, var(--st) 13%, transparent); border: 1px solid color-mix(in srgb, var(--st) 30%, transparent); }
 .quick-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--g-line); }
-.quick-action { display: inline-flex; align-items: center; gap: 3px; min-height: 26px; padding: 2px 6px; border: 0; border-radius: 6px; background: none; color: var(--g-dim); font-size: 12px; text-decoration: none; }
+.quick-action { display: inline-flex; align-items: center; gap: 3px; min-height: 26px; padding: 2px 6px; border: 0; border-radius: var(--r-chip); background: none; color: var(--g-dim); font-size: 12px; text-decoration: none; }
 a.quick-action:hover, button.quick-action:hover { background: var(--g-surface-2); color: var(--g-ink); }
 .quick-action b { font-size: 11px; color: var(--g-brand-text); }
 .quick-action.appointment { color: var(--g-brand-text); background: var(--g-brand-surface); }
 .card-prefs { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; grid-column: 1 / -1; }
-.card-pref { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 4px; border-radius: 6px; }
+.card-pref { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 4px; border-radius: var(--r-chip); }
 .card-pref:hover { background: var(--g-surface-2); }
 
 /* ---- Stage colors on the board ----------------------------------------------------------- */
@@ -95,27 +95,27 @@ a.quick-action:hover, button.quick-action:hover { background: var(--g-surface-2)
 .row-actions { justify-content: flex-end; flex-wrap: nowrap; }
 .pipeline-editor-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .pipeline-editor-head h2 { font-size: 18px; }
-.opportunity-subtabs { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--g-line); border-radius: 9px; background: var(--g-surface-2); margin-bottom: 12px; }
+.opportunity-subtabs { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--g-line); border-radius: var(--r-control); background: var(--g-surface-2); margin-bottom: 12px; }
 .toolbar .opportunity-subtabs { margin-bottom: 0; }
-.opportunity-subtabs button { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 5px 12px; border-radius: 7px; color: var(--g-dim); font-weight: 600; }
+.opportunity-subtabs button { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 5px 12px; border-radius: var(--r-chip); color: var(--g-dim); font-weight: 600; }
 .opportunity-subtabs button.selected { background: var(--g-surface); color: var(--g-ink); box-shadow: var(--g-shadow); }
 .pipeline-setting { margin-bottom: 12px; }
 .switch-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .switch-row input { width: 20px; height: 20px; flex: none; }
 .color-modes { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
-.color-mode { position: relative; display: grid; gap: 6px; justify-items: center; padding: 10px 14px; border: 1px solid var(--g-line); border-radius: 9px; cursor: pointer; font-size: 12.5px; color: var(--g-dim); }
+.color-mode { position: relative; display: grid; gap: 6px; justify-items: center; padding: 10px 14px; border: 1px solid var(--g-line); border-radius: var(--r-control); cursor: pointer; font-size: 12.5px; color: var(--g-dim); }
 .color-mode.selected, .color-mode:has(input:checked) { border-color: var(--g-brand); color: var(--g-brand-text); }
 .color-mode input { position: absolute; opacity: 0; pointer-events: none; }
 .color-mode:has(input:focus-visible) { outline: 2px solid var(--g-brand); outline-offset: 2px; }
-.color-mode-sample { font-weight: 650; color: var(--g-ink); padding: 2px 8px; border-radius: 6px; }
+.color-mode-sample { font-weight: 650; color: var(--g-ink); padding: 2px 8px; border-radius: var(--r-chip); }
 .color-mode-sample.mode-dot::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #1d4ed8; margin-right: 6px; }
 .color-mode-sample.mode-tint { background: color-mix(in srgb, #1d4ed8 14%, transparent); }
 .inline-input { display: inline-flex; align-items: center; gap: 4px; }
 .inline-input input { width: 84px; }
 .smart-tag-colors { display: flex; flex-wrap: wrap; gap: 8px; border: 0; padding: 0; }
 .smart-tag-colors legend { margin-bottom: 6px; }
-.swatch { width: 30px; height: 30px; border-radius: 8px; background: var(--st); display: grid; place-items: center; cursor: pointer; }
-.swatch input { appearance: none; width: 100%; height: 100%; margin: 0; border-radius: 8px; cursor: pointer; }
+.swatch { width: 30px; height: 30px; border-radius: var(--r-control); background: var(--st); display: grid; place-items: center; cursor: pointer; }
+.swatch input { appearance: none; width: 100%; height: 100%; margin: 0; border-radius: var(--r-control); cursor: pointer; }
 .swatch input:checked { box-shadow: inset 0 0 0 3px var(--g-surface), 0 0 0 2px var(--st); }
 .swatch input:focus-visible { outline: 2px solid var(--g-ink); outline-offset: 2px; }
 
@@ -123,7 +123,7 @@ a.quick-action:hover, button.quick-action:hover { background: var(--g-surface-2)
 .positive { color: #15803d; }
 :root[data-theme=dark] .positive { color: #86efac; }
 .forecast-panels { margin-bottom: 14px; align-items: start; }
-.risk-card, .quality-card { border: 1px solid var(--g-line); border-radius: 9px; margin-top: 8px; padding: 0 12px; }
+.risk-card, .quality-card { border: 1px solid var(--g-line); border-radius: var(--r-control); margin-top: 8px; padding: 0 12px; }
 .risk-card { border-left: 3px solid var(--g-line); }
 .risk-high { border-left-color: #dc2626; } .risk-medium { border-left-color: #ea580c; } .risk-low { border-left-color: #16a34a; }
 .risk-card > summary, .quality-card > summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; cursor: pointer; list-style: none; }

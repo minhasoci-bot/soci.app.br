@@ -363,7 +363,7 @@ const OFFICIAL_SETUPS = [
     }
   })
 ];
-// Templates de setup (aba Templates de setup), usados para criar subcontas: o funil de reuniões e os 123 segmentos.
+// Templates de setup (aba Templates de setup), usados para criar subcontas: hoje, o funil de reuniões.
 const TEMPLATE_SETUPS = [funilReunioesSpec, ...setupTemplateSpecs].map(spec => ({ ...buildOfficial({ publishedAt: '2026-11-22T12:00:00.000Z', ...spec }), template: true, segment: spec.segment }));
 export const setupTemplates = () => TEMPLATE_SETUPS;
 

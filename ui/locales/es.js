@@ -1803,6 +1803,8 @@ export default {
   "Nenhum site ainda": "Ningún site ainda",
   "Nenhum site informado ou encontrado no perfil do Google.": "Ningún site informado ou encontrado no perfil do Google.",
   "Nenhum template encontrado": "Ningún plantilla encontrado",
+  "Nenhum template disponível": "Ninguna plantilla disponible",
+  "Crie um setup em Meus setups para reutilizar em novas subcontas.": "Crea un setup en Mis setups para reutilizarlo en nuevas subcuentas.",
   "Nenhum usuário com acesso": "Ningún usuario con acesso",
   "Nenhum valor personalizado": "Ningún valor personalizado",
   "Nenhum webinar ainda": "Ningún webinar ainda",

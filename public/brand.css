@@ -4,11 +4,11 @@
 .br-card { display: grid; gap: 10px; padding: 16px; align-content: start; }
 .br-card header { display: flex; gap: 10px; align-items: center; }
 .br-card p { margin: 0; }
-.br-logo { width: 44px; height: 44px; border-radius: 10px; object-fit: contain; background: var(--g-surface-2); flex: none; }
+.br-logo { width: 44px; height: 44px; border-radius: var(--r-control); object-fit: contain; background: var(--g-surface-2); flex: none; }
 .br-logo.small { width: 32px; height: 32px; }
 .br-logo-empty { display: grid; place-items: center; font-weight: 800; color: var(--g-dim); }
 .br-swatches { display: flex; gap: 4px; }
-.br-swatches span { width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgb(0 0 0 / .08); }
+.br-swatches span { width: 28px; height: 28px; border-radius: var(--r-control); border: 1px solid rgb(0 0 0 / .08); }
 .br-font-sample { font-size: 18px; font-weight: 700; }
 .br-font-sample span { font-size: 14px; font-weight: 400; color: var(--g-dim); }
 .br-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -23,12 +23,12 @@
 .br-section-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .br-logos { display: flex; gap: 16px; flex-wrap: wrap; }
 .br-logo-field { display: grid; gap: 6px; justify-items: start; }
-.br-logo-box { display: grid; place-items: center; width: 160px; height: 90px; border: 1px dashed var(--g-line); border-radius: 12px; background: #fff; overflow: hidden; }
+.br-logo-box { display: grid; place-items: center; width: 160px; height: 90px; border: 1px dashed var(--g-line); border-radius: var(--r-group); background: #fff; overflow: hidden; }
 .br-logo-box.dark { background: #111318; }
 .br-logo-box img { max-width: 140px; max-height: 70px; object-fit: contain; }
 .br-upload { position: relative; cursor: pointer; }
 .br-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.br-link { padding: 0; border: 0; background: none; color: var(--g-brand); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.br-link { padding: 0; border: 0; background: none; color:var(--g-brand-text); font-size: 12.5px; font-weight: 600; cursor: pointer; }
 .br-colors { display: grid; gap: 6px; }
 .br-color { display: grid; grid-template-columns: 40px 96px 140px minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 .br-color input[type=color] { width: 40px; height: 34px; padding: 2px; }
@@ -38,11 +38,11 @@
 .br-traits .chip { display: inline-flex; gap: 6px; align-items: center; font-weight: 500; }
 .br-side { position: sticky; top: 12px; display: grid; gap: 10px; }
 .br-side p { margin: 0; overflow-wrap: anywhere; }
-.br-preview { display: grid; gap: 12px; padding: 22px; border-radius: 16px; border: 1px solid var(--g-line); justify-items: start; }
+.br-preview { display: grid; gap: 12px; padding: 22px; border-radius: var(--r-card); border: 1px solid var(--g-line); justify-items: start; }
 .br-preview-top { display: flex; gap: 10px; align-items: center; }
 .br-preview h3 { margin: 0; font-size: 24px; line-height: 1.2; }
 .br-preview p { margin: 0; line-height: 1.55; opacity: .9; }
-.br-preview-btn { padding: 10px 16px; border-radius: 10px; color: #fff; font-weight: 700; }
+.br-preview-btn { padding: 10px 16px; border-radius: var(--r-control); color: #fff; font-weight: 700; }
 .br-preview-tag { padding: 3px 10px; border: 1.5px solid; border-radius: 999px; font-size: 12px; font-weight: 700; }
 .br-new { display: grid; gap: 12px; }
 .br-new h3 { margin: 6px 0 0; font-size: 14px; }
@@ -50,7 +50,7 @@
 .br-import label { flex: 1 1 260px; display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
 .br-import .form-status { flex-basis: 100%; margin: 0; }
 .br-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
-.br-preset { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--g-line); border-radius: 12px; background: var(--g-surface); text-align: left; cursor: pointer; }
+.br-preset { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--g-line); border-radius: var(--r-group); background: var(--g-surface); text-align: left; cursor: pointer; }
 .br-preset:hover { border-color: var(--g-brand); }
-.br-preset .br-swatches span { width: 20px; height: 20px; border-radius: 6px; }
+.br-preset .br-swatches span { width: 20px; height: 20px; border-radius: var(--r-chip); }
 @media (max-width: 900px) { .br-editor { grid-template-columns: 1fr; } .br-side { position: static; } .br-color { grid-template-columns: 40px 1fr 1fr; } }

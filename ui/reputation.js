@@ -266,7 +266,7 @@ function widgetForm(row = {}) {
       <label>Tema<select name="theme">${themes.map(([id, label]) => `<option value="${id}" ${value('theme', 'auto') === id ? 'selected' : ''}>${label}</option>`).join('')}</select></label></div>
     <div class="rp-two-fields"><label>Nota mínima<select name="minScore">${[5, 4, 3, 2, 1].map(n => `<option value="${n}" ${Number(value('minScore', 4)) === n ? 'selected' : ''}>${n} estrela${n > 1 ? 's' : ''} ou mais</option>`).join('')}</select></label>
       <label>Máximo de avaliações<input name="max" type="number" min="1" max="30" value="${h(value('max', 9))}"></label></div>
-    <label>Cor de destaque<input name="accent" type="color" value="${h(value('accent', '#d6246e'))}"></label>
+    <label>Cor de destaque<input name="accent" type="color" value="${h(value('accent', '#ff4f9a'))}"></label>
     ${check('showReplies', 'Mostrar as respostas da empresa', value('showReplies', true))}${check('showVideos', 'Incluir depoimentos em vídeo aprovados', value('showVideos', false))}${check('active', 'Widget ativo', value('active', true))}
     <p class="dim">Só aparecem avaliações com comentário e que não estejam ocultas. Os nomes aparecem abreviados (ex.: Ana L.).</p>
     <div class="inline-gap"><button class="primary">Salvar widget</button><button type="button" class="secondary" data-act="close">Cancelar</button></div>

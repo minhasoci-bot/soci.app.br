@@ -10,19 +10,19 @@
 .seo-more summary{cursor:pointer;font-weight:700}
 .seo-score{display:flex;align-items:center;gap:14px;margin:6px 0 14px}
 .seo-score-n{font-size:40px;line-height:1;font-variant-numeric:tabular-nums}
-.seo-score-n.green{color:var(--g-success,#16a34a)}.seo-score-n.blue{color:var(--g-brand,#2563eb)}.seo-score-n.pink{color:var(--g-danger,#dc2626)}
+.seo-score-n.green{color:var(--g-success,#16a34a)}.seo-score-n.blue{color:var(--g-brand-text)}.seo-score-n.pink{color:var(--g-danger,#dc2626)}
 .seo-score div{display:grid;gap:2px}.seo-score span{font-weight:700}
 .seo-parts,.seo-share{display:grid;gap:8px}
 .seo-parts>div,.seo-share>div{display:grid;grid-template-columns:minmax(90px,160px) 1fr 36px;align-items:center;gap:10px;font-size:14px}
 .seo-parts b,.seo-share b{text-align:right;font-variant-numeric:tabular-nums}
 .seo-share .is-brand span:first-child{font-weight:700}
 .seo-issues{list-style:none;margin:0;padding:0;display:grid;gap:10px}
-.seo-issues li{border:1px solid var(--g-line);border-radius:10px;padding:10px 12px;background:var(--g-surface-2)}
+.seo-issues li{border:1px solid var(--g-line);border-radius:var(--r-control);padding:10px 12px;background:var(--g-surface-2)}
 .seo-issues li p{margin:6px 0 0;font-size:14px}
 .seo-history{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
 .seo-history li{display:flex;justify-content:space-between;gap:10px;font-size:14px;border-bottom:1px solid var(--g-line);padding-bottom:6px}
 .seo-answers{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-.seo-answers details{border:1px solid var(--g-line);border-radius:10px;padding:10px 12px}
+.seo-answers details{border:1px solid var(--g-line);border-radius:var(--r-control);padding:10px 12px}
 .seo-answers summary{cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .seo-answers summary small{flex-basis:100%}
 .seo-q{font-weight:700;margin-right:auto}
