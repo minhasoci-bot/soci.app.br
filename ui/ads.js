@@ -3,6 +3,8 @@
 import { brandIcon, icon } from './icons.js';
 import { h, pageShell } from './screens.js';
 import { adNetworks, attributionReport, campaignReport, channelName, channels, eventTypes, eventsCsv, metaCtas, metaObjectives, presetRange, rangePresets } from './ads-data.js';
+import { ask } from './ask.js';
+import { tr } from './i18n.js';
 
 const ui = { range: '30d', from: '', to: '', kind: 'revenue', network: 'all', channel: '', model: '' };
 let status = null, loading = '', requestStatus = () => {};
@@ -208,12 +210,12 @@ export function installAds({ c, api, url, mutate, flash, dialog, close, render }
       if (act === 'connect') window.open(`${url('/api/ads/workspace/connect')}&network=${network}`, 'soci-ads', 'width=600,height=760');
       if (act === 'sync') { loading = network; render(); const result = await post('sync', { network, full: event.shiftKey }); loading = ''; take(result); render(); flash(`${result.synced?.campaigns ?? 0} campanha(s) sincronizada(s).`); }
       if (act === 'disconnect') {
-        if (!confirm(`Desconectar o ${networkLabel(network)}? As campanhas somem da lista; os números já sincronizados continuam nos relatórios.`)) return;
+        if (!await ask(`${tr('Desconectar')} ${networkLabel(network)}?`, { text: 'As campanhas somem da lista; os números já sincronizados continuam nos relatórios.', ok: 'Desconectar' })) return;
         take(await post('disconnect', { network })); render(); flash('Desconectado.');
       }
       if (act === 'status') {
         const on = el.dataset.on === '1';
-        if (on && !confirm('Ativar esta campanha? Ela volta a gastar o orçamento na rede.')) return;
+        if (on && !await ask('Ativar esta campanha?', { text: 'Ela volta a gastar o orçamento na rede.', ok: 'Ativar', danger: false })) return;
         el.disabled = true; take(await post('campaign', { network, id, action: on ? 'activate' : 'pause' })); render(); flash(on ? 'Campanha ativada.' : 'Campanha pausada.');
       }
       if (act === 'budget') {

@@ -1,6 +1,7 @@
 // Calendários → Serviços, Recursos, Serviço em campo e Página de agendamento (6b.6).
 import { icon } from './icons.js';
 import { badge, h, pageShell } from './screens.js';
+import { ask } from './ask.js';
 
 export const schedulingTabs = [['services', 'Serviços'], ['resources', 'Recursos'], ['field', 'Serviço em campo'], ['booking', 'Página de agendamento']];
 const kinds = [['appointment', 'Atendimento no local'], ['field', 'Serviço em campo'], ['rental', 'Locação']];
@@ -120,7 +121,7 @@ export function installScheduling({ c, mutate, flash, dialog, close, render }) {
       if (act === 'resource-new') dialog('Novo recurso', resourceForm());
       if (act === 'resource-edit') dialog('Editar recurso', resourceForm(c.s.resources.find(x => x.id === id)));
       if (act === 'service-delete' || act === 'resource-delete') {
-        if (!confirm(act === 'service-delete' ? 'Excluir este serviço? Os agendamentos já feitos continuam na agenda.' : 'Excluir este recurso? Ele sai dos serviços que o usam.')) return;
+        if (!await (act === 'service-delete' ? ask('Excluir este serviço?', { text: 'Os agendamentos já feitos continuam na agenda.', ok: 'Excluir' }) : ask('Excluir este recurso?', { text: 'Ele sai dos serviços que o usam.', ok: 'Excluir' }))) return;
         await mutate({ type: 'delete', key: act === 'service-delete' ? 'services' : 'resources', id }); close(); render(); flash('Excluído.');
       }
       if (act === 'field') { await mutate({ type: 'field-status', data: { id, status: el.dataset.status } }); render(); flash('Situação atualizada.'); }

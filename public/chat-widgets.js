@@ -3,6 +3,7 @@ import { icon } from './icons.js';
 import { h, pageShell, utabs } from './screens.js';
 import { siteTabs } from './forms.js';
 import { chatCss, chatDefaults, chatPanel, chatTypes, fieldModes } from './chat-widget-data.js';
+import { ask } from './ask.js';
 
 export const chatTabs = ['chat-widget', 'chat-insights', 'chat'];
 const cw = { id: '', rev: '', draft: null, dirty: false, section: 'setup', panel: 'look', range: 30 };
@@ -210,10 +211,11 @@ export function installChat(environment) {
   });
 
   let last = location.hash;
-  addEventListener('hashchange', () => {
-    const was = last; last = location.hash;
+  addEventListener('hashchange', async () => {
+    const was = last, to = location.hash; last = to;
     if (!cw.dirty || !was.startsWith(`#sites/chat/${cw.id}`) || location.hash.startsWith(`#sites/chat/${cw.id}`)) return;
-    if (confirm('Descartar as alterações não salvas deste chat?')) { cw.dirty = false; cw.rev = ''; cw.id = ''; return; }
     last = was; history.replaceState(null, '', was); dispatchEvent(new HashChangeEvent('hashchange'));
+    if (!await ask('Descartar as alterações não salvas deste chat?', { ok: 'Descartar', cancel: 'Continuar editando' })) return;
+    cw.dirty = false; cw.rev = ''; cw.id = ''; location.hash = to;
   }, true);
 }

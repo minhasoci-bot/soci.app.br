@@ -1,0 +1,48 @@
+/* Perguntas da soci (ui/ask.js). Usa as cores do app; no portal e na Prancheta cai nas delas ou no padrão. */
+dialog.ask{
+  --ask-bg:var(--g-surface,var(--surface,#fff)); --ask-ink:var(--g-ink,var(--text,#0f131a)); --ask-dim:var(--g-dim,var(--muted,#5d6673));
+  --ask-line:var(--g-line-2,var(--border,#d9dee5)); --ask-soft:var(--g-surface-2,var(--surface-hover,#f4f6f8));
+  --ask-tint:var(--g-brand,#c2266f); --ask-ease:var(--ease-out,cubic-bezier(.16,1,.3,1));
+  width:min(440px,calc(100vw - 32px)); max-width:none; max-height:calc(100dvh - 32px); margin:auto; padding:0; overflow:auto;
+  border:1px solid var(--ask-line); border-radius:20px; background:var(--ask-bg); color:var(--ask-ink);
+  box-shadow:0 24px 60px -12px rgba(15,19,26,.35); font-family:inherit; text-align:left;
+  opacity:0; transform:translateY(8px) scale(.97);
+  transition:opacity .18s ease,transform .22s var(--ask-ease),display .2s allow-discrete,overlay .2s allow-discrete;
+}
+dialog.ask[open]{opacity:1; transform:none; animation:none}
+@starting-style{dialog.ask[open]{opacity:0; transform:translateY(8px) scale(.97)}}
+dialog.ask[data-tone=danger]{--ask-tint:#d5383f}
+dialog.ask::backdrop{background:rgba(15,19,26,.45); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); animation:none; opacity:0; transition:opacity .2s ease,display .2s allow-discrete,overlay .2s allow-discrete}
+dialog.ask[open]::backdrop{opacity:1}
+@starting-style{dialog.ask[open]::backdrop{opacity:0}}
+
+.ask .ask-form{display:grid; grid-template-columns:40px minmax(0,1fr); gap:0 14px; margin:0; padding:22px}
+.ask .ask-icon{display:grid; place-items:center; width:40px; height:40px; border-radius:12px; color:var(--ask-tint); background:color-mix(in srgb,var(--ask-tint) 12%,transparent)}
+.ask .ask-icon svg{width:20px; height:20px}
+.ask .ask-body{display:grid; gap:6px; align-content:center; min-height:40px}
+.ask h2{margin:0; font-size:17px; line-height:1.3; font-weight:700; letter-spacing:-.02em; color:var(--ask-ink); overflow-wrap:anywhere; text-wrap:balance}
+.ask p{margin:0; font-size:14px; line-height:1.5; color:var(--ask-dim); overflow-wrap:anywhere}
+.ask .ask-field{width:100%; box-sizing:border-box; margin-top:8px; padding:10px 12px; border:1px solid var(--ask-line); border-radius:12px; background:var(--ask-bg); color:var(--ask-ink); font:inherit; font-size:15px}
+.ask textarea.ask-field{min-height:96px; resize:vertical}
+.ask .ask-field:focus{outline:2px solid color-mix(in srgb,var(--ask-tint) 55%,transparent); outline-offset:1px; border-color:transparent}
+.ask .ask-actions{grid-column:1/-1; display:flex; justify-content:flex-end; gap:8px; margin-top:20px}
+.ask .ask-button{min-height:40px; padding:0 18px; border:1px solid transparent; border-radius:999px; font:inherit; font-size:14px; font-weight:650; line-height:1.2; cursor:pointer; transition:background-color .15s ease,filter .15s ease,transform .12s ease}
+.ask .ask-button:active{transform:scale(.97)}
+.ask .ask-button:focus-visible{outline:2px solid var(--ask-tint); outline-offset:2px}
+.ask .ask-cancel{border-color:var(--ask-line); background:transparent; color:var(--ask-ink)}
+.ask .ask-cancel:hover{background:var(--ask-soft)}
+.ask .ask-ok{background:var(--g-grad-brand,#0f131a); color:var(--g-grad-on,#fff)}
+.ask .ask-ok:hover{filter:brightness(.94)}
+.ask[data-tone=danger] .ask-ok{background:#d5383f; color:#fff}
+:root[data-theme=dark] dialog.ask[data-tone=danger]{--ask-tint:#ff7a80}
+
+@media (max-width:520px){
+  dialog.ask{margin-bottom:16px}
+  .ask .ask-actions{flex-direction:column-reverse}
+  .ask .ask-button{width:100%; min-height:46px}
+}
+@media (prefers-reduced-motion:reduce){dialog.ask,dialog.ask::backdrop,.ask .ask-button{transition:none}}
+
+/* Comunidade aberta no portal: segue o tema escolhido para ela. */
+.cp-cm-on dialog.ask{--ask-bg:var(--cm-background); --ask-ink:var(--cm-font); --ask-dim:color-mix(in srgb,var(--cm-font) 62%,var(--cm-background)); --ask-line:color-mix(in srgb,var(--cm-font) 18%,var(--cm-background)); --ask-soft:var(--cm-tertiary); --ask-tint:var(--cm-primary)}
+.cp-cm-on .ask:not([data-tone=danger]) .ask-ok{background:var(--cm-primary); color:var(--cm-onPrimary,#fff)}

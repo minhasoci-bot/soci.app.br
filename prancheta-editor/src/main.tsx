@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
+import { ask } from "../../ui/ask.js";
 import { App as Editor } from "./editor/App";
 import { selectedTop } from "./editor/actions";
 import { exportBlob, renderDocumentThumbnail } from "./editor/io/export";
@@ -226,8 +227,8 @@ function Root() {
     store.toast("Seu trabalho foi salvo numa nova arte.");
   }, false);
 
-  const reload = () => {
-    if (!session || !window.confirm("Reabrir a versão salva? As alterações que ainda não foram salvas serão descartadas.")) return;
+  const reload = async () => {
+    if (!session || !await ask("Reabrir a versão salva?", { text: "As alterações que ainda não foram salvas serão descartadas.", ok: "Reabrir" })) return;
     void run(async () => install(await repo.getFile(session.id)), false);
   };
 
@@ -244,7 +245,7 @@ function Root() {
 
   return (
     <div className="prancheta-root">
-      <SaveProblem session={session} onCopy={() => void preserveCopy()} onReload={reload} busy={busy} />
+      <SaveProblem session={session} onCopy={() => void preserveCopy()} onReload={() => void reload()} busy={busy} />
       <div className="prancheta-editor" inert={busy || undefined}>
         <Editor
           key={session.instanceId}
