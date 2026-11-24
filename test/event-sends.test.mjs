@@ -100,7 +100,7 @@ test('A finished message is not scheduled again; only failures are resent', () =
   Object.assign(s.eventSends[1], { status: 'failed', error: 'não tem WhatsApp', attempts: 3 });
   Object.assign(event().deliveries[ids.privado], { state: 'done', sent: 1, failed: 1 });
   assert.throws(() => run('event-message-schedule', ids.privado), /já foi enviada/);
-  assert.deepEqual(run('event-message-retry', ids.privado), { total: 1 });
+  assert.deepEqual(run('event-message-retry', ids.privado), { total: 1, dropped: 0 });
   assert.deepEqual([s.eventSends[1].status, s.eventSends[1].attempts, s.eventSends[1].error], ['queued', 0, '']);
   assert.equal(event().deliveries[ids.privado].state, 'sending');
   assert.throws(() => run('event-message-retry', ids.privado), /Não há falhas/);
@@ -112,7 +112,7 @@ test('Unconfirmed sends are only retried on purpose', () => {
   for (const row of s.eventSends) Object.assign(row, { status: 'failed', unconfirmed: true });
   event().deliveries[ids.privado].state = 'done';
   assert.throws(() => run('event-message-retry', ids.privado), /Não há falhas/);
-  assert.deepEqual(run('event-message-retry', ids.privado, { include: 'all' }), { total: 2 });
+  assert.deepEqual(run('event-message-retry', ids.privado, { include: 'all' }), { total: 2, dropped: 0 });
   assert.equal(s.eventSends[0].unconfirmed, false);
 });
 
@@ -161,6 +161,7 @@ test('The queue is read-only for the browser and scheduling needs conversations 
   const { s, run } = setup();
   run('event-message-schedule', ids.grupo);
   assert.throws(() => execute(s, { type: 'save', key: 'eventSends', id: '', data: {} }), /Unknown record/);
+  for (const row of s.eventSends) row.dueAt = '2099-12-01T13:00:00.000Z';
   s.eventSends[0].status = 'failed';
   assert.equal(workspaceView(both, s).state.eventSends.length, 1);
   assert.equal(workspaceView(marketing, s).state.eventSends.length, 0);

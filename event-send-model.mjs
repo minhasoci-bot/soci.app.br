@@ -48,8 +48,12 @@ export function contactPhone(contact) {
   const phone = digits(contact?.phone);
   return phone.length >= 10 && phone.length <= 15 ? phone : '';
 }
-// O mesmo número com e sem o 55 é a mesma pessoa.
-const phoneKey = phone => phone.length === 10 || phone.length === 11 ? `55${phone}` : phone;
+// Só para comparar, nunca como destino: com e sem 55, zero à esquerda ou o nono dígito (o WhatsApp tira de vários DDDs) é a mesma
+// pessoa. O nono dígito só cai diante de 6 a 9, para um celular não se confundir com um fixo.
+const phoneKey = phone => {
+  const local = phone.replace(/^0+/, '');
+  return (local.length === 10 || local.length === 11 ? `55${local}` : local).replace(/^55(\d\d)9([6-9]\d{7})$/, '55$1$2');
+};
 /** Números de quem pediu para não receber, em qualquer cadastro: o descadastro é da pessoa, não do registro. */
 const optedOutPhones = s => new Set(s.contacts.filter(contact => !canMessage(contact, 'WhatsApp')).map(contact => phoneKey(contactPhone(contact))).filter(Boolean));
 
@@ -187,14 +191,21 @@ function retry(s, event, item, include, { emit, at }) {
   if (delivery?.state === 'canceled') fail('O envio foi cancelado. Agende de novo.', 409);
   const covered = new Set(all.filter(row => row.status === 'sent' || waitingRow(row)).map(row => `${targetKey(row)}|${row.part}`));
   const failed = all.filter(row => row.status === 'failed' && (include === 'all' || !row.unconfirmed) && !covered.has(`${targetKey(row)}|${row.part}`));
-  const failedTargets = new Set(failed.map(targetKey));
-  const again = [...failed, ...all.filter(row => row.status === 'skipped' && row.blocked && failedTargets.has(targetKey(row)))];
-  if (!delivery || !again.length) fail('Não há falhas para reenviar.', 409);
-  for (const row of again) Object.assign(row, { status: 'queued', attempts: 0, notBefore: '', error: '', unconfirmed: false, blocked: false, startedAt: '' });
+  if (!delivery || !failed.length) fail('Não há falhas para reenviar.', 409);
+  // O evento pode ter mudado desde o envio: vale o que o agendamento exigiria hoje.
+  const { rows } = destinations(s, event, item), here = new Set(rows.flatMap(row => [row.contactId || row.to, phoneKey(row.to)]));
+  const stays = row => here.has(row.contactId || row.to) || (row.contactId && here.has(phoneKey(row.to)));
+  const kept = failed.filter(stays);
+  if (event.status === 'arquivado') fail('O evento está arquivado.', 409);
+  if (!kept.length) fail('Quem falhou não faz mais parte dos destinos desta mensagem.', 409);
+  const problem = problemOf(event, item, messageParts(item.notes), rows);
+  if (problem) fail(problem);
+  const targets = new Set(kept.map(targetKey)), again = [...kept, ...all.filter(row => row.status === 'skipped' && row.blocked && targets.has(targetKey(row)))];
+  for (const row of again) Object.assign(row, { status: 'queued', dueAt: delivery.dueAt, attempts: 0, notBefore: '', error: '', unconfirmed: false, blocked: false, startedAt: '', asked: row.unconfirmed || undefined });
   delivery.state = 'sending';
   settleDelivery(s, event, item, at);
   setStatus(event, item, 'agendado', emit);
-  return { total: again.length };
+  return { total: again.length, dropped: failed.length - kept.length };
 }
 function preview(s, event, item, { instant, at }) {
   const parts = messageParts(item.notes), { rows, skipped } = destinations(s, event, item), problem = problemOf(event, item, parts, rows);
@@ -229,7 +240,10 @@ function saveSettings(s, data) {
   const settings = eventSendSettingsOf(s);
   const minGapSeconds = whole(data.minGapSeconds, 10, 300), maxGapSeconds = whole(data.maxGapSeconds, 10, 300);
   if (maxGapSeconds < minGapSeconds) fail('O intervalo máximo precisa ser igual ou maior que o mínimo.');
-  Object.assign(settings, { minGapSeconds, maxGapSeconds, dailyCap: whole(data.dailyCap, 1, 1000) });
+  const dailyCap = whole(data.dailyCap, 1, 1000);
+  // Teto maior: o que esperava o dia seguinte pode sair hoje. O que espera por uma falha (tem erro) continua esperando.
+  if (dailyCap > settings.dailyCap) for (const row of s.eventSends) if (row.status === 'queued' && row.target === 'contact' && !row.part && !row.error) row.notBefore = '';
+  Object.assign(settings, { minGapSeconds, maxGapSeconds, dailyCap });
   return settings.dailyCap;
 }
 
@@ -276,6 +290,20 @@ function skipTarget(s, row, error, emit, at) {
   finish(s, row, emit, at);
 }
 
+/** Quem já recebeu, está recebendo ou pode ter recebido cada parte, por número e por cadastro. Telefone muda e contato é mesclado depois de agendar. */
+function reached(s) {
+  const index = new Map(), rank = { unconfirmed: 1, sending: 2, sent: 3 };
+  for (const row of s.eventSends) {
+    const state = row.status === 'sent' || row.status === 'sending' ? row.status : row.status === 'failed' && row.unconfirmed ? 'unconfirmed' : '';
+    if (!state || !row.contactId) continue;
+    for (const who of [row.contactId, phoneKey(row.to)]) {
+      const key = `${row.eventId}|${row.itemId}|${row.part}|${who}`;
+      if (!(rank[index.get(key)] >= rank[state])) index.set(key, state);
+    }
+  }
+  return (row, phone) => [row.contactId, phoneKey(phone)].map(who => index.get(`${row.eventId}|${row.itemId}|${row.part}|${who}`)).sort((a, b) => (rank[b] || 0) - (rank[a] || 0))[0];
+}
+
 /** Reserva a próxima mensagem. Quem reserva é o único que envia; sem resultado em 5 minutos, vira "não confirmado". */
 function take(s, { at, random, zone, instant, emit }) {
   const settings = eventSendSettingsOf(s), today = dayIn(at, zone);
@@ -293,10 +321,11 @@ function take(s, { at, random, zone, instant, emit }) {
     const ready = Math.max(Date.parse(row.dueAt), Date.parse(row.notBefore) || 0);
     if (ready > at) soonest = Math.min(soonest, ready); else due.push({ row, order: due.length, dueAt: Date.parse(row.dueAt) });
   }
-  due.sort((a, b) => a.dueAt - b.dueAt || a.order - b.order);
+  // Quem já voltou de uma tentativa vai para o fim: uma recusa que se repete não pode segurar os outros.
+  due.sort((a, b) => Number(Boolean(a.row.error)) - Number(Boolean(b.row.error)) || a.dueAt - b.dueAt || a.order - b.order);
   // Teto do dia: o resto volta no dia seguinte, no horário que a mensagem tinha. Nunca de madrugada.
   const tomorrow = iso(Date.parse(`${today}T12:00:00Z`) + DAY).slice(0, 10), resumes = new Map();
-  let optedOut = null;
+  let optedOut = null, reachedBy = null, freed = false;
   for (const { row, dueAt } of due) {
     if (row.status !== 'queued' || firstPart.get(targetKey(row)) < row.part) continue;
     let ready = 0;
@@ -318,6 +347,11 @@ function take(s, { at, random, zone, instant, emit }) {
       const phone = contactPhone(contact);
       const reason = !contact ? 'O contato foi apagado.' : !phone ? 'O contato está sem telefone.' : !canMessage(contact, 'WhatsApp') || optedOut.has(phoneKey(phone)) ? 'O contato pediu para não receber mensagens.' : '';
       if (reason) { skipTarget(s, row, reason, emit, at); continue; }
+      reachedBy ??= reached(s);
+      const before = reachedBy(row, phone);
+      if (before === 'sending') continue;
+      if (before === 'unconfirmed') { skipTarget(s, row, 'Outro cadastro deste número pode já ter recebido.', emit, at); continue; }
+      if (before) { Object.assign(row, { status: 'skipped', error: 'Este contato já recebeu por outro cadastro.' }); finish(s, row, emit, at); freed ||= row.parts > 1; continue; }
       row.to = phone;
     }
     const parts = messageParts(item.notes), problem = partsProblem(parts, item.channel) || (parts[row.part] ? '' : 'A mensagem mudou depois de agendada.');
@@ -333,20 +367,28 @@ function take(s, { at, random, zone, instant, emit }) {
     settleDelivery(s, event, item, at);
     return { row: { id: row.id, to: row.to, target: row.target, part }, contact: contact ? { id: contact.id, name: contact.name } : null, waitMs: 0 };
   }
+  // Uma parte repetida saiu da frente: a seguinte do mesmo contato pode ir agora.
+  if (freed) return take(s, { at, random, zone, instant, emit });
   return { row: null, contact: null, waitMs: Number.isFinite(soonest) ? Math.max(0, soonest - at) : null };
 }
 
 function result(s, data, { at, add, emit, zone }) {
   const row = s.eventSends.find(entry => entry.id === data.id);
-  const late = row?.status === 'failed' && row.unconfirmed && data.outcome === 'sent';
+  // Saiu, mas a confirmação chegou depois do prazo: vale mesmo que alguém já tenha pedido o reenvio.
+  const late = data.outcome === 'sent' && ((row?.status === 'failed' && row.unconfirmed) || (row?.status === 'queued' && row.asked));
   if (!row || (row.status !== 'sending' && !late)) return false;
   const settings = eventSendSettingsOf(s), text = row.text, home = homeOf(s, row);
   delete row.text;
   if (data.outcome === 'sent') {
     Object.assign(row, { status: 'sent', sentAt: iso(at) });
     // A linha enviada só serve de memória: guarda o mínimo.
-    for (const key of ['batch', 'name', 'parts', 'attempts', 'notBefore', 'error', 'unconfirmed', 'blocked', 'startedAt']) delete row[key];
+    for (const key of ['batch', 'name', 'parts', 'attempts', 'notBefore', 'error', 'unconfirmed', 'blocked', 'startedAt', 'asked']) delete row[key];
     const key = targetKey(row);
+    if (late && ['scheduled', 'sending', 'done'].includes(home?.delivery?.state)) {
+      const freed = s.eventSends.filter(next => next.status === 'skipped' && next.blocked && next.part > row.part && targetKey(next) === key);
+      for (const next of freed) Object.assign(next, { status: 'queued', blocked: false, error: '' });
+      if (freed.length && home.delivery.state === 'done') { home.delivery.state = 'sending'; setStatus(home.event, home.item, 'agendado', emit); }
+    }
     for (const next of s.eventSends) if (next.status === 'queued' && next.part === row.part + 1 && targetKey(next) === key) next.notBefore = iso(at + PART_GAP);
     if (row.contactId && text && s.contacts.some(entry => entry.id === row.contactId)) add(s, 'messages', { contactId: row.contactId, body: text, subject: '', channel: 'WhatsApp', direction: 'Outbound', read: true, starred: false, origin: 'event', eventId: row.eventId });
     if (late && home?.delivery?.state === 'done') {
@@ -361,17 +403,20 @@ function result(s, data, { at, add, emit, zone }) {
   // Não saiu: devolve a vaga do dia. Se cancelaram no meio do caminho, não volta para a fila.
   if (row.target === 'contact' && settings.day === dayIn(at, zone)) settings.sentToday = Math.max(0, settings.sentToday - 1);
   const wait = data.outcome === 'waiting' ? 2 : RETRY_MINUTES[row.attempts - 1];
-  Object.assign(row, { status: deliveryActive(home?.delivery) ? 'queued' : 'canceled', attempts: data.outcome === 'waiting' ? row.attempts - 1 : row.attempts, notBefore: iso(at + wait * MINUTE), error: str(data.error, 200), startedAt: '' });
+  Object.assign(row, { status: deliveryActive(home?.delivery) ? 'queued' : 'canceled', dueAt: home?.delivery?.dueAt || row.dueAt, attempts: data.outcome === 'waiting' ? row.attempts - 1 : row.attempts, notBefore: iso(at + wait * MINUTE), error: str(data.error, 200), startedAt: '' });
   if (home) settleDelivery(s, home.event, home.item, at);
   return true;
 }
 
-/** Antes de salvar o plano: mensagem agendada mantém o status da fila e não muda de destino nem de formato. */
-export function guardDeliveries(prior, items) {
+/**
+ * Antes de salvar o plano: mensagem agendada mantém o status da fila, não muda de destino nem de formato e só vai para uma data
+ * que já passou (sairia na hora, para todos) com a confirmação explícita daquela mensagem em sendNow.
+ */
+export function guardDeliveries(prior, items, { instant, sendNow = '', at = Date.now() }) {
   for (const item of items) {
     const delivery = prior?.deliveries?.[item.id];
     if (!delivery) continue;
-    if (delivery.state === 'done' && delivery.sent) { item.status = 'enviado'; continue; }
+    if (delivery.state === 'done' && delivery.sent) { if (item.kind === 'message') item.status = 'enviado'; continue; }
     if (!deliveryActive(delivery)) { if (item.status === 'agendado') item.status = 'pronto'; continue; }
     const before = prior.plan.items.find(row => row.id === item.id);
     if (before) {
@@ -379,6 +424,8 @@ export function guardDeliveries(prior, items) {
       const problem = partsProblem(parts, item.channel);
       if (fixed(item) !== fixed(before) || !item.date || !item.time || parts.length !== messageParts(before.notes).length) fail(`Cancele o envio de “${before.title}” antes de mudar o destino, apagar a data ou mudar a quantidade de mensagens.`);
       if (problem) fail(`“${before.title}” está agendada. ${problem}`);
+      const moved = item.date !== before.date || item.time !== before.time;
+      if (moved && sendNow !== item.id && Date.parse(delivery.dueAt) > at && instant(item.date, item.time) <= at) fail(`“${before.title}” está agendada e a nova data já passou: ela sairia agora para todos. Escolha uma data futura ou recarregue a página e confirme o envio imediato.`, 409);
     }
     item.status = 'agendado';
   }
@@ -395,6 +442,15 @@ export function eventSendsAfterSave(s, prior, event, { instant, at = Date.now() 
     delivery.dueAt = iso(instant(item.date, item.time));
     for (const row of rowsOf(s, event, item)) if (row.status === 'queued') Object.assign(row, { dueAt: delivery.dueAt, notBefore: '' });
   }
+}
+/** O comando muda, adianta, apaga ou cancela algo agendado? Quem não pode agendar também não pode fazer isso. */
+export function touchesDeliveries(s, { type, key, id, data }) {
+  if (key !== 'eventPlans' || !['save', 'delete'].includes(type)) return false;
+  const event = (s.eventPlans || []).find(row => row.id === id), active = (event?.plan?.items || []).filter(item => deliveryActive(event.deliveries?.[item.id]));
+  if (!active.length) return false;
+  if (type === 'delete' || data?.status === 'arquivado') return true;
+  if (!Array.isArray(data?.plan?.items)) return data?.plan !== undefined;
+  return active.some(item => { const next = data.plan.items.find(row => row?.id === item.id); return !next || ['date', 'time', 'notes'].some(field => str(next[field], 10_000) !== str(item[field], 10_000)); });
 }
 export function eventSendsBeforeDelete(s, key, id) {
   if (key !== 'eventPlans') return;
