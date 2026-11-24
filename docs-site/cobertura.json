@@ -106,10 +106,10 @@
   },
   {
     "grupo": "agendas",
-    "artigo": "criar-calendario",
-    "titulo": "Criar um calendário",
+    "artigo": "pagina-de-agendamento",
+    "titulo": "Página de agendamento",
     "fase": "F2",
-    "status": "pendente"
+    "status": "escrito"
   },
   {
     "grupo": "pagamentos",
