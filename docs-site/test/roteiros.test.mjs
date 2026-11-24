@@ -26,6 +26,9 @@ test('semear cria as 3 subcontas fictícias e é idempotente', async t => {
   assert.deepEqual(await semear({ base }), { subcontas: 3 });
   const { workspaces } = await (await fetch(`${base}/api/workspaces`)).json();
   for (const { nome } of SUBCONTAS) assert.equal(workspaces.filter(w => w.name === nome).length, 1, nome);
+  assert.ok(!workspaces.some(w => w.name === 'Demo Workspace'), 'a subconta padrão do app local não aparece com nome em inglês');
+  const { agency } = await (await fetch(`${base}/api/agency`)).json();
+  assert.equal(agency.company.name, 'Agência Demo');
 });
 
 test('cada subconta da demo tem contatos, oportunidades e conversas inventados', async t => {

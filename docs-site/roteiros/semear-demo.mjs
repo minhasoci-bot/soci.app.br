@@ -49,7 +49,16 @@ async function preencher(base, workspace, subconta) {
 }
 
 export async function semear({ base }) {
+  // A agência local nasce como "My Agency": nos prints ela é a Agência Demo, com a cor da soci.
+  const { company } = (await pedir(base, '/api/agency')).agency || {};
+  if (!company || company.name !== 'Agência Demo') {
+    await pedir(base, '/api/agency/action', { type: 'company', data: { name: 'Agência Demo', domain: '', website: '', phone: '+55 11 4000-0000', address: 'São Paulo, SP', primary: '#d62976', timezone: 'America/Sao_Paulo' } });
+  }
   const { workspaces } = await pedir(base, '/api/workspaces');
+  // O app local cria sozinho a subconta "Demo Workspace", com nome em inglês: nos prints ela aparece como mais uma cliente.
+  if (workspaces.some(w => w.id === 'demo' && w.name === 'Demo Workspace')) {
+    await pedir(base, '/api/action?workspace=demo', { type: 'profile', data: { name: 'Consultoria Norte', email: 'contato@consultorianorte.exemplo.test', phone: '', timezone: 'America/Sao_Paulo' } });
+  }
   for (const subconta of SUBCONTAS) {
     if (workspaces.some(w => w.name === subconta.nome)) continue;
     const { id } = await pedir(base, '/api/workspaces', { name: subconta.nome, email: subconta.email, phone: '+55 11 4000-0000', timezone: 'America/Sao_Paulo' });
