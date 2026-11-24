@@ -3,3 +3,4 @@ dist/
 .midia/
 roteiros/.saida/
 node_modules/
+public/midia-local/

@@ -1,13 +1,13 @@
 ---
 // Vídeo curto do R2 (MP4 H.264 com capa WebP). Nunca toca sozinho.
-import { MIDIA_BASE } from '../../scripts/midia.mjs';
+import { midiaBase } from '../../scripts/midia.mjs';
 
 interface Props { src: string; poster: string; legenda?: string }
 const { src, poster, legenda } = Astro.props;
 ---
 <figure class="soci-video">
-  <video controls preload="none" playsinline poster={`${MIDIA_BASE}/${poster}`}>
-    <source src={`${MIDIA_BASE}/${src}`} type="video/mp4" />
+  <video controls preload="none" playsinline poster={`${midiaBase()}/${poster}`}>
+    <source src={`${midiaBase()}/${src}`} type="video/mp4" />
   </video>
   {legenda && <figcaption>{legenda}</figcaption>}
 </figure>

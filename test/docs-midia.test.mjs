@@ -82,3 +82,20 @@ test('chavesAusentes lista o que o MDX cita e o bucket não tem', async () => {
   await c.enviar('docs/a/b/1.abcdef12.webp', Buffer.from('img'), 'image/webp');
   assert.deepEqual(await chavesAusentes(['docs/a/b/1.abcdef12.webp', 'docs/a/b/2.00000000.webp'], c), ['docs/a/b/2.00000000.webp']);
 });
+
+test('midiaBase usa DOCS_MIDIA_BASE quando definida (prévia local) e o R2 nos outros casos', async () => {
+  const { midiaBase } = await import('../docs-site/scripts/midia.mjs');
+  assert.equal(midiaBase({}), 'https://midia.soci.app.br');
+  assert.equal(midiaBase({ DOCS_MIDIA_BASE: '/midia-local/' }), '/midia-local');
+});
+
+test('copiarLocal põe a mídia na pasta pública com a mesma chave do R2', async () => {
+  const { copiarLocal } = await import('../docs-site/scripts/midia.mjs');
+  const { readFile: ler } = await import('node:fs/promises');
+  const pasta = await mkdtemp(join(tmpdir(), 'midia-'));
+  const destino = await mkdtemp(join(tmpdir(), 'publico-'));
+  await writeFile(join(pasta, '01 Menu.webp'), 'a');
+  const [item] = await copiarLocal({ pasta, grupo: 'crm', artigo: 'contatos', destino });
+  assert.match(item.chave, /^docs\/crm\/contatos\/01-menu\.[0-9a-f]{8}\.webp$/);
+  assert.equal(await ler(join(destino, item.chave), 'utf8'), 'a');
+});

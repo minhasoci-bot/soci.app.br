@@ -1,11 +1,11 @@
 ---
 // Print da plataforma guardado no R2. `src` é a chave no bucket (docs/<grupo>/<artigo>/<arquivo>).
-import { MIDIA_BASE } from '../../scripts/midia.mjs';
+import { midiaBase } from '../../scripts/midia.mjs';
 
 interface Props { src: string; alt: string; legenda?: string }
 const { src, alt, legenda } = Astro.props;
 if (!alt) throw new Error(`<Print src="${src}"> precisa de alt.`);
-const url = `${MIDIA_BASE}/${src}`;
+const url = `${midiaBase()}/${src}`;
 ---
 <figure class="soci-print">
   <a href={url} target="_blank" rel="noopener"><img src={url} alt={alt} loading="lazy" decoding="async" width="1440" /></a>

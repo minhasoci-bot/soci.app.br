@@ -1,13 +1,16 @@
 // Envia prints e vídeos da documentação para o bucket público do R2 (midia.soci.app.br).
 // Uso:
 //   npm run docs:midia -- enviar <pasta> <grupo> <artigo>   envia a pasta e imprime as chaves
+//   npm run docs:midia -- local <pasta> <grupo> <artigo>    copia para a prévia local (DOCS_MIDIA_BASE=/midia-local)
 //   npm run docs:midia -- verificar                         confere se toda mídia citada nos .mdx existe no bucket
-import { readdir, readFile } from 'node:fs/promises';
-import { extname, join, relative } from 'node:path';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, extname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { encodeKey, sha256, signHeaders } from './sigv4.mjs';
 
 export const MIDIA_BASE = 'https://midia.soci.app.br';
+// Prévia local: DOCS_MIDIA_BASE=/midia-local serve a mídia de docs-site/public/midia-local (ver comando `local`).
+export const midiaBase = (env = process.env) => String(env.DOCS_MIDIA_BASE || MIDIA_BASE).replace(/\/+$/, '');
 const CACHE = 'public, max-age=31536000, immutable';
 const TIPOS = { webp: 'image/webp', png: 'image/png', mp4: 'video/mp4', vtt: 'text/vtt' };
 
@@ -63,6 +66,21 @@ export async function enviarPasta({ pasta, grupo, artigo, cliente }) {
   return resultado;
 }
 
+// Copia a mídia para docs-site/public/midia-local/<chave>, para ver o artigo antes de enviar ao R2.
+export async function copiarLocal({ pasta, grupo, artigo, destino }) {
+  const nomes = (await readdir(pasta, { withFileTypes: true })).filter(e => e.isFile()).map(e => e.name).sort();
+  const resultado = [];
+  for (const arquivo of nomes) {
+    tipoDe(extname(arquivo));
+    const conteudo = await readFile(join(pasta, arquivo));
+    const chave = chaveDe({ grupo, artigo, arquivo, conteudo });
+    await mkdir(dirname(join(destino, chave)), { recursive: true });
+    await writeFile(join(destino, chave), conteudo);
+    resultado.push({ arquivo, chave });
+  }
+  return resultado;
+}
+
 export const chavesNoMdx = texto => [...String(texto).matchAll(/<(?:Print|Video)\b[^>]*>/g)]
   .flatMap(([tag]) => [...tag.matchAll(/\b(?:src|poster)="([^"]+)"/g)].map(m => m[1]));
 
@@ -82,6 +100,12 @@ async function* arquivosMdx(pasta) {
 
 async function cli([comando, ...args]) {
   const env = process.env;
+  if (comando === 'local' && args.length === 3) {
+    const [pasta, grupo, artigo] = args;
+    const destino = fileURLToPath(new URL('../public/midia-local/', import.meta.url));
+    for (const item of await copiarLocal({ pasta, grupo, artigo, destino })) console.log(item.chave);
+    return 0;
+  }
   const cliente = criarCliente({ accountId: env.R2_DOCS_ACCOUNT_ID, accessKeyId: env.R2_DOCS_ACCESS_KEY_ID, secretAccessKey: env.R2_DOCS_SECRET_ACCESS_KEY, bucket: env.R2_DOCS_BUCKET });
   if (comando === 'enviar' && args.length === 3) {
     const [pasta, grupo, artigo] = args;
@@ -100,7 +124,7 @@ async function cli([comando, ...args]) {
     console.log(`${chaves.length - ausentes.length} de ${chaves.length} arquivos de mídia no bucket.`);
     return ausentes.length ? 1 : 0;
   }
-  console.log('Uso: midia.mjs enviar <pasta> <grupo> <artigo> | midia.mjs verificar');
+  console.log('Uso: midia.mjs enviar|local <pasta> <grupo> <artigo> | midia.mjs verificar');
   return 2;
 }
 
