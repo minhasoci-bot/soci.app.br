@@ -1,3 +1,4 @@
+import { AUDIT_IN_DOCUMENT } from './agency-audit.mjs';
 import { usageSummary } from './ui/ai-data.js';
 import { desktopDefaults, publishDesktop, saveDesktop } from './agency-desktop.mjs';
 import { mobileOf, publishMobile, saveMobileStore } from './agency-mobile.mjs';
@@ -14,15 +15,17 @@ import { labCatalog, labModes } from './ui/labs-data.js';
 import { deleteStudioApp, marketplaceFor, publishStudioApp, rotateAppSecret, saveStudioApp } from './app-studio-model.mjs';
 import {
   accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog,
-  mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
+  mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys,
   appScopes, maxMarkup, rebillProducts, subFeatures, workflowBuilders
 } from './ui/agency-data.js';
 
 export const AGENCY_ID = 'agency';
 const platformLanguage = 'Português (Brasil)';
 const platformBrand = 'soci';
-const defaultPrimary = '#d62976';
-const defaultSecondary = '#962fbf';
+const defaultPrimary = '#ff4f9a';
+const defaultSecondary = '#c4a7ff';
+// Blue is the Soci visual accent used across marketing and landing surfaces.
+const defaultAccent = '#6bc9ff';
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value).slice(0, limit) : '';
 const req = (value, label, limit) => str(value, limit) || fail(`${label} is required.`);
@@ -57,9 +60,9 @@ export const hash = text => createHash('sha256').update(text).digest('hex');
 export function blankAgency() {
   return {
     profile: { name: 'Agency', first: 'Agency', last: 'Owner', email: '', phone: '', language: platformLanguage },
-    company: { name: 'My Agency', brand: platformBrand, domain: '', website: '', phone: '', address: '', primary: defaultPrimary, secondary: defaultSecondary, logo: '', timezone: 'America/Sao_Paulo', currency: defaults.profile.currency },
+    company: { name: 'My Agency', brand: platformBrand, domain: '', website: '', phone: '', address: '', primary: defaultPrimary, secondary: defaultSecondary, accent: defaultAccent, logo: '', timezone: 'America/Sao_Paulo', currency: defaults.profile.currency },
     accounts: {}, plans: [], snapshots: [], snapshotLoads: [], prospects: [], partners: [], ideas: [], menuLinks: [], announcements: [],
-    users: [], templates: [], templateInstalls: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], audit: [], brandGroups: [], presentations: [], pranchetaFiles: [],
+    users: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], audit: [], brandGroups: [], presentations: [], pranchetaFiles: [],
     reselling: Object.fromEntries(resellProducts.map(p => [p.key, { price: p.base, disabled: [] }])),
     affiliate: { accepted: false, steps: {}, code: '', payout: { method: 'PayPal', email: '' }, payments: [] },
     learning: { completed: [] },
@@ -104,6 +107,7 @@ export function hydrateAgency(state) {
   state.company.currency = defaults.profile.currency;
   if (!/^#[0-9a-f]{6}$/i.test(state.company.primary || '')) state.company.primary = defaultPrimary;
   if (!/^#[0-9a-f]{6}$/i.test(state.company.secondary || '')) state.company.secondary = defaultSecondary;
+  if (!/^#[0-9a-f]{6}$/i.test(state.company.accent || '')) state.company.accent = defaultAccent;
   for (const product of resellProducts) state.reselling[product.key] ??= { price: product.base, disabled: [] };
   for (const [key] of rebillProducts) state.saas.rebilling[key] ??= 1;
   state.saas.unitCosts ??= {}; state.saas.rebill ??= {}; state.saas.lowBalance ??= 20;
@@ -144,7 +148,7 @@ function sanitize(key, input, accountIds) {
 
 export function audit(state, actor, action, target = '', details = '') {
   state.audit.push({ id: uid(), at: now(), actor: str(actor, 120) || 'Agency Owner', action, target: str(target, 200), details: str(details, 500) });
-  if (state.audit.length > 1000) state.audit.splice(0, state.audit.length - 1000);
+  if (state.audit.length > AUDIT_IN_DOCUMENT) state.audit.splice(0, state.audit.length - AUDIT_IN_DOCUMENT);
 }
 
 export function accountLifecycle(agency, id) {
@@ -497,6 +501,7 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       Object.assign(state.company, { name: req(d.name, 'Nome da empresa', 120), brand: platformBrand, domain: str(d.domain, 200).toLowerCase(),
         website: url(d.website, 'Website'), phone: str(d.phone, 48), address: str(d.address, 300), primary: color(d.primary),
         secondary: d.secondary === undefined ? state.company.secondary || defaultSecondary : color(d.secondary),
+        accent: d.accent === undefined ? state.company.accent || defaultAccent : color(d.accent),
         timezone: req(d.timezone, 'Time zone', 60), currency: defaults.profile.currency });
       if (d.logo !== undefined) state.company.logo = d.logo === 'remove' ? '' : d.logo ? image(d.logo) : state.company.logo;
       log('Company settings updated', state.company.name);
@@ -915,8 +920,9 @@ export function applySnapshot(target, snapshot, mode = 'skip', studioMap = null,
     const rule = modes[key] === 'overwrite' || modes[key] === 'skip' ? modes[key] : mode;
     target[key] ??= [];
     const id = idMap.get(original.id);
-    if (key === 'studioProjects' && studioMap) studioMap.set(original.id, id);
     if (match && !(rule === 'overwrite' && key !== 'pipelines')) { report.skipped++; continue; }
+    // Only what is really loaded brings its pages: a site kept as it is keeps its pages too.
+    if (key === 'studioProjects' && studioMap) { studioMap.set(original.id, id); studioMap.ids = idMap; }
     const item = remapIds(structuredClone(key === 'agents' ? agentTemplate(original) : original), idMap);
     // Direct links to records that are neither in the load nor in the account are cleared.
     for (const [field, refType] of Object.entries(refs[key] || {})) if (item[field] && !exists(refType, item[field]) && ![...idMap.values()].includes(item[field])) item[field] = '';
@@ -937,28 +943,6 @@ export function applySnapshot(target, snapshot, mode = 'skip', studioMap = null,
     }
   }
   return report;
-}
-
-// ---- Templates ---------------------------------------------------------------
-
-export function installTemplate(workspace, template) {
-  let formId = '';
-  if (template.withForm) {
-    formId = uid();
-    workspace.forms.push({ id: formId, created: now(), name: `${template.name} lead form`, description: 'Leave your details and we will get back to you.', askPhone: true, active: false });
-  }
-  const pageId = uid();
-  workspace.pages.push({ id: pageId, created: now(), name: template.name, headline: template.headline, body: template.body || '', button: template.button || '', formId, kind: 'Funnel', active: false });
-  return pageId;
-}
-
-export function catalogTemplate(id, agency) {
-  const builtIn = templateCatalog.find(t => t[0] === id);
-  if (builtIn) {
-    const [, name, category, headline, body, button] = builtIn;
-    return { id, name, category, headline, body, button, withForm: true };
-  }
-  return agency.templates.find(t => t.id === id) || fail('Template not found.', 404);
 }
 
 // ---- Overview ----------------------------------------------------------------
@@ -1010,7 +994,7 @@ export function agencyOverview(agency, workspaces) {
 export function agencyForWorkspace(agency, workspace, includePermissions = false) {
   const applies = item => !item.accounts?.length || item.accounts.includes(workspace);
   return {
-    brand: platformBrand, name: agency.company.name, primary: agency.company.primary, secondary: agency.company.secondary || defaultSecondary, logo: agency.company.logo,
+    brand: platformBrand, name: agency.company.name, primary: agency.company.primary, secondary: agency.company.secondary || defaultSecondary, accent: agency.company.accent || defaultAccent, logo: agency.company.logo,
     menuLinks: agency.menuLinks.filter(l => l.showOn !== 'Agency' && applies(l)).map(({ id, title, url: href, icon, openIn }) => ({ id, title, url: href, icon, openIn })),
     announcements: agency.announcements.filter(a => a.published && applies(a)).map(({ id, title, body, tone }) => ({ id, title, body, tone })),
     apps: marketplaceFor(agency, workspace),

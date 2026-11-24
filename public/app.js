@@ -192,10 +192,10 @@ async function load(){
   const workspace = c.workspace;
   try {
     const data = await api(url('/api/state'));
-    if (workspace === c.workspace) Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,audit:data.audit,account:data.account});
+    if (workspace === c.workspace) Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,account:data.account});
   } catch (e) {
     if (e.code !== 'ACCOUNT_SUSPENDED') throw e;
-    if (workspace === c.workspace) Object.assign(c,{s:null,m:null,account:e.account,audit:[]});
+    if (workspace === c.workspace) Object.assign(c,{s:null,m:null,account:e.account});
   }
 }
 const allowedView = id => id === 'launchpad' ? !c.access?.modules || c.access.modules.length > 0 : !c.access?.modules || c.access.modules.includes(id) || (id === 'prancheta' && (!c.access?.modules || c.access.modules.includes('marketing') || c.access.modules.includes('prancheta')));
@@ -351,7 +351,7 @@ function render(){
   const brand=agencyName||brandName(c.agency?.brand), customLink=c.agency?.menuLinks.find(l=>l.id===c.tab);
   const active=nav.find(x=>x[0]===c.view);
   document.title=brand;
-  applyBrandColor(c.agency?.primary, c.agency?.secondary);
+  applyBrandColor(c.agency?.primary, c.agency?.secondary, c.agency?.accent);
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
   app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}${c.launchpadReturn && c.view!=='launchpad' ? `<div class="lp-return"><a href="#launchpad/${h(c.launchpadReturn)}">${i('left',14)} Voltar ao guia</a><span>Continue a configuração. Seu progresso será reconhecido ao voltar.</span><button class="icon-btn" aria-label="Fechar lembrete do guia" data-act="launchpad-dismiss">${i('close',14)}</button></div>` : ''}<main id="screen" class="screen">${screenHtml}</main></div></div>`;
@@ -985,7 +985,7 @@ function mountGlobalSearch(){
   if(!host) return;
   let items;
   if(location.hash.startsWith('#agency')){
-    const agNavList=[['dashboard','Painel da agência'],['prospecting','Prospecção'],['accounts','Subcontas'],['snapshots','Setups de conta'],['affiliate','Portal de afiliados'],['templates','Biblioteca de modelos'],['partners','Parceiros'],['university','Universidade'],['ideas','Ideias'],['mobile-app','Aplicativo móvel'],['settings','Configurações']];
+    const agNavList=[['dashboard','Painel da agência'],['prospecting','Prospecção'],['accounts','Subcontas'],['snapshots','Setups de conta'],['affiliate','Portal de afiliados'],['partners','Parceiros'],['university','Universidade'],['ideas','Ideias'],['mobile-app','Aplicativo móvel'],['settings','Configurações']];
     let accounts=[];
     try{accounts=JSON.parse(localStorage.getItem('ag_db_v1')||'{}').accounts||[];}catch{}
     items=[...agNavList.map(([k,label])=>({label,keywords:k,run:{agGo:k}})),...accounts.map(a=>({label:a.name||'Subconta',keywords:'subconta',searchOnly:true,run:{agGo:'accounts'}}))];
@@ -1037,7 +1037,6 @@ function globalSearch(value){
       ['accounts', 'Subcontas', 'users'],
       ['snapshots', 'Setups de conta', 'box'],
       ['affiliate', 'Portal de afiliados', 'gift'],
-      ['templates', 'Biblioteca de modelos', 'doc'],
       ['partners', 'Parceiros', 'users'],
       ['university', 'Universidade', 'book'],
       ['ideas', 'Ideias', 'lightbulb'],
@@ -1262,10 +1261,11 @@ if(viewPath){
   catch(e){app.innerHTML=`<div class="boot"><h1>Página indisponível</h1><p>${h(e.message)}</p><a href="/">Voltar para a plataforma</a></div>`;}
 }else{
   installDashboardControls({ c,dialog,close,render,load,mutate,flash,go,download:downloads });
-  agencyEnv = { app, overlay, api, flash, openWorkspace: useWorkspace, onBrandColorChange: (primary, secondary) => {
+  agencyEnv = { app, overlay, api, flash, openWorkspace: useWorkspace, onBrandColorChange: (primary, secondary, accent) => {
     if (!c.agency || c.workspace.startsWith('user-')) return;
     c.agency.primary = primary;
     if (secondary) c.agency.secondary = secondary;
+    if (accent) c.agency.accent = accent;
     if (c.mode !== 'agency') render();
   }, onOpenAIChange: connection => {
     if (!c.features) return;
@@ -1343,7 +1343,7 @@ if(viewPath){
     }
   });
   installReports({ c, dialog, close, render, mutate, flash, download:downloads });
-  crmEvents({ G, mutate, render, flash, dialog, close });
+  crmEvents({ G, mutate, render, flash, dialog, close, c, api });
   opportunityEvents({ c, G, mutate, render, flash, dialog, close });
   socialEvents({ c, G, api, url, mutate, render, flash, dialog, close, load });
   window.addEventListener('hashchange',route);

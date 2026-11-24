@@ -14,7 +14,7 @@
 .rp-copy { display: flex; gap: 8px; flex-wrap: wrap; }
 .rp-copy input { flex: 1 1 220px; min-width: 0; }
 .rp-qr { display: grid; justify-items: center; gap: 6px; font-size: 12.5px; text-align: center; }
-.rp-qr svg { width: 132px; height: 132px; border-radius: 8px; }
+.rp-qr svg { width: 132px; height: 132px; border-radius: var(--r-control); }
 .rp-toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
 .rp-toolbar .search { flex: 1 1 220px; }
 .rp-list { display: grid; gap: 12px; }
@@ -36,8 +36,8 @@
 .rp-save { position: sticky; bottom: 0; display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding: 12px 0; background: var(--g-bg, var(--g-surface)); }
 .rp-request { display: grid; gap: 12px; }
 .rp-request > label:first-child { display: grid; gap: 4px; font-weight: 600; font-size: 13px; }
-.rp-contacts { display: grid; gap: 2px; max-height: 280px; overflow-y: auto; border: 1px solid var(--g-line); border-radius: 10px; padding: 4px; }
-.rp-contact { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+.rp-contacts { display: grid; gap: 2px; max-height: 280px; overflow-y: auto; border: 1px solid var(--g-line); border-radius: var(--r-control); padding: 4px; }
+.rp-contact { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border-radius: var(--r-control); cursor: pointer; }
 .rp-contact:hover { background: var(--g-surface-2); }
 .rp-contact[hidden] { display: none; }
 .rp-contact span { display: grid; }
@@ -45,7 +45,7 @@
 @media (max-width: 860px) { .rp-two, .rp-two-fields { grid-template-columns: 1fr; } .rp-link { flex-direction: column; } }
 
 .rp-review-meta { display: flex; align-items: center; gap: 10px; }
-.rp-link-btn { padding: 0; border: 0; background: none; color: var(--g-brand); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.rp-link-btn { padding: 0; border: 0; background: none; color:var(--g-brand-text); font-size: 12.5px; font-weight: 600; cursor: pointer; }
 .rp-widgets, .rp-collectors { display: grid; gap: 10px; }
 .rp-widgets { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 .rp-widget, .rp-collector { display: grid; gap: 8px; padding: 14px; }
@@ -57,8 +57,8 @@
 .rp-preview { display: grid; gap: 10px; }
 .rp-preview-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rp-preview-head h2, .rp-section h2 { font-size: 15px; margin: 0; }
-.rp-code { display: block; padding: 10px 12px; border-radius: 8px; background: var(--g-surface-2); font-size: 12.5px; overflow-x: auto; white-space: nowrap; }
-.rp-frame { width: 100%; min-height: 360px; border: 1px dashed var(--g-line); border-radius: 12px; background: var(--g-surface); }
+.rp-code { display: block; padding: 10px 12px; border-radius: var(--r-control); background: var(--g-surface-2); font-size: 12.5px; overflow-x: auto; white-space: nowrap; }
+.rp-frame { width: 100%; min-height: 360px; border: 1px dashed var(--g-line); border-radius: var(--r-group); background: var(--g-surface); }
 .rp-section { display: grid; gap: 10px; }
 .rp-section > p { margin: 0; }
 .rp-videos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
@@ -96,6 +96,6 @@
 .rp-nap dt { color: var(--g-dim); font-size: 13px; }
 .rp-nap dd { margin: 0; }
 .rp-listings { display: grid; gap: 8px; }
-.rp-listing { display: grid; grid-template-columns: minmax(200px, 1.3fr) minmax(180px, 1.2fr) 160px auto; gap: 10px; align-items: center; padding: 12px 14px; border: 1px solid var(--g-line); border-radius: 12px; background: var(--g-surface); }
+.rp-listing { display: grid; grid-template-columns: minmax(200px, 1.3fr) minmax(180px, 1.2fr) 160px auto; gap: 10px; align-items: center; padding: 12px 14px; border: 1px solid var(--g-line); border-radius: var(--r-group); background: var(--g-surface); }
 .rp-listing-name { display: grid; gap: 2px; }
 @media (max-width: 900px) { .rp-listing { grid-template-columns: 1fr; } .rp-gbp-head { grid-template-columns: auto 1fr; } .rp-gbp-head > button { grid-column: 1 / -1; justify-self: start; } }

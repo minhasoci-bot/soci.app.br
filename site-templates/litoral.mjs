@@ -111,22 +111,22 @@ p{margin:0}
 }`;
 
 const homes = [
-  ['Casa Falésia', 'Trancoso · BA', 'photo-1711567741004-36ec757572b6', 'R$ 18,4 mi', '6 suítes', '1.200 m²'],
-  ['Casa Maré', 'Ilhabela · SP', 'photo-1730005523015-422bd53dda0b', 'R$ 9,8 mi', '5 suítes', '780 m²'],
-  ['Casa Penhasco', 'Paraty · RJ', 'photo-1668015641954-d3685b7236e7', 'R$ 12,6 mi', '5 suítes', '950 m²'],
-  ['Casa Basalto', 'Florianópolis · SC', 'photo-1598737652470-59ef13fa352c', 'R$ 7,2 mi', '4 suítes', '640 m²'],
-  ['Villa Lumen', 'Búzios · RJ', 'photo-1792830362359-f046d2b1320c', 'R$ 15,9 mi', '7 suítes', '1.400 m²'],
-  ['Casa Poente', 'Ubatuba · SP', 'photo-1707190205120-228c6656086c', 'R$ 11,3 mi', '5 suítes', '880 m²']
+  ['Casa Arrebentação', 'Trancoso · BA', 'photo-1711567741004-36ec757572b6', 'R$ 18,4 mi', '6 suítes', '1.200 m²'],
+  ['Casa Restinga', 'Ilhabela · SP', 'photo-1730005523015-422bd53dda0b', 'R$ 9,8 mi', '5 suítes', '780 m²'],
+  ['Casa Costão', 'Paraty · RJ', 'photo-1668015641954-d3685b7236e7', 'R$ 12,6 mi', '5 suítes', '950 m²'],
+  ['Casa Duna', 'Florianópolis · SC', 'photo-1598737652470-59ef13fa352c', 'R$ 7,2 mi', '4 suítes', '640 m²'],
+  ['Casa Coqueiral', 'Búzios · RJ', 'photo-1792830362359-f046d2b1320c', 'R$ 15,9 mi', '7 suítes', '1.400 m²'],
+  ['Casa Enseada', 'Ubatuba · SP', 'photo-1707190205120-228c6656086c', 'R$ 11,3 mi', '5 suítes', '880 m²']
 ];
 
 const header = brand => `<header class="bar" data-bar><div class="wrap"><a class="brand" href="page:index">${esc(brand)}</a>
 <input type="checkbox" id="nav-t" class="nav-t" aria-label="Abrir menu"><label for="nav-t" class="burger" aria-hidden="true"></label>
-<nav class="links"><a href="page:index#residencias">Residências</a><a href="page:index#regioes">Regiões</a><a href="page:index#sobre">Sobre</a><a href="page:contato">Contato</a></nav>
+<nav class="links"><a href="page:index#residencias">Casas</a><a href="page:index#regioes">Regiões</a><a href="page:index#sobre">Sobre</a><a href="page:contato">Contato</a></nav>
 <a class="btn" data-magnetic href="page:contato">Agendar visita</a></div></header>`;
 
 const footer = brand => `<footer class="foot"><div class="wrap"><p class="big" data-fit aria-hidden="true">${esc(brand)}</p>
 <div class="cols"><div><h4>Escritório</h4><span>Rua das Pedras, Trancoso</span><span>Visitas somente com hora marcada</span></div>
-<div><h4>Navegue</h4><a class="ul" href="page:index#residencias">Residências</a><a class="ul" href="page:index#regioes">Regiões</a><a class="ul" href="page:contato">Contato</a></div>
+<div><h4>Navegue</h4><a class="ul" href="page:index#residencias">Casas</a><a class="ul" href="page:index#regioes">Regiões</a><a class="ul" href="page:contato">Contato</a></div>
 <div><h4>Redes</h4><a class="ul" href="#">Instagram</a><a class="ul" href="#">Vimeo</a></div></div>
 <div class="base"><span>© ${new Date().getFullYear()} ${esc(brand)} · CRECI</span><span>Fotos: Unsplash · Vídeo: Pexels</span></div></div></footer>`;
 
@@ -135,40 +135,40 @@ const enquiry = (photo, title, intro, extra) => `<section class="enquiry" id="co
 ${leadForm({ button: 'Solicitar visita', note: 'Atendimento reservado. Seus dados não são compartilhados.', extra })}</div></section>`;
 
 function home(brand) {
-  return document({ title: `${brand} · Residências de alto padrão no litoral`, description: 'Casas assinadas por arquitetos no litoral brasileiro, apresentadas pessoalmente e com discrição.', fonts, css, cursor: true, body: `${header(brand)}
+  return document({ title: `${brand} · Casas de praia para morar`, description: 'Casas de praia para quem quer morar o ano inteiro, com vizinhança, escola e internet mapeadas.', fonts, css, cursor: true, body: `${header(brand)}
 <main>
 <section class="hero"><img class="kb" src="${img('photo-1753151847465-67bebb645b40', 2400)}" alt="Casa iluminada à beira-mar à noite">
-<div class="wrap"><span class="k ld">Residências privadas · Litoral brasileiro</span>
-<h1 style="margin-top:22px"><span class="ln"><span>Casas que</span></span><span class="ln"><span style="--d:.1s"><i>acendem</i> o litoral</span></span></h1>
-<div class="base ld" style="--d:.45s"><p>Vinte casas assinadas por arquitetos, entre a Bahia e Santa Catarina. Cada uma apresentada pessoalmente, ao entardecer.</p>
-<a class="btn" data-magnetic href="#residencias">Ver residências ${arrow}</a></div></div></section>
+<div class="wrap"><span class="k ld">Casas de praia · Da Bahia a Santa Catarina</span>
+<h1 style="margin-top:22px"><span class="ln"><span>More onde</span></span><span class="ln"><span style="--d:.1s">o <i>mar</i> manda</span></span></h1>
+<div class="base ld" style="--d:.45s"><p>Casas para o ano inteiro, com a vizinhança, a escola e a internet de cada praia já mapeadas.</p>
+<a class="btn" data-magnetic href="#residencias">Ver casas ${arrow}</a></div></div></section>
 
 <section class="sec" id="sobre"><div class="wrap intro"><div><span class="k">Sobre nós</span>
-<h2 data-split>Representamos poucas casas, todas assinadas por arquitetos. <span class="m">E mostramos cada uma ao entardecer, quando a arquitetura revela o que tem de melhor.</span></h2>
+<h2 data-split>Em janeiro toda praia é boa. <span class="m">A gente conta como ela é em julho: quem fica, o que abre e quanto demora o pão quentinho.</span></h2>
 <a class="link" style="margin-top:40px" href="page:contato">Conversar com um consultor ${arrow}</a></div>
 <div class="pic clip"><img class="par" src="${img('photo-1777041097323-2f2ab6734a82', 900)}" alt="Sala de jantar em madeira escura com luz baixa" loading="lazy"></div></div></section>
 
-<section id="residencias" style="padding-bottom:clamp(120px,14vw,200px)"><div class="wrap"><div class="head"><h2 data-split>Residências <i>à venda</i></h2><a class="link" href="page:contato">Lista completa sob consulta ${arrow}</a></div>
+<section id="residencias" style="padding-bottom:clamp(120px,14vw,200px)"><div class="wrap"><div class="head"><h2 data-split>Prontas para <i>morar</i></h2><a class="link" href="page:contato">Lista completa sob consulta ${arrow}</a></div>
 <div class="homes">${homes.map(([n, l, p, price, s, a]) => `<a class="home rv" href="page:contato" data-cursor="Ver casa"><div class="pic ph-zoom"><img src="${img(p, 1000)}" alt="${n}" loading="lazy"></div><div class="row"><h3>${n}</h3><span class="price">${price}</span></div><small><span>${l}</span><span>${s} · ${a}</span></small></a>`).join('')}</div></div></section>
 
 <section class="dusk">${video(videos.mar, img('photo-1753151847465-67bebb645b40', 1800))}
-<div class="in"><span class="k">Ao entardecer</span><h2 data-split>Toda visita começa com o sol se pondo e termina com <i>a casa acesa</i>.</h2>
-<div class="stats"><div><span class="count" style="--to:20"></span><small>Residências</small></div><div><span class="count" style="--to:14"></span><small>Anos no litoral</small></div><div><span class="count" style="--to:6"></span><small>Estados</small></div></div></div></section>
+<div class="in"><span class="k">Fora da temporada</span><h2 data-split>Passe <i>uma semana</i> na casa antes de decidir.</h2>
+<div class="stats"><div><span class="count" style="--to:20"></span><small>Casas</small></div><div><span class="count" style="--to:14"></span><small>Anos no litoral</small></div><div><span class="count" style="--to:6"></span><small>Estados</small></div></div></div></section>
 
-<section class="sec regions" id="regioes"><div class="wrap"><div class="head"><h2 data-split>Três regiões que <i>conhecemos de cor</i></h2></div>
+<section class="sec regions" id="regioes"><div class="wrap"><div class="head"><h2 data-split>Onde <i>atuamos</i></h2></div>
 <div class="cards">${[['Trancoso', 'Falésias, vilas de pescadores e o Quadrado iluminado à noite. Casas escondidas na mata, a poucos passos do mar.', 'photo-1711567741004-36ec757572b6', '8', '40 min'],
   ['Ilhabela', 'Mata atlântica descendo até a água, acesso por balsa ou barco e praias que só se alcançam por trilha.', 'photo-1730005523015-422bd53dda0b', '6', '25 min'],
   ['Búzios', 'Pedras, enseadas calmas e villas com vista para o pôr do sol, a duas horas do Rio de Janeiro.', 'photo-1792830362359-f046d2b1320c', '6', '2 h']]
-  .map(([n, t, p, c, d]) => `<article class="panel"><div class="pic"><img class="par" src="${img(p, 1400)}" alt="${n}" loading="lazy"></div><div class="tx"><span class="k">Região</span><div><h3>${n}</h3><p>${t}</p></div><dl><div><dt>Residências</dt><dd>${c}</dd></div><div><dt>Do aeroporto</dt><dd>${d}</dd></div></dl></div></article>`).join('')}</div></div></section>
+  .map(([n, t, p, c, d]) => `<article class="panel"><div class="pic"><img class="par" src="${img(p, 1400)}" alt="${n}" loading="lazy"></div><div class="tx"><span class="k">Região</span><div><h3>${n}</h3><p>${t}</p></div><dl><div><dt>Casas</dt><dd>${c}</dd></div><div><dt>Do aeroporto</dt><dd>${d}</dd></div></dl></div></article>`).join('')}</div></div></section>
 
 <section style="padding-bottom:clamp(120px,14vw,200px)"><div class="wrap"><div class="inside-head"><h2 data-split>Por dentro, o mesmo <i style="color:var(--accent)">silêncio</i>.</h2><p>Interiores pensados para a luz do fim do dia: madeira escura, pedra natural e janelas que enquadram o mar.</p></div>
 <div class="inside"><div class="pic a clip"><img class="par" src="${img('photo-1729605412224-147d072d3667', 1500)}" alt="Quarto com parede de vidro e vista para o entardecer" loading="lazy"></div><div class="pic b clip"><img class="par" src="${img('photo-1772411650649-f88111bcb8a5', 900)}" alt="Sala escura com janela para o lago ao pôr do sol" loading="lazy"></div></div></div></section>
 
-<section style="padding-bottom:clamp(120px,14vw,200px)"><div class="wrap">${[['Venda assessorada', 'Do primeiro contato à escritura, com análise completa do imóvel e da documentação.'], ['Visitas ao entardecer', 'Cada casa mostrada na luz em que foi pensada, sempre com hora marcada.'], ['Gestão para temporada', 'Locação curta, manutenção e equipe para proprietários que vivem longe.'], ['Avaliação reservada', 'Estudo de preço com comparáveis da região, sem anúncio público.']]
+<section style="padding-bottom:clamp(120px,14vw,200px)"><div class="wrap">${[['Venda assessorada', 'Do primeiro contato à escritura, com análise completa do imóvel e da documentação.'], ['Semana de teste', 'Você mora na casa por sete dias, fora da temporada, e só depois decide.'], ['Gestão para temporada', 'Locação curta, manutenção e equipe para proprietários que vivem longe.'], ['Avaliação reservada', 'Estudo de preço com comparáveis da região, sem anúncio público.']]
   .map(([t, d], i) => `<a class="svc" href="page:contato"><span>0${i + 1}</span><h3>${t}</h3><p>${d}</p><i>${arrow}</i></a>`).join('')}</div></section>
 
 <section style="padding-bottom:clamp(120px,14vw,200px)"><div class="wrap quote"><span class="k">Depoimento</span>
-<blockquote data-split>“Vimos a casa às sete da noite, com as luzes acesas e o mar escuro lá embaixo. Fechamos na semana seguinte.”</blockquote><cite>Família Andrade · Casa Falésia</cite></div></section>
+<blockquote data-split>“Na semana de teste descobrimos a padaria, o pediatra e os vizinhos. A casa foi a parte fácil.”</blockquote><cite>Família Andrade · Casa Arrebentação</cite></div></section>
 
 ${enquiry('photo-1707190205120-228c6656086c', 'Conte o que você procura.', 'Um consultor responde em até um dia útil, por WhatsApp ou e-mail, no idioma que você preferir.', '<label>Região de interesse<select name="message"><option>Trancoso</option><option>Ilhabela</option><option>Búzios</option><option>Outra região</option></select></label>')}
 </main>
@@ -176,9 +176,9 @@ ${footer(brand)}` });
 }
 
 function contact(brand) {
-  return document({ title: `Agendar visita · ${brand}`, description: 'Agende uma visita às residências com hora marcada.', fonts, css, cursor: true, body: `${header(brand)}
+  return document({ title: `Agendar visita · ${brand}`, description: 'Agende uma visita com hora marcada.', fonts, css, cursor: true, body: `${header(brand)}
 <main><section class="page-top"><div class="wrap"><span class="k ld">Visitas com hora marcada</span><h1 style="margin-top:24px"><span class="ln"><span>Vamos <i>conversar</i>.</span></span></h1></div></section>
-${enquiry('photo-1792830362359-f046d2b1320c', 'Agende sua visita.', 'Diga quais casas despertaram seu interesse e as datas em que você pode vir. Organizamos o resto.', '<label>Mensagem<textarea name="message" rows="3" placeholder="Residências de interesse, datas…"></textarea></label>')}</main>
+${enquiry('photo-1792830362359-f046d2b1320c', 'Agende sua visita.', 'Diga quais casas despertaram seu interesse e as datas em que você pode vir. Organizamos o resto.', '<label>Mensagem<textarea name="message" rows="3" placeholder="Casas de interesse, datas…"></textarea></label>')}</main>
 ${footer(brand)}` });
 }
 

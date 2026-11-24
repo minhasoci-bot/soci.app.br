@@ -1,0 +1,178 @@
+/* soci — tokens do design system (Liquid Glass).
+   Fonte única de cor, material, forma, texto e movimento. Nenhuma outra folha define estes nomes:
+   para mudar o visual do app, mude aqui. Guia: docs/implementation/09-design-system-liquid-glass.md
+
+   Regras (Apple, "Adopting Liquid Glass" e HIG Materials/Color):
+   1. Vidro é a camada de navegação e controles. Conteúdo (cards, tabelas, formulários) é sólido.
+   2. Nunca vidro sobre vidro.
+   3. Cor de marca só na ação principal e no item ativo. O resto é neutro.
+   4. Formas concêntricas: raio interno = raio externo − respiro.
+   5. Todo material tem versão para reduzir transparência e aumentar contraste. */
+
+:root{
+  color-scheme:light;
+
+  /* Texto */
+  --g-ink:#14161a; --g-ink-2:#3a3f48; --g-dim:#5c626d; --g-faint:#656b76;
+
+  /* Linhas */
+  --g-line:rgba(20,22,26,.09); --g-line-2:rgba(20,22,26,.15); --g-line-strong:rgba(20,22,26,.28);
+
+  /* Superfícies de conteúdo (sólidas) */
+  --g-canvas:#f2f3f6;
+  --g-surface:#ffffff; --g-surface-2:#f4f5f8; --g-surface-3:#e4e6eb; --g-paper:255 255 255;
+  --g-stage:#f2f3f6; --g-shell:#f2f3f6;
+  --panel:#fff;
+
+  /* Preenchimentos de controles no conteúdo */
+  --g-fill:rgba(118,122,133,.12); --g-fill-hover:rgba(118,122,133,.19); --g-fill-press:rgba(118,122,133,.26);
+  --g-field:#ffffff;
+
+  /* Marca: rosa na ação principal e no item ativo, com texto escuro (6,1:1) */
+  --g-brand:#ff4f9a; --g-brand-hover:#bd1f66; --g-brand-bright:#e8559a;
+  --g-brand-fill:#ff4f9a; --g-brand-fill-hover:#ff6aa9; --g-brand-on:#2a0616;
+  --g-brand-surface:#fdeef5; --g-brand-line:#f6c3db; --g-brand-tint:#7d1544; --g-brand-text:#b01f62;
+  --g-brand-accent:#6bc9ff;
+  --g-brand-2:#c4a7ff; --g-brand-2-hover:#8125a8; --g-brand-2-bright:#b45fd6;
+  --g-brand-2-surface:#f4effd; --g-brand-2-line:#dfc4ee; --g-brand-2-tint:#5a1a75;
+  --g-brand-2-text:#7a239e; --g-brand-2-fill:#c4a7ff; --g-brand-2-fill-hover:#d0b8ff; --g-brand-2-on:#1d0b33;
+  /* O gradiente da identidade fica no logo. Nos controles, "gradiente da marca" é a cor cheia. */
+  --g-grad-logo:linear-gradient(135deg,#ff4f9a 0%,#c4a7ff 58%,#6bc9ff 100%);
+  --g-grad-logo-on:#1d0b1a;
+  --g-grad-brand:linear-gradient(var(--g-brand-fill),var(--g-brand-fill));
+  --g-grad-brand-hover:linear-gradient(var(--g-brand-fill-hover),var(--g-brand-fill-hover));
+  --g-grad-on:var(--g-brand-on);
+  --g-grad-orange:var(--g-grad-brand);
+
+  /* Estados */
+  --g-orange:#c2490a; --g-amber:#b7791f; --g-orange-100:#fff4ea; --g-orange-200:#f8cba6; --g-orange-ink:#a13c08;
+  --g-blue:#1f6fb5; --g-blue-100:#eaf5fd;
+  --g-pink:#ff4f9a; --g-pink-100:#fdeef5;
+  --g-mint:#157f3c; --g-mint-100:#eaf8ef;
+  --g-red:#c4262e; --g-red-fill:#cf2f37; --g-red-fill-hover:#b92730; --g-red-100:#fdecec; --g-red-on:#fff;
+
+  /* ── Materiais ──
+     regular: navegação, menus, popovers. thick: folhas e diálogos com muito texto.
+     clear: só sobre mídia, sempre com --lg-dim atrás se o fundo for claro. */
+  --lg-blur:22px; --lg-sat:1.8;
+  --lg-regular:rgba(252,252,254,.66);
+  --lg-thick:rgba(252,252,254,.9);
+  --lg-clear:rgba(255,255,255,.18);
+  --lg-dim:rgba(0,0,0,.35);
+  --lg-tint-on:rgba(20,22,26,.07);
+  --lg-edge:rgba(20,22,26,.1);
+  --lg-spec-top:rgba(255,255,255,.95); --lg-spec-side:rgba(255,255,255,.5); --lg-spec-bottom:rgba(255,255,255,.28);
+  --lg-shadow:0 1px 2px rgba(20,22,26,.05),0 10px 30px -10px rgba(20,22,26,.16);
+  --lg-shadow-float:0 2px 6px rgba(20,22,26,.06),0 24px 60px -18px rgba(20,22,26,.28);
+  --lg-rim:inset 0 1px 0 var(--lg-spec-top),inset 1px 0 0 var(--lg-spec-side),inset -1px 0 0 var(--lg-spec-side),inset 0 -1px 0 var(--lg-spec-bottom),0 0 0 1px var(--lg-edge);
+  --lg-scrim:rgba(20,22,26,.32);
+  /* compatibilidade com nomes antigos */
+  --g-glass:var(--lg-regular); --g-glass-strong:var(--lg-thick); --g-glass-edge:var(--lg-edge);
+
+  /* ── Forma ── raio do filho = raio do pai − respiro */
+  --r-chip:8px; --r-control:12px; --r-group:16px; --r-card:20px; --r-sheet:28px; --r-pill:999px;
+  --lg-inset:10px; --lg-side-r:24px;
+  --g-r-lg:var(--r-card); --g-r:var(--r-card); --g-r-sm:var(--r-control);
+
+  /* ── Texto ── */
+  --t-caption:12.5px; --t-footnote:13px; --t-body:14px; --t-title3:17px; --t-title1:26px;
+  --font-ui:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+
+  /* ── Profundidade no conteúdo: quase nenhuma; quem flutua é o vidro ── */
+  --g-shadow:0 1px 2px rgba(20,22,26,.04);
+  --g-shadow-lift:0 2px 4px rgba(20,22,26,.05),0 14px 30px -14px rgba(20,22,26,.18);
+
+  /* ── Movimento ── */
+  --ease-glide:cubic-bezier(.32,.72,0,1); --ease-out:cubic-bezier(.16,1,.3,1); --ease-focus:cubic-bezier(.22,1,.36,1); --ease-std:cubic-bezier(.4,0,.2,1);
+  --ease-spring:cubic-bezier(.34,1.36,.64,1);
+
+  /* ── Papéis derivados ── */
+  --g-focus:0 0 0 3px color-mix(in srgb,var(--g-brand) 42%,transparent);
+  --g-scrollbar-thumb:rgba(20,22,26,.2); --g-scrollbar-thumb-hover:rgba(20,22,26,.38); --g-scrollbar-track:transparent;
+  --g-gauge-track:#e4e6eb;
+  --g-select-bg:var(--g-field); --g-select-bg-hover:var(--g-surface-2);
+  --g-select-border:var(--g-line-2); --g-select-border-hover:var(--g-line-strong);
+  --g-menu-bg:var(--lg-regular); --g-menu-border:transparent; --g-menu-divider:var(--g-line);
+  --g-menu-shadow:var(--lg-rim),var(--lg-shadow-float);
+  --g-menu-highlight:var(--lg-tint-on); --g-menu-selected-bg:transparent; --g-menu-selected-line:transparent;
+  --g-menu-item:var(--g-ink-2); --g-menu-item-hover:var(--g-ink);
+  --g-spot-bg:var(--lg-regular); --g-spot-rail:transparent; --g-spot-glow-near:transparent; --g-spot-glow-far:transparent;
+  --g-spot-item:var(--g-ink-2); --g-spot-item-hover:var(--g-ink); --g-spot-item-active:var(--g-ink);
+  --g-spot-hover-bg:var(--lg-tint-on); --g-spot-icon-opacity:.78; --g-spot-icon-hover-opacity:1; --g-spot-icon-active:var(--g-brand-text);
+  --g-utabs-bg:var(--g-surface); --g-utabs-border:var(--g-line); --g-utabs-divider:var(--g-line);
+  --g-utabs-item:var(--g-dim); --g-utabs-item-hover:var(--g-ink); --g-utabs-item-active:var(--g-ink);
+  --g-utabs-hover-bg:transparent; --g-utabs-indicator:var(--g-surface); --g-utabs-indicator-glow:transparent;
+  --g-utabs-nested-bg:var(--g-surface-2); --g-utabs-nested-border:var(--g-line);
+  --g-utabs-panel-surface:var(--g-surface); --g-utabs-panel-surface-alt:var(--g-surface);
+  --shc-bg:var(--g-surface); --shc-bg-hover:var(--g-surface-2); --shc-border:var(--g-line); --shc-inset:rgba(20,24,30,.035); --shc-inset-hover:rgba(20,24,30,.06);
+  --shc-drop:rgba(20,24,30,.06); --shc-lift:rgba(15,19,26,.08); --shc-icon-rest:#7b828d; --shc-mono:#14161a; --shc-whatsapp:#128046;
+
+  --g-eb-bg:var(--g-brand-fill); --g-eb-border:transparent; --g-eb-text:var(--g-brand-on); --g-eb-shadow:none;
+
+  /* nomes que as folhas mais antigas leem */
+  --blue:var(--g-brand-fill); --blue-dark:var(--g-brand-text); --line:var(--g-line); --dim:var(--g-dim); --ink:var(--g-ink); --shadow:var(--g-shadow);
+
+  font-family:var(--font-ui);
+  color:var(--g-ink); background:var(--g-canvas);
+}
+
+:root[data-theme=dark]{
+  color-scheme:dark;
+  --g-ink:#f3f4f6; --g-ink-2:#cdd1d8; --g-dim:#9aa0ab; --g-faint:#868d98;
+  --g-line:rgba(255,255,255,.09); --g-line-2:rgba(255,255,255,.15); --g-line-strong:rgba(255,255,255,.28);
+  --g-canvas:#0a0b0d;
+  --g-surface:#15171b; --g-surface-2:#1c1f24; --g-surface-3:#2a2e35; --g-paper:21 23 27;
+  --g-stage:#0a0b0d; --g-shell:#0a0b0d;
+  --panel:#15171b;
+  --g-fill:rgba(140,146,160,.2); --g-fill-hover:rgba(140,146,160,.29); --g-fill-press:rgba(140,146,160,.36);
+  --g-field:#1c1f24;
+
+  --g-brand:#ff5fa3; --g-brand-hover:#ff86b9; --g-brand-bright:#ff9cc6;
+  --g-brand-fill:#ff5fa3; --g-brand-fill-hover:#ff7bb3; --g-brand-on:#2a0616;
+  --g-brand-surface:#331021; --g-brand-line:#6a2145; --g-brand-tint:#f7a8cb; --g-brand-text:#ff8dbd;
+  --g-brand-2:#c4a7ff; --g-brand-2-hover:#d4bfff; --g-brand-2-bright:#dccbff;
+  --g-brand-2-surface:rgba(196,167,255,.14); --g-brand-2-line:#4b3a72; --g-brand-2-text:#d2bcff; --g-brand-2-tint:#dccbff;
+  --g-brand-2-fill:#c4a7ff; --g-brand-2-fill-hover:#d0b8ff;
+
+  --g-orange:#ff9d57; --g-amber:#fbbf24; --g-orange-100:rgba(249,115,22,.16); --g-orange-200:#6b4525; --g-orange-ink:#ffb17a;
+  --g-blue:#86c5ff; --g-blue-100:rgba(134,197,255,.16);
+  --g-pink:#ff8dbd; --g-pink-100:rgba(255,95,163,.16);
+  --g-mint:#76d29b; --g-mint-100:rgba(118,210,155,.16);
+  --g-red:#ff8a8f; --g-red-fill:#d8434a; --g-red-fill-hover:#e2555c; --g-red-100:rgba(255,95,102,.16);
+
+  --lg-regular:rgba(34,37,43,.62);
+  --lg-thick:rgba(30,33,38,.92);
+  --lg-clear:rgba(255,255,255,.1);
+  --lg-tint-on:rgba(255,255,255,.1);
+  --lg-edge:rgba(0,0,0,.5);
+  --lg-spec-top:rgba(255,255,255,.24); --lg-spec-side:rgba(255,255,255,.08); --lg-spec-bottom:rgba(255,255,255,.05);
+  --lg-shadow:0 1px 2px rgba(0,0,0,.4),0 12px 34px -12px rgba(0,0,0,.7);
+  --lg-shadow-float:0 2px 6px rgba(0,0,0,.4),0 28px 70px -18px rgba(0,0,0,.85);
+  --lg-scrim:rgba(0,0,0,.55);
+
+  --g-shadow:none;
+  --g-shadow-lift:0 18px 40px -20px rgba(0,0,0,.9);
+  --g-scrollbar-thumb:rgba(255,255,255,.2); --g-scrollbar-thumb-hover:rgba(255,255,255,.38);
+  --g-gauge-track:#2a2e35;
+  --g-utabs-indicator:rgba(255,255,255,.16); --g-utabs-nested-bg:var(--g-surface-2);
+  --shc-inset:rgba(255,255,255,.035); --shc-inset-hover:rgba(255,255,255,.06); --shc-drop:rgba(255,255,255,.06); --shc-lift:rgba(0,0,0,.38);
+  --shc-icon-rest:#868d98; --shc-mono:#f3f4f6; --shc-whatsapp:#25d366;
+}
+
+/* Reduzir transparência: o vidro vira superfície opaca, com a mesma hierarquia */
+@media (prefers-reduced-transparency:reduce){
+  :root{--lg-blur:0px; --lg-sat:1; --lg-regular:#fbfbfd; --lg-thick:#ffffff; --lg-clear:rgba(20,22,26,.78); --lg-edge:rgba(20,22,26,.16)}
+  :root[data-theme=dark]{--lg-regular:#1f2227; --lg-thick:#1f2227; --lg-clear:rgba(0,0,0,.82); --lg-edge:rgba(255,255,255,.18)}
+}
+
+/* Aumentar contraste: linhas visíveis, texto mais escuro e bordas nos controles */
+@media (prefers-contrast:more){
+  :root{--g-ink:#000; --g-ink-2:#1b1e24; --g-dim:#3a3f48; --g-faint:#454b55; --g-line:rgba(0,0,0,.4); --g-line-2:rgba(0,0,0,.6); --g-line-strong:#000; --g-brand-text:#8a0f47; --g-brand-fill:#ff7ab3; --lg-regular:#fff; --lg-thick:#fff; --lg-edge:rgba(0,0,0,.6); --lg-blur:0px; --lg-sat:1}
+  :root[data-theme=dark]{--g-ink:#fff; --g-ink-2:#f0f1f3; --g-dim:#d3d7de; --g-faint:#bcc2cb; --g-line:rgba(255,255,255,.45); --g-line-2:rgba(255,255,255,.65); --g-line-strong:#fff; --g-brand-text:#ffb8d5; --lg-regular:#14161a; --lg-thick:#14161a; --lg-edge:rgba(255,255,255,.65)}
+}
+
+/* Navegador sem desfoque: material opaco */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  :root{--lg-regular:#fbfbfd}
+  :root[data-theme=dark]{--lg-regular:#1f2227}
+}

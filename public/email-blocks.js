@@ -12,7 +12,7 @@ export const FONTS = [['Arial, Helvetica, sans-serif', 'Arial'], ['Georgia, seri
 export const MERGE_FIELDS = [['{{contact.first_name}}', 'Primeiro nome'], ['{{contact.name}}', 'Nome completo'], ['{{contact.email}}', 'E-mail'], ['{{contact.company}}', 'Empresa'], ['{{workspace.name}}', 'Nome da empresa']];
 export const MAX_BLOCKS = 60;
 
-const DEFAULT_STYLE = { background: '#f4f4f5', card: '#ffffff', text: '#1f2937', accent: '#d6246e', font: FONTS[0][0] };
+const DEFAULT_STYLE = { background: '#f4f4f5', card: '#ffffff', text: '#1f2937', accent: '#ff4f9a', font: FONTS[0][0] };
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const clip = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
 const color = (value, fallback) => /^#[0-9a-f]{6}$/i.test(value || '') ? value.toLowerCase() : fallback;

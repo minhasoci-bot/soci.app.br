@@ -219,7 +219,7 @@ test('Account lifecycle blocks operators and API keys while agency support is re
   ];
   for (const [path, body] of protectedRoutes) await suspended(path, { user: ownerA, body }, 'Closed');
   assert.deepEqual(store.load(workspace), preserved);
-  assert.ok(store.load('agency').audit.some(row => row.action === 'Sub-account support viewed' && row.target === workspace));
+  assert.ok(store.audit.page('agency').entries.some(row => row.action === 'Sub-account support viewed' && row.target === workspace));
 
   await setRole('Agency User');
   await suspended(state, { user: member }, 'Closed');

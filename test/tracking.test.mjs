@@ -72,6 +72,17 @@ test('Site events: anonymous visits, a form that creates the contact, and later 
   assert.equal(s.trackingEvents.at(-1).url, '', 'only http(s) addresses are kept');
 });
 
+test('A form with only a phone finds the contact by its digits, or creates one', () => {
+  const s = blank('Loja');
+  event(s, { type: 'form', fields: { nome: 'Dani', telefone: '(11) 96666-5555' } });
+  const dani = s.contacts.find(c => c.phone === '(11) 96666-5555');
+  assert.equal(dani.name, 'Dani');
+  const contacts = s.contacts.length;
+  event(s, { vid: 'visitor0003', type: 'form', fields: { telefone: '11 96666 5555', email: 'dani@exemplo.com' } });
+  assert.equal(s.contacts.length, contacts, 'same digits, same contact');
+  assert.equal(dani.email, 'dani@exemplo.com');
+});
+
 test('Lead scoring: rules add points, "once" counts a single time and workflows see the threshold', () => {
   const s = blank('Loja');
   assert.throws(() => rule(s, { name: 'x', trigger: { type: 'invented' }, points: 5 }), /ação do contato/);

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { changeDashboard } from './dashboard-model.mjs';
 import { validDesign } from './ui/studio-design.js';
 import { formOpen, readAnswers, validFields, validTiers } from './ui/form-fields.js';
+import { outcomeOf, validDestination, validRoutes } from './destinations.mjs';
 import { changeReport } from './report-model.mjs';
 import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashboard-data.js';
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
@@ -17,7 +18,7 @@ import { blogBeforeDelete, blogCollections, blogFields, blogView } from './blog-
 import { storeAfterSave, storeBeforeDelete, storeCheckout, storeCollections, storeFields } from './store-model.mjs';
 import { webinarBeforeDelete, webinarCollections, webinarCommand, webinarFields } from './webinar-model.mjs';
 import { qrCollections, qrFields, qrScan } from './qr-model.mjs';
-import { mediaBeforeDelete, mediaCollections as driveCollections, mediaCommand, mediaCommandTypes, mediaFields as driveFields, mediaFile, mediaKind } from './media-model.mjs';
+import { mediaBeforeDelete, mediaCollections as driveCollections, mediaCommand, mediaCommandTypes, mediaFields as driveFields, mediaFile, mediaKind, storedFile } from './media-model.mjs';
 import { courseFields } from './course-model.mjs';
 import { communityCollections, communityFields } from './community.mjs';
 import { communityEventBeforeDelete, communityEventCollections, communityEventCommand, communityEventFields } from './community-events.mjs';
@@ -149,9 +150,9 @@ function formRecord(s, d) {
   if (d.showTitle !== undefined) row.showTitle = Boolean(d.showTitle);
   if (d.addTags !== undefined) row.addTags = tags(d.addTags);
   if (d.onSubmit !== undefined) {
-    const action = d.onSubmit?.action === 'redirect' ? 'redirect' : 'message';
-    row.onSubmit = { action, message: str(d.onSubmit?.message, 500), url: action === 'redirect' ? req(webAddress(d.onSubmit?.url), 'Endereço de redirecionamento') : webAddress(d.onSubmit?.url) };
+    row.onSubmit = validDestination(s, d.onSubmit?.action === 'default' ? { ...d.onSubmit, action: 'message' } : d.onSubmit, 'Ao enviar');
   }
+  if (d.routes !== undefined) row.routes = validRoutes(s, d.routes, { fields: row.fields || prior?.fields || [], kind, tiers: row.tiers || prior?.tiers || [] });
   if (d.schedule !== undefined) {
     const start = when(d.schedule?.start, 'início'), end = when(d.schedule?.end, 'fim');
     if (start && end && end <= start) fail('O fim do período precisa ser depois do início.');
@@ -528,8 +529,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   }
   if (type === 'ai-video-done') {
     s.aiVideoJobs = (s.aiVideoJobs || []).filter(row => row.jobId !== d.jobId);
-    if (!d.chunks) return '';
-    const video = add(s, 'aiVideos', { id: str(d.id, 60), mime: 'video/mp4', chunks: Number(d.chunks) || 0, bytes: Number(d.bytes) || 0, prompt: str(d.prompt, 500), workflowId: str(d.workflowId, 60) });
+    if (!d.chunks && !d.r2Key) return '';
+    const video = add(s, 'aiVideos', { id: str(d.id, 60), mime: 'video/mp4', ...(d.r2Key && { r2Key: str(d.r2Key, 200) }), chunks: Number(d.chunks) || 0, bytes: Number(d.bytes) || 0, prompt: str(d.prompt, 500), workflowId: str(d.workflowId, 60) });
     if (s.aiVideos.length > 50) s.aiVideos.splice(0, s.aiVideos.length - 50);
     return video.id;
   }
@@ -677,6 +678,15 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (['webinar-register','webinar-attend','webinar-reminders'].includes(type)) return webinarCommand(s, { ...command, data:d }, { add, run, now });
   if (type === 'qr-scan') return qrScan(s, id, d);
   if (mediaCommandTypes.includes(type)) return mediaCommand(s, type, d, remove);
+  // Server-only (not in the client command list): records written after the bytes landed in R2.
+  if (type === 'media-stored') return storedFile(s, d, workspace);
+  if (type === 'video-stored') {
+    const row = s.videoTestimonials.find(item => item.id === d.id);
+    if (!row || typeof d.r2Key !== 'string' || d.r2Key !== `ws/${workspace}/videos/${row.id}`) return '';
+    row.r2Key = d.r2Key;
+    row.chunks = 0;
+    return row.id;
+  }
   if (type === 'studio-meta') return studioMeta(s, id, d);
   if (type === 'studio-visit' || type === 'studio-star') {
     const project = find(s,'studioProjects',id);
@@ -1027,7 +1037,11 @@ function other(s, command, type, key, id, d, workspace) {
     if (!formOpen(form)) fail(form.schedule?.closedMessage || 'Este formulário não está recebendo respostas agora.',403);
     const read = readAnswers(form, d, s.customFields || []);
     if (!read.ok) fail(Object.entries(read.errors).map(([key, text]) => key === '_form' ? text : `${form.fields?.find(f => f.key === key)?.label || key}: ${text}`)[0]);
-    const info = read.contact, addTags = tags([...(form.addTags || []), ...(read.result?.tierDetail?.tag ? [read.result.tierDetail.tag] : [])]);
+    // O campo livre dos sites publicados (mensagem, assunto, interesse) não faz parte do formulário da subconta.
+    const message = str(d._message,2000);
+    if (message) read.answers.push({ key:'message', label:'Mensagem', value:message });
+    const outcome = outcomeOf(form, read);
+    const info = read.contact, addTags = tags([...(form.addTags || []), ...(read.result?.tierDetail?.tag ? [read.result.tierDetail.tag] : []), ...outcome.tags]);
     let c = (info.email && s.contacts.find(r=>r.email===info.email)) || (info.phone && s.contacts.find(r=>digits(r.phone) && digits(r.phone)===digits(info.phone)));
     if (!c) {
       c=add(s,'contacts',{ name:info.name || 'Contato do formulário', email:info.email, phone:info.phone, tags:addTags, company:info.company, notes:'', custom:customData(s,'Contact',{ custom:read.custom }) });
@@ -1040,10 +1054,13 @@ function other(s, command, type, key, id, d, workspace) {
       if (addTags.length) c.tags = tags([...(c.tags || []), ...addTags]);
       c.updated = now();
     }
-    const submission=add(s,'submissions',{ formId:id, contactId:c.id, name:info.name || c.name, email:info.email, phone:info.phone, answers:read.answers, source:str(d._source,40) || 'Link', ...(read.result ? { result:{ score:read.result.score, max:read.result.max, percent:read.result.percent, tier:read.result.tier, categories:read.result.categories } } : {}) });
+    const submission=add(s,'submissions',{ formId:id, contactId:c.id, name:info.name || c.name, email:info.email, phone:info.phone, answers:read.answers, source:str(d._source,40) || 'Link', ...(form.routes?.length ? { qualified:outcome.qualified } : {}), ...(read.result ? { result:{ score:read.result.score, max:read.result.max, percent:read.result.percent, tier:read.result.tier, categories:read.result.categories } } : {}) });
     if (s.submissions.length > 5000) s.submissions.splice(0, s.submissions.length - 5000);
     linkVisitor(s, d._vid, c.id);
-    run(s,'Form submitted',{contactId:c.id,formId:id,tier:read.result?.tier || ''});
+    // Quem vai para a agenda (ou para uma página que a mostra) chega com o que digitou, nunca com os dados guardados.
+    if (outcome.qualified && ['booking','page'].includes(outcome.dest.action) && s.scheduling?.enabled)
+      createBookingLink(s, '', c, { serviceId:outcome.dest.serviceId || '', days:2, person:{ name:info.name === info.email || info.name === info.phone ? '' : info.name, email:info.email, phone:info.phone }, submissionId:submission.id });
+    run(s,'Form submitted',{contactId:c.id,formId:id,tier:read.result?.tier || '',qualified:outcome.qualified ? 'yes' : 'no'});
     return submission.id;
   }
   if (type === 'form-view') {

@@ -1,11 +1,11 @@
 /* Pagamentos → Faturas recorrentes e Modelos de fatura (on top of estimates.css and documents.css). */
 .iv-fields { display: contents; border: 0; margin: 0; padding: 0; min-width: 0; }
 .iv-fields[disabled] .li-add, .iv-fields[disabled] .li-tools { display: none; }
-.iv-template { padding: 12px; border: 1px dashed var(--line, #d0d5dd); border-radius: 10px; }
+.iv-template { padding: 12px; border: 1px dashed var(--line, #d0d5dd); border-radius: var(--r-control); }
 .iv-side { display: grid; gap: 16px; align-content: start; }
 .iv-side > .es-preview { position: static; }
 .iv-side h2 { margin: 0 0 8px; font-size: 14px; }
-.iv-next { padding: 14px 16px; border: 1px solid var(--line, #eaecf0); border-radius: 12px; background: var(--surface, #fff); }
+.iv-next { padding: 14px 16px; border: 1px solid var(--line, #eaecf0); border-radius: var(--r-group); background: var(--surface, #fff); }
 .iv-next ol { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .iv-next li { padding: 4px 10px; border-radius: 999px; background: var(--soft, #f2f4f7); font-variant-numeric: tabular-nums; font-size: 13px; }
 .iv-next li:first-child { font-weight: 600; }
@@ -20,7 +20,7 @@
 .ps-head h2 { margin: 0; }
 .ps-vars { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
 .ps-vars .chip { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line, #d0d5dd); background: var(--surface, #fff); cursor: pointer; }
-.ps-mail { border: 1px solid var(--line, #eaecf0); border-radius: 12px; padding: 14px 16px; background: var(--soft, #f9fafb); font-size: 14px; }
+.ps-mail { border: 1px solid var(--line, #eaecf0); border-radius: var(--r-group); padding: 14px 16px; background: var(--soft, #f9fafb); font-size: 14px; }
 .ps-mail-head { margin: 0 0 6px; color: var(--muted, #475467); }
 .ps-mail-body { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line, #eaecf0); overflow-wrap: anywhere; }
 .ps-link { color: var(--accent, #155eef); }
@@ -45,6 +45,6 @@
 .ct-inv input[data-ct-field="sku"] { min-width: 96px; }
 .ct-stars { color: #f79009; letter-spacing: 1px; white-space: nowrap; }
 .ct-review p { margin: 2px 0 0; max-width: 46ch; white-space: pre-line; }
-.ct-pick { display: grid; gap: 6px; max-height: 260px; overflow: auto; border: 1px solid var(--line, #eaecf0); border-radius: 10px; padding: 10px 12px; }
+.ct-pick { display: grid; gap: 6px; max-height: 260px; overflow: auto; border: 1px solid var(--line, #eaecf0); border-radius: var(--r-control); padding: 10px 12px; }
 .ct-pick label { display: flex; align-items: center; gap: 8px; font-weight: 500; }
-.ct-quote { margin: 0; padding: 10px 12px; border-left: 3px solid var(--line, #d0d5dd); background: var(--soft, #f9fafb); border-radius: 6px; }
+.ct-quote { margin: 0; padding: 10px 12px; border-left: 3px solid var(--line, #d0d5dd); background: var(--soft, #f9fafb); border-radius: var(--r-chip); }
