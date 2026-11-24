@@ -131,7 +131,8 @@
     "artigo": "links-de-pagamento",
     "titulo": "Links de pagamento",
     "fase": "F2",
-    "status": "pendente"
+    "status": "pendente",
+    "nota": "Precisa de um gateway conectado para mostrar o checkout; no app local a tela mostra o aviso de projeto local."
   },
   {
     "grupo": "pagamentos",
@@ -180,6 +181,7 @@
     "artigo": "formularios",
     "titulo": "Formulários",
     "fase": "F2",
-    "status": "pendente"
+    "status": "pendente",
+    "nota": "Aguardando o app: o editor de formulários (fb dw-workspace) abre com 72 px de largura no layout Liquid Glass; roteiro pronto em docs-site/roteiros/formularios.mjs."
   }
 ]
