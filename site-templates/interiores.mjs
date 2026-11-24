@@ -1,5 +1,5 @@
 // Modelo "Ateliê de Interiores": página única para estúdio de design de interiores. Quente, editorial e calmo.
-import { document, esc, formCss, img, leadForm, video, videos } from './kit.mjs';
+import { document, esc, formCss, img, initials, leadForm, video, videos } from './kit.mjs';
 
 const fonts = ['Instrument Serif:ital@0;1', 'Manrope:wght@400;500;600'];
 const arrow = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3 11 11 3M5 3h6v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -61,7 +61,7 @@ p{margin:0}
 .quotes{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(24px,4vw,60px)}
 .q{display:grid;gap:26px;align-content:space-between;padding-top:28px;border-top:1px solid var(--line)}
 .q p{font-family:"Instrument Serif",serif;font-size:clamp(26px,2.3vw,34px);line-height:1.18}
-.q footer{display:flex;gap:14px;align-items:center;font-size:14px}.q img{width:46px;height:46px;border-radius:50%;object-fit:cover}.q b{display:block;font-weight:600}.q small{color:var(--muted)}
+.q footer{display:flex;gap:14px;align-items:center;font-size:14px}.ini{flex:none;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:#fff;font-size:14px;font-weight:500}.q b{display:block;font-weight:600}.q small{color:var(--muted)}
 .faqform{display:grid;grid-template-columns:1.1fr .9fr;gap:clamp(30px,6vw,96px);align-items:start}
 .faqform h2{font-size:clamp(46px,5.4vw,84px);margin-bottom:36px}
 .faq details{border-bottom:1px solid var(--line);padding:24px 0}.faq details:first-of-type{border-top:1px solid var(--line)}
@@ -120,8 +120,8 @@ function home(brand) {
 <span class="tag" style="color:#fff">Agenda aberta para o próximo semestre</span><h2 data-split>Vamos desenhar a <i>sua</i> casa?</h2><a class="btn light" data-magnetic href="#orcamento">Agendar uma conversa ${arrow}</a></div></div></section>
 
 <section style="padding-bottom:clamp(110px,13vw,190px)"><div class="wrap"><div class="head"><h2 data-split>Quem já mora num projeto nosso</h2></div>
-<div class="quotes">${[['“Parece que sempre moramos aqui. Cada canto tem a nossa cara.”', 'Camila e Pedro', 'Apartamento em Pinheiros', 'photo-1494790108377-be9c29b29330'], ['“Entregaram no prazo e no valor combinado. Isso não tem preço.”', 'Ricardo Menezes', 'Casa em Campinas', 'photo-1507003211169-0a1dd7228f2d'], ['“O 3D foi idêntico ao resultado. Mudei sem nenhuma surpresa.”', 'Juliana Prates', 'Cobertura na Vila Nova', 'photo-1438761681033-6461ffad8d80']]
-  .map(([t, n, w, p]) => `<blockquote class="q rv" style="margin:0"><p>${t}</p><footer><img src="${img(p, 120)}" alt=""><span><b>${n}</b><small>${w}</small></span></footer></blockquote>`).join('')}</div></div></section>
+<div class="quotes">${[['“Parece que sempre moramos aqui. Cada canto tem a nossa cara.”', 'Camila e Pedro', 'Apartamento em Pinheiros'], ['“Entregaram no prazo e no valor combinado. Isso não tem preço.”', 'Ricardo Menezes', 'Casa em Campinas'], ['“O 3D foi idêntico ao resultado. Mudei sem nenhuma surpresa.”', 'Juliana Prates', 'Cobertura na Vila Nova']]
+  .map(([t, n, w]) => `<blockquote class="q rv" style="margin:0"><p>${t}</p><footer>${initials(n)}<span><b>${n}</b><small>${w}</small></span></footer></blockquote>`).join('')}</div></div></section>
 
 <section id="perguntas" style="padding-bottom:clamp(110px,13vw,190px)"><div class="wrap faqform"><div class="faq"><h2 data-split>Perguntas <i>frequentes</i></h2>
 ${[['Quanto custa um projeto?', 'Depende do tamanho e da complexidade. Depois da primeira conversa enviamos uma proposta fechada, sem custo.'], ['Vocês atendem fora de São Paulo?', 'Sim. Fazemos projetos a distância com visitas planejadas e acompanhamento por vídeo.'], ['Quanto tempo leva?', 'O projeto leva de 4 a 8 semanas. A obra, de 2 a 6 meses, conforme o escopo.'], ['Posso aproveitar meus móveis?', 'Claro. Fazemos o inventário do que você tem e incorporamos ao projeto.'], ['Vocês cuidam da obra?', 'Sim, com equipe própria e parceiros de confiança, da demolição à limpeza final.']]

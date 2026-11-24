@@ -1,7 +1,7 @@
 // Modelo "Corretora": site de corretora de imóveis com marca pessoal.
 // Direção: editorial e contida, como os templates premium do Framer. Topo emoldurado (texto + foto),
 // tipografia de peso 500 com espaçamento apertado, muito respiro, fotos de tom quente e coerente.
-import { document, esc, formCss, img, leadForm, video, videos } from './kit.mjs';
+import { document, esc, formCss, img, initials, leadForm, video, videos } from './kit.mjs';
 
 const fonts = ['Plus Jakarta Sans:wght@400;500;600', 'Inter:wght@400;500'];
 const arrow = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3 11 11 3M5 3h6v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -98,7 +98,7 @@ p{margin:0}
 .voices{background:var(--ink);color:#fff;border-radius:var(--r);padding:clamp(36px,6vw,96px)}
 .voices .label{color:rgba(255,255,255,.6)}
 .voices blockquote{margin:28px 0 0;font-family:"Plus Jakarta Sans";font-weight:400;letter-spacing:-.035em;font-size:clamp(28px,3.4vw,50px);line-height:1.12;max-width:1060px}
-.who{display:flex;align-items:center;gap:14px;margin-top:34px}.who img{width:48px;height:48px;border-radius:50%;object-fit:cover}.who b{display:block;font-weight:500}.who small{color:rgba(255,255,255,.6);font-size:14px}
+.who{display:flex;align-items:center;gap:14px;margin-top:34px}.ini{flex:none;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.12);font-size:14px;font-weight:500}.who b{display:block;font-weight:500}.who small{color:rgba(255,255,255,.6);font-size:14px}
 .more{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:70px;padding-top:36px;border-top:1px solid rgba(255,255,255,.14)}
 .more p{font-size:18px;color:rgba(255,255,255,.85);line-height:1.5}.more .who{margin-top:20px}
 .stars{color:#f2c04b;letter-spacing:3px;font-size:13px}
@@ -218,9 +218,9 @@ function home(brand) {
 <section class="sec" style="padding-top:0"><div class="wrap"><div class="voices">
   <span class="label rv">Clientes</span>
   <blockquote class="rv">“Vendemos o apartamento em trinta dias, pelo preço que queríamos, e ainda encontramos a casa nova no mesmo mês. Ela cuidou de tudo.”</blockquote>
-  <div class="who rv"><img src="${img('photo-1494790108377-be9c29b29330', 120)}" alt=""><div><b>Mariana e Pedro Souza</b><small>Venderam em Moema e compraram em Pinheiros</small></div></div>
-  <div class="more">${[['“Visitamos só quatro casas e a terceira já era a nossa. Nunca imaginei que seria tão simples.”', 'Rafael Lima', 'Comprou na Granja Viana', 'photo-1507003211169-0a1dd7228f2d'], ['“Explicou cada cláusula do financiamento com paciência. Me senti segura do começo ao fim.”', 'Beatriz Alves', 'Primeiro imóvel', 'photo-1438761681033-6461ffad8d80']]
-    .map(([q, n, w, p]) => `<div class="rv"><span class="stars">★★★★★</span><p style="margin-top:12px">${q}</p><div class="who"><img src="${img(p, 120)}" alt=""><div><b>${n}</b><small>${w}</small></div></div></div>`).join('')}</div>
+  <div class="who rv">${initials('Mariana Souza')}<div><b>Mariana e Pedro Souza</b><small>Venderam em Moema e compraram em Pinheiros</small></div></div>
+  <div class="more">${[['“Visitamos só quatro casas e a terceira já era a nossa. Nunca imaginei que seria tão simples.”', 'Rafael Lima', 'Comprou na Granja Viana'], ['“Explicou cada cláusula do financiamento com paciência. Me senti segura do começo ao fim.”', 'Beatriz Alves', 'Primeiro imóvel']]
+    .map(([q, n, w]) => `<div class="rv"><span class="stars">★★★★★</span><p style="margin-top:12px">${q}</p><div class="who">${initials(n)}<div><b>${n}</b><small>${w}</small></div></div></div>`).join('')}</div>
 </div></div></section>
 
 <section class="sec" id="contato" style="padding-top:0"><div class="wrap contact">
