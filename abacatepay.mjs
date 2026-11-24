@@ -6,6 +6,7 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, 
 import { execute } from './model.mjs';
 import { disputeCharge, refundCharge, settleCharge } from './gateway-events.mjs';
 import { postFact } from './ledger-model.mjs';
+import { restoreFromBilling, suspendForBilling } from './agency-model.mjs';
 
 export const ABACATEPAY_API = 'https://api.abacatepay.com/v2';
 // Published by AbacatePay for every account: it signs the body, the secret proves the sender.
@@ -16,6 +17,8 @@ export const webhookEvents = ['checkout.completed', 'checkout.refunded', 'checko
 // Documented as events, but not in the list accepted when a webhook is created: dropped when the gateway refuses them.
 const doubtfulEvents = ['subscription.payment_failed', 'subscription.plan_changed'];
 const AGENCY_SCOPE = 'agency';
+// The gateway gave up on the subscription by itself (the agency or the client cancelling is not this).
+const suspendingReasons = new Set(['max_payment_retries_exceeded', 'dispute_opened', 'pix_automatic_authorization_refused']);
 const methodNames = { PIX: 'Pix', CARD: 'Card', BOLETO: 'Boleto' };
 
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
@@ -247,18 +250,18 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
   }
 
   // ---- Agency: SaaS plans billed as subscriptions -------------------------------------------
-  async function subscribe(agencyId, workspaceId, plan, publicOrigin) {
+  async function subscribe(agencyId, workspaceId, plan, publicOrigin, { trial: withTrial = true, retryPolicy = null } = {}) {
     const row = await loadRow(agencyId);
     const apiKey = keyOf(row, agencyId, AGENCY_SCOPE);
     if (!plan) throw fail('Atribua um plano SaaS a esta subconta antes de gerar a assinatura.');
     const price = cents(plan.price);
     if (price < 100) throw fail('O plano precisa custar pelo menos R$ 1,00.');
     const product = { externalId: `soci-plan-${plan.id}-${price}`, name: clean(plan.name, 120) || 'Plano', price, cycle: 'MONTHLY' };
-    const trial = Math.round(Number(plan.trialDays) || 0);
+    const trial = withTrial ? Math.round(Number(plan.trialDays) || 0) : 0;
     if (trial >= 1 && trial <= 90) { product.trialDays = trial; product.externalId += `-t${trial}`; }
     const productId = await ensureProduct(apiKey, product);
     const body = { items: [{ id: productId, quantity: 1 }], externalId: `saas-${workspaceId}-${Date.now().toString(36)}`, methods: ['PIX', 'CARD'],
-      completionUrl: `${publicOrigin}/app`, returnUrl: `${publicOrigin}/app`, metadata: { workspace: workspaceId, planId: plan.id } };
+      completionUrl: `${publicOrigin}/app`, returnUrl: `${publicOrigin}/app`, metadata: { workspace: workspaceId, planId: plan.id }, ...(retryPolicy && { retryPolicy }) };
     let checkout;
     try { checkout = await call(apiKey, '/subscriptions/create', { method: 'POST', body }); }
     catch (err) {
@@ -303,8 +306,13 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     const billing = entry[1].billing;
     let effect = '';
     if (subscriptionId) billing.subscriptionId = subscriptionId;
-    billing.status = event === 'subscription.cancelled' || data?.subscription?.status === 'CANCELLED' ? 'Cancelled'
-      : event === 'subscription.trial_started' ? 'Trial' : 'Active';
+    const ended = event === 'subscription.cancelled' || data?.subscription?.status === 'CANCELLED';
+    // Deliveries can come out of order: what is cancelled stays cancelled (a new subscription is another record).
+    if (ended || billing.status === 'Cancelled') billing.status = 'Cancelled';
+    else if (event === 'subscription.payment_failed') billing.status = 'PastDue';
+    else if (event === 'subscription.trial_started') billing.status = 'Trial';
+    else if (event !== 'subscription.plan_changed') billing.status = 'Active';
+    billing.history = [...(billing.history || []), { at: stamp(), event, detail: clean(data?.subscription?.cancelledDueTo || data?.status || '', 200) }].slice(-100);
     billing.method = methodNames[data?.subscription?.method] || billing.method || '';
     if (event === 'subscription.completed' || event === 'subscription.renewed') {
       const pay = data?.payment || {};
@@ -319,9 +327,25 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
       }
     }
     if (event === 'subscription.trial_started') effect = 'trial';
-    if (billing.status === 'Cancelled') billing.cancelledAt = stamp();
+    if (event === 'subscription.plan_changed') effect = 'changed';
+    let notify = 0;
+    if (event === 'subscription.payment_failed' && billing.status === 'PastDue') {
+      effect = 'past_due';
+      const retryNumber = Math.max(1, Math.round(Number(data?.retryNumber) || (billing.failures?.length || 0) + 1));
+      if (!(billing.failures || []).some(item => item.retryNumber === retryNumber)) {
+        billing.failures = [...(billing.failures || []), { at: stamp(), retryNumber }].slice(-40);
+        notify = retryNumber;
+      }
+    }
+    if (['Active', 'Trial'].includes(billing.status) && effect === 'paid') billing.failures = [];
+    if (['Active', 'Trial'].includes(billing.status) && ['paid', 'trial'].includes(effect)) restoreFromBilling(agency, entry[0]);
+    if (event === 'subscription.cancelled') {
+      effect = 'ended';
+      if (agency.saas?.autoSuspend?.enabled && suspendingReasons.has(String(data?.subscription?.cancelledDueTo || ''))) suspendForBilling(agency, entry[0]);
+    }
+    if (billing.status === 'Cancelled') billing.cancelledAt ||= stamp();
     billing.updatedAt = stamp();
-    return { accountId: entry[0], effect };
+    return { accountId: entry[0], effect, notify, name: entry[1].name || entry[0], plan: billing.planName || '', subscriptionId: billing.subscriptionId };
   }
   // A refund or dispute of a plan's payment: the charge is the checkout of the subscription, so it is the latest payment.
   function planReversal(agency, charge, event) {

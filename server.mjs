@@ -292,7 +292,7 @@ function publicAgency(agency, who) {
     for (const key of ['profile', 'users', 'billing', 'fiscal', 'apiKeys', 'privateIntegrations', 'emailServices', 'systemEmails', 'compliance']) {
       if (Object.hasOwn(empty, key)) view[key] = empty[key];
     }
-    view.accounts = Object.fromEntries(Object.entries(agency.accounts).map(([id, { statusHistory, ignoredWebhooks, suspendedReason, billing, ...meta }]) => [id, meta]));
+    view.accounts = Object.fromEntries(Object.entries(agency.accounts).map(([id, { statusHistory, ignoredWebhooks, suspendedReason, suspendedBy, billing, ...meta }]) => [id, meta]));
   }
   if (who.modules !== null || !who.settings) view.snapshots = view.snapshots.map(({ assets, shareCode, ...snap }) => snap);
   // Setups imported with asset protection show only how many records each type has, never the records.
@@ -691,6 +691,7 @@ export function makeServer({
     belongsCache.set(cacheKey, { result, expiresAt: now + BELONGS_CACHE_TTL });
     return result;
   }
+  const retryPolicyOf = agency => ({ maxRetry: agency.saas.autoSuspend.maxRetry, retryEvery: agency.saas.autoSuspend.retryEvery });
   const pausedError = (lifecycle, showReason = false) => Object.assign(
     error(lifecycle.status === 'Closed' ? 'Esta subconta foi encerrada.' : 'Esta subconta está pausada.', 403),
     { code: 'ACCOUNT_SUSPENDED', account: showReason ? lifecycle : { status: lifecycle.status } }
@@ -2518,6 +2519,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         ]);
         if (who.support) await writeAudit(who, 'Sub-account support viewed', id, who.account.status);
         return json({ ...workspaceView(who, state), workspaces,
+          ...(!isPersonal && hasModule(who, 'settings') && agency.accounts[id]?.billing?.status === 'PastDue' && { billingNotice: 'past_due' }),
           features:{studioAI: Boolean(aiStatus?.configured && studio), socialAI: Boolean(aiStatus?.configured && marketing), contentAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && (marketing || studio)), reviewAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && reputation), reportEmail: reportMail.configured, social: marketing ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
           agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id,who.settings),
           ...(who.support && { account: { ...who.account, support: true, statusHistory: agency.accounts[id]?.statusHistory || [],
@@ -2643,6 +2645,16 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/abacatepay/webhook/') && method === 'POST') {
         await ready;
         return await abacate.handleWebhook({ req, url, json, listWorkspaces, changeAgency,
+          onSubscription: async (agencyId, { accountId, notify, name, plan, subscriptionId }) => {
+            if (!notify) return;
+            const agency = await loadAgency(agencyId);
+            const to = new Set([agency.profile.email, ...agency.users.filter(user => ['Agency Owner', 'Agency Admin'].includes(user.role)).map(user => user.email)].filter(Boolean).map(email => email.toLowerCase()));
+            const text = `O pagamento do plano ${plan} da subconta ${name} foi recusado (tentativa ${notify}).\n\nO AbacatePay tenta de novo sozinho. Acompanhe em Configurador SaaS → Subcontas SaaS.`;
+            for (const email of to) {
+              const outcome = await documentMail.email(email, { subject: `Pagamento recusado: ${name}`, text }, `plan-failed-${subscriptionId || accountId}-${notify}-${email}`, { fromName: agency.company.name });
+              if (!mailSent(outcome)) console.warn(`Aviso de plano recusado (${accountId}): ${outcome}`);
+            }
+          },
           onWalletReversal: async (agencyId, { workspace, checkoutId, event, status, lost }) => {
             if (!(await listWorkspaces(agencyId)).some(w => w.id === workspace)) return false;
             const refunded = /\.refunded$/.test(event), gone = refunded || lost || status === 'REFUNDED';
@@ -2691,8 +2703,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const agency = await loadAgency(who.agencyId);
           const meta = agency.accounts[workspace] || {};
           if (op === 'subscribe') {
-            if (meta.billing?.provider === 'abacatepay' && ['Active', 'Trial'].includes(meta.billing.status)) throw error('Esta subconta já tem uma assinatura ativa. Cancele antes de gerar outra.', 409);
-            const billing = await abacate.subscribe(who.agencyId, workspace, agency.plans.find(plan => plan.id === meta.plan), origin);
+            if (meta.billing?.provider === 'abacatepay' && ['Active', 'Trial', 'PastDue'].includes(meta.billing.status)) throw error('Esta subconta já tem uma assinatura ativa. Cancele antes de gerar outra.', 409);
+            const billing = await abacate.subscribe(who.agencyId, workspace, agency.plans.find(plan => plan.id === meta.plan), origin, { retryPolicy: retryPolicyOf(agency) });
             await changeAgency(who.agencyId, current => { current.accounts[workspace] = { ...(current.accounts[workspace] || {}), billing }; });
             await recordAudit(who, 'Assinatura AbacatePay gerada', meta.name || workspace, billing.planName);
             return json(await agencyPayload(req, res, { result: billing }));
