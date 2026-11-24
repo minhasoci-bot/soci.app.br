@@ -43,7 +43,7 @@ async function connected(t, { open = true } = {}) {
   await fetch(`${base}/api/whatsapp/workspace/status?workspace=demo`);
   calls.length = 0;
   const handler = createWhatsAppHandler({ store, secret: SECRET, request, envBaseUrl: '', envAdminToken: '', ...options });
-  return { evo, calls, base, send: message => handler.sendEventMessage('agency', 'demo', message, active), groups: () => handler.listWorkspaceGroups('agency', 'demo', active), handler };
+  return { evo, calls, base, store, send: message => handler.sendEventMessage('agency', 'demo', message, active), groups: () => handler.listWorkspaceGroups('agency', 'demo', active), handler };
 }
 const sends = calls => calls.filter(c => c.path.startsWith('/message/'));
 
@@ -113,6 +113,39 @@ test('Only what surely was not sent may be retried, and never inside the call', 
   assert.equal(await outcome(() => json({}, 429)), 'unconfirmed');
   assert.equal(await outcome(() => json({ response: { message: ['Connection Closed'] } }, 400)), 'waiting');
   assert.equal(await outcome(() => json({ response: { message: [{ exists: false, number: '5511' }] } }, 400)), 'failed');
+});
+
+async function action(base, command) {
+  const res = await fetch(`${base}/api/action?workspace=demo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(command) });
+  const body = await res.json();
+  assert.equal(res.status, 200, body.error);
+  return body;
+}
+const until = async check => { for (let n = 0; n < 100; n++) { if (await check()) return true; await new Promise(done => setTimeout(done, 30)); } return false; };
+
+test('From the planner to WhatsApp: a due message leaves at once and the cron does not wait for the rest', async t => {
+  const wa = await connected(t);
+  for (let n = 1; n <= 2; n++) await action(wa.base, { type: 'save', key: 'contacts', data: { name: `Fila${n}`, phone: `551190000000${n}`, tags: ['fila-teste'] } });
+  const itemId = '6ccf69dd-f808-4258-b12c-9d5de1f06c88', groupId = '3c4ad2e7-7ec3-4b15-a35c-155e081bd240';
+  const base = { kind: 'message', status: 'pronto', date: '2020-01-01', time: '10:00' };
+  const { id } = await action(wa.base, { type: 'save', key: 'eventPlans', data: { title: 'Aula', eventDate: '2026-12-10', plan: { brief: {}, items: [
+    { ...base, id: itemId, title: 'Privado', channel: 'privado', notes: 'Oi, {{contact.first_name}}!', targets: { tags: ['fila-teste'], excludeTags: [] } },
+    { ...base, id: groupId, title: 'Grupo', channel: 'grupos', audience: 'base', notes: 'Oi grupo' }] } } });
+  await action(wa.base, { type: 'event-groups-save', id, data: { base: [{ jid: GROUP, name: 'Zeladores' }], evento: [] } });
+  await action(wa.base, { type: 'event-message-schedule', id, data: { itemId } });
+  await action(wa.base, { type: 'event-message-schedule', id, data: { itemId: groupId } });
+  assert.ok(await until(() => sends(wa.calls).length === 2), 'um privado e o grupo saem na hora');
+  assert.deepEqual(sends(wa.calls).map(c => [c.body.number, c.body.text]).sort(), [[GROUP, 'Oi grupo'], ['5511900000001', 'Oi, Fila1!']]);
+  const before = process.env.CRON_SECRET; process.env.CRON_SECRET = 'segredo-do-cron';
+  t.after(() => { if (before === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = before; });
+  const started = Date.now(), cron = await fetch(`${wa.base}/api/social/cron`, { headers: { Authorization: 'Bearer segredo-do-cron' } });
+  assert.equal(cron.status, 200);
+  assert.ok(Date.now() - started < 5000, 'o cron responde sem esperar o intervalo do privado');
+  await new Promise(done => setTimeout(done, 200));
+  assert.equal(sends(wa.calls).length, 2, 'o segundo privado espera o intervalo');
+  const state = await wa.store.load('demo');
+  assert.deepEqual(state.eventSends.map(row => row.status).sort(), ['queued', 'sent', 'sent']);
+  assert.equal(state.eventPlans.find(row => row.id === id).plan.items[1].status, 'enviado');
 });
 
 test('A suspended account waits instead of sending', async t => {

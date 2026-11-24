@@ -10,7 +10,7 @@ import { NEXT_ROUTE } from './next-route.mjs';
 
 export function createActionRoutes(deps) {
   const {
-    store, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess
+    store, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess
   } = deps;
   return async function actionRoute({ req, res, p, method, url, id, json, send }) {
     if (p==='/api/action' && method==='POST') {
@@ -96,6 +96,7 @@ export function createActionRoutes(deps) {
       }
       if (state.workflowOutbox?.length) flushLater(id);
       if (command.type === 'email-campaign-schedule') emailLater(id);
+      if (['event-message-schedule', 'event-message-retry'].includes(command.type)) eventSendsLater(id);
       return json({ id: result.id, ...workspaceView(who, state), ...(delivery ? { delivery } : {}) });
     }
     return NEXT_ROUTE;

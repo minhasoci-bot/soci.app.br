@@ -156,6 +156,8 @@ import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
 import { deviceOf, qrTarget } from './qr-model.mjs';
 import { ASSET_PATH, assetBytes, extractAssets, saveAssets } from './asset-store.mjs';
 import { inBackground } from './background.mjs';
+import { createEventSender } from './event-sender.mjs';
+import { eventSendDue } from './event-send-model.mjs';
 import { runInBatches } from './cron-batch.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -1897,8 +1899,25 @@ export function makeServer({
     } finally { emailRuns.delete(workspace); }
   }
   const emailLater = workspace => { inBackground(`E-mail campaigns (${workspace})`, () => runEmailCampaigns(workspace)); };
+  // Mensagens do Planejador de eventos pelo WhatsApp. Esperam entre uma e outra, então correm ao lado do cron e não dentro dele.
+  const eventSender = createEventSender({
+    load: workspace => store.load(workspace), change,
+    active: async (state, workspace) => !privateSpace.test(workspace) && Boolean(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'marketing').catch(() => false)),
+    send: (workspace, message, state) => whatsapp.sendEventMessage(state.agencyId || AGENCY_ID, workspace, message, (agencyId, id) => accountIsActive(agencyId, id, 'conversations')),
+    changed: (workspace, state) => { if (state?.workflowOutbox?.length) flushLater(workspace); },
+    sleep: ms => new Promise(done => { setTimeout(done, ms).unref?.(); })
+  });
+  const eventSendsLater = workspace => { inBackground(`Event messages (${workspace})`, () => eventSender.run(workspace)); };
+  async function runAllEventSends(at = Date.now()) {
+    const due = [];
+    for (const { id } of (await store.list()).filter(w => spaceId.test(w.id))) {
+      try { if (eventSendDue(await store.load(id), at)) due.push(id); } catch (e) { console.error(`Event messages (${id}): ${e.message}`); }
+    }
+    await runInBatches(due, async id => { try { await eventSender.run(id); } catch (e) { console.error(`Event messages (${id}): ${e.message}`); } }, { concurrency: 25, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+  }
   async function runAllSocial(base, at = Date.now()) {
     let total = 0;
+    inBackground('Event messages', () => runAllEventSends());
     const spaces = (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id));
     const { skipped } = await runInBatches(spaces, async w => {
       try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
@@ -2120,7 +2139,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   // Rotas por domínio (P2.1): cada módulo recebe o que vive neste fechamento e devolve NEXT_ROUTE quando a rota não é dele.
   const socialRoute = createSocialRoutes({ store, auth, localAccess, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
   const adsRoute = createAdsRoutes({ store, localAccess, error, spaceId, privateSpace, stamp, adsAccess, adsCallbackPath, adsPopup, adsView, payload, publicBase, recordAudit, runAds, socialActor, socialRow, workspaceAccess });
-  const actionRoute = createActionRoutes({ store, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
+  const actionRoute = createActionRoutes({ store, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
   const emailRoute = createEmailRoutes({ store, ready, error, spaceId, privateSpace, stamp, campaignMail, emailDomainApi, flushLater, inboundFetch, payload, publicAccountPolicy, publicBase, recordAudit, sendingAddress, socialRow, testHits, workspaceAccess });
   const metaRoute = createMetaRoutes({ store, ready, error, change, flushLater, metaFetch, metaRoutesRow, metaSender, publicAccountPolicy });
   const googleRoute = createGoogleRoutes({ store, ready, localAccess, error, spaceId, privateSpace, stamp, workspaceSegment, flushLater, googleCache, googleCallbackPath, googleData, googlePopup, googleView, payload, publicAccountPolicy, publicBase, recordAudit, searchCache, socialActor, socialRow, workspaceAccess });
