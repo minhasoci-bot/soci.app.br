@@ -18,6 +18,8 @@
 .ep-progress span { display:block; height:100%; border-radius:inherit; background:var(--g-brand); }
 .ep-empty { grid-column:1 / -1; }
 
+.ep-day { margin:16px 0 8px; color:var(--g-dim); font-size:12px; font-weight:700; }
+
 .ep-section-head { display:flex; gap:14px; align-items:flex-end; justify-content:space-between; margin:4px 0 14px; }
 .ep-section-head h2 { margin:0 0 3px; font-size:18px; color:var(--g-ink); letter-spacing:-.02em; }
 .ep-section-head p { margin:0; color:var(--g-dim); font-size:13px; }
@@ -39,8 +41,6 @@
 .ep-item-meta { margin:4px 0 0; color:var(--g-dim); font-size:12px; }
 .ep-item-side { display:flex; flex:0 0 auto; flex-direction:column; align-items:flex-end; gap:8px; }
 .ep-item-actions { display:flex; gap:2px; }
-.ep-check { display:grid; flex:0 0 22px; place-items:center; width:22px; height:22px; padding:0; color:var(--g-surface); background:var(--g-surface); border:1px solid var(--g-line-strong); border-radius:7px; cursor:pointer; }
-.ep-check.done { background:var(--g-brand); border-color:var(--g-brand); }
 .ep-code { display:inline-flex; padding:2px 6px; border-radius:6px; background:var(--g-surface-2); color:var(--g-ink-2); font-size:11px; font-weight:700; font-variant-numeric:tabular-nums; }
 .ep-item details { margin-top:8px; }
 .ep-item summary { color:var(--g-brand-text); font-size:12px; font-weight:650; cursor:pointer; }
@@ -68,9 +68,12 @@
 .ep-automation-guide ul { display:flex; flex-wrap:wrap; gap:8px; padding:0; margin:12px 0; list-style:none; }
 .ep-automation-guide code { padding:5px 8px; border-radius:7px; background:var(--g-surface-2); color:var(--g-ink-2); font-size:12px; }
 
+.ep-form { display:grid; gap:12px; }
+#dialog:has(.ec) { width:min(860px, calc(100vw - 24px)); }
+.ep-apply { justify-self:start; }
 .ep-form-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }
-.ep-form-foot { display:flex; align-items:center; gap:8px; margin-top:18px; }
-.ep-form-foot .spacer { flex:1; }
+.ep-form .ep-form-foot { padding:14px 0 2px; }
+.ep-form-foot .spacer, .ep-link-foot .spacer { flex:1; }
 .ep-hint { margin:4px 0 0; color:var(--g-dim); font-size:12px; }
 
 .ec { display:grid; gap:6px; }

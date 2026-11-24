@@ -1,42 +1,45 @@
 import { icon as i } from './icons.js';
+import { bindCopyEditor, copyEditorField, whatsappHtml } from './event-copy-editor.js';
 import {
-  blankEventPlan, briefFields, channels, eventPlanPhases, eventPlanStatuses,
-  eventPlanTeams, eventStatusLabel, itemKinds, itemStatus, launchEventPlan,
-  phaseLabel, teamLabel
+  blankEventPlan, briefGroups, channels, eventPlanPhases, eventPlanStatuses,
+  eventPlanTeams, eventStatusLabel, itemStatus, itemStatusLabel, launchEventPlan,
+  messageTemplates, phaseLabel, teamLabel
 } from './event-planner-data.js';
 
 const h = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const same = (a, b) => String(a || '') === String(b || '');
-const optionRows = (rows, value, empty = '') => `${empty ? `<option value="">${h(empty)}</option>` : ''}${rows.map(([id, label]) => `<option value="${h(id)}" ${same(id, value) ? 'selected' : ''}>${h(label)}</option>`).join('')}`;
-const dateLabel = value => value ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(new Date(`${value}T12:00:00`)) : 'Sem data';
+const optionRows = (rows, value) => rows.map(([id, label]) => `<option value="${h(id)}" ${same(id, value) ? 'selected' : ''}>${h(label)}</option>`).join('');
+const dateLabel = value => value ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(new Date(`${value}T12:00:00`)) : '';
 const numeric = value => Number.isFinite(Number(value)) ? Number(value) : 0;
-const planOf = event => event?.plan || blankEventPlan();
+const duration = total => `${Math.floor(total / 60)}h${String(total % 60).padStart(2, '0')}`;
+const planOf = event => event?.plan && typeof event.plan === 'object' ? { brief: event.plan.brief || {}, items: Array.isArray(event.plan.items) ? event.plan.items : [] } : { brief: {}, items: [] };
 const records = (event, kind) => planOf(event).items.filter(item => item.kind === kind);
+const usersOf = c => c.agency?.users || [];
 const primary = (label, attrs = '') => `<button class="primary" ${attrs}>${label}</button>`;
-const ui = { workspace: '', selectedId: '', section: 'strategy', phase: 'all', status: 'all', events: 'active' };
+const metric = (label, value) => `<div class="surface metric"><span>${label}</span><b>${value}</b></div>`;
+const empty = (title, text, icon) => `<div class="empty">${i(icon, 26)}<strong>${h(title)}</strong><p>${h(text)}</p></div>`;
+const ui = { workspace: '', selectedId: '', section: 'strategy', phase: 'all', status: 'all', channel: 'all', events: 'active' };
 
 function reset(workspace) {
   if (ui.workspace === workspace) return;
-  ui.workspace = workspace; ui.selectedId = ''; ui.section = 'strategy'; ui.phase = 'all'; ui.status = 'all'; ui.events = 'active';
+  ui.workspace = workspace; ui.selectedId = ''; ui.events = 'active'; openSection('strategy');
 }
+function openSection(section) { ui.section = section; ui.phase = 'all'; ui.status = 'all'; ui.channel = 'all'; }
 function eventProgress(event) {
-  const items = planOf(event).items;
-  const tasks = items.filter(row => row.kind === 'task');
-  const messages = items.filter(row => row.kind === 'message');
-  const links = items.filter(row => row.kind === 'link');
-  const agenda = items.filter(row => row.kind === 'agenda');
-  return { tasks, done: tasks.filter(row => row.status === 'feito').length, messages, sent: messages.filter(row => row.status === 'enviado').length, links, ready: links.filter(row => row.status === 'pronto').length, agenda, minutes: agenda.reduce((sum, row) => sum + numeric(row.duration), 0) };
+  const tasks = records(event, 'task'), messages = records(event, 'message'), links = records(event, 'link');
+  return {
+    tasks, done: tasks.filter(row => row.status === 'feito').length,
+    messages, sent: messages.filter(row => row.status === 'enviado').length,
+    links, ready: links.filter(row => row.status === 'pronto').length,
+    minutes: records(event, 'agenda').reduce((sum, row) => sum + numeric(row.duration), 0)
+  };
 }
-function statusPill(value, label = value) { return `<span class="ep-pill ep-${h(value)}">${h(label)}</span>`; }
-function dateMeta(item) { return [item.date ? dateLabel(item.date) : '', item.time || ''].filter(Boolean).join(' · ') || 'Sem prazo'; }
-function filterItems(items) { return items.filter(item => (ui.phase === 'all' || item.phase === ui.phase) && (ui.status === 'all' || item.status === ui.status)); }
-function emptyList(title, text, icon) { return `<div class="ep-empty-list"><span>${i(icon, 20)}</span><div><h3>${h(title)}</h3><p>${h(text)}</p></div></div>`; }
 
-const eventBadge = { planejado: '', em_andamento: ' blue', concluido: ' green', arquivado: '' };
-function statusBadge(value) { return `<span class="badge${eventBadge[value] || ''}">${h(eventStatusLabel(value))}</span>`; }
+/* ── Galeria ── */
+const eventBadge = { em_andamento: ' blue', concluido: ' green' };
 function eventCard(event) {
   const p = eventProgress(event), total = p.tasks.length, percent = total ? Math.round(p.done / total * 100) : 0, key = h(event.id);
-  return `<article class="surface ep-card"><button type="button" class="ep-card-body" data-ep-open="${key}"><span class="ep-card-meta">${statusBadge(event.status)}<span>${h(event.eventDate ? dateLabel(event.eventDate) : 'Data a definir')}</span></span><strong class="ep-card-title">${h(event.title)}</strong><span class="ep-card-stats"><span>${total ? `${p.done} de ${total} ${total === 1 ? 'tarefa concluída' : 'tarefas concluídas'}` : 'Sem tarefas'}</span><span><b>${p.sent}/${p.messages.length}</b> mensagens</span><span><b>${p.ready}/${p.links.length}</b> links</span></span><span class="ep-progress" aria-hidden="true"><span style="width:${percent}%"></span></span></button><div class="ep-card-actions" role="group" aria-label="Ações para ${h(event.title)}"><button type="button" class="text-link" data-ep-manage="rename" data-id="${key}">Renomear</button><button type="button" class="text-link" data-ep-manage="duplicate" data-id="${key}">Duplicar</button><button type="button" class="danger plain" data-ep-manage="delete" data-id="${key}">Apagar</button></div></article>`;
+  return `<article class="surface ep-card"><button type="button" class="ep-card-body" data-ep-open="${key}"><span class="ep-card-meta"><span class="badge${eventBadge[event.status] || ''}">${h(eventStatusLabel(event.status))}</span><span>${h(dateLabel(event.eventDate) || 'Data a definir')}</span></span><strong class="ep-card-title">${h(event.title)}</strong><span class="ep-card-stats"><span>${total ? `${p.done} de ${total} ${total === 1 ? 'tarefa concluída' : 'tarefas concluídas'}` : 'Sem tarefas'}</span><span><b>${p.sent}/${p.messages.length}</b> mensagens</span><span><b>${p.ready}/${p.links.length}</b> links</span></span><span class="ep-progress" aria-hidden="true"><span style="width:${percent}%"></span></span></button><div class="ep-card-actions" role="group" aria-label="Ações para ${h(event.title)}"><button type="button" class="text-link" data-ep-manage="rename" data-id="${key}">Renomear</button><button type="button" class="text-link" data-ep-manage="duplicate" data-id="${key}">Duplicar</button><button type="button" class="danger plain" data-ep-manage="delete" data-id="${key}">Apagar</button></div></article>`;
 }
 function gallery(c, pageShell, marketingTabs) {
   const all = c.s.eventPlans || [];
@@ -45,67 +48,106 @@ function gallery(c, pageShell, marketingTabs) {
     .sort((a, b) => (a.eventDate || '9999').localeCompare(b.eventDate || '9999') || a.title.localeCompare(b.title, 'pt-BR'));
   const create = primary(`${i('plus', 16)} Novo evento`, 'type="button" data-ep-new');
   const nothing = all.length
-    ? `<div class="empty">${i('filter', 26)}<strong>Nenhum evento com este status</strong><p>Troque o filtro para ver os outros eventos.</p></div>`
+    ? empty('Nenhum evento com este status', 'Troque o filtro para ver os outros eventos.', 'filter')
     : `<div class="empty">${i('calendar', 26)}<strong>Nenhum evento planejado</strong><p>Crie um plano com estratégia, tarefas, mensagens, roteiro e links do lançamento.</p>${create}</div>`;
   const filter = all.length ? `<div class="ep-toolbar"><label>Status<select data-ep-status-filter>${optionRows([['active', 'Ativos'], ['all', 'Todos'], ...eventPlanStatuses], ui.events)}</select></label></div>` : '';
   return pageShell({ title: 'Planejador de eventos', desc: 'Organize estratégia, operação e comunicação de cada lançamento desta subconta.', className: 'ep', cta: create, tabs: { key: 'marketing', items: marketingTabs, current: 'events', label: 'Seções de marketing' }, content: `${filter}<section class="ep-gallery" aria-label="Eventos planejados">${events.map(eventCard).join('') || nothing}</section>` });
 }
 
-function hero(event) {
-  const p = eventProgress(event);
-  return `<section class="ep-hero"><div class="ep-hero-copy"><button class="ep-back" data-ep-back>${i('left', 15)} Todos os eventos</button><div class="ep-hero-title"><div><span class="ep-eyebrow">${h(dateLabel(event.eventDate))}</span><h1>${h(event.title)}</h1></div>${statusPill(event.status, eventStatusLabel(event.status))}</div><div class="ep-hero-actions"><button class="secondary" data-ep-orchestrate="${h(event.id)}">${i('flow', 15)} Orquestrar</button><button class="secondary" data-ep-edit="${h(event.id)}">${i('edit', 15)} Editar evento</button><button class="secondary" data-ep-manage="duplicate" data-id="${h(event.id)}">${i('copy', 15)} Duplicar</button><button class="secondary" data-ep-manage="delete" data-id="${h(event.id)}">${i('trash', 15)} Excluir</button></div></div><dl class="ep-kpis"><div><dt>Tarefas</dt><dd>${p.done}<small>/${p.tasks.length}</small></dd><span>concluídas</span></div><div><dt>Comunicação</dt><dd>${p.sent}<small>/${p.messages.length}</small></dd><span>enviadas</span></div><div><dt>Roteiro</dt><dd>${Math.floor(p.minutes / 60)}h${String(p.minutes % 60).padStart(2, '0')}</dd><span>previstas</span></div><div><dt>Links</dt><dd>${p.ready}<small>/${p.links.length}</small></dd><span>validados</span></div></dl></section>`;
+/* ── Seções do evento ── */
+function ownerLabel(item, users) {
+  const user = item.ownerId && users.find(row => row.id === item.ownerId);
+  if (user) return user.name;
+  if (item.ownerId && users.length) return `Usuário removido (${item.owner || 'sem nome'})`;
+  return item.owner || '';
+}
+const itemBadge = { feito: ' green', enviado: ' green', confirmado: ' blue', andamento: ' blue', revisao: ' blue', agendado: ' blue', cancelado: ' red' };
+const statusBadge = item => `<span class="badge${item.kind === 'link' && item.status === 'pronto' ? ' green' : item.status === 'pronto' ? ' blue' : itemBadge[item.status] || ''}">${h(itemStatusLabel(item.kind, item.status))}</span>`;
+const meta = parts => `<p class="ep-item-meta">${parts.filter(Boolean).map(h).join(' · ')}</p>`;
+const when = item => [dateLabel(item.date), item.time].filter(Boolean).join(' · ');
+const byDate = (a, b) => (a.date || '9999').localeCompare(b.date || '9999') || (a.time || '99').localeCompare(b.time || '99') || a.title.localeCompare(b.title, 'pt-BR');
+const note = item => item.notes ? `<p class="ep-note">${h(item.notes)}</p>` : '';
+const visible = items => items.filter(item => (ui.phase === 'all' || item.phase === ui.phase) && (ui.status === 'all' || item.status === ui.status) && (item.kind !== 'message' || ui.channel === 'all' || item.channel === ui.channel));
+const sectionHead = (title, text, action) => `<div class="ep-section-head"><div><h2>${title}</h2><p>${text}</p></div>${action}</div>`;
+const newItem = (event, kind, label) => primary(`${i('plus', 15)} ${label}`, `type="button" data-ep-item-new="${kind}" data-ep-event="${h(event.id)}"`);
+const nothingHere = (event, kind, text, icon) => empty(records(event, kind).length ? 'Nenhum item corresponde aos filtros' : 'Nenhum item nesta seção', text, icon);
+function filterBar(kind) {
+  const pick = (label, name, rows) => `<label>${label}<select data-ep-filter="${name}">${optionRows(rows, ui[name])}</select></label>`;
+  return `<div class="surface ep-filter">${pick('Fase', 'phase', [['all', 'Todas'], ...eventPlanPhases])}${pick('Status', 'status', [['all', 'Todos'], ...itemStatus[kind]])}${kind === 'message' ? pick('Canal', 'channel', [['all', 'Todos'], ...channels]) : ''}</div>`;
+}
+function itemTools(event, item, extra = '') {
+  const ref = `data-ep-event="${h(event.id)}"`, title = h(item.title);
+  return `<select aria-label="Status de ${title}" data-ep-item-status="${h(item.id)}" ${ref}>${optionRows(itemStatus[item.kind], item.status)}</select><span class="ep-item-actions">${extra}<button type="button" class="icon-btn" aria-label="Editar ${title}" title="Editar" data-ep-item-edit="${h(item.id)}" ${ref}>${i('edit', 15)}</button><button type="button" class="icon-btn" aria-label="Excluir ${title}" title="Excluir" data-ep-item-delete="${h(item.id)}" ${ref}>${i('trash', 15)}</button></span>`;
 }
 
-function briefView(event) {
-  const brief = planOf(event).brief || {}, completed = briefFields.filter(([key]) => brief[key]).length;
-  return `<section class="ep-section-head"><div><span class="ep-eyebrow">Fundamentos</span><h2>Estratégia do evento</h2><p>Defina o que orienta as decisões de conteúdo, operação e vendas.</p></div><button class="secondary" data-ep-edit-brief="${h(event.id)}">${i('edit', 15)} Editar estratégia</button></section><div class="ep-brief-progress"><span>${completed}/${briefFields.length} campos definidos</span><div><i style="width:${Math.round(completed / briefFields.length * 100)}%"></i></div></div><div class="ep-brief-grid">${briefFields.map(([key, label, hint]) => `<article class="surface ep-brief"><span>${h(label)}</span><h3>${h(brief[key]) || 'Ainda não definido'}</h3><p>${h(brief[key]) ? '' : h(hint)}</p></article>`).join('')}</div>`;
+function strategySection(c, event) {
+  const { brief } = planOf(event);
+  return `${sectionHead('Estratégia do evento', 'Alinhe o resultado que a equipe busca, com quem vai falar e o que vai oferecer.', '')}<div class="ep-blocks">${briefGroups.map(([key, title, fields]) => `<section class="surface ep-block" aria-labelledby="ep-brief-${key}"><header class="ep-block-head"><h3 id="ep-brief-${key}">${h(title)}</h3><button type="button" class="secondary" data-ep-brief-group="${key}" data-ep-event="${h(event.id)}" aria-label="Editar ${h(title)}">${i('edit', 15)} Editar</button></header><dl class="ep-facts">${fields.map(([name, label]) => `<div><dt>${h(label)}</dt>${brief[name] ? `<dd>${h(brief[name])}</dd>` : '<dd class="ep-missing">A definir</dd>'}</div>`).join('')}</dl></section>`).join('')}</div>`;
 }
-function filterBar(kind) { return `<div class="ep-filter"><label>Fase<select data-ep-filter="phase">${optionRows([['all', 'Todas'], ...eventPlanPhases], ui.phase)}</select></label><label>Status<select data-ep-filter="status">${optionRows([['all', 'Todos'], ...itemStatus[kind]], ui.status)}</select></label></div>`; }
-function itemButtons(event, item) { return `<div class="ep-row-actions"><button class="icon-btn" aria-label="Editar" title="Editar" data-ep-item-edit="${h(item.id)}" data-ep-event="${h(event.id)}">${i('edit', 15)}</button><button class="icon-btn" aria-label="Excluir" title="Excluir" data-ep-item-delete="${h(item.id)}" data-ep-event="${h(event.id)}">${i('trash', 15)}</button></div>`; }
-function tasksView(event) {
-  const rows = filterItems(records(event, 'task')).sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.title.localeCompare(b.title, 'pt-BR'));
-  return `<section class="ep-section-head"><div><span class="ep-eyebrow">Execução</span><h2>Tarefas</h2><p>Responsáveis, prazos e entregáveis para manter o plano no ritmo.</p></div><button class="primary" data-ep-item-new="task" data-ep-event="${h(event.id)}">${i('plus', 15)} Nova tarefa</button></section>${filterBar('task')}<div class="ep-list">${rows.map(item => `<article class="surface ep-item ep-task"><div class="ep-item-main"><div class="ep-item-top"><span class="ep-checkbox ${item.status === 'feito' ? 'done' : ''}" aria-hidden="true">${item.status === 'feito' ? i('check', 14) : ''}</span><div><h3>${h(item.title)}</h3><p>${h(phaseLabel(item.phase))}${item.team ? ` · ${h(teamLabel(item.team))}` : ''}${item.owner ? ` · ${h(item.owner)}` : ''}</p></div></div>${item.notes ? `<p class="ep-note">${h(item.notes)}</p>` : ''}</div><div class="ep-item-side"><span class="ep-date">${h(dateMeta(item))}</span><select aria-label="Status da tarefa" data-ep-item-status="${h(item.id)}" data-ep-event="${h(event.id)}">${optionRows(itemStatus.task, item.status)}</select>${itemButtons(event, item)}</div></article>`).join('') || emptyList('Nenhuma tarefa nesta seleção', 'Crie tarefas para transformar a estratégia em entregas concretas.', 'check-square')}</div>`;
+function tasksSection(c, event) {
+  const rows = visible(records(event, 'task')).sort(byDate);
+  return `${sectionHead('Tarefas', 'Acompanhe responsáveis, prazos e entregas por fase.', newItem(event, 'task', 'Nova tarefa'))}${filterBar('task')}<ul class="ep-list">${rows.map(item => `<li class="surface ep-item"><div class="ep-item-main"><h3>${h(item.title)}</h3>${meta([phaseLabel(item.phase), teamLabel(item.team), when(item) || 'Sem prazo', ownerLabel(item, usersOf(c))])}${note(item)}</div><div class="ep-item-side">${statusBadge(item)}${itemTools(event, item)}</div></li>`).join('')}</ul>${rows.length ? '' : nothingHere(event, 'task', 'Crie tarefas para transformar a estratégia em entregas.', 'check')}`;
 }
-function messagesView(event) {
-  const rows = filterItems(records(event, 'message')).sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.time.localeCompare(b.time) || a.title.localeCompare(b.title, 'pt-BR'));
-  return `<section class="ep-section-head"><div><span class="ep-eyebrow">Calendário editorial</span><h2>Comunicação</h2><p>Planeje cada mensagem da campanha e acompanhe o que já foi enviado.</p></div><button class="primary" data-ep-item-new="message" data-ep-event="${h(event.id)}">${i('plus', 15)} Nova comunicação</button></section>${filterBar('message')}<div class="ep-list ep-message-list">${rows.map(item => `<article class="surface ep-item ep-message"><div class="ep-item-main"><div class="ep-item-top"><span class="ep-channel">${h((channels.find(([key]) => key === item.channel) || ['', 'Outro'])[1])}</span><div><h3>${h(item.title)}</h3><p>${h(phaseLabel(item.phase))}${item.owner ? ` · ${h(item.owner)}` : ''}</p></div></div>${item.notes ? `<pre class="ep-copy">${h(item.notes)}</pre>` : '<p class="ep-note">Sem texto definido.</p>'}</div><div class="ep-item-side"><span class="ep-date">${h(dateMeta(item))}</span><select aria-label="Status da comunicação" data-ep-item-status="${h(item.id)}" data-ep-event="${h(event.id)}">${optionRows(itemStatus.message, item.status)}</select><div class="ep-row-actions"><button class="icon-btn" aria-label="Copiar texto" title="Copiar texto" data-ep-copy="${h(item.id)}" data-ep-event="${h(event.id)}">${i('copy', 15)}</button>${itemButtons(event, item)}</div></div></article>`).join('') || emptyList('Nenhuma comunicação nesta seleção', 'Adicione os avisos, convites e follow-ups que sustentam a campanha.', 'send')}</div>`;
+function messagesSection(c, event) {
+  const rows = visible(records(event, 'message')).sort(byDate), days = new Map();
+  for (const item of rows) days.set(item.date || '', [...(days.get(item.date || '') || []), item]);
+  const card = item => `<li class="surface ep-item"><div class="ep-item-main"><h3>${h(item.title)}</h3><p class="ep-item-meta">${item.code ? `<span class="ep-code">${h(item.code)}</span> ` : ''}${[(channels.find(([key]) => key === item.channel) || ['', 'Outro'])[1], item.time, phaseLabel(item.phase), ownerLabel(item, usersOf(c))].filter(Boolean).map(h).join(' · ')}</p>${item.notes ? `<details><summary>Ver copy</summary><div class="ep-copy">${whatsappHtml(item.notes)}</div></details>` : '<p class="ep-note">Sem texto definido.</p>'}</div><div class="ep-item-side">${statusBadge(item)}${itemTools(event, item, `<button type="button" class="icon-btn" aria-label="Copiar texto de ${h(item.title)}" title="Copiar texto" data-ep-copy="${h(item.id)}" data-ep-event="${h(event.id)}">${i('copy', 15)}</button>`)}</div></li>`;
+  const list = [...days].map(([day, items]) => `<section><h3 class="ep-day">${h(dateLabel(day) || 'Sem data')}</h3><ul class="ep-list">${items.map(card).join('')}</ul></section>`).join('');
+  return `${sectionHead('Calendário de comunicação', 'Planeje a copy e acompanhe a publicação nos grupos e canais privados.', newItem(event, 'message', 'Nova mensagem'))}${filterBar('message')}${list || nothingHere(event, 'message', 'Adicione convites, avisos e acompanhamentos da campanha.', 'send')}`;
 }
-function agendaView(event) {
-  const rows = filterItems(records(event, 'agenda')).sort((a, b) => numeric(a.order) - numeric(b.order) || a.time.localeCompare(b.time) || a.title.localeCompare(b.title, 'pt-BR'));
-  const total = rows.reduce((sum, item) => sum + numeric(item.duration), 0);
-  return `<section class="ep-section-head"><div><span class="ep-eyebrow">Operação ao vivo</span><h2>Roteiro do dia</h2><p>${total ? `${Math.floor(total / 60)}h${String(total % 60).padStart(2, '0')} no roteiro atual.` : 'Organize a sequência do evento.'}</p></div><button class="primary" data-ep-item-new="agenda" data-ep-event="${h(event.id)}">${i('plus', 15)} Novo bloco</button></section>${filterBar('agenda')}<ol class="ep-agenda">${rows.map(item => `<li class="surface"><time>${h(item.time || '--:--')}</time><div class="ep-agenda-content"><h3>${h(item.title)}</h3><p>${numeric(item.duration)} min · ${h(teamLabel(item.team))}${item.owner ? ` · ${h(item.owner)}` : ''}</p>${item.notes ? `<p class="ep-note">${h(item.notes)}</p>` : ''}</div><div class="ep-agenda-tools"><select aria-label="Status do bloco" data-ep-item-status="${h(item.id)}" data-ep-event="${h(event.id)}">${optionRows(itemStatus.agenda, item.status)}</select>${itemButtons(event, item)}</div></li>`).join('') || emptyList('Nenhum bloco de roteiro', 'Crie a sequência do evento para que toda a equipe saiba o que acontece a cada momento.', 'list')}</ol>`;
+function agendaSection(c, event) {
+  const rows = visible(records(event, 'agenda')).sort((a, b) => numeric(a.order) - numeric(b.order) || byDate(a, b));
+  return `${sectionHead('Roteiro do dia', 'Organize a ordem, a duração e a condução de cada bloco.', newItem(event, 'agenda', 'Novo bloco'))}${filterBar('agenda')}<ol class="ep-list ep-agenda">${rows.map(item => `<li class="surface ep-item"><span class="ep-time">${h(item.time || '--:--')}</span><div class="ep-item-main"><h3>${h(item.title)}</h3>${meta([`${numeric(item.duration)} min`, dateLabel(item.date), teamLabel(item.team), ownerLabel(item, usersOf(c))])}${note(item)}</div><div class="ep-item-side">${statusBadge(item)}${itemTools(event, item)}</div></li>`).join('')}</ol>${rows.length ? '' : nothingHere(event, 'agenda', 'Monte a sequência do evento para a equipe saber o que acontece a cada momento.', 'list')}`;
 }
-function linksView(event) {
-  const rows = filterItems(records(event, 'link')).sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.title.localeCompare(b.title, 'pt-BR'));
-  return `<section class="ep-section-head"><div><span class="ep-eyebrow">Ativos da campanha</span><h2>Links e materiais</h2><p>Concentre URLs importantes, materiais e páginas que precisam ser revisados.</p></div><button class="primary" data-ep-item-new="link" data-ep-event="${h(event.id)}">${i('plus', 15)} Novo link</button></section>${filterBar('link')}<div class="ep-link-grid">${rows.map(item => `<article class="surface ep-link"><div class="ep-link-title"><span class="ep-link-icon">${i('link', 17)}</span><div><h3>${h(item.title)}</h3><p>${h(phaseLabel(item.phase))}${item.owner ? ` · ${h(item.owner)}` : ''}</p></div></div>${item.url ? `<a class="ep-url" href="${h(item.url)}" target="_blank" rel="noopener noreferrer">${h(item.url.replace(/^https?:\/\//, ''))} ${i('up-right', 13)}</a>` : '<p class="ep-missing">URL ainda não adicionada</p>'}${item.notes ? `<p class="ep-note">${h(item.notes)}</p>` : ''}<div class="ep-link-foot"><span>${h(dateMeta(item))}</span><div><select aria-label="Status do link" data-ep-item-status="${h(item.id)}" data-ep-event="${h(event.id)}">${optionRows(itemStatus.link, item.status)}</select>${itemButtons(event, item)}</div></div></article>`).join('') || emptyList('Nenhum link nesta seleção', 'Guarde aqui as páginas, materiais e acessos necessários para a operação.', 'link')}</div>`;
+function linksSection(c, event) {
+  const rows = visible(records(event, 'link')).sort(byDate);
+  return `${sectionHead('Links da operação', 'Centralize páginas, grupos, pesquisas, materiais e checkout.', newItem(event, 'link', 'Novo link'))}${filterBar('link')}<div class="ep-link-grid">${rows.map(item => `<article class="surface ep-link"><div class="ep-item-main"><h3>${h(item.title)}</h3>${meta([phaseLabel(item.phase), dateLabel(item.date), ownerLabel(item, usersOf(c))])}</div>${item.url ? `<a class="ep-url" href="${h(item.url)}" target="_blank" rel="noopener noreferrer">${h(item.url.replace(/^https?:\/\//, ''))} ${i('external', 13)}</a>` : '<p class="ep-note">Endereço ainda não adicionado.</p>'}${note(item)}<div class="ep-link-foot">${statusBadge(item)}<span class="spacer"></span>${itemTools(event, item)}</div></article>`).join('')}</div>${rows.length ? '' : nothingHere(event, 'link', 'Guarde aqui as páginas, materiais e acessos da operação.', 'link')}`;
 }
-
-function integrationsView(event) {
+function integrationsSection(c, event) {
   const binding = event.orchestration || {}, rows = Object.values(binding.items || {});
-  const counts = { tasks: rows.filter(row => row.taskId).length, social: rows.filter(row => row.socialPostId).length, email: rows.filter(row => row.emailCampaignId).length, calendar: binding.appointmentId ? 1 : 0 };
-  const synced = binding.syncedAt ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(binding.syncedAt)) : 'Ainda não sincronizado';
-  return `<section class="ep-section-head"><div><span class="ep-eyebrow">Execução conectada</span><h2>Automações e integrações</h2><p>Crie entregas nos módulos da Soci e publique eventos para os seus fluxos e webhooks.</p></div><button class="primary" data-ep-orchestrate="${h(event.id)}">${i('flow', 15)} Sincronizar agora</button></section><div class="ep-orch-grid"><article class="surface ep-orch-card"><span>CRM</span><b>${counts.tasks}</b><p>Tarefas vinculadas ao evento.</p></article><article class="surface ep-orch-card"><span>Calendário</span><b>${counts.calendar ? 'Ligado' : 'Pendente'}</b><p>Um compromisso com o roteiro do dia.</p></article><article class="surface ep-orch-card"><span>Social</span><b>${counts.social}</b><p>Rascunhos para comunicações no Instagram.</p></article><article class="surface ep-orch-card"><span>E-mail</span><b>${counts.email}</b><p>Campanhas em rascunho para revisão.</p></article></div><section class="surface ep-automation-guide"><div><span class="ep-eyebrow">Automação e API</span><h3>Eventos que os fluxos podem ouvir</h3><p>Configure em <a href="#automation/workflows">Automações</a> o gatilho <b>Evento personalizado</b> e conecte ações, integrações ou webhooks.</p></div><ul><li><code>event_plan_created</code></li><li><code>event_plan_updated</code></li><li><code>event_plan_status_changed</code></li><li><code>event_plan_orchestrated</code></li></ul><small>Última sincronização: ${h(synced)}. A sincronização cria somente rascunhos de Social e E-mail: a revisão e o envio continuam sob controle da equipe.</small></section>`;
+  const count = key => rows.filter(row => row[key]).length;
+  const synced = binding.syncedAt ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(binding.syncedAt)) : 'ainda não sincronizado';
+  const card = (label, value, text) => `<article class="surface ep-orch-card"><span>${label}</span><b>${value}</b><p>${text}</p></article>`;
+  return `${sectionHead('Integrações', 'Crie entregas nos módulos da Soci e publique eventos para os seus fluxos e webhooks.', primary(`${i('flow', 15)} Sincronizar agora`, `type="button" data-ep-orchestrate="${h(event.id)}"`))}<div class="ep-integrations">${card('Tarefas', count('taskId'), 'Tarefas do CRM vinculadas ao evento.')}${card('Calendário', binding.appointmentId ? 'Ligado' : 'Pendente', 'Um compromisso com o roteiro do dia.')}${card('Social', count('socialPostId'), 'Rascunhos para comunicações no Instagram.')}${card('E-mail', count('emailCampaignId'), 'Campanhas em rascunho para revisão.')}</div><section class="surface ep-automation-guide"><h3>Eventos que os fluxos podem ouvir</h3><p class="dim">Em <a class="text-link" href="#automation/workflows">Automações</a>, use o gatilho <b>Evento personalizado</b> e conecte ações, integrações ou webhooks.</p><ul><li><code>event_plan_created</code></li><li><code>event_plan_updated</code></li><li><code>event_plan_status_changed</code></li><li><code>event_plan_orchestrated</code></li></ul><small class="dim">Última sincronização: ${h(synced)}. A sincronização cria somente rascunhos de Social e E-mail: a revisão e o envio continuam com a equipe.</small></section>`;
 }
+const sections = [
+  { value: 'strategy', label: 'Estratégia', icon: 'bulb', content: strategySection },
+  { value: 'tasks', label: 'Tarefas', icon: 'check', content: tasksSection },
+  { value: 'messages', label: 'Comunicação', icon: 'send', content: messagesSection },
+  { value: 'agenda', label: 'Roteiro do dia', icon: 'list', content: agendaSection },
+  { value: 'links', label: 'Links', icon: 'link', content: linksSection },
+  { value: 'integrations', label: 'Integrações', icon: 'flow', content: integrationsSection }
+];
 
-function detail(c, pageShell, marketingTabs, event) {
-  const sections = [['strategy', 'Estratégia', 'target'], ['tasks', 'Tarefas', 'check-square'], ['messages', 'Comunicação', 'send'], ['agenda', 'Roteiro do dia', 'list'], ['links', 'Links', 'link'], ['integrations', 'Integrações', 'flow']].map(([value, label, icon]) => ({ value, label, icon, attrs: `data-ep-section="${value}" aria-pressed="${ui.section === value}"` }));
-  const content = { strategy: briefView, tasks: tasksView, messages: messagesView, agenda: agendaView, links: linksView, integrations: integrationsView }[ui.section](event);
-  return pageShell({ title: 'Planejador de eventos', desc: 'Coordene todas as frentes deste lançamento.', className: 'ep', tabs: { key: 'marketing', items: marketingTabs, current: 'events', label: 'Seções de marketing' }, content: `${hero(event)}<section class="ep-workspace"><div class="ep-subtabs">${sections.map(item => `<button class="${item.value === ui.section ? 'active' : ''}" ${item.attrs}>${i(item.icon, 15)} ${h(item.label)}</button>`).join('')}</div><div class="ep-panel">${content}</div></section>` });
+export function eventView(c, event, { pageShell, utabs, marketingTabs }, section = ui.section) {
+  const p = eventProgress(event), key = h(event.id);
+  const items = sections.map(({ value, label, icon }) => ({ value, label, icon, attrs: `data-ep-section="${value}"` }));
+  const metrics = `<div class="metrics">${metric('Tarefas concluídas', `${p.done}/${p.tasks.length}`)}${metric('Mensagens enviadas', `${p.sent}/${p.messages.length}`)}${metric('Duração do roteiro', duration(p.minutes))}${metric('Links validados', `${p.ready}/${p.links.length}`)}</div>`;
+  return pageShell({
+    title: h(event.title), desc: `${h(dateLabel(event.eventDate) || 'Data a definir')} · ${h(eventStatusLabel(event.status))}`, className: 'ep',
+    back: `<button type="button" class="page-back" data-ep-back>${i('left', 15)} Todos os eventos</button>`,
+    cta: `<button type="button" class="secondary" data-ep-edit="${key}">${i('edit', 15)} Editar evento</button><button type="button" class="secondary" data-ep-manage="duplicate" data-id="${key}">${i('copy', 15)} Duplicar</button><button type="button" class="danger plain" data-ep-manage="delete" data-id="${key}">${i('trash', 15)} Excluir</button>${primary(`${i('flow', 15)} Orquestrar`, `type="button" data-ep-orchestrate="${key}"`)}`,
+    tabs: { key: 'marketing', items: marketingTabs, current: 'events', label: 'Seções de marketing' },
+    content: `${metrics}${utabs({ key: 'ep-sections', nested: true, items, current: section, label: 'Seções do evento', content: sections.find(row => row.value === section).content(c, event) })}`
+  });
 }
-export function eventPlanner(c, { pageShell, marketingTabs }) {
+export function eventPlanner(c, helpers) {
   reset(c.workspace);
   const current = (c.s.eventPlans || []).find(item => item.id === ui.selectedId);
   if (!current) ui.selectedId = '';
-  return current ? detail(c, pageShell, marketingTabs, current) : gallery(c, pageShell, marketingTabs);
+  return current ? eventView(c, current, helpers) : gallery(c, helpers.pageShell, helpers.marketingTabs);
 }
 
-function field(label, name, value = '', { type = 'text', required = false, placeholder = '', options = [], min = '', max = '', step = '' } = {}) {
-  const attrs = `${required ? ' required' : ''}${placeholder ? ` placeholder="${h(placeholder)}"` : ''}${min !== '' ? ` min="${h(min)}"` : ''}${max !== '' ? ` max="${h(max)}"` : ''}${step !== '' ? ` step="${h(step)}"` : ''}`;
-  if (type === 'textarea') return `<label>${h(label)}<textarea name="${h(name)}"${attrs}>${h(value)}</textarea></label>`;
+/* ── Formulários ── */
+function field(label, name, value = '', { type = 'text', required = false, placeholder = '', options = [], min = '', max = '', maxlength = '' } = {}) {
+  const attrs = `${required ? ' required' : ''}${placeholder ? ` placeholder="${h(placeholder)}"` : ''}${min !== '' ? ` min="${h(min)}"` : ''}${max !== '' ? ` max="${h(max)}"` : ''}${maxlength ? ` maxlength="${h(maxlength)}"` : ''}`;
+  if (type === 'textarea') return `<label>${h(label)}<textarea name="${h(name)}" rows="4"${attrs}>${h(value)}</textarea></label>`;
   if (type === 'select') return `<label>${h(label)}<select name="${h(name)}"${attrs}>${optionRows(options, value)}</select></label>`;
   return `<label>${h(label)}<input name="${h(name)}" type="${h(type)}" value="${h(value)}"${attrs}></label>`;
 }
+const pair = (...fields) => `<div class="ep-form-grid">${fields.join('')}</div>`;
 const formFoot = (label, remove = '') => `<p class="form-status" role="alert"></p><footer class="ep-form-foot">${remove}<span class="spacer"></span><button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">${label}</button></footer>`;
+const formHead = (kind, event, attrs = '') => `<form class="ep-form" data-ep-form="${kind}" data-id="${h(event?.id || '')}" data-revision="${event?.revision || 0}"${attrs}>`;
 const validDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(value)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 export function newEventPlan(template, eventDate) {
   if (template !== 'launch') return blankEventPlan();
@@ -114,114 +156,169 @@ export function newEventPlan(template, eventDate) {
 }
 export function eventDialogBody(row) {
   const starter = row ? '' : `<label>Começar com<select name="template" data-ep-template>${optionRows([['launch', 'Modelo de lançamento'], ['blank', 'Evento em branco']], 'launch')}</select></label><p class="ep-hint" data-ep-template-hint>O modelo usa essa data para montar o cronograma de tarefas, mensagens, roteiro e validação de links.</p>`;
-  return `<form class="ep-form" data-ep-form="event" data-id="${h(row?.id || '')}" data-revision="${row?.revision || 0}">${field('Nome do evento', 'title', row?.title || '', { required: true, placeholder: 'Ex.: Masterclass de lançamento' })}<div class="ep-form-grid">${field('Data do evento', 'eventDate', row?.eventDate || '', { type: 'date', required: !row })}${field('Status', 'status', row?.status || 'planejado', { type: 'select', options: eventPlanStatuses })}</div>${starter}${formFoot(row ? 'Salvar alterações' : 'Criar evento')}</form>`;
+  return `${formHead('event', row)}${field('Nome do evento', 'title', row?.title || '', { required: true, maxlength: 160, placeholder: 'Ex.: Masterclass de lançamento' })}${pair(field('Data do evento', 'eventDate', row?.eventDate || '', { type: 'date', required: !row }), field('Status', 'status', row?.status || 'planejado', { type: 'select', options: eventPlanStatuses }))}${starter}${formFoot(row ? 'Salvar alterações' : 'Criar evento')}</form>`;
 }
-function eventDialog(dialog, row = null) {
-  dialog(row ? 'Editar evento' : 'Novo evento', eventDialogBody(row), { description: row ? 'O plano do evento não muda.' : 'Cada evento fica restrito à subconta atual.' });
+export function briefDialogBody(event, group) {
+  const { brief } = planOf(event), fields = briefGroups.find(([key]) => key === group)?.[2] || [];
+  return `${formHead('brief', event, ` data-group="${h(group)}"`)}${fields.map(([name, label, hint]) => field(label, name, brief[name], { type: 'textarea', placeholder: hint, maxlength: 5000 })).join('')}${formFoot('Salvar')}</form>`;
 }
-function renameDialog(dialog, row) {
-  dialog('Renomear evento', `<form class="ep-form" data-ep-form="rename" data-id="${h(row.id)}" data-revision="${row.revision || 0}">${field('Nome do evento', 'title', row.title, { required: true })}${formFoot('Renomear')}</form>`);
+const kindLabel = { task: 'tarefa', message: 'mensagem', agenda: 'bloco', link: 'link' };
+const variables = [['{{contact.first_name}}', 'Primeiro nome'], ['{{contact.name}}', 'Nome completo']];
+// Quem saiu da equipe ou foi digitado à mão (eventos antigos) continua como opção, para não se perder ao salvar.
+function ownerField(item, users, label) {
+  const rows = [['', 'Sem responsável'], ...users.map(user => [user.id, user.name])];
+  let value = item.ownerId || '';
+  if (value && !users.some(user => user.id === value)) rows.push([value, users.length ? ownerLabel(item, users) : item.owner || value]);
+  if (!value && item.owner) { value = `@${item.owner}`; rows.push([value, item.owner]); }
+  return field(label, 'owner', value, { type: 'select', options: rows });
 }
-function briefDialog(dialog, event) {
-  const values = planOf(event).brief || {};
-  dialog('Estratégia do evento', `<form data-ep-form="brief" data-id="${h(event.id)}"><div class="ep-brief-form">${briefFields.map(([key, label, hint]) => field(label, key, values[key], { type: 'textarea', placeholder: hint })).join('')}</div><p class="form-status" role="alert"></p><footer class="ep-form-foot"><button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Salvar estratégia</button></footer></form>`, { description: 'Escreva o suficiente para que qualquer pessoa do time entenda a direção do evento.' });
-}
-function itemDialog(dialog, event, kind, item = null) {
-  const data = item || { kind, phase: kind === 'agenda' ? 'evento' : 'aquecimento', status: itemStatus[kind][0][0], team: kind === 'message' ? 'copy' : kind === 'link' ? 'dev' : 'estrategia', date: event.eventDate || '', time: '', duration: kind === 'agenda' ? 30 : '', channel: 'grupos', order: records(event, kind).length + 1, title: '', owner: '', notes: '', url: '' };
-  const base = `<div class="field-grid">${field('Título', 'title', data.title, { required: true })}${field('Fase', 'phase', data.phase, { type: 'select', options: eventPlanPhases })}</div><div class="field-grid">${field('Responsável', 'owner', data.owner, { placeholder: 'Nome da pessoa' })}${field('Time', 'team', data.team, { type: 'select', options: eventPlanTeams })}</div><div class="field-grid">${field('Data', 'date', data.date, { type: 'date' })}${field('Status', 'status', data.status, { type: 'select', options: itemStatus[kind] })}</div>`;
-  let content = base;
-  if (kind === 'task') content += field('Notas ou critério de conclusão', 'notes', data.notes, { type: 'textarea', placeholder: 'O que precisa estar pronto?' });
-  if (kind === 'message') content += `<div class="field-grid">${field('Canal', 'channel', data.channel, { type: 'select', options: channels })}${field('Horário', 'time', data.time, { type: 'time' })}</div>${field('Texto da comunicação', 'notes', data.notes, { type: 'textarea', placeholder: 'Use [variáveis] como lembrete para personalizar o texto.' })}`;
-  if (kind === 'agenda') content += `<div class="field-grid">${field('Horário', 'time', data.time, { type: 'time' })}${field('Duração (minutos)', 'duration', data.duration, { type: 'number', min: 0, max: 1440, step: 1 })}</div>${field('Ordem', 'order', data.order, { type: 'number', min: 0, max: 999, step: 1 })}${field('Instruções para o bloco', 'notes', data.notes, { type: 'textarea' })}`;
-  if (kind === 'link') content += `${field('URL', 'url', data.url, { type: 'url', placeholder: 'https://...' })}${field('Como usar este link', 'notes', data.notes, { type: 'textarea' })}`;
-  const label = itemKinds.find(([key]) => key === kind)?.[1].toLowerCase() || 'item';
-  dialog(item ? `Editar ${label}` : `Novo ${label}`, `<form data-ep-form="item" data-id="${h(event.id)}" data-kind="${h(kind)}" data-item-id="${h(item?.id || '')}">${content}<p class="form-status" role="alert"></p><footer class="ep-form-foot">${item ? `<button class="danger plain" type="button" data-ep-item-delete="${h(item.id)}" data-ep-event="${h(event.id)}">Excluir</button>` : ''}<span class="spacer"></span><button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Salvar</button></footer></form>`, { description: 'As alterações ficam disponíveis apenas neste evento.' });
-}
-function orchestrateDialog(dialog, event) {
-  dialog('Orquestrar evento', `<form data-ep-form="orchestrate" data-id="${h(event.id)}"><p class="dim">A Soci vai criar somente os registros que ainda não estão vinculados a este evento.</p><label class="check"><input type="checkbox" name="tasks" checked> Criar tarefas no CRM</label><label class="check"><input type="checkbox" name="calendar" checked> Criar compromisso no Calendário a partir do roteiro</label><label class="check"><input type="checkbox" name="social" checked> Criar rascunhos do Instagram no Social Planner</label><label class="check"><input type="checkbox" name="email" checked> Criar rascunhos de e-mail para revisão</label><p class="dim">Também será emitido o evento <code>event_plan_orchestrated</code> para fluxos e webhooks configurados em Automações.</p><p class="form-status" role="alert"></p><footer class="ep-form-foot"><button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Sincronizar</button></footer></form>`, { description: 'Nenhum envio será disparado automaticamente.' });
+const templateFor = (event, code) => code ? messageTemplates(event.eventDate).find(row => row.code === code) : null;
+export function itemDialogBody(c, event, kind, item = null) {
+  const nextOrder = Math.max(0, ...records(event, 'agenda').map(row => numeric(row.order))) + 1;
+  const data = item || { kind, phase: kind === 'agenda' ? 'evento' : 'aquecimento', status: itemStatus[kind][0][0], team: kind === 'message' ? 'copy' : kind === 'link' ? 'dev' : 'estrategia', date: kind === 'agenda' ? event.eventDate || '' : '', time: '', duration: 30, channel: 'grupos', order: nextOrder };
+  const date = field(kind === 'task' ? 'Prazo' : kind === 'link' ? 'Prazo para validar o link' : 'Data', 'date', data.date, { type: 'date' });
+  const time = field('Horário', 'time', data.time, { type: 'time' });
+  const team = field('Área', 'team', data.team, { type: 'select', options: eventPlanTeams });
+  const owner = ownerField(data, usersOf(c), kind === 'agenda' ? 'Quem conduz' : 'Responsável');
+  const extra = {
+    task: () => pair(date, team) + owner,
+    message: () => pair(date, time) + pair(field('Canal', 'channel', data.channel, { type: 'select', options: channels }), field('Código', 'code', data.code, { maxlength: 40 })) + pair(team, owner),
+    agenda: () => pair(field('Ordem', 'order', data.order, { type: 'number', required: true, min: 1, max: 999 }), field('Duração em minutos', 'duration', data.duration, { type: 'number', required: true, min: 1, max: 1440 })) + pair(date, time) + pair(team, owner),
+    link: () => pair(date, team) + owner + field('Endereço', 'url', data.url, { type: 'url', maxlength: 2000, placeholder: 'https://' })
+  }[kind]();
+  const notes = kind === 'message'
+    ? `${copyEditorField({ name: 'notes', value: data.notes, variables })}${item && templateFor(event, item.code) ? `<button type="button" class="secondary ep-apply" data-ep-apply-template="${h(item.code)}" data-ep-event="${h(event.id)}">${i('refresh', 15)} Aplicar estrutura do modelo</button>` : ''}`
+    : field('Observações', 'notes', data.notes, { type: 'textarea', maxlength: 10000 });
+  const remove = item ? `<button class="danger plain" type="button" data-ep-item-delete="${h(item.id)}" data-ep-event="${h(event.id)}">${i('trash', 15)} Excluir</button>` : '';
+  return `${formHead('item', event, ` data-kind="${h(kind)}" data-item-id="${h(item?.id || '')}"`)}${field(kind === 'message' ? 'Assunto' : 'Título', 'title', data.title, { required: true, maxlength: 240 })}${pair(field('Fase', 'phase', data.phase, { type: 'select', options: eventPlanPhases }), field('Status', 'status', data.status, { type: 'select', options: itemStatus[kind] }))}${extra}${notes}${formFoot('Salvar', remove)}</form>`;
 }
 
-function valueOf(form, key) { return form.elements[key]?.value || ''; }
-function savedItem(form, previous) {
-  const kind = form.dataset.kind;
-  return { ...previous, id: previous?.id || crypto.randomUUID(), kind, title: valueOf(form, 'title'), phase: valueOf(form, 'phase'), owner: valueOf(form, 'owner'), team: valueOf(form, 'team'), date: valueOf(form, 'date'), status: valueOf(form, 'status'), notes: valueOf(form, 'notes'), ...(kind === 'message' ? { channel: valueOf(form, 'channel'), time: valueOf(form, 'time') } : {}), ...(kind === 'agenda' ? { time: valueOf(form, 'time'), duration: valueOf(form, 'duration'), order: valueOf(form, 'order') } : {}), ...(kind === 'link' ? { url: valueOf(form, 'url') } : {}) };
+// Regras do planejamento: valem no formulário e na troca rápida de status.
+export function checkItem(item) {
+  if (item.url && !/^https?:\/\//i.test(item.url)) throw Error('Informe um endereço válido que comece com http:// ou https://.');
+  if (item.kind === 'link' && item.status === 'pronto' && !item.url) throw Error('Preencha o endereço para validar o link.');
+  if (item.kind !== 'message') return item;
+  if (item.status === 'agendado' && (!item.date || !item.time)) throw Error('Preencha data e horário para marcar a mensagem como agendada.');
+  if (item.channel === 'grupos' && /\{\{\s*contact\./.test(item.notes || '')) throw Error('Mensagem de grupo não pode usar variáveis de contato.');
+  return item;
 }
-function savePlan(event, change) {
-  const plan = structuredClone(planOf(event)); change(plan);
-  return { type: 'save', key: 'eventPlans', id: event.id, data: { title: event.title, eventDate: event.eventDate, status: event.status, plan } };
+export function itemFromValues(kind, values, previous, users) {
+  if (!String(values.title || '').trim()) throw Error('Preencha o título.');
+  const { owner: choice = '', ...fields } = values;
+  const user = users.find(row => row.id === choice);
+  const owner = user ? { ownerId: user.id, owner: user.name }
+    : choice.startsWith('@') ? { ownerId: '', owner: choice.slice(1) }
+      : choice && choice === previous?.ownerId ? { ownerId: choice, owner: previous.owner }
+        : { ownerId: '', owner: '' };
+  return checkItem({ ...previous, ...fields, ...owner, kind, id: previous?.id || crypto.randomUUID() });
 }
+
 async function copyText(text) {
-  if (!text) throw Error('Esta comunicação ainda não tem texto.');
-  try { await navigator.clipboard.writeText(text); return; } catch { /* fallback below */ }
+  if (!text) throw Error('Esta mensagem ainda não tem texto.');
+  try { await navigator.clipboard.writeText(text); return; } catch { /* navegador sem permissão: usa a seleção */ }
   const area = document.createElement('textarea'); area.value = text; area.style.position = 'fixed'; area.style.opacity = '0'; document.body.append(area); area.select(); document.execCommand('copy'); area.remove();
 }
 
 export function installEventPlanner({ c, mutate, flash, dialog, close, render }) {
   const find = id => (c.s.eventPlans || []).find(row => row.id === id);
-  document.addEventListener('click', async event => {
-    const target = event.target.closest('[data-ep-open],[data-ep-back],[data-ep-new],[data-ep-edit],[data-ep-manage],[data-ep-section],[data-ep-edit-brief],[data-ep-item-new],[data-ep-item-edit],[data-ep-item-delete],[data-ep-copy],[data-ep-orchestrate]');
+  const itemOf = (event, id) => planOf(event).items.find(item => item.id === id);
+  const savePlan = (event, change, revision = event.revision || 0) => {
+    const plan = structuredClone(planOf(event)); change(plan);
+    return mutate({ type: 'save', key: 'eventPlans', id: event.id, data: { plan, revision } });
+  };
+  const openItem = (event, kind, item = null) => {
+    dialog(`${item ? 'Editar' : 'Adicionar'} ${kindLabel[kind]}`, itemDialogBody(c, event, kind, item));
+    bindCopyEditor(document);
+  };
+  const orchestrate = event => dialog('Orquestrar evento', `${formHead('orchestrate', event)}<p class="dim">A Soci cria somente os registros que ainda não estão vinculados a este evento.</p>${[['tasks', 'Criar tarefas no CRM'], ['calendar', 'Criar compromisso no Calendário a partir do roteiro'], ['social', 'Criar rascunhos do Instagram no Planejador social'], ['email', 'Criar rascunhos de e-mail para revisão']].map(([name, label]) => `<label class="check"><input type="checkbox" name="${name}" checked> ${label}</label>`).join('')}<p class="dim">Também será emitido o evento <code>event_plan_orchestrated</code> para os fluxos e webhooks configurados em Automações.</p>${formFoot('Sincronizar')}</form>`, { description: 'Nenhum envio será disparado automaticamente.' });
+
+  document.addEventListener('click', async domEvent => {
+    const target = domEvent.target.closest('[data-ep-open],[data-ep-back],[data-ep-new],[data-ep-edit],[data-ep-manage],[data-ep-section],[data-ep-brief-group],[data-ep-item-new],[data-ep-item-edit],[data-ep-item-delete],[data-ep-copy],[data-ep-orchestrate],[data-ep-apply-template]');
     if (!target) return;
-    const data = target.dataset;
+    const data = target.dataset, event = find(data.epEvent);
     try {
-      if (data.epOpen) { ui.selectedId = data.epOpen; ui.section = 'strategy'; ui.phase = 'all'; ui.status = 'all'; render(); return; }
+      if (data.epOpen) { ui.selectedId = data.epOpen; openSection('strategy'); render(); return; }
       if (data.epBack !== undefined) { ui.selectedId = ''; render(); return; }
-      if (data.epNew !== undefined) { eventDialog(dialog); return; }
-      if (data.epOrchestrate) { const plan = c.s.eventPlans.find(item => item.id === data.epOrchestrate); if (plan) orchestrateDialog(dialog, plan); return; }
-      if (data.epEdit) { const row = find(data.epEdit); if (row) eventDialog(dialog, row); return; }
+      if (data.epNew !== undefined) { dialog('Novo evento', eventDialogBody(null), { description: 'Cada evento fica restrito à subconta atual.' }); return; }
+      if (data.epSection) { openSection(data.epSection); render(); return; }
+      if (data.epOrchestrate) { const row = find(data.epOrchestrate); if (row) orchestrate(row); return; }
+      if (data.epEdit) { const row = find(data.epEdit); if (row) dialog('Editar evento', eventDialogBody(row), { description: 'O plano do evento não muda.' }); return; }
       if (data.epManage) {
         const row = find(data.id); if (!row) return;
-        if (data.epManage === 'rename') { renameDialog(dialog, row); return; }
-        if (data.epManage === 'duplicate') { await mutate({ type: 'event-plan-duplicate', id: row.id }); render(); flash('Evento duplicado.'); return; }
+        if (data.epManage === 'rename') { dialog('Renomear evento', `${formHead('rename', row)}${field('Nome do evento', 'title', row.title, { required: true, maxlength: 160 })}${formFoot('Renomear')}</form>`); return; }
+        if (data.epManage === 'duplicate') { await mutate({ type: 'event-plan-duplicate', id: row.id }); ui.selectedId = ''; render(); flash('Evento duplicado.'); return; }
         if (!confirm(`Apagar “${row.title}” e todo o seu planejamento? Essa ação é definitiva.`)) return;
         await mutate({ type: 'delete', key: 'eventPlans', id: row.id }); ui.selectedId = ''; render(); flash('Evento apagado.'); return;
       }
-      if (data.epSection) { ui.section = data.epSection; ui.phase = 'all'; ui.status = 'all'; render(); return; }
-      if (data.epEditBrief) { const plan = c.s.eventPlans.find(item => item.id === data.epEditBrief); if (plan) briefDialog(dialog, plan); return; }
-      if (data.epItemNew) { const plan = c.s.eventPlans.find(item => item.id === data.epEvent); if (plan) itemDialog(dialog, plan, data.epItemNew); return; }
-      if (data.epItemEdit) { const plan = c.s.eventPlans.find(item => item.id === data.epEvent); const row = planOf(plan).items.find(item => item.id === data.epItemEdit); if (plan && row) itemDialog(dialog, plan, row.kind, row); return; }
-      if (data.epItemDelete) { const plan = c.s.eventPlans.find(item => item.id === data.epEvent); if (!plan || !confirm('Excluir este item do plano?')) return; await mutate(savePlan(plan, planData => { planData.items = planData.items.filter(item => item.id !== data.epItemDelete); })); close(); render(); flash('Item excluído.'); return; }
-      if (data.epCopy) { const plan = c.s.eventPlans.find(item => item.id === data.epEvent); const row = planOf(plan).items.find(item => item.id === data.epCopy); await copyText(row?.notes); flash('Texto copiado.'); }
+      if (!event) return;
+      if (data.epBriefGroup) { dialog(briefGroups.find(([key]) => key === data.epBriefGroup)[1], briefDialogBody(event, data.epBriefGroup)); return; }
+      if (data.epItemNew) { openItem(event, data.epItemNew); return; }
+      if (data.epItemEdit) { const row = itemOf(event, data.epItemEdit); if (row) openItem(event, row.kind, row); return; }
+      if (data.epCopy) { await copyText(itemOf(event, data.epCopy)?.notes); flash('Texto copiado.'); return; }
+      if (data.epApplyTemplate) {
+        const input = target.closest('form').querySelector('[data-ec] textarea'), template = templateFor(event, data.epApplyTemplate);
+        if (!template || input.value === template.notes) return;
+        if (input.value.trim() && !confirm('Aplicar o modelo e substituir o texto que está no editor?')) return;
+        input.value = template.notes; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); return;
+      }
+      if (data.epItemDelete) {
+        if (!confirm('Excluir este item do planejamento?')) return;
+        await savePlan(event, plan => { plan.items = plan.items.filter(item => item.id !== data.epItemDelete); });
+        close(); render(); flash('Item excluído.');
+      }
     } catch (error) { flash(error.message, true); }
   });
-  document.addEventListener('change', async event => {
-    const field = event.target;
+
+  document.addEventListener('change', async domEvent => {
+    const input = domEvent.target;
+    if (input.matches('[data-ep-status-filter]')) { ui.events = input.value; render(); return; }
+    if (input.matches('[data-ep-filter]')) { ui[input.dataset.epFilter] = input.value; render(); return; }
+    if (input.matches('[data-ep-template]')) {
+      const launch = input.value === 'launch';
+      input.form.elements.eventDate.required = launch; input.form.querySelector('[data-ep-template-hint]').hidden = !launch; return;
+    }
+    if (!input.matches('[data-ep-item-status]')) return;
+    const event = find(input.dataset.epEvent), item = event && itemOf(event, input.dataset.epItemStatus);
+    if (!item) return;
     try {
-      if (field.matches('[data-ep-status-filter]')) { ui.events = field.value; render(); return; }
-      if (field.matches('[data-ep-template]')) { const launch = field.value === 'launch'; field.form.elements.eventDate.required = launch; field.form.querySelector('[data-ep-template-hint]').hidden = !launch; return; }
-      if (field.matches('[data-ep-filter]')) { ui[field.dataset.epFilter] = field.value; render(); return; }
-      if (field.matches('[data-ep-item-status]')) { const plan = c.s.eventPlans.find(item => item.id === field.dataset.epEvent); if (!plan) return; await mutate(savePlan(plan, data => { const row = data.items.find(item => item.id === field.dataset.epItemStatus); if (row) row.status = field.value; })); render(); flash('Status atualizado.'); }
-    } catch (error) { flash(error.message, true); }
+      checkItem({ ...item, status: input.value });
+      await savePlan(event, plan => { plan.items.find(row => row.id === item.id).status = input.value; });
+      render(); flash('Status atualizado.');
+    } catch (error) { render(); flash(error.message, true); }
   });
-  document.addEventListener('submit', async event => {
-    const form = event.target;
+
+  document.addEventListener('submit', async domEvent => {
+    const form = domEvent.target;
     if (!form.matches('[data-ep-form]')) return;
-    event.preventDefault(); if (form.dataset.pending) return;
-    form.dataset.pending = '1'; const button = form.querySelector('.primary'), status = form.querySelector('.form-status'); button?.setAttribute('disabled', '');
+    domEvent.preventDefault(); if (form.dataset.pending) return;
+    form.dataset.pending = '1';
+    const button = form.querySelector('.primary'), status = form.querySelector('.form-status'), id = form.dataset.id, revision = Number(form.dataset.revision);
+    const values = Object.fromEntries([...new FormData(form)].map(([key, value]) => [key, value.trim()]));
+    button?.setAttribute('disabled', ''); if (status) status.textContent = '';
+    const event = find(id);
+    const done = message => { close(); render(); flash(message); };
     try {
-      if (form.dataset.epForm === 'event') {
-        const eventDate = valueOf(form, 'eventDate'), base = { title: valueOf(form, 'title'), eventDate, status: valueOf(form, 'status') };
-        const editing = form.dataset.id;
-        const id = await mutate({ type: 'save', key: 'eventPlans', id: editing || '', data: editing ? { ...base, revision: Number(form.dataset.revision) } : { ...base, plan: newEventPlan(valueOf(form, 'template'), eventDate) } });
-        if (!editing) { ui.selectedId = id; ui.section = 'strategy'; }
-        close(); render(); flash(editing ? 'Evento atualizado.' : 'Evento criado.');
-      }
-      if (form.dataset.epForm === 'rename') {
-        await mutate({ type: 'save', key: 'eventPlans', id: form.dataset.id, data: { title: valueOf(form, 'title'), revision: Number(form.dataset.revision) } });
-        close(); render(); flash('Evento renomeado.');
-      }
-      if (form.dataset.epForm === 'orchestrate') {
-        const result = await mutate({ type: 'event-plan-orchestrate', id: form.dataset.id, data: { tasks: form.elements.tasks.checked, calendar: form.elements.calendar.checked, social: form.elements.social.checked, email: form.elements.email.checked } });
-        close(); render(); flash(result && typeof result === 'object' ? 'Integrações sincronizadas.' : 'Integrações sincronizadas.');
-      }
-      if (form.dataset.epForm === 'brief') {
-        const plan = c.s.eventPlans.find(row => row.id === form.dataset.id); if (!plan) throw Error('Evento não encontrado.');
-        const values = Object.fromEntries(briefFields.map(([key]) => [key, valueOf(form, key)]));
-        await mutate(savePlan(plan, data => { data.brief = values; })); close(); render(); flash('Estratégia atualizada.');
-      }
-      if (form.dataset.epForm === 'item') {
-        const plan = c.s.eventPlans.find(row => row.id === form.dataset.id); if (!plan) throw Error('Evento não encontrado.');
-        const previous = planOf(plan).items.find(item => item.id === form.dataset.itemId), row = savedItem(form, previous);
-        await mutate(savePlan(plan, data => { const at = data.items.findIndex(item => item.id === row.id); if (at === -1) data.items.push(row); else data.items.splice(at, 1, row); })); close(); render(); flash(previous ? 'Item atualizado.' : 'Item criado.');
+      const kind = form.dataset.epForm;
+      if (kind !== 'event' && !event) throw Error('Evento não encontrado.');
+      if (kind === 'event') {
+        const { template, ...base } = values;
+        if (id) await mutate({ type: 'save', key: 'eventPlans', id, data: { ...base, revision } });
+        else { ui.selectedId = await mutate({ type: 'save', key: 'eventPlans', id: '', data: { ...base, plan: newEventPlan(template, base.eventDate) } }); openSection('strategy'); }
+        done(id ? 'Evento atualizado.' : 'Evento criado.');
+      } else if (kind === 'rename') {
+        await mutate({ type: 'save', key: 'eventPlans', id, data: { title: values.title, revision } });
+        done('Evento renomeado.');
+      } else if (kind === 'orchestrate') {
+        const on = name => form.elements[name].checked;
+        await mutate({ type: 'event-plan-orchestrate', id, data: { tasks: on('tasks'), calendar: on('calendar'), social: on('social'), email: on('email') } });
+        done('Integrações sincronizadas.');
+      } else if (kind === 'brief') {
+        await savePlan(event, plan => { plan.brief = { ...plan.brief, ...values }; }, revision);
+        done('Estratégia atualizada.');
+      } else if (kind === 'item') {
+        const previous = itemOf(event, form.dataset.itemId), row = itemFromValues(form.dataset.kind, values, previous, usersOf(c));
+        await savePlan(event, plan => { const at = plan.items.findIndex(item => item.id === row.id); if (at === -1) plan.items.push(row); else plan.items[at] = row; }, revision);
+        done(previous ? 'Item atualizado.' : 'Item criado.');
       }
     } catch (error) { if (status) status.textContent = error.message; else flash(error.message, true); }
     finally { delete form.dataset.pending; button?.removeAttribute('disabled'); }
