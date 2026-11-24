@@ -48,10 +48,14 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-brand);outline-of
 @keyframes g-label-in{from{opacity:0;transform:translateX(-6px)}}
 
 .side-head{position:relative;display:flex;align-items:center;justify-content:center;height:40px;padding:0 16px;margin-bottom:12px}
-.shell.wide:not(.ag-shell) .side-head{justify-content:center;padding:0 46px}
+/* The toggle only needs room on the right. The spacer keeps short names centred and gives its
+   width up first, so a long agency name uses the whole row and then wraps to a second line. */
+.shell.wide .side-head{padding:0 46px 0 14px}
+.shell.wide .side-head::before{content:"";flex:0 1 32px;min-width:0}
 .shell:not(.wide) .side-head{justify-content:center;padding:0}
 .g-side .logo{display:flex;align-items:center;justify-content:center;gap:0;min-width:0;max-width:100%;min-height:0;padding:0;line-height:1;color:var(--g-ink);font-weight:800;font-size:20px;letter-spacing:-.05em;border-radius:var(--r-group)}
-.shell.wide:not(.ag-shell) .g-side .logo{justify-content:center;font-size:16px;letter-spacing:-.025em}
+.shell.wide .g-side .logo{flex:none;font-size:16px;letter-spacing:-.025em}
+.shell.wide .g-side .side-word{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.2;white-space:normal;overflow-wrap:anywhere;text-wrap:balance}
 .g-side .logo .g-mark{margin-right:-2px}
 .g-side .logo .ag-logo{margin-right:6px}
 .g-side .logo .g-mark,.g-side .logo .ag-logo{flex:none;width:34px;height:34px;transition:transform .5s var(--ease-out)}
