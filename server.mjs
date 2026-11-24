@@ -193,7 +193,7 @@ export const staticFiles = new Map([
   ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
   ['/prancheta-editor.html','text/html; charset=utf-8'], ['/vendor/prancheta-editor.js','text/javascript; charset=utf-8'], ['/vendor/prancheta-editor.css','text/css; charset=utf-8'],
-  ['/style.css','text/css; charset=utf-8'], ['/button-system.css','text/css; charset=utf-8'], ['/tokens.css','text/css; charset=utf-8'], ['/liquid-glass.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'], ['/landing.html','text/html; charset=utf-8'], ['/landing.css','text/css; charset=utf-8'], ['/landing.js','text/javascript; charset=utf-8'], ['/landing/hero-marble.webp','image/webp'], ['/landing/orbit-marble.webp','image/webp'],
+  ['/style.css','text/css; charset=utf-8'], ['/button-system.css','text/css; charset=utf-8'], ['/tokens.css','text/css; charset=utf-8'], ['/liquid-glass.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
   ['/fonts/plus-jakarta-sans.woff2','font/woff2'], ['/favicon.svg','image/svg+xml'],
@@ -3855,17 +3855,16 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       // Política de privacidade pública (LGPD e o link exigido pelo login com Google).
       if (p === '/privacidade' || p === '/privacidade/') p = '/privacidade.html';
       const platformPaths = ['/app','/app/','/painel','/painel/'];
-      const loginPaths = ['/login','/index.html'];
-      const isLanding = p === '/';
-      if ((method==='GET'||method==='HEAD') && (isLanding || loginPaths.includes(p) || platformPaths.includes(p) || paths.test(p) || staticFiles.has(p))) {
+      const loginPaths = ['/','/login','/index.html'];
+      if ((method==='GET'||method==='HEAD') && (loginPaths.includes(p) || platformPaths.includes(p) || paths.test(p) || staticFiles.has(p))) {
         const isLogin = loginPaths.includes(p);
         // Páginas estáticas que só abrem com sessão (como o app), por exemplo o editor da Prancheta.
-        if (!isLogin && !isLanding && !paths.test(p) && (!staticFiles.has(p) || sessionOnlyFiles.has(p)) && !localAccess && !auth?.hasSession(req)) {
+        if (!isLogin && !paths.test(p) && (!staticFiles.has(p) || sessionOnlyFiles.has(p)) && !localAccess && !auth?.hasSession(req)) {
           const search = new URLSearchParams(url.search); search.delete('__path');
           const next = afterLogin(p + (search.size ? '?' + search : ''));
           return goTo('/login?' + new URLSearchParams({ next }));
         }
-        const f = isLanding ? '/landing.html' : (isLogin ? '/index.html' : (platformPaths.includes(p) ? '/app.html' : p));
+        const f = isLogin ? '/index.html' : (platformPaths.includes(p) ? '/app.html' : p);
         // Setup illustrations are not mirrored in public/: without this every card refetched them from the
         // function. The browser keeps them a day; the Vercel CDN until the next deploy purges it.
         if (f.startsWith('/setup-art/')) res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=86400');
