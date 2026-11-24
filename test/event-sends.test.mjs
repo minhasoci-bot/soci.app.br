@@ -42,7 +42,7 @@ test('Scheduling a group message queues every part for every group at the sub-ac
 
 test('Private recipients follow the tags and leave out dnd, missing and repeated phones', () => {
   const { s, run } = setup();
-  const preview = run('event-message-preview', ids.privado);
+  const preview = run('event-message-preview', ids.privado, { at: '2026-11-25T12:00:00.000Z' });
   assert.equal(preview.recipients, 2);
   assert.deepEqual(preview.skipped, { dnd: 1, noPhone: 1, duplicate: 1 });
   assert.deepEqual(preview.sample, ['Ana Lima', 'Bia']);
@@ -50,6 +50,7 @@ test('Private recipients follow the tags and leave out dnd, missing and repeated
   assert.equal(preview.problem, '');
   assert.equal(preview.dueAt, '2026-12-01T13:00:00.000Z');
   assert.equal(preview.endsAt, '2026-12-01T13:00:40.000Z', '2 contatos, 40 s em média entre eles');
+  assert.equal(run('event-message-preview', ids.privado, { at: '2026-12-03T13:00:00.000Z' }).endsAt, '2026-12-03T13:00:40.000Z', 'com o horário passado, a conta parte de agora');
   assert.equal(s.eventSends.length, 0, 'a prévia não agenda');
   assert.deepEqual(run('event-message-schedule', ids.privado), { total: 2 });
   assert.deepEqual(s.eventSends.map(r => [r.name, r.to, r.target]), [['Ana Lima', '5511988880001', 'contact'], ['Bia', '5511988880002', 'contact']]);
@@ -58,7 +59,7 @@ test('Private recipients follow the tags and leave out dnd, missing and repeated
 test('The preview spreads a big list over the days the cap allows', () => {
   const { s, run } = setup();
   execute(s, { type: 'event-send-settings', data: { minGapSeconds: 20, maxGapSeconds: 60, dailyCap: 1 } });
-  assert.equal(run('event-message-preview', ids.privado).endsAt.slice(0, 10), '2026-12-02');
+  assert.equal(run('event-message-preview', ids.privado, { at: '2026-11-25T12:00:00.000Z' }).endsAt.slice(0, 10), '2026-12-02');
 });
 
 test('What is missing stops the schedule and is explained in the preview', () => {

@@ -79,7 +79,7 @@ test('The preview shows exactly what leaves, to whom and when', () => {
   assert.match(html, /1 com “não perturbe” · 2 sem telefone/);
   assert.match(html, /01\/12\/2026, 10:30[\s\S]*10:31/);
   assert.match(html, />Agendar envio</);
-  assert.match(scheduleDialogBody({ id: 'e' }, item, { ...preview, dueAt: '2026-12-01T12:00:00.000Z' }, { now: NOW, zone: 'America/Sao_Paulo' }), />Enviar agora</);
+  assert.match(scheduleDialogBody({ id: 'e' }, item, { ...preview, dueAt: '2026-11-20T12:00:00.000Z' }, { now: NOW, zone: 'America/Sao_Paulo' }), /Agora \(estava marcada para 20\/11\/2026, 09:00\) · termina por volta de 10:31[\s\S]*>Enviar agora</);
   const blocked = scheduleDialogBody({ id: 'e' }, item, { ...preview, problem: 'Preencha os marcadores: [link].' }, { now: NOW, zone: 'America/Sao_Paulo' });
   assert.match(blocked, /Preencha os marcadores: \[link\]\./);
   assert.match(blocked, /class="primary"[^>]*disabled/);

@@ -58,7 +58,7 @@ function destinations(s, event, item) {
   const groups = event.groups?.[item.audience] || [];
   return { rows: groups.map(group => ({ target: 'group', to: group.jid, contactId: '', name: group.name })), skipped: { dnd: 0, noPhone: 0, duplicate: 0 } };
 }
-function problemOf(event, item, parts, rows) {
+function problemOf(item, parts, rows) {
   if (!channelsSent.includes(item.channel)) return 'Só mensagens de WhatsApp podem ser agendadas.';
   if (!item.date || !item.time) return 'Preencha data e horário para agendar.';
   const copy = partsProblem(parts, item.channel);
@@ -87,7 +87,7 @@ export function settleDelivery(s, event, item, at) {
   const rows = rowsOf(s, event, item).filter(row => row.status !== 'canceled'), count = status => rows.filter(row => row.status === status).length;
   Object.assign(delivery, {
     total: rows.length, sent: count('sent'), failed: count('failed'), skipped: count('skipped'),
-    late: rows.filter(row => row.status === 'sent' && Date.parse(row.sentAt) - Date.parse(row.dueAt) > 3_600_000).length
+    late: rows.filter(row => row.status === 'sent' && Date.parse(row.sentAt) - Math.max(Date.parse(row.dueAt), Date.parse(row.created)) > 3_600_000).length
   });
   if (delivery.state === 'canceled') return false;
   if (count('queued') + count('sending')) { if (delivery.sent + delivery.failed + delivery.skipped + count('sending')) delivery.state = 'sending'; return false; }
@@ -121,7 +121,7 @@ function trim(s) {
 function schedule(s, event, item, { instant, emit, at }) {
   if (deliveryActive(event.deliveries?.[item.id])) fail('Esta mensagem já está agendada.', 409);
   if (event.deliveries?.[item.id]?.state === 'done') fail('Esta mensagem já foi enviada. Crie outra para enviar de novo.', 409);
-  const parts = messageParts(item.notes), { rows } = destinations(s, event, item), problem = problemOf(event, item, parts, rows);
+  const parts = messageParts(item.notes), { rows } = destinations(s, event, item), problem = problemOf(item, parts, rows);
   if (problem) fail(problem);
   const sent = new Set(rowsOf(s, event, item).filter(row => ['sent', 'sending'].includes(row.status) || row.unconfirmed).map(row => `${row.to}|${row.part}`));
   const batch = randomUUID(), dueAt = iso(instant(item.date, item.time)), created = iso(at), added = [];
@@ -167,12 +167,12 @@ function retry(s, event, item, include, { emit, at }) {
   setStatus(event, item, 'agendado', emit);
   return { total: again.length };
 }
-function preview(s, event, item, { instant }) {
-  const parts = messageParts(item.notes), { rows, skipped } = destinations(s, event, item), problem = problemOf(event, item, parts, rows);
+function preview(s, event, item, { instant, at }) {
+  const parts = messageParts(item.notes), { rows, skipped } = destinations(s, event, item), problem = problemOf(item, parts, rows);
   const dueAt = item.date && item.time ? instant(item.date, item.time) : 0;
   return {
     parts, recipients: rows.length, sample: rows.slice(0, 5).map(row => row.name), skipped, problem,
-    dueAt: dueAt ? iso(dueAt) : '', endsAt: dueAt && rows.length ? iso(endOf(s, rows.length, parts.length, dueAt, item.channel === 'privado')) : ''
+    dueAt: dueAt ? iso(dueAt) : '', endsAt: dueAt && rows.length ? iso(endOf(s, rows.length, parts.length, Math.max(dueAt, at), item.channel === 'privado')) : ''
   };
 }
 
@@ -353,7 +353,7 @@ export function eventSendCommand(s, command, { instant, emit, add, zone, at = Da
   const event = eventOf(s, id);
   if (type === 'event-groups-save') return saveGroups(event, data);
   const item = itemOf(event, data.itemId);
-  if (type === 'event-message-preview') return preview(s, event, item, { instant });
+  if (type === 'event-message-preview') return preview(s, event, item, { instant, at: when });
   if (type === 'event-message-schedule') return schedule(s, event, item, { instant, emit, at });
   if (type === 'event-message-cancel') return cancel(s, event, item, { emit, at });
   if (type === 'event-message-retry') return retry(s, event, item, data.include === 'all' ? 'all' : 'failed', { emit, at });

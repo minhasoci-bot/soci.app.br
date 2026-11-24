@@ -31,6 +31,7 @@ function setup({ contacts = 3, notes = 'Oi, {{contact.first_name}}!', group = 'O
     rows: key => s.eventSends.filter(row => row.itemId === ids[key])
   };
   app.run('event-message-schedule', channel === 'grupos' ? 'grupo' : 'privado');
+  for (const row of s.eventSends) row.created = '2026-11-30T12:00:00.000Z';
   return app;
 }
 const custom = s => s.runs.length; // sem fluxos, nada roda: os eventos são conferidos com um fluxo de escuta abaixo
@@ -85,6 +86,14 @@ test('The daily cap holds the rest until the next day of the sub-account', () =>
   app.result(app.take().row, 'sent');
   assert.equal(app.delivery('privado').late, 1);
   assert.equal(app.item('privado').status, 'enviado');
+});
+
+test('Sending after the planned time on purpose does not count as a delay', () => {
+  const app = setup({ contacts: 1 });
+  app.now = START + 5 * 24 * 60 * MIN;
+  app.rows('privado')[0].created = new Date(app.now - MIN).toISOString();
+  app.result(app.take().row, 'sent');
+  assert.equal(app.delivery('privado').late, 0);
 });
 
 test('Parts of a message go in order, three seconds apart, to the same person', () => {
