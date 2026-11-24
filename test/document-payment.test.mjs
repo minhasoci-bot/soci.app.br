@@ -134,7 +134,7 @@ test('Public page pays through AbacatePay and the webhook settles the document',
   assert.doesNotMatch(JSON.stringify(checkout), new RegExp(token), 'the personal token never goes to the gateway');
 
   const invoice = (await send('/api/state?workspace=demo')).body.state.invoices.find(row => row.documentId === id);
-  const raw = JSON.stringify({ id: 'log_doc_1', event: 'checkout.completed', data: { checkout: { id: invoice.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID' }, payerInformation: { method: 'PIX' } } });
+  const raw = JSON.stringify({ id: 'log_doc_1', event: 'checkout.completed', data: { checkout: { id: invoice.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID', paidAmount: Math.round(invoice.value * 100) }, payerInformation: { method: 'PIX' } } });
   const hook = await fetch(`${connected.webhookUrl}?webhookSecret=${connected.webhookSecret}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': signBody(raw) }, body: raw });
   assert.equal(hook.status, 200);
   const doc = (await send('/api/state?workspace=demo')).body.state.documents.find(row => row.id === id);

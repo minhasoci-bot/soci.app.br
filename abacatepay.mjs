@@ -4,6 +4,7 @@
 // per-connection secret in the URL and their integrity with the HMAC-SHA256 signature of the raw body.
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { execute } from './model.mjs';
+import { disputeCharge, refundCharge, settleCharge } from './gateway-events.mjs';
 
 export const ABACATEPAY_API = 'https://api.abacatepay.com/v2';
 // Published by AbacatePay for every account: it signs the body, the secret proves the sender.
@@ -196,6 +197,8 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     if (!invoice) throw fail('Fatura não encontrada.', 404);
     if (invoice.status === 'Paid') throw fail('Esta fatura já está paga.', 409);
     if (invoice.status === 'Void') throw fail('Esta fatura foi cancelada.', 409);
+    if (invoice.payment?.status === 'MISMATCH') throw fail('Esta fatura recebeu um pagamento com valor diferente. Dê baixa manual ou crie outra fatura.', 409);
+    if (['REFUNDED', 'DISPUTED'].includes(invoice.payment?.status)) throw fail('O pagamento desta fatura foi devolvido ou contestado. Crie outra fatura para cobrar de novo.', 409);
     const reuse = invoice.payment?.provider === 'abacatepay' && invoice.payment.status === 'PENDING' && invoice.payment.amount === invoice.value;
     if (reuse) return invoice.payment;
     const back = `${publicOrigin}/app#payments`;
@@ -211,29 +214,6 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
       row.updated = stamp();
     });
     return payment;
-  }
-
-  function paidInvoice(state, { checkoutId, invoiceId, method, receiptUrl }, workspace = 'demo') {
-    const invoice = state.invoices.find(item => (checkoutId && item.payment?.checkoutId === checkoutId) || (invoiceId && item.id === invoiceId));
-    if (!invoice) return false;
-    invoice.payment = { ...(invoice.payment || { provider: 'abacatepay', checkoutId }), status: 'PAID', paidAt: stamp(), method, receiptUrl: receiptUrl || '' };
-    if (invoice.status === 'Paid') return invoice;
-    invoice.paidMethod = method;
-    const order = state.orders?.find(item => item.invoiceId === invoice.id && item.status === 'Pending');
-    if (order) {
-      order.paidMethod = method;
-      execute(state, { type: 'save', key: 'orders', id: order.id, data: { id: order.id, status: 'Paid', note: order.note, tracking: order.tracking } }, { workspace });
-    } else {
-      execute(state, { type: 'save', key: 'invoices', id: invoice.id, data: { title: invoice.title, contactId: invoice.contactId, value: invoice.value, due: invoice.due, status: 'Paid' } }, { workspace });
-    }
-    return state.invoices.find(item => item.id === invoice.id);
-  }
-  function refundedInvoice(state, checkoutId) {
-    const invoice = state.invoices.find(item => item.payment?.checkoutId === checkoutId);
-    if (!invoice) return false;
-    invoice.payment = { ...invoice.payment, status: 'REFUNDED', refundedAt: stamp() };
-    for (const tx of state.transactions || []) if (tx.invoiceId === invoice.id) tx.status = 'Refunded';
-    return true;
   }
 
   // ---- Agency: SaaS plans billed as subscriptions -------------------------------------------
@@ -306,7 +286,24 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
   }
 
   // ---- Webhook ------------------------------------------------------------------------------
-  async function handleWebhook({ req, url, json, listWorkspaces, changeAgency, onSubscription, onInvoicePaid, onWalletTopup }) {
+  const whole = value => Number.isInteger(value) ? value : null;
+  // The charge of a checkout.* or transparent.* event. The amount paid comes from the event or, missing there, from the gateway.
+  async function chargeOf(body, conn, agencyId, scope, row) {
+    const data = body.data || {}, charge = data.checkout || data.transparent || {}, checkoutId = String(charge.id || '');
+    let paidCents = whole(charge.paidAmount) ?? whole(charge.amount);
+    if (paidCents === null && checkoutId && /.(completed|refunded)$/.test(body.event)) {
+      const found = await call(keyOf(row, agencyId, scope), '/checkouts/get', { query: { id: checkoutId } }).catch(() => null);
+      paidCents = whole(found?.paidAmount);
+    }
+    return { checkoutId, status: String(charge.status || ''), metadata: charge.metadata || null, frequency: charge.frequency, method: methodNames[data.payerInformation?.method] || 'Pix', receiptUrl: charge.receiptUrl || '',
+      paidCents, feeCents: whole(charge.platformFee), devMode: Boolean(body.devMode || conn.devMode), lost: /.lost$/.test(body.event) };
+  }
+  // AbacatePay only repeats a delivery on 5xx, 408 or 429: a write conflict (409) would lose the event for good.
+  async function handleWebhook(input) {
+    try { return await receive(input); }
+    catch (err) { if (err?.status === 409) throw fail('Conflito de gravação. Repita o envio.', 503); throw err; }
+  }
+  async function receive({ req, url, json, listWorkspaces, changeAgency, onSubscription, onInvoicePaid, onWalletTopup }) {
     const match = resolvePath(url).match(/^\/api\/abacatepay\/webhook\/([^/]+)\/([^/]+)$/);
     if (!match) throw fail('Webhook inválido.', 404);
     const agencyId = decodeURIComponent(match[1]), scope = decodeURIComponent(match[2]);
@@ -337,16 +334,17 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
       }
     } else {
       if (!(await listWorkspaces(agencyId)).some(w => w.id === scope)) throw fail('Subconta não encontrada.', 404);
-      const charge = data.checkout || data.transparent || {};
-      const checkoutId = String(charge.id || '');
-      const method = methodNames[data.payerInformation?.method] || 'Pix';
+      const charge = await chargeOf(body, conn, agencyId, scope, row), { checkoutId } = charge;
       if ((event === 'checkout.completed' && charge.frequency !== 'SUBSCRIPTION') || event === 'transparent.completed') {
         let invoice = null;
-        await store.change(scope, state => { invoice = paidInvoice(state, { checkoutId, invoiceId: charge.metadata?.invoiceId, method, receiptUrl: charge.receiptUrl }, scope); });
+        await store.change(scope, state => { invoice = settleCharge(state, charge, scope); });
         handled = Boolean(invoice);
         if (invoice && onInvoicePaid) await onInvoicePaid(scope, structuredClone(invoice)).catch(() => {});
       } else if (event === 'checkout.refunded' || event === 'transparent.refunded') {
-        await store.change(scope, state => { handled = refundedInvoice(state, checkoutId); });
+        await store.change(scope, state => { handled = refundCharge(state, charge, scope); });
+      } else if (/^(checkout|transparent).(disputed|lost)$/.test(event)) {
+        await store.change(scope, state => { handled = checkoutId ? disputeCharge(state, charge, scope) : false; });
+        if (!checkoutId) console.warn(`AbacatePay ${event} sem cobrança (${scope}).`);
       } else if (event.startsWith('subscription.')) {
         const pay = data?.payment || {};
         await store.change(scope, state => {

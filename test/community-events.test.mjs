@@ -142,7 +142,7 @@ test('Portal: free RSVP, paid ticket through AbacatePay, going live and the work
   const invoice = (await state()).invoices.find(row => row.eventTicket?.eventId === paid);
   assert.deepEqual([invoice.title, invoice.value, invoice.status], ['Ingresso: Workshop', 97, 'Open']);
 
-  const raw = JSON.stringify({ id: 'log_ticket_1', event: 'checkout.completed', data: { checkout: { id: invoice.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID' }, payerInformation: { method: 'PIX' } } });
+  const raw = JSON.stringify({ id: 'log_ticket_1', event: 'checkout.completed', data: { checkout: { id: invoice.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID', paidAmount: Math.round(invoice.value * 100) }, payerInformation: { method: 'PIX' } } });
   assert.equal((await fetch(`${connected.webhookUrl}?webhookSecret=${connected.webhookSecret}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': signBody(raw) }, body: raw })).status, 200);
   const after = (await call(`${portal}/community/${group}`, undefined, { Cookie: ana })).body.community.events.find(row => row.id === paid);
   assert.deepEqual([after.myStatus, after.recordings.length], ['going', 1]);

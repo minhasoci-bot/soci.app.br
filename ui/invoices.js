@@ -6,7 +6,7 @@ import { h, fmt, pageShell, search } from './screens.js';
 import { crmTabs } from './crm.js';
 import { lineItemAction, lineItemInput, lineItemsEditor, itemsTotal } from './line-items.js';
 import { renderInvoice } from './invoice-render.js';
-import { endLabel, endModes, frequencies, frequencyLabel, localDay, MAX_INTERVAL, recurringEvents, recurringStatuses, recurringTabs, upcoming } from './invoice-data.js';
+import { endLabel, endModes, frequencies, frequencyLabel, invoicePaymentState, invoiceStateLabels, localDay, MAX_INTERVAL, recurringEvents, recurringStatuses, recurringTabs, upcoming } from './invoice-data.js';
 
 const iv = { status: 'all', key: '', id: '', rev: '', draft: null, dirty: false };
 let env = null;
@@ -16,7 +16,7 @@ const option = (value, text, chosen) => `<option value="${h(value)}"${String(val
 const contactOf = (c, id) => c.s.contacts.find(row => row.id === id) || null;
 const day = value => /^\d{4}-\d{2}-\d{2}/.test(value || '') ? value.slice(0, 10).split('-').reverse().join('/') : '—';
 const statusBadge = rec => { const [, name, tone] = recurringStatuses.find(([key]) => key === rec.status) || recurringStatuses[0]; return badge(name, tone); };
-const invoiceBadge = row => badge(row.status === 'Paid' ? 'Paga' : row.status === 'Void' ? 'Anulada' : row.status === 'Draft' ? 'Rascunho' : 'Em aberto', row.status === 'Paid' ? 'green' : row.status === 'Void' ? 'red' : 'blue');
+const invoiceBadge = row => badge(...invoiceStateLabels[invoicePaymentState(row)]);
 const trailNames = Object.fromEntries([...recurringEvents, ['delivered', 'Entrega']]);
 const field = (label, control, hint = '') => `<label class="es-field">${h(label)}${control}${hint ? `<small class="dim">${hint}</small>` : ''}</label>`;
 const editable = rec => !['completed', 'cancelled'].includes(rec.status);

@@ -29,7 +29,9 @@ function renderPay(v) {
   const kids = [el('h2', { textContent: say('Pagamento', 'Pago') }),
     el('p', { textContent: say(`Total de ${money(v.value)}${v.due ? `, vence em ${day(v.due)}` : ''}.`, `Total de ${money(v.value)}${v.due ? `, vence el ${day(v.due)}` : ''}.`) })];
   const status = el('p', { className: 'form-status' });
-  if (v.status === 'Paid') kids.push(el('p', { className: 'ds-paid', textContent: v.receipt ? say(`Pagamento confirmado. ${v.receipt.title} ${v.receipt.number}. Obrigado!`, `Pago confirmado. ${v.receipt.title} ${v.receipt.number}. ¡Gracias!`)
+  if (v.state === 'refunded') kids.push(el('p', { className: 'dim', textContent: say('O pagamento desta fatura foi devolvido.', 'El pago de esta factura fue devuelto.') }));
+  else if (v.state === 'mismatch') kids.push(el('p', { className: 'dim', textContent: say('Recebemos um pagamento com valor diferente. Fale com quem enviou a fatura.', 'Recibimos un pago con un valor diferente. Hable con quien envió la factura.') }));
+  else if (v.status === 'Paid') kids.push(el('p', { className: 'ds-paid', textContent: v.receipt ? say(`Pagamento confirmado. ${v.receipt.title} ${v.receipt.number}. Obrigado!`, `Pago confirmado. ${v.receipt.title} ${v.receipt.number}. ¡Gracias!`)
     : say('Pagamento confirmado. Obrigado!', 'Pago confirmado. ¡Gracias!') }));
   else if (v.status === 'Void') kids.push(el('p', { className: 'dim', textContent: say('Esta fatura foi cancelada.', 'Esta factura fue cancelada.') }));
   else if (v.payable && v.online) {
@@ -52,7 +54,7 @@ function render() {
   $('doc').innerHTML = v.html;
   $('print').hidden = false;
   const overdue = v.status === 'Open' && v.due && v.due.slice(0, 10) < new Date().toISOString().slice(0, 10);
-  notice(v.status === 'Paid' ? say('Esta fatura está paga.', 'Esta factura está pagada.') : v.status === 'Void' ? say('Esta fatura foi cancelada.', 'Esta factura fue cancelada.')
+  notice(v.state === 'refunded' ? say('O pagamento desta fatura foi devolvido.', 'El pago de esta factura fue devuelto.') : v.status === 'Paid' ? say('Esta fatura está paga.', 'Esta factura está pagada.') : v.status === 'Void' ? say('Esta fatura foi cancelada.', 'Esta factura fue cancelada.')
     : overdue ? say(`O vencimento foi em ${day(v.due)}. Você ainda pode pagar por aqui.`, `El vencimiento fue el ${day(v.due)}. Aún puedes pagar aquí.`) : '', v.status === 'Paid' ? 'ok' : overdue || v.status === 'Void' ? 'warn' : '');
   renderPay(v);
   if (getLanguage() !== 'pt') translateDom(document.body);

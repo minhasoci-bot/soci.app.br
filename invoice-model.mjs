@@ -7,7 +7,7 @@
 // to the next date from today.
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { itemsSummary, validItem } from './ui/document-data.js';
-import { addDays, frequencies, indexFrom, localDay, MAX_INTERVAL, occurrence, paymentDefaults, scheduleOver } from './ui/invoice-data.js';
+import { addDays, frequencies, indexFrom, invoicePaymentState, localDay, MAX_INTERVAL, occurrence, paymentDefaults, scheduleOver } from './ui/invoice-data.js';
 export { paymentDefaults } from './ui/invoice-data.js';
 import { renderInvoice } from './ui/invoice-render.js';
 
@@ -173,8 +173,8 @@ export function invoiceView(s, invoice) {
   const logo = s.profile?.logoFileId ? (s.files || []).find(row => row.id === s.profile.logoFileId)?.data || '' : '';
   return {
     number: invoice.number || '', title: invoice.title, status: invoice.status, sender: s.profile?.name || '', issueDate: invoice.issueDate || String(invoice.created || '').slice(0, 10),
-    due: invoice.due, value: invoice.value, payable: invoice.status === 'Open',
-    receipt: invoice.status === 'Paid' && invoice.receiptNumber ? { title: paymentSettingsOf(s).receipts.title, number: invoice.receiptNumber, paidAt: invoice.paidAt || '' } : null,
+    due: invoice.due, value: invoice.value, state: invoicePaymentState(invoice), payable: invoicePaymentState(invoice) === 'open',
+    receipt: invoice.status === 'Paid' && invoice.receiptNumber && invoice.payment?.status !== 'REFUNDED' ? { title: paymentSettingsOf(s).receipts.title, number: invoice.receiptNumber, paidAt: invoice.paidAt || '' } : null,
     html: renderInvoice(invoice, { company: s.profile?.name || '', contact: contact && { name: contact.name, company: contact.company, email: contact.email }, logo,
       receiptTitle: paymentSettingsOf(s).receipts.title })
   };
