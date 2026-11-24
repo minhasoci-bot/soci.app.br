@@ -73,18 +73,28 @@ export function injectPixels(html, workspace) {
   return /<\/head>/i.test(html) ? html.replace(/<\/head>/i, `${tag}</head>`) : tag + html;
 }
 
-/** pixels.js: GA4, Tag Manager and Meta Pixel, with a Lead event when a form on the page is sent. */
+/**
+ * pixels.js: GA4, Tag Manager and Meta Pixel. Forms decided by the server (data-soci-lead) and bookings count through a
+ * marker the server puts on the next page (?soci_ev=lead.<id> or <meta name="soci-event">), so a disqualified lead never
+ * counts and a reload never counts twice. Other public forms keep sending Lead on submit. Inside a frame of the same
+ * site the page view was already counted by the page around it.
+ */
 export function pixelsScript(t) {
   if (!hasPixels(t)) return '/* Nenhum pixel configurado. */';
   const cfg = JSON.stringify({ ga4: t.ga4 || '', gtm: t.gtm || '', meta: t.metaPixel || '' });
-  return `(function(){var c=${cfg},w=window,d=document;
+  return `(function(){var c=${cfg},w=window,d=document,inner=false;try{inner=w.parent!==w&&w.parent.location.origin===location.origin;}catch(e){}
 function load(src){var s=d.createElement('script');s.async=true;s.src=src;d.head.appendChild(s);}
 w.dataLayer=w.dataLayer||[];
 if(c.gtm){w.dataLayer.push({'gtm.start':Date.now(),event:'gtm.js'});load('https://www.googletagmanager.com/gtm.js?id='+encodeURIComponent(c.gtm));}
-if(c.ga4){w.gtag=w.gtag||function(){w.dataLayer.push(arguments);};w.gtag('js',new Date());w.gtag('config',c.ga4);load('https://www.googletagmanager.com/gtag/js?id='+encodeURIComponent(c.ga4));}
+if(c.ga4){w.gtag=w.gtag||function(){w.dataLayer.push(arguments);};w.gtag('js',new Date());w.gtag('config',c.ga4,inner?{send_page_view:false}:{});load('https://www.googletagmanager.com/gtag/js?id='+encodeURIComponent(c.ga4));}
 if(c.meta){var f=w.fbq=w.fbq||function(){f.callMethod?f.callMethod.apply(f,arguments):f.queue.push(arguments);};if(!w._fbq)w._fbq=f;f.push=f;f.loaded=true;f.version='2.0';f.queue=f.queue||[];
-w.fbq('init',c.meta);w.fbq('track','PageView');load('https://connect.facebook.net/en_US/fbevents.js');}
-d.addEventListener('submit',function(){if(w.gtag&&c.ga4)w.gtag('event','generate_lead');if(w.fbq&&c.meta)w.fbq('track','Lead');if(c.gtm)w.dataLayer.push({event:'soci_lead'});},true);
+w.fbq('init',c.meta);if(!inner)w.fbq('track','PageView');load('https://connect.facebook.net/en_US/fbevents.js');}
+var q=new URLSearchParams(location.search),m=d.querySelector('meta[name="soci-event"]'),ev=q.get('soci_ev')||(m&&m.getAttribute('content'))||'',kind=ev.split('.')[0],
+fb={lead:'Lead',schedule:'Schedule'}[kind],ga={lead:'generate_lead',schedule:'schedule'}[kind];
+if(fb){var seen=null;try{seen=w.sessionStorage.getItem('soci_ev_'+ev);w.sessionStorage.setItem('soci_ev_'+ev,'1');}catch(e){}
+if(!seen){if(w.fbq&&c.meta)w.fbq('track',fb,{},{eventID:ev});if(w.gtag&&c.ga4)w.gtag('event',ga);if(c.gtm)w.dataLayer.push({event:'soci_'+kind});}}
+if(q.has('soci_ev')){q.delete('soci_ev');var rest=q.toString();try{w.history.replaceState(null,'',location.pathname+(rest?'?'+rest:'')+location.hash);}catch(e){}}
+d.addEventListener('submit',function(e){var t=e&&e.target;if(t&&t.hasAttribute&&t.hasAttribute('data-soci-lead'))return;if(w.gtag&&c.ga4)w.gtag('event','generate_lead');if(w.fbq&&c.meta)w.fbq('track','Lead');if(c.gtm)w.dataLayer.push({event:'soci_lead'});},true);
 })();`;
 }
 

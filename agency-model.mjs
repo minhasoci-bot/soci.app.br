@@ -916,8 +916,9 @@ export function applySnapshot(target, snapshot, mode = 'skip', studioMap = null,
     const rule = modes[key] === 'overwrite' || modes[key] === 'skip' ? modes[key] : mode;
     target[key] ??= [];
     const id = idMap.get(original.id);
-    if (key === 'studioProjects' && studioMap) studioMap.set(original.id, id);
     if (match && !(rule === 'overwrite' && key !== 'pipelines')) { report.skipped++; continue; }
+    // Only what is really loaded brings its pages: a site kept as it is keeps its pages too.
+    if (key === 'studioProjects' && studioMap) { studioMap.set(original.id, id); studioMap.ids = idMap; }
     const item = remapIds(structuredClone(key === 'agents' ? agentTemplate(original) : original), idMap);
     // Direct links to records that are neither in the load nor in the account are cleared.
     for (const [field, refType] of Object.entries(refs[key] || {})) if (item[field] && !exists(refType, item[field]) && ![...idMap.values()].includes(item[field])) item[field] = '';

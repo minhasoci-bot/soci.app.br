@@ -17,7 +17,7 @@
  */
 window.PLANO_SOCI = {
   titulo: "Paridade Soci × GoHighLevel",
-  atualizadoEm: "2026-11-23 11:04",
+  atualizadoEm: "2026-11-24 15:30",
   etapaAtual: "T.2",
 
   regras: [
@@ -192,6 +192,7 @@ window.PLANO_SOCI = {
   ],
 
   historico: [
+    { data: "2026-11-24", hora: "15:30", texto: "Funil de reuniões qualificadas (extra soci): blocos de vídeo, formulário e agenda no editor de páginas; destino por resposta no formulário, com lead desqualificado; antecedência, janela e página de confirmação por serviço; Lead só para o qualificado e Schedule ao agendar; lembretes contados a partir da reunião; e um template de setup de conta com 4 páginas, 2 formulários, pipeline e 5 fluxos. Em revisão, ainda não mesclado." },
     { data: "2026-11-23", hora: "11:04", texto: "Prancheta (extra soci): o editor completo da Prancheta da Steam agora roda na agência. Frames, auto layout, componentes, booleanas, lápis, gradientes, efeitos (vidro, desfoque, ruído), Google Fonts, remoção de fundo com IA, exportação PNG/JPG/SVG e carrossel em ZIP, cerca de 80 atalhos. Código em prancheta-editor/src, pacote em ui/vendor/prancheta-editor.js, aberto num iframe sobre a galeria. Servidor recusa gravação de versão antiga (409) e grava só a miniatura sem apagar a arte. Análise em docs/implementation/07-prancheta-analise-steam.md." },
     { data: "2026-11-23", hora: "00:40", texto: "7.4 ampliado: Setups de conta com as abas do GHL (Meus setups, Importados, Compartilhados, Templates de setup), tabela com versão, data e ações + / renomear / carregar / ⋮, e galeria com os 123 templates por segmento do GHL (15 categorias, grade ou lista, filtro e ilustrações próprias da Soci). Cada template é um setup completo e cria a subconta direto. Os 4 setups convertidos deixaram de ser oficiais: entram em Meus setups da agência do autor pelo scripts/seed-setups.mjs." },
     { data: "2026-11-22", hora: "23:59", texto: "7.4 concluído: Setups de conta com paridade dos snapshots do GHL. O setup leva campos, valores, tags, calendários, bases de conhecimento, modelos, contratos e chats; a carga tem assistente em 3 etapas (subcontas vinculadas, recursos por item, conflitos com regra por tipo), remapeia os vínculos dos workflows e pode ser compartilhada por código com proteção de ativos. Os snapshots da agência (agente IA IMOB, cold email, site inteligente, crewsystems) viraram 4 setups oficiais no marketplace e o Agência 360 ganhou tags, calendários e valores." },
