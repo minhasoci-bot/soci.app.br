@@ -1,7 +1,8 @@
 /* Planejador de eventos (Marketing › Eventos). Só tokens do tema: claro e escuro vêm de ui/graao.css. */
+.ep .page-back { padding:0; background:none; border:0; font:inherit; font-size:13px; cursor:pointer; }
 .ep-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px; }
-.ep-toolbar label, .ep-filter label { display:flex; align-items:center; gap:7px; color:var(--g-dim); font-size:12px; font-weight:650; }
-.ep-toolbar select, .ep-filter select { min-height:32px; font-size:13px; }
+.ep .ep-toolbar label, .ep .ep-filter label { display:flex; flex:0 0 auto; width:auto; align-items:center; gap:7px; color:var(--g-dim); font-size:12px; font-weight:650; }
+.ep-toolbar select, .ep-filter select, .ep-item-side select, .ep-link-foot select { width:auto; min-height:32px; font-size:13px; }
 
 .ep-gallery { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:14px; }
 .ep-card { display:flex; flex-direction:column; min-height:196px; transition:border-color .16s ease, transform .16s ease; }
@@ -39,7 +40,7 @@
 .ep-item-main { flex:1; min-width:0; }
 .ep-item-main h3 { margin:0; font-size:14px; color:var(--g-ink); }
 .ep-item-meta { margin:4px 0 0; color:var(--g-dim); font-size:12px; }
-.ep-item-side { display:flex; flex:0 0 auto; flex-direction:column; align-items:flex-end; gap:8px; }
+.ep-item-side { display:flex; flex:0 0 auto; align-items:center; gap:8px; }
 .ep-item-actions { display:flex; gap:2px; }
 .ep-code { display:inline-flex; padding:2px 6px; border-radius:6px; background:var(--g-surface-2); color:var(--g-ink-2); font-size:11px; font-weight:700; font-variant-numeric:tabular-nums; }
 .ep-item details { margin-top:8px; }
@@ -52,7 +53,7 @@
 .ep-note { margin:8px 0 0; color:var(--g-ink-2); font-size:13px; line-height:1.5; white-space:pre-wrap; }
 
 .ep-agenda .ep-item { align-items:center; }
-.ep-time { display:grid; flex:0 0 64px; place-items:center; height:42px; border-radius:10px; background:var(--g-brand-tint); color:var(--g-brand-text); font-weight:800; font-variant-numeric:tabular-nums; }
+.ep-time { display:grid; flex:0 0 64px; place-items:center; height:42px; border-radius:10px; background:var(--g-surface-2); color:var(--g-ink); font-weight:800; font-variant-numeric:tabular-nums; }
 
 .ep-link-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:10px; }
 .ep-link { display:flex; flex-direction:column; gap:8px; padding:14px; }
@@ -81,7 +82,7 @@
 .ec-toolbar { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
 .ec-tool { min-width:34px; height:30px; padding:0 8px; color:var(--g-ink-2); background:var(--g-surface); border:1px solid var(--g-line); border-radius:7px; font:inherit; font-size:12px; cursor:pointer; }
 .ec-tool:hover { background:var(--g-surface-2); color:var(--g-ink); }
-.ec-var { height:30px; margin-left:auto; font-size:12px; }
+.ec .ec-toolbar .ec-var { width:auto; min-height:30px; margin-left:auto; padding-block:0; font-size:12px; }
 .ec-panes { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
 .ec-input { min-height:220px; resize:vertical; font:inherit; font-size:13px; line-height:1.5; }
 .ec-preview { min-height:220px; max-height:420px; overflow:auto; padding:10px 12px; border:1px dashed var(--g-line-strong); border-radius:8px; background:var(--g-surface-2); color:var(--g-ink-2); font-size:13px; line-height:1.55; }
@@ -90,7 +91,7 @@
   .ep-section-head { align-items:flex-start; flex-direction:column; }
   .ep-item { flex-direction:column; }
   .ep-agenda .ep-item { flex-direction:row; }
-  .ep-item-side { width:100%; flex-direction:row; align-items:center; justify-content:space-between; }
+  .ep-item-side { width:100%; justify-content:space-between; }
   .ep-integrations, .ep-form-grid, .ec-panes { grid-template-columns:1fr; }
-  .ep-filter label, .ep-toolbar label { width:100%; justify-content:space-between; }
+  .ep .ep-filter label, .ep .ep-toolbar label { width:100%; justify-content:space-between; }
 }
