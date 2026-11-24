@@ -15,7 +15,7 @@ import { labCatalog, labModes } from './ui/labs-data.js';
 import { deleteStudioApp, marketplaceFor, publishStudioApp, rotateAppSecret, saveStudioApp } from './app-studio-model.mjs';
 import {
   accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog,
-  mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys, templateCatalog,
+  mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys,
   appScopes, maxMarkup, rebillProducts, subFeatures, workflowBuilders
 } from './ui/agency-data.js';
 
@@ -60,7 +60,7 @@ export function blankAgency() {
     profile: { name: 'Agency', first: 'Agency', last: 'Owner', email: '', phone: '', language: platformLanguage },
     company: { name: 'My Agency', brand: platformBrand, domain: '', website: '', phone: '', address: '', primary: defaultPrimary, secondary: defaultSecondary, logo: '', timezone: 'America/Sao_Paulo', currency: defaults.profile.currency },
     accounts: {}, plans: [], snapshots: [], snapshotLoads: [], prospects: [], partners: [], ideas: [], menuLinks: [], announcements: [],
-    users: [], templates: [], templateInstalls: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], audit: [], brandGroups: [], presentations: [], pranchetaFiles: [],
+    users: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], audit: [], brandGroups: [], presentations: [], pranchetaFiles: [],
     reselling: Object.fromEntries(resellProducts.map(p => [p.key, { price: p.base, disabled: [] }])),
     affiliate: { accepted: false, steps: {}, code: '', payout: { method: 'PayPal', email: '' }, payments: [] },
     learning: { completed: [] },
@@ -938,28 +938,6 @@ export function applySnapshot(target, snapshot, mode = 'skip', studioMap = null,
     }
   }
   return report;
-}
-
-// ---- Templates ---------------------------------------------------------------
-
-export function installTemplate(workspace, template) {
-  let formId = '';
-  if (template.withForm) {
-    formId = uid();
-    workspace.forms.push({ id: formId, created: now(), name: `${template.name} lead form`, description: 'Leave your details and we will get back to you.', askPhone: true, active: false });
-  }
-  const pageId = uid();
-  workspace.pages.push({ id: pageId, created: now(), name: template.name, headline: template.headline, body: template.body || '', button: template.button || '', formId, kind: 'Funnel', active: false });
-  return pageId;
-}
-
-export function catalogTemplate(id, agency) {
-  const builtIn = templateCatalog.find(t => t[0] === id);
-  if (builtIn) {
-    const [, name, category, headline, body, button] = builtIn;
-    return { id, name, category, headline, body, button, withForm: true };
-  }
-  return agency.templates.find(t => t.id === id) || fail('Template not found.', 404);
 }
 
 // ---- Overview ----------------------------------------------------------------

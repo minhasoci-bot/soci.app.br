@@ -20,7 +20,7 @@ import { presentationsHtml, attachPresentationListeners, closePresentationEditor
 import { pranchetaScreen } from './prancheta.js';
 import {
   affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, learningTracks,
-  marketplaceCategories, mobileModules, resellProducts, snapshotAssets, snapshotAssetGroups, subAccountModules, systemEmailKeys, templateCatalog,
+  marketplaceCategories, mobileModules, resellProducts, snapshotAssets, snapshotAssetGroups, subAccountModules, systemEmailKeys,
   appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav, walletProducts
 } from './agency-data.js';
 import { setupArt } from './setup-art.js';
@@ -37,7 +37,6 @@ const subTabs = {
   prospecting: prospectRoutes,
   snapshots: [['mine', 'Meus setups'], ['imported', 'Importados'], ['templates', 'Templates de setup'], ['history', 'Histórico de cargas']],
   affiliate: [['dashboard', 'Painel'], ['reports', 'Relatórios de indicações'], ['payment', 'Dados de pagamento'], ['history', 'Histórico de pagamentos']],
-  templates: [['all', 'Todos os templates'], ['mine', 'Meus templates'], ['installs', 'Instalações']],
   ideas: [['all', 'Todas'], ['Under review', 'Em análise'], ['Planned', 'Planejadas'], ['In progress', 'Em andamento'], ['Completed', 'Concluídas']],
   saas: [['overview', 'Visão geral'], ['plans', 'Planos SaaS'], ['rebilling', 'Rebilling da carteira'], ['accounts', 'Subcontas SaaS']],
   settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'],
@@ -171,8 +170,8 @@ export function startAgency(env) {
       open: A.navOpen,
       groups: [
         { title: tr('Visão geral'), items: agencyNav.slice(0, 5).map(item) },
-        { title: tr('Subcontas e ferramentas'), items: agencyNav.slice(5, 13).map(item) },
-        { title: tr('Aprender e apps'), items: agencyNav.slice(13, -1).map(item) },
+        { title: tr('Subcontas e ferramentas'), items: agencyNav.slice(5, 12).map(item) },
+        { title: tr('Aprender e apps'), items: agencyNav.slice(12, -1).map(item) },
         { title: tr('Atalhos'), items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: tr(l.title), icon: l.icon, external: true })) }
       ],
       footer: [
@@ -614,18 +613,6 @@ export function startAgency(env) {
     return `<div class="page">${pageHead}${tabCard('affiliate', `<div class="metrics">${metric('Indicações ativas', active.length)}${metric('Comissão mensal', money(active.reduce((s, r) => s + r.amount * affiliateRate, 0)))}${metric('Comissão a receber', money(O().totals.affiliateDue))}${metric('Total pago até hoje', money(paid))}</div>
       <div class="surface padded"><h2>Seu link de indicação</h2><div class="ag-copy"><input readonly value="${h(link)}" aria-label="Link de indicação">${btn('Copiar link', 'copy', `data-text="${h(link)}"`)}</div></div>`, 'Seções de afiliados')}</div>`;
   };
-
-  pages.templates = () => {
-    const sub = A.sub || 'all';
-    const cats = [...new Set([...templateCatalog.map(t => t[2]), ...D().templates.map(t => t.category)])].sort();
-    if (sub === 'installs') return `<div class="page">${head('Biblioteca de templates', 'Modelos instalados nas subcontas.')}${tabCard('templates', table(['Template', 'Subconta', 'Data da instalação'], [...D().templateInstalls].reverse().map(t => `<tr><td><b>${h(t.name)}</b></td><td>${h(t.account)}</td><td>${day(t.at, true)}</td></tr>`), empty('Nenhuma instalação realizada', 'Instale um template em uma subconta para registrá-lo aqui.')), 'Seções de templates')}</div>`;
-    const list = sub === 'mine' ? D().templates.map(t => ({ ...t, mine: true })) : templateCatalog.map(([id, name, category, headline, body, button]) => ({ id, name, category, headline, body, button }));
-    const shown = list.filter(t => match(t.name, t.category, t.headline) && (!A.category || t.category === A.category));
-    const body = `<div class="toolbar">${search('Buscar templates…')}<select data-ag-category aria-label="Categoria"><option value="">Todas as categorias</option>${cats.map(c => `<option value="${c}" ${A.category === c ? 'selected' : ''}>${h(tr(c))}</option>`).join('')}</select></div>
-      <div class="card-grid">${shown.map(t => `<article class="surface resource ag-template"><div class="ag-thumb"><small>${h(tr(t.category))}</small><b>${h(t.headline)}</b><span>${h(t.button || 'Saiba mais')}</span></div><div class="padded"><h2>${h(t.name)}</h2><div class="inline-gap">${btn('Visualizar', 'template-preview', `data-id="${t.id}"`)}${btn('Instalar', 'template-install', `data-id="${t.id}"`, 'primary')}${t.mine ? btn('Editar', 'edit-record', `data-key="templates" data-id="${t.id}"`) : ''}</div></div></article>`).join('') || empty(sub === 'mine' ? 'Nenhum template próprio' : 'Nenhum template encontrado', sub === 'mine' ? 'Crie um template para reutilizá-lo em múltiplas subcontas.' : 'Tente outros filtros ou termos de busca.')}</div>`;
-    return `<div class="page">${head('Biblioteca de templates', 'Visualize modelos de páginas prontos e instale-os nas subcontas como funis de rascunho.', primary('Criar template', 'new-record', 'data-key="templates"'))}${tabCard('templates', body, 'Seções de templates')}</div>`;
-  };
-  const findTemplate = id => { const t = templateCatalog.find(x => x[0] === id); return t ? { id, name: t[1], category: t[2], headline: t[3], body: t[4], button: t[5] } : D().templates.find(x => x.id === id); };
 
   pages.partners = () => `<div class="page">${head('Parceiros', 'Diretório centralizado de freelancers, agências parceiras e fornecedores da sua operação.', primary('Adicionar parceiro', 'new-record', 'data-key="partners"'))}<div class="toolbar">${search('Buscar parceiros…')}</div>
     ${table(['Parceiro', 'Serviço prestado', 'Contato', 'Site oficial', ''], D().partners.filter(p => match(p.name, p.service, p.contact)).map(p => `<tr><td><b>${h(p.name)}</b></td><td>${h(tr(p.service))}</td><td>${h(p.contact || '—')}<br><small class="dim">${h(p.email)}</small></td><td>${p.website ? `<a class="text-link" href="${h(p.website)}" target="_blank" rel="noopener">${h(new URL(p.website).hostname)}</a>` : '—'}</td><td class="right">${btn('Editar', 'edit-record', `data-key="partners" data-id="${p.id}"`)}</td></tr>`), empty('Nenhum parceiro cadastrado', 'Adicione parceiros para manter contatos e serviços centralizados.'))}</div>`;
@@ -1151,7 +1138,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
 
   async function show(page, sub) {
     const nextPage = pages[page] ? page : 'dashboard';
-    if (nextPage !== A.page) { A.query = ''; A.status = ''; A.category = ''; A.selected.clear(); A.bg = null; closePresentationEditor(); }
+    if (nextPage !== A.page) { A.query = ''; A.status = ''; A.selected.clear(); A.bg = null; closePresentationEditor(); }
     A.page = nextPage;
     const normalizedSub = A.page === 'settings' && sub === 'phone' ? 'whatsapp' : A.page === 'settings' && sub === 'stripe' ? 'abacatepay' : sub;
     A.sub = A.page === 'ask'
@@ -1474,8 +1461,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'affiliate-step': await act('affiliate-step', { data: { step: d.step } }); render(); break;
         case 'affiliate-pay': { const amount = await act('affiliate-pay'); render(); flash(`Pagamento de ${money(amount)} registrado.`); break; }
         case 'copy': await navigator.clipboard.writeText(d.text).then(() => flash('Copiado para a área de transferência.'), () => flash('Selecione o texto e copie manualmente.', true)); break;
-        case 'template-preview': { const t = findTemplate(id); dialog(t.name, `<div class="ag-preview"><small>${h(tr(t.category))}</small><h3>${h(t.headline)}</h3><p>${h(t.body || '')}</p>${t.button ? `<span class="primary">${h(t.button)}</span>` : ''}</div>`, { wide: true }); break; }
-        case 'template-install': dialog(`Instalar “${findTemplate(id).name}”`, `${oneAccount()}<p class="dim">A página será adicionada como funil de rascunho com formulário de captura vinculado.</p>`, { form: 'template-install', id, submit: 'Instalar agora' }); break;
         case 'learn': await act('learning', { data: { lesson: id } }); render(); break;
         case 'idea-vote': await act('idea-vote', { id }); render(); break;
         case 'idea-comments': { const x = D().ideas.find(r => r.id === id); dialog(x.title, `${x.comments.map(cm => `<div class="line-item"><div><b>${h(cm.author)}</b> <small class="dim">${day(cm.at, true)}</small><p>${h(cm.body)}</p></div></div>`).join('') || '<p class="dim">Nenhum comentário registrado ainda.</p>'}<label>Adicionar comentário<textarea name="body" required maxlength="2000"></textarea></label>`, { form: 'idea-comment', id, submit: 'Comentar' }); break; }
@@ -1627,7 +1612,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         const key = el.dataset.agLab;
         await act('labs', { data: { [key]: el.value } }); render(); G(`[data-ag-lab="${key}"]`)?.focus(); flash('Recursos experimentais atualizados.');
       }
-      if (el.matches('[data-ag-category]')) { A.category = el.value; render(); G('[data-ag-category]').focus(); }
       if (el.matches('[data-ag-gal-category]')) { const scope = el.dataset.agGalCategory; A.galCat = { ...A.galCat, [scope]: el.value }; render(); G(`[data-ag-gal-category="${scope}"]`)?.focus(); }
       if (el.matches('[data-ag-tpl-category]')) { A.tplCategory = el.value; render(); G('[data-ag-tpl-category]').focus(); }
       if (el.matches('[data-ag-mkt-origin]')) { A.mktOrigin = el.value; render(); G('[data-ag-mkt-origin]').focus(); }
@@ -1786,7 +1770,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'addon-request': await act('addon-request', { id, data }); msg = 'Solicitação registrada com sucesso.'; break;
         case 'affiliate-accept': await act('affiliate-accept', { data }); msg = 'Boas-vindas ao programa de afiliados!'; break;
         case 'affiliate-payout': await act('affiliate-payout', { data }); msg = 'Dados de pagamento atualizados.'; break;
-        case 'template-install': { const r = await call('template-install', { template: id, workspace: data.workspace }); msg = `Instalado em ${accountName(r.workspace)} como funil de rascunho.`; break; }
         case 'idea-comment': await act('idea-comment', { id, data }); msg = 'Comentário adicionado.'; break;
         case 'integration': await act('integration', { id, data: { accounts: data.accounts } }); msg = 'Disponibilidade de integração atualizada.'; break;
         case 'mobile-app': {

@@ -179,7 +179,8 @@ Ask AI ✅ (Pergunte a Soci) · Launchpad ✅ · Dashboard ✅
 | Prospecting · Sub-accounts · Snapshots | ✅ |
 | Reselling (revenda de telefonia, e-mail, IA com margem) | 🟡 IA, e-mails e WhatsApp com carteira de créditos (7.1); telefonia depende da D1 |
 | Marketplace | ✅ Marketplace de apps com App Studio (7.3) |
-| Affiliate Portal · Template Library · Partners · University · Ideas | ✅ |
+| Affiliate Portal · Partners · University · Ideas | ✅ |
+| Template Library | Removida a pedido em 2026-11-23; modelos de site ficam em Sites e os de subconta em Setups |
 | SaaS Education | ⏭ (conteúdo) |
 | Swag | ⏭ |
 | Mobile App Customiser | ✅ |

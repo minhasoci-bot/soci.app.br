@@ -48,7 +48,6 @@ Com um login de agência, abra a **Visão da agência** no seletor de workspaces
 | Reselling | Preço ao cliente por produto (não pode ficar abaixo do custo), lucro, liberação por subconta, planos SaaS e resumo por subconta |
 | Prospecção | Lista de prospects em cartões, busca e cadastro, categorias, auditoria, compartilhamento, widgets, Analytics e envio para o CRM das subcontas |
 | Add-Ons, Affiliate Portal | Pedidos de add-on (sem cobrança). Aceite dos termos em quatro passos, link de indicação, indicações, comissão de 40%, dados e histórico de pagamento |
-| Template Library | 18 modelos próprios por categoria, modelos da agência, prévia e instalação numa subconta como página de funil em rascunho com formulário |
 | Partners, Ideas, University, SaaS Education | Diretório de parceiros. Quadro de ideias com votos, status e comentários. Trilhas de aulas com progresso |
 | Mobile App, Desktop App | Nome, cores, título de login, ordem e visibilidade dos módulos e módulos por URL, com prévia ao vivo |
 | SaaS Configurator | Tela de apresentação até ativar o modo SaaS. Depois: visão geral com MRR das subcontas SaaS e checklist, markup da carteira por produto (de 1× a 10×) e modo SaaS por subconta |
