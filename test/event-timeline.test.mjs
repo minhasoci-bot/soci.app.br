@@ -52,6 +52,7 @@ test('A scheduled message dragged to the past would leave now', () => {
 test('The drawing is escaped, labelled and places each item on its day', () => {
   const html = draw(eventGroups(event([task('t<1>', { date: '2026-12-01' }), message('m1'), task('sem', { date: '' })])));
   assert.match(html, /--ep-day:36px/);
+  assert.match(html, />Novembro de 2026</);
   assert.match(html, /t&lt;1&gt;/);
   assert.doesNotMatch(html, /<1>/);
   assert.match(html, /data-ep-tl-bar="t&lt;1&gt;"[^>]*style="--at:7"/);
@@ -77,7 +78,7 @@ test('A locked item has no drag handle and says why', () => {
 function mount({ items = [task('t1')], deliveries = {}, saveFails = false, answer = true, now = Date.parse('2026-11-25T12:00:00Z') } = {}) {
   const handlers = {}, log = [], plan = event(items, { deliveries });
   const timers = [];
-  const listen = (type, fn) => { (handlers[type] ||= []).push(fn); };
+  const listen = (type, fn) => { handlers[type] = [...(handlers[type] || []), fn]; };
   const bar = { dataset: { epTlBar: items[0].id, epEvent: 'e1' }, classList: { contains: () => false, add() {}, remove() {} }, style: { setProperty: (key, value) => log.push(`${key}=${value}`), removeProperty: key => log.push(`-${key}`) }, setPointerCapture() {}, closest(selector) { return selector.includes('data-ep-tl-bar') ? bar : selector.includes('data-ep-timeline') ? { dataset: { day: '36' } } : null; }, setAttribute() {} };
   installTimeline({
     listen, now: () => now, zone: () => 'America/Sao_Paulo', later: fn => { timers.push(fn); return timers.length - 1; }, drop: id => { timers[id] = null; },

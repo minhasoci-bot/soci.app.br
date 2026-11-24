@@ -107,7 +107,7 @@
 
 .ep-toolbar .spacer { flex:1; }
 .ep-toggle { display:inline-flex; gap:4px; }
-.ep-toggle [aria-pressed="true"] { border-color:var(--g-brand-line); background:var(--g-brand-surface); color:var(--g-brand-text); }
+:root .ep .ep-toggle .secondary[aria-pressed="true"] { border-color:var(--g-brand-line); background:var(--g-brand-surface); color:var(--g-brand-text); }
 .ep-tl { border:1px solid var(--g-line); border-radius:var(--g-r); background:var(--g-surface); overflow:hidden; }
 .ep-tl-scroll { position:relative; max-height:70vh; overflow:auto; }
 .ep-tl-scroll:focus-visible { outline:2px solid var(--g-brand); outline-offset:-2px; }
@@ -123,7 +123,7 @@ button.ep-tl-name:focus-visible { outline:2px solid var(--g-brand); outline-offs
 .ep-tl-row.is-group .ep-tl-name { color:var(--g-ink); font-weight:750; }
 .ep-tl-row.is-group .ep-tl-name, .ep-tl-row.is-group .ep-tl-track { background-color:var(--g-surface-2); }
 .ep-tl-months, .ep-tl-days { position:relative; height:27px; }
-.ep-tl-months b { position:absolute; left:calc(var(--ep-day) * var(--at)); width:calc(var(--ep-day) * var(--span)); padding-left:8px; overflow:hidden; color:var(--g-ink-2); border-left:1px solid var(--g-line); font-size:12px; line-height:27px; text-transform:capitalize; white-space:nowrap; }
+.ep-tl-months b { position:absolute; left:calc(var(--ep-day) * var(--at)); width:calc(var(--ep-day) * var(--span)); padding-left:8px; overflow:hidden; color:var(--g-ink-2); border-left:1px solid var(--g-line); font-size:12px; line-height:27px; white-space:nowrap; }
 .ep-tl-days span { position:absolute; left:calc(var(--ep-day) * var(--at)); width:var(--ep-day); color:var(--g-dim); font-size:11px; line-height:24px; text-align:center; font-variant-numeric:tabular-nums; }
 .ep-tl-days small { margin-right:3px; opacity:.7; }
 .ep-tl-days .is-weekend { color:var(--g-faint); }

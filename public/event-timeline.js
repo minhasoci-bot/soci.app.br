@@ -55,7 +55,7 @@ function header(range, zoom) {
     if (zoom === 'day' || date.getUTCDay() === 1) days.push(`<span style="--at:${n}" class="${[0, 6].includes(date.getUTCDay()) ? 'is-weekend' : ''}">${zoom === 'day' ? `<small>${weekday.format(date)}</small>` : ''}${Number(iso.slice(8))}</span>`);
   }
   let at = 0;
-  const names = months.map(month => { const html = `<b style="--at:${at};--span:${month.span}">${h(month.text)}</b>`; at += month.span; return html; });
+  const names = months.map(month => { const html = `<b style="--at:${at};--span:${month.span}">${h(month.text[0].toUpperCase() + month.text.slice(1))}</b>`; at += month.span; return html; });
   return `<div class="ep-tl-head"><div class="ep-tl-name"></div><div class="ep-tl-track"><div class="ep-tl-months">${names.join('')}</div><div class="ep-tl-days">${days.join('')}</div></div></div>`;
 }
 function bar(event, item, at) {

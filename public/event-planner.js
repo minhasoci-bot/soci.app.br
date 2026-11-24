@@ -1,6 +1,6 @@
 import { icon as i } from './icons.js';
-import { ask } from './ask.js';
-import { eventGroups, galleryGroups, installTimeline, timelineHtml } from './event-timeline.js';
+import { ask as askUser } from './ask.js';
+import { eventGroups, galleryGroups, installTimeline, leavesNow, timelineHtml } from './event-timeline.js';
 import { deliveryActive, deliveryOf, deliveryView, installEventSends, sendBanner, sendSummary, sendTools, sendable, targetsField } from './event-sends.js';
 import { bindCopyEditor, copyEditorField, replaceText, whatsappHtml } from './event-copy-editor.js';
 import {
@@ -131,7 +131,7 @@ const sections = [
   { value: 'messages', label: 'Comunicação', icon: 'send', content: messagesSection },
   { value: 'agenda', label: 'Roteiro do dia', icon: 'list', content: agendaSection },
   { value: 'links', label: 'Links', icon: 'link', content: linksSection },
-  { value: 'timeline', label: 'Linha do tempo', icon: 'calendar', content: timelineSection },
+  { value: 'timeline', label: 'Linha do tempo', icon: 'clock', content: timelineSection },
   { value: 'integrations', label: 'Integrações', icon: 'flow', content: integrationsSection }
 ];
 
@@ -238,12 +238,12 @@ async function copyText(text) {
   const area = document.createElement('textarea'); area.value = text; area.style.position = 'fixed'; area.style.opacity = '0'; document.body.append(area); area.select(); document.execCommand('copy'); area.remove();
 }
 
-export function installEventPlanner({ c, mutate, flash, dialog, close, render: draw, api, url, load }) {
+export function installEventPlanner({ c, mutate, flash, dialog, close, render: draw, api, url, load, ask = askUser }) {
   // Depois de desenhar, a linha do tempo volta para onde estava, ou para perto de hoje.
-  const place = left => {
+  const place = (left, top) => {
     const scroll = document.querySelector('[data-ep-tl-scroll]'); if (!scroll) return;
     const { day, today } = scroll.closest('[data-ep-timeline]').dataset;
-    scroll.scrollLeft = left ?? (today === '' ? 0 : Math.max(0, today * day - scroll.clientWidth / 4));
+    scroll.scrollTo({ left: left ?? (today === '' ? 0 : Math.max(0, today * day - scroll.clientWidth / 4)), top, behavior: 'instant' });
   };
   const render = () => { draw(); place(); };
   const find = id => (c.s.eventPlans || []).find(row => row.id === id);
@@ -260,10 +260,10 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render: d
   // Redesenha sem perder a posição da rolagem nem as copies abertas.
   const repaint = () => {
     const top = document.querySelector('#screen')?.scrollTop || 0;
-    const left = document.querySelector('[data-ep-tl-scroll]')?.scrollLeft;
+    const { scrollLeft: left, scrollTop: down } = document.querySelector('[data-ep-tl-scroll]') || {};
     const openItems = new Set([...document.querySelectorAll('[data-ep-details][open]')].map(row => row.dataset.epDetails));
     draw();
-    place(left);
+    place(left, down);
     for (const row of document.querySelectorAll('[data-ep-details]')) row.open = openItems.has(row.dataset.epDetails);
     document.querySelector('#screen')?.scrollTo({ top, behavior: 'instant' });
   };
@@ -372,6 +372,7 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render: d
         done('Estratégia atualizada.');
       } else if (kind === 'item') {
         const previous = itemOf(event, form.dataset.itemId), row = itemFromValues(form.dataset.kind, values, previous, usersOf(c));
+        if ((row.date !== previous?.date || row.time !== previous?.time) && leavesNow(event, row, row.date, c.s.profile?.timezone || 'America/Sao_Paulo', Date.now()) && !await ask('Enviar agora?', { text: `“${row.title}” está agendada. Com essa data, o horário já passou e ela sai em seguida.`, ok: 'Enviar agora' })) return;
         await savePlan(id, plan => { const at = plan.items.findIndex(item => item.id === row.id); if (at === -1) plan.items.push(row); else plan.items[at] = row; }, revision);
         done(previous ? 'Item atualizado.' : 'Item criado.');
       }
