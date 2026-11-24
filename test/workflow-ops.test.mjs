@@ -147,3 +147,13 @@ test('T.1 coupon expired: fires once, the day after the last valid day, without 
   tick(s, Date.parse('2026-12-06T15:00:00Z'));
   assert.equal(runsOf(s, id).length, 2, 'a new end date expires again');
 });
+
+test('T.1 merge contact: merge keeps every opt-out of the preference page', () => {
+  const s = blank();
+  flow(s, 'Novo lead', { type: 'contact_created' }, [{ type: 'merge_contact', config: { by: 'phone', keep: 'this' } }]);
+  const first = save(s, 'contacts', { name: 'Rita', phone: '(11) 96666-0000', tags: [], custom: {} });
+  s.contacts.find(row => row.id === first).optOut = { whatsapp: true, email: false };
+  const late = save(s, 'contacts', { name: 'Rita Lima', phone: '+5511966660000', tags: [], custom: {} });
+  assert.deepEqual(s.contacts.map(row => row.id), [late]);
+  assert.equal(s.contacts[0].optOut?.whatsapp, true);
+});

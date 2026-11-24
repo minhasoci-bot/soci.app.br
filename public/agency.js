@@ -155,9 +155,9 @@ export function startAgency(env) {
 
   function shell(content) {
     const company = D().company;
-    const users = D().users;
     const session = A.data.access?.session;
-    const acting = localStorage.getItem('go.user') || '';
+    // Sem login (servidor local), "Agir como" vale também aqui: a faixa é a saída desse modo.
+    const acting = !session && localStorage.getItem('go.user');
     const item = ([key, label, ico]) => ({ href: `#agency/${key}`, label: tr(label), icon: ico, current: A.page === key });
     const currentPageLabel = tr(agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência');
     return `<div class="shell ${A.navOpen ? 'wide' : ''} ag-shell">${sidebar({
@@ -185,7 +185,6 @@ export function startAgency(env) {
         { label: currentPageLabel }
       ],
       search: 'data-act="search"',
-      extra: session ? '' : `<div class="ag-acting">${i('users', 15)}<label class="sr-only" for="ag-user-select">Agindo como</label><select id="ag-user-select" data-ag-user aria-label="Agindo como"><option value="">${h(D().profile.name)} (Dono da agência)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(tr(u.role))})</option>`).join('')}</select></div>`,
       tools: [
         { icon: 'bell', label: tr('Notificações'), attr: 'data-act="notifications"' }
       ],
@@ -195,7 +194,7 @@ export function startAgency(env) {
         label: session?.name || tr('Configurações da agência'),
         attr: session ? 'data-act="account"' : 'data-ag="go-profile"'
       }
-    })}<main id="screen" class="screen${A.page === 'ask' ? ' screen-ask-chat' : ''}">${content}</main></div></div>`;
+    })}${acting ? `<div class="ag-banner acting" role="status"><b>Agindo como ${h(A.data.access?.name || '')}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>` : ''}<main id="screen" class="screen${A.page === 'ask' ? ' screen-ask-chat' : ''}">${content}</main></div></div>`;
   }
 
   // ---- Pages -------------------------------------------------------------
@@ -861,7 +860,8 @@ Authorization: Bearer soci_app_…
     const markup = String(D().saas.rebilling.whatsapp ?? 1).replace('.', ',');
     const subCfg = w?.subaccounts || {};
     const pl = w?.providerLabel || 'Evolution API';
-    const customProvider = w?.customProvider === 'uazapi' ? 'uazapi' : 'evolution';
+    const srv = A.waServer;
+    const serverCheck = srv ? `<p class="${srv.ok ? 'dim' : 'form-status'}" role="status">${srv.ok ? `Servidor no ar · versão ${h(srv.version)} · ${srv.connected} de ${srv.instances} número(s) conectado(s) · resposta em ${srv.latencyMs} ms` : h(srv.error)}</p>` : '';
     const statusBannerBadge = w?.error
       ? badge('Erro ao consultar', 'red')
       : !w
@@ -875,12 +875,8 @@ Authorization: Bearer soci_app_…
     const serverForm = `
       <form class="settings-form" data-ag-form="wa-config">
         <div class="field-grid">
-          <label class="ag-full">Provedor<select name="provider">
-            <option value="evolution"${customProvider === 'evolution' ? ' selected' : ''}>Evolution API (recomendado)</option>
-            <option value="uazapi"${customProvider === 'uazapi' ? ' selected' : ''}>UAZAPI</option>
-          </select></label>
-          <label class="ag-full">URL do servidor<input name="baseUrl" type="url" required placeholder="https://whatsapp.suaagencia.com.br" value="${h(w?.baseUrl || '')}"></label>
-          <label class="ag-full">Chave de acesso <small class="dim">Evolution: API Key global (<code>AUTHENTICATION_API_KEY</code>) · UAZAPI: <code>admintoken</code></small><input name="adminToken" type="password" autocomplete="off" ${w?.hasAdminToken ? '' : 'required'} placeholder="${w?.hasAdminToken ? `Chave salva (••••${h(w.adminTokenLast4)}) — deixe em branco para manter` : 'Cole a chave de acesso do servidor'}"></label>
+          <label class="ag-full">URL da Evolution API<input name="baseUrl" type="url" required placeholder="https://whatsapp.suaagencia.com.br" value="${h(w?.baseUrl || '')}"></label>
+          <label class="ag-full">API Key global <small class="dim">É o <code>AUTHENTICATION_API_KEY</code> do servidor</small><input name="adminToken" type="password" autocomplete="off" ${w?.hasAdminToken ? '' : 'required'} placeholder="${w?.hasAdminToken ? `Chave salva (••••${h(w.adminTokenLast4)}) — deixe em branco para manter` : 'Cole a API Key global do servidor'}"></label>
         </div>
         <div class="inline-gap">
           <button class="primary">Salvar servidor de WhatsApp</button>
@@ -952,10 +948,11 @@ Authorization: Bearer soci_app_…
         : cfg.status === 'connected'
           ? `<div class="inline-gap">${btn('Gerenciar', 'wa-sub-open', `data-id="${a.id}"`)}${btn('Desconectar', 'wa-sub-disconnect', `data-id="${a.id}"`)}</div>`
           : btn('Conectar QR Code', 'wa-sub-connect', `data-id="${a.id}"`, 'primary');
+      const removeBtn = w?.configured && cfg.hasInstance ? btn('Excluir instância', 'wa-sub-remove', `data-id="${a.id}"`) : '';
       return `<tr>
         <td><b>${h(a.name)}</b><br><small class="dim">${h(a.id)}</small></td>
         <td>${waStatusBadge(cfg.status)}${cfg.phone ? `<br><small class="dim">+${h(cfg.phone)}</small>` : ''}</td>
-        <td>${connectBtn}</td>
+        <td><div class="inline-gap">${connectBtn}${removeBtn}</div></td>
         <td>${sw(`WhatsApp em ${a.name}`, cfg.enabled, `data-ag-wa-sub="${a.id}" data-field="enabled"`)}</td>
         <td>${sw(`Rebilling de WhatsApp em ${a.name}`, (D().saas.rebill?.[a.id] || []).includes('whatsapp'), `data-ag-rebill="${a.id}" data-product="whatsapp"`, !cfg.enabled)}</td>
       </tr>`;
@@ -969,9 +966,11 @@ Authorization: Bearer soci_app_…
         <span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('whatsapp', 22)}</span></span>
         <div>
           <div class="inline-gap"><b>Integração com WhatsApp (${h(pl)})</b>${statusBannerBadge}</div>
-          <p>Conecte uma única vez o servidor de WhatsApp da agência (<a class="text-link" href="https://doc.evolution-api.com" target="_blank" rel="noopener">Evolution API</a> ou UAZAPI) para que <b>cada subconta</b> conecte o próprio número apenas lendo o QR Code. Markup SaaS atual: <b>${h(markup)}×</b>.</p>
+          <p>Conecte uma única vez o servidor da agência (<a class="text-link" href="https://doc.evolution-api.com" target="_blank" rel="noopener">Evolution API</a>) para que <b>cada subconta</b> conecte o próprio número apenas lendo o QR Code. Markup SaaS atual: <b>${h(markup)}×</b>.</p>
           ${w?.error ? `<p class="form-status">${h(w.error)}</p>` : ''}
+          ${serverCheck}
         </div>
+        ${w?.configured ? btn('Testar servidor', 'wa-server-check') : ''}
         <a class="secondary" href="#agency/saas/rebilling">Ajustar markup</a>
       </div>
 
@@ -984,7 +983,7 @@ Authorization: Bearer soci_app_…
       ` : `
         <div class="surface padded ag-gap">
           <h2>Servidor de WhatsApp da agência</h2>
-          <p class="dim">Informe uma única vez a URL e a chave de acesso do seu servidor Evolution API (ou UAZAPI). A chave fica criptografada no Supabase. Depois disso, cada subconta verá apenas o botão <b>Conectar WhatsApp</b> com QR Code.</p>
+          <p class="dim">Informe uma única vez a URL e a API Key global da sua Evolution API. A chave fica criptografada no Supabase. Depois disso, cada subconta verá apenas o botão <b>Conectar WhatsApp</b> com QR Code.</p>
           ${serverForm}
         </div>
       `}
@@ -1384,6 +1383,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         }
         case 'abacate-cancel': confirmBox(`Cancelar a assinatura de ${accountName(id)}?`, 'A cobrança recorrente é cancelada no AbacatePay. A subconta continua ativa até você mudar o status.', 'abacate-cancel', id, 'Cancelar assinatura'); break;
         case 'wa-disconnect-server': confirmBox('Remover servidor de WhatsApp próprio?', 'A URL e a chave de acesso cadastradas pela agência serão removidas.', 'wa-disconnect-server', '', 'Remover'); break;
+        case 'wa-server-check': A.waServer = await api('/api/whatsapp/agency/server'); render(); break;
+        case 'wa-sub-remove': confirmBox(`Excluir a instância de ${accountName(id)}?`, 'O número é desconectado e a instância sai do servidor. As conversas continuam no Soci. Para voltar a usar, é só conectar de novo com o QR Code.', 'wa-sub-remove', id, 'Excluir instância'); break;
         case 'wa-focus-close': stopWaPoll(); A.waFocus = null; render(); break;
         case 'wa-sub-open': {
           stopWaPoll();
@@ -1400,7 +1401,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           render();
           const live = await api(`/api/whatsapp/workspace/connect?workspace=${encodeURIComponent(id)}`, {});
           A.waFocus = { ...live, workspace: id };
-          if (A.wa?.subaccounts?.[id]) A.wa.subaccounts[id] = { ...A.wa.subaccounts[id], status: live.status, phone: live.phone, profileName: live.profileName };
+          if (A.wa?.subaccounts?.[id]) A.wa.subaccounts[id] = { ...A.wa.subaccounts[id], hasInstance: true, status: live.status, phone: live.phone, profileName: live.profileName };
           render();
           if (live.status === 'connecting') { startWaPoll(id); flash('QR Code pronto! Aponte a câmera do WhatsApp.'); }
           else if (live.status === 'connected') flash('WhatsApp conectado!');
@@ -1710,7 +1711,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       return;
     }
     try {
-      if (el.matches('[data-ag-user]')) { if (el.value) localStorage.setItem('go.user', el.value); else localStorage.removeItem('go.user'); location.reload(); }
       if (el.matches('[data-ag-status]')) { A.status = el.value; render(); G('[data-ag-status]').focus(); }
       if (el.matches('[data-ag-ai-filter]')) { A.aiFilter = el.value; render(); G('[data-ag-ai-filter]').focus(); }
       if (el.matches('[data-ag-ai-access]')) {
@@ -1807,20 +1807,30 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           stopWaPoll();
           A.waFocus = null;
           A.wa = await api('/api/whatsapp/agency/config', data);
-          msg = 'Servidor de WhatsApp salvo. As subcontas já podem conectar por QR Code!';
+          A.waServer = await api('/api/whatsapp/agency/server').catch(() => null);
+          msg = A.waServer?.ok === false ? 'Servidor salvo, mas o teste falhou. Veja o motivo no topo da página.' : 'Servidor de WhatsApp salvo. As subcontas já podem conectar por QR Code!';
           break;
         }
         case 'wa-disconnect-server': {
           stopWaPoll();
           A.waFocus = null;
+          A.waServer = null;
           A.wa = await api('/api/whatsapp/agency/disconnect-server', {});
           msg = 'Servidor de WhatsApp próprio removido.';
+          break;
+        }
+        case 'wa-sub-remove': {
+          stopWaPoll();
+          if (A.waFocus?.workspace === id) A.waFocus = null;
+          A.wa = await api('/api/whatsapp/agency/remove-instance', { workspace: id });
+          msg = 'Instância do WhatsApp excluída.';
           break;
         }
         case 'wa-sub-pair': {
           stopWaPoll();
           const live = await api(`/api/whatsapp/workspace/connect?workspace=${encodeURIComponent(id)}`, { phone: data.phone });
           A.waFocus = { ...live, workspace: id };
+          if (A.wa?.subaccounts?.[id]) A.wa.subaccounts[id] = { ...A.wa.subaccounts[id], hasInstance: true, status: live.status };
           if (live.status === 'connecting') startWaPoll(id);
           msg = live.paircode ? 'Código de pareamento gerado!' : 'Conexão iniciada.';
           break;

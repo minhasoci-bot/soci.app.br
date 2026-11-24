@@ -112,7 +112,7 @@ test('A part that fails holds back the rest for that person only', () => {
   const app = setup({ contacts: 2, notes: '## Mensagem 1\nUm\n## Mensagem 2\nDois' });
   app.result(app.take().row, 'failed', 'não tem WhatsApp');
   assert.deepEqual(app.rows('privado').map(row => [row.status, row.blocked || false]), [['failed', false], ['skipped', true], ['queued', false], ['queued', false]]);
-  assert.deepEqual(app.run('event-message-retry', 'privado'), { total: 2 });
+  assert.deepEqual(app.run('event-message-retry', 'privado'), { total: 2, dropped: 0 });
 });
 
 test('What surely did not leave is tried again later, up to three more times', () => {

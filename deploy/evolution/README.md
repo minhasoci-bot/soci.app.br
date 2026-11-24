@@ -19,7 +19,7 @@ Esta pasta sobe a Evolution API v2.3.7 numa VPS e liga o soci.app a ela. Depois 
 
 ## 1. Contratar a VPS
 
-- Plano: **KVM 2** (2 vCPU, 8 GB RAM) é folgado para dezenas de números. O **KVM 1** (4 GB) atende até cerca de 10 números.
+- Plano: **KVM 2** (2 vCPU, 8 GB RAM) é folgado para dezenas de números. O **KVM 1** (4 GB) atende até cerca de 10 números. Estes limites são estimativas: acompanhe a memória com `docker stats`.
 - Sistema: **Ubuntu 24.04 LTS** puro, sem painel. Não escolha o modelo "Evolution API" da Hostinger: ele usa outra configuração.
 - Local: Brasil, se tiver. Senão, o mais próximo.
 - Defina uma senha root forte. Se puder, cadastre também uma chave SSH.
@@ -35,24 +35,15 @@ No DNS do seu domínio, crie um registro **A**:
 
 Se o domínio estiver na Cloudflare, deixe a nuvem **cinza** (DNS only). Assim o certificado HTTPS é emitido direto na VPS.
 
-## 3. Enviar esta pasta e instalar
+## 3. Enviar e instalar
 
-No PowerShell do seu computador, na pasta do projeto:
-
-```powershell
-scp -r deploy/evolution root@IP_DA_VPS:/opt/evolution
-```
+No PowerShell do seu computador, na pasta do projeto, um comando envia os arquivos e instala tudo:
 
 ```powershell
-ssh root@IP_DA_VPS
+powershell -ExecutionPolicy Bypass -File deploy\evolution\enviar-vps.ps1 -Ip IP_DA_VPS -Dominio whatsapp.seudominio.com.br -Email seu@email.com
 ```
 
-Já dentro da VPS:
-
-```bash
-cd /opt/evolution
-bash install.sh whatsapp.seudominio.com.br seu@email.com
-```
+A senha root é pedida duas vezes (envio e instalação), a não ser que você use chave SSH. Só os arquivos de instalação são enviados: o `.env` e os backups do seu PC ficam de fora. Pode rodar de novo para atualizar: não apaga dados e não troca as chaves.
 
 Ao final, o script mostra a **URL** e a **API Key global**. Guarde a chave num cofre de senhas.
 
@@ -65,9 +56,15 @@ EVOLUTION_BASE_URL = https://whatsapp.seudominio.com.br
 EVOLUTION_API_KEY  = (a API Key global)
 ```
 
-Faça um novo deploy. Pronto: **Agência → WhatsApp** mostra "Servidor Evolution API gerenciado pela plataforma". Cada subconta conecta em **Configurações → WhatsApp → Conectar** e lê o QR Code.
+Faça um novo deploy e abra **Agência → Configurações → WhatsApp → Testar servidor**: a página mostra a versão e os números conectados, ou o motivo da falha. Cada subconta conecta em **Configurações → WhatsApp → Conectar** e lê o QR Code.
 
-Outro caminho, sem variável de ambiente: em **Agência → WhatsApp → Usar servidor próprio**, escolha *Evolution API* e cole a URL e a chave. A chave fica criptografada no banco.
+Outro caminho, sem variável de ambiente: em **Usar servidor de WhatsApp próprio**, cole a URL e a chave. A chave fica criptografada no banco.
+
+Para conferir tudo pela linha de comando (cria uma instância de teste, pede o QR e apaga no fim), preencha as duas variáveis no `.env.local` e rode:
+
+```powershell
+npm run smoke:evolution
+```
 
 ## Dia a dia
 
@@ -95,13 +92,19 @@ Se der problema, volte a tag anterior e rode `docker compose up -d evolution` de
 
 ### Restaurar um backup
 
-Os backups diários ficam em `/opt/evolution/backups` (7 dias):
+Os backups diários ficam em `/opt/evolution/backups` (7 dias). A restauração troca o banco atual inteiro pelo do backup, numa transação só: se der erro, nada muda.
 
 ```bash
-docker compose stop evolution
-gunzip -c backups/evolution-AAAAMMDD-HHMM.sql.gz | docker compose exec -T postgres psql -U evolution -d evolution
-docker compose start evolution
+docker compose stop evolution watchdog
+gunzip -c backups/evolution-AAAAMMDD-HHMM.sql.gz | docker compose exec -T postgres psql -U evolution -d evolution -q -v ON_ERROR_STOP=1 --single-transaction
+docker compose start evolution watchdog
 ```
+
+Esses backups ficam na própria VPS. Para se proteger da perda da VPS inteira, ligue também os backups do painel da Hostinger. O `.env` tem a API Key: guarde-a no cofre de senhas.
+
+### Excluir a instância de uma subconta
+
+Em **Agência → Configurações → WhatsApp**, o botão **Excluir instância** desconecta o número e apaga a instância do servidor, o que libera memória da VPS. As conversas continuam no soci.app.
 
 ### Monitoramento externo (recomendado)
 
@@ -140,4 +143,5 @@ docker compose -f docker-compose.yml -f docker-compose.pc.yml logs --tail 50 wat
 
 - A Evolution usa o WhatsApp Web (não é a API oficial da Meta). Ela não cai por causa do servidor, mas o WhatsApp pode **banir números** que disparam muitas mensagens para quem não conhece. Aqueça números novos e evite listas frias.
 - Se o cliente remover o aparelho no celular (logout), só ele resolve, lendo o QR de novo. O watchdog não insiste nesses casos.
-- Mensagens de grupos e de status são ignoradas: o soci.app trata apenas conversas individuais.
+- Mensagens recebidas de grupos e de status são ignoradas: as Conversas tratam apenas contatos individuais. O envio para grupos existe só no Planejador de eventos.
+- Um número por subconta. Cada subconta tem a própria instância, `soci_<subconta>`.
