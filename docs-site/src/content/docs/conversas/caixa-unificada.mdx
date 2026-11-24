@@ -1,0 +1,66 @@
+---
+title: Atender na caixa unificada
+description: Veja as mensagens de WhatsApp, e-mail, Instagram, Facebook e chat do site num só lugar, responda e divida o atendimento com a equipe.
+modulo: conversas
+sidebar:
+  order: 1
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+import Automacao from '../../../components/Automacao.astro';
+
+Em **Conversas**, todas as mensagens da subconta chegam numa caixa só, seja qual for o canal. Cada conversa fica ligada ao contato, e a equipe vê o histórico inteiro antes de responder.
+
+<Requisitos permissao="Acesso ao módulo Conversas na subconta" integracoes={['WhatsApp, e-mail ou redes sociais conectados, para enviar por esses canais']} />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Conversas**. À esquerda ficam as caixas: **Todas**, **Atribuídas a mim**, **Seguidas por mim** e a **Caixa da equipe**, com o número de conversas por ler. No meio, a lista de conversas, com o ícone do canal de cada uma.
+
+   <Print src="docs/conversas/caixa-unificada/01-caixa-da-equipe.4f131430.webp" alt="Tela Conversas com as caixas à esquerda e a lista de conversas da Caixa da equipe, com uma conversa em destaque." />
+
+2. Clique numa conversa para abrir. Em cima ficam o nome do contato, quem está atendendo e os botões para seguir a conversa, marcar com estrela e marcar como não lida. À direita, os dados do contato.
+
+   <Print src="docs/conversas/caixa-unificada/02-abrir-conversa.2c641086.webp" alt="Conversa com Ana Beatriz Souza aberta, com o cabeçalho da conversa em destaque e os dados do contato à direita." />
+
+3. Para responder, escolha o canal (por exemplo **WhatsApp**), deixe **Enviada** e escreva a mensagem. **Inserir modelo** traz uma resposta rápida pronta; **Inserir link de rastreamento** coloca um link que registra o clique do contato e pode iniciar um fluxo de trabalho. Clique em **Registrar mensagem**.
+
+   <Print src="docs/conversas/caixa-unificada/03-responder.2b59a5b3.webp" alt="Caixa de resposta com o canal WhatsApp, a direção Enviada e uma mensagem escrita para a Ana." />
+
+4. Para passar o atendimento para alguém da equipe, escolha a pessoa no seletor ao lado do nome do contato, onde aparece **Sem atribuição**. A conversa vai para a caixa **Atribuídas a mim** dessa pessoa.
+
+   <Print src="docs/conversas/caixa-unificada/04-atribuir.f05ae6ea.webp" alt="Seletor de atribuição da conversa em destaque, mostrando Sem atribuição." />
+
+</Steps>
+
+<Aside type="caution">
+Com **Enviada**, a mensagem vai de verdade para o contato pelo canal escolhido, se ele estiver conectado na subconta. Escolha **Nota** para deixar um recado interno, que só a equipe vê.
+</Aside>
+
+<Aside type="tip">
+Escreva @ e o nome de alguém da equipe dentro da mensagem para mencionar essa pessoa.
+</Aside>
+
+## Automações ligadas
+
+<Automacao gatilhos={['Cliente respondeu', 'Equipe respondeu', 'SLA da conversa', 'Falha no envio de mensagem']} acoes={['Enviar WhatsApp', 'Enviar e-mail', 'Editar conversa', 'Seguidores da conversa']} />
+
+## Perguntas frequentes
+
+**Para que serve "Recebida" na caixa de resposta?**
+Para registrar no histórico uma mensagem que o contato mandou por fora da soci, como uma ligação ou um recado no balcão.
+
+**Posso criar caixas com filtros próprios?**
+Sim. Em **Visões**, clique em **Criar visão** e salve o filtro que a equipe mais usa.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Conectar o WhatsApp das subcontas" href="/agencia/servidor-whatsapp/" description="Ligue o número de cada subconta por QR Code." />
+  <LinkCard title="Cadastrar e organizar contatos" href="/crm/contatos/" description="Cada conversa fica ligada a um contato." />
+</CardGrid>
