@@ -43,6 +43,17 @@ test('Gallery hides archived events by default and offers a status filter', () =
   assert.doesNotMatch(html, />Guardado</);
 });
 
+test('The gallery can show every event in one timeline', () => {
+  const c = context([{ title: 'Aula', eventDate: '2026-12-10', plan: launchEventPlan('2026-12-10') }]);
+  const cards = eventPlanner(c, helpers);
+  assert.match(cards, /data-ep-view="cards" aria-pressed="true"/);
+  assert.doesNotMatch(cards, /data-ep-timeline/);
+  const html = eventPlanner(c, helpers, { view: 'timeline' });
+  assert.match(html, /data-ep-timeline/);
+  assert.match(html, /ep-tl-mark/);
+  assert.doesNotMatch(html, /class="surface ep-card"/);
+});
+
 test('Empty gallery invites to create an event', () => {
   assert.match(eventPlanner(context(), helpers), /class="empty"[\s\S]*data-ep-new/);
 });
