@@ -155,9 +155,9 @@ export function startAgency(env) {
 
   function shell(content) {
     const company = D().company;
-    const users = D().users;
     const session = A.data.access?.session;
-    const acting = localStorage.getItem('go.user') || '';
+    // Sem login (servidor local), "Agir como" vale também aqui: a faixa é a saída desse modo.
+    const acting = !session && localStorage.getItem('go.user');
     const item = ([key, label, ico]) => ({ href: `#agency/${key}`, label: tr(label), icon: ico, current: A.page === key });
     const currentPageLabel = tr(agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência');
     return `<div class="shell ${A.navOpen ? 'wide' : ''} ag-shell">${sidebar({
@@ -185,7 +185,6 @@ export function startAgency(env) {
         { label: currentPageLabel }
       ],
       search: 'data-act="search"',
-      extra: session ? '' : `<div class="ag-acting">${i('users', 15)}<label class="sr-only" for="ag-user-select">Agindo como</label><select id="ag-user-select" data-ag-user aria-label="Agindo como"><option value="">${h(D().profile.name)} (Dono da agência)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(tr(u.role))})</option>`).join('')}</select></div>`,
       tools: [
         { icon: 'bell', label: tr('Notificações'), attr: 'data-act="notifications"' }
       ],
@@ -195,7 +194,7 @@ export function startAgency(env) {
         label: session?.name || tr('Configurações da agência'),
         attr: session ? 'data-act="account"' : 'data-ag="go-profile"'
       }
-    })}<main id="screen" class="screen${A.page === 'ask' ? ' screen-ask-chat' : ''}">${content}</main></div></div>`;
+    })}${acting ? `<div class="ag-banner acting" role="status"><b>Agindo como ${h(A.data.access?.name || '')}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>` : ''}<main id="screen" class="screen${A.page === 'ask' ? ' screen-ask-chat' : ''}">${content}</main></div></div>`;
   }
 
   // ---- Pages -------------------------------------------------------------
@@ -1709,7 +1708,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       return;
     }
     try {
-      if (el.matches('[data-ag-user]')) { if (el.value) localStorage.setItem('go.user', el.value); else localStorage.removeItem('go.user'); location.reload(); }
       if (el.matches('[data-ag-status]')) { A.status = el.value; render(); G('[data-ag-status]').focus(); }
       if (el.matches('[data-ag-ai-filter]')) { A.aiFilter = el.value; render(); G('[data-ag-ai-filter]').focus(); }
       if (el.matches('[data-ag-ai-access]')) {
