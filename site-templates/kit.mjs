@@ -91,6 +91,9 @@ details summary{cursor:pointer;list-style:none}details summary::-webkit-details-
   }
 }`;
 
+// Avatar de depoimento com as iniciais do nome: depoimento de exemplo não usa o rosto de uma pessoa real.
+export const initials = name => `<span class="ini" aria-hidden="true">${esc(String(name).split(/\s+/).filter(w => w.length > 1).map(w => w[0]).filter((_, i, all) => i === 0 || i === all.length - 1).join('').toUpperCase())}</span>`;
+
 // Documento completo. `fonts` são famílias do Google Fonts no formato da API css2 (ex.: 'Inter:wght@400;600').
 export function document({ title, description = '', fonts = [], css = '', body, lang = 'pt-BR', cursor = false }) {
   const families = fonts.map(f => `family=${f.replace(/ /g, '+')}`).join('&');

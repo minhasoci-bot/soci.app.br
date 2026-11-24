@@ -1,5 +1,6 @@
 import { icon as i } from './icons.js';
 import { h, pageShell } from './screens.js';
+import { ask } from './ask.js';
 
 // Canonical Presets for social & content creators
 export const pranchetaPresets = [
@@ -368,7 +369,7 @@ export function installPrancheta({ c, mutate, flash, render, getState }) {
     const delBtn = e.target.closest('[data-act="pr-delete"]');
     if (delBtn) {
       const id = delBtn.dataset.id;
-      if (id && confirm('Deseja excluir esta arte?')) {
+      if (id && await ask('Excluir esta arte?', { ok: 'Excluir' })) {
         await mutate({ type: 'prancheta-delete', id });
         flash('Arte excluída.');
         render();

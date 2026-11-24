@@ -1,6 +1,7 @@
 // Strategic event planner records. These are intentionally separate from communityEvents:
 // community events manage attendance and delivery; an event plan coordinates the launch work of a sub-account.
 import { randomUUID } from 'node:crypto';
+import { eventTargets, guardDeliveries, itemStatusChanged } from './event-send-model.mjs';
 
 export const eventPlanCollections = ['eventPlans'];
 export const eventPlanStatuses = ['planejado', 'em_andamento', 'concluido', 'arquivado'];
@@ -53,7 +54,7 @@ function item(value) {
   const base = {
     id: id(value.id), kind, title: req(value.title, 'O título', 240),
     phase: one(value.phase || 'aquecimento', eventPlanPhases, 'a fase'),
-    owner: str(value.owner, 120), notes: str(value.notes, 10000), date: day(value.date)
+    owner: str(value.owner, 120), ownerId: str(value.ownerId, 64), notes: str(value.notes, 10000), date: day(value.date)
   };
   if (kind === 'task') return {
     ...base,
@@ -64,7 +65,7 @@ function item(value) {
     ...base,
     status: one(value.status || 'rascunho', ['rascunho', 'revisao', 'pronto', 'agendado', 'enviado', 'cancelado'], 'o status'),
     channel: one(value.channel || 'grupos', ['grupos', 'privado', 'instagram', 'email', 'outro'], 'o canal'),
-    time: time(value.time), team: one(value.team || 'copy', eventPlanTeams, 'o time')
+    time: time(value.time), team: one(value.team || 'copy', eventPlanTeams, 'o time'), code: str(value.code, 40), audience: one(str(value.audience, 20), ['', 'base', 'evento'], 'o grupo de destino'), targets: eventTargets(value.targets)
   };
   if (kind === 'agenda') return {
     ...base,
@@ -96,14 +97,18 @@ export const eventPlanFields = {
   eventPlans: (s, d) => {
     const prior = d.id ? s.eventPlans.find(row => row.id === d.id) : null;
     const pick = key => d[key] === undefined ? prior?.[key] : d[key];
+    if (prior && d.revision !== undefined && Number(d.revision) !== (prior.revision || 0)) fail('O evento foi atualizado em outra sessão. Copie o que ainda não foi salvo e recarregue a página para ver a versão mais nova.', 409);
     const title = req(pick('title'), 'O nome do evento', 160);
     if (s.eventPlans.some(row => row.id !== d.id && row.title.toLocaleLowerCase('pt-BR') === title.toLocaleLowerCase('pt-BR'))) fail(`Já existe um evento chamado “${title}”.`);
+    const next = plan(pick('plan') || { brief: {}, items: [] });
+    guardDeliveries(prior, next.items);
     return {
       title,
       eventDate: day(pick('eventDate'), 'a data do evento'),
       status: one(pick('status') || 'planejado', eventPlanStatuses, 'o status do evento'),
-      plan: plan(pick('plan') || { brief: {}, items: [] }),
-      orchestration: orchestrator(pick('orchestration'))
+      plan: next,
+      orchestration: orchestrator(pick('orchestration')),
+      revision: prior ? (prior.revision || 0) + 1 : 1
     };
   }
 };
@@ -125,13 +130,15 @@ const eventPayload = event => ({ eventId: event.id, title: event.title, eventDat
 export function eventPlanAfterSave(prior, event, emit) {
   emit('custom_event', { event: prior ? 'event_plan_updated' : 'event_plan_created', ...eventPayload(event), payload: eventPayload(event) });
   if (prior && prior.status !== event.status) emit('custom_event', { event: 'event_plan_status_changed', ...eventPayload(event), previousStatus: prior.status, payload: { ...eventPayload(event), previousStatus: prior.status } });
+  const before = new Map((prior?.plan?.items || []).map(item => [item.id, item.status]));
+  for (const item of event.plan.items) if (before.has(item.id) && before.get(item.id) !== item.status) itemStatusChanged(event, item, before.get(item.id), emit);
 }
 
 export function eventPlanCommand(s, command, { add, now, save, createSocial, emit, calendarInstant }) {
   if (command.type === 'event-plan-duplicate') {
     const source = s.eventPlans.find(row => row.id === command.id) || fail('Evento não encontrado.', 404);
     if (s.eventPlans.length >= 100) fail('A subconta pode ter até 100 eventos planejados.');
-    const { id: ignoredId, created: ignoredCreated, updated: ignoredUpdated, orchestration: ignoredOrchestration, ...data } = structuredClone(source);
+    const { id: ignoredId, created: ignoredCreated, updated: ignoredUpdated, orchestration: ignoredOrchestration, deliveries: ignoredDeliveries, ...data } = structuredClone(source);
     const stem = source.title.replace(/ \(Cópia(?: \d+)?\)$/, '');
     let suffix = 1, title = stem + ' (Cópia)';
     while (s.eventPlans.some(row => row.title === title)) title = stem + ' (Cópia ' + (++suffix) + ')';
@@ -140,7 +147,7 @@ export function eventPlanCommand(s, command, { add, now, save, createSocial, emi
       title: title.slice(0, 160),
       status: 'planejado',
       plan: { brief: data.plan?.brief || {}, items: (data.plan?.items || []).map(row => ({ ...row, id: randomUUID(), status: resetStatus(row) })) },
-      orchestration: orchestrator(), created: now()
+      orchestration: orchestrator(), revision: 1, created: now()
     };
     return add(s, 'eventPlans', copy).id;
   }

@@ -5,6 +5,7 @@ import { icon as i } from './icons.js';
 import { badge, fmt, h, pageShell } from './screens.js';
 import { refSources, triggerSpec, triggerSummary } from './workflow-data.js';
 import { scoreBand, scoreEvents, scoreStarters } from './scoring-data.js';
+import { ask } from './ask.js';
 
 const views = [['install', 'Instalação'], ['settings', 'Configurações'], ['forms', 'Formulários'], ['events', 'Diagnóstico']];
 let view = 'install', eventFilter = '';
@@ -236,13 +237,13 @@ export function installTracking({ c, mutate, flash, dialog, close, render, api }
       if (act === 'reload') { feed.at = 0; el.disabled = true; await loadFeed(c, redrawTracking); }
       if (act === 'more') { el.disabled = true; await loadFeed(c, redrawTracking, true); }
       if (act === 'google-lead-key') {
-        if (c.s.tracking?.googleLeadKey && !confirm('Gerar uma chave nova? Os formulários do Google Ads com a chave antiga param de mandar leads até você trocar a chave lá.')) return;
+        if (c.s.tracking?.googleLeadKey && !await ask('Gerar uma chave nova?', { text: 'Os formulários do Google Ads com a chave antiga param de mandar leads até você trocar a chave lá.', ok: 'Gerar chave nova' })) return;
         await mutate({ type: 'tracking-google-lead-key' }); render(); flash('Chave gerada. Copie a URL e a chave para o formulário de lead do Google Ads.');
       }
       if (act === 'rule-new') dialog('Nova regra de pontuação', ruleForm(c));
       if (act === 'rule-edit') dialog('Editar regra de pontuação', ruleForm(c, c.s.scoringRules.find(r => r.id === el.dataset.id)));
       if (act === 'rule-delete') {
-        if (!confirm('Excluir esta regra? Os pontos já dados continuam nos contatos.')) return;
+        if (!await ask('Excluir esta regra?', { text: 'Os pontos já dados continuam nos contatos.', ok: 'Excluir' })) return;
         await mutate({ type: 'delete', key: 'scoringRules', id: el.dataset.id }); render(); flash('Regra excluída.');
       }
       if (act === 'starters') {

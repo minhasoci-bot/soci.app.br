@@ -4,6 +4,7 @@ import { h, fmt, pageShell } from './screens.js';
 import { portalTabs } from './client-portal.js';
 import { attendeeDialog, eventData, eventForm, eventsTab, recordingRow } from './community-events.js';
 import { academyInput, analyticsTab, memberDetails, membersCsv, moderationTab, readSettings, rowTemplates, settingsSections, themeInput } from './community-admin.js';
+import { ask } from './ask.js';
 
 const levelThresholds = [0, 5, 20, 65, 155, 515, 2015, 8015, 33015];
 const roleLabel = { member: 'Membro', moderator: 'Moderador' };
@@ -222,7 +223,7 @@ export function installCommunities({ c, api, mutate, flash, dialog, close, rende
         link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
       }
       if (action === 'event-delete') {
-        if (!confirm('Excluir este evento? Quem confirmou presença deixa de vê-lo no portal. Ingressos pagos não são estornados automaticamente.')) return;
+        if (!await ask('Excluir este evento?', { text: 'Quem confirmou presença deixa de vê-lo no portal. Ingressos pagos não são estornados automaticamente.', ok: 'Excluir' })) return;
         await mutate({ type: 'delete', key: 'communityEvents', id }); await load(groupId()); flash('Evento excluído.');
       }
       if (action === 'live-start') { await send({ action: 'live-start', eventId: id }); flash('Você está ao vivo. Os membros veem o aviso no topo da comunidade.'); }

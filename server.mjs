@@ -7,6 +7,7 @@ import { createEmailRoutes } from './routes/email.mjs';
 import { createMetaRoutes } from './routes/meta.mjs';
 import { createGbpRoutes, createGoogleRoutes } from './routes/google.mjs';
 import { createAgentRoutes } from './routes/agents.mjs';
+import { createStudioRoutes } from './routes/studio.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -17,8 +18,8 @@ import { tmpdir } from 'node:os';
 import { blank, seed, uid, execute, find, emitWorkflow, receiveProspects } from './model.mjs';
 import { createSqliteStore, supabaseFromEnv } from './storage.mjs';
 import { accountProfile, afterLogin, authFromEnv } from './auth.mjs';
-import { discoverDesign, generatePage, generateSite, planSite, revisePage, suggestSeo } from './studio-ai.mjs';
-import { localPlan, questionsFor, validDesign, validPlan } from './ui/studio-design.js';
+import { generatePage, revisePage, suggestSeo } from './studio-ai.mjs';
+import { validDesign } from './ui/studio-design.js';
 import { designAgent, replyAsAgent } from './agent-ai.mjs';
 import { createOpenAI, openAIModel } from './openai.mjs';
 import { agentWorkflowRequest, recordAgentRun } from './agent-model.mjs';
@@ -35,16 +36,15 @@ import { reviewTokenHash } from './reputation-model.mjs';
 import { renderReviewPage, reviewPageCsp } from './reputation-page.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { collectorCsp, renderCollector, renderWidget, widgetCsp, widgetLoader } from './reputation-widget.mjs';
-import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withMotion } from './studio-site.mjs';
-import { starterProject, studioTemplates } from './ui/studio-data.js';
-import { findSiteTemplate } from './ui/site-template-data.js';
-import { hasSiteTemplate, siteTemplatePages, siteTemplatePreview } from './site-templates/index.mjs';
+import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, previewHeaders, publicHeaders, publish, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withMotion } from './studio-site.mjs';
+import { hasSiteTemplate, siteTemplatePreview } from './site-templates/index.mjs';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, previewSnapshot, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
 import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
-import { importedFile, mediaLimitBytes } from './media-model.mjs';
+import { importedFile, importedMeta, mediaLimitBytes, mediaTypes } from './media-model.mjs';
+import { R2_MAX_BYTES, r2FromEnv } from './r2-storage.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
 import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
@@ -157,6 +157,8 @@ import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
 import { deviceOf, qrTarget } from './qr-model.mjs';
 import { ASSET_PATH, assetBytes, extractAssets, saveAssets } from './asset-store.mjs';
 import { inBackground } from './background.mjs';
+import { createEventSender } from './event-sender.mjs';
+import { eventSendDue } from './event-send-model.mjs';
 import { runInBatches } from './cron-batch.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -167,7 +169,7 @@ export const staticFiles = new Map([
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
   ['/reports.js','text/javascript; charset=utf-8'], ['/report-data.js','text/javascript; charset=utf-8'], ['/reports.css','text/css; charset=utf-8'],
-  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/site-template-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
+  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio-blocks.js','text/javascript; charset=utf-8'], ['/site-template-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
   ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
@@ -178,14 +180,14 @@ export const staticFiles = new Map([
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
   ['/beautiful-ui.js','text/javascript; charset=utf-8'], ['/beautiful-ui.css','text/css; charset=utf-8'],
   ['/beautiful-ui-more.js','text/javascript; charset=utf-8'], ['/beautiful-ui.html','text/html; charset=utf-8'], ['/bui-mounts.js','text/javascript; charset=utf-8'],
-  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'], ['/scope.css','text/css; charset=utf-8'],
+  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'], ['/ask.js','text/javascript; charset=utf-8'], ['/ask.css','text/css; charset=utf-8'], ['/scope.css','text/css; charset=utf-8'],
   ['/vendor/marked.js','text/javascript; charset=utf-8'], ['/vendor/purify.js','text/javascript; charset=utf-8'],
   ['/color-picker.js','text/javascript; charset=utf-8'],
   ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],
   ['/prospect-report.js','text/javascript; charset=utf-8'], ['/prospecting.css','text/css; charset=utf-8'],
   ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
   ['/opportunity-data.js','text/javascript; charset=utf-8'], ['/opportunity-filters.js','text/javascript; charset=utf-8'], ['/opportunities.js','text/javascript; charset=utf-8'], ['/opportunities.css','text/css; charset=utf-8'],
-  ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'], ['/event-planner.js','text/javascript; charset=utf-8'], ['/event-planner-data.js','text/javascript; charset=utf-8'], ['/event-planner.css','text/css; charset=utf-8'],
+  ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'], ['/event-planner.js','text/javascript; charset=utf-8'], ['/event-planner-data.js','text/javascript; charset=utf-8'], ['/event-copy-editor.js','text/javascript; charset=utf-8'], ['/event-message-parts.js','text/javascript; charset=utf-8'], ['/event-sends.js','text/javascript; charset=utf-8'], ['/event-planner.css','text/css; charset=utf-8'],
   ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
   ['/prancheta-editor.html','text/html; charset=utf-8'], ['/vendor/prancheta-editor.js','text/javascript; charset=utf-8'], ['/vendor/prancheta-editor.css','text/css; charset=utf-8'],
@@ -207,7 +209,7 @@ const pranchetaEditorCsp = () => csp
   .replace("frame-ancestors 'none'", "frame-ancestors 'self'")
   .replace("script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'")
   .replace("connect-src 'self'", "connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://storage.googleapis.com https://fonts.googleapis.com https://fonts.gstatic.com");
-const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://accounts.google.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; media-src 'self' data: https:; connect-src 'self' https://accounts.google.com; frame-src 'self' https: https://accounts.google.com; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'";
+const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://accounts.google.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; media-src 'self' data: https:; connect-src 'self' https://accounts.google.com https://*.r2.cloudflarestorage.com; frame-src 'self' https: https://accounts.google.com; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'";
 const error = (message,status) => Object.assign(new Error(message),{status});
 const spaceId = /^[0-9a-f-]{36}$|^demo$/;
 const privateSpace = /^user-[0-9a-f-]{36}$/;
@@ -322,7 +324,7 @@ export function makeServer({
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
   evolutionBaseUrl=process.env.EVOLUTION_BASE_URL || '', evolutionApiKey=process.env.EVOLUTION_API_KEY || '',
   portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(), campaignMail=campaignMailer(),
-  allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
+  allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1', r2=r2FromEnv()
 }={}) {
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
   const content = { transformText, writeEmail, writeReviewReply, writeBrandVoice, writeCaption, writePost, postSeo, transcribeAudio, summarizeMeeting, askAssistant, writeConversationReply, writeConversationSummary, ...contentAI };
@@ -974,7 +976,7 @@ export function makeServer({
     let size = 0; const chunks = [];
     for await (const part of req) { size += part.length; if (size > 20000) throw error('Request is too large.',413); chunks.push(part); }
     const params = new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
-    return Object.fromEntries(['name','email','phone','_page'].map(key => [key, (params.get(key) || '').slice(0,240)]));
+    return { ...Object.fromEntries(['name','email','phone','_page'].map(key => [key, (params.get(key) || '').slice(0,240)])), message:(params.get('message') || '').slice(0,2400) };
   }
   async function findProspects(who,input) {
     const agency = await loadAgency(who.agencyId);
@@ -1555,14 +1557,37 @@ export function makeServer({
     const result = await change(workspace, { type: 'community-newsletter', data: { items } });
     return Number(result.id) || 0;
   }
-  async function sendVideo(req, res, method, workspace, row, cache) {
+  async function videoBytes(workspace, row) {
     const parts = [];
     for (let index = 0; index < row.chunks; index++) {
       const chunk = await Promise.resolve().then(() => store.load(mediaRowId(workspace, row.id, index))).catch(() => null);
       if (!chunk?.data) throw error('Vídeo indisponível.', 404);
       parts.push(Buffer.from(chunk.data, 'base64'));
     }
-    const bytes = Buffer.concat(parts);
+    return Buffer.concat(parts);
+  }
+  const clearVideoChunks = async (workspace, row) => {
+    for (let index = 0; index < row.chunks; index++) await Promise.resolve().then(() => store.change(mediaRowId(workspace, row.id, index), chunk => { chunk.data = ''; chunk.deleted = true; })).catch(() => {});
+  };
+  // A video kept in R2 is served by the bucket itself, through a short-lived signed link.
+  const redirectToR2 = (res, key, options) => {
+    if (!r2) throw error('Arquivo indisponível.', 404);
+    res.writeHead(302, { Location: r2.downloadUrl(key, options), 'Cache-Control': 'private, max-age=300', 'Referrer-Policy': 'no-referrer' });
+    return res.end();
+  };
+  // Testimonials arrive in chunks (each one a database row); once complete they move to R2 in one object.
+  async function moveVideoToR2(workspace, row) {
+    if (!r2 || !row?.chunks) return;
+    try {
+      const r2Key = `ws/${workspace}/videos/${row.id}`;
+      await r2.put(r2Key, await videoBytes(workspace, row), row.mime);
+      await change(workspace, { type: 'video-stored', data: { id: row.id, r2Key } });
+      await clearVideoChunks(workspace, row);
+    } catch (problem) { console.error(`R2 video move (${workspace}): ${problem.message}`); }
+  }
+  async function sendVideo(req, res, method, workspace, row, cache) {
+    if (row.r2Key) return redirectToR2(res, row.r2Key, { type: row.mime });
+    const bytes = await videoBytes(workspace, row);
     const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ''));
     const headers = { 'Content-Type': row.mime, 'Accept-Ranges': 'bytes', 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff', 'Cross-Origin-Resource-Policy': 'cross-origin' };
     if (range && (range[1] || range[2])) {
@@ -1789,7 +1814,15 @@ export function makeServer({
         }
         const bytes = await (mediaAI?.content || videoContent)(connection, job.jobId);
         if (!bytes?.length || bytes.length > 15 * 1024 * 1024) { await finish({}, { error: 'o vídeo gerado passou de 15 MB' }); continue; }
-        const id = uid(), chunks = Math.ceil(bytes.length / CHUNK_BYTES);
+        const id = uid();
+        if (r2) {
+          const r2Key = `ws/${workspace}/videos/${id}`;
+          await r2.put(r2Key, bytes, 'video/mp4');
+          await finish({ id, r2Key, chunks: 0, bytes: bytes.length, prompt: job.prompt, workflowId: job.workflowId },
+            { vars: { [job.variable]: documentMail.linkOf({ path: `/m/${workspace}/video/${id}` }), [`${job.variable}_id`]: id } });
+          continue;
+        }
+        const chunks = Math.ceil(bytes.length / CHUNK_BYTES);
         for (let index = 0; index < chunks; index++) {
           const rowId = mediaRowId(workspace, id, index);
           await store.insert(rowId, { profile: { name: 'Vídeo gerado com IA' }, data: bytes.subarray(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES).toString('base64') });
@@ -1899,8 +1932,25 @@ export function makeServer({
     } finally { emailRuns.delete(workspace); }
   }
   const emailLater = workspace => { inBackground(`E-mail campaigns (${workspace})`, () => runEmailCampaigns(workspace)); };
+  // Mensagens do Planejador de eventos pelo WhatsApp. Esperam entre uma e outra, então correm ao lado do cron e não dentro dele.
+  const eventSender = createEventSender({
+    load: workspace => store.load(workspace), change,
+    active: async (state, workspace) => !privateSpace.test(workspace) && Boolean(await accountIsActive(state.agencyId || AGENCY_ID, workspace, 'marketing').catch(() => false)),
+    send: (workspace, message, state) => whatsapp.sendEventMessage(state.agencyId || AGENCY_ID, workspace, message, (agencyId, id) => accountIsActive(agencyId, id, 'conversations')),
+    changed: (workspace, state) => { if (state?.workflowOutbox?.length) flushLater(workspace); },
+    sleep: ms => new Promise(done => { setTimeout(done, ms).unref?.(); })
+  });
+  const eventSendsLater = workspace => { inBackground(`Event messages (${workspace})`, () => eventSender.run(workspace)); };
+  async function runAllEventSends(at = Date.now()) {
+    const due = [];
+    await runInBatches((await store.list()).filter(w => spaceId.test(w.id)), async ({ id }) => {
+      try { if (eventSendDue(await store.load(id), at)) due.push(id); } catch (e) { console.error(`Event messages (${id}): ${e.message}`); }
+    }, { concurrency: 10, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+    await runInBatches(due, async id => { try { await eventSender.run(id); } catch (e) { console.error(`Event messages (${id}): ${e.message}`); } }, { concurrency: 25, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+  }
   async function runAllSocial(base, at = Date.now()) {
     let total = 0;
+    inBackground('Event messages', () => runAllEventSends());
     const spaces = (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id));
     const { skipped } = await runInBatches(spaces, async w => {
       try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
@@ -2121,14 +2171,15 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     catch { throw error('Invalid JSON request.',400); }
   };
   // Rotas por domínio (P2.1): cada módulo recebe o que vive neste fechamento e devolve NEXT_ROUTE quando a rota não é dele.
-  const socialRoute = createSocialRoutes({ store, auth, localAccess, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
+  const socialRoute = createSocialRoutes({ store, auth, localAccess, redirectToR2, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
   const adsRoute = createAdsRoutes({ store, localAccess, error, spaceId, privateSpace, stamp, adsAccess, adsCallbackPath, adsPopup, adsView, payload, publicBase, recordAudit, runAds, socialActor, socialRow, workspaceAccess });
-  const actionRoute = createActionRoutes({ store, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
+  const actionRoute = createActionRoutes({ store, r2, clearVideoChunks, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
   const emailRoute = createEmailRoutes({ store, ready, error, spaceId, privateSpace, stamp, campaignMail, emailDomainApi, flushLater, inboundFetch, payload, publicAccountPolicy, publicBase, recordAudit, sendingAddress, socialRow, testHits, workspaceAccess });
   const metaRoute = createMetaRoutes({ store, ready, error, change, flushLater, metaFetch, metaRoutesRow, metaSender, publicAccountPolicy });
   const googleRoute = createGoogleRoutes({ store, ready, localAccess, error, spaceId, privateSpace, stamp, workspaceSegment, flushLater, googleCache, googleCallbackPath, googleData, googlePopup, googleView, payload, publicAccountPolicy, publicBase, recordAudit, searchCache, socialActor, socialRow, workspaceAccess });
   const gbpRoute = createGbpRoutes({ store, error, spaceId, change, flushLater, gbpAccess, gbpStatus, payload, recordAudit, workspaceAccess });
   const agentRoute = createAgentRoutes({ store, localAccess, error, spaceId, privateSpace, agentModel, designAgentConfig, generateAgentReply, listWorkspaces, openAI, payload, recordAudit, workspaceAccess });
+  const studioRoute = createStudioRoutes({ store, error, change, openAI, payload, siteDoc, studioGuard, studioRequest, syncMeta });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const server=createServer(async (req,res) => {
@@ -2455,10 +2506,22 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (typeof input.url !== 'string' || !input.url.trim() || input.url.length > 2000) throw error('Cole o link do arquivo.',400);
         const address = input.url.trim();
         let response;
-        try { response = await fetchMedia(address, { maxBytes: mediaLimitBytes + 1, timeout: 10000 }); }
+        const limit = r2 ? R2_MAX_BYTES : mediaLimitBytes;
+        try { response = await fetchMedia(address, { maxBytes: limit + 1, timeout: r2 ? 30000 : 10000 }); }
         catch (e) { throw error(['EINVALID','EBLOCKED'].includes(e.code) ? 'Use um link público que comece com https://.' : 'Não foi possível baixar o arquivo desse link.', 422); }
+        const folderId = typeof input.folderId === 'string' ? input.folderId : '';
+        if (r2 && response.body?.length > mediaLimitBytes) {
+          const { name, mime } = importedMeta(response, address, limit);
+          const fileId = uid(), r2Key = `ws/${id}/files/${fileId}`;
+          if ((await store.load(id)).files.length >= 60) throw error('The local drive holds up to 60 files.', 400);
+          await r2.put(r2Key, response.body, mime);
+          let result;
+          try { result = await change(id, { type:'media-stored', data:{ id: fileId, r2Key, mime, size: response.body.length, name, folderId } }); }
+          catch (e) { await r2.remove(r2Key).catch(() => {}); throw e; }
+          return json({ id: result.id, ...workspaceView(who, result.state) });
+        }
         const file = importedFile(response, address);
-        const result = await change(id, { type:'save', key:'files', data:{ ...file, folderId: typeof input.folderId === 'string' ? input.folderId : '' } }, who);
+        const result = await change(id, { type:'save', key:'files', data:{ ...file, folderId } }, who);
         return json({ id: result.id, ...workspaceView(who, result.state) });
       }
       // Configurações → Rastreamento: the events received, newest first (?type=, ?before=<cursor>).
@@ -2466,6 +2529,38 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
         await workspaceAccess(req, res, id, { modules: ['settings'] });
         return json(await trackingLog.read(id, { type: url.searchParams.get('type') || '', before: url.searchParams.get('before') || '' }));
+      }
+      // Mídia Drive → files over 700 KB: the browser PUTs them straight into R2 with a signed link, then
+      // asks for the record; the server checks the stored object (size and type) before writing it.
+      if ((p==='/api/media/upload-url' || p==='/api/media/upload-done') && method==='POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
+        const input = await payload(req);
+        const who = await workspaceAccess(req, res, id);
+        requireWorkspaceCommand(who, { type:'save', key:'files' });
+        if (!r2) throw error('O armazenamento de arquivos grandes (Cloudflare R2) ainda não foi configurado. Envie arquivos de até 700 KB.', 503);
+        if (p==='/api/media/upload-url') {
+          const mime = typeof input.mime === 'string' ? input.mime.trim().toLowerCase() : '';
+          const size = Number(input.size);
+          if (!mediaTypes[mime]) throw error('Escolha um arquivo de imagem, vídeo, áudio, PDF, TXT ou CSV.', 400);
+          if (!Number.isInteger(size) || size < 1 || size > R2_MAX_BYTES) throw error('O arquivo pode ter até 50 MB.', 413);
+          if ((await store.load(id)).files.length >= 60) throw error('The local drive holds up to 60 files.', 400);
+          const fileId = uid(), key = `ws/${id}/files/${fileId}`;
+          const token = r2.seal({ k: key, i: fileId, w: id, m: mime, s: size, n: typeof input.name === 'string' ? input.name.slice(0, 240) : '',
+            f: typeof input.folderId === 'string' ? input.folderId.slice(0, 60) : '', exp: Date.now() + 15 * 60000 });
+          return json({ uploadUrl: r2.uploadUrl(key, mime), headers: { 'Content-Type': mime }, token });
+        }
+        const ticket = r2.open(input.token);
+        if (ticket.w !== id) throw error('Envio inválido. Comece de novo.', 400);
+        const stored = await r2.head(ticket.k);
+        if (!stored) throw error('O arquivo não chegou ao armazenamento. Tente de novo.', 409);
+        if (stored.size !== ticket.s || stored.type !== ticket.m) {
+          await r2.remove(ticket.k).catch(() => {});
+          throw error('O arquivo enviado não confere com o que foi pedido. Tente de novo.', 422);
+        }
+        let result;
+        try { result = await change(id, { type:'media-stored', data:{ id: ticket.i, r2Key: ticket.k, mime: ticket.m, size: ticket.s, name: ticket.n, folderId: ticket.f } }); }
+        catch (e) { await r2.remove(ticket.k).catch(() => {}); throw e; }
+        return json({ id: result.id, ...workspaceView(who, result.state) }, 201);
       }
       // Marketing → Rastreamento: the GA4 Measurement Protocol API secret. Write-only: sealed in the ads-<workspace> row,
       // never sent back; the sub-account state only says whether it is set. An empty value removes it.
@@ -2652,8 +2747,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (p.startsWith('/api/whatsapp/workspace/')) {
         if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
-        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
-        if (method === 'POST' && p.replace(/\/+$/, '') === '/api/whatsapp/workspace/test') requireModule(who, 'conversations');
+        const op = p.replace(/\/+$/, '').slice('/api/whatsapp/workspace/'.length);
+        // Os grupos são de quem planeja eventos; o resto da conexão, de quem cuida das configurações.
+        const who = await workspaceAccess(req, res, id, { modules: method === 'GET' && op === 'groups' ? ['marketing', 'conversations'] : ['settings'] });
+        if (method === 'POST' && op === 'test') requireModule(who, 'conversations');
         return await whatsapp.handleWorkspaceApi({
           req, url, method, agencyId: who.agencyId, workspaceId: id, payload, publicOrigin: publicBase(req), requireActiveAccount, json
         });
@@ -2939,86 +3036,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (agentRouteHandled !== NEXT_ROUTE) return agentRouteHandled;
       const pranchetaRouteHandled = await pranchetaRoute({ req, res, p, method, url, id, json, send });
       if (pranchetaRouteHandled !== NEXT_ROUTE) return pranchetaRouteHandled;
-      if (p==='/api/studio' && method==='POST') {
-        const who = await studioGuard(req,res,id);
-        const input = await payload(req);
-        const kind = input.kind === 'funnel' ? 'funnel' : 'website';
-        const blankName = typeof input.name === 'string' ? input.name.trim().slice(0,80) : '';
-        const brief = input.mode === 'blank' ? blankName : typeof input.brief === 'string' ? input.brief.trim() : '';
-        const template = input.template || 'landing';
-        if (input.mode === 'blank' && !blankName) throw error('Dê um nome ao funil ou site.',400);
-        if (!brief || brief.length > 4000) throw error('Enter a project description of up to 4,000 characters.',400);
-        if (!studioTemplates.some(item => item[0] === template)) throw error('Choose a valid template.',400);
-        if (!['model','starter','blank'].includes(input.mode)) throw error('Choose how to create the project.',400);
-        const siteTemplate = input.mode === 'starter' && input.siteTemplate ? String(input.siteTemplate) : '';
-        if (siteTemplate && !hasSiteTemplate(siteTemplate)) throw error('Escolha um modelo de site válido.',400);
-        const existing = await store.load(id);
-        if (existing.studioProjects.length >= 60) throw error('A workspace can have up to 60 Studio projects.',400);
-        const connection = input.mode === 'model' ? await openAI.requireConnection(who.session) : null;
-        const reference = connection && input.reference ? await readReference(input.reference) : null;
-        const design = input.design ? validDesign(input.design) : null;
-        const plan = input.plan ? validPlan(input.plan, kind) : null;
-        let draft, html;
-        if (input.mode === 'model') {
-          const site = await generateSite(connection,brief,template,reference?.summary,design,plan?.pages[0] || null);
-          draft = { name:site.name, headline:site.name, summary:site.summary, theme:site.theme, blocks:[] };
-          html = site.html;
-        } else if (design && plan) {
-          draft = { name:plan.name, headline:plan.name, summary:plan.summary, theme:'indigo', blocks:[] };
-          html = designedPage({ siteName:plan.name, page:plan.pages[0], design, summary:plan.summary });
-        } else if (input.mode === 'blank') {
-          draft = { name:blankName, headline:blankName, summary:'', theme:'indigo', blocks:[] };
-          html = pageFromStructure(draft, blankName);
-        } else if (siteTemplate) {
-          const name = (typeof input.name === 'string' && input.name.trim().slice(0,80)) || findSiteTemplate(siteTemplate).brand;
-          draft = { name, headline:name, summary:findSiteTemplate(siteTemplate).description, theme:'indigo', blocks:[] };
-        } else {
-          draft = starterProject(brief,template);
-          html = pageFromStructure(draft);
-        }
-        if (plan) Object.assign(draft, { name:plan.name, headline:plan.name, summary:plan.summary || draft.summary });
-        let pages = [{ name:plan ? plan.pages[0].name : kind === 'funnel' ? 'Página de captura' : 'Home', slug:'index', html }];
-        if (siteTemplate) pages = siteTemplatePages(siteTemplate, { brand:draft.name, kind });
-        else if (kind === 'funnel' && !plan) pages.push({ name:'Obrigado', slug:'obrigado', html:thankYouPage(draft) });
-        const doc = newSiteDoc({ workspace:id, project:{ id:'pending' }, pages });
-        const created = await change(id,{type:'save',key:'studioProjects',data:{...draft,brief,template,kind,design,reference:reference?.url || ''}});
-        doc.project = created.id; doc.profile.name = `AI Studio ${created.id}`;
-        await store.insert(siteRowId(created.id), doc);
-        const synced = await syncMeta(id, created.id, doc);
-        return json({ id: synced.id, ...workspaceView(who, synced.state) },201);
-      }
-      if ((p==='/api/studio/discover' || p==='/api/studio/plan') && method==='POST') {
-        const who = await studioGuard(req,res,id);
-        const input = await payload(req);
-        const brief = typeof input.brief === 'string' ? input.brief.trim() : '';
-        if (!brief || brief.length > 4000) throw error('Descreva o que você quer construir em até 4.000 caracteres.',400);
-        const kind = input.kind === 'funnel' ? 'funnel' : 'website';
-        const connection = await openAI.status(who.session).then(s => s.configured ? openAI.requireConnection(who.session) : null);
-        if (p === '/api/studio/discover') {
-          if (!connection) return json({ ai:false, intro:`Vou montar ${kind === 'funnel' ? 'o funil' : 'o site'} com base na sua descrição. Antes, escolha a direção visual.`, questions:questionsFor({ kind }) });
-          const found = await discoverDesign(connection,{ brief, kind });
-          const palettes = found.palettes.map(item => validDesign({ palette:item }).palette).slice(0,4);
-          const fonts = found.fonts.map(item => validDesign({ fonts:item }).fonts).slice(0,4);
-          return json({ ai:true, intro:String(found.intro || '').slice(0,600), questions:questionsFor({ kind, palettes:palettes.length === 4 ? palettes : undefined, fonts:fonts.length === 4 ? fonts : undefined }) });
-        }
-        const design = validDesign(input.design);
-        const plan = connection ? validPlan(await planSite(connection,{ brief, kind, design }), kind) : localPlan(brief, kind);
-        if (kind === 'funnel' && !/obrigad|thank/i.test(plan.pages.at(-1).name + plan.pages.at(-1).slug) && plan.pages.length < 6) plan.pages.push({ name:'Obrigado', slug:'obrigado', purpose:'Confirma o envio e explica os próximos passos.' });
-        return json({ ai:Boolean(connection), plan, design });
-      }
-      if (p==='/api/studio/doc' && method!=='POST') {
-        await studioGuard(req,res,id);
-        const projectId = url.searchParams.get('id') || '';
-        return json({ doc: publicDoc(await siteDoc(id, projectId)) });
-      }
-      if (p.startsWith('/api/studio/') && method==='POST') {
-        const who = await studioGuard(req,res,id);
-        const input = await payload(req);
-        const result = await studioRequest(id, p.slice('/api/studio/'.length), input, who.session);
-        const doc = await siteDoc(id, input.id);
-        const synced = await syncMeta(id, input.id, doc);
-        return json({ id: synced.id, ...workspaceView(who, synced.state), doc: publicDoc(doc), result });
-      }
+      const studioRouteHandled = await studioRoute({ req, res, p, method, url, id, json });
+      if (studioRouteHandled !== NEXT_ROUTE) return studioRouteHandled;
       // Prévia dos modelos de site da galeria: conteúdo fixo do catálogo, sem dados de cliente.
       const templatePreview = p.match(templatePreviewPath);
       if (templatePreview && method === 'GET') {
@@ -3039,7 +3058,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const page = findPage(doc, pageId);
         const etag = `W/"${projectId}-${pageId}-${doc.rev || 0}"`;
         if (req.headers['if-none-match'] === etag) {
-          res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'private, no-cache' });
+          res.writeHead(304, { ...previewHeaders, 'ETag': etag, 'Cache-Control': 'private, no-cache' });
           return res.end();
         }
         res.writeHead(200, { ...previewHeaders, 'ETag': etag, 'Cache-Control': 'private, no-cache' });
@@ -3087,7 +3106,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           try {
             if (!project?.formId) throw error('This site is not accepting submissions.',404);
             const vid = siteVisitorOf(req, workspace) || randomBytes(12).toString('hex');
-            await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _source:'Site', _vid:vid } });
+            await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _message:fields.message, _source:'Site', _vid:vid } });
             const order = doc.published.pages;
             const from = order.findIndex(item => item.slug === (fields._page || 'index'));
             if (from >= 0) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, order[from].id, 'optins'))).catch(() => {});
@@ -3292,7 +3311,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (!await store.insert(rowId, { data: result.data })) await store.change(rowId, row => { row.data = result.data; });
           return json({ ok: true, index: result.index });
         }
-        if (step === 'finish') { flushLater(workspace); return json({ ok: true }, 201); }
+        if (step === 'finish') { await moveVideoToR2(workspace, result); flushLater(workspace); return json({ ok: true }, 201); }
         return json(result);
       }
       // Review link: the public page (generic or personal) and the review it sends.

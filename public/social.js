@@ -5,6 +5,8 @@ import { aiTool } from './content-ai.js';
 import { brandHighlight, brandIcon, icon as i, shcLayers } from './icons.js';
 import { badge, h, fmt } from './screens.js';
 import { bestTimes, bulkCsvColumns, mediaKind, network, networks, occurrencesBetween, parseCsv, postIssues, postTypes, queueNext, recurrences, statusLabel, statusTone, textFor, weekdays } from './social-data.js';
+import { ask } from './ask.js';
+import { tr } from './i18n.js';
 
 const ui = { view: 'calendar', mode: 'month', cursor: new Date(), status: 'all', account: '', draft: null, picked: new Set() };
 const freshCsv = () => ({ step: 1, file: '', rows: [], accountIds: [], asDraft: false, needsApproval: false, review: [] });
@@ -811,14 +813,14 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
       if (ds.spConnect) { connect(ds.spConnect); return; }
       if (ds.spDisconnect) {
         const a = c.s.socialAccounts.find(x => x.id === ds.spDisconnect);
-        if (!confirm(`Desconectar ${a.name}? Posts agendados só para esta conta voltam a ser rascunhos.`)) return;
+        if (!await ask(`${tr('Desconectar')} ${a.name}?`, { text: 'Posts agendados só para esta conta voltam a ser rascunhos.', ok: 'Desconectar' })) return;
         withState(await api(url('/api/social/disconnect'), { id: a.id })); render(); flash('Conta desconectada.'); return;
       }
       if (ds.spEdit) { recordDialog(ds.spEdit, ds.id, ds.evergreen !== undefined); return; }
-      if (ds.spRemove) { if (!confirm('Excluir este item?')) return; await mutate({ type: 'delete', key: ds.spRemove, id: ds.id }); close(); render(); flash('Excluído.'); return; }
-      if (ds.spDelete) { if (!confirm('Excluir este post? Isso não remove o que já foi publicado nas redes.')) return; await mutate({ type: 'social-delete', id: ds.spDelete }); close(); render(); flash('Post excluído.'); return; }
+      if (ds.spRemove) { if (!await ask('Excluir este item?', { ok: 'Excluir' })) return; await mutate({ type: 'delete', key: ds.spRemove, id: ds.id }); close(); render(); flash('Excluído.'); return; }
+      if (ds.spDelete) { if (!await ask('Excluir este post?', { text: 'Isso não remove o que já foi publicado nas redes.', ok: 'Excluir' })) return; await mutate({ type: 'social-delete', id: ds.spDelete }); close(); render(); flash('Post excluído.'); return; }
       if (ds.spBulkDelete) {
-        if (!confirm(`Excluir ${ui.picked.size} post(s)?`)) return;
+        if (!await ask(ui.picked.size === 1 ? 'Excluir este post?' : `${tr('Excluir')} ${ui.picked.size} posts?`, { text: 'Isso não remove o que já foi publicado nas redes.', ok: 'Excluir' })) return;
         await mutate({ type: 'social-bulk-delete', data: { ids: [...ui.picked] } }); ui.picked.clear(); render(); flash('Posts excluídos.'); return;
       }
       if (t.hasAttribute('data-sp-clear')) { ui.picked.clear(); render(); return; }
