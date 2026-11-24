@@ -97,7 +97,7 @@ function home(brand) {
   return document({ title: `${brand} · Design de interiores`, description: 'Projetos de interiores sob medida para casas e apartamentos, do conceito à obra entregue.', fonts, css, cursor: true, body: `${header(brand)}
 <main>
 <section class="hero" id="inicio"><img class="kb" src="${img('photo-1637412816281-f80ec9948fea', 2400)}" alt="Sala clara com sofá de linho e luz natural">
-<div class="in"><div class="top"><p class="ld" style="--d:.35s">Interiores que parecem com quem mora neles. Projeto, marcenaria e obra com uma equipe só.</p>
+<div class="in"><div class="top"><p class="ld" style="--d:.35s">Medimos, desenhamos, construímos e entregamos. Você só decide onde fica a poltrona.</p>
 <a class="btn light ld" data-magnetic style="--d:.45s" href="#orcamento">Pedir orçamento ${arrow}</a></div>
 <h1 data-fit><span class="ln"><span>${esc(brand)}</span></span></h1></div></section>
 

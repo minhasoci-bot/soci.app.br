@@ -172,7 +172,7 @@ function home(brand) {
 <section class="hero"><div class="wrap grid">
   <div class="copy">
     <div><span class="label ld">Corretora em São Paulo · CRECI-SP</span>
-      <h1><span class="ln"><span>Seu próximo</span></span><span class="ln"><span style="--d:.08s">endereço, escolhido</span></span><span class="ln"><span style="--d:.16s">com calma.</span></span></h1>
+      <h1><span class="ln"><span>Menos visitas,</span></span><span class="ln"><span style="--d:.08s">mais certeza</span></span><span class="ln"><span style="--d:.16s">na escolha.</span></span></h1>
       <p class="lead ld" style="--d:.3s">Casas à venda e para alugar nos melhores bairros de São Paulo. Eu vou com você em cada visita e cuido de toda a papelada.</p>
       <div class="actions ld" style="--d:.4s"><a class="btn" data-magnetic href="page:imoveis">Ver imóveis ${arrow}</a><a class="btn soft" href="page:contato">Avaliar meu imóvel</a></div></div>
     <div class="facts ld" style="--d:.55s"><div><b>12 anos</b><small>de mercado</small></div><div><b>1.200+</b><small>imóveis negociados</small></div><div><b>4,9 ★</b><small>nas avaliações</small></div></div>
@@ -224,7 +224,7 @@ function home(brand) {
 </div></div></section>
 
 <section class="sec" id="contato" style="padding-top:0"><div class="wrap contact">
-  <div class="txt"><span class="label rv">Contato</span><h2 data-split>Vamos encontrar o seu próximo endereço?</h2><p class="rv">Conte o que você procura. Respondo no mesmo dia, de segunda a sábado.</p>
+  <div class="txt"><span class="label rv">Contato</span><h2 data-split>Por onde começamos?</h2><p class="rv">Conte o que você procura. Respondo no mesmo dia, de segunda a sábado.</p>
     <div class="ways rv"><a class="ul" href="#">Falar no WhatsApp <small>Resposta em minutos</small></a><a href="page:contato">Agendar uma visita <small>Seg. a sáb., 8h às 20h</small></a><span>Rua Oscar Freire, Jardins <small>Escritório</small></span></div></div>
   <div class="panel rv">${leadForm({ button: 'Quero ser atendido', note: 'Seus dados ficam só comigo. Nada de spam.', extra: '<label>O que você procura?<select name="message"><option>Comprar uma casa</option><option>Vender meu imóvel</option><option>Alugar</option><option>Avaliação gratuita</option></select></label>' })}</div>
 </div></section>
