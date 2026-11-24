@@ -5,7 +5,7 @@
 .lb-item p{margin:0 0 6px}
 .cv-ai{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
 .cv-ai .secondary{font-size:13px;padding:6px 10px}
-.cv-ai-summary{border:1px solid var(--line,#e2e7ef);border-radius:10px;padding:12px 14px;margin:0 0 10px;background:var(--surface,#fff)}
+.cv-ai-summary{border:1px solid var(--line,#e2e7ef);border-radius:var(--r-control);padding:12px 14px;margin:0 0 10px;background:var(--surface,#fff)}
 .cv-ai-summary h4{margin:10px 0 4px;font-size:13px}
 .cv-ai-summary h4:first-child{margin-top:0}
 .cv-ai-summary ul{margin:0;padding-left:18px}

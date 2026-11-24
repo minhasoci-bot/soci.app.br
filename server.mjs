@@ -7,6 +7,8 @@ import { createEmailRoutes } from './routes/email.mjs';
 import { createMetaRoutes } from './routes/meta.mjs';
 import { createGbpRoutes, createGoogleRoutes } from './routes/google.mjs';
 import { createAgentRoutes } from './routes/agents.mjs';
+import { createStudioRoutes } from './routes/studio.mjs';
+import { createStoreApiRoutes, createStorePageRoutes } from './routes/stores.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -17,8 +19,8 @@ import { tmpdir } from 'node:os';
 import { blank, seed, uid, execute, find, emitWorkflow, receiveProspects } from './model.mjs';
 import { createSqliteStore, supabaseFromEnv } from './storage.mjs';
 import { accountProfile, afterLogin, authFromEnv } from './auth.mjs';
-import { discoverDesign, generatePage, generateSite, planSite, revisePage, suggestSeo } from './studio-ai.mjs';
-import { localPlan, questionsFor, validDesign, validPlan } from './ui/studio-design.js';
+import { generatePage, revisePage, suggestSeo } from './studio-ai.mjs';
+import { validDesign } from './ui/studio-design.js';
 import { designAgent, replyAsAgent } from './agent-ai.mjs';
 import { createOpenAI, openAIModel } from './openai.mjs';
 import { agentWorkflowRequest, recordAgentRun } from './agent-model.mjs';
@@ -35,20 +37,23 @@ import { reviewTokenHash } from './reputation-model.mjs';
 import { renderReviewPage, reviewPageCsp } from './reputation-page.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { collectorCsp, renderCollector, renderWidget, widgetCsp, widgetLoader } from './reputation-widget.mjs';
-import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withMotion } from './studio-site.mjs';
-import { starterProject, studioTemplates } from './ui/studio-data.js';
-import { findSiteTemplate } from './ui/site-template-data.js';
-import { hasSiteTemplate, siteTemplatePages, siteTemplatePreview } from './site-templates/index.mjs';
+import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, previewHeaders, publicHeaders, publish, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withEmbeds, withMotion } from './studio-site.mjs';
+import { hasSiteTemplate, siteTemplatePreview } from './site-templates/index.mjs';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
-import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, previewSnapshot, userAccess } from './agency-model.mjs';
+import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
 import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
-import { importedFile, mediaLimitBytes } from './media-model.mjs';
+import { importedFile, importedMeta, mediaLimitBytes, mediaTypes } from './media-model.mjs';
+import { R2_MAX_BYTES, r2FromEnv } from './r2-storage.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
 import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
-import { hasPixels, injectPixels, originAllowed, pixelsScript, trackerScript, trackingOf, touchesFrom, widenCsp } from './tracking.mjs';
+import { hasPixels, injectPixels, pixelsScript, trackerScript, trackingOf, widenCsp } from './tracking.mjs';
+import { createTrackingLog } from './tracking-events.mjs';
+import { scopedReads } from './read-scope.mjs';
+import { localScheduler, startupLines } from './local-scheduler.mjs';
+import { AUDIT_IN_DOCUMENT, createAuditLog } from './agency-audit.mjs';
 import { adSettingsOf, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
 import { freshSecret, googleConfigured, googleError, googleReports, listLocations, locationDetails, searchError, searchReport } from './google-integrations.mjs';
@@ -116,7 +121,7 @@ import { emailDomains, workspaceSender } from './email-domain.mjs';
 import { tokenHash as documentTokenHash } from './document-model.mjs';
 import { estimateTokenHash } from './estimate-model.mjs';
 import { invoiceTokenHash } from './invoice-model.mjs';
-import { cartTokenHash, abandonedOf } from './checkout-model.mjs';
+import { abandonedOf } from './checkout-model.mjs';
 import { reportsDue } from './report-model.mjs';
 import { brandGroupData } from './ui/brand-group-data.js';
 import { brandGroupPage } from './brand-group-page.mjs';
@@ -130,7 +135,8 @@ import { makeCommunity } from './community.mjs';
 import { fillWelcome } from './community-config.mjs';
 import { certificateCsp, certificatePage } from './course-credentials.mjs';
 import { preferenceCsp, preferencePage, preferenceView } from './preference-model.mjs';
-import { bookingCsp, bookingPage, bookingView, clockIn, zoneOf } from './scheduling-model.mjs';
+import { leaveCsp, leavePage, outcomeOf, resolveDestination } from './destinations.mjs';
+import { bookingCsp, bookingEmbedCsp, bookingPage, bookingView, clockIn, zoneOf } from './scheduling-model.mjs';
 import { audioLimit, audioTypes, summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
 import { askAssistant } from './seo-ai.mjs';
 import { addTopup, paidTopup, pricingFor, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
@@ -148,8 +154,6 @@ import { chatHistory } from './chat-model.mjs';
 import { chatPage, demoPage, loaderScript } from './ui/chat-widget-data.js';
 import { blogHome, blogPost, blogRss, isLive } from './ui/blog-data.js';
 import { localDraft, postSeo, writePost } from './blog-ai.mjs';
-import { catalog, methodLabel, storeCart, storeHome, storeProduct } from './ui/store-data.js';
-import { quoteOrder } from './store-model.mjs';
 import { renderOfferPage, offerPageCsp } from './offer-page.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
 import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
@@ -168,11 +172,11 @@ export const staticFiles = new Map([
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
   ['/reports.js','text/javascript; charset=utf-8'], ['/report-data.js','text/javascript; charset=utf-8'], ['/reports.css','text/css; charset=utf-8'],
-  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/site-template-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
+  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio-blocks.js','text/javascript; charset=utf-8'], ['/site-template-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
   ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
-  ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
+  ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/destination-field.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/setup-art.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/deck-model.js','text/javascript; charset=utf-8'], ['/deck-render.js','text/javascript; charset=utf-8'], ['/deck-editor.js','text/javascript; charset=utf-8'], ['/deck.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
@@ -190,7 +194,7 @@ export const staticFiles = new Map([
   ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
   ['/prancheta-editor.html','text/html; charset=utf-8'], ['/vendor/prancheta-editor.js','text/javascript; charset=utf-8'], ['/vendor/prancheta-editor.css','text/css; charset=utf-8'],
-  ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
+  ['/style.css','text/css; charset=utf-8'], ['/button-system.css','text/css; charset=utf-8'], ['/tokens.css','text/css; charset=utf-8'], ['/liquid-glass.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
   ['/fonts/plus-jakarta-sans.woff2','font/woff2'], ['/favicon.svg','image/svg+xml'],
@@ -208,7 +212,7 @@ const pranchetaEditorCsp = () => csp
   .replace("frame-ancestors 'none'", "frame-ancestors 'self'")
   .replace("script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'")
   .replace("connect-src 'self'", "connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://storage.googleapis.com https://fonts.googleapis.com https://fonts.gstatic.com");
-const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://accounts.google.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; media-src 'self' data: https:; connect-src 'self' https://accounts.google.com; frame-src 'self' https: https://accounts.google.com; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'";
+const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://accounts.google.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; media-src 'self' data: https:; connect-src 'self' https://accounts.google.com https://*.r2.cloudflarestorage.com; frame-src 'self' https: https://accounts.google.com; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'";
 const error = (message,status) => Object.assign(new Error(message),{status});
 const spaceId = /^[0-9a-f-]{36}$|^demo$/;
 const privateSpace = /^user-[0-9a-f-]{36}$/;
@@ -275,14 +279,16 @@ const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 function publicAgency(agency, who) {
-  const view = { ...agency,
+  // The audit log has its own endpoint (GET /api/agency/audit).
+  const { audit: _audit, ...shared } = agency;
+  const view = { ...shared,
     snapshots: agency.snapshots.map(({ studioSites: _studioSites, ...rest }) => rest),
     apiKeys: agency.apiKeys.map(({ hash: _hash, ...rest }) => rest),
     privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest)
   };
   if (!who.settings) {
     const empty = blankAgency();
-    for (const key of ['profile', 'users', 'billing', 'apiKeys', 'privateIntegrations', 'audit', 'emailServices', 'systemEmails', 'compliance']) {
+    for (const key of ['profile', 'users', 'billing', 'apiKeys', 'privateIntegrations', 'emailServices', 'systemEmails', 'compliance']) {
       if (Object.hasOwn(empty, key)) view[key] = empty[key];
     }
     view.accounts = Object.fromEntries(Object.entries(agency.accounts).map(([id, { statusHistory, ignoredWebhooks, suspendedReason, billing, ...meta }]) => [id, meta]));
@@ -317,14 +323,16 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
   : resolve(root, '.data', 'go.sqlite');
 
 export function makeServer({
-  pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=!process.env.VERCEL, cronConcurrency=4, cronBudgetMs=45_000,
+  pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=localScheduler(store.kind), cronConcurrency=4, cronBudgetMs=45_000,
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, inboundFetch=fetch, twilioRequest=fetch, phoneEnv=process.env, brandResolve=null, designAgentConfig=designAgent,
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
   evolutionBaseUrl=process.env.EVOLUTION_BASE_URL || '', evolutionApiKey=process.env.EVOLUTION_API_KEY || '',
   portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(), campaignMail=campaignMailer(),
-  allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
+  allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1', r2=r2FromEnv()
 }={}) {
+  const cronReads = scopedReads(store);
+  store = cronReads.store;
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
   const content = { transformText, writeEmail, writeReviewReply, writeBrandVoice, writeCaption, writePost, postSeo, transcribeAudio, summarizeMeeting, askAssistant, writeConversationReply, writeConversationSummary, ...contentAI };
   // The default brand board's voice, added by the server to every AI writer (never taken from the browser).
@@ -554,11 +562,14 @@ export function makeServer({
   };
   // Imagens grandes em base64 saem do documento da agência a cada gravação (asset-store.mjs):
   // o documento guarda só /asset/<hash>; as linhas das imagens são gravadas antes da resposta.
+  const auditLog = createAuditLog({ store });
   const changeAgency = async (id, mutate) => {
     agencyCache.delete(id);
     const images = new Map();
-    const result = await store.change(id, state => { const out = mutate(hydrateAgency(state)); extractAssets(state, images); return out; });
+    let waiting = 0;
+    const result = await store.change(id, state => { const out = mutate(hydrateAgency(state)); extractAssets(state, images); waiting = state.audit.length; return out; });
     if (images.size) await saveAssets(store, images);
+    await auditLog.settle(id, waiting);
     agencyCache.delete(id);
     return result;
   };
@@ -598,16 +609,22 @@ export function makeServer({
       copy.projectId = newId;
       copy.published = null;
       copy.updatedAt = stamp();
-      if (Array.isArray(copy.pages)) copy.pages = copy.pages.map(pg => ({ ...pg, id: uid() }));
+      // Forms and services shown inside the pages point at the records this account received.
+      const relink = html => String(html || '').replace(/(<div\b[^>]*\sdata-soci-embed=[^>]*\sdata-id=")([^"]*)(")/gi, (_, a, ref, b) => a + (studioMap.ids?.get(ref) || ref) + b);
+      for (const version of copy.versions || []) version.pages = version.pages.map(pg => ({ ...pg, html: relink(pg.html) }));
+      if (Array.isArray(copy.pages)) copy.pages = copy.pages.map(pg => ({ ...pg, id: uid(), html: relink(pg.html) }));
       const rowId = siteRowId(newId);
       const inserted = await store.insert(rowId, copy);
       if (!inserted) await store.change(rowId, state => Object.assign(state, copy));
+      siteDocCache.delete(newId);
     }
   }
-  const logTo = (agency, who, action, target = '', details = '') => {
-    agency.audit.push({ id: uid(), at: stamp(), actor: who.name, action, target, details });
-    if (agency.audit.length > 1000) agency.audit.splice(0, agency.audit.length - 1000);
+  const auditEntry = (who, action, target = '', details = '') => ({ id: uid(), at: stamp(), actor: who.name, action, target, details });
+  const keepEntry = (agency, entry) => {
+    agency.audit.push(entry);
+    if (agency.audit.length > AUDIT_IN_DOCUMENT) agency.audit.splice(0, agency.audit.length - AUDIT_IN_DOCUMENT);
   };
+  const logTo = (agency, who, action, target, details) => keepEntry(agency, auditEntry(who, action, target, details));
   const ensureAccounts = (agency, workspaces) => {
     for (const w of workspaces) {
       agency.accounts[w.id] ??= { status: 'Active', created: w.id === 'demo' ? '' : stamp(), lastLogin: '', plan: '', address: '', phone: '', website: '' };
@@ -772,8 +789,13 @@ export function makeServer({
     const agency = await loadAgency(agencyId);
     for (const w of workspaces) await store.change(w.id, s => { setLabsOffer(s, agency.labs); });
   }
+  /** A loose entry goes straight to the table; only without it is the agency document written again. */
+  async function writeAudit(who, action, target, details) {
+    const entry = auditEntry(who, action, target, details);
+    if (!await auditLog.append(who.agencyId, entry)) await changeAgency(who.agencyId, agency => keepEntry(agency, entry));
+  }
   async function recordAudit(who, action, target, details = '') {
-    try { await changeAgency(who.agencyId, agency => logTo(agency, who, action, target, details)); }
+    try { await writeAudit(who, action, target, details); }
     catch { /* Audit entries are best effort and never undo the action itself. */ }
   }
   async function createAccount(who, input) {
@@ -975,7 +997,7 @@ export function makeServer({
     let size = 0; const chunks = [];
     for await (const part of req) { size += part.length; if (size > 20000) throw error('Request is too large.',413); chunks.push(part); }
     const params = new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
-    return Object.fromEntries(['name','email','phone','_page'].map(key => [key, (params.get(key) || '').slice(0,240)]));
+    return { ...Object.fromEntries(['name','email','phone','_page'].map(key => [key, (params.get(key) || '').slice(0,240)])), message:(params.get('message') || '').slice(0,2400) };
   }
   async function findProspects(who,input) {
     const agency = await loadAgency(who.agencyId);
@@ -1286,19 +1308,6 @@ export function makeServer({
       await changeMarketplace(doc => recordMarketplaceInstall(doc, listing.id));
       return copy;
     }
-    if (op === 'template-install') {
-      const agency = await loadAgency(who.agencyId);
-      const template = catalogTemplate(input.template, agency);
-      const target = (await listWorkspaces(who.agencyId)).find(w => w.id === input.workspace);
-      if (!target) throw error('Choose a valid sub-account.',400);
-      await requireWorkspaceAccess(agency, who, target.id, { modules: ['sites'] });
-      const page = await store.change(target.id, state => installTemplate(state, template));
-      await changeAgency(who.agencyId, a => {
-        a.templateInstalls.push({ id: uid(), template: template.id, name: template.name, workspace: target.id, account: target.name, at: stamp() });
-        logTo(a, who, 'Template installed', template.name, target.name);
-      });
-      return { workspace: target.id, page };
-    }
     if (op === 'prospect-convert') {
       const prospect = (await loadAgency(who.agencyId)).prospects.find(r => r.id === input.id);
       if (!prospect) throw error('Prospect not found.',404);
@@ -1332,6 +1341,7 @@ export function makeServer({
   // Serviços de e-mail: the sub-account's verified sending domain, or '' to send from the platform address.
   const sendingAddress = async workspace => { try { return workspaceSender(await store.load(`email-${workspace}`)); } catch { return ''; } };
   const signHits = new Map(), testHits = new Map(), countdownCache = new Map(), trackingHits = new Map();
+  const trackingLog = createTrackingLog({ store });
   // Tracking events: up to 300 per connection every 10 minutes.
   const allowTracking = ip => {
     const at = Date.now(), hit = trackingHits.get(ip);
@@ -1342,6 +1352,16 @@ export function makeServer({
   const withPixels = (state, workspace, headers, body) => {
     if (!hasPixels(state?.tracking) || typeof body !== 'string') return [headers, body];
     return [{ ...headers, 'Content-Security-Policy': widenCsp(headers['Content-Security-Policy']) }, injectPixels(body, workspace)];
+  };
+  // Sends the visitor to a destination: a plain redirect, or a short page when the whole window must change (inside a
+  // frame) or when the pixel needs a moment before an external address.
+  const leave = (res, state, workspace, target, { embed = false, event = '' } = {}) => {
+    const pixel = target.external && event;
+    if (!embed && !pixel) { res.writeHead(303, { Location: target.href }); return res.end(); }
+    const [headers, body] = withPixels(pixel ? state : null, workspace, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'same-origin', 'Content-Security-Policy': leaveCsp(embed ? '*' : "'none'") },
+      leavePage({ href: target.href, event: pixel ? event : '', wait: pixel ? 900 : 0 }));
+    res.writeHead(200, headers);
+    return res.end(body);
   };
   const allowSign = ip => {
     const at = Date.now(), hit = signHits.get(ip);
@@ -1555,14 +1575,37 @@ export function makeServer({
     const result = await change(workspace, { type: 'community-newsletter', data: { items } });
     return Number(result.id) || 0;
   }
-  async function sendVideo(req, res, method, workspace, row, cache) {
+  async function videoBytes(workspace, row) {
     const parts = [];
     for (let index = 0; index < row.chunks; index++) {
       const chunk = await Promise.resolve().then(() => store.load(mediaRowId(workspace, row.id, index))).catch(() => null);
       if (!chunk?.data) throw error('Vídeo indisponível.', 404);
       parts.push(Buffer.from(chunk.data, 'base64'));
     }
-    const bytes = Buffer.concat(parts);
+    return Buffer.concat(parts);
+  }
+  const clearVideoChunks = async (workspace, row) => {
+    for (let index = 0; index < row.chunks; index++) await Promise.resolve().then(() => store.change(mediaRowId(workspace, row.id, index), chunk => { chunk.data = ''; chunk.deleted = true; })).catch(() => {});
+  };
+  // A video kept in R2 is served by the bucket itself, through a short-lived signed link.
+  const redirectToR2 = (res, key, options) => {
+    if (!r2) throw error('Arquivo indisponível.', 404);
+    res.writeHead(302, { Location: r2.downloadUrl(key, options), 'Cache-Control': 'private, max-age=300', 'Referrer-Policy': 'no-referrer' });
+    return res.end();
+  };
+  // Testimonials arrive in chunks (each one a database row); once complete they move to R2 in one object.
+  async function moveVideoToR2(workspace, row) {
+    if (!r2 || !row?.chunks) return;
+    try {
+      const r2Key = `ws/${workspace}/videos/${row.id}`;
+      await r2.put(r2Key, await videoBytes(workspace, row), row.mime);
+      await change(workspace, { type: 'video-stored', data: { id: row.id, r2Key } });
+      await clearVideoChunks(workspace, row);
+    } catch (problem) { console.error(`R2 video move (${workspace}): ${problem.message}`); }
+  }
+  async function sendVideo(req, res, method, workspace, row, cache) {
+    if (row.r2Key) return redirectToR2(res, row.r2Key, { type: row.mime });
+    const bytes = await videoBytes(workspace, row);
     const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ''));
     const headers = { 'Content-Type': row.mime, 'Accept-Ranges': 'bytes', 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff', 'Cross-Origin-Resource-Policy': 'cross-origin' };
     if (range && (range[1] || range[2])) {
@@ -1789,7 +1832,15 @@ export function makeServer({
         }
         const bytes = await (mediaAI?.content || videoContent)(connection, job.jobId);
         if (!bytes?.length || bytes.length > 15 * 1024 * 1024) { await finish({}, { error: 'o vídeo gerado passou de 15 MB' }); continue; }
-        const id = uid(), chunks = Math.ceil(bytes.length / CHUNK_BYTES);
+        const id = uid();
+        if (r2) {
+          const r2Key = `ws/${workspace}/videos/${id}`;
+          await r2.put(r2Key, bytes, 'video/mp4');
+          await finish({ id, r2Key, chunks: 0, bytes: bytes.length, prompt: job.prompt, workflowId: job.workflowId },
+            { vars: { [job.variable]: documentMail.linkOf({ path: `/m/${workspace}/video/${id}` }), [`${job.variable}_id`]: id } });
+          continue;
+        }
+        const chunks = Math.ceil(bytes.length / CHUNK_BYTES);
         for (let index = 0; index < chunks; index++) {
           const rowId = mediaRowId(workspace, id, index);
           await store.insert(rowId, { profile: { name: 'Vídeo gerado com IA' }, data: bytes.subarray(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES).toString('base64') });
@@ -1915,10 +1966,13 @@ export function makeServer({
     }, { concurrency: 10, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
     await runInBatches(due, async id => { try { await eventSender.run(id); } catch (e) { console.error(`Event messages (${id}): ${e.message}`); } }, { concurrency: 25, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
   }
-  async function runAllSocial(base, at = Date.now()) {
+  // Each document is read once per round, not once per task (read-scope.mjs).
+  const runAllSocial = (base, at = Date.now()) => cronReads.run(() => runSocialRound(base, at));
+  async function runSocialRound(base, at) {
     let total = 0;
-    inBackground('Event messages', () => runAllEventSends());
     const spaces = (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id));
+    await cronReads.prime(spaces.map(w => w.id)).catch(e => console.error(`Cron (revisões): ${e.message}`));
+    inBackground('Event messages', () => runAllEventSends());
     const { skipped } = await runInBatches(spaces, async w => {
       try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
       try { await runWebinarReminders(w.id, base); } catch (e) { console.error(`Webinar reminders (${w.id}): ${e.message}`); }
@@ -1931,6 +1985,8 @@ export function makeServer({
       try { await runEmailCampaigns(w.id); } catch (e) { console.error(`E-mail campaigns (${w.id}): ${e.message}`); }
       try { await runAllAds(w.id); } catch (e) { console.error(`Ads (${w.id}): ${e.message}`); }
     }, { concurrency: cronConcurrency, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+    await trackingLog.sweep(at);
+    await auditLog.sweep(at);
     if (skipped.length) console.warn(`Cron: ${skipped.length} de ${spaces.length} workspaces ficaram para o próximo minuto.`);
     return total;
   }
@@ -2137,14 +2193,17 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     catch { throw error('Invalid JSON request.',400); }
   };
   // Rotas por domínio (P2.1): cada módulo recebe o que vive neste fechamento e devolve NEXT_ROUTE quando a rota não é dele.
-  const socialRoute = createSocialRoutes({ store, auth, localAccess, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
+  const socialRoute = createSocialRoutes({ store, auth, localAccess, redirectToR2, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
   const adsRoute = createAdsRoutes({ store, localAccess, error, spaceId, privateSpace, stamp, adsAccess, adsCallbackPath, adsPopup, adsView, payload, publicBase, recordAudit, runAds, socialActor, socialRow, workspaceAccess });
-  const actionRoute = createActionRoutes({ store, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
+  const actionRoute = createActionRoutes({ store, r2, clearVideoChunks, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
   const emailRoute = createEmailRoutes({ store, ready, error, spaceId, privateSpace, stamp, campaignMail, emailDomainApi, flushLater, inboundFetch, payload, publicAccountPolicy, publicBase, recordAudit, sendingAddress, socialRow, testHits, workspaceAccess });
   const metaRoute = createMetaRoutes({ store, ready, error, change, flushLater, metaFetch, metaRoutesRow, metaSender, publicAccountPolicy });
   const googleRoute = createGoogleRoutes({ store, ready, localAccess, error, spaceId, privateSpace, stamp, workspaceSegment, flushLater, googleCache, googleCallbackPath, googleData, googlePopup, googleView, payload, publicAccountPolicy, publicBase, recordAudit, searchCache, socialActor, socialRow, workspaceAccess });
   const gbpRoute = createGbpRoutes({ store, error, spaceId, change, flushLater, gbpAccess, gbpStatus, payload, recordAudit, workspaceAccess });
   const agentRoute = createAgentRoutes({ store, localAccess, error, spaceId, privateSpace, agentModel, designAgentConfig, generateAgentReply, listWorkspaces, openAI, payload, recordAudit, workspaceAccess });
+  const studioRoute = createStudioRoutes({ store, error, change, openAI, payload, siteDoc, studioGuard, studioRequest, syncMeta });
+  const storePageRoute = createStorePageRoutes({ store, ready, error, publicAccountPolicy, publicPreview, storePath, withPixels });
+  const storeApiRoute = createStoreApiRoutes({ store, ready, error, abacate, allowSign, allowTracking, change, flushLater, payload, publicAccountPolicy, publicBase, storeApi });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const server=createServer(async (req,res) => {
@@ -2445,15 +2504,13 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const [state, workspaces, aiStatus] = await Promise.all([
           store.load(id), visibleWorkspaces(who), !who.support && (studio || agents || marketing || reputation) ? openAI.status(who.session) : null
         ]);
-        const account = workspaces.find(w => w.id === id)?.name || id;
-        const audit = !isPersonal && (who.support || hasModule(who, 'settings')) ? agency.audit.filter(a => a.target === account || a.target === id).slice(-200) : [];
-        if (who.support) await changeAgency(who.agencyId, current => logTo(current, who, 'Sub-account support viewed', id, who.account.status));
+        if (who.support) await writeAudit(who, 'Sub-account support viewed', id, who.account.status);
         return json({ ...workspaceView(who, state), workspaces,
           features:{studioAI: Boolean(aiStatus?.configured && studio), socialAI: Boolean(aiStatus?.configured && marketing), contentAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && (marketing || studio)), reviewAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && reputation), reportEmail: reportMail.configured, social: marketing ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
           agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id,who.settings),
           ...(who.support && { account: { ...who.account, support: true, statusHistory: agency.accounts[id]?.statusHistory || [],
             ignoredWebhooks: agency.accounts[id]?.ignoredWebhooks || {} } }),
-          access:{agency:who.agency,modules:who.modules,name:who.name,session:who.session},audit});
+          access:{agency:who.agency,modules:who.modules,name:who.name,session:who.session}});
       }
       // Dry run of a workflow draft for one contact, on a copy of the workspace: nothing is saved or sent.
       if (p==='/api/workflow-test' && method==='POST') {
@@ -2471,11 +2528,61 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (typeof input.url !== 'string' || !input.url.trim() || input.url.length > 2000) throw error('Cole o link do arquivo.',400);
         const address = input.url.trim();
         let response;
-        try { response = await fetchMedia(address, { maxBytes: mediaLimitBytes + 1, timeout: 10000 }); }
+        const limit = r2 ? R2_MAX_BYTES : mediaLimitBytes;
+        try { response = await fetchMedia(address, { maxBytes: limit + 1, timeout: r2 ? 30000 : 10000 }); }
         catch (e) { throw error(['EINVALID','EBLOCKED'].includes(e.code) ? 'Use um link público que comece com https://.' : 'Não foi possível baixar o arquivo desse link.', 422); }
+        const folderId = typeof input.folderId === 'string' ? input.folderId : '';
+        if (r2 && response.body?.length > mediaLimitBytes) {
+          const { name, mime } = importedMeta(response, address, limit);
+          const fileId = uid(), r2Key = `ws/${id}/files/${fileId}`;
+          if ((await store.load(id)).files.length >= 60) throw error('The local drive holds up to 60 files.', 400);
+          await r2.put(r2Key, response.body, mime);
+          let result;
+          try { result = await change(id, { type:'media-stored', data:{ id: fileId, r2Key, mime, size: response.body.length, name, folderId } }); }
+          catch (e) { await r2.remove(r2Key).catch(() => {}); throw e; }
+          return json({ id: result.id, ...workspaceView(who, result.state) });
+        }
         const file = importedFile(response, address);
-        const result = await change(id, { type:'save', key:'files', data:{ ...file, folderId: typeof input.folderId === 'string' ? input.folderId : '' } }, who);
+        const result = await change(id, { type:'save', key:'files', data:{ ...file, folderId } }, who);
         return json({ id: result.id, ...workspaceView(who, result.state) });
+      }
+      // Configurações → Rastreamento: the events received, newest first (?type=, ?before=<cursor>).
+      if (p==='/api/tracking/events' && method==='GET') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
+        await workspaceAccess(req, res, id, { modules: ['settings'] });
+        return json(await trackingLog.read(id, { type: url.searchParams.get('type') || '', before: url.searchParams.get('before') || '' }));
+      }
+      // Mídia Drive → files over 700 KB: the browser PUTs them straight into R2 with a signed link, then
+      // asks for the record; the server checks the stored object (size and type) before writing it.
+      if ((p==='/api/media/upload-url' || p==='/api/media/upload-done') && method==='POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
+        const input = await payload(req);
+        const who = await workspaceAccess(req, res, id);
+        requireWorkspaceCommand(who, { type:'save', key:'files' });
+        if (!r2) throw error('O armazenamento de arquivos grandes (Cloudflare R2) ainda não foi configurado. Envie arquivos de até 700 KB.', 503);
+        if (p==='/api/media/upload-url') {
+          const mime = typeof input.mime === 'string' ? input.mime.trim().toLowerCase() : '';
+          const size = Number(input.size);
+          if (!mediaTypes[mime]) throw error('Escolha um arquivo de imagem, vídeo, áudio, PDF, TXT ou CSV.', 400);
+          if (!Number.isInteger(size) || size < 1 || size > R2_MAX_BYTES) throw error('O arquivo pode ter até 50 MB.', 413);
+          if ((await store.load(id)).files.length >= 60) throw error('The local drive holds up to 60 files.', 400);
+          const fileId = uid(), key = `ws/${id}/files/${fileId}`;
+          const token = r2.seal({ k: key, i: fileId, w: id, m: mime, s: size, n: typeof input.name === 'string' ? input.name.slice(0, 240) : '',
+            f: typeof input.folderId === 'string' ? input.folderId.slice(0, 60) : '', exp: Date.now() + 15 * 60000 });
+          return json({ uploadUrl: r2.uploadUrl(key, mime), headers: { 'Content-Type': mime }, token });
+        }
+        const ticket = r2.open(input.token);
+        if (ticket.w !== id) throw error('Envio inválido. Comece de novo.', 400);
+        const stored = await r2.head(ticket.k);
+        if (!stored) throw error('O arquivo não chegou ao armazenamento. Tente de novo.', 409);
+        if (stored.size !== ticket.s || stored.type !== ticket.m) {
+          await r2.remove(ticket.k).catch(() => {});
+          throw error('O arquivo enviado não confere com o que foi pedido. Tente de novo.', 422);
+        }
+        let result;
+        try { result = await change(id, { type:'media-stored', data:{ id: ticket.i, r2Key: ticket.k, mime: ticket.m, size: ticket.s, name: ticket.n, folderId: ticket.f } }); }
+        catch (e) { await r2.remove(ticket.k).catch(() => {}); throw e; }
+        return json({ id: result.id, ...workspaceView(who, result.state) }, 201);
       }
       // Marketing → Rastreamento: the GA4 Measurement Protocol API secret. Write-only: sealed in the ads-<workspace> row,
       // never sent back; the sub-account state only says whether it is set. An empty value removes it.
@@ -2494,6 +2601,23 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (actionRouteHandled !== NEXT_ROUTE) return actionRouteHandled;
       if (p==='/api/agency' && method!=='POST') {
         return json(await agencyPayload(req,res));
+      }
+      // Configurações da agência → Logs de auditoria: newest first (?q=, ?before=<cursor>, ?limit=).
+      if (p==='/api/agency/audit' && method==='GET') {
+        const who = await access(req,res);
+        requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
+        if (!who.settings) throw error('Seu usuário não tem acesso às configurações da agência.',403);
+        return json(await auditLog.read(who.agencyId, { q: url.searchParams.get('q') || '', before: url.searchParams.get('before') || '', limit: url.searchParams.get('limit') || '' }));
+      }
+      // Configurações da subconta → Log de auditoria: só as entradas desta subconta.
+      if (p==='/api/audit' && method==='GET') {
+        if (privateSpace.test(id)) return json({ entries: [], next: '' });
+        if (!spaceId.test(id)) throw error('Workspace not found.',404);
+        const { agency, who: actor } = await accessContext(req,await verifiedUser(req,res));
+        const who = await requireWorkspaceAccess(agency, actor, id, { support: true });
+        if (!who.support && !hasModule(who, 'settings')) throw error('Seu usuário não tem acesso às configurações.',403);
+        const account = (await visibleWorkspaces(who)).find(w => w.id === id)?.name || id;
+        return json(await auditLog.read(who.agencyId, { targets: [account, id], before: url.searchParams.get('before') || '', limit: url.searchParams.get('limit') || '' }));
       }
       if (p.startsWith('/api/agency/') && method==='POST') {
         const who = await access(req,res);
@@ -2951,86 +3075,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (agentRouteHandled !== NEXT_ROUTE) return agentRouteHandled;
       const pranchetaRouteHandled = await pranchetaRoute({ req, res, p, method, url, id, json, send });
       if (pranchetaRouteHandled !== NEXT_ROUTE) return pranchetaRouteHandled;
-      if (p==='/api/studio' && method==='POST') {
-        const who = await studioGuard(req,res,id);
-        const input = await payload(req);
-        const kind = input.kind === 'funnel' ? 'funnel' : 'website';
-        const blankName = typeof input.name === 'string' ? input.name.trim().slice(0,80) : '';
-        const brief = input.mode === 'blank' ? blankName : typeof input.brief === 'string' ? input.brief.trim() : '';
-        const template = input.template || 'landing';
-        if (input.mode === 'blank' && !blankName) throw error('Dê um nome ao funil ou site.',400);
-        if (!brief || brief.length > 4000) throw error('Enter a project description of up to 4,000 characters.',400);
-        if (!studioTemplates.some(item => item[0] === template)) throw error('Choose a valid template.',400);
-        if (!['model','starter','blank'].includes(input.mode)) throw error('Choose how to create the project.',400);
-        const siteTemplate = input.mode === 'starter' && input.siteTemplate ? String(input.siteTemplate) : '';
-        if (siteTemplate && !hasSiteTemplate(siteTemplate)) throw error('Escolha um modelo de site válido.',400);
-        const existing = await store.load(id);
-        if (existing.studioProjects.length >= 60) throw error('A workspace can have up to 60 Studio projects.',400);
-        const connection = input.mode === 'model' ? await openAI.requireConnection(who.session) : null;
-        const reference = connection && input.reference ? await readReference(input.reference) : null;
-        const design = input.design ? validDesign(input.design) : null;
-        const plan = input.plan ? validPlan(input.plan, kind) : null;
-        let draft, html;
-        if (input.mode === 'model') {
-          const site = await generateSite(connection,brief,template,reference?.summary,design,plan?.pages[0] || null);
-          draft = { name:site.name, headline:site.name, summary:site.summary, theme:site.theme, blocks:[] };
-          html = site.html;
-        } else if (design && plan) {
-          draft = { name:plan.name, headline:plan.name, summary:plan.summary, theme:'indigo', blocks:[] };
-          html = designedPage({ siteName:plan.name, page:plan.pages[0], design, summary:plan.summary });
-        } else if (input.mode === 'blank') {
-          draft = { name:blankName, headline:blankName, summary:'', theme:'indigo', blocks:[] };
-          html = pageFromStructure(draft, blankName);
-        } else if (siteTemplate) {
-          const name = (typeof input.name === 'string' && input.name.trim().slice(0,80)) || findSiteTemplate(siteTemplate).brand;
-          draft = { name, headline:name, summary:findSiteTemplate(siteTemplate).description, theme:'indigo', blocks:[] };
-        } else {
-          draft = starterProject(brief,template);
-          html = pageFromStructure(draft);
-        }
-        if (plan) Object.assign(draft, { name:plan.name, headline:plan.name, summary:plan.summary || draft.summary });
-        let pages = [{ name:plan ? plan.pages[0].name : kind === 'funnel' ? 'Página de captura' : 'Home', slug:'index', html }];
-        if (siteTemplate) pages = siteTemplatePages(siteTemplate, { brand:draft.name, kind });
-        else if (kind === 'funnel' && !plan) pages.push({ name:'Obrigado', slug:'obrigado', html:thankYouPage(draft) });
-        const doc = newSiteDoc({ workspace:id, project:{ id:'pending' }, pages });
-        const created = await change(id,{type:'save',key:'studioProjects',data:{...draft,brief,template,kind,design,reference:reference?.url || ''}});
-        doc.project = created.id; doc.profile.name = `AI Studio ${created.id}`;
-        await store.insert(siteRowId(created.id), doc);
-        const synced = await syncMeta(id, created.id, doc);
-        return json({ id: synced.id, ...workspaceView(who, synced.state) },201);
-      }
-      if ((p==='/api/studio/discover' || p==='/api/studio/plan') && method==='POST') {
-        const who = await studioGuard(req,res,id);
-        const input = await payload(req);
-        const brief = typeof input.brief === 'string' ? input.brief.trim() : '';
-        if (!brief || brief.length > 4000) throw error('Descreva o que você quer construir em até 4.000 caracteres.',400);
-        const kind = input.kind === 'funnel' ? 'funnel' : 'website';
-        const connection = await openAI.status(who.session).then(s => s.configured ? openAI.requireConnection(who.session) : null);
-        if (p === '/api/studio/discover') {
-          if (!connection) return json({ ai:false, intro:`Vou montar ${kind === 'funnel' ? 'o funil' : 'o site'} com base na sua descrição. Antes, escolha a direção visual.`, questions:questionsFor({ kind }) });
-          const found = await discoverDesign(connection,{ brief, kind });
-          const palettes = found.palettes.map(item => validDesign({ palette:item }).palette).slice(0,4);
-          const fonts = found.fonts.map(item => validDesign({ fonts:item }).fonts).slice(0,4);
-          return json({ ai:true, intro:String(found.intro || '').slice(0,600), questions:questionsFor({ kind, palettes:palettes.length === 4 ? palettes : undefined, fonts:fonts.length === 4 ? fonts : undefined }) });
-        }
-        const design = validDesign(input.design);
-        const plan = connection ? validPlan(await planSite(connection,{ brief, kind, design }), kind) : localPlan(brief, kind);
-        if (kind === 'funnel' && !/obrigad|thank/i.test(plan.pages.at(-1).name + plan.pages.at(-1).slug) && plan.pages.length < 6) plan.pages.push({ name:'Obrigado', slug:'obrigado', purpose:'Confirma o envio e explica os próximos passos.' });
-        return json({ ai:Boolean(connection), plan, design });
-      }
-      if (p==='/api/studio/doc' && method!=='POST') {
-        await studioGuard(req,res,id);
-        const projectId = url.searchParams.get('id') || '';
-        return json({ doc: publicDoc(await siteDoc(id, projectId)) });
-      }
-      if (p.startsWith('/api/studio/') && method==='POST') {
-        const who = await studioGuard(req,res,id);
-        const input = await payload(req);
-        const result = await studioRequest(id, p.slice('/api/studio/'.length), input, who.session);
-        const doc = await siteDoc(id, input.id);
-        const synced = await syncMeta(id, input.id, doc);
-        return json({ id: synced.id, ...workspaceView(who, synced.state), doc: publicDoc(doc), result });
-      }
+      const studioRouteHandled = await studioRoute({ req, res, p, method, url, id, json });
+      if (studioRouteHandled !== NEXT_ROUTE) return studioRouteHandled;
       // Prévia dos modelos de site da galeria: conteúdo fixo do catálogo, sem dados de cliente.
       const templatePreview = p.match(templatePreviewPath);
       if (templatePreview && method === 'GET') {
@@ -3051,7 +3097,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const page = findPage(doc, pageId);
         const etag = `W/"${projectId}-${pageId}-${doc.rev || 0}"`;
         if (req.headers['if-none-match'] === etag) {
-          res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'private, no-cache' });
+          res.writeHead(304, { ...previewHeaders, 'ETag': etag, 'Cache-Control': 'private, no-cache' });
           return res.end();
         }
         res.writeHead(200, { ...previewHeaders, 'ETag': etag, 'Cache-Control': 'private, no-cache' });
@@ -3073,11 +3119,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           let data;
           try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw error('Evento inválido.', 400); }
           if (!data || typeof data !== 'object' || Array.isArray(data)) throw error('Evento inválido.', 400);
-          const result = await store.change(workspace, s => {
-            if (!originAllowed(trackingOf(s), req.headers.origin || data.url || '')) throw error('Este domínio não pode enviar eventos para esta subconta.', 403);
-            return { id: execute(s, { type: 'tracking-event', data }, { workspace, attribution: touchesFrom(data) }), outbox: s.workflowOutbox?.length || 0 };
-          });
-          if (result.outbox) flushLater(workspace);
+          if (await trackingLog.record(workspace, data, req.headers.origin)) flushLater(workspace);
           res.writeHead(204, cors); return res.end();
         }
         if (method !== 'GET' && method !== 'HEAD') throw error('Method not allowed.', 405);
@@ -3103,14 +3145,15 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           try {
             if (!project?.formId) throw error('This site is not accepting submissions.',404);
             const vid = siteVisitorOf(req, workspace) || randomBytes(12).toString('hex');
-            await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _source:'Site', _vid:vid } });
+            const sent = await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _message:fields.message, _source:'Site', _vid:vid } });
             const order = doc.published.pages;
             const from = order.findIndex(item => item.slug === (fields._page || 'index'));
             if (from >= 0) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, order[from].id, 'optins'))).catch(() => {});
             const next = project.kind === 'funnel' && from >= 0 ? order[from + 1] : null;
             const secure = String(req.headers['x-forwarded-proto'] || '').includes('https') || publicBase(req).startsWith('https') ? '; Secure' : '';
             res.setHeader('Set-Cookie', [...[res.getHeader('Set-Cookie') || []].flat(), `${siteVisitorCookie(workspace)}=${vid}; Max-Age=${365 * 86400}; Path=/; HttpOnly; SameSite=Lax${secure}`]);
-            res.writeHead(303,{ Location:next ? `${base}/${encodeURIComponent(next.slug)}` : `${back}?sent=1` });
+            const event = hasPixels((await store.load(workspace)).tracking) ? `soci_ev=lead.${sent.id}` : '';
+            res.writeHead(303,{ Location:next ? `${base}/${encodeURIComponent(next.slug)}${event && `?${event}`}` : `${back}?sent=1${event && `&${event}`}` });
           } catch {
             res.writeHead(303,{ Location:`${back}?error=1` });
           }
@@ -3129,7 +3172,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const pt = /<html\b[^>]*\blang\s*=\s*["']?pt/i.test(page.html), es = /<html\b[^>]*\blang\s*=\s*["']?es/i.test(page.html);
         const notice = url.searchParams.has('sent') ? { ok:true, text:pt ? 'Obrigado! Seus dados foram enviados.' : es ? '¡Gracias! Tus datos fueron enviados.' : 'Thank you! Your details were sent.' }
           : url.searchParams.has('error') ? { ok:false, text:pt ? 'Não foi possível enviar. Confira o nome e o e-mail e tente de novo.' : es ? 'No se pudo enviar. Revisa el nombre y el correo e inténtalo de nuevo.' : 'Your details could not be sent. Check the name and email and try again.' } : '';
-        const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, ...withMotion(publicHeaders, renderPublic(page,{ base, notice })));
+        const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, ...withEmbeds(...withMotion(publicHeaders, renderPublic(page,{ base, notice, workspace, link:url.searchParams.get('link') || '' }))));
         res.writeHead(200, siteHeaders);
         return res.end(siteBody);
       }
@@ -3191,26 +3234,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         res.writeHead(302, { Location:target, 'Cache-Control':'no-store' });
         return res.end();
       }
-      // Stores: catalog, product page and cart. Totals always come from quoteOrder on the server.
-      const storeRoute = p.match(storePath);
-      if (storeRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, storeId, cart, slug] = storeRoute;
-        await publicAccountPolicy(workspace, false, 'sites');
-        const state = await store.load(workspace);
-        const shop = state.stores?.find(item => item.id === storeId);
-        const preview = await publicPreview(req, res, url, workspace);
-        if (!shop || (!shop.active && !preview)) throw error('Esta loja não está aberta.',404);
-        const base = `/loja/${workspace}/${storeId}`;
-        let body;
-        if (cart) body = storeCart(state, shop, { base, workspace });
-        else if (slug) { const item = catalog(state, shop).find(row => row.slug === slug); if (!item) throw error('Produto não encontrado.',404); body = storeProduct(state, shop, item, { base }); }
-        else body = storeHome(state, shop, { base, category:String(url.searchParams.get('categoria') || '').slice(0,40), collection:String(url.searchParams.get('colecao') || '').slice(0,80) });
-        const [storeHeaders, storeBody] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, body);
-        res.writeHead(200, storeHeaders);
-        return res.end(method === 'HEAD' ? undefined : storeBody);
-      }
+      const storePageHandled = await storePageRoute({ req, res, p, method, url });
+      if (storePageHandled !== NEXT_ROUTE) return storePageHandled;
       // Affiliates: the referral link, the program sign-up and the affiliate's private dashboard.
       const referral = p.match(affiliateLink);
       if (referral && (method === 'GET' || method === 'HEAD')) {
@@ -3308,7 +3333,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (!await store.insert(rowId, { data: result.data })) await store.change(rowId, row => { row.data = result.data; });
           return json({ ok: true, index: result.index });
         }
-        if (step === 'finish') { flushLater(workspace); return json({ ok: true }, 201); }
+        if (step === 'finish') { await moveVideoToR2(workspace, result); flushLater(workspace); return json({ ok: true }, 201); }
         return json(result);
       }
       // Review link: the public page (generic or personal) and the review it sends.
@@ -3361,7 +3386,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         await ready;
         const [, workspace] = booking;
         await publicAccountPolicy(workspace, method === 'POST', 'calendars');
-        const q = url.searchParams, base = `/agendar/${workspace}`;
+        const q = url.searchParams, base = `/agendar/${workspace}`, embed = q.get('embed') === '1';
         let done = null, failure = '', status = 200, form = {};
         if (method === 'POST') {
           const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
@@ -3371,8 +3396,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           try {
             const result = await change(workspace, { type: 'scheduling-book', data: { serviceId: one(form.servico), start: one(form.inicio), name: one(form.nome), email: one(form.email), phone: one(form.telefone), address: one(form.endereco), notes: one(form.notas), units: one(form.unidades), quantity: one(form.qtd), link: one(form.link) } });
             flushLater(workspace);
-            const zone = zoneOf(await store.load(workspace)), booked = result.id;
-            done = { service: booked.service, staff: booked.staff, when: `${new Intl.DateTimeFormat('pt-BR', { timeZone: zone, weekday: 'long', day: '2-digit', month: 'long' }).format(new Date(booked.start))} às ${clockIn(Date.parse(booked.start), zone)}` };
+            const after = await store.load(workspace), zone = zoneOf(after), booked = result.id;
+            const event = hasPixels(after.tracking) ? `schedule.${booked.id}` : '';
+            const target = resolveDestination(after, workspace, after.services.find(x => x.id === one(form.servico))?.after, { event });
+            if (target) return leave(res, after, workspace, target, { embed, event });
+            done = { event, service: booked.service, staff: booked.staff, when: `${new Intl.DateTimeFormat('pt-BR', { timeZone: zone, weekday: 'long', day: '2-digit', month: 'long' }).format(new Date(booked.start))} às ${clockIn(Date.parse(booked.start), zone)}` };
           } catch (failed) {
             if (!failed.status || failed.status >= 500) throw failed;
             failure = failed.message; status = failed.status;
@@ -3381,8 +3409,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const one2 = value => Array.isArray(value) ? value[0] : value;
         const view = bookingView(await store.load(workspace), { serviceId: String(form.servico || q.get('servico') || ''), day: String(q.get('dia') || ''), units: Number(form.unidades || q.get('unidades')) || 1, quantity: Number(form.qtd || q.get('qtd')) || 1, link: String(one2(form.link) || q.get('link') || '') });
         if (!view) throw error('O agendamento online desta empresa está desligado.', 404);
-        res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'same-origin', 'Content-Security-Policy':bookingCsp });
-        return res.end(method === 'HEAD' ? undefined : bookingPage(view, { base, done, error: failure, form }));
+        const [bookingHeaders, bookingBody] = withPixels(await store.load(workspace), workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'same-origin', 'Content-Security-Policy':embed ? bookingEmbedCsp : bookingCsp }, bookingPage(view, { base, done, error: failure, form, embed }));
+        res.writeHead(status, bookingHeaders);
+        return res.end(method === 'HEAD' ? undefined : bookingBody);
       }
       // Central de preferências: the contact's own page (link with a private token) to choose channels and topics.
       const preference = p.match(preferencePath);
@@ -3488,54 +3517,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const payment = await abacate.chargeInvoice(agencyId, workspace, result.id, origin, { returnUrl:`${page}?status=voltou`, completionUrl:`${page}?status=pago` });
         return json({ payUrl:payment.url });
       }
-      const storeCall = p.match(storeApi);
-      if (storeCall) {
-        await ready;
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const [, workspace, storeId, op] = storeCall;
-        const input = await payload(req);
-        await publicAccountPolicy(workspace, true, 'sites');
-        await publicAccountPolicy(workspace, true, 'payments');
-        if (op === 'cart') {
-          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-          if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
-          return json((await change(workspace,{ type:'store-cart', id:storeId, data:{ session:input.session, name:input.name, email:input.email, phone:input.phone, items:input.items, coupon:input.coupon, delivery:input.delivery } })).id);
-        }
-        if (op === 'view') {
-          // "Produto visualizado": the contact comes from the cart session on the server, never from the page.
-          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-          if (!allowTracking(ip)) throw error('Muitas visualizações a partir desta conexão. Aguarde alguns minutos.',429);
-          const viewed = await change(workspace,{ type:'store-view', id:storeId, data:{ session:input.session, productId:input.productId } });
-          if (viewed.state.workflowOutbox?.length) flushLater(workspace);
-          return json({ tracked: Boolean(viewed.id?.tracked) });
-        }
-        if (op === 'review') {
-          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-          if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
-          return json((await change(workspace,{ type:'store-review', id:storeId, data:{ productId:input.productId, name:input.name, email:input.email, rating:input.rating, title:input.title, body:input.body, website:input.website } })).id,201);
-        }
-        if (op === 'restore') {
-          const digest = cartTokenHash(input.token);
-          if (!digest) throw error('Este link de recuperação não é válido.',404);
-          return json((await change(workspace,{ type:'store-cart-restore', id:storeId, data:{ tokenHash:digest } })).id);
-        }
-        if (op === 'quote') {
-          const state = await store.load(workspace);
-          const shop = state.stores?.find(item => item.id === storeId && item.active);
-          if (!shop) throw error('Esta loja não está aberta.',404);
-          const { coupon_, giftCard_, ...quote } = quoteOrder(state, shop, input);
-          return json(quote);
-        }
-        const result = await change(workspace,{ type:'store-checkout', id:storeId, data:input });
-        const order = result.state.orders.find(item => item.id === result.id), shop = result.state.stores.find(item => item.id === storeId);
-        let payUrl = '';
-        if (shop.payment.method === 'AbacatePay') {
-          const origin = publicBase(req), back = `${origin}/loja/${workspace}/${storeId}`;
-          payUrl = await abacate.chargeInvoice(result.state.agencyId || AGENCY_ID, workspace, order.invoiceId, origin, { returnUrl: back, completionUrl: back })
-            .then(payment => payment.url).catch(() => '');
-        }
-        return json({ number:order.number, total:order.total, method:methodLabel[shop.payment.method] || shop.payment.method, instructions:shop.payment.instructions, thanks:shop.thanks, payUrl },201);
-      }
+      const storeApiHandled = await storeApiRoute({ req, p, method, json });
+      if (storeApiHandled !== NEXT_ROUTE) return storeApiHandled;
       // Blogs: home with categories and pages, posts with SEO tags, and RSS. Drafts open with ?preview=1 when signed in.
       // Brand group reports shared by link: the token finds the agency, so no agency id is exposed.
       const brandGroupShare = p.match(brandGroupRoute);
@@ -3682,11 +3665,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const state = await store.load(workspace);
         const form = state.forms.find(item => item.id === formId);
         if (!form || (!form.active && !preview)) throw error('Este formulário não está publicado.',404);
-        const redirects = form.onSubmit?.action === 'redirect' && form.onSubmit.url;
+        const outside = [form.onSubmit, ...(form.routes || []).map(rule => rule.dest)].some(dest => dest?.action === 'redirect');
         const page = (status, options) => {
           const [headers, body] = withPixels(preview ? null : state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'${redirects ? ' https: http:' : ''}; frame-ancestors *` },
-            formPage(form, { action:`/form/${workspace}/${formId}${embed ? '?embed=1' : preview ? '?preview=1' : ''}`, target:embed && redirects ? '_top' : '',
+            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'${outside ? ' https: http:' : ''}; frame-ancestors *` },
+            formPage(form, { action:`/form/${workspace}/${formId}${embed ? '?embed=1' : preview ? '?preview=1' : ''}`,
             customFields:state.customFields || [], embed, brand:state.profile?.name || '', ...options }));
           res.writeHead(status, headers);
           return res.end(method === 'HEAD' ? undefined : body);
@@ -3702,12 +3685,17 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const read = readAnswers(form, input, state.customFields || []);
         if (!read.ok) return page(422, { values:read.values, errors:read.errors });
         await publicAccountPolicy(workspace, true, 'sites');
-        try { await change(workspace,{ type:'submit', id:formId, data:{ ...input, _vid:'', _source:embed ? 'Incorporado' : 'Link' } }); }
+        let sent;
+        try { sent = await change(workspace,{ type:'submit', id:formId, data:{ ...input, _vid:'', _source:embed ? 'Incorporado' : 'Link' } }); }
         catch (failure) { return page(failure.status && failure.status < 500 ? 422 : 500, { values:read.values, errors:{ _form:failure.status && failure.status < 500 ? failure.message : 'Não foi possível enviar agora. Tente de novo.' } }); }
-        if (redirects) { res.writeHead(303, { Location:form.onSubmit.url }); return res.end(); }
-        const tier = read.result?.tierDetail;
-        if (read.result) return page(200, { notice:{ result:read.result, text:tier?.message || form.onSubmit?.message || '', cta:tier?.ctaUrl ? { url:tier.ctaUrl, label:tier.ctaLabel } : null } });
-        return page(200, { notice:{ title:'Obrigado!', text:form.onSubmit?.message || 'Recebemos suas respostas.' } });
+        const { qualified, dest } = outcomeOf(form, read), after = await store.load(workspace);
+        // Só o lead qualificado conta como Lead no pixel, e depois de o envio ser aceito.
+        const event = qualified && hasPixels(after.tracking) ? `lead.${sent.id}` : '';
+        const target = resolveDestination(after, workspace, dest, { event, link:(after.bookingLinks || []).findLast(row => row.submissionId === sent.id)?.token || '' });
+        if (target) return leave(res, after, workspace, target, { embed, event });
+        const tier = read.result?.tierDetail, own = (form.routes || []).some(rule => rule.dest === dest) && dest.action === 'message' ? dest.message : '';
+        if (read.result) return page(200, { event, notice:{ result:read.result, text:own || tier?.message || form.onSubmit?.message || '', cta:tier?.ctaUrl ? { url:tier.ctaUrl, label:tier.ctaLabel } : null } });
+        return page(200, { event, notice:{ title:'Obrigado!', text:own || form.onSubmit?.message || 'Recebemos suas respostas.' } });
       }
       const hook = p.match(hookPath);
       if (hook && method === 'POST') {
@@ -3860,15 +3848,18 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     }
   });
   server.on('close',()=>{ if (socialTimer) clearInterval(socialTimer); store.close(); });
-  return {server,port,host,ready,backend:store.kind};
+  return {server,port,host,ready,backend:store.kind,scheduler:Boolean(socialTimer)};
 }
 
 if (process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   try {
     const store = supabaseFromEnv();
-    const { server,port,host,ready,backend } = makeServer(store ? { store } : {});
+    const { server,port,host,ready,backend,scheduler } = makeServer(store ? { store } : {});
     await ready;
-    server.listen(port,host,()=>console.log(`Local workspace (${backend}): http://${host}:${server.address().port}/`));
+    server.listen(port,host,()=>{
+      console.log(`Local workspace (${backend}): http://${host}:${server.address().port}/`);
+      for (const line of startupLines({ backend, scheduler, dbPath: defaultDbPath })) console.log(line);
+    });
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

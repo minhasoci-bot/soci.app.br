@@ -303,11 +303,11 @@ export function fieldMarkup(field, { values = {}, errors = {}, customFields = []
   return `<label class="${cls}" data-field="${esc(field.id)}">${label}<span class="sf-control">${control}</span>${hint}${error}</label>`;
 }
 
-export function formMarkup(form, { action = '', values = {}, errors = {}, customFields = [], target = '' } = {}) {
+export function formMarkup(form, { action = '', values = {}, errors = {}, customFields = [] } = {}) {
   const alert = errors._form ? `<p class="sf-alert" role="alert">${esc(errors._form)}</p>` : Object.keys(errors).length ? '<p class="sf-alert" role="alert">Confira os campos destacados.</p>' : '';
   const slides = form.kind && form.kind !== 'form' ? slidesOf(form) : [{ anchors: ['start'], title: '', fields: formFields(form) }];
   const grid = slide => `<div class="sf-grid">${slide.fields.map(field => fieldMarkup(field, { values, errors, customFields })).join('')}</div>`;
-  const open = `<form class="sf${slides.length > 1 ? ' sf-steps' : ''}" method="post" action="${esc(action)}"${target ? ` target="${esc(target)}"` : ''} novalidate${slides.length > 1 ? ' data-steps' : ''}>`;
+  const open = `<form class="sf${slides.length > 1 ? ' sf-steps' : ''}" data-soci-lead method="post" action="${esc(action)}" novalidate${slides.length > 1 ? ' data-steps' : ''}>`;
   if (slides.length < 2) return `${open}${alert}${grid(slides[0])}<button class="sf-submit" type="submit">${esc(form.button || 'Enviar')}</button></form>`;
   const logic = { slides: slides.map(slide => ({ anchors: slide.anchors, rules: slide.fields.filter(field => field.logic?.length).map(field => ({ key: field.key, logic: field.logic })) })) };
   return `${open}${alert}<div class="sf-progress" aria-hidden="true"><i></i></div>
@@ -368,7 +368,7 @@ export const formCss = `
 `;
 
 // The standalone public page of a form (also used inside an iframe when embedded).
-export function formPage(form, { action, values, errors, customFields, embed = false, brand = '', notice = '', accent = '#155eef', target = '' } = {}) {
+export function formPage(form, { action, values, errors, customFields, embed = false, brand = '', notice = '', accent = '#155eef', event = '' } = {}) {
   const color = /^#[0-9a-f]{6}$/i.test(form.accent || '') ? form.accent : accent;
   const r = notice?.result;
   const cta = notice?.cta?.url ? `<a class="sf-submit sf-cta" href="${esc(notice.cta.url)}"${embed ? ' target="_top"' : ''}>${esc(notice.cta.label || 'Saiba mais')}</a>` : '';
@@ -378,9 +378,9 @@ export function formPage(form, { action, values, errors, customFields, embed = f
         ${r.categories?.length ? `<ul class="sf-cats">${r.categories.map(cat => `<li><span>${esc(cat.name)}</span><span class="sf-cat-bar"><i style="width:${cat.percent}%"></i></span><b>${cat.percent}%</b></li>`).join('')}</ul>` : ''}${cta}</div>`
     : notice
     ? `<div class="sf-done" role="status"><span class="sf-check" aria-hidden="true">✓</span><h1>${esc(notice.title || 'Obrigado!')}</h1>${notice.text ? `<p>${esc(notice.text)}</p>` : ''}${cta}</div>`
-    : `${form.showTitle !== false && form.name ? `<header class="sf-head"><h1>${esc(form.name)}</h1>${form.description ? `<p>${esc(form.description)}</p>` : ''}</header>` : ''}${formMarkup(form, { action, values, errors, customFields, target })}`;
+    : `${form.showTitle !== false && form.name ? `<header class="sf-head"><h1>${esc(form.name)}</h1>${form.description ? `<p>${esc(form.description)}</p>` : ''}</header>` : ''}${formMarkup(form, { action, values, errors, customFields })}`;
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(form.name || 'Formulário')}${brand ? ` · ${esc(brand)}` : ''}</title><meta name="robots" content="noindex">
+<title>${esc(form.name || 'Formulário')}${brand ? ` · ${esc(brand)}` : ''}</title><meta name="robots" content="noindex">${event ? `<meta name="soci-event" content="${esc(event)}">` : ''}
 <style>${formCss}
 html{background:${embed ? 'transparent' : '#f2f4f7'}}body{margin:0;padding:${embed ? '4px' : '40px 16px'}}
 .sf-card{max-width:620px;margin:0 auto;${embed ? '' : 'padding:32px;border-radius:18px;background:#fff;box-shadow:0 1px 3px rgba(16,24,40,.1),0 1px 2px rgba(16,24,40,.06);'}font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#101828}

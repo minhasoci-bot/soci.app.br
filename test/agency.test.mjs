@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { makeServer } from '../server.mjs';
 import { createSqliteStore } from '../storage.mjs';
 import { blank } from '../model.mjs';
+import { agencyNav } from '../ui/agency-data.js';
 
 async function start(store = createSqliteStore(':memory:')) {
   const { server, host } = makeServer({ allowLocalAccess: true, auth: null, store, port: 0 });
@@ -20,8 +21,8 @@ const prospectAction = (local, op, id, data) => local.call('/api/agency/prospect
 test('Company name is editable while the platform brand stays soci', async t => {
   const local = await start(); t.after(local.close);
   const { body: initial } = await local.call('/api/agency');
-  assert.equal(initial.agency.company.primary, '#d62976');
-  assert.equal(initial.agency.company.secondary, '#962fbf');
+  assert.equal(initial.agency.company.primary, '#ff4f9a');
+  assert.equal(initial.agency.company.secondary, '#c4a7ff');
   const logo = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
   const data = { name: 'Empresa Teste', timezone: 'America/Sao_Paulo', currency: 'BRL',
     primary: '#7c5cf0', secondary: '#00c49a', logo, domain: 'app.empresa.example' };
@@ -170,7 +171,7 @@ test('A snapshot copies assets into a new sub-account as drafts and keeps existi
   assert.equal((await local.call(`/api/state?workspace=${id}`)).body.state.pages.length, 1);
   const overview = again.body.overview;
   assert.equal(overview.totals.accounts, 2);
-  assert.ok(again.body.agency.audit.some(entry => entry.action === 'Snapshot loaded'));
+  assert.ok((await local.call('/api/agency/audit')).body.entries.some(entry => entry.action === 'Snapshot loaded'));
 
   assert.equal((await action(local, { type: 'account-meta', id, data: { status: 'Paused' } })).status, 200);
   const denied = await local.call('/api/agency/snapshot-load', { id: snap.id, workspaces: ['demo', id], mode: 'overwrite' });
@@ -286,7 +287,7 @@ test('Account users only reach their sub-accounts and permitted modules; agency 
   const staff = (await action(local, { type: 'save', key: 'users', data: { first: 'Bia', last: 'Reis', email: 'bia@example.test', role: 'Agency User' } })).body.result;
   assert.equal((await local.call('/api/agency', undefined, { 'X-Go-User': staff })).status, 200);
   assert.equal((await action(local, { type: 'api-key', data: { name: 'x' } }, { 'X-Go-User': staff })).status, 403);
-  const log = (await local.call('/api/agency')).body.agency.audit;
+  const log = (await local.call('/api/agency/audit')).body.entries;
   assert.ok(log.some(entry => entry.actor === 'Ana Lima' && entry.action === 'Saved contacts'));
 });
 
@@ -313,11 +314,12 @@ test('Reselling, plans, affiliate payouts and announcements feed the dashboard a
   assert.equal(seen.announcements[0].title, 'Maintenance');
   assert.equal(seen.menuLinks[0].url, 'https://help.example.test/');
 
-  const install = await local.call('/api/agency/template-install', { template: 'tpl-dental', workspace: 'demo' });
-  assert.equal(install.status, 200);
-  const pages = (await local.call('/api/state?workspace=demo')).body.state.pages;
-  assert.equal(pages[0].name, 'Dental Clinic');
-  assert.ok(pages[0].formId);
+  // A biblioteca de modelos da agência saiu do produto: nem o menu nem o comando existem mais.
+  assert.ok(!agencyNav.some(([key]) => key === 'templates'));
+  // O menu lateral fatia a lista por posição: o primeiro item de "Aprender e apps" precisa continuar sendo a Universidade.
+  assert.equal(agencyNav[12][0], 'university');
+  assert.equal((await local.call('/api/agency/template-install', { template: 'tpl-dental', workspace: 'demo' })).status, 404);
+  assert.equal((await action(local, { type: 'save', key: 'templates', data: { name: 'X' } })).status, 400);
 });
 
 test('SaaS Configurator, sub-account feature switches, email domain and app reselling follow their rules', async t => {

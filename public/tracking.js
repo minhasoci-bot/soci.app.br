@@ -9,6 +9,27 @@ import { ask } from './ask.js';
 
 const views = [['install', 'Instalação'], ['settings', 'Configurações'], ['forms', 'Formulários'], ['events', 'Diagnóstico']];
 let view = 'install', eventFilter = '';
+// The events come from their own endpoint, a page at a time; the sub-account state no longer carries them.
+const FRESH = 15000;
+let feed = { key: '', at: 0, events: [], next: '', summary: null, error: '', busy: false }, fetchEvents = null;
+const feedKey = c => `${c.workspace}|${eventFilter}`;
+/** Loads the first page when the screen opens, changes sub-account or filter, or gets old; `more` adds the next page. */
+async function loadFeed(c, redraw, more = false) {
+  const key = feedKey(c);
+  if (!fetchEvents || (feed.busy && feed.key === key)) return;
+  if (!more && feed.key === key && Date.now() - feed.at < FRESH) return;
+  if (feed.key !== key) feed = { key, at: 0, events: [], next: '', summary: feed.key.split('|')[0] === c.workspace ? feed.summary : null, error: '', busy: false };
+  const mine = feed;
+  mine.busy = true;
+  try {
+    const page = await fetchEvents(c.workspace, eventFilter, more ? mine.next : '');
+    mine.events = more ? [...mine.events, ...page.events] : page.events;
+    mine.next = page.next; mine.error = '';
+    if (page.summary) mine.summary = page.summary;
+  } catch (error) { mine.error = error.message; }
+  mine.busy = false; mine.at = Date.now();
+  if (mine === feed) redraw();
+}
 
 const when = (c, d) => d ? fmt(d, c.s.profile?.timezone, true) : '—';
 const contactName = (c, id) => c.s.contacts.find(row => row.id === id)?.name || '';
@@ -22,20 +43,13 @@ const scriptTag = c => `<script src="${scriptUrl(c)}" async></script>`;
 const pagePath = url => { try { const u = new URL(url); return `${u.hostname.replace(/^www\./, '')}${u.pathname}`; } catch { return url || '—'; } };
 
 // ---- Rastreamento externo -----------------------------------------------------------------------
-function summary(c) {
-  const events = c.s.trackingEvents || [], week = Date.now() - 7 * 86400000;
-  const recent = events.filter(e => Date.parse(e.created) >= week);
-  return {
-    last: events[events.length - 1],
-    views: recent.filter(e => e.type === 'pageview').length,
-    forms: recent.filter(e => e.type === 'form').length,
-    known: new Set(recent.map(e => e.contactId).filter(Boolean)).size,
-    visitors: new Set(recent.map(e => e.vid)).size
-  };
-}
+const summary = () => feed.summary || { last: null, views: 0, forms: 0, known: 0, visitors: 0, byForm: [] };
 
 function statusCard(c) {
-  const sum = summary(c);
+  if (feed.error) return `<section class="surface padded tk-status">${i('alert', 20)}<div><b>Não foi possível carregar os eventos</b><p class="dim">${h(feed.error)}</p></div>
+    <button type="button" class="secondary" data-tk-act="reload">Tentar de novo</button></section>`;
+  if (!feed.summary) return `<section class="surface padded tk-status">${i('site', 20)}<div><b>Carregando…</b></div></section>`;
+  const sum = summary();
   const live = sum.last && Date.now() - Date.parse(sum.last.created) < 7 * 86400000;
   return `<section class="surface padded tk-status">${i(live ? 'check' : 'site', 20)}<div>
     <b>${sum.last ? (live ? 'Script recebendo eventos' : 'Nenhum evento nos últimos 7 dias') : 'Aguardando o primeiro evento'}</b>
@@ -86,12 +100,7 @@ function settingsView(c) {
 
 function formsView(c) {
   const sample = `<form name="contato">\n  <input name="nome" placeholder="Seu nome">\n  <input name="email" type="email" placeholder="Seu e-mail">\n  <input name="telefone" placeholder="WhatsApp">\n  <button>Enviar</button>\n</form>`;
-  const forms = new Map();
-  for (const e of c.s.trackingEvents || []) if (e.type === 'form') {
-    const key = e.form || pagePath(e.url), row = forms.get(key) || { name: key, url: e.url, total: 0, contacts: new Set(), last: '' };
-    row.total++; if (e.contactId) row.contacts.add(e.contactId); row.last = e.created; forms.set(key, row);
-  }
-  const rows = [...forms.values()].sort((a, b) => b.last.localeCompare(a.last));
+  const rows = summary().byForm;
   return `<section class="surface padded tk-section"><h2>Formulários HTML</h2>
       <p class="dim">Com o script instalado, qualquer formulário do seu site vira contato, sem configurar nada. Reconhecemos os campos pelo nome: <code>email</code>/<code>e-mail</code>, <code>telefone</code>/<code>phone</code>/<code>whatsapp</code>, <code>nome</code>/<code>name</code>, <code>sobrenome</code> e <code>empresa</code>. Os demais campos entram na nota do contato.</p>
       ${code(sample, 'Copiar exemplo')}</section>
@@ -105,19 +114,19 @@ function formsView(c) {
     <section class="surface padded tk-section"><h2>Formulários em iframe</h2>
       <p class="dim">Formulários do Soci incorporados no seu site já criam o contato direto. Formulários de outras ferramentas em iframe não podem ser lidos pelo script (o navegador isola o iframe): use a integração da ferramenta ou um webhook de entrada nas automações.</p></section>
     <h2 class="section-heading">Formulários recebidos</h2>
-    ${table(['Formulário', 'Página', 'Envios', 'Contatos', 'Último envio'], rows.map(r => `<tr><td><b>${h(r.name)}</b></td><td><small>${h(pagePath(r.url))}</small></td><td>${r.total}</td><td>${r.contacts.size}</td><td>${h(when(c, r.last))}</td></tr>`),
-      empty('Nenhum formulário recebido', 'Os formulários do seu site aparecem aqui depois do primeiro envio.', 'list'))}`;
+    ${table(['Formulário', 'Página', 'Envios', 'Contatos', 'Último envio'], rows.map(r => `<tr><td><b>${h(r.name)}</b></td><td><small>${h(pagePath(r.url))}</small></td><td>${r.total}</td><td>${r.contacts}</td><td>${h(when(c, r.last))}</td></tr>`),
+      feed.error ? empty('Não foi possível carregar os eventos', h(feed.error), 'alert') : !feed.summary ? empty('Carregando…', '', 'list') : empty('Nenhum formulário recebido', 'Os formulários do seu site aparecem aqui depois do primeiro envio.', 'list'))}`;
 }
 
 function eventsView(c) {
-  const sum = summary(c);
-  const all = [...(c.s.trackingEvents || [])].reverse().filter(e => !eventFilter || e.type === eventFilter);
+  const sum = summary();
   const label = e => e.type === 'form' ? badge('Formulário', 'pink') : e.event ? badge(e.event, 'gold') : badge('Visita', 'blue');
   return `${statusCard(c)}
     <div class="metrics">${metric('Visitas (7 dias)', sum.views)}${metric('Visitantes únicos', sum.visitors)}${metric('Formulários enviados', sum.forms)}${metric('Contatos identificados', sum.known)}</div>
     <div class="toolbar"><label class="tag-filter">${i('filter', 15)}<select data-tk-filter aria-label="Tipo de evento"><option value="">Todos os eventos</option><option value="pageview"${eventFilter === 'pageview' ? ' selected' : ''}>Visitas</option><option value="form"${eventFilter === 'form' ? ' selected' : ''}>Formulários</option></select></label></div>
-    ${table(['Quando', 'Evento', 'Página', 'Contato', 'Visitante'], all.slice(0, 100).map(e => `<tr><td>${h(when(c, e.created))}</td><td>${label(e)}${e.form ? ` <small class="dim">${h(e.form)}</small>` : ''}</td><td><small title="${h(e.url)}">${h(pagePath(e.url))}</small>${e.title ? `<br><small class="dim">${h(e.title)}</small>` : ''}</td><td>${e.contactId && contactName(c, e.contactId) ? `<button class="text-link" data-edit="contacts" data-id="${e.contactId}">${h(contactName(c, e.contactId))}</button>` : '<small class="dim">Anônimo</small>'}</td><td><code>${h(e.vid.slice(0, 8))}</code></td></tr>`),
-      empty('Nenhum evento ainda', 'Abra uma página do seu site com o script instalado. O evento aparece aqui em segundos.', 'site'))}
+    ${table(['Quando', 'Evento', 'Página', 'Contato', 'Visitante'], feed.events.map(e => `<tr><td>${h(when(c, e.created))}</td><td>${label(e)}${e.form ? ` <small class="dim">${h(e.form)}</small>` : ''}</td><td><small title="${h(e.url)}">${h(pagePath(e.url))}</small>${e.title ? `<br><small class="dim">${h(e.title)}</small>` : ''}</td><td>${e.contactId && contactName(c, e.contactId) ? `<button class="text-link" data-edit="contacts" data-id="${e.contactId}">${h(contactName(c, e.contactId))}</button>` : `<small class="dim">${e.contactId ? 'Contato' : 'Anônimo'}</small>`}</td><td><code>${h(e.vid.slice(0, 8))}</code></td></tr>`),
+      feed.error ? '' : !feed.at ? empty('Carregando…', '', 'site') : empty('Nenhum evento ainda', 'Abra uma página do seu site com o script instalado. O evento aparece aqui em segundos.', 'site'))}
+    ${feed.next ? `<div class="inline-gap"><button type="button" class="secondary" data-tk-act="more">Carregar mais eventos</button></div>` : ''}
     <section class="surface padded tk-section"><h2>Não aparece nada?</h2><ul class="tk-list">
       <li>Confira se o código está no HTML publicado (Ctrl+U na página) e se o endereço é <code>${h(scriptUrl(c))}</code>.</li>
       <li>Se você preencheu domínios permitidos, o domínio do site precisa estar na lista.</li>
@@ -125,7 +134,9 @@ function eventsView(c) {
       <li>O mesmo endereço aceita até 300 eventos a cada 10 minutos.</li></ul></section>`;
 }
 
+let redrawTracking = () => {};
 export function trackingScreen(c, tabs) {
+  if (view !== 'settings') void loadFeed(c, redrawTracking);
   const body = { install: installView, settings: settingsView, forms: formsView, events: eventsView }[view] || installView;
   return pageShell({ title: 'Configurações', desc: 'Gerencie o workspace ativo.', tabs, className: 'tk-page',
     content: `<nav class="tk-views" aria-label="Rastreamento externo">${views.map(([key, label]) => `<button type="button" class="${key === view ? 'active' : ''}" aria-pressed="${key === view}" data-tk-view="${key}">${label}</button>`).join('')}</nav>${body(c)}` });
@@ -196,6 +207,15 @@ export const contactScoreCell = contact => Number(contact.score) ? scoreBadge(Nu
 export function installTracking({ c, mutate, flash, dialog, close, render, api }) {
   // The GA4 API secret goes to its own write-only endpoint; the answer is the sub-account view, as after an action.
   const saveGa4Secret = async secret => { const view = await api(`/api/tracking/ga4-secret?workspace=${encodeURIComponent(c.workspace)}`, { secret }); if (view?.state) { c.s = view.state; if (view.metrics) c.m = view.metrics; } };
+  fetchEvents = (workspace, type, before) => api(`/api/tracking/events?${new URLSearchParams({ workspace, type, before })}`);
+  // Not over the settings form (it would drop what is being typed); the page stays where it was.
+  redrawTracking = () => {
+    if (c.view !== 'settings' || c.tab !== 'tracking' || view === 'settings') return;
+    const top = document.querySelector('#screen')?.scrollTop || 0;
+    render();
+    const screen = document.querySelector('#screen');
+    if (screen) screen.scrollTop = top;
+  };
   document.addEventListener('click', async event => {
     if (!here() || !event.target.closest('[data-tk-ga4-clear]')) return;
     try { await saveGa4Secret(''); render(); flash('Segredo do GA4 removido.'); } catch (error) { flash(error.message); }
@@ -214,6 +234,8 @@ export function installTracking({ c, mutate, flash, dialog, close, render, api }
     const act = el.dataset.tkAct;
     try {
       if (act === 'copy') await navigator.clipboard.writeText(el.dataset.value).then(() => flash('Código copiado.'), () => flash('Selecione o código e copie manualmente.', true));
+      if (act === 'reload') { feed.at = 0; el.disabled = true; await loadFeed(c, redrawTracking); }
+      if (act === 'more') { el.disabled = true; await loadFeed(c, redrawTracking, true); }
       if (act === 'google-lead-key') {
         if (c.s.tracking?.googleLeadKey && !await ask('Gerar uma chave nova?', { text: 'Os formulários do Google Ads com a chave antiga param de mandar leads até você trocar a chave lá.', ok: 'Gerar chave nova' })) return;
         await mutate({ type: 'tracking-google-lead-key' }); render(); flash('Chave gerada. Copie a URL e a chave para o formulário de lead do Google Ads.');

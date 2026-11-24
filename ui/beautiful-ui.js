@@ -4,6 +4,7 @@
 
 const SVG = 'http://www.w3.org/2000/svg';
 const SPARK = 'M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z';
+const SWAP_ARROW = '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>';
 
 function node(tag, className, text) {
   const n = document.createElement(tag);
@@ -256,12 +257,39 @@ export function toolChips({ header, steps = [], open = true } = {}) {
 
 /* ── Átomos: Button, Monogram, EntityChip, ValuePill ─────── */
 
+function mountIconSwap(buttonEl, label, iconMarkup = SPARK) {
+  buttonEl.classList.add('soci-icon-swap');
+  const content = node('span', 'soci-icon-swap-content');
+  const iconEl = node('span', 'soci-icon-swap-icon');
+  iconEl.append(svg(`<path d="${iconMarkup}"/>`, { size: 14, width: 1.9 }));
+  const labelEl = node('span', 'soci-icon-swap-label', label);
+  const arrowEl = node('span', 'soci-icon-swap-arrow');
+  arrowEl.append(svg(SWAP_ARROW, { size: 15, width: 2.1 }));
+  content.append(iconEl, labelEl);
+  buttonEl.replaceChildren(content, arrowEl);
+  buttonEl._sociIconSwapLabel = labelEl;
+  return buttonEl;
+}
+
+export function setIconSwapLabel(buttonEl, label) {
+  const labelEl = buttonEl?._sociIconSwapLabel || buttonEl?.querySelector('.soci-icon-swap-label');
+  if (labelEl) labelEl.textContent = label;
+  else if (buttonEl) buttonEl.textContent = label;
+  return buttonEl;
+}
+
 /** variant: primary | secondary | ghost | accent | success | quiet; size: xs | sm | md */
-export function button(label, { variant = 'secondary', size = 'sm', type = 'button', onClick, className = '' } = {}) {
-  const b = node('button', `bui-btn is-${variant} is-${size} ${className}`.trim(), label);
+export function iconSwapButton(label, { variant = 'secondary', size = 'sm', type = 'button', onClick, className = '', iconMarkup = SPARK } = {}) {
+  const b = node('button', `bui-btn is-${variant} is-${size} ${className}`.trim());
   b.type = type;
+  mountIconSwap(b, label, iconMarkup);
   if (onClick) b.addEventListener('click', onClick);
   return b;
+}
+
+/** Todos os botões de ação do Beautiful UI usam o mesmo contrato Icon Swap da soci. */
+export function button(label, options = {}) {
+  return iconSwapButton(label, options);
 }
 
 export function monogram(text, color = '#e08a3c') {
@@ -601,8 +629,8 @@ export function recommendationCard({ title, options = [], labels = {}, onAccept 
     void body.offsetWidth;
     body.style.animation = '';
     status.replaceChildren(meter(o.signal, o.tone), node('span', null, o.label));
-    cta.className = `bui-btn is-${accepted ? 'success' : o.ctaVariant || 'accent'} is-sm`;
-    cta.textContent = accepted ? t.accepted : o.cta;
+    cta.className = `bui-btn soci-icon-swap is-${accepted ? 'success' : o.ctaVariant || 'accent'} is-sm`;
+    setIconSwapLabel(cta, accepted ? t.accepted : o.cta);
     dlist.replaceChildren(node('p', 'bui-reco-other', t.other), ...options.map((opt, i) => {
       if (i === selected) return null;
       const row = node('button', 'bui-reco-row');

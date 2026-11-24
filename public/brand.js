@@ -8,7 +8,7 @@ import { ask, askText } from './ask.js';
 const drafts = new Map();
 const roleLabel = Object.fromEntries(colorRoles);
 const boardId = () => location.hash.split('/')[2] || '';
-const blank = () => ({ name: 'Minha marca', colors: [{ role: 'primary', hex: '#d6246e', name: '' }, { role: 'background', hex: '#ffffff', name: '' }, { role: 'text', hex: '#111827', name: '' }], fonts: { heading: 'Inter', body: 'Inter' }, voice: {} });
+const blank = () => ({ name: 'Minha marca', colors: [{ role: 'primary', hex: '#ff4f9a', name: 'Rosa Soci' }, { role: 'secondary', hex: '#c4a7ff', name: 'Lilás Soci' }, { role: 'accent', hex: '#6bc9ff', name: 'Azul Soci' }, { role: 'background', hex: '#ffffff', name: '' }, { role: 'text', hex: '#111827', name: '' }], fonts: { heading: 'Inter', body: 'Inter' }, voice: {} });
 
 function loadFonts(families) {
   const href = fontUrl(families);
@@ -56,7 +56,7 @@ function colorRow(color, index) {
 
 function preview(draft) {
   const color = role => draft.colors.find(item => item.role === role)?.hex;
-  const primary = color('primary') || '#d6246e', background = color('background') || '#ffffff', text = color('text') || '#111827', accent = color('accent') || color('secondary') || primary;
+  const primary = color('primary') || '#ff4f9a', background = color('background') || '#ffffff', text = color('text') || '#111827', accent = color('accent') || color('secondary') || primary;
   return `<div class="br-preview" style="background:${h(background)};color:${h(text)}">
     <div class="br-preview-top">${logoImg(draft, 'small')}<b style="font-family:'${h(draft.fonts.heading)}',sans-serif">${h(draft.name)}</b></div>
     <h3 style="font-family:'${h(draft.fonts.heading)}',sans-serif">Um título com a cara da marca</h3>

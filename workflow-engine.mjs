@@ -376,8 +376,8 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
           && (!c.test || c.test === ctx.test);
       case 'ad_lead': return (!c.network || c.network === ctx.network) && (!c.campaign || lower(ctx.campaign).includes(lower(c.campaign)));
       case 'social_post_published': return (!c.status || c.status === ctx.status) && (!c.network || String(ctx.networks || '').split(',').includes(c.network)) && (!c.categoryId || c.categoryId === ctx.categoryId);
-      case 'form_submitted': case 'survey_submitted': return !c.formId || c.formId === ctx.formId;
-      case 'quiz_submitted': return (!c.formId || c.formId === ctx.formId) && (!c.tier || lower(c.tier) === lower(ctx.tier));
+      case 'form_submitted': case 'survey_submitted': return (!c.formId || c.formId === ctx.formId) && (!c.qualified || c.qualified === ctx.qualified);
+      case 'quiz_submitted': return (!c.formId || c.formId === ctx.formId) && (!c.qualified || c.qualified === ctx.qualified) && (!c.tier || lower(c.tier) === lower(ctx.tier));
       case 'trigger_link_clicked': return !c.linkId || c.linkId === ctx.linkId;
       case 'chat_started': return !c.widgetId || c.widgetId === ctx.widgetId;
       case 'webinar_registered': return !c.webinarId || c.webinarId === ctx.webinarId;
@@ -447,6 +447,13 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
     const context = Object.fromEntries(Object.entries(ctx).filter(([key, value]) => !['depth'].includes(key) && (typeof value !== 'object' || key === 'payload')).map(([key, value]) => [key, key === 'payload' ? JSON.parse(JSON.stringify(value).slice(0, 8000) || '{}') : String(value).slice(0, 500)]));
     const run = add(s, 'runs', { name: workflow.name, workflowId: workflow.id, event, contactId, context, graph, at: graph.first, results: [], steps: 0, status: 'Running', nextAction: 0, actions: [] });
     if (s.runs.length > 20000) s.runs.splice(0, s.runs.length - 20000);
+    // Started by a booking: "Aguardar em relação à data do evento" counts from the appointment without an extra step.
+    const booked = ctx.appointmentId && (s.appointments || []).find(row => row.id === ctx.appointmentId);
+    if (booked) {
+      const zone = s.profile?.timezone || 'America/Sao_Paulo', when = new Date(booked.start), part = options => new Intl.DateTimeFormat('pt-BR', { timeZone: zone, ...options }).format(when);
+      run.eventDate = when.toISOString();
+      run.vars = { data_evento: run.eventDate, evento_dia: part({ weekday: 'long', day: '2-digit', month: '2-digit' }), evento_hora: part({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) };
+    }
     proceed(s, run, (ctx.depth || 0) + 1);
     return run.id;
   }
@@ -1775,7 +1782,7 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       if ((prior.notes || '') !== (row.notes || '')) emit(s, 'note_changed', { contactId: row.id, body: row.notes || '' });
     }
     if (key === 'tasks') { if (!prior) emit(s, 'task_added', base); else if (!prior.done && row.done) emit(s, 'task_completed', base); }
-    if (key === 'appointments') { if (!prior) emit(s, 'appointment_booked', base); else if (prior.status !== row.status) emit(s, 'appointment_status', { ...base, status: row.status }); }
+    if (key === 'appointments') { if (!prior) emit(s, 'appointment_booked', { ...base, appointmentId: row.id }); else if (prior.status !== row.status) emit(s, 'appointment_status', { ...base, status: row.status }); }
     if (key === 'opportunities') {
       if (!prior) emit(s, 'opportunity_created', { ...base, pipelineId: row.pipelineId });
       else {

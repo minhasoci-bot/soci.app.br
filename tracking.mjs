@@ -73,18 +73,28 @@ export function injectPixels(html, workspace) {
   return /<\/head>/i.test(html) ? html.replace(/<\/head>/i, `${tag}</head>`) : tag + html;
 }
 
-/** pixels.js: GA4, Tag Manager and Meta Pixel, with a Lead event when a form on the page is sent. */
+/**
+ * pixels.js: GA4, Tag Manager and Meta Pixel. Forms decided by the server (data-soci-lead) and bookings count through a
+ * marker the server puts on the next page (?soci_ev=lead.<id> or <meta name="soci-event">), so a disqualified lead never
+ * counts and a reload never counts twice. Other public forms keep sending Lead on submit. Inside a frame of the same
+ * site the page view was already counted by the page around it.
+ */
 export function pixelsScript(t) {
   if (!hasPixels(t)) return '/* Nenhum pixel configurado. */';
   const cfg = JSON.stringify({ ga4: t.ga4 || '', gtm: t.gtm || '', meta: t.metaPixel || '' });
-  return `(function(){var c=${cfg},w=window,d=document;
+  return `(function(){var c=${cfg},w=window,d=document,inner=false;try{inner=w.parent!==w&&w.parent.location.origin===location.origin;}catch(e){}
 function load(src){var s=d.createElement('script');s.async=true;s.src=src;d.head.appendChild(s);}
 w.dataLayer=w.dataLayer||[];
 if(c.gtm){w.dataLayer.push({'gtm.start':Date.now(),event:'gtm.js'});load('https://www.googletagmanager.com/gtm.js?id='+encodeURIComponent(c.gtm));}
-if(c.ga4){w.gtag=w.gtag||function(){w.dataLayer.push(arguments);};w.gtag('js',new Date());w.gtag('config',c.ga4);load('https://www.googletagmanager.com/gtag/js?id='+encodeURIComponent(c.ga4));}
+if(c.ga4){w.gtag=w.gtag||function(){w.dataLayer.push(arguments);};w.gtag('js',new Date());w.gtag('config',c.ga4,inner?{send_page_view:false}:{});load('https://www.googletagmanager.com/gtag/js?id='+encodeURIComponent(c.ga4));}
 if(c.meta){var f=w.fbq=w.fbq||function(){f.callMethod?f.callMethod.apply(f,arguments):f.queue.push(arguments);};if(!w._fbq)w._fbq=f;f.push=f;f.loaded=true;f.version='2.0';f.queue=f.queue||[];
-w.fbq('init',c.meta);w.fbq('track','PageView');load('https://connect.facebook.net/en_US/fbevents.js');}
-d.addEventListener('submit',function(){if(w.gtag&&c.ga4)w.gtag('event','generate_lead');if(w.fbq&&c.meta)w.fbq('track','Lead');if(c.gtm)w.dataLayer.push({event:'soci_lead'});},true);
+w.fbq('init',c.meta);if(!inner)w.fbq('track','PageView');load('https://connect.facebook.net/en_US/fbevents.js');}
+var q=new URLSearchParams(location.search),m=d.querySelector('meta[name="soci-event"]'),ev=q.get('soci_ev')||(m&&m.getAttribute('content'))||'',kind=ev.split('.')[0],
+fb={lead:'Lead',schedule:'Schedule'}[kind],ga={lead:'generate_lead',schedule:'schedule'}[kind];
+if(fb){var seen=null;try{seen=w.sessionStorage.getItem('soci_ev_'+ev);w.sessionStorage.setItem('soci_ev_'+ev,'1');}catch(e){}
+if(!seen){if(w.fbq&&c.meta)w.fbq('track',fb,{},{eventID:ev});if(w.gtag&&c.ga4)w.gtag('event',ga);if(c.gtm)w.dataLayer.push({event:'soci_'+kind});}}
+if(q.has('soci_ev')){q.delete('soci_ev');var rest=q.toString();try{w.history.replaceState(null,'',location.pathname+(rest?'?'+rest:'')+location.hash);}catch(e){}}
+d.addEventListener('submit',function(e){var t=e&&e.target;if(t&&t.hasAttribute&&t.hasAttribute('data-soci-lead'))return;if(w.gtag&&c.ga4)w.gtag('event','generate_lead');if(w.fbq&&c.meta)w.fbq('track','Lead');if(c.gtm)w.dataLayer.push({event:'soci_lead'});},true);
 })();`;
 }
 
@@ -145,6 +155,41 @@ export function contactFromFields(fields) {
  * so later page views count for the contact (workflows and lead scoring).
  */
 export function trackingEvent(s, d, { add, run, now }) {
+  const event = newTrackingEvent(s, d, now);
+  if (!event) return null;
+  const { row, contact: info } = event, { vid, url, type } = row, t = trackingOf(s);
+  const events = s.trackingEvents ??= [];
+  if (info) {
+    const digits = v => String(v || '').replace(/\D/g, '');
+    let contact = (info.email && s.contacts.find(c => c.email === info.email)) || (info.phone && s.contacts.find(c => digits(c.phone) && digits(c.phone) === digits(info.phone)));
+    if (!contact) {
+      contact = add(s, 'contacts', { name: info.name || info.email || info.phone, email: info.email, phone: info.phone, company: info.company, tags: ['Site externo'], notes: '', source: 'Site externo' });
+      run(s, 'Contact created', { contactId: contact.id });
+    } else {
+      for (const k of ['phone', 'email', 'company']) if (!contact[k] && info[k]) contact[k] = info[k];
+      if (!contact.name && info.name) contact.name = info.name;
+      contact.updated = now();
+    }
+    const body = [`Formulário do site${row.form ? ` (${row.form})` : ''}${url ? ` · ${url}` : ''}`, ...Object.entries(row.fields).map(([k, v]) => `${k}: ${v}`)].join('\n').slice(0, 5000);
+    add(s, 'messages', { contactId: contact.id, body, channel: 'Note', direction: 'Inbound', read: false, starred: false, origin: 'tracking' });
+    row.contactId = contact.id;
+    t.visitors[vid] = contact.id;
+    const keys = Object.keys(t.visitors);
+    if (keys.length > 5000) for (const k of keys.slice(0, keys.length - 5000)) delete t.visitors[k];
+  }
+  events.push(row);
+  if (events.length > 5000) events.splice(0, events.length - 5000);
+  // "Vídeo assistido": 25, 50, 75 and 100% of an HTML5 video, once each per page load, for a known visitor.
+  if (row.contactId && type === 'video') run(s, 'video_watched', { contactId: row.contactId, percent: Number(row.event), video: row.name || row.video, url });
+  else if (row.contactId) run(s, 'external_tracking_event', { contactId: row.contactId, event: type, url, name: row.event || row.form });
+  return row.id;
+}
+
+/**
+ * The same event checked against the settings, without saving anything: { row, contact } (contact: the
+ * details found in a form, or null), or null when the sub-account turned that recording off.
+ */
+export function newTrackingEvent(s, d, now = () => new Date().toISOString()) {
   const t = trackingOf(s);
   const vid = /^[a-z0-9]{6,40}$/i.test(String(d.vid || '')) ? String(d.vid) : '';
   if (!vid) fail('Visitante inválido.');
@@ -154,39 +199,17 @@ export function trackingEvent(s, d, { add, run, now }) {
   if (type === 'pageview' && t.pageviews === false) return null;
   let url = '';
   try { const u = new URL(str(d.url, 500)); if (['http:', 'https:'].includes(u.protocol)) url = `${u.origin}${u.pathname}${u.search}`.slice(0, 500); } catch { /* kept empty */ }
-  const events = s.trackingEvents ??= [];
+  /** @type {Record<string, any>} */
   const row = { id: randomUUID(), created: now(), type, vid, url, title: str(d.title, 200), event: str(d.event, 60), contactId: t.visitors[vid] || '',
     ...(type === 'video' ? { video: str(d.video, 300), name: str(d.name, 120) } : {}) };
+  let contact = null;
   if (type === 'form') {
-    const fields = Object.fromEntries(Object.entries(d.fields && typeof d.fields === 'object' ? d.fields : {}).slice(0, 40).map(([k, v]) => [str(k, 60), str(v, 500)]).filter(([k]) => k));
-    const info = contactFromFields(fields);
     row.form = str(d.form, 120);
-    row.fields = fields;
-    if (info.email || info.phone) {
-      const digits = v => String(v || '').replace(/\D/g, '');
-      let contact = (info.email && s.contacts.find(c => c.email === info.email)) || (info.phone && s.contacts.find(c => digits(c.phone) && digits(c.phone) === digits(info.phone)));
-      if (!contact) {
-        contact = add(s, 'contacts', { name: info.name || info.email || info.phone, email: info.email, phone: info.phone, company: info.company, tags: ['Site externo'], notes: '', source: 'Site externo' });
-        run(s, 'Contact created', { contactId: contact.id });
-      } else {
-        for (const k of ['phone', 'email', 'company']) if (!contact[k] && info[k]) contact[k] = info[k];
-        if (!contact.name && info.name) contact.name = info.name;
-        contact.updated = now();
-      }
-      const body = [`Formulário do site${row.form ? ` (${row.form})` : ''}${url ? ` · ${url}` : ''}`, ...Object.entries(fields).map(([k, v]) => `${k}: ${v}`)].join('\n').slice(0, 5000);
-      add(s, 'messages', { contactId: contact.id, body, channel: 'Note', direction: 'Inbound', read: false, starred: false, origin: 'tracking' });
-      row.contactId = contact.id;
-      t.visitors[vid] = contact.id;
-      const keys = Object.keys(t.visitors);
-      if (keys.length > 5000) for (const k of keys.slice(0, keys.length - 5000)) delete t.visitors[k];
-    }
+    row.fields = Object.fromEntries(Object.entries(d.fields && typeof d.fields === 'object' ? d.fields : {}).slice(0, 40).map(([k, v]) => [str(k, 60), str(v, 500)]).filter(([k]) => k));
+    const info = contactFromFields(row.fields);
+    if (info.email || info.phone) contact = info;
   }
-  events.push(row);
-  if (events.length > 5000) events.splice(0, events.length - 5000);
-  // "Vídeo assistido": 25, 50, 75 and 100% of an HTML5 video, once each per page load, for a known visitor.
-  if (row.contactId && type === 'video') run(s, 'video_watched', { contactId: row.contactId, percent: Number(row.event), video: row.name || row.video, url });
-  else if (row.contactId) run(s, 'external_tracking_event', { contactId: row.contactId, event: type, url, name: row.event || row.form });
-  return row.id;
+  return { row, contact };
 }
 
 // ---- Sites and funnels published on the Soci ----------------------------------------------------------
