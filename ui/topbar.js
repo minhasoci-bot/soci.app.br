@@ -14,7 +14,6 @@ export const themeToggle = () =>
  * @param {{label:string, href?:string}[]} o.crumbs
  * @param {string} [o.search]  attribute that opens search
  * @param {{icon:string,label:string,attr:string,dot?:boolean}[]} [o.tools]
- * @param {string} [o.extra]   extra markup placed before the toolbar
  * @param {{text:string,label:string,attr:string,picture?:string}} [o.profile]
  */
 export function topbar(o) {
@@ -31,7 +30,6 @@ export function topbar(o) {
   return `<header class="topbar g-top">
     <nav class="crumbs" aria-label="${esc(tr('Você está em'))}">${crumbs}</nav>
     ${o.search ? `<button type="button" class="top-search" ${o.search} aria-label="${esc(tr('Buscar no workspace'))}" aria-keyshortcuts="Control+K">${i('search', 15)}<span>${esc(tr('Buscar módulos e contatos…'))}</span><kbd>Ctrl K</kbd></button>` : '<div class="spacer"></div>'}
-    ${o.extra || ''}
     <div class="tool-group" role="group" aria-label="${esc(tr('Ferramentas'))}">${tools}${themeToggle()}</div>
     ${langToggle()}
     ${o.profile ? `<button type="button" class="avatar avatar-pink top-profile" ${o.profile.attr} data-tip="${esc(tr(o.profile.label))}" data-tip-pos="bottom" aria-label="${esc(tr(o.profile.label))}">${o.profile.picture ? `<img src="${esc(o.profile.picture)}" alt="">` : esc(o.profile.text)}</button>` : ''}

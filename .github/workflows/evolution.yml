@@ -1,0 +1,68 @@
+name: Evolution API
+
+# Sobe a stack de deploy/evolution de verdade e testa pelo código do app: criar instância, QR Code,
+# reinício sem perder instância, backup e restauração. Roda só quando algo disso muda.
+on:
+  pull_request:
+    paths: ['deploy/evolution/**', 'whatsapp.mjs', 'scripts/evolution-smoke.mjs', '.github/workflows/evolution.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evolution-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stack:
+    name: Stack real (docker compose)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: deploy/evolution
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Scripts e Caddyfile
+        run: |
+          for f in *.sh; do bash -n "$f"; done
+          shellcheck -S error ./*.sh
+          docker run --rm -e DOMAIN=whatsapp.exemplo.com.br -e ACME_EMAIL=a@exemplo.com.br -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.8-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: Subir
+        run: |
+          cp .env.example .env
+          key=$(openssl rand -hex 32)
+          echo "::add-mask::$key"
+          sed -i "s|^AUTHENTICATION_API_KEY=.*|AUTHENTICATION_API_KEY=$key|; s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 24)|; s|^DOMAIN=.*|DOMAIN=localhost|" .env
+          echo "EVOLUTION_API_KEY=$key" >> "$GITHUB_ENV"
+          echo "EVOLUTION_BASE_URL=http://127.0.0.1:8080" >> "$GITHUB_ENV"
+          docker compose up -d --wait --wait-timeout 240 evolution postgres redis
+          docker compose up -d watchdog
+      - name: Testar pelo código do app
+        working-directory: .
+        run: node scripts/evolution-smoke.mjs
+      - name: Reinício não perde a instância
+        run: |
+          api() { curl -fsS -H "apikey: $EVOLUTION_API_KEY" -H 'Content-Type: application/json' "$@"; }
+          api -X POST "$EVOLUTION_BASE_URL/instance/create" -d '{"instanceName":"ci_persiste","integration":"WHATSAPP-BAILEYS","qrcode":false}' >/dev/null
+          docker compose restart evolution
+          docker compose up -d --wait --wait-timeout 240 evolution
+          api "$EVOLUTION_BASE_URL/instance/fetchInstances" | jq -e 'map(.name) | index("ci_persiste") != null'
+      - name: Backup e restauração
+        run: |
+          bash maintenance.sh
+          ls -l backups
+          docker compose stop evolution
+          docker compose exec -T postgres psql -U evolution -d evolution -c 'DELETE FROM "Instance"'
+          gunzip -c backups/evolution-*.sql.gz | docker compose exec -T postgres psql -U evolution -d evolution -q -v ON_ERROR_STOP=1 --single-transaction
+          docker compose exec -T postgres psql -U evolution -d evolution -tAc 'SELECT count(*) FROM "Instance" WHERE name = '"'ci_persiste'" | grep -qx 1
+          docker compose up -d --wait --wait-timeout 240 evolution
+      - name: Logs
+        if: always()
+        run: |
+          docker compose ps -a
+          docker compose logs --tail 80 evolution watchdog

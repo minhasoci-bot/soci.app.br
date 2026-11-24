@@ -13,6 +13,7 @@
     "test": "node --test --test-isolation=none \"test/**/*.test.mjs\"",
     "build:prancheta": "npm --prefix prancheta-editor run build",
     "smoke": "node scripts/smoke-deploy.mjs",
+    "smoke:evolution": "node --env-file-if-exists=.env.local scripts/evolution-smoke.mjs",
     "lint": "biome lint .",
     "typecheck": "tsc -p tsconfig.json"
   },

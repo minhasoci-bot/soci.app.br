@@ -1,7 +1,6 @@
 // WhatsApp das subcontas: cada subconta recebe uma instância isolada num servidor de WhatsApp da agência
-// (ou gerenciado pela plataforma via variáveis de ambiente). Dois provedores atrás das mesmas rotas:
-//   - Evolution API v2 (padrão) — https://doc.evolution-api.com — autenticação pelo header `apikey` global.
-//   - UAZAPI (legado) — admintoken para criar instâncias e token por instância.
+// (ou gerenciado pela plataforma via variáveis de ambiente). O servidor é a Evolution API v2
+// (https://doc.evolution-api.com), com a chave global no header `apikey`. A stack da VPS fica em deploy/evolution.
 // Os segredos ficam selados (AES-256-GCM) em `whatsapp-<agencyId>` no SQLite/Supabase.
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { execute } from './model.mjs';
@@ -9,8 +8,8 @@ import { execute } from './model.mjs';
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
 const digits = value => String(value || '').replace(/\D+/g, '');
 const rowId = agencyId => `whatsapp-${agencyId}`;
-const PROVIDER_LABEL = { evolution: 'Evolution API', uazapi: 'UAZAPI' };
-const cleanProvider = value => (value === 'evolution' || value === 'uazapi' ? value : '');
+const PROVIDER = 'evolution';
+const PROVIDER_LABEL = 'Evolution API';
 const isHttps = value => /^https:\/\//i.test(String(value || ''));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -49,15 +48,13 @@ function safeEqual(a, b) {
   return left.length > 0 && left.length === right.length && timingSafeEqual(left, right);
 }
 
-function cleanBaseUrl(raw, provider) {
-  const label = PROVIDER_LABEL[provider];
-  const example = provider === 'uazapi' ? 'https://suaagencia.uazapi.com' : 'https://whatsapp.suaagencia.com.br';
+function cleanBaseUrl(raw) {
   const value = typeof raw === 'string' ? raw.trim().replace(/\/+$/, '') : '';
-  if (!value) throw fail(`Informe a URL do servidor ${label} (ex.: ${example}).`);
+  if (!value) throw fail(`Informe a URL do servidor ${PROVIDER_LABEL} (ex.: https://whatsapp.suaagencia.com.br).`);
   let parsed;
-  try { parsed = new URL(value); } catch { throw fail(`URL da ${label} inválida.`); }
+  try { parsed = new URL(value); } catch { throw fail(`URL da ${PROVIDER_LABEL} inválida.`); }
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
-    throw fail(`A URL da ${label} deve usar http:// ou https://.`);
+    throw fail(`A URL da ${PROVIDER_LABEL} deve usar http:// ou https://.`);
   }
   return `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
 }
@@ -96,101 +93,6 @@ async function readJsonSafe(res) {
   const text = await res.text().catch(() => '');
   if (!text) return {};
   try { return JSON.parse(text); } catch { return { raw: text.slice(0, 240) }; }
-}
-
-// ---------- UAZAPI ----------
-
-function parseUazapiInstance(data) {
-  const inst = (data && typeof data.instance === 'object' && data.instance) ? data.instance : {};
-  const st = (data && typeof data.status === 'object' && data.status) ? data.status : {};
-  const rawStatus = st.connected === true || st.loggedIn === true || data?.connected === true || data?.loggedIn === true
-    ? 'connected'
-    : (inst.status || inst.state || (typeof data?.status === 'string' ? data.status : '') || data?.state || '');
-  const status = normalizeStatus(rawStatus);
-  const qrcode = normalizeQr(inst.qrcode || data?.qrcode || data?.qr || '');
-  const paircode = String(inst.paircode || inst.pairingCode || data?.paircode || data?.pairingCode || '').trim();
-  const phone = extractPhone(inst.owner || st.jid || inst.jid || inst.phone || data?.owner || data?.jid || '');
-  const profileName = String(inst.profileName || inst.name || data?.profileName || '').trim().slice(0, 120);
-  const token = String(data?.token || inst.token || data?.hash?.apikey || '').trim();
-  return { status, qrcode, paircode, phone, profileName, token };
-}
-
-function createUazapiAdapter(call) {
-  const send = (creds, path, options = {}) => call('uazapi', creds.baseUrl, path, options);
-  return {
-    async provision({ creds, sub }) {
-      const body = { name: sub.instanceName, systemName: 'soci' };
-      const headers = { admintoken: creds.adminToken };
-      let res = await send(creds, '/instance/init', { method: 'POST', headers, body });
-      if (res.status === 404) res = await send(creds, '/instance/create', { method: 'POST', headers, body });
-      const data = await readJsonSafe(res);
-      if (!res.ok) {
-        throw fail(`Não foi possível provisionar a instância na UAZAPI (HTTP ${res.status})${data.message ? `: ${data.message}` : ''}.`, 502);
-      }
-      const parsed = parseUazapiInstance(data);
-      if (!parsed.token) throw fail('A UAZAPI criou a instância mas não retornou o token de acesso.', 502);
-      return { token: parsed.token, status: parsed.status || 'disconnected' };
-    },
-    async setWebhook({ creds, token, webhookUrl }) {
-      await send(creds, '/webhook', {
-        method: 'POST',
-        headers: { token },
-        body: { enabled: true, url: webhookUrl, events: ['messages', 'connection'], excludeMessages: ['wasSentByApi'] }
-      });
-    },
-    async status({ creds, token }) {
-      const res = await send(creds, '/instance/status', { headers: { token } });
-      if (res.status === 401 || res.status === 404) return { missing: true };
-      const data = await readJsonSafe(res);
-      if (!res.ok) return { error: `HTTP ${res.status}` };
-      return parseUazapiInstance(data);
-    },
-    async connect({ creds, token, phone }) {
-      const res = await send(creds, '/instance/connect', { method: 'POST', headers: { token }, body: phone ? { phone } : {} });
-      const data = await readJsonSafe(res);
-      if (!res.ok) {
-        throw fail(`Não foi possível iniciar a conexão na UAZAPI (HTTP ${res.status})${data.message ? `: ${data.message}` : ''}.`, 502);
-      }
-      let parsed = parseUazapiInstance(data);
-      if (parsed.status !== 'connected' && !parsed.qrcode && !parsed.paircode) {
-        const liveRes = await send(creds, '/instance/status', { headers: { token } }).catch(() => null);
-        if (liveRes?.ok) {
-          const live = parseUazapiInstance(await readJsonSafe(liveRes));
-          parsed = {
-            ...parsed,
-            status: live.status || parsed.status,
-            qrcode: live.qrcode || parsed.qrcode,
-            paircode: live.paircode || parsed.paircode,
-            phone: live.phone || parsed.phone,
-            profileName: live.profileName || parsed.profileName
-          };
-        }
-      }
-      return parsed;
-    },
-    async disconnect({ creds, token }) {
-      await send(creds, '/instance/disconnect', { method: 'POST', headers: { token }, body: {} });
-    },
-    async send({ creds, token, number, text }) {
-      const res = await send(creds, '/send/text', { method: 'POST', headers: { token }, body: { number, text }, retry: true });
-      const data = await readJsonSafe(res);
-      return { ok: res.ok, status: res.status, message: data.message || '', id: String(data.id || data.messageid || data.key?.id || '') };
-    },
-    parseWebhook(body) {
-      const eventType = String(body.EventType || body.event || body.type || '').toLowerCase();
-      if (eventType === 'connection') return { kind: 'connection', parsed: parseUazapiInstance(body) };
-      if (eventType !== 'messages' && eventType !== 'message') return { kind: 'ignore' };
-      const msg = body.message && typeof body.message === 'object' ? body.message : (body.data || body.payload || {});
-      if (msg.fromMe || msg.wasSentByApi || msg.isGroup || body.chat?.wa_isGroup) return { kind: 'ignore' };
-      const chatId = String(msg.chatid || msg.sender || body.chat?.wa_chatid || body.chat?.id || '');
-      if (!chatId || chatId.endsWith('@g.us') || chatId === 'status@broadcast') return { kind: 'ignore' };
-      const text = String(msg.text || msg.content || msg.body || '').trim().slice(0, 4000);
-      const phone = extractPhone(chatId);
-      if (!phone || !text) return { kind: 'ignore' };
-      const senderName = String(msg.senderName || body.chat?.name || msg.pushName || `+${phone}`).trim().slice(0, 120);
-      return { kind: 'messages', items: [{ phone, text, senderName }] };
-    }
-  };
 }
 
 // ---------- Evolution API v2 ----------
@@ -244,7 +146,7 @@ function evolutionInbound(entry) {
   if (!phone || phone.length < 8 || !text) return null;
   const senderName = String(entry.pushName || `+${phone}`).trim().slice(0, 120);
   const ad = adReferral(entry);
-  return { phone, text, senderName, ...(ad ? { ad } : {}) };
+  return { id: String(key.id || '').slice(0, 120), phone, text, senderName, ...(ad ? { ad } : {}) };
 }
 
 // "Click to WhatsApp" ads: the first message carries the ad in contextInfo.externalAdReply (Baileys), in the
@@ -267,7 +169,7 @@ function pollVote(entry) {
 }
 
 function createEvolutionAdapter(call) {
-  const send = (creds, path, options = {}) => call('evolution', creds.baseUrl, path, {
+  const send = (creds, path, options = {}) => call(creds.baseUrl, path, {
     ...options,
     headers: { apikey: creds.adminToken, ...(options.headers || {}) }
   });
@@ -363,6 +265,29 @@ function createEvolutionAdapter(call) {
     async disconnect({ creds, sub }) {
       await send(creds, `/instance/logout/${name(sub)}`, { method: 'DELETE' });
     },
+    // Apaga a instância do servidor. Sair antes desconecta o aparelho no celular; a que já não existe está resolvida.
+    async remove({ creds, sub }) {
+      await send(creds, `/instance/logout/${name(sub)}`, { method: 'DELETE' }).catch(() => null);
+      const res = await send(creds, `/instance/delete/${name(sub)}`, { method: 'DELETE', retry: true, timeout: 25000 });
+      if (res.ok || res.status === 404) return;
+      const detail = evolutionError(await readJsonSafe(res));
+      throw fail(`Não foi possível excluir a instância na Evolution API (HTTP ${res.status})${detail ? `: ${detail}` : ''}.`, 502);
+    },
+    // Confere o servidor: no ar, versão e chave global. `names` limita a contagem às instâncias da agência.
+    async server({ creds, names }) {
+      const started = Date.now();
+      const home = await send(creds, '/', { timeout: 10000 });
+      const info = await readJsonSafe(home);
+      if (!home.ok || !info.version) return { ok: false, error: `O endereço respondeu, mas não é uma Evolution API (HTTP ${home.status}).` };
+      const version = String(info.version).slice(0, 20);
+      const res = await send(creds, '/instance/fetchInstances', { timeout: 15000 });
+      if (res.status === 401 || res.status === 403) return { ok: false, version, error: 'A Evolution API recusou a API Key global. Confira a chave configurada.' };
+      const data = await readJsonSafe(res);
+      if (!res.ok && res.status !== 404) return { ok: false, version, error: `A Evolution API respondeu HTTP ${res.status} ao listar as instâncias.` };
+      const own = (Array.isArray(data) ? data : []).filter(row => names.has(row.name || row.instanceName || row.instance?.instanceName));
+      const open = own.filter(row => normalizeStatus((row.instance || row).connectionStatus || (row.instance || row).status) === 'connected');
+      return { ok: true, version, instances: own.length, connected: open.length, latencyMs: Date.now() - started };
+    },
     async groups({ creds, sub }) {
       const res = await send(creds, `/group/fetchAllGroups/${name(sub)}?getParticipants=false`, { timeout: 30000 });
       const data = await readJsonSafe(res);
@@ -420,19 +345,12 @@ function createEvolutionAdapter(call) {
   };
 }
 
-function detectWebhookProvider(body) {
-  if (body && typeof body.EventType === 'string') return 'uazapi';
-  const event = typeof body?.event === 'string' ? body.event : '';
-  if (/^[a-z]+\.[a-z.]+$/i.test(event) || /^[A-Z]+_[A-Z_]+$/.test(event)) return 'evolution';
-  return '';
-}
-
 // ---------- Estado persistido ----------
 
-function blankRow(provider = 'evolution') {
+function blankRow() {
   return {
-    profile: { name: `WhatsApp (${PROVIDER_LABEL[provider]})` },
-    provider,
+    profile: { name: `WhatsApp (${PROVIDER_LABEL})` },
+    provider: PROVIDER,
     baseUrl: '',
     adminTokenSealed: '',
     adminTokenLast4: '',
@@ -441,13 +359,14 @@ function blankRow(provider = 'evolution') {
 }
 
 function normalizeSub(workspaceId, raw) {
-  const sub = raw && typeof raw === 'object' ? raw : {};
+  let sub = raw && typeof raw === 'object' ? raw : {};
+  // Vínculo anterior à Evolution: fica só o que a agência decidiu (ativo, rebilling) e a URL do webhook.
+  if (sub.provider !== PROVIDER) sub = { enabled: sub.enabled, rebill: sub.rebill, instanceName: sub.instanceName, webhookSecret: sub.webhookSecret };
   return {
     enabled: sub.enabled !== undefined ? Boolean(sub.enabled) : true,
     rebill: Boolean(sub.rebill),
     instanceName: String(sub.instanceName || instanceSlug(workspaceId)).slice(0, 48),
-    // Instâncias anteriores a este campo foram todas criadas na UAZAPI.
-    provider: cleanProvider(sub.provider) || (sub.tokenSealed ? 'uazapi' : ''),
+    provider: PROVIDER,
     tokenSealed: String(sub.tokenSealed || ''),
     tokenLast4: String(sub.tokenLast4 || ''),
     webhookSecret: typeof sub.webhookSecret === 'string' && sub.webhookSecret.length >= 32
@@ -462,11 +381,13 @@ function normalizeSub(workspaceId, raw) {
 
 function normalizeRow(row) {
   const next = { ...blankRow(), ...(row && typeof row === 'object' ? row : {}) };
-  next.provider = cleanProvider(next.provider) || 'uazapi';
-  next.profile = { name: `WhatsApp (${PROVIDER_LABEL[next.provider]})` };
-  next.baseUrl = String(next.baseUrl || '');
-  next.adminTokenSealed = String(next.adminTokenSealed || '');
-  next.adminTokenLast4 = String(next.adminTokenLast4 || '');
+  // Servidor salvo antes da Evolution: a URL e a chave não servem mais.
+  const current = !row || row.provider === PROVIDER;
+  next.provider = PROVIDER;
+  next.profile = { name: `WhatsApp (${PROVIDER_LABEL})` };
+  next.baseUrl = current ? String(next.baseUrl || '') : '';
+  next.adminTokenSealed = current ? String(next.adminTokenSealed || '') : '';
+  next.adminTokenLast4 = current ? String(next.adminTokenLast4 || '') : '';
   const subs = next.subaccounts && typeof next.subaccounts === 'object' ? next.subaccounts : {};
   next.subaccounts = Object.fromEntries(Object.entries(subs).map(([id, cfg]) => [id, normalizeSub(id, cfg)]));
   return next;
@@ -482,22 +403,14 @@ export function createWhatsAppHandler({
   store,
   secret = process.env.GO_STORAGE_KEY,
   request = fetch,
-  envBaseUrl = process.env.UAZAPI_BASE_URL || '',
-  envAdminToken = process.env.UAZAPI_ADMIN_TOKEN || '',
   evolutionBaseUrl = process.env.EVOLUTION_BASE_URL || '',
   evolutionApiKey = process.env.EVOLUTION_API_KEY || ''
 }) {
-  const managed = {
-    evolution: { baseUrl: String(evolutionBaseUrl || '').trim().replace(/\/+$/, ''), adminToken: String(evolutionApiKey || '').trim() },
-    uazapi: { baseUrl: String(envBaseUrl || '').trim().replace(/\/+$/, ''), adminToken: String(envAdminToken || '').trim() }
-  };
-  const hasManaged = provider => Boolean(managed[provider].baseUrl && managed[provider].adminToken);
-  // Servidor gerenciado: a Evolution tem prioridade sobre a UAZAPI quando as duas estão no ambiente.
-  const managedProvider = hasManaged('evolution') ? 'evolution' : hasManaged('uazapi') ? 'uazapi' : '';
+  const managed = { baseUrl: String(evolutionBaseUrl || '').trim().replace(/\/+$/, ''), adminToken: String(evolutionApiKey || '').trim() };
+  const hasManaged = Boolean(managed.baseUrl && managed.adminToken);
 
-  async function call(provider, baseUrl, path, { method = 'GET', headers = {}, body, timeout = 15000, retry = false } = {}) {
-    const label = PROVIDER_LABEL[provider];
-    if (!baseUrl) throw fail(`Servidor ${label} não configurado.`, 400);
+  async function call(baseUrl, path, { method = 'GET', headers = {}, body, timeout = 15000, retry = false } = {}) {
+    if (!baseUrl) throw fail(`Servidor ${PROVIDER_LABEL} não configurado.`, 400);
     const allHeaders = { Accept: 'application/json', ...headers };
     if (body !== undefined) allHeaders['Content-Type'] = 'application/json';
     const attempt = async () => {
@@ -512,18 +425,18 @@ export function createWhatsAppHandler({
       if (retry && [502, 503].includes(res.status)) { await wait(1500); res = await attempt(); }
     } catch (err) {
       if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
-        throw fail(`A ${label} não respondeu a tempo (timeout).`, 504);
+        throw fail(`A ${PROVIDER_LABEL} não respondeu a tempo (timeout).`, 504);
       }
       if (retry) {
         await wait(1500);
         try { return await attempt(); } catch { /* cai no erro abaixo */ }
       }
-      throw Object.assign(fail(`Não foi possível alcançar a ${label}: ${err?.message || 'erro de rede'}.`, 502), { network: err?.cause?.code || err?.code || 'unknown' });
+      throw Object.assign(fail(`Não foi possível alcançar a ${PROVIDER_LABEL}: ${err?.message || 'erro de rede'}.`, 502), { network: err?.cause?.code || err?.code || 'unknown' });
     }
     return res;
   }
 
-  const adapters = { evolution: createEvolutionAdapter(call), uazapi: createUazapiAdapter(call) };
+  const adapter = createEvolutionAdapter(call);
 
   async function ensureRow(agencyId) {
     const id = rowId(agencyId);
@@ -532,7 +445,7 @@ export function createWhatsAppHandler({
     } catch (err) {
       if (err?.status !== 404) throw err;
     }
-    await store.insert(id, blankRow(managedProvider || 'evolution'));
+    await store.insert(id, blankRow());
     return normalizeRow(await store.load(id));
   }
 
@@ -551,25 +464,16 @@ export function createWhatsAppHandler({
     const customUrl = String(row.baseUrl || '').trim().replace(/\/+$/, '');
     const customAdmin = unsealSecret(secret, `${rowId(agencyId)}:admin`, row.adminTokenSealed);
     if (customUrl && customAdmin) {
-      return { provider: row.provider, baseUrl: customUrl, adminToken: customAdmin, managed: false, configured: true };
+      return { baseUrl: customUrl, adminToken: customAdmin, managed: false, configured: true };
     }
-    if (managedProvider) {
-      return { provider: managedProvider, ...managed[managedProvider], managed: true, configured: true };
-    }
-    return { provider: row.provider, baseUrl: customUrl, adminToken: customAdmin, managed: false, configured: false };
+    if (hasManaged) return { ...managed, managed: true, configured: true };
+    return { baseUrl: customUrl, adminToken: customAdmin, managed: false, configured: false };
   }
 
-  // A subconta como o provedor atual a enxerga: instância criada em outro provedor não vale mais.
-  function subFor(row, workspaceId, provider) {
-    const sub = normalizeSub(workspaceId, row.subaccounts?.[workspaceId]);
-    if (sub.provider && sub.provider !== provider) {
-      return { ...sub, provider, tokenSealed: '', tokenLast4: '', status: 'disconnected', phone: '', profileName: '' };
-    }
-    return sub;
-  }
+  const subFor = (row, workspaceId) => normalizeSub(workspaceId, row.subaccounts?.[workspaceId]);
 
-  function instanceTokenOf(row, agencyId, workspaceId, provider) {
-    const sub = subFor(row, workspaceId, provider);
+  function instanceTokenOf(row, agencyId, workspaceId) {
+    const sub = subFor(row, workspaceId);
     if (!sub.tokenSealed) return '';
     return unsealSecret(secret, `${rowId(agencyId)}:sub:${workspaceId}`, sub.tokenSealed);
   }
@@ -577,10 +481,9 @@ export function createWhatsAppHandler({
   const webhookUrlOf = (publicOrigin, agencyId, workspaceId, sub) =>
     `${publicOrigin}/api/whatsapp/webhook/${encodeURIComponent(agencyId)}/${encodeURIComponent(workspaceId)}/${sub.webhookSecret}`;
 
-  async function saveLive(agencyId, workspaceId, provider, parsed) {
+  async function saveLive(agencyId, workspaceId, parsed) {
     return changeRow(agencyId, current => {
       const cur = normalizeSub(workspaceId, current.subaccounts[workspaceId]);
-      cur.provider = provider;
       cur.status = parsed.status;
       if (parsed.phone) cur.phone = parsed.phone;
       if (parsed.profileName) cur.profileName = parsed.profileName;
@@ -609,20 +512,18 @@ export function createWhatsAppHandler({
     if (!creds.configured) {
       throw fail('O WhatsApp ainda não foi configurado pela agência.', 400);
     }
-    const adapter = adapters[creds.provider];
-    let sub = subFor(row, workspaceId, creds.provider);
+    let sub = subFor(row, workspaceId);
     if (!sub.enabled) {
       throw fail('O recurso de WhatsApp não está habilitado para esta subconta.', 403);
     }
     const webhookUrl = webhookUrlOf(publicOrigin, agencyId, workspaceId, sub);
 
-    let token = instanceTokenOf(row, agencyId, workspaceId, creds.provider);
+    let token = instanceTokenOf(row, agencyId, workspaceId);
     if (!token) {
       const created = await adapter.provision({ creds, sub, webhookUrl });
       token = created.token;
       row = await changeRow(agencyId, current => {
-        const nextSub = subFor(current, workspaceId, creds.provider);
-        nextSub.provider = creds.provider;
+        const nextSub = subFor(current, workspaceId);
         nextSub.tokenSealed = sealSecret(secret, `${rowId(agencyId)}:sub:${workspaceId}`, token);
         nextSub.tokenLast4 = token.slice(-4);
         nextSub.status = created.status || 'disconnected';
@@ -637,26 +538,26 @@ export function createWhatsAppHandler({
     if (isHttps(webhookUrl)) {
       await adapter.setWebhook({ creds, token, sub, webhookUrl }).catch(() => {});
     }
-    return { row, sub, token, creds, adapter, webhookUrl };
+    return { row, sub, token, creds, webhookUrl };
   }
 
   async function fetchLiveSubStatus(row, agencyId, workspaceId) {
     const creds = serverCredentials(row, agencyId);
-    const sub = subFor(row, workspaceId, creds.provider);
-    const token = instanceTokenOf(row, agencyId, workspaceId, creds.provider);
+    const sub = subFor(row, workspaceId);
+    const token = instanceTokenOf(row, agencyId, workspaceId);
     const offline = { status: 'disconnected', qrcode: '', paircode: '', phone: '', profileName: '' };
     if (!creds.configured || !token) return { ...offline, reachable: creds.configured };
     try {
-      const live = await adapters[creds.provider].status({ creds, token, sub });
+      const live = await adapter.status({ creds, token, sub });
       if (live.missing) {
-        // Na Evolution a instância sumiu do servidor: esquece o vínculo para recriar no próximo "Conectar".
-        if (creds.provider === 'evolution') await forgetInstance(agencyId, workspaceId);
+        // A instância sumiu do servidor: esquece o vínculo para recriar no próximo "Conectar".
+        await forgetInstance(agencyId, workspaceId);
         return { ...offline, reachable: true, tokenExpired: true };
       }
       if (live.error) {
         return { status: sub.status, qrcode: '', paircode: '', phone: sub.phone, profileName: sub.profileName, reachable: false, error: live.error };
       }
-      await saveLive(agencyId, workspaceId, creds.provider, live);
+      await saveLive(agencyId, workspaceId, live);
       return { ...live, reachable: true };
     } catch (err) {
       return { status: sub.status, qrcode: '', paircode: '', phone: sub.phone, profileName: sub.profileName, reachable: false, error: err.message };
@@ -665,10 +566,10 @@ export function createWhatsAppHandler({
 
   function publicSubView(row, agencyId, workspaceId, publicOrigin, live = null) {
     const creds = serverCredentials(row, agencyId);
-    const sub = subFor(row, workspaceId, creds.provider);
+    const sub = subFor(row, workspaceId);
     return {
-      provider: creds.provider,
-      providerLabel: PROVIDER_LABEL[creds.provider],
+      provider: PROVIDER,
+      providerLabel: PROVIDER_LABEL,
       available: creds.configured,
       managed: creds.managed,
       workspace: workspaceId,
@@ -688,9 +589,8 @@ export function createWhatsAppHandler({
     const creds = serverCredentials(row, agencyId);
     const hasCustom = Boolean(row.baseUrl && row.adminTokenSealed);
     return {
-      provider: creds.provider,
-      providerLabel: PROVIDER_LABEL[creds.provider],
-      customProvider: row.provider,
+      provider: PROVIDER,
+      providerLabel: PROVIDER_LABEL,
       configured: creds.configured,
       managed: creds.managed,
       hasCustomServer: hasCustom,
@@ -698,7 +598,7 @@ export function createWhatsAppHandler({
       hasAdminToken: Boolean(row.adminTokenSealed),
       adminTokenLast4: row.adminTokenLast4 || '',
       subaccounts: Object.fromEntries(workspaces.map(ws => {
-        const sub = subFor(row, ws.id, creds.provider);
+        const sub = subFor(row, ws.id);
         return [ws.id, {
           enabled: sub.enabled,
           rebill: sub.rebill,
@@ -716,17 +616,17 @@ export function createWhatsAppHandler({
   async function workspaceSender(agencyId, workspaceId, accountIsActive) {
     let row = await ensureRow(agencyId);
     const creds = serverCredentials(row, agencyId);
-    let sub = subFor(row, workspaceId, creds.provider);
-    const token = instanceTokenOf(row, agencyId, workspaceId, creds.provider);
+    let sub = subFor(row, workspaceId);
+    const token = instanceTokenOf(row, agencyId, workspaceId);
     if (!creds.configured || !sub.enabled || !token) return { reason: 'not-connected' };
     if (sub.status !== 'connected') {
       const live = await fetchLiveSubStatus(row, agencyId, workspaceId);
       if (live.status !== 'connected') return { reason: 'not-connected' };
       row = await ensureRow(agencyId);
-      sub = subFor(row, workspaceId, creds.provider);
+      sub = subFor(row, workspaceId);
     }
     if (!await accountIsActive(agencyId, workspaceId)) return { reason: 'account-suspended' };
-    return { creds, token, sub, adapter: adapters[creds.provider] };
+    return { creds, token, sub };
   }
 
   /** Workflows: a file by public https URL. media = { type: image|video|document|audio, url, caption, fileName }. */
@@ -735,8 +635,7 @@ export function createWhatsAppHandler({
     if (number.length < 10 || number.length > 15) return { sent: false, reason: 'invalid-phone' };
     const sender = await workspaceSender(agencyId, workspaceId, accountIsActive);
     if (sender.reason) return { sent: false, reason: sender.reason };
-    if (!sender.adapter.sendMedia) return { sent: false, reason: 'unsupported' };
-    const result = await sender.adapter.sendMedia({ ...sender, number, media: {
+    const result = await adapter.sendMedia({ ...sender, number, media: {
       type: ['image', 'video', 'document', 'audio'].includes(media?.type) ? media.type : 'document', url: String(media?.url || '').slice(0, 2000),
       caption: String(media?.caption || '').slice(0, 1000), fileName: String(media?.fileName || '').slice(0, 120) } });
     if (!result.ok) throw fail(`Falha ao enviar pelo WhatsApp (HTTP ${result.status})${result.message ? `: ${result.message}` : ''}.`, 502);
@@ -749,9 +648,8 @@ export function createWhatsAppHandler({
     if (number.length < 10 || number.length > 15) return { sent: false, reason: 'invalid-phone' };
     const sender = await workspaceSender(agencyId, workspaceId, accountIsActive);
     if (sender.reason) return { sent: false, reason: sender.reason };
-    if (!sender.adapter.interactive) return { sent: false, reason: 'unsupported' };
     const kind = ['buttons', 'list', 'poll'].includes(message?.kind) ? message.kind : 'buttons';
-    const result = await sender.adapter.interactive({ ...sender, number, message: { kind, body: String(message?.body || '').slice(0, 1000),
+    const result = await adapter.interactive({ ...sender, number, message: { kind, body: String(message?.body || '').slice(0, 1000),
       options: (Array.isArray(message?.options) ? message.options : []).map(option => String(option).slice(0, 100)).slice(0, 12),
       buttonText: String(message?.buttonText || '').slice(0, 20), footer: String(message?.footer || '').slice(0, 60) } });
     if (!result.ok) throw fail(`Falha ao enviar a mensagem interativa pelo WhatsApp (HTTP ${result.status})${result.message ? `: ${result.message}` : ''}.`, 502);
@@ -764,9 +662,8 @@ export function createWhatsAppHandler({
     if (number.length < 10 || number.length > 15) return { sent: false, reason: 'invalid-phone' };
     const sender = await workspaceSender(agencyId, workspaceId, accountIsActive);
     if (sender.reason) return { sent: false, reason: sender.reason };
-    if (!sender.adapter.presence) return { sent: false, reason: 'unsupported' };
     const seconds = Math.min(25, Math.max(1, Math.round(Number(secondsRaw) || 3)));
-    const result = await sender.adapter.presence({ ...sender, number, seconds });
+    const result = await adapter.presence({ ...sender, number, seconds });
     if (!result.ok) throw fail(`Falha ao mostrar "digitando" no WhatsApp (HTTP ${result.status})${result.message ? `: ${result.message}` : ''}.`, 502);
     return { sent: true, seconds };
   }
@@ -778,18 +675,18 @@ export function createWhatsAppHandler({
     if (!text) return { sent: false, reason: 'empty-text' };
     let row = await ensureRow(agencyId);
     const creds = serverCredentials(row, agencyId);
-    let sub = subFor(row, workspaceId, creds.provider);
-    const token = instanceTokenOf(row, agencyId, workspaceId, creds.provider);
+    let sub = subFor(row, workspaceId);
+    const token = instanceTokenOf(row, agencyId, workspaceId);
     if (!creds.configured || !sub.enabled || !token) return { sent: false, reason: 'not-connected' };
     if (sub.status !== 'connected') {
       // O status salvo pode estar velho (webhook perdido durante uma queda): confere ao vivo antes de recusar.
       const live = await fetchLiveSubStatus(row, agencyId, workspaceId);
       if (live.status !== 'connected') return { sent: false, reason: 'not-connected' };
       row = await ensureRow(agencyId);
-      sub = subFor(row, workspaceId, creds.provider);
+      sub = subFor(row, workspaceId);
     }
     if (!await accountIsActive(agencyId, workspaceId)) return { sent: false, reason: 'account-suspended' };
-    const result = await adapters[creds.provider].send({ creds, token, sub, number, text });
+    const result = await adapter.send({ creds, token, sub, number, text });
     if (!result.ok) {
       throw fail(`Falha ao enviar pelo WhatsApp (HTTP ${result.status})${result.message ? `: ${result.message}` : ''}.`, 502);
     }
@@ -800,8 +697,7 @@ export function createWhatsAppHandler({
   async function listWorkspaceGroups(agencyId, workspaceId, accountIsActive) {
     const sender = await workspaceSender(agencyId, workspaceId, accountIsActive);
     if (sender.reason) return { reason: sender.reason, groups: [] };
-    if (!sender.adapter.groups) return { reason: 'unsupported', groups: [] };
-    const groups = (await sender.adapter.groups(sender)).filter(row => GROUP_JID.test(row.jid));
+    const groups = (await adapter.groups(sender)).filter(row => GROUP_JID.test(row.jid));
     return { reason: '', groups: groups.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')) };
   }
 
@@ -817,15 +713,16 @@ export function createWhatsAppHandler({
     try {
       const sender = await workspaceSender(agencyId, workspaceId, accountIsActive);
       if (sender.reason) return result('waiting', sender.reason === 'account-suspended' ? 'Conta suspensa.' : 'WhatsApp desconectado.');
-      if (group && !sender.adapter.groups) return result('failed', 'Esta conexão do WhatsApp não envia para grupos.');
-      if (part.kind === 'poll' && !sender.adapter.interactive) return result('failed', 'Esta conexão do WhatsApp não envia enquetes.');
       const res = part.kind === 'poll'
-        ? await sender.adapter.interactive({ ...sender, number, retry: false, message: { kind: 'poll', body: part.question, options: part.options } })
-        : await sender.adapter.send({ ...sender, number, text: part.text, retry: false });
+        ? await adapter.interactive({ ...sender, number, retry: false, message: { kind: 'poll', body: part.question, options: part.options } })
+        : await adapter.send({ ...sender, number, text: part.text, retry: false });
       if (res.ok) return result('sent', '', res.id);
       if (/connection closed/i.test(res.message)) return result('waiting', 'WhatsApp desconectado.');
-      // Chave trocada ou instância apagada: é a conexão, não o destinatário. Espera alguém religar.
-      if ([401, 403, 404].includes(res.status)) return result('waiting', 'A conexão do WhatsApp recusou o envio.');
+      // Pode ser a conexão (chave trocada, instância apagada) ou o destino (grupo que acabou). Só a conexão fora do ar vale esperar.
+      if ([401, 403, 404].includes(res.status)) {
+        const live = await fetchLiveSubStatus(await ensureRow(agencyId), agencyId, workspaceId);
+        if (live.reachable === false || live.status !== 'connected') return result('waiting', 'A conexão do WhatsApp recusou o envio.');
+      }
       if (res.status === 503) return result('retry', 'O servidor do WhatsApp está reiniciando.');
       return result(res.status >= 500 || [408, 429].includes(res.status) ? 'unconfirmed' : 'failed', res.message || `Resposta HTTP ${res.status}.`);
     } catch (err) {
@@ -844,8 +741,8 @@ export function createWhatsAppHandler({
     let row;
     try { row = normalizeRow(await store.load(rowId(agencyId))); }
     catch (e) { if (e.status === 404) throw fail('Assinatura do webhook inválida.', 403); throw e; }
-    const stored = row.subaccounts[workspaceId];
-    if (!stored || !safeEqual(stored.webhookSecret, secretToken)) {
+    const saved = row.subaccounts[workspaceId];
+    if (!saved || !safeEqual(saved.webhookSecret, secretToken)) {
       throw fail('Assinatura do webhook inválida.', 403);
     }
 
@@ -855,18 +752,14 @@ export function createWhatsAppHandler({
     }
 
     const body = await payload(req);
-    const creds = serverCredentials(row, agencyId);
-    const provider = detectWebhookProvider(body) || stored.provider || creds.provider;
-    const ignored = await webhookBlockReason(agencyId, workspaceId, provider);
+    const ignored = await webhookBlockReason(agencyId, workspaceId, PROVIDER);
     if (ignored) {
       return json({ ok: true, ignored: true, reason: ignored });
     }
-    const event = adapters[provider].parseWebhook(body);
+    const event = adapter.parseWebhook(body);
 
     if (event.kind === 'connection') {
-      // Evento de um provedor que a subconta não usa mais não pode mexer no status atual.
-      if (provider !== creds.provider) return json({ ok: true, ignored: true });
-      await saveLive(agencyId, workspaceId, provider, event.parsed);
+      await saveLive(agencyId, workspaceId, event.parsed);
       return json({ ok: true, event: 'connection', status: event.parsed.status });
     }
 
@@ -874,8 +767,12 @@ export function createWhatsAppHandler({
       return json({ ok: true, ignored: true });
     }
 
+    let stored = 0;
     await store.change(workspaceId, state => {
-      for (const { phone, text, senderName, ad } of event.items) {
+      stored = 0;
+      for (const { id, phone, text, senderName, ad } of event.items) {
+        // A Evolution repete o webhook quando não recebe a resposta a tempo: a mesma mensagem entra uma vez só.
+        if (id && state.messages.some(m => m.waId === id)) continue;
         let contact = state.contacts.find(c => digits(c.phone) === phone && phone.length >= 8);
         if (!contact) {
           const contactId = execute(state, {
@@ -886,16 +783,20 @@ export function createWhatsAppHandler({
           contact = state.contacts.find(c => c.id === contactId);
         }
         if (contact) {
-          execute(state, {
+          const messageId = execute(state, {
             type: 'message',
             data: { contactId: contact.id, channel: 'WhatsApp', direction: 'Inbound', body: text }
           });
+          const message = id && state.messages.find(m => m.id === messageId);
+          if (message) message.waId = id;
+          stored++;
           // A message that came from a "Click to WhatsApp" ad: its own trigger and the ad in the contact's attribution.
           if (ad) execute(state, { type: 'whatsapp-ad-click', data: { contactId: contact.id, ...ad, body: text } });
         }
       }
     });
 
+    if (!stored) return json({ ok: true, ignored: true, reason: 'DUPLICATE' });
     // Workflows the message started (Cliente respondeu, anúncio…) deliver now, not on the next tick.
     onStored?.(workspaceId);
     return json({ ok: true, stored: true, workspace: workspaceId });
@@ -914,19 +815,11 @@ export function createWhatsAppHandler({
 
     if (op === 'config' && method === 'POST') {
       const body = await payload(req);
-      const guessed = /uazapi/i.test(String(body.baseUrl || '')) ? 'uazapi' : 'evolution';
-      const provider = cleanProvider(body.provider) || guessed;
-      const baseUrl = cleanBaseUrl(body.baseUrl, provider);
+      const baseUrl = cleanBaseUrl(body.baseUrl);
       const rawToken = typeof body.adminToken === 'string' ? body.adminToken.trim() : '';
       const existing = await ensureRow(agencyId);
-      const canKeepToken = Boolean(existing.adminTokenSealed) && existing.provider === provider;
-      if (!rawToken && !canKeepToken) {
-        throw fail(provider === 'uazapi'
-          ? 'Informe o Admin Token (admintoken) da sua conta UAZAPI.'
-          : 'Informe a API Key global (AUTHENTICATION_API_KEY) da sua Evolution API.');
-      }
+      if (!rawToken && !existing.adminTokenSealed) throw fail('Informe a API Key global (AUTHENTICATION_API_KEY) da sua Evolution API.');
       const saved = await changeRow(agencyId, row => {
-        row.provider = provider;
         row.baseUrl = baseUrl;
         if (rawToken) {
           row.adminTokenSealed = sealSecret(secret, `${rowId(agencyId)}:admin`, rawToken);
@@ -935,6 +828,32 @@ export function createWhatsAppHandler({
         return row;
       });
       return json(publicAgencyView(saved, agencyId, workspaces, publicOrigin));
+    }
+
+    // Teste do servidor (depois de instalar a VPS ou de trocar a chave): nunca lança, devolve o motivo.
+    if (op === 'server' && method === 'GET') {
+      const row = await ensureRow(agencyId);
+      const creds = serverCredentials(row, agencyId);
+      if (!creds.configured) return json({ ok: false, error: 'Nenhum servidor de WhatsApp configurado.' });
+      const names = new Set(workspaces.map(ws => subFor(row, ws.id).instanceName));
+      try {
+        return json(await adapter.server({ creds, names }));
+      } catch (err) {
+        if (!err?.status) throw err;
+        return json({ ok: false, error: err.message });
+      }
+    }
+
+    if (op === 'remove-instance' && method === 'POST') {
+      const body = await payload(req);
+      const workspace = String(body.workspace || '');
+      if (!workspaces.some(w => w.id === workspace)) throw fail('Subconta inválida.', 400);
+      const row = await ensureRow(agencyId);
+      const creds = serverCredentials(row, agencyId);
+      if (!creds.configured) throw fail('O WhatsApp ainda não foi configurado pela agência.', 400);
+      await adapter.remove({ creds, sub: subFor(row, workspace) });
+      await forgetInstance(agencyId, workspace);
+      return json(publicAgencyView(await ensureRow(agencyId), agencyId, workspaces, publicOrigin));
     }
 
     if (op === 'disconnect-server' && method === 'POST') {
@@ -989,28 +908,28 @@ export function createWhatsAppHandler({
       await requireActiveAccount(agencyId, workspaceId, true, 'conversations');
       let ctx = await ensureInstance(agencyId, workspaceId, publicOrigin);
       await requireActiveAccount(agencyId, workspaceId, true, 'conversations');
-      let parsed = await ctx.adapter.connect({ ...ctx, phone });
+      let parsed = await adapter.connect({ ...ctx, phone });
       if (parsed.missing) {
         // A instância foi apagada no servidor: recria uma vez e tenta de novo.
         await forgetInstance(agencyId, workspaceId);
         ctx = await ensureInstance(agencyId, workspaceId, publicOrigin);
-        parsed = await ctx.adapter.connect({ ...ctx, phone });
+        parsed = await adapter.connect({ ...ctx, phone });
         if (parsed.missing) throw fail('A instância do WhatsApp não foi encontrada no servidor.', 502);
       }
       const nextStatus = parsed.status === 'connected' ? 'connected' : 'connecting';
-      const saved = await saveLive(agencyId, workspaceId, ctx.creds.provider, { ...parsed, status: nextStatus });
+      const saved = await saveLive(agencyId, workspaceId, { ...parsed, status: nextStatus });
       return json(publicSubView(saved, agencyId, workspaceId, publicOrigin, { ...parsed, status: nextStatus }));
     }
 
     if (op === 'disconnect' && method === 'POST') {
       const row = await ensureRow(agencyId);
       const creds = serverCredentials(row, agencyId);
-      const token = instanceTokenOf(row, agencyId, workspaceId, creds.provider);
+      const token = instanceTokenOf(row, agencyId, workspaceId);
       if (creds.configured && token) {
-        const sub = subFor(row, workspaceId, creds.provider);
-        await adapters[creds.provider].disconnect({ creds, token, sub }).catch(() => {});
+        const sub = subFor(row, workspaceId);
+        await adapter.disconnect({ creds, token, sub }).catch(() => {});
       }
-      const saved = await saveLive(agencyId, workspaceId, creds.provider, { status: 'disconnected' });
+      const saved = await saveLive(agencyId, workspaceId, { status: 'disconnected' });
       return json(publicSubView(saved, agencyId, workspaceId, publicOrigin, { status: 'disconnected', qrcode: '', paircode: '', phone: '', profileName: '' }));
     }
 
@@ -1022,13 +941,13 @@ export function createWhatsAppHandler({
       if (!text) throw fail('Escreva uma mensagem para testar o envio.');
       const row = await ensureRow(agencyId);
       const creds = serverCredentials(row, agencyId);
-      const token = instanceTokenOf(row, agencyId, workspaceId, creds.provider);
+      const token = instanceTokenOf(row, agencyId, workspaceId);
       if (!creds.configured || !token) throw fail('Conecte o WhatsApp desta subconta antes de enviar mensagens.', 409);
       await requireActiveAccount(agencyId, workspaceId, true, 'conversations');
-      const sub = subFor(row, workspaceId, creds.provider);
-      const result = await adapters[creds.provider].send({ creds, token, sub, number, text });
+      const sub = subFor(row, workspaceId);
+      const result = await adapter.send({ creds, token, sub, number, text });
       if (!result.ok) {
-        throw fail(`Falha ao enviar pela ${PROVIDER_LABEL[creds.provider]} (HTTP ${result.status})${result.message ? `: ${result.message}` : ''}.`, 502);
+        throw fail(`Falha ao enviar pela ${PROVIDER_LABEL} (HTTP ${result.status})${result.message ? `: ${result.message}` : ''}.`, 502);
       }
       return json({ ok: true, id: result.id, number });
     }

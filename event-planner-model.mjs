@@ -2,6 +2,7 @@
 // community events manage attendance and delivery; an event plan coordinates the launch work of a sub-account.
 import { randomUUID } from 'node:crypto';
 import { eventTargets, guardDeliveries, itemStatusChanged } from './event-send-model.mjs';
+import { zonedInstant } from './scheduling-model.mjs';
 
 export const eventPlanCollections = ['eventPlans'];
 export const eventPlanStatuses = ['planejado', 'em_andamento', 'concluido', 'arquivado'];
@@ -101,7 +102,7 @@ export const eventPlanFields = {
     const title = req(pick('title'), 'O nome do evento', 160);
     if (s.eventPlans.some(row => row.id !== d.id && row.title.toLocaleLowerCase('pt-BR') === title.toLocaleLowerCase('pt-BR'))) fail(`Já existe um evento chamado “${title}”.`);
     const next = plan(pick('plan') || { brief: {}, items: [] });
-    guardDeliveries(prior, next.items);
+    guardDeliveries(prior, next.items, { sendNow: str(d.sendNow, 64), instant: (date, hour) => zonedInstant(date, hour, s.profile?.timezone || 'America/Sao_Paulo') });
     return {
       title,
       eventDate: day(pick('eventDate'), 'a data do evento'),
