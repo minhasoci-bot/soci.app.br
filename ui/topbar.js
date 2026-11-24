@@ -12,6 +12,7 @@ export const themeToggle = () =>
 /**
  * @param {object} o
  * @param {{label:string, href?:string}[]} o.crumbs
+ * @param {'agency'|'account'} [o.scope]  which panel this is; shown as a pill before the crumbs
  * @param {string} [o.search]  attribute that opens search
  * @param {{icon:string,label:string,attr:string,dot?:boolean}[]} [o.tools]
  * @param {string} [o.extra]   extra markup placed before the toolbar
@@ -28,8 +29,11 @@ export function topbar(o) {
     const text = tr(t.label);
     return `<button type="button" class="tool-btn" ${t.attr} data-tip="${esc(text)}" data-tip-pos="bottom" aria-label="${esc(text)}">${i(t.icon, 17)}${t.dot ? '<span class="tool-dot" aria-hidden="true"></span>' : ''}</button>`;
   }).join('');
+  const scope = o.scope === 'agency'
+    ? `<span class="scope-pill scope-pill-agency" title="${esc(tr('Agência'))}"><span class="scope-text">${esc(tr('Agência'))}</span></span>`
+    : o.scope === 'account' ? `<span class="scope-pill" title="${esc(tr('Subconta'))}"><span class="scope-text">${esc(tr('Subconta'))}</span></span>` : '';
   return `<header class="topbar g-top">
-    <nav class="crumbs" aria-label="${esc(tr('Você está em'))}">${crumbs}</nav>
+    <nav class="crumbs" aria-label="${esc(tr('Você está em'))}">${scope}${crumbs}</nav>
     ${o.search ? `<button type="button" class="top-search" ${o.search} aria-label="${esc(tr('Buscar no workspace'))}" aria-keyshortcuts="Control+K">${i('search', 15)}<span>${esc(tr('Buscar módulos e contatos…'))}</span><kbd>Ctrl K</kbd></button>` : '<div class="spacer"></div>'}
     ${o.extra || ''}
     ${tools ? `<div class="tool-group" role="group" aria-label="${esc(tr('Ferramentas'))}">${tools}</div>` : ''}
