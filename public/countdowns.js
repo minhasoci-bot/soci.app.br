@@ -3,6 +3,8 @@
 import { icon } from './icons.js';
 import { h, pageShell } from './screens.js';
 import { DEFAULT_STYLE, TEMPLATES, countdownMarkup, describeTimer, durationMinutes, embedCode } from './countdown-data.js';
+import { ask } from './ask.js';
+import { tr } from './i18n.js';
 
 const cd = { draft: null, id: '' };
 const field = (label, control, hint = '') => `<label class="em-field"><span>${h(label)}</span>${control}${hint ? `<small class="dim">${hint}</small>` : ''}</label>`;
@@ -84,7 +86,7 @@ export function installCountdowns({ c, mutate, flash, dialog, close, render }) {
       if (el.dataset.cdAct === 'edit' && row) open(row);
       if (el.dataset.cdAct === 'delete' && row) {
         const used = (c.s.emailCampaigns || []).some(camp => ['draft', 'scheduled'].includes(camp.status) && camp.blocks?.some(b => b.type === 'countdown' && b.timerId === row.id));
-        if (!confirm(`Excluir “${row.name}”?${used ? ' Ele está em uma campanha que ainda não foi enviada.' : ''} E-mails já enviados passam a mostrar uma imagem vazia no lugar.`)) return;
+        if (!await ask(`${tr('Excluir')} “${row.name}”?`, { text: `${used ? `${tr('Ele está em uma campanha que ainda não foi enviada.')} ` : ''}${tr('E-mails já enviados passam a mostrar uma imagem vazia no lugar.')}`, ok: 'Excluir' })) return;
         await mutate({ type: 'delete', key: 'countdownTimers', id: row.id }); render(); flash('Contador excluído.');
       }
     } catch (error) { flash(error.message, true); }

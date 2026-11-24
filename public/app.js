@@ -71,6 +71,7 @@ import { installReports } from './reports.js';
 import './phone-input.js';
 import { clickWith, mountBeautifulUI } from './bui-mounts.js';
 import { diffTable, searchList } from './beautiful-ui-more.js';
+import { ask, askText } from './ask.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
@@ -895,24 +896,24 @@ document.addEventListener('click',async ev=>{
       case 'dialer-hangup': await api(url('/api/phone/dialer/hangup'),{}); flash(tr('Ligação encerrada.')); setTimeout(async()=>{ await load(); render(); },1500); break;
       case 'dialer-stop': await api(url('/api/phone/dialer/stop'),{}); await load(); render(); flash(tr('Discador encerrado.')); break;
       case 'dialer-remove': await mutate({type:'dialer-queue-remove',data:{contactId:d.dialerContact}}); render(); break;
-      case 'dialer-clear': if(!confirm(tr('Tirar todos os contatos pendentes da fila?'))) break; await mutate({type:'dialer-queue-remove',data:{all:true}}); render(); break;
+      case 'dialer-clear': if(!await ask('Tirar todos os contatos pendentes da fila?', { ok: 'Esvaziar fila' })) break; await mutate({type:'dialer-queue-remove',data:{all:true}}); render(); break;
       case 'connectors-refresh': c.connectorStatus=null; render(); await refreshConnectors(); break;
       case 'connector-copy': await navigator.clipboard.writeText(d.connectorValue).then(()=>flash(tr('URL copiada.')),()=>flash(tr('Selecione a URL e copie.'),true)); break;
       case 'connector-disconnect': {
-        if(!confirm(tr('Desconectar este app? Os fluxos que usam os gatilhos e ações dele param de funcionar.'))) break;
+        if(!await ask('Desconectar este app?', { text: 'Os fluxos que usam os gatilhos e ações dele param de funcionar.', ok: 'Desconectar' })) break;
         c.connectorStatus={...await api(url('/api/connectors/disconnect'),{id:d.connectorId}),workspace:c.workspace}; await load(); render(); flash(tr('App desconectado.'));
         break;
       }
       case 'phone-refresh': c.phoneSetup=null; render(); await refreshPhone(); break;
       case 'phone-buy': {
         const number=d.phoneNumber;
-        if(!confirm(tr('Comprar este número? A Twilio cobra a mensalidade do número na conta da plataforma.'))) break;
+        if(!await ask('Comprar este número?', { text: 'A Twilio cobra a mensalidade do número na conta da plataforma.', ok: 'Comprar', danger: false })) break;
         c.phoneSetup={...c.phoneSetup,...await api(url('/api/phone/buy'),{number,name:''}),workspace:c.workspace}; c.phoneSearch=null;
         await load(); render(); flash(tr('Número comprado. Escolha onde as ligações tocam.'));
         break;
       }
       case 'phone-release': {
-        if(!confirm(tr('Liberar este número? Ele volta para a Twilio e pode não ser recuperado.'))) break;
+        if(!await ask('Liberar este número?', { text: 'Ele volta para a Twilio e pode não ser recuperado.', ok: 'Liberar' })) break;
         c.phoneSetup={...c.phoneSetup,...await api(url('/api/phone/release'),{id:d.phoneId}),workspace:c.workspace};
         await load(); render(); flash(tr('Número liberado.'));
         break;
@@ -920,7 +921,7 @@ document.addEventListener('click',async ev=>{
       case 'phone-call': {
         let agentPhone='';
         try{ agentPhone=localStorage.getItem('soci-agent-phone')||''; }catch{}
-        agentPhone=prompt(tr('A Soci liga primeiro para o seu telefone e, quando você atender, completa a ligação com o contato. Qual é o seu telefone?'),agentPhone);
+        agentPhone=await askText('Qual é o seu telefone?',{text:'A Soci liga primeiro para o seu telefone e, quando você atender, completa a ligação com o contato.',value:agentPhone,type:'tel',ok:'Ligar agora'});
         if(!agentPhone) break;
         try{ localStorage.setItem('soci-agent-phone',agentPhone); }catch{}
         await api(url('/api/phone/call'),{contactId:c.thread,agentPhone});
@@ -937,14 +938,14 @@ document.addEventListener('click',async ev=>{
         break;
       }
       case 'email-remove': {
-        if(!confirm('Remover o domínio de envio? Os e-mails desta subconta voltam a sair do endereço da plataforma.')) break;
+        if(!await ask('Remover o domínio de envio?', { text: 'Os e-mails desta subconta voltam a sair do endereço da plataforma.', ok: 'Remover' })) break;
         c.emailDomain={...await api(url('/api/email/workspace/remove'),{}),workspace:c.workspace};
         render(); flash('Domínio de envio removido.');
         break;
       }
       case 'google-connect': window.open(url('/api/google/workspace/connect'),'soci-google','width=560,height=720'); break;
       case 'google-disconnect': {
-        if(!confirm('Desconectar o Google desta subconta? Os widgets do Google Analytics e do Perfil da Empresa param de mostrar dados.')) break;
+        if(!await ask('Desconectar o Google desta subconta?', { text: 'Os widgets do Google Analytics e do Perfil da Empresa param de mostrar dados.', ok: 'Desconectar' })) break;
         c.google={...await api(url('/api/google/workspace/disconnect'),{}),workspace:c.workspace};
         render(); flash('Google desconectado.');
         break;
@@ -958,7 +959,7 @@ document.addEventListener('click',async ev=>{
         break;
       }
       case 'abacate-disconnect': {
-        if(!confirm('Desconectar o AbacatePay deste workspace? Links já enviados continuam valendo, mas as baixas automáticas param.')) break;
+        if(!await ask('Desconectar o AbacatePay deste workspace?', { text: 'Links já enviados continuam valendo, mas as baixas automáticas param.', ok: 'Desconectar' })) break;
         c.pay=await api(url('/api/abacatepay/workspace/disconnect'),{});
         render(); flash('AbacatePay desconectado.');
         break;

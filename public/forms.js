@@ -4,6 +4,7 @@ import { icon } from './icons.js';
 import { h, pageShell, utabs } from './screens.js';
 import { designStage, mountDesignStage } from './design-workspace.js';
 import { defaultTiers, fieldCatalog, fieldKinds, fieldMarkup, formCss, formFields, inputOf, newField, scoreOf, templatesFor, validFields } from './form-fields.js';
+import { ask } from './ask.js';
 
 // The three kinds share the engine; each has its own list, analytics and submissions under Sites.
 const KINDS = {
@@ -598,11 +599,12 @@ export function installForms(environment) {
 
   // Leaving the builder with unsaved changes asks first.
   let last = location.hash;
-  addEventListener('hashchange', () => {
-    const was = last; last = location.hash;
+  addEventListener('hashchange', async () => {
+    const was = last, to = location.hash; last = to;
     if (!fb.dirty || !was.startsWith(`#sites/form/${fb.id}`) || location.hash.startsWith(`#sites/form/${fb.id}`)) return;
-    if (confirm('Descartar as alterações não salvas deste formulário?')) { fb.dirty = false; fb.rev = ''; fb.id = ''; return; }
     last = was; history.replaceState(null, '', was); dispatchEvent(new HashChangeEvent('hashchange'));
+    if (!await ask('Descartar as alterações não salvas deste formulário?', { ok: 'Descartar', cancel: 'Continuar editando' })) return;
+    fb.dirty = false; fb.rev = ''; fb.id = ''; location.hash = to;
   }, true);
   addEventListener('beforeunload', event => { if (fb.dirty && inBuilder()) event.preventDefault(); });
 }

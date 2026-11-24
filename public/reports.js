@@ -4,6 +4,7 @@ import { tr } from './i18n.js';
 import { reportWidget } from './dashboard.js';
 import { dashboardPeriods, dashboardThemes, dateFields, newWidget, widgetText, widgets } from './dashboard-data.js';
 import { newPage, reportCsv, reportPeriod, reportRange, reportTemplates } from './report-data.js';
+import { ask } from './ask.js';
 
 const uid = () => crypto.randomUUID();
 const button = (action,label,mark='',attributes='',kind='secondary') => `<button type="button" class="${kind}" data-report-act="${action}" ${attributes}>${mark ? icon(mark,16) : ''}${h(label)}</button>`;
@@ -207,7 +208,7 @@ export function installReports({ c, dialog, close, render, mutate, flash, downlo
         return;
       }
       if (action === 'share-revoke') {
-        if (!confirm('Revogar o link? Quem tiver o link perde o acesso e o envio agendado é cancelado.')) return;
+        if (!await ask('Revogar o link?', { text: 'Quem tiver o link perde o acesso e o envio agendado é cancelado.', ok: 'Revogar' })) return;
         await mutate({ type:'report-share',id,data:{ action:'revoke' } }); redraw(); shareDialog(id); flash('Link revogado.'); return;
       }
       if (action === 'schedule-remove') {

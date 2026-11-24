@@ -2,6 +2,7 @@
 // the rewards catalog, the members ranking with adjust and redeem, and the latest movements.
 import { icon } from './icons.js';
 import { badge, fmt, h, pageShell } from './screens.js';
+import { ask } from './ask.js';
 
 const kinds = [['coupon_percent', 'Cupom de % de desconto'], ['coupon_fixed', 'Cupom de valor em R$'], ['product', 'Produto grátis'], ['custom', 'Benefício personalizado']];
 const nf = n => new Intl.NumberFormat('pt-BR').format(n);
@@ -60,7 +61,7 @@ export function installLoyalty({ c, mutate, flash, dialog, close, render }) {
     try {
       if (act === 'reward-new') dialog('Nova recompensa', rewardForm(c));
       if (act === 'reward-edit') dialog('Editar recompensa', rewardForm(c, c.s.loyaltyRewards.find(r => r.id === id)));
-      if (act === 'reward-delete') { if (!confirm('Excluir esta recompensa? Os resgates já feitos continuam valendo.')) return; await mutate({ type: 'delete', key: 'loyaltyRewards', id }); close(); render(); flash('Recompensa excluída.'); }
+      if (act === 'reward-delete') { if (!await ask('Excluir esta recompensa?', { text: 'Os resgates já feitos continuam valendo.', ok: 'Excluir' })) return; await mutate({ type: 'delete', key: 'loyaltyRewards', id }); close(); render(); flash('Recompensa excluída.'); }
       if (act === 'adjust') dialog('Ajustar pontos', `<form class="settings-form" data-ly-form="adjust"><label>Contato<select name="contactId" required>${c.s.contacts.map(x => `<option value="${h(x.id)}"${x.id === id ? ' selected' : ''}>${h(x.name || x.email)}</option>`).join('')}</select></label>
         <div class="field-grid"><label>Pontos (negativo tira)<input name="points" type="number" required></label><label>Motivo<input name="reason" maxlength="160" placeholder="Ex.: Indicação"></label></div>
         <div class="tx-actions"><button type="button" class="secondary" data-act="close">Cancelar</button><button class="primary">Salvar</button></div><p class="form-status" role="alert"></p></form>`);

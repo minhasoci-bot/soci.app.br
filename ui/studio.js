@@ -3,6 +3,7 @@ import { h, utabs } from './screens.js';
 import { studioTemplates, studioThemes } from './studio-data.js';
 import { afterBuilderRender, builderView } from './studio-builder.js';
 import { designStage, mountDesignStage, resizeDesignStage } from './design-workspace.js';
+import { ask } from './ask.js';
 
 const templateName = key => studioTemplates.find(template => template[0] === key)?.[1] || 'Projeto';
 const projectLink = (id,label) => `<a href="#sites/editor/${id}" data-studio-open="${id}">${h(label)}</a>`;
@@ -500,11 +501,13 @@ export function installStudio(environment) {
       if (form.isConnected) buttons.forEach(b => { b.disabled = false; });
     }
   });
-  window.addEventListener('hashchange', event => {
+  window.addEventListener('hashchange', async event => {
     if (!dirty || !frame()) return;
-    if (confirm('Descartar as alterações não salvas desta página?')) { setDirty(false); return; }
+    const to = location.hash;
     event.stopImmediatePropagation();
     history.replaceState(null, '', event.oldURL);
+    if (!await ask('Descartar as alterações não salvas desta página?', { ok: 'Descartar', cancel: 'Continuar editando' })) return;
+    setDirty(false); location.hash = to;
   }, true);
   window.addEventListener('beforeunload', event => { if (dirty) event.preventDefault(); });
 }

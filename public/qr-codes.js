@@ -4,6 +4,8 @@ import { icon } from './icons.js';
 import { h, pageShell } from './screens.js';
 import { siteTabs } from './forms.js';
 import { qrSvg } from './qr.js';
+import { ask } from './ask.js';
+import { tr } from './i18n.js';
 
 export const qrTabs = ['qr-codes', 'qr'];
 const qv = { id: '', rev: '', draft: null, dirty: false };
@@ -110,7 +112,7 @@ export function installQr(environment) {
         img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`; return;
       }
       if ('qrDelete' in d) {
-        if (!confirm(`Excluir “${current().name}”? Códigos já impressos deixam de funcionar.`)) return;
+        if (!await ask(`${tr('Excluir')} “${current().name}”?`, { text: 'Códigos já impressos deixam de funcionar.', ok: 'Excluir' })) return;
         await mutate({ type: 'delete', key: 'qrCodes', id: qv.id }); qv.id = ''; location.hash = '#sites/qr-codes'; flash('QR Code excluído.');
       }
     } catch (error) { flash(error.message, true); }
