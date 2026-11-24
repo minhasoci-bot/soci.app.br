@@ -1,0 +1,84 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { slug, chaveDe, tipoDe, criarCliente, enviarPasta, chavesNoMdx, chavesAusentes, MIDIA_BASE } from '../docs-site/scripts/midia.mjs';
+
+const ACCOUNT = '0123456789abcdef0123456789abcdef';
+
+// Um bucket em memória que responde como a API S3 do R2 (PUT e HEAD).
+function bucketFalso() {
+  const objetos = new Map();
+  const pedidos = [];
+  const request = async (url, { method, headers, body }) => {
+    pedidos.push({ url, method, headers });
+    const chave = new URL(url).pathname;
+    if (method === 'PUT') { objetos.set(chave, { body, headers }); return new Response(null, { status: 200 }); }
+    if (method === 'HEAD') return new Response(null, { status: objetos.has(chave) ? 200 : 404 });
+    return new Response(null, { status: 405 });
+  };
+  return { objetos, pedidos, request };
+}
+
+const cliente = request => criarCliente({ accountId: ACCOUNT, accessKeyId: 'AKID', secretAccessKey: 'SECRET', bucket: 'soci-docs-midia', request });
+
+test('slug tira acento, espaço e maiúscula', () => {
+  assert.equal(slug('02 Novo Contato.PNG'), '02-novo-contato.png');
+  assert.equal(slug('Ação rápida'), 'acao-rapida');
+});
+
+test('chave leva grupo, artigo, nome em slug e hash do conteúdo', () => {
+  const chave = chaveDe({ grupo: 'crm', artigo: 'criar-pipeline', arquivo: '03 Nova etapa.webp', conteudo: Buffer.from('x') });
+  assert.match(chave, /^docs\/crm\/criar-pipeline\/03-nova-etapa\.[0-9a-f]{8}\.webp$/);
+  const hash = createHash('sha256').update('x').digest('hex').slice(0, 8);
+  assert.ok(chave.endsWith(`.${hash}.webp`));
+});
+
+test('tipoDe conhece as extensões da documentação e recusa as outras', () => {
+  assert.equal(tipoDe('webp'), 'image/webp');
+  assert.equal(tipoDe('.PNG'), 'image/png');
+  assert.equal(tipoDe('mp4'), 'video/mp4');
+  assert.equal(tipoDe('vtt'), 'text/vtt');
+  assert.throws(() => tipoDe('gif'));
+});
+
+test('enviar assina e manda o cache imutável para o bucket certo', async () => {
+  const b = bucketFalso();
+  await cliente(b.request).enviar('docs/a/b/1.abcdef12.webp', Buffer.from('img'), 'image/webp');
+  const [pedido] = b.pedidos;
+  assert.equal(pedido.method, 'PUT');
+  assert.equal(pedido.url, `https://${ACCOUNT}.r2.cloudflarestorage.com/soci-docs-midia/docs/a/b/1.abcdef12.webp`);
+  assert.equal(pedido.headers['cache-control'], 'public, max-age=31536000, immutable');
+  assert.equal(pedido.headers['content-type'], 'image/webp');
+  assert.match(pedido.headers.Authorization, /^AWS4-HMAC-SHA256 /);
+});
+
+test('enviar a mesma pasta duas vezes não duplica nada', async () => {
+  const pasta = await mkdtemp(join(tmpdir(), 'midia-'));
+  await writeFile(join(pasta, '01 Menu.webp'), 'a');
+  await writeFile(join(pasta, '02-tela.webp'), 'b');
+  const b = bucketFalso();
+  const c = cliente(b.request);
+  const primeira = await enviarPasta({ pasta, grupo: 'crm', artigo: 'contatos', cliente: c });
+  assert.equal(primeira.length, 2);
+  assert.ok(primeira.every(item => item.enviado));
+  assert.equal(primeira[0].url, `${MIDIA_BASE}/${primeira[0].chave}`);
+  const segunda = await enviarPasta({ pasta, grupo: 'crm', artigo: 'contatos', cliente: c });
+  assert.ok(segunda.every(item => !item.enviado));
+  assert.deepEqual(segunda.map(i => i.chave), primeira.map(i => i.chave));
+  assert.equal(b.objetos.size, 2);
+});
+
+test('chavesNoMdx acha src e poster de Print e Video', () => {
+  const texto = '<Print src="docs/a/b/1.abcdef12.webp" alt="x" />\n<Video src="docs/a/b/v.12345678.mp4" poster="docs/a/b/v.12345678.webp" />';
+  assert.deepEqual(chavesNoMdx(texto), ['docs/a/b/1.abcdef12.webp', 'docs/a/b/v.12345678.mp4', 'docs/a/b/v.12345678.webp']);
+});
+
+test('chavesAusentes lista o que o MDX cita e o bucket não tem', async () => {
+  const b = bucketFalso();
+  const c = cliente(b.request);
+  await c.enviar('docs/a/b/1.abcdef12.webp', Buffer.from('img'), 'image/webp');
+  assert.deepEqual(await chavesAusentes(['docs/a/b/1.abcdef12.webp', 'docs/a/b/2.00000000.webp'], c), ['docs/a/b/2.00000000.webp']);
+});
