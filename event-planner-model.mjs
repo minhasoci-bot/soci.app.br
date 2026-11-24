@@ -1,7 +1,7 @@
 // Strategic event planner records. These are intentionally separate from communityEvents:
 // community events manage attendance and delivery; an event plan coordinates the launch work of a sub-account.
 import { randomUUID } from 'node:crypto';
-import { eventTargets } from './event-send-model.mjs';
+import { eventTargets, guardDeliveries, itemStatusChanged } from './event-send-model.mjs';
 
 export const eventPlanCollections = ['eventPlans'];
 export const eventPlanStatuses = ['planejado', 'em_andamento', 'concluido', 'arquivado'];
@@ -100,11 +100,13 @@ export const eventPlanFields = {
     if (prior && d.revision !== undefined && Number(d.revision) !== (prior.revision || 0)) fail('O evento foi atualizado em outra sessão. Copie o que ainda não foi salvo e recarregue a página para ver a versão mais nova.', 409);
     const title = req(pick('title'), 'O nome do evento', 160);
     if (s.eventPlans.some(row => row.id !== d.id && row.title.toLocaleLowerCase('pt-BR') === title.toLocaleLowerCase('pt-BR'))) fail(`Já existe um evento chamado “${title}”.`);
+    const next = plan(pick('plan') || { brief: {}, items: [] });
+    guardDeliveries(prior, next.items);
     return {
       title,
       eventDate: day(pick('eventDate'), 'a data do evento'),
       status: one(pick('status') || 'planejado', eventPlanStatuses, 'o status do evento'),
-      plan: plan(pick('plan') || { brief: {}, items: [] }),
+      plan: next,
       orchestration: orchestrator(pick('orchestration')),
       revision: prior ? (prior.revision || 0) + 1 : 1
     };
@@ -128,6 +130,8 @@ const eventPayload = event => ({ eventId: event.id, title: event.title, eventDat
 export function eventPlanAfterSave(prior, event, emit) {
   emit('custom_event', { event: prior ? 'event_plan_updated' : 'event_plan_created', ...eventPayload(event), payload: eventPayload(event) });
   if (prior && prior.status !== event.status) emit('custom_event', { event: 'event_plan_status_changed', ...eventPayload(event), previousStatus: prior.status, payload: { ...eventPayload(event), previousStatus: prior.status } });
+  const before = new Map((prior?.plan?.items || []).map(item => [item.id, item.status]));
+  for (const item of event.plan.items) if (before.has(item.id) && before.get(item.id) !== item.status) itemStatusChanged(event, item, before.get(item.id), emit);
 }
 
 export function eventPlanCommand(s, command, { add, now, save, createSocial, emit, calendarInstant }) {

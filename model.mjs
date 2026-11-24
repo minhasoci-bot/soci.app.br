@@ -22,7 +22,7 @@ import { courseFields } from './course-model.mjs';
 import { communityCollections, communityFields } from './community.mjs';
 import { communityEventBeforeDelete, communityEventCollections, communityEventCommand, communityEventFields } from './community-events.mjs';
 import { eventPlanAfterSave, eventPlanCollections, eventPlanCommand, eventPlanFields } from './event-planner-model.mjs';
-import { eventSendCollections, eventSendCommand, eventSendDefaults, eventSendSettingsOf } from './event-send-model.mjs';
+import { eventSendCollections, eventSendCommand, eventSendDefaults, eventSendsAfterSave, eventSendsBeforeDelete, eventSendSettingsOf } from './event-send-model.mjs';
 import { communityCommand } from './community-config.mjs';
 import { courseActivityCommand } from './course-learning.mjs';
 import { courseOfferBeforeDelete, credentialCollections } from './course-credentials.mjs';
@@ -163,7 +163,7 @@ const digits = value => String(value || '').replace(/\D/g, '');
 const exists = (state, key, value, label, optional = false) => (!value && optional) ? '' : find(state, key, value)?.id ?? fail(`Choose a valid ${label}.`);
 function add(state, key, data) {
   const row = { id: uid(), created: now(), ...data }; state[key].push(row);
-  if (key === 'messages' && row.direction === 'Outbound' && ['Email', 'WhatsApp'].includes(row.channel) && ['human', 'workflow'].includes(row.origin)) walletCharge(state, row.channel === 'Email' ? 'email' : 'whatsapp', 1, row.created);
+  if (key === 'messages' && row.direction === 'Outbound' && ['Email', 'WhatsApp'].includes(row.channel) && ['human', 'workflow', 'event'].includes(row.origin)) walletCharge(state, row.channel === 'Email' ? 'email' : 'whatsapp', 1, row.created);
   return row;
 }
 const contactId = (s,v,optional = false) => exists(s, 'contacts', v, 'contact', optional);
@@ -642,7 +642,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'blog-view') return blogView(s, id);
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
   if (type === 'offer-access') return offerAccessCommand(s, d, { run });
-  if (typeof type === 'string' && /^event-(message|send|groups)-/.test(type)) return eventSendCommand(s, { ...command, data: d }, { emit: (event, ctx) => run(s, event, ctx), instant: (day, time) => zonedInstant(day, time, s.profile?.timezone || 'America/Sao_Paulo') });
+  if (typeof type === 'string' && /^event-(message|send|groups)-/.test(type)) return eventSendCommand(s, { ...command, data: d }, { add, zone: s.profile?.timezone || 'America/Sao_Paulo', emit: (event, ctx) => run(s, event, ctx), instant: (day, time) => zonedInstant(day, time, s.profile?.timezone || 'America/Sao_Paulo') });
   if (typeof type === 'string' && type.startsWith('event-plan-')) { const out = eventPlanCommand(s, { ...command, data:d }, { add, now, save: (key, data, itemId = '') => executeCommand(s, { type: 'save', key, id: itemId, data }, { workspace }), createSocial: data => executeCommand(s, { type: 'social-post', data }, { workspace }), emit: (event, ctx) => run(s, event, ctx), calendarInstant: (day, time) => zonedInstant(day, time, s.profile?.timezone || 'America/Sao_Paulo') }); if (out !== undefined) return out; }
   if (typeof type === 'string' && type.startsWith('community-event-')) return communityEventCommand(s, { ...command, data:d }, { add, run, now });
   if (['community-plan-invoice', 'community-welcome', 'community-newsletter', 'community-activity', 'portal-login'].includes(type)) return communityCommand(s, { ...command, data:d }, { add, run, now });
@@ -860,7 +860,10 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     invoiceAfterSave(s, key, prior, row, workspace);
     if (prior) s[key] = s[key].map(r=>r.id===id ? row : r);
     engine.recordChange(s, key, prior, row);
-    if (key === 'eventPlans') eventPlanAfterSave(prior, row, (event, ctx) => run(s, event, ctx));
+    if (key === 'eventPlans') {
+      eventSendsAfterSave(s, prior, row, { instant: (day, time) => zonedInstant(day, time, s.profile?.timezone || 'America/Sao_Paulo') });
+      eventPlanAfterSave(prior, row, (event, ctx) => run(s, event, ctx));
+    }
     if (key === 'affiliates') affiliateCampaignChanges(s, prior, row, { emit: (st, event, ctx) => engine.emit(st, event, ctx) });
     return row.id;
   }
@@ -894,6 +897,7 @@ function remove(s, key, id) {
     estimateBeforeDelete(s, key, id);
     invoiceBeforeDelete(s, key, id);
     emailBeforeDelete(s, key, id);
+    eventSendsBeforeDelete(s, key, id);
     checkoutBeforeDelete(s, key, id);
     catalogBeforeDelete(s, key, id);
     if (key==='contacts') {
