@@ -1,0 +1,64 @@
+---
+title: Pedir avaliações aos clientes
+description: Envie pedidos de avaliação por WhatsApp, e-mail ou SMS, com um link pessoal para cada contato, e acompanhe a nota da empresa.
+modulo: reputacao
+sidebar:
+  order: 1
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+import Automacao from '../../../components/Automacao.astro';
+
+Avaliações trazem clientes novos. Em **Reputação**, você pede avaliações para vários contatos de uma vez, cada um recebe um link pessoal, e a soci acompanha quem respondeu e a nota média da empresa.
+
+<Requisitos permissao="Acesso ao módulo Reputação na subconta" integracoes={['WhatsApp, e-mail ou SMS conectados, conforme o canal escolhido']} />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Reputação**. A **Visão geral** mostra a nota média, os pedidos enviados, quantos viraram avaliação e a distribuição das notas. Clique em **Pedir avaliações**.
+
+   <Print src="docs/reputacao/pedidos-de-avaliacao/01-visao-geral.e5bafda1.webp" alt="Visão geral da Reputação com a nota média, os pedidos e o botão Pedir avaliações em destaque." />
+
+2. Escolha o **Canal** (WhatsApp, e-mail ou SMS) e marque os contatos. Por padrão, quem recebeu um pedido nos últimos 7 dias fica de fora; marque **Enviar também para quem recebeu um pedido nos últimos 7 dias** para incluir. Clique em **Enviar pedidos**.
+
+   <Print src="docs/reputacao/pedidos-de-avaliacao/02-escolher-contatos.67834fa4.webp" alt="Janela Pedir avaliações com o canal WhatsApp e dois contatos marcados." />
+
+3. Na aba **Link e mensagens** ficam o **Link de avaliação**, para usar no balcão, na nota fiscal ou nas redes, um QR Code pronto e os textos da **Página de avaliação**. Ajuste o título e o texto de apoio e clique em **Salvar**.
+
+   <Print src="docs/reputacao/pedidos-de-avaliacao/03-link-e-mensagens.ba5ce92d.webp" alt="Aba Link e mensagens com o link de avaliação, o QR Code e os textos da página de avaliação." />
+
+</Steps>
+
+<Aside type="note">
+Contatos marcados como **não perturbe** ficam de fora dos pedidos. Cada contato recebe a mensagem do canal definida em **Link e mensagens**.
+</Aside>
+
+<Aside type="tip">
+Adicione o link do seu perfil no Google em **Link e mensagens**: depois de avaliar na soci, o cliente pode publicar a avaliação no Google também.
+</Aside>
+
+## Automações ligadas
+
+Peça a avaliação automaticamente depois de um atendimento, por exemplo quando o agendamento muda para concluído.
+
+<Automacao gatilhos={['Nova avaliação recebida', 'Status do agendamento']} acoes={['Pedir avaliação']} />
+
+## Perguntas frequentes
+
+**Onde vejo as avaliações que chegaram?**
+Na aba **Avaliações**. A aba **Pedidos** mostra cada pedido enviado e se virou avaliação.
+
+**Posso mostrar as avaliações no site?**
+Sim, pela aba **Widgets**.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Abrir a agenda para os clientes marcarem" href="/agendas/pagina-de-agendamento/" description="Depois do atendimento, peça a avaliação." />
+  <LinkCard title="Criar o primeiro fluxo de trabalho" href="/automacoes/primeiro-workflow/" description="Automatize o pedido de avaliação." />
+</CardGrid>
