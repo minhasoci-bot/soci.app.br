@@ -1,11 +1,11 @@
-// Modelo "Estúdio Nórdico": estúdio de mobiliário. Creme e grafite, marca enorme, grade rigorosa e muito ar.
+// Modelo "Estúdio de Mobiliário" (id nordico). Cinza-azulado e tijolo, grade rigorosa e a marca fechando o topo.
 import { document, esc, formCss, img, leadForm } from './kit.mjs';
 
 const fonts = ['Inter Tight:wght@300;400;500;600'];
 const arrow = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 const css = `${formCss}
-:root{--bg:#efebe3;--paper:#f8f6f1;--ink:#151514;--muted:#6d6a64;--faint:#a19d95;--line:rgba(21,21,20,.13);--accent:#151514;--on-accent:#efebe3;--cursor:#151514}
+:root{--bg:#dfe4e6;--paper:#f0f3f4;--ink:#1c2a33;--muted:#566570;--faint:#8e9aa2;--line:rgba(28,42,51,.15);--accent:#a8432a;--on-accent:#fff;--cursor:#a8432a}
 body{background:var(--bg);color:var(--ink);font-family:"Inter Tight",system-ui,sans-serif;font-size:16px;line-height:1.55;letter-spacing:-.01em}
 h1,h2,h3{font-weight:500;letter-spacing:-.045em;line-height:.95;margin:0}
 p{margin:0}
@@ -14,7 +14,7 @@ p{margin:0}
 .btn{display:inline-flex;align-items:center;justify-content:space-between;gap:48px;height:50px;padding:0 20px;background:var(--ink);color:var(--bg);text-decoration:none;font-weight:500;font-size:15px;min-width:220px;transition:gap .5s cubic-bezier(.16,1,.3,1)}
 .btn:hover{gap:64px}.btn.line{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
 /* cabeçalho */
-.bar{position:sticky;top:0;z-index:50;background:rgba(239,235,227,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.bar{position:sticky;top:0;z-index:50;background:rgba(223,228,230,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
 .bar .wrap{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:64px;gap:20px}
 .brand{font-weight:600;letter-spacing:.04em;text-decoration:none;font-size:15px}
 .links{display:flex;gap:28px;font-size:14px}.links a{text-decoration:none;color:var(--muted);transition:color .2s}.links a:hover{color:var(--ink)}
@@ -22,9 +22,9 @@ p{margin:0}
 .nav-t{position:absolute;opacity:0;pointer-events:none}.burger{display:none}
 /* topo */
 .hero{padding-top:18px;border-bottom:1px solid var(--line)}
-.hero .word{font-size:clamp(96px,24.6vw,440px);font-weight:500;letter-spacing:-.075em;line-height:.76;margin:0 0 0 -.04em;white-space:nowrap}
+.hero .word{font-size:clamp(96px,24.6vw,440px);font-weight:500;letter-spacing:-.075em;line-height:.76;margin:36px 0 0 -.04em;color:var(--accent);white-space:nowrap}
 .stage{display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:20px;align-items:end;margin-top:28px}
-.stage .ph{overflow:hidden;background:#e2ddd3}.stage img{width:100%;height:100%;object-fit:cover}
+.stage .ph{overflow:hidden;background:#cfd6d9}.stage img{width:100%;height:100%;object-fit:cover}
 .stage .a{aspect-ratio:3/4}.stage .b{aspect-ratio:4/4.4}
 .stage .side{display:grid;gap:22px;padding-bottom:6px}
 .stage .side p{font-size:clamp(22px,2vw,30px);letter-spacing:-.035em;line-height:1.12}
@@ -48,24 +48,24 @@ p{margin:0}
 .step{position:sticky;top:90px;display:grid;grid-template-columns:1fr 1fr;min-height:68svh;background:var(--paper);border:1px solid var(--line)}
 .step:nth-child(2){top:106px}.step:nth-child(3){top:122px}.step:nth-child(4){top:138px}
 .step .tx{padding:clamp(24px,3.6vw,52px);display:flex;flex-direction:column;justify-content:space-between;gap:30px}
-.step .n{font-size:clamp(90px,10vw,160px);font-weight:300;letter-spacing:-.07em;line-height:.8;color:#cfc8bb}
+.step .n{font-size:clamp(90px,10vw,160px);font-weight:300;letter-spacing:-.07em;line-height:.8;color:#b3bec4}
 .step h3{font-size:clamp(34px,3.6vw,56px);margin-bottom:14px}.step p{color:var(--muted);max-width:420px;font-size:17px}
 .step .ph{overflow:hidden}.step img{width:100%;height:100%;object-fit:cover}
 /* materiais */
 .materials{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-.mat .ph{aspect-ratio:4/5;overflow:hidden;margin-bottom:20px;background:#e2ddd3}.mat img{width:100%;height:100%;object-fit:cover}
+.mat .ph{aspect-ratio:4/5;overflow:hidden;margin-bottom:20px;background:#cfd6d9}.mat img{width:100%;height:100%;object-fit:cover}
 .mat h3{font-size:34px;margin-bottom:10px}.mat p{color:var(--muted);max-width:340px}
 /* peças */
 .products{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-block:1px solid var(--line)}
 .prod{background:var(--bg);padding:20px;text-decoration:none;display:grid;gap:16px;transition:background .4s}
 .prod:hover{background:var(--paper)}
-.prod .ph{aspect-ratio:3/4;overflow:hidden;background:#e2ddd3}.prod img{width:100%;height:100%;object-fit:cover}
+.prod .ph{aspect-ratio:3/4;overflow:hidden;background:#cfd6d9}.prod img{width:100%;height:100%;object-fit:cover}
 .prod .row{display:flex;justify-content:space-between;font-size:16px;font-weight:500}.prod small{color:var(--muted)}
 /* chamada */
 .studio{display:grid;grid-template-columns:1.2fr 1fr;gap:20px;align-items:stretch}
 .studio .ph{overflow:hidden;min-height:560px;position:relative}.studio .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .studio .tx{background:var(--ink);color:var(--bg);padding:clamp(28px,4vw,64px);display:flex;flex-direction:column;justify-content:space-between;gap:40px}
-.studio h2{font-size:clamp(44px,5vw,84px)}.studio p{color:rgba(239,235,227,.7);max-width:380px}
+.studio h2{font-size:clamp(44px,5vw,84px)}.studio p{color:rgba(223,228,230,.7);max-width:380px}
 .studio .btn{background:var(--bg);color:var(--ink);align-self:start}
 /* contato */
 .contact{display:grid;grid-template-columns:1fr 1fr;gap:clamp(30px,6vw,100px)}
@@ -97,18 +97,19 @@ const footer = brand => `<footer class="foot"><div class="wrap"><div class="row"
 function home(brand) {
   return document({ title: `${brand} · Estúdio de mobiliário`, description: 'Móveis desenhados e produzidos em pequena escala, com madeira certificada e acabamento à mão.', fonts, css, cursor: true, body: `${header(brand)}
 <main>
-<section class="hero"><div class="wrap"><h1 class="word" data-fit><span class="ln"><span>${esc(brand)}</span></span></h1>
+<section class="hero"><div class="wrap">
 <div class="stage"><div class="ph a clip"><img class="par" src="${img('photo-1622880355742-af182a61b362', 900)}" alt="Cadeira de madeira junto a uma persiana"></div>
 <div class="ph b clip"><img class="par" src="${img('photo-1699588772787-1eed3b726e0a', 1500)}" alt="Cadeira de compensado em fundo claro"></div>
 <div class="side ld" style="--d:.4s"><span class="label">Estúdio de mobiliário</span><p>Peças que duram gerações, desenhadas para o uso de todo dia.</p><a class="btn" data-magnetic href="#colecao">Ver coleção ${arrow}</a></div></div>
+<h1 class="word" data-fit><span class="ln"><span>${esc(brand)}</span></span></h1>
 <div class="meta ld" style="--d:.55s"><span>Madeira certificada FSC</span><span>Produção em pequena escala</span><span>Entrega em todo o Brasil</span><span>Garantia de 10 anos</span></div></div></section>
 
 <section class="sec" id="colecao"><div class="wrap"><div class="head"><h2 data-split>Coleção</h2><span class="label">Passe o mouse para ver</span></div>
 <div class="cats">${[['Cadeiras', 'photo-1650476524564-f94dc9669067', '12 modelos'], ['Mesas', 'photo-1597072689227-8882273e8f6a', '8 modelos'], ['Poltronas', 'photo-1785535573662-417e82193598', '6 modelos'], ['Aparadores', 'photo-1696774276977-131fc18de2a0', '5 modelos'], ['Objetos', 'photo-1631125915361-b749fdeea230', '14 modelos']]
   .map(([n, p, c], i) => `<a class="cat" href="page:contato" data-cursor="Ver"><span class="label">0${i + 1}</span><h3>${n}</h3><small>${c}</small><i>${arrow}</i><img class="thumb" src="${img(p, 500)}" alt="" loading="lazy"></a>`).join('')}</div></div></section>
 
-<section id="processo" style="padding-bottom:clamp(110px,12vw,180px)"><div class="wrap"><div class="intro"><span class="label">Processo</span><h2 data-split>Do desenho à sua casa, cada peça passa por quatro etapas, todas feitas aqui.</h2></div>
-<div class="steps">${[['Desenho', 'Cada peça começa no papel e passa por protótipos em escala real até ficar confortável e bonita.', 'photo-1597960194599-22929afc25b1'], ['Madeira', 'Carvalho, freijó e nogueira de manejo certificado, secos naturalmente por meses.', 'photo-1590880795696-20c7dfadacde'], ['Montagem', 'Encaixes tradicionais, sem parafusos aparentes, feitos por marceneiros com décadas de ofício.', 'photo-1547609434-b732edfee020'], ['Acabamento', 'Óleos naturais aplicados à mão em várias demãos, para a madeira envelhecer bem.', 'photo-1497219055242-93359eeed651']]
+<section id="processo" style="padding-bottom:clamp(110px,12vw,180px)"><div class="wrap"><div class="intro"><span class="label">Processo</span><h2 data-split>Quatro pessoas assinam embaixo do assento.</h2></div>
+<div class="steps">${[['Quem risca', 'Lívia senta em cada protótipo por uma tarde inteira. Se levantar antes, o risco volta para a mesa.', 'photo-1597960194599-22929afc25b1'], ['Quem escolhe', 'Seu Amaro bate na tábua e ouve. Três em cada dez não passam do portão.', 'photo-1590880795696-20c7dfadacde'], ['Quem encaixa', 'Dora monta sem parafuso aparente e desmonta uma vez, só para ter certeza.', 'photo-1547609434-b732edfee020'], ['Quem lixa', 'Beto passa a mão de olhos fechados. O óleo só entra quando ele não sente mais nada.', 'photo-1497219055242-93359eeed651']]
   .map(([t, d, p], i) => `<article class="step"><div class="tx"><span class="n">0${i + 1}</span><div><h3>${t}</h3><p>${d}</p></div></div><div class="ph"><img src="${img(p, 1100)}" alt="${t}" loading="lazy"></div></article>`).join('')}</div></div></section>
 
 <section id="materiais" style="padding-bottom:clamp(110px,12vw,180px)"><div class="wrap"><div class="head"><h2 data-split>Materiais</h2><span class="label">Escolhidos para durar</span></div>
@@ -119,7 +120,7 @@ function home(brand) {
 <div class="products">${products.map(([n, price, p]) => `<a class="prod" href="page:contato" data-cursor="Encomendar"><div class="ph ph-zoom"><img src="${img(p, 800)}" alt="${n}" loading="lazy"></div><div class="row"><span>${n}</span><span>${price}</span></div><small>Sob encomenda · 30 dias</small></a>`).join('')}</div></div></section>
 
 <section style="padding-bottom:clamp(110px,12vw,180px)"><div class="wrap studio"><div class="ph clip"><img class="par" src="${img('photo-1597960194599-22929afc25b1', 1500)}" alt="Oficina de marcenaria com bancadas e luz natural" loading="lazy"></div>
-<div class="tx"><span class="label" style="color:rgba(239,235,227,.6)">Showroom</span><div><h2 data-split>Sente, toque e escolha a madeira.</h2><p style="margin-top:20px">Visite o showroom com hora marcada e conheça as peças, os tecidos e os acabamentos de perto.</p></div><a class="btn" data-magnetic href="page:contato">Agendar visita ${arrow}</a></div></div></section>
+<div class="tx"><span class="label" style="color:rgba(223,228,230,.6)">Showroom</span><div><h2 data-split>Sente, toque e escolha a madeira.</h2><p style="margin-top:20px">Visite o showroom com hora marcada e conheça as peças, os tecidos e os acabamentos de perto.</p></div><a class="btn" data-magnetic href="page:contato">Agendar visita ${arrow}</a></div></div></section>
 </main>
 ${footer(brand)}` });
 }
