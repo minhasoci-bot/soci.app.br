@@ -21,7 +21,7 @@
 .cm-head p{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--g-dim,#667085)}
 .cm-tabs{display:flex;flex-shrink:0;gap:20px;border-bottom:1px solid var(--g-line,#e4e7ec);margin-bottom:16px;overflow-x:auto}
 .cm-tabs button{padding:8px 0 10px;border:0;border-bottom:2px solid transparent;background:none;font-weight:650;font-size:13px;color:var(--g-dim,#667085);white-space:nowrap}
-.cm-tabs button[aria-current]{border-color:var(--g-brand,#ff00bb);color:var(--g-brand-text,#a00070)}
+.cm-tabs button[aria-current]{border-color:var(--g-brand,#d62976);color:var(--g-brand-text,#a00070)}
 .cm-loading{padding:40px;text-align:center;color:var(--g-dim,#667085)}
 .cm-panel{display:grid;gap:12px;padding:18px;border:1px solid var(--g-line,#e4e7ec);border-radius:12px;background:var(--g-surface,#fff);min-width:0}
 .cp-admin .cm-panel h2{font-size:16px}

@@ -88,14 +88,14 @@ dialog.ag-wide{width:min(760px,calc(100vw - 24px))}
 .ag-color-picker{position:relative;display:grid;align-content:start;gap:5px;min-width:0}
 .ag-color-fields{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:stretch}
 .ag-color-picker .ag-color-trigger{min-height:36px;padding:5px 9px;display:flex;align-items:center;gap:9px}
-.ag-color-swatch{width:25px;height:20px;border:1px solid var(--line);border-radius:5px;background:var(--picker-color,#ff00bb)}
+.ag-color-swatch{width:25px;height:20px;border:1px solid var(--line);border-radius:5px;background:var(--picker-color,#d62976)}
 .ag-color-chevron{width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg) translateY(-2px)}
 .ag-color-trigger[aria-expanded=true] .ag-color-chevron{transform:rotate(225deg) translateY(-2px)}
 .ag-color-fields input{font-variant-numeric:tabular-nums;letter-spacing:.04em}
 .ag-color-panel{position:absolute;top:calc(100% + 6px);left:0;z-index:30;display:grid;gap:11px;width:min(280px,calc(100vw - 40px));min-width:0;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--g-surface,var(--panel));box-shadow:0 12px 32px rgba(15,19,26,.16)}
 .ag-color-panel[hidden],.ag-color-dropper[hidden]{display:none}
 .ag-color-plane{position:relative;aspect-ratio:1.65;border-radius:6px;overflow:hidden;touch-action:none;cursor:crosshair;
-  background:linear-gradient(0deg,#000,transparent),linear-gradient(90deg,#fff,transparent),var(--picker-hue,#ff00bb)}
+  background:linear-gradient(0deg,#000,transparent),linear-gradient(90deg,#fff,transparent),var(--picker-hue,#d62976)}
 .ag-color-knob{position:absolute;left:clamp(7px,var(--picker-x),calc(100% - 7px));top:clamp(7px,var(--picker-y),calc(100% - 7px));transform:translate(-50%,-50%);width:14px;height:14px;border:2px solid #fff;box-shadow:0 0 0 1px #0009;border-radius:50%;background:var(--picker-color);pointer-events:none}
 .ag-color-controls{display:flex;align-items:center;gap:9px}
 .ag-color-controls input[type=range]{appearance:none;width:100%;height:12px;padding:0;border:0;border-radius:20px;cursor:pointer;
@@ -236,7 +236,7 @@ label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:no
 .ag-tpl-name{text-align:center;font-size:13.5px;font-weight:500}
 .ag-art{width:100%;height:auto;display:block}
 /* Ilustrações dos setups: pink e laranja seguem as duas cores da conta (Cor principal 1 e 2). */
-.ag-ilu{aspect-ratio:4/3;--ilu-primaria:var(--g-brand,#ff00bb);--ilu-secundaria:var(--g-brand-2,#fc972d);--ilu-contorno:#000;--ilu-fundo:#fff}
+.ag-ilu{aspect-ratio:4/3;--ilu-primaria:var(--g-brand,#d62976);--ilu-secundaria:var(--g-brand-2,#962fbf);--ilu-contorno:#000;--ilu-fundo:#fff}
 .ag-ilu:not([data-ilu-ok]){border-radius:8px;background:color-mix(in srgb,var(--line,#e4e7ec) 45%,transparent)}
 .ag-ilu svg{width:100%;height:100%;display:block}
 .ag-tpl-row{display:flex;align-items:center;gap:10px}.ag-tpl-row .ag-art{width:72px;flex:none}

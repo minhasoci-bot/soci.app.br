@@ -21,8 +21,8 @@ import {
 export const AGENCY_ID = 'agency';
 const platformLanguage = 'Português (Brasil)';
 const platformBrand = 'soci';
-const defaultPrimary = '#ff00bb';
-const defaultSecondary = '#fc972d';
+const defaultPrimary = '#d62976';
+const defaultSecondary = '#962fbf';
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value).slice(0, limit) : '';
 const req = (value, label, limit) => str(value, limit) || fail(`${label} is required.`);

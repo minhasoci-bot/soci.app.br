@@ -316,7 +316,7 @@ function appTopbar(){
   const active=nav.find(x=>x[0]===c.view), page=c.view==='link'?c.agency?.menuLinks.find(l=>l.id===c.tab)?.title||'Link':tr(active?.[1]);
   const profileLabel = session?.name || tr('Perfil do workspace');
   const profileText = session?.name?.slice(0, 2).toUpperCase() || 'gr';
-  return topbar({scope:'account',crumbs:[{label:c.s.profile.name,href:'#launchpad'},{label:page}],search:'data-act="search"',
+  return topbar({crumbs:[{label:c.s.profile.name,href:'#launchpad'},{label:page}],search:'data-act="search"',
     tools:[{icon:'bell',label:tr('Notificações'),attr:'data-act="notifications"'}],
     profile:{text:profileText,picture:session?.picture||'',label:profileLabel,attr:session?'data-act="account"':'data-go="settings"'}});
 }
@@ -513,10 +513,11 @@ function edit(key,id,preset={}){
 }
 
 function workspaces(){
-  const agency = c.access?.agency ? '<button class="choice" data-act="agency-view"><strong>Visão da agência</strong></button>' : '';
-  const choices = c.workspaces.map(w => `<button class="choice" data-workspace="${w.id}"><strong>${h(w.name)}</strong>${w.id === c.workspace ? '<span>Workspace atual</span>' : ''}</button>`).join('');
+  const ini = s => String(s || '').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('') || '·';
+  const agency = c.access?.agency ? `<p class="ws-label">${tr('Agência')}</p><button class="choice ws-choice ws-agency" data-act="agency-view"><span class="ws-tile" aria-hidden="true">${i('users',18)}</span><span class="ws-text"><strong>${tr('Visão da agência')}</strong><span>${tr('Painel da agência com todas as subcontas')}</span></span>${i('right',16)}</button>` : '';
+  const choices = c.workspaces.map(w => { const here = w.id === c.workspace; return `<button class="choice ws-choice${here ? ' ws-here' : ''}" data-workspace="${w.id}"${here ? ' aria-current="true"' : ''}><span class="ws-tile" aria-hidden="true">${h(ini(w.name))}</span><span class="ws-text"><strong>${h(w.name)}</strong><span>${tr('Subconta')}</span></span>${here ? `<span class="ws-current">${i('check',13)} ${tr('Atual')}</span>` : ''}</button>`; }).join('');
   const create = c.access?.agency ? `<button class="secondary" data-act="new-workspace">${i('plus',16)} Novo workspace</button>` : '';
-  dialog('Trocar de workspace', `${agency}${choices}${create}`);
+  dialog('Trocar de workspace', `<div class="ws-switch">${agency}${choices ? `<p class="ws-label">${tr('Subcontas')}</p>${choices}` : ''}${create}</div>`);
 }
 function switchingCover(name){
   const cover=document.createElement('div');

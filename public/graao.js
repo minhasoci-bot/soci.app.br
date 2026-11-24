@@ -1310,8 +1310,11 @@ function applyTheme(theme) {
   window.dispatchEvent(new CustomEvent('soci:theme-change'));
 }
 
-const DEFAULT_BRAND_PRIMARY = '#ff00bb';
-const DEFAULT_BRAND_SECONDARY = '#fc972d';
+// Official soci pair: pink + blue. The previous official pair (flame pink + orange) was saved as the
+// default by older agencies, so it still counts as "not customised" and follows the official palette.
+const DEFAULT_BRAND_PRIMARY = '#d62976';
+const DEFAULT_BRAND_SECONDARY = '#962fbf';
+const LEGACY_DEFAULT_PAIRS = new Set(['#ff00bb|#fc972d']);
 
 function relativeLuminance(hex) {
   const [red, green, blue] = hex.slice(1).match(/../g).map(part => {
@@ -1325,7 +1328,8 @@ export function applyBrandColor(primaryValue, secondaryValue) {
   const root = document.documentElement;
   const primary = /^#[0-9a-f]{6}$/i.test(primaryValue) ? primaryValue.toLowerCase() : DEFAULT_BRAND_PRIMARY;
   const secondary = /^#[0-9a-f]{6}$/i.test(secondaryValue) ? secondaryValue.toLowerCase() : DEFAULT_BRAND_SECONDARY;
-  const custom = primary !== DEFAULT_BRAND_PRIMARY || secondary !== DEFAULT_BRAND_SECONDARY;
+  const custom = (primary !== DEFAULT_BRAND_PRIMARY || secondary !== DEFAULT_BRAND_SECONDARY)
+    && !LEGACY_DEFAULT_PAIRS.has(`${primary}|${secondary}`);
   root.toggleAttribute('data-custom-brand', custom);
   if (!custom) {
     for (const prop of [

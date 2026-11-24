@@ -6093,5 +6093,9 @@ export default {
   "Tem certeza de que deseja excluir permanentemente esta apresentação?": "¿Seguro que deseas eliminar permanentemente esta presentación?",
   "Sim, excluir": "Sí, eliminar",
   "Apresentação excluída.": "Presentación eliminada.",
-  "Não foi possível concluir a ação.": "No se pudo completar la acción."
+  "Não foi possível concluir a ação.": "No se pudo completar la acción.",
+  "Painel da agência com todas as subcontas": "Panel de la agencia con todas las subcuentas",
+  "Você está no painel da agência": "Estás en el panel de la agencia",
+  "Atual": "Actual",
+  "Workspace pessoal": "Workspace personal"
 };
