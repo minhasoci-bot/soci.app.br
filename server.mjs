@@ -8,6 +8,7 @@ import { createMetaRoutes } from './routes/meta.mjs';
 import { createGbpRoutes, createGoogleRoutes } from './routes/google.mjs';
 import { createAgentRoutes } from './routes/agents.mjs';
 import { createStudioRoutes } from './routes/studio.mjs';
+import { createStoreApiRoutes, createStorePageRoutes } from './routes/stores.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -115,7 +116,7 @@ import { emailDomains, workspaceSender } from './email-domain.mjs';
 import { tokenHash as documentTokenHash } from './document-model.mjs';
 import { estimateTokenHash } from './estimate-model.mjs';
 import { invoiceTokenHash } from './invoice-model.mjs';
-import { cartTokenHash, abandonedOf } from './checkout-model.mjs';
+import { abandonedOf } from './checkout-model.mjs';
 import { reportsDue } from './report-model.mjs';
 import { brandGroupData } from './ui/brand-group-data.js';
 import { brandGroupPage } from './brand-group-page.mjs';
@@ -147,8 +148,6 @@ import { chatHistory } from './chat-model.mjs';
 import { chatPage, demoPage, loaderScript } from './ui/chat-widget-data.js';
 import { blogHome, blogPost, blogRss, isLive } from './ui/blog-data.js';
 import { localDraft, postSeo, writePost } from './blog-ai.mjs';
-import { catalog, methodLabel, storeCart, storeHome, storeProduct } from './ui/store-data.js';
-import { quoteOrder } from './store-model.mjs';
 import { renderOfferPage, offerPageCsp } from './offer-page.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
 import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
@@ -2126,6 +2125,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const gbpRoute = createGbpRoutes({ store, error, spaceId, change, flushLater, gbpAccess, gbpStatus, payload, recordAudit, workspaceAccess });
   const agentRoute = createAgentRoutes({ store, localAccess, error, spaceId, privateSpace, agentModel, designAgentConfig, generateAgentReply, listWorkspaces, openAI, payload, recordAudit, workspaceAccess });
   const studioRoute = createStudioRoutes({ store, error, change, openAI, payload, siteDoc, studioGuard, studioRequest, syncMeta });
+  const storePageRoute = createStorePageRoutes({ store, ready, error, publicAccountPolicy, publicPreview, storePath, withPixels });
+  const storeApiRoute = createStoreApiRoutes({ store, ready, error, abacate, allowSign, allowTracking, change, flushLater, payload, publicAccountPolicy, publicBase, storeApi });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const server=createServer(async (req,res) => {
@@ -3092,26 +3093,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         res.writeHead(302, { Location:target, 'Cache-Control':'no-store' });
         return res.end();
       }
-      // Stores: catalog, product page and cart. Totals always come from quoteOrder on the server.
-      const storeRoute = p.match(storePath);
-      if (storeRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, storeId, cart, slug] = storeRoute;
-        await publicAccountPolicy(workspace, false, 'sites');
-        const state = await store.load(workspace);
-        const shop = state.stores?.find(item => item.id === storeId);
-        const preview = await publicPreview(req, res, url, workspace);
-        if (!shop || (!shop.active && !preview)) throw error('Esta loja não está aberta.',404);
-        const base = `/loja/${workspace}/${storeId}`;
-        let body;
-        if (cart) body = storeCart(state, shop, { base, workspace });
-        else if (slug) { const item = catalog(state, shop).find(row => row.slug === slug); if (!item) throw error('Produto não encontrado.',404); body = storeProduct(state, shop, item, { base }); }
-        else body = storeHome(state, shop, { base, category:String(url.searchParams.get('categoria') || '').slice(0,40), collection:String(url.searchParams.get('colecao') || '').slice(0,80) });
-        const [storeHeaders, storeBody] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, body);
-        res.writeHead(200, storeHeaders);
-        return res.end(method === 'HEAD' ? undefined : storeBody);
-      }
+      const storePageHandled = await storePageRoute({ req, res, p, method, url });
+      if (storePageHandled !== NEXT_ROUTE) return storePageHandled;
       // Affiliates: the referral link, the program sign-up and the affiliate's private dashboard.
       const referral = p.match(affiliateLink);
       if (referral && (method === 'GET' || method === 'HEAD')) {
@@ -3389,54 +3372,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const payment = await abacate.chargeInvoice(agencyId, workspace, result.id, origin, { returnUrl:`${page}?status=voltou`, completionUrl:`${page}?status=pago` });
         return json({ payUrl:payment.url });
       }
-      const storeCall = p.match(storeApi);
-      if (storeCall) {
-        await ready;
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const [, workspace, storeId, op] = storeCall;
-        const input = await payload(req);
-        await publicAccountPolicy(workspace, true, 'sites');
-        await publicAccountPolicy(workspace, true, 'payments');
-        if (op === 'cart') {
-          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-          if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
-          return json((await change(workspace,{ type:'store-cart', id:storeId, data:{ session:input.session, name:input.name, email:input.email, phone:input.phone, items:input.items, coupon:input.coupon, delivery:input.delivery } })).id);
-        }
-        if (op === 'view') {
-          // "Produto visualizado": the contact comes from the cart session on the server, never from the page.
-          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-          if (!allowTracking(ip)) throw error('Muitas visualizações a partir desta conexão. Aguarde alguns minutos.',429);
-          const viewed = await change(workspace,{ type:'store-view', id:storeId, data:{ session:input.session, productId:input.productId } });
-          if (viewed.state.workflowOutbox?.length) flushLater(workspace);
-          return json({ tracked: Boolean(viewed.id?.tracked) });
-        }
-        if (op === 'review') {
-          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-          if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
-          return json((await change(workspace,{ type:'store-review', id:storeId, data:{ productId:input.productId, name:input.name, email:input.email, rating:input.rating, title:input.title, body:input.body, website:input.website } })).id,201);
-        }
-        if (op === 'restore') {
-          const digest = cartTokenHash(input.token);
-          if (!digest) throw error('Este link de recuperação não é válido.',404);
-          return json((await change(workspace,{ type:'store-cart-restore', id:storeId, data:{ tokenHash:digest } })).id);
-        }
-        if (op === 'quote') {
-          const state = await store.load(workspace);
-          const shop = state.stores?.find(item => item.id === storeId && item.active);
-          if (!shop) throw error('Esta loja não está aberta.',404);
-          const { coupon_, giftCard_, ...quote } = quoteOrder(state, shop, input);
-          return json(quote);
-        }
-        const result = await change(workspace,{ type:'store-checkout', id:storeId, data:input });
-        const order = result.state.orders.find(item => item.id === result.id), shop = result.state.stores.find(item => item.id === storeId);
-        let payUrl = '';
-        if (shop.payment.method === 'AbacatePay') {
-          const origin = publicBase(req), back = `${origin}/loja/${workspace}/${storeId}`;
-          payUrl = await abacate.chargeInvoice(result.state.agencyId || AGENCY_ID, workspace, order.invoiceId, origin, { returnUrl: back, completionUrl: back })
-            .then(payment => payment.url).catch(() => '');
-        }
-        return json({ number:order.number, total:order.total, method:methodLabel[shop.payment.method] || shop.payment.method, instructions:shop.payment.instructions, thanks:shop.thanks, payUrl },201);
-      }
+      const storeApiHandled = await storeApiRoute({ req, p, method, json });
+      if (storeApiHandled !== NEXT_ROUTE) return storeApiHandled;
       // Blogs: home with categories and pages, posts with SEO tags, and RSS. Drafts open with ?preview=1 when signed in.
       // Brand group reports shared by link: the token finds the agency, so no agency id is exposed.
       const brandGroupShare = p.match(brandGroupRoute);
