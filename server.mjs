@@ -2643,8 +2643,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (p.startsWith('/api/whatsapp/workspace/')) {
         if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
-        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
-        if (method === 'POST' && p.replace(/\/+$/, '') === '/api/whatsapp/workspace/test') requireModule(who, 'conversations');
+        const op = p.replace(/\/+$/, '').slice('/api/whatsapp/workspace/'.length);
+        // Os grupos são de quem planeja eventos; o resto da conexão, de quem cuida das configurações.
+        const who = await workspaceAccess(req, res, id, { modules: method === 'GET' && op === 'groups' ? ['marketing', 'conversations'] : ['settings'] });
+        if (method === 'POST' && op === 'test') requireModule(who, 'conversations');
         return await whatsapp.handleWorkspaceApi({
           req, url, method, agencyId: who.agencyId, workspaceId: id, payload, publicOrigin: publicBase(req), requireActiveAccount, json
         });
