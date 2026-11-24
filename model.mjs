@@ -1027,6 +1027,9 @@ function other(s, command, type, key, id, d, workspace) {
     if (!formOpen(form)) fail(form.schedule?.closedMessage || 'Este formulário não está recebendo respostas agora.',403);
     const read = readAnswers(form, d, s.customFields || []);
     if (!read.ok) fail(Object.entries(read.errors).map(([key, text]) => key === '_form' ? text : `${form.fields?.find(f => f.key === key)?.label || key}: ${text}`)[0]);
+    // O campo livre dos sites publicados (mensagem, assunto, interesse) não faz parte do formulário da subconta.
+    const message = str(d._message,2000);
+    if (message) read.answers.push({ key:'message', label:'Mensagem', value:message });
     const info = read.contact, addTags = tags([...(form.addTags || []), ...(read.result?.tierDetail?.tag ? [read.result.tierDetail.tag] : [])]);
     let c = (info.email && s.contacts.find(r=>r.email===info.email)) || (info.phone && s.contacts.find(r=>digits(r.phone) && digits(r.phone)===digits(info.phone)));
     if (!c) {

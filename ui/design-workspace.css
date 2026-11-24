@@ -140,7 +140,10 @@
 .sx-insert summary::-webkit-details-marker { display: none; }
 .sx-insert summary:hover, .sx-insert[open] summary { background: var(--dw-selected); color: var(--dw-accent); }
 .sx-insert > div { position: absolute; inset: auto auto calc(100% + 10px) 0; display: grid; min-width: 110px; padding: 4px; border: 1px solid var(--g-line); border-radius: 7px; background: var(--g-surface); box-shadow: 0 4px 14px #0002; }
-.sx-insert > div > button { justify-content: flex-start; padding-inline: 9px; }
+.sx-insert > div { grid-template-columns: auto auto; gap: 4px 10px; max-height: min(60vh, 420px); overflow: auto; }
+.sx-insert section { display: grid; align-content: start; min-width: 118px; }
+.sx-insert h3 { margin: 4px 9px; color: var(--g-dim); font-size: 11px; font-weight: 600; }
+.sx-insert > div button { width: 100%; justify-content: flex-start; padding-inline: 9px; white-space: nowrap; }
 .sx.dw-workspace .sx-tabs { flex: none; border-color: var(--g-line); }
 .sx.dw-workspace .sx-tabs button { padding: 7px 3px; color: var(--g-dim); font-size: 11.5px; }
 .sx.dw-workspace .sx-tabs [aria-selected=true] { color: var(--dw-accent); background: var(--dw-selected); }
@@ -157,6 +160,12 @@
 .sx-inspector .secondary { justify-self: start; min-height: 29px; padding: 4px 8px; font-size: 12px; }
 .sx.dw-workspace .sx-inspector .sx-remove { color: var(--g-danger, #b42318); }
 .sx-inspector summary { cursor: pointer; color: var(--g-dim); }
+.sx-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.sx-inspector label.sx-field { flex-direction: column; align-items: stretch; }
+.sx.dw-workspace .sx-inspector .sx-field input { flex: none; width: 100%; }
+.sx-field-note { margin: -4px 0 0; }
+.sx-field-note:empty { display: none; }
+.sx-field-note.error { color: var(--g-danger, #b42318); }
 .sx-inspector details > div { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 8px; }
 
 .fb.dw-workspace .fb-sections { justify-content: flex-start; padding: 0 12px; }
