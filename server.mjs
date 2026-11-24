@@ -3,6 +3,7 @@ import { createPortalRoutes } from './routes/portal.mjs';
 import { createPranchetaRoutes } from './routes/prancheta.mjs';
 import { createActionRoutes } from './routes/action.mjs';
 import { createAdsRoutes } from './routes/ads.mjs';
+import { createBillingRoutes } from './routes/billing.mjs';
 import { createEmailRoutes } from './routes/email.mjs';
 import { createMetaRoutes } from './routes/meta.mjs';
 import { createGbpRoutes, createGoogleRoutes } from './routes/google.mjs';
@@ -40,7 +41,7 @@ import { collectorCsp, renderCollector, renderWidget, widgetCsp, widgetLoader } 
 import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, previewHeaders, publicHeaders, publish, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withEmbeds, withMotion } from './studio-site.mjs';
 import { hasSiteTemplate, siteTemplatePreview } from './site-templates/index.mjs';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
-import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess } from './agency-model.mjs';
+import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, replaceBilling } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
 import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
@@ -738,7 +739,7 @@ export function makeServer({
     }
     const who = effectiveAccess(agency, actor, id, privateSpace.test(id));
     requireModule(who, ...modules);
-    if (who.account.status !== 'Active' && !(support && who.support)) throw pausedError(who.account, reason);
+    if (who.account.status !== 'Active' && !(support && who.support)) throw pausedError(canReactivate(agency, id, who) ? { ...who.account, canReactivate: true } : who.account, reason);
     return who;
   }
   async function workspaceAccess(req, res, id, options) {
@@ -2215,6 +2216,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const gbpRoute = createGbpRoutes({ store, error, spaceId, change, flushLater, gbpAccess, gbpStatus, payload, recordAudit, workspaceAccess });
   const agentRoute = createAgentRoutes({ store, localAccess, error, spaceId, privateSpace, agentModel, designAgentConfig, generateAgentReply, listWorkspaces, openAI, payload, recordAudit, workspaceAccess });
   const studioRoute = createStudioRoutes({ store, error, change, openAI, payload, siteDoc, studioGuard, studioRequest, syncMeta });
+  const billingRoute = createBillingRoutes({ abacate, accessContext, verifiedUser, canOpen, changeAgency, recordAudit, error, pausedError, publicBase, retryPolicyOf, spaceId });
   const storePageRoute = createStorePageRoutes({ store, ready, error, publicAccountPolicy, publicPreview, storePath, withPixels });
   const storeApiRoute = createStoreApiRoutes({ store, ready, error, abacate, allowSign, allowTracking, change, flushLater, payload, publicAccountPolicy, publicBase, storeApi });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
@@ -2705,7 +2707,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (op === 'subscribe') {
             if (meta.billing?.provider === 'abacatepay' && ['Active', 'Trial', 'PastDue'].includes(meta.billing.status)) throw error('Esta subconta já tem uma assinatura ativa. Cancele antes de gerar outra.', 409);
             const billing = await abacate.subscribe(who.agencyId, workspace, agency.plans.find(plan => plan.id === meta.plan), origin, { retryPolicy: retryPolicyOf(agency) });
-            await changeAgency(who.agencyId, current => { current.accounts[workspace] = { ...(current.accounts[workspace] || {}), billing }; });
+            await changeAgency(who.agencyId, current => { replaceBilling(current, workspace, billing); });
             await recordAudit(who, 'Assinatura AbacatePay gerada', meta.name || workspace, billing.planName);
             return json(await agencyPayload(req, res, { result: billing }));
           }
@@ -2719,6 +2721,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         throw error('Not found.', 404);
       }
+      const billingRouteHandled = await billingRoute({ req, res, p, method, url, id, json, send });
+      if (billingRouteHandled !== NEXT_ROUTE) return billingRouteHandled;
       const adsRouteHandled = await adsRoute({ req, res, p, method, url, id, json, send });
       if (adsRouteHandled !== NEXT_ROUTE) return adsRouteHandled;
       const googleRouteHandled = await googleRoute({ req, res, p, method, url, id, json, send });

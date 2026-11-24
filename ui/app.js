@@ -333,7 +333,8 @@ function renderAccountLifecycle() {
       `<li>${h(date(row.at))} · ${h(row.actor)} · ${h(tr(row.from))} → ${h(tr(row.to))}${row.reason ? ` · ${h(row.reason)}` : ''}</li>`).join('')}</ul></details>` : ''}
     ${Object.keys(account.ignoredWebhooks || {}).length ? `<details><summary>Eventos recebidos durante a suspensão</summary><ul>${Object.entries(account.ignoredWebhooks).map(([provider, row]) =>
       `<li>${h({ uazapi: 'UAZAPI', evolution: 'Evolution API' }[provider] || 'WAHA')} · ${h(row.count)} ignorado(s) · último em ${h(date(row.lastAt))}</li>`).join('')}</ul></details>` : ''}
-    <a class="primary" href="#agency/accounts">Gerenciar subcontas</a>` : `<p>Entre em contato com o suporte da sua agência para recuperar o acesso.</p>`;
+    <a class="primary" href="#agency/accounts">Gerenciar subcontas</a>` : account.canReactivate ? `<p>${h(tr('Pague o plano para voltar a usar a subconta. O acesso volta assim que o pagamento for confirmado.'))}</p><button class="primary" data-act="account-pay">${h(tr('Pagar e reativar'))}</button>`
+    : `<p>Entre em contato com o suporte da sua agência para recuperar o acesso.</p>`;
   app.innerHTML = `<main class="boot boot-error"><h1>Subconta ${status}</h1>
     ${account.suspendedReason ? `<p>${h(account.suspendedReason)}</p>` : ''}${support}
     <div class="inline-gap"><button class="secondary" data-act="account-retry">Verificar acesso</button><button class="secondary" data-act="workspaces">Trocar de workspace</button></div></main>`;
@@ -886,6 +887,7 @@ document.addEventListener('click',async ev=>{
         else if(live.status==='connected') flash('WhatsApp conectado!');
         break;
       }
+      case 'account-pay': location.href=(await api(url('/api/billing/reactivate'),{})).url; break;
       case 'abacate-refresh': c.pay=null; render(); await refreshPay(); break;
       case 'abacate-hooks': c.pay=await api(url('/api/abacatepay/workspace/refresh-webhook'),{}); render(); flash('Avisos do AbacatePay atualizados.'); break;
       case 'google-refresh': c.google=null; render(); await refreshGoogle(); break;

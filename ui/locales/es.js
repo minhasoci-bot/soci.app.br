@@ -3771,6 +3771,8 @@ export default {
   "As tentativas valem para as assinaturas geradas a partir de agora.": "Los intentos valen para las suscripciones generadas a partir de ahora.",
   "Regras de plano não pago salvas.": "Reglas de plan sin pagar guardadas.",
   "O pagamento do plano desta subconta foi recusado. Confira o cartão ou fale com a sua agência para não perder o acesso.": "El pago del plan de esta subcuenta fue rechazado. Revise la tarjeta o hable con su agencia para no perder el acceso.",
+  "Pagar e reativar": "Pagar y reactivar",
+  "Pague o plano para voltar a usar a subconta. O acesso volta assim que o pagamento for confirmado.": "Pague el plan para volver a usar la subcuenta. El acceso vuelve en cuanto se confirme el pago.",
   "Atualizar avisos": "Actualizar avisos",
   "Avisos do AbacatePay atualizados.": "Avisos de AbacatePay actualizados.",
   "Ajuste": "Ajuste",

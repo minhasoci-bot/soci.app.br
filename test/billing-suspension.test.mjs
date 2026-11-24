@@ -126,3 +126,74 @@ test('Troca de plano só entra no histórico da assinatura', async t => {
   assert.equal(billing.history.at(-1).event, 'subscription.plan_changed');
   assert.equal(billing.amount, 297);
 });
+
+async function suspended(t) {
+  const c = await planBilling(t);
+  await c.paid();
+  await c.deliver(c.event('subscription.cancelled', { subscription: { cancelledDueTo: ENDED[0] } }));
+  const person = async (role, email) => (await c.action({ type: 'save', key: 'users', data: { first: 'Lia', last: 'Melo', email, role, accounts: ['demo'] } })).body.result;
+  const admin = { 'X-Go-User': await person('Account Admin', 'lia@loja.com') }, user = { 'X-Go-User': await person('Account User', 'caio@loja.com') };
+  return { ...c, admin, user, pay: headers => c.send('/api/billing/reactivate?workspace=demo', {}, headers) };
+}
+const creations = c => c.gateway.calls.filter(call => call.path === '/v2/subscriptions/create').length;
+
+test('Administrador da subconta pausada por cobrança recebe o link, sem novo teste, e o mesmo na segunda vez', async t => {
+  const c = await suspended(t);
+  const seen = await c.send('/api/state?workspace=demo', undefined, c.admin);
+  assert.deepEqual([seen.status, seen.body.code, seen.body.account.canReactivate], [403, 'ACCOUNT_SUSPENDED', true]);
+  const first = await c.pay(c.admin);
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  assert.match(first.body.url, /^https:\/\/app\.abacatepay\.com\/pay\//);
+  const before = creations(c);
+  assert.equal((await c.pay(c.admin)).body.url, first.body.url);
+  assert.equal(creations(c), before, 'reaproveita o link pendente');
+  const product = [...c.gateway.products.values()].at(-1);
+  assert.equal('trialDays' in product, false);
+  const call = c.gateway.calls.filter(item => item.path === '/v2/subscriptions/create').at(-1);
+  assert.deepEqual(call.body.retryPolicy, { maxRetry: 3, retryEvery: 1 });
+  assert.doesNotMatch(JSON.stringify(first.body), /webhookSecret|keySealed/);
+  const fresh = (await c.account()).billing.checkoutId;
+  await c.paid('card_2', { subscriptionId: 'subs_2', checkoutId: fresh });
+  assert.equal((await c.account()).status, 'Active');
+  assert.equal((await c.send('/api/state?workspace=demo', undefined, c.admin)).status, 200);
+  assert.equal((await c.pay(c.admin)).status, 409, 'conta ativa não precisa');
+});
+
+test('Quem não administra, pausa manual e conta encerrada não reativam', async t => {
+  const c = await suspended(t);
+  assert.equal((await c.pay(c.user)).status, 403);
+  assert.notEqual((await c.send('/api/state?workspace=demo', undefined, c.user)).body.account.canReactivate, true);
+  await c.action({ type: 'account-reactivate', id: 'demo', data: {} });
+  for (const status of ['Paused', 'Closed']) {
+    await c.action({ type: 'account-meta', id: 'demo', data: { plan: c.planId, status, suspendedReason: 'Contrato' } });
+    assert.equal((await c.pay(c.admin)).status, 403, status);
+    assert.notEqual((await c.send('/api/state?workspace=demo', undefined, c.admin)).body.account.canReactivate, true);
+  }
+  assert.equal((await c.send('/api/billing/reactivate?workspace=nao-existe', {}, c.admin)).status, 403);
+  assert.equal((await c.send('/api/billing/reactivate?workspace=demo', undefined, c.admin)).status, 405);
+});
+
+test('Sem plano ou sem gateway da agência, manda falar com a agência', async t => {
+  const c = await suspended(t);
+  await c.send('/api/abacatepay/agency/disconnect', {});
+  const off = await c.pay(c.admin);
+  assert.deepEqual([off.status, /Fale com a sua agência/.test(off.body.error)], [409, true]);
+  const other = await suspended(t);
+  await other.action({ type: 'delete', key: 'plans', id: other.planId });
+  const noPlan = await other.pay(other.admin);
+  assert.deepEqual([noPlan.status, /Fale com a sua agência/.test(noPlan.body.error)], [409, true]);
+});
+
+test('Depois de reativar, a devolução e o pagamento tardio da assinatura antiga ainda entram no livro', async t => {
+  const c = await suspended(t);
+  await c.pay(c.admin);
+  const fresh = (await c.account()).billing.checkoutId;
+  await c.paid('card_2', { subscriptionId: 'subs_2', checkoutId: fresh });
+  await c.deliver({ event: 'checkout.disputed', data: { checkout: { id: c.checkout, frequency: 'SUBSCRIPTION', status: 'REFUNDED', amount: 29700 } } });
+  let rows = await c.rows('agency');
+  assert.deepEqual(rows.map(row => [row.kind, row.amount_cents, row.provider_ref]).sort(), [['dispute_lost', -29700, 'card_1'], ['plan_payment', 29700, 'card_1'], ['plan_payment', 29700, 'card_2']]);
+  await c.deliver(c.event('subscription.renewed', { payment: { id: 'card_9', amount: 29700 } }));
+  rows = await c.rows('agency');
+  assert.equal(rows.length, 4);
+  assert.deepEqual([(await c.account()).status, (await c.account()).billing.checkoutId], ['Active', fresh]);
+});

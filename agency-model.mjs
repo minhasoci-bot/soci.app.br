@@ -181,6 +181,16 @@ function updateAccountStatus(state, id, meta, status, reason, actor) {
   audit(state, actor, 'Sub-account status changed', id, `${previous} → ${status}`);
 }
 
+/** May this person pay to bring the sub-account back? Only its admins (or the agency's), and only a pause made by billing. */
+export const canReactivate = (state, id, who) => state.accounts?.[id]?.status === 'Paused' && state.accounts[id].suspendedBy === 'billing'
+  && ['Account Admin', 'Agency Owner', 'Agency Admin'].includes(who?.role);
+/** A new subscription takes the place of the old one, which stays known: its money can still come back or be disputed. */
+export function replaceBilling(state, id, billing) {
+  const meta = state.accounts[id] = { ...(state.accounts[id] || {}) }, old = meta.billing;
+  const { previous = [], history: _history, failures: _failures, url: _url, ...kept } = old || {};
+  meta.billing = { ...billing, ...(old && { previous: [...previous, kept].slice(-12) }) };
+  return meta.billing;
+}
 const billingActor = 'Cobrança automática';
 /** Pauses an active sub-account whose plan was not paid. False when there was nothing to pause. */
 export function suspendForBilling(state, id, reason = 'Pagamento do plano não confirmado.') {
