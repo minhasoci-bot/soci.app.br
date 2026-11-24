@@ -55,8 +55,8 @@
 .dash-meter div, .dash-funnel td:first-child>div { justify-content: space-between; display: flex; gap: 8px; }
 .dash-meter meter, .dash-funnel meter { display: block; width: 100%; height: 12px; }
 .dash-meter meter::-webkit-meter-bar, .dash-funnel meter::-webkit-meter-bar { border: 0; background: #edf1f7; }
-.tone-blue { --dash-meter: var(--dash-accent, var(--g-brand, #ff00bb)); }.tone-green { --dash-meter: #55b69b; }.tone-red { --dash-meter: #e2818c; }.tone-gray { --dash-meter: #b0bdd2; }
-.dash-meter meter::-webkit-meter-optimum-value, .dash-funnel meter::-webkit-meter-optimum-value { background: var(--dash-meter,var(--dash-accent,#ff00bb)); }
+.tone-blue { --dash-meter: var(--dash-accent, var(--g-brand, #d62976)); }.tone-green { --dash-meter: #55b69b; }.tone-red { --dash-meter: #e2818c; }.tone-gray { --dash-meter: #b0bdd2; }
+.dash-meter meter::-webkit-meter-optimum-value, .dash-funnel meter::-webkit-meter-optimum-value { background: var(--dash-meter,var(--dash-accent,#d62976)); }
 .dash-funnel { overflow: auto; max-height: 340px; margin-top: 15px; }
 .dash-funnel table, .dash-table table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12.5px; }
 .dash-funnel td, .dash-table td, .dash-table th { padding: 8px 7px; border-bottom: 1px solid #eaf0f7; white-space: nowrap; }

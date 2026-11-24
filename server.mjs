@@ -3,6 +3,10 @@ import { createPortalRoutes } from './routes/portal.mjs';
 import { createPranchetaRoutes } from './routes/prancheta.mjs';
 import { createActionRoutes } from './routes/action.mjs';
 import { createAdsRoutes } from './routes/ads.mjs';
+import { createEmailRoutes } from './routes/email.mjs';
+import { createMetaRoutes } from './routes/meta.mjs';
+import { createGbpRoutes, createGoogleRoutes } from './routes/google.mjs';
+import { createAgentRoutes } from './routes/agents.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -17,12 +21,11 @@ import { discoverDesign, generatePage, generateSite, planSite, revisePage, sugge
 import { localPlan, questionsFor, validDesign, validPlan } from './ui/studio-design.js';
 import { designAgent, replyAsAgent } from './agent-ai.mjs';
 import { createOpenAI, openAIModel } from './openai.mjs';
-import { agentBuildRequest, agentWorkflowRequest, agentPreview, applyAgentDesign, editAgent, recordAgentRun } from './agent-model.mjs';
-import { agencyAiUsage, checkAiBudget, editAgentTemplate, editKnowledgeBase, setAiAccess, setAiLimit, usageMeter } from './ai-model.mjs';
+import { agentWorkflowRequest, recordAgentRun } from './agent-model.mjs';
+import { agencyAiUsage, checkAiBudget, setAiAccess, setAiLimit, usageMeter } from './ai-model.mjs';
 import { requireLab, setLabsOffer } from './labs-model.mjs';
 import { conversationRequest, writeConversationReply, writeConversationSummary } from './conversation-ai.mjs';
 import { addInstall, appSecret, appSignature, installedCopy, removeInstall, tokenHash as appTokenHash } from './app-studio-model.mjs';
-import { usageSummary } from './ui/ai-data.js';
 import { brandVoiceRequest, emailRequest, reviewReplyRequest, transformRequest, transformText, writeBrandVoice, writeEmail, writeReviewReply } from './content-ai.mjs';
 import { brandFromPage, fetchPublicPage } from './brand-model.mjs';
 import { brandVoicePrompt, defaultBoard, voiceTraits } from './ui/brand-data.js';
@@ -32,19 +35,10 @@ import { reviewTokenHash } from './reputation-model.mjs';
 import { renderReviewPage, reviewPageCsp } from './reputation-page.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { collectorCsp, renderCollector, renderWidget, widgetCsp, widgetLoader } from './reputation-widget.mjs';
-
-function meteredUsage() {
-  const meter = usageMeter();
-  return {
-    onUsage: meter.onUsage,
-    record(state, kind, agent, run, error = '') {
-      const charged = meter.charge(state, kind, agent, error);
-      return recordAgentRun(state, { ...run, ...charged, error });
-    }
-  };
-}
-import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
+import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withMotion } from './studio-site.mjs';
 import { starterProject, studioTemplates } from './ui/studio-data.js';
+import { findSiteTemplate } from './ui/site-template-data.js';
+import { hasSiteTemplate, siteTemplatePages, siteTemplatePreview } from './site-templates/index.mjs';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, previewSnapshot, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
@@ -57,8 +51,8 @@ import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, send
 import { hasPixels, injectPixels, originAllowed, pixelsScript, trackerScript, trackingOf, touchesFrom, widenCsp } from './tracking.mjs';
 import { adSettingsOf, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
-import { exchangeGoogle, freshSecret, googleAuthUrl, googleConfigured, googleError, googleReports, listGoogleReviews, listLocations, locationDetails, replyGoogleReview, revokeGoogle, searchError, searchReport, updateLocation } from './google-integrations.mjs';
-import { gbpChecklist, hoursPeriods } from './ui/gbp-data.js';
+import { freshSecret, googleConfigured, googleError, googleReports, listLocations, locationDetails, searchError, searchReport } from './google-integrations.mjs';
+import { gbpChecklist } from './ui/gbp-data.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { affiliatePortal, portalTokenHash } from './affiliate-model.mjs';
 import { affiliatePageCsp, renderPortal, renderSignup } from './affiliate-page.mjs';
@@ -106,10 +100,9 @@ import { snapshotAssets } from './ui/agency-data.js';
 import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, requireWorkspaceCommand, workspaceView } from './authorization.mjs';
 import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, settle } from './social-model.mjs';
 import { authUrl, availability, publish as socialPublish, seal, unseal } from './social-providers.mjs';
-import { fetchMetaLead, metaInbound, metaLeads, metaSenderName, metaSignatureValid, quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
-import { googleLeadFields, googleLeadKeyValid, metaLeadFields } from './lead-forms.mjs';
+import { quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
 import { generateImage, startVideo, videoContent, videoStatus } from './openai-media.mjs';
-import { inboundAddress, inboundEmail, inboundWorkspace, svixValid } from './email-inbound.mjs';
+import { inboundAddress } from './email-inbound.mjs';
 import { createPhoneHandler } from './phone-server.mjs';
 import { CHUNK_BYTES } from './reputation-media.mjs';
 import { network } from './ui/social-data.js';
@@ -119,8 +112,7 @@ import { documentMailer, documentMessage } from './document-mail.mjs';
 import { campaignMailer } from './email-campaign-send.mjs';
 import { countdownGif } from './countdown-gif.mjs';
 import { deadlineOf, embedPage } from './ui/countdown-data.js';
-import { mergeValues, normalizeDesign, renderEmail, fillText } from './ui/email-blocks.js';
-import { applyDomainStatus, emailDomainView, emailDomains, normalizeLocalPart, workspaceSender } from './email-domain.mjs';
+import { emailDomains, workspaceSender } from './email-domain.mjs';
 import { tokenHash as documentTokenHash } from './document-model.mjs';
 import { estimateTokenHash } from './estimate-model.mjs';
 import { invoiceTokenHash } from './invoice-model.mjs';
@@ -174,17 +166,18 @@ export const staticFiles = new Map([
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
   ['/reports.js','text/javascript; charset=utf-8'], ['/report-data.js','text/javascript; charset=utf-8'], ['/reports.css','text/css; charset=utf-8'],
-  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
+  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/site-template-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
   ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/setup-art.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
+  ['/deck-model.js','text/javascript; charset=utf-8'], ['/deck-render.js','text/javascript; charset=utf-8'], ['/deck-editor.js','text/javascript; charset=utf-8'], ['/deck.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
   ['/beautiful-ui.js','text/javascript; charset=utf-8'], ['/beautiful-ui.css','text/css; charset=utf-8'],
   ['/beautiful-ui-more.js','text/javascript; charset=utf-8'], ['/beautiful-ui.html','text/html; charset=utf-8'], ['/bui-mounts.js','text/javascript; charset=utf-8'],
-  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'],
+  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'], ['/scope.css','text/css; charset=utf-8'],
   ['/vendor/marked.js','text/javascript; charset=utf-8'], ['/vendor/purify.js','text/javascript; charset=utf-8'],
   ['/color-picker.js','text/javascript; charset=utf-8'],
   ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],
@@ -194,6 +187,7 @@ export const staticFiles = new Map([
   ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'], ['/event-planner.js','text/javascript; charset=utf-8'], ['/event-planner-data.js','text/javascript; charset=utf-8'], ['/event-copy-editor.js','text/javascript; charset=utf-8'], ['/event-planner.css','text/css; charset=utf-8'],
   ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
+  ['/prancheta-editor.html','text/html; charset=utf-8'], ['/vendor/prancheta-editor.js','text/javascript; charset=utf-8'], ['/vendor/prancheta-editor.css','text/css; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
   ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
@@ -201,10 +195,17 @@ export const staticFiles = new Map([
   ['/privacidade.html','text/html; charset=utf-8'], ['/skull_flame_animated.svg','image/svg+xml'],
   ['/login.css','text/css; charset=utf-8'], ['/login.js','text/javascript; charset=utf-8'],
 ]);
+// Estáticos que só abrem com sessão (como o app): sem login, 303 para /login. O smoke pós-deploy usa a mesma lista.
+export const sessionOnlyFiles = new Set(['/prancheta-editor.html']);
 // Ilustrações dos templates de setup (ui/setup-art/*.svg), uma por segmento.
 for (const file of readdirSync(resolve(root, 'ui', 'setup-art'))) if (/^[a-z0-9-]+\.svg$/.test(file)) staticFiles.set(`/setup-art/${file}`, 'image/svg+xml');
 const host = '127.0.0.1';
 const defaultPort = Number(process.env.GO_PORT || 4317);
+// Editor da Prancheta: abre num iframe da própria soci e baixa o MediaPipe (remoção de fundo) por CDN.
+const pranchetaEditorCsp = () => csp
+  .replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+  .replace("script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'")
+  .replace("connect-src 'self'", "connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://storage.googleapis.com https://fonts.googleapis.com https://fonts.gstatic.com");
 const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://accounts.google.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; media-src 'self' data: https:; connect-src 'self' https://accounts.google.com; frame-src 'self' https: https://accounts.google.com; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'";
 const error = (message,status) => Object.assign(new Error(message),{status});
 const spaceId = /^[0-9a-f-]{36}$|^demo$/;
@@ -262,6 +263,7 @@ const invoiceApiPath = new RegExp(`^/api/fatura/${workspaceSegment}$`);
 const brandGroupRoute = /^\/marcas\/([0-9a-f]{64})\/?$/;
 const presentationRoute = /^\/apresentacao\/([0-9a-f]{64})\/?$/;
 const sharedReportRoute = new RegExp(`^/relatorio/${workspaceSegment}/([0-9a-f]{64})/?$`);
+const templatePreviewPath = /^\/studio-template\/([a-z0-9-]{1,40})\/([a-z0-9-]{1,40})$/;
 const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{36})/([0-9a-f-]{36})$`);
 // Pages a visitor lands on (sites, forms, offers, store, blog, webinars, QR codes and links): they remember the visit's source.
 // The tracking script (/t/<workspace>.js), the pixels loader (/t/<workspace>/pixels.js) and events (/t/<workspace>/e).
@@ -2119,6 +2121,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const socialRoute = createSocialRoutes({ store, auth, localAccess, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
   const adsRoute = createAdsRoutes({ store, localAccess, error, spaceId, privateSpace, stamp, adsAccess, adsCallbackPath, adsPopup, adsView, payload, publicBase, recordAudit, runAds, socialActor, socialRow, workspaceAccess });
   const actionRoute = createActionRoutes({ store, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
+  const emailRoute = createEmailRoutes({ store, ready, error, spaceId, privateSpace, stamp, campaignMail, emailDomainApi, flushLater, inboundFetch, payload, publicAccountPolicy, publicBase, recordAudit, sendingAddress, socialRow, testHits, workspaceAccess });
+  const metaRoute = createMetaRoutes({ store, ready, error, change, flushLater, metaFetch, metaRoutesRow, metaSender, publicAccountPolicy });
+  const googleRoute = createGoogleRoutes({ store, ready, localAccess, error, spaceId, privateSpace, stamp, workspaceSegment, flushLater, googleCache, googleCallbackPath, googleData, googlePopup, googleView, payload, publicAccountPolicy, publicBase, recordAudit, searchCache, socialActor, socialRow, workspaceAccess });
+  const gbpRoute = createGbpRoutes({ store, error, spaceId, change, flushLater, gbpAccess, gbpStatus, payload, recordAudit, workspaceAccess });
+  const agentRoute = createAgentRoutes({ store, localAccess, error, spaceId, privateSpace, agentModel, designAgentConfig, generateAgentReply, listWorkspaces, openAI, payload, recordAudit, workspaceAccess });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const server=createServer(async (req,res) => {
@@ -2537,165 +2544,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       const adsRouteHandled = await adsRoute({ req, res, p, method, url, id, json, send });
       if (adsRouteHandled !== NEXT_ROUTE) return adsRouteHandled;
-      if (p === googleCallbackPath && method === 'GET') {
-        const base = publicBase(req);
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'");
-        try {
-          await socialRow('google-oauth');
-          const nonce = url.searchParams.get('state') || '';
-          const pending = await store.change('google-oauth', row => { const v = row.states[nonce]; delete row.states[nonce]; return v; });
-          if (!pending || Date.parse(pending.at) < Date.now() - 15 * 60_000) throw error('Este login expirou. Tente conectar de novo.',400);
-          if (localAccess && pending.actor !== 'local-owner') req.localSocialUser = pending.actor;
-          const who = await workspaceAccess(req, res, pending.workspace, { modules: ['settings'] });
-          if (pending.actor !== socialActor(who)) throw error('Esta autorização pertence a outra sessão.',403);
-          if (url.searchParams.get('error')) throw error(url.searchParams.get('error') === 'access_denied' ? 'A autorização foi cancelada.' : 'O Google recusou a autorização.',400);
-          const found = await exchangeGoogle({ code: url.searchParams.get('code') || '', redirectUri: base + googleCallbackPath });
-          await socialRow(`google-${pending.workspace}`);
-          await store.change(`google-${pending.workspace}`, row => {
-            const prior = row.google || {};
-            const keep = (list, value) => list.some(item => item.id === value) ? value : '';
-            row.google = { token: seal(found.secret), email: found.email, properties: found.properties, locations: found.locations, sites: found.sites || [], errors: found.errors,
-              gscSite: keep(found.sites || [], prior.gscSite) || (found.sites?.length === 1 ? found.sites[0].id : ''),
-              connectedAt: stamp(), gaProperty: keep(found.properties, prior.gaProperty) || (found.properties.length === 1 ? found.properties[0].id : ''),
-              gbpLocation: keep(found.locations, prior.gbpLocation) || (found.locations.length === 1 ? found.locations[0].id : '') };
-          });
-          googleCache.delete(pending.workspace); searchCache.delete(pending.workspace);
-          await recordAudit(who, 'Google conectado', found.email || pending.workspace).catch(() => {});
-          return send(200,'text/html; charset=utf-8',googlePopup(base, {}));
-        } catch (e) {
-          return send(200,'text/html; charset=utf-8',googlePopup(base, { error: e.message }));
-        }
-      }
-      if (p.startsWith('/api/google/workspace/')) {
-        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
-        const op = p.slice('/api/google/workspace/'.length).replace(/\/+$/, '');
-        const manage = ['connect', 'select', 'disconnect'].includes(op);
-        const who = await workspaceAccess(req, res, id, manage ? { modules: ['settings'] } : {});
-        const rowId = `google-${id}`;
-        if (op === 'connect' && method === 'GET') {
-          const nonce = uid();
-          const target = googleAuthUrl({ redirectUri: publicBase(req) + googleCallbackPath, state: nonce });
-          await socialRow('google-oauth');
-          await store.change('google-oauth', row => {
-            for (const [k, v] of Object.entries(row.states)) if (Date.parse(v.at) < Date.now() - 15 * 60_000) delete row.states[k];
-            row.states[nonce] = { workspace: id, at: stamp(), actor: socialActor(who) };
-          });
-          res.writeHead(302, { Location: target }); return res.end();
-        }
-        if (op === 'status' && method === 'GET') {
-          const row = await socialRow(rowId);
-          const view = googleView(row, hasModule(who, 'settings'));
-          if (url.searchParams.get('data') === '1' && view.connected) view.data = await googleData(id, row);
-          return json(view);
-        }
-        if (method !== 'POST') throw error('Method not allowed.', 405);
-        const body = await payload(req);
-        if (op === 'select') {
-          await socialRow(rowId);
-          await store.change(rowId, row => {
-            if (!row.google?.token) throw error('Conecte uma conta Google primeiro.', 409);
-            const pick = (list, value) => value === '' || list.some(item => item.id === value) ? value : null;
-            const ga = pick(row.google.properties, String(body.gaProperty ?? row.google.gaProperty ?? ''));
-            const gbp = pick(row.google.locations, String(body.gbpLocation ?? row.google.gbpLocation ?? ''));
-            const gsc = pick(row.google.sites || [], String(body.gscSite ?? row.google.gscSite ?? ''));
-            if (ga === null || gbp === null || gsc === null) throw error('Escolha uma propriedade, um local e um site desta conta Google.', 400);
-            Object.assign(row.google, { gaProperty: ga, gbpLocation: gbp, gscSite: gsc });
-          });
-          googleCache.delete(id); searchCache.delete(id);
-          const row = await store.load(rowId);
-          return json({ ...googleView(row, true), data: await googleData(id, row) });
-        }
-        if (op === 'disconnect') {
-          const row = await socialRow(rowId);
-          if (row.google?.token) await revokeGoogle(unseal(row.google.token));
-          await store.change(rowId, r => { delete r.google; });
-          googleCache.delete(id); searchCache.delete(id);
-          await recordAudit(who, 'Google desconectado', id).catch(() => {});
-          return json(googleView(await store.load(rowId), true));
-        }
-        throw error('Not found.', 404);
-      }
-      if (p === '/api/email/campaign/test' && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.', 404);
-        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
-        const body = await payload(req);
-        const to = String(body.to || '').trim().toLowerCase();
-        if (!/^[^\s@<>"]{1,64}@[^\s@<>"]{1,190}\.[a-z0-9-]{2,}$/i.test(to)) throw error('Informe um e-mail válido para o teste.', 400);
-        const at = Date.now(), hits = (testHits.get(id) || []).filter(time => time > at - 3600_000);
-        if (hits.length >= 20) throw error('Limite de 20 e-mails de teste por hora atingido. Tente mais tarde.', 429);
-        testHits.set(id, [...hits, at]);
-        const state = await store.load(id), design = normalizeDesign(body);
-        if (!design.blocks.length) throw error('O e-mail está vazio.', 400);
-        const contact = state.contacts.find(row => row.email) || { name: 'Ana Souza', email: to, company: 'Exemplo' };
-        const values = mergeValues(contact, state.profile), business = state.profile?.name || '';
-        const testOrigin = publicBase(req), sentAt = Math.floor(Date.now() / 1000);
-        const { html, text } = renderEmail({ ...design, preheader: fillText(String(body.preheader || ''), values), business, values,
-          countdownSrc: timerId => `${testOrigin}/cd/${id}/${timerId}.gif?s=${sentAt}` });
-        await campaignMail.sendTest({ to, subject: fillText(String(body.subject || '').slice(0, 200), values) || '(sem assunto)', html, text,
-          fromName: String(body.fromName || '').slice(0, 80) || business, replyTo: /^[^\s@<>"]+@[^\s@<>"]+$/.test(body.replyTo || '') ? body.replyTo : '', fromAddress: await sendingAddress(id) });
-        await recordAudit(who, 'E-mail de teste enviado', to).catch(() => {});
-        return json({ ok: true, to });
-      }
-      if (p.startsWith('/api/email/workspace/')) {
-        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
-        const op = p.slice('/api/email/workspace/'.length).replace(/\/+$/, '');
-        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
-        const rowId = `email-${id}`;
-        const view = row => emailDomainView(row, { configured: emailDomainApi.configured, platformFrom: process.env.PORTAL_EMAIL_FROM || '' });
-        // Copies Resend's view of the domain (status and per-record status) into the row.
-        const refresh = async () => {
-          const row = await socialRow(rowId), d = row.emailDomain;
-          if (!d) return row;
-          const live = await emailDomainApi.get(d.id);
-          await store.change(rowId, r => { if (r.emailDomain?.id === d.id) r.emailDomain = applyDomainStatus(r.emailDomain, live, stamp()); });
-          return store.load(rowId);
-        };
-        if (op === 'status' && method === 'GET') {
-          const row = await socialRow(rowId);
-          if (!row.emailDomain || row.emailDomain.status === 'verified' || !emailDomainApi.configured) return json(view(row));
-          try { return json(view(await refresh())); } catch (e) { return json({ ...view(row), problem: e.message }); }
-        }
-        if (method !== 'POST') throw error('Method not allowed.', 405);
-        const body = await payload(req);
-        if (op === 'add') {
-          if ((await socialRow(rowId)).emailDomain) throw error('Esta subconta já tem um domínio de envio. Remova o atual para trocar.', 409);
-          const localPart = normalizeLocalPart(body.localPart ?? 'contato');
-          const live = await emailDomainApi.add(body.domain);
-          let clash = false;
-          await store.change(rowId, r => {
-            if (r.emailDomain) { clash = true; return; }
-            r.emailDomain = { ...live, localPart, addedAt: stamp(), checkedAt: stamp(), verifiedAt: live.status === 'verified' ? stamp() : '' };
-          });
-          if (clash) { await emailDomainApi.remove(live.id).catch(() => {}); throw error('Esta subconta já tem um domínio de envio. Remova o atual para trocar.', 409); }
-          await recordAudit(who, 'Domínio de envio adicionado', live.name).catch(() => {});
-          return json(view(await store.load(rowId)));
-        }
-        if (op === 'verify') {
-          const row = await socialRow(rowId);
-          if (!row.emailDomain) throw error('Adicione um domínio de envio primeiro.', 409);
-          await emailDomainApi.verify(row.emailDomain.id);
-          return json(view(await refresh()));
-        }
-        if (op === 'save') {
-          const localPart = normalizeLocalPart(body.localPart);
-          await socialRow(rowId);
-          await store.change(rowId, r => {
-            if (!r.emailDomain) throw error('Adicione um domínio de envio primeiro.', 409);
-            r.emailDomain.localPart = localPart;
-          });
-          return json(view(await store.load(rowId)));
-        }
-        if (op === 'remove') {
-          const row = await socialRow(rowId);
-          if (row.emailDomain) {
-            await emailDomainApi.remove(row.emailDomain.id);
-            await store.change(rowId, r => { delete r.emailDomain; });
-            await recordAudit(who, 'Domínio de envio removido', row.emailDomain.name).catch(() => {});
-          }
-          return json(view(await store.load(rowId)));
-        }
-        throw error('Not found.', 404);
-      }
+      const googleRouteHandled = await googleRoute({ req, res, p, method, url, id, json, send });
+      if (googleRouteHandled !== NEXT_ROUTE) return googleRouteHandled;
+      const emailRouteHandled = await emailRoute({ req, res, p, method, id, json });
+      if (emailRouteHandled !== NEXT_ROUTE) return emailRouteHandled;
       if (p.startsWith('/api/abacatepay/workspace/')) {
         if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
         const op = p.slice('/api/abacatepay/workspace/'.length).replace(/\/+$/, ''), origin = publicBase(req);
@@ -2736,95 +2588,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         await ready;
         return await phone.twilioWebhook(req, res, url, p);
       }
-      // E-mail recebido: Resend's "email.received" for conversas+<subconta>@INBOUND_EMAIL_DOMAIN (Svix-signed).
-      if (p === '/api/email/inbound' && method === 'POST') {
-        await ready;
-        let size = 0; const chunks = [];
-        for await (const chunk of req) { size += chunk.length; if (size > 2_000_000) throw error('Payload too large.', 413); chunks.push(chunk); }
-        const raw = Buffer.concat(chunks).toString('utf8');
-        if (!svixValid(raw, req.headers, process.env.RESEND_INBOUND_SECRET || '')) throw error('Invalid signature.', 401);
-        let event;
-        try { event = JSON.parse(raw); } catch { throw error('Invalid JSON.', 400); }
-        const workspace = inboundWorkspace(event?.data?.to);
-        if (!workspace || privateSpace.test(workspace)) return json({ ok: true, ignored: true });
-        if (!await publicAccountPolicy(workspace, false, 'conversations').catch(() => false)) return json({ ok: true, ignored: true });
-        const email = await inboundEmail(event, { request: inboundFetch });
-        if (!email) return json({ ok: true, ignored: true });
-        await store.change(workspace, s => execute(s, { type: 'email-inbound', data: { id: email.id, email: email.from.email, name: email.from.name, subject: email.subject, body: email.body } }, { workspace }));
-        flushLater(workspace);
-        return json({ ok: true });
-      }
-      // Messenger and Direct: Meta's verification (GET) and the messages of the connected pages (POST, signed).
-      if (p === '/api/meta/webhook') {
-        await ready;
-        if (method === 'GET') {
-          const verify = process.env.META_WEBHOOK_VERIFY_TOKEN || '';
-          if (!verify || url.searchParams.get('hub.mode') !== 'subscribe' || url.searchParams.get('hub.verify_token') !== verify) throw error('Forbidden.', 403);
-          return send(200, 'text/plain; charset=utf-8', String(url.searchParams.get('hub.challenge') || '').slice(0, 200));
-        }
-        if (method !== 'POST') throw error('Method not allowed.', 405);
-        let size = 0; const chunks = [];
-        for await (const chunk of req) { size += chunk.length; if (size > 1_000_000) throw error('Payload too large.', 413); chunks.push(chunk); }
-        const raw = Buffer.concat(chunks);
-        if (!metaSignatureValid(raw, req.headers['x-hub-signature-256'], process.env.META_APP_SECRET || '')) throw error('Invalid signature.', 401);
-        let body;
-        try { body = JSON.parse(raw.toString('utf8')); } catch { throw error('Invalid JSON.', 400); }
-        const routes = (await metaRoutesRow()).routes || {};
-        const touched = new Set();
-        for (const message of metaInbound(body)) {
-          const route = routes[message.accountId];
-          if (!route || route.network !== message.network) continue;
-          try {
-            if (!await publicAccountPolicy(route.workspace, false, 'conversations')) continue;
-            const state = await store.load(route.workspace);
-            const key = `${message.network}:${message.accountId}`;
-            const known = (state.contacts || []).some(row => row.metaIds?.[key] === message.senderId);
-            const sender = known ? null : await metaSender(route.workspace, state, key);
-            const authorName = sender ? await metaSenderName({ token: sender.token, senderId: message.senderId, network: message.network }, metaFetch) : '';
-            await change(route.workspace, { type: 'social-interaction-trigger', data: { kind: 'dm', network: message.network, body: message.body, senderId: message.senderId, accountId: message.accountId, mid: message.mid, authorName } });
-            touched.add(route.workspace);
-          } catch (problem) { console.error(`Meta webhook (${route.workspace}): ${problem.message}`); }
-        }
-        // Lead Ads: the lead's answers are read with the page token, then become a contact and the trigger.
-        for (const lead of metaLeads(body)) {
-          const route = routes[lead.pageId];
-          if (!route || route.network !== 'facebook') continue;
-          try {
-            if (!await publicAccountPolicy(route.workspace, false, 'marketing')) continue;
-            const state = await store.load(route.workspace);
-            const sender = await metaSender(route.workspace, state, `facebook:${lead.pageId}`);
-            if (!sender) continue;
-            const found = await fetchMetaLead({ token: sender.token, leadgenId: lead.leadgenId, formId: lead.formId }, metaFetch);
-            const touch = found.lead.is_organic ? null : { source: 'facebook', medium: 'paid_social', campaign: String(found.lead.campaign_name || ''), at: new Date().toISOString(), channel: 'meta_ads' };
-            await store.change(route.workspace, s => execute(s, { type: 'ad-form-lead', data: { network: 'meta', leadId: lead.leadgenId, formId: String(found.lead.form_id || lead.formId),
-              formName: found.formName, campaign: String(found.lead.campaign_name || ''), campaignId: String(found.lead.campaign_id || ''), fields: metaLeadFields(found.lead) } },
-              { workspace: route.workspace, ...(touch ? { attribution: { first: touch, last: touch } } : {}) }));
-            touched.add(route.workspace);
-          } catch (problem) { console.error(`Meta lead (${route.workspace}): ${problem.message}`); }
-        }
-        for (const workspace of touched) flushLater(workspace);
-        return json({ ok: true });
-      }
-      // Google Ads lead form webhook: the URL and key from Marketing → Rastreamento; Google retries on non-200.
-      const googleLead = p.match(new RegExp(`^/api/google-leads/${workspaceSegment}$`));
-      if (googleLead && method === 'POST') {
-        await ready;
-        const workspace = googleLead[1];
-        if (privateSpace.test(workspace)) throw error('Not found.', 404);
-        let size = 0; const chunks = [];
-        for await (const chunk of req) { size += chunk.length; if (size > 100_000) throw error('Payload too large.', 413); chunks.push(chunk); }
-        let body;
-        try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw error('Invalid JSON.', 400); }
-        await publicAccountPolicy(workspace, true, 'marketing');
-        if (!googleLeadKeyValid(await store.load(workspace), body?.google_key)) throw error('Invalid key.', 403);
-        const gclid = String(body.gcl_id || '').slice(0, 200);
-        const touch = { source: 'google', medium: 'cpc', campaign: String(body.campaign_id || ''), gclid, at: new Date().toISOString(), channel: 'google_ads' };
-        await store.change(workspace, s => execute(s, { type: 'ad-form-lead', data: { network: 'google', leadId: String(body.lead_id || ''), formId: String(body.form_id || ''),
-          campaignId: String(body.campaign_id || ''), campaign: String(body.campaign_id || ''), test: body.is_test === true, fields: googleLeadFields(body) } },
-          { workspace, attribution: { first: touch, last: touch } }));
-        flushLater(workspace);
-        return json({});
-      }
+      const metaRouteHandled = await metaRoute({ req, p, method, url, json, send });
+      if (metaRouteHandled !== NEXT_ROUTE) return metaRouteHandled;
       if (p.startsWith('/api/connectors/') && !p.startsWith('/api/connectors/hook/')) {
         if (!spaceId.test(id) || privateSpace.test(id)) throw error('Subconta não encontrada.', 404);
         const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
@@ -2947,53 +2712,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           }
         });
       }
-      const gbpAction = p.match(/^\/api\/gbp\/(status|profile|sync|reply)$/);
-      if (gbpAction) {
-        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
-        const who = await workspaceAccess(req, res, id, { modules: ['reputation'] });
-        const op = gbpAction[1];
-        if (op === 'status' && method === 'GET') return json(await gbpStatus(id, url.searchParams.get('refresh') === '1'));
-        if (method !== 'POST') throw error('Method not allowed.', 405);
-        const input = await payload(req);
-        const access = await gbpAccess(id);
-        if (op === 'profile') {
-          const patch = {};
-          if (input.description !== undefined) {
-            const text = String(input.description || '').trim();
-            if (text.length > 750) throw error('A descrição do Google aceita até 750 caracteres.', 400);
-            if (/https?:\/\/|www\./i.test(text)) throw error('O Google não aceita links na descrição.', 400);
-            patch.description = text;
-          }
-          if (input.phone !== undefined) patch.phone = String(input.phone || '').trim().slice(0, 30);
-          if (input.website !== undefined) {
-            const site = String(input.website || '').trim();
-            if (site && !/^https?:\/\/[^\s]+$/i.test(site)) throw error('Use um site que comece com https://', 400);
-            patch.website = site;
-          }
-          if (Array.isArray(input.hours)) patch.hours = hoursPeriods(input.hours);
-          await updateLocation(access.token, access.location, patch).catch(problem => { throw problem.status === 400 ? problem : googleError(problem); });
-          await recordAudit(who, 'Perfil do Google atualizado', id, Object.keys(patch).join(', ')).catch(() => {});
-          return json(await gbpStatus(id, true));
-        }
-        if (op === 'sync') {
-          if (!access.account) throw error('Não encontramos a conta deste local. Escolha o local de novo em Configurações → Google.', 409);
-          const reviews = await listGoogleReviews(access.token, access.account, access.location).catch(problem => { throw googleError(problem); });
-          const result = await change(id, { type: 'gbp-reviews-import', data: { reviews } });
-          if (result.state.workflowOutbox?.length) flushLater(id);
-          return json({ ...result.id, total: reviews.length, ...workspaceView(who, result.state) });
-        }
-        if (op === 'reply') {
-          const state = await store.load(id);
-          const review = state.reviews.find(row => row.id === input.reviewId && row.googleName);
-          if (!review) throw error('Avaliação do Google não encontrada.', 404);
-          if (!review.googleName.startsWith(`${access.account}/${access.location}/`)) throw error('Esta avaliação é de outro local do Google.', 409);
-          const reply = String(input.reply || '').trim().slice(0, 2500);
-          await replyGoogleReview(access.token, review.googleName, reply).catch(problem => { throw googleError(problem); });
-          const result = await change(id, { type: 'save', key: 'reviews', id: review.id, data: { author: review.author, score: review.score, text: review.text, reply } }, who);
-          return json({ ok: true, ...workspaceView(who, result.state) });
-        }
-        throw error('Not found.', 404);
-      }
+      const gbpRouteHandled = await gbpRoute({ req, res, p, method, url, id, json });
+      if (gbpRouteHandled !== NEXT_ROUTE) return gbpRouteHandled;
       if (p === '/api/video' && (method === 'GET' || method === 'HEAD')) {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
         await workspaceAccess(req, res, id, { modules: ['reputation'] });
@@ -3206,86 +2926,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await meteredAI(who, id, kind === 'gbp' ? 'reputation' : kind, connection => email ? content.writeEmail(connection, input) : content.transformText(connection, input));
         return json(result);
       }
-      const aiAction = p.match(/^\/api\/ai\/(kb-create|kb-save|kb-delete|template-save|template-delete|limit|usage)$/);
-      if (aiAction && (method === 'POST' || aiAction[1] === 'usage')) {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['ai-agents'] });
-        const operation = aiAction[1];
-        if (operation === 'usage') {
-          const month = url.searchParams.get('month') || undefined;
-          if (month && !/^\d{4}-\d{2}$/.test(month)) throw error('Informe o mês como AAAA-MM.', 400);
-          return json({ usage: usageSummary((await store.load(id)).ai, month) });
-        }
-        const input = await payload(req);
-        if (operation === 'limit') {
-          requireCapability(who, 'agency', 'Só a agência pode alterar o limite de gastos com IA desta subconta.');
-          const usage = await store.change(id, state => setAiLimit(state, input));
-          return json({ usage });
-        }
-        if (operation.startsWith('template-')) {
-          const template = await store.change(id, state => editAgentTemplate(state, operation, input));
-          return json({ template }, template ? 201 : 200);
-        }
-        const kbOperation = operation.slice(3);
-        const base = await store.change(id, state => editKnowledgeBase(state, kbOperation, input));
-        if (!privateSpace.test(id) && kbOperation !== 'save') {
-          const account = (await listWorkspaces(who.agencyId)).find(w => w.id === id)?.name || id;
-          await recordAudit(who, kbOperation === 'create' ? 'Base de conhecimento criada' : 'Base de conhecimento excluída', account, base?.name || '');
-        }
-        return json({ base }, kbOperation === 'create' ? 201 : 200);
-      }
-      const agentAction = p.match(/^\/api\/agents\/(create|save|publish|unpublish|move|delete|memory|test|build)$/);
-      if (agentAction && method==='POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['ai-agents'] });
-        const operation = agentAction[1];
-        const input = await payload(req);
-        if (operation === 'test') {
-          const current = await store.load(id);
-          const preview = agentPreview(current, input);
-          checkAiBudget(current);
-          const meter = meteredUsage();
-          const connection = localAccess && generateAgentReply !== replyAsAgent ? { onUsage: meter.onUsage } : { ...await openAI.requireConnection(who.session), onUsage: meter.onUsage };
-          const message = preview.messages.at(-1).content;
-          const runInput = { agent: input.id, version: input.version, input: message, kind: 'test', sources: [...new Set(preview.retrieved.map(item => item.title))] };
-          let reply;
-          try {
-            reply = await generateAgentReply({ ...preview, model: preview.model || agentModel }, connection);
-          } catch (problem) {
-            await store.change(id, state => meter.record(state, 'agent-test', input.id, runInput, problem.message));
-            throw problem;
-          }
-          const run = await store.change(id, state => meter.record(state, 'agent-test', input.id, { ...runInput, output: reply }));
-          return json({ reply, run });
-        }
-        if (operation === 'build') {
-          const current = await store.load(id);
-          const build = agentBuildRequest(current, input);
-          checkAiBudget(current);
-          const meter = meteredUsage();
-          const connection = localAccess && designAgentConfig !== designAgent ? { onUsage: meter.onUsage } : { ...await openAI.requireConnection(who.session), onUsage: meter.onUsage };
-          const runInput = { agent: input.id, version: 'draft', input: build.request, kind: 'build' };
-          let design;
-          try {
-            design = await designAgentConfig(build, connection);
-          } catch (problem) {
-            await store.change(id, state => meter.record(state, 'agent-build', input.id, runInput, problem.message));
-            throw problem;
-          }
-          const agent = await store.change(id, state => {
-            meter.record(state, 'agent-build', input.id, { ...runInput, output: design.summary });
-            return applyAgentDesign(state, input, design.draft);
-          });
-          return json({ agent, summary: design.summary });
-        }
-        const agent = await store.change(id, state => editAgent(state, operation, { ...input, model: agentModel }));
-        if (!privateSpace.test(id) && operation !== 'save') {
-          const labels = { create: 'Agente criado', publish: 'Agente publicado', unpublish: 'Agente despublicado', delete: 'Agente excluído' };
-          const account = (await listWorkspaces(who.agencyId)).find(w => w.id === id)?.name || id;
-          await recordAudit(who, labels[operation], account, agent?.name || '');
-        }
-        return json({ agent }, operation === 'create' ? 201 : 200);
-      }
+      const agentRouteHandled = await agentRoute({ req, res, p, method, url, id, json });
+      if (agentRouteHandled !== NEXT_ROUTE) return agentRouteHandled;
       const pranchetaRouteHandled = await pranchetaRoute({ req, res, p, method, url, id, json, send });
       if (pranchetaRouteHandled !== NEXT_ROUTE) return pranchetaRouteHandled;
       if (p==='/api/studio' && method==='POST') {
@@ -3299,6 +2941,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!brief || brief.length > 4000) throw error('Enter a project description of up to 4,000 characters.',400);
         if (!studioTemplates.some(item => item[0] === template)) throw error('Choose a valid template.',400);
         if (!['model','starter','blank'].includes(input.mode)) throw error('Choose how to create the project.',400);
+        const siteTemplate = input.mode === 'starter' && input.siteTemplate ? String(input.siteTemplate) : '';
+        if (siteTemplate && !hasSiteTemplate(siteTemplate)) throw error('Escolha um modelo de site válido.',400);
         const existing = await store.load(id);
         if (existing.studioProjects.length >= 60) throw error('A workspace can have up to 60 Studio projects.',400);
         const connection = input.mode === 'model' ? await openAI.requireConnection(who.session) : null;
@@ -3316,13 +2960,17 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         } else if (input.mode === 'blank') {
           draft = { name:blankName, headline:blankName, summary:'', theme:'indigo', blocks:[] };
           html = pageFromStructure(draft, blankName);
+        } else if (siteTemplate) {
+          const name = (typeof input.name === 'string' && input.name.trim().slice(0,80)) || findSiteTemplate(siteTemplate).brand;
+          draft = { name, headline:name, summary:findSiteTemplate(siteTemplate).description, theme:'indigo', blocks:[] };
         } else {
           draft = starterProject(brief,template);
           html = pageFromStructure(draft);
         }
         if (plan) Object.assign(draft, { name:plan.name, headline:plan.name, summary:plan.summary || draft.summary });
-        const pages = [{ name:plan ? plan.pages[0].name : kind === 'funnel' ? 'Página de captura' : 'Home', slug:'index', html }];
-        if (kind === 'funnel' && !plan) pages.push({ name:'Obrigado', slug:'obrigado', html:thankYouPage(draft) });
+        let pages = [{ name:plan ? plan.pages[0].name : kind === 'funnel' ? 'Página de captura' : 'Home', slug:'index', html }];
+        if (siteTemplate) pages = siteTemplatePages(siteTemplate, { brand:draft.name, kind });
+        else if (kind === 'funnel' && !plan) pages.push({ name:'Obrigado', slug:'obrigado', html:thankYouPage(draft) });
         const doc = newSiteDoc({ workspace:id, project:{ id:'pending' }, pages });
         const created = await change(id,{type:'save',key:'studioProjects',data:{...draft,brief,template,kind,design,reference:reference?.url || ''}});
         doc.project = created.id; doc.profile.name = `AI Studio ${created.id}`;
@@ -3361,6 +3009,17 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const doc = await siteDoc(id, input.id);
         const synced = await syncMeta(id, input.id, doc);
         return json({ id: synced.id, ...workspaceView(who, synced.state), doc: publicDoc(doc), result });
+      }
+      // Prévia dos modelos de site da galeria: conteúdo fixo do catálogo, sem dados de cliente.
+      const templatePreview = p.match(templatePreviewPath);
+      if (templatePreview && method === 'GET') {
+        const [, templateId, slug] = templatePreview;
+        if (!hasSiteTemplate(templateId)) throw error('Modelo de site não encontrado.',404);
+        const thumb = url.searchParams.has('thumb');
+        const html = siteTemplatePreview(templateId, slug, { thumb });
+        const [headers, body] = thumb ? [previewHeaders, html] : withMotion(previewHeaders, html);
+        res.writeHead(200, { ...headers, 'Cache-Control': 'no-cache' });
+        return res.end(body);
       }
       const preview = p.match(previewPath);
       if (preview && method === 'GET') {
@@ -3449,7 +3108,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const pt = /<html\b[^>]*\blang\s*=\s*["']?pt/i.test(page.html), es = /<html\b[^>]*\blang\s*=\s*["']?es/i.test(page.html);
         const notice = url.searchParams.has('sent') ? { ok:true, text:pt ? 'Obrigado! Seus dados foram enviados.' : es ? '¡Gracias! Tus datos fueron enviados.' : 'Thank you! Your details were sent.' }
           : url.searchParams.has('error') ? { ok:false, text:pt ? 'Não foi possível enviar. Confira o nome e o e-mail e tente de novo.' : es ? 'No se pudo enviar. Revisa el nombre y el correo e inténtalo de nuevo.' : 'Your details could not be sent. Check the name and email and try again.' } : '';
-        const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, publicHeaders, renderPublic(page,{ base, notice }));
+        const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, ...withMotion(publicHeaders, renderPublic(page,{ base, notice })));
         res.writeHead(200, siteHeaders);
         return res.end(siteBody);
       }
@@ -4153,7 +3812,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       const loginPaths = ['/','/login','/index.html'];
       if ((method==='GET'||method==='HEAD') && (loginPaths.includes(p) || platformPaths.includes(p) || paths.test(p) || staticFiles.has(p))) {
         const isLogin = loginPaths.includes(p);
-        if (!isLogin && !paths.test(p) && !staticFiles.has(p) && !localAccess && !auth?.hasSession(req)) {
+        // Páginas estáticas que só abrem com sessão (como o app), por exemplo o editor da Prancheta.
+        if (!isLogin && !paths.test(p) && (!staticFiles.has(p) || sessionOnlyFiles.has(p)) && !localAccess && !auth?.hasSession(req)) {
           const search = new URLSearchParams(url.search); search.delete('__path');
           const next = afterLogin(p + (search.size ? '?' + search : ''));
           return goTo('/login?' + new URLSearchParams({ next }));
@@ -4162,6 +3822,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         // Setup illustrations are not mirrored in public/: without this every card refetched them from the
         // function. The browser keeps them a day; the Vercel CDN until the next deploy purges it.
         if (f.startsWith('/setup-art/')) res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=86400');
+        if (f === '/prancheta-editor.html') res.setHeader('Content-Security-Policy', pranchetaEditorCsp());
         return send(200,staticFiles.get(f)||'text/html; charset=utf-8',method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
       }
       throw error('Page not found.',404);

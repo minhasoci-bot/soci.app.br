@@ -6,7 +6,7 @@ button { font: inherit; }
 .login-shell { display: grid; min-height: 100vh; place-items: center; padding: 24px; }
 .login-card { width: min(100%, 400px); padding: 40px; border: 1px solid #e6e2e6; border-radius: 20px; background: #fff; box-shadow: 0 20px 50px rgb(38 22 34 / 9%); }
 .brand { margin-bottom: 42px; color: #16131a; font-size: 25px; font-weight: 800; letter-spacing: -1.8px; }
-.brand span { color: #ff00bb; }
+.brand span { color: #d62976; }
 .login-copy { margin-bottom: 30px; }
 h1 { margin: 0 0 10px; font-size: 25px; line-height: 1.2; letter-spacing: -1px; }
 p { margin: 0; color: #69636a; font-size: 14px; line-height: 1.65; }

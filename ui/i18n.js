@@ -315,6 +315,8 @@ const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'CODE', 'PRE', 'SVG', 'NOSCRIPT', 
 export function translateDom(root = document.body) {
   if (!root || typeof document === 'undefined') return;
   if (getLanguage() === 'pt') return;
+  // User content (slides, text being typed) opts out; the observer hands us nodes deep inside it too.
+  if (root.closest?.('[data-no-translate]')) return;
 
   const walker = document.createTreeWalker(
     root,

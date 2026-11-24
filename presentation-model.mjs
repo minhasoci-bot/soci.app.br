@@ -10,6 +10,8 @@ import {
   createPresentationFromTemplate,
   renderSlideInnerHtml
 } from './ui/presentation-data.js';
+import { isDeck, sanitizeDeck, runsText } from './ui/deck-model.js';
+import { renderSlideSvg } from './ui/deck-render.js';
 
 export {
   PRESENTATION_LAYOUTS,
@@ -26,6 +28,7 @@ const fail = (message, status = 400) => { throw Object.assign(new Error(message)
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : typeof value === 'number' ? String(value).slice(0, limit) : '';
 
 export function sanitizePresentation(input, company = {}) {
+  if (isDeck(input)) return sanitizeDeck(input, company);
   const title = str(input.name || input.title, 120) || fail('Informe o título da apresentação.');
   const name = title;
   const description = str(input.description, 300);
@@ -100,19 +103,29 @@ export function presentationPageHtml(presentation, options = {}) {
   const { lang = 'pt', autoPrint = false } = options;
   const primary = presentation.primaryColor || '#0b315c';
   const accent = presentation.accentColor || '#f65b00';
-  const slides = presentation.slides || [];
+  const deck = isDeck(presentation) ? presentation : null;
+  const slides = deck ? (presentation.slides || []).filter(s => !s.skipped) : (presentation.slides || []);
   const total = slides.length;
+  const deckHeadline = s => {
+    const texts = (s.elements || []).filter(e => e.runs && !e.auto).map(e => runsText(e.runs).trim()).filter(Boolean);
+    return (texts.find(t => t.length > 12) || texts[0] || '').slice(0, 60);
+  };
 
-  const slidesHtml = slides.map((s, idx) => `
+  const slidesHtml = deck ? slides.map((s, idx) => `
+    <section class="slide deck-slide ${idx === 0 ? 'active' : ''}" data-index="${idx}" aria-roledescription="slide" aria-label="Slide ${idx + 1}: ${escapeHtml(deckHeadline(s))}">
+      ${renderSlideSvg(deck, s, { index: idx, total, prefix: 'p' })}
+    </section>`).join('\n') : slides.map((s, idx) => `
     <section class="slide ${s.layout} ${idx === 0 ? 'active' : ''}" data-index="${idx}" aria-roledescription="slide" aria-label="Slide ${idx + 1}: ${escapeHtml(s.headline)}">
       ${renderSlideInnerHtml(s, idx, total, presentation)}
     </section>
   `).join('\n');
 
-  const overviewLabelsJson = JSON.stringify(slides.map(s => [
-    s.eyebrow || presentation.agencyName,
-    (s.headline || '').replace(/<[^>]+>/g, '').slice(0, 40)
-  ]));
+  const overviewLabelsJson = JSON.stringify(deck
+    ? slides.map(s => [presentation.agencyName || '', deckHeadline(s).slice(0, 40)])
+    : slides.map(s => [
+      s.eyebrow || presentation.agencyName,
+      (s.headline || '').replace(/<[^>]+>/g, '').slice(0, 40)
+    ])).replace(/</g, '\\u003c');
 
   return `<!doctype html>
 <html lang="${lang === 'es' ? 'es' : 'pt-BR'}">
@@ -162,6 +175,9 @@ export function presentationPageHtml(presentation, options = {}) {
       isolation:isolate;
     }
     .slide.active{display:block}
+    .slide.deck-slide{padding:0;border-top:0}
+    .slide.deck-slide::after{display:none}
+    .slide.deck-slide>svg{display:block;width:100%;height:100%}
     .slide::after{content:"";position:absolute;bottom:0;left:0;right:0;height:1px;background:#e9eef0;pointer-events:none}
     .brand {position:absolute;top:29px;right:91px;width:auto;min-width:180px;height:52px;display:flex;align-items:center;gap:12px;color:var(--navy-dark);z-index:2}
     .brand-mark{width:40px;height:40px;flex:none}
@@ -376,7 +392,10 @@ export function presentationPageHtml(presentation, options = {}) {
       const grid = document.getElementById('overviewGrid');
       labels.forEach(([tag, title], i) => {
         const b = document.createElement('button');b.className = 'overview-item';b.type = 'button';
-        b.innerHTML = '<b>SLIDE '+String(i+1).padStart(2,'0')+' · '+tag.toUpperCase()+'</b><strong>'+title+'</strong><em>Ir para este slide →</em>';
+        const tagEl = document.createElement('b'); tagEl.textContent = 'SLIDE '+String(i+1).padStart(2,'0')+' · '+String(tag || '').toUpperCase();
+        const titleEl = document.createElement('strong'); titleEl.textContent = title;
+        const goEl = document.createElement('em'); goEl.textContent = 'Ir para este slide →';
+        b.append(tagEl, titleEl, goEl);
         b.addEventListener('click', () => {setSlide(i);closeOverview();});grid.appendChild(b);
       });
       document.addEventListener('keydown', e => {

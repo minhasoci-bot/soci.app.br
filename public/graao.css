@@ -14,14 +14,14 @@ html,body{height:111.111111dvh;min-height:111.111111dvh;margin:0}
 :root{
   --g-ink:#0f131a; --g-ink-2:#333b47; --g-dim:#5d6673; --g-faint:#98a0ac;
   --g-line:#e2e5ea; --g-line-2:#d2d7de; --g-line-strong:#b4bbc5;
-  --g-brand:#ff00bb; --g-brand-hover:#d9009f; --g-brand-bright:#ff33cc;
-  --g-brand-surface:#fff0fa; --g-brand-line:#fccae9; --g-brand-tint:#8a005f;
-  --g-brand-2:#fc972d; --g-brand-2-hover:#e07d14; --g-brand-2-bright:#ffad56;
-  --g-brand-2-surface:#fff5ea; --g-brand-2-line:#fed5a7; --g-brand-2-tint:#9a4b00;
-  --g-brand-2-text:#b85c00; --g-brand-2-fill:#e0780c; --g-brand-2-fill-hover:#cb6906; --g-brand-2-on:#0f131a;
+  --g-brand:#d62976; --g-brand-hover:#bd1f66; --g-brand-bright:#e8559a;
+  --g-brand-surface:#fdf0f6; --g-brand-line:#f6c3db; --g-brand-tint:#7d1544;
+  --g-brand-2:#962fbf; --g-brand-2-hover:#8125a8; --g-brand-2-bright:#b45fd6;
+  --g-brand-2-surface:#f6eefb; --g-brand-2-line:#dfc4ee; --g-brand-2-tint:#5a1a75;
+  --g-brand-2-text:#7a239e; --g-brand-2-fill:#962fbf; --g-brand-2-fill-hover:#8125a8; --g-brand-2-on:#fff;
   --g-orange:#ea580c; --g-amber:#f59e0b; --g-orange-100:#fff6ee; --g-orange-200:#f8cba6; --g-orange-ink:#b1420a;
   --g-blue:#2563eb; --g-blue-100:#eff6ff;
-  --g-pink:#ff00bb; --g-pink-100:#fff0fa;
+  --g-pink:#d62976; --g-pink-100:#fdf0f6;
   --g-mint:#157f3c; --g-mint-100:#f0fdf4;
   --g-glass:rgba(255,255,255,.82); --g-glass-strong:rgba(255,255,255,.94); --g-glass-edge:rgba(255,255,255,.98);
   --g-surface:#ffffff; --g-surface-2:#f4f6f8; --g-surface-3:#dfe2e8; --g-paper:255 255 255;
@@ -92,8 +92,8 @@ html,body{height:111.111111dvh;min-height:111.111111dvh;margin:0}
   --g-r-lg:16px; --g-r:12px; --g-r-sm:8px;
   --g-shadow:0 1px 2px rgba(15,19,26,.05),0 8px 24px -12px rgba(15,19,26,.12);
   --g-shadow-lift:0 2px 4px rgba(15,19,26,.06),0 16px 36px -14px rgba(15,19,26,.18);
-  --g-grad-brand:linear-gradient(135deg,#e000a6 0%,#f07d18 100%);
-  --g-grad-brand-hover:linear-gradient(135deg,#c70093 0%,#d96f0a 100%);
+  --g-grad-brand:linear-gradient(45deg,#f58529 0%,#dd2a7b 52%,#8134af 100%);
+  --g-grad-brand-hover:linear-gradient(45deg,#e0731c 0%,#c41f6a 52%,#6e2a97 100%);
   --g-grad-on:#fff;
   --g-grad-orange:var(--g-grad-brand);
   --ease-glide:cubic-bezier(.32,.72,0,1); --ease-out:cubic-bezier(.16,1,.3,1); --ease-focus:cubic-bezier(.22,1,.36,1); --ease-std:cubic-bezier(.4,0,.2,1);
@@ -252,7 +252,7 @@ a.crumb:hover{color:var(--g-ink)}
 .lang-switcher{position:relative;display:inline-flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--g-line-2);border-radius:13px;background:var(--g-surface);user-select:none;flex:none}
 .lang-btn{z-index:1;border:0;border-radius:9px;background:transparent;color:var(--g-dim);font-family:inherit;font-size:11px;font-weight:700;padding:5px 8px;cursor:pointer;line-height:1;transition:all .18s var(--ease-std)}
 .lang-btn:hover{color:var(--g-ink);background:var(--g-surface-2)}
-.lang-btn.active{background:var(--g-brand);color:#fff;box-shadow:0 1px 3px rgba(255,0,187,.28)}
+.lang-btn.active{background:var(--g-brand);color:#fff;box-shadow:0 1px 3px rgba(214,41,118,.3)}
 .tool-group{position:relative;display:flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--g-line-2);border-radius:13px;background:var(--g-surface)}
 .tool-btn{z-index:1;width:32px;height:32px;border:0;border-radius:9px;background:transparent}
 .tool-btn:hover{color:var(--g-ink)}
@@ -556,12 +556,12 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
   color-scheme:dark;
   --g-ink:#f1f2f4; --g-ink-2:#cfd4da; --g-dim:#8d939d; --g-faint:#68707c;
   --g-line:#25292d; --g-line-2:#2b2f35; --g-line-strong:#343940;
-  --g-brand:#ff00bb; --g-brand-hover:#ff33cc; --g-brand-bright:#ff66d9;
-  --g-brand-surface:#260d19; --g-brand-line:#5c1837; --g-brand-tint:#ff9ec7;
-  --g-brand-2:#fc972d; --g-brand-2-hover:#ffad56; --g-brand-2-bright:#ffc485;
-  --g-brand-2-surface:rgba(252,151,45,.14); --g-brand-2-line:#6b4117; --g-brand-2-text:#ffb366; --g-brand-2-tint:#ffc990;
-  --g-grad-brand:linear-gradient(135deg,#e600ab 0%,#f5861d 100%);
-  --g-grad-brand-hover:linear-gradient(135deg,#ff1ac4 0%,#fc972d 100%);
+  --g-brand:#ee4b94; --g-brand-hover:#f472a9; --g-brand-bright:#f799c2;
+  --g-brand-surface:#2a0d1b; --g-brand-line:#5c1a3a; --g-brand-tint:#f7a8cb;
+  --g-brand-2:#b45fd6; --g-brand-2-hover:#c47fe0; --g-brand-2-bright:#d4a3ea;
+  --g-brand-2-surface:rgba(150,47,191,.18); --g-brand-2-line:#4a2360; --g-brand-2-text:#cf9be8; --g-brand-2-tint:#dcb5ee;
+  --g-grad-brand:linear-gradient(45deg,#f58529 0%,#dd2a7b 52%,#8134af 100%);
+  --g-grad-brand-hover:linear-gradient(45deg,#f7973f 0%,#e8458f 52%,#9447c2 100%);
   --g-grad-on:#fff;
   --g-grad-orange:var(--g-grad-brand);
   --g-orange:#f97316; --g-amber:#fbbf24; --g-orange-100:rgba(249,115,22,.14); --g-orange-200:#6b4525; --g-orange-ink:#ffb17a;
@@ -738,22 +738,22 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
 
 
 /* ═════════ Refinements: clarity, deference, legibility ═════════
-   The flame pink #ff00bb stays the identity colour (logo, current-page marker, focus, dots).
+   The soci pink #d62976 (purple #962fbf second; buttons run the orange → pink → purple gradient) stays the identity colour (logo, current-page marker, focus, dots).
    Surfaces that carry white text use a deeper tone of the same pink so the text clears 4.5:1.
    Pink marks the one primary action and the current location; selection inside a page
    (segmented tabs) is neutral, like a system segmented control. Motion explains change and
    stays short; nothing blurs, sweeps or glows on its own. */
 :root{
   --t-caption:12.5px; --t-footnote:13px; --t-body:14px; --t-title3:17px; --t-title1:26px;
-  --g-brand-fill:#d6009e; --g-brand-fill-hover:#c2008f; --g-brand-text:#c4008f;
-  --g-brand-2-fill:#e0780c; --g-brand-2-fill-hover:#cb6906; --g-brand-2-text:#b85c00;
-  --g-grad-brand:linear-gradient(135deg,#e000a6 0%,#f07d18 100%);
-  --g-grad-brand-hover:linear-gradient(135deg,#c70093 0%,#d96f0a 100%);
+  --g-brand-fill:#d62976; --g-brand-fill-hover:#bd1f66; --g-brand-text:#b01f62;
+  --g-brand-2-fill:#962fbf; --g-brand-2-fill-hover:#8125a8; --g-brand-2-text:#7a239e;
+  --g-grad-brand:linear-gradient(45deg,#f58529 0%,#dd2a7b 52%,#8134af 100%);
+  --g-grad-brand-hover:linear-gradient(45deg,#e0731c 0%,#c41f6a 52%,#6e2a97 100%);
   --g-grad-on:#fff;
   --g-grad-orange:var(--g-grad-brand);
   --g-faint:#6f7784;
 }
-:root[data-theme=dark]{ --g-brand-text:#ff5cd3; --g-brand-2-text:#ffb366; --g-grad-brand:linear-gradient(135deg,#e600ab 0%,#f5861d 100%); --g-grad-brand-hover:linear-gradient(135deg,#ff1ac4 0%,#fc972d 100%); --g-faint:#7d8591 }
+:root[data-theme=dark]{ --g-brand-text:#f27aae; --g-brand-2-text:#cf9be8; --g-grad-brand:linear-gradient(45deg,#f58529 0%,#dd2a7b 52%,#8134af 100%); --g-grad-brand-hover:linear-gradient(45deg,#f7973f 0%,#e8458f 52%,#9447c2 100%); --g-faint:#7d8591 }
 
 /* Focus: one visible ring for every interactive element reached by keyboard */
 :where(a,button,summary,[role=button],[role=tab],[tabindex]:not([tabindex="-1"])):focus-visible{outline:2px solid var(--g-brand);outline-offset:2px}
@@ -1847,7 +1847,7 @@ button.shc-card:active{
   border-color:color-mix(in srgb,var(--cu-accent) 30%,var(--g-line-2));
 }
 
-.dash-gauge canvas{color:var(--dash-accent,var(--g-brand,#ff00bb))}
+.dash-gauge canvas{color:var(--dash-accent,var(--g-brand,#d62976))}
 .dash-gauge b,
 :root[data-theme=dark] .dash-gauge b{
   font-size:30px;

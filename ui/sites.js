@@ -2,7 +2,7 @@
 // so pages are built, edited and published with the same engine, including AI generation.
 import { icon } from './icons.js';
 import { h, pageShell } from './screens.js';
-import { studioTemplates } from './studio-data.js';
+import { siteTemplateCategories, siteTemplates } from './site-template-data.js';
 import { startBuild } from './studio-builder.js';
 import { studio } from './studio.js';
 import { siteTabs } from './forms.js';
@@ -240,16 +240,47 @@ function createDialog(c, kind, mode) {
     <div class="site-choices" role="radiogroup" aria-label="Como começar">
       ${option('blank', 'Em branco', `Comece com ${kind === 'funnel' ? 'uma página de captura e uma de obrigado' : 'uma página inicial'} e edite como quiser.`, 'edit')}
       ${option('model', 'Construir com IA', ai ? 'A IA pergunta a direção visual, planeja as etapas e constrói todas.' : 'Pergunta a direção visual e monta as etapas com o gerador local.', 'spark')}
-      ${option('starter', 'A partir de modelo', 'Escolha um dos modelos prontos do AI Studio.', 'grid')}</div>
+      ${option('starter', 'A partir de modelo', 'Escolha um dos modelos de site prontos, com fotos, vídeos e animações.', 'grid')}</div>
     <div data-site-mode="blank"><label>Nome do ${w.one}<input name="name" maxlength="80" placeholder="${kind === 'funnel' ? 'Ex. Aula gratuita de marketing' : 'Ex. Clínica Sorriso'}"></label></div>
     <div data-site-mode="model"><label>O que o ${w.one} deve vender ou apresentar?<textarea name="brief" rows="4" maxlength="4000" placeholder="Ex. Funil para uma clínica odontológica em BH captar pacientes para clareamento, com oferta de avaliação gratuita"></textarea></label>
       <label>Site de referência (opcional)<input name="reference" type="url" maxlength="500" placeholder="https://"></label>
       <p class="dim">Antes de construir, você escolhe a paleta, as fontes e o layout. A estrutura do site de referência serve só de inspiração; os textos não são copiados.</p>
       ${ai ? '' : '<p class="site-hint">Sem a OpenAI conectada, o construtor usa o gerador local. Conecte em Visão da agência → Configurações → OpenAI para a IA escrever as páginas.</p>'}</div>
-    <div data-site-mode="starter"><label>Nome do ${w.one}<input name="starterName" maxlength="80"></label>
-      <div class="site-templates" role="radiogroup" aria-label="Modelo">${studioTemplates.map(([id, title, text], index) => `<label class="site-template"><input type="radio" name="template" value="${id}" ${index ? '' : 'checked'}><b>${h(title)}</b><small>${h(text)}</small></label>`).join('')}</div></div>`,
+    <div data-site-mode="starter">${templateGallery(w)}</div>`,
   'create', kind === 'funnel' ? 'Criar funil' : 'Criar site');
   syncModes();
+}
+
+// Galeria de modelos (como a biblioteca de templates do GHL): filtro por categoria, busca,
+// miniatura ao vivo de cada modelo e link para ver o modelo inteiro numa aba nova.
+function templateGallery(w) {
+  const chip = ([id, name], index) => `<label class="tpl-chip"><input type="radio" name="tplCategory" value="${id}" ${index ? '' : 'checked'}>${h(name)}</label>`;
+  const card = (t, index) => {
+    const category = siteTemplateCategories.find(([id]) => id === t.category)?.[1] || '';
+    return `<label class="tpl-card" data-tpl-category="${t.category}" data-tpl-text="${h(`${t.name} ${category} ${t.description}`.toLowerCase())}">
+      <input type="radio" name="siteTemplate" value="${t.id}" ${index ? '' : 'checked'}>
+      <span class="tpl-thumb" style="background-image:url('${t.cover}')"><iframe src="/studio-template/${t.id}/index?thumb" title="Miniatura do modelo ${h(t.name)}" loading="lazy" tabindex="-1" aria-hidden="true"></iframe></span>
+      <span class="tpl-info"><b>${h(t.name)}</b><small>${h(category)} · ${t.pages.length} ${t.pages.length === 1 ? 'página' : 'páginas'}</small>
+        <small class="tpl-desc">${h(t.description)}</small>
+        <span class="tpl-tags">${t.effects.map(e => `<i>${h(e)}</i>`).join('')}</span>
+        <a class="tpl-preview" href="/studio-template/${t.id}/index" target="_blank" rel="noopener">Pré-visualizar ${icon('external', 13)}</a></span></label>`;
+  };
+  return `<label>Nome do ${w.one}<input name="starterName" maxlength="80" placeholder="Ex. Clínica Sorriso (aparece no lugar da marca do modelo)"></label>
+    <div class="tpl-bar"><div class="tpl-chips" role="radiogroup" aria-label="Categoria">${[['all', 'Todos'], ...siteTemplateCategories].map(chip).join('')}</div>
+      <input type="search" class="tpl-search" data-tpl-search placeholder="Buscar modelos" aria-label="Buscar modelos"></div>
+    <div class="tpl-grid" role="radiogroup" aria-label="Modelo">${siteTemplates.map(card).join('')}</div>
+    <p class="tpl-empty dim" hidden>Nenhum modelo encontrado.</p>`;
+}
+
+function filterTemplates(form) {
+  const category = form.elements.tplCategory?.value || 'all';
+  const query = (form.querySelector('[data-tpl-search]')?.value || '').trim().toLowerCase();
+  let shown = 0;
+  for (const card of form.querySelectorAll('.tpl-card')) {
+    const visible = (category === 'all' || card.dataset.tplCategory === category) && (!query || card.dataset.tplText.includes(query));
+    card.hidden = !visible; shown += visible;
+  }
+  form.querySelector('.tpl-empty').hidden = shown > 0;
 }
 
 function syncModes() {
@@ -295,7 +326,12 @@ export function installSites(environment) {
     const counter = field.closest('.site-seo')?.querySelector(`[data-count-for="${field.name}"]`);
     if (counter) counter.textContent = `${field.value.length}/${field.maxLength}`;
   });
-  document.addEventListener('change', event => { if (event.target.closest('[data-site-form="create"]') && event.target.name === 'mode') syncModes(); });
+  document.addEventListener('change', event => {
+    const form = event.target.closest('[data-site-form="create"]');
+    if (form && event.target.name === 'mode') syncModes();
+    if (form && event.target.name === 'tplCategory') filterTemplates(form);
+  });
+  document.addEventListener('input', event => { if (event.target.matches('[data-tpl-search]')) filterTemplates(event.target.form); });
 
   document.addEventListener('click', async event => {
     const target = event.target.closest('button, a');
@@ -356,8 +392,10 @@ export function installSites(environment) {
       if (mode === 'blank') body.name = data.name;
       if (mode === 'model') Object.assign(body, { brief: data.brief, template: 'landing', reference: data.reference || undefined });
       if (mode === 'starter') {
-        const template = studioTemplates.find(item => item[0] === data.template) || studioTemplates[0];
-        Object.assign(body, { template: template[0], brief: `${data.starterName.trim() || template[1]}. ${template[2]}` });
+        const template = siteTemplates.find(item => item.id === data.siteTemplate);
+        if (!template) throw new Error('Escolha um modelo.');
+        const name = data.starterName.trim() || template.brand;
+        Object.assign(body, { siteTemplate: template.id, name, brief: `${name}. ${template.description}` });
       }
       if (mode === 'blank' && !body.name?.trim()) throw new Error('Dê um nome.');
       if (mode === 'model' && !body.brief?.trim()) throw new Error('Descreva o que você quer construir.');

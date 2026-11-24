@@ -6,7 +6,7 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp
 export function brandGroupPage(data, { lang = 'pt', path = '', agency = {} } = {}) {
   const w = groupWords(lang), locale = lang === 'es' ? 'es-419' : 'pt-BR';
   const day = iso => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: agency.timezone || 'America/Sao_Paulo' }).format(new Date(iso));
-  const accent = /^#[0-9a-f]{6}$/i.test(agency.primary || '') ? agency.primary : '#ff00bb';
+  const accent = /^#[0-9a-f]{6}$/i.test(agency.primary || '') ? agency.primary : '#d62976';
   const brand = agency.name || '';
   return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>${esc(data.name)}${brand ? ` · ${esc(brand)}` : ''}</title>

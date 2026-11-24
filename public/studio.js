@@ -279,7 +279,7 @@ function prepareFrame() {
     if (link || event.target.closest('button') || (S().visual && !event.target.isContentEditable)) event.preventDefault();
     if (!S().visual) {
       const href = link?.getAttribute('href') || '';
-      const slug = href.match(/^page:([a-z0-9-]+)$/)?.[1];
+      const slug = href.match(/^page:([a-z0-9-]+)(?:#[\w-]*)?$/)?.[1];
       const target = slug && S().doc.pages.find(item => item.slug === slug);
       if (target) { S().page = target.id; env.render(); }
       if (href.startsWith('#')) doc.getElementById(href.slice(1))?.scrollIntoView({ block: 'start', behavior: 'instant' });

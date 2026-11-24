@@ -11,6 +11,7 @@
     "migrate:sqlite": "node --env-file-if-exists=.env.local migrate-sqlite.mjs",
     "build:dark": "node scripts/build-dark.mjs",
     "test": "node --test --test-isolation=none \"test/**/*.test.mjs\"",
+    "build:prancheta": "npm --prefix prancheta-editor run build",
     "smoke": "node scripts/smoke-deploy.mjs",
     "lint": "biome lint .",
     "typecheck": "tsc -p tsconfig.json"

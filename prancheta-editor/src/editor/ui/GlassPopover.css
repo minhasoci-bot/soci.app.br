@@ -1,0 +1,236 @@
+/* ==========================================================================
+   GLASS POPOVER — Inspetor do Efeito Vidro (Figma 1:1)
+   Um Cara Caramelo — Laboratório de Interação
+   ========================================================================== */
+
+.glass-popover {
+  position: fixed;
+  z-index: 1350;
+  width: 280px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), 0 0 0 1px color-mix(in srgb, var(--text) 5%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: var(--font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  color: var(--text);
+  animation: gpFadeIn 0.12s ease-out;
+  user-select: none;
+}
+
+@keyframes gpFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.glass-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+}
+
+.glass-popover-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.glass-popover-close {
+  background: transparent;
+  border: none;
+  color: color-mix(in srgb, var(--text) 50%, transparent);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.glass-popover-close:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+/* Seção Luz */
+.glass-light-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.glass-light-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+  width: 32px;
+}
+
+.glass-light-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  position: relative;
+  cursor: crosshair;
+  background: var(--input);
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.glass-light-pin {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 2px solid var(--blue);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 6px rgba(255, 146, 48, 0.6);
+  pointer-events: none;
+}
+
+.glass-light-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.glass-mini-input {
+  display: flex;
+  align-items: center;
+  background: var(--input);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: 6px;
+  padding: 0 8px;
+  height: 24px;
+}
+
+.glass-mini-input:focus-within {
+  border-color: var(--blue);
+}
+
+.glass-mini-input input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 11px;
+  font-family: inherit;
+  text-align: right;
+}
+
+.glass-mini-input span {
+  font-size: 11px;
+  color: color-mix(in srgb, var(--text) 45%, transparent);
+  margin-left: 2px;
+}
+
+/* Sliders */
+.glass-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.glass-slider-row {
+  display: grid;
+  grid-template-columns: 82px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+}
+
+.glass-slider-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--text) 75%, transparent);
+  white-space: nowrap;
+}
+
+.glass-slider-track {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  outline: none;
+  cursor: pointer;
+}
+
+.glass-slider-track::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.glass-slider-track::-webkit-slider-thumb:hover {
+  transform: scale(1.18);
+}
+
+.glass-slider-track::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
+.glass-slider-input {
+  width: 100%;
+  height: 24px;
+  background: var(--input);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 11px;
+  font-family: inherit;
+  text-align: center;
+  outline: none;
+}
+
+.glass-slider-input:focus {
+  border-color: var(--blue);
+}
+
+/* Rodapé / Tint */
+.glass-tint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+}
+
+.glass-tint-label {
+  font-size: 11px;
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+  flex-shrink: 0;
+}
