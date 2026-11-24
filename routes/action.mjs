@@ -4,13 +4,13 @@
 // fechamento de makeServer (deps) e, a cada requisição, o contexto da rota (ctx).
 import { requireWorkspaceCommand, workspaceView } from '../authorization.mjs';
 import { inboundAddress } from '../email-inbound.mjs';
-import { mediaRowId } from '../reputation-media.mjs';
+import { r2KeysOf } from '../media-model.mjs';
 import { eachStep } from '../ui/workflow-data.js';
 import { NEXT_ROUTE } from './next-route.mjs';
 
 export function createActionRoutes(deps) {
   const {
-    store, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess
+    store, r2, clearVideoChunks, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess
   } = deps;
   return async function actionRoute({ req, res, p, method, url, id, json, send }) {
     if (p==='/api/action' && method==='POST') {
@@ -35,8 +35,14 @@ export function createActionRoutes(deps) {
       }
       if (['document-send', 'document-link', 'estimate-send', 'estimate-link', 'invoice-send', 'invoice-from-template', 'checkout-remind', 'email-campaign-schedule', 'message', 'review-request', 'reputation-settings'].includes(command.type)) command.data = { ...(command.data && typeof command.data === 'object' ? command.data : {}), origin: publicBase(req) };
       const removedVideo = command.type === 'delete' && command.key === 'videoTestimonials' ? (await store.load(id)).videoTestimonials?.find(row => row.id === command.id) : null;
+      const dropsFiles = (command.type === 'delete' && command.key === 'files') || command.type === 'media-empty-trash';
+      const keysBefore = dropsFiles && r2 ? r2KeysOf((await store.load(id)).files) : null;
       const result = await change(id,command,who);
-      if (removedVideo) for (let index = 0; index < removedVideo.chunks; index++) await Promise.resolve().then(() => store.change(mediaRowId(id, removedVideo.id, index), row => { row.data = ''; row.deleted = true; })).catch(() => {});
+      if (removedVideo) await clearVideoChunks(id, removedVideo);
+      // Objects in R2 go when their records go (a failure only leaves an orphan object, never a broken record).
+      const removedKeys = [...(keysBefore || [])].filter(key => !r2KeysOf(result.state.files).has(key));
+      if (removedVideo?.r2Key && r2) removedKeys.push(removedVideo.r2Key);
+      for (const key of removedKeys) await r2.remove(key).catch(problem => console.error(`R2 delete (${id}): ${problem.message}`));
       let delivery = null;
       let state = result.state;
       if (!privateSpace.test(id) && command.type === 'message' && command.data?.channel === 'WhatsApp' && command.data?.direction === 'Outbound') {

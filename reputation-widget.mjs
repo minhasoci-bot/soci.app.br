@@ -2,7 +2,7 @@
 // and the video testimonial collector (record with the camera or send a file, then upload in chunks).
 import { widgetContent } from './reputation-media.mjs';
 
-export const widgetCsp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; media-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors *";
+export const widgetCsp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; media-src 'self' https://*.r2.cloudflarestorage.com; base-uri 'none'; form-action 'none'; frame-ancestors *";
 export const collectorCsp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src blob: mediastream:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 const h = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);

@@ -43,7 +43,8 @@ import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgen
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
 import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
-import { importedFile, mediaLimitBytes } from './media-model.mjs';
+import { importedFile, importedMeta, mediaLimitBytes, mediaTypes } from './media-model.mjs';
+import { R2_MAX_BYTES, r2FromEnv } from './r2-storage.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
 import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
@@ -207,7 +208,7 @@ const pranchetaEditorCsp = () => csp
   .replace("frame-ancestors 'none'", "frame-ancestors 'self'")
   .replace("script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'")
   .replace("connect-src 'self'", "connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://storage.googleapis.com https://fonts.googleapis.com https://fonts.gstatic.com");
-const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://accounts.google.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; media-src 'self' data: https:; connect-src 'self' https://accounts.google.com; frame-src 'self' https: https://accounts.google.com; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'";
+const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://accounts.google.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; media-src 'self' data: https:; connect-src 'self' https://accounts.google.com https://*.r2.cloudflarestorage.com; frame-src 'self' https: https://accounts.google.com; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'";
 const error = (message,status) => Object.assign(new Error(message),{status});
 const spaceId = /^[0-9a-f-]{36}$|^demo$/;
 const privateSpace = /^user-[0-9a-f-]{36}$/;
@@ -322,7 +323,7 @@ export function makeServer({
   uazapiBaseUrl=process.env.UAZAPI_BASE_URL || '', uazapiAdminToken=process.env.UAZAPI_ADMIN_TOKEN || '',
   evolutionBaseUrl=process.env.EVOLUTION_BASE_URL || '', evolutionApiKey=process.env.EVOLUTION_API_KEY || '',
   portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(), campaignMail=campaignMailer(),
-  allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1'
+  allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1', r2=r2FromEnv()
 }={}) {
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
   const content = { transformText, writeEmail, writeReviewReply, writeBrandVoice, writeCaption, writePost, postSeo, transcribeAudio, summarizeMeeting, askAssistant, writeConversationReply, writeConversationSummary, ...contentAI };
@@ -1554,14 +1555,37 @@ export function makeServer({
     const result = await change(workspace, { type: 'community-newsletter', data: { items } });
     return Number(result.id) || 0;
   }
-  async function sendVideo(req, res, method, workspace, row, cache) {
+  async function videoBytes(workspace, row) {
     const parts = [];
     for (let index = 0; index < row.chunks; index++) {
       const chunk = await Promise.resolve().then(() => store.load(mediaRowId(workspace, row.id, index))).catch(() => null);
       if (!chunk?.data) throw error('Vídeo indisponível.', 404);
       parts.push(Buffer.from(chunk.data, 'base64'));
     }
-    const bytes = Buffer.concat(parts);
+    return Buffer.concat(parts);
+  }
+  const clearVideoChunks = async (workspace, row) => {
+    for (let index = 0; index < row.chunks; index++) await Promise.resolve().then(() => store.change(mediaRowId(workspace, row.id, index), chunk => { chunk.data = ''; chunk.deleted = true; })).catch(() => {});
+  };
+  // A video kept in R2 is served by the bucket itself, through a short-lived signed link.
+  const redirectToR2 = (res, key, options) => {
+    if (!r2) throw error('Arquivo indisponível.', 404);
+    res.writeHead(302, { Location: r2.downloadUrl(key, options), 'Cache-Control': 'private, max-age=300', 'Referrer-Policy': 'no-referrer' });
+    return res.end();
+  };
+  // Testimonials arrive in chunks (each one a database row); once complete they move to R2 in one object.
+  async function moveVideoToR2(workspace, row) {
+    if (!r2 || !row?.chunks) return;
+    try {
+      const r2Key = `ws/${workspace}/videos/${row.id}`;
+      await r2.put(r2Key, await videoBytes(workspace, row), row.mime);
+      await change(workspace, { type: 'video-stored', data: { id: row.id, r2Key } });
+      await clearVideoChunks(workspace, row);
+    } catch (problem) { console.error(`R2 video move (${workspace}): ${problem.message}`); }
+  }
+  async function sendVideo(req, res, method, workspace, row, cache) {
+    if (row.r2Key) return redirectToR2(res, row.r2Key, { type: row.mime });
+    const bytes = await videoBytes(workspace, row);
     const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ''));
     const headers = { 'Content-Type': row.mime, 'Accept-Ranges': 'bytes', 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff', 'Cross-Origin-Resource-Policy': 'cross-origin' };
     if (range && (range[1] || range[2])) {
@@ -1788,7 +1812,15 @@ export function makeServer({
         }
         const bytes = await (mediaAI?.content || videoContent)(connection, job.jobId);
         if (!bytes?.length || bytes.length > 15 * 1024 * 1024) { await finish({}, { error: 'o vídeo gerado passou de 15 MB' }); continue; }
-        const id = uid(), chunks = Math.ceil(bytes.length / CHUNK_BYTES);
+        const id = uid();
+        if (r2) {
+          const r2Key = `ws/${workspace}/videos/${id}`;
+          await r2.put(r2Key, bytes, 'video/mp4');
+          await finish({ id, r2Key, chunks: 0, bytes: bytes.length, prompt: job.prompt, workflowId: job.workflowId },
+            { vars: { [job.variable]: documentMail.linkOf({ path: `/m/${workspace}/video/${id}` }), [`${job.variable}_id`]: id } });
+          continue;
+        }
+        const chunks = Math.ceil(bytes.length / CHUNK_BYTES);
         for (let index = 0; index < chunks; index++) {
           const rowId = mediaRowId(workspace, id, index);
           await store.insert(rowId, { profile: { name: 'Vídeo gerado com IA' }, data: bytes.subarray(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES).toString('base64') });
@@ -2136,9 +2168,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     catch { throw error('Invalid JSON request.',400); }
   };
   // Rotas por domínio (P2.1): cada módulo recebe o que vive neste fechamento e devolve NEXT_ROUTE quando a rota não é dele.
-  const socialRoute = createSocialRoutes({ store, auth, localAccess, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
+  const socialRoute = createSocialRoutes({ store, auth, localAccess, redirectToR2, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
   const adsRoute = createAdsRoutes({ store, localAccess, error, spaceId, privateSpace, stamp, adsAccess, adsCallbackPath, adsPopup, adsView, payload, publicBase, recordAudit, runAds, socialActor, socialRow, workspaceAccess });
-  const actionRoute = createActionRoutes({ store, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
+  const actionRoute = createActionRoutes({ store, r2, clearVideoChunks, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
   const emailRoute = createEmailRoutes({ store, ready, error, spaceId, privateSpace, stamp, campaignMail, emailDomainApi, flushLater, inboundFetch, payload, publicAccountPolicy, publicBase, recordAudit, sendingAddress, socialRow, testHits, workspaceAccess });
   const metaRoute = createMetaRoutes({ store, ready, error, change, flushLater, metaFetch, metaRoutesRow, metaSender, publicAccountPolicy });
   const googleRoute = createGoogleRoutes({ store, ready, localAccess, error, spaceId, privateSpace, stamp, workspaceSegment, flushLater, googleCache, googleCallbackPath, googleData, googlePopup, googleView, payload, publicAccountPolicy, publicBase, recordAudit, searchCache, socialActor, socialRow, workspaceAccess });
@@ -2471,11 +2503,55 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (typeof input.url !== 'string' || !input.url.trim() || input.url.length > 2000) throw error('Cole o link do arquivo.',400);
         const address = input.url.trim();
         let response;
-        try { response = await fetchMedia(address, { maxBytes: mediaLimitBytes + 1, timeout: 10000 }); }
+        const limit = r2 ? R2_MAX_BYTES : mediaLimitBytes;
+        try { response = await fetchMedia(address, { maxBytes: limit + 1, timeout: r2 ? 30000 : 10000 }); }
         catch (e) { throw error(['EINVALID','EBLOCKED'].includes(e.code) ? 'Use um link público que comece com https://.' : 'Não foi possível baixar o arquivo desse link.', 422); }
+        const folderId = typeof input.folderId === 'string' ? input.folderId : '';
+        if (r2 && response.body?.length > mediaLimitBytes) {
+          const { name, mime } = importedMeta(response, address, limit);
+          const fileId = uid(), r2Key = `ws/${id}/files/${fileId}`;
+          if ((await store.load(id)).files.length >= 60) throw error('The local drive holds up to 60 files.', 400);
+          await r2.put(r2Key, response.body, mime);
+          let result;
+          try { result = await change(id, { type:'media-stored', data:{ id: fileId, r2Key, mime, size: response.body.length, name, folderId } }); }
+          catch (e) { await r2.remove(r2Key).catch(() => {}); throw e; }
+          return json({ id: result.id, ...workspaceView(who, result.state) });
+        }
         const file = importedFile(response, address);
-        const result = await change(id, { type:'save', key:'files', data:{ ...file, folderId: typeof input.folderId === 'string' ? input.folderId : '' } }, who);
+        const result = await change(id, { type:'save', key:'files', data:{ ...file, folderId } }, who);
         return json({ id: result.id, ...workspaceView(who, result.state) });
+      }
+      // Mídia Drive → files over 700 KB: the browser PUTs them straight into R2 with a signed link, then
+      // asks for the record; the server checks the stored object (size and type) before writing it.
+      if ((p==='/api/media/upload-url' || p==='/api/media/upload-done') && method==='POST') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
+        const input = await payload(req);
+        const who = await workspaceAccess(req, res, id);
+        requireWorkspaceCommand(who, { type:'save', key:'files' });
+        if (!r2) throw error('O armazenamento de arquivos grandes (Cloudflare R2) ainda não foi configurado. Envie arquivos de até 700 KB.', 503);
+        if (p==='/api/media/upload-url') {
+          const mime = typeof input.mime === 'string' ? input.mime.trim().toLowerCase() : '';
+          const size = Number(input.size);
+          if (!mediaTypes[mime]) throw error('Escolha um arquivo de imagem, vídeo, áudio, PDF, TXT ou CSV.', 400);
+          if (!Number.isInteger(size) || size < 1 || size > R2_MAX_BYTES) throw error('O arquivo pode ter até 50 MB.', 413);
+          if ((await store.load(id)).files.length >= 60) throw error('The local drive holds up to 60 files.', 400);
+          const fileId = uid(), key = `ws/${id}/files/${fileId}`;
+          const token = r2.seal({ k: key, i: fileId, w: id, m: mime, s: size, n: typeof input.name === 'string' ? input.name.slice(0, 240) : '',
+            f: typeof input.folderId === 'string' ? input.folderId.slice(0, 60) : '', exp: Date.now() + 15 * 60000 });
+          return json({ uploadUrl: r2.uploadUrl(key, mime), headers: { 'Content-Type': mime }, token });
+        }
+        const ticket = r2.open(input.token);
+        if (ticket.w !== id) throw error('Envio inválido. Comece de novo.', 400);
+        const stored = await r2.head(ticket.k);
+        if (!stored) throw error('O arquivo não chegou ao armazenamento. Tente de novo.', 409);
+        if (stored.size !== ticket.s || stored.type !== ticket.m) {
+          await r2.remove(ticket.k).catch(() => {});
+          throw error('O arquivo enviado não confere com o que foi pedido. Tente de novo.', 422);
+        }
+        let result;
+        try { result = await change(id, { type:'media-stored', data:{ id: ticket.i, r2Key: ticket.k, mime: ticket.m, size: ticket.s, name: ticket.n, folderId: ticket.f } }); }
+        catch (e) { await r2.remove(ticket.k).catch(() => {}); throw e; }
+        return json({ id: result.id, ...workspaceView(who, result.state) }, 201);
       }
       // Marketing → Rastreamento: the GA4 Measurement Protocol API secret. Write-only: sealed in the ads-<workspace> row,
       // never sent back; the sub-account state only says whether it is set. An empty value removes it.
@@ -3230,7 +3306,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (!await store.insert(rowId, { data: result.data })) await store.change(rowId, row => { row.data = result.data; });
           return json({ ok: true, index: result.index });
         }
-        if (step === 'finish') { flushLater(workspace); return json({ ok: true }, 201); }
+        if (step === 'finish') { await moveVideoToR2(workspace, result); flushLater(workspace); return json({ ok: true }, 201); }
         return json(result);
       }
       // Review link: the public page (generic or personal) and the review it sends.
