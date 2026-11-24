@@ -2,13 +2,15 @@
 # Manutenção diária dentro de um container (modo PC): às 03:30, ou na primeira hora em que o PC
 # estiver ligado depois disso, faz backup do Postgres e apaga mensagens antigas.
 set -u
+# Sem isto, um pg_dump que falha no meio viraria um backup "ok" vazio.
+set -o pipefail
 KEEP_MSG="${MESSAGE_RETENTION_DAYS:-30}"
 KEEP_BKP="${BACKUP_RETENTION_DAYS:-7}"
 stamp() { date '+%Y-%m-%d %H:%M:%S'; }
 
 run() {
   file="/backups/evolution-$(date +%Y%m%d-%H%M).sql.gz"
-  if pg_dump --no-owner | gzip -6 > "$file.tmp"; then
+  if pg_dump --no-owner --clean --if-exists | gzip -6 > "$file.tmp"; then
     mv "$file.tmp" "$file"
     echo "$(stamp) backup ok: $file"
   else

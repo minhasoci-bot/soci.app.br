@@ -26,12 +26,20 @@ if [ -f .env ]; then
   EMAIL="${EMAIL:-$(grep -E '^ACME_EMAIL=' .env | cut -d= -f2-)}"
 fi
 [ -n "$DOMAIN" ] && [ -n "$EMAIL" ] || die "uso: sudo bash install.sh whatsapp.seudominio.com.br voce@email.com"
+[ -f .env ] || [ -f .env.example ] || die "falta o arquivo .env.example nesta pasta. Envie a pasta de novo com o enviar-vps.ps1."
+
+# Painel ou servidor web já instalado (modelo errado na contratação): o Caddy não conseguiria abrir 80/443.
+busy=$(ss -Hltnp '( sport = :80 or sport = :443 )' 2>/dev/null | grep -v docker-proxy || true)
+[ -z "$busy" ] || die "as portas 80/443 já estão em uso nesta VPS. Reinstale com Ubuntu 24.04 puro (sem painel):
+$busy"
 
 say "Atualizando o sistema e instalando o básico"
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -y
-apt-get upgrade -y
-apt-get install -y ca-certificates curl gnupg jq openssl ufw fail2ban unattended-upgrades dnsutils cron
+# VPS recém-criada costuma estar atualizando sozinha: espera o apt ficar livre e mantém as configurações do provedor.
+export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a
+APT=(apt-get -y -o DPkg::Lock::Timeout=600 -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
+"${APT[@]}" update
+"${APT[@]}" upgrade
+"${APT[@]}" install ca-certificates curl gnupg jq openssl ufw fail2ban unattended-upgrades dnsutils cron
 
 say "Fuso horário America/Sao_Paulo"
 timedatectl set-timezone America/Sao_Paulo || true
@@ -67,8 +75,8 @@ if ! command -v docker >/dev/null 2>&1; then
   chmod a+r /etc/apt/keyrings/docker.asc
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" \
     > /etc/apt/sources.list.d/docker.list
-  apt-get update -y
-  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  "${APT[@]}" update
+  "${APT[@]}" install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 fi
 mkdir -p /etc/docker
 if [ ! -f /etc/docker/daemon.json ]; then
@@ -88,6 +96,8 @@ say "Firewall (só SSH, HTTP e HTTPS)"
 ufw default deny incoming >/dev/null
 ufw default allow outgoing >/dev/null
 ufw allow OpenSSH >/dev/null
+# SSH em porta diferente da 22: libera também, para não trancar o acesso.
+for port in $(sshd -T 2>/dev/null | awk '$1 == "port" {print $2}'); do ufw allow "${port}/tcp" >/dev/null; done
 ufw allow 80/tcp >/dev/null
 ufw allow 443/tcp >/dev/null
 ufw allow 443/udp >/dev/null
@@ -153,6 +163,19 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EOF
 chmod 644 /etc/cron.d/evolution-maintenance
 
+say "Testando o endereço público (o certificado HTTPS pode levar um minuto)"
+public=""
+for _ in $(seq 1 18); do
+  if curl -fsS -m 10 "https://${DOMAIN}/" 2>/dev/null | jq -e '.version' >/dev/null 2>&1; then public=ok; break; fi
+  printf '.'; sleep 5
+done
+echo
+if [ -n "$public" ]; then
+  echo "ok: https://${DOMAIN} respondendo"
+else
+  warn "https://${DOMAIN} ainda não responde. Confira o DNS e o firewall da Hostinger (80 e 443), depois rode: docker compose logs --tail 50 caddy"
+fi
+
 KEY=$(grep -E '^AUTHENTICATION_API_KEY=' .env | cut -d= -f2-)
 say "Pronto!"
 cat <<EOF
@@ -166,5 +189,5 @@ cat <<EOF
     EVOLUTION_API_KEY  = ${KEY}
   Depois faça um novo deploy. Guarde a chave num cofre de senhas.
 
-  Teste:  curl -s https://${DOMAIN}/ -H "apikey: ${KEY}"
+  Depois do deploy, confira em Agência -> Configurações -> WhatsApp -> Testar servidor.
 EOF

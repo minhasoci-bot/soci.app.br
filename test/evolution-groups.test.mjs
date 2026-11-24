@@ -34,7 +34,7 @@ async function connected(t, { open = true } = {}) {
   };
   const dir = mkdtempSync(join(tmpdir(), 'soci-evo-groups-')), store = createSqliteStore(join(dir, 'go.sqlite'));
   const options = { evolutionBaseUrl: 'https://evo.soci.test', evolutionApiKey: KEY };
-  const { server } = makeServer({ store, auth: null, allowLocalAccess: true, port: 0, openAISecret: SECRET, socialScheduler: false, uazapiBaseUrl: '', uazapiAdminToken: '', whatsappRequest: request, ...options });
+  const { server } = makeServer({ store, auth: null, allowLocalAccess: true, port: 0, openAISecret: SECRET, socialScheduler: false, whatsappRequest: request, ...options });
   await new Promise(done => server.listen(0, '127.0.0.1', done));
   const base = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => { await new Promise(done => server.close(done)); rmSync(dir, { recursive: true, force: true }); });
@@ -42,7 +42,7 @@ async function connected(t, { open = true } = {}) {
   if (open) evo.state = 'open';
   await fetch(`${base}/api/whatsapp/workspace/status?workspace=demo`);
   calls.length = 0;
-  const handler = createWhatsAppHandler({ store, secret: SECRET, request, envBaseUrl: '', envAdminToken: '', ...options });
+  const handler = createWhatsAppHandler({ store, secret: SECRET, request, ...options });
   return { evo, calls, base, store, send: message => handler.sendEventMessage('agency', 'demo', message, active), groups: () => handler.listWorkspaceGroups('agency', 'demo', active), handler };
 }
 const sends = calls => calls.filter(c => c.path.startsWith('/message/'));
@@ -153,4 +153,16 @@ test('A suspended account waits instead of sending', async t => {
   const result = await wa.handler.sendEventMessage('agency', 'demo', { to: GROUP, part: text('Oi') }, async () => false);
   assert.equal(result.outcome, 'waiting');
   assert.equal(sends(wa.calls).length, 0);
+});
+
+test('A send refused while the number is up is a failure, never an endless wait', async t => {
+  const wa = await connected(t);
+  for (const status of [401, 403, 404]) {
+    wa.evo.reply = () => json({ message: 'Grupo não encontrado' }, status); wa.evo.state = 'open';
+    assert.equal((await wa.send({ to: GROUP, part: text('Oi') })).outcome, 'failed', String(status));
+    wa.evo.reply = () => { wa.evo.state = 'close'; return json({}, status); };
+    await fetch(`${wa.base}/api/whatsapp/workspace/status?workspace=demo`);
+    assert.equal((await wa.send({ to: GROUP, part: text('Oi') })).outcome, 'waiting', String(status));
+    wa.evo.state = 'open'; await fetch(`${wa.base}/api/whatsapp/workspace/status?workspace=demo`);
+  }
 });

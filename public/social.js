@@ -698,7 +698,7 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
         <a class="secondary" href="https://wa.me/?text=${encodeURIComponent(message)}" target="_blank" rel="noopener">${i('whatsapp', 15)} Abrir no WhatsApp</a>
         <a class="secondary" href="mailto:?subject=${encodeURIComponent(`Posts para aprovar${brand ? ` · ${brand}` : ''}`)}&body=${encodeURIComponent(message)}">${i('mail', 15)} Enviar por e-mail</a></div>
         <div class="sp-approval-wa-card" style="margin-top:14px;padding:12px;background:var(--g-surface-2,#f8fafc);border:1px solid var(--line);border-radius:9px;">
-          <strong style="display:flex;align-items:center;gap:6px;font-size:13px;">${i('whatsapp', 16)} Disparo Automático pelo WhatsApp da Subconta (UAZAPI)</strong>
+          <strong style="display:flex;align-items:center;gap:6px;font-size:13px;">${i('whatsapp', 16)} Disparo Automático pelo WhatsApp da Subconta</strong>
           <p class="dim" style="margin:4px 0 8px;font-size:12px;">Dispara o link diretamente pelo número de WhatsApp conectado nesta subconta sem você precisar abrir o celular.</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             ${contactsWithPhone.length ? `<select name="waContactSelect" style="flex:1;min-width:160px;"><option value="">-- Escolher dos contatos --</option>${contactsWithPhone.map(ct => `<option value="${h(ct.phone)}">${h(ct.name)} (${h(ct.phone)})</option>`).join('')}</select>` : ''}
