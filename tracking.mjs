@@ -145,6 +145,41 @@ export function contactFromFields(fields) {
  * so later page views count for the contact (workflows and lead scoring).
  */
 export function trackingEvent(s, d, { add, run, now }) {
+  const event = newTrackingEvent(s, d, now);
+  if (!event) return null;
+  const { row, contact: info } = event, { vid, url, type } = row, t = trackingOf(s);
+  const events = s.trackingEvents ??= [];
+  if (info) {
+    const digits = v => String(v || '').replace(/\D/g, '');
+    let contact = (info.email && s.contacts.find(c => c.email === info.email)) || (info.phone && s.contacts.find(c => digits(c.phone) && digits(c.phone) === digits(info.phone)));
+    if (!contact) {
+      contact = add(s, 'contacts', { name: info.name || info.email || info.phone, email: info.email, phone: info.phone, company: info.company, tags: ['Site externo'], notes: '', source: 'Site externo' });
+      run(s, 'Contact created', { contactId: contact.id });
+    } else {
+      for (const k of ['phone', 'email', 'company']) if (!contact[k] && info[k]) contact[k] = info[k];
+      if (!contact.name && info.name) contact.name = info.name;
+      contact.updated = now();
+    }
+    const body = [`Formulário do site${row.form ? ` (${row.form})` : ''}${url ? ` · ${url}` : ''}`, ...Object.entries(row.fields).map(([k, v]) => `${k}: ${v}`)].join('\n').slice(0, 5000);
+    add(s, 'messages', { contactId: contact.id, body, channel: 'Note', direction: 'Inbound', read: false, starred: false, origin: 'tracking' });
+    row.contactId = contact.id;
+    t.visitors[vid] = contact.id;
+    const keys = Object.keys(t.visitors);
+    if (keys.length > 5000) for (const k of keys.slice(0, keys.length - 5000)) delete t.visitors[k];
+  }
+  events.push(row);
+  if (events.length > 5000) events.splice(0, events.length - 5000);
+  // "Vídeo assistido": 25, 50, 75 and 100% of an HTML5 video, once each per page load, for a known visitor.
+  if (row.contactId && type === 'video') run(s, 'video_watched', { contactId: row.contactId, percent: Number(row.event), video: row.name || row.video, url });
+  else if (row.contactId) run(s, 'external_tracking_event', { contactId: row.contactId, event: type, url, name: row.event || row.form });
+  return row.id;
+}
+
+/**
+ * The same event checked against the settings, without saving anything: { row, contact } (contact: the
+ * details found in a form, or null), or null when the sub-account turned that recording off.
+ */
+export function newTrackingEvent(s, d, now = () => new Date().toISOString()) {
   const t = trackingOf(s);
   const vid = /^[a-z0-9]{6,40}$/i.test(String(d.vid || '')) ? String(d.vid) : '';
   if (!vid) fail('Visitante inválido.');
@@ -154,39 +189,17 @@ export function trackingEvent(s, d, { add, run, now }) {
   if (type === 'pageview' && t.pageviews === false) return null;
   let url = '';
   try { const u = new URL(str(d.url, 500)); if (['http:', 'https:'].includes(u.protocol)) url = `${u.origin}${u.pathname}${u.search}`.slice(0, 500); } catch { /* kept empty */ }
-  const events = s.trackingEvents ??= [];
+  /** @type {Record<string, any>} */
   const row = { id: randomUUID(), created: now(), type, vid, url, title: str(d.title, 200), event: str(d.event, 60), contactId: t.visitors[vid] || '',
     ...(type === 'video' ? { video: str(d.video, 300), name: str(d.name, 120) } : {}) };
+  let contact = null;
   if (type === 'form') {
-    const fields = Object.fromEntries(Object.entries(d.fields && typeof d.fields === 'object' ? d.fields : {}).slice(0, 40).map(([k, v]) => [str(k, 60), str(v, 500)]).filter(([k]) => k));
-    const info = contactFromFields(fields);
     row.form = str(d.form, 120);
-    row.fields = fields;
-    if (info.email || info.phone) {
-      const digits = v => String(v || '').replace(/\D/g, '');
-      let contact = (info.email && s.contacts.find(c => c.email === info.email)) || (info.phone && s.contacts.find(c => digits(c.phone) && digits(c.phone) === digits(info.phone)));
-      if (!contact) {
-        contact = add(s, 'contacts', { name: info.name || info.email || info.phone, email: info.email, phone: info.phone, company: info.company, tags: ['Site externo'], notes: '', source: 'Site externo' });
-        run(s, 'Contact created', { contactId: contact.id });
-      } else {
-        for (const k of ['phone', 'email', 'company']) if (!contact[k] && info[k]) contact[k] = info[k];
-        if (!contact.name && info.name) contact.name = info.name;
-        contact.updated = now();
-      }
-      const body = [`Formulário do site${row.form ? ` (${row.form})` : ''}${url ? ` · ${url}` : ''}`, ...Object.entries(fields).map(([k, v]) => `${k}: ${v}`)].join('\n').slice(0, 5000);
-      add(s, 'messages', { contactId: contact.id, body, channel: 'Note', direction: 'Inbound', read: false, starred: false, origin: 'tracking' });
-      row.contactId = contact.id;
-      t.visitors[vid] = contact.id;
-      const keys = Object.keys(t.visitors);
-      if (keys.length > 5000) for (const k of keys.slice(0, keys.length - 5000)) delete t.visitors[k];
-    }
+    row.fields = Object.fromEntries(Object.entries(d.fields && typeof d.fields === 'object' ? d.fields : {}).slice(0, 40).map(([k, v]) => [str(k, 60), str(v, 500)]).filter(([k]) => k));
+    const info = contactFromFields(row.fields);
+    if (info.email || info.phone) contact = info;
   }
-  events.push(row);
-  if (events.length > 5000) events.splice(0, events.length - 5000);
-  // "Vídeo assistido": 25, 50, 75 and 100% of an HTML5 video, once each per page load, for a known visitor.
-  if (row.contactId && type === 'video') run(s, 'video_watched', { contactId: row.contactId, percent: Number(row.event), video: row.name || row.video, url });
-  else if (row.contactId) run(s, 'external_tracking_event', { contactId: row.contactId, event: type, url, name: row.event || row.form });
-  return row.id;
+  return { row, contact };
 }
 
 // ---- Sites and funnels published on the Soci ----------------------------------------------------------

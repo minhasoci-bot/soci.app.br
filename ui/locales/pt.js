@@ -438,6 +438,8 @@ export default {
   "Carregando página…": "Carregando página…",
   "Carregando portal do cliente…": "Carregando portal do cliente…",
   "Carregando…": "Carregando…",
+  "Carregar mais eventos": "Carregar mais eventos",
+  "Não foi possível carregar os eventos": "Não foi possível carregar os eventos",
   "Carregar": "Carregar",
   "Carregar arquivo": "Carregar arquivo",
   "Carregar em uma subconta agora": "Carregar em uma subconta agora",

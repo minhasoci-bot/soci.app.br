@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { hydrateWorkspace, uid } from './model.mjs';
+import { listedEvent, pageOf, pageOptions, storedEvent } from './tracking-events.mjs';
 
 export function workspaceMissing() {
   return Object.assign(new Error('Workspace not found.'), { status: 404 });
@@ -16,6 +17,35 @@ function containsJson(value, expected) {
     return Boolean(value) && Object.entries(expected).every(([key, item]) => containsJson(value[key], item));
   }
   return value === expected;
+}
+
+/** The tracking events of the local database: same answers as the Supabase table (P2.5). */
+function sqliteTracking(db) {
+  db.exec(`CREATE TABLE IF NOT EXISTS tracking_events (workspace TEXT NOT NULL, id TEXT NOT NULL, created TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY (workspace, id)) STRICT;
+    CREATE INDEX IF NOT EXISTS tracking_events_recent ON tracking_events (workspace, created DESC, id DESC);`);
+  const insert = db.prepare('INSERT INTO tracking_events (workspace, id, created, data) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING');
+  const page = db.prepare(`SELECT data FROM tracking_events WHERE workspace = ?1 AND (?2 = '' OR data ->> 'type' = ?2)
+    AND (?3 = '' OR created < ?3 OR (created = ?3 AND id < ?4)) ORDER BY created DESC, id DESC LIMIT ?5`);
+  const counts = db.prepare(`SELECT count(*) FILTER (WHERE data ->> 'type' = 'pageview') AS views, count(*) FILTER (WHERE data ->> 'type' = 'form') AS forms,
+    count(DISTINCT nullif(data ->> 'contactId', '')) AS known, count(DISTINCT data ->> 'vid') AS visitors FROM tracking_events WHERE workspace = ? AND created >= ?`);
+  // With max(), SQLite takes the other columns from the newest row of the group.
+  const byForm = db.prepare(`SELECT data ->> 'formKey' AS name, data ->> 'url' AS url, count(*) AS total, count(DISTINCT nullif(data ->> 'contactId', '')) AS contacts, max(created) AS last
+    FROM tracking_events WHERE workspace = ? AND data ->> 'type' = 'form' GROUP BY 1 ORDER BY last DESC, name LIMIT 200`);
+  const prune = db.prepare('DELETE FROM tracking_events WHERE created < ?');
+  return {
+    append(workspace, rows) {
+      for (const row of rows.map(storedEvent)) insert.run(workspace, row.id, row.created, JSON.stringify(row));
+    },
+    page(workspace, query) {
+      const { type, cursor, limit } = pageOptions(query);
+      return pageOf(page.all(workspace, type, cursor?.created || '', cursor?.id || '', limit + 1).map(row => JSON.parse(String(row.data))), limit);
+    },
+    summary(workspace, since) {
+      const [last] = page.all(workspace, '', '', '', 1);
+      return { last: last ? listedEvent(JSON.parse(String(last.data))) : null, ...counts.get(workspace, since), byForm: byForm.all(workspace).map(row => ({ ...row })) };
+    },
+    prune(before) { prune.run(before); }
+  };
 }
 
 export function createSqliteStore(path) {
@@ -46,6 +76,7 @@ export function createSqliteStore(path) {
 
   return {
     kind: 'SQLite',
+    tracking: sqliteTracking(db),
     load,
     list: agencyId => agencyId === undefined ? list.all() : listByAgency.all(agencyId),
     belongsToAgency: (id, agencyId) => Boolean(owned.get(id, agencyId)),
@@ -74,7 +105,7 @@ export function createSqliteStore(path) {
   };
 }
 
-export function createSupabaseStore({ projectUrl, publishableKey, storageKey, request = fetch }) {
+export function createSupabaseStore({ projectUrl, publishableKey, storageKey, request = fetch, clock = Date.now }) {
   const base = new URL(projectUrl);
   if (base.protocol !== 'https:' || !/^[a-z0-9-]+\.supabase\.co$/.test(base.hostname) || base.username || base.password || base.port || base.pathname !== '/' || base.search || base.hash) {
     throw new Error('SUPABASE_URL must be an HTTPS Supabase project URL.');
@@ -84,7 +115,10 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
   }
 
   async function table(query, options = {}) {
-    const endpoint = new URL('/rest/v1/go_workspaces', base);
+    return (await api('go_workspaces', query, options)).json();
+  }
+  async function api(path, query, options = {}) {
+    const endpoint = new URL(`/rest/v1/${path}`, base);
     endpoint.search = new URLSearchParams(query);
     const headers = {
       apikey: publishableKey,
@@ -105,9 +139,47 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
     } catch {
       throw new Error('Could not connect to the Supabase Data API.');
     }
-    if (!response.ok) throw new Error(`Supabase Data API request failed (${response.status}).`);
-    return response.json();
+    if (!response.ok) {
+      const { code } = await response.json().catch(() => ({})) || {};
+      throw Object.assign(new Error(`Supabase Data API request failed (${response.status}).`), { dataApiCode: code });
+    }
+    return response;
   }
+
+  // The tracking events table (P2.5). Until its migration and grants are applied to the project, every call answers
+  // 'tracking_unavailable' (remembered for five minutes) and the events stay in the sub-account document.
+  const missingCodes = new Set(['PGRST202', 'PGRST205', '42P01', '42883', '42501']);
+  let missingUntil = 0;
+  const unavailable = () => Object.assign(new Error('The tracking events table is not available in this database.'), { code: 'tracking_unavailable' });
+  async function events(path, query, options) {
+    if (clock() < missingUntil) throw unavailable();
+    try { return await api(path, query, options); }
+    catch (error) {
+      if (!missingCodes.has(error.dataApiCode)) throw error;
+      missingUntil = clock() + 5 * 60_000;
+      throw unavailable();
+    }
+  }
+  const tracking = {
+    async append(workspace, rows) {
+      const body = rows.map(storedEvent).map(row => ({ workspace, id: row.id, created_at: row.created, data: row }));
+      for (let start = 0; start < body.length; start += 500) {
+        await events('go_tracking_events', { on_conflict: 'workspace,id' }, { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' }, body: body.slice(start, start + 500) });
+      }
+    },
+    async page(workspace, query) {
+      const { type, cursor, limit } = pageOptions(query);
+      const response = await events('go_tracking_events', { select: 'data', workspace: `eq.${workspace}`, ...(type && { type: `eq.${type}` }), order: 'created_at.desc,id.desc', limit: String(limit + 1),
+        ...(cursor && { or: `(created_at.lt."${cursor.created}",and(created_at.eq."${cursor.created}",id.lt."${cursor.id}"))` }) });
+      return pageOf((await response.json()).map(row => row.data), limit);
+    },
+    async summary(workspace, since) {
+      return (await events('rpc/go_tracking_summary', {}, { method: 'POST', body: { p_workspace: workspace, p_since: since } })).json();
+    },
+    async prune(before) {
+      await events('go_tracking_events', { created_at: `lt.${before}` }, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+    }
+  };
 
   async function read(id) {
     const [row] = await table({ select: 'state,revision', id: `eq.${id}` });
@@ -118,6 +190,7 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
   const agencyFilter = agencyId => agencyId === null ? 'is.null' : `eq.${agencyId}`;
   return {
     kind: 'Supabase',
+    tracking,
     load: async id => (await read(id)).state,
     list: agencyId => table({ select: 'id,name', order: 'created_at.asc,id.asc',
       ...(agencyId !== undefined && { 'state->>agencyId': agencyFilter(agencyId) }) }),
@@ -162,4 +235,16 @@ export function supabaseFromEnv(env = process.env) {
   if (!projectUrl && !publishableKey && !storageKey) return null;
   if (!projectUrl) throw new Error('Set SUPABASE_URL to the project URL.');
   return createSupabaseStore({ projectUrl, publishableKey, storageKey });
+}
+
+/** The tracking events of a local database, sent to another store (npm run migrate:sqlite). Says how many. */
+export async function copyTrackingEvents(db, target) {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'tracking_events'").get()) return 0;
+  let total = 0;
+  for (const { workspace } of db.prepare('SELECT DISTINCT workspace FROM tracking_events').all()) {
+    const rows = db.prepare('SELECT data FROM tracking_events WHERE workspace = ? ORDER BY created').all(workspace).map(row => JSON.parse(String(row.data)));
+    await target.tracking.append(workspace, rows);
+    total += rows.length;
+  }
+  return total;
 }

@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
-import { isDocument, supabaseFromEnv } from './storage.mjs';
+import { copyTrackingEvents, isDocument, supabaseFromEnv } from './storage.mjs';
 import { hydrateWorkspace } from './model.mjs';
 
 async function migrate() {
@@ -11,6 +11,7 @@ async function migrate() {
   const source = new DatabaseSync(path, { readOnly: true });
   let imported = 0;
   let identical = 0;
+  let events = 0;
   try {
     for (const { id, state } of source.prepare('SELECT id, state FROM workspaces ORDER BY rowid').all()) {
       const parsed = JSON.parse(state);
@@ -22,10 +23,11 @@ async function migrate() {
       if (inserted) imported++;
       else identical++;
     }
+    events = await copyTrackingEvents(source, target);
   } finally {
     source.close();
   }
-  console.log(`Supabase: ${imported} imported, ${identical} already identical.`);
+  console.log(`Supabase: ${imported} imported, ${identical} already identical; ${events} tracking events copied.`);
 }
 
 try {
