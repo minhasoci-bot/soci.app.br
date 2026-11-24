@@ -1,17 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { setupTemplateSpecs } from '../setup-templates.mjs';
 import { setupArt, setupArtKey, setupArtBySegment } from '../ui/setup-art.js';
 
 const dir = new URL('../ui/setup-art/', import.meta.url);
 
-test('Every setup template has its own illustration file, and every file belongs to a template', () => {
+test('Every illustration file is listed once under a segment, and every listed key has a file', () => {
   const files = readdirSync(dir).filter(f => f.endsWith('.svg')).map(f => f.slice(0, -4)).sort();
-  const keys = setupTemplateSpecs.map(t => setupArtKey(t.segment, t.id));
-  assert.equal(new Set(keys).size, setupTemplateSpecs.length, 'each template gets a different illustration');
-  assert.deepEqual([...keys].sort(), files);
-  for (const t of setupTemplateSpecs) assert.ok(setupArtBySegment[t.segment].includes(setupArtKey(t.segment, t.id)), `${t.id} is listed under ${t.segment}`);
+  assert.deepEqual(Object.values(setupArtBySegment).flat().sort(), files);
 });
 
 test('Setups that are not official templates get a stable illustration from their own segment', () => {

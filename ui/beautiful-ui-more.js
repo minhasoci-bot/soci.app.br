@@ -1,6 +1,6 @@
 // Beautiful UI (https://www.beautifului.dev, MIT, Shane Levine): segunda parte do port para DOM puro.
 // Fonte original em vendor/beautifului/src/components/primitives. Estilos em beautiful-ui.css.
-import { buiNode as node, buiSvg as svg, buiChevron as chevronDown, button, glideMenu, shimmer, streamText } from './beautiful-ui.js';
+import { buiNode as node, buiSvg as svg, buiChevron as chevronDown, button, contextCards, glideMenu, shimmer, streamText, taskRows, thinkingState, toolChips } from './beautiful-ui.js';
 
 const CHECK = '<path d="M20 6L9 17l-5-5"/>';
 const CLOSE = '<path d="M18 6L6 18M6 6l12 12"/>';
@@ -860,6 +860,92 @@ export function sidebarNav({ workspace = { name: 'Workspace' }, menu = [], nav =
     setRecents(next) { recents = next; paintRecents(); },
     setActive(key) { current = key; picked = null; paintAll(); },
     destroy() { closeMenu(); document.removeEventListener('pointerdown', outside); }
+  };
+}
+
+/* ── AgentScreen: composição completa para agentes, chat e atividade ─── */
+
+/**
+ * Tela de agente composta pelos mesmos blocos que a referência Beautiful UI usa:
+ * sidebar, resposta em streaming, thinking, tool chips, contexto, tarefas e prompt bar.
+ */
+export function agentScreen({
+  workspace = { name: 'Minha agência', mark: 'S' },
+  menu = [],
+  nav = [],
+  recents = [],
+  active,
+  title = 'Agente de follow-up',
+  subtitle = 'Conversa de teste',
+  response = 'Encontrei 14 oportunidades sem movimento há mais de 14 dias. Separei as três que merecem um follow-up hoje.',
+  tools = [],
+  chunks = [],
+  tasks = [],
+  prompt = {},
+  onNew,
+  onNavigate,
+  onPick,
+  onSend
+} = {}) {
+  const el = node('section', 'bui-agent-screen');
+  const frame = node('div', 'bui-agent-frame');
+  const side = sidebarNav({ workspace, menu, nav, active, recents, onNew, onNavigate, onPick });
+  const main = node('main', 'bui-agent-main');
+  const head = node('header', 'bui-agent-head');
+  const headCopy = node('div', 'bui-agent-head-copy');
+  headCopy.append(node('strong', null, title), node('small', null, subtitle));
+  const status = node('span', 'bui-agent-status');
+  status.append(node('i', null), node('span', null, 'Ativo'));
+  head.append(headCopy, status);
+
+  const body = node('div', 'bui-agent-body');
+  const thread = node('div', 'bui-agent-thread');
+  const thought = thinkingState({ active: 'Lendo o funil', open: true, rows: [
+    { primary: 'Consultando oportunidades abertas', secondary: '32 registros' },
+    { primary: 'Identificando contatos sem movimento' }
+  ] });
+  const toolsBlock = toolChips({ header: '3 ferramentas', steps: tools.length ? tools : [
+    { icon: 'search', label: 'Consultou', chip: 'oportunidades.abertas', mono: true },
+    { icon: 'read', label: 'Leu', chip: 'histórico de contato', mono: true },
+    { icon: 'write', label: 'Escreveu', chip: 'follow-up.md', mono: true }
+  ] });
+  const answer = streamingText({ text: response, sources: [
+    { name: 'Painel da agência', domain: 'soci', href: '#' },
+    { name: 'Histórico do funil', domain: 'soci', href: '#' }
+  ], followUps: ['Abrir oportunidades', 'Montar a sequência de follow-up'], onFollowUp: onSend });
+  thread.append(thought.el, toolsBlock.el, answer.el);
+  if (chunks.length) thread.append(contextCards({ header: 'Contexto usado', chunks }).el);
+
+  const rail = node('aside', 'bui-agent-rail');
+  rail.append(node('h3', null, 'Atividade recente'));
+  const taskBlock = taskRows({ list: true, rows: tasks.length ? tasks : [
+    { key: 'a', label: 'Conferiu as oportunidades', amount: '32 registros', status: 'done' },
+    { key: 'b', label: 'Montou a lista de follow-up', amount: '7 itens', status: 'running' },
+    { key: 'c', label: 'Rascunhou as mensagens', amount: '3 mensagens', status: 'pending' }
+  ] });
+  rail.append(taskBlock.el);
+  body.append(thread, rail);
+
+  const composer = promptBar({
+    placeholder: 'Pergunte algo sobre sua agência…',
+    sources: prompt.sources || [],
+    commands: prompt.commands || [],
+    models: prompt.models || [],
+    onSend: payload => onSend?.(payload)
+  });
+  main.append(head, body, composer.el);
+  frame.append(side.el, main);
+  el.append(frame);
+  return {
+    el,
+    destroy() {
+      side.destroy?.();
+      thought.destroy?.();
+      toolsBlock.destroy?.();
+      answer.destroy?.();
+      taskBlock.destroy?.();
+      composer.destroy?.();
+    }
   };
 }
 

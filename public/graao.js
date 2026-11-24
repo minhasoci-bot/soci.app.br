@@ -1081,17 +1081,51 @@ function enhance(root) {
   fresh('.inbox-menu', n => enhanceFloatingMenu(n, 'button:not(:disabled)', false));
   fresh('.sc-menu', n => enhanceFloatingMenu(n, '.sc-menu-item', true));
   root.querySelectorAll('select').forEach(enhanceSelect);
+  root.querySelectorAll(ICON_SWAP_BTN_SELECTOR).forEach(enhanceIconSwapButton);
   root.querySelectorAll(EDGE_BTN_SELECTOR).forEach(enhanceEdgeButton);
 }
 
 /* ───────── Cursor Edge Glow Button (microkit.co) ───────── */
 const EDGE_BTN_SELECTOR = '.primary:not(.danger):not(.studio-create):not(.kanban-cards > .primary), .dash-save, .continue, .pr-btn.pr-primary';
+const ICON_SWAP_BTN_SELECTOR = [
+  '.primary:not(.plain)', '.secondary:not(.plain)', '.danger:not(.plain)', '.continue', '.studio-create',
+  '.dash-save', '.pr-btn.pr-primary', '.ags-send', '.ags-new',
+  '.ag-brand-reset', '.ag-brand-mockup-side-cta', '.ag-brand-mockup-primary', '.ag-brand-demo-primary', '.ag-brand-demo-secondary',
+  '.bui-btn:not(.bui-icon-btn)'
+].join(', ');
+const ICON_SWAP_EXCLUDED = '.icon-btn, .side-toggle, .theme-toggle, .tool-btn, .top-menu, .lang-btn, .dash-tool.dash-square, .bui-icon-btn, .bui-prompt-btn, .bui-chat-send, .bui-search-clear, .bui-selection-toggle, .bui-selection-retry, .bui-sidebar-collapse, .bui-sidebar-expand, .bui-sidebar-search-btn, .bui-sidebar-search-close';
 const EB_FREQUENCY = 3.4;
 const EB_DAMPING = 0.78;
 const EB_GLOW_RISE = 0.5;
 const EB_SATURATION = 0.55;
 const EB_BRIGHTNESS = 0.12;
 const EB_HUE_SHIFT = -5;
+
+function enhanceIconSwapButton(btn) {
+  if (!(btn instanceof HTMLElement) || btn.matches(ICON_SWAP_EXCLUDED) || btn.classList.contains('soci-icon-swap')) return;
+  if (btn.dataset.sociIconSwap === '1') return;
+  const original = [...btn.childNodes];
+  if (!original.some(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim()) && !btn.querySelector('svg, .sr-only')) return;
+
+  const iconWrap = document.createElement('span');
+  iconWrap.className = 'soci-icon-swap-icon';
+  const existingIcon = original.find(n => n.nodeType === Node.ELEMENT_NODE && n.nodeName.toLowerCase() === 'svg');
+  if (existingIcon) iconWrap.append(existingIcon);
+  else iconWrap.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>';
+
+  const label = document.createElement('span');
+  label.className = 'soci-icon-swap-label';
+  original.filter(n => n !== existingIcon).forEach(n => label.append(n));
+  const content = document.createElement('span');
+  content.className = 'soci-icon-swap-content';
+  content.append(iconWrap, label);
+  const arrow = document.createElement('span');
+  arrow.className = 'soci-icon-swap-arrow';
+  arrow.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>';
+  btn.classList.add('soci-icon-swap');
+  btn.dataset.sociIconSwap = '1';
+  btn.replaceChildren(content, arrow);
+}
 
 function makeEdgeGlowAssembly(cls) {
   const wrap = document.createElement('span');
@@ -1310,11 +1344,16 @@ function applyTheme(theme) {
   window.dispatchEvent(new CustomEvent('soci:theme-change'));
 }
 
-// Official soci pair: pink + blue. The previous official pair (flame pink + orange) was saved as the
-// default by older agencies, so it still counts as "not customised" and follows the official palette.
-const DEFAULT_BRAND_PRIMARY = '#d62976';
-const DEFAULT_BRAND_SECONDARY = '#962fbf';
-const LEGACY_DEFAULT_PAIRS = new Set(['#ff00bb|#fc972d']);
+// Official Soci triad: pink primary, lilac secondary, electric-blue accent.
+// Older orange/yellow and legacy purple records are treated as defaults until migrated.
+const DEFAULT_BRAND_PRIMARY = '#ff4f9a';
+const DEFAULT_BRAND_SECONDARY = '#c4a7ff';
+const DEFAULT_BRAND_ACCENT = '#6bc9ff';
+const LEGACY_DEFAULT_PAIRS = new Set([
+  '#ff00bb|#fc972d',
+  '#ff701a|#ffd52a',
+  '#d62976|#962fbf'
+]);
 
 function relativeLuminance(hex) {
   const [red, green, blue] = hex.slice(1).match(/../g).map(part => {
@@ -1324,16 +1363,18 @@ function relativeLuminance(hex) {
   return red * 0.2126 + green * 0.7152 + blue * 0.0722;
 }
 
-export function applyBrandColor(primaryValue, secondaryValue) {
+export function applyBrandColor(primaryValue, secondaryValue, accentValue) {
   const root = document.documentElement;
   const primary = /^#[0-9a-f]{6}$/i.test(primaryValue) ? primaryValue.toLowerCase() : DEFAULT_BRAND_PRIMARY;
   const secondary = /^#[0-9a-f]{6}$/i.test(secondaryValue) ? secondaryValue.toLowerCase() : DEFAULT_BRAND_SECONDARY;
+  const accent = /^#[0-9a-f]{6}$/i.test(accentValue) ? accentValue.toLowerCase() : DEFAULT_BRAND_ACCENT;
+  root.style.setProperty('--g-brand-accent', accent);
   const custom = (primary !== DEFAULT_BRAND_PRIMARY || secondary !== DEFAULT_BRAND_SECONDARY)
     && !LEGACY_DEFAULT_PAIRS.has(`${primary}|${secondary}`);
   root.toggleAttribute('data-custom-brand', custom);
   if (!custom) {
     for (const prop of [
-      '--g-custom-brand', '--g-custom-brand-2',
+      '--g-custom-brand', '--g-custom-brand-2', '--g-custom-brand-accent',
       '--g-brand-on', '--g-brand-depth',
       '--g-brand-2-on', '--g-brand-2-depth',
       '--g-grad-on'
@@ -1350,6 +1391,7 @@ export function applyBrandColor(primaryValue, secondaryValue) {
 
   root.style.setProperty('--g-custom-brand', primary);
   root.style.setProperty('--g-custom-brand-2', secondary);
+  root.style.setProperty('--g-custom-brand-accent', accent);
   root.style.setProperty('--g-brand-on', light1 ? '#0f131a' : '#fff');
   root.style.setProperty('--g-brand-depth', lum1 > 0.08 ? '#000' : '#fff');
   root.style.setProperty('--g-brand-2-on', light2 ? '#0f131a' : '#fff');

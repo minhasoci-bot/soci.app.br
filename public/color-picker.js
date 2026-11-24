@@ -25,9 +25,9 @@ export function colorPicker(value, {
   name = 'primary',
   id = `ag-${name}-color`,
   label = 'Cor primária',
-  fallback = '#D62976'
+  fallback = '#FF4F9A'
 } = {}) {
-  const safeFallback = /^#[\da-f]{6}$/i.test(fallback) ? fallback.toUpperCase() : '#D62976';
+  const safeFallback = /^#[\da-f]{6}$/i.test(fallback) ? fallback.toUpperCase() : '#FF4F9A';
   const hex = /^#[\da-f]{6}$/i.test(value) ? value.toUpperCase() : safeFallback;
   const panelId = `${id}-panel`;
   const hueId = `${id}-hue`;

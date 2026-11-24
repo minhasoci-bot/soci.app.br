@@ -72,7 +72,7 @@ export function startAgency(env) {
     const currentVisit = visit;
     const data = await api(`/api/agency/${op}`, body);
     if (currentVisit === visit) A.data = data;
-    if (op === 'action' && body.type === 'company') env.onBrandColorChange(data.agency.company.primary, data.agency.company.secondary);
+    if (op === 'action' && body.type === 'company') env.onBrandColorChange(data.agency.company.primary, data.agency.company.secondary, data.agency.company.accent);
     return data.result;
   }
   const act = (type, extra = {}) => call('action', { type, ...extra });
@@ -529,6 +529,8 @@ export function startAgency(env) {
         loadTemplates();
         return `<div class="page">${head('Setups de conta', 'Crie e gerencie seus setups', actions)}${tabCard('snapshots', '<p class="dim" role="status">Carregando templates…</p>', 'Seções de setups')}</div>`;
       }
+      const intro = '<div class="ag-snap-head"><h2>Templates de setup</h2><p class="dim">Templates de setup são usados para criar novas subcontas</p></div>';
+      if (!A.templates.length) return `<div class="page">${head('Setups de conta', 'Crie e gerencie seus setups', actions)}${tabCard('snapshots', `${intro}${empty('Nenhum template disponível', 'Crie um setup em Meus setups para reutilizar em novas subcontas.')}`, 'Seções de setups')}</div>`;
       const cats = [...new Set(A.templates.map(t => t.category))];
       const list = A.templates.filter(t => (!A.tplCategory || t.category === A.tplCategory) && match(t.title, t.category, ...(t.tags || [])));
       const view = A.tplView === 'list' ? 'list' : 'grid';
@@ -539,7 +541,7 @@ export function startAgency(env) {
         ? `<div class="ag-tpl-grid">${list.map(t => `<button class="ag-tpl-card" data-ag="template-open" data-id="${t.id}"><span class="ag-tpl-badge">${h(t.category)}</span>${setupArt(t.segment, t.id, t.title)}<span class="ag-tpl-name">${h(t.title)}</span></button>`).join('')}</div>`
         : table(['Template', 'Segmento', 'Recursos', ''], list.map(t => `<tr><td><div class="ag-tpl-row">${setupArt(t.segment, t.id, t.title)}<b>${h(t.title)}</b></div></td><td><span class="ag-tpl-badge">${h(t.category)}</span></td><td><small>${h(assetSummary(t.counts))}</small></td>
             <td class="right inline-gap">${btn('Detalhes', 'template-open', `data-id="${t.id}"`)}${btn('Criar subconta', 'template-account', `data-id="${t.id}"`, 'primary', 'plus')}</td></tr>`));
-      const body = `<div class="ag-snap-head"><h2>Templates de setup</h2><p class="dim">Templates de setup são usados para criar novas subcontas</p></div>${toolbar}${list.length ? cards : empty('Nenhum template encontrado', 'Tente outro nome ou limpe o filtro de segmento.')}`;
+      const body = `${intro}${toolbar}${list.length ? cards : empty('Nenhum template encontrado', 'Tente outro nome ou limpe o filtro de segmento.')}`;
       return `<div class="page">${head('Setups de conta', 'Crie e gerencie seus setups', actions)}${tabCard('snapshots', body, 'Seções de setups')}</div>`;
     }
 
@@ -1014,26 +1016,96 @@ Authorization: Bearer soci_app_…
     profile: () => { const p = D().profile; return `<form class="surface padded settings-form" data-ag-form="profile"><h2>Dados pessoais</h2><div class="field-grid"><label>Nome<input name="first" required value="${h(p.first)}"></label><label>Sobrenome<input name="last" required value="${h(p.last)}"></label><label>E-mail<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'ag-profile-phone' })}</div><button class="primary">Salvar perfil</button><p class="form-status" role="alert"></p></form>`; },
     company: () => {
       const c = D().company;
-      return `<form class="surface padded settings-form" data-ag-form="company">
+      return `<form class="surface padded settings-form ag-company-settings" data-ag-form="company">
         <h2>Dados da empresa</h2>
-        <div class="field-grid">
+        <div class="ag-company-settings-grid">
+          <div class="ag-company-details">
+            <div class="field-grid">
           <label>Nome da empresa<input name="name" required maxlength="120" value="${h(c.name)}"></label>
           <label>Site institucional<input name="website" type="url" value="${h(c.website)}"></label>
           ${phoneField({ name: 'phone', label: 'Telefone', value: c.phone, id: 'ag-company-phone' })}
           <label>Endereço comercial<input name="address" value="${h(c.address)}"></label>
           <label>Fuso horário padrão<select name="timezone">${['America/Sao_Paulo', 'America/New_York', 'Europe/London', 'UTC'].map(z => `<option ${c.timezone === z ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
           <label>Moeda<input readonly value="Real brasileiro (BRL)"></label>
-          ${colorPicker(c.primary, { name: 'primary', label: 'Cor primária', fallback: '#D62976' })}
-          ${colorPicker(c.secondary, { name: 'secondary', label: 'Cor secundária', fallback: '#962FBF' })}
-        </div>
-        <div class="ag-brand-preview" aria-label="Prévia das cores primária e secundária">
+          ${colorPicker(c.primary, { name: 'primary', label: 'Cor primária', fallback: '#FF4F9A' })}
+          ${colorPicker(c.secondary, { name: 'secondary', label: 'Cor secundária', fallback: '#C4A7FF' })}
+          ${colorPicker(c.accent, { name: 'accent', label: 'Cor de acento', fallback: '#6BC9FF' })}
+            </div>
+          </div>
+          <div class="ag-company-brand">
+        <div class="ag-brand-preview" aria-label="Prévia da paleta oficial Soci">
           <span class="ag-brand-preview-bar" aria-hidden="true"></span>
           <span class="ag-brand-preview-meta">
-            <span class="badge pink">Badge</span>
+            <span class="badge pink">Badge</span><span class="ag-brand-accent-dot" title="Acento azul Soci" aria-label="Acento azul Soci"></span>
             <span class="text-link">Link de destaque</span>
           </span>
         </div>
-        <p class="dim">As cores primária e secundária formam o gradiente de botões, avatares e heróis, além dos focos e destaques na agência e nas subcontas.</p>
+        <section class="ag-brand-showcase" aria-labelledby="ag-brand-showcase-title">
+          <div class="ag-brand-showcase-head">
+            <div>
+              <span class="ag-brand-showcase-kicker">Preview da interface</span>
+              <h3 id="ag-brand-showcase-title">Veja a paleta aplicada na Soci</h3>
+              <p class="dim">Uma leitura rápida de como rosa, lilás e azul aparecem em navegação, ações, links, campos e superfícies.</p>
+            </div>
+            <button type="button" class="ag-brand-reset" data-ag-brand-reset>
+              <span class="ag-brand-reset-icon" aria-hidden="true">↺</span>
+              Restaurar paleta oficial
+            </button>
+          </div>
+          <div class="ag-brand-mockup-tabs" role="tablist" aria-label="Exemplos de aplicação da paleta">
+            <button type="button" class="ag-brand-mockup-tab is-active" role="tab" aria-selected="true" data-ag-brand-mockup-tab data-view="overview">Visão geral</button>
+            <button type="button" class="ag-brand-mockup-tab" role="tab" aria-selected="false" data-ag-brand-mockup-tab data-view="components">Componentes</button>
+            <button type="button" class="ag-brand-mockup-tab" role="tab" aria-selected="false" data-ag-brand-mockup-tab data-view="surfaces">Fundos e estados</button>
+          </div>
+          <div class="ag-brand-mockup-panels">
+            <div class="ag-brand-mockup-panel is-active" data-ag-brand-mockup-panel="overview" role="tabpanel">
+              <div class="ag-brand-mockup-window">
+                <aside class="ag-brand-mockup-sidebar">
+                  <div class="ag-brand-mockup-logo"><span>s</span><b>soci</b></div>
+                  <div class="ag-brand-mockup-nav" aria-label="Navegação simulada">
+                    <span class="is-active">Visão geral</span><span>Contatos</span><span>Campanhas</span><span>Relatórios</span>
+                  </div>
+                  <span class="ag-brand-mockup-side-label">Atalhos</span>
+                  <span class="ag-brand-mockup-side-link">Biblioteca</span>
+                  <button type="button" class="ag-brand-mockup-side-cta">+ Nova ação</button>
+                </aside>
+                <div class="ag-brand-mockup-main">
+                  <div class="ag-brand-mockup-topbar"><div><span>WORKSPACE</span><b>Olá, equipe Soci</b></div><span class="ag-brand-mockup-avatar">LG</span></div>
+                  <div class="ag-brand-mockup-metrics">
+                    <div><span>Leads em movimento</span><b>1.284</b><em>+18,4%</em></div>
+                    <div><span>Fluxos ativos</span><b>32</b><em class="is-blue">+6 hoje</em></div>
+                    <div><span>Conversão</span><b>8,7%</b><em class="is-lilac">meta em dia</em></div>
+                  </div>
+                  <div class="ag-brand-mockup-lower">
+                    <div class="ag-brand-mockup-card">
+                      <div class="ag-brand-mockup-card-head"><b>Nova automação</b><span class="ag-brand-mockup-status">Ativo</span></div>
+                      <label>Nome da automação<input readonly value="Nutrir leads quentes"></label>
+                      <div class="ag-brand-mockup-actions"><button type="button" class="ag-brand-mockup-primary">Salvar fluxo</button><a href="#agency/settings/company" class="ag-brand-mockup-link">Ver detalhes</a></div>
+                    </div>
+                    <div class="ag-brand-mockup-card ag-brand-mockup-highlight"><span class="ag-brand-mockup-eyebrow">ACENTO</span><b>Clareza em cada toque</b><p>Links, foco e estados ativos usam o azul Soci.</p><a href="#agency/settings/company" class="ag-brand-mockup-link">Explorar interface</a></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="ag-brand-mockup-panel" data-ag-brand-mockup-panel="components" role="tabpanel" hidden>
+              <div class="ag-brand-component-grid">
+                <div class="ag-brand-component-card"><span class="ag-brand-component-label">Botões</span><div class="ag-brand-button-row"><button type="button" class="ag-brand-demo-primary">Salvar alterações</button><button type="button" class="ag-brand-demo-secondary">Cancelar</button></div><code>primary · secondary</code></div>
+                <div class="ag-brand-component-card"><span class="ag-brand-component-label">Links e foco</span><a href="#agency/settings/company" class="ag-brand-demo-link">Abrir relatório</a><div class="ag-brand-demo-focus">Campo em foco</div><code>accent · focus ring</code></div>
+                <div class="ag-brand-component-card"><span class="ag-brand-component-label">Campos</span><label class="ag-brand-demo-field">Nome da campanha<input readonly value="Campanha de novembro"></label><label class="ag-brand-demo-field">Segmento<select><option>Leads quentes</option></select></label><code>surface · border</code></div>
+              </div>
+            </div>
+            <div class="ag-brand-mockup-panel" data-ag-brand-mockup-panel="surfaces" role="tabpanel" hidden>
+              <div class="ag-brand-surfaces-demo">
+                <div class="ag-brand-surface-tile ag-brand-surface-pink"><span>Primária</span><b>Ações que pedem decisão</b><small>Rosa Soci · var(--g-brand)</small></div>
+                <div class="ag-brand-surface-tile ag-brand-surface-lilac"><span>Secundária</span><b>Camadas e agrupamentos</b><small>Lilás Soci · var(--g-brand-2)</small></div>
+                <div class="ag-brand-surface-tile ag-brand-surface-blue"><span>Acento</span><b>Feedback e descoberta</b><small>Azul Soci · var(--g-brand-accent)</small></div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <p class="dim">Rosa, lilás e azul formam a paleta oficial Soci: o rosa lidera a marca, o lilás cria profundidade e o azul funciona como acento de interface e marketing.</p>
+          </div>
+        </div>
         <h2>White Label das subcontas</h2>
         <div class="field-grid">
           <label>Domínio para subcontas<input name="domain" placeholder="app.suaagencia.com.br" value="${h(c.domain)}"></label>
@@ -1111,7 +1183,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const prev = document.querySelector('#screen')?.scrollTop || 0;
     const page = pages[A.page] || pages.dashboard;
     document.title = 'soci';
-    applyBrandColor(D().company.primary, D().company.secondary);
+    applyBrandColor(D().company.primary, D().company.secondary, D().company.accent);
     app.innerHTML = shell(page());
     enhanceCode(app);
     for (const picker of app.querySelectorAll('[data-color-picker]')) mountColorPicker(picker);
@@ -1211,6 +1283,41 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     // Handle profile click from topbar
     const profBtn = ev.target.closest('[data-ag-profile]');
     if (profBtn) { go('settings', 'company'); return; }
+
+    const brandReset = ev.target.closest('[data-ag-brand-reset]');
+    if (brandReset) {
+      const form = brandReset.closest('form[data-ag-form="company"]');
+      const defaults = { primary: '#FF4F9A', secondary: '#C4A7FF', accent: '#6BC9FF' };
+      for (const [name, value] of Object.entries(defaults)) {
+        const field = form?.querySelector('[name="' + name + '"]');
+        if (!field) continue;
+        field.value = value;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        field.dispatchEvent(new Event('change', { bubbles: true }));
+        D().company[name] = value.toLowerCase();
+      }
+      applyBrandColor(D().company.primary, D().company.secondary, D().company.accent);
+      const status = form?.querySelector('.form-status');
+      if (status) status.textContent = 'Paleta oficial restaurada. Clique em salvar para persistir.';
+      flash('Paleta oficial Soci restaurada. Salve para aplicar.');
+      return;
+    }
+
+    const brandTab = ev.target.closest('[data-ag-brand-mockup-tab]');
+    if (brandTab) {
+      const showcase = brandTab.closest('.ag-brand-showcase');
+      const view = brandTab.dataset.view;
+      showcase?.querySelectorAll('[data-ag-brand-mockup-tab]').forEach(tab => {
+        const active = tab === brandTab;
+        tab.classList.toggle('is-active', active);
+        tab.setAttribute('aria-selected', String(active));
+      });
+      showcase?.querySelectorAll('[data-ag-brand-mockup-panel]').forEach(panel => {
+        panel.hidden = panel.dataset.agBrandMockupPanel !== view;
+        panel.classList.toggle('is-active', !panel.hidden);
+      });
+      return;
+    }
 
     for (const menu of document.querySelectorAll('.ag-kebab[open]')) if (!menu.contains(ev.target) || ev.target.closest('.ag-kebab-menu [data-ag]')) menu.open = false;
     const b = ev.target.closest('[data-ag]'); if (!b) return;
@@ -1565,9 +1672,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     }
     if (el.matches('[data-ag-price]')) el.form.querySelector('[data-ag-profit]').textContent = money((Number(el.value) || 0) - Number(el.dataset.agPrice));
     if (el.matches('[data-ag-app-price],[data-ag-app-cost]')) { const price = Number(el.form.price.value) || 0; el.form.querySelector('[data-ag-profit]').textContent = money(price ? price - (Number(el.form.cost.value) || 0) : 0); }
-    if (el.form?.dataset.agForm === 'company' && (el.name === 'primary' || el.name === 'secondary') && /^#[0-9a-f]{6}$/i.test(el.value)) {
+    if (el.form?.dataset.agForm === 'company' && (el.name === 'primary' || el.name === 'secondary' || el.name === 'accent') && /^#[0-9a-f]{6}$/i.test(el.value)) {
       D().company[el.name] = el.value.toLowerCase();
-      applyBrandColor(D().company.primary, D().company.secondary);
+      applyBrandColor(D().company.primary, D().company.secondary, D().company.accent);
     }
     if (el.form?.dataset.agForm === 'desktop-app') desktopPreview(el.form, el);
     if (el.form?.dataset.agForm === 'mobile-app') {
@@ -1581,9 +1688,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
   document.addEventListener('change', async ev => {
     if (!active()) return;
     const el = ev.target;
-    if (el.form?.dataset.agForm === 'company' && (el.name === 'primary' || el.name === 'secondary') && /^#[0-9a-f]{6}$/i.test(el.value)) {
+    if (el.form?.dataset.agForm === 'company' && (el.name === 'primary' || el.name === 'secondary' || el.name === 'accent') && /^#[0-9a-f]{6}$/i.test(el.value)) {
       D().company[el.name] = el.value.toLowerCase();
-      applyBrandColor(D().company.primary, D().company.secondary);
+      applyBrandColor(D().company.primary, D().company.secondary, D().company.accent);
     }
     // Load wizard: account filter and the category/record checkboxes (no server call).
     if (el.matches('[data-snap-filter]')) {

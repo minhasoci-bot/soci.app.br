@@ -55,7 +55,7 @@
 .md-file.selected{box-shadow:0 0 0 2px var(--g-brand-line,#fbcfe8)}
 .md-check{position:absolute;top:8px;left:8px;z-index:2;display:grid;place-items:center;width:26px;height:26px;border-radius:7px;background:#ffffffe6;opacity:0;transition:opacity .15s}
 .md-file:hover .md-check,.md-file.selected .md-check,.md-check:focus-within{opacity:1}
-.md-check input{width:16px;height:16px;margin:0;accent-color:var(--g-brand,#d62976)}
+.md-check input{width:16px;height:16px;margin:0;accent-color:var(--g-brand,#ff4f9a)}
 .md-thumb{position:relative;display:grid;place-items:center;height:150px;padding:0;border:0;border-radius:10px 10px 0 0;background:var(--g-surface-2,#f4f6f8);overflow:hidden}
 .md-thumb img,.md-thumb video{width:100%;height:100%;object-fit:cover}
 .md-badge{position:absolute;right:8px;bottom:8px;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#101828b8;color:#fff}
@@ -73,7 +73,7 @@
 .md-table td{padding:8px 12px;border-top:1px solid var(--g-line,#eef1f5);white-space:nowrap}
 .md-table tr.selected td{background:var(--g-brand-surface,#fff0fa)}
 .md-table td:last-child{text-align:right}
-.md-table input[type=checkbox]{accent-color:var(--g-brand,#d62976)}
+.md-table input[type=checkbox]{accent-color:var(--g-brand,#ff4f9a)}
 .md-row-name{display:flex;align-items:center;gap:10px;max-width:420px;padding:0;border:0;background:none;text-align:left;font-weight:600;color:var(--g-ink,#17243a)}
 .md-row-name>span:last-child{overflow:hidden;text-overflow:ellipsis}
 button.md-row-name:hover>span:last-child{color:var(--g-brand-text,#a00070);text-decoration:underline}
@@ -91,7 +91,7 @@ button.md-row-name:hover>span:last-child{color:var(--g-brand-text,#a00070);text-
 .md-empty strong{font-size:15px}
 .md-empty p{max-width:360px;color:var(--g-dim,#667085);font-size:13px;line-height:1.5}
 
-.md-dropzone{position:absolute;inset:0;z-index:20;display:none;place-content:center;justify-items:center;gap:8px;border:2px dashed var(--g-brand,#d62976);border-radius:12px;background:color-mix(in srgb,var(--g-brand-surface,#fff0fa) 88%,transparent);color:var(--g-brand-text,#a00070)}
+.md-dropzone{position:absolute;inset:0;z-index:20;display:none;place-content:center;justify-items:center;gap:8px;border:2px dashed var(--g-brand,#ff4f9a);border-radius:12px;background:color-mix(in srgb,var(--g-brand-surface,#fff0fa) 88%,transparent);color:var(--g-brand-text,#a00070)}
 .md-dragging .md-dropzone{display:grid}
 
 .md-form{display:grid;gap:13px}

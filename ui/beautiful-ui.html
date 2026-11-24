@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/graao.css">
   <link rel="stylesheet" href="/beautiful-ui.css">
+  <link rel="stylesheet" href="/button-system.css">
   <style>
     body { margin: 0; background: var(--g-surface-2, #f4f6f8); color: var(--g-ink, #0f131a); }
     .gallery { max-width: 1180px; margin: 0 auto; padding: 32px 16px 80px; }
@@ -336,6 +337,26 @@
         onKeep: t => say(`Mantido: ${t}`)
       }));
     });
+
+    demo('Agent Screen', (stage, say) => {
+      const screen = B.agentScreen({
+        workspace: { name: 'Minha agência', mark: 'S' },
+        nav: [{ key: 'home', label: 'Visão geral', icon: 'home' }, { key: 'contacts', label: 'Contatos', icon: 'userAdd', count: '1.284' }],
+        recents: [{ id: 'r1', label: 'Follow-up Clínica Ipê' }, { id: 'r2', label: 'Relatório de MRR' }, { id: 'r3', label: 'Posts da semana' }],
+        active: 'home',
+        tools: [
+          { icon: 'search', label: 'Consultou', chip: 'oportunidades.abertas', mono: true },
+          { icon: 'read', label: 'Leu', chip: 'histórico de contato', mono: true },
+          { icon: 'write', label: 'Escreveu', chip: 'follow-up.md', mono: true }
+        ],
+        chunks: [
+          { title: 'Histórico da Clínica Ipê', chars: '2.184 caracteres', body: 'A última resposta chegou há 18 dias. O contato pediu uma proposta com prazo de implantação.', source: 'Base de contatos', badge: 'CRM', tone: 'var(--bui-accent)' }
+        ],
+        prompt: { sources: [{ key: 'crm', name: 'Contatos', desc: 'CRM da agência', glyph: 'user' }], commands: [{ key: 'follow', name: '/follow-up', desc: 'Montar uma sequência' }], models: [{ key: 'pro', name: 'Pro', tag: 'Soci' }] },
+        onSend: value => say(typeof value === 'string' ? `Pergunta: ${value}` : `Enviado: ${value.text || 'anexo'}`)
+      });
+      stage.append(screen.el);
+    }, { wide: true, start: true });
 
     demo('Átomos', stage => {
       const row = document.createElement('div');

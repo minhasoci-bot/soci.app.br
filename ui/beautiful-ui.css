@@ -14,7 +14,7 @@
   --bui-ink-3: var(--g-faint, #8b929c);
   --bui-line: var(--g-line, #e2e5ea);
   --bui-line-strong: var(--g-line-2, #d2d7de);
-  --bui-accent: var(--g-brand, #d62976);
+  --bui-accent: var(--g-brand, #ff4f9a);
   --bui-green: oklch(0.603 0.155 150.883);
   --bui-green-tint: oklch(0.958 0.017 159.118);
   --bui-red: oklch(0.621 0.192 23.042);
@@ -1272,3 +1272,27 @@
 .bui-import-preview { margin-top: 12px; }
 .bui-import-preview .bui-diff { max-width: none; }
 .bui-import-preview .bui-diff-table { max-height: 260px; overflow-y: auto; }
+
+/* ── AgentScreen ───────────────────────────────────────── */
+.bui-agent-screen { width: 100%; min-width: 0; }
+.bui-agent-frame { display: grid; min-height: 620px; grid-template-columns: 224px minmax(0, 1fr); overflow: hidden; border: 1px solid var(--bui-line); border-radius: 14px; background: var(--bui-surface); box-shadow: var(--bui-shadow-overlay); }
+.bui-agent-main { display: flex; min-width: 0; min-height: 0; flex-direction: column; background: var(--bui-surface); }
+.bui-agent-head { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--bui-line); }
+.bui-agent-head-copy { display: grid; min-width: 0; gap: 3px; }
+.bui-agent-head-copy strong { overflow: hidden; color: var(--bui-ink); font-size: 13.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.bui-agent-head-copy small { color: var(--bui-ink-3); font-size: 11.5px; }
+.bui-agent-status { display: inline-flex; align-items: center; gap: 6px; color: var(--bui-ink-3); font-size: 11.5px; }
+.bui-agent-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--bui-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bui-accent) 18%, transparent); }
+.bui-agent-body { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(0, 1fr) 248px; gap: 18px; padding: 18px; overflow: auto; background: var(--bui-inset); }
+.bui-agent-thread { display: flex; min-width: 0; flex-direction: column; align-items: stretch; gap: 14px; }
+.bui-agent-thread > .bui-thinking, .bui-agent-thread > .bui-tools, .bui-agent-thread > .bui-streaming, .bui-agent-thread > .bui-context { width: 100%; box-sizing: border-box; }
+.bui-agent-thread > .bui-streaming { padding: 14px 16px; border: 1px solid var(--bui-line); border-radius: 12px; background: var(--bui-surface); box-shadow: var(--bui-shadow-hairline); }
+.bui-agent-rail { min-width: 0; padding: 14px; border: 1px solid var(--bui-line); border-radius: 12px; background: var(--bui-surface); box-shadow: var(--bui-shadow-hairline); }
+.bui-agent-rail h3 { margin: 0 0 12px; color: var(--bui-ink-2); font-size: 11.5px; font-weight: 600; }
+.bui-agent-rail .bui-tasks { width: 100%; }
+.bui-agent-main > .bui-prompt { margin: 0; padding: 14px 18px 18px; border-top: 1px solid var(--bui-line); background: var(--bui-surface); }
+@media (max-width: 880px) {
+  .bui-agent-frame { grid-template-columns: 52px minmax(0, 1fr); }
+  .bui-agent-body { grid-template-columns: 1fr; }
+  .bui-agent-rail { order: 2; }
+}

@@ -25,7 +25,7 @@ test('The renderer escapes contact data, drops unsafe links and numbers the trac
   const design = normalizeDesign({ blocks, style: { accent: 'red', background: '#ABCDEF' } });
   assert.deepEqual(design.blocks.map(b => b.type), ['heading', 'text', 'button', 'image', 'image']);
   assert.equal(design.blocks[3].src, '', 'images must be https');
-  assert.deepEqual([design.style.accent, design.style.background], ['#d6246e', '#abcdef']);
+  assert.deepEqual([design.style.accent, design.style.background], ['#ff4f9a', '#abcdef']);
   assert.equal(safeUrl('javascript:alert(1)'), '');
   assert.deepEqual(collectLinks(design.blocks), ['https://loja.exemplo.com/a?x=1&y=2', 'https://loja.exemplo.com/b', 'https://loja.exemplo.com/c']);
 

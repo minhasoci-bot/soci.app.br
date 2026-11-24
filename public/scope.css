@@ -1,16 +1,14 @@
 /* Scope signature: tells the agency panel apart from a sub-account at a glance.
-   Agency  = aurora backdrop in the soci gradient (yellow → orange → pink → purple → blue) under a
+   Agency  = aurora backdrop built only from the Soci pink, lilac and blue palette under a
              frosted-glass sidebar and topbar; the agency entry in the switchers carries the same gradient.
    Sub-account = the plain, quiet surface it always had; sub-accounts in the switchers are neutral tiles.
    Hand-written (not part of scripts/build-dark.mjs); the dark rules live after the light ones. */
 
 /* ───────── Agency aurora ───────── */
 .ag-shell{
-  --ag-yellow:#feda77;
-  --ag-orange:#f58529;
   --ag-pink:var(--g-brand);
   --ag-purple:var(--g-brand-2);
-  --ag-blue:#515bd4;
+  --ag-blue:var(--g-brand-accent);
   --ag-aurora-alpha:1;
   --ag-glass:rgba(255,255,255,.42);
   --ag-glass-line:rgba(255,255,255,.72);
@@ -25,12 +23,12 @@
   pointer-events:none;
   opacity:var(--ag-aurora-alpha);
   background:
-    radial-gradient(60% 75% at -6% 108%,color-mix(in srgb,var(--ag-yellow) 75%,transparent) 0%,transparent 60%),
-    radial-gradient(55% 65% at 32% 112%,color-mix(in srgb,var(--ag-orange) 38%,transparent) 0%,transparent 62%),
+    radial-gradient(60% 75% at -6% 108%,color-mix(in srgb,var(--ag-blue) 34%,transparent) 0%,transparent 60%),
+    radial-gradient(55% 65% at 32% 112%,color-mix(in srgb,var(--ag-pink) 30%,transparent) 0%,transparent 62%),
     radial-gradient(60% 80% at 106% 62%,color-mix(in srgb,var(--ag-pink) 34%,transparent) 0%,transparent 64%),
     radial-gradient(55% 65% at 62% -12%,color-mix(in srgb,var(--ag-purple) 26%,transparent) 0%,transparent 64%),
     radial-gradient(45% 55% at -4% -8%,color-mix(in srgb,var(--ag-blue) 22%,transparent) 0%,transparent 62%),
-    linear-gradient(120deg,#f3f1fb 0%,#fbf1f4 50%,#fdf4ec 100%);
+    linear-gradient(120deg,#f4f8fc 0%,#faf5fb 50%,#f5faff 100%);
 }
 
 /* frosted glass over the aurora */
@@ -98,15 +96,15 @@ div.ws-choice:hover,div.ws-choice:active{transform:none}
 .ws-agency{
   border-color:transparent;
   background:
-    linear-gradient(120deg,color-mix(in srgb,#feda77 16%,var(--g-surface)) 0%,color-mix(in srgb,var(--g-brand) 9%,var(--g-surface)) 55%,color-mix(in srgb,var(--g-brand-2) 11%,var(--g-surface)) 100%) padding-box,
-    linear-gradient(45deg,#f58529,var(--g-brand) 52%,var(--g-brand-2)) border-box;
+    linear-gradient(120deg,color-mix(in srgb,var(--g-brand-accent) 16%,var(--g-surface)) 0%,color-mix(in srgb,var(--g-brand) 9%,var(--g-surface)) 55%,color-mix(in srgb,var(--g-brand-2) 11%,var(--g-surface)) 100%) padding-box,
+    linear-gradient(135deg,var(--g-brand),var(--g-brand-2) 58%,var(--g-brand-accent)) border-box;
 }
 .ws-agency.ws-here{border-color:transparent}
 .ws-agency:hover{
   border-color:transparent;
   background:
-    linear-gradient(120deg,color-mix(in srgb,#feda77 24%,var(--g-surface)) 0%,color-mix(in srgb,var(--g-brand) 14%,var(--g-surface)) 55%,color-mix(in srgb,var(--g-brand-2) 16%,var(--g-surface)) 100%) padding-box,
-    linear-gradient(45deg,#f58529,var(--g-brand) 52%,var(--g-brand-2)) border-box;
+    linear-gradient(120deg,color-mix(in srgb,var(--g-brand-accent) 24%,var(--g-surface)) 0%,color-mix(in srgb,var(--g-brand) 14%,var(--g-surface)) 55%,color-mix(in srgb,var(--g-brand-2) 16%,var(--g-surface)) 100%) padding-box,
+    linear-gradient(135deg,var(--g-brand),var(--g-brand-2) 58%,var(--g-brand-accent)) border-box;
 }
 .ws-agency .ws-tile{border:0;background:var(--g-grad-brand);color:#fff}
 .ws-agency .ws-current{background:rgba(255,255,255,.75)}
@@ -119,7 +117,7 @@ div.ws-choice:hover,div.ws-choice:active{transform:none}
 }
 :root[data-theme=dark] .ag-shell::before{
   background:
-    radial-gradient(60% 75% at -6% 108%,color-mix(in srgb,var(--ag-orange) 34%,transparent) 0%,transparent 60%),
+    radial-gradient(60% 75% at -6% 108%,color-mix(in srgb,var(--ag-blue) 28%,transparent) 0%,transparent 60%),
     radial-gradient(60% 80% at 106% 62%,color-mix(in srgb,var(--ag-pink) 30%,transparent) 0%,transparent 64%),
     radial-gradient(55% 65% at 62% -12%,color-mix(in srgb,var(--ag-purple) 30%,transparent) 0%,transparent 64%),
     radial-gradient(45% 55% at -4% -8%,color-mix(in srgb,var(--ag-blue) 24%,transparent) 0%,transparent 62%),
@@ -132,8 +130,8 @@ div.ws-choice:hover,div.ws-choice:active{transform:none}
 :root[data-theme=dark] .ag-shell .g-side .nav-link.current{background:rgba(255,255,255,.09);box-shadow:none}
 :root[data-theme=dark] .ws-agency{
   background:
-    linear-gradient(120deg,color-mix(in srgb,#f58529 12%,var(--g-surface)) 0%,color-mix(in srgb,var(--g-brand) 12%,var(--g-surface)) 55%,color-mix(in srgb,var(--g-brand-2) 14%,var(--g-surface)) 100%) padding-box,
-    linear-gradient(45deg,#f58529,var(--g-brand) 52%,var(--g-brand-2)) border-box;
+    linear-gradient(120deg,color-mix(in srgb,var(--g-brand-accent) 12%,var(--g-surface)) 0%,color-mix(in srgb,var(--g-brand) 12%,var(--g-surface)) 55%,color-mix(in srgb,var(--g-brand-2) 14%,var(--g-surface)) 100%) padding-box,
+    linear-gradient(135deg,var(--g-brand),var(--g-brand-2) 58%,var(--g-brand-accent)) border-box;
 }
 :root[data-theme=dark] .ws-agency .ws-current{background:rgba(0,0,0,.35)}
 
