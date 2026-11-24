@@ -18,6 +18,37 @@ export function designStage({ label, width, content, tools = '' }) {
 const zoomLevels = [.25, .33, .5, .67, .8, 1, 1.25, 1.5, 2];
 const previewHeight = 740;
 const mounted = new WeakMap();
+const steadyDocs = new WeakSet();
+
+// The artboard frame is as tall as its page, so a viewport height (100svh) would grow with the frame:
+// in the editor it counts as a fixed screen height.
+export const pinViewportUnits = (css, height) => css.replace(/(\d*\.?\d+)[sld]?vh\b/g, (_, value) => `${Math.round(Number(value) * height) / 100}px`);
+
+// The whole page while it stays readable; a long page fits the width instead of shrinking to a strip.
+export function fitScale({ width, height, boardWidth, pageHeight }) {
+  const byWidth = Math.min(1, Math.max(.1, width / boardWidth));
+  const whole = pageHeight ? height / pageHeight : byWidth;
+  return whole < zoomLevels[0] ? byWidth : Math.min(byWidth, whole);
+}
+
+// Pins the page's viewport heights and keeps it still while it is edited. It only touches the parsed rules and an
+// adopted sheet, never the document's own nodes, so nothing of this is in the HTML that gets saved.
+function steadyPage(frame, doc) {
+  if (steadyDocs.has(doc)) return;
+  steadyDocs.add(doc);
+  const pin = rules => {
+    for (const rule of rules) {
+      if (rule.style && /\d[sld]?vh\b/.test(rule.style.cssText)) rule.style.cssText = pinViewportUnits(rule.style.cssText, previewHeight);
+      if (rule.cssRules) pin(rule.cssRules);
+    }
+  };
+  for (const sheet of doc.styleSheets) {
+    try { pin(sheet.cssRules); } catch { /* A sheet from another site (Google Fonts) cannot be read. */ }
+  }
+  const still = new frame.contentWindow.CSSStyleSheet();
+  still.replaceSync('*,*::before,*::after{animation:none!important}');
+  doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, still];
+}
 
 export function mountDesignStage(stage, viewport) {
   if (!stage || mounted.has(stage)) return;
@@ -35,9 +66,8 @@ export function mountDesignStage(stage, viewport) {
 
   const resize = () => {
     const width = Number(stage.dataset.dwStage);
-    let fit = (scroller.clientWidth - horizontalPadding) / width;
-    if (frame) fit = Math.min(fit, (scroller.clientHeight - verticalPadding - label.offsetHeight) / pageHeight);
-    scale = viewport.zoom || Math.min(1, Math.max(.1, fit));
+    scale = viewport.zoom || fitScale({ width: scroller.clientWidth - horizontalPadding, height: scroller.clientHeight - verticalPadding - label.offsetHeight,
+      boardWidth: width, pageHeight: frame ? pageHeight : 0 });
     stage.style.setProperty('--dw-width', `${width}px`);
     stage.style.setProperty('--dw-zoom', scale);
     percent.textContent = `${Math.round(scale * 100)}%`;
@@ -103,6 +133,7 @@ export function mountDesignStage(stage, viewport) {
       stopWatchingFrame?.();
       const doc = frame.contentDocument;
       if (!doc?.body || doc.URL === 'about:blank') return;
+      steadyPage(frame, doc);
       const onFrameWheel = event => onWheel(event, true);
       doc.addEventListener('wheel', onFrameWheel, wheelOptions);
       doc.addEventListener('load', queueMeasure, { capture: true, signal: listeners.signal });

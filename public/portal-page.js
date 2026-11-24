@@ -4,6 +4,7 @@ import { themeMode, themeStyle } from './community-data.js';
 import { smoothScroll } from './portal-smooth-scroll.js';
 import { loyaltyCard } from './portal-loyalty.js';
 import { assignmentBlock, certificateLink, coursePage, instructorCard, liveBlock, nextLessonCard, quizAnswers, quizBlock, themed } from './portal-course-extra.js';
+import { askText, showCopy, tell } from './ask.js';
 
 const root = document.querySelector('#portal');
 const workspace = location.pathname.split('/')[2];
@@ -175,7 +176,7 @@ root.addEventListener('click', async event => {
   if (button.dataset.portalPush !== undefined) {
     button.disabled = true;
     try { await enablePush(); button.textContent = 'Notificações ativadas'; }
-    catch (error) { button.disabled = false; alert(error.message); }
+    catch (error) { button.disabled = false; await tell('Não foi possível ativar as notificações', error.message); }
     return;
   }
   const action = button.dataset.portalPublic;
@@ -263,7 +264,7 @@ root.addEventListener('click', async event => {
       else if (verb === 'rsvp' || verb === 'rsvp-cancel') await communityAction({ action: verb, eventId: button.dataset.event });
       else if (verb === 'onboarding') { await communityAction({ action: 'onboarding', stepId: button.dataset.step, done: button.dataset.done === 'yes' }); focus = `[data-cm-public="onboarding"][data-step="${button.dataset.step}"]`; }
       else if (verb === 'report') {
-        const reason = prompt('Por que você está denunciando? (opcional)');
+        const reason = await askText('Por que você está denunciando?', { text: 'O motivo é opcional.', multiline: true, ok: 'Denunciar' });
         if (reason === null) return;
         await communityAction({ action: 'report', postId: post, commentId: comment, reason });
       }
@@ -298,7 +299,7 @@ async function sharePost(button, postId) {
   const link = `${location.origin}${location.pathname}?comunidade=${encodeURIComponent(community.group.id)}#post-${encodeURIComponent(postId)}`;
   const label = button.querySelector('span');
   try { await navigator.clipboard.writeText(link); label.textContent = 'Link copiado'; }
-  catch { prompt('Copie o link da publicação:', link); }
+  catch { await showCopy('Copie o link da publicação', link); }
   setTimeout(() => { if (label.isConnected) label.textContent = 'Compartilhar'; }, 2000);
 }
 

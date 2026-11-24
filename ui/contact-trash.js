@@ -2,6 +2,7 @@
 // forever, or empty the trash.
 import { icon } from './icons.js';
 import { badge, fmt, h } from './screens.js';
+import { ask } from './ask.js';
 
 const DAYS = 60, DAY = 86400000;
 
@@ -28,8 +29,8 @@ export function installContactTrash({ c, mutate, flash, render }) {
     const act = el.dataset.tr;
     try {
       if (act === 'restore') { await mutate({ type: 'contact-restore', id: el.dataset.id }); render(); flash('Contato restaurado com os registros dele.'); }
-      if (act === 'purge') { if (!confirm('Excluir este contato de vez? Não dá para desfazer.')) return; await mutate({ type: 'contact-trash-purge', id: el.dataset.id }); render(); flash('Excluído de vez.'); }
-      if (act === 'empty') { if (!confirm('Esvaziar a lixeira? Os contatos saem de vez e não dá para desfazer.')) return; await mutate({ type: 'contact-trash-empty' }); render(); flash('Lixeira esvaziada.'); }
+      if (act === 'purge') { if (!await ask('Excluir este contato de vez?', { text: 'Não dá para desfazer.', ok: 'Excluir de vez' })) return; await mutate({ type: 'contact-trash-purge', id: el.dataset.id }); render(); flash('Excluído de vez.'); }
+      if (act === 'empty') { if (!await ask('Esvaziar a lixeira?', { text: 'Os contatos saem de vez e não dá para desfazer.', ok: 'Esvaziar lixeira' })) return; await mutate({ type: 'contact-trash-empty' }); render(); flash('Lixeira esvaziada.'); }
     } catch (error) { flash(error.message, true); }
   });
 }

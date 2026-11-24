@@ -1,11 +1,11 @@
-// Modelo "Bosque & Veio": marcenaria autoral. Oliva escuro, serifada editorial e fotos de luz baixa.
+// Modelo "Marcenaria de Origem" (id bosque): madeira rastreada. Terra escura, serifada editorial e fotos de luz baixa.
 import { document, esc, formCss, img, leadForm } from './kit.mjs';
 
 const fonts = ['Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300', 'DM Sans:wght@400;500'];
 const arrow = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 const css = `${formCss}
-:root{--bg:#1f2218;--panel:#282c20;--ink:#ece5d6;--muted:rgba(236,229,214,.64);--faint:rgba(236,229,214,.36);--line:rgba(236,229,214,.14);--accent:#d4bf95;--on-accent:#1f2218;--cursor:#d4bf95;--field:rgba(255,255,255,.03)}
+:root{--bg:#1b1412;--panel:#261c18;--ink:#f1e6dc;--muted:rgba(241,230,220,.64);--faint:rgba(241,230,220,.36);--line:rgba(241,230,220,.14);--accent:#e08a5f;--on-accent:#1b1412;--cursor:#e08a5f;--field:rgba(255,255,255,.03)}
 body{background:var(--bg);color:var(--ink);font-family:"DM Sans",system-ui,sans-serif;font-size:16px;line-height:1.65}
 h1,h2,h3{font-family:Fraunces,Georgia,serif;font-weight:300;letter-spacing:-.025em;line-height:1;margin:0}
 h1 i,h2 i{font-style:italic;color:var(--accent)}
@@ -16,13 +16,13 @@ p{margin:0}
 .btn:hover{gap:18px;background:#fff}.btn.line{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}.btn.line:hover{box-shadow:inset 0 0 0 1px var(--accent)}
 .bar{position:fixed;inset:0 0 auto;z-index:50}
 .bar .wrap{display:flex;justify-content:space-between;align-items:center;height:84px;gap:20px}
-.bar.scrolled{background:rgba(31,34,24,.8);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.bar.scrolled{background:rgba(27,20,18,.8);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .brand{font-family:Fraunces,serif;font-size:24px;text-decoration:none;font-weight:400}
 .links{display:flex;gap:30px;font-size:15px}.links a{text-decoration:none;color:var(--muted);transition:color .2s}.links a:hover{color:var(--ink)}
 .nav-t{position:absolute;opacity:0;pointer-events:none}.burger{display:none}
 .hero{position:relative;height:100svh;min-height:680px;overflow:hidden;display:flex;align-items:flex-end}
 .hero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,22,15,.5),rgba(20,22,15,0) 30%,rgba(20,22,15,.1) 55%,rgba(20,22,15,.9))}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(22,15,12,.5),rgba(22,15,12,0) 30%,rgba(22,15,12,.1) 55%,rgba(22,15,12,.9))}
 .hero .wrap{position:relative;z-index:2;padding-bottom:clamp(28px,4vw,52px)}
 .hero h1{font-size:clamp(62px,10.5vw,180px);line-height:.9;max-width:1200px}
 .hero .base{display:flex;justify-content:space-between;align-items:end;gap:30px;flex-wrap:wrap;margin-top:34px;padding-top:24px;border-top:1px solid var(--line)}
@@ -82,12 +82,12 @@ const order = (photo, title, intro, extra) => `<section class="order"><div class
 <div class="tx"><span class="tag">Encomendas</span><h2 data-split>${title}</h2><p>${intro}</p>${leadForm({ button: 'Enviar pedido', note: 'Respondemos com desenho, prazo e valor em até três dias úteis.', extra })}</div></section>`;
 
 function home(brand) {
-  return document({ title: `${brand} · Marcenaria autoral`, description: 'Móveis de madeira maciça feitos à mão, em pequenas séries, para casas que pedem calma.', fonts, css, cursor: true, body: `${header(brand)}
+  return document({ title: `${brand} · Marcenaria autoral`, description: 'Móveis com a origem da madeira registrada, da árvore à sua sala.', fonts, css, cursor: true, body: `${header(brand)}
 <main>
 <section class="hero"><img class="kb" src="${img('photo-1768946131536-39b5f3ec329d', 2200)}" alt="Sofá texturizado sob luz do fim de tarde">
 <div class="wrap"><span class="tag ld">Marcenaria autoral</span>
-<h1 style="margin-top:20px"><span class="ln"><span>Móveis que</span></span><span class="ln"><span style="--d:.1s">pedem <i>calma</i>.</span></span></h1>
-<div class="base ld" style="--d:.45s"><p>Peças em madeira maciça, feitas à mão em pequenas séries, para durar mais que a gente.</p><a class="btn line" href="#colecao">Ver a coleção ${arrow}</a></div></div></section>
+<h1 style="margin-top:20px"><span class="ln"><span>Madeira com</span></span><span class="ln"><span style="--d:.1s"><i>sobrenome</i>.</span></span></h1>
+<div class="base ld" style="--d:.45s"><p>Cada peça sai com a origem da árvore, a data do corte e o nome de quem montou.</p><a class="btn line" href="#colecao">Ver a coleção ${arrow}</a></div></div></section>
 
 <section class="sec manifesto"><div class="wrap"><span class="tag">Manifesto</span>
 <p data-split>Fazemos poucos móveis por ano. Cada um começa numa tora escolhida à mão, seca devagar no galpão <span class="dim">e só sai da oficina quando está pronto para atravessar gerações.</span></p></div></section>

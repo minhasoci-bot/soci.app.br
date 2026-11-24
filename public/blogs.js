@@ -4,6 +4,7 @@ import { icon } from './icons.js';
 import { h, pageShell, utabs } from './screens.js';
 import { siteTabs } from './forms.js';
 import { isLive, markdown, readingTime, slugify } from './blog-data.js';
+import { ask } from './ask.js';
 
 let aiOn = false;
 const aiWrap = (html, target, field) => aiOn ? `<div class="ai-wrap">${html}${aiTool(target, 'blog', field)}</div>` : html;
@@ -277,11 +278,12 @@ export function installBlogs(environment) {
   });
 
   let last = location.hash;
-  addEventListener('hashchange', () => {
-    const was = last; last = location.hash;
+  addEventListener('hashchange', async () => {
+    const was = last, to = location.hash; last = to;
     if (!bv.dirty || !was.startsWith(`#sites/post/${bv.postId}`) || location.hash.startsWith(`#sites/post/${bv.postId}`)) return;
-    if (confirm('Descartar as alterações não salvas deste artigo?')) { bv.dirty = false; bv.rev = ''; bv.postId = ''; return; }
     last = was; history.replaceState(null, '', was); dispatchEvent(new HashChangeEvent('hashchange'));
+    if (!await ask('Descartar as alterações não salvas deste artigo?', { ok: 'Descartar', cancel: 'Continuar editando' })) return;
+    bv.dirty = false; bv.rev = ''; bv.postId = ''; location.hash = to;
   }, true);
   addEventListener('beforeunload', event => { if (bv.dirty && inPost()) event.preventDefault(); });
 }

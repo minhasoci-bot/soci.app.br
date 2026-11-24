@@ -2,6 +2,7 @@
 // payouts and the public sign-up). Commissions come from paid invoices of referred contacts.
 import { icon } from './icons.js';
 import { h, pageShell } from './screens.js';
+import { ask } from './ask.js';
 
 const sections = [['dashboard', 'Painel'], ['campaigns', 'Campanhas'], ['partners', 'Afiliados'], ['commissions', 'Comissões'], ['payouts', 'Pagamentos'], ['settings', 'Configurações']];
 const commissionStatus = { pending: ['Em análise', ''], approved: ['Aprovada', 'blue'], paid: ['Paga', 'green'], reversed: ['Estornada', 'pink'] };
@@ -180,7 +181,7 @@ export function installAffiliates({ c, api, url, mutate, flash, dialog, close, r
       }
       if (act === 'approve') { const row = c.s.affiliates.find(item => item.id === id); await mutate({ type: 'save', key: 'affiliates', id, data: { ...row, status: 'active' } }); render(); flash('Afiliado aprovado. Envie o link do painel para ele.'); }
       if (act === 'portal') {
-        if (!confirm('Gerar um novo link do painel? O link anterior deixa de funcionar.')) return;
+        if (!await ask('Gerar um novo link do painel?', { text: 'O link anterior deixa de funcionar.', ok: 'Gerar novo link' })) return;
         const result = await api(url('/api/action'), { type: 'affiliate-portal-link', id });
         c.s = result.state; c.m = result.metrics;
         portalLinks = { [id]: `${location.origin}/afiliados/${c.workspace}/${result.id.token}` };
@@ -196,8 +197,8 @@ export function installAffiliates({ c, api, url, mutate, flash, dialog, close, r
           <div class="inline-gap"><button class="primary">Registrar pagamento</button><button type="button" class="secondary" data-act="close">Cancelar</button></div><p class="form-status" role="alert"></p></form>`);
       }
       if (act === 'delete') {
-        const what = el.dataset.key === 'affiliates' ? 'este afiliado? O link dele para de funcionar' : 'esta campanha? Os links dela param de funcionar';
-        if (!confirm(`Excluir ${what}.`)) return;
+        const [title, text] = el.dataset.key === 'affiliates' ? ['Excluir este afiliado?', 'O link dele para de funcionar.'] : ['Excluir esta campanha?', 'Os links dela param de funcionar.'];
+        if (!await ask(title, { text, ok: 'Excluir' })) return;
         await mutate({ type: 'delete', key: el.dataset.key, id }); render(); flash('Excluído.');
       }
     } catch (error) { flash(error.message, true); }

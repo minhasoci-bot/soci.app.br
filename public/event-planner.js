@@ -1,4 +1,5 @@
 import { icon as i } from './icons.js';
+import { ask } from './ask.js';
 import { bindCopyEditor, copyEditorField, replaceText, whatsappHtml } from './event-copy-editor.js';
 import {
   audiences, blankEventPlan, briefGroups, channels, eventPlanPhases, eventPlanStatuses,
@@ -264,7 +265,7 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render })
         const row = find(data.id); if (!row) return;
         if (data.epManage === 'rename') { dialog('Renomear evento', `${formHead('rename', row)}${field('Nome do evento', 'title', row.title, { required: true, maxlength: 160 })}${formFoot('Renomear')}</form>`); return; }
         if (data.epManage === 'duplicate') { await save({ type: 'event-plan-duplicate', id: row.id }); ui.selectedId = ''; render(); flash('Evento duplicado.'); return; }
-        if (!confirm(`Apagar “${row.title}” e todo o seu planejamento? Essa ação é definitiva.`)) return;
+        if (!await ask(`Apagar “${row.title}” e todo o seu planejamento?`, { text: 'Essa ação é definitiva.', ok: 'Apagar evento' })) return;
         await save({ type: 'delete', key: 'eventPlans', id: row.id }); ui.selectedId = ''; render(); flash('Evento apagado.'); return;
       }
       if (!event) return;
@@ -275,11 +276,11 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render })
       if (data.epApplyTemplate) {
         const input = target.closest('form').querySelector('[data-ec] textarea'), template = templateFor(event, data.epApplyTemplate);
         if (!template || input.value === template.notes) return;
-        if (input.value.trim() && !confirm('Aplicar o modelo e substituir o texto que está no editor?')) return;
+        if (input.value.trim() && !await ask('Aplicar o modelo e substituir o texto que está no editor?', { ok: 'Substituir', danger: false })) return;
         replaceText(input, template.notes); return;
       }
       if (data.epItemDelete) {
-        if (!confirm('Excluir este item do planejamento?')) return;
+        if (!await ask('Excluir este item do planejamento?', { ok: 'Excluir' })) return;
         await savePlan(event.id, plan => { plan.items = plan.items.filter(item => item.id !== data.epItemDelete); });
         close(); repaint(); flash('Item excluído.');
       }

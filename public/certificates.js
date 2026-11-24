@@ -4,6 +4,7 @@ import { icon } from './icons.js';
 import { h, fmt, pageShell } from './screens.js';
 import { portalTabs } from './client-portal.js';
 import { badgeStarter, certificateCategories, certificateStarters, certificateStyles, credentialKinds } from './certificate-data.js';
+import { ask } from './ask.js';
 
 const ui = { view: 'templates', query: '' };
 const views = [['templates', 'Modelos'], ['certificate', 'Certificados emitidos'], ['badge', 'Badges emitidos']];
@@ -90,11 +91,11 @@ export function installCertificates({ c, mutate, flash, dialog, close, render })
       if (act === 'edit') dialog('Editar modelo', templateForm(c, c.s.certificateTemplates.find(row => row.id === id)));
       if (act === 'issue') dialog('Emitir', issueForm(c, c.s.certificateTemplates.find(row => row.id === id)));
       if (act === 'delete') {
-        if (!confirm('Excluir este modelo? Os já emitidos continuam válidos.')) return;
+        if (!await ask('Excluir este modelo?', { text: 'Os já emitidos continuam válidos.', ok: 'Excluir' })) return;
         await mutate({ type: 'delete', key: 'certificateTemplates', id }); render(); flash('Modelo excluído.');
       }
       if (act === 'revoke' || act === 'restore') {
-        if (act === 'revoke' && !confirm('Revogar? A página do certificado passa a dizer que ele não é mais válido.')) return;
+        if (act === 'revoke' && !await ask('Revogar este certificado?', { text: 'A página do certificado passa a dizer que ele não é mais válido.', ok: 'Revogar' })) return;
         await mutate({ type: 'credential-revoke', id, data: { restore: act === 'restore' } }); render(); flash(act === 'revoke' ? 'Revogado.' : 'Restaurado.');
       }
     } catch (error) { flash(error.message, true); }

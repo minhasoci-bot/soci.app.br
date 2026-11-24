@@ -5,6 +5,7 @@ import { tr } from './i18n.js';
 import { h, pageShell } from './screens.js';
 import { allTriggers } from './workflow-data.js';
 import { appApiScopes, appMenuUrl } from './app-studio-data.js';
+import { ask } from './ask.js';
 
 const state = { filter: 'all', busy: '' };
 const when = iso => iso ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)) : '—';
@@ -52,7 +53,7 @@ export function installAppMarketplace({ c, api, url, flash, render }) {
     const kind = el.dataset.mk;
     if (kind === 'filter') { state.filter = el.dataset.filter; render(); return; }
     const app = (c.agency?.apps || []).find(row => row.id === el.dataset.app);
-    if (kind === 'uninstall' && !window.confirm(`${tr('Desinstalar')} ${app?.name || 'o app'}? ${tr('O token do app deixa de valer e as ações dele nos workflows param.')}`)) return;
+    if (kind === 'uninstall' && !await ask(`${tr('Desinstalar')} ${app?.name || 'o app'}?`, { text: 'O token do app deixa de valer e as ações dele nos workflows param.', ok: 'Desinstalar' })) return;
     state.busy = el.dataset.app; render();
     try {
       const workspace = c.workspace;
