@@ -3209,5 +3209,20 @@ export default {
   "Painel da agência com todas as subcontas": "Painel da agência com todas as subcontas",
   "Você está no painel da agência": "Você está no painel da agência",
   "Atual": "Atual",
-  "Workspace pessoal": "Workspace pessoal"
+  "Workspace pessoal": "Workspace pessoal",
+  "Como a sua agência se identifica para clientes e subcontas.": "Como a sua agência se identifica para clientes e subcontas.",
+  "Cores da marca": "Cores da marca",
+  "A primária lidera as ações, a secundária cria camadas e o acento marca links e destaques. A prévia muda enquanto você escolhe.": "A primária lidera as ações, a secundária cria camadas e o acento marca links e destaques. A prévia muda enquanto você escolhe.",
+  "Cor de acento": "Cor de acento",
+  "Restaurar paleta oficial": "Restaurar paleta oficial",
+  "Exemplos de aplicação da paleta": "Exemplos de aplicação da paleta",
+  "Componentes": "Componentes",
+  "Fundos e estados": "Fundos e estados",
+  "Prévia: visão geral": "Prévia: visão geral",
+  "Prévia: componentes": "Prévia: componentes",
+  "Prévia: fundos e estados": "Prévia: fundos e estados",
+  "O endereço e o logotipo que as subcontas veem no lugar da marca da plataforma.": "O endereço e o logotipo que as subcontas veem no lugar da marca da plataforma.",
+  "Logotipo": "Logotipo",
+  "PNG, JPEG, WebP ou GIF, até 300 KB": "PNG, JPEG, WebP ou GIF, até 300 KB",
+  "Paleta oficial Soci restaurada. Salve para aplicar.": "Paleta oficial Soci restaurada. Salve para aplicar."
 };

@@ -6173,5 +6173,20 @@ export default {
   "agente deixa de usá-la.": "agente deja de usarla.",
   "agentes deixam de usá-la.": "agentes dejan de usarla.",
   "Ligar agora": "Llamar ahora",
-  "Entendi": "Entendido"
+  "Entendi": "Entendido",
+  "Como a sua agência se identifica para clientes e subcontas.": "Cómo se identifica tu agencia ante clientes y subcuentas.",
+  "Cores da marca": "Colores de la marca",
+  "A primária lidera as ações, a secundária cria camadas e o acento marca links e destaques. A prévia muda enquanto você escolhe.": "El primario lidera las acciones, el secundario crea capas y el acento marca enlaces y destacados. La vista previa cambia mientras eliges.",
+  "Cor de acento": "Color de acento",
+  "Restaurar paleta oficial": "Restaurar paleta oficial",
+  "Exemplos de aplicação da paleta": "Ejemplos de aplicación de la paleta",
+  "Componentes": "Componentes",
+  "Fundos e estados": "Fondos y estados",
+  "Prévia: visão geral": "Vista previa: resumen",
+  "Prévia: componentes": "Vista previa: componentes",
+  "Prévia: fundos e estados": "Vista previa: fondos y estados",
+  "O endereço e o logotipo que as subcontas veem no lugar da marca da plataforma.": "La dirección y el logotipo que las subcuentas ven en lugar de la marca de la plataforma.",
+  "Logotipo": "Logotipo",
+  "PNG, JPEG, WebP ou GIF, até 300 KB": "PNG, JPEG, WebP o GIF, hasta 300 KB",
+  "Paleta oficial Soci restaurada. Salve para aplicar.": "Paleta oficial de Soci restaurada. Guarda para aplicar."
 };
