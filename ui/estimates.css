@@ -1,7 +1,7 @@
 /* Pagamentos → Orçamentos: editor, prévia e página pública. Usa os estilos de documents.css. */
 .es-page .page-head p { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .es-page .fb-back { display: inline-flex; margin-bottom: 8px; }
-.es-page .dc-locked { border: 1px solid var(--g-line); border-radius: 12px; }
+.es-page .dc-locked { border: 1px solid var(--g-line); border-radius: var(--r-group); }
 .es-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .es-grid.sent { grid-template-columns: minmax(0, 1fr) 340px; }
 .es-form { display: grid; gap: 12px; padding: 16px; }
@@ -10,7 +10,7 @@
 .es-field input, .es-field select, .es-field textarea { font-weight: 400; color: var(--g-ink); }
 .es-field small { font-weight: 400; }
 .es-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.es-preview { position: sticky; top: 12px; overflow-x: auto; border-radius: 12px; box-shadow: 0 1px 3px rgb(16 24 40 / 10%); }
+.es-preview { position: sticky; top: 12px; overflow-x: auto; border-radius: var(--r-group); box-shadow: 0 1px 3px rgb(16 24 40 / 10%); }
 .es-preview .dc-sheet { min-height: 0; padding: 40px 44px; }
 .es-sheet { --dc-accent: #155eef; }
 .es-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 24px; }
@@ -29,7 +29,7 @@
 .es-name { display: grid; gap: 4px; max-width: 360px; font-size: 13px; font-weight: 600; }
 /* Editor de itens (line-items.js) */
 .li-list { display: grid; gap: 8px; }
-.li-item { display: grid; gap: 8px; margin: 0; padding: 10px 12px; border: 1px solid var(--g-line); border-radius: 10px; }
+.li-item { display: grid; gap: 8px; margin: 0; padding: 10px 12px; border: 1px solid var(--g-line); border-radius: var(--r-control); }
 .li-item legend { padding: 0 4px; font-size: 12.5px; font-weight: 700; }
 .li-row { display: grid; gap: 8px; align-items: end; }
 .li-main { grid-template-columns: 1fr 1.4fr; }

@@ -3,7 +3,9 @@
 import { icon } from './icons.js';
 import { h, pageShell, utabs } from './screens.js';
 import { designStage, mountDesignStage } from './design-workspace.js';
+import { destinationField, readDestination } from './destination-field.js';
 import { defaultTiers, fieldCatalog, fieldKinds, fieldMarkup, formCss, formFields, inputOf, newField, scoreOf, templatesFor, validFields } from './form-fields.js';
+import { ask } from './ask.js';
 
 // The three kinds share the engine; each has its own list, analytics and submissions under Sites.
 const KINDS = {
@@ -26,7 +28,7 @@ const formUrl = (c, form) => `/form/${c.workspace}/${form.id}`;
 const absolute = path => `${location.origin}${path}`;
 const pct = (a, b) => b ? `${(Math.round(a / b * 1000) / 10).toLocaleString('pt-BR')}%` : '—';
 const settingsOf = form => ({ button: form.button || 'Enviar', accent: form.accent || '#155eef', showTitle: form.showTitle !== false, addTags: form.addTags || [],
-  onSubmit: { action: 'message', message: '', url: '', ...(form.onSubmit || {}) }, schedule: { start: '', end: '', closedMessage: '', ...(form.schedule || {}) } });
+  onSubmit: { action: 'message', message: '', url: '', siteId: '', page: '', serviceId: '', ...(form.onSubmit || {}) }, routes: form.routes || [], schedule: { start: '', end: '', closedMessage: '', ...(form.schedule || {}) } });
 const customFieldsOf = c => (c.s.customFields || []).filter(field => field.object === 'Contact');
 const subsOf = (c, id, kind) => c.s.submissions.filter(item => id ? item.formId === id : !kind || kindOf(c.s.forms.find(form => form.id === item.formId)) === kind);
 
@@ -268,14 +270,29 @@ function scoringHtml() {
     ${d.tiers.length < 10 ? `<button type="button" class="secondary" data-fb-tier-add>${icon('plus', 15)} Adicionar faixa</button>` : ''}</div>`;
 }
 
-function settingsHtml() {
+// Perguntas de escolha, as únicas que decidem destino.
+const choiceFields = () => fb.draft.fields.filter(field => ['select', 'radio', 'multiselect', 'checkbox', 'custom'].includes(field.type) && field.options?.length);
+function routesHtml(c) {
+  const d = fb.draft, fields = choiceFields(), quiz = d.kind === 'quiz';
+  // "campo|opção" ou "faixa": uma lista só, para a regra caber em uma linha.
+  const when = rule => rule.when === 'tier' ? `tier|${rule.tier}` : `${rule.fieldId}|${rule.option}`;
+  const options = rule => `<option value="">Escolha a resposta</option>${quiz ? `<optgroup label="Resultado">${d.tiers.map(tier => `<option value="${h(`tier|${tier.name}`)}"${when(rule) === `tier|${tier.name}` ? ' selected' : ''}>Faixa ${h(tier.name)}</option>`).join('')}</optgroup>` : ''}${fields.map(field => `<optgroup label="${h(field.label)}">${field.options.map(option => `<option value="${h(`${field.id}|${option}`)}"${when(rule) === `${field.id}|${option}` ? ' selected' : ''}>${h(option)} · ${h(field.label.length > 44 ? `${field.label.slice(0, 43)}…` : field.label)}</option>`).join('')}</optgroup>`).join('')}`;
+  return `<section class="surface padded"><h2>Destino por resposta</h2><p class="dim">Separe quem segue para a reunião de quem vai para outra página. Quem cair numa regra de desqualificação não conta como Lead no pixel nem recebe o link da agenda, e essa regra vale antes das outras.</p>
+    ${d.routes.map((rule, index) => `<div class="fb-route"><div class="fb-tier-head"><h3>Regra ${index + 1}</h3><button type="button" class="secondary danger" data-fb-route-del="${index}">Remover</button></div>
+      <div class="fb-two"><label>Quando a resposta for<select data-fb-route="${index}" data-key="when">${options(rule)}</select></label><label>Tag no contato<input data-fb-route="${index}" data-key="tag" value="${h(rule.tag)}" maxlength="48" placeholder="Ex.: lead-qualificado"></label></div>
+      <label class="check"><input type="checkbox" data-fb-route="${index}" data-key="disqualify"${rule.disqualify ? ' checked' : ''}> Lead desqualificado</label>
+      ${destinationField(c, rule.dest, { attrs: key => `data-fb-route="${index}" data-key="dest.${key}"`, actions: rule.disqualify ? ['message', 'redirect', 'page'] : ['default', 'message', 'redirect', 'page', 'booking'] })}</div>`).join('')}
+    ${fields.length || quiz ? (d.routes.length < 30 ? `<button type="button" class="secondary" data-fb-route-add>${icon('plus', 15)} Adicionar regra</button>` : '') : '<p class="fb-warn">Adicione uma pergunta de escolha (lista, opção única ou caixas) para criar regras.</p>'}</section>`;
+}
+
+function settingsHtml(c) {
   const d = fb.draft, s = d.onSubmit, sch = d.schedule;
   const local = iso => iso ? new Date(new Date(iso).getTime() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 16) : '';
   return `<div class="fb-settings">
     <section class="surface padded"><h2>Ao enviar</h2>
-      <div class="fb-segment" role="radiogroup" aria-label="Ao enviar">${[['message', 'Mostrar mensagem'], ['redirect', 'Redirecionar para um endereço']].map(([v, label]) => `<label><input type="radio" name="fb-submit" data-fb-set="onSubmit.action" value="${v}"${s.action === v ? ' checked' : ''}> ${label}</label>`).join('')}</div>
-      ${s.action === 'redirect' ? `<label>Endereço<input type="url" data-fb-set="onSubmit.url" value="${h(s.url)}" placeholder="https://www.exemplo.com.br/obrigado" maxlength="600"></label><p class="dim">Formulários incorporados levam a página inteira para esse endereço.</p>`
-        : `<label>Mensagem de agradecimento<textarea data-fb-set="onSubmit.message" rows="3" maxlength="500" placeholder="Recebemos suas respostas.">${h(s.message)}</textarea></label>`}</section>
+      ${destinationField(c, s, { attrs: key => `data-fb-dest="${key}"`, label: 'Depois do envio' })}
+      <p class="dim">Formulários incorporados levam a página inteira para o destino.</p></section>
+    ${routesHtml(c)}
     <section class="surface padded"><h2>Contato</h2><p class="dim">Cada envio cria o contato (ou atualiza o existente pelo e-mail ou telefone) e dispara os fluxos com o gatilho “Formulário enviado”.</p>
       <label>Tags para adicionar ao contato<input data-fb-set="addTags" value="${h(d.addTags.join(', '))}" placeholder="lead-site, orcamento" maxlength="400"></label></section>
     <section class="surface padded"><h2>Período de respostas</h2><p class="dim">Fora do período, o formulário mostra a mensagem abaixo no lugar dos campos.</p>
@@ -302,7 +319,7 @@ function builderView(c) {
   const d = fb.draft, k = KINDS[d.kind];
   const sections = [['edit', 'Editar'], ...(d.kind === 'quiz' ? [['scoring', 'Pontuação']] : []), ['settings', 'Configurações'], ['integrate', 'Integrar'], ['results', 'Envios'], ['analytics', 'Análises']];
   if (!sections.some(([id]) => id === fb.section)) fb.section = 'edit';
-  const body = fb.section === 'settings' ? settingsHtml() : fb.section === 'scoring' ? scoringHtml() : fb.section === 'integrate' ? integrateHtml(c, form)
+  const body = fb.section === 'settings' ? settingsHtml(c) : fb.section === 'scoring' ? scoringHtml() : fb.section === 'integrate' ? integrateHtml(c, form)
     : fb.section === 'results' ? `<div class="fb-results">${submissionsTable(c, form.id, d.kind)}</div>`
     : fb.section === 'analytics' ? `<div class="fb-results">${stats(c, form.id)}${d.kind === 'quiz' ? tierTable(subsOf(c, form.id)) : ''}</div>`
     : `<div class="fb-edit dw-columns">${paletteHtml(c)}${designStage({ label: '<span data-fb-board-name>' + h(d.name) + '</span>', width: 640, content: canvasHtml(c),
@@ -401,13 +418,13 @@ export function installForms(environment) {
     const d = fb.draft, form = current();
     const fields = validFields(d.fields, c.s.customFields || [], d.kind);
     const data = { name: d.name.trim() || form.name, description: d.description, active: form.active, askPhone: form.askPhone, kind: d.kind, fields, button: d.button, accent: d.accent, showTitle: d.showTitle,
-      addTags: d.addTags, onSubmit: d.onSubmit, schedule: d.schedule, ...(d.kind !== 'form' ? { oneAtATime: d.oneAtATime } : {}), ...(d.kind === 'quiz' ? { tiers: d.tiers } : {}), ...extra };
+      addTags: d.addTags, onSubmit: d.onSubmit, routes: d.routes, schedule: d.schedule, ...(d.kind !== 'form' ? { oneAtATime: d.oneAtATime } : {}), ...(d.kind === 'quiz' ? { tiers: d.tiers } : {}), ...extra };
     await mutate({ type: 'save', key: 'forms', id: form.id, data });
     fb.dirty = false; fb.rev = '';
   }
 
   document.addEventListener('click', async event => {
-    const target = event.target.closest('[data-fm-new],[data-fm-close],[data-fm-range],[data-fm-open],[data-fm-csv],[data-fm-contact],[data-fb-add],[data-fb-palette],[data-fb-section],[data-fb-item],[data-fb-select],[data-fb-layer],[data-fb-move],[data-fb-dup],[data-fb-del],[data-fb-save],[data-fb-publish],[data-fb-delete],[data-fb-copy],[data-fb-tier-add],[data-fb-tier-del]');
+    const target = event.target.closest('[data-fm-new],[data-fm-close],[data-fm-range],[data-fm-open],[data-fm-csv],[data-fm-contact],[data-fb-add],[data-fb-palette],[data-fb-section],[data-fb-item],[data-fb-select],[data-fb-layer],[data-fb-move],[data-fb-dup],[data-fb-del],[data-fb-save],[data-fb-publish],[data-fb-delete],[data-fb-copy],[data-fb-tier-add],[data-fb-tier-del],[data-fb-route-add],[data-fb-route-del]');
     if (!target || !(c.view === 'sites' || target.closest('#overlay'))) return;
     const d = target.dataset;
     try {
@@ -436,6 +453,8 @@ export function installForms(environment) {
       }
       if ('fbTierAdd' in d) { const last = fb.draft.tiers.at(-1); fb.draft.tiers.push({ name: 'Nova faixa', min: Math.min(100, (last?.max ?? -1) + 1), max: 100, message: '', ctaLabel: '', ctaUrl: '', tag: '' }); fb.dirty = true; render(); return; }
       if (d.fbTierDel) { fb.draft.tiers.splice(Number(d.fbTierDel), 1); fb.dirty = true; render(); return; }
+      if ('fbRouteAdd' in d) { fb.draft.routes.push({ when: 'answer', fieldId: '', option: '', tag: '', disqualify: false, dest: { action: 'default' } }); fb.dirty = true; render(); document.querySelector(`[data-fb-route="${fb.draft.routes.length - 1}"]`)?.focus(); return; }
+      if (d.fbRouteDel) { fb.draft.routes.splice(Number(d.fbRouteDel), 1); fb.dirty = true; render(); return; }
       if (d.fmRange) { fb.range = Number(d.fmRange); render(); return; }
       if (d.fmOpen) { fb.open = fb.open === d.fmOpen ? '' : d.fmOpen; render(); return; }
       if ('fmCsv' in d) { csv(c, d.fmCsv, d.kind); return; }
@@ -531,6 +550,26 @@ export function installForms(environment) {
       tier[el.dataset.key] = ['min', 'max'].includes(el.dataset.key) ? Number(el.value) : el.value;
       touch(); return;
     }
+    if (el.dataset.fbDest) {
+      fb.draft.onSubmit = readDestination(key => document.querySelector(`[data-fb-dest="${key}"]`)?.value);
+      touch(); return;
+    }
+    if (el.dataset.fbRoute !== undefined) {
+      const index = Number(el.dataset.fbRoute), rule = fb.draft.routes[index], key = el.dataset.key;
+      if (!rule) return;
+      if (key === 'when') {
+        const cut = el.value.indexOf('|'), first = el.value.slice(0, cut), rest = el.value.slice(cut + 1);
+        Object.assign(rule, cut < 0 ? { when: 'answer', fieldId: '', option: '' } : first === 'tier' ? { when: 'tier', tier: rest } : { when: 'answer', fieldId: first, option: rest });
+      }
+      else if (key === 'disqualify') {
+        rule.disqualify = el.checked;
+        if (rule.disqualify && ['default', 'booking'].includes(rule.dest.action)) rule.dest = { ...rule.dest, action: 'message' };
+        fb.dirty = true; render(); document.querySelector(`[data-fb-route="${index}"][data-key="disqualify"]`)?.focus(); return;
+      }
+      else if (key === 'tag') rule.tag = el.value;
+      else rule.dest = readDestination(part => document.querySelector(`[data-fb-route="${index}"][data-key="dest.${part}"]`)?.value);
+      touch(); return;
+    }
     if (el.dataset.fbForm) {
       const key = el.dataset.fbForm;
       fb.draft[key] = el.type === 'checkbox' ? el.checked : el.value;
@@ -547,7 +586,6 @@ export function installForms(environment) {
       if (key.startsWith('schedule.') && key !== 'schedule.closedMessage') value = value ? new Date(value).toISOString() : '';
       setPath(fb.draft, key, value);
       touch();
-      if (key === 'onSubmit.action') { render(); document.querySelector(`[data-fb-set="onSubmit.action"][value="${value}"]`)?.focus(); }
     }
   });
 
@@ -598,11 +636,12 @@ export function installForms(environment) {
 
   // Leaving the builder with unsaved changes asks first.
   let last = location.hash;
-  addEventListener('hashchange', () => {
-    const was = last; last = location.hash;
+  addEventListener('hashchange', async () => {
+    const was = last, to = location.hash; last = to;
     if (!fb.dirty || !was.startsWith(`#sites/form/${fb.id}`) || location.hash.startsWith(`#sites/form/${fb.id}`)) return;
-    if (confirm('Descartar as alterações não salvas deste formulário?')) { fb.dirty = false; fb.rev = ''; fb.id = ''; return; }
     last = was; history.replaceState(null, '', was); dispatchEvent(new HashChangeEvent('hashchange'));
+    if (!await ask('Descartar as alterações não salvas deste formulário?', { ok: 'Descartar', cancel: 'Continuar editando' })) return;
+    fb.dirty = false; fb.rev = ''; fb.id = ''; location.hash = to;
   }, true);
   addEventListener('beforeunload', event => { if (fb.dirty && inBuilder()) event.preventDefault(); });
 }

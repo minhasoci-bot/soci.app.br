@@ -195,6 +195,8 @@ function createUazapiAdapter(call) {
 
 // ---------- Evolution API v2 ----------
 
+const GROUP_JID = /^\d[\d-]{5,40}@g\.us$/;
+
 const EVOLUTION_EVENTS = ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'];
 
 function evolutionError(data) {
@@ -361,8 +363,14 @@ function createEvolutionAdapter(call) {
     async disconnect({ creds, sub }) {
       await send(creds, `/instance/logout/${name(sub)}`, { method: 'DELETE' });
     },
-    async send({ creds, sub, number, text }) {
-      const res = await send(creds, `/message/sendText/${name(sub)}`, { method: 'POST', body: { number, text }, retry: true, timeout: 25000 });
+    async groups({ creds, sub }) {
+      const res = await send(creds, `/group/fetchAllGroups/${name(sub)}?getParticipants=false`, { timeout: 30000 });
+      const data = await readJsonSafe(res);
+      if (!res.ok) throw fail(`Não foi possível listar os grupos (HTTP ${res.status})${evolutionError(data) ? `: ${evolutionError(data)}` : ''}.`, 502);
+      return (Array.isArray(data) ? data : data.groups || []).map(row => ({ jid: String(row.id || ''), name: String(row.subject || '').trim().slice(0, 120) || 'Grupo sem nome', size: Number(row.size) || 0 }));
+    },
+    async send({ creds, sub, number, text, retry = true }) {
+      const res = await send(creds, `/message/sendText/${name(sub)}`, { method: 'POST', body: { number, text }, retry, timeout: 25000 });
       const data = await readJsonSafe(res);
       return { ok: res.ok, status: res.status, message: res.ok ? '' : evolutionError(data), id: String(data.key?.id || data.id || '') };
     },
@@ -374,7 +382,7 @@ function createEvolutionAdapter(call) {
       return { ok: res.ok, status: res.status, message: res.ok ? '' : evolutionError(data), id: String(data.key?.id || data.id || '') };
     },
     // Workflows: reply buttons (up to 3), a list (up to 10 options) or a poll; button and list answers come back as text.
-    async interactive({ creds, sub, number, message }) {
+    async interactive({ creds, sub, number, message, retry = true }) {
       const { kind, body, options, buttonText, footer } = message;
       const path = kind === 'buttons' ? 'sendButtons' : kind === 'list' ? 'sendList' : 'sendPoll';
       const payload = kind === 'buttons'
@@ -382,7 +390,7 @@ function createEvolutionAdapter(call) {
         : kind === 'list'
           ? { number, title: '', description: body, buttonText: buttonText || 'Ver opções', footerText: footer || '', sections: [{ title: 'Opções', rows: options.map((label, n) => ({ title: label, description: '', rowId: `opcao_${n + 1}` })) }] }
           : { number, name: body, selectableCount: 1, values: options };
-      const res = await send(creds, `/message/${path}/${name(sub)}`, { method: 'POST', body: payload, retry: true, timeout: 25000 });
+      const res = await send(creds, `/message/${path}/${name(sub)}`, { method: 'POST', body: payload, retry, timeout: 25000 });
       const data = await readJsonSafe(res);
       return { ok: res.ok, status: res.status, message: res.ok ? '' : evolutionError(data), id: String(data.key?.id || data.id || '') };
     },
@@ -510,7 +518,7 @@ export function createWhatsAppHandler({
         await wait(1500);
         try { return await attempt(); } catch { /* cai no erro abaixo */ }
       }
-      throw fail(`Não foi possível alcançar a ${label}: ${err?.message || 'erro de rede'}.`, 502);
+      throw Object.assign(fail(`Não foi possível alcançar a ${label}: ${err?.message || 'erro de rede'}.`, 502), { network: err?.cause?.code || err?.code || 'unknown' });
     }
     return res;
   }
@@ -788,6 +796,43 @@ export function createWhatsAppHandler({
     return { sent: true, id: result.id };
   }
 
+  /** Planejador de eventos: grupos do número conectado, por nome. */
+  async function listWorkspaceGroups(agencyId, workspaceId, accountIsActive) {
+    const sender = await workspaceSender(agencyId, workspaceId, accountIsActive);
+    if (sender.reason) return { reason: sender.reason, groups: [] };
+    if (!sender.adapter.groups) return { reason: 'unsupported', groups: [] };
+    const groups = (await sender.adapter.groups(sender)).filter(row => GROUP_JID.test(row.jid));
+    return { reason: '', groups: groups.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')) };
+  }
+
+  /**
+   * Planejador de eventos: uma mensagem a um grupo ou contato, sem repetir a chamada. Nunca lança.
+   * sent: saiu · waiting: número fora do ar, tentar depois · retry: com certeza não saiu ·
+   * unconfirmed: pode ter saído, não repetir sozinho · failed: recusada.
+   */
+  async function sendEventMessage(agencyId, workspaceId, { to, part }, accountIsActive) {
+    const group = String(to || '').includes('@'), number = group ? String(to) : digits(to);
+    const result = (outcome, error = '', id = '') => ({ outcome, id, error: String(error).slice(0, 200) });
+    if (group ? !GROUP_JID.test(number) : number.length < 10 || number.length > 15) return result('failed', 'Destino inválido.');
+    try {
+      const sender = await workspaceSender(agencyId, workspaceId, accountIsActive);
+      if (sender.reason) return result('waiting', sender.reason === 'account-suspended' ? 'Conta suspensa.' : 'WhatsApp desconectado.');
+      if (group && !sender.adapter.groups) return result('failed', 'Esta conexão do WhatsApp não envia para grupos.');
+      if (part.kind === 'poll' && !sender.adapter.interactive) return result('failed', 'Esta conexão do WhatsApp não envia enquetes.');
+      const res = part.kind === 'poll'
+        ? await sender.adapter.interactive({ ...sender, number, retry: false, message: { kind: 'poll', body: part.question, options: part.options } })
+        : await sender.adapter.send({ ...sender, number, text: part.text, retry: false });
+      if (res.ok) return result('sent', '', res.id);
+      if (/connection closed/i.test(res.message)) return result('waiting', 'WhatsApp desconectado.');
+      // Chave trocada ou instância apagada: é a conexão, não o destinatário. Espera alguém religar.
+      if ([401, 403, 404].includes(res.status)) return result('waiting', 'A conexão do WhatsApp recusou o envio.');
+      if (res.status === 503) return result('retry', 'O servidor do WhatsApp está reiniciando.');
+      return result(res.status >= 500 || [408, 429].includes(res.status) ? 'unconfirmed' : 'failed', res.message || `Resposta HTTP ${res.status}.`);
+    } catch (err) {
+      return result(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'].includes(err?.network) ? 'retry' : 'unconfirmed', err?.message || 'Falha no envio.');
+    }
+  }
+
   async function handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json, onStored = null }) {
     const rawPath = resolvePath(url);
     const match = rawPath.match(/^\/api\/whatsapp\/webhook\/([^/]+)\/([^/]+)\/([a-f0-9]{32,128})$/);
@@ -931,6 +976,10 @@ export function createWhatsAppHandler({
       return json(publicSubView(refreshed, agencyId, workspaceId, publicOrigin, live));
     }
 
+    if (op === 'groups' && method === 'GET') {
+      return json(await listWorkspaceGroups(agencyId, workspaceId, async () => { await requireActiveAccount(agencyId, workspaceId, true, 'marketing'); return true; }));
+    }
+
     if (op === 'connect' && method === 'POST') {
       const body = await payload(req).catch(() => ({}));
       const phone = digits(body.phone || '');
@@ -987,5 +1036,5 @@ export function createWhatsAppHandler({
     throw fail('Rota do WhatsApp não encontrada.', 404);
   }
 
-  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, sendWorkspaceText, sendWorkspaceMedia, sendWorkspacePresence, sendWorkspaceInteractive };
+  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, sendWorkspaceText, sendWorkspaceMedia, sendWorkspacePresence, sendWorkspaceInteractive, listWorkspaceGroups, sendEventMessage };
 }

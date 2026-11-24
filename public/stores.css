@@ -12,7 +12,7 @@
 .st-items td { vertical-align: middle; }
 .st-items td small { display: block; }
 .st-items input:not([type=checkbox]) { width: 100%; min-width: 90px; }
-.st-thumb { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; object-fit: cover; background: var(--g-surface-2); color: var(--g-dim); }
+.st-thumb { display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--r-control); object-fit: cover; background: var(--g-surface-2); color: var(--g-dim); }
 .st-note { margin: 0; font-size: 12.5px; }
 .st-order { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; padding-top: 12px; }
 .st-order h3 { margin: 0 0 8px; font-size: 13.5px; }

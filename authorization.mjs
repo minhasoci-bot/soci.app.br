@@ -1,4 +1,5 @@
 import { accountLifecycle } from './agency-model.mjs';
+import { eventSendsView } from './event-send-model.mjs';
 import { blank, metrics } from './model.mjs';
 import { moduleOfRecord, subAccountModules } from './ui/agency-data.js';
 
@@ -9,7 +10,7 @@ const readModules = {
   teamMessages: 'conversations', inboxViews: 'conversations', conversationSla: 'conversations',
   linkTickets: 'conversations', linkClicks: 'conversations',
   runs: 'automation', deletedWorkflows: 'automation', submissions: 'sites',
-  socialAccounts: 'marketing', socialPosts: 'marketing', socialImports: 'marketing',
+  eventSendSettings: 'marketing', socialAccounts: 'marketing', socialPosts: 'marketing', socialImports: 'marketing',
   dashboards: 'dashboard', defaultDashboard: 'dashboard', onboarding: 'dashboard',
   dashboardReports: 'reporting', customReports: 'reporting', integrations: 'settings',
   seo: 'reputation', seoAudits: 'reputation', visibility: 'reputation', visibilityRuns: 'reputation', wallet: 'settings', appLog: 'settings'
@@ -35,6 +36,7 @@ const commandModules = {
   'prancheta-save': 'marketing', 'prancheta-delete': 'marketing', 'prancheta-duplicate': 'marketing',
   'email-campaign-schedule': 'marketing', 'email-campaign-cancel': 'marketing', 'email-campaign-duplicate': 'marketing',
   'event-plan-duplicate': 'marketing', 'event-plan-orchestrate': 'marketing',
+  'event-message-preview': 'marketing', 'event-message-schedule': 'marketing', 'event-message-cancel': 'marketing', 'event-message-retry': 'marketing', 'event-groups-save': 'marketing', 'event-send-settings': 'marketing',
   'prancheta-export-media': 'marketing', 'prancheta-to-social': 'marketing', 'prancheta-template': 'marketing',
   message: 'conversations', thread: 'conversations', 'team-message': 'conversations',
   'manual-action': 'conversations', 'conversation-sla': 'conversations', 'dismiss-sla': 'conversations',
@@ -118,6 +120,8 @@ export function requireWorkspaceCommand(access, command) {
   requireModule(access, module);
   if (type === 'dashboard-report') requireModule(access, 'reporting', ...snapshotSources);
   if (type === 'event-plan-orchestrate') requireModule(access, 'contacts', 'calendars');
+  // O envio sai pelo WhatsApp da subconta.
+  if (/^event-(message|send|groups)-/.test(type)) requireModule(access, 'conversations');
 }
 
 export function requireSetupModules(access, keys) {
@@ -170,9 +174,15 @@ export function requireRecordEffects(access, state, command) {
 }
 
 export function workspaceView(access, state) {
+  // A fila de envios tem nome e telefone: só a parte que a tela usa, e só para quem planeja e conversa.
+  const eventSends = hasModule(access, 'marketing') && hasModule(access, 'conversations') ? eventSendsView(state.eventSends) : [];
   // The ledger outbox is plumbing between the state and the ledger table; browsers never get it.
-  if (access.modules === null) { const { ledgerOutbox: _outbox, ...visible } = state; return { state: visible, metrics: metrics(state) }; }
+  if (access.modules === null) {
+    const { ledgerOutbox: _outbox, ...visible } = state;
+    return { state: state.eventSends?.length ? { ...visible, eventSends } : visible, metrics: metrics(state) };
+  }
   const { ledgerOutbox: _empty, ...view } = blank();
+  view.eventSends = eventSends;
   const { name, timezone, currency } = state.profile;
   view.profile = hasModule(access, 'settings') ? state.profile : { name, timezone, currency };
   for (const [key, module] of Object.entries(readModules)) {

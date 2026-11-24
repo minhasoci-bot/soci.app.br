@@ -276,7 +276,7 @@ function marketing(c){
   if(t==='brand') return brandScreen(c,{ marketingTabs });
   if(t==='loyalty') return loyaltyScreen(c,{ marketingTabs });
   if(t==='social') return socialPlanner(c,{ pageShell, utabs, marketingTabs });
-  if(t==='events') return eventPlanner(c,{ pageShell, marketingTabs });
+  if(t==='events') return eventPlanner(c,{ pageShell, utabs, marketingTabs });
   if(t==='countdown') return countdownScreen(c,{ marketingTabs });
   return emailMarketingScreen(c,{ marketingTabs });
 }

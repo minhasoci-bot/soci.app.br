@@ -71,6 +71,7 @@ import { installReports } from './reports.js';
 import './phone-input.js';
 import { clickWith, mountBeautifulUI } from './bui-mounts.js';
 import { diffTable, searchList } from './beautiful-ui-more.js';
+import { ask, askText } from './ask.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
@@ -191,10 +192,10 @@ async function load(){
   const workspace = c.workspace;
   try {
     const data = await api(url('/api/state'));
-    if (workspace === c.workspace) Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,audit:data.audit,account:data.account});
+    if (workspace === c.workspace) Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,account:data.account});
   } catch (e) {
     if (e.code !== 'ACCOUNT_SUSPENDED') throw e;
-    if (workspace === c.workspace) Object.assign(c,{s:null,m:null,account:e.account,audit:[]});
+    if (workspace === c.workspace) Object.assign(c,{s:null,m:null,account:e.account});
   }
 }
 const allowedView = id => id === 'launchpad' ? !c.access?.modules || c.access.modules.length > 0 : !c.access?.modules || c.access.modules.includes(id) || (id === 'prancheta' && (!c.access?.modules || c.access.modules.includes('marketing') || c.access.modules.includes('prancheta')));
@@ -349,7 +350,7 @@ function render(){
   const brand=agencyName||brandName(c.agency?.brand), customLink=c.agency?.menuLinks.find(l=>l.id===c.tab);
   const active=nav.find(x=>x[0]===c.view);
   document.title=brand;
-  applyBrandColor(c.agency?.primary, c.agency?.secondary);
+  applyBrandColor(c.agency?.primary, c.agency?.secondary, c.agency?.accent);
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
   app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}${c.launchpadReturn && c.view!=='launchpad' ? `<div class="lp-return"><a href="#launchpad/${h(c.launchpadReturn)}">${i('left',14)} Voltar ao guia</a><span>Continue a configuração. Seu progresso será reconhecido ao voltar.</span><button class="icon-btn" aria-label="Fechar lembrete do guia" data-act="launchpad-dismiss">${i('close',14)}</button></div>` : ''}<main id="screen" class="screen">${screenHtml}</main></div></div>`;
@@ -895,24 +896,24 @@ document.addEventListener('click',async ev=>{
       case 'dialer-hangup': await api(url('/api/phone/dialer/hangup'),{}); flash(tr('Ligação encerrada.')); setTimeout(async()=>{ await load(); render(); },1500); break;
       case 'dialer-stop': await api(url('/api/phone/dialer/stop'),{}); await load(); render(); flash(tr('Discador encerrado.')); break;
       case 'dialer-remove': await mutate({type:'dialer-queue-remove',data:{contactId:d.dialerContact}}); render(); break;
-      case 'dialer-clear': if(!confirm(tr('Tirar todos os contatos pendentes da fila?'))) break; await mutate({type:'dialer-queue-remove',data:{all:true}}); render(); break;
+      case 'dialer-clear': if(!await ask('Tirar todos os contatos pendentes da fila?', { ok: 'Esvaziar fila' })) break; await mutate({type:'dialer-queue-remove',data:{all:true}}); render(); break;
       case 'connectors-refresh': c.connectorStatus=null; render(); await refreshConnectors(); break;
       case 'connector-copy': await navigator.clipboard.writeText(d.connectorValue).then(()=>flash(tr('URL copiada.')),()=>flash(tr('Selecione a URL e copie.'),true)); break;
       case 'connector-disconnect': {
-        if(!confirm(tr('Desconectar este app? Os fluxos que usam os gatilhos e ações dele param de funcionar.'))) break;
+        if(!await ask('Desconectar este app?', { text: 'Os fluxos que usam os gatilhos e ações dele param de funcionar.', ok: 'Desconectar' })) break;
         c.connectorStatus={...await api(url('/api/connectors/disconnect'),{id:d.connectorId}),workspace:c.workspace}; await load(); render(); flash(tr('App desconectado.'));
         break;
       }
       case 'phone-refresh': c.phoneSetup=null; render(); await refreshPhone(); break;
       case 'phone-buy': {
         const number=d.phoneNumber;
-        if(!confirm(tr('Comprar este número? A Twilio cobra a mensalidade do número na conta da plataforma.'))) break;
+        if(!await ask('Comprar este número?', { text: 'A Twilio cobra a mensalidade do número na conta da plataforma.', ok: 'Comprar', danger: false })) break;
         c.phoneSetup={...c.phoneSetup,...await api(url('/api/phone/buy'),{number,name:''}),workspace:c.workspace}; c.phoneSearch=null;
         await load(); render(); flash(tr('Número comprado. Escolha onde as ligações tocam.'));
         break;
       }
       case 'phone-release': {
-        if(!confirm(tr('Liberar este número? Ele volta para a Twilio e pode não ser recuperado.'))) break;
+        if(!await ask('Liberar este número?', { text: 'Ele volta para a Twilio e pode não ser recuperado.', ok: 'Liberar' })) break;
         c.phoneSetup={...c.phoneSetup,...await api(url('/api/phone/release'),{id:d.phoneId}),workspace:c.workspace};
         await load(); render(); flash(tr('Número liberado.'));
         break;
@@ -920,7 +921,7 @@ document.addEventListener('click',async ev=>{
       case 'phone-call': {
         let agentPhone='';
         try{ agentPhone=localStorage.getItem('soci-agent-phone')||''; }catch{}
-        agentPhone=prompt(tr('A Soci liga primeiro para o seu telefone e, quando você atender, completa a ligação com o contato. Qual é o seu telefone?'),agentPhone);
+        agentPhone=await askText('Qual é o seu telefone?',{text:'A Soci liga primeiro para o seu telefone e, quando você atender, completa a ligação com o contato.',value:agentPhone,type:'tel',ok:'Ligar agora'});
         if(!agentPhone) break;
         try{ localStorage.setItem('soci-agent-phone',agentPhone); }catch{}
         await api(url('/api/phone/call'),{contactId:c.thread,agentPhone});
@@ -937,14 +938,14 @@ document.addEventListener('click',async ev=>{
         break;
       }
       case 'email-remove': {
-        if(!confirm('Remover o domínio de envio? Os e-mails desta subconta voltam a sair do endereço da plataforma.')) break;
+        if(!await ask('Remover o domínio de envio?', { text: 'Os e-mails desta subconta voltam a sair do endereço da plataforma.', ok: 'Remover' })) break;
         c.emailDomain={...await api(url('/api/email/workspace/remove'),{}),workspace:c.workspace};
         render(); flash('Domínio de envio removido.');
         break;
       }
       case 'google-connect': window.open(url('/api/google/workspace/connect'),'soci-google','width=560,height=720'); break;
       case 'google-disconnect': {
-        if(!confirm('Desconectar o Google desta subconta? Os widgets do Google Analytics e do Perfil da Empresa param de mostrar dados.')) break;
+        if(!await ask('Desconectar o Google desta subconta?', { text: 'Os widgets do Google Analytics e do Perfil da Empresa param de mostrar dados.', ok: 'Desconectar' })) break;
         c.google={...await api(url('/api/google/workspace/disconnect'),{}),workspace:c.workspace};
         render(); flash('Google desconectado.');
         break;
@@ -958,7 +959,7 @@ document.addEventListener('click',async ev=>{
         break;
       }
       case 'abacate-disconnect': {
-        if(!confirm('Desconectar o AbacatePay deste workspace? Links já enviados continuam valendo, mas as baixas automáticas param.')) break;
+        if(!await ask('Desconectar o AbacatePay deste workspace?', { text: 'Links já enviados continuam valendo, mas as baixas automáticas param.', ok: 'Desconectar' })) break;
         c.pay=await api(url('/api/abacatepay/workspace/disconnect'),{});
         render(); flash('AbacatePay desconectado.');
         break;
@@ -982,7 +983,7 @@ function mountGlobalSearch(){
   if(!host) return;
   let items;
   if(location.hash.startsWith('#agency')){
-    const agNavList=[['dashboard','Painel da agência'],['prospecting','Prospecção'],['accounts','Subcontas'],['snapshots','Setups de conta'],['affiliate','Portal de afiliados'],['templates','Biblioteca de modelos'],['partners','Parceiros'],['university','Universidade'],['ideas','Ideias'],['mobile-app','Aplicativo móvel'],['settings','Configurações']];
+    const agNavList=[['dashboard','Painel da agência'],['prospecting','Prospecção'],['accounts','Subcontas'],['snapshots','Setups de conta'],['affiliate','Portal de afiliados'],['partners','Parceiros'],['university','Universidade'],['ideas','Ideias'],['mobile-app','Aplicativo móvel'],['settings','Configurações']];
     let accounts=[];
     try{accounts=JSON.parse(localStorage.getItem('ag_db_v1')||'{}').accounts||[];}catch{}
     items=[...agNavList.map(([k,label])=>({label,keywords:k,run:{agGo:k}})),...accounts.map(a=>({label:a.name||'Subconta',keywords:'subconta',searchOnly:true,run:{agGo:'accounts'}}))];
@@ -1034,7 +1035,6 @@ function globalSearch(value){
       ['accounts', 'Subcontas', 'users'],
       ['snapshots', 'Setups de conta', 'box'],
       ['affiliate', 'Portal de afiliados', 'gift'],
-      ['templates', 'Biblioteca de modelos', 'doc'],
       ['partners', 'Parceiros', 'users'],
       ['university', 'Universidade', 'book'],
       ['ideas', 'Ideias', 'lightbulb'],
@@ -1259,10 +1259,11 @@ if(viewPath){
   catch(e){app.innerHTML=`<div class="boot"><h1>Página indisponível</h1><p>${h(e.message)}</p><a href="/">Voltar para a plataforma</a></div>`;}
 }else{
   installDashboardControls({ c,dialog,close,render,load,mutate,flash,go,download:downloads });
-  agencyEnv = { app, overlay, api, flash, openWorkspace: useWorkspace, onBrandColorChange: (primary, secondary) => {
+  agencyEnv = { app, overlay, api, flash, openWorkspace: useWorkspace, onBrandColorChange: (primary, secondary, accent) => {
     if (!c.agency || c.workspace.startsWith('user-')) return;
     c.agency.primary = primary;
     if (secondary) c.agency.secondary = secondary;
+    if (accent) c.agency.accent = accent;
     if (c.mode !== 'agency') render();
   }, onOpenAIChange: connection => {
     if (!c.features) return;
@@ -1306,7 +1307,7 @@ if(viewPath){
   void installMobileShell({ c, api, url, flash });
   installAppMarketplace({ c, api, url, flash, render });
   installContentAI({ api, flash, workspace: () => c.workspace, enabled: kind => Boolean(c.features?.contentAI || (kind === 'gbp' && c.features?.reviewAI)) });
-  installEventPlanner({ c, mutate, flash, dialog, close, render });
+  installEventPlanner({ c, mutate, flash, dialog, close, render, api, url, load });
   installCountdowns({ c, mutate, flash, dialog, close, render });
   installAffiliates({ c, api, url, mutate, flash, dialog, close, render });
   installAds({ c, api, url, mutate, flash, dialog, close, render });
@@ -1340,7 +1341,7 @@ if(viewPath){
     }
   });
   installReports({ c, dialog, close, render, mutate, flash, download:downloads });
-  crmEvents({ G, mutate, render, flash, dialog, close });
+  crmEvents({ G, mutate, render, flash, dialog, close, c, api });
   opportunityEvents({ c, G, mutate, render, flash, dialog, close });
   socialEvents({ c, G, api, url, mutate, render, flash, dialog, close, load });
   window.addEventListener('hashchange',route);

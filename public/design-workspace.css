@@ -33,7 +33,7 @@
   background: var(--g-surface);
 }
 .dw-header h1 { min-width: 0; font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
-.dw-header .secondary { min-height: 32px; padding: 4px 10px; border-radius: 6px; font-size: 12px; }
+.dw-header .secondary { min-height: 32px; padding: 4px 10px; border-radius: var(--r-chip); font-size: 12px; }
 .dw-header .primary { min-height: 32px; padding: 4px 14px; border-radius: 9999px; font-size: 12px; }
 .dw-header .icon-btn { width: 32px; height: 32px; }
 .dw-header [aria-pressed=true] { color: var(--dw-accent); background: var(--dw-selected); }
@@ -75,7 +75,7 @@
   padding: 4px 7px;
   padding-inline-start: calc(7px + var(--dw-depth, 0) * 10px);
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--r-chip);
   background: transparent;
   color: var(--g-ink);
   text-align: left;
@@ -117,13 +117,13 @@
   gap: 2px;
   padding: 4px;
   border: 1px solid var(--g-line-2);
-  border-radius: 9px;
+  border-radius: var(--r-control);
   background: var(--g-surface);
   color: var(--g-ink);
   box-shadow: 0 4px 16px #0002;
   white-space: nowrap;
 }
-.dw-dock :is(button,a) { display: inline-flex; justify-content: center; align-items: center; gap: 4px; min-width: 28px; min-height: 30px; padding: 0 5px; border: 0; border-radius: 5px; background: none; color: inherit; font-size: 12px; }
+.dw-dock :is(button,a) { display: inline-flex; justify-content: center; align-items: center; gap: 4px; min-width: 28px; min-height: 30px; padding: 0 5px; border: 0; border-radius: var(--r-chip); background: none; color: inherit; font-size: 12px; }
 .dw-dock :is(button,a):hover { background: var(--g-surface-2); }
 .dw-dock button[aria-pressed=true] { background: var(--dw-selected); color: var(--dw-accent); }
 .dw-dock button:disabled { opacity: .42; }
@@ -136,11 +136,14 @@
 .sx-canvas > .dw-stage, .sx-canvas > .sx-code { flex: 1; }
 .sx.dw-workspace .sx-devices { display: flex; gap: 2px; border: 0; padding: 0 2px; background: none; }
 .sx-insert { position: relative; }
-.sx-insert summary { display: grid; place-items: center; width: 28px; height: 30px; border-radius: 5px; cursor: pointer; list-style: none; }
+.sx-insert summary { display: grid; place-items: center; width: 28px; height: 30px; border-radius: var(--r-chip); cursor: pointer; list-style: none; }
 .sx-insert summary::-webkit-details-marker { display: none; }
 .sx-insert summary:hover, .sx-insert[open] summary { background: var(--dw-selected); color: var(--dw-accent); }
-.sx-insert > div { position: absolute; inset: auto auto calc(100% + 10px) 0; display: grid; min-width: 110px; padding: 4px; border: 1px solid var(--g-line); border-radius: 7px; background: var(--g-surface); box-shadow: 0 4px 14px #0002; }
-.sx-insert > div > button { justify-content: flex-start; padding-inline: 9px; }
+.sx-insert > div { position: absolute; inset: auto auto calc(100% + 10px) 0; display: grid; min-width: 110px; padding: 4px; border: 1px solid var(--g-line); border-radius: var(--r-chip); background: var(--g-surface); box-shadow: 0 4px 14px #0002; }
+.sx-insert > div { grid-template-columns: auto auto; gap: 4px 10px; max-height: min(60vh, 420px); overflow: auto; }
+.sx-insert section { display: grid; align-content: start; min-width: 118px; }
+.sx-insert h3 { margin: 4px 9px; color: var(--g-dim); font-size: 11px; font-weight: 600; }
+.sx-insert > div button { width: 100%; justify-content: flex-start; padding-inline: 9px; white-space: nowrap; }
 .sx.dw-workspace .sx-tabs { flex: none; border-color: var(--g-line); }
 .sx.dw-workspace .sx-tabs button { padding: 7px 3px; color: var(--g-dim); font-size: 11.5px; }
 .sx.dw-workspace .sx-tabs [aria-selected=true] { color: var(--dw-accent); background: var(--dw-selected); }
@@ -152,11 +155,17 @@
 .sx-inspector-head { display: flex; align-items: center; justify-content: space-between; }
 .sx.dw-workspace .sx-inspector h2 { font: 600 13px ui-monospace, Consolas, monospace; text-transform: none; color: var(--g-ink); }
 .sx-inspector label { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
-.sx.dw-workspace .sx-inspector input { flex: 0 0 80px; width: 80px; min-height: 28px; padding: 4px 6px; border-radius: 6px; }
+.sx.dw-workspace .sx-inspector input { flex: 0 0 80px; width: 80px; min-height: 28px; padding: 4px 6px; border-radius: var(--r-chip); }
 .sx.dw-workspace .sx-inspector input[type=color] { flex-basis: 42px; width: 42px; }
 .sx-inspector .secondary { justify-self: start; min-height: 29px; padding: 4px 8px; font-size: 12px; }
 .sx.dw-workspace .sx-inspector .sx-remove { color: var(--g-danger, #b42318); }
 .sx-inspector summary { cursor: pointer; color: var(--g-dim); }
+.sx-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.sx-inspector label.sx-field { flex-direction: column; align-items: stretch; }
+.sx.dw-workspace .sx-inspector .sx-field input { flex: none; width: 100%; }
+.sx-field-note { margin: -4px 0 0; }
+.sx-field-note:empty { display: none; }
+.sx-field-note.error { color: var(--g-danger, #b42318); }
 .sx-inspector details > div { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 8px; }
 
 .fb.dw-workspace .fb-sections { justify-content: flex-start; padding: 0 12px; }

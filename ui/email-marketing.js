@@ -8,6 +8,7 @@ import { contentTones } from './content-ai-data.js';
 import { icon } from './icons.js';
 import { h, pageShell, search } from './screens.js';
 import { BLOCK_TYPES, FONTS, MAX_BLOCKS, MERGE_FIELDS, mergeValues, newBlock, renderEmail, fillText, starterDesign } from './email-blocks.js';
+import { ask } from './ask.js';
 
 export const emailTabs = ['email', 'email-campaigns', 'email-templates', 'email-campaign', 'email-template', 'email-report', 'email-sequences', 'email-sequence'];
 const ed = { key: '', draft: null, dirty: false, open: 0, device: 'desktop' };
@@ -102,7 +103,7 @@ function blockEditor(b, i, count, open, timers = []) {
   let body = '';
   if (b.type === 'heading') body = aiField('Texto', input('text', b.text, 'maxlength="300"'), `[data-em-b="text"][data-i="${i}"]`) + `<div class="em-two">${field('Tamanho', `<select data-em-b="level" data-i="${i}"><option value="1"${b.level !== 2 ? ' selected' : ''}>Grande</option><option value="2"${b.level === 2 ? ' selected' : ''}>Médio</option></select>`)}${field('Alinhamento', align(b.align))}</div>`;
   if (b.type === 'text') body = aiField('Texto', `<textarea data-em-b="text" data-i="${i}" rows="6" maxlength="8000">${h(b.text)}</textarea>`, `[data-em-b="text"][data-i="${i}"]`, 'Use **negrito**, *itálico* e [texto do link](https://…). Uma linha em branco separa parágrafos.') + field('Alinhamento', align(b.align));
-  if (b.type === 'button') body = `<div class="em-two">${aiField('Texto do botão', input('label', b.label, 'maxlength="80"'), `[data-em-b="label"][data-i="${i}"]`)}${field('Link', input('url', b.url, 'type="url" placeholder="https://"'))}</div><div class="em-two">${field('Cor', `<input type="color" data-em-b="color" data-i="${i}" value="${h(b.color || '#d6246e')}">`, 'Vazio usa a cor de destaque.')}${field('Alinhamento', align(b.align, 'center'))}</div>`;
+  if (b.type === 'button') body = `<div class="em-two">${aiField('Texto do botão', input('label', b.label, 'maxlength="80"'), `[data-em-b="label"][data-i="${i}"]`)}${field('Link', input('url', b.url, 'type="url" placeholder="https://"'))}</div><div class="em-two">${field('Cor', `<input type="color" data-em-b="color" data-i="${i}" value="${h(b.color || '#ff4f9a')}">`, 'Vazio usa a cor de destaque.')}${field('Alinhamento', align(b.align, 'center'))}</div>`;
   if (b.type === 'image') body = field('Endereço da imagem (https)', input('src', b.src, 'type="url" placeholder="https://…/imagem.jpg"'), 'Use uma imagem pública, como as da Mídia Drive ou do seu site.') + `<div class="em-two">${field('Texto alternativo', input('alt', b.alt, 'maxlength="200"'))}${field('Link ao clicar', input('url', b.url, 'type="url" placeholder="https:// (opcional)"'))}</div><div data-bui="email-tune" data-kind="image" data-i="${i}" data-width="${h(b.width ?? 100)}" data-align="${h(b.align || 'center')}"></div><div class="em-two bui-tune-source">${field('Largura (%)', input('width', b.width, 'type="number" min="20" max="100" step="5"'))}${field('Alinhamento', align(b.align, 'center'))}</div>`;
   if (b.type === 'spacer') body = `<div data-bui="email-tune" data-kind="spacer" data-i="${i}" data-height="${h(b.height ?? 24)}"></div><div class="bui-tune-source">${field('Altura (px)', input('height', b.height, 'type="number" min="8" max="80" step="4"'))}</div>`;
   if (b.type === 'divider') body = '<p class="dim">Uma linha fina separa as seções.</p>';
@@ -297,10 +298,10 @@ export function installEmailMarketing({ c, mutate, flash, dialog, close, render,
         }
         case 'duplicate': { const id = await mutate({ type: 'email-campaign-duplicate', id: ds.id }); flash('Campanha duplicada como rascunho.'); location.hash = `#marketing/email-campaign/${id}`; break; }
         case 'delete':
-          if (!confirm('Excluir? Não dá para desfazer.')) break;
+          if (!await ask('Excluir este item?', { text: 'Não dá para desfazer.', ok: 'Excluir' })) break;
           await mutate({ type: 'delete', key: ds.key, id: ds.id }); render(); flash('Excluído.'); break;
         case 'cancel':
-          if (!confirm('Cancelar? Quem ainda não recebeu não vai receber; um agendamento volta a ser rascunho.')) break;
+          if (!await ask('Cancelar este envio?', { text: 'Quem ainda não recebeu não vai receber; um agendamento volta a ser rascunho.', ok: 'Cancelar envio', cancel: 'Voltar' })) break;
           await mutate({ type: 'email-campaign-cancel', id: ds.id }); render(); flash('Envio cancelado.'); break;
         case 'refresh': await reload(); render(); break;
         case 'toggle': ed.open = ed.open === Number(ds.i) ? -1 : Number(ds.i); render(); break;

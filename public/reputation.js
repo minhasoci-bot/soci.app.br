@@ -6,6 +6,7 @@ import { qrSvg } from './qr.js';
 import { aiTool } from './content-ai.js';
 import { directories, hoursRows, listingStatuses } from './gbp-data.js';
 import { seoContent, visibilityContent } from './seo.js';
+import { ask } from './ask.js';
 
 export const reputationTabs = ['overview', 'reviews', 'requests', 'google', 'listings', 'seo', 'visibility', 'widgets', 'videos', 'settings'];
 const layouts = [['carousel', 'Carrossel'], ['grid', 'Grade'], ['list', 'Lista'], ['badge', 'Selo com a nota']];
@@ -265,7 +266,7 @@ function widgetForm(row = {}) {
       <label>Tema<select name="theme">${themes.map(([id, label]) => `<option value="${id}" ${value('theme', 'auto') === id ? 'selected' : ''}>${label}</option>`).join('')}</select></label></div>
     <div class="rp-two-fields"><label>Nota mínima<select name="minScore">${[5, 4, 3, 2, 1].map(n => `<option value="${n}" ${Number(value('minScore', 4)) === n ? 'selected' : ''}>${n} estrela${n > 1 ? 's' : ''} ou mais</option>`).join('')}</select></label>
       <label>Máximo de avaliações<input name="max" type="number" min="1" max="30" value="${h(value('max', 9))}"></label></div>
-    <label>Cor de destaque<input name="accent" type="color" value="${h(value('accent', '#d6246e'))}"></label>
+    <label>Cor de destaque<input name="accent" type="color" value="${h(value('accent', '#ff4f9a'))}"></label>
     ${check('showReplies', 'Mostrar as respostas da empresa', value('showReplies', true))}${check('showVideos', 'Incluir depoimentos em vídeo aprovados', value('showVideos', false))}${check('active', 'Widget ativo', value('active', true))}
     <p class="dim">Só aparecem avaliações com comentário e que não estejam ocultas. Os nomes aparecem abreviados (ex.: Ana L.).</p>
     <div class="inline-gap"><button class="primary">Salvar widget</button><button type="button" class="secondary" data-act="close">Cancelar</button></div>
@@ -366,8 +367,8 @@ export function installReputation({ c, api, url, mutate, flash, dialog, close, r
         render(); flash(el.dataset.status === 'approved' ? 'Depoimento aprovado. Ele já pode aparecer nos widgets com vídeos.' : 'Depoimento ocultado.');
       }
       if (act === 'delete') {
-        const what = { reviewWidgets: 'este widget? Sites que usam o código deixam de mostrá-lo', videoCollectors: 'este coletor? O link deixa de funcionar; os vídeos recebidos continuam', videoTestimonials: 'este depoimento? O vídeo é apagado' }[el.dataset.key];
-        if (!confirm(`Excluir ${what}.`)) return;
+        const [title, text] = { reviewWidgets: ['Excluir este widget?', 'Sites que usam o código deixam de mostrá-lo.'], videoCollectors: ['Excluir este coletor?', 'O link deixa de funcionar; os vídeos recebidos continuam.'], videoTestimonials: ['Excluir este depoimento?', 'O vídeo é apagado.'] }[el.dataset.key] || ['Excluir este item?', ''];
+        if (!await ask(title, { text, ok: 'Excluir' })) return;
         await mutate({ type: 'delete', key: el.dataset.key, id: el.dataset.id }); render(); flash('Excluído.');
       }
       if (act === 'ai-reply') {

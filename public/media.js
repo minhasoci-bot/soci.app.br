@@ -2,7 +2,7 @@
 import { icon } from './icons.js';
 import { h, fmt, search } from './screens.js';
 
-const LIMIT_BYTES = 700_000, LIMIT_FILES = 60;
+const LIMIT_BYTES = 700_000, R2_LIMIT_BYTES = 50 * 1024 * 1024, LIMIT_FILES = 60;
 const kinds = {
   'image/png': 'photo', 'image/jpeg': 'photo', 'image/gif': 'photo', 'image/webp': 'photo',
   'video/mp4': 'video', 'video/webm': 'video', 'audio/mpeg': 'audio', 'audio/wav': 'audio', 'audio/ogg': 'audio',
@@ -18,9 +18,13 @@ let layout = 'grid';
 try { layout = localStorage.getItem('soci.media.layout') === 'list' ? 'list' : 'grid'; } catch { /* default grid */ }
 const mv = { sort: 'modified-desc', kind: 'all', selected: new Set() };
 
-const mimeOf = data => data.slice(5, data.indexOf(';'));
-const kindOf = file => kinds[mimeOf(file.data)] || 'other';
-const sizeOf = file => { const body = file.data.length - file.data.indexOf(',') - 1; return Math.floor(body * 3 / 4) - (file.data.endsWith('==') ? 2 : file.data.endsWith('=') ? 1 : 0); };
+// A file kept in Cloudflare R2 has no inline data: its type and size are stored, and `src` serves it.
+const mimeOf = file => file.mime || file.data.slice(5, file.data.indexOf(';'));
+const srcOf = file => file.data || file.src || '';
+const kindOf = file => kinds[mimeOf(file)] || 'other';
+const sizeOf = file => {
+  if (file.r2Key) return file.size || 0;
+  const body = file.data.length - file.data.indexOf(',') - 1; return Math.floor(body * 3 / 4) - (file.data.endsWith('==') ? 2 : file.data.endsWith('=') ? 1 : 0); };
 export const bytes = n => n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixed(1).replace('.', ',')} KB` : `${(n / 1024 ** 2).toFixed(2).replace('.', ',')} MB`;
 const touched = file => file.updated || file.created || '';
 const folderId = () => location.hash.split('/')[1] === 'folder' ? decodeURIComponent(location.hash.split('/')[2] || '') : '';
@@ -45,8 +49,8 @@ const item = (action, label, glyph, id = '', danger = false) =>
 
 function preview(file, size = 'card') {
   const kind = kindOf(file);
-  if (kind === 'photo') return `<img src="${h(file.data)}" alt="" loading="lazy">`;
-  if (kind === 'video' && size === 'card') return `<video src="${h(file.data)}" muted preload="metadata" aria-hidden="true"></video><span class="md-badge">${icon('play',14)}</span>`;
+  if (kind === 'photo') return `<img src="${h(srcOf(file))}" alt="" loading="lazy">`;
+  if (kind === 'video' && size === 'card') return `<video src="${h(srcOf(file))}" muted preload="metadata" aria-hidden="true"></video><span class="md-badge">${icon('play',14)}</span>`;
   return `<span class="md-glyph md-${kind}">${icon(kindIcon[kind],size === 'card' ? 30 : 17)}<b>${h((file.name.split('.').pop() || kind).slice(0,4).toUpperCase())}</b></span>`;
 }
 
@@ -136,7 +140,7 @@ export function mediaScreen(c) {
     <section class="md-files" aria-label="Arquivos" data-md-drop>
       ${files.length ? (layout === 'list' ? fileTable(c, files) : `<div class="md-grid">${files.map(file => fileCard(c, file)).join('')}</div>`)
         : emptyState(query || mv.kind !== 'all' ? 'Nenhum arquivo encontrado' : 'Nenhum arquivo de mídia',
-          query || mv.kind !== 'all' ? 'Tente outra busca ou outro tipo de arquivo.' : 'Arraste arquivos para cá ou use Enviar. Imagens, vídeos, áudios, PDF, TXT e CSV de até 700 KB.')}
+          query || mv.kind !== 'all' ? 'Tente outra busca ou outro tipo de arquivo.' : 'Arraste arquivos para cá ou use Enviar. Imagens, vídeos, áudios, PDF, TXT e CSV de até 700 KB (até 50 MB com o armazenamento em nuvem ativo).')}
       <div class="md-dropzone" aria-hidden="true">${icon('upload',28)}<strong>Solte para enviar${here ? ` em ${h(here.name)}` : ''}</strong></div>
     </section>
   </div>`;
@@ -167,6 +171,18 @@ export function installMedia({ c, api, url, mutate, flash, dialog, close, render
     reader.readAsDataURL(file);
   });
 
+  // Files over 700 KB go straight from the browser to Cloudflare R2 with a signed link; the server then
+  // checks the stored object and records it.
+  async function sendToR2(file, destination) {
+    const ticket = await api(url('/api/media/upload-url'), { name: file.name, mime: file.type, size: file.size, folderId: destination });
+    let response;
+    try { response = await fetch(ticket.uploadUrl, { method: 'PUT', headers: ticket.headers, body: file }); }
+    catch { throw Error('não foi possível enviar ao armazenamento'); }
+    if (!response.ok) throw Error(`o armazenamento recusou (${response.status})`);
+    const result = await api(url('/api/media/upload-done'), { token: ticket.token });
+    c.s = result.state; c.m = result.metrics;
+  }
+
   async function upload(list, target = folderId()) {
     const files = [...list].filter(file => file.size);
     if (!files.length) return;
@@ -175,7 +191,7 @@ export function installMedia({ c, api, url, mutate, flash, dialog, close, render
     const skipped = [];
     flash(`Enviando ${files.length} arquivo${files.length > 1 ? 's' : ''}…`);
     for (const file of files) {
-      if (!kinds[file.type] || file.size > LIMIT_BYTES) { skipped.push(file.name); continue; }
+      if (!kinds[file.type] || file.size > R2_LIMIT_BYTES) { skipped.push(file.name); continue; }
       let destination = target;
       const parts = (file.webkitRelativePath || '').split('/').slice(0, -1);
       for (let depth = 0; depth < parts.length; depth++) {
@@ -183,7 +199,11 @@ export function installMedia({ c, api, url, mutate, flash, dialog, close, render
         if (!folders.has(key)) folders.set(key, await save('mediaFolders', { name: parts[depth], parentId: destination }));
         destination = folders.get(key);
       }
-      try { await save('files', { name: file.name, data: await readAs(file), folderId: destination }); sent++; }
+      try {
+        if (file.size > LIMIT_BYTES) await sendToR2(file, destination);
+        else await save('files', { name: file.name, data: await readAs(file), folderId: destination });
+        sent++;
+      }
       catch (error) { skipped.push(`${file.name} (${error.message})`); if (/60/.test(error.message)) break; }
     }
     render();
@@ -191,12 +211,12 @@ export function installMedia({ c, api, url, mutate, flash, dialog, close, render
   }
 
   function open(file) {
-    const kind = kindOf(file), mime = mimeOf(file.data);
+    const kind = kindOf(file), mime = mimeOf(file);
     let body = '';
-    if (kind === 'photo') body = `<img class="md-view" src="${h(file.data)}" alt="${h(file.name)}">`;
-    else if (kind === 'video') body = `<video class="md-view" src="${h(file.data)}" controls></video>`;
-    else if (kind === 'audio') body = `<audio class="md-view-audio" src="${h(file.data)}" controls></audio>`;
-    else if (mime.startsWith('text/')) {
+    if (kind === 'photo') body = `<img class="md-view" src="${h(srcOf(file))}" alt="${h(file.name)}">`;
+    else if (kind === 'video') body = `<video class="md-view" src="${h(srcOf(file))}" controls></video>`;
+    else if (kind === 'audio') body = `<audio class="md-view-audio" src="${h(srcOf(file))}" controls></audio>`;
+    else if (mime.startsWith('text/') && file.data) {
       const text = new TextDecoder().decode(Uint8Array.from(atob(file.data.split(',')[1]), ch => ch.charCodeAt(0)));
       body = `<pre class="md-view-text">${h(text.slice(0, 20000))}</pre>`;
     } else body = `<div class="md-view-doc">${preview(file,'card')}<p>A pré-visualização deste tipo de arquivo não está disponível.</p></div>`;
@@ -208,6 +228,7 @@ export function installMedia({ c, api, url, mutate, flash, dialog, close, render
   }
 
   function download(file) {
+    if (file.r2Key) { window.location.href = `${file.src}?download=1`; return; }
     const [header, body] = file.data.split(',');
     const blob = new Blob([Uint8Array.from(atob(body), ch => ch.charCodeAt(0))], { type: header.slice(5).split(';')[0] });
     const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: file.name });
@@ -228,7 +249,7 @@ export function installMedia({ c, api, url, mutate, flash, dialog, close, render
       if (action === 'pick-files') document.querySelector('[data-md-input]')?.click();
       if (action === 'pick-folder') document.querySelector('[data-md-dir]')?.click();
       if (action === 'new-folder') form('Criar pasta','folder','<label>Nome da pasta<input name="name" maxlength="100" required placeholder="Digite o nome da pasta" autocomplete="off"></label>','Salvar');
-      if (action === 'url') form('Enviar por URL','url',`<p class="md-hint">Cole o link direto de uma imagem, vídeo, áudio ou documento (como .mp4, .mp3, .pdf ou .jpg) de até 700 KB. Links de páginas do YouTube, Vimeo ou Loom não são aceitos.</p>
+      if (action === 'url') form('Enviar por URL','url',`<p class="md-hint">Cole o link direto de uma imagem, vídeo, áudio ou documento (como .mp4, .mp3, .pdf ou .jpg) de até 700 KB, ou até 50 MB com o armazenamento em nuvem ativo. Links de páginas do YouTube, Vimeo ou Loom não são aceitos.</p>
         <label>URL<input name="url" type="url" required placeholder="Cole um link" autocomplete="off"></label>`,'Importar');
       if (action === 'open') open(fileOf(id));
       if (action === 'download') download(fileOf(id));

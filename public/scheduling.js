@@ -1,6 +1,8 @@
 // Calendários → Serviços, Recursos, Serviço em campo e Página de agendamento (6b.6).
 import { icon } from './icons.js';
 import { badge, h, pageShell } from './screens.js';
+import { ask } from './ask.js';
+import { destinationField, readDestination } from './destination-field.js';
 
 export const schedulingTabs = [['services', 'Serviços'], ['resources', 'Recursos'], ['field', 'Serviço em campo'], ['booking', 'Página de agendamento']];
 const kinds = [['appointment', 'Atendimento no local'], ['field', 'Serviço em campo'], ['rental', 'Locação']];
@@ -43,6 +45,10 @@ function serviceForm(c, x) {
     <fieldset class="sch-rental"><legend>Locação</legend><div class="field-grid"><label>Cobrança<select name="rentalUnit"><option value="hour"${row.rentalUnit !== 'day' ? ' selected' : ''}>Por hora</option><option value="day"${row.rentalUnit === 'day' ? ' selected' : ''}>Por dia</option></select></label>
       <label>Máximo de horas ou dias<input name="maxUnits" type="number" min="1" max="90" value="${h(row.maxUnits)}"></label></div><p class="dim">Na locação, o preço é por hora ou dia e a quantidade disponível vem do recurso escolhido.</p></fieldset>
     <fieldset><legend>Quem atende</legend>${staff.length ? `<div class="sch-checks">${staff.map(p => `<label class="sch-check"><input type="checkbox" name="staffIds" value="${h(p.id)}"${row.staffIds.includes(p.id) ? ' checked' : ''}> ${h(p.name)}</label>`).join('')}</div><p class="dim">O cliente fica com o primeiro profissional livre no horário.</p>` : '<p class="dim">Cadastre a equipe em Página de agendamento.</p>'}</fieldset>
+    <fieldset><legend>Regras deste serviço</legend><div class="field-grid"><label>Antecedência mínima (minutos)<input name="leadMinutes" type="number" min="0" max="20160" value="${h(row.leadMinutes ?? '')}" placeholder="${h(conf(c).leadMinutes)} (padrão da agenda)"></label>
+      <label>Agenda aberta por (dias)<input name="horizonDays" type="number" min="1" max="365" value="${h(row.horizonDays ?? '')}" placeholder="${h(conf(c).horizonDays)} (padrão da agenda)"></label></div>
+      <p class="dim">Vazio segue o padrão. Para reuniões de venda, 1080 minutos (18 horas) e 4 dias dão tempo de confirmar sem deixar o lead esfriar.</p>
+      ${destinationField(c, row.after, { attrs: key => `name="after.${key}"`, actions: ['message', 'redirect', 'page'], label: 'Depois de agendar', messageHint: 'A agenda mostra a confirmação com dia e horário.' })}</fieldset>
     <fieldset><legend>Recursos usados</legend>${resources.length ? `<div class="sch-checks">${resources.map(r => `<label class="sch-check"><input type="checkbox" name="resourceIds" value="${h(r.id)}"${row.resourceIds.includes(r.id) ? ' checked' : ''}> ${h(r.name)} <small class="dim">(${r.quantity})</small></label>`).join('')}</div>` : '<p class="dim">Cadastre salas, equipamentos, veículos ou itens de locação em Recursos.</p>'}</fieldset>
     <div class="field-grid"><label>Cor<input name="color" type="color" value="${h(row.color)}"></label><label class="switch-row"><span><b>Disponível para agendar</b></span><input type="checkbox" name="active"${row.active ? ' checked' : ''}></label></div>
     <div class="tx-actions">${x ? `<button type="button" class="danger plain" data-sch="service-delete" data-id="${h(x.id)}">Excluir</button>` : ''}<button type="button" class="secondary" data-act="close">Cancelar</button><button class="primary">Salvar</button></div><p class="form-status" role="alert"></p></form>`;
@@ -120,7 +126,7 @@ export function installScheduling({ c, mutate, flash, dialog, close, render }) {
       if (act === 'resource-new') dialog('Novo recurso', resourceForm());
       if (act === 'resource-edit') dialog('Editar recurso', resourceForm(c.s.resources.find(x => x.id === id)));
       if (act === 'service-delete' || act === 'resource-delete') {
-        if (!confirm(act === 'service-delete' ? 'Excluir este serviço? Os agendamentos já feitos continuam na agenda.' : 'Excluir este recurso? Ele sai dos serviços que o usam.')) return;
+        if (!await (act === 'service-delete' ? ask('Excluir este serviço?', { text: 'Os agendamentos já feitos continuam na agenda.', ok: 'Excluir' }) : ask('Excluir este recurso?', { text: 'Ele sai dos serviços que o usam.', ok: 'Excluir' }))) return;
         await mutate({ type: 'delete', key: act === 'service-delete' ? 'services' : 'resources', id }); close(); render(); flash('Excluído.');
       }
       if (act === 'field') { await mutate({ type: 'field-status', data: { id, status: el.dataset.status } }); render(); flash('Situação atualizada.'); }
@@ -141,7 +147,7 @@ export function installScheduling({ c, mutate, flash, dialog, close, render }) {
     const f = new FormData(form), status = form.querySelector('.form-status');
     try {
       if (form.dataset.schForm === 'service') {
-        await mutate({ type: 'save', key: 'services', id: form.dataset.id || undefined, data: { ...Object.fromEntries(f), staffIds: f.getAll('staffIds'), resourceIds: f.getAll('resourceIds'), active: f.has('active') } });
+        await mutate({ type: 'save', key: 'services', id: form.dataset.id || undefined, data: { ...Object.fromEntries([...f].filter(([key]) => !key.startsWith('after.'))), after: readDestination(key => f.get(`after.${key}`)), staffIds: f.getAll('staffIds'), resourceIds: f.getAll('resourceIds'), active: f.has('active') } });
         close(); render(); flash('Serviço salvo.');
       }
       if (form.dataset.schForm === 'resource') { await mutate({ type: 'save', key: 'resources', id: form.dataset.id || undefined, data: { ...Object.fromEntries(f), active: f.has('active') } }); close(); render(); flash('Recurso salvo.'); }

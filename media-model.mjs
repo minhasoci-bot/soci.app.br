@@ -17,6 +17,8 @@ const now = () => new Date().toISOString();
 const dataPattern = /^data:([a-z]+\/[a-z0-9.+-]+);base64,[A-Za-z0-9+/]+=*$/;
 
 export const mediaMime = data => String(data || '').slice(5, String(data || '').indexOf(';'));
+// Object keys a list of files holds in R2 (to delete them once the records are gone).
+export const r2KeysOf = files => new Set((files || []).map(file => file.r2Key).filter(Boolean));
 export const mediaKind = data => mediaTypes[mediaMime(data)] || 'other';
 
 export function mediaFile(value) {
@@ -41,7 +43,8 @@ export const mediaFields = {
     const prior = d.id ? s.files.find(row => row.id === d.id) : null;
     return {
       name: str(d.name ?? prior?.name, 240) || fail('Dê um nome ao arquivo.'),
-      data: d.data === undefined && prior ? prior.data : mediaFile(d.data),
+      // A file kept in R2 has no inline data; its object key, type and size never change after upload.
+      data: prior?.r2Key ? '' : d.data === undefined && prior ? prior.data : mediaFile(d.data),
       folderId: d.folderId === undefined ? prior?.folderId || '' : folderParent(s, d.folderId),
       trashedAt: prior?.trashedAt || ''
     };
@@ -82,15 +85,35 @@ export function mediaCommand(s, type, d, remove) {
   return '';
 }
 
-// Turns a fetched response into a file record, or explains why the link cannot be imported.
-export function importedFile(response, address) {
+// A file the browser sent straight to R2, recorded by the server after it checked the stored object.
+// Server-only: it is not in the command list clients may send, and the key must belong to this workspace.
+export function storedFile(s, d, workspace) {
+  const prefix = `ws/${workspace}/files/`;
+  if (typeof d.r2Key !== 'string' || !d.r2Key.startsWith(prefix) || d.r2Key.slice(prefix.length) !== d.id) fail('Arquivo inválido.');
+  if (!mediaTypes[d.mime]) fail('Tipo de arquivo não aceito.');
+  if (!Number.isInteger(d.size) || d.size < 1) fail('O arquivo está vazio.');
+  if (s.files.length >= 60) fail('The local drive holds up to 60 files.');
+  if (s.files.some(file => file.id === d.id)) return d.id;
+  s.files.push({ id: d.id, created: now(), name: str(d.name, 240) || 'arquivo', data: '', r2Key: d.r2Key, mime: d.mime, size: d.size,
+    src: `/m/${workspace}/${d.id}`, folderId: folderParent(s, d.folderId), trashedAt: '' });
+  return d.id;
+}
+
+// Checks a fetched response (status, type, size) and names the file, or explains why the link cannot be imported.
+export function importedMeta(response, address, limit = mediaLimitBytes) {
   if (response.status !== 200) fail(`O endereço respondeu com o status ${response.status}.`, 422);
   const type = String(response.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
   if (!mediaTypes[type]) fail('Use um link direto para o arquivo (imagem, vídeo, áudio ou documento). Páginas como YouTube, Vimeo ou Loom não são aceitas.', 422);
   const declared = Number(response.headers['content-length']);
-  if (response.truncated || response.body.length > mediaLimitBytes || declared > mediaLimitBytes) fail('O arquivo tem mais de 700 KB.', 413);
+  if (response.truncated || response.body.length > limit || declared > limit) fail(`O arquivo tem mais de ${limit === mediaLimitBytes ? '700 KB' : `${Math.round(limit / 1024 / 1024)} MB`}.`, 413);
   if (!response.body.length) fail('O arquivo está vazio.', 422);
   let name = '';
   try { name = decodeURIComponent(new URL(address).pathname.split('/').filter(Boolean).pop() || ''); } catch { /* keep fallback */ }
-  return { name: str(name, 240) || 'arquivo-importado', data: `data:${type};base64,${response.body.toString('base64')}` };
+  return { name: str(name, 240) || 'arquivo-importado', mime: type };
+}
+
+// Turns a fetched response into an inline file record.
+export function importedFile(response, address) {
+  const { name, mime } = importedMeta(response, address);
+  return { name, data: `data:${mime};base64,${response.body.toString('base64')}` };
 }

@@ -153,9 +153,9 @@ test('WAHA integration seals X-Api-Key, controls session/QR/pairing, sends test 
   assert.equal((await local.call('/api/waha/test', { phone: '5511988887777', text: 'Do not send' })).body.code, 'ACCOUNT_SUSPENDED');
   assert.equal((await local.call('/api/waha/session', { action: 'start' })).status, 403);
   assert.equal(waha.calls.length, callsBeforeTest);
-  const { ledgerOutbox, ...stored } = local.store.load('demo');
+  const { ledgerOutbox, ...kept } = local.store.load('demo');
   assert.deepEqual(ledgerOutbox, []);
-  assert.deepEqual(stored, demo, 'the browser gets everything but the ledger outbox');
+  assert.deepEqual(kept, demo, 'the browser gets everything but the ledger outbox');
   assert.equal(local.store.load('agency').accounts.demo.ignoredWebhooks.waha.count, 1);
 });
 
