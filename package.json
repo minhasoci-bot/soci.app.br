@@ -19,7 +19,8 @@
     "docs:dev": "npm --prefix docs-site run dev",
     "docs:build": "npm --prefix docs-site run build",
     "docs:test": "node --test docs-site/test/",
-    "docs:midia": "node --env-file-if-exists=.env.local docs-site/scripts/midia.mjs"
+    "docs:midia": "node --env-file-if-exists=.env.local docs-site/scripts/midia.mjs",
+    "docs:catalogo": "node docs-site/scripts/catalogo-automacoes.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",

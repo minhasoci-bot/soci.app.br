@@ -40,3 +40,32 @@ test('vitrine fora da busca e do menu', async () => {
   const html = await lerPagina('interno/componentes');
   assert.doesNotMatch(html, /data-pagefind-body/);
 });
+
+const GRUPOS = [
+  ['comece-aqui', 'Comece aqui'], ['agencia', 'Agência'], ['configuracoes', 'Configurações'], ['crm', 'CRM'],
+  ['conversas', 'Conversas e canais'], ['agendas', 'Agendas'], ['automacoes', 'Automações'], ['sites', 'Sites e conteúdo'],
+  ['marketing', 'Marketing'], ['reputacao', 'Reputação'], ['pagamentos', 'Pagamentos e documentos'], ['cursos', 'Cursos e comunidades'],
+  ['ia', 'Inteligência artificial'], ['relatorios', 'Relatórios'], ['apps', 'Apps e integrações'], ['suporte', 'Suporte e conformidade'],
+];
+
+test('16 grupos no menu na ordem do design', async () => {
+  const html = await lerPagina('comece-aqui');
+  const menu = html.slice(html.indexOf('<nav'), html.indexOf('</nav>', html.indexOf('sidebar')) + 6);
+  let ultimo = -1;
+  for (const [, rotulo] of GRUPOS) {
+    const pos = menu.indexOf(`>${rotulo}<`);
+    assert.ok(pos > ultimo, `"${rotulo}" fora de ordem ou ausente no menu`);
+    ultimo = pos;
+  }
+});
+
+test('cada grupo tem página de seção', async () => {
+  for (const [pasta, rotulo] of GRUPOS) assert.match(await lerPagina(pasta), new RegExp(`<h1[^>]*>${rotulo}</h1>`), pasta);
+});
+
+test('catálogo de automações não está vazio', async () => {
+  const linhas = (await lerPagina('automacoes/gatilhos')).match(/<tr>/g) || [];
+  assert.ok(linhas.length > 50, `só ${linhas.length} linhas`);
+  const acoes = (await lerPagina('automacoes/acoes')).match(/<tr>/g) || [];
+  assert.ok(acoes.length > 50, `só ${acoes.length} linhas`);
+});
