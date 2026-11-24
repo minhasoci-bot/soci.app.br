@@ -1,4 +1,6 @@
 import { icon as i } from './icons.js';
+import { ask } from './ask.js';
+import { tr } from './i18n.js';
 import {
   blankEventPlan, briefFields, channels, eventPlanPhases, eventPlanStatuses,
   eventPlanTeams, eventStatusLabel, itemKinds, itemStatus, launchEventPlan,
@@ -145,12 +147,12 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render })
       if (data.epOrchestrate) { const plan = c.s.eventPlans.find(item => item.id === data.epOrchestrate); if (plan) orchestrateDialog(dialog, plan); return; }
       if (data.epEdit) { eventDialog(c, dialog, data.epEdit); return; }
       if (data.epDuplicate) { const id = await mutate({ type: 'event-plan-duplicate', id: data.epDuplicate }); ui.selectedId = id; ui.section = 'strategy'; render(); flash('Evento duplicado como novo plano.'); return; }
-      if (data.epDelete) { const row = c.s.eventPlans.find(item => item.id === data.epDelete); if (!row || !confirm(`Excluir “${row.title}” e todo o seu plano?`)) return; await mutate({ type: 'delete', key: 'eventPlans', id: row.id }); ui.selectedId = ''; render(); flash('Evento excluído.'); return; }
+      if (data.epDelete) { const row = c.s.eventPlans.find(item => item.id === data.epDelete); if (!row || !await ask(`${tr('Excluir')} “${row.title}”?`, { text: 'O plano inteiro do evento vai junto: tarefas, comunicação, roteiro e links.', ok: 'Excluir evento' })) return; await mutate({ type: 'delete', key: 'eventPlans', id: row.id }); ui.selectedId = ''; render(); flash('Evento excluído.'); return; }
       if (data.epSection) { ui.section = data.epSection; ui.phase = 'all'; ui.status = 'all'; render(); return; }
       if (data.epEditBrief) { const plan = c.s.eventPlans.find(item => item.id === data.epEditBrief); if (plan) briefDialog(dialog, plan); return; }
       if (data.epItemNew) { const plan = c.s.eventPlans.find(item => item.id === data.epEvent); if (plan) itemDialog(dialog, plan, data.epItemNew); return; }
       if (data.epItemEdit) { const plan = c.s.eventPlans.find(item => item.id === data.epEvent); const row = planOf(plan).items.find(item => item.id === data.epItemEdit); if (plan && row) itemDialog(dialog, plan, row.kind, row); return; }
-      if (data.epItemDelete) { const plan = c.s.eventPlans.find(item => item.id === data.epEvent); if (!plan || !confirm('Excluir este item do plano?')) return; await mutate(savePlan(plan, planData => { planData.items = planData.items.filter(item => item.id !== data.epItemDelete); })); close(); render(); flash('Item excluído.'); return; }
+      if (data.epItemDelete) { if (!await ask('Excluir este item do plano?', { ok: 'Excluir' })) return; const plan = c.s.eventPlans.find(item => item.id === data.epEvent); if (!plan) return; await mutate(savePlan(plan, planData => { planData.items = planData.items.filter(item => item.id !== data.epItemDelete); })); close(); render(); flash('Item excluído.'); return; }
       if (data.epCopy) { const plan = c.s.eventPlans.find(item => item.id === data.epEvent); const row = planOf(plan).items.find(item => item.id === data.epCopy); await copyText(row?.notes); flash('Texto copiado.'); }
     } catch (error) { flash(error.message, true); }
   });

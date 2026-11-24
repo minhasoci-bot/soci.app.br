@@ -3,6 +3,7 @@ import { icon } from './icons.js';
 import { h, pageShell, utabs } from './screens.js';
 import { siteTabs } from './forms.js';
 import { brl, methodLabel, statusLabel } from './store-data.js';
+import { ask } from './ask.js';
 
 export const storeTabs = ['stores', 'store'];
 const sv = { id: '', rev: '', draft: null, dirty: false, section: 'products', status: '', open: '' };
@@ -224,10 +225,11 @@ export function installStores(environment) {
   });
 
   let last = location.hash;
-  addEventListener('hashchange', () => {
-    const was = last; last = location.hash;
+  addEventListener('hashchange', async () => {
+    const was = last, to = location.hash; last = to;
     if (!sv.dirty || !was.startsWith(`#sites/store/${sv.id}`) || location.hash.startsWith(`#sites/store/${sv.id}`)) return;
-    if (confirm('Descartar as alterações não salvas desta loja?')) { sv.dirty = false; sv.rev = ''; sv.id = ''; return; }
     last = was; history.replaceState(null, '', was); dispatchEvent(new HashChangeEvent('hashchange'));
+    if (!await ask('Descartar as alterações não salvas desta loja?', { ok: 'Descartar', cancel: 'Continuar editando' })) return;
+    sv.dirty = false; sv.rev = ''; sv.id = ''; location.hash = to;
   }, true);
 }

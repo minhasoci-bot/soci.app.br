@@ -3,6 +3,7 @@
 // decisions, action items (→ CRM tasks), the follow-up e-mail and "save to the contact".
 import { icon } from './icons.js';
 import { badge, fmt, h, pageShell } from './screens.js';
+import { ask } from './ask.js';
 
 const ui = { open: '', recorder: null, chunks: [], started: 0, timer: 0, busy: '' };
 const sentiments = { positive: ['Positivo', 'green'], neutral: ['Neutro', ''], negative: ['Negativo', 'red'] };
@@ -88,7 +89,7 @@ export function installMeetings({ c, mutate, flash, dialog, close, render }) {
       if (act === 'edit') dialog('Editar reunião', meetingForm(c, meeting()));
       if (act === 'open') { ui.open = el.dataset.id; render(); }
       if (act === 'back') { ui.open = ''; render(); }
-      if (act === 'delete') { if (!confirm('Excluir esta reunião, a transcrição e as notas? As tarefas já criadas continuam.')) return; await mutate({ type: 'delete', key: 'meetings', id: el.dataset.id }); ui.open = ''; close(); render(); flash('Reunião excluída.'); }
+      if (act === 'delete') { if (!await ask('Excluir esta reunião, a transcrição e as notas?', { text: 'As tarefas já criadas continuam.', ok: 'Excluir' })) return; await mutate({ type: 'delete', key: 'meetings', id: el.dataset.id }); ui.open = ''; close(); render(); flash('Reunião excluída.'); }
       if (act === 'summarize') {
         ui.busy = 'summary'; render();
         try { await call('/api/meetings/summarize'); flash('Notas prontas.'); } finally { ui.busy = ''; render(); }
