@@ -79,8 +79,8 @@ function filterBar(kind) {
 // "Agendado" em mensagem de WhatsApp é a fila quem marca: na mão, pareceria que vai sair algo que não vai.
 const manualStatuses = item => sendable(item) && item.status !== 'agendado' ? itemStatus.message.filter(([key]) => key !== 'agendado') : itemStatus[item.kind];
 function itemTools(event, item, extra = '') {
-  const ref = `data-ep-event="${h(event.id)}"`, title = h(item.title), locked = item.kind === 'message' && deliveryActive(deliveryOf(event, item));
-  return `<select aria-label="Status de ${title}" data-ep-item-status="${h(item.id)}" ${ref}${locked ? ' disabled title="Cancele o envio para mudar o status"' : ''}>${optionRows(manualStatuses(item), item.status)}</select><span class="ep-item-actions">${extra}<button type="button" class="icon-btn" aria-label="Editar ${title}" title="Editar" data-ep-item-edit="${h(item.id)}" ${ref}>${i('edit', 15)}</button><button type="button" class="icon-btn" aria-label="Excluir ${title}" title="Excluir" data-ep-item-delete="${h(item.id)}" ${ref}>${i('trash', 15)}</button></span>`;
+  const ref = `data-ep-event="${h(event.id)}"`, title = h(item.title), delivery = deliveryOf(event, item), locked = item.kind === 'message' && (deliveryActive(delivery) || (delivery?.state === 'done' && delivery.sent > 0));
+  return `<select aria-label="Status de ${title}" data-ep-item-status="${h(item.id)}" ${ref}${locked ? ` disabled title="${deliveryActive(delivery) ? 'Cancele o envio para mudar o status' : 'A mensagem já foi enviada'}"` : ''}>${optionRows(manualStatuses(item), item.status)}</select><span class="ep-item-actions">${extra}<button type="button" class="icon-btn" aria-label="Editar ${title}" title="Editar" data-ep-item-edit="${h(item.id)}" ${ref}>${i('edit', 15)}</button><button type="button" class="icon-btn" aria-label="Excluir ${title}" title="Excluir" data-ep-item-delete="${h(item.id)}" ${ref}>${i('trash', 15)}</button></span>`;
 }
 
 function strategySection(_c, event) {
@@ -106,8 +106,8 @@ function linksSection(c, event) {
   const rows = visible(records(event, 'link')).sort(byDate);
   return `${sectionHead('Links da operação', 'Centralize páginas, grupos, pesquisas, materiais e checkout.', newItem(event, 'link', 'Novo link'))}${filterBar('link')}<div class="ep-link-grid">${rows.map(item => `<article class="surface ep-link"><div class="ep-item-main"><h3>${h(item.title)}</h3>${meta([phaseLabel(item.phase), dateLabel(item.date), ownerLabel(item, usersOf(c))])}</div>${item.url ? `<a class="ep-url" href="${h(item.url)}" target="_blank" rel="noopener noreferrer">${h(item.url.replace(/^https?:\/\//, ''))} ${i('external', 13)}</a>` : '<p class="ep-note">Endereço ainda não adicionado.</p>'}${note(item)}<div class="ep-link-foot">${itemTools(event, item)}</div></article>`).join('')}</div>${rows.length ? '' : nothingHere(event, 'link', 'Guarde aqui as páginas, materiais e acessos da operação.', 'link')}`;
 }
-function integrationsSection(c, event) {
-  const sends = sendSummary(c, event);
+function integrationsSection(_c, event) {
+  const sends = sendSummary(event);
   const binding = event.orchestration || {}, rows = Object.values(binding.items || {});
   const count = key => rows.filter(row => row[key]).length;
   const synced = binding.syncedAt ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(binding.syncedAt)) : 'ainda não sincronizado';
@@ -265,7 +265,7 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render, a
       if (data.epNew !== undefined) { dialog('Novo evento', eventDialogBody(null), { description: 'Cada evento fica restrito à subconta atual.' }); return; }
       if (data.epSection) { openSection(data.epSection); render(); return; }
       if (data.epOrchestrate) { const row = find(data.epOrchestrate); if (row) orchestrate(row); return; }
-      if (data.epEdit) { const row = find(data.epEdit); if (row) dialog('Editar evento', eventDialogBody(row), { description: 'O plano do evento não muda.' }); return; }
+      if (data.epEdit) { const row = find(data.epEdit); if (row) dialog('Editar evento', eventDialogBody(row), { description: 'O plano do evento não muda. Arquivar cancela os envios agendados.' }); return; }
       if (data.epManage) {
         const row = find(data.id); if (!row) return;
         if (data.epManage === 'rename') { dialog('Renomear evento', `${formHead('rename', row)}${field('Nome do evento', 'title', row.title, { required: true, maxlength: 160 })}${formFoot('Renomear')}</form>`); return; }

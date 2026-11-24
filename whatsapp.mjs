@@ -824,6 +824,8 @@ export function createWhatsAppHandler({
         : await sender.adapter.send({ ...sender, number, text: part.text, retry: false });
       if (res.ok) return result('sent', '', res.id);
       if (/connection closed/i.test(res.message)) return result('waiting', 'WhatsApp desconectado.');
+      // Chave trocada ou instância apagada: é a conexão, não o destinatário. Espera alguém religar.
+      if ([401, 403, 404].includes(res.status)) return result('waiting', 'A conexão do WhatsApp recusou o envio.');
       if (res.status === 503) return result('retry', 'O servidor do WhatsApp está reiniciando.');
       return result(res.status >= 500 || [408, 429].includes(res.status) ? 'unconfirmed' : 'failed', res.message || `Resposta HTTP ${res.status}.`);
     } catch (err) {

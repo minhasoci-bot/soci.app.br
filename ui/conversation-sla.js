@@ -25,7 +25,7 @@ export function slaRecords(state, clock = Date.now()) {
       continue;
     }
     const inbound = pending.get(key);
-    if (!inbound || message.origin === 'internal') continue;
+    if (!inbound || ['internal', 'event'].includes(message.origin)) continue;
     if (message.origin === 'workflow' && (settings.automation === 'none' ||
       (settings.automation === 'selected' && !settings.workflows.includes(message.workflowId)))) continue;
     records.push(makeSlaRecord(settings,inbound,new Date(message.created).getTime(),true));

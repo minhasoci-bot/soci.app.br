@@ -1,4 +1,5 @@
 import { accountLifecycle } from './agency-model.mjs';
+import { eventSendsView } from './event-send-model.mjs';
 import { blank, metrics } from './model.mjs';
 import { moduleOfRecord, subAccountModules } from './ui/agency-data.js';
 
@@ -9,7 +10,7 @@ const readModules = {
   teamMessages: 'conversations', inboxViews: 'conversations', conversationSla: 'conversations',
   linkTickets: 'conversations', linkClicks: 'conversations',
   runs: 'automation', deletedWorkflows: 'automation', submissions: 'sites',
-  eventSends: 'marketing', eventSendSettings: 'marketing', socialAccounts: 'marketing', socialPosts: 'marketing', socialImports: 'marketing',
+  eventSendSettings: 'marketing', socialAccounts: 'marketing', socialPosts: 'marketing', socialImports: 'marketing',
   dashboards: 'dashboard', defaultDashboard: 'dashboard', onboarding: 'dashboard',
   dashboardReports: 'reporting', customReports: 'reporting', integrations: 'settings',
   seo: 'reputation', seoAudits: 'reputation', visibility: 'reputation', visibilityRuns: 'reputation', wallet: 'settings', appLog: 'settings'
@@ -173,8 +174,11 @@ export function requireRecordEffects(access, state, command) {
 }
 
 export function workspaceView(access, state) {
-  if (access.modules === null) return { state, metrics: metrics(state) };
+  // A fila de envios tem nome e telefone: só a parte que a tela usa, e só para quem planeja e conversa.
+  const eventSends = hasModule(access, 'marketing') && hasModule(access, 'conversations') ? eventSendsView(state.eventSends) : [];
+  if (access.modules === null) return { state: state.eventSends?.length ? { ...state, eventSends } : state, metrics: metrics(state) };
   const view = blank();
+  view.eventSends = eventSends;
   const { name, timezone, currency } = state.profile;
   view.profile = hasModule(access, 'settings') ? state.profile : { name, timezone, currency };
   for (const [key, module] of Object.entries(readModules)) {

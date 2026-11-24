@@ -82,7 +82,8 @@ test('The daily cap holds the rest until the next day of the sub-account', () =>
   assert.equal(app.take().row, null);
   assert.equal(app.rows('privado')[2].status, 'queued');
   app.now = Date.parse('2026-12-02T02:59:00.000Z'); assert.equal(app.take().row, null, '23:59 em São Paulo ainda é o mesmo dia');
-  app.now = Date.parse('2026-12-02T03:00:00.000Z');
+  app.now = Date.parse('2026-12-02T03:00:00.000Z'); assert.equal(app.take().row, null, 'nem de madrugada');
+  app.now = Date.parse('2026-12-02T13:00:00.000Z');
   app.result(app.take().row, 'sent');
   assert.equal(app.delivery('privado').late, 1);
   assert.equal(app.item('privado').status, 'enviado');
@@ -268,7 +269,7 @@ test('The history is trimmed without touching what still has to leave', () => {
   assert.ok(app.s.eventSends.length <= 5000);
   assert.equal(app.delivery('privado').sent, 1);
   const queued = setup({ contacts: 3 });
-  for (let n = 0; n < 5100; n++) queued.s.eventSends.push({ ...queued.s.eventSends[0], id: `f${n}`, itemId: 'futuro', dueAt: '2027-01-01T00:00:00.000Z' });
+  for (let n = 0; n < 5100; n++) queued.s.eventSends.push({ ...queued.s.eventSends[0], id: `f${n}`, contactId: `k${n}`, dueAt: '2027-01-01T00:00:00.000Z' });
   queued.result(queued.take().row, 'sent');
   assert.equal(queued.s.eventSends.filter(row => row.status === 'queued').length, 5102);
 });

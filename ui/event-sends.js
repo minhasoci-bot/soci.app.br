@@ -32,7 +32,7 @@ export function deliveryView(c, event, item) {
     const started = delivery.sent + delivery.failed + delivery.skipped > 0 || delivery.state === 'sending';
     text = started ? progress(delivery) : `Agendada para ${moment(delivery.dueAt, zoneOf(c))} · ${plural(delivery.total, 'envio', 'envios')}`;
     actions = failures + button(`data-ep-cancel-send="${h(item.id)}"`, 'clock', 'Cancelar envio');
-  } else if (delivery?.state === 'done') { text = progress(delivery); actions = failures; }
+  } else if (delivery?.state === 'done') { text = progress(delivery); actions = failures + (delivery.sent ? '' : schedule); }
   else if (delivery?.state === 'canceled') text = `Envio cancelado${delivery.sent ? ` · ${delivery.sent} já ${delivery.sent === 1 ? 'tinha' : 'tinham'} saído` : ''}`;
   else if (item.status === 'agendado') text = 'Sem envio programado. Agende para a mensagem sair pela Soci.';
   return `<div class="ep-delivery">${text ? `<span>${h(text)}</span>` : ''}<span class="spacer"></span>${actions}</div>`;
@@ -42,7 +42,7 @@ export function deliveryView(c, event, item) {
 export function sendBanner(c, now = Date.now()) {
   const waiting = (c.s.eventSends || []).filter(row => row.status === 'queued' && Date.parse(row.dueAt) <= now);
   if (!waiting.length) return '';
-  const blocked = waiting.find(row => /desconectado|suspensa/i.test(row.error || ''));
+  const blocked = waiting.find(row => /desconectado|suspensa|recusou o envio/i.test(row.error || ''));
   if (blocked) return `<p class="ep-banner" role="status">${i('alert', 16)} <span><b>${h(blocked.error.replace(/\.$/, ''))}.</b> ${plural(waiting.length, 'mensagem espera', 'mensagens esperam')} e saem quando a conexão voltar. ${settingsLink('Abrir a conexão')}</span></p>`;
   if (!waiting.some(row => Date.parse(row.dueAt) <= now - 60_000)) return '';
   const { minGapSeconds = 20, maxGapSeconds = 60, dailyCap = 150 } = c.s.eventSendSettings || {};
@@ -54,9 +54,9 @@ export function sendTools(c, event) {
   if (!canSend(c)) return '';
   return `<span class="ep-send-tools"><button type="button" class="secondary" data-ep-groups="${h(event.id)}" data-ep-event="${h(event.id)}">${i('users', 15)} Grupos do evento</button><button type="button" class="secondary" data-ep-pace data-ep-event="${h(event.id)}">${i('settings', 15)} Ritmo de envio</button></span>`;
 }
-export function sendSummary(c, event) {
-  const rows = (c.s.eventSends || []).filter(row => row.eventId === event.id && row.status !== 'canceled'), count = status => rows.filter(row => row.status === status).length;
-  return { total: rows.length, sent: count('sent'), failed: count('failed') };
+export function sendSummary(event) {
+  const sum = key => Object.values(event.deliveries || {}).reduce((total, delivery) => total + (delivery[key] || 0), 0);
+  return { total: sum('total'), sent: sum('sent'), failed: sum('failed') };
 }
 
 /* ── Diálogos ── */

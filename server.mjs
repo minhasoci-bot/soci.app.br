@@ -1910,9 +1910,9 @@ export function makeServer({
   const eventSendsLater = workspace => { inBackground(`Event messages (${workspace})`, () => eventSender.run(workspace)); };
   async function runAllEventSends(at = Date.now()) {
     const due = [];
-    for (const { id } of (await store.list()).filter(w => spaceId.test(w.id))) {
+    await runInBatches((await store.list()).filter(w => spaceId.test(w.id)), async ({ id }) => {
       try { if (eventSendDue(await store.load(id), at)) due.push(id); } catch (e) { console.error(`Event messages (${id}): ${e.message}`); }
-    }
+    }, { concurrency: 10, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
     await runInBatches(due, async id => { try { await eventSender.run(id); } catch (e) { console.error(`Event messages (${id}): ${e.message}`); } }, { concurrency: 25, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
   }
   async function runAllSocial(base, at = Date.now()) {

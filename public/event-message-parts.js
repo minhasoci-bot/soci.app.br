@@ -3,7 +3,7 @@
 // "## Enquete · Pergunta" com uma lista vira enquete.
 
 const internal = /^(roteiro|orienta|antes de enviar|nota\b|notas\b)/i;
-const poll = /^enquete\s*[·:–-]?\s*/i;
+const poll = /^enquete\b\s*[·:–-]?\s*/i;
 const option = /^(?:[-•]|\d+\.)\s+(.+)$/;
 const plain = text => text.replace(/^([*_~])(.+)\1$/, '$2').trim();
 export const MESSAGE_LIMIT = 4000;
@@ -61,8 +61,8 @@ export function renderPart(part, contact) {
   for (const [key, value] of Object.entries(values)) {
     const token = `\\{\\{\\s*contact\\.${key}\\s*\\}\\}`;
     if (value) { text = text.replace(new RegExp(token, 'g'), () => value); continue; }
-    text = text.replace(new RegExp(`(^|\\n)${token}\\s*,?\\s*(\\S?)`, 'g'), (_, start, letter) => start + letter.toUpperCase());
-    text = text.replace(new RegExp(`,?[ \\t]*${token}`, 'g'), '');
+    text = text.replace(new RegExp(`(^|\\n)([*_~]?)${token}\\2\\s*,?\\s*(\\S?)`, 'g'), (_all, start, _mark, letter) => start + letter.toUpperCase());
+    text = text.replace(new RegExp(`,?[ \\t]*([*_~]?)${token}\\1`, 'g'), '');
   }
   return { ...part, text: text.trim() };
 }

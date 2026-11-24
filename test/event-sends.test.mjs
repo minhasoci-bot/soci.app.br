@@ -90,7 +90,7 @@ test('A message is never scheduled twice, and cancelling frees only what was not
   assert.equal(event().deliveries[ids.grupo].state, 'canceled');
   assert.throws(() => run('event-message-cancel', ids.grupo), /não está agendada/);
   assert.deepEqual(run('event-message-schedule', ids.grupo), { total: 3 }, 'o que já saiu não vai de novo');
-  assert.deepEqual(s.eventSends.slice(4).map(r => [r.to, r.part]), [[G(1).jid, 1], [G(2).jid, 0], [G(2).jid, 1]]);
+  assert.deepEqual(s.eventSends.map(r => [r.to, r.part, r.status]), [[G(1).jid, 0, 'sent'], [G(1).jid, 1, 'queued'], [G(2).jid, 0, 'queued'], [G(2).jid, 1, 'queued']]);
 });
 
 test('A finished message is not scheduled again; only failures are resent', () => {
@@ -161,6 +161,7 @@ test('The queue is read-only for the browser and scheduling needs conversations 
   const { s, run } = setup();
   run('event-message-schedule', ids.grupo);
   assert.throws(() => execute(s, { type: 'save', key: 'eventSends', id: '', data: {} }), /Unknown record/);
-  assert.equal(workspaceView(marketing, s).state.eventSends.length, 4);
-  assert.equal(workspaceView({ modules: ['contacts'] }, s).state.eventSends.length, 0);
+  s.eventSends[0].status = 'failed';
+  assert.equal(workspaceView(both, s).state.eventSends.length, 1);
+  assert.equal(workspaceView(marketing, s).state.eventSends.length, 0);
 });
