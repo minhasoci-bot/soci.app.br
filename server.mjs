@@ -205,6 +205,8 @@ export const staticFiles = new Map([
   ['/privacidade.html','text/html; charset=utf-8'], ['/skull_flame_animated.svg','image/svg+xml'],
   ['/login.css','text/css; charset=utf-8'], ['/login.js','text/javascript; charset=utf-8'],
 ]);
+// Estáticos que só abrem com sessão (como o app): sem login, 303 para /login. O smoke pós-deploy usa a mesma lista.
+export const sessionOnlyFiles = new Set(['/prancheta-editor.html']);
 // Ilustrações dos templates de setup (ui/setup-art/*.svg), uma por segmento.
 for (const file of readdirSync(resolve(root, 'ui', 'setup-art'))) if (/^[a-z0-9-]+\.svg$/.test(file)) staticFiles.set(`/setup-art/${file}`, 'image/svg+xml');
 const host = '127.0.0.1';
@@ -4084,8 +4086,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       const loginPaths = ['/','/login','/index.html'];
       if ((method==='GET'||method==='HEAD') && (loginPaths.includes(p) || platformPaths.includes(p) || paths.test(p) || staticFiles.has(p))) {
         const isLogin = loginPaths.includes(p);
-        // A página do editor da Prancheta é estática, mas só abre com sessão (como o app).
-        if (!isLogin && !paths.test(p) && (!staticFiles.has(p) || p === '/prancheta-editor.html') && !localAccess && !auth?.hasSession(req)) {
+        // Páginas estáticas que só abrem com sessão (como o app), por exemplo o editor da Prancheta.
+        if (!isLogin && !paths.test(p) && (!staticFiles.has(p) || sessionOnlyFiles.has(p)) && !localAccess && !auth?.hasSession(req)) {
           const search = new URLSearchParams(url.search); search.delete('__path');
           const next = afterLogin(p + (search.size ? '?' + search : ''));
           return goTo('/login?' + new URLSearchParams({ next }));
