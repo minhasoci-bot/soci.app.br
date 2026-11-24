@@ -133,7 +133,7 @@ label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:no
 .ag-hero-card{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--line);border-radius:var(--r-control);padding:12px 14px}
 .ag-hero-card b{font-size:18px}
 @media (max-width:760px){.ag-hero{grid-template-columns:1fr}}
-/* WhatsApp (UAZAPI) settings */
+/* WhatsApp settings */
 .ag-waha-icon{width:40px;height:40px;border-radius:var(--r-group);display:grid;place-items:center;flex:none;background:rgba(37,211,102,.14);color:#128046}
 :root[data-theme=dark] .ag-waha-icon{color:#25d366}
 .ag-waha-qr{display:grid;justify-items:center;gap:10px;padding:18px;border:1px solid var(--g-line,var(--line));border-radius:var(--r-group);background:var(--g-surface-2,#f4f6f8);text-align:center}
