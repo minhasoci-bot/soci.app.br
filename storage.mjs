@@ -19,9 +19,9 @@ const ledgerKinds = ['sale', 'manual_sale', 'refund', 'dispute_opened', 'dispute
 const ledgerJson = ['source', 'seller', 'payer', 'detail'], ledgerText = ['method', 'provider', 'provider_ref'];
 const ledgerColumns = ['key', 'layer', 'agency_id', 'workspace_id', 'kind', 'amount_cents', 'fee_cents', 'usage_micros', ...ledgerText, ...ledgerJson, 'occurred_at'];
 const ledgerValue = (row, column) => row[column] ?? (ledgerJson.includes(column) ? {} : ledgerText.includes(column) ? '' : null);
-const quoted = list => list.map(item => `'${item}'`).join(', ');
-const ledgerSchema = `CREATE TABLE IF NOT EXISTS go_billing_ledger (key TEXT PRIMARY KEY, layer TEXT NOT NULL CHECK (layer IN (${quoted(ledgerLayers)})),
-  agency_id TEXT NOT NULL, workspace_id TEXT, kind TEXT NOT NULL CHECK (kind IN (${quoted(ledgerKinds)})), amount_cents INTEGER NOT NULL, fee_cents INTEGER, usage_micros INTEGER,
+const sqlList = list => list.map(item => `'${item}'`).join(', ');
+const ledgerSchema = `CREATE TABLE IF NOT EXISTS go_billing_ledger (key TEXT PRIMARY KEY, layer TEXT NOT NULL CHECK (layer IN (${sqlList(ledgerLayers)})),
+  agency_id TEXT NOT NULL, workspace_id TEXT, kind TEXT NOT NULL CHECK (kind IN (${sqlList(ledgerKinds)})), amount_cents INTEGER NOT NULL, fee_cents INTEGER, usage_micros INTEGER,
   method TEXT NOT NULL DEFAULT '', provider TEXT NOT NULL DEFAULT '', provider_ref TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT '{}', seller TEXT NOT NULL DEFAULT '{}',
   payer TEXT NOT NULL DEFAULT '{}', detail TEXT NOT NULL DEFAULT '{}', occurred_at TEXT NOT NULL, recorded_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))) STRICT;
   CREATE INDEX IF NOT EXISTS go_billing_ledger_agency ON go_billing_ledger (agency_id, layer, occurred_at DESC, key DESC);
@@ -185,7 +185,7 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
   }
 
   async function table(query, options = {}) {
-    return (await api(options.table || 'go_workspaces', query, options)).json();
+    return (await api('go_workspaces', query, options)).json();
   }
   async function api(path, query, options = {}) {
     const endpoint = new URL(`/rest/v1/${path}`, base);
@@ -232,6 +232,7 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
       }
     };
   }
+  const ledger = optionalTable('billing ledger', 'ledger_unavailable');
   const events = optionalTable('tracking events', 'tracking_unavailable');
   const tracking = {
     async append(workspace, rows) {
@@ -372,16 +373,15 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
     },
     async ledgerAppend(rows) {
       if (!rows.length) return;
-      await table({ on_conflict: 'key', select: 'key' }, { table: 'go_billing_ledger', method: 'POST',
-        headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
+      await ledger('go_billing_ledger', { on_conflict: 'key' }, { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
         body: rows.map(row => Object.fromEntries(ledgerColumns.map(column => [column, ledgerValue(row, column)]))) });
     },
     async ledgerList({ layer, agencyId, workspaceId, kind, from, to, limit = 200, after = '' }) {
       const literal = value => `"${String(value).replace(/["\\]/g, char => `\\${char}`)}"`;
       const both = [`occurred_at.gte.${from}`, `occurred_at.lt.${to}`];
       if (after) { const c = readCursor(after); both.push(`or(occurred_at.lt.${c.at},and(occurred_at.eq.${c.at},key.lt.${literal(c.key)}))`); }
-      const rows = await table({ select: '*', layer: `eq.${layer}`, agency_id: `eq.${agencyId}`, ...(workspaceId !== undefined && { workspace_id: `eq.${workspaceId}` }),
-        ...(kind && { kind: `eq.${kind}` }), and: `(${both.join(',')})`, order: 'occurred_at.desc,key.desc', limit: limit + 1 }, { table: 'go_billing_ledger' });
+      const rows = await (await ledger('go_billing_ledger', { select: '*', layer: `eq.${layer}`, agency_id: `eq.${agencyId}`, ...(workspaceId !== undefined && { workspace_id: `eq.${workspaceId}` }),
+        ...(kind && { kind: `eq.${kind}` }), and: `(${both.join(',')})`, order: 'occurred_at.desc,key.desc', limit: limit + 1 }, {})).json();
       return page(rows.map(row => ({ ...row, occurred_at: new Date(row.occurred_at).toISOString() })), limit);
     },
     close() {}

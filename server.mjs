@@ -52,6 +52,7 @@ import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, send
 import { hasPixels, injectPixels, pixelsScript, trackerScript, trackingOf, widenCsp } from './tracking.mjs';
 import { createTrackingLog } from './tracking-events.mjs';
 import { scopedReads } from './read-scope.mjs';
+import { createLedgerFlush, isAgencyRow, watchLedger } from './ledger-flush.mjs';
 import { localScheduler, startupLines } from './local-scheduler.mjs';
 import { AUDIT_IN_DOCUMENT, createAuditLog } from './agency-audit.mjs';
 import { adSettingsOf, storeAdSync } from './ads-model.mjs';
@@ -333,6 +334,9 @@ export function makeServer({
 }={}) {
   const cronReads = scopedReads(store);
   store = cronReads.store;
+  // Any write that leaves billing facts in a document's outbox sends them to the ledger right after.
+  const ledgerFlush = createLedgerFlush({ store });
+  store = watchLedger(store, id => inBackground(`Livro (${id})`, () => ledgerFlush.any(id)));
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
   const content = { transformText, writeEmail, writeReviewReply, writeBrandVoice, writeCaption, writePost, postSeo, transcribeAudio, summarizeMeeting, askAssistant, writeConversationReply, writeConversationSummary, ...contentAI };
   // The default brand board's voice, added by the server to every AI writer (never taken from the browser).
@@ -1980,11 +1984,15 @@ export function makeServer({
       try { await runNewsletters(w.id, base); } catch (e) { console.error(`Community newsletters (${w.id}): ${e.message}`); }
       try { await runWorkflows(w.id); } catch (e) { console.error(`Workflows (${w.id}): ${e.message}`); }
       try { await runReportMail(w.id); } catch (e) { console.error(`Report e-mail (${w.id}): ${e.message}`); }
+      try { if ((await store.load(w.id)).ledgerOutbox?.length) await ledgerFlush.workspace(w.id); } catch (e) { console.error(`Livro (${w.id}): ${e.message}`); }
       try { await runRecurringInvoices(w.id); } catch (e) { console.error(`Recurring invoices (${w.id}): ${e.message}`); }
       try { await runAbandonedCheckouts(w.id); } catch (e) { console.error(`Abandoned checkouts (${w.id}): ${e.message}`); }
       try { await runEmailCampaigns(w.id); } catch (e) { console.error(`E-mail campaigns (${w.id}): ${e.message}`); }
       try { await runAllAds(w.id); } catch (e) { console.error(`Ads (${w.id}): ${e.message}`); }
     }, { concurrency: cronConcurrency, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+    for (const { id } of (await store.list()).filter(row => isAgencyRow(row.id))) {
+      try { if ((await store.load(id)).ledgerOutbox?.length) await ledgerFlush.agency(id); } catch (e) { console.error(`Livro (${id}): ${e.message}`); }
+    }
     await trackingLog.sweep(at);
     await auditLog.sweep(at);
     if (skipped.length) console.warn(`Cron: ${skipped.length} de ${spaces.length} workspaces ficaram para o próximo minuto.`);
