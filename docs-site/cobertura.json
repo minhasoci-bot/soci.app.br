@@ -1,0 +1,184 @@
+[
+  {
+    "grupo": "crm",
+    "artigo": "criar-pipeline",
+    "titulo": "Criar um pipeline de vendas",
+    "fase": "F2",
+    "status": "escrito"
+  },
+  {
+    "grupo": "agencia",
+    "artigo": "servidor-whatsapp",
+    "titulo": "Conectar o WhatsApp das subcontas",
+    "fase": "F2",
+    "status": "escrito"
+  },
+  {
+    "grupo": "sites",
+    "artigo": "funil-reunioes-qualificadas",
+    "titulo": "Funil de reuniões qualificadas",
+    "fase": "extra",
+    "status": "escrito"
+  },
+  {
+    "grupo": "comece-aqui",
+    "artigo": "primeiros-passos",
+    "titulo": "Primeiros passos da agência",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "agencia",
+    "artigo": "criar-subconta",
+    "titulo": "Criar uma subconta",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "agencia",
+    "artigo": "setups-de-conta",
+    "titulo": "Setups de conta",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "agencia",
+    "artigo": "white-label",
+    "titulo": "White label: a sua marca na soci",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "agencia",
+    "artigo": "dominio-proprio",
+    "titulo": "Usar o seu domínio",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "configuracoes",
+    "artigo": "usuarios-e-permissoes",
+    "titulo": "Usuários e permissões",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "conversas",
+    "artigo": "dominio-de-email",
+    "titulo": "Domínio de envio de e-mail",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "conversas",
+    "artigo": "caixa-unificada",
+    "titulo": "Atender na caixa unificada",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "crm",
+    "artigo": "contatos",
+    "titulo": "Cadastrar e organizar contatos",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "crm",
+    "artigo": "importar-contatos",
+    "titulo": "Importar contatos",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "crm",
+    "artigo": "listas-inteligentes",
+    "titulo": "Listas inteligentes",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "automacoes",
+    "artigo": "primeiro-workflow",
+    "titulo": "Criar o primeiro workflow",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "agendas",
+    "artigo": "criar-calendario",
+    "titulo": "Criar um calendário",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "pagamentos",
+    "artigo": "conectar-gateway",
+    "titulo": "Conectar o gateway de pagamento",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "pagamentos",
+    "artigo": "fatura",
+    "titulo": "Emitir uma fatura",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "pagamentos",
+    "artigo": "links-de-pagamento",
+    "titulo": "Links de pagamento",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "pagamentos",
+    "artigo": "documentos-e-contratos",
+    "titulo": "Documentos e contratos",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "ia",
+    "artigo": "agent-studio",
+    "titulo": "Criar um agente de IA",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "ia",
+    "artigo": "base-de-conhecimento",
+    "titulo": "Base de conhecimento",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "marketing",
+    "artigo": "planejador-social",
+    "titulo": "Planejador social",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "reputacao",
+    "artigo": "pedidos-de-avaliacao",
+    "titulo": "Pedidos de avaliação",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "sites",
+    "artigo": "criar-site",
+    "titulo": "Criar um site",
+    "fase": "F2",
+    "status": "pendente"
+  },
+  {
+    "grupo": "sites",
+    "artigo": "formularios",
+    "titulo": "Formulários",
+    "fase": "F2",
+    "status": "pendente"
+  }
+]

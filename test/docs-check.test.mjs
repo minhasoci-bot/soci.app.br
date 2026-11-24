@@ -42,3 +42,23 @@ test('catálogo de automações da doc está em dia com o editor de workflows', 
   for (const { label } of triggerCatalog.flatMap(g => g.items)) assert.ok(gatilhos.includes(`**${textoMdx(label)}**`), `gatilho "${label}" fora da doc: rode npm run docs:catalogo`);
   for (const { label } of actionCatalog.flatMap(g => g.items)) assert.ok(acoes.includes(`**${textoMdx(label)}**`), `ação "${label}" fora da doc: rode npm run docs:catalogo`);
 });
+
+test('lista de cobertura da documentação bate com os artigos escritos', async () => {
+  const { readdir } = await import('node:fs/promises');
+  const cobertura = JSON.parse(await readFile(new URL('../docs-site/cobertura.json', import.meta.url), 'utf8'));
+  for (const item of cobertura) {
+    const existe = await readFile(new URL(`../docs-site/src/content/docs/${item.grupo}/${item.artigo}.mdx`, import.meta.url)).then(() => true, () => false);
+    assert.equal(existe, item.status !== 'pendente', `${item.grupo}/${item.artigo} está "${item.status}" na cobertura`);
+  }
+  const docs = new URL('../docs-site/src/content/docs/', import.meta.url);
+  for (const grupo of await readdir(docs, { withFileTypes: true })) {
+    if (!grupo.isDirectory() || grupo.name === 'interno') continue;
+    for (const arquivo of await readdir(new URL(`${grupo.name}/`, docs))) {
+      if (!arquivo.endsWith('.mdx') || arquivo === 'index.mdx' || arquivo.startsWith('_')) continue;
+      if (grupo.name === 'comece-aqui' && ['bem-vindo.mdx', 'conceitos.mdx', 'novidades.mdx'].includes(arquivo)) continue;
+      if (grupo.name === 'automacoes' && ['gatilhos.mdx', 'acoes.mdx'].includes(arquivo)) continue;
+      const artigo = arquivo.replace(/\.mdx$/, '');
+      assert.ok(cobertura.some(i => i.grupo === grupo.name && i.artigo === artigo), `${grupo.name}/${artigo} falta em docs-site/cobertura.json`);
+    }
+  }
+});

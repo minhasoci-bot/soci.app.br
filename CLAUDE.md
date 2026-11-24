@@ -40,7 +40,7 @@ Toda ferramenta nova ou melhoria visível para quem usa a soci cria ou atualiza 
 1. Artigo em `docs-site/src/content/docs/<grupo>/<artigo>.mdx`, seguindo o modelo `docs-site/src/content/docs/_modelo.mdx` (para que serve, requisitos, vídeo, passo a passo com um print por passo, automações ligadas, perguntas frequentes, veja também).
 2. Uma linha no topo de `docs-site/src/content/docs/comece-aqui/novidades.mdx` (`### AAAA-MM-DD · Título`, uma frase e o link do artigo).
 3. Prints e vídeos no R2 público: `npm run docs:midia -- enviar <pasta> <grupo> <artigo>` e `npm run docs:midia -- verificar`. Prints só da Agência Demo local, nunca de dados reais de clientes.
-4. Se o editor de workflows mudou (`ui/workflow-data.js`), rode `npm run docs:catalogo`.
+4. Se o editor de workflows mudou (`ui/workflow-data.js`), rode `npm run docs:catalogo`. Depois de criar ou renomear um artigo, rode `npm run docs:secoes` (atualiza os cartões da página da seção) e marque o artigo em `docs-site/cobertura.json`.
 5. Se a mudança não aparece para quem usa a soci, escreva no corpo do PR: `Documentação: não se aplica — <motivo>`.
 
 O CI (job "Documentação", `scripts/docs-check.mjs`) reprova o PR que muda `ui/`, `routes/` ou `*-model.mjs` sem artigo e sem essa linha.

@@ -69,3 +69,13 @@ test('catálogo de automações não está vazio', async () => {
   const acoes = (await lerPagina('automacoes/acoes')).match(/<tr>/g) || [];
   assert.ok(acoes.length > 50, `só ${acoes.length} linhas`);
 });
+
+test('toda página de seção lista os artigos do grupo', async () => {
+  const { readdir, readFile: ler } = await import('node:fs/promises');
+  const docs = new URL('../src/content/docs/', import.meta.url);
+  for (const [pasta] of GRUPOS) {
+    const artigos = (await readdir(new URL(`${pasta}/`, docs))).filter(a => a.endsWith('.mdx') && a !== 'index.mdx' && !a.startsWith('_'));
+    const indice = await ler(new URL(`${pasta}/index.mdx`, docs), 'utf8');
+    for (const artigo of artigos) assert.ok(indice.includes(`href="/${pasta}/${artigo.replace(/\.mdx$/, '')}/"`), `${pasta}/index.mdx não lista ${artigo}`);
+  }
+});
