@@ -4,6 +4,7 @@ import { createPranchetaRoutes } from './routes/prancheta.mjs';
 import { createActionRoutes } from './routes/action.mjs';
 import { createAdsRoutes } from './routes/ads.mjs';
 import { createEmailRoutes } from './routes/email.mjs';
+import { createMetaRoutes } from './routes/meta.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -109,8 +110,8 @@ import { snapshotAssets } from './ui/agency-data.js';
 import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, requireWorkspaceCommand, workspaceView } from './authorization.mjs';
 import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, settle } from './social-model.mjs';
 import { authUrl, availability, publish as socialPublish, seal, unseal } from './social-providers.mjs';
-import { fetchMetaLead, metaInbound, metaLeads, metaSenderName, metaSignatureValid, quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
-import { googleLeadFields, googleLeadKeyValid, metaLeadFields } from './lead-forms.mjs';
+import { quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
+import { googleLeadFields, googleLeadKeyValid } from './lead-forms.mjs';
 import { generateImage, startVideo, videoContent, videoStatus } from './openai-media.mjs';
 import { inboundAddress } from './email-inbound.mjs';
 import { createPhoneHandler } from './phone-server.mjs';
@@ -2132,6 +2133,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const adsRoute = createAdsRoutes({ store, localAccess, error, spaceId, privateSpace, stamp, adsAccess, adsCallbackPath, adsPopup, adsView, payload, publicBase, recordAudit, runAds, socialActor, socialRow, workspaceAccess });
   const actionRoute = createActionRoutes({ store, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
   const emailRoute = createEmailRoutes({ store, ready, error, spaceId, privateSpace, stamp, campaignMail, emailDomainApi, flushLater, inboundFetch, payload, publicAccountPolicy, publicBase, recordAudit, sendingAddress, socialRow, testHits, workspaceAccess });
+  const metaRoute = createMetaRoutes({ store, ready, error, change, flushLater, metaFetch, metaRoutesRow, metaSender, publicAccountPolicy });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const server=createServer(async (req,res) => {
@@ -2670,57 +2672,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         await ready;
         return await phone.twilioWebhook(req, res, url, p);
       }
-      // Messenger and Direct: Meta's verification (GET) and the messages of the connected pages (POST, signed).
-      if (p === '/api/meta/webhook') {
-        await ready;
-        if (method === 'GET') {
-          const verify = process.env.META_WEBHOOK_VERIFY_TOKEN || '';
-          if (!verify || url.searchParams.get('hub.mode') !== 'subscribe' || url.searchParams.get('hub.verify_token') !== verify) throw error('Forbidden.', 403);
-          return send(200, 'text/plain; charset=utf-8', String(url.searchParams.get('hub.challenge') || '').slice(0, 200));
-        }
-        if (method !== 'POST') throw error('Method not allowed.', 405);
-        let size = 0; const chunks = [];
-        for await (const chunk of req) { size += chunk.length; if (size > 1_000_000) throw error('Payload too large.', 413); chunks.push(chunk); }
-        const raw = Buffer.concat(chunks);
-        if (!metaSignatureValid(raw, req.headers['x-hub-signature-256'], process.env.META_APP_SECRET || '')) throw error('Invalid signature.', 401);
-        let body;
-        try { body = JSON.parse(raw.toString('utf8')); } catch { throw error('Invalid JSON.', 400); }
-        const routes = (await metaRoutesRow()).routes || {};
-        const touched = new Set();
-        for (const message of metaInbound(body)) {
-          const route = routes[message.accountId];
-          if (!route || route.network !== message.network) continue;
-          try {
-            if (!await publicAccountPolicy(route.workspace, false, 'conversations')) continue;
-            const state = await store.load(route.workspace);
-            const key = `${message.network}:${message.accountId}`;
-            const known = (state.contacts || []).some(row => row.metaIds?.[key] === message.senderId);
-            const sender = known ? null : await metaSender(route.workspace, state, key);
-            const authorName = sender ? await metaSenderName({ token: sender.token, senderId: message.senderId, network: message.network }, metaFetch) : '';
-            await change(route.workspace, { type: 'social-interaction-trigger', data: { kind: 'dm', network: message.network, body: message.body, senderId: message.senderId, accountId: message.accountId, mid: message.mid, authorName } });
-            touched.add(route.workspace);
-          } catch (problem) { console.error(`Meta webhook (${route.workspace}): ${problem.message}`); }
-        }
-        // Lead Ads: the lead's answers are read with the page token, then become a contact and the trigger.
-        for (const lead of metaLeads(body)) {
-          const route = routes[lead.pageId];
-          if (!route || route.network !== 'facebook') continue;
-          try {
-            if (!await publicAccountPolicy(route.workspace, false, 'marketing')) continue;
-            const state = await store.load(route.workspace);
-            const sender = await metaSender(route.workspace, state, `facebook:${lead.pageId}`);
-            if (!sender) continue;
-            const found = await fetchMetaLead({ token: sender.token, leadgenId: lead.leadgenId, formId: lead.formId }, metaFetch);
-            const touch = found.lead.is_organic ? null : { source: 'facebook', medium: 'paid_social', campaign: String(found.lead.campaign_name || ''), at: new Date().toISOString(), channel: 'meta_ads' };
-            await store.change(route.workspace, s => execute(s, { type: 'ad-form-lead', data: { network: 'meta', leadId: lead.leadgenId, formId: String(found.lead.form_id || lead.formId),
-              formName: found.formName, campaign: String(found.lead.campaign_name || ''), campaignId: String(found.lead.campaign_id || ''), fields: metaLeadFields(found.lead) } },
-              { workspace: route.workspace, ...(touch ? { attribution: { first: touch, last: touch } } : {}) }));
-            touched.add(route.workspace);
-          } catch (problem) { console.error(`Meta lead (${route.workspace}): ${problem.message}`); }
-        }
-        for (const workspace of touched) flushLater(workspace);
-        return json({ ok: true });
-      }
+      const metaRouteHandled = await metaRoute({ req, p, method, url, json, send });
+      if (metaRouteHandled !== NEXT_ROUTE) return metaRouteHandled;
       // Google Ads lead form webhook: the URL and key from Marketing → Rastreamento; Google retries on non-200.
       const googleLead = p.match(new RegExp(`^/api/google-leads/${workspaceSegment}$`));
       if (googleLead && method === 'POST') {
