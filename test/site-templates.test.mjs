@@ -50,13 +50,32 @@ test('Published pages keep in-page anchors on internal links and allow https med
   assert.match(html, /href="\/s\/w\/p\/contato"/);
 });
 
+test('No template rule reads a theme variable it overrides in the same rule', () => {
+  // `.news{background:var(--accent);--accent:#fff}` pinta o fundo com o valor novo, não com o do tema.
+  for (const meta of siteTemplates) {
+    for (const page of siteTemplatePages(meta.id, { kind: 'funnel' })) {
+      const css = [...page.html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m => m[1]).join('\n');
+      const theme = new Set([...(css.match(/:root\{([^}]*)\}/)?.[1] || '').matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]));
+      for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (selector.trim() === ':root') continue;
+        const own = new Set([...body.matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]));
+        for (const [, prop, name] of body.matchAll(/(?:^|;)\s*([a-z-]+)\s*:[^;]*var\((--[\w-]+)/g)) {
+          assert.ok(!(own.has(name) && theme.has(name)), `${meta.id}/${page.slug} ${selector.trim()}: ${prop} reads ${name} after overriding it`);
+        }
+      }
+    }
+  }
+});
+
 test('The motion script runs only on marked pages, allowed by its exact hash', () => {
   const page = siteTemplatePages('corretora')[0].html;
   assert.doesNotMatch(page, /<script/i, 'stored pages never carry the script');
   const [headers, html] = withMotion(publicHeaders, page);
   const script = html.match(/<script>([\s\S]*?)<\/script><\/body>/)?.[1];
   assert.ok(script, 'script injected right before </body>');
-  const hash = createHash('sha256').update(script).digest('base64');
+  assert.doesNotMatch(script, /\r/, 'no carriage returns: the HTML parser drops them before checking the hash');
+  // O navegador normaliza as quebras de linha antes de conferir o hash; o teste confere do mesmo jeito.
+  const hash = createHash('sha256').update(script.replace(/\r\n?/g, '\n')).digest('base64');
   const scriptSrc = headers['Content-Security-Policy'].split(';').map(p => p.trim()).find(p => p.startsWith('script-src'));
   assert.equal(scriptSrc, `script-src 'sha256-${hash}'`, 'only the exact motion script may run');
   const [plainHeaders, plain] = withMotion(publicHeaders, '<!doctype html><html lang="pt-BR"><body>oi</body></html>');
