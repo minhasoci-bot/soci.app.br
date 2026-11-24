@@ -1,0 +1,5 @@
+dist/
+.astro/
+.midia/
+roteiros/.saida/
+node_modules/

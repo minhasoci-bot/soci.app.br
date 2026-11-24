@@ -1,0 +1,21 @@
+/* Tema da soci: mesma paleta e fonte do app (ui/style.css). */
+:root {
+  --sl-font: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --sl-color-accent-low: #3d0a24;
+  --sl-color-accent: #e0408a;
+  --sl-color-accent-high: #ffd3e8;
+  --sl-color-black: #08090b;
+  --sl-color-gray-6: #16181f;
+  --sl-color-gray-7: #0e1014;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #fde3ef;
+  --sl-color-accent: #d62976;
+  --sl-color-accent-high: #7a0b46;
+  --sl-color-white: #0f131a;
+  --sl-color-gray-1: #1b212b;
+  --sl-color-gray-7: #f4f6f8;
+}
+
+.site-title img { height: 2rem; width: auto; }
