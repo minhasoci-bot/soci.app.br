@@ -17,6 +17,6 @@ export default {
     { nome: 'etapas-do-pipeline', acao: async page => {
       await page.getByRole('dialog').getByRole('button', { name: 'Criar pipeline' }).click();
       await page.getByRole('button', { name: `Editar ${PIPELINE}` }).click();
-    }, espera: 5000, destacar: 'role=button[name="Adicionar etapa"]' },
+    }, destacar: 'role=button[name="Adicionar etapa"]' },
   ],
 };

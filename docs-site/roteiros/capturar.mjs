@@ -1,9 +1,9 @@
 // Tira os prints de um artigo a partir do app soci LOCAL (Agência Demo), seguindo o roteiro do artigo.
 //
-//   npm --prefix docs-site run demo -- --limpo     (app local com banco zerado)
-//   npm --prefix docs-site run semear              (dados fictícios)
-//   npm --prefix docs-site run capturar -- roteiros/criar-pipeline.mjs
+//   npm --prefix docs-site run capturar -- roteiros/criar-pipeline.mjs [roteiros/outro.mjs ...]
 //
+// Cada roteiro roda num app soci próprio, em memória, semeado do zero (Agência Demo): o resultado não
+// depende da ordem dos roteiros nem do que foi feito antes. Para navegar na demo à mão, use `npm run demo`.
 // Saída: docs-site/.midia/<grupo>/<artigo>/<nn>-<passo>.webp (1440 px de largura). Depois envie com
 // `npm run docs:midia -- enviar docs-site/.midia/<grupo>/<artigo> <grupo> <artigo>`.
 // Usa o Chrome instalado na máquina (ou o Edge, com DOCS_NAVEGADOR=msedge); não baixa navegador.
@@ -12,8 +12,17 @@ import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from 'playwright-core';
 import sharp from 'sharp';
+import { makeServer } from '../../server.mjs';
+import { semear } from './semear-demo.mjs';
 
-export const BASE_DEMO = 'http://127.0.0.1:4319';
+// App soci em memória, sem login, com a Agência Demo semeada. Devolve a base e a função que o desliga.
+export async function demoEmMemoria() {
+  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, dbPath: ':memory:', port: 0, socialScheduler: false });
+  await new Promise((ok, erro) => { server.on('error', erro); server.listen(0, host, ok); });
+  const base = `http://${host}:${server.address().port}`;
+  await semear({ base });
+  return { base, fechar: () => new Promise(ok => server.close(ok)) };
+}
 const COR_DESTAQUE = '#d62976';
 
 export const nomeArquivo = (indice, passo) => `${String(indice + 1).padStart(2, '0')}-${passo.nome}.webp`;
@@ -40,15 +49,22 @@ async function comDestaque(page, seletor, tirar) {
   }
 }
 
-export async function capturar(roteiro, { base = BASE_DEMO, saida, navegador = process.env.DOCS_NAVEGADOR || 'chrome' } = {}) {
+export async function capturar(roteiro, { base, saida, navegador = process.env.DOCS_NAVEGADOR || 'chrome' } = {}) {
   const pasta = saida || fileURLToPath(new URL(`../.midia/${roteiro.grupo}/${roteiro.artigo}/`, import.meta.url));
   await mkdir(pasta, { recursive: true });
+  const demo = base ? null : await demoEmMemoria();
+  base ||= demo.base;
   const id = await subcontaId(base, roteiro.subconta);
   const browser = await chromium.launch({ channel: navegador });
   const arquivos = [];
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, colorScheme: 'light', locale: 'pt-BR' });
     const page = await context.newPage();
+    // Avisos temporários (toasts) saem dos prints: duram poucos segundos e mudariam a cada captura.
+    await page.addInitScript(() => {
+      const estilo = () => { const s = document.createElement('style'); s.textContent = '.toaster{display:none!important}'; document.head.append(s); };
+      if (document.head) estilo(); else document.addEventListener('DOMContentLoaded', estilo);
+    });
     await page.goto(`${base}/app?workspace=${id}${roteiro.rota}`, { waitUntil: 'networkidle' });
     for (const [i, passo] of roteiro.passos.entries()) {
       if (passo.acao) await passo.acao(page);
@@ -60,13 +76,16 @@ export async function capturar(roteiro, { base = BASE_DEMO, saida, navegador = p
     }
   } finally {
     await browser.close();
+    await demo?.fechar();
   }
   return arquivos;
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const caminho = process.argv[2];
-  if (!caminho) { console.log('Uso: capturar.mjs roteiros/<artigo>.mjs'); process.exit(2); }
-  const { default: roteiro } = await import(pathToFileURL(resolve(caminho)).href);
-  for (const arquivo of await capturar(roteiro)) console.log(arquivo);
+  const caminhos = process.argv.slice(2);
+  if (!caminhos.length) { console.log('Uso: capturar.mjs roteiros/<artigo>.mjs [...]'); process.exit(2); }
+  for (const caminho of caminhos) {
+    const { default: roteiro } = await import(pathToFileURL(resolve(caminho)).href);
+    for (const arquivo of await capturar(roteiro)) console.log(arquivo);
+  }
 }

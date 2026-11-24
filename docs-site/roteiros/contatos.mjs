@@ -16,7 +16,7 @@ export default {
     }, destacar: 'role=dialog >> role=button[name="Criar contato"]' },
     { nome: 'ficha-do-contato', acao: async page => {
       await page.getByRole('dialog').getByRole('button', { name: 'Criar contato' }).click();
-      await page.waitForTimeout(4500);
+      await page.getByRole('dialog').waitFor({ state: 'hidden' });
       await page.getByRole('button', { name: 'Ana Beatriz Souza' }).click();
     }, destacar: 'role=dialog >> role=button[name="Abrir conversa"]' },
     { nome: 'filtro-por-tag', acao: async page => {
