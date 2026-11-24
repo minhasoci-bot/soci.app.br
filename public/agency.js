@@ -814,8 +814,10 @@ Authorization: Bearer soci_app_…
       <form class="settings-form" data-ag-form="abacate-connect"><label>Chave de API v2<input name="apiKey" required autocomplete="off" spellcheck="false" maxlength="400"></label><button class="primary">Conectar</button><p class="form-status" role="alert"></p></form>`);
     const hook = g.webhookStatus === 'registered' ? `<p>${badge('Webhook cadastrado automaticamente', 'green')}</p>`
       : `<p class="surface padded ag-warn">${h(g.webhookError || 'Cadastre o webhook no painel do AbacatePay.')} Use os dados abaixo em app.abacatepay.com/webhooks.</p>`;
-    return card(`${head(g.storeName || 'AbacatePay')}<p>${badge('Conectado', 'green')} ${g.devMode ? badge('Modo teste', 'gold') : ''}</p><p class="dim">Chave terminada em <b>${h(g.last4)}</b>, conectada em ${day(g.connectedAt)}. Gere as assinaturas em <a class="text-link" href="#agency/saas/accounts">Configurador SaaS → Subcontas SaaS</a>.</p><div class="inline-gap">${btn('Desconectar', 'abacate-disconnect')}</div>`, true)
-      + `<section class="surface padded settings-form ag-gap"><h2>Webhook de assinaturas</h2>${hook}<label>URL<input readonly value="${h(g.webhookUrl)}"></label><label>Secret<input readonly value="${h(g.webhookSecret || '')}"></label><p class="dim"><small>Eventos: ${h(g.events.join(', '))}</small></p></section>`;
+    const update = g.webhookOutdated ? `<div class="surface padded ag-notice">${i('pay', 20)}<div><b>Há avisos novos do AbacatePay</b><p>Atualize para a soci saber de plano recusado, contestação e devolução.</p></div>${btn('Atualizar avisos', 'abacate-hooks', '', 'primary')}</div>` : '';
+    const missing = g.missingEvents?.length ? `<p class="dim"><small>O AbacatePay não aceitou: ${h(g.missingEvents.join(', '))}</small></p>` : '';
+    return update + card(`${head(g.storeName || 'AbacatePay')}<p>${badge('Conectado', 'green')} ${g.devMode ? badge('Modo teste', 'gold') : ''}</p><p class="dim">Chave terminada em <b>${h(g.last4)}</b>, conectada em ${day(g.connectedAt)}. Gere as assinaturas em <a class="text-link" href="#agency/saas/accounts">Configurador SaaS → Subcontas SaaS</a>.</p><div class="inline-gap">${btn('Desconectar', 'abacate-disconnect')}</div>`, true)
+      + `<section class="surface padded settings-form ag-gap"><h2>Webhook de assinaturas</h2>${hook}<label>URL<input readonly value="${h(g.webhookUrl)}"></label><label>Secret<input readonly value="${h(g.webhookSecret || '')}"></label><p class="dim"><small>Eventos: ${h(g.events.join(', '))}</small></p>${missing}</section>`;
   }
   const isWhatsAppPage = () => A.page === 'settings' && A.sub === 'whatsapp';
   async function refreshWhatsApp() {
@@ -1368,6 +1370,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'openai-disconnect': confirmBox('Desconectar a chave da OpenAI?', 'Você precisará conectar outra chave para voltar a usar os recursos de IA.', 'openai-disconnect', '', 'Desconectar'); break;
         case 'wa-refresh': await refreshWhatsApp(); flash('Status do WhatsApp atualizado.'); break;
         case 'abacate-refresh': A.abacate = null; render(); await refreshAbacate(); break;
+        case 'abacate-hooks': A.abacate = await api('/api/abacatepay/agency/refresh-webhook', {}); render(); flash('Avisos do AbacatePay atualizados.'); break;
         case 'abacate-disconnect': confirmBox('Desconectar o AbacatePay?', 'As assinaturas já contratadas continuam no AbacatePay, mas a agência deixa de receber as confirmações de pagamento aqui.', 'abacate-disconnect', '', 'Desconectar'); break;
         case 'abacate-copy': await navigator.clipboard.writeText(d.url); flash('Link da assinatura copiado.'); break;
         case 'abacate-subscribe': {

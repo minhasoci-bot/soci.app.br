@@ -10,8 +10,11 @@ import { postFact } from './ledger-model.mjs';
 export const ABACATEPAY_API = 'https://api.abacatepay.com/v2';
 // Published by AbacatePay for every account: it signs the body, the secret proves the sender.
 export const ABACATEPAY_SIGNATURE_KEY = 't9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9';
-export const webhookEvents = ['checkout.completed', 'checkout.refunded', 'transparent.completed', 'transparent.refunded',
-  'subscription.completed', 'subscription.trial_started', 'subscription.renewed', 'subscription.cancelled'];
+export const webhookEvents = ['checkout.completed', 'checkout.refunded', 'checkout.disputed', 'checkout.lost',
+  'transparent.completed', 'transparent.refunded', 'transparent.disputed', 'transparent.lost',
+  'subscription.completed', 'subscription.trial_started', 'subscription.renewed', 'subscription.cancelled', 'subscription.payment_failed', 'subscription.plan_changed'];
+// Documented as events, but not in the list accepted when a webhook is created: dropped when the gateway refuses them.
+const doubtfulEvents = ['subscription.payment_failed', 'subscription.plan_changed'];
 const AGENCY_SCOPE = 'agency';
 const methodNames = { PIX: 'Pix', CARD: 'Card', BOLETO: 'Boleto' };
 
@@ -50,6 +53,7 @@ export function signBody(raw) {
   return createHmac('sha256', ABACATEPAY_SIGNATURE_KEY).update(raw).digest('base64');
 }
 
+const eventList = value => Array.isArray(value) ? value.filter(item => webhookEvents.includes(item)) : [];
 const blankRow = () => ({ profile: { name: 'AbacatePay' }, agency: null, subaccounts: {}, seen: [] });
 function normalizeConn(raw) {
   if (!raw || typeof raw !== 'object' || !raw.keySealed) return null;
@@ -58,6 +62,7 @@ function normalizeConn(raw) {
     storeId: String(raw.storeId || '').slice(0, 80), devMode: Boolean(raw.devMode),
     webhookSecret: typeof raw.webhookSecret === 'string' && raw.webhookSecret.length >= 32 ? raw.webhookSecret : randomBytes(24).toString('hex'),
     webhookStatus: ['registered', 'manual', 'failed'].includes(raw.webhookStatus) ? raw.webhookStatus : 'manual',
+    webhookEvents: eventList(raw.webhookEvents), webhookMissing: eventList(raw.webhookMissing),
     webhookError: String(raw.webhookError || '').slice(0, 240), connectedAt: String(raw.connectedAt || '')
   };
 }
@@ -136,9 +141,33 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     if (!conn) return { connected: false, webhookUrl: `${publicOrigin}${webhookPath(agencyId, scope)}`, events: webhookEvents };
     return {
       connected: true, storeName: conn.storeName, last4: conn.last4, devMode: conn.devMode, connectedAt: conn.connectedAt,
-      webhookStatus: conn.webhookStatus, webhookError: conn.webhookError, events: webhookEvents,
+      webhookStatus: conn.webhookStatus, webhookError: conn.webhookError, events: webhookEvents, missingEvents: conn.webhookMissing,
+      webhookOutdated: conn.webhookStatus === 'failed' || (conn.webhookStatus === 'registered' && webhookEvents.some(event => !conn.webhookEvents.includes(event) && !conn.webhookMissing.includes(event))),
       webhookUrl: `${publicOrigin}${webhookPath(agencyId, scope)}`, webhookSecret: conn.webhookSecret
     };
+  }
+
+  async function createWebhook(apiKey, scope, endpoint, webhookSecret) {
+    const create = events => call(apiKey, '/webhooks/create', { method: 'POST', body: { name: `soci · ${scope === AGENCY_SCOPE ? 'agência' : 'subconta'}`, endpoint, secret: webhookSecret, events } });
+    try { await create(webhookEvents); return { webhookEvents, webhookMissing: [] }; }
+    catch (err) {
+      if (!/event/i.test(err.gateway || '')) throw err;
+      const accepted = webhookEvents.filter(event => !doubtfulEvents.includes(event));
+      await create(accepted);
+      return { webhookEvents: accepted, webhookMissing: doubtfulEvents };
+    }
+  }
+  // AbacatePay webhooks cannot be edited: the new one is created (same address and secret) and only then the old ones go.
+  async function refreshWebhook(agencyId, scope, publicOrigin) {
+    const row = await loadRow(agencyId), conn = connOf(row, scope), apiKey = keyOf(row, agencyId, scope);
+    const endpoint = `${publicOrigin}${webhookPath(agencyId, scope)}`;
+    if (!/^https:\/\//i.test(endpoint)) throw fail('O endereço do app não é HTTPS público; cadastre o webhook no painel do AbacatePay.');
+    const listed = await call(apiKey, '/webhooks/list', { query: { limit: 100 } });
+    const before = (Array.isArray(listed) ? listed : []).filter(item => item?.endpoint === endpoint && item.id);
+    const created = await createWebhook(apiKey, scope, endpoint, conn.webhookSecret);
+    for (const item of before) await call(apiKey, '/webhooks/delete', { method: 'POST', body: { id: item.id } }).catch(err => console.warn(`AbacatePay: aviso antigo não removido (${err.gateway || err.message}).`));
+    const updated = await changeRow(agencyId, current => { Object.assign(connOf(current, scope) || {}, created, { webhookStatus: 'registered', webhookError: '' }); });
+    return view(updated, agencyId, scope, publicOrigin);
   }
 
   async function connect(agencyId, scope, apiKeyRaw, publicOrigin) {
@@ -147,10 +176,10 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     const shop = await call(apiKey, '/stores/get');
     const webhookSecret = randomBytes(24).toString('hex');
     const endpoint = `${publicOrigin}${webhookPath(agencyId, scope)}`;
-    let webhookStatus = 'manual', webhookError = '';
+    let webhookStatus = 'manual', webhookError = '', created = {};
     if (/^https:\/\//i.test(endpoint)) {
       try {
-        await call(apiKey, '/webhooks/create', { method: 'POST', body: { name: `soci · ${scope === AGENCY_SCOPE ? 'agência' : 'subconta'}`, endpoint, secret: webhookSecret, events: webhookEvents } });
+        created = await createWebhook(apiKey, scope, endpoint, webhookSecret);
         webhookStatus = 'registered';
       } catch (err) { webhookStatus = 'failed'; webhookError = err.gateway || err.message; }
     } else webhookError = 'O endereço do app não é HTTPS público; cadastre o webhook no painel do AbacatePay quando publicar.';
@@ -158,7 +187,7 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
       const conn = {
         keySealed: seal(secret, aadOf(agencyId, scope), apiKey), last4: apiKey.slice(-4), storeName: clean(shop?.name || shop?.store?.name, 120),
         storeId: clean(shop?.id || shop?.store?.id, 80), devMode: Boolean(shop?.devMode) || /test|dev/i.test(apiKey.slice(0, 12)),
-        webhookSecret, webhookStatus, webhookError, connectedAt: stamp()
+        webhookSecret, webhookStatus, webhookError, ...created, connectedAt: stamp()
       };
       if (scope === AGENCY_SCOPE) current.agency = conn; else current.subaccounts[scope] = conn;
     });
@@ -390,7 +419,7 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
   return {
     status: async (agencyId, scope, publicOrigin) => view(await loadRow(agencyId), agencyId, scope, publicOrigin),
     connected: async (agencyId, scope) => Boolean(connOf(await loadRow(agencyId), scope)),
-    connect, disconnect, createCheckout, chargeInvoice, subscribe, subscribeWorkspace, cancelSubscription, handleWebhook,
+    connect, disconnect, refreshWebhook, createCheckout, chargeInvoice, subscribe, subscribeWorkspace, cancelSubscription, handleWebhook,
     AGENCY_SCOPE
   };
 }

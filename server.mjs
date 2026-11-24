@@ -2675,6 +2675,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           await recordAudit(who, 'AbacatePay conectado', view.storeName || 'Agência');
           return json(view);
         }
+        if (op === 'refresh-webhook') {
+          const view = await abacate.refreshWebhook(who.agencyId, scope, origin);
+          await recordAudit(who, 'Avisos do AbacatePay atualizados', view.storeName || 'Agência');
+          return json(view);
+        }
         if (op === 'disconnect') {
           const view = await abacate.disconnect(who.agencyId, scope, origin);
           await recordAudit(who, 'AbacatePay desconectado', 'Agência');
@@ -2711,7 +2716,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/abacatepay/workspace/')) {
         if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
         const op = p.slice('/api/abacatepay/workspace/'.length).replace(/\/+$/, ''), origin = publicBase(req);
-        const who = await workspaceAccess(req, res, id, { modules: op === 'connect' || op === 'disconnect' ? ['settings', 'payments'] : ['payments'] });
+        const who = await workspaceAccess(req, res, id, { modules: ['connect', 'disconnect', 'refresh-webhook'].includes(op) ? ['settings', 'payments'] : ['payments'] });
         if (op === 'status' && method === 'GET') {
           const view = await abacate.status(who.agencyId, id, origin);
           return json(hasModule(who, 'settings') ? view : { ...view, webhookSecret: undefined });
@@ -2720,6 +2725,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const body = await payload(req);
         if (op === 'connect') return json(await abacate.connect(who.agencyId, id, body.apiKey, origin));
         if (op === 'disconnect') return json(await abacate.disconnect(who.agencyId, id, origin));
+        if (op === 'refresh-webhook') return json(await abacate.refreshWebhook(who.agencyId, id, origin));
         if (op === 'charge') {
           const payment = await abacate.chargeInvoice(who.agencyId, id, String(body.invoiceId || ''), origin);
           return json({ payment, ...workspaceView(who, await store.load(id)) });
