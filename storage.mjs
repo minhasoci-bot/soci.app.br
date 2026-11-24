@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
+import { isDeepStrictEqual } from 'node:util';
 import { hydrateWorkspace, uid } from './model.mjs';
 import { auditOptions, auditPage, storedEntry } from './agency-audit.mjs';
 import { listedEvent, pageOf, pageOptions, storedEvent } from './tracking-events.mjs';
@@ -128,6 +129,12 @@ export function createSqliteStore(path) {
   };
 }
 
+// The same document, whatever the order of the keys (jsonb has its own).
+const sameJson = (a, b) => a === b || (a.length === b.length && isDeepStrictEqual(JSON.parse(a), JSON.parse(b)));
+/** How long a document already read can be used again without being sent again (its revision is asked every time). */
+export const KEEP_MS = 30 * 60_000;
+const KEEP_ONE = 4_000_000, KEEP_ALL = 32_000_000; // characters: the largest document kept, and all of them together
+
 export function createSupabaseStore({ projectUrl, publishableKey, storageKey, request = fetch, clock = Date.now }) {
   const base = new URL(projectUrl);
   if (base.protocol !== 'https:' || !/^[a-z0-9-]+\.supabase\.co$/.test(base.hostname) || base.username || base.password || base.port || base.pathname !== '/' || base.search || base.hash) {
@@ -230,10 +237,54 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
     }
   };
 
+  // Documents already read. Every write of the app changes the revision, so a later read asks for the row only if its
+  // revision is another one: an unchanged document costs an empty answer instead of the whole state. The copy is never
+  // used without asking. KEEP_MS is for what does not go through the app (a state edited by hand keeps its revision).
+  const kept = new Map();
+  let keptSize = 0;
+  function forget(id) {
+    const old = kept.get(id);
+    if (!old) return;
+    kept.delete(id);
+    keptSize -= old.text.length;
+  }
+  function keep(id, { revision, state }) {
+    forget(id);
+    const text = JSON.stringify(state);
+    if (!revision || text.length > KEEP_ONE) return text;
+    kept.set(id, { revision, text, at: clock() });
+    keptSize += text.length;
+    for (const oldest of kept.keys()) {
+      if (keptSize <= KEEP_ALL) break;
+      forget(oldest);
+    }
+    return text;
+  }
+  const usable = id => { const had = kept.get(id); return had && clock() - had.at < KEEP_MS ? had : null; };
+  const hydrated = (id, state) => isDocument(id) ? state : hydrateWorkspace(state);
   async function read(id) {
-    const [row] = await table({ select: 'state,revision', id: `eq.${id}` });
-    if (!row) throw workspaceMissing();
-    return { ...row, state: isDocument(id) ? row.state : hydrateWorkspace(row.state) };
+    const had = usable(id);
+    const [row] = await table({ select: 'state,revision', id: `eq.${id}`, ...(had && { revision: `neq.${had.revision}` }) });
+    if (row) {
+      const text = keep(id, row);
+      return { revision: row.revision, text, state: hydrated(id, row.state) };
+    }
+    if (!had) { forget(id); throw workspaceMissing(); }
+    if (kept.get(id) === had) { kept.delete(id); kept.set(id, had); } // the most recently used stay
+    return { revision: had.revision, text: had.text, state: hydrated(id, JSON.parse(had.text)) };
+  }
+  /** Of these documents, the ones already read whose revision is still the same, in one request: Map of id → state. */
+  async function unchanged(ids) {
+    const known = ids.filter(usable), found = new Map();
+    for (let start = 0; start < known.length; start += 100) {
+      const before = new Map(known.slice(start, start + 100).map(id => [id, kept.get(id)]).filter(([, had]) => had));
+      if (!before.size) continue;
+      for (const { id, revision } of await table({ select: 'id,revision', id: `in.(${[...before.keys()].map(quoted).join(',')})` })) {
+        const had = before.get(id);
+        if (had && had.revision === revision) found.set(id, hydrated(id, JSON.parse(had.text)));
+      }
+    }
+    return found;
   }
 
   const agencyFilter = agencyId => agencyId === null ? 'is.null' : `eq.${agencyId}`;
@@ -242,6 +293,7 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
     tracking,
     audit,
     load: async id => (await read(id)).state,
+    unchanged,
     list: agencyId => table({ select: 'id,name', order: 'created_at.asc,id.asc',
       ...(agencyId !== undefined && { 'state->>agencyId': agencyFilter(agencyId) }) }),
     async belongsToAgency(id, agencyId) {
@@ -263,13 +315,17 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
     },
     async change(id, mutate) {
       for (let attempt = 0; attempt < 6; attempt++) {
-        const { state, revision } = await read(id);
+        const { state, revision, text } = await read(id);
         const result = mutate(state);
+        // Nothing to save (the cron asks every minute): writing it again would only make everyone read it again.
+        if (sameJson(JSON.stringify(state), text)) return result;
         const saved = await table({ select: 'id', id: `eq.${id}`, revision: `eq.${revision}` }, {
           method: 'PATCH',
           headers: { Prefer: 'return=representation' },
           body: { state, revision: uid() }
         });
+        // Saved (the next read brings it as the database keeps it) or changed by someone else: the copy is not good.
+        forget(id);
         if (saved.length === 1) return result;
       }
       throw Object.assign(new Error('The workspace changed concurrently. Please retry.'), { status: 409 });
