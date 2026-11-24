@@ -105,6 +105,20 @@ mensagens de WhatsApp** (grupos e privado) pela conexão Evolution da subconta.
 | Controle de revisão: salvar sobre versão antiga é recusado | Não tem | `revision` no evento; comando de salvar envia a revisão lida; divergiu → erro “O evento foi atualizado em outra sessão…” |
 | Métricas: tarefas concluídas, mensagens enviadas, duração do roteiro, links validados | Tem (no cabeçalho azul) | Linha de métricas no padrão `.metric` |
 
+## Modelo de lançamento: atualização de 2026-11-24
+
+O usuário enviou a planilha de planejamento que deu origem ao modelo e escolheu usá-la no modelo padrão **adaptada**: códigos,
+ordem, horários e estilo da planilha, com texto próprio e sem nomes, preços, links ou trechos da campanha de origem
+(o repositório é público e o modelo aparece para todos os clientes).
+
+- Códigos: `MCWF001–010` (captação), `MDWF001–009` (aquecimento e evento), `MVWF001–008` (vendas), `MCWF1X1-001–003` e
+  `MVWF1X1-001–004` (privado). Substituem `GRUPO-NN`/`PRIVADO-NN`.
+- Mensagens de grupo ganham `audience`: `base` (grupos antigos e ativos) ou `evento` (grupo do evento). A Fase 2 usa esse campo
+  para saber a quais grupos enviar.
+- `MVWF008` (Últimas horas) fica um dia depois de `MVWF007` (Falta um dia): na planilha as duas tinham a mesma data e hora, o que
+  contradiz o texto.
+- As copies não citam dia da semana, porque as datas são relativas ao dia do evento.
+
 ## Envio pelo WhatsApp (Fase 2)
 
 ### Destinos por mensagem

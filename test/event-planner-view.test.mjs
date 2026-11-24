@@ -74,10 +74,10 @@ test('Removed owners stay readable in the lists', () => {
 
 test('Messages are grouped by day, show code and rendered copy and filter by channel', () => {
   const c = launched();
-  c.s.eventPlans[0].plan.items.find(row => row.code === 'GRUPO-01').notes = 'Oi *gente* <b>';
+  c.s.eventPlans[0].plan.items.find(row => row.code === 'MCWF001').notes = 'Oi *gente* <b>';
   const html = view(c, 'messages');
   assert.match(html, /data-ep-filter="channel"/);
-  assert.match(html, /class="ep-code">GRUPO-01</);
+  assert.match(html, /class="ep-code">MCWF001</);
   assert.match(html, /Oi <strong>gente<\/strong> &lt;b&gt;/);
   assert.match(html, /class="ep-day">1 de dez\. de 2026</);
   assert.match(html, /data-ep-copy=/);
@@ -86,12 +86,12 @@ test('Messages are grouped by day, show code and rendered copy and filter by cha
 });
 
 test('Message dialog mounts the copy editor and offers the original structure only for template codes', () => {
-  const c = launched(), event = c.s.eventPlans[0], message = event.plan.items.find(row => row.code === 'PRIVADO-01');
+  const c = launched(), event = c.s.eventPlans[0], message = event.plan.items.find(row => row.code === 'MCWF1X1-001');
   const html = itemDialogBody(c, event, 'message', message);
   assert.match(html, /data-ec/);
-  assert.match(html, /name="code"[^>]*value="PRIVADO-01"/);
+  assert.match(html, /name="code"[^>]*value="MCWF1X1-001"/);
   assert.match(html, /<option value="\{\{contact\.first_name\}\}">/);
-  assert.match(html, /data-ep-apply-template="PRIVADO-01"/);
+  assert.match(html, /data-ep-apply-template="MCWF1X1-001"/);
   assert.doesNotMatch(itemDialogBody(c, event, 'message', { ...message, code: 'MEU-01' }), /data-ep-apply-template/);
   assert.doesNotMatch(itemDialogBody(c, event, 'message'), /data-ep-apply-template/);
 });
@@ -127,4 +127,17 @@ test('Old events without the new fields still open in every section', () => {
   delete event.orchestration;
   for (const item of event.plan.items) { delete item.ownerId; delete item.code; }
   for (const key of sections) assert.match(view(c, key), /g-utabs is-nested/);
+});
+
+test('Group messages show and edit which groups receive them', () => {
+  const c = launched(), event = c.s.eventPlans[0], message = code => event.plan.items.find(row => row.code === code);
+  const html = view(c, 'messages');
+  assert.match(html, /Grupos antigos e ativos/);
+  assert.match(html, /Grupo do evento ·/);
+  const dialog = itemDialogBody(c, event, 'message', message('MDWF001'));
+  assert.match(dialog, /<div data-ep-audience><label>Grupos de destino<select name="audience">[\s\S]*<option value="evento" selected>/);
+  assert.match(itemDialogBody(c, event, 'message', message('MCWF1X1-001')), /<div data-ep-audience hidden>/);
+  const values = { title: 'x', channel: 'privado', audience: 'base', notes: '' };
+  assert.equal(itemFromValues('message', values, null, users).audience, '');
+  assert.equal(itemFromValues('message', { ...values, channel: 'grupos' }, null, users).audience, 'base');
 });

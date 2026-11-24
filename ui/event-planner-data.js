@@ -18,6 +18,8 @@ export const itemStatus = {
 };
 export const channels = [['grupos', 'WhatsApp · grupos'], ['privado', 'WhatsApp · privado'], ['instagram', 'Instagram'], ['email', 'E-mail'], ['outro', 'Outro']];
 
+export const audiences = [['', 'Não definido'], ['base', 'Grupos antigos e ativos'], ['evento', 'Grupo do evento']];
+
 // Estratégia em três blocos, cada um editado separadamente (como no planejador do Parceiras Conselho).
 export const briefGroups = [
   ['direction', 'Objetivo e público', [
@@ -53,136 +55,223 @@ export function blankEventPlan() {
 }
 
 const lines = (...parts) => parts.join('\n\n');
+// Grupos que recebem a mensagem: a captação vai para quem já é da base; o resto, para o grupo do evento.
 const groupMessages = [
-  ['Convite inicial', 'captura', -9, '18:00', lines(
+  ['MCWF001', 'base', 'Convite inicial', 'captura', -9, '18:00', lines(
     '## Mensagem 1 · Provocação',
-    'O que muda no seu dia a dia quando [mudança do mercado] vira rotina? Quem só entrega [o que o mercado já compara por preço] passa a ser comparado por preço e velocidade. Quem assume o diagnóstico e orienta a decisão ganha outro motivo para ser escolhido.',
+    'Vou falar uma verdade que pouca gente de [seu mercado] está pronta para ouvir 👀',
+    '*[A mudança que está chegando] já começou.*',
+    'Percebi isso em [onde você observou: clientes, alunos, projetos], e daqui para a frente vejo só dois caminhos:',
+    '- 😓 Continuar em [jeito antigo] e brigar por preço\n- 🚀 Dominar [jeito novo] e virar a primeira escolha',
     '## Mensagem 2 · Convite',
-    'No dia [data do evento], às [hora do evento], vou mostrar ao vivo em [evento] como se posicionar para [resultado]. Reserve o horário para acompanhar.',
-    '## Mensagem 3 · Benefícios do grupo VIP',
-    'Entrando no grupo, você recebe:',
-    '- Acesso à aula ao vivo\n- [material VIP 1]\n- [material VIP 2]\n- [material complementar]\n- Informações sobre [condição da campanha]',
-    'O acesso à sala será enviado pelo grupo: [link do grupo VIP].')],
-  ['Do básico à estratégia', 'captura', -8, '12:00', lines(
-    '## Mensagem 1 · Pergunta e diagnóstico',
-    'Quando o seu público só enxerga [o que você entrega hoje], o que impede que ele troque você por uma alternativa mais barata? Quem consegue diagnosticar o problema, escolher um caminho e mostrar o resultado passa a disputar outro tipo de oportunidade.',
+    'Vou abrir tudo isso em uma aula ao vivo:',
+    '✨ *[evento]* ✨',
+    '🗓️ *[data do evento], às [hora do evento]*\n🎟️ [gratuito ou valor] · [regra de gravação]',
+    '## Mensagem 3 · O que o grupo recebe',
+    'No grupo você encontra:',
+    '- 🎯 O acesso à aula\n- 📒 [material 1]\n- 🗺️ [material 2]\n- 📎 [material complementar]\n- 🎁 [condição exclusiva do grupo]',
+    'O link da sala chega por lá. Entre agora 👇\n[link do grupo]',
+    'Já separe o horário. Espero você! ✨')],
+  ['MCWF002', 'base', 'Quem só executa', 'captura', -8, '12:00', lines(
+    '## Mensagem 1 · Pergunta incômoda',
+    'Responde com calma: se amanhã [nova alternativa do mercado] fizer o que você faz hoje, por que alguém ainda escolheria você? 🤔',
+    'Fazer bem feito deixou de ser diferencial. O que pesa agora é [competência que o mercado valoriza].',
+    'Boa notícia: isso se aprende 💡',
     '## Mensagem 2 · Convite',
-    'Em [evento], vou mostrar como fazer essa passagem na prática. Reserve [data do evento], às [hora do evento]. No grupo VIP você recebe [materiais VIP] e o acesso à aula: [link do grupo VIP].')],
-  ['Quando o pedido é só o básico', 'captura', -7, '12:00', lines(
-    '[Situação comum do seu público]. O que você faria primeiro?',
-    '- A) [Resposta automática, que resolve só o pedido].\n- B) [Resposta estratégica, que pergunta o objetivo e propõe o caminho].',
-    'Daqui a uma semana vou mostrar como transformar essa segunda resposta em [resultado que o público valoriza].',
-    'Quer participar? Entre no grupo: [link do grupo VIP].')],
-  ['Volume ou valor', 'captura', -6, '12:00', lines(
-    'Compare dois jeitos de fechar o mês:',
-    '- Atender muita gente e passar a semana resolvendo pedidos pequenos.\n- Conduzir poucos projetos, com escopo e impacto claros.',
-    'Os dois podem chegar ao mesmo faturamento. O que muda é aquilo pelo qual as pessoas pagam.',
-    'No dia [data do evento], vou mostrar como identificar o que sustenta o preço que você quer cobrar. Entre no grupo: [link do grupo VIP].')],
-  ['Bastidores dos materiais', 'captura', -5, '12:00', lines(
-    'Estou preparando [material VIP] e encontrei [oportunidade ou exemplo] que vale mostrar. É um jeito de enxergar [problema ou mercado] que pode mudar suas próximas escolhas.',
-    'Vou explicar o exemplo em [evento]. O material e o acesso à aula serão enviados pelo grupo: [link do grupo VIP].')],
-  ['Quando estudar mais já não resolve', 'captura', -3, '12:00', lines(
-    '## Mensagem 1 · O que está travando',
-    'Quantas aulas você já salvou sobre [tema]? Agora olha para a sua rotina. O que continua igual apesar de tudo o que já estudou? Talvez falte escolher qual decisão tomar primeiro.',
-    '## Mensagem 2 · O encontro',
-    'Em [evento] vou propor um ponto de partida e mostrar como usar [material VIP]. Reserve [data do evento], às [hora do evento]. Entre no grupo para receber os materiais e o acesso: [link do grupo VIP].')],
-  ['Quando o escopo vira uma lista sem fim', 'captura', -2, '12:00', lines(
-    'Começou com [escopo inicial]. O que entrou depois?',
-    '- [Demanda extra 1]\n- [Demanda extra 2]\n- [Demanda extra 3]',
-    'O escopo cresceu e o valor continuou igual. Daqui a dois dias, vou mostrar como revisar esse acordo e conversar sobre limites.',
-    'Entre no grupo para receber o acesso: [link do grupo VIP].')],
-  ['Amanhã é o evento', 'captura', -1, '12:00', lines(
-    '## É amanhã',
-    'Às [hora do evento], vamos trabalhar [tema] ao vivo. Confirme se você já está no grupo e reserve o horário.',
-    '- O acesso à sala chega pelo grupo.\n- Os participantes recebem [materiais VIP].\n- Confira [regra sobre gravação ou replay].',
-    'Se ainda não entrou: [link do grupo VIP].')],
-  ['Inscrições no dia do evento', 'captura', 0, '12:00', lines(
-    '## Mensagem 1 · É hoje',
-    'Hoje, às [hora do evento], vou abrir [caso real] e mostrar como aplicar [aprendizado]. No fim, vou apresentar [novidade da campanha].',
-    '## Mensagem 2 · Acesso e materiais',
-    'Separei [materiais VIP] para quem acompanhar. O link da sala chega pelo grupo. Se você ainda não entrou, vem por aqui: [link do grupo VIP].')],
-  ['Última chamada para inscrições', 'captura', 0, '18:00', lines(
-    '## Última chamada',
-    'A aula começa às [hora do evento]. Vou mostrar como [resultado]. Se você quer acompanhar ao vivo, entre agora no grupo para receber o acesso: [link do grupo VIP].')],
-  ['Boas-vindas e enquete do grupo VIP', 'aquecimento', -3, '12:00', lines(
-    'Que bom ter você no grupo de [evento]! Reserve [data do evento], às [hora do evento]. Quero conhecer quem vai estar na aula.',
-    '## Enquete · Em que momento você está?',
-    '- Começando agora\n- Já pratico por conta própria\n- Coordeno uma equipe\n- Estou vindo de outra área')],
-  ['Faltam dois dias', 'aquecimento', -2, '12:00', 'Daqui a dois dias a gente se encontra! Estou terminando [material VIP] e separei [exemplo] para mostrar na aula. Bloqueie o horário de [hora do evento] e traga uma pergunta sobre [tema].'],
-  ['Lembrete da véspera', 'aquecimento', -1, '12:00', lines(
-    'Amanhã, às [hora do evento], a gente vai trabalhar [promessa do evento].',
-    '- Separe um caderno.\n- Coloque um lembrete antes do início.\n- Ative as notificações do grupo para receber o acesso.',
-    'Sobre a gravação: [regra de replay].')],
-  ['Áudio e mensagem no dia do evento', 'evento', 0, '12:00', lines(
-    '## Roteiro do áudio',
-    'Oi, pessoal! Estou fechando os detalhes da aula de hoje. Separei um exemplo de [mudança que você testou] e vou mostrar como usar isso para [resultado]. Venham com uma pergunta e espaço para anotar. A gente se encontra às [hora do evento].',
+    'É o assunto de *[evento]*, ao vivo.',
+    '🗓️ [data do evento], às [hora do evento]',
+    'Entrando no grupo você leva [material 1], [material 2] e [condição exclusiva do grupo] 👇\n[link do grupo]')],
+  ['MCWF003', 'base', 'Lado A ou lado B', 'captura', -7, '12:00', lines(
+    'Teste de dez segundos ⏱️',
+    '_[Situação comum do seu público]._ O que você faz?',
+    '*A)* [Reação automática] 😅\n*B)* [Reação estratégica] 🎯',
+    'Foi de A? Sem culpa, é o mais comum. Só que o B costuma ser melhor pago, e dá para chegar lá.',
+    'Falta uma semana para eu mostrar o caminho ao vivo.',
+    '🗓️ [data do evento], às [hora do evento] · [regra de gravação]',
+    '👇 Vem para o grupo\n[link do grupo]')],
+  ['MCWF004', 'base', 'Volume ou valor', 'captura', -6, '12:00', lines(
+    'Para pensar no fim do dia 🌙',
+    'Pessoa 1: [muitos clientes ou vendas, valor baixo, cansaço]\nPessoa 2: [poucos clientes ou vendas, valor alto, agenda livre]',
+    'As duas trabalham bem. O que muda é *[fator que explica a diferença]*.',
+    'Em *[evento]* eu explico como passar do primeiro cenário para o outro.',
+    '🗓️ [data do evento], às [hora do evento]',
+    '[link do grupo]')],
+  ['MCWF005', 'base', 'Bastidores dos materiais', 'captura', -5, '12:00', lines(
+    'Olha o que está aberto na minha tela agora: [material 2], quase pronto ☕',
+    'Encontrei [descoberta curiosa] enquanto montava e fiquei com vontade de contar antes da hora 🤐',
+    'Quem está no grupo recebe esse material e também [material 1]. A explicação é na aula, [data do evento], às [hora do evento].',
+    '👉 [link do grupo]')],
+  ['MCWF006', 'base', 'O que está faltando', 'captura', -3, '12:00', lines(
+    '## Mensagem 1 · Diagnóstico',
+    'Faz as contas comigo: quantas aulas, livros e vídeos sobre [tema] passaram por você nos últimos meses? 📚',
+    'Agora olha para [resultado que o público quer]. Mudou na mesma proporção?',
+    'Se não mudou, o problema raramente é estudar pouco. Costuma ser *não saber qual passo vem primeiro*.',
+    '## Mensagem 2 · Convite',
+    'Esse passo é o tema de *[evento]*.',
+    '🗓️ [data do evento], às [hora do evento] · [gratuito ou valor]',
+    'No grupo: [material 1], [material 2] e [condição exclusiva do grupo] 👇\n[link do grupo]',
+    'Marca na agenda antes de sair desta conversa 😉')],
+  ['MCWF007', 'base', 'A lista que não para de crescer', 'captura', -2, '12:00', lines(
+    'Começou com [combinado inicial]. Aí veio:',
+    '+ [pedido extra 1]\n+ [pedido extra 2]\n+ [pedido extra 3]\n+ _“rapidinho, só mais isso?”_',
+    'E o valor? O mesmo do começo 🙃',
+    'Se essa conta é conhecida, a aula é para você. *Faltam 2 dias!*',
+    '[data do evento], às [hora do evento] 👇\n[link do grupo]')],
+  ['MCWF008', 'base', 'É amanhã', 'captura', -1, '12:00', lines(
+    '⏳ *Amanhã tem aula!*',
+    'Às [hora do evento] vamos falar sobre [promessa do evento].',
+    'Para não ter surpresa, anota as regras:',
+    '▪️ [regra de gravação]\n▪️ O acesso sai só pelo grupo\n▪️ [prazo para entrar no grupo]',
+    'Quem participa recebe [material 1], [material 2] e [condição exclusiva do grupo].',
+    'Ainda dá tempo 👇\n[link do grupo]')],
+  ['MCWF009', 'base', 'É hoje', 'captura', 0, '12:00', lines(
+    '## Mensagem 1 · Chegou o dia',
+    '*Chegou o dia!* 🎉',
+    'Hoje, às [hora do evento], vou contar [o que você testou], o que já funciona e o que separa [situação atual] de [resultado].',
+    'E guardei [novidade da campanha] para o final 🤫',
+    '## Mensagem 2 · O que você leva',
+    '✨ *[evento]* ✨\nHoje, às [hora do evento]',
+    'Ao vivo, você recebe:',
+    '- 📒 [material 1]\n- 🗺️ [material 2]\n- 📎 [material complementar]\n- 🎁 [condição exclusiva do grupo]',
+    'Falta só entrar no grupo 👇\n[link do grupo]')],
+  ['MCWF010', 'base', 'Última chamada', 'captura', 0, '18:00', lines(
+    '🔔 *Última chamada: a aula começa em 2 horas*',
+    'Se [problema do público] ainda pesa na sua rotina, é hoje que a gente conversa sobre isso.',
+    'A sala abre às [hora do evento], com link enviado no grupo 👇\n[link do grupo]')],
+  ['MDWF001', 'evento', 'Boas-vindas e enquete', 'aquecimento', -3, '12:00', lines(
+    'Boas-vindas ao grupo de *[evento]*! 🎉',
+    'Quero preparar a aula pensando em quem está aqui. Me ajuda respondendo:',
+    '## Enquete · Qual frase combina mais com você?',
+    '- 🌱 Estou dando os primeiros passos\n- 🙋 Faço tudo por minha conta\n- 🤝 Já tenho clientes ou vendas constantes\n- 👥 Lidero uma equipe\n- 🔄 Venho de outra área')],
+  ['MDWF002', 'evento', 'Faltam dois dias', 'aquecimento', -2, '12:00', lines(
+    'Contagem regressiva: *2 dias* ⏳',
+    'Por aqui, [material 1] e [material 2] já estão na reta final.',
+    'Um adiantamento: em [material 2] tem [dado ou exemplo surpreendente]. O resto eu conto na aula 😉',
+    '[data do evento], às [hora do evento]. Reserva esse horário só para você.')],
+  ['MDWF003', 'evento', 'Nosso encontro é amanhã', 'aquecimento', -1, '12:00', lines(
+    '*Amanhã a gente se vê!* 🙌',
+    'O tema é [promessa do evento], a partir das [hora do evento].',
+    'Deixa pronto:',
+    '- ✍️ Papel e caneta\n- ⏰ Um lembrete 10 minutos antes\n- 🔕 Um espaço sem interrupções',
+    'Sobre a gravação: [regra de gravação].')],
+  ['MDWF004', 'evento', 'Áudio e mensagem do dia', 'evento', 0, '12:00', lines(
+    '## Roteiro do áudio · curto, em tom de conversa',
+    'Oi, gente! Passei para lembrar que a nossa aula é hoje. Revisei o material agora cedo e escolhi [exemplo real] para mostrar como cheguei em [resultado]. Separa uma dúvida sobre [tema], porque vou reservar um tempo para responder. Às [hora do evento] eu abro a sala por aqui. Até já!',
     '## Mensagem depois do áudio',
-    'Hoje tem aula! Aqui está o que deixar pronto:',
-    '- Bloqueie o horário de [hora do evento].\n- Separe o material para anotar.\n- Acompanhe o grupo para receber o acesso.')],
-  ['Faltam algumas horas', 'evento', 0, '16:00', lines(
-    'Faltam algumas horas. Já deixou tudo pronto para a aula?',
-    '- Horário reservado\n- Material para anotar à mão\n- Notificações do grupo ligadas',
-    'Às [hora do evento], mando por aqui o acesso para você acompanhar [atividade da aula].')],
-  ['Bastidores e aviso de 30 minutos', 'evento', 0, '19:30', lines(
+    '*Hoje tem aula!* 🎉',
+    '- 🕗 [hora do evento], com link aqui no grupo\n- ✍️ Algo para anotar\n- ☕ Uma bebida do lado\n- 📵 Avisos silenciados')],
+  ['MDWF005', 'evento', 'Faltam algumas horas', 'evento', 0, '16:00', lines(
+    'Falta pouco! ⏰ Confere se está tudo certo:',
+    '- ✅ Horário livre\n- ✅ Material de anotação por perto\n- ✅ Grupo com notificação ativada\n- ✅ Uma pergunta na ponta da língua',
+    'Às [hora do evento] mando o link. Até logo!')],
+  ['MDWF006', 'evento', 'Bastidores: 30 minutos', 'evento', 0, '19:30', lines(
     '## Orientação para o vídeo',
-    'Mostre o ambiente, a preparação da equipe e [material VIP].',
+    'Grave o cenário, os equipamentos e a equipe nos últimos ajustes. Até 20 segundos.',
     '## Texto para acompanhar o vídeo',
-    'A equipe já está pronta. Em 30 minutos começamos [evento]. Separei [o que será apresentado] para mostrar na aula. Te vejo na sala!')],
-  ['Sala aberta', 'evento', 0, '19:55', 'Pode entrar, a sala está aberta: [link da transmissão]. Chegue agora para acompanhar a primeira parte e mande um oi no chat.'],
-  ['Transmissão ao vivo', 'evento', 0, '20:05', 'A aula já começou. Estamos falando de [tópico em andamento] e ainda dá para pegar o exemplo completo. Entre aqui: [link da transmissão].'],
-  ['Convite para entrar durante a live', 'evento', 0, '20:20', 'Ainda estamos ao vivo e a próxima parte mostra [demonstração ou próximo bloco]. Se você se atrasou, entre agora para acompanhar: [link da transmissão].'],
-  ['Oferta e abertura das vendas', 'vendas', 0, '21:00', lines(
-    '## Mensagem 1 · Abertura, público e objetivo',
-    'As inscrições para [oferta] estão abertas. É para quem [perfil] e quer chegar a [resultado aprovado].',
-    '## Mensagem 2 · Entregáveis',
-    '- [entregável 1 e resultado]\n- [entregável 2 e resultado]\n- [entregável 3 e resultado]',
-    '## Mensagem 3 · Bônus, garantia e chamada',
+    'Espia como está por aqui 🎬',
+    'Luz ligada, [material 1] na mesa e [novidade da campanha] guardada para o fim.',
+    '*Abrimos a sala em meia hora!*')],
+  ['MDWF007', 'evento', 'Sala aberta', 'evento', 0, '19:55', lines(
+    '*A sala está aberta!* 🚪',
+    'Entra por este link 👇\n[link da transmissão]',
+    'Chegando agora, você acompanha a abertura e se ajeita com calma.')],
+  ['MDWF008', 'evento', 'Já começamos', 'evento', 0, '20:05', lines(
+    'Estamos ao vivo 🔴',
+    'O assunto neste momento é [tópico em andamento], e tem gente anotando sem parar ✍️',
+    'Dá para alcançar a gente 👇\n[link da transmissão]')],
+  ['MDWF009', 'evento', 'Ainda dá tempo', 'evento', 0, '20:20', lines(
+    'Sentimos a sua falta na sala 👋',
+    'O próximo bloco é [parte mais esperada]. Lembrando: [regra de gravação].',
+    'Corre que ainda pega 👇\n[link da transmissão]')],
+  ['MVWF001', 'evento', 'Inscrições abertas: resumo da oferta', 'vendas', 0, '21:00', lines(
+    '## Mensagem 1 · Para quem é',
+    '✨ *Inscrições abertas para [oferta]* ✨',
+    '👤 *Feito para:* [perfil e momento do público]',
+    '🎯 *Objetivo:*\n- [resultado aprovado no curto prazo]\n- [resultado aprovado no longo prazo]',
+    '## Mensagem 2 · O que está incluído',
+    '📦 *Você recebe:*',
+    '- [entregável 1 e para que serve]\n- [entregável 2 e para que serve]\n- [entregável 3 e para que serve]\n- [acompanhamento ou comunidade]',
+    '## Mensagem 3 · Bônus, garantia e vagas',
+    '🎁 *Bônus:*',
     '- [bônus 1 e condição]\n- [bônus 2 e condição]',
-    'A garantia funciona assim: [condições da garantia]. Temos [vagas disponíveis]. Para conversar sobre a sua entrada, me chama no privado.')],
-  ['Bônus e garantia', 'vendas', 0, '22:30', lines(
-    'Dois pontos da oferta que valem revisar antes de decidir:',
-    '- Garantia: [garantia e critérios].\n- Condição de entrada e benefício à vista: [o que pode ser mencionado no grupo].',
-    'Quer entender as condições para o seu caso? Me chama no privado.')],
-  ['Enquete sobre matrícula', 'vendas', 1, '12:00', lines(
-    '## Enquete · Em que ponto você está com [oferta]?',
-    '- Já confirmei minha vaga\n- Ainda estou decidindo\n- Quero entender a condição de entrada\n- Tenho uma dúvida sobre o programa',
-    'Se precisar de ajuda, me manda uma mensagem no privado.')],
-  ['Opções de pagamento', 'vendas', 1, '15:00', 'Se o cartão está travando sua decisão, vale conversar sobre [alternativa de pagamento aprovada]. Posso explicar como funciona a entrada, quando vence o saldo e quais são os critérios. Me chama no privado.'],
-  ['Replay e próximo passo', 'pos', 1, '18:00', lines(
-    'Se o replay for autorizado, confirme o prazo antes de enviar.',
-    'A gravação de [evento] fica disponível até [prazo do replay]. Assista aqui: [link do replay].',
-    'Se quiser conversar sobre [oferta] depois de assistir, me chama no privado.')],
-  ['Vagas restantes e prioridade à vista', 'vendas', 2, '12:00', 'Agora restam [vagas disponíveis] para [oferta]. Para quem escolher o pagamento à vista, [prioridade ou benefício aprovado]. Se quiser saber como entrar e quando começa, me chama no privado.'],
-  ['Lembrete de condição de pagamento', 'vendas', 4, '12:00', 'O prazo para entrar em [oferta] é [data e hora do encerramento]. Se sua dúvida é como pagar, ainda dá para conversar sobre [alternativa aprovada]. Me chama no privado que eu te explico.'],
-  ['Últimas horas para entrar', 'vendas', 4, '18:00', 'As inscrições de [oferta] fecham às [hora do encerramento]. Se você quer chegar a [resultado aprovado] e ainda precisa esclarecer algo para decidir, me chama no privado até esse horário.']
+    '🛡️ *Garantia:* [regras e prazo da garantia]',
+    '🪑 Vagas: [quantidade real]. Fala comigo no privado para entrar.')],
+  ['MVWF002', 'evento', 'Inscrições abertas: bônus e garantia', 'vendas', 0, '22:30', lines(
+    'Antes de dormir, dois detalhes que fazem diferença 🌙',
+    '🛡️ *Segurança:* [regras da garantia, em uma frase].',
+    '🔑 *Entrada facilitada:* existe [alternativa de pagamento aprovada]. Os detalhes eu passo em conversa.',
+    '⚡ Escolhendo à vista, você também recebe [benefício do pagamento à vista].',
+    'Me manda um oi no privado e vemos o seu caso.')],
+  ['MVWF003', 'evento', 'Enquete: conseguiu se inscrever?', 'vendas', 1, '12:00', lines(
+    'Quero entender como posso ajudar 👇',
+    '## Enquete · Como está a sua inscrição em [oferta]?',
+    '- 🎉 Inscrição feita\n- 🤔 Avaliando\n- 💳 Preciso entender o pagamento\n- 💬 Ficou uma dúvida',
+    'Nas duas últimas opções, me escreve no privado.')],
+  ['MVWF004', 'evento', 'Boleto e garantia', 'vendas', 1, '15:00', lines(
+    '_“Quero entrar, mas o cartão não ajuda.”_ Recebi essa mensagem algumas vezes hoje 💬',
+    'Por isso existe [alternativa de pagamento aprovada]: você começa com [entrada] e acerta o restante em [prazo e condição do saldo].',
+    'A garantia continua valendo: [regras da garantia].',
+    'Chama no privado para eu simular com você.')],
+  ['MVWF005', 'evento', 'Replay liberado', 'vendas', 1, '18:00', lines(
+    '## Antes de enviar',
+    'Só envie se o replay for mesmo liberado e se isso não contrariar o que foi anunciado.',
+    '## Mensagem',
+    'Muita gente avisou que não conseguiu acompanhar, então *liberamos a gravação* 🎥',
+    'Ela fica no ar até [prazo do replay]: [link do replay]',
+    'Depois de assistir, me conta o que fez mais sentido. As inscrições para [oferta] seguem abertas.')],
+  ['MVWF006', 'evento', 'Vagas restantes', 'vendas', 2, '12:00', lines(
+    'Atualização das vagas de *[oferta]* 📊',
+    'Temos [vagas disponíveis] no momento.',
+    'No pagamento à vista, [benefício do pagamento à vista].',
+    'Para garantir a sua ou tirar dúvida, é só me chamar no privado.')],
+  ['MVWF007', 'evento', 'Falta um dia', 'vendas', 4, '12:00', lines(
+    '⏰ *Amanhã encerramos as inscrições de [oferta]*',
+    'Se a única barreira é a forma de pagamento, [alternativa de pagamento aprovada] pode resolver: [resumo da condição].',
+    'Fala comigo ainda hoje para dar tempo de organizar.')],
+  ['MVWF008', 'evento', 'Últimas horas', 'vendas', 5, '12:00', lines(
+    '🔔 *Último dia para entrar em [oferta]*',
+    'Pensa em como você quer estar em [prazo do resultado]: [cenário desejado] ou no mesmo ponto de hoje?',
+    'As inscrições terminam às [hora do encerramento]. Se for para você, me chama no privado.')]
 ];
 const privateMessages = [
-  ['Reativar contato', 'captura', -7, '', lines(
-    'Oi, {{contact.first_name}}! Você tinha me contado que queria [interesse anterior]. Lembrei disso ao preparar [evento]. Vou mostrar [aprendizado] ao vivo no dia [data do evento], às [hora do evento].',
-    'No grupo você recebe:',
-    '- Acesso à aula\n- [material VIP 1]\n- [material VIP 2]\n- Informações sobre [condição da campanha]',
-    'Aqui está o grupo: [link do grupo VIP]. Você consegue participar?')],
-  ['Apresentar os materiais VIP', 'captura', -3, '', lines(
-    'Oi, {{contact.first_name}}! Separei alguns materiais para usar na aula de [evento]:',
-    '- [material 1] para [objetivo]\n- [material 2] para explorar [oportunidade]\n- [material complementar]\n- [benefício reservado para o grupo]',
-    'Se quiser receber os materiais e o acesso à aula, entre aqui: [link do grupo VIP].')],
-  ['Última chamada no privado', 'captura', 0, '', 'Oi, {{contact.first_name}}, nosso encontro é hoje às [hora do evento]. Vou enviar o acesso à sala pelo grupo. Se você ainda estiver de fora, pode entrar aqui: [link do grupo VIP]. Te vejo na aula?'],
-  ['Abertura e condições de pagamento', 'vendas', 0, '22:00', 'Oi, {{contact.first_name}}! Você chegou a ver a aula? Abri as vagas para [oferta] e lembrei do que você falou sobre [objetivo]. Temos [condição aprovada] para quem precisa de outra forma de pagamento. Quer que eu te explique como funciona?'],
-  ['Enviar replay', 'pos', 1, '15:00', lines(
-    'Use se o replay estiver disponível.',
-    'Oi, {{contact.first_name}}! A gravação de ontem fica disponível até [prazo]: [link do replay]. Tem uma parte sobre [tema do interesse da pessoa] em [minutagem]. Se assistir, me conta o que quer testar primeiro.')],
-  ['Ajudar com pagamento pendente', 'vendas', 4, '12:00', 'Oi, {{contact.first_name}}! Como ficaram suas dúvidas sobre [oferta]? As vagas estão perto de fechar e ainda posso te orientar sobre [forma de pagamento aprovada]. Me responde por aqui se quiser que eu veja o seu caso.'],
-  ['Último contato sobre a turma', 'pos', 11, '12:00', 'Oi, {{contact.first_name}}! Estou encerrando as conversas desta turma hoje. Se você ainda quiser entrar, pode me responder até [hora do encerramento]. Se agora não for o momento, tudo bem também.']
+  ['MCWF1X1-001', '', 'Reativar contato', 'captura', -7, '', lines(
+    'Oi, {{contact.first_name}}! Tudo bem por aí? Lembrei da nossa conversa sobre [interesse anterior] 😊',
+    'Dia [data do evento], às [hora do evento], vou dar uma aula sobre [promessa do evento] e acho que combina com o que você procura.',
+    'Quem entra no grupo recebe:',
+    '- 🎯 O acesso à aula\n- 📒 [material 1]\n- 🗺️ [material 2]\n- 🎁 [condição exclusiva do grupo]',
+    '[link do grupo]\nTopa participar?')],
+  ['MCWF1X1-002', '', 'Entregáveis', 'captura', -3, '', lines(
+    '{{contact.first_name}}, preparei um kit para a aula e pensei em você:',
+    '- 📒 [material 1] para [objetivo]\n- 🗺️ [material 2] para [objetivo]\n- 📎 [material complementar]\n- 🎁 [condição exclusiva do grupo]',
+    'É dia [data do evento], às [hora do evento]. [Gratuito ou valor], [regra de gravação].',
+    '[link do grupo]\nConsegue vir?')],
+  ['MCWF1X1-003', '', 'Últimas horas', 'captura', 0, '', lines(
+    'Oi, {{contact.first_name}}! Nossa aula é hoje, às [hora do evento] 🎉',
+    'Para receber o acesso, é só estar no grupo:\n[link do grupo]',
+    'Guardo um lugar para você?')],
+  ['MVWF1X1-001', '', 'Inscrições abertas e boleto', 'vendas', 0, '22:00', lines(
+    '{{contact.first_name}}, acabei de sair da aula! Você conseguiu acompanhar? 😊',
+    'Abri as inscrições de [oferta] e me lembrei de [objetivo da pessoa].',
+    'Também temos [alternativa de pagamento aprovada]. Posso explicar como fica no seu caso?')],
+  ['MVWF1X1-002', '', 'Replay', 'vendas', 1, '15:00', lines(
+    'Oi, {{contact.first_name}}! Deixei a gravação da aula disponível até [prazo do replay] 🎥',
+    '[link do replay]',
+    'A parte de [tema do interesse da pessoa] está em [minutagem]. Depois me diz o que achou?')],
+  ['MVWF1X1-003', '', 'Boleto e prazo', 'vendas', 4, '12:00', lines(
+    '{{contact.first_name}}, as inscrições de [oferta] estão terminando e quis avisar você antes.',
+    'Se o pagamento for a dúvida, [alternativa de pagamento aprovada] ainda está valendo. Quer ajuda para resolver?')],
+  ['MVWF1X1-004', '', 'Fechamento da turma', 'vendas', 11, '12:00', lines(
+    'Oi, {{contact.first_name}}! Estou fechando a turma de [oferta] hoje.',
+    'Se ainda fizer sentido, me responde até [hora do encerramento]. Se não for o momento, tudo certo também 😊')]
 ];
 
 // Mensagens do modelo de lançamento, com o código que liga cada item à sua estrutura original.
 export function messageTemplates(eventDate = '') {
   const day = dateLabel(eventDate) || '[data do evento]';
-  const build = (entries, channel, prefix) => entries.map(([title, phase, offset, time, notes], index) => ({
-    code: `${prefix}-${String(index + 1).padStart(2, '0')}`, channel, title, phase, offset, time,
-    notes: notes.replaceAll('[data do evento]', day)
+  const build = (entries, channel) => entries.map(([code, audience, title, phase, offset, time, notes]) => ({
+    code, audience, channel, title, phase, offset, time, notes: notes.replaceAll('[data do evento]', day)
   }));
-  return [...build(groupMessages, 'grupos', 'GRUPO'), ...build(privateMessages, 'privado', 'PRIVADO')];
+  return [...build(groupMessages, 'grupos'), ...build(privateMessages, 'privado')];
 }
 
 const tasks = [
@@ -242,7 +331,7 @@ export function launchEventPlan(eventDate = '') {
     },
     items: [
       ...tasks.map(([title, phase, team, offset]) => ({ ...base, id: uuid(), kind: 'task', title, phase, team, status: 'pendente', date: date(offset) })),
-      ...messageTemplates(eventDate).map(({ code, channel, title, phase, offset, time, notes }) => ({ ...base, id: uuid(), kind: 'message', title, phase, team: 'copy', status: 'rascunho', channel, code, time, date: date(offset), notes })),
+      ...messageTemplates(eventDate).map(({ code, audience, channel, title, phase, offset, time, notes }) => ({ ...base, id: uuid(), kind: 'message', title, phase, team: 'copy', status: 'rascunho', channel, audience, code, time, date: date(offset), notes })),
       ...agenda.map(([title, duration, notes], index) => {
         const time = clock(start); start += duration;
         return { ...base, id: uuid(), kind: 'agenda', title, phase: 'evento', team: 'estrategia', status: 'planejado', order: index + 1, duration, time, date: eventDate, notes };

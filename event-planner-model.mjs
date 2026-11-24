@@ -64,7 +64,7 @@ function item(value) {
     ...base,
     status: one(value.status || 'rascunho', ['rascunho', 'revisao', 'pronto', 'agendado', 'enviado', 'cancelado'], 'o status'),
     channel: one(value.channel || 'grupos', ['grupos', 'privado', 'instagram', 'email', 'outro'], 'o canal'),
-    time: time(value.time), team: one(value.team || 'copy', eventPlanTeams, 'o time'), code: str(value.code, 40)
+    time: time(value.time), team: one(value.team || 'copy', eventPlanTeams, 'o time'), code: str(value.code, 40), audience: one(str(value.audience, 20), ['', 'base', 'evento'], 'o grupo de destino')
   };
   if (kind === 'agenda') return {
     ...base,

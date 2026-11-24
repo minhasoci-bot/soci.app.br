@@ -1,7 +1,7 @@
 import { icon as i } from './icons.js';
 import { bindCopyEditor, copyEditorField, replaceText, whatsappHtml } from './event-copy-editor.js';
 import {
-  blankEventPlan, briefGroups, channels, eventPlanPhases, eventPlanStatuses,
+  audiences, blankEventPlan, briefGroups, channels, eventPlanPhases, eventPlanStatuses,
   eventPlanTeams, eventStatusLabel, itemStatus, launchEventPlan,
   messageTemplates, phaseLabel, teamLabel
 } from './event-planner-data.js';
@@ -62,6 +62,7 @@ function ownerLabel(item, users) {
   return item.owner || '';
 }
 const meta = parts => `<p class="ep-item-meta">${parts.filter(Boolean).map(h).join(' · ')}</p>`;
+const audienceLabel = item => item.channel === 'grupos' && item.audience ? audiences.find(([key]) => key === item.audience)?.[1] || '' : '';
 const when = item => [dateLabel(item.date), item.time].filter(Boolean).join(' · ');
 const byDate = (a, b) => (a.date || '9999').localeCompare(b.date || '9999') || (a.time || '99').localeCompare(b.time || '99') || a.title.localeCompare(b.title, 'pt-BR');
 const note = item => item.notes ? `<p class="ep-note">${h(item.notes)}</p>` : '';
@@ -89,7 +90,7 @@ function tasksSection(c, event) {
 function messagesSection(c, event) {
   const rows = visible(records(event, 'message')).sort(byDate), days = new Map();
   for (const item of rows) days.set(item.date || '', [...(days.get(item.date || '') || []), item]);
-  const card = item => `<li class="surface ep-item"><div class="ep-item-main"><h3>${h(item.title)}</h3><p class="ep-item-meta">${item.code ? `<span class="ep-code">${h(item.code)}</span> ` : ''}${[(channels.find(([key]) => key === item.channel) || ['', 'Outro'])[1], item.time, phaseLabel(item.phase), ownerLabel(item, usersOf(c))].filter(Boolean).map(h).join(' · ')}</p>${item.notes ? `<details data-ep-details="${h(item.id)}"><summary>Ver copy</summary><div class="ep-copy">${whatsappHtml(item.notes)}</div></details>` : '<p class="ep-note">Sem texto definido.</p>'}</div><div class="ep-item-side">${itemTools(event, item, `<button type="button" class="icon-btn" aria-label="Copiar texto de ${h(item.title)}" title="Copiar texto" data-ep-copy="${h(item.id)}" data-ep-event="${h(event.id)}">${i('copy', 15)}</button>`)}</div></li>`;
+  const card = item => `<li class="surface ep-item"><div class="ep-item-main"><h3>${h(item.title)}</h3><p class="ep-item-meta">${item.code ? `<span class="ep-code">${h(item.code)}</span> ` : ''}${[(channels.find(([key]) => key === item.channel) || ['', 'Outro'])[1], audienceLabel(item), item.time, phaseLabel(item.phase), ownerLabel(item, usersOf(c))].filter(Boolean).map(h).join(' · ')}</p>${item.notes ? `<details data-ep-details="${h(item.id)}"><summary>Ver copy</summary><div class="ep-copy">${whatsappHtml(item.notes)}</div></details>` : '<p class="ep-note">Sem texto definido.</p>'}</div><div class="ep-item-side">${itemTools(event, item, `<button type="button" class="icon-btn" aria-label="Copiar texto de ${h(item.title)}" title="Copiar texto" data-ep-copy="${h(item.id)}" data-ep-event="${h(event.id)}">${i('copy', 15)}</button>`)}</div></li>`;
   const list = [...days].map(([day, items]) => `<section><h3 class="ep-day">${h(dateLabel(day) || 'Sem data')}</h3><ul class="ep-list">${items.map(card).join('')}</ul></section>`).join('');
   return `${sectionHead('Calendário de comunicação', 'Planeje a copy e acompanhe a publicação nos grupos e canais privados.', newItem(event, 'message', 'Nova mensagem'))}${filterBar('message')}${list || nothingHere(event, 'message', 'Adicione convites, avisos e acompanhamentos da campanha.', 'send')}`;
 }
@@ -181,7 +182,7 @@ export function itemDialogBody(c, event, kind, item = null) {
   const owner = ownerField(data, usersOf(c), kind === 'agenda' ? 'Quem conduz' : 'Responsável');
   const extra = {
     task: () => pair(date, team) + owner,
-    message: () => pair(date, time) + pair(field('Canal', 'channel', data.channel, { type: 'select', options: channels }), field('Código', 'code', data.code, { maxlength: 40 })) + pair(team, owner),
+    message: () => pair(date, time) + pair(field('Canal', 'channel', data.channel, { type: 'select', options: channels }), field('Código', 'code', data.code, { maxlength: 40 })) + `<div data-ep-audience${data.channel === 'grupos' ? '' : ' hidden'}>${field('Grupos de destino', 'audience', data.audience, { type: 'select', options: audiences })}</div>` + pair(team, owner),
     agenda: () => pair(field('Ordem', 'order', data.order, { type: 'number', required: true, min: 0, max: 999 }), field('Duração em minutos', 'duration', data.duration, { type: 'number', required: true, min: 0, max: 1440 })) + pair(date, time) + pair(team, owner),
     link: () => pair(date, team) + owner + field('Endereço', 'url', data.url, { type: 'url', maxlength: 2000, placeholder: 'https://' })
   }[kind]();
@@ -210,6 +211,7 @@ export function itemFromValues(kind, values, previous, users) {
       : choice.startsWith('@') ? { ownerId: '', owner: choice.slice(1) }
         : choice && choice === previous?.ownerId ? { ownerId: choice, owner: previous.owner }
           : { ownerId: '', owner: '' };
+  if (kind === 'message' && fields.channel !== 'grupos') fields.audience = '';
   return checkItem({ ...previous, ...fields, ...owner, kind, id: previous?.id || crypto.randomUUID() });
 }
 
@@ -292,6 +294,7 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render })
       const launch = input.value === 'launch';
       input.form.elements.eventDate.required = launch; input.form.querySelector('[data-ep-template-hint]').hidden = !launch; return;
     }
+    if (input.name === 'channel' && input.form?.matches('[data-ep-form="item"]')) { input.form.querySelector('[data-ep-audience]').hidden = input.value !== 'grupos'; return; }
     if (!input.matches('[data-ep-item-status]')) return;
     const event = find(input.dataset.epEvent), item = event && itemOf(event, input.dataset.epItemStatus);
     if (!item) return;
