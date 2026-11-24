@@ -140,7 +140,7 @@ import { leaveCsp, leavePage, outcomeOf, resolveDestination } from './destinatio
 import { bookingCsp, bookingEmbedCsp, bookingPage, bookingView, clockIn, zoneOf } from './scheduling-model.mjs';
 import { audioLimit, audioTypes, summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
 import { askAssistant } from './seo-ai.mjs';
-import { addTopup, paidTopup, pricingFor, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
+import { addTopup, closeUsage, disputeTopup, paidTopup, pricingFor, reverseTopup, usageToClose, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
 import { desktopCsp, desktopLaunchPage, desktopManifest, desktopOf, desktopWorker } from './agency-desktop.mjs';
 import { assetLinksFor, mobileConfig, mobileCsp, mobileLaunchPage, mobileManifest, mobileOf, mobileWorker, storePackage } from './agency-mobile.mjs';
 import { pushConfigured, pushSubscription, sendPush } from './web-push.mjs';
@@ -1984,7 +1984,11 @@ export function makeServer({
       try { await runNewsletters(w.id, base); } catch (e) { console.error(`Community newsletters (${w.id}): ${e.message}`); }
       try { await runWorkflows(w.id); } catch (e) { console.error(`Workflows (${w.id}): ${e.message}`); }
       try { await runReportMail(w.id); } catch (e) { console.error(`Report e-mail (${w.id}): ${e.message}`); }
-      try { if ((await store.load(w.id)).ledgerOutbox?.length) await ledgerFlush.workspace(w.id); } catch (e) { console.error(`Livro (${w.id}): ${e.message}`); }
+      try {
+        const state = await store.load(w.id), today = usageToClose(state, at);
+        if (today) await store.change(w.id, s => closeUsage(s, today));
+        else if (state.ledgerOutbox?.length) await ledgerFlush.workspace(w.id);
+      } catch (e) { console.error(`Livro (${w.id}): ${e.message}`); }
       try { await runRecurringInvoices(w.id); } catch (e) { console.error(`Recurring invoices (${w.id}): ${e.message}`); }
       try { await runAbandonedCheckouts(w.id); } catch (e) { console.error(`Abandoned checkouts (${w.id}): ${e.message}`); }
       try { await runEmailCampaigns(w.id); } catch (e) { console.error(`E-mail campaigns (${w.id}): ${e.message}`); }
@@ -2639,10 +2643,15 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/abacatepay/webhook/') && method === 'POST') {
         await ready;
         return await abacate.handleWebhook({ req, url, json, listWorkspaces, changeAgency,
-          onWalletTopup: async (agencyId, { workspace, checkoutId, method }) => {
+          onWalletReversal: async (agencyId, { workspace, checkoutId, event, status, lost }) => {
+            if (!(await listWorkspaces(agencyId)).some(w => w.id === workspace)) return false;
+            const refunded = /\.refunded$/.test(event), gone = refunded || lost || status === 'REFUNDED';
+            return store.change(workspace, s => gone ? reverseTopup(s, { checkoutId, kind: refunded ? 'refund' : 'dispute_lost' }) : disputeTopup(s, { checkoutId, opened: status === 'UNDER_DISPUTE' }));
+          },
+          onWalletTopup: async (agencyId, { workspace, checkoutId, method, paidCents, feeCents, devMode }) => {
             const owned = (await listWorkspaces(agencyId)).map(w => w.id);
             for (const candidate of workspace ? [workspace].filter(item => owned.includes(item)) : owned) {
-              const credited = await store.change(candidate, s => paidTopup(s, { checkoutId, method }));
+              const credited = await store.change(candidate, s => paidTopup(s, { checkoutId, method, paidCents, feeCents, devMode }));
               if (credited) { flushLater(candidate); return credited; }
             }
             return false;
