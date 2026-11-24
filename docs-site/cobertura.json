@@ -117,14 +117,14 @@
     "artigo": "conectar-gateway",
     "titulo": "Conectar o gateway de pagamento",
     "fase": "F2",
-    "status": "pendente"
+    "status": "escrito"
   },
   {
     "grupo": "pagamentos",
     "artigo": "fatura",
     "titulo": "Emitir uma fatura",
     "fase": "F2",
-    "status": "pendente"
+    "status": "escrito"
   },
   {
     "grupo": "pagamentos",
