@@ -1,0 +1,33 @@
+---
+title: Componentes da documentação
+description: Vitrine interna dos componentes usados nos artigos. Não aparece no menu nem na busca.
+sidebar:
+  hidden: true
+pagefind: false
+head:
+  - tag: meta
+    attrs: { name: robots, content: noindex }
+---
+
+import Print from '../../../components/Print.astro';
+import Video from '../../../components/Video.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+import Automacao from '../../../components/Automacao.astro';
+
+Esta página mostra cada componente com dados de exemplo. Use como referência ao escrever um artigo.
+
+## Requisitos
+
+<Requisitos plano="Qualquer plano" permissao="Administrador da subconta" integracoes={['WhatsApp']} />
+
+## Print
+
+<Print src="docs/exemplo/x/01-a.0000abcd.webp" alt="Exemplo de print da plataforma" legenda="Legenda opcional do print." />
+
+## Vídeo
+
+<Video src="docs/exemplo/x/video.0000abcd.mp4" poster="docs/exemplo/x/video.0000abcd.webp" legenda="Legenda opcional do vídeo." />
+
+## Automação
+
+<Automacao gatilhos={['Oportunidade criada']} acoes={['Mover oportunidade']} />
