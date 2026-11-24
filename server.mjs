@@ -972,7 +972,7 @@ export function makeServer({
     let size = 0; const chunks = [];
     for await (const part of req) { size += part.length; if (size > 20000) throw error('Request is too large.',413); chunks.push(part); }
     const params = new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
-    return Object.fromEntries(['name','email','phone','_page'].map(key => [key, (params.get(key) || '').slice(0,240)]));
+    return { ...Object.fromEntries(['name','email','phone','_page'].map(key => [key, (params.get(key) || '').slice(0,240)])), message:(params.get('message') || '').slice(0,2400) };
   }
   async function findProspects(who,input) {
     const agency = await loadAgency(who.agencyId);
@@ -3004,7 +3004,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           try {
             if (!project?.formId) throw error('This site is not accepting submissions.',404);
             const vid = siteVisitorOf(req, workspace) || randomBytes(12).toString('hex');
-            await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _source:'Site', _vid:vid } });
+            await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _message:fields.message, _source:'Site', _vid:vid } });
             const order = doc.published.pages;
             const from = order.findIndex(item => item.slug === (fields._page || 'index'));
             if (from >= 0) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, order[from].id, 'optins'))).catch(() => {});
