@@ -2,34 +2,34 @@
 .vb { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 12px; height: calc(100dvh - 96px); min-height: 520px; padding: 12px; }
 .vb-empty { display: grid; place-items: center; text-align: center; }
 .vb-empty > div { display: grid; gap: 10px; justify-items: center; }
-.vb-chat { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--g-line); border-radius: 16px; background: var(--g-surface); overflow: hidden; }
+.vb-chat { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--g-line); border-radius: var(--r-card); background: var(--g-surface); overflow: hidden; }
 .vb-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--g-line); }
 .vb-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vb-log { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px; }
 .vb-msg { margin: 0; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
-.vb-msg.you { align-self: flex-end; max-width: 88%; padding: 10px 14px; border-radius: 14px; background: var(--g-surface-2); color: var(--g-ink); }
+.vb-msg.you { align-self: flex-end; max-width: 88%; padding: 10px 14px; border-radius: var(--r-card); background: var(--g-surface-2); color: var(--g-ink); }
 .vb-msg.you.small { font-size: 13px; }
 .vb-msg.ai { color: var(--g-ink-2); }
-.vb-summary { padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--g-brand) 5%, var(--g-surface)); border: 1px solid var(--g-brand-line); }
-.vb-error { display: grid; gap: 8px; padding: 12px; border-radius: 12px; border: 1px solid #f3b4bd; }
+.vb-summary { padding: 12px 14px; border-radius: var(--r-group); background: color-mix(in srgb, var(--g-brand) 5%, var(--g-surface)); border: 1px solid var(--g-brand-line); }
+.vb-error { display: grid; gap: 8px; padding: 12px; border-radius: var(--r-group); border: 1px solid #f3b4bd; }
 .vb-thinking { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--g-dim); font-size: 13px; }
 .vb-spin { flex: none; width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--g-brand-line); border-top-color: var(--g-brand); animation: vb-spin .8s linear infinite; }
 @keyframes vb-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .vb-spin { animation: none; } }
-.vb-card { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--g-line); border-radius: 14px; background: var(--g-surface); box-shadow: var(--g-shadow); }
+.vb-card { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--g-line); border-radius: var(--r-card); background: var(--g-surface); box-shadow: var(--g-shadow); }
 .vb-card h3 { font-size: 15px; letter-spacing: -.01em; }
 .vb-card p { margin: 0; font-size: 13px; }
 .vb-step { color: var(--g-dim); font-size: 11.5px !important; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
 .vb-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.vb-option { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--g-line-2); border-radius: 12px; background: var(--g-surface); color: var(--g-ink); text-align: left; font-size: 12.5px; font-weight: 600; }
+.vb-option { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--g-line-2); border-radius: var(--r-group); background: var(--g-surface); color: var(--g-ink); text-align: left; font-size: 12.5px; font-weight: 600; }
 .vb-option:hover { border-color: var(--g-brand-line); }
 .vb-option[aria-pressed=true] { border-color: var(--g-ink); box-shadow: 0 0 0 1.5px var(--g-ink); }
-.vb-swatches { display: grid; grid-template-columns: repeat(4, 1fr); height: 40px; border-radius: 8px; overflow: hidden; }
+.vb-swatches { display: grid; grid-template-columns: repeat(4, 1fr); height: 40px; border-radius: var(--r-control); overflow: hidden; }
 .vb-swatches i { display: block; }
-.vb-font { display: grid; gap: 2px; padding: 6px 8px; border-radius: 8px; background: var(--g-surface-2); }
+.vb-font { display: grid; gap: 2px; padding: 6px 8px; border-radius: var(--r-control); background: var(--g-surface-2); }
 .vb-font b { font-size: 26px; line-height: 1; font-weight: 400; }
 .vb-font small { color: var(--g-dim); font-size: 11px; font-weight: 500; }
-.vb-layout { display: grid; gap: 4px; height: 46px; padding: 6px; border-radius: 8px; background: var(--g-surface-2); }
+.vb-layout { display: grid; gap: 4px; height: 46px; padding: 6px; border-radius: var(--r-control); background: var(--g-surface-2); }
 .vb-layout i { border-radius: 3px; background: var(--g-line-strong, #b4bbc5); }
 .vb-layout-split { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
 .vb-layout-split i:nth-child(3) { display: none; }
@@ -53,10 +53,10 @@
 .vb-tasks li.error .vb-mark { border-color: #dc2626; color: #dc2626; }
 .vb-tasks li.running .vb-mark { border: 0; }
 .vb-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.vb-preview { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--g-line); border-radius: 16px; background: var(--g-surface-2); overflow: hidden; }
+.vb-preview { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--g-line); border-radius: var(--r-card); background: var(--g-surface-2); overflow: hidden; }
 .vb-waiting { flex: 1; display: grid; place-content: center; justify-items: center; gap: 18px; padding: 24px; text-align: center; }
 .vb-getting { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border: 1px solid var(--g-line); border-radius: 999px; background: var(--g-surface); color: var(--g-dim); font-size: 13px; }
-.vb-tip { max-width: 340px; padding: 18px; border-radius: 14px; background: var(--g-surface); border: 1px solid var(--g-line); box-shadow: var(--g-shadow); }
+.vb-tip { max-width: 340px; padding: 18px; border-radius: var(--r-card); background: var(--g-surface); border: 1px solid var(--g-line); box-shadow: var(--g-shadow); }
 .vb-tip b { font-size: 15px; }
 .vb-tip p { margin: 6px 0 0; color: var(--g-dim); font-size: 13px; }
 .sx-entry { display: grid; gap: 4px; }

@@ -355,7 +355,7 @@ function mountSlidingUnderline({ host, head = null, list, track, panel = null, k
       delete bar.dataset.visible;
       return;
     }
-    const inset = Math.min(6, Math.max(2, Math.floor(on.offsetWidth * 0.1)));
+    const inset = 0;
     const x = Math.round((on.offsetLeft + inset) * 10) / 10;
     const w = Math.max(14, Math.round((on.offsetWidth - inset * 2) * 10) / 10);
     const prev = utabLast.get(key);
@@ -1082,11 +1082,9 @@ function enhance(root) {
   fresh('.sc-menu', n => enhanceFloatingMenu(n, '.sc-menu-item', true));
   root.querySelectorAll('select').forEach(enhanceSelect);
   root.querySelectorAll(ICON_SWAP_BTN_SELECTOR).forEach(enhanceIconSwapButton);
-  root.querySelectorAll(EDGE_BTN_SELECTOR).forEach(enhanceEdgeButton);
 }
 
 /* ───────── Cursor Edge Glow Button (microkit.co) ───────── */
-const EDGE_BTN_SELECTOR = '.primary:not(.danger):not(.studio-create):not(.kanban-cards > .primary), .dash-save, .continue, .pr-btn.pr-primary';
 const ICON_SWAP_BTN_SELECTOR = [
   '.primary:not(.plain)', '.secondary:not(.plain)', '.danger:not(.plain)', '.continue', '.studio-create',
   '.dash-save', '.pr-btn.pr-primary', '.ags-send', '.ags-new',
@@ -1094,12 +1092,6 @@ const ICON_SWAP_BTN_SELECTOR = [
   '.bui-btn:not(.bui-icon-btn)'
 ].join(', ');
 const ICON_SWAP_EXCLUDED = '.icon-btn, .side-toggle, .theme-toggle, .tool-btn, .top-menu, .lang-btn, .dash-tool.dash-square, .bui-icon-btn, .bui-prompt-btn, .bui-chat-send, .bui-search-clear, .bui-selection-toggle, .bui-selection-retry, .bui-sidebar-collapse, .bui-sidebar-expand, .bui-sidebar-search-btn, .bui-sidebar-search-close';
-const EB_FREQUENCY = 3.4;
-const EB_DAMPING = 0.78;
-const EB_GLOW_RISE = 0.5;
-const EB_SATURATION = 0.55;
-const EB_BRIGHTNESS = 0.12;
-const EB_HUE_SHIFT = -5;
 
 function enhanceIconSwapButton(btn) {
   if (!(btn instanceof HTMLElement) || btn.matches(ICON_SWAP_EXCLUDED) || btn.classList.contains('soci-icon-swap')) return;
@@ -1125,159 +1117,6 @@ function enhanceIconSwapButton(btn) {
   btn.classList.add('soci-icon-swap');
   btn.dataset.sociIconSwap = '1';
   btn.replaceChildren(content, arrow);
-}
-
-function makeEdgeGlowAssembly(cls) {
-  const wrap = document.createElement('span');
-  wrap.className = `g-eb-glow ${cls}`;
-  wrap.setAttribute('aria-hidden', 'true');
-  wrap.innerHTML = '<span class="g-eb-outer"></span><span class="g-eb-inner"></span><span class="g-eb-rim"></span><span class="g-eb-rim-glow"></span>';
-  return wrap;
-}
-
-function enhanceEdgeButton(btn) {
-  if (!(btn instanceof HTMLElement)) return;
-  if (btn._eb && btn._eb.surface.isConnected && btn._eb.rightGlow.isConnected && btn._eb.leftGlow.isConnected) return;
-
-  // Clean up any prior listeners/loops if textContent mutation wiped internal spans
-  if (btn._eb) {
-    if (btn._eb.raf !== null) cancelAnimationFrame(btn._eb.raf);
-    btn._eb.ro?.disconnect();
-  }
-
-  btn.classList.add('g-edge-btn');
-  btn.querySelectorAll(':scope > .g-eb-glow, :scope > .g-eb-surface').forEach(n => n.remove());
-
-  const rightGlow = makeEdgeGlowAssembly('g-eb-glow-r');
-  const leftGlow = makeEdgeGlowAssembly('g-eb-glow-l');
-  const surface = document.createElement('span');
-  surface.className = 'g-eb-surface';
-  surface.setAttribute('aria-hidden', 'true');
-  const lightTrack = document.createElement('span');
-  lightTrack.className = 'g-eb-track';
-  lightTrack.innerHTML = '<span class="g-eb-core"></span><span class="g-eb-bloom"></span>';
-  surface.append(lightTrack);
-
-  btn.prepend(rightGlow, leftGlow, surface);
-
-  const getZoom = () => parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
-  const measureBound = () => {
-    const z = getZoom();
-    const w = btn.getBoundingClientRect().width / z;
-    return Math.max(24, w / 2 + 10);
-  };
-
-  let bound = measureBound();
-  let x = btn._eb?.x ?? 0;
-  let velocity = 0;
-  let target = btn._eb?.target ?? 0;
-  let inside = false;
-  let lastTs = 0;
-
-  const state = { surface, rightGlow, leftGlow, lightTrack, raf: null, ro: null, x, target };
-  btn._eb = state;
-
-  const paint = () => {
-    state.x = x;
-    state.target = target;
-    lightTrack.style.setProperty('--light-x', `${x.toFixed(2)}px`);
-    const normalized = Math.max(-1, Math.min(1, x / bound));
-    const magnitude = Math.abs(normalized);
-    const intensity = Math.pow(magnitude, EB_GLOW_RISE);
-    const tuning =
-      `hue-rotate(${EB_HUE_SHIFT}deg)` +
-      ` saturate(${(1 + EB_SATURATION * magnitude).toFixed(3)})` +
-      ` brightness(${(1 + EB_BRIGHTNESS * magnitude).toFixed(3)})`;
-
-    rightGlow.style.setProperty('--eb-o', (normalized > 0 ? intensity : 0).toFixed(3));
-    leftGlow.style.setProperty('--eb-o', (normalized < 0 ? intensity : 0).toFixed(3));
-    rightGlow.style.filter = tuning;
-    leftGlow.style.filter = tuning;
-  };
-
-  const measure = () => {
-    bound = measureBound();
-    if (!inside) {
-      x = 0;
-      target = 0;
-    } else {
-      x = Math.max(-bound, Math.min(bound, x));
-      target = Math.max(-bound, Math.min(bound, target));
-    }
-    paint();
-  };
-
-  paint();
-
-  if (typeof ResizeObserver !== 'undefined') {
-    const ro = new ResizeObserver(() => {
-      if (!btn.isConnected) { ro.disconnect(); return; }
-      measure();
-    });
-    ro.observe(btn);
-    state.ro = ro;
-  }
-
-  if (reduce) return;
-
-  const frame = (now = performance.now()) => {
-    if (!btn.isConnected || !surface.isConnected) {
-      state.raf = null;
-      state.ro?.disconnect();
-      return;
-    }
-    const delta = Math.min((now - lastTs) / 1000, 0.032);
-    lastTs = now;
-    const omega = 2 * Math.PI * EB_FREQUENCY;
-    velocity += (omega * omega * (target - x) - 2 * EB_DAMPING * omega * velocity) * delta;
-    x += velocity * delta;
-    paint();
-
-    if (inside || Math.abs(target - x) > 0.15 || Math.abs(velocity) > 0.6) {
-      state.raf = requestAnimationFrame(frame);
-    } else {
-      state.raf = null;
-      x = target;
-      velocity = 0;
-      paint();
-    }
-  };
-
-  const kick = () => {
-    if (state.raf === null) {
-      lastTs = performance.now();
-      state.raf = requestAnimationFrame(frame);
-    }
-  };
-
-  btn.onpointermove = e => {
-    if (btn.disabled || btn.getAttribute('aria-disabled') === 'true') return;
-    const z = getZoom();
-    const r = btn.getBoundingClientRect();
-    bound = Math.max(24, (r.width / z) / 2 + 10);
-    inside = true;
-    target = Math.max(-bound, Math.min(bound, (e.clientX - (r.left + r.width / 2)) / z));
-    kick();
-  };
-
-  btn.onpointerleave = () => {
-    inside = false;
-    target = 0;
-    kick();
-  };
-
-  btn.onfocus = () => {
-    if (btn.disabled || btn.getAttribute('aria-disabled') === 'true') return;
-    inside = false;
-    target = 0;
-    kick();
-  };
-
-  btn.onblur = () => {
-    inside = false;
-    target = 0;
-    kick();
-  };
 }
 
 /* Staggered entrance when the route changes (not on every data re-render) */
@@ -1385,9 +1224,10 @@ export function applyBrandColor(primaryValue, secondaryValue, accentValue) {
 
   const lum1 = relativeLuminance(primary);
   const lum2 = relativeLuminance(secondary);
-  const light1 = lum1 > 0.34;
-  const light2 = lum2 > 0.34;
-  const gradLight = (lum1 + lum2) / 2 > 0.42;
+  // texto escuro quando ele contrasta mais que o branco (empate em luminância 0,18)
+  const light1 = lum1 > 0.18;
+  const light2 = lum2 > 0.18;
+  const gradLight = light1;
 
   root.style.setProperty('--g-custom-brand', primary);
   root.style.setProperty('--g-custom-brand-2', secondary);

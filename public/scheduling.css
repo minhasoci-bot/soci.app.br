@@ -14,7 +14,7 @@
 .sch-staff{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-width:460px}
 .sch-staff li{display:flex;gap:8px;align-items:center}
 .sch-staff input{flex:1}
-.sch-link{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line,#e3e8ef);border-radius:10px}
+.sch-link{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line,#e3e8ef);border-radius:var(--r-control)}
 .sch-link code{flex:1;min-width:0;overflow-wrap:anywhere}
 .sch-route{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:10px}
 .sch-route li{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:14px 16px}
@@ -37,5 +37,5 @@
 .mt-notes h3{font-size:14px;margin:16px 0 6px}.mt-notes ul{margin:0;padding-left:18px;display:grid;gap:4px}
 .mt-actions{list-style:none;padding-left:0!important}.mt-actions li{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .mt-check{display:flex;align-items:flex-start;gap:8px;width:auto;font-weight:400}
-.mt-mail{border:1px solid var(--g-line);border-radius:10px;padding:12px;background:var(--g-surface-2)}.mt-mail p{margin:8px 0 10px;white-space:normal}
+.mt-mail{border:1px solid var(--g-line);border-radius:var(--r-control);padding:12px;background:var(--g-surface-2)}.mt-mail p{margin:8px 0 10px;white-space:normal}
 @media (max-width:900px){.mt-grid{grid-template-columns:1fr}}

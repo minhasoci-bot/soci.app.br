@@ -13,12 +13,12 @@
 
 .ai-menu {
   position: absolute; z-index: 1000; display: grid; gap: 2px; padding: 6px;
-  border: 1px solid var(--g-line); border-radius: 12px; background: var(--g-surface);
+  border: 1px solid var(--g-line); border-radius: var(--r-group); background: var(--g-surface);
   box-shadow: var(--g-shadow-lift, 0 12px 32px rgb(0 0 0 / .14));
 }
 .ai-menu[hidden] { display: none; }
 .ai-menu > button, .ai-menu-tone > button {
-  padding: 7px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--g-ink);
+  padding: 7px 10px; border: 0; border-radius: var(--r-control); background: transparent; color: var(--g-ink);
   font-size: 13.5px; font-weight: 600; text-align: left; cursor: pointer;
 }
 .ai-menu > button:hover, .ai-menu > button:focus-visible, .ai-menu-tone > button:hover, .ai-menu-tone > button:focus-visible { background: var(--g-surface-2); outline: none; }

@@ -1,58 +1,41 @@
 /*
- * soci Button System
+ * soci — botões (Liquid Glass)
  *
- * One contract for every semantic action button in the platform.
- * Change the --soci-btn-* tokens below to retheme the whole system without
- * touching each feature module. Tabs, menus and selectable cards intentionally
- * keep their own interaction model; they reuse the same focus and motion rules.
+ * Três pesos, uma forma (cápsula):
+ *   primário   cor da marca cheia. Um por tela: a ação principal.
+ *   secundário preenchimento neutro, sem borda. É conteúdo, então não é vidro.
+ *   destrutivo vermelho cheio só na confirmação; fora dela, texto vermelho no preenchimento neutro.
+ * Ícones são transparentes e ganham o fundo neutro no hover. Botões sobre vidro (topo, menus,
+ * rodapés flutuantes) não recebem vidro próprio. Cores e raios vêm de tokens.css.
  */
 :root {
-  --soci-btn-font-size: 13px;
-  --soci-btn-font-weight: 700;
-  --soci-btn-letter-spacing: -0.01em;
+  --soci-btn-font-size: 13.5px;
+  --soci-btn-font-weight: 650;
+  --soci-btn-letter-spacing: -0.005em;
   --soci-btn-height: 38px;
   --soci-btn-height-sm: 32px;
-  --soci-btn-height-lg: 44px;
-  --soci-btn-pad-x: 14px;
-  --soci-btn-gap: 8px;
-  --soci-btn-radius: 12px;
-  --soci-btn-radius-pill: 999px;
-  --soci-btn-border: var(--g-line-2, #d2d7de);
-  --soci-btn-surface: var(--g-surface, #ffffff);
-  --soci-btn-surface-hover: var(--g-surface-2, #f4f6f8);
-  --soci-btn-fg: var(--g-ink-2, #344054);
-  --soci-btn-primary-bg: var(--g-grad-brand, linear-gradient(135deg, #ff4f9a 0%, #c4a7ff 58%, #6bc9ff 100%));
-  --soci-btn-primary-hover: var(--g-grad-brand-hover, linear-gradient(135deg, #e63f86 0%, #a98be6 58%, #4ca8d9 100%));
-  --soci-btn-primary-fg: var(--g-grad-on, #ffffff);
-  --soci-btn-danger-bg: #d1343a;
-  --soci-btn-danger-hover: #b52a30;
-  --soci-btn-danger-fg: #ffffff;
-  --soci-btn-shadow: 0 1px 2px rgb(15 19 26 / 0.06), inset 0 1px 0 rgb(255 255 255 / 0.22);
-  --soci-btn-shadow-hover: 0 8px 18px -10px color-mix(in srgb, var(--g-brand, #ff4f9a) 45%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.28);
-  --soci-btn-focus-ring: 0 0 0 4px color-mix(in srgb, var(--g-brand-accent, #6bc9ff) 28%, transparent);
+  --soci-btn-height-lg: 46px;
+  --soci-btn-pad-x: 16px;
+  --soci-btn-gap: 7px;
+  --soci-btn-radius: var(--r-pill);
+  --soci-btn-radius-pill: var(--r-pill);
+  --soci-btn-border: transparent;
+  --soci-btn-surface: var(--g-fill);
+  --soci-btn-surface-hover: var(--g-fill-hover);
+  --soci-btn-fg: var(--g-ink);
+  --soci-btn-primary-bg: var(--g-brand-fill);
+  --soci-btn-primary-hover: var(--g-brand-fill-hover);
+  --soci-btn-primary-fg: var(--g-brand-on);
+  --soci-btn-danger-bg: var(--g-red-fill);
+  --soci-btn-danger-hover: var(--g-red-fill-hover);
+  --soci-btn-danger-fg: var(--g-red-on);
+  --soci-btn-shadow: none;
+  --soci-btn-shadow-hover: none;
+  --soci-btn-focus-ring: var(--g-focus);
+  --soci-btn-motion: background-color .18s var(--ease-std), color .18s var(--ease-std), box-shadow .18s var(--ease-std), transform .28s var(--ease-spring), opacity .18s;
 }
 
-:root[data-theme="dark"] {
-  --soci-btn-shadow: 0 1px 2px rgb(0 0 0 / 0.22), inset 0 1px 0 rgb(255 255 255 / 0.12);
-  --soci-btn-shadow-hover: 0 10px 24px -12px color-mix(in srgb, var(--g-brand, #ff4f9a) 58%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.2);
-}
-
-/* Semantic action buttons: the shared shape, rhythm, typography and motion. */
-:is(
-  .primary,
-  .secondary,
-  .danger,
-  .pill-button,
-  .continue,
-  .studio-create,
-  .studio-compose-actions .primary,
-  .dash-save,
-  .ag-brand-reset,
-  .ag-brand-mockup-side-cta,
-  .ag-brand-mockup-primary,
-  .ag-brand-demo-primary,
-  .ag-brand-demo-secondary
-) {
+:root:root :is(.primary, .continue, .studio-create, .studio-compose-actions .primary, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .pr-btn.pr-primary, .secondary, .ag-brand-demo-secondary, .dash-tool, .danger, .pill-button) {
   appearance: none;
   box-sizing: border-box;
   display: inline-flex;
@@ -61,445 +44,99 @@
   gap: var(--soci-btn-gap);
   min-height: var(--soci-btn-height);
   padding: 0 var(--soci-btn-pad-x);
-  border-width: 1px;
-  border-style: solid;
+  border: 1px solid transparent;
   border-radius: var(--soci-btn-radius);
   font-family: inherit;
   font-size: var(--soci-btn-font-size);
   font-weight: var(--soci-btn-font-weight);
   letter-spacing: var(--soci-btn-letter-spacing);
-  line-height: 1;
+  line-height: 1.2;
   text-align: center;
   text-decoration: none;
+  text-shadow: none;
   vertical-align: middle;
   cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 160ms ease, filter 180ms ease;
+  filter: none;
+  transition: var(--soci-btn-motion);
 }
+:root:root :is(.primary, .continue, .studio-create, .studio-compose-actions .primary, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .pr-btn.pr-primary, .secondary, .ag-brand-demo-secondary, .dash-tool, .danger, .pill-button) svg { flex: none; }
 
-:is(
-  .primary,
-  .continue,
-  .studio-create,
-  .studio-compose-actions .primary,
-  .dash-save,
-  .ag-brand-reset,
-  .ag-brand-mockup-side-cta,
-  .ag-brand-mockup-primary,
-  .ag-brand-demo-primary
-) {
+/* Primário */
+:root:root :is(.primary, .continue, .studio-create, .studio-compose-actions .primary, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .pr-btn.pr-primary) {
   position: relative;
   isolation: isolate;
   overflow: hidden;
   background: var(--soci-btn-primary-bg);
-  border-color: transparent;
   color: var(--soci-btn-primary-fg);
-  box-shadow: var(--soci-btn-shadow);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .34);
 }
+:root:root :is(.primary, .continue, .studio-create, .studio-compose-actions .primary, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .pr-btn.pr-primary):not(:disabled):hover { background: var(--soci-btn-primary-hover); color: var(--soci-btn-primary-fg); box-shadow: inset 0 1px 0 rgb(255 255 255 / .34); }
+:root:root :is(.primary, .continue, .studio-create, .studio-compose-actions .primary, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .pr-btn.pr-primary)::before, :root:root :is(.primary, .continue, .studio-create, .studio-compose-actions .primary, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .pr-btn.pr-primary)::after { content: none; display: none; }
 
-:is(
-  .primary,
-  .continue,
-  .studio-create,
-  .studio-compose-actions .primary,
-  .dash-save,
-  .ag-brand-reset,
-  .ag-brand-mockup-side-cta,
-  .ag-brand-mockup-primary,
-  .ag-brand-demo-primary
-):not(:disabled):hover {
-  background: var(--soci-btn-primary-hover);
-  border-color: transparent;
-  color: var(--soci-btn-primary-fg);
-  box-shadow: var(--soci-btn-shadow-hover);
-  filter: saturate(1.04);
-  transform: translateY(-1px);
-}
+/* Secundário e ferramentas */
+:root:root :is(.secondary, .ag-brand-demo-secondary, .dash-tool) { background: var(--soci-btn-surface); color: var(--soci-btn-fg); box-shadow: none; }
+:root:root :is(.secondary, .ag-brand-demo-secondary, .dash-tool):not(:disabled):hover { background: var(--soci-btn-surface-hover); color: var(--g-ink); box-shadow: none; }
 
-:is(
-  .primary,
-  .continue,
-  .studio-create,
-  .studio-compose-actions .primary,
-  .dash-save,
-  .ag-brand-reset,
-  .ag-brand-mockup-side-cta,
-  .ag-brand-mockup-primary,
-  .ag-brand-demo-primary
-):not(:disabled):active {
-  transform: translateY(0) scale(0.98);
-}
+/* Destrutivo */
+:root:root .danger:not(.plain) { background: var(--soci-btn-danger-bg); color: var(--soci-btn-danger-fg); box-shadow: none; }
+:root:root .danger:not(.plain):not(:disabled):hover { background: var(--soci-btn-danger-hover); color: var(--soci-btn-danger-fg); }
+:root:root .secondary.danger:not(.plain) { background: var(--soci-btn-surface); color: var(--g-red); }
+:root:root .secondary.danger:not(.plain):not(:disabled):hover { background: var(--g-red-100); color: var(--g-red); }
+:root:root .danger.plain { min-height: 32px; padding: 0 8px; background: transparent; color: var(--g-red); box-shadow: none; }
+:root:root .danger.plain:not(:disabled):hover { background: var(--g-red-100); color: var(--g-red); }
 
-:is(.secondary, .ag-brand-demo-secondary) {
-  background: var(--soci-btn-surface);
-  border-color: var(--soci-btn-border);
-  color: var(--soci-btn-fg);
-  box-shadow: var(--soci-btn-shadow);
-}
+/* Estados */
+:root:root :is(.primary, .continue, .studio-create, .studio-compose-actions .primary, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .pr-btn.pr-primary, .secondary, .ag-brand-demo-secondary, .dash-tool, .danger, .pill-button):not(:disabled):active { transform: scale(.97); }
+:root:root :is(.primary, .continue, .studio-create, .studio-compose-actions .primary, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .pr-btn.pr-primary, .secondary, .ag-brand-demo-secondary, .dash-tool, .danger, .pill-button):disabled { cursor: not-allowed; opacity: .45; box-shadow: none; transform: none; }
+:root:root :is(.primary, .continue, .studio-create, .studio-compose-actions .primary, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .pr-btn.pr-primary):disabled { background: var(--g-fill) !important; color: var(--g-dim) !important; opacity: 1; }
+:root:root :is(.primary, .continue, .studio-create, .studio-compose-actions .primary, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .pr-btn.pr-primary, .secondary, .ag-brand-demo-secondary, .dash-tool, .danger, .pill-button, .icon-btn, .side-toggle, .theme-toggle, .tool-btn, .top-menu, .lang-btn):focus-visible { outline: 2px solid var(--g-ink); outline-offset: 2px; }
 
-:is(.secondary, .ag-brand-demo-secondary):not(:disabled):hover {
-  background: var(--soci-btn-surface-hover);
-  border-color: color-mix(in srgb, var(--g-brand-2, #c4a7ff) 52%, var(--soci-btn-border));
-  color: var(--g-ink, #101828);
-  box-shadow: var(--soci-btn-shadow-hover);
-  transform: translateY(-1px);
-}
+/* Tamanhos compactos */
+:root:root :is(.dash-tool, .ags-small, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .ag-brand-demo-secondary) { min-height: var(--soci-btn-height-sm); padding-inline: 13px; }
+:root:root .dash-tool.dash-square { width: 34px; min-width: 34px; padding: 0; }
+:root:root .pill-button { min-height: 28px; padding-inline: 11px; font-size: 12.5px; box-shadow: none; }
+:root:root .pill-button:not(.completed) { background: var(--g-fill); color: var(--g-ink-2); }
 
-:is(.secondary, .ag-brand-demo-secondary):not(:disabled):active {
-  transform: translateY(0) scale(0.98);
-}
+/* Botões redondos só com ícone (agentes) */
+:root:root :is(.ags-send, .ags-new) { display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 50%; background: var(--soci-btn-primary-bg); color: var(--soci-btn-primary-fg); box-shadow: none; cursor: pointer; }
+:root:root :is(.ags-send, .ags-new):not(:disabled):hover { background: var(--soci-btn-primary-hover); }
+:root:root .ags-send { position: absolute; right: 10px; bottom: 10px; }
 
-:is(.danger):not(.plain) {
-  background: var(--soci-btn-danger-bg);
-  border-color: var(--soci-btn-danger-bg);
-  color: var(--soci-btn-danger-fg);
-  box-shadow: var(--soci-btn-shadow);
-}
+/* "Adicionar" dentro das colunas do funil continua quieto: a tela já tem uma ação principal */
+:root:root .kanban-cards > .primary { background: transparent; border: 1px dashed var(--g-line-2); color: var(--g-dim); box-shadow: none; }
+:root:root .kanban-cards > .primary:not(:disabled):hover { background: var(--g-fill); color: var(--g-ink); box-shadow: none; }
 
-:is(.danger):not(.plain):not(:disabled):hover {
-  background: var(--soci-btn-danger-hover);
-  border-color: var(--soci-btn-danger-hover);
-  color: var(--soci-btn-danger-fg);
-  box-shadow: 0 8px 18px -12px rgb(209 52 58 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.2);
-  transform: translateY(-1px);
-}
-
-:is(.danger):not(.plain):not(:disabled):active {
-  transform: translateY(0) scale(0.98);
-}
-
-:is(.primary, .secondary, .danger, .continue, .studio-create, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .ag-brand-demo-secondary):disabled {
-  cursor: not-allowed;
-  opacity: 0.58;
-  box-shadow: none;
-  filter: saturate(0.65);
-  transform: none;
-}
-
-:is(.primary, .secondary, .danger, .continue, .studio-create, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .ag-brand-demo-secondary):focus-visible {
-  outline: none;
-  box-shadow: var(--soci-btn-focus-ring), var(--soci-btn-shadow);
-}
-
-:is(.primary, .secondary, .danger, .pill-button, .continue, .studio-create, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .ag-brand-demo-secondary) svg {
-  flex: none;
-}
-
-/* Compact status chips keep the same system, but fit in tables and badges. */
-.pill-button {
-  min-height: var(--soci-btn-height-sm);
-  padding-inline: 10px;
-  border-color: transparent;
-  border-radius: var(--soci-btn-radius-pill);
-  font-size: 12px;
-  box-shadow: none;
-}
-
-.pill-button:not(.completed) {
-  background: var(--g-brand-2-surface, color-mix(in srgb, var(--g-brand-2, #c4a7ff) 15%, transparent));
-  color: var(--g-brand-2-text, #7a239e);
-}
-
-/* Icon and utility buttons share the same hit area, radius and focus language. */
-:is(.icon-btn, .side-toggle, .theme-toggle, .tool-btn, .top-menu) {
+/* Ícones */
+:root:root :is(.icon-btn, .side-toggle, .theme-toggle, .tool-btn, .top-menu) {
   box-sizing: border-box;
   display: inline-grid;
   place-items: center;
   min-width: 34px;
   min-height: 34px;
-  width: 34px;
-  height: 34px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--r-pill);
   background: transparent;
-  color: var(--g-dim, #667085);
+  color: var(--g-ink-2);
   cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 160ms ease;
+  transition: var(--soci-btn-motion);
 }
+:root:root :is(.icon-btn, .tool-btn, .top-menu, .theme-toggle) { width: 34px; height: 34px; }
+:root:root :is(.icon-btn, .side-toggle, .theme-toggle, .tool-btn, .top-menu):not(:disabled):hover { background: var(--g-fill); color: var(--g-ink); border-color: transparent; }
+:root:root :is(.icon-btn, .tool-btn, .top-menu, .theme-toggle):not(:disabled):active { transform: scale(.92); }
 
-:is(.icon-btn, .side-toggle, .theme-toggle, .tool-btn, .top-menu):not(:disabled):hover {
-  background: var(--g-brand-2-surface, color-mix(in srgb, var(--g-brand-2, #c4a7ff) 13%, transparent));
-  border-color: color-mix(in srgb, var(--g-brand-2, #c4a7ff) 22%, transparent);
-  color: var(--g-brand-2-text, #7a239e);
-}
+/* Envio de arquivo */
+input[type="file"] { min-height: var(--soci-btn-height); padding: 4px; border: 1px solid var(--g-line-2); border-radius: var(--r-pill); background: var(--g-field); color: var(--g-ink-2); font-size: var(--soci-btn-font-size); }
+input[type="file"]::file-selector-button { min-height: 30px; margin-right: 10px; padding: 0 13px; border: 0; border-radius: var(--r-pill); background: var(--g-fill); color: var(--g-ink); font: inherit; font-weight: var(--soci-btn-font-weight); cursor: pointer; }
+input[type="file"]::file-selector-button:hover { background: var(--g-fill-hover); }
 
-:is(.icon-btn, .side-toggle, .theme-toggle, .tool-btn, .top-menu):not(:disabled):active {
-  transform: scale(0.94);
-}
+/* Vitrine de marca da agência: os botões quebram linha em vez de encolher */
+:root:root .ag-brand-showcase-head { flex-wrap: wrap; }
+:root:root .ag-brand-showcase .ag-brand-reset { flex: 0 0 auto; white-space: nowrap; }
 
-:is(.icon-btn, .side-toggle, .theme-toggle, .tool-btn, .top-menu):focus-visible {
-  outline: none;
-  box-shadow: var(--soci-btn-focus-ring);
-}
-
-/* Text utility controls use the same compact rhythm without becoming CTAs. */
-.lang-btn {
-  min-height: 30px;
-  padding: 0 9px;
-  border: 1px solid transparent;
-  border-radius: var(--soci-btn-radius-pill);
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 750;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 160ms ease;
-}
-
-.lang-btn:not(.active):hover {
-  border-color: color-mix(in srgb, var(--g-brand-2, #c4a7ff) 22%, transparent);
-  background: var(--g-brand-2-surface, color-mix(in srgb, var(--g-brand-2, #c4a7ff) 13%, transparent));
-  color: var(--g-brand-2-text, #7a239e);
-}
-
-.lang-btn.active {
-  border-color: transparent;
-  background: var(--g-brand-fill, #ff4f9a);
-  color: var(--g-brand-on, #ffffff);
-  box-shadow: 0 3px 9px color-mix(in srgb, var(--g-brand, #ff4f9a) 28%, transparent);
-}
-
-/* Dashboard tool buttons are text-capable secondary buttons; square tools keep a 34px target. */
-.dash-tool {
-  min-height: var(--soci-btn-height-sm);
-  padding: 0 12px;
-  border: 1px solid var(--soci-btn-border);
-  border-radius: var(--soci-btn-radius);
-  background: var(--soci-btn-surface);
-  color: var(--soci-btn-fg);
-  font-weight: 700;
-  line-height: 1;
-  box-shadow: var(--soci-btn-shadow);
-  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 160ms ease;
-}
-
-.dash-tool.dash-square {
-  width: 34px;
-  min-width: 34px;
-  padding: 0;
-}
-
-.dash-tool:not(:disabled):hover {
-  background: var(--soci-btn-surface-hover);
-  border-color: color-mix(in srgb, var(--g-brand-2, #c4a7ff) 52%, var(--soci-btn-border));
-  color: var(--g-brand-2-text, #7a239e);
-  box-shadow: var(--soci-btn-shadow-hover);
-  transform: translateY(-1px);
-}
-
-.dash-tool:not(:disabled):active {
-  transform: translateY(0) scale(0.98);
-}
-
-/* Small action aliases used by specialized modules inherit the same tokens. */
-:is(.ags-small, .ags-send, .ags-new, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .ag-brand-demo-secondary) {
-  min-height: var(--soci-btn-height-sm);
-  border-radius: 10px;
-}
-
-:is(.ags-send, .ags-new) {
-  background: var(--soci-btn-primary-bg);
-  border: 1px solid transparent;
-  color: var(--soci-btn-primary-fg);
-  box-shadow: var(--soci-btn-shadow);
-}
-
-:is(.ags-send, .ags-new):not(:disabled):hover {
-  background: var(--soci-btn-primary-hover);
-  box-shadow: var(--soci-btn-shadow-hover);
-  transform: translateY(-1px);
-}
-
-/* The danger outline remains readable without competing with the main destructive CTA. */
-.secondary.danger {
-  background: var(--soci-btn-surface);
-  border-color: var(--soci-btn-border);
-  color: #c0262d;
-}
-
-.secondary.danger:not(:disabled):hover {
-  background: #fff1f2;
-  border-color: #f3b4b8;
-  color: #a41f25;
-}
-
-.danger.plain {
-  min-height: auto;
-  padding: 0;
-  border-color: transparent;
-  background: transparent;
-  color: #c0262d;
-  box-shadow: none;
-}
-
-.danger.plain:not(:disabled):hover {
-  background: transparent;
-  border-color: transparent;
-  color: #a41f25;
-  box-shadow: none;
-  transform: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :is(.primary, .secondary, .danger, .pill-button, .continue, .studio-create, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .ag-brand-demo-secondary, .icon-btn, .side-toggle, .theme-toggle, .tool-btn, .top-menu, .lang-btn, .dash-tool, .ags-send, .ags-new) {
-    transition: none;
-  }
-}
-/* Segmented tabs are still buttons, so they use the same radius, height, type and focus ring. */
-:is(.ag-brand-mockup-tabs .ag-brand-mockup-tab) {
-  appearance: none;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--soci-btn-height-sm);
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: var(--soci-btn-radius);
-  background: transparent;
-  color: var(--g-dim, #667085);
-  font-family: inherit;
-  font-size: var(--soci-btn-font-size);
-  font-weight: var(--soci-btn-font-weight);
-  line-height: 1;
-  cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 160ms ease;
-}
-
-:is(.ag-brand-mockup-tabs .ag-brand-mockup-tab):not(:disabled):hover {
-  background: var(--soci-btn-surface-hover);
-  border-color: var(--soci-btn-border);
-  color: var(--g-brand-2-text, #7a239e);
-  transform: translateY(-1px);
-}
-
-:is(.ag-brand-mockup-tabs .ag-brand-mockup-tab.is-active, .ag-brand-mockup-tabs .ag-brand-mockup-tab[aria-selected="true"]) {
-  background: var(--g-brand-2-surface, color-mix(in srgb, var(--g-brand-2, #c4a7ff) 14%, transparent));
-  border-color: color-mix(in srgb, var(--g-brand-2, #c4a7ff) 42%, var(--soci-btn-border));
-  color: var(--g-brand-2-text, #7a239e);
-  box-shadow: var(--soci-btn-shadow);
-}
-
-:is(.ag-brand-mockup-tabs .ag-brand-mockup-tab):focus-visible {
-  outline: none;
-  box-shadow: var(--soci-btn-focus-ring), var(--soci-btn-shadow);
-}
-
-/* Component-specific rules used by the brand showcase resolve to the same tokens. */
-.ag-brand-showcase :is(.ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary) {
-  background: var(--soci-btn-primary-bg);
-  border-color: transparent;
-  color: var(--soci-btn-primary-fg);
-  box-shadow: var(--soci-btn-shadow);
-}
-
-.ag-brand-showcase :is(.ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary):not(:disabled):hover {
-  background: var(--soci-btn-primary-hover);
-  border-color: transparent;
-  color: var(--soci-btn-primary-fg);
-  box-shadow: var(--soci-btn-shadow-hover);
-  filter: saturate(1.04);
-}
-
-.ag-brand-showcase .ag-brand-demo-secondary {
-  background: var(--soci-btn-surface);
-  border-color: var(--soci-btn-border);
-  color: var(--soci-btn-fg);
-  box-shadow: var(--soci-btn-shadow);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :is(.ag-brand-mockup-tabs .ag-brand-mockup-tab) {
-    transition: none;
-  }
-}
-/* Native upload controls are brought into the same secondary-button language. */
-input[type="file"] {
-  min-height: var(--soci-btn-height);
-  padding: 3px 5px;
-  border: 1px solid var(--soci-btn-border);
-  border-radius: var(--soci-btn-radius);
-  background: var(--soci-btn-surface);
-  color: var(--soci-btn-fg);
-  font-size: var(--soci-btn-font-size);
-}
-
-input[type="file"]::file-selector-button {
-  min-height: var(--soci-btn-height-sm);
-  margin-right: 8px;
-  padding: 0 11px;
-  border: 1px solid var(--soci-btn-border);
-  border-radius: 10px;
-  background: var(--soci-btn-surface-hover);
-  color: var(--soci-btn-fg);
-  font: inherit;
-  font-weight: var(--soci-btn-font-weight);
-  cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
-}
-
-input[type="file"]::file-selector-button:hover {
-  border-color: color-mix(in srgb, var(--g-brand-2, #c4a7ff) 52%, var(--soci-btn-border));
-  background: var(--g-brand-2-surface, color-mix(in srgb, var(--g-brand-2, #c4a7ff) 13%, transparent));
-  color: var(--g-brand-2-text, #7a239e);
-}
-/* Legacy edge-glow hooks inherit the same semantic primary contract. */
-:root .g-edge-btn:is(.primary, .dash-save, .continue, .studio-create, .pr-btn.pr-primary) {
-  appearance: none;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--soci-btn-gap);
-  min-height: var(--soci-btn-height);
-  padding: 0 var(--soci-btn-pad-x);
-  border: 1px solid transparent;
-  border-radius: var(--soci-btn-radius);
-  background: var(--soci-btn-primary-bg);
-  color: var(--soci-btn-primary-fg);
-  text-shadow: none;
-  box-shadow: var(--soci-btn-shadow) !important;
-  font-family: inherit;
-  font-size: var(--soci-btn-font-size);
-  font-weight: var(--soci-btn-font-weight);
-  letter-spacing: var(--soci-btn-letter-spacing);
-  line-height: 1;
-  overflow: hidden;
-  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 160ms ease, filter 180ms ease;
-}
-
-:root .g-edge-btn:is(.primary, .dash-save, .continue, .studio-create, .pr-btn.pr-primary):not(:disabled):hover {
-  background: var(--soci-btn-primary-hover);
-  border-color: transparent;
-  color: var(--soci-btn-primary-fg);
-  box-shadow: var(--soci-btn-shadow-hover) !important;
-  filter: saturate(1.04);
-  transform: translateY(-1px);
-}
-
-:root .g-edge-btn:is(.primary, .dash-save, .continue, .studio-create, .pr-btn.pr-primary):not(:disabled):active {
-  transform: translateY(0) scale(0.98);
-}
-
-:root .g-edge-btn:is(.primary, .dash-save, .continue, .studio-create, .pr-btn.pr-primary):focus-visible {
-  outline: none;
-  box-shadow: var(--soci-btn-focus-ring), var(--soci-btn-shadow);
-}
-
-:root .g-edge-btn:is(.primary, .dash-save, .continue, .studio-create, .pr-btn.pr-primary) > .g-eb-glow,
-:root .g-edge-btn:is(.primary, .dash-save, .continue, .studio-create, .pr-btn.pr-primary) > .g-eb-surface {
-  display: none !important;
-}
-/* Brand showcase CTAs must wrap instead of shrinking their label in narrow columns. */
-:root .ag-brand-showcase-head {
-  flex-wrap: wrap;
-}
-
-:root .ag-brand-showcase .ag-brand-reset {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
 /* ── Soci Icon Swap: contrato visual compartilhado com a Microkit ── */
+:root:root .soci-icon-swap { gap: 0; }
+.soci-icon-swap-content:has(> .soci-icon-swap-label:empty) { gap: 0; }
 .soci-icon-swap {
   position: relative;
   overflow: hidden;
@@ -556,38 +193,46 @@ input[type="file"]::file-selector-button:hover {
 .soci-icon-swap:disabled .soci-icon-swap-icon,
 .soci-icon-swap[aria-disabled="true"] .soci-icon-swap-icon { opacity: .7; }
 
-/* Beautiful UI buttons inherit the platform tokens instead of the reference's neutral defaults. */
-:root :is(.bui-btn.soci-icon-swap, .bui-btn.soci-icon-swap.is-primary, .bui-btn.soci-icon-swap.is-accent) {
+:root:root :is(.secondary, .primary, .dash-tool):is(.md-square, .dash-square) { padding: 0; }
+:root:root .md-square .soci-icon-swap-icon { width: auto; max-width: none; overflow: visible; }
+:root:root .md-square:is(:hover, :focus-visible) .soci-icon-swap-icon { width: auto; max-width: none; opacity: 1; transform: none; }
+:root:root .md-square .soci-icon-swap-arrow { display: none; }
+
+/* Beautiful UI */
+:root:root .bui-btn.soci-icon-swap {
   min-height: var(--soci-btn-height-sm);
-  padding: 0 12px;
+  padding: 0 13px;
   border: 1px solid transparent;
   border-radius: var(--soci-btn-radius);
   background: var(--soci-btn-primary-bg);
   color: var(--soci-btn-primary-fg);
   font-family: inherit;
-  font-size: var(--soci-btn-font-size);
+  font-size: 13px;
   font-weight: var(--soci-btn-font-weight);
-  line-height: 1;
-  box-shadow: var(--soci-btn-shadow);
-  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 160ms ease, filter 180ms ease;
+  line-height: 1.2;
+  box-shadow: none;
+  transition: var(--soci-btn-motion);
 }
-:root .bui-btn.soci-icon-swap.is-primary:not(:disabled):hover,
-:root .bui-btn.soci-icon-swap.is-accent:not(:disabled):hover { background: var(--soci-btn-primary-hover); box-shadow: var(--soci-btn-shadow-hover); filter: saturate(1.04); transform: translateY(-1px); }
-:root .bui-btn.soci-icon-swap.is-secondary {
-  background: var(--soci-btn-surface);
-  border-color: var(--soci-btn-border);
-  color: var(--soci-btn-fg);
-}
-:root .bui-btn.soci-icon-swap.is-secondary:not(:disabled):hover { background: var(--soci-btn-surface-hover); border-color: color-mix(in srgb, var(--g-brand-2, #c4a7ff) 52%, var(--soci-btn-border)); color: var(--g-ink, #101828); box-shadow: var(--soci-btn-shadow-hover); transform: translateY(-1px); }
-:root .bui-btn.soci-icon-swap:is(.is-ghost, .is-quiet) { background: transparent; border-color: transparent; color: var(--soci-btn-fg); }
-:root .bui-btn.soci-icon-swap:is(.is-ghost, .is-quiet):not(:disabled):hover { background: var(--soci-btn-surface-hover); border-color: var(--soci-btn-border); color: var(--g-brand-2-text, #7a239e); transform: translateY(-1px); }
-:root .bui-btn.soci-icon-swap.is-success { background: var(--bui-green, #2fb37a); color: #fff; }
-:root .bui-btn.soci-icon-swap.is-xs { min-height: 30px; padding-inline: 10px; font-size: 12px; }
-:root .bui-btn.soci-icon-swap.is-md { min-height: var(--soci-btn-height); padding-inline: 14px; }
-:root .bui-btn.soci-icon-swap:focus-visible { outline: none; box-shadow: var(--soci-btn-focus-ring), var(--soci-btn-shadow); }
+:root:root .bui-btn.soci-icon-swap:is(.is-primary, .is-accent):not(:disabled):hover { background: var(--soci-btn-primary-hover); }
+:root:root .bui-btn.soci-icon-swap.is-secondary { background: var(--soci-btn-surface); color: var(--soci-btn-fg); }
+:root:root .bui-btn.soci-icon-swap.is-secondary:not(:disabled):hover { background: var(--soci-btn-surface-hover); }
+:root:root .bui-btn.soci-icon-swap:is(.is-ghost, .is-quiet) { background: transparent; color: var(--soci-btn-fg); }
+:root:root .bui-btn.soci-icon-swap:is(.is-ghost, .is-quiet):not(:disabled):hover { background: var(--g-fill); color: var(--g-ink); }
+:root:root .bui-btn.soci-icon-swap.is-success { background: var(--g-mint); color: #fff; }
+:root:root[data-theme="dark"] .bui-btn.soci-icon-swap.is-success { color: #06210f; }
+:root:root .bui-btn.soci-icon-swap.is-xs { min-height: 28px; padding-inline: 11px; font-size: 12px; }
+:root:root .bui-btn.soci-icon-swap.is-md { min-height: var(--soci-btn-height); padding-inline: 16px; }
+:root:root .bui-btn.soci-icon-swap:focus-visible { outline: 2px solid var(--g-ink); outline-offset: 2px; }
 
+@media (pointer: coarse), (max-width: 540px) {
+  :root:root :is(.primary, .secondary, .danger):not(.plain, .pill-button) { min-height: 44px; }
+}
+@media (prefers-contrast: more) {
+  :root:root :is(.secondary, .ag-brand-demo-secondary, .dash-tool) { border-color: var(--g-line-2); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .soci-icon-swap-content,
-  .soci-icon-swap-icon,
-  .soci-icon-swap-arrow { transition: none; }
+  :root:root :is(.primary, .continue, .studio-create, .studio-compose-actions .primary, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .pr-btn.pr-primary, .secondary, .ag-brand-demo-secondary, .dash-tool, .danger, .pill-button, .icon-btn, .side-toggle, .theme-toggle, .tool-btn, .top-menu, .lang-btn), .soci-icon-swap-content, .soci-icon-swap-icon, .soci-icon-swap-arrow { transition: none; }
+}
+@media (forced-colors: active) {
+  :root:root :is(.primary, .continue, .studio-create, .studio-compose-actions .primary, .dash-save, .ag-brand-reset, .ag-brand-mockup-side-cta, .ag-brand-mockup-primary, .ag-brand-demo-primary, .pr-btn.pr-primary, .secondary, .ag-brand-demo-secondary, .dash-tool, .danger, .pill-button) { border-color: ButtonText; }
 }

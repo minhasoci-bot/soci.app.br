@@ -10,7 +10,7 @@
 .tk-status>div{flex:1;min-width:0}
 .tk-status p{margin:2px 0 0;overflow-wrap:anywhere}
 .tk-code{display:grid;gap:8px;justify-items:start}
-.tk-code pre{margin:0;width:100%;box-sizing:border-box;padding:12px 14px;border-radius:10px;background:var(--surface-2,#f4f6f9);border:1px solid var(--line,#e3e8ef);overflow-x:auto;font-size:12.5px;line-height:1.5}
+.tk-code pre{margin:0;width:100%;box-sizing:border-box;padding:12px 14px;border-radius:var(--r-control);background:var(--surface-2,#f4f6f9);border:1px solid var(--line,#e3e8ef);overflow-x:auto;font-size:12.5px;line-height:1.5}
 .tk-list{margin:0;padding-left:18px;display:grid;gap:6px}
 .tk-page .metrics{margin-bottom:14px}
 .sc-score{font-variant-numeric:tabular-nums}
@@ -22,11 +22,11 @@
 .sc-form .sc-config:empty{display:none}
 .sc-form .rp-save{display:flex;align-items:center;justify-content:flex-end;gap:8px}
 .sc-form .rp-save .form-status{margin-right:auto}
-.sc-contact{margin:6px 0 4px;padding:10px 12px;border:1px solid var(--line,#e3e8ef);border-radius:10px}
+.sc-contact{margin:6px 0 4px;padding:10px 12px;border:1px solid var(--line,#e3e8ef);border-radius:var(--r-control)}
 .sc-contact summary{cursor:pointer;display:flex;align-items:center;gap:6px;font-weight:600}
 .sc-contact ul{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:6px}
 .sc-contact li{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 
 /* Central de preferências (6b.4) */
 .pf-topics{list-style:none;margin:0;padding:0;display:grid;gap:8px}.pf-topic{display:grid;grid-template-columns:1fr 1.5fr auto;gap:8px;align-items:center}
-.pf-contact{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:6px 0;padding:10px 12px;border:1px solid var(--line,#e3e8ef);border-radius:10px;font-size:13px}
+.pf-contact{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:6px 0;padding:10px 12px;border:1px solid var(--line,#e3e8ef);border-radius:var(--r-control);font-size:13px}

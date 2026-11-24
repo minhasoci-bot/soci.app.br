@@ -16,10 +16,10 @@ const base = ['style.css', 'dashboard.css', 'studio.css', 'agency.css', 'prospec
 const own = 'graao.css';
 const PREFIX = ':root[data-theme=dark]';
 
-// microkit dark palette
+// mesmas superfícies escuras de ui/tokens.css
 const P = {
-  surface: [17, 19, 23], sunken: [21, 23, 27], raised: [27, 29, 34], hairline: [43, 47, 53], divider: [37, 41, 45],
-  text: '#f1f2f4', text2: '#cfd4da', text3: '#aab0b9', muted: '#8d939d', dim: '#7d8591',
+  surface: [21, 23, 27], sunken: [28, 31, 36], raised: [42, 46, 53], hairline: [50, 54, 61], divider: [44, 48, 54],
+  text: '#f3f4f6', text2: '#cdd1d8', text3: '#b3b9c3', muted: '#9aa0ab', dim: '#868d98',
 };
 
 /* ── tiny CSS reader: rules, @media/@supports blocks; skips @keyframes, @font-face and comments ── */
