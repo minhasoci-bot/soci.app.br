@@ -1,0 +1,106 @@
+---
+title: Montar um funil de reuniões qualificadas
+description: Vídeo, formulário que qualifica, agenda curta e confirmação que prepara o lead, com o pixel contando só quem tem perfil.
+modulo: sites
+sidebar:
+  order: 2
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Requisitos from '../../../components/Requisitos.astro';
+import Automacao from '../../../components/Automacao.astro';
+
+Este funil serve para quem vende em reunião individual. O visitante assiste ao vídeo, responde às perguntas e só chega à agenda se tiver o perfil. Quem não tem vai para uma oferta menor e não conta como Lead no pixel, então os anúncios aprendem com quem pode virar cliente.
+
+<Requisitos permissao="Acesso aos módulos Sites e Calendários na subconta" />
+
+## Instalar o setup pronto
+
+<Steps>
+
+1. Na agência, abra **Setups de conta → Marketplace** e instale **Funil de Reuniões Qualificadas**. Depois carregue o setup na subconta.
+
+2. Na subconta, abra **Calendários → Página de agendamento**, ligue a página e confira o horário de funcionamento.
+
+3. Em **Sites e Funis → Funis**, abra o funil no editor. Em cada página, clique no quadro do vídeo e cole o link em **Design → Link do vídeo**. Sem link, o vídeo não aparece na página publicada.
+
+4. Em **Publicação**, publique o funil.
+
+5. Em **Automação**, revise as mensagens dos 5 fluxos e ligue os que for usar. Os roteiros dos vídeos e da ligação de confirmação estão nas mensagens prontas, na pasta "Funil de reuniões: roteiros".
+
+</Steps>
+
+## Colocar vídeo, formulário e agenda em uma página
+
+No editor de páginas, o botão **Inserir elemento** tem três blocos:
+
+- **Vídeo**: aceita links do YouTube, Vimeo, Loom e Panda Video, ou um arquivo de vídeo em https que termine em .mp4, .webm ou .m4v.
+- **Formulário com perguntas**: mostra um formulário criado em **Sites e Funis → Formulários**. O bloco **Formulário simples** continua pedindo só nome, e-mail e WhatsApp.
+- **Agenda**: mostra os horários de um serviço. Precisa da página de agendamento ligada.
+
+Clique no bloco e escolha o conteúdo no painel **Design**.
+
+## Separar o lead qualificado
+
+Abra o formulário e vá em **Configurações**.
+
+<Steps>
+
+1. Em **Ao enviar**, escolha para onde vai quem tem o perfil: mensagem, endereço, página de um funil ou agenda. Na página e na agenda, os dados que o lead digitou já chegam preenchidos.
+
+2. Em **Destino por resposta**, clique em **Adicionar regra** e escolha a resposta. Em um quiz, também dá para usar a faixa do resultado.
+
+3. Marque **Lead desqualificado** para quem não deve ver a agenda, e escolha o destino dessa pessoa. Se quiser, coloque uma tag no contato.
+
+</Steps>
+
+<Aside type="note">
+A regra de desqualificação vale antes das outras, em qualquer ordem. Quem cai nela não recebe o link da agenda e não dispara o evento Lead.
+</Aside>
+
+## Regras de agenda por serviço
+
+Em **Calendários → Serviços**, edite o serviço e preencha **Regras deste serviço**:
+
+- **Antecedência mínima** e **Agenda aberta por**: vazias, seguem o padrão da subconta. O setup usa 1080 minutos (18 horas) e 4 dias.
+- **Depois de agendar**: leve para a página de confirmação do funil, para um endereço ou mostre a confirmação da própria agenda.
+
+## O que o pixel conta
+
+Com o Pixel da Meta, o GA4 ou o Tag Manager ligados em **Marketing → Rastreamento**:
+
+| Momento | Meta | GA4 | Tag Manager |
+|---|---|---|---|
+| Formulário aceito, lead qualificado | Lead | generate_lead | soci_lead |
+| Horário marcado | Schedule | schedule | soci_schedule |
+
+Cada evento conta uma vez por envio, mesmo se a pessoa recarregar a página.
+
+## Campanhas na Meta
+
+Os públicos do método são criados no Gerenciador de Anúncios: quem viu 95% dos vídeos, quem visitou as páginas, quem se cadastrou (evento Lead) e quem agendou (evento Schedule). Na campanha de público frio, use semelhantes e exclua quem já conhece você; na de remarketing, anuncie para esses públicos. Para incluir ou tirar contatos de um público pela lista da soci, use a ação "Público personalizado da Meta" em um fluxo.
+
+## Automações ligadas
+
+O gatilho de formulário ganhou o filtro **Qualificação do lead**. Nos fluxos que começam com um agendamento, a etapa **Aguardar → Em relação à data do evento** já conta a partir da reunião, e as variáveis `{{vars.evento_dia}}` e `{{vars.evento_hora}}` trazem o dia e o horário.
+
+<Automacao gatilhos={['Formulário enviado', 'Pesquisa enviada', 'Questionário enviado', 'Agendamento criado', 'Status do agendamento']} acoes={['Criar ou atualizar oportunidade', 'Enviar WhatsApp', 'Remover de um fluxo']} />
+
+## Perguntas frequentes
+
+**O lead foi para a mensagem, e não para a página que escolhi. Por quê?**
+O funil precisa estar publicado e a página precisa existir. Para a agenda, a página de agendamento precisa estar ligada e o serviço, disponível.
+
+**Posso usar o formulário e a agenda no meu próprio site?**
+Sim. O código do formulário está em **Integrar**. Para a agenda, use um iframe com o endereço da página de agendamento e `?embed=1` no fim.
+
+**Carregar o setup de novo apaga o que editei?**
+Não. No modo que mantém o que já existe, as páginas editadas continuam como estão.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Criar um pipeline de vendas" href="/crm/criar-pipeline/" />
+  <LinkCard title="Gatilhos de automação" href="/automacoes/gatilhos/" />
+</CardGrid>

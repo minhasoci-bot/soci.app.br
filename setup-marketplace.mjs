@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { agentTemplate } from './agent-model.mjs';
 import { marketplaceCategories } from './ui/agency-data.js';
 import { agenciaCompleta360Spec } from './setup-agencia-360.mjs';
+import { funilReunioesSpec } from './setup-funil-reunioes.mjs';
 import { setupTemplateSpecs } from './setup-templates.mjs';
 
 export const MARKETPLACE_DOC_ID = 'marketplace-setups';
@@ -77,7 +78,7 @@ function buildOfficial(spec) {
     counts,
     preview: buildSetupPreview(assets),
     assets,
-    studioSites: {},
+    studioSites: spec.studioSites ? structuredClone(spec.studioSites) : {},
     installs: 0,
     publishedAt: spec.publishedAt || '2026-01-15T12:00:00.000Z',
     updatedAt: spec.publishedAt || '2026-01-15T12:00:00.000Z'
@@ -86,6 +87,7 @@ function buildOfficial(spec) {
 
 const OFFICIAL_SETUPS = [
   buildOfficial(agenciaCompleta360Spec),
+  buildOfficial(funilReunioesSpec),
   buildOfficial({
     id: 'official-clinica-estetica',
     title: 'Clínica de Estética & Harmonização',
