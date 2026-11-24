@@ -3030,7 +3030,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const page = findPage(doc, pageId);
         const etag = `W/"${projectId}-${pageId}-${doc.rev || 0}"`;
         if (req.headers['if-none-match'] === etag) {
-          res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'private, no-cache' });
+          res.writeHead(304, { ...previewHeaders, 'ETag': etag, 'Cache-Control': 'private, no-cache' });
           return res.end();
         }
         res.writeHead(200, { ...previewHeaders, 'ETag': etag, 'Cache-Control': 'private, no-cache' });
