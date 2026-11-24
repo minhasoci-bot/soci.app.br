@@ -451,6 +451,8 @@ export default {
   "Carregando página…": "Cargando página…",
   "Carregando portal do cliente…": "Cargando portal do cliente…",
   "Carregando…": "Cargando…",
+  "Carregar mais eventos": "Cargar más eventos",
+  "Não foi possível carregar os eventos": "No fue posible cargar los eventos",
   "Carregar": "Cargar",
   "Carregar arquivo": "Cargar archivo",
   "Carregar em uma subconta agora": "Cargar em uma subconta agora",

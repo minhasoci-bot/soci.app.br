@@ -48,7 +48,8 @@ import { importedFile, mediaLimitBytes } from './media-model.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
 import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
-import { hasPixels, injectPixels, originAllowed, pixelsScript, trackerScript, trackingOf, touchesFrom, widenCsp } from './tracking.mjs';
+import { hasPixels, injectPixels, pixelsScript, trackerScript, trackingOf, widenCsp } from './tracking.mjs';
+import { createTrackingLog } from './tracking-events.mjs';
 import { adSettingsOf, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
 import { freshSecret, googleConfigured, googleError, googleReports, listLocations, locationDetails, searchError, searchReport } from './google-integrations.mjs';
@@ -1330,6 +1331,7 @@ export function makeServer({
   // Serviços de e-mail: the sub-account's verified sending domain, or '' to send from the platform address.
   const sendingAddress = async workspace => { try { return workspaceSender(await store.load(`email-${workspace}`)); } catch { return ''; } };
   const signHits = new Map(), testHits = new Map(), countdownCache = new Map(), trackingHits = new Map();
+  const trackingLog = createTrackingLog({ store });
   // Tracking events: up to 300 per connection every 10 minutes.
   const allowTracking = ip => {
     const at = Date.now(), hit = trackingHits.get(ip);
@@ -1912,6 +1914,7 @@ export function makeServer({
       try { await runEmailCampaigns(w.id); } catch (e) { console.error(`E-mail campaigns (${w.id}): ${e.message}`); }
       try { await runAllAds(w.id); } catch (e) { console.error(`Ads (${w.id}): ${e.message}`); }
     }, { concurrency: cronConcurrency, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+    await trackingLog.sweep(at);
     if (skipped.length) console.warn(`Cron: ${skipped.length} de ${spaces.length} workspaces ficaram para o próximo minuto.`);
     return total;
   }
@@ -2457,6 +2460,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const file = importedFile(response, address);
         const result = await change(id, { type:'save', key:'files', data:{ ...file, folderId: typeof input.folderId === 'string' ? input.folderId : '' } }, who);
         return json({ id: result.id, ...workspaceView(who, result.state) });
+      }
+      // Configurações → Rastreamento: the events received, newest first (?type=, ?before=<cursor>).
+      if (p==='/api/tracking/events' && method==='GET') {
+        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
+        await workspaceAccess(req, res, id, { modules: ['settings'] });
+        return json(await trackingLog.read(id, { type: url.searchParams.get('type') || '', before: url.searchParams.get('before') || '' }));
       }
       // Marketing → Rastreamento: the GA4 Measurement Protocol API secret. Write-only: sealed in the ads-<workspace> row,
       // never sent back; the sub-account state only says whether it is set. An empty value removes it.
@@ -3052,11 +3061,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           let data;
           try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw error('Evento inválido.', 400); }
           if (!data || typeof data !== 'object' || Array.isArray(data)) throw error('Evento inválido.', 400);
-          const result = await store.change(workspace, s => {
-            if (!originAllowed(trackingOf(s), req.headers.origin || data.url || '')) throw error('Este domínio não pode enviar eventos para esta subconta.', 403);
-            return { id: execute(s, { type: 'tracking-event', data }, { workspace, attribution: touchesFrom(data) }), outbox: s.workflowOutbox?.length || 0 };
-          });
-          if (result.outbox) flushLater(workspace);
+          if (await trackingLog.record(workspace, data, req.headers.origin)) flushLater(workspace);
           res.writeHead(204, cors); return res.end();
         }
         if (method !== 'GET' && method !== 'HEAD') throw error('Method not allowed.', 405);
