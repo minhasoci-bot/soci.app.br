@@ -46,14 +46,15 @@
     "artigo": "white-label",
     "titulo": "White label: a sua marca na soci",
     "fase": "F2",
-    "status": "pendente"
+    "status": "escrito"
   },
   {
     "grupo": "agencia",
     "artigo": "dominio-proprio",
     "titulo": "Usar o seu domínio",
     "fase": "F2",
-    "status": "pendente"
+    "status": "pendente",
+    "nota": "Aguardando o app: o Domínio para subcontas é gravado em Empresa e marca, mas o servidor ainda não abre as subcontas nesse domínio."
   },
   {
     "grupo": "configuracoes",
