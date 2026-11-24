@@ -1,0 +1,58 @@
+---
+title: Conectar o WhatsApp das subcontas
+description: Teste o servidor da Evolution API, conecte o número de cada subconta por QR Code e exclua instâncias que não usa mais.
+modulo: agencia
+sidebar:
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Cada subconta conecta o próprio número de WhatsApp lendo um QR Code. Quem faz a ligação com o WhatsApp é a Evolution API, instalada num servidor da plataforma ou da sua agência. Cada subconta tem uma instância separada nesse servidor, então um número não enxerga as conversas do outro.
+
+<Requisitos permissao="Acesso a Configurações na agência" />
+
+## Conferir o servidor
+
+<Steps>
+
+1. Na agência, abra **Configurações → WhatsApp**.
+
+2. Clique em **Testar servidor**. A página mostra a versão da Evolution API, quantos números da sua agência estão conectados e o tempo de resposta. Se algo estiver errado, mostra o motivo.
+
+</Steps>
+
+Se a página mostra **Servidor gerenciado ativo**, não há nada para configurar.
+
+## Usar um servidor próprio
+
+<Steps>
+
+1. Em **Configurações → WhatsApp**, abra **Usar servidor de WhatsApp próprio**.
+
+2. Preencha a **URL da Evolution API** e a **API Key global**, que é o valor de `AUTHENTICATION_API_KEY` no servidor.
+
+3. Clique em **Salvar servidor de WhatsApp**. O teste roda em seguida. A chave fica criptografada e não aparece de novo na tela.
+
+</Steps>
+
+## Conectar o número de uma subconta
+
+<Steps>
+
+1. Na lista de subcontas, clique em **Conectar QR Code**. O cliente também pode conectar sozinho, em **Configurações → WhatsApp** dentro da subconta.
+
+2. No celular, abra o WhatsApp e toque em **Aparelhos conectados → Conectar aparelho**.
+
+3. Aponte a câmera para o QR Code. Sem câmera, informe o número com DDI e DDD e digite no celular o código de 8 dígitos.
+
+</Steps>
+
+## Excluir uma instância
+
+**Desconectar** tira o número do ar e mantém a instância no servidor. **Excluir instância** desconecta o número e também apaga a instância. Use quando a subconta não vai mais usar o WhatsApp. As conversas continuam no Soci, e basta ler o QR Code de novo para voltar a usar.
+
+<Aside type="caution">
+A Evolution API usa o WhatsApp Web, não a API oficial da Meta. O WhatsApp pode banir números que mandam muitas mensagens para quem não os conhece. Aqueça números novos e evite listas frias.
+</Aside>

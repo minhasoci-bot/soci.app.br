@@ -13,7 +13,7 @@ Data: 23/11/2026 · Branch analisada: `feat/smartsite-awwwards` · Ferramentas: 
 | Banco | Supabase `soci.app.br` (us-east-2, Postgres 17): 1 tabela de app, `go_workspaces`, 51 linhas, 1,2 MB, 6 usuários |
 | Hospedagem | Vercel, região `gru1` (São Paulo), uma função `api/index.mjs` atende tudo |
 | Agendador | `pg_cron` chama `/api/social/cron` a cada minuto via `pg_net`: 1.440 execuções nas últimas 24 h, 358 respostas 200 guardadas, 2 timeouts de DNS |
-| Integrações | Supabase Auth (Google), OpenAI, Gemini, AbacatePay, Resend, Twilio, Meta, LinkedIn, Evolution/WAHA/Uazapi (WhatsApp), Google (Places, Ads, GBP, PageSpeed), Web Push, Treg |
+| Integrações | Supabase Auth (Google), OpenAI, Gemini, AbacatePay, Resend, Twilio, Meta, LinkedIn, Evolution/WAHA (WhatsApp), Google (Places, Ads, GBP, PageSpeed), Web Push, Treg |
 
 ## 2. Nota de saúde (gstack /health)
 
