@@ -7,6 +7,7 @@ import { createEmailRoutes } from './routes/email.mjs';
 import { createMetaRoutes } from './routes/meta.mjs';
 import { createGbpRoutes, createGoogleRoutes } from './routes/google.mjs';
 import { createAgentRoutes } from './routes/agents.mjs';
+import { createStudioRoutes } from './routes/studio.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -17,8 +18,8 @@ import { tmpdir } from 'node:os';
 import { blank, seed, uid, execute, find, emitWorkflow, receiveProspects } from './model.mjs';
 import { createSqliteStore, supabaseFromEnv } from './storage.mjs';
 import { accountProfile, afterLogin, authFromEnv } from './auth.mjs';
-import { discoverDesign, generatePage, generateSite, planSite, revisePage, suggestSeo } from './studio-ai.mjs';
-import { localPlan, questionsFor, validDesign, validPlan } from './ui/studio-design.js';
+import { generatePage, revisePage, suggestSeo } from './studio-ai.mjs';
+import { validDesign } from './ui/studio-design.js';
 import { designAgent, replyAsAgent } from './agent-ai.mjs';
 import { createOpenAI, openAIModel } from './openai.mjs';
 import { agentWorkflowRequest, recordAgentRun } from './agent-model.mjs';
@@ -35,10 +36,8 @@ import { reviewTokenHash } from './reputation-model.mjs';
 import { renderReviewPage, reviewPageCsp } from './reputation-page.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { collectorCsp, renderCollector, renderWidget, widgetCsp, widgetLoader } from './reputation-widget.mjs';
-import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, thankYouPage, newSiteDoc, pageFromStructure, previewHeaders, publicDoc, publicHeaders, publish, readReference, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withMotion } from './studio-site.mjs';
-import { starterProject, studioTemplates } from './ui/studio-data.js';
-import { findSiteTemplate } from './ui/site-template-data.js';
-import { hasSiteTemplate, siteTemplatePages, siteTemplatePreview } from './site-templates/index.mjs';
+import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, previewHeaders, publicHeaders, publish, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withMotion } from './studio-site.mjs';
+import { hasSiteTemplate, siteTemplatePreview } from './site-templates/index.mjs';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, previewSnapshot, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
@@ -2126,6 +2125,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const googleRoute = createGoogleRoutes({ store, ready, localAccess, error, spaceId, privateSpace, stamp, workspaceSegment, flushLater, googleCache, googleCallbackPath, googleData, googlePopup, googleView, payload, publicAccountPolicy, publicBase, recordAudit, searchCache, socialActor, socialRow, workspaceAccess });
   const gbpRoute = createGbpRoutes({ store, error, spaceId, change, flushLater, gbpAccess, gbpStatus, payload, recordAudit, workspaceAccess });
   const agentRoute = createAgentRoutes({ store, localAccess, error, spaceId, privateSpace, agentModel, designAgentConfig, generateAgentReply, listWorkspaces, openAI, payload, recordAudit, workspaceAccess });
+  const studioRoute = createStudioRoutes({ store, error, change, openAI, payload, siteDoc, studioGuard, studioRequest, syncMeta });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const server=createServer(async (req,res) => {
@@ -2930,86 +2930,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (agentRouteHandled !== NEXT_ROUTE) return agentRouteHandled;
       const pranchetaRouteHandled = await pranchetaRoute({ req, res, p, method, url, id, json, send });
       if (pranchetaRouteHandled !== NEXT_ROUTE) return pranchetaRouteHandled;
-      if (p==='/api/studio' && method==='POST') {
-        const who = await studioGuard(req,res,id);
-        const input = await payload(req);
-        const kind = input.kind === 'funnel' ? 'funnel' : 'website';
-        const blankName = typeof input.name === 'string' ? input.name.trim().slice(0,80) : '';
-        const brief = input.mode === 'blank' ? blankName : typeof input.brief === 'string' ? input.brief.trim() : '';
-        const template = input.template || 'landing';
-        if (input.mode === 'blank' && !blankName) throw error('Dê um nome ao funil ou site.',400);
-        if (!brief || brief.length > 4000) throw error('Enter a project description of up to 4,000 characters.',400);
-        if (!studioTemplates.some(item => item[0] === template)) throw error('Choose a valid template.',400);
-        if (!['model','starter','blank'].includes(input.mode)) throw error('Choose how to create the project.',400);
-        const siteTemplate = input.mode === 'starter' && input.siteTemplate ? String(input.siteTemplate) : '';
-        if (siteTemplate && !hasSiteTemplate(siteTemplate)) throw error('Escolha um modelo de site válido.',400);
-        const existing = await store.load(id);
-        if (existing.studioProjects.length >= 60) throw error('A workspace can have up to 60 Studio projects.',400);
-        const connection = input.mode === 'model' ? await openAI.requireConnection(who.session) : null;
-        const reference = connection && input.reference ? await readReference(input.reference) : null;
-        const design = input.design ? validDesign(input.design) : null;
-        const plan = input.plan ? validPlan(input.plan, kind) : null;
-        let draft, html;
-        if (input.mode === 'model') {
-          const site = await generateSite(connection,brief,template,reference?.summary,design,plan?.pages[0] || null);
-          draft = { name:site.name, headline:site.name, summary:site.summary, theme:site.theme, blocks:[] };
-          html = site.html;
-        } else if (design && plan) {
-          draft = { name:plan.name, headline:plan.name, summary:plan.summary, theme:'indigo', blocks:[] };
-          html = designedPage({ siteName:plan.name, page:plan.pages[0], design, summary:plan.summary });
-        } else if (input.mode === 'blank') {
-          draft = { name:blankName, headline:blankName, summary:'', theme:'indigo', blocks:[] };
-          html = pageFromStructure(draft, blankName);
-        } else if (siteTemplate) {
-          const name = (typeof input.name === 'string' && input.name.trim().slice(0,80)) || findSiteTemplate(siteTemplate).brand;
-          draft = { name, headline:name, summary:findSiteTemplate(siteTemplate).description, theme:'indigo', blocks:[] };
-        } else {
-          draft = starterProject(brief,template);
-          html = pageFromStructure(draft);
-        }
-        if (plan) Object.assign(draft, { name:plan.name, headline:plan.name, summary:plan.summary || draft.summary });
-        let pages = [{ name:plan ? plan.pages[0].name : kind === 'funnel' ? 'Página de captura' : 'Home', slug:'index', html }];
-        if (siteTemplate) pages = siteTemplatePages(siteTemplate, { brand:draft.name, kind });
-        else if (kind === 'funnel' && !plan) pages.push({ name:'Obrigado', slug:'obrigado', html:thankYouPage(draft) });
-        const doc = newSiteDoc({ workspace:id, project:{ id:'pending' }, pages });
-        const created = await change(id,{type:'save',key:'studioProjects',data:{...draft,brief,template,kind,design,reference:reference?.url || ''}});
-        doc.project = created.id; doc.profile.name = `AI Studio ${created.id}`;
-        await store.insert(siteRowId(created.id), doc);
-        const synced = await syncMeta(id, created.id, doc);
-        return json({ id: synced.id, ...workspaceView(who, synced.state) },201);
-      }
-      if ((p==='/api/studio/discover' || p==='/api/studio/plan') && method==='POST') {
-        const who = await studioGuard(req,res,id);
-        const input = await payload(req);
-        const brief = typeof input.brief === 'string' ? input.brief.trim() : '';
-        if (!brief || brief.length > 4000) throw error('Descreva o que você quer construir em até 4.000 caracteres.',400);
-        const kind = input.kind === 'funnel' ? 'funnel' : 'website';
-        const connection = await openAI.status(who.session).then(s => s.configured ? openAI.requireConnection(who.session) : null);
-        if (p === '/api/studio/discover') {
-          if (!connection) return json({ ai:false, intro:`Vou montar ${kind === 'funnel' ? 'o funil' : 'o site'} com base na sua descrição. Antes, escolha a direção visual.`, questions:questionsFor({ kind }) });
-          const found = await discoverDesign(connection,{ brief, kind });
-          const palettes = found.palettes.map(item => validDesign({ palette:item }).palette).slice(0,4);
-          const fonts = found.fonts.map(item => validDesign({ fonts:item }).fonts).slice(0,4);
-          return json({ ai:true, intro:String(found.intro || '').slice(0,600), questions:questionsFor({ kind, palettes:palettes.length === 4 ? palettes : undefined, fonts:fonts.length === 4 ? fonts : undefined }) });
-        }
-        const design = validDesign(input.design);
-        const plan = connection ? validPlan(await planSite(connection,{ brief, kind, design }), kind) : localPlan(brief, kind);
-        if (kind === 'funnel' && !/obrigad|thank/i.test(plan.pages.at(-1).name + plan.pages.at(-1).slug) && plan.pages.length < 6) plan.pages.push({ name:'Obrigado', slug:'obrigado', purpose:'Confirma o envio e explica os próximos passos.' });
-        return json({ ai:Boolean(connection), plan, design });
-      }
-      if (p==='/api/studio/doc' && method!=='POST') {
-        await studioGuard(req,res,id);
-        const projectId = url.searchParams.get('id') || '';
-        return json({ doc: publicDoc(await siteDoc(id, projectId)) });
-      }
-      if (p.startsWith('/api/studio/') && method==='POST') {
-        const who = await studioGuard(req,res,id);
-        const input = await payload(req);
-        const result = await studioRequest(id, p.slice('/api/studio/'.length), input, who.session);
-        const doc = await siteDoc(id, input.id);
-        const synced = await syncMeta(id, input.id, doc);
-        return json({ id: synced.id, ...workspaceView(who, synced.state), doc: publicDoc(doc), result });
-      }
+      const studioRouteHandled = await studioRoute({ req, res, p, method, url, id, json });
+      if (studioRouteHandled !== NEXT_ROUTE) return studioRouteHandled;
       // Prévia dos modelos de site da galeria: conteúdo fixo do catálogo, sem dados de cliente.
       const templatePreview = p.match(templatePreviewPath);
       if (templatePreview && method === 'GET') {
