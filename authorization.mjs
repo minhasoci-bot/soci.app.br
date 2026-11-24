@@ -9,7 +9,7 @@ const readModules = {
   teamMessages: 'conversations', inboxViews: 'conversations', conversationSla: 'conversations',
   linkTickets: 'conversations', linkClicks: 'conversations',
   runs: 'automation', deletedWorkflows: 'automation', submissions: 'sites',
-  socialAccounts: 'marketing', socialPosts: 'marketing', socialImports: 'marketing',
+  eventSends: 'marketing', eventSendSettings: 'marketing', socialAccounts: 'marketing', socialPosts: 'marketing', socialImports: 'marketing',
   dashboards: 'dashboard', defaultDashboard: 'dashboard', onboarding: 'dashboard',
   dashboardReports: 'reporting', customReports: 'reporting', integrations: 'settings',
   seo: 'reputation', seoAudits: 'reputation', visibility: 'reputation', visibilityRuns: 'reputation', wallet: 'settings', appLog: 'settings'
@@ -35,6 +35,7 @@ const commandModules = {
   'prancheta-save': 'marketing', 'prancheta-delete': 'marketing', 'prancheta-duplicate': 'marketing',
   'email-campaign-schedule': 'marketing', 'email-campaign-cancel': 'marketing', 'email-campaign-duplicate': 'marketing',
   'event-plan-duplicate': 'marketing', 'event-plan-orchestrate': 'marketing',
+  'event-message-preview': 'marketing', 'event-message-schedule': 'marketing', 'event-message-cancel': 'marketing', 'event-message-retry': 'marketing', 'event-groups-save': 'marketing', 'event-send-settings': 'marketing',
   'prancheta-export-media': 'marketing', 'prancheta-to-social': 'marketing', 'prancheta-template': 'marketing',
   message: 'conversations', thread: 'conversations', 'team-message': 'conversations',
   'manual-action': 'conversations', 'conversation-sla': 'conversations', 'dismiss-sla': 'conversations',
@@ -118,6 +119,8 @@ export function requireWorkspaceCommand(access, command) {
   requireModule(access, module);
   if (type === 'dashboard-report') requireModule(access, 'reporting', ...snapshotSources);
   if (type === 'event-plan-orchestrate') requireModule(access, 'contacts', 'calendars');
+  // O envio sai pelo WhatsApp da subconta.
+  if (/^event-(message|send|groups)-/.test(type)) requireModule(access, 'conversations');
 }
 
 export function requireSetupModules(access, keys) {

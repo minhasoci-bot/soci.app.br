@@ -1,6 +1,7 @@
 // Strategic event planner records. These are intentionally separate from communityEvents:
 // community events manage attendance and delivery; an event plan coordinates the launch work of a sub-account.
 import { randomUUID } from 'node:crypto';
+import { eventTargets } from './event-send-model.mjs';
 
 export const eventPlanCollections = ['eventPlans'];
 export const eventPlanStatuses = ['planejado', 'em_andamento', 'concluido', 'arquivado'];
@@ -64,7 +65,7 @@ function item(value) {
     ...base,
     status: one(value.status || 'rascunho', ['rascunho', 'revisao', 'pronto', 'agendado', 'enviado', 'cancelado'], 'o status'),
     channel: one(value.channel || 'grupos', ['grupos', 'privado', 'instagram', 'email', 'outro'], 'o canal'),
-    time: time(value.time), team: one(value.team || 'copy', eventPlanTeams, 'o time'), code: str(value.code, 40), audience: one(str(value.audience, 20), ['', 'base', 'evento'], 'o grupo de destino')
+    time: time(value.time), team: one(value.team || 'copy', eventPlanTeams, 'o time'), code: str(value.code, 40), audience: one(str(value.audience, 20), ['', 'base', 'evento'], 'o grupo de destino'), targets: eventTargets(value.targets)
   };
   if (kind === 'agenda') return {
     ...base,
@@ -133,7 +134,7 @@ export function eventPlanCommand(s, command, { add, now, save, createSocial, emi
   if (command.type === 'event-plan-duplicate') {
     const source = s.eventPlans.find(row => row.id === command.id) || fail('Evento não encontrado.', 404);
     if (s.eventPlans.length >= 100) fail('A subconta pode ter até 100 eventos planejados.');
-    const { id: ignoredId, created: ignoredCreated, updated: ignoredUpdated, orchestration: ignoredOrchestration, ...data } = structuredClone(source);
+    const { id: ignoredId, created: ignoredCreated, updated: ignoredUpdated, orchestration: ignoredOrchestration, deliveries: ignoredDeliveries, ...data } = structuredClone(source);
     const stem = source.title.replace(/ \(Cópia(?: \d+)?\)$/, '');
     let suffix = 1, title = stem + ' (Cópia)';
     while (s.eventPlans.some(row => row.title === title)) title = stem + ' (Cópia ' + (++suffix) + ')';

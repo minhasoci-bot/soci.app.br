@@ -22,6 +22,7 @@ import { courseFields } from './course-model.mjs';
 import { communityCollections, communityFields } from './community.mjs';
 import { communityEventBeforeDelete, communityEventCollections, communityEventCommand, communityEventFields } from './community-events.mjs';
 import { eventPlanAfterSave, eventPlanCollections, eventPlanCommand, eventPlanFields } from './event-planner-model.mjs';
+import { eventSendCollections, eventSendCommand, eventSendDefaults, eventSendSettingsOf } from './event-send-model.mjs';
 import { communityCommand } from './community-config.mjs';
 import { courseActivityCommand } from './course-learning.mjs';
 import { courseOfferBeforeDelete, credentialCollections } from './course-credentials.mjs';
@@ -69,7 +70,8 @@ export const defaults = {
   manualActions: [], snippetFolders: [], snippets: [], triggerLinks: [], linkTickets: [], linkClicks: [],
   threads: [], teamMessages: [], inboxViews: [],
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[], pranchetaFiles:[],
-  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...eventPlanCollections, ...credentialCollections, ...certificateCollections, ...ticketCollections, ...sequenceCollections, ...loyaltyCollections, ...schedulingCollections, ...meetingCollections, ...offerCollections, ...driveCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
+  ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...eventPlanCollections, ...eventSendCollections, ...credentialCollections, ...certificateCollections, ...ticketCollections, ...sequenceCollections, ...loyaltyCollections, ...schedulingCollections, ...meetingCollections, ...offerCollections, ...driveCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
+  eventSendSettings: eventSendDefaults(),
   paymentSettings: paymentDefaults(),
   ai: { limit: 0, alertAt: 0.8, ledger: [] },
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
@@ -89,11 +91,12 @@ export function hydrateWorkspace(state) {
   reputationOf(state);
   state.listings ??= {};
   state.wallet ??= walletDefaults(); state.labs ??= labsDefaults(); state.appInstalls ??= []; state.appLog ??= []; state.seo ??= seoDefaults(); state.seoAudits ??= []; state.visibility ??= visibilityDefaults(); state.visibilityRuns ??= [];
+  eventSendSettingsOf(state);
   affiliateSettings(state);
   adSettingsOf(state);
   trackingOf(state);
   state.profile.currency = defaults.profile.currency;
-  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...driveCollections,...affiliateCollections,...adCollections,...trackingCollections,...leadFormCollections,'calls','aiVideoJobs','aiVideos',...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...eventPlanCollections,...credentialCollections,...certificateCollections,...ticketCollections,...sequenceCollections,...loyaltyCollections,...schedulingCollections,...meetingCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
+  const additions = ['threads','teamMessages','inboxViews','agents','agentRuns','knowledgeBases','agentTemplatesCustom','reviewRequests',...mediaCollections,...driveCollections,...affiliateCollections,...adCollections,...trackingCollections,...leadFormCollections,'calls','aiVideoJobs','aiVideos',...scoringCollections,...brandCollections,'manualActions','snippetFolders','snippets','triggerLinks','linkTickets','linkClicks','pipelines','dashboards','dashboardReports','studioProjects','pranchetaFiles','workflowFolders','workflowLists','deletedWorkflows',...crmCollections,...socialCollections,...chatCollections,...blogCollections,...storeCollections,...webinarCollections,...qrCollections,...communityCollections,...communityEventCollections,...eventPlanCollections, ...eventSendCollections,...credentialCollections,...certificateCollections,...ticketCollections,...sequenceCollections,...loyaltyCollections,...schedulingCollections,...meetingCollections,...offerCollections,...documentCollections,...estimateCollections,...invoiceCollections,...emailCollections,...checkoutCollections,...catalogCollections];
   for (const key of additions) state[key] ??= fresh[key];
   for (const stage of state.stages) {
     stage.pipelineId ||= salesPipeline;
@@ -639,6 +642,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'blog-view') return blogView(s, id);
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
   if (type === 'offer-access') return offerAccessCommand(s, d, { run });
+  if (typeof type === 'string' && /^event-(message|send|groups)-/.test(type)) return eventSendCommand(s, { ...command, data: d }, { emit: (event, ctx) => run(s, event, ctx), instant: (day, time) => zonedInstant(day, time, s.profile?.timezone || 'America/Sao_Paulo') });
   if (typeof type === 'string' && type.startsWith('event-plan-')) { const out = eventPlanCommand(s, { ...command, data:d }, { add, now, save: (key, data, itemId = '') => executeCommand(s, { type: 'save', key, id: itemId, data }, { workspace }), createSocial: data => executeCommand(s, { type: 'social-post', data }, { workspace }), emit: (event, ctx) => run(s, event, ctx), calendarInstant: (day, time) => zonedInstant(day, time, s.profile?.timezone || 'America/Sao_Paulo') }); if (out !== undefined) return out; }
   if (typeof type === 'string' && type.startsWith('community-event-')) return communityEventCommand(s, { ...command, data:d }, { add, run, now });
   if (['community-plan-invoice', 'community-welcome', 'community-newsletter', 'community-activity', 'portal-login'].includes(type)) return communityCommand(s, { ...command, data:d }, { add, run, now });
