@@ -7,7 +7,7 @@ export const agencyLevel = role => role.startsWith('Agency');
 export const agencyNav = [
   ['ask', 'Pergunte à Soci', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['saas', 'Configurador SaaS', 'chart'], ['prospecting', 'Prospecção', 'search'],
   ['accounts', 'Subcontas', 'users'], ['brand-groups', 'Grupos de marcas', 'chart'], ['presentations', 'Apresentações', 'monitor'], ['prancheta', 'Prancheta', 'palette'], ['snapshots', 'Setups de conta', 'box'],
-  ['affiliate', 'Portal de afiliados', 'link'], ['templates', 'Biblioteca de templates', 'site'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
+  ['affiliate', 'Portal de afiliados', 'link'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
   ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'], ['desktop-app', 'Aplicativo desktop', 'monitor'], ['marketplace', 'Marketplace de apps', 'apps'],
   ['settings', 'Configurações', 'gear']
 ];
@@ -76,10 +76,6 @@ export const collections = {
     ['name', 'Nome do plano', 'text', true], ['price', 'Preço mensal (R$)', 'number', true], ['trialDays', 'Dias de teste', 'number'],
     ['features', 'Recursos inclusos (um por linha)', 'textarea']
   ] },
-  templates: { label: 'Template', max: 200, fields: [
-    ['name', 'Nome do template', 'text', true], ['category', 'Categoria', 'select', true, ['Automotive', 'Beauty', 'Coaching', 'Creative', 'Financial', 'Health', 'Home services', 'Legal', 'Real estate', 'Technology']],
-    ['headline', 'Título de impacto', 'text', true], ['body', 'Conteúdo', 'textarea'], ['button', 'Texto do botão', 'text'], ['withForm', 'Incluir formulário de captura', 'check']
-  ] },
   referrals: { label: 'Indicação', max: 500, fields: [
     ['name', 'Empresa indicada', 'text', true], ['email', 'E-mail', 'email'], ['plan', 'Plano', 'select', true, ['Starter', 'Unlimited', 'Pro']],
     ['amount', 'Assinatura mensal (R$)', 'number', true], ['status', 'Status', 'select', true, ['Trial', 'Active', 'Cancelled']]
@@ -123,28 +119,6 @@ export const integrationCatalog = [
   ['zoom', 'Zoom', 'cal', 'Calendars', 'Video meeting links for appointments.'],
   ['shopify', 'Shopify', 'pay', 'Commerce', 'Import orders and customers.'],
   ['wordpress', 'WordPress', 'site', 'Sites', 'Embed forms and calendars on WordPress.']
-];
-
-// Template library catalog: [id, name, category, headline, body, button]
-export const templateCatalog = [
-  ['tpl-auto-repair', 'Auto Repair Shop', 'Automotive', 'Honest repairs, done on time', 'Book a diagnostic and get a written quote before any work starts.', 'Book a diagnostic'],
-  ['tpl-car-detail', 'Car Detailing', 'Automotive', 'Showroom shine at your door', 'Mobile detailing packages for daily drivers and fleets.', 'See packages'],
-  ['tpl-salon', 'Hair Salon', 'Beauty', 'Cuts and color that fit your week', 'Choose a stylist and a time that works for you.', 'Reserve a chair'],
-  ['tpl-spa', 'Day Spa', 'Beauty', 'An afternoon that resets everything', 'Massage, facials and packages for two.', 'Plan a visit'],
-  ['tpl-coach', 'Business Coach', 'Coaching', 'Grow without working more hours', 'A twelve-week program for owners who want clear numbers and a calmer calendar.', 'Apply now'],
-  ['tpl-life-coach', 'Life Coach', 'Coaching', 'Decide what comes next', 'One-on-one sessions to set goals and keep them.', 'Book a free call'],
-  ['tpl-photo', 'Photography Studio', 'Creative', 'Portraits people actually keep', 'Studio and on-location sessions with fast delivery.', 'Check availability'],
-  ['tpl-design', 'Design Studio', 'Creative', 'Brands that look as good as they work', 'Identity, packaging and web design for growing companies.', 'Start a project'],
-  ['tpl-mortgage', 'Mortgage Broker', 'Financial', 'Compare rates in one conversation', 'We shop lenders so you can focus on the move.', 'Get a quote'],
-  ['tpl-accounting', 'Accounting Firm', 'Financial', 'Books closed every month, on time', 'Bookkeeping, payroll and tax filing for small businesses.', 'Talk to an accountant'],
-  ['tpl-dental', 'Dental Clinic', 'Health', 'Gentle care for the whole family', 'Cleanings, whitening and emergency visits.', 'Book an appointment'],
-  ['tpl-therapy', 'Wellness Therapy', 'Health', 'A calmer week starts here', 'Licensed therapists for individuals and couples.', 'Find a time'],
-  ['tpl-hvac', 'HVAC Repair', 'Home services', 'Heating and cooling fixed today', 'Same-day service across the metro area.', 'Request service'],
-  ['tpl-painting', 'Painting Contractor', 'Home services', 'Clean lines, no mess left behind', 'Interior and exterior painting with a written warranty.', 'Get an estimate'],
-  ['tpl-law', 'Defense Attorney', 'Legal', 'Clear advice when it matters most', 'Free first consultation for criminal and traffic cases.', 'Request a consultation'],
-  ['tpl-realtor', 'Real Estate Agent', 'Real estate', 'Find out what your home is worth', 'A local market report delivered within 24 hours.', 'Get my report'],
-  ['tpl-saas', 'Software Product', 'Technology', 'Ship the work, skip the busywork', 'Automate the repetitive parts of your team’s day.', 'Start free trial'],
-  ['tpl-agency', 'Digital Marketing Agency', 'Technology', 'More leads from the budget you have', 'Ads, landing pages and follow-up handled by one team.', 'Book a strategy call']
 ];
 
 // Learning tracks for University and SaaS Education: [trackId, title, [[lessonId, title, summary], …]]

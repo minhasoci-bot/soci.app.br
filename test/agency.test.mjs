@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { makeServer } from '../server.mjs';
 import { createSqliteStore } from '../storage.mjs';
 import { blank } from '../model.mjs';
+import { agencyNav } from '../ui/agency-data.js';
 
 async function start(store = createSqliteStore(':memory:')) {
   const { server, host } = makeServer({ allowLocalAccess: true, auth: null, store, port: 0 });
@@ -313,11 +314,12 @@ test('Reselling, plans, affiliate payouts and announcements feed the dashboard a
   assert.equal(seen.announcements[0].title, 'Maintenance');
   assert.equal(seen.menuLinks[0].url, 'https://help.example.test/');
 
-  const install = await local.call('/api/agency/template-install', { template: 'tpl-dental', workspace: 'demo' });
-  assert.equal(install.status, 200);
-  const pages = (await local.call('/api/state?workspace=demo')).body.state.pages;
-  assert.equal(pages[0].name, 'Dental Clinic');
-  assert.ok(pages[0].formId);
+  // A biblioteca de modelos da agência saiu do produto: nem o menu nem o comando existem mais.
+  assert.ok(!agencyNav.some(([key]) => key === 'templates'));
+  // O menu lateral fatia a lista por posição: o primeiro item de "Aprender e apps" precisa continuar sendo a Universidade.
+  assert.equal(agencyNav[12][0], 'university');
+  assert.equal((await local.call('/api/agency/template-install', { template: 'tpl-dental', workspace: 'demo' })).status, 404);
+  assert.equal((await action(local, { type: 'save', key: 'templates', data: { name: 'X' } })).status, 400);
 });
 
 test('SaaS Configurator, sub-account feature switches, email domain and app reselling follow their rules', async t => {

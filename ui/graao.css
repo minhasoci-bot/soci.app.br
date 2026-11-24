@@ -702,7 +702,6 @@ dialog h2{font-weight:800;letter-spacing:-.03em}
 :root[data-theme=dark] .ag-banner{background:var(--g-brand-2-surface);border-bottom-color:var(--g-brand-2-line)}
 :root[data-theme=dark] .ag-notice{background:var(--g-brand-2-surface);border-color:var(--g-brand-2-line)}
 :root[data-theme=dark] .ag-vote.on{background:var(--g-brand-2-surface);border-color:var(--g-brand-2);color:var(--g-brand-2-text)}
-:root[data-theme=dark] .ag-thumb,:root[data-theme=dark] .ag-preview{background:linear-gradient(160deg,var(--g-brand-surface),var(--g-brand-2-surface))}
 :root[data-theme=dark] .ag-color-controls input[type=range]{border:0;padding:0;background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)}
 :root[data-theme=dark] .ag-color-knob{border-color:#fff}
 :root[data-theme=dark] .ag-color-controls input[type=range]::-webkit-slider-thumb{border-color:#fff}

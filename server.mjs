@@ -39,7 +39,7 @@ import { collectorCsp, renderCollector, renderWidget, widgetCsp, widgetLoader } 
 import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, previewHeaders, publicHeaders, publish, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withMotion } from './studio-site.mjs';
 import { hasSiteTemplate, siteTemplatePreview } from './site-templates/index.mjs';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
-import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, catalogTemplate, executeAgency, extractSnapshot, hash, hydrateAgency, installTemplate, previewSnapshot, userAccess } from './agency-model.mjs';
+import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
 import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
@@ -1286,19 +1286,6 @@ export function makeServer({
       });
       await changeMarketplace(doc => recordMarketplaceInstall(doc, listing.id));
       return copy;
-    }
-    if (op === 'template-install') {
-      const agency = await loadAgency(who.agencyId);
-      const template = catalogTemplate(input.template, agency);
-      const target = (await listWorkspaces(who.agencyId)).find(w => w.id === input.workspace);
-      if (!target) throw error('Choose a valid sub-account.',400);
-      await requireWorkspaceAccess(agency, who, target.id, { modules: ['sites'] });
-      const page = await store.change(target.id, state => installTemplate(state, template));
-      await changeAgency(who.agencyId, a => {
-        a.templateInstalls.push({ id: uid(), template: template.id, name: template.name, workspace: target.id, account: target.name, at: stamp() });
-        logTo(a, who, 'Template installed', template.name, target.name);
-      });
-      return { workspace: target.id, page };
     }
     if (op === 'prospect-convert') {
       const prospect = (await loadAgency(who.agencyId)).prospects.find(r => r.id === input.id);
