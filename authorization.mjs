@@ -4,7 +4,7 @@ import { moduleOfRecord, subAccountModules } from './ui/agency-data.js';
 
 const moduleKeys = new Set(subAccountModules.map(([key]) => key));
 const readModules = {
-  ...moduleOfRecord,
+  ...moduleOfRecord, fiscal: 'settings',
   messages: 'conversations', manualActions: 'conversations', threads: 'conversations',
   teamMessages: 'conversations', inboxViews: 'conversations', conversationSla: 'conversations',
   linkTickets: 'conversations', linkClicks: 'conversations',
@@ -21,7 +21,7 @@ const writeModules = {
 };
 
 const commandModules = {
-  'ad-settings': 'marketing', 'tracking-settings': 'settings', 'tracking-google-lead-key': 'settings', 'phone-number-save': 'settings', 'dialer-queue-add': 'conversations', 'dialer-queue-remove': 'conversations', 'dialer-disposition': 'conversations', 'affiliate-settings': 'marketing', 'affiliate-portal-link': 'marketing', 'commission-review': 'marketing', 'affiliate-payout': 'marketing',
+  'ad-settings': 'marketing', 'tracking-settings': 'settings', fiscal: 'settings', 'tracking-google-lead-key': 'settings', 'phone-number-save': 'settings', 'dialer-queue-add': 'conversations', 'dialer-queue-remove': 'conversations', 'dialer-disposition': 'conversations', 'affiliate-settings': 'marketing', 'affiliate-portal-link': 'marketing', 'commission-review': 'marketing', 'affiliate-payout': 'marketing',
   'reputation-settings': 'reputation', 'review-request': 'reputation', 'review-visibility': 'reputation', 'listing-save': 'reputation',
   'dashboard-create': 'dashboard', 'dashboard-save': 'dashboard', 'dashboard-restore': 'dashboard',
   'dashboard-report': 'dashboard', 'dashboard-default': 'dashboard', 'dashboard-timezone': 'dashboard', 'dashboard-delete': 'dashboard',
@@ -60,7 +60,7 @@ const commandModules = {
 const agencySettingsCommands = new Set([
   'account-meta', 'account-reactivate', 'saas-mode', 'saas-rebilling', 'rebill-account', 'saas-account', 'workflow-builder',
   'sub-feature', 'email-domain', 'email-domain-accounts', 'email-domain-remove', 'affiliate-pixel', 'profile',
-  'company', 'billing-plan', 'wallet', 'auto-recharge', 'system-email', 'labs', 'ai-defaults', 'studio-app-save', 'studio-app-publish', 'studio-app-delete', 'studio-app-rotate', 'compliance',
+  'company', 'fiscal', 'billing-plan', 'wallet', 'auto-recharge', 'system-email', 'labs', 'ai-defaults', 'studio-app-save', 'studio-app-publish', 'studio-app-delete', 'studio-app-rotate', 'compliance',
   'api-key', 'api-key-delete', 'private-integration', 'private-integration-delete', 'resell',
   'addon-request', 'addon-cancel', 'affiliate-pay', 'mobile-app', 'mobile-app-store', 'mobile-app-publish', 'desktop-app', 'desktop-app-publish', 'integration',
   'app-install', 'app-uninstall', 'app-resell'

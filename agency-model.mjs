@@ -1,4 +1,5 @@
 import { usageSummary } from './ui/ai-data.js';
+import { sanitizeFiscal } from './tax-id.mjs';
 import { desktopDefaults, publishDesktop, saveDesktop } from './agency-desktop.mjs';
 import { mobileOf, publishMobile, saveMobileStore } from './agency-mobile.mjs';
 import { createHash, randomBytes } from 'node:crypto';
@@ -58,6 +59,7 @@ export function blankAgency() {
   return {
     profile: { name: 'Agency', first: 'Agency', last: 'Owner', email: '', phone: '', language: platformLanguage },
     company: { name: 'My Agency', brand: platformBrand, domain: '', website: '', phone: '', address: '', primary: defaultPrimary, secondary: defaultSecondary, logo: '', timezone: 'America/Sao_Paulo', currency: defaults.profile.currency },
+    fiscal: null,
     accounts: {}, plans: [], snapshots: [], snapshotLoads: [], prospects: [], partners: [], ideas: [], menuLinks: [], announcements: [],
     users: [], templates: [], templateInstalls: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], audit: [], brandGroups: [], presentations: [], pranchetaFiles: [],
     reselling: Object.fromEntries(resellProducts.map(p => [p.key, { price: p.base, disabled: [] }])),
@@ -106,6 +108,7 @@ export function hydrateAgency(state) {
   if (!/^#[0-9a-f]{6}$/i.test(state.company.secondary || '')) state.company.secondary = defaultSecondary;
   for (const product of resellProducts) state.reselling[product.key] ??= { price: product.base, disabled: [] };
   for (const [key] of rebillProducts) state.saas.rebilling[key] ??= 1;
+  state.fiscal ??= null;
   state.saas.unitCosts ??= {}; state.saas.rebill ??= {}; state.saas.lowBalance ??= 20;
   for (const [key, , , cost] of walletProducts) state.saas.unitCosts[key] ??= cost;
   for (const [key] of subFeatures) state.subFeatures[key] ??= { on: {}, rebill: [] };
@@ -492,6 +495,11 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       state.profile.name = `${state.profile.first} ${state.profile.last}`;
       log('Profile updated');
       return 'profile';
+    }
+    case 'fiscal': {
+      state.fiscal = sanitizeFiscal(d);
+      log('Fiscal record updated', state.fiscal.name);
+      return 'fiscal';
     }
     case 'company': {
       Object.assign(state.company, { name: req(d.name, 'Nome da empresa', 120), brand: platformBrand, domain: str(d.domain, 200).toLowerCase(),

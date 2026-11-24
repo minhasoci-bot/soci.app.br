@@ -5,6 +5,7 @@ import { formOpen, readAnswers, validFields, validTiers } from './ui/form-fields
 import { changeReport } from './report-model.mjs';
 import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashboard-data.js';
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
+import { optionalTaxId, sanitizeFiscal, taxIdKind } from './tax-id.mjs';
 import { afterSave, beforeDelete, bulk, companyWorkflow, crmCollections, crmFields, customData } from './crm-model.mjs';
 import { inboxRule } from './ui/inbox-data.js';
 import { linkVisitor, saveTracking, sitePageview, trackingCollections, trackingDefaults, trackingEvent, trackingOf } from './tracking.mjs';
@@ -71,6 +72,7 @@ export const defaults = {
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[], pranchetaFiles:[],
   ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...eventPlanCollections, ...credentialCollections, ...certificateCollections, ...ticketCollections, ...sequenceCollections, ...loyaltyCollections, ...schedulingCollections, ...meetingCollections, ...offerCollections, ...driveCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
   paymentSettings: paymentDefaults(),
+  fiscal: null,
   ai: { limit: 0, alertAt: 0.8, ledger: [] },
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
   tracking: trackingDefaults(), trackingEvents: [], adFormLeads: [], calls: [], phone: phoneDefaults(), dialer: dialerDefaults(), aiVideoJobs: [], aiVideos: [], scoringRules: [],
@@ -86,6 +88,7 @@ export function hydrateWorkspace(state) {
   state.paymentSettings ??= paymentDefaults();
   state.ai ??= { limit: 0, alertAt: 0.8, ledger: [] };
   state.ai.ledger ??= [];
+  state.fiscal ??= null;
   reputationOf(state);
   state.listings ??= {};
   state.wallet ??= walletDefaults(); state.labs ??= labsDefaults(); state.appInstalls ??= []; state.appLog ??= []; state.seo ??= seoDefaults(); state.seoAudits ??= []; state.visibility ??= visibilityDefaults(); state.visibilityRuns ??= [];
@@ -165,7 +168,7 @@ function add(state, key, data) {
 }
 const contactId = (s,v,optional = false) => exists(s, 'contacts', v, 'contact', optional);
 const fields = {
-  contacts: (s, d) => ({ name: req(d.name, 'Name'), email: email(d.email), phone: str(d.phone, 48), company: str(d.company), tags: tags(d.tags), notes: str(d.notes, 5000), custom: customData(s, 'Contact', d), ...(d.dnd !== undefined ? { dnd: Boolean(d.dnd) } : {}) }),
+  contacts: (s, d) => ({ name: req(d.name, 'Name'), email: email(d.email), phone: str(d.phone, 48), company: str(d.company), tags: tags(d.tags), notes: str(d.notes, 5000), custom: customData(s, 'Contact', d), ...(d.dnd !== undefined ? { dnd: Boolean(d.dnd) } : {}), ...(d.taxId !== undefined ? { taxId: optionalTaxId(d.taxId) } : {}) }),
   tasks: (s, d) => ({ title: req(d.title, 'Title'), contactId: contactId(s,d.contactId,true), due: d.due ? date(d.due) : '', done: Boolean(d.done), owner:str(d.owner,80), notes:str(d.notes,2500) }),
   opportunities: (s, d) => {
     const stage = find(s,'stages',d.stage);
@@ -770,7 +773,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     let added=0;
     for (const input of d.rows) {
       if (!input || typeof input!=='object') fail('Invalid contact in import.');
-      const row=fields.contacts(s,input);
+      // An invalid document does not hold back the contact: it comes in without it.
+      const row=fields.contacts(s,input.taxId !== undefined && !taxIdKind(input.taxId) ? { ...input, taxId:'' } : input);
       if (row.email && s.contacts.some(c=>c.email===row.email)) continue;
       const contact=add(s,'contacts',row); run(s,'Contact created',{contactId:contact.id}); added++;
     }
@@ -1058,6 +1062,7 @@ function other(s, command, type, key, id, d, workspace) {
     try { new Intl.DateTimeFormat('en',{timeZone:timezone}); } catch { fail('Use an IANA time zone, for example America/Sao_Paulo.'); }
     s.profile={name:req(d.name,'Workspace name'),email:email(d.email),phone:str(d.phone,48),timezone,currency:defaults.profile.currency}; return s.profile.name;
   }
+  if (type === 'fiscal') { s.fiscal = sanitizeFiscal(d); return s.fiscal.taxId; }
   if (type === 'stage') {
     const previous = id && find(s,'stages',id);
     if (id && !previous) fail('Stage not found.',404);
