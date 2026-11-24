@@ -90,6 +90,27 @@ export async function chavesAusentes(chaves, cliente) {
   return ausentes;
 }
 
+// Troca, no texto do artigo, cada chave antiga pela chave nova do mesmo arquivo (mesmo nome, hash diferente).
+export function trocarChaves(texto, chaves) {
+  let saida = String(texto);
+  for (const chave of chaves) {
+    const semHash = chave.replace(/.[0-9a-f]{8}(.[a-z0-9]+)$/, '');
+    const ext = chave.slice(chave.lastIndexOf('.'));
+    const escapar = valor => valor.replace(/[.*+?^${}()|[]\/]/g, '\async function* arquivosMdx(pasta) {');
+    saida = saida.replace(new RegExp(`${escapar(semHash)}\.[0-9a-f]{8}${escapar(ext)}`, 'g'), chave);
+  }
+  return saida;
+}
+
+// Depois de enviar ou copiar, o artigo <grupo>/<artigo>.mdx passa a citar os hashes novos.
+async function atualizarArtigo(grupo, artigo, chaves) {
+  const arquivo = fileURLToPath(new URL(`../src/content/docs/${grupo}/${artigo}.mdx`, import.meta.url));
+  const texto = await readFile(arquivo, 'utf8').catch(() => null);
+  if (texto === null) return;
+  const novo = trocarChaves(texto, chaves);
+  if (novo !== texto) { await writeFile(arquivo, novo); console.log(`artigo atualizado: ${grupo}/${artigo}.mdx`); }
+}
+
 async function* arquivosMdx(pasta) {
   for (const entrada of await readdir(pasta, { withFileTypes: true })) {
     const caminho = join(pasta, entrada.name);
@@ -103,13 +124,17 @@ async function cli([comando, ...args]) {
   if (comando === 'local' && args.length === 3) {
     const [pasta, grupo, artigo] = args;
     const destino = fileURLToPath(new URL('../public/midia-local/', import.meta.url));
-    for (const item of await copiarLocal({ pasta, grupo, artigo, destino })) console.log(item.chave);
+    const itens = await copiarLocal({ pasta, grupo, artigo, destino });
+    for (const item of itens) console.log(item.chave);
+    await atualizarArtigo(grupo, artigo, itens.map(i => i.chave));
     return 0;
   }
   const cliente = criarCliente({ accountId: env.R2_DOCS_ACCOUNT_ID, accessKeyId: env.R2_DOCS_ACCESS_KEY_ID, secretAccessKey: env.R2_DOCS_SECRET_ACCESS_KEY, bucket: env.R2_DOCS_BUCKET });
   if (comando === 'enviar' && args.length === 3) {
     const [pasta, grupo, artigo] = args;
-    for (const item of await enviarPasta({ pasta, grupo, artigo, cliente })) console.log(`${item.enviado ? 'enviado ' : 'já existe'} ${item.chave}`);
+    const itens = await enviarPasta({ pasta, grupo, artigo, cliente });
+    for (const item of itens) console.log(`${item.enviado ? 'enviado ' : 'já existe'} ${item.chave}`);
+    await atualizarArtigo(grupo, artigo, itens.map(i => i.chave));
     return 0;
   }
   if (comando === 'verificar') {

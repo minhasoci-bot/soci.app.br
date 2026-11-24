@@ -99,3 +99,10 @@ test('copiarLocal põe a mídia na pasta pública com a mesma chave do R2', asyn
   assert.match(item.chave, /^docs\/crm\/contatos\/01-menu\.[0-9a-f]{8}\.webp$/);
   assert.equal(await ler(join(destino, item.chave), 'utf8'), 'a');
 });
+
+test('trocarChaves põe no MDX o hash novo de cada print refeito e mantém o resto', async () => {
+  const { trocarChaves } = await import('../docs-site/scripts/midia.mjs');
+  const texto = '<Print src="docs/crm/x/01-menu.aaaaaaaa.webp" alt="a" />\n<Print src="docs/crm/x/02-tela.bbbbbbbb.webp" alt="b" />';
+  const novo = trocarChaves(texto, ['docs/crm/x/01-menu.12345678.webp']);
+  assert.equal(novo, '<Print src="docs/crm/x/01-menu.12345678.webp" alt="a" />\n<Print src="docs/crm/x/02-tela.bbbbbbbb.webp" alt="b" />');
+});
