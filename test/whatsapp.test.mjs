@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeServer } from '../server.mjs';
 import { createSqliteStore, createSupabaseStore } from '../storage.mjs';
+import { createWhatsAppHandler } from '../whatsapp.mjs';
 
 const FAKE_QR = 'data:image/png;base64,' + Buffer.from('fake-uazapi-qr').toString('base64');
 
@@ -324,4 +325,27 @@ test('UAZAPI agency config persists through Supabase rules and sub-account users
   assert.equal(subConnect.body.qrcode, FAKE_QR);
   assert.equal(JSON.stringify(subConnect.body).includes('agencia.uazapi.com'), false);
   assert.equal(JSON.stringify(subConnect.body).includes('uaz-admin-super-secret'), false);
+});
+
+test('UAZAPI: an event message is never repeated inside the call', async t => {
+  const uaz = fakeUazapi();
+  let reply = null, sends = 0;
+  const request = async (url, init) => {
+    if (!String(url).endsWith('/send/text') || !reply) return uaz.request(url, init);
+    sends++;
+    return reply();
+  };
+  const options = { uazapiBaseUrl: 'https://soci.uazapi.com', uazapiAdminToken: 'uaz-admin-super-secret' };
+  const local = await boot(t, { whatsappRequest: request, ...options });
+  await local.call('/api/whatsapp/workspace/connect?workspace=demo', {});
+  uaz.markConnected([...uaz.instances.keys()][0], '5531988887777', 'Demo');
+  await local.call('/api/whatsapp/workspace/status?workspace=demo');
+  const handler = createWhatsAppHandler({ store: local.store, secret: 'uazapi-test-seal-secret-32-chars!!', request, envBaseUrl: options.uazapiBaseUrl, envAdminToken: options.uazapiAdminToken });
+  const send = () => handler.sendEventMessage('agency', 'demo', { to: '5511977776666', part: { kind: 'text', text: 'Oi' } }, async () => true);
+  const broken = { 502: () => new Response('{}', { status: 502 }), ECONNRESET: () => { throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } }); } };
+  for (const [name, answer] of Object.entries(broken)) {
+    reply = answer; sends = 0;
+    assert.equal((await send()).outcome, 'unconfirmed', name);
+    assert.equal(sends, 1, name);
+  }
 });

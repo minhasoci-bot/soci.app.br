@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { blank, execute } from '../model.mjs';
-import { workspaceView } from '../authorization.mjs';
+import { requireRecordEffects, workspaceView } from '../authorization.mjs';
 import { messageParts, renderPart } from '../ui/event-message-parts.js';
 import { slaRecords } from '../ui/conversation-sla.js';
 
@@ -118,7 +118,8 @@ test('I4: the queue has a limit and reserving stays fast', () => {
 test('I4: the browser gets only what the screen uses', () => {
   const app = setup({ contacts: 3 });
   const view = modules => workspaceView({ modules }, app.s).state.eventSends;
-  assert.equal(view(null).length, 0, 'fila de dezembro ainda não venceu');
+  for (const row of app.s.eventSends) row.dueAt = '2099-12-01T13:00:00.000Z';
+  assert.equal(view(null).length, 0, 'o que ainda não venceu fica no servidor');
   Object.assign(app.s.eventSends[0], { status: 'sent' }); Object.assign(app.s.eventSends[1], { status: 'failed', error: 'x' });
   app.s.eventSends[2].dueAt = '2020-01-01T00:00:00.000Z'; app.s.eventSends[2].text = 'segredo';
   assert.deepEqual(view(null).map(row => row.status), ['failed', 'queued']);
@@ -143,6 +144,7 @@ test('I5: the same phone written with and without the country code is one recipi
 
 test('I6: names and phones of the queue need conversations too', () => {
   const app = setup(); app.s.eventSends[0].status = 'failed';
+  for (const row of app.s.eventSends) row.dueAt = '2099-12-01T13:00:00.000Z';
   assert.equal(workspaceView({ modules: ['marketing'] }, app.s).state.eventSends.length, 0);
   assert.equal(workspaceView({ modules: ['conversations'] }, app.s).state.eventSends.length, 0);
   assert.equal(workspaceView({ modules: ['marketing', 'conversations'] }, app.s).state.eventSends.length, 1);
@@ -237,4 +239,159 @@ test('I1: trimming keeps who received a cancelled message even when only finishe
   app.run('event-message-schedule');
   assert.ok(app.s.eventSends.length <= 5000);
   assert.ok(app.s.eventSends.includes(received));
+});
+
+// Revisão 2
+const twin = (app, n, data) => app.s.contacts.push({ ...app.s.contacts[n - 1], id: 'gemeo' + n, name: 'Gêmeo', ...data });
+
+test('R2: a phone corrected after scheduling does not receive twice', () => {
+  const app = setup({ contacts: 2 });
+  app.s.contacts[0].phone = phone(2);
+  assert.deepEqual(app.drain(), [phone(2)]);
+  assert.deepEqual([app.delivery('privado').state, app.delivery('privado').sent, app.delivery('privado').skipped], ['done', 1, 1]);
+  const later = setup({ contacts: 2 });
+  later.result(later.take().row, 'sent');
+  later.s.contacts[1].phone = phone(1).slice(2);
+  assert.deepEqual(later.drain(), [], 'quem já recebeu não recebe pelo outro cadastro');
+});
+
+test('R2: contacts merged after scheduling receive once, with every part', () => {
+  const app = setup({ contacts: 2, notes: '## a\nUm\n## b\nDois' });
+  for (const row of app.s.eventSends) row.contactId = 'c1';
+  app.s.contacts.pop();
+  const parts = [];
+  for (let n = 0; n < 50; n++) { const { row, waitMs } = app.take(); if (row) { parts.push(row.part.text); app.result(row, 'sent'); } else { if (waitMs === null) break; app.now += Math.max(1, waitMs); } }
+  assert.deepEqual(parts, ['Um', 'Dois']);
+});
+
+test('R2: a duplicate waits for the twin that is leaving, and follows it when it may have arrived', () => {
+  const app = setup({ contacts: 2, notes: '## a\nUm\n## b\nDois' });
+  app.s.contacts[1].phone = phone(1);
+  const { row } = app.take(); app.now += MIN;
+  assert.equal(app.take().row, null, 'o mesmo número já está em envio');
+  app.result(row, 'unconfirmed');
+  assert.deepEqual(app.drain(), []);
+  const failed = setup({ contacts: 2 });
+  failed.s.contacts[1].phone = phone(1);
+  failed.result(failed.take().row, 'failed');
+  assert.deepEqual(failed.drain(), [phone(1)], 'a falha certa não impede o outro cadastro');
+});
+
+test('R2: Brazilian numbers with and without the ninth digit are one person', () => {
+  const app = setup({ contacts: 1, schedule: false });
+  app.s.contacts[0].phone = '5531987654321';
+  twin(app, 1, { phone: '553187654321' });
+  assert.deepEqual([app.run('event-message-preview').recipients, app.run('event-message-preview').skipped.duplicate], [1, 1]);
+  app.s.contacts[1].tags = []; app.s.contacts[1].dnd = true;
+  assert.equal(app.run('event-message-preview').recipients, 0, 'o descadastro vale para as duas formas');
+  app.s.contacts[1].dnd = false; app.s.contacts[1].tags = ['lead']; app.s.contacts[1].phone = '031987654321';
+  assert.equal(app.run('event-message-preview').recipients, 1);
+  // Fixo e celular que só se parecem são pessoas diferentes.
+  app.s.contacts[0].phone = '5511951234567'; app.s.contacts[1].phone = '551151234567';
+  assert.equal(app.run('event-message-preview').recipients, 2);
+});
+
+test('R2: what keeps waiting does not hold the line for the rest', () => {
+  const app = setup({ contacts: 3, schedule: false });
+  app.run('event-message-schedule', 'base'); app.run('event-message-schedule');
+  const groups = new Set(), people = new Set();
+  for (let minute = 0; minute < 12; minute++) {
+    const { row } = app.take();
+    if (row) { (row.to.includes('@') ? groups : people).add(row.to); app.result(row, row.to.includes('@') ? 'waiting' : 'sent'); }
+    app.now += MIN;
+  }
+  assert.equal(people.size, 3);
+  assert.equal(groups.size, 2);
+});
+
+test('R2: only an explicit "send now" moves a scheduled message into the past', () => {
+  const app = setup({ contacts: 1, schedule: false }), plan = date => { const next = structuredClone(app.event().plan); next.items[1].date = date; return next; };
+  app.save({ plan: plan('2099-12-01') });
+  const stale = plan('2020-01-01'), revision = app.event().revision;
+  app.run('event-message-schedule');
+  for (const data of [{ plan: stale, revision }, { plan: stale, revision, sendNow: ids.outra }]) assert.throws(() => app.save(data), error => error.status === 409 && /sairia agora/.test(error.message));
+  assert.equal(app.delivery('privado').dueAt, '2099-12-01T13:00:00.000Z');
+  app.save({ plan: plan('2099-11-01') });
+  app.save({ plan: plan('2020-01-01'), sendNow: ids.privado });
+  assert.equal(app.delivery('privado').dueAt, '2020-01-01T13:00:00.000Z');
+  assert.equal(app.event().sendNow, undefined, 'a confirmação não fica gravada');
+  assert.doesNotThrow(() => app.save({ plan: plan('2020-01-02') }), 'já estava saindo');
+});
+
+test('R2: changing what is scheduled needs conversations, like scheduling', () => {
+  const app = setup({ contacts: 1 });
+  const check = (modules, command) => requireRecordEffects({ modules }, app.s, { key: 'eventPlans', id: app.id, ...command });
+  const plan = change => { const next = structuredClone(app.event().plan); change(next.items); return { type: 'save', data: { plan: next } }; };
+  const refused = [plan(items => { items[1].date = '2026-12-02'; }), plan(items => { items[1].time = '11:00'; }), plan(items => { items[1].notes = 'Outro'; }), plan(items => { items.splice(1, 1); }), { type: 'save', data: { status: 'arquivado' } }, { type: 'delete' }];
+  for (const command of refused) {
+    assert.throws(() => check(['marketing'], command), /permissão/);
+    assert.doesNotThrow(() => check(['marketing', 'conversations'], command));
+  }
+  for (const command of [{ type: 'save', data: { title: 'Outro' } }, plan(items => { items[1].title = 'Outro'; }), plan(items => { items[0].notes = 'Outro'; }), { type: 'save', id: '', data: { title: 'Novo' } }]) assert.doesNotThrow(() => check(['marketing'], command));
+  app.run('event-message-cancel');
+  for (const command of refused) assert.doesNotThrow(() => check(['marketing'], command));
+});
+
+test('R2: "Reenviar" checks again what scheduling checks', () => {
+  const failed = () => { const app = setup({ contacts: 2 }); app.drain(row => row.to === phone(1) ? 'failed' : 'sent'); return app; };
+  const archived = failed(); archived.event().status = 'arquivado';
+  assert.throws(() => archived.run('event-message-retry'), /arquivado/);
+  const left = failed(); left.item('privado').targets = { tags: ['lead'], excludeTags: ['fora'] }; left.s.contacts[0].tags.push('fora');
+  assert.throws(() => left.run('event-message-retry'), /não faz mais parte/);
+  const swapped = failed(); Object.assign(swapped.item('privado'), { channel: 'grupos', audience: 'base' });
+  assert.throws(() => swapped.run('event-message-retry'), /não faz mais parte/);
+  const groups = setup({ schedule: false }); groups.run('event-message-schedule', 'base'); groups.drain(row => row.to === G(1).jid ? 'sent' : 'failed');
+  execute(groups.s, { type: 'event-groups-save', id: groups.id, data: { base: [G(3)], evento: [] } });
+  assert.throws(() => groups.run('event-message-retry', 'base'), /não faz mais parte/);
+  const two = setup({ contacts: 3 }); two.drain(row => row.to === phone(3) ? 'sent' : 'failed'); two.s.contacts[0].tags = [];
+  assert.deepEqual(two.run('event-message-retry'), { total: 1, dropped: 1 });
+  assert.deepEqual(two.drain(), [phone(2)]);
+  const fine = failed();
+  assert.deepEqual(fine.run('event-message-retry'), { total: 1, dropped: 0 });
+});
+
+test('R2: what comes back to the queue follows the new date', () => {
+  const app = setup({ contacts: 1 }), { row } = app.take(), plan = structuredClone(app.event().plan);
+  plan.items[1].date = '2099-12-08';
+  app.save({ plan }); app.result(row, 'retry');
+  app.now += 60 * MIN;
+  assert.equal(app.take().row, null);
+  assert.equal(app.s.eventSends[0].dueAt, '2099-12-08T13:00:00.000Z');
+});
+
+test('R2: a late confirmation counts even after "Reenviar tudo", and frees the next parts', () => {
+  const app = setup({ contacts: 1 }), { row } = app.take();
+  app.result(row, 'unconfirmed'); app.run('event-message-retry', 'privado', { include: 'all' }); app.result(row, 'sent');
+  assert.deepEqual(app.drain(), []);
+  assert.equal(app.delivery('privado').sent, 1);
+  const parts = setup({ contacts: 1, notes: '## a\nUm\n## b\nDois' }), first = parts.take().row;
+  parts.result(first, 'unconfirmed');
+  assert.equal(parts.delivery('privado').state, 'done');
+  parts.result(first, 'sent');
+  assert.deepEqual([parts.drain().length, parts.delivery('privado').sent, parts.item('privado').status], [1, 2, 'enviado']);
+});
+
+test('R2: a bigger daily cap releases what was held for tomorrow', () => {
+  const app = setup({ contacts: 4 }), pace = dailyCap => execute(app.s, { type: 'event-send-settings', data: { minGapSeconds: 10, maxGapSeconds: 10, dailyCap } });
+  pace(2); assert.equal(app.drain().length, 2);
+  pace(100);
+  assert.equal(app.drain().length, 2);
+  assert.ok(app.now < START + 60 * MIN, 'no mesmo dia');
+});
+
+test('R2: a sent message turned into a task keeps a task status', () => {
+  const app = setup({ contacts: 1 }); app.drain();
+  const plan = structuredClone(app.event().plan);
+  plan.items[1] = { id: ids.privado, kind: 'task', title: 'Agora tarefa', status: 'pendente', date: '', notes: '' };
+  app.save({ plan });
+  assert.equal(app.item('privado').status, 'pendente');
+});
+
+test('R2: "Reenviar tudo" does not run ahead of a new date', () => {
+  const app = setup({ contacts: 2, time: '10:00' });
+  app.result(app.take().row, 'unconfirmed'); app.run('event-message-cancel');
+  const plan = structuredClone(app.event().plan); plan.items[1].date = '2099-12-08';
+  app.save({ plan }); app.run('event-message-schedule'); app.run('event-message-retry', 'privado', { include: 'all' });
+  app.now += 60 * MIN;
+  assert.equal(app.take().row, null);
 });
