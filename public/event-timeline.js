@@ -10,7 +10,7 @@ const number = iso => Math.round(Date.parse(`${iso}T00:00:00Z`) / DAY);
 const isoDay = value => new Date(value * DAY).toISOString().slice(0, 10);
 export const shiftDay = (iso, days) => isoDay(number(iso) + days);
 const format = options => new Intl.DateTimeFormat('pt-BR', { ...options, timeZone: 'UTC' });
-const label = iso => format({ dateStyle: 'medium' }).format(new Date(`${iso}T12:00:00Z`));
+const dated = format({ dateStyle: 'medium' }), label = iso => dated.format(new Date(`${iso}T12:00:00Z`));
 const monthName = format({ month: 'long', year: 'numeric' }), weekday = format({ weekday: 'narrow' });
 
 /** Dias desenhados: folga em volta dos itens, hoje se estiver perto, e um limite para uma data perdida não esticar tudo. */
@@ -21,7 +21,8 @@ export function timelineRange(dates, today) {
   let start = Math.min(days[0], near ? now : Infinity) - 7;
   const end = Math.max(days.at(-1), near ? now : -Infinity) + 14;
   let total = Math.max(42, end - start + 1);
-  if (total > LIMIT) { total = LIMIT; start = days[Math.floor(days.length / 2)] - Math.floor(LIMIT / 2); }
+  // Histórico longo: a janela acompanha hoje (o que vem pela frente importa mais); longe de hoje, fica onde está a maioria.
+  if (total > LIMIT) { total = LIMIT; start = near ? Math.min(now - 120, end - LIMIT + 1) : days[Math.floor(days.length / 2)] - Math.floor(LIMIT / 2); }
   return { start: isoDay(start), days: total, hasToday: now >= start && now < start + total };
 }
 
@@ -31,7 +32,7 @@ const rowsOf = (event, items) => items.map(item => ({ event, item })).sort(order
 export const eventGroups = event => eventPlanPhases
   .map(([phase, title]) => ({ key: phase, label: title, rows: rowsOf(event, shown(event).filter(item => item.phase === phase)) }))
   .filter(group => group.rows.length);
-export const galleryGroups = events => events.filter(event => event.status !== 'arquivado')
+export const galleryGroups = events => [...events]
   .sort((a, b) => (a.eventDate || '9999').localeCompare(b.eventDate || '9999') || a.title.localeCompare(b.title, 'pt-BR'))
   .map(event => ({ key: event.id, eventId: event.id, label: event.title, mark: event.eventDate || '', rows: rowsOf(event, shown(event)) }));
 
@@ -79,10 +80,10 @@ export function timelineHtml({ groups, zoom, today }) {
   return `<div class="ep-tl" data-ep-timeline data-day="${timelineZooms[zoom]}" data-today="${range.hasToday ? number(today) - first : ''}" style="--ep-day:${timelineZooms[zoom]}px;--ep-days:${range.days}"><div class="ep-tl-scroll" data-ep-tl-scroll tabindex="0" role="region" aria-label="Linha do tempo">${header(range, zoom)}${range.hasToday ? `<div class="ep-tl-today" style="--at:${number(today) - first}" aria-hidden="true"></div>` : ''}${groups.map(group).join('')}</div></div>`;
 }
 
-export function installTimeline({ find, itemOf, savePlan, openItem, repaint, flash, zone, ask, now = Date.now, listen = (type, fn, options) => document.addEventListener(type, fn, options), later = setTimeout, drop = clearTimeout }) {
+export function installTimeline({ find, itemOf, savePlan, openItem, repaint, flash, zone, ask, settled = async () => {}, now = Date.now, listen = (type, fn, options) => document.addEventListener(type, fn, options), later = setTimeout, drop = clearTimeout }) {
   const barOf = domEvent => domEvent.target.closest?.('[data-ep-tl-bar]');
   const lookup = bar => { const event = find(bar.dataset.epEvent), item = event && itemOf(event, bar.dataset.epTlBar); return item ? { event, item } : null; };
-  let drag = null, dragged = false, keys = null;
+  let drag = null, dragged = false, keys = null, waiting = false;
 
   function show(bar, date, shift, day) {
     bar.style.setProperty('--shift', `${shift * day}px`);
@@ -90,63 +91,91 @@ export function installTimeline({ find, itemOf, savePlan, openItem, repaint, fla
     if (tip) tip.textContent = shift ? label(shiftDay(date, shift)) : '';
   }
   const reset = bar => { bar.style.removeProperty('--shift'); bar.classList.remove('is-moving'); const tip = bar.querySelector?.('[data-ep-tl-date]'); if (tip) tip.textContent = ''; };
-  async function move(bar, days) {
-    const found = lookup(bar); if (!found || !days) { reset(bar); return; }
-    const { event, item } = found, date = shiftDay(item.date, days);
+  // Redesenhar no meio de um arraste tiraria a barra debaixo do dedo: espera ele terminar.
+  const redraw = () => { if (drag) waiting = true; else repaint(); };
+  function release() {
+    drag = null;
+    if (waiting) { waiting = false; repaint(); }
+  }
+  const abandon = () => { if (drag) { reset(drag.bar); release(); } };
+  /** Remarca para o dia que a pessoa viu: conta a partir da data mostrada, não da que o item tenha agora. */
+  async function move(bar, days, from) {
+    const found = lookup(bar); if (!found || !days) { reset(bar); redraw(); return; }
+    const { event, item } = found, date = shiftDay(from, days);
     try {
-      if (leavesNow(event, item, date, zone(), now()) && !await ask('Enviar agora?', { text: `“${item.title}” está agendada. Com a data em ${label(date)}, o horário já passou e ela sai em seguida.`, ok: 'Enviar agora' })) { repaint(); return; }
-      await savePlan(event.id, plan => { const row = plan.items.find(entry => entry.id === item.id); if (!row) throw Error('Este item não existe mais.'); row.date = date; });
-      repaint(); flash(`Remarcado para ${label(date)}.`);
-    } catch (error) { repaint(); flash(error.message, true); }
+      const leaves = leavesNow(event, item, date, zone(), now());
+      if (leaves && !await ask('Enviar agora?', { text: `“${item.title}” está agendada. Com a data em ${label(date)}, o horário já passou e ela sai em seguida.`, ok: 'Enviar agora' })) redraw();
+      else {
+        await savePlan(event.id, plan => { const row = plan.items.find(entry => entry.id === item.id); if (!row) throw Error('Este item não existe mais.'); row.date = date; }, undefined, leaves ? item.id : '');
+        redraw(); flash(`Remarcado para ${label(date)}.`);
+      }
+    } catch (error) { redraw(); flash(error.message, true); }
     globalThis.document?.querySelector?.(`[data-ep-tl-bar="${globalThis.CSS?.escape?.(item.id) ?? item.id}"]`)?.focus?.({ preventScroll: true });
   }
   async function pressed() {
-    const { bar, days } = keys; keys = null;
-    await move(bar, days);
+    if (!keys) return;
+    const { bar, days, date } = keys; keys = null;
+    await move(bar, days, date);
+  }
+  /** Grava já o que as setas deixaram por gravar. */
+  async function flush() { if (keys) drop(keys.timer); await pressed(); }
+  // O diálogo guarda a revisão do evento: abre só depois de tudo gravado, senão salvar daria conflito.
+  async function open(bar) {
+    await flush(); await settled();
+    const found = lookup(bar); if (found) openItem(found.event, found.item.kind, found.item);
   }
 
   listen('pointerdown', domEvent => {
-    dragged = false;
-    const bar = barOf(domEvent); if (!bar || domEvent.button) return;
+    dragged = Boolean(drag?.moved);
+    abandon(); // outro dedo, ou um arraste cujo fim se perdeu
+    const bar = barOf(domEvent); if (!bar || domEvent.button || domEvent.isPrimary === false) return;
     const found = lookup(bar); if (!found || movable(found.event, found.item)) return;
-    const day = Number(bar.closest('[data-ep-timeline]').dataset.day);
-    drag = { bar, day, x: domEvent.clientX, date: found.item.date, days: 0, moved: false };
+    const day = Number(bar.closest('[data-ep-timeline]').dataset.day), scroll = bar.closest('[data-ep-tl-scroll]');
+    dragged = false;
+    drag = { bar, day, pointer: domEvent.pointerId, x: domEvent.clientX, scroll, left: scroll?.scrollLeft || 0, date: found.item.date, days: 0, moved: false };
     bar.setPointerCapture?.(domEvent.pointerId);
   });
   listen('pointermove', domEvent => {
-    if (!drag) return;
-    const dx = domEvent.clientX - drag.x;
-    if (Math.abs(dx) >= 6) drag.moved = true;
+    if (!drag || domEvent.pointerId !== drag.pointer) return;
+    if (domEvent.buttons === 0) { abandon(); return; }
+    const dx = domEvent.clientX - drag.x + (drag.scroll?.scrollLeft || 0) - drag.left;
+    if (Math.abs(dx) >= 10) drag.moved = true;
     if (!drag.moved) return;
     drag.days = Math.round(dx / drag.day);
     drag.bar.classList.add('is-moving');
     show(drag.bar, drag.date, drag.days, drag.day);
   });
-  listen('pointerup', async () => {
-    if (!drag) return;
-    const { bar, days, moved } = drag; drag = null;
+  listen('pointerup', async domEvent => {
+    if (!drag || domEvent.pointerId !== drag.pointer) return;
+    const { bar, days, moved, date } = drag;
+    release();
     dragged = moved;
-    if (moved) { bar.classList.remove('is-moving'); await move(bar, days); }
+    if (moved) { bar.classList.remove('is-moving'); await move(bar, days, date); }
   });
-  listen('pointercancel', () => { if (drag) reset(drag.bar); drag = null; });
-  listen('click', domEvent => {
+  for (const type of ['pointercancel', 'lostpointercapture']) listen(type, domEvent => { if (drag && domEvent.pointerId === drag.pointer) abandon(); });
+  listen('click', async domEvent => {
     const bar = barOf(domEvent); if (!bar) return;
     if (dragged) { dragged = false; return; }
-    const found = lookup(bar); if (found) openItem(found.event, found.item.kind, found.item);
+    await open(bar);
   });
   listen('keydown', async domEvent => {
-    if (domEvent.key === 'Escape' && drag) { reset(drag.bar); dragged = true; drag = null; return; }
-    const bar = barOf(domEvent); if (!bar) return;
+    if (domEvent.key === 'Escape') {
+      if (drag) { dragged = true; abandon(); }
+      if (keys) { drop(keys.timer); reset(keys.bar); keys = null; }
+      return;
+    }
+    const bar = barOf(domEvent); if (!bar || domEvent.altKey || domEvent.ctrlKey || domEvent.metaKey || domEvent.shiftKey) return;
     const found = lookup(bar); if (!found) return;
-    if (domEvent.key === 'Enter') { domEvent.preventDefault(); openItem(found.event, found.item.kind, found.item); return; }
+    if (domEvent.key === 'Enter') { domEvent.preventDefault(); await open(bar); return; }
     const step = { ArrowLeft: -1, ArrowRight: 1 }[domEvent.key]; if (!step) return;
     domEvent.preventDefault();
     const locked = movable(found.event, found.item);
     if (locked) { flash(locked, true); return; }
-    if (keys && keys.bar !== bar) { drop(keys.timer); await pressed(); }
+    if (keys && keys.bar !== bar) await flush();
     if (keys) drop(keys.timer);
-    const days = (keys?.days || 0) + step;
-    keys = { bar, days, timer: later(pressed, 600) };
-    show(bar, found.item.date, days, Number(bar.closest('[data-ep-timeline]').dataset.day));
+    const days = (keys?.days || 0) + step, date = keys?.date || found.item.date;
+    keys = { bar, days, date, timer: later(pressed, 600) };
+    show(bar, date, days, Number(bar.closest('[data-ep-timeline]').dataset.day));
   });
+  return { flush };
 }

@@ -238,24 +238,26 @@ async function copyText(text) {
   const area = document.createElement('textarea'); area.value = text; area.style.position = 'fixed'; area.style.opacity = '0'; document.body.append(area); area.select(); document.execCommand('copy'); area.remove();
 }
 
+/** Depois de desenhar, a linha do tempo volta para onde estava, ou para perto de hoje. */
+export function placeTimeline(left, top) {
+  const scroll = document.querySelector('[data-ep-tl-scroll]'); if (!scroll) return;
+  const { day, today } = scroll.closest('[data-ep-timeline]').dataset;
+  scroll.scrollTo({ left: left ?? (today === '' ? 0 : Math.max(0, today * day - scroll.clientWidth / 4)), top, behavior: 'instant' });
+}
+
 export function installEventPlanner({ c, mutate, flash, dialog, close, render: draw, api, url, load, ask = askUser }) {
-  // Depois de desenhar, a linha do tempo volta para onde estava, ou para perto de hoje.
-  const place = (left, top) => {
-    const scroll = document.querySelector('[data-ep-tl-scroll]'); if (!scroll) return;
-    const { day, today } = scroll.closest('[data-ep-timeline]').dataset;
-    scroll.scrollTo({ left: left ?? (today === '' ? 0 : Math.max(0, today * day - scroll.clientWidth / 4)), top, behavior: 'instant' });
-  };
-  const render = () => { draw(); place(); };
+  const render = () => { draw(); placeTimeline(); };
   const find = id => (c.s.eventPlans || []).find(row => row.id === id);
   const itemOf = (event, id) => planOf(event).items.find(item => item.id === id);
   // Uma gravação por vez: cada uma lê o evento já com a revisão da anterior, senão duas trocas rápidas viram conflito.
   let queue = Promise.resolve();
   const inOrder = work => { const run = queue.then(work); queue = run.catch(() => {}); return run; };
   const save = command => inOrder(() => mutate(command));
-  const savePlan = (id, change, revision) => inOrder(() => {
+  // sendNow: a mensagem agendada cujo envio imediato a pessoa confirmou; sem isso o servidor recusa a data que já passou.
+  const savePlan = (id, change, revision, sendNow = '') => inOrder(() => {
     const event = find(id); if (!event) throw Error('Evento não encontrado.');
     const plan = structuredClone(planOf(event)); change(plan);
-    return mutate({ type: 'save', key: 'eventPlans', id, data: { plan, revision: revision ?? event.revision ?? 0 } });
+    return mutate({ type: 'save', key: 'eventPlans', id, data: { plan, revision: revision ?? event.revision ?? 0, ...(sendNow && { sendNow }) } });
   });
   // Redesenha sem perder a posição da rolagem nem as copies abertas.
   const repaint = () => {
@@ -263,12 +265,12 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render: d
     const { scrollLeft: left, scrollTop: down } = document.querySelector('[data-ep-tl-scroll]') || {};
     const openItems = new Set([...document.querySelectorAll('[data-ep-details][open]')].map(row => row.dataset.epDetails));
     draw();
-    place(left, down);
+    placeTimeline(left, down);
     for (const row of document.querySelectorAll('[data-ep-details]')) row.open = openItems.has(row.dataset.epDetails);
     document.querySelector('#screen')?.scrollTo({ top, behavior: 'instant' });
   };
   installEventSends({ c, api, url, load, save, flash, dialog, close, repaint, find, itemOf, isOpen: () => c.view === 'marketing' && c.tab === 'events' && ui.section === 'messages' ? find(ui.selectedId) : null });
-  installTimeline({ find, itemOf, savePlan, openItem: (...args) => openItem(...args), repaint: () => repaint(), flash, ask, zone: () => c.s.profile?.timezone || 'America/Sao_Paulo' });
+  const timelineMoves = installTimeline({ find, itemOf, savePlan, openItem: (...args) => openItem(...args), repaint: () => repaint(), flash, ask, settled: () => queue, zone: () => c.s.profile?.timezone || 'America/Sao_Paulo' });
   const openItem = (event, kind, item = null) => {
     dialog(`${item ? 'Editar' : 'Adicionar'} ${kindLabel[kind]}`, itemDialogBody(c, event, kind, item));
     bindCopyEditor(document);
@@ -280,14 +282,14 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render: d
     if (!target) return;
     const data = target.dataset;
     try {
-      if (data.epEdit || data.epManage || data.epEvent) await queue;
+      if (data.epEdit || data.epManage || data.epEvent) { await timelineMoves.flush(); await queue; }
       const event = find(data.epEvent);
       if (data.epOpen) { ui.selectedId = data.epOpen; openSection('strategy'); render(); return; }
       if (data.epBack !== undefined) { ui.selectedId = ''; render(); return; }
       if (data.epNew !== undefined) { dialog('Novo evento', eventDialogBody(null), { description: 'Cada evento fica restrito à subconta atual.' }); return; }
       if (data.epView) { ui.view = data.epView; render(); return; }
       if (data.epTlZoom) { ui.zoom = data.epTlZoom; render(); return; }
-      if (data.epTlToday !== undefined) { place(); return; }
+      if (data.epTlToday !== undefined) { placeTimeline(); return; }
       if (data.epSection) { openSection(data.epSection); render(); return; }
       if (data.epOrchestrate) { const row = find(data.epOrchestrate); if (row) orchestrate(row); return; }
       if (data.epEdit) { const row = find(data.epEdit); if (row) dialog('Editar evento', eventDialogBody(row), { description: 'O plano do evento não muda. Arquivar cancela os envios agendados.' }); return; }
@@ -372,8 +374,9 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render: d
         done('Estratégia atualizada.');
       } else if (kind === 'item') {
         const previous = itemOf(event, form.dataset.itemId), row = itemFromValues(form.dataset.kind, values, previous, usersOf(c));
-        if ((row.date !== previous?.date || row.time !== previous?.time) && leavesNow(event, row, row.date, c.s.profile?.timezone || 'America/Sao_Paulo', Date.now()) && !await ask('Enviar agora?', { text: `“${row.title}” está agendada. Com essa data, o horário já passou e ela sai em seguida.`, ok: 'Enviar agora' })) return;
-        await savePlan(id, plan => { const at = plan.items.findIndex(item => item.id === row.id); if (at === -1) plan.items.push(row); else plan.items[at] = row; }, revision);
+        const leaves = (row.date !== previous?.date || row.time !== previous?.time) && leavesNow(event, row, row.date, c.s.profile?.timezone || 'America/Sao_Paulo', Date.now());
+        if (leaves && !await ask('Enviar agora?', { text: `“${row.title}” está agendada. Com essa data, o horário já passou e ela sai em seguida.`, ok: 'Enviar agora' })) return;
+        await savePlan(id, plan => { const at = plan.items.findIndex(item => item.id === row.id); if (at === -1) plan.items.push(row); else plan.items[at] = row; }, revision, leaves ? row.id : '');
         done(previous ? 'Item atualizado.' : 'Item criado.');
       }
     } catch (error) { if (status) status.textContent = error.message; else flash(error.message, true); }
