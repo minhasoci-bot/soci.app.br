@@ -87,7 +87,6 @@ function buildOfficial(spec) {
 
 const OFFICIAL_SETUPS = [
   buildOfficial(agenciaCompleta360Spec),
-  buildOfficial(funilReunioesSpec),
   buildOfficial({
     id: 'official-clinica-estetica',
     title: 'Clínica de Estética & Harmonização',
@@ -364,8 +363,8 @@ const OFFICIAL_SETUPS = [
     }
   })
 ];
-// Templates de setup por segmento (aba Templates de setup), usados para criar subcontas.
-const TEMPLATE_SETUPS = setupTemplateSpecs.map(spec => ({ ...buildOfficial({ ...spec, publishedAt: '2026-11-22T12:00:00.000Z' }), template: true, segment: spec.segment }));
+// Templates de setup (aba Templates de setup), usados para criar subcontas: o funil de reuniões e os 123 segmentos.
+const TEMPLATE_SETUPS = [funilReunioesSpec, ...setupTemplateSpecs].map(spec => ({ ...buildOfficial({ publishedAt: '2026-11-22T12:00:00.000Z', ...spec }), template: true, segment: spec.segment }));
 export const setupTemplates = () => TEMPLATE_SETUPS;
 
 export function officialSetups() {

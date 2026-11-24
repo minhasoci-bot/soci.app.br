@@ -89,7 +89,9 @@ test('Setup templates mirror the 123 GHL segments in 15 categories and are serve
   const agency = (await local.call('/api/agency')).body;
   assert.ok(!agency.marketplace.some(item => item.template), 'the marketplace list stays small');
   const gallery = (await local.call('/api/agency/setup-templates', {})).body.result;
-  assert.equal(gallery.length, 123);
+  assert.equal(gallery.length, 124, 'the 123 segments and the meetings funnel');
+  assert.equal(gallery[0].title, 'Funil de Reuniões Qualificadas', 'the funnel comes first');
+  assert.ok(templateCategories.some(([, name]) => name === gallery[0].category), 'it uses a category of the gallery filter');
   assert.ok(gallery.every(item => item.template && item.segment && item.category && item.assets === undefined));
   const dental = gallery.find(item => item.title === 'Odontologia');
   assert.equal(dental.category, 'Clínicas e Saúde');
@@ -108,7 +110,7 @@ test('A template creates a sub-account directly (no library copy) and every temp
   const after = (await local.call('/api/agency')).body.agency;
   assert.equal(after.snapshots.length, 0, 'templates do not take a slot in the 50-setup library');
   assert.equal(after.snapshotLoads.at(-1).snapshot, 'Odontologia');
-  // The other 122 templates, loaded straight into blank workspaces through the same code path.
+  // The other 123 templates, loaded straight into blank workspaces through the same code path.
   const { applySnapshot } = await import('../agency-model.mjs');
   const { blank } = await import('../model.mjs');
   const { setupTemplates } = await import('../setup-marketplace.mjs');

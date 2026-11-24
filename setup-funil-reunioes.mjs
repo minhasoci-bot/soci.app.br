@@ -1,4 +1,4 @@
-// Setup oficial "Funil de Reuniões Qualificadas": vídeo de apresentação, formulário que qualifica, agenda curta e página de
+// Template de setup "Funil de Reuniões Qualificadas" (Setups de conta → Templates de setup): vídeo de apresentação, formulário que qualifica, agenda curta e página de
 // confirmação que prepara o lead para a reunião. Quem não tem o perfil vai para uma oferta menor, sem contar como Lead.
 import { newSiteDoc } from './studio-site.mjs';
 import { newField } from './ui/form-fields.js';
@@ -163,11 +163,11 @@ const project = { id: SITE, name: 'Funil de Reuniões Qualificadas', headline: '
   pages: pages.map(({ name, slug }, index) => ({ id: `pg-frq-${index + 1}`, name, slug })) };
 
 export const funilReunioesSpec = {
-  id: 'official-funil-reunioes-qualificadas',
+  id: 'template-funil-reunioes-qualificadas', template: true, segment: 'agency',
   title: 'Funil de Reuniões Qualificadas',
   summary: 'Do anúncio à reunião marcada: vídeo de apresentação, formulário que qualifica, agenda curta e confirmação que prepara o lead.',
-  description: 'Para quem vende serviço de valor mais alto em reunião individual. O visitante assiste ao vídeo, responde ao formulário e só vê a agenda se tiver o perfil: os dados dele já chegam preenchidos. Quem não pode investir ou não decide vai para uma oferta inicial, e o pixel só conta o lead qualificado. A agenda pede 18 horas de antecedência e abre por 4 dias, e a página de confirmação responde às objeções antes da conversa. Vem com 4 páginas prontas para receber os seus vídeos, 2 formulários, pipeline, 5 fluxos desligados (inclusive lembretes contados a partir da reunião) e os roteiros dos vídeos. Depois de instalar: ligue a página de agendamento em Calendários, cole os links dos vídeos, publique o funil e ligue os fluxos.',
-  category: 'Agências e Serviços',
+  description: 'Para quem vende serviço de valor mais alto em reunião individual. O visitante assiste ao vídeo, responde ao formulário e só vê a agenda se tiver o perfil: os dados dele já chegam preenchidos. Quem não pode investir ou não decide vai para uma oferta inicial, e o pixel só conta o lead qualificado. A agenda pede 18 horas de antecedência e abre por 4 dias, e a página de confirmação responde às objeções antes da conversa. Vem com 4 páginas prontas para receber os seus vídeos, 2 formulários, pipeline, 5 fluxos desligados (inclusive lembretes contados a partir da reunião) e os roteiros dos vídeos. Depois de criar a subconta: ligue a página de agendamento em Calendários, cole os links dos vídeos, publique o funil e ligue os fluxos.',
+  category: 'Agências e Marketing',
   tags: ['funil', 'reuniões', 'qualificação', 'agenda', 'vídeo'],
   publishedAt: '2026-11-24T12:00:00.000Z',
   assets: {

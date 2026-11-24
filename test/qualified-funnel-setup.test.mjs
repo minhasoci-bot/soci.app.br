@@ -71,12 +71,22 @@ test('Loading a setup again does not overwrite a site the account already edited
   assert.match((await call(`/api/studio/doc?workspace=${account}&id=${copy}`)).doc.pages[0].html, /Editado pelo cliente/);
 });
 
-test('The official setup installs a working funnel: every link points inside the new account', async t => {
+const TEMPLATE = 'template-funil-reunioes-qualificadas';
+test('The funnel template can be saved to the library and loaded, pages included, into an account that already exists', async t => {
+  const { call } = await start(t);
+  const saved = await call('/api/agency/marketplace-install', { id: TEMPLATE });
+  assert.equal(saved.agency.snapshots.length, 1);
+  await call('/api/agency/snapshot-load', { id: saved.result.snapshotId, workspaces: ['demo'], mode: 'skip' });
+  const project = (await call('/api/state?workspace=demo')).state.studioProjects.find(row => row.name === 'Funil de Reuniões Qualificadas');
+  const { doc } = await call(`/api/studio/doc?workspace=demo&id=${project.id}`);
+  assert.deepEqual(doc.pages.map(page => page.slug), ['index', 'agenda', 'confirmacao', 'proximo-passo']);
+});
+
+test('The funnel template creates an account with a working funnel: every link points inside it', async t => {
   const { call, get, post } = await start(t);
-  const item = (await call('/api/agency')).marketplace.find(row => row.id === 'official-funil-reunioes-qualificadas');
-  assert.ok(item?.official);
-  const installed = await call('/api/agency/marketplace-install', { id: item.id });
-  const account = (await call('/api/agency/accounts', { name: 'Cliente', email: 'c@exemplo.com', snapshotId: installed.result.snapshotId })).result;
+  assert.ok(!(await call('/api/agency')).marketplace.some(row => row.title === 'Funil de Reuniões Qualificadas'), 'only in the template gallery');
+  const account = (await call('/api/agency/accounts', { name: 'Cliente', email: 'c@exemplo.com', templateId: TEMPLATE })).result;
+  assert.equal((await call('/api/agency')).agency.snapshots.length, 0, 'it does not take a slot of the library');
   const { state } = await call(`/api/state?workspace=${account}`);
   const project = state.studioProjects[0], form = state.forms.find(row => row.routes?.length), service = state.services[0];
   assert.equal(project.formId, form.id);
