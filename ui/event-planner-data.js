@@ -16,7 +16,7 @@ export const itemStatus = {
   agenda: [['planejado', 'Planejado'], ['confirmado', 'Confirmado'], ['feito', 'Concluído']],
   link: [['pendente', 'Pendente'], ['pronto', 'Validado']]
 };
-export const channels = [['grupos', 'WhatsApp · grupos'], ['privado', 'WhatsApp · privado'], ['instagram', 'Instagram · privado'], ['email', 'E-mail'], ['outro', 'Outro']];
+export const channels = [['grupos', 'WhatsApp · grupos'], ['privado', 'WhatsApp · privado'], ['instagram', 'Instagram'], ['email', 'E-mail'], ['outro', 'Outro']];
 
 // Estratégia em três blocos, cada um editado separadamente (como no planejador do Parceiras Conselho).
 export const briefGroups = [

@@ -13,7 +13,7 @@
 .ep-card-title { font-size:17px; line-height:1.25; letter-spacing:-.02em; }
 .ep-card-stats { display:flex; flex-wrap:wrap; gap:10px; color:var(--g-dim); font-size:12px; margin-top:auto; }
 .ep-card-stats b { color:var(--g-ink); }
-.ep-card-actions { display:flex; gap:6px; padding:10px 12px; border-top:1px solid var(--g-line); }
+.ep-card-actions { display:flex; flex-wrap:wrap; gap:6px; padding:10px 12px; border-top:1px solid var(--g-line); }
 .ep-card-actions .danger { margin-left:auto; }
 .ep-progress { height:6px; overflow:hidden; border-radius:999px; background:var(--g-surface-3); }
 .ep-progress span { display:block; height:100%; border-radius:inherit; background:var(--g-brand); }

@@ -5,15 +5,27 @@
 const h = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const inlineMarks = { bold: '*', italic: '_', strike: '~' };
 
+// O WhatsApp só formata quando o marcador encosta no texto e fecha na mesma linha: espaços das pontas (o duplo clique
+// do Windows leva um), quebras de linha e prefixos de lista ficam fora do marcador.
+const parts = line => line.match(/^(\s*(?:(?:-|\d+\.)\s+)?)(.*?)(\s*)$/).slice(1);
+const isMarked = (text, char) => text.length > 1 && text.startsWith(char) && text.endsWith(char);
+function inlineMark(value, start, end, char) {
+  if (start === end) return { text: value.slice(0, start) + char + char + value.slice(end), start: start + 1, end: start + 1 };
+  const lines = value.slice(start, end).split('\n').map(parts), filled = lines.filter(([, core]) => core);
+  if (!filled.length) return { text: value, start, end };
+  if (lines.length > 1) {
+    const clear = filled.every(([, core]) => isMarked(core, char));
+    const block = lines.map(([before, core, after]) => before + (!core ? '' : clear ? core.slice(1, -1) : isMarked(core, char) ? core : char + core + char) + after).join('\n');
+    return { text: value.slice(0, start) + block + value.slice(end), start, end: start + block.length };
+  }
+  const [before, core] = lines[0], from = start + before.length, to = from + core.length;
+  if (isMarked(core, char)) return { text: value.slice(0, from) + core.slice(1, -1) + value.slice(to), start: from, end: to - 2 };
+  if (from > 0 && value[from - 1] === char && value[to] === char) return { text: value.slice(0, from - 1) + core + value.slice(to + 1), start: from - 1, end: to - 1 };
+  return { text: value.slice(0, from) + char + core + char + value.slice(to), start: from + 1, end: to + 1 };
+}
 export function applyMark(text, start, end, mark) {
   const value = String(text ?? '');
-  const char = inlineMarks[mark];
-  if (char) {
-    if (start > 0 && value[start - 1] === char && value[end] === char) {
-      return { text: value.slice(0, start - 1) + value.slice(start, end) + value.slice(end + 1), start: start - 1, end: end - 1 };
-    }
-    return { text: value.slice(0, start) + char + value.slice(start, end) + char + value.slice(end), start: start + 1, end: end + 1 };
-  }
+  if (inlineMarks[mark]) return inlineMark(value, start, end, inlineMarks[mark]);
   const lineStart = value.lastIndexOf('\n', start - 1) + 1;
   const next = value.indexOf('\n', Math.max(end, start));
   const lineEnd = next === -1 ? value.length : next;
@@ -73,18 +85,24 @@ export function copyEditorField({ name, value = '', variables = [], label = 'Tex
   return `<div class="ec" data-ec><span class="ec-label">${h(label)}</span><div class="ec-toolbar" role="toolbar" aria-label="Formatação">${buttons}${vars}</div><div class="ec-panes"><textarea class="ec-input" name="${h(name)}" rows="10" maxlength="10000" aria-label="${h(label)}">${h(value)}</textarea><div class="ec-preview" aria-live="polite" aria-label="Prévia">${whatsappHtml(value)}</div></div><small class="dim">*negrito* · _itálico_ · ~tachado~ · "## Título" separa mensagens.</small></div>`;
 }
 
+// Troca o texto pela edição do próprio navegador, que mantém o Ctrl+Z; atribuir .value apagaria o histórico.
+export function replaceText(input, text, start = text.length, end = start) {
+  input.focus();
+  input.setSelectionRange(0, input.value.length);
+  if (!document.execCommand('insertText', false, text)) {
+    input.value = text;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  input.setSelectionRange(start, end);
+}
+
 export function bindCopyEditor(root) {
   for (const editor of root.querySelectorAll('[data-ec]')) {
     const input = editor.querySelector('textarea');
     const preview = editor.querySelector('.ec-preview');
     if (!input || !preview || editor.dataset.ecBound) continue;
     editor.dataset.ecBound = '1';
-    const update = next => {
-      input.value = next.text;
-      input.focus();
-      input.setSelectionRange(next.start, next.end);
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    };
+    const update = next => replaceText(input, next.text, next.start, next.end);
     input.addEventListener('input', () => { preview.innerHTML = whatsappHtml(input.value); });
     editor.addEventListener('mousedown', event => { if (event.target.closest('[data-ec-mark]')) event.preventDefault(); });
     editor.addEventListener('click', event => {

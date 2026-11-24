@@ -1,8 +1,8 @@
 import { icon as i } from './icons.js';
-import { bindCopyEditor, copyEditorField, whatsappHtml } from './event-copy-editor.js';
+import { bindCopyEditor, copyEditorField, replaceText, whatsappHtml } from './event-copy-editor.js';
 import {
   blankEventPlan, briefGroups, channels, eventPlanPhases, eventPlanStatuses,
-  eventPlanTeams, eventStatusLabel, itemStatus, itemStatusLabel, launchEventPlan,
+  eventPlanTeams, eventStatusLabel, itemStatus, launchEventPlan,
   messageTemplates, phaseLabel, teamLabel
 } from './event-planner-data.js';
 
@@ -89,7 +89,7 @@ function tasksSection(c, event) {
 function messagesSection(c, event) {
   const rows = visible(records(event, 'message')).sort(byDate), days = new Map();
   for (const item of rows) days.set(item.date || '', [...(days.get(item.date || '') || []), item]);
-  const card = item => `<li class="surface ep-item"><div class="ep-item-main"><h3>${h(item.title)}</h3><p class="ep-item-meta">${item.code ? `<span class="ep-code">${h(item.code)}</span> ` : ''}${[(channels.find(([key]) => key === item.channel) || ['', 'Outro'])[1], item.time, phaseLabel(item.phase), ownerLabel(item, usersOf(c))].filter(Boolean).map(h).join(' · ')}</p>${item.notes ? `<details><summary>Ver copy</summary><div class="ep-copy">${whatsappHtml(item.notes)}</div></details>` : '<p class="ep-note">Sem texto definido.</p>'}</div><div class="ep-item-side">${itemTools(event, item, `<button type="button" class="icon-btn" aria-label="Copiar texto de ${h(item.title)}" title="Copiar texto" data-ep-copy="${h(item.id)}" data-ep-event="${h(event.id)}">${i('copy', 15)}</button>`)}</div></li>`;
+  const card = item => `<li class="surface ep-item"><div class="ep-item-main"><h3>${h(item.title)}</h3><p class="ep-item-meta">${item.code ? `<span class="ep-code">${h(item.code)}</span> ` : ''}${[(channels.find(([key]) => key === item.channel) || ['', 'Outro'])[1], item.time, phaseLabel(item.phase), ownerLabel(item, usersOf(c))].filter(Boolean).map(h).join(' · ')}</p>${item.notes ? `<details data-ep-details="${h(item.id)}"><summary>Ver copy</summary><div class="ep-copy">${whatsappHtml(item.notes)}</div></details>` : '<p class="ep-note">Sem texto definido.</p>'}</div><div class="ep-item-side">${itemTools(event, item, `<button type="button" class="icon-btn" aria-label="Copiar texto de ${h(item.title)}" title="Copiar texto" data-ep-copy="${h(item.id)}" data-ep-event="${h(event.id)}">${i('copy', 15)}</button>`)}</div></li>`;
   const list = [...days].map(([day, items]) => `<section><h3 class="ep-day">${h(dateLabel(day) || 'Sem data')}</h3><ul class="ep-list">${items.map(card).join('')}</ul></section>`).join('');
   return `${sectionHead('Calendário de comunicação', 'Planeje a copy e acompanhe a publicação nos grupos e canais privados.', newItem(event, 'message', 'Nova mensagem'))}${filterBar('message')}${list || nothingHere(event, 'message', 'Adicione convites, avisos e acompanhamentos da campanha.', 'send')}`;
 }
@@ -164,9 +164,10 @@ const kindLabel = { task: 'tarefa', message: 'mensagem', agenda: 'bloco', link: 
 const variables = [['{{contact.first_name}}', 'Primeiro nome'], ['{{contact.name}}', 'Nome completo']];
 // Quem saiu da equipe ou foi digitado à mão (eventos antigos) continua como opção, para não se perder ao salvar.
 function ownerField(item, users, label) {
+  if (!users.length) return field(label, 'ownerText', item.owner, { maxlength: 120, placeholder: 'Nome da pessoa' });
   const rows = [['', 'Sem responsável'], ...users.map(user => [user.id, user.name])];
   let value = item.ownerId || '';
-  if (value && !users.some(user => user.id === value)) rows.push([value, users.length ? ownerLabel(item, users) : item.owner || value]);
+  if (value && !users.some(user => user.id === value)) rows.push([value, ownerLabel(item, users)]);
   if (!value && item.owner) { value = `@${item.owner}`; rows.push([value, item.owner]); }
   return field(label, 'owner', value, { type: 'select', options: rows });
 }
@@ -181,7 +182,7 @@ export function itemDialogBody(c, event, kind, item = null) {
   const extra = {
     task: () => pair(date, team) + owner,
     message: () => pair(date, time) + pair(field('Canal', 'channel', data.channel, { type: 'select', options: channels }), field('Código', 'code', data.code, { maxlength: 40 })) + pair(team, owner),
-    agenda: () => pair(field('Ordem', 'order', data.order, { type: 'number', required: true, min: 1, max: 999 }), field('Duração em minutos', 'duration', data.duration, { type: 'number', required: true, min: 1, max: 1440 })) + pair(date, time) + pair(team, owner),
+    agenda: () => pair(field('Ordem', 'order', data.order, { type: 'number', required: true, min: 0, max: 999 }), field('Duração em minutos', 'duration', data.duration, { type: 'number', required: true, min: 0, max: 1440 })) + pair(date, time) + pair(team, owner),
     link: () => pair(date, team) + owner + field('Endereço', 'url', data.url, { type: 'url', maxlength: 2000, placeholder: 'https://' })
   }[kind]();
   const notes = kind === 'message'
@@ -197,17 +198,18 @@ export function checkItem(item) {
   if (item.kind === 'link' && item.status === 'pronto' && !item.url) throw Error('Preencha o endereço para validar o link.');
   if (item.kind !== 'message') return item;
   if (item.status === 'agendado' && (!item.date || !item.time)) throw Error('Preencha data e horário para marcar a mensagem como agendada.');
-  if (item.channel === 'grupos' && /\{\{\s*contact\./.test(item.notes || '')) throw Error('Mensagem de grupo não pode usar variáveis de contato.');
+  if (item.channel === 'grupos' && !['cancelado', 'enviado'].includes(item.status) && /\{\{\s*contact\./.test(item.notes || '')) throw Error('Mensagem de grupo não pode usar variáveis de contato.');
   return item;
 }
 export function itemFromValues(kind, values, previous, users) {
   if (!String(values.title || '').trim()) throw Error('Preencha o título.');
-  const { owner: choice = '', ...fields } = values;
+  const { owner: choice = '', ownerText, ...fields } = values;
   const user = users.find(row => row.id === choice);
-  const owner = user ? { ownerId: user.id, owner: user.name }
-    : choice.startsWith('@') ? { ownerId: '', owner: choice.slice(1) }
-      : choice && choice === previous?.ownerId ? { ownerId: choice, owner: previous.owner }
-        : { ownerId: '', owner: '' };
+  const owner = ownerText !== undefined ? { ownerId: previous && ownerText === previous.owner ? previous.ownerId || '' : '', owner: ownerText }
+    : user ? { ownerId: user.id, owner: user.name }
+      : choice.startsWith('@') ? { ownerId: '', owner: choice.slice(1) }
+        : choice && choice === previous?.ownerId ? { ownerId: choice, owner: previous.owner }
+          : { ownerId: '', owner: '' };
   return checkItem({ ...previous, ...fields, ...owner, kind, id: previous?.id || crypto.randomUUID() });
 }
 
@@ -220,9 +222,22 @@ async function copyText(text) {
 export function installEventPlanner({ c, mutate, flash, dialog, close, render }) {
   const find = id => (c.s.eventPlans || []).find(row => row.id === id);
   const itemOf = (event, id) => planOf(event).items.find(item => item.id === id);
-  const savePlan = (event, change, revision = event.revision || 0) => {
+  // Uma gravação por vez: cada uma lê o evento já com a revisão da anterior, senão duas trocas rápidas viram conflito.
+  let queue = Promise.resolve();
+  const inOrder = work => { const run = queue.then(work); queue = run.catch(() => {}); return run; };
+  const save = command => inOrder(() => mutate(command));
+  const savePlan = (id, change, revision) => inOrder(() => {
+    const event = find(id); if (!event) throw Error('Evento não encontrado.');
     const plan = structuredClone(planOf(event)); change(plan);
-    return mutate({ type: 'save', key: 'eventPlans', id: event.id, data: { plan, revision } });
+    return mutate({ type: 'save', key: 'eventPlans', id, data: { plan, revision: revision ?? event.revision ?? 0 } });
+  });
+  // Redesenha sem perder a posição da rolagem nem as copies abertas.
+  const repaint = () => {
+    const top = document.querySelector('#screen')?.scrollTop || 0;
+    const openItems = new Set([...document.querySelectorAll('[data-ep-details][open]')].map(row => row.dataset.epDetails));
+    render();
+    for (const row of document.querySelectorAll('[data-ep-details]')) row.open = openItems.has(row.dataset.epDetails);
+    document.querySelector('#screen')?.scrollTo({ top, behavior: 'instant' });
   };
   const openItem = (event, kind, item = null) => {
     dialog(`${item ? 'Editar' : 'Adicionar'} ${kindLabel[kind]}`, itemDialogBody(c, event, kind, item));
@@ -233,8 +248,10 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render })
   document.addEventListener('click', async domEvent => {
     const target = domEvent.target.closest('[data-ep-open],[data-ep-back],[data-ep-new],[data-ep-edit],[data-ep-manage],[data-ep-section],[data-ep-brief-group],[data-ep-item-new],[data-ep-item-edit],[data-ep-item-delete],[data-ep-copy],[data-ep-orchestrate],[data-ep-apply-template]');
     if (!target) return;
-    const data = target.dataset, event = find(data.epEvent);
+    const data = target.dataset;
     try {
+      if (data.epEdit || data.epManage || data.epEvent) await queue;
+      const event = find(data.epEvent);
       if (data.epOpen) { ui.selectedId = data.epOpen; openSection('strategy'); render(); return; }
       if (data.epBack !== undefined) { ui.selectedId = ''; render(); return; }
       if (data.epNew !== undefined) { dialog('Novo evento', eventDialogBody(null), { description: 'Cada evento fica restrito à subconta atual.' }); return; }
@@ -244,9 +261,9 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render })
       if (data.epManage) {
         const row = find(data.id); if (!row) return;
         if (data.epManage === 'rename') { dialog('Renomear evento', `${formHead('rename', row)}${field('Nome do evento', 'title', row.title, { required: true, maxlength: 160 })}${formFoot('Renomear')}</form>`); return; }
-        if (data.epManage === 'duplicate') { await mutate({ type: 'event-plan-duplicate', id: row.id }); ui.selectedId = ''; render(); flash('Evento duplicado.'); return; }
+        if (data.epManage === 'duplicate') { await save({ type: 'event-plan-duplicate', id: row.id }); ui.selectedId = ''; render(); flash('Evento duplicado.'); return; }
         if (!confirm(`Apagar “${row.title}” e todo o seu planejamento? Essa ação é definitiva.`)) return;
-        await mutate({ type: 'delete', key: 'eventPlans', id: row.id }); ui.selectedId = ''; render(); flash('Evento apagado.'); return;
+        await save({ type: 'delete', key: 'eventPlans', id: row.id }); ui.selectedId = ''; render(); flash('Evento apagado.'); return;
       }
       if (!event) return;
       if (data.epBriefGroup) { dialog(briefGroups.find(([key]) => key === data.epBriefGroup)[1], briefDialogBody(event, data.epBriefGroup)); return; }
@@ -257,12 +274,12 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render })
         const input = target.closest('form').querySelector('[data-ec] textarea'), template = templateFor(event, data.epApplyTemplate);
         if (!template || input.value === template.notes) return;
         if (input.value.trim() && !confirm('Aplicar o modelo e substituir o texto que está no editor?')) return;
-        input.value = template.notes; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); return;
+        replaceText(input, template.notes); return;
       }
       if (data.epItemDelete) {
         if (!confirm('Excluir este item do planejamento?')) return;
-        await savePlan(event, plan => { plan.items = plan.items.filter(item => item.id !== data.epItemDelete); });
-        close(); render(); flash('Item excluído.');
+        await savePlan(event.id, plan => { plan.items = plan.items.filter(item => item.id !== data.epItemDelete); });
+        close(); repaint(); flash('Item excluído.');
       }
     } catch (error) { flash(error.message, true); }
   });
@@ -280,9 +297,10 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render })
     if (!item) return;
     try {
       checkItem({ ...item, status: input.value });
-      await savePlan(event, plan => { plan.items.find(row => row.id === item.id).status = input.value; });
-      render(); flash('Status atualizado.');
-    } catch (error) { render(); flash(error.message, true); }
+      const value = input.value;
+      await savePlan(event.id, plan => { const row = plan.items.find(entry => entry.id === item.id); if (row) row.status = value; });
+      repaint(); flash('Status atualizado.');
+    } catch (error) { repaint(); flash(error.message, true); }
   });
 
   document.addEventListener('submit', async domEvent => {
@@ -294,28 +312,28 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render })
     const values = Object.fromEntries([...new FormData(form)].map(([key, value]) => [key, value.trim()]));
     button?.setAttribute('disabled', ''); if (status) status.textContent = '';
     const event = find(id);
-    const done = message => { close(); render(); flash(message); };
+    const done = message => { close(); repaint(); flash(message); };
     try {
       const kind = form.dataset.epForm;
       if (kind !== 'event' && !event) throw Error('Evento não encontrado.');
       if (kind === 'event') {
         const { template, ...base } = values;
-        if (id) await mutate({ type: 'save', key: 'eventPlans', id, data: { ...base, revision } });
-        else { ui.selectedId = await mutate({ type: 'save', key: 'eventPlans', id: '', data: { ...base, plan: newEventPlan(template, base.eventDate) } }); openSection('strategy'); }
+        if (id) await save({ type: 'save', key: 'eventPlans', id, data: { ...base, revision } });
+        else { ui.selectedId = await save({ type: 'save', key: 'eventPlans', id: '', data: { ...base, plan: newEventPlan(template, base.eventDate) } }); openSection('strategy'); }
         done(id ? 'Evento atualizado.' : 'Evento criado.');
       } else if (kind === 'rename') {
-        await mutate({ type: 'save', key: 'eventPlans', id, data: { title: values.title, revision } });
+        await save({ type: 'save', key: 'eventPlans', id, data: { title: values.title, revision } });
         done('Evento renomeado.');
       } else if (kind === 'orchestrate') {
         const on = name => form.elements[name].checked;
-        await mutate({ type: 'event-plan-orchestrate', id, data: { tasks: on('tasks'), calendar: on('calendar'), social: on('social'), email: on('email') } });
+        await save({ type: 'event-plan-orchestrate', id, data: { tasks: on('tasks'), calendar: on('calendar'), social: on('social'), email: on('email') } });
         done('Integrações sincronizadas.');
       } else if (kind === 'brief') {
-        await savePlan(event, plan => { plan.brief = { ...plan.brief, ...values }; }, revision);
+        await savePlan(id, plan => { plan.brief = { ...plan.brief, ...values }; }, revision);
         done('Estratégia atualizada.');
       } else if (kind === 'item') {
         const previous = itemOf(event, form.dataset.itemId), row = itemFromValues(form.dataset.kind, values, previous, usersOf(c));
-        await savePlan(event, plan => { const at = plan.items.findIndex(item => item.id === row.id); if (at === -1) plan.items.push(row); else plan.items[at] = row; }, revision);
+        await savePlan(id, plan => { const at = plan.items.findIndex(item => item.id === row.id); if (at === -1) plan.items.push(row); else plan.items[at] = row; }, revision);
         done(previous ? 'Item atualizado.' : 'Item criado.');
       }
     } catch (error) { if (status) status.textContent = error.message; else flash(error.message, true); }

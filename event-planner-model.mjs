@@ -96,7 +96,7 @@ export const eventPlanFields = {
   eventPlans: (s, d) => {
     const prior = d.id ? s.eventPlans.find(row => row.id === d.id) : null;
     const pick = key => d[key] === undefined ? prior?.[key] : d[key];
-    if (prior && d.revision !== undefined && Number(d.revision) !== (prior.revision || 0)) fail('O evento foi atualizado em outra sessão. Recarregue para ver a versão mais nova antes de salvar.', 409);
+    if (prior && d.revision !== undefined && Number(d.revision) !== (prior.revision || 0)) fail('O evento foi atualizado em outra sessão. Copie o que ainda não foi salvo e recarregue a página para ver a versão mais nova.', 409);
     const title = req(pick('title'), 'O nome do evento', 160);
     if (s.eventPlans.some(row => row.id !== d.id && row.title.toLocaleLowerCase('pt-BR') === title.toLocaleLowerCase('pt-BR'))) fail(`Já existe um evento chamado “${title}”.`);
     return {
