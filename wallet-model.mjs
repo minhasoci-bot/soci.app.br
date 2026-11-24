@@ -39,10 +39,10 @@ const micros = value => Math.round(value * 1e6);
 const entryId = () => `w-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 // Consumption and recharges belong to the agency: it sells the credits, the sub-account buys them.
 const post = (s, fact) => postFact(s, { layer: 'agency', provider: 'wallet', source: { type: 'wallet', id: fact.key }, ...fact });
-function postUsage(s, entry) {
+function postUsage(s, entry, extra = {}) {
   entry.posted = true;
   post(s, { key: `usage:${entry.id}`, kind: 'wallet_usage', amountCents: -toCents(entry.amount), usageMicros: -micros(entry.amount), at: entry.at,
-    detail: { product: entry.product, day: entry.day, units: entry.units, costMicros: micros(entry.cost) } });
+    detail: { product: entry.product, day: entry.day, units: entry.units, costMicros: micros(entry.cost), ...extra } });
 }
 // Lines dropped from the statement go to the ledger first. Lines from before the ledger (no `posted`) wait for the import.
 function trim(s) {
@@ -57,6 +57,18 @@ export function closeUsage(s, today) {
   const open = openUsage(s, today);
   for (const entry of open) postUsage(s, entry);
   return open.length;
+}
+/** The statement from before the ledger (scripts/ledger-backfill.mjs). Keys are the same of the live facts, so nothing repeats. */
+export function importWallet(s, at = Date.now()) {
+  const today = localDay(at, s.profile?.timezone), imported = { imported: true };
+  for (const entry of s.wallet?.entries || []) {
+    if (entry.kind === 'usage') { if (entry.posted === undefined && entry.day < today) postUsage(s, entry, imported); continue; }
+    const topup = entry.checkoutId && s.wallet.topups?.find(row => row.checkoutId === entry.checkoutId);
+    if (entry.posted || topup?.devMode || topup?.test) continue;
+    entry.posted = true;
+    if (topup && entry.kind === 'credit') post(s, { key: `topup:${entry.checkoutId}`, kind: 'wallet_topup', amountCents: toCents(entry.amount), method: entry.method || '', provider: 'abacatepay', ref: entry.checkoutId, at: entry.at, detail: imported });
+    else post(s, { key: `wallet:${entry.id}`, kind: entry.kind === 'credit' ? 'wallet_credit' : 'wallet_debit', amountCents: toCents(entry.kind === 'credit' ? entry.amount : -entry.amount), at: entry.at, detail: { note: entry.note || '', by: entry.by || '', ...imported } });
+  }
 }
 /** The sub-account's calendar day when there is consumption of earlier days to close, or ''. */
 export function usageToClose(s, at = Date.now()) {
@@ -84,7 +96,7 @@ export function walletAdjust(s, { kind = 'credit', amount, note = '', by = '', m
   if (!['credit', 'debit'].includes(kind)) fail('Tipo de lançamento inválido.');
   const w = walletOf(s);
   const entry = { id: entryId(), kind, amount: value, note: String(note || '').trim().slice(0, 200),
-    by: String(by || '').slice(0, 120), method: String(method || '').slice(0, 40), checkoutId: String(checkoutId || '').slice(0, 120), day: day(s, at), at };
+    by: String(by || '').slice(0, 120), method: String(method || '').slice(0, 40), checkoutId: String(checkoutId || '').slice(0, 120), day: day(s, at), at, posted: true };
   w.entries.unshift(entry);
   trim(s);
   if (!silent) post(s, { key: `wallet:${entry.id}`, kind: kind === 'credit' ? 'wallet_credit' : 'wallet_debit', amountCents: toCents(kind === 'credit' ? value : -value), at, detail: { note: entry.note, by: entry.by } });

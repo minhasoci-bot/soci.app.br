@@ -50,7 +50,7 @@ function adjust(state, row, amountCents, detail, key) {
 
 /** Called for a transaction that was created (prior = null) or changed; `row` is the new record. */
 export function transactionFact(state, prior, row, { refundKind = 'refund' } = {}) {
-  if (!prior && gatewayOf(state, row)?.devMode) row.test = true;
+  if (row.booked === undefined && gatewayOf(state, row)?.devMode) row.test = true;
   if (row.test) return;
   if (row.booked === undefined) {
     if (!prior) { if (counts(row)) postSale(state, row); return; }
@@ -78,12 +78,22 @@ export function transactionFact(state, prior, row, { refundKind = 'refund' } = {
 }
 
 export function transactionDeleted(state, row) {
-  if (row.test) return;
+  if (row.test || (row.booked === undefined && gatewayOf(state, row)?.devMode)) return;
   if (row.booked === undefined) {
     if (!counts(row)) return;
     postSale(state, row, { imported: true });
   }
   adjust(state, row, -row.booked, { reason: 'Transação excluída' }, `adj:${row.id}:deleted`);
+}
+
+/** A transaction from before the ledger (scripts/ledger-backfill.mjs): its sale and, when it was refunded, the refund. */
+export function importTransaction(state, row) {
+  if (row.test || row.booked !== undefined || gatewayOf(state, row)?.devMode || !(counts(row) || row.status === 'Refunded')) return;
+  postSale(state, row, { imported: true });
+  if (row.status !== 'Refunded') return;
+  const payment = gatewayOf(state, row);
+  postFact(state, { ...base(state, row, payment?.refundedAt || row.updated || row.created), key: refundKey(payment, row.id), kind: 'refund', amountCents: -row.booked, feeCents: null, detail: { imported: true } });
+  Object.assign(row, { refundBooked: true, booked: 0 });
 }
 
 /** The one way the server adds a transaction without the generic `add` of model.mjs. */

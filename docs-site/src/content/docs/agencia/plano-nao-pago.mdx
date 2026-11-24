@@ -1,0 +1,44 @@
+---
+title: Suspender a subconta quando o plano não é pago
+description: Configure as tentativas de cobrança, suspenda quem não paga e deixe o cliente reativar sozinho.
+modulo: agencia
+sidebar:
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Quando o cartão de uma subconta é recusado, o AbacatePay tenta de novo. Se todas as tentativas falharem, a soci pode suspender a subconta.
+
+<Requisitos permissao="Acesso a Configurações na agência" />
+
+## Ligar a suspensão
+
+<Steps>
+
+1. Abra **Configurador SaaS → Visão geral → Plano não pago**.
+
+2. Marque **Suspender a subconta quando a assinatura falhar**.
+
+3. Defina o número de tentativas (1 a 10) e os dias entre elas (1 a 30). Clique em **Salvar**.
+
+</Steps>
+
+Agências criadas antes desta opção começam com ela desligada. As tentativas valem para as assinaturas geradas depois de salvar.
+
+## Atualizar os avisos do AbacatePay
+
+Se você já tinha conectado o AbacatePay, abra **Configurações → AbacatePay** e clique em **Atualizar avisos**. Sem isso, recusas e contestações não chegam à soci.
+
+## O que acontece em cada etapa
+
+| Etapa | Agência | Subconta |
+| --- | --- | --- |
+| Cartão recusado | Assinatura **Em atraso** e e-mail aos administradores, um por tentativa | Aviso no topo da tela |
+| Tentativas esgotadas | Subconta suspensa, se a opção estiver ligada | Tela **Subconta pausada** com **Pagar e reativar** |
+| Pagamento confirmado | Subconta ativa de novo | Acesso liberado |
+
+<Aside type="note">
+Só o administrador da subconta vê **Pagar e reativar**, e só quando a pausa veio da cobrança. Uma pausa feita por você nunca é desfeita por pagamento.
+</Aside>

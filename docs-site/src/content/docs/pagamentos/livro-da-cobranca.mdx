@@ -1,0 +1,57 @@
+---
+title: Livro da cobrança e cadastro fiscal
+description: Veja tudo que entrou e voltou, exporte para o contador e identifique quem vende nas faturas.
+modulo: pagamentos
+sidebar:
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+import Requisitos from '../../../components/Requisitos.astro';
+
+O livro registra cada pagamento, devolução e contestação uma única vez. Nenhum lançamento é editado ou apagado: uma correção aparece como outro lançamento.
+
+<Requisitos permissao="Pagamentos na subconta; Configurações na agência" />
+
+## Preencher o cadastro fiscal
+
+<Steps>
+
+1. Na subconta, abra **Configurações → Cadastro fiscal**. Na agência, abra **Configurações → Cadastro fiscal**.
+
+2. Escolha pessoa jurídica ou física e preencha CPF ou CNPJ, nome, e-mail e endereço. O CNPJ com letras também é aceito.
+
+3. Clique em **Salvar cadastro fiscal**.
+
+</Steps>
+
+O cadastro é obrigatório para conectar o AbacatePay pela primeira vez. Quem já estava conectado continua cobrando e vê um aviso para completar. A fatura mostra **Vendido por** com o nome e o documento da subconta.
+
+## Ver e exportar o livro
+
+<Steps>
+
+1. Na subconta, abra **Pagamentos → Livro**. Na agência, abra **Configurações → Livro da cobrança**.
+
+2. Escolha o período (até 366 dias) e, se quiser, o tipo. Clique em **Filtrar**.
+
+3. Clique em **Exportar CSV** para baixar o arquivo do contador.
+
+</Steps>
+
+A subconta vê o que ela vendeu aos clientes dela. A agência vê o que ela vendeu às subcontas: planos, recargas e o movimento das carteiras. Uma não aparece no livro da outra.
+
+<Aside type="note">
+O líquido é estimado: valor recebido menos a taxa que o gateway informou. Pagamentos de teste não entram no livro.
+</Aside>
+
+## Entender os estados da fatura
+
+| Estado | O que aconteceu |
+| --- | --- |
+| Paga | O valor recebido cobre a fatura |
+| Pagamento divergente | Entrou menos que o valor da fatura. Ela continua aberta até você dar baixa |
+| Reembolsada | O pagamento foi devolvido |
+| Em contestação | O comprador contestou o pagamento. O resultado chega sozinho |
+
+O reembolso não retira cursos, comunidades ou ingressos do cliente. Se precisar, retire o acesso manualmente.
