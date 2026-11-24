@@ -5,6 +5,7 @@ import { formOpen, readAnswers, validFields, validTiers } from './ui/form-fields
 import { changeReport } from './report-model.mjs';
 import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashboard-data.js';
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
+import { transactionDeleted, transactionFact } from './ledger-model.mjs';
 import { optionalTaxId, sanitizeFiscal, taxIdKind } from './tax-id.mjs';
 import { afterSave, beforeDelete, bulk, companyWorkflow, crmCollections, crmFields, customData } from './crm-model.mjs';
 import { inboxRule } from './ui/inbox-data.js';
@@ -72,7 +73,7 @@ export const defaults = {
   dashboards:[defaultDashboard()], dashboardReports:[], customReports:[], studioProjects:[], pranchetaFiles:[],
   ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...eventPlanCollections, ...credentialCollections, ...certificateCollections, ...ticketCollections, ...sequenceCollections, ...loyaltyCollections, ...schedulingCollections, ...meetingCollections, ...offerCollections, ...driveCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
   paymentSettings: paymentDefaults(),
-  fiscal: null,
+  fiscal: null, ledgerOutbox: [],
   ai: { limit: 0, alertAt: 0.8, ledger: [] },
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
   tracking: trackingDefaults(), trackingEvents: [], adFormLeads: [], calls: [], phone: phoneDefaults(), dialer: dialerDefaults(), aiVideoJobs: [], aiVideos: [], scoringRules: [],
@@ -89,6 +90,7 @@ export function hydrateWorkspace(state) {
   state.ai ??= { limit: 0, alertAt: 0.8, ledger: [] };
   state.ai.ledger ??= [];
   state.fiscal ??= null;
+  state.ledgerOutbox ??= [];
   reputationOf(state);
   state.listings ??= {};
   state.wallet ??= walletDefaults(); state.labs ??= labsDefaults(); state.appInstalls ??= []; state.appLog ??= []; state.seo ??= seoDefaults(); state.seoAudits ??= []; state.visibility ??= visibilityDefaults(); state.visibilityRuns ??= [];
@@ -164,6 +166,7 @@ const exists = (state, key, value, label, optional = false) => (!value && option
 function add(state, key, data) {
   const row = { id: uid(), created: now(), ...data }; state[key].push(row);
   if (key === 'messages' && row.direction === 'Outbound' && ['Email', 'WhatsApp'].includes(row.channel) && ['human', 'workflow'].includes(row.origin)) walletCharge(state, row.channel === 'Email' ? 'email' : 'whatsapp', 1, row.created);
+  if (key === 'transactions') transactionFact(state, null, row);
   return row;
 }
 const contactId = (s,v,optional = false) => exists(s, 'contacts', v, 'contact', optional);
@@ -852,6 +855,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     }
     if (key === 'studioProjects' && !prior) row.viewedAt = row.created;
     if (['bulkActions','imports'].includes(key)) fail('Unknown record type.');
+    if (key === 'transactions' && prior) transactionFact(s, prior, row);
     afterSave(s, key, prior, row, add);
     storeAfterSave(s, key, prior, row, add);
     catalogAfterSave(s, key, prior, row, workspace);
@@ -877,6 +881,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
 
 // Deletes one record and everything that only made sense with it. Shared by single and bulk deletes.
 function remove(s, key, id) {
+    if (key === 'transactions') transactionDeleted(s, find(s, key, id));
     beforeDelete(s, key, id);
     socialBeforeDelete(s, key, id);
     chatBeforeDelete(s, key, id);

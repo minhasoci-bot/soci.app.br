@@ -273,14 +273,15 @@ const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 function publicAgency(agency, who) {
-  const view = { ...agency,
+  const { ledgerOutbox: _outbox, ...visible } = agency;
+  const view = { ...visible,
     snapshots: agency.snapshots.map(({ studioSites: _studioSites, ...rest }) => rest),
     apiKeys: agency.apiKeys.map(({ hash: _hash, ...rest }) => rest),
     privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest)
   };
   if (!who.settings) {
     const empty = blankAgency();
-    for (const key of ['profile', 'users', 'billing', 'apiKeys', 'privateIntegrations', 'audit', 'emailServices', 'systemEmails', 'compliance']) {
+    for (const key of ['profile', 'users', 'billing', 'fiscal', 'apiKeys', 'privateIntegrations', 'audit', 'emailServices', 'systemEmails', 'compliance']) {
       if (Object.hasOwn(empty, key)) view[key] = empty[key];
     }
     view.accounts = Object.fromEntries(Object.entries(agency.accounts).map(([id, { statusHistory, ignoredWebhooks, suspendedReason, billing, ...meta }]) => [id, meta]));

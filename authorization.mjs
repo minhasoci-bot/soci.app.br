@@ -170,8 +170,9 @@ export function requireRecordEffects(access, state, command) {
 }
 
 export function workspaceView(access, state) {
-  if (access.modules === null) return { state, metrics: metrics(state) };
-  const view = blank();
+  // The ledger outbox is plumbing between the state and the ledger table; browsers never get it.
+  if (access.modules === null) { const { ledgerOutbox: _outbox, ...visible } = state; return { state: visible, metrics: metrics(state) }; }
+  const { ledgerOutbox: _empty, ...view } = blank();
   const { name, timezone, currency } = state.profile;
   view.profile = hasModule(access, 'settings') ? state.profile : { name, timezone, currency };
   for (const [key, module] of Object.entries(readModules)) {
