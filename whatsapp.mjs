@@ -171,8 +171,8 @@ function createUazapiAdapter(call) {
     async disconnect({ creds, token }) {
       await send(creds, '/instance/disconnect', { method: 'POST', headers: { token }, body: {} });
     },
-    async send({ creds, token, number, text }) {
-      const res = await send(creds, '/send/text', { method: 'POST', headers: { token }, body: { number, text }, retry: true });
+    async send({ creds, token, number, text, retry = true }) {
+      const res = await send(creds, '/send/text', { method: 'POST', headers: { token }, body: { number, text }, retry });
       const data = await readJsonSafe(res);
       return { ok: res.ok, status: res.status, message: data.message || '', id: String(data.id || data.messageid || data.key?.id || '') };
     },
@@ -824,8 +824,11 @@ export function createWhatsAppHandler({
         : await sender.adapter.send({ ...sender, number, text: part.text, retry: false });
       if (res.ok) return result('sent', '', res.id);
       if (/connection closed/i.test(res.message)) return result('waiting', 'WhatsApp desconectado.');
-      // Chave trocada ou instância apagada: é a conexão, não o destinatário. Espera alguém religar.
-      if ([401, 403, 404].includes(res.status)) return result('waiting', 'A conexão do WhatsApp recusou o envio.');
+      // Pode ser a conexão (chave trocada, instância apagada) ou o destino (grupo que acabou). Só a conexão fora do ar vale esperar.
+      if ([401, 403, 404].includes(res.status)) {
+        const live = await fetchLiveSubStatus(await ensureRow(agencyId), agencyId, workspaceId);
+        if (live.reachable === false || live.status !== 'connected') return result('waiting', 'A conexão do WhatsApp recusou o envio.');
+      }
       if (res.status === 503) return result('retry', 'O servidor do WhatsApp está reiniciando.');
       return result(res.status >= 500 || [408, 429].includes(res.status) ? 'unconfirmed' : 'failed', res.message || `Resposta HTTP ${res.status}.`);
     } catch (err) {

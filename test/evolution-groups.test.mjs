@@ -154,3 +154,15 @@ test('A suspended account waits instead of sending', async t => {
   assert.equal(result.outcome, 'waiting');
   assert.equal(sends(wa.calls).length, 0);
 });
+
+test('A send refused while the number is up is a failure, never an endless wait', async t => {
+  const wa = await connected(t);
+  for (const status of [401, 403, 404]) {
+    wa.evo.reply = () => json({ message: 'Grupo não encontrado' }, status); wa.evo.state = 'open';
+    assert.equal((await wa.send({ to: GROUP, part: text('Oi') })).outcome, 'failed', String(status));
+    wa.evo.reply = () => { wa.evo.state = 'close'; return json({}, status); };
+    await fetch(`${wa.base}/api/whatsapp/workspace/status?workspace=demo`);
+    assert.equal((await wa.send({ to: GROUP, part: text('Oi') })).outcome, 'waiting', String(status));
+    wa.evo.state = 'open'; await fetch(`${wa.base}/api/whatsapp/workspace/status?workspace=demo`);
+  }
+});
