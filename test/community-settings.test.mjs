@@ -7,6 +7,7 @@ import { badgesOf, communityAnalytics, extendAccess, hasAccess, heldReason, news
 import { createSqliteStore } from '../storage.mjs';
 import { withAcademyTab } from '../ui/community-data.js';
 import { signBody } from '../abacatepay.mjs';
+import { saveFiscal } from './helpers/fiscal.mjs';
 
 const KEY = 'abc_dev_shopkey_0000dddd';
 const DAY = 86400000;
@@ -170,6 +171,7 @@ test('Paid community: trial, plan purchase through AbacatePay, welcome e-mail an
   assert.equal(locked.posts, undefined);
   assert.deepEqual(locked.group.plans.map(row => row.name), ['Mensal']);
   assert.equal((await act({ action: 'subscribe', planId: plan })).status, 409, 'AbacatePay not connected');
+  await call('/api/action?workspace=demo', saveFiscal);
   const connected = (await call('/api/abacatepay/workspace/connect?workspace=demo', { apiKey: KEY })).body;
   const bought = await act({ action: 'subscribe', planId: plan });
   assert.equal(bought.status, 200, JSON.stringify(bought.body));

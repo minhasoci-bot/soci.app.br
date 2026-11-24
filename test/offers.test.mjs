@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { blank, execute } from '../model.mjs';
 import { makeServer } from '../server.mjs';
 import { signBody } from '../abacatepay.mjs';
+import { saveFiscal } from './helpers/fiscal.mjs';
 
 const KEY = 'abc_dev_shopkey_0000bbbb';
 const save = (s, key, data, id) => execute(s, { type: 'save', key, id, data });
@@ -73,6 +74,7 @@ test('Free offers enroll at once; paid offers enroll after AbacatePay confirms t
 
   const paid = await saveRemote('offers', { title: 'Pacote', courseIds: [course], type: 'one_time', price: 97, status: 'published' });
   assert.equal((await send(`/api/offer/demo/${paid}`, { name: 'Dani', email: 'dani@example.test' })).status, 409);
+  await send('/api/action?workspace=demo', saveFiscal);
   const connected = (await send('/api/abacatepay/workspace/connect?workspace=demo', { apiKey: KEY })).body;
   const bought = await send(`/api/offer/demo/${paid}`, { name: 'Dani', email: 'dani@example.test' });
   assert.match(bought.body.payUrl, /^https:\/\/app\.abacatepay\.com\/pay\/bill_/);

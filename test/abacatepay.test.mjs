@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeServer } from '../server.mjs';
 import { signBody } from '../abacatepay.mjs';
+import { saveFiscal } from './helpers/fiscal.mjs';
 
 const KEY_AGENCY = 'abc_dev_agencykey_0000aaaa';
 const KEY_SHOP = 'abc_dev_shopkey_0000bbbb';
@@ -57,6 +58,7 @@ async function start(t) {
 test('A sub-account connects AbacatePay, charges an invoice and the webhook books the payment once', async t => {
   const { send, hook, gateway, save, state } = await start(t);
   assert.equal((await send('/api/abacatepay/workspace/charge?workspace=demo', { invoiceId: 'x' })).status, 404);
+  await send('/api/action?workspace=demo', saveFiscal);
   assert.equal((await send('/api/abacatepay/workspace/connect?workspace=demo', { apiKey: 'abc_dev_wrong_key_0000' })).status, 400, 'a refused key is not saved');
   const connected = await send('/api/abacatepay/workspace/connect?workspace=demo', { apiKey: KEY_SHOP });
   assert.equal(connected.status, 200);
@@ -99,6 +101,7 @@ test('A sub-account connects AbacatePay, charges an invoice and the webhook book
 
 test('A store set to AbacatePay sends the buyer to the payment page and the webhook pays the order', async t => {
   const { send, hook, save, state } = await start(t);
+  await send('/api/action?workspace=demo', saveFiscal);
   const connected = (await send('/api/abacatepay/workspace/connect?workspace=demo', { apiKey: KEY_SHOP })).body;
   const mug = (await save('products', { name: 'Caneca', price: 59.9, kind: 'One time', active: true })).body.state.products.at(-1);
   const shop = (await save('stores', { name: 'Loja', active: true, items: [{ productId: mug.id }], shipping: { mode: 'none', pickup: true }, payment: { method: 'AbacatePay' } })).body.state.stores.at(-1);
@@ -122,6 +125,7 @@ test('The agency bills a SaaS plan as an AbacatePay subscription and follows its
   assert.equal(before.body.agency.stripe, undefined);
   const plan = (await send('/api/agency/action', { type: 'save', key: 'plans', data: { name: 'Pro', price: 297, trialDays: 7 } })).body.result;
   assert.equal((await send('/api/abacatepay/agency/subscribe', { workspace: 'demo' })).status, 409, 'the agency account must be connected');
+  await send('/api/agency/action', saveFiscal);
   const connected = (await send('/api/abacatepay/agency/connect', { apiKey: KEY_AGENCY })).body;
   assert.equal(connected.storeName, 'Agência Teste');
   assert.equal((await send('/api/abacatepay/agency/subscribe', { workspace: 'demo' })).status, 400, 'the sub-account needs a plan');

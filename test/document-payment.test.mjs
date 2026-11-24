@@ -5,6 +5,7 @@ import { makeServer } from '../server.mjs';
 import { signBody } from '../abacatepay.mjs';
 import { tokenHash } from '../document-model.mjs';
 import { paymentParts, validPayment } from '../ui/document-data.js';
+import { saveFiscal } from './helpers/fiscal.mjs';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 const KEY = 'abc_dev_shopkey_0000bbbb';
@@ -125,6 +126,7 @@ test('Public page pays through AbacatePay and the webhook settles the document',
   assert.equal(signed.payment.online, false);
   assert.equal((await send('/api/assinar/demo', { action: 'pay', token })).status, 409, 'no gateway connected yet');
 
+  await send('/api/action?workspace=demo', saveFiscal);
   const connected = (await send('/api/abacatepay/workspace/connect?workspace=demo', { apiKey: KEY })).body;
   const paying = await send('/api/assinar/demo', { action: 'pay', token });
   assert.equal(paying.status, 200);

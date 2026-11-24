@@ -11,6 +11,8 @@ import { toast } from './toast.js';
 import { cardFields, cardLayouts, opportunityCsv, opportunityCsvColumns, opportunityPreferences, opportunityResults, opportunitySorts, quickActions } from './opportunity-data.js';
 import { opportunityEvents } from './opportunities.js';
 import { parseCsv } from './social-data.js';
+import { readFiscal } from './fiscal.js';
+import { formatTaxId } from './tax-id.js';
 import { afterStudioRender, exportStudioProject, installStudio, studioBlock } from './studio.js';
 import { studioTemplates } from './studio-data.js';
 import { sidebar } from './sidebar.js';
@@ -471,7 +473,7 @@ function edit(key,id,preset={}){
   const entry=c.s[key]?.find(r=>r.id===id); if(id&&!entry)return;
   const r=entry||preset; let body='';
   switch(key){
-    case 'contacts':body=input('Nome completo','name',r.name,true)+`<div class="field-grid">${input('E-mail','email',r.email,false,'email')}${input('Telefone','phone',r.phone,false,'tel')}</div>`+`<label>Empresa<input name="company" list="crm-companies" value="${h(r.company||'')}"></label><datalist id="crm-companies">${c.s.companies.map(x=>`<option value="${h(x.name)}">`).join('')}</datalist>`+input('Tags (separadas por vírgula)','tags',r.tags?.join(', '))+area('Notas','notes',r.notes)+customInputs(c,'Contact',r)+contactScore(r)+contactPreferences(c,r)+(id?`<div class="inline-gap"><button type="button" class="secondary" data-start-thread="${id}">${i('chat',16)} Abrir conversa</button><button type="button" class="secondary" data-edit="tasks" data-contact="${id}">${i('plus',16)} Nova tarefa</button></div>`:'');break;
+    case 'contacts':body=input('Nome completo','name',r.name,true)+`<div class="field-grid">${input('E-mail','email',r.email,false,'email')}${input('Telefone','phone',r.phone,false,'tel')}</div>`+input('CPF ou CNPJ','taxId',formatTaxId(r.taxId||''))+`<label>Empresa<input name="company" list="crm-companies" value="${h(r.company||'')}"></label><datalist id="crm-companies">${c.s.companies.map(x=>`<option value="${h(x.name)}">`).join('')}</datalist>`+input('Tags (separadas por vírgula)','tags',r.tags?.join(', '))+area('Notas','notes',r.notes)+customInputs(c,'Contact',r)+contactScore(r)+contactPreferences(c,r)+(id?`<div class="inline-gap"><button type="button" class="secondary" data-start-thread="${id}">${i('chat',16)} Abrir conversa</button><button type="button" class="secondary" data-edit="tasks" data-contact="${id}">${i('plus',16)} Nova tarefa</button></div>`:'');break;
     case 'tasks':body=input('Título','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices(),false)+input('Prazo','due',r.due?r.due.slice(0,10):'',false,'date')+input('Responsável','owner',r.owner)+area('Notas','notes',r.notes)+check('Concluída','done',r.done);break;
     case 'opportunities': {
       const pipelineId = c.s.stages.find(stage => stage.id === r.stage)?.pipelineId ||
@@ -1126,6 +1128,7 @@ document.addEventListener('submit',async ev=>{
       if(key==='appointments'){data.start=toInstant(data.start,zones());data.end=toInstant(data.end,zones());}
       await mutate({type:'save',key,id,data});msg=id?'Alterações salvas.':`${entityNames[key]} ${feminine.has(key)?'criada':'criado'}.`;
     } else if(name==='delete'){await mutate({type:'delete',key:f.dataset.key,id:f.dataset.id});msg='Record deleted.';}
+    else if(name==='fiscal'){await mutate({type:'fiscal',data:readFiscal(data)});msg='Cadastro fiscal salvo.';}
     else if(name==='profile'){await mutate({type:'profile',data});await load();msg='Business profile saved.';}
     else if(name==='wa-pair'){
       stopSubWaPoll();

@@ -2,6 +2,7 @@
 import { makeServer } from '../../server.mjs';
 import { signBody } from '../../abacatepay.mjs';
 import { createSqliteStore } from '../../storage.mjs';
+import { saveFiscal } from './fiscal.mjs';
 
 export const KEY_AGENCY = 'abc_live_agencykey_0000aaaa';
 export const KEY_SHOP = 'abc_live_shopkey_0000bbbb';
@@ -61,6 +62,7 @@ export async function startBilling(t, { devMode = false, documentMail, store = c
   const state = async () => (await send('/api/state?workspace=demo')).body.state;
   const connect = async (scope = 'workspace') => {
     const path = scope === 'agency' ? '/api/abacatepay/agency/connect' : '/api/abacatepay/workspace/connect?workspace=demo';
+    await send(scope === 'agency' ? '/api/agency/action' : '/api/action?workspace=demo', saveFiscal);
     const { body } = await send(path, { apiKey: scope === 'agency' ? KEY_AGENCY : KEY_SHOP });
     return body;
   };

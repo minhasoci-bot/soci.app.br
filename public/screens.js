@@ -3,6 +3,7 @@ import {brandHighlight, brandIcon, icon as i, shcLayers} from './icons.js';
 import {tr, getLanguage} from './i18n.js';
 import {phoneField} from './phone-input.js';
 import {invoicePaymentState, invoiceStateLabels} from './invoice-data.js';
+import {fiscalForm, fiscalMissing} from './fiscal.js';
 import {conversationPage} from './conversations.js';
 import {inboxPage} from './inbox.js';
 import {dashboard} from './dashboard.js';
@@ -240,7 +241,7 @@ function invoicePayCell(r,c){
 function gatewayStrip(c){
   const g=c.pay;
   if(!g||g.error) return '';
-  if(g.connected) return `<p class="dim">${badge('AbacatePay conectado','green')} ${g.devMode?badge('Modo teste','gold'):''} Use <b>Cobrar</b> para gerar o link de Pix ou cartão. A fatura é marcada como paga sozinha quando o cliente paga.</p>`;
+  if(g.connected) return `${c.s.fiscal===null&&(!c.access?.modules||c.access.modules.includes('settings'))?fiscalMissing('#settings/fiscal'):''}<p class="dim">${badge('AbacatePay conectado','green')} ${g.devMode?badge('Modo teste','gold'):''} Use <b>Cobrar</b> para gerar o link de Pix ou cartão. A fatura é marcada como paga sozinha quando o cliente paga.</p>`;
   return `<div class="surface padded ag-notice">${i('pay',20)}<div><b>Receba as faturas por Pix ou cartão</b><p>Conecte a conta AbacatePay deste workspace para gerar links de pagamento e dar baixa automática.</p></div><a class="secondary" href="#settings/abacatepay">Conectar AbacatePay</a></div>`;
 }
 function abacateSubView(c){
@@ -418,10 +419,10 @@ function settings(c){
   if(c.tab==='labs') return labsScreen(c,{ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') });
   if(c.tab==='wallet') return walletScreen(c,{ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') });
   if(['tracking','scoring','preferences'].includes(c.tab)){ const tabs={ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') }; return c.tab==='tracking'?trackingScreen(c,tabs):c.tab==='preferences'?preferencesScreen(c,tabs):scoringScreen(c,tabs); }
-  if(c.tab&&!['business','workspaces','whatsapp','abacatepay','google','email','phone','connectors'].includes(c.tab)) return settingsTab(c,c.tab);
+  if(c.tab&&!['business','fiscal','workspaces','whatsapp','abacatepay','google','email','phone','connectors'].includes(c.tab)) return settingsTab(c,c.tab);
   const p=c.s.profile;
   const tab = c.tab || 'business';
-  const body = tab==='connectors'?connectorsView(c):tab==='phone'?phoneSettingsView(c):tab==='email'?emailServicesView(c):tab==='google'?googleSubView(c):tab==='abacatepay'?abacateSubView(c):tab==='whatsapp'?whatsappSubView(c):tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'sub-profile-phone' })}<label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label><label>${tr('Idioma da plataforma')}<select data-lang-choice-select><option value="pt" ${getLanguage()==='pt'?'selected':''}>Português (Brasil)</option><option value="es" ${getLanguage()==='es'?'selected':''}>Español (Latinoamérica)</option></select></label></div><button class="primary">Salvar alterações</button></form>`;
+  const body = tab==='fiscal'?fiscalForm(c.s.fiscal,{attr:'data-form="fiscal"'}):tab==='connectors'?connectorsView(c):tab==='phone'?phoneSettingsView(c):tab==='email'?emailServicesView(c):tab==='google'?googleSubView(c):tab==='abacatepay'?abacateSubView(c):tab==='whatsapp'?whatsappSubView(c):tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'sub-profile-phone' })}<label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label><label>${tr('Idioma da plataforma')}<select data-lang-choice-select><option value="pt" ${getLanguage()==='pt'?'selected':''}>Português (Brasil)</option><option value="es" ${getLanguage()==='es'?'selected':''}>Español (Latinoamérica)</option></select></label></div><button class="primary">Salvar alterações</button></form>`;
   return pageShell({
     title: tr('Configurações'),
     desc: tr('Gerencie o workspace ativo.'),
