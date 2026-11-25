@@ -1088,7 +1088,7 @@ function enhance(root) {
 const ICON_SWAP_BTN_SELECTOR = [
   '.primary:not(.plain)', '.secondary:not(.plain)', '.danger:not(.plain)', '.continue', '.studio-create',
   '.dash-save', '.pr-btn.pr-primary', '.ags-send', '.ags-new',
-  '.ag-brand-reset', '.ag-brand-mockup-side-cta', '.ag-brand-mockup-primary', '.ag-brand-demo-primary', '.ag-brand-demo-secondary',
+  '.ag-brand-mockup-side-cta', '.ag-brand-mockup-primary', '.ag-brand-demo-primary', '.ag-brand-demo-secondary',
   '.bui-btn:not(.bui-icon-btn)'
 ].join(', ');
 const ICON_SWAP_EXCLUDED = '.icon-btn, .side-toggle, .theme-toggle, .tool-btn, .top-menu, .lang-btn, .dash-tool.dash-square, .bui-icon-btn, .bui-prompt-btn, .bui-chat-send, .bui-search-clear, .bui-selection-toggle, .bui-selection-retry, .bui-sidebar-collapse, .bui-sidebar-expand, .bui-sidebar-search-btn, .bui-sidebar-search-close';

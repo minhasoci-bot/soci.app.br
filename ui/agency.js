@@ -1029,50 +1029,33 @@ Authorization: Bearer soci_app_…
     profile: () => { const p = D().profile; return `<form class="surface padded settings-form" data-ag-form="profile"><h2>Dados pessoais</h2><div class="field-grid"><label>Nome<input name="first" required value="${h(p.first)}"></label><label>Sobrenome<input name="last" required value="${h(p.last)}"></label><label>E-mail<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'ag-profile-phone' })}</div><button class="primary">Salvar perfil</button><p class="form-status" role="alert"></p></form>`; },
     company: () => {
       const c = D().company;
-      return `<form class="surface padded settings-form ag-company-settings" data-ag-form="company">
-        <h2>Dados da empresa</h2>
-        <div class="ag-company-settings-grid">
-          <div class="ag-company-details">
-            <div class="field-grid">
+      const section = (id, title, text, body, extra = '') => `<section class="ag-company-section" aria-labelledby="ag-company-${id}">
+          <header class="ag-company-section-head"><h2 id="ag-company-${id}">${title}</h2><p class="dim">${text}</p>${extra}</header>
+          <div class="ag-company-section-body">${body}</div>
+        </section>`;
+      return `<form class="surface settings-form ag-company-settings" data-ag-form="company">
+        ${section('data', 'Dados da empresa', 'Como a sua agência se identifica para clientes e subcontas.', `<div class="field-grid">
           <label>Nome da empresa<input name="name" required maxlength="120" value="${h(c.name)}"></label>
           <label>Site institucional<input name="website" type="url" value="${h(c.website)}"></label>
           ${phoneField({ name: 'phone', label: 'Telefone', value: c.phone, id: 'ag-company-phone' })}
           <label>Endereço comercial<input name="address" value="${h(c.address)}"></label>
           <label>Fuso horário padrão<select name="timezone">${['America/Sao_Paulo', 'America/New_York', 'Europe/London', 'UTC'].map(z => `<option ${c.timezone === z ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
           <label>Moeda<input readonly value="Real brasileiro (BRL)"></label>
+        </div>`)}
+        ${section('brand', 'Cores da marca', 'A primária lidera as ações, a secundária cria camadas e o acento marca links e destaques. A prévia muda enquanto você escolhe.', `<div class="ag-company-colors">
           ${colorPicker(c.primary, { name: 'primary', label: 'Cor primária', fallback: '#FF4F9A' })}
           ${colorPicker(c.secondary, { name: 'secondary', label: 'Cor secundária', fallback: '#C4A7FF' })}
           ${colorPicker(c.accent, { name: 'accent', label: 'Cor de acento', fallback: '#6BC9FF' })}
-            </div>
-          </div>
-          <div class="ag-company-brand">
-        <div class="ag-brand-preview" aria-label="Prévia da paleta oficial Soci">
-          <span class="ag-brand-preview-bar" aria-hidden="true"></span>
-          <span class="ag-brand-preview-meta">
-            <span class="badge pink">Badge</span><span class="ag-brand-accent-dot" title="Acento azul Soci" aria-label="Acento azul Soci"></span>
-            <span class="text-link">Link de destaque</span>
-          </span>
         </div>
-        <section class="ag-brand-showcase" aria-labelledby="ag-brand-showcase-title">
-          <div class="ag-brand-showcase-head">
-            <div>
-              <span class="ag-brand-showcase-kicker">Preview da interface</span>
-              <h3 id="ag-brand-showcase-title">Veja a paleta aplicada na Soci</h3>
-              <p class="dim">Uma leitura rápida de como rosa, lilás e azul aparecem em navegação, ações, links, campos e superfícies.</p>
-            </div>
-            <button type="button" class="ag-brand-reset" data-ag-brand-reset>
-              <span class="ag-brand-reset-icon" aria-hidden="true">↺</span>
-              Restaurar paleta oficial
-            </button>
-          </div>
+        <div class="ag-brand-showcase">
           <div class="ag-brand-mockup-tabs" role="tablist" aria-label="Exemplos de aplicação da paleta">
             <button type="button" class="ag-brand-mockup-tab is-active" role="tab" aria-selected="true" data-ag-brand-mockup-tab data-view="overview">Visão geral</button>
             <button type="button" class="ag-brand-mockup-tab" role="tab" aria-selected="false" data-ag-brand-mockup-tab data-view="components">Componentes</button>
             <button type="button" class="ag-brand-mockup-tab" role="tab" aria-selected="false" data-ag-brand-mockup-tab data-view="surfaces">Fundos e estados</button>
           </div>
           <div class="ag-brand-mockup-panels">
-            <div class="ag-brand-mockup-panel is-active" data-ag-brand-mockup-panel="overview" role="tabpanel">
-              <div class="ag-brand-mockup-window">
+            <div class="ag-brand-mockup-panel is-active" data-ag-brand-mockup-panel="overview" role="tabpanel" aria-label="Prévia: visão geral">
+              <div class="ag-brand-mockup-window" inert>
                 <aside class="ag-brand-mockup-sidebar">
                   <div class="ag-brand-mockup-logo"><span>s</span><b>soci</b></div>
                   <div class="ag-brand-mockup-nav" aria-label="Navegação simulada">
@@ -1080,7 +1063,7 @@ Authorization: Bearer soci_app_…
                   </div>
                   <span class="ag-brand-mockup-side-label">Atalhos</span>
                   <span class="ag-brand-mockup-side-link">Biblioteca</span>
-                  <button type="button" class="ag-brand-mockup-side-cta">+ Nova ação</button>
+                  <button type="button" class="ag-brand-mockup-side-cta">Nova ação</button>
                 </aside>
                 <div class="ag-brand-mockup-main">
                   <div class="ag-brand-mockup-topbar"><div><span>WORKSPACE</span><b>Olá, equipe Soci</b></div><span class="ag-brand-mockup-avatar">LG</span></div>
@@ -1100,32 +1083,34 @@ Authorization: Bearer soci_app_…
                 </div>
               </div>
             </div>
-            <div class="ag-brand-mockup-panel" data-ag-brand-mockup-panel="components" role="tabpanel" hidden>
-              <div class="ag-brand-component-grid">
+            <div class="ag-brand-mockup-panel" data-ag-brand-mockup-panel="components" role="tabpanel" aria-label="Prévia: componentes" hidden>
+              <div class="ag-brand-component-grid" inert>
                 <div class="ag-brand-component-card"><span class="ag-brand-component-label">Botões</span><div class="ag-brand-button-row"><button type="button" class="ag-brand-demo-primary">Salvar alterações</button><button type="button" class="ag-brand-demo-secondary">Cancelar</button></div><code>primary · secondary</code></div>
                 <div class="ag-brand-component-card"><span class="ag-brand-component-label">Links e foco</span><a href="#agency/settings/company" class="ag-brand-demo-link">Abrir relatório</a><div class="ag-brand-demo-focus">Campo em foco</div><code>accent · focus ring</code></div>
                 <div class="ag-brand-component-card"><span class="ag-brand-component-label">Campos</span><label class="ag-brand-demo-field">Nome da campanha<input readonly value="Campanha de novembro"></label><label class="ag-brand-demo-field">Segmento<select><option>Leads quentes</option></select></label><code>surface · border</code></div>
               </div>
             </div>
-            <div class="ag-brand-mockup-panel" data-ag-brand-mockup-panel="surfaces" role="tabpanel" hidden>
-              <div class="ag-brand-surfaces-demo">
+            <div class="ag-brand-mockup-panel" data-ag-brand-mockup-panel="surfaces" role="tabpanel" aria-label="Prévia: fundos e estados" hidden>
+              <div class="ag-brand-surfaces-demo" inert>
                 <div class="ag-brand-surface-tile ag-brand-surface-pink"><span>Primária</span><b>Ações que pedem decisão</b><small>Rosa Soci · var(--g-brand)</small></div>
                 <div class="ag-brand-surface-tile ag-brand-surface-lilac"><span>Secundária</span><b>Camadas e agrupamentos</b><small>Lilás Soci · var(--g-brand-2)</small></div>
                 <div class="ag-brand-surface-tile ag-brand-surface-blue"><span>Acento</span><b>Feedback e descoberta</b><small>Azul Soci · var(--g-brand-accent)</small></div>
               </div>
             </div>
           </div>
-        </section>
-        <p class="dim">Rosa, lilás e azul formam a paleta oficial Soci: o rosa lidera a marca, o lilás cria profundidade e o azul funciona como acento de interface e marketing.</p>
-          </div>
-        </div>
-        <h2>White Label das subcontas</h2>
-        <div class="field-grid">
+        </div>`, `<button type="button" class="secondary" data-ag-brand-reset>${i('undo')} Restaurar paleta oficial</button>`)}
+        ${section('whitelabel', 'White Label das subcontas', 'O endereço e o logotipo que as subcontas veem no lugar da marca da plataforma.', `<div class="field-grid">
           <label>Domínio para subcontas<input name="domain" placeholder="app.suaagencia.com.br" value="${h(c.domain)}"></label>
-          <label>Logotipo (PNG, JPEG, WebP ou GIF, até 300 KB)<input type="file" name="logoFile" accept="image/png,image/jpeg,image/webp,image/gif"></label>
-        </div>
-        ${c.logo ? `<div class="inline-gap"><img class="ag-logo-preview" src="${h(c.logo)}" alt="Logotipo das subcontas"><label class="check"><input type="checkbox" name="removeLogo"> Remover logotipo</label></div>` : ''}
-        <button class="primary">Salvar dados da empresa</button><p class="form-status" role="alert"></p>
+          <div class="ag-company-logo">
+            <span class="ag-logo-preview">${c.logo ? `<img src="${h(c.logo)}" alt="Logotipo das subcontas">` : i('upload')}</span>
+            <div>
+              <label>Logotipo<input type="file" name="logoFile" accept="image/png,image/jpeg,image/webp,image/gif" aria-describedby="ag-company-logo-hint"></label>
+              <small class="dim" id="ag-company-logo-hint">PNG, JPEG, WebP ou GIF, até 300 KB</small>
+              ${c.logo ? '<label class="check"><input type="checkbox" name="removeLogo"> Remover logotipo</label>' : ''}
+            </div>
+          </div>
+        </div>`)}
+        <footer class="ag-company-footer"><p class="form-status" role="alert"></p><button class="primary">Salvar dados da empresa</button></footer>
       </form>`;
     },
     users: () => `<div class="page-head"><div><h2>Membros da equipe</h2><p class="dim">${A.data.access?.session ? 'Use o e-mail confirmado no Supabase para conceder acesso à equipe.' : 'Use “Agir como” para testar as permissões de um usuário.'}</p></div>${primary('Adicionar usuário', 'new-record', 'data-key="users"')}</div>${table(['Nome', 'Função', 'Acesso', 'Permissões de módulos', ''], D().users.map(u => `<tr><td><b>${h(`${u.first} ${u.last}`)}</b><br><small class="dim">${h(u.email)}</small></td><td>${badge(u.role, u.role.startsWith('Agency') ? 'pink' : 'blue')}</td><td><small>${u.role.startsWith('Agency') ? 'Todas as subcontas' : h(u.accounts.map(accountName).join(', ') || 'Nenhuma subconta')}</small></td><td><small>${u.permissionMode === 'none' ? 'Nenhum módulo' : u.permissionMode === 'inherit' ? 'Todos os módulos' : u.permissionMode === 'restricted' || u.permissions?.length ? `${u.permissions?.length || 0} módulos permitidos` : 'Todos os módulos'}</small></td><td class="right inline-gap">${A.data.access?.session ? '' : btn('Agir como', 'act-as', `data-id="${u.id}"`)}${btn('Editar', 'edit-record', `data-key="users" data-id="${u.id}"`)}</td></tr>`), empty('Nenhum membro cadastrado', 'Adicione usuários e defina permissões específicas por subconta e módulo.'))}`,
@@ -1313,8 +1298,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         D().company[name] = value.toLowerCase();
       }
       applyBrandColor(D().company.primary, D().company.secondary, D().company.accent);
-      const status = form?.querySelector('.form-status');
-      if (status) status.textContent = 'Paleta oficial restaurada. Clique em salvar para persistir.';
       flash('Paleta oficial Soci restaurada. Salve para aplicar.');
       return;
     }

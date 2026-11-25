@@ -143,7 +143,6 @@
 :root[data-theme=dark] .ag-window{background:rgb(21 23 27)}
 :root[data-theme=dark] .ag-window-bar{color:var(--g-brand-on,#f3f4f6)}
 :root[data-theme=dark] .ag-window-bar span{background:rgb(21 23 27 / 0.502)}
-:root[data-theme=dark] .ag-brand-preview{background:var(--g-surface-2,rgb(28 31 36))}
 :root[data-theme=dark] .ag-banner.ok{background:rgb(118 210 155 / 0.17);border-color:rgb(31 77 53)}
 :root[data-theme=dark] .ag-banner.acting{background:rgb(21 23 27);border-color:rgb(32 50 85)}
 :root[data-theme=dark] .ag-frame iframe{background:rgb(21 23 27)}
