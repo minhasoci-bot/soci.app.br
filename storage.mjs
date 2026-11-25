@@ -11,7 +11,7 @@ export function workspaceMissing() {
   return Object.assign(new Error('Workspace not found.'), { status: 404 });
 }
 
-export const isDocument = id => id === 'agency' || /^(agency|studio|social|openai|chat|portal|community|waha|whatsapp|abacatepay|marketplace|google|ads|email|media)-/.test(id);
+export const isDocument = id => id === 'agency' || /^(agency|studio|social|openai|chat|portal|community|waha|whatsapp|abacatepay|marketplace|google|ads|email|media|platform)-/.test(id);
 
 function containsJson(value, expected) {
   if (Array.isArray(expected)) return Array.isArray(value) && expected.every(item => value.some(entry => containsJson(entry, item)));
@@ -112,6 +112,12 @@ export function createSqliteStore(path) {
       return null;
     },
     insert: (id, state) => Boolean(insert.run(id, JSON.stringify(state)).changes),
+    // Página Plataforma: num banco local só há o tamanho do arquivo; storage e usuários ativos são do Supabase.
+    platformUsage: () => {
+      const { page_count } = db.prepare('PRAGMA page_count').get();
+      const { page_size } = db.prepare('PRAGMA page_size').get();
+      return { db_bytes: page_count * page_size, storage_bytes: 0, mau: null };
+    },
     change(id, mutate) {
       db.exec('BEGIN IMMEDIATE');
       try {
@@ -296,6 +302,10 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
     unchanged,
     list: agencyId => table({ select: 'id,name', order: 'created_at.asc,id.asc',
       ...(agencyId !== undefined && { 'state->>agencyId': agencyFilter(agencyId) }) }),
+    // Página Plataforma: tamanho do banco, do Storage e usuários ativos no mês (função go_platform_usage).
+    async platformUsage() {
+      return (await api('rpc/go_platform_usage', {}, { method: 'POST', body: {} })).json();
+    },
     async belongsToAgency(id, agencyId) {
       const rows = await table({ select: 'id', id: `eq.${id}`, 'state->>agencyId': agencyFilter(agencyId) });
       return rows.length !== 0;
