@@ -121,19 +121,23 @@ export function paidTopup(s, { checkoutId, method = 'Pix', paidCents = null, fee
   const topup = w.topups.find(row => row.checkoutId === checkoutId);
   if (!topup || ['PAID', 'REFUNDED'].includes(topup.status)) return false;
   const amount = paidCents > 0 ? Math.min(topup.amount, paidCents / 100) : topup.amount;
-  Object.assign(topup, { status: 'PAID', paidAt: at, method, received: amount, test: Boolean(devMode || topup.devMode) });
+  // The card fee passed on to the buyer is money received, but not credit.
+  const receivedCents = paidCents > 0 ? paidCents : toCents(topup.amount);
+  Object.assign(topup, { status: 'PAID', paidAt: at, method, received: amount, receivedCents, test: Boolean(devMode || topup.devMode) });
   walletAdjust(s, { kind: 'credit', amount, note: 'Recarga paga', method, checkoutId, at, silent: true });
-  if (!topup.test) post(s, { key: `topup:${checkoutId}`, kind: 'wallet_topup', amountCents: toCents(amount), feeCents, method, provider: 'abacatepay', ref: checkoutId, at });
+  if (!topup.test) post(s, { key: `topup:${checkoutId}`, kind: 'wallet_topup', amountCents: receivedCents, feeCents, method, provider: 'abacatepay', ref: checkoutId, at });
   return amount;
 }
 /** A recharge refunded or lost in a dispute leaves the wallet, even below zero. Once. */
 export function reverseTopup(s, { checkoutId, kind = 'refund', at = new Date().toISOString() }) {
   const topup = walletOf(s).topups.find(row => row.checkoutId === checkoutId);
+  // Returned before the payment's event arrived: that event will not credit it.
+  if (topup?.status === 'PENDING') { Object.assign(topup, { status: 'REFUNDED', refundedAt: at }); return true; }
   if (topup?.status !== 'PAID') return false;
   const amount = topup.received ?? topup.amount;
   Object.assign(topup, { status: 'REFUNDED', refundedAt: at });
   walletAdjust(s, { kind: 'debit', amount, note: kind === 'dispute_lost' ? 'Recarga perdida em contestação' : 'Recarga devolvida', method: topup.method, checkoutId, at, silent: true });
-  if (!topup.test) post(s, { key: `topup-refund:${checkoutId}`, kind, amountCents: -toCents(amount), method: topup.method || '', provider: 'abacatepay', ref: checkoutId, at });
+  if (!topup.test) post(s, { key: `topup-refund:${checkoutId}`, kind, amountCents: -(topup.receivedCents ?? toCents(amount)), method: topup.method || '', provider: 'abacatepay', ref: checkoutId, at });
   return true;
 }
 /** A dispute that opened, or that the agency won: the balance stays as it is until it is lost. */

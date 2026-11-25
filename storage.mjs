@@ -28,7 +28,11 @@ const ledgerSchema = `CREATE TABLE IF NOT EXISTS go_billing_ledger (key TEXT PRI
   CREATE INDEX IF NOT EXISTS go_billing_ledger_workspace ON go_billing_ledger (workspace_id, layer, occurred_at DESC, key DESC);
   CREATE TRIGGER IF NOT EXISTS go_billing_ledger_no_update BEFORE UPDATE ON go_billing_ledger BEGIN SELECT RAISE(ABORT, 'livro imutável'); END;
   CREATE TRIGGER IF NOT EXISTS go_billing_ledger_no_delete BEFORE DELETE ON go_billing_ledger BEGIN SELECT RAISE(ABORT, 'livro imutável'); END;`;
-const readCursor = after => { const cut = String(after).indexOf('|'); return { at: String(after).slice(0, cut), key: String(after).slice(cut + 1) }; };
+const readCursor = after => {
+  const cut = String(after).indexOf('|'), at = Date.parse(String(after).slice(0, Math.max(cut, 0)));
+  if (Number.isNaN(at)) throw Object.assign(new Error('Página inválida.'), { status: 400 });
+  return { at: new Date(at).toISOString(), key: String(after).slice(cut + 1) };
+};
 const page = (rows, limit) => ({ rows: rows.slice(0, limit), next: rows.length > limit ? `${rows[limit - 1].occurred_at}|${rows[limit - 1].key}` : '' });
 
 function containsJson(value, expected) {
@@ -376,8 +380,9 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
       await ledger('go_billing_ledger', { on_conflict: 'key' }, { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
         body: rows.map(row => Object.fromEntries(ledgerColumns.map(column => [column, ledgerValue(row, column)]))) });
     },
-    async ledgerList({ layer, agencyId, workspaceId, kind, from, to, limit = 200, after = '' }) {
-      const literal = value => `"${String(value).replace(/["\\]/g, char => `\\${char}`)}"`;
+    async ledgerList({ layer, agencyId, workspaceId, kind, from, to, limit: wanted = 200, after = '' }) {
+      // PostgREST answers at most 1000 rows, and one more than the page is asked to know whether there is a next one.
+      const limit = Math.min(wanted, 999), literal = value => `"${String(value).replace(/["\\]/g, char => `\\${char}`)}"`;
       const both = [`occurred_at.gte.${from}`, `occurred_at.lt.${to}`];
       if (after) { const c = readCursor(after); both.push(`or(occurred_at.lt.${c.at},and(occurred_at.eq.${c.at},key.lt.${literal(c.key)}))`); }
       const rows = await (await ledger('go_billing_ledger', { select: '*', layer: `eq.${layer}`, agency_id: `eq.${agencyId}`, ...(workspaceId !== undefined && { workspace_id: `eq.${workspaceId}` }),

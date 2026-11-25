@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { blank, execute } from '../model.mjs';
 import { blankAgency } from '../agency-model.mjs';
 import { createSqliteStore } from '../storage.mjs';
-import { backfill } from '../scripts/ledger-backfill.mjs';
+import { backfill, importWorkspace } from '../scripts/ledger-backfill.mjs';
 
 const all = { from: '2000-01-01T00:00:00.000Z', to: '2100-01-01T00:00:00.000Z', limit: 1000 };
 function setup(t) {
@@ -75,4 +75,12 @@ test('Uma conta com erro não para as outras', async t => {
   const report = await backfill({ store: broken, dryRun: false, log() {} });
   assert.deepEqual(report.skipped, ['demo']);
   assert.equal(report.facts, 2);
+});
+
+test('A importação inclui a baixa manual de uma fatura com link de teste nunca pago', () => {
+  const s = blank();
+  s.invoices.push({ id: 'i1', title: 'x', status: 'Paid', value: 50, payment: { provider: 'abacatepay', checkoutId: 'bill_dev', status: 'PENDING', devMode: true } });
+  s.transactions.push({ id: 't1', created: '2026-01-01T00:00:00.000Z', contactId: '', amount: 50, date: '2026-01-01', method: 'Manual', source: 'Invoice', status: 'Succeeded', note: '', invoiceId: 'i1' });
+  assert.equal(importWorkspace(s), 1);
+  assert.deepEqual(s.ledgerOutbox.map(fact => [fact.key, fact.amountCents]), [['sale:tx:t1', 5000]]);
 });

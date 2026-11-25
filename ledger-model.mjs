@@ -16,9 +16,12 @@ export function postFact(state, fact) {
   return true;
 }
 
-// What the gateway said about this money: on the transaction itself or on its invoice.
-export const gatewayOf = (state, row) => row.gateway || (row.invoiceId && (state.invoices || []).find(item => item.id === row.invoiceId)?.payment) || null;
-const gatewayRef = payment => payment && ['PAID', 'MISMATCH', 'REFUNDED', 'DISPUTED'].includes(payment.status) ? String(payment.paymentId || payment.checkoutId || '') : '';
+// What the gateway said about this money: on its invoice or, when there is none (or it was deleted), on the transaction itself.
+export const gatewayOf = (state, row) => (row.invoiceId && (state.invoices || []).find(item => item.id === row.invoiceId)?.payment) || row.gateway || null;
+const received = payment => Boolean(payment) && ['PAID', 'MISMATCH', 'REFUNDED', 'DISPUTED'].includes(payment.status);
+const gatewayRef = payment => received(payment) ? String(payment.paymentId || payment.checkoutId || '') : '';
+// Test money is what the gateway received in test mode; a test link nobody paid says nothing about a manual receipt.
+export const testMoney = payment => received(payment) && Boolean(payment.devMode);
 const keyOf = (kind, payment, txId) => { const ref = gatewayRef(payment); return ref ? `${kind}:${payment.provider || 'abacatepay'}:${ref}` : `${kind}:tx:${txId}`; };
 export const saleKey = (payment, txId) => keyOf('sale', payment, txId);
 export const refundKey = (payment, txId) => keyOf('refund', payment, txId);
@@ -26,7 +29,7 @@ export const refundKey = (payment, txId) => keyOf('refund', payment, txId);
 const counts = row => row.status === 'Succeeded' || row.status === 'Disputed';
 const sourceOf = row => row.invoiceId ? { type: 'invoice', id: row.invoiceId } : { type: 'transaction', id: row.id };
 // A date typed by a person counts as noon in Brazil; today's payments keep the exact moment.
-const momentOf = (row, now) => /^\d{4}-\d{2}-\d{2}$/.test(row.date || '') && row.date !== now.slice(0, 10) ? `${row.date}T15:00:00.000Z` : now;
+const momentOf = (row, now) => /^(19|20|21)\d{2}-\d{2}-\d{2}$/.test(row.date || '') && row.date !== now.slice(0, 10) ? `${row.date}T15:00:00.000Z` : now;
 
 function base(state, row, at) {
   const payment = gatewayOf(state, row), ref = gatewayRef(payment);
@@ -37,6 +40,8 @@ function postSale(state, row, { amount = row.amount, imported = false, now = new
   const payment = gatewayOf(state, row), ref = gatewayRef(payment), amountCents = ref && payment.receivedCents ? payment.receivedCents : cents(amount);
   row.booked = amountCents;
   row.bookedFor = cents(amount);
+  // The invoice may be deleted later (with its contact): the transaction keeps which charge paid it.
+  if (ref && !row.gateway) row.gateway = { provider: payment.provider || 'abacatepay', status: 'PAID', paymentId: payment.paymentId || '', checkoutId: payment.checkoutId || '' };
   postFact(state, { ...base(state, row, imported ? momentOf(row, row.created || now) : momentOf(row, now)), key: saleKey(payment, row.id), kind: ref ? 'sale' : 'manual_sale', amountCents,
     feeCents: ref ? payment.feeCents ?? null : null, detail: { ...(row.note ? { note: row.note } : {}), ...(imported ? { imported: true } : {}) } });
 }
@@ -50,14 +55,14 @@ function adjust(state, row, amountCents, detail, key) {
 
 /** Called for a transaction that was created (prior = null) or changed; `row` is the new record. */
 export function transactionFact(state, prior, row, { refundKind = 'refund' } = {}) {
-  if (row.booked === undefined && gatewayOf(state, row)?.devMode) row.test = true;
+  if (row.booked === undefined && testMoney(gatewayOf(state, row))) row.test = true;
   if (row.test) return;
   if (row.booked === undefined) {
     if (!prior) { if (counts(row)) postSale(state, row); return; }
     if (counts(prior)) {
       const known = { ...prior, ...row, amount: prior.amount, date: prior.date, status: prior.status };
       postSale(state, known, { imported: true });
-      Object.assign(row, { booked: known.booked, bookedFor: known.bookedFor });
+      Object.assign(row, { booked: known.booked, bookedFor: known.bookedFor, ...(known.gateway && { gateway: known.gateway }) });
     } else if (counts(row)) { postSale(state, row); return; }
     else return;
   }
@@ -78,7 +83,7 @@ export function transactionFact(state, prior, row, { refundKind = 'refund' } = {
 }
 
 export function transactionDeleted(state, row) {
-  if (row.test || (row.booked === undefined && gatewayOf(state, row)?.devMode)) return;
+  if (row.test || (row.booked === undefined && testMoney(gatewayOf(state, row)))) return;
   if (row.booked === undefined) {
     if (!counts(row)) return;
     postSale(state, row, { imported: true });
@@ -88,7 +93,7 @@ export function transactionDeleted(state, row) {
 
 /** A transaction from before the ledger (scripts/ledger-backfill.mjs): its sale and, when it was refunded, the refund. */
 export function importTransaction(state, row) {
-  if (row.test || row.booked !== undefined || gatewayOf(state, row)?.devMode || !(counts(row) || row.status === 'Refunded')) return;
+  if (row.test || row.booked !== undefined || testMoney(gatewayOf(state, row)) || !(counts(row) || row.status === 'Refunded')) return;
   postSale(state, row, { imported: true });
   if (row.status !== 'Refunded') return;
   const payment = gatewayOf(state, row);

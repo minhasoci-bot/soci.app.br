@@ -92,3 +92,27 @@ test('A migração do Supabase impede mudança e só dá leitura e inclusão à 
   const policies = readFileSync(new URL('../supabase/provision-storage.sql', import.meta.url), 'utf8');
   for (const name of ['go_ledger_read', 'go_ledger_insert']) assert.match(policies, new RegExp(`create policy ${name} on public\.go_billing_ledger`));
 });
+
+test('No Supabase, que devolve no máximo 1000 linhas por leitura, o período inteiro é lido', async () => {
+  const all = Array.from({ length: 2500 }, (_, i) => ({ key: `demo:k${String(i).padStart(5, '0')}`, occurred_at: new Date(Date.UTC(2026, 10, 30) - i * 1000).toISOString() }));
+  const store = createSupabaseStore({ projectUrl: 'https://abc.supabase.co', publishableKey: 'pk', storageKey: 'a'.repeat(64),
+    request: async url => {
+      const q = new URL(url).searchParams, before = /occurred_at\.lt\.([^,)]+),and/.exec(q.get('and'))?.[1];
+      return new Response(JSON.stringify(all.filter(row => !before || row.occurred_at < before).slice(0, Math.min(1000, Number(q.get('limit'))))), { status: 200 });
+    } });
+  const seen = [];
+  for (let after = '', more = true; more;) {
+    const page = await store.ledgerList({ layer: 'account', agencyId: 'agency', from: '2026-01-01T00:00:00.000Z', to: '2027-01-01T00:00:00.000Z', limit: 1000, after });
+    seen.push(...page.rows);
+    after = page.next;
+    more = Boolean(after);
+  }
+  assert.equal(seen.length, 2500);
+  assert.equal(new Set(seen.map(row => row.key)).size, 2500);
+});
+
+test('Uma continuação de página inválida é recusada', async () => {
+  const store = createSqliteStore(':memory:');
+  await assert.rejects(() => store.ledgerList({ layer: 'account', agencyId: 'a', from: '2026', to: '2027', after: 'x),or(layer.eq.agency|k' }), error => error.status === 400);
+  store.close();
+});

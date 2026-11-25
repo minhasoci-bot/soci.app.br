@@ -2652,13 +2652,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/abacatepay/webhook/') && method === 'POST') {
         await ready;
         return await abacate.handleWebhook({ req, url, json, listWorkspaces, changeAgency,
-          onSubscription: async (agencyId, { accountId, notify, name, plan, subscriptionId }) => {
-            if (!notify) return;
+          onSubscription: async (agencyId, { accountId, effect, notify, name, plan, subscriptionId }) => {
+            const twice = effect === 'duplicate';
+            if (!notify && !twice) return;
             const agency = await loadAgency(agencyId);
             const to = new Set([agency.profile.email, ...agency.users.filter(user => ['Agency Owner', 'Agency Admin'].includes(user.role)).map(user => user.email)].filter(Boolean).map(email => email.toLowerCase()));
-            const text = `O pagamento do plano ${plan} da subconta ${name} foi recusado (tentativa ${notify}).\n\nO AbacatePay tenta de novo sozinho. Acompanhe em Configurador SaaS → Subcontas SaaS.`;
+            const text = twice ? `A subconta ${name} pagou o plano ${plan} em uma assinatura que já tinha sido trocada por outra, que continua ativa.\n\nAs duas seguem cobrando. No painel do AbacatePay, cancele a assinatura ${subscriptionId} e devolva o pagamento, se for o caso.` : `O pagamento do plano ${plan} da subconta ${name} foi recusado (tentativa ${notify}).\n\nO AbacatePay tenta de novo sozinho. Acompanhe em Configurador SaaS → Subcontas SaaS.`;
             for (const email of to) {
-              const outcome = await documentMail.email(email, { subject: `Pagamento recusado: ${name}`, text }, `plan-failed-${subscriptionId || accountId}-${notify}-${email}`, { fromName: agency.company.name });
+              const outcome = await documentMail.email(email, { subject: `${twice ? 'Pagamento em dobro' : 'Pagamento recusado'}: ${name}`, text }, twice ? `plan-twice-${subscriptionId || accountId}-${email}` : `plan-failed-${subscriptionId || accountId}-${notify}-${email}`, { fromName: agency.company.name });
               if (!mailSent(outcome)) console.warn(`Aviso de plano recusado (${accountId}): ${outcome}`);
             }
           },
@@ -2711,9 +2712,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const agency = await loadAgency(who.agencyId);
           const meta = agency.accounts[workspace] || {};
           if (op === 'subscribe') {
-            if (meta.billing?.provider === 'abacatepay' && ['Active', 'Trial', 'PastDue'].includes(meta.billing.status)) throw error('Esta subconta já tem uma assinatura ativa. Cancele antes de gerar outra.', 409);
+            const running = billing => billing?.provider === 'abacatepay' && ['Active', 'Trial', 'PastDue'].includes(billing.status), refuse = () => error('Esta subconta já tem uma assinatura ativa. Cancele antes de gerar outra.', 409);
+            if (running(meta.billing)) throw refuse();
             const billing = await abacate.subscribe(who.agencyId, workspace, agency.plans.find(plan => plan.id === meta.plan), origin, { retryPolicy: retryPolicyOf(agency) });
-            await changeAgency(who.agencyId, current => { replaceBilling(current, workspace, billing); });
+            // The customer may have paid the earlier link while this one was being made.
+            if (!await changeAgency(who.agencyId, current => !running(current.accounts[workspace]?.billing) && Boolean(replaceBilling(current, workspace, billing)))) throw refuse();
             await recordAudit(who, 'Assinatura AbacatePay gerada', meta.name || workspace, billing.planName);
             return json(await agencyPayload(req, res, { result: billing }));
           }
