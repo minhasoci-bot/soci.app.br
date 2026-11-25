@@ -1,6 +1,6 @@
 # 08 · Momentos de cobrança no GoHighLevel, situação da Soci e cuidados fiscais
 
-Análise de 24/11/2026. Nada foi implementado ainda: este documento é a base da decisão.
+Análise de 24/11/2026, base da decisão. Entrega 1 (fundação) construída: ver `docs/superpowers/plans/2026-11-24-cobranca-fundacao.md`. Resolvidas as falhas F1 a F5; F6 a F8 ficam para as próximas entregas.
 
 > **Decisão do usuário (24/11/2026): sem porcentagem. A cobrança funciona exatamente como no GHL.**
 > A Soci cobra a agência; a agência cobra a subconta no gateway dela; a subconta cobra o consumidor no gateway dela.
