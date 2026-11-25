@@ -135,24 +135,20 @@ function settings(c) {
   const field = (label, html, hint = '') => `<label>${label}${html}${hint ? `<small class="dim">${hint}</small>` : ''}</label>`;
   const text = (name, value, extra = '') => `<input name="${name}" value="${h(value || '')}" ${extra}>`;
   const area = (name, value, rows = 3, max = 1000) => `<textarea name="${name}" rows="${rows}" maxlength="${max}">${h(value || '')}</textarea>`;
-  return shell(c, 'settings', `<form class="rp-settings" data-rp-settings>
-    ${linkCard(c)}
-    <section class="surface padded"><h2>Página de avaliação</h2>
-      ${field('Título', text('title', s.title, 'maxlength="120" required'))}${field('Texto de apoio', area('intro', s.intro, 2, 400))}</section>
-    <section class="surface padded"><h2>Sites de avaliação públicos</h2>
-      <p class="dim">Depois de enviar a avaliação, todo cliente vê os mesmos botões, qualquer que seja a nota. O Google não permite filtrar quem é convidado a avaliar.</p>
+  return shell(c, 'settings', `${linkCard(c)}<form class="surface settings-form set-form" data-rp-settings>
+    <section class="set-section"><header class="set-head"><h2>Página de avaliação</h2><p class="dim">O que o cliente lê ao abrir o link.</p></header><div class="set-body">
+      ${field('Título', text('title', s.title, 'maxlength="120" required'))}${field('Texto de apoio', area('intro', s.intro, 2, 400))}</div></section>
+    <section class="set-section"><header class="set-head"><h2>Sites de avaliação públicos</h2><p class="dim">Depois de enviar a avaliação, todo cliente vê os mesmos botões, qualquer que seja a nota. O Google não permite filtrar quem é convidado a avaliar.</p></header><div class="set-body">
       ${field('Link de avaliação do Google', text('googleUrl', s.googleUrl, 'type="url" maxlength="500" placeholder="https://g.page/r/…/review"'), 'No Perfil da Empresa no Google, use “Pedir avaliações” e copie o link.')}
       ${field('Facebook', text('facebookUrl', s.facebookUrl, 'type="url" maxlength="500" placeholder="https://facebook.com/…/reviews"'))}
-      <div class="rp-two-fields">${field('Outro site', text('otherUrl', s.otherUrl, 'type="url" maxlength="500" placeholder="https://"'))}${field('Nome do outro site', text('otherLabel', s.otherLabel, 'maxlength="40" placeholder="Ex.: TripAdvisor"'))}</div></section>
-    <section class="surface padded"><h2>Mensagens dos pedidos</h2>
-      <p class="dim">Use {{contact.first_name}}, {{workspace.name}} e, obrigatoriamente, {{review.link}}, que vira o link pessoal de cada contato.</p>
+      <div class="rp-two-fields">${field('Outro site', text('otherUrl', s.otherUrl, 'type="url" maxlength="500" placeholder="https://"'))}${field('Nome do outro site', text('otherLabel', s.otherLabel, 'maxlength="40" placeholder="Ex.: TripAdvisor"'))}</div></div></section>
+    <section class="set-section"><header class="set-head"><h2>Mensagens dos pedidos</h2><p class="dim">Use {{contact.first_name}}, {{workspace.name}} e, obrigatoriamente, {{review.link}}, que vira o link pessoal de cada contato.</p></header><div class="set-body">
       ${field('WhatsApp', area('whatsapp', s.whatsapp, 3, 1000))}${field('SMS', area('sms', s.sms, 2, 320), 'O envio de SMS depende do provedor de telefonia; até lá, a mensagem fica registrada em Conversas.')}
-      ${field('Assunto do e-mail', text('emailSubject', s.emailSubject, 'maxlength="200"'))}${field('E-mail', area('email', s.email, 6, 4000))}</section>
-    <section class="surface padded"><h2>Respostas com IA</h2>
+      ${field('Assunto do e-mail', text('emailSubject', s.emailSubject, 'maxlength="200"'))}${field('E-mail', area('email', s.email, 6, 4000))}</div></section>
+    <section class="set-section"><header class="set-head"><h2>Respostas com IA</h2><p class="dim">A IA só sugere. Você revisa e salva cada resposta. O uso conta no limite mensal de IA da subconta.</p></header><div class="set-body">
       <div class="rp-two-fields">${field('Tom das respostas', `<select name="replyTone">${tones.map(([id, label]) => `<option value="${id}" ${s.replyTone === id ? 'selected' : ''}>${label}</option>`).join('')}</select>`)}
-        ${field('Assinatura', text('signature', s.signature, 'maxlength="120" placeholder="Ex.: Equipe La Vaca"'))}</div>
-      <p class="dim">A IA só sugere. Você revisa e salva cada resposta. O uso conta no limite mensal de IA da subconta.</p></section>
-    <div class="rp-save"><span class="form-status" role="status"></span><button class="primary">Salvar</button></div>
+        ${field('Assinatura', text('signature', s.signature, 'maxlength="120" placeholder="Ex.: Equipe La Vaca"'))}</div></div></section>
+    <footer class="set-foot"><p class="form-status" role="status"></p><button class="primary">Salvar</button></footer>
   </form>`, ' ');
 }
 
@@ -186,9 +182,8 @@ function google(c) {
         <div class="rp-widget-actions"><button type="button" class="primary" data-rp-act="gbp-sync" ${st.account ? '' : 'disabled'}>${icon('refresh', 14)} Sincronizar avaliações</button>${pending ? '<a class="secondary" href="#reputation/reviews" data-rp-act="filter-pending">Responder pendentes</a>' : ''}</div>
         ${st.account ? '' : '<p class="dim">Escolha o local de novo em Configurações → Google para liberar as avaliações.</p>'}</section>
     </div>
-    <form class="surface padded rp-settings rp-gbp-form" data-rp-gbp>
-      <h2>Editar no Google</h2>
-      <p class="dim">Categorias, fotos e endereço continuam no painel do Google. As mudanças podem passar por revisão do Google antes de aparecer.</p>
+    <form class="surface settings-form set-form rp-gbp-form" data-rp-gbp>
+      <section class="set-section"><header class="set-head"><h2>Editar no Google</h2><p class="dim">Categorias, fotos e endereço continuam no painel do Google. As mudanças podem passar por revisão do Google antes de aparecer.</p></header><div class="set-body">
       <div class="ai-wrap"><label>Descrição<textarea id="gbp-description" name="description" rows="5" maxlength="750">${h(d.profile?.description || '')}</textarea><small class="dim" data-gbp-count></small></label>${aiTool('#gbp-description', 'gbp', 'Descrição do Google')}</div>
       <div class="rp-two-fields"><label>Telefone<input name="phone" maxlength="30" value="${h(d.phoneNumbers?.primaryPhone || '')}" placeholder="(11) 99999-0000"></label>
         <label>Site<input name="website" type="url" maxlength="500" value="${h(d.websiteUri || '')}" placeholder="https://"></label></div>
@@ -197,8 +192,8 @@ function google(c) {
           <input type="time" data-hour="from" value="${row.from}" aria-label="${row.label}: abre"><span class="dim">às</span><input type="time" data-hour="to" value="${row.to === '24:00' ? '23:59' : row.to}" aria-label="${row.label}: fecha">
           ${row.split ? '<small class="dim">tem mais de um turno no Google</small>' : ''}</div>`).join('')}
         ${hours.some(row => row.split) ? '<p class="dim">Dias com mais de um turno ficam como estão, a menos que você altere algum horário.</p>' : ''}
-      </fieldset>
-      <div class="rp-save"><span class="form-status" role="status"></span><button class="primary">Salvar no Google</button></div>
+      </fieldset></div></section>
+      <footer class="set-foot"><p class="form-status" role="status"></p><button class="primary">Salvar no Google</button></footer>
     </form>`, ' ');
 }
 
@@ -220,14 +215,11 @@ function listings(c) {
     </form>`;
   }).join('');
   return shell(c, 'listings', `
-    <div class="rp-two">
-      <section class="surface padded"><h2>Dados oficiais da empresa</h2>
-        <p class="dim">${gbp.status ? 'Vindos do Perfil da Empresa no Google.' : 'Conecte o Google em Configurações para usar os dados do Perfil da Empresa.'} Use exatamente estes dados em todos os diretórios: diferenças confundem o Google e os clientes.</p>
-        <dl class="rp-nap">${canonical.map(([label, value]) => `<div><dt>${label}</dt><dd>${value ? `${h(value)} <button type="button" class="wf-text rp-link-btn" data-rp-act="copy" data-value="${h(value)}">Copiar</button>` : '<span class="dim">—</span>'}</dd></div>`).join('')}</dl></section>
-      <section class="surface padded"><h2>Presença nos diretórios</h2>
-        <div class="rp-score small" style="--score:${Math.round(ok / directories.length * 100)}" role="img" aria-label="${ok} de ${directories.length} diretórios corretos"><b>${ok}/${directories.length}</b><small>corretos</small></div>
-        <p class="dim">A soci não sincroniza estes diretórios automaticamente (isso exige um parceiro pago, como a Yext). Confira cada perfil, corrija o que estiver diferente e registre aqui.</p></section>
-    </div>
+    <section class="surface set-card"><div class="set-section"><header class="set-head"><h2>Dados oficiais da empresa</h2>
+        <p class="dim">${gbp.status ? 'Vindos do Perfil da Empresa no Google.' : 'Conecte o Google em Configurações para usar os dados do Perfil da Empresa.'} Use exatamente estes dados em todos os diretórios: diferenças confundem o Google e os clientes.</p></header><div class="set-body">
+        <dl class="rp-nap">${canonical.map(([label, value]) => `<div><dt>${label}</dt><dd>${value ? `${h(value)} <button type="button" class="wf-text rp-link-btn" data-rp-act="copy" data-value="${h(value)}">Copiar</button>` : '<span class="dim">—</span>'}</dd></div>`).join('')}</dl></div></div>
+      <div class="set-section"><header class="set-head"><h2>Presença nos diretórios</h2><p class="dim">A soci não sincroniza estes diretórios automaticamente (isso exige um parceiro pago, como a Yext). Confira cada perfil, corrija o que estiver diferente e registre aqui.</p></header><div class="set-body">
+        <div class="rp-score small" style="--score:${Math.round(ok / directories.length * 100)}" role="img" aria-label="${ok} de ${directories.length} diretórios corretos"><b>${ok}/${directories.length}</b><small>corretos</small></div></div></div></section>
     <section class="rp-listings">${rows}</section>`, ' ');
 }
 

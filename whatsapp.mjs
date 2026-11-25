@@ -2,9 +2,11 @@
 // (ou gerenciado pela plataforma via variáveis de ambiente). O servidor é a Evolution API v2
 // (https://doc.evolution-api.com), com a chave global no header `apikey`. A stack da VPS fica em deploy/evolution.
 // Os segredos ficam selados (AES-256-GCM) em `whatsapp-<agencyId>` no SQLite/Supabase.
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { execute } from './model.mjs';
 import { cleanGuard } from './whatsapp-guard.mjs';
+import { mediaPlaceholder } from './ui/message-media.js';
+import { R2_MAX_BYTES } from './r2-storage.mjs';
 
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
 const digits = value => String(value || '').replace(/\D+/g, '');
@@ -100,7 +102,7 @@ async function readJsonSafe(res) {
 
 const GROUP_JID = /^\d[\d-]{5,40}@g\.us$/;
 
-const EVOLUTION_EVENTS = ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'];
+const EVOLUTION_EVENTS = ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'CALL'];
 
 function evolutionError(data) {
   const raw = data?.response?.message ?? data?.message ?? data?.error ?? '';
@@ -112,24 +114,59 @@ function evolutionError(data) {
   }).filter(Boolean).join('; ').slice(0, 200);
 }
 
-// Texto da mensagem do Baileys, abrindo os envelopes comuns (temporária, visualização única, editada).
-function evolutionText(message, depth = 0) {
-  if (!message || typeof message !== 'object' || depth > 3) return '';
-  const inner = message.ephemeralMessage?.message || message.viewOnceMessage?.message || message.viewOnceMessageV2?.message
-    || message.documentWithCaptionMessage?.message || message.editedMessage?.message;
-  if (inner) return evolutionText(inner, depth + 1);
+// Conteúdo do Baileys fora dos envelopes comuns (temporária, visualização única, editada, álbum, figurinha animada).
+function unwrap(message, once = false, depth = 0) {
+  if (!message || typeof message !== 'object' || depth > 4) return { message: null, once };
+  const single = message.viewOnceMessage?.message || message.viewOnceMessageV2?.message || message.viewOnceMessageV2Extension?.message;
+  const inner = single || message.ephemeralMessage?.message || message.documentWithCaptionMessage?.message || message.editedMessage?.message
+    || message.associatedChildMessage?.message || message.lottieStickerMessage?.message;
+  return inner ? unwrap(inner, once || Boolean(single), depth + 1) : { message, once };
+}
+
+// A mídia da mensagem e, quando o arquivo não fica na soci, o porquê em `skip`.
+function evolutionMedia(raw) {
+  const { message, once } = unwrap(raw);
+  if (!message) return null;
+  const [kind, part] = message.imageMessage ? ['image', message.imageMessage]
+    : message.videoMessage || message.ptvMessage ? [message.videoMessage?.gifPlayback ? 'gif' : 'video', message.videoMessage || message.ptvMessage]
+      : message.audioMessage ? ['audio', message.audioMessage]
+        : message.documentMessage ? ['document', message.documentMessage]
+          : message.stickerMessage ? ['sticker', message.stickerMessage] : [];
+  if (!kind) return null;
+  const size = Number(part.fileLength?.low ?? part.fileLength) || 0; // o Baileys manda número, texto ou Long
+  const side = value => Math.round(Number(value)) > 0 ? Math.min(20000, Math.round(Number(value))) : 0;
+  const width = side(part.width), height = side(part.height);
+  const skip = once || part.viewOnce ? 'once' : size > R2_MAX_BYTES ? 'big' : kind === 'sticker' && part.isLottie ? 'lottie' : '';
+  return { kind, mime: String(part.mimetype || '').split(';')[0].trim().toLowerCase().slice(0, 100), name: String(part.fileName || '').trim().slice(0, 200), size, ...(width && height ? { width, height } : {}), skip };
+}
+
+function evolutionText(raw) {
+  const { message } = unwrap(raw);
+  if (!message) return '';
   const text = message.conversation || message.extendedTextMessage?.text || message.imageMessage?.caption
     || message.videoMessage?.caption || message.documentMessage?.caption || message.buttonsResponseMessage?.selectedDisplayText
     || message.listResponseMessage?.title || message.templateButtonReplyMessage?.selectedDisplayText
-    || message.interactiveResponseMessage?.body?.text || '';
+    || message.interactiveResponseMessage?.body?.text
+    || message.templateMessage?.hydratedTemplate?.hydratedContentText || message.templateMessage?.hydratedFourRowTemplate?.hydratedContentText
+    || message.templateMessage?.interactiveMessageTemplate?.body?.text || message.interactiveMessage?.body?.text
+    || message.buttonsMessage?.contentText || message.listMessage?.description || message.listMessage?.title || '';
   if (text) return String(text);
-  if (message.imageMessage) return '[Imagem]';
-  if (message.videoMessage) return '[Vídeo]';
-  if (message.audioMessage) return '[Áudio]';
-  if (message.documentMessage) return `[Documento${message.documentMessage.fileName ? `: ${message.documentMessage.fileName}` : ''}]`;
-  if (message.stickerMessage) return '[Figurinha]';
+  const media = evolutionMedia(raw);
+  if (media) {
+    const label = mediaPlaceholder(media.kind, media.name);
+    return media.skip === 'once' ? label.replace(/\]$/, ' de visualização única]') : media.skip === 'big' ? label.replace(/\]$/, ' acima de 50 MB]')
+      : media.skip === 'lottie' ? '[Figurinha animada]' : label;
+  }
   if (message.locationMessage || message.liveLocationMessage) return '[Localização]';
   if (message.contactMessage || message.contactsArrayMessage) return '[Contato]';
+  const titled = (label, title) => `[${label}] ${title || ''}`.trim();
+  const poll = message.pollCreationMessage || message.pollCreationMessageV2 || message.pollCreationMessageV3;
+  if (poll) return titled('Enquete', poll.name);
+  if (message.eventMessage) return titled('Evento', message.eventMessage.name);
+  if (message.productMessage) return titled('Produto', message.productMessage.product?.title);
+  if (message.orderMessage) return titled('Pedido', message.orderMessage.orderTitle);
+  if (message.groupInviteMessage) return titled('Convite de grupo', message.groupInviteMessage.groupName);
+  if (message.stickerPackMessage) return titled('Pacote de figurinhas', message.stickerPackMessage.name);
   return '';
 }
 
@@ -151,7 +188,22 @@ function evolutionInbound(entry) {
   if (!text || (phone ? phone.length < 8 : !lid)) return null;
   const senderName = String(entry.pushName || (phone ? `+${phone}` : 'Contato do WhatsApp')).trim().slice(0, 120);
   const ad = adReferral(entry);
-  return { id: String(key.id || '').slice(0, 120), phone, lid, text, senderName, at: (Number(entry.messageTimestamp) || 0) * 1000, ...(ad ? { ad } : {}) };
+  const { skip, ...media } = evolutionMedia(entry.message) || { skip: 'none' };
+  return { id: String(key.id || '').slice(0, 120), phone, lid, text, senderName, at: (Number(entry.messageTimestamp) || 0) * 1000, ...(ad ? { ad } : {}), ...(skip ? {} : { media }) };
+}
+
+// Ligação recebida no WhatsApp. Só o começo (offer) e os três resultados que dizem o que houve; `terminate` vem tanto
+// de quem desligou quanto de quem atendeu no celular, então não muda nada.
+const callResults = { offer: 'recebida', accept: 'atendida', reject: 'recusada', timeout: 'não atendida' };
+function evolutionCall(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const id = String(data.id || '').slice(0, 120), status = String(data.status || '');
+  if (!id || !Object.hasOwn(callResults, status) || data.isGroup) return null;
+  const from = [data.from, data.chatId].map(value => String(value || ''));
+  const jid = from.find(value => /@(s\.whatsapp\.net|c\.us)$/i.test(value)), hidden = from.find(value => /@lid$/i.test(value));
+  const phone = jid ? extractPhone(jid) : '', lid = hidden ? extractPhone(hidden) : '';
+  if (phone ? phone.length < 8 : !lid) return null;
+  return { id, status, video: Boolean(data.isVideo), phone, lid, senderName: phone ? `+${phone}` : 'Contato do WhatsApp' };
 }
 
 // "Click to WhatsApp" ads: the first message carries the ad in contextInfo.externalAdReply (Baileys), in the
@@ -370,6 +422,15 @@ function createEvolutionAdapter(call) {
       const data = await readJsonSafe(res);
       return { ok: res.ok, status: res.status, message: res.ok ? '' : evolutionError(data), id: String(data.key?.id || data.id || '') };
     },
+    /** Os bytes de uma mídia recebida. O servidor acha a mensagem pelo id e baixa do WhatsApp. */
+    async media({ creds, sub, id }) {
+      const res = await send(creds, `/chat/getBase64FromMediaMessage/${name(sub)}`, { method: 'POST', body: { message: { key: { id } }, convertToMp4: false }, timeout: 40000, isolated: true });
+      const data = await readJsonSafe(res);
+      if (!res.ok || typeof data.base64 !== 'string' || !data.base64) {
+        throw [400, 404].includes(res.status) || res.ok ? fail('O WhatsApp não tem mais este arquivo.', 404) : fail(`Não foi possível buscar o arquivo no WhatsApp (HTTP ${res.status}).`, 502);
+      }
+      return { mime: String(data.mimetype || '').split(';')[0].trim().toLowerCase(), name: String(data.fileName || ''), bytes: Buffer.from(data.base64, 'base64') };
+    },
     async presence({ creds, sub, number, seconds }) {
       const res = await send(creds, `/chat/sendPresence/${name(sub)}`, { method: 'POST', body: { number, presence: 'composing', delay: seconds * 1000 }, timeout: seconds * 1000 + 15000 });
       const data = await readJsonSafe(res);
@@ -388,6 +449,10 @@ function createEvolutionAdapter(call) {
             profileName: String(d.profileName || '').trim().slice(0, 120)
           }
         };
+      }
+      if (event === 'call') {
+        const call = evolutionCall(Array.isArray(body.data) ? body.data[0] : body.data);
+        return call ? { kind: 'call', call } : { kind: 'ignore' };
       }
       if (event !== 'messages.upsert') return { kind: 'ignore' };
       const list = Array.isArray(body.data) ? body.data : Array.isArray(body.data?.messages) ? body.data.messages : [body.data || {}];
@@ -457,7 +522,8 @@ export function createWhatsAppHandler({
   request = fetch,
   evolutionBaseUrl = process.env.EVOLUTION_BASE_URL || '',
   evolutionApiKey = process.env.EVOLUTION_API_KEY || '',
-  qrPause = 2500
+  qrPause = 2500,
+  onMedia = null
 }) {
   const managed = { baseUrl: String(evolutionBaseUrl || '').trim().replace(/\/+$/, ''), adminToken: String(evolutionApiKey || '').trim() };
   const hasManaged = Boolean(managed.baseUrl && managed.adminToken);
@@ -470,11 +536,12 @@ export function createWhatsAppHandler({
   const slow = err => ['TimeoutError', 'AbortError'].includes(err?.name) || ['ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT'].includes(networkCode(err));
   const networkCode = err => err?.cause?.code || err?.code || 'unknown';
 
-  async function call(baseUrl, path, { method = 'GET', headers = {}, body, timeout = 15000, retry = false, bypass = false } = {}) {
+  async function call(baseUrl, path, { method = 'GET', headers = {}, body, timeout = 15000, retry = false, bypass = false, isolated = false } = {}) {
     if (!baseUrl) throw fail(`Servidor ${PROVIDER_LABEL} não configurado.`, 400);
     const breaker = breakerOf(baseUrl);
     if (!bypass && breaker.until > Date.now()) throw Object.assign(fail(`A ${PROVIDER_LABEL} está fora do ar. Nova tentativa em instantes.`, 503), { network: 'CIRCUIT' });
-    const trip = () => { if (++breaker.fails >= 3) { breaker.fails = 0; breaker.until = Date.now() + 20_000; } };
+    // `isolated`: uma busca demorada (mídia grande) não conta como servidor fora do ar.
+    const trip = () => { if (!isolated && ++breaker.fails >= 3) { breaker.fails = 0; breaker.until = Date.now() + 20_000; } };
     const allHeaders = { Accept: 'application/json', ...headers };
     if (body !== undefined) allHeaders['Content-Type'] = 'application/json';
     const attempt = async () => {
@@ -500,7 +567,7 @@ export function createWhatsAppHandler({
         throw Object.assign(fail(`Não foi possível alcançar a ${PROVIDER_LABEL}: ${err?.message || 'erro de rede'}.`, 502), { network: networkCode(err) });
       }
     }
-    breaker.fails = 0; breaker.until = 0;
+    if (!isolated) { breaker.fails = 0; breaker.until = 0; }
     return res;
   }
 
@@ -725,6 +792,13 @@ export function createWhatsAppHandler({
     return { sent: true, id: result.id };
   }
 
+  /** Conversas: uma mídia recebida, pelo id da mensagem no WhatsApp. O número pode estar desconectado agora. */
+  async function fetchWorkspaceMedia(agencyId, workspaceId, waId) {
+    const row = await ensureRow(agencyId), creds = serverCredentials(row, agencyId), sub = subFor(row, workspaceId);
+    if (!creds.configured || !instanceTokenOf(row, agencyId, workspaceId)) throw fail('O WhatsApp desta subconta não está conectado.', 404);
+    return adapter.media({ creds, sub, id: waId });
+  }
+
   /** Workflows: buttons, a list or a poll. message = { kind: buttons|list|poll, body, options[], buttonText, footer }. */
   async function sendWorkspaceInteractive(agencyId, workspaceId, phoneRaw, message, accountIsActive) {
     const number = digits(phoneRaw);
@@ -822,39 +896,71 @@ export function createWhatsAppHandler({
 
   // ---------- Vigia (whatsapp-guard.mjs) ----------
 
+  /** O contato de quem escreveu ou ligou: pelo número, pelo LID, ou um novo. */
+  function contactOf(state, { phone, lid, senderName }) {
+    let contact = phone ? state.contacts.find(c => digits(c.phone) === phone) : null;
+    if (!contact && lid) contact = state.contacts.find(c => c.waLid === lid);
+    if (!contact) {
+      const contactId = execute(state, {
+        type: 'save',
+        key: 'contacts',
+        data: { name: senderName, phone: phone ? `+${phone}` : '', tags: phone ? ['WhatsApp'] : ['WhatsApp', 'Sem telefone'] }
+      });
+      contact = state.contacts.find(c => c.id === contactId);
+    }
+    if (!contact) return null;
+    if (lid) contact.waLid = lid;
+    // O número de um contato que entrou pelo LID apareceu depois.
+    if (phone && !contact.phone) {
+      contact.phone = `+${phone}`;
+      contact.tags = (contact.tags || []).filter(tag => tag !== 'Sem telefone');
+    }
+    return contact;
+  }
+
+  /** Ligação do WhatsApp: uma linha na conversa, que acompanha o resultado. Não é resposta do cliente: não dispara fluxo. */
+  async function ingestCall(workspaceId, { id, status, video, phone, lid, senderName }) {
+    let stored = false;
+    await store.change(workspaceId, state => {
+      stored = false;
+      const known = state.messages.find(m => m.waCall?.id === id);
+      if (known) {
+        // Repetição do aviso de início, ou um aviso atrasado depois do resultado.
+        if (known.waCall.status !== 'offer' || status === 'offer') return;
+        known.waCall = { id, status };
+        known.body = known.body.replace(/[^·]*$/, ` ${callResults[status]}`);
+        stored = true;
+        return;
+      }
+      if (status !== 'offer') return;
+      const contact = contactOf(state, { phone, lid, senderName });
+      if (!contact) return;
+      state.messages.push({ id: randomUUID(), created: new Date().toISOString(), contactId: contact.id, body: `Ligação de ${video ? 'vídeo' : 'voz'} do WhatsApp · ${callResults[status]}`, subject: '',
+        channel: 'Call', direction: 'Inbound', read: false, starred: false, origin: 'phone', waCall: { id, status } });
+      stored = true;
+    });
+    return stored;
+  }
+
   /** Guarda mensagens recebidas, do webhook ou da busca. Devolve quantas são novas. */
   async function ingestItems(workspaceId, items, { recovered = false } = {}) {
-    let stored = 0;
+    let stored = 0, withMedia = [], owner = '';
     await store.change(workspaceId, state => {
-      stored = 0;
-      for (const { id, phone, lid, text, senderName, ad, at } of items) {
+      stored = 0; withMedia = []; owner = state.agencyId || '';
+      for (const { id, phone, lid, text, senderName, ad, at, media } of items) {
         // A Evolution repete o webhook quando não recebe a resposta a tempo: a mesma mensagem entra uma vez só.
         if (id && state.messages.some(m => m.waId === id)) continue;
         // Sem identificador não há como saber se já entrou: a busca não arrisca repetir.
         if (recovered && !id) continue;
-        let contact = phone ? state.contacts.find(c => digits(c.phone) === phone) : null;
-        if (!contact && lid) contact = state.contacts.find(c => c.waLid === lid);
-        if (!contact) {
-          const contactId = execute(state, {
-            type: 'save',
-            key: 'contacts',
-            data: { name: senderName, phone: phone ? `+${phone}` : '', tags: phone ? ['WhatsApp'] : ['WhatsApp', 'Sem telefone'] }
-          });
-          contact = state.contacts.find(c => c.id === contactId);
-        }
+        const contact = contactOf(state, { phone, lid, senderName });
         if (!contact) continue;
-        if (lid) contact.waLid = lid;
-        // O número de um contato que entrou pelo LID apareceu depois.
-        if (phone && !contact.phone) {
-          contact.phone = `+${phone}`;
-          contact.tags = (contact.tags || []).filter(tag => tag !== 'Sem telefone');
-        }
         const messageId = execute(state, {
           type: 'message',
           data: { contactId: contact.id, channel: 'WhatsApp', direction: 'Inbound', body: text }
         });
         const message = state.messages.find(m => m.id === messageId);
         if (message && id) message.waId = id;
+        if (message && id && media) { message.media = media; withMedia.push({ ...message }); }
         // Recuperada: fica na hora em que o contato escreveu, não na hora em que foi achada.
         if (message && recovered && at > 0) { message.created = new Date(at).toISOString(); message.recovered = true; }
         stored++;
@@ -862,6 +968,7 @@ export function createWhatsAppHandler({
         if (ad) execute(state, { type: 'whatsapp-ad-click', data: { contactId: contact.id, ...ad, body: text } });
       }
     });
+    if (withMedia.length) onMedia?.(owner, workspaceId, withMedia);
     return stored;
   }
 
@@ -949,6 +1056,11 @@ export function createWhatsAppHandler({
     if (event.kind === 'connection') {
       await saveLive(agencyId, workspaceId, event.parsed);
       return json({ ok: true, event: 'connection', status: event.parsed.status });
+    }
+
+    if (event.kind === 'call') {
+      const stored = await ingestCall(workspaceId, event.call);
+      return json({ ok: true, event: 'call', ...(stored ? { stored: true } : { ignored: true }) });
     }
 
     if (event.kind !== 'messages' || !event.items.length) {
@@ -1126,5 +1238,5 @@ export function createWhatsAppHandler({
     throw fail('Rota do WhatsApp não encontrada.', 404);
   }
 
-  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, sendWorkspaceText, sendWorkspaceMedia, sendWorkspacePresence, sendWorkspaceInteractive, listWorkspaceGroups, sendEventMessage, guardOps };
+  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, fetchWorkspaceMedia, sendWorkspaceText, sendWorkspaceMedia, sendWorkspacePresence, sendWorkspaceInteractive, listWorkspaceGroups, sendEventMessage, guardOps };
 }

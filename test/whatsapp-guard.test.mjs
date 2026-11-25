@@ -144,6 +144,15 @@ test('Webhook apagado ou com outro segredo no servidor é registrado de novo, se
   assert.equal(w.saved().guard.webhookFixes, 2);
 });
 
+test('Webhook registrado antes das ligações passa a receber CALL sem reconectar o número', async t => {
+  const w = await setup(t);
+  await w.round();
+  const webhook = w.evo.instances.get('soci_demo').webhook;
+  w.evo.instances.get('soci_demo').webhook = { ...webhook, events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'] };
+  await w.round(12);
+  assert.deepEqual(w.evo.instances.get('soci_demo').webhook.events, ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'CALL']);
+});
+
 test('Queda avisa uma vez depois de 5 minutos, marca a subconta e avisa a volta', async t => {
   const w = await setup(t);
   await w.round();

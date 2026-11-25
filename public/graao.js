@@ -1088,7 +1088,7 @@ function enhance(root) {
 const ICON_SWAP_BTN_SELECTOR = [
   '.primary:not(.plain)', '.secondary:not(.plain)', '.danger:not(.plain)', '.continue', '.studio-create',
   '.dash-save', '.pr-btn.pr-primary', '.ags-send', '.ags-new',
-  '.ag-brand-reset', '.ag-brand-mockup-side-cta', '.ag-brand-mockup-primary', '.ag-brand-demo-primary', '.ag-brand-demo-secondary',
+  '.ag-brand-mockup-side-cta', '.ag-brand-mockup-primary', '.ag-brand-demo-primary', '.ag-brand-demo-secondary',
   '.bui-btn:not(.bui-icon-btn)'
 ].join(', ');
 const ICON_SWAP_EXCLUDED = '.icon-btn, .side-toggle, .theme-toggle, .tool-btn, .top-menu, .lang-btn, .dash-tool.dash-square, .bui-icon-btn, .bui-prompt-btn, .bui-chat-send, .bui-search-clear, .bui-selection-toggle, .bui-selection-retry, .bui-sidebar-collapse, .bui-sidebar-expand, .bui-sidebar-search-btn, .bui-sidebar-search-close';
@@ -1175,6 +1175,7 @@ document.fonts?.ready.then(() => document.querySelectorAll('[data-g]').forEach(e
 /* Theme toggle: microkit diagonal wipe via View Transitions API */
 let themeBusy = null;
 let themeStorageKey;
+let themeFallback = 'light';
 
 function applyTheme(theme) {
   const html = document.documentElement;
@@ -1249,7 +1250,15 @@ export function setThemeAccount(accountId) {
     savedTheme = localStorage.getItem(key);
     if (!accountId && !savedTheme) savedTheme = localStorage.getItem('graao.theme');
   } catch {}
-  applyTheme(savedTheme);
+  applyTheme(savedTheme || themeFallback);
+}
+
+/** The mode for who never chose one (the mobile app uses its theme's own). */
+export function setThemeFallback(theme) {
+  themeFallback = theme === 'dark' ? 'dark' : 'light';
+  let savedTheme;
+  try { savedTheme = localStorage.getItem(themeStorageKey || 'soci.theme'); } catch {}
+  if (!savedTheme) applyTheme(themeFallback);
 }
 
 export function toggleTheme(to) {

@@ -1,0 +1,78 @@
+---
+title: Conectar o Claude, o ChatGPT e outras IAs à soci
+description: Ligue uma IA à subconta pelo servidor MCP, com o login da soci, e escolha se ela só lê ou também age em seu nome.
+modulo: ia
+sidebar:
+  order: 3
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+O servidor MCP deixa uma IA trabalhar com os dados da subconta: buscar contatos, ver a agenda, mover oportunidades, criar posts e responder conversas. Cada pessoa conecta com o próprio login, e a IA nunca faz mais do que essa pessoa pode fazer.
+
+<Requisitos permissao="Login da soci com acesso à subconta. Para ver a tela, acesso ao módulo Marketing" integracoes={['Uma IA que aceite servidores MCP remotos, como Claude, ChatGPT, Claude Code ou Cursor']} />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Marketing** › **Planejador social** e vá para **IA & MCP**. Em **Endereço MCP desta subconta**, clique em **Copiar**.
+
+   <Print src="docs/ia/servidor-mcp/01-endereco.2340a0db.webp" alt="Tela IA & MCP com o endereço MCP da subconta e o botão Copiar em destaque." />
+
+2. Abra o guia da sua IA e siga os passos dela. No **Claude**, o caminho é **Configurações** › **Conectores** › **Adicionar conector personalizado**. No **ChatGPT**, ative o modo de desenvolvedor dos conectores, que depende do plano. No **Claude Code** e no **Cursor**, use o comando ou a configuração que a tela mostra.
+
+   <Print src="docs/ia/servidor-mcp/02-guia-do-claude.8e08253e.webp" alt="Guia do Claude aberto, com os três passos para adicionar o conector." />
+
+3. A IA abre a tela de autorização da soci. Se precisar, entre com o seu login. Confira o nome e o endereço de quem pede, escolha **Só ler** ou **Ler e agir** e clique em **Autorizar**.
+
+   <Print src="docs/ia/servidor-mcp/03-autorizar.ad6b6d6b.webp" alt="Tela Conectar Claude à soci com a subconta e as opções Só ler e Ler e agir." />
+
+4. Volte à tela **IA & MCP**. A conexão aparece em **IAs conectadas**, com a pessoa e o acesso. Para tirar o acesso, clique em **Desconectar**: vale na hora.
+
+   <Print src="docs/ia/servidor-mcp/04-ia-conectada.2ed1a4aa.webp" alt="Lista de IAs conectadas com o Claude, o acesso Lê e age e o botão Desconectar." />
+
+5. Em **O que a IA pode fazer**, veja todas as ações por módulo e quais só leem, gravam, enviam ou publicam.
+
+   <Print src="docs/ia/servidor-mcp/05-o-que-a-ia-pode-fazer.01116184.webp" alt="Lista de ações da IA separadas por módulo, com a etiqueta de cada uma." />
+
+</Steps>
+
+<Aside type="caution">
+Com **Ler e agir**, a IA envia mensagens a contatos, publica posts e inscreve contatos em fluxos em seu nome. Comece com **Só ler** e deixe a sua IA pedir confirmação antes de cada ação.
+</Aside>
+
+## Conectar sem login (n8n e scripts)
+
+Em **Agência** › **Configurações** › **Integrações privadas**, crie um token só com os escopos necessários. Cada escopo libera a leitura ou a gravação de um módulo. Envie o token no cabeçalho `Authorization: Bearer SEU_TOKEN`, no mesmo endereço MCP da subconta.
+
+## Perguntas frequentes
+
+**A IA vê todas as minhas subcontas?**
+Não. Cada conexão vale para uma subconta. Para usar outra, conecte de novo com o endereço dela.
+
+**A IA consegue passar das minhas permissões?**
+Não. Os módulos que o seu usuário não abre não aparecem para a IA. Se a agência mudar ou desativar o seu usuário, a conexão muda ou para junto.
+
+**Por quanto tempo a conexão vale?**
+Enquanto a IA usar a conexão, ela se renova sozinha. Depois de 90 dias sem renovar, é preciso conectar de novo.
+
+**A IA disse que a mensagem foi registrada, mas não saiu. Por quê?**
+A resposta da soci informa se a mensagem saiu de verdade. Ela pode ficar só registrada quando o canal não está conectado. SMS e chat do site não são enviados por aqui, e contatos com bloqueio de mensagens são recusados.
+
+**Posso colocar o token no endereço (`?token=`)?**
+Não. O token só é aceito no cabeçalho, porque endereços ficam gravados em históricos e registros.
+
+**A IA consegue ver curtidas e alcance dos posts?**
+Ainda não. Ela conta os posts por situação e lista as redes conectadas.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Planejar e publicar posts nas redes sociais" href="/marketing/planejador-social/" />
+  <LinkCard title="Criar um agente de IA" href="/ia/agent-studio/" />
+  <LinkCard title="Adicionar usuários e definir permissões" href="/configuracoes/usuarios-e-permissoes/" />
+</CardGrid>

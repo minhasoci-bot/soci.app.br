@@ -38,7 +38,7 @@ export function paymentSettingsScreen(c) {
   return pageShell({ title: 'Pagamentos', desc: 'Recibos enviados quando uma fatura é paga e os impostos dos itens.',
     cta: `<button type="button" class="primary" data-ps-save${ps.dirty ? '' : ' disabled'}>Salvar configurações</button>`,
     tabs: { key: 'payments', items: crmTabs.payments, current: 'payment-settings', label: 'Seções de pagamentos' },
-    content: `<div class="ps-grid"><section class="surface padded es-form" aria-labelledby="ps-receipts"><h2 id="ps-receipts">Recibos</h2>
+    content: `<section class="surface set-card es-form" aria-labelledby="ps-receipts"><div class="set-section"><header class="set-head"><h2 id="ps-receipts">Recibos</h2><p class="dim">Enviados sozinhos quando uma fatura é paga.</p></header><div class="set-body">
         <fieldset class="dc-channels"><label><input type="checkbox" data-ps="enabled" ${r.enabled ? 'checked' : ''}><span><b>Enviar o recibo por e-mail quando a fatura for paga</b>
           <small>Vale para pagamentos pelo AbacatePay, baixas manuais e pedidos da loja. O número do recibo é dado mesmo com o envio desligado.</small></span></label></fieldset>
         <div class="es-two">${field('Título', `<input data-ps="title" maxlength="40" value="${h(r.title)}">`, 'Aparece no e-mail e na página da fatura paga.')}
@@ -48,11 +48,10 @@ export function paymentSettingsScreen(c) {
         ${field('Responder para', `<input type="email" data-ps="replyTo" maxlength="160" value="${h(r.replyTo)}" placeholder="financeiro@suaempresa.com.br">`, 'O e-mail sai pelo endereço da plataforma; as respostas do cliente vão para este endereço.')}
         ${field('Assunto', `<input data-ps="subject" maxlength="200" value="${h(r.subject)}">`)}
         ${field('Mensagem', `<textarea data-ps="message" rows="5" maxlength="3000">${h(r.message)}</textarea>`, 'O link para a fatura paga entra no fim da mensagem.')}
-        <p class="ps-vars"><span class="dim">Variáveis:</span> ${receiptVariables.map(([key, label]) => `<button type="button" class="chip" data-ps-var="${key}" title="${h(label)}">{{${key}}}</button>`).join(' ')}</p>
-        <h3>Prévia do e-mail</h3><div data-ps-preview>${previewMail(c, r)}</div></section>
-      <section class="surface padded" aria-labelledby="ps-taxes"><div class="inline-gap ps-head"><h2 id="ps-taxes">Impostos</h2><button type="button" class="secondary" data-ps-act="add-tax">${icon('plus', 14)} Adicionar imposto</button></div>
-        <p class="dim">O imposto é somado ao valor do item. Escolha-o em cada item de faturas, modelos, faturas recorrentes e orçamentos. Mudar uma alíquota vale para o que você salvar depois; o que já foi enviado ou emitido mantém a alíquota de quando foi salvo.</p>
-        ${taxes}</section></div>` });
+        <p class="ps-vars"><span class="dim">Variáveis:</span> ${receiptVariables.map(([key, label]) => `<button type="button" class="chip" data-ps-var="${key}" title="${h(label)}">{{${key}}}</button>`).join(' ')}</p></div></div>
+        <div class="set-section"><header class="set-head"><h2>Prévia do e-mail</h2><p class="dim">Como o cliente recebe, com dados de exemplo.</p></header><div class="set-body"><div data-ps-preview>${previewMail(c, r)}</div></div></div></section>
+      <section class="surface set-card" aria-labelledby="ps-taxes"><div class="set-section"><header class="set-head"><h2 id="ps-taxes">Impostos</h2><p class="dim">O imposto é somado ao valor do item. Escolha-o em cada item de faturas, modelos, faturas recorrentes e orçamentos. Mudar uma alíquota vale para o que você salvar depois; o que já foi enviado ou emitido mantém a alíquota de quando foi salvo.</p><button type="button" class="secondary" data-ps-act="add-tax">${icon('plus', 14)} Adicionar imposto</button></header><div class="set-body">
+        ${taxes}</div></div></section>` });
 }
 
 export function installPaymentSettings({ c, mutate, flash, render }) {

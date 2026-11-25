@@ -13,8 +13,8 @@ const USER_ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 export const MAX_ACCOUNTS = 5;
 
 export function afterLogin(next) {
-  if (typeof next !== 'string' || next.length > 512 || /[\r\n]/.test(next)) return '/app';
-  return ['/app','/app/','/painel','/painel/'].includes(next.split(/[?#]/,1)[0]) ? next : '/app';
+  if (typeof next !== 'string' || next.length > 2048 || /[\r\n]/.test(next)) return '/app';
+  return ['/app','/app/','/painel','/painel/','/mcp/autorizar'].includes(next.split(/[?#]/,1)[0]) ? next : '/app';
 }
 
 export function accountProfile(user) {

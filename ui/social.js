@@ -6,6 +6,7 @@ import { brandHighlight, brandIcon, icon as i, shcLayers } from './icons.js';
 import { badge, h, fmt } from './screens.js';
 import { bestTimes, bulkCsvColumns, mediaKind, network, networks, occurrencesBetween, parseCsv, postIssues, postTypes, queueNext, recurrences, statusLabel, statusTone, textFor, weekdays } from './social-data.js';
 import { ask } from './ask.js';
+import { mcpClick, mcpView } from './mcp.js';
 import { tr } from './i18n.js';
 
 const ui = { view: 'calendar', mode: 'month', cursor: new Date(), status: 'all', account: '', draft: null, picked: new Set() };
@@ -194,8 +195,7 @@ function csvView(c) {
     ${history ? `<div class="surface table-shell"><table><thead><tr><th>Arquivo</th><th>Quando</th><th>Criados</th><th>Resultado</th></tr></thead><tbody>${history}</tbody></table></div>` : ''}`;
 }
 
-function mcpView(c) {
-  const mcpUrl = `${location.origin}/api/mcp?workspace=${encodeURIComponent(c.workspace)}`;
+function aiView(c) {
   const webhooks = c.s.socialWebhooks || [];
   const webhooksList = webhooks.map(wh => {
     const eventsBadges = (wh.events || []).map(ev => `<span class="badge" style="background:var(--g-surface-2,#f1f5f9);font-family:monospace;font-size:11px;">${h(ev)}</span>`).join(' ') || '<span class="dim">Nenhum evento</span>';
@@ -212,74 +212,7 @@ function mcpView(c) {
     </article>`;
   }).join('');
 
-  return `<div class="sp-mcp-view" style="display:flex;flex-direction:column;gap:20px;">
-    <section class="surface padded sp-section">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
-        <div>
-          <h2 style="display:flex;align-items:center;gap:8px;margin:0 0 6px;">
-            ${i('spark', 20)} Servidor MCP Nativo (Model Context Protocol)
-            <span class="badge green">2024-11-05</span>
-          </h2>
-          <p class="dim" style="max-width:720px;margin:0;">
-            Conecte o Claude Desktop, Claude Code, Cursor, Windsurf, ChatGPT ou agentes de IA autônomos ao Social Planner da Soci.
-            A IA ganha autonomia para agendar publicações com mídia, consultar o calendário de posts, extrair relatórios e acionar aprovações de clientes.
-          </p>
-        </div>
-        <button type="button" class="primary" data-sp-copy-mcp data-url="${h(mcpUrl)}">
-          ${i('copy', 15)} Copiar URL do Servidor MCP
-        </button>
-      </div>
-
-      <div style="margin-top:16px;padding:12px 14px;background:var(--g-surface-2,#f8fafc);border:1px solid var(--line);border-radius:9px;">
-        <label style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;" class="dim">Endpoint MCP desta subconta</label>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
-          <input type="text" readonly value="${h(mcpUrl)}" style="font-family:monospace;font-size:12.5px;background:var(--g-surface,#fff);cursor:pointer;" onclick="this.select()" aria-label="URL do Servidor MCP">
-        </div>
-      </div>
-
-      <div style="margin-top:18px;">
-        <h3 style="font-size:14px;margin:0 0 8px;">Configuração no Claude Desktop (<code>claude_desktop_config.json</code>)</h3>
-        <pre style="background:var(--g-surface-2,#1e293b);color:#f8fafc;padding:12px;border-radius:8px;font-size:12px;overflow-x:auto;margin:0;"><code>{
-  "mcpServers": {
-    "soci-planner": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-fetch", "${mcpUrl}"]
-    }
-  }
-}</code></pre>
-      </div>
-
-      <div style="margin-top:20px;">
-        <h3 style="font-size:14px;margin:0 0 10px;">Ferramentas MCP Ativas</h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;">
-          <div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--g-surface,#fff);">
-            <strong style="color:var(--primary);font-family:monospace;font-size:13px;">list_social_accounts</strong>
-            <p class="dim" style="margin:4px 0 0;font-size:12px;">Lista todas as redes sociais ativas (Instagram, Facebook, LinkedIn, TikTok, Bluesky, etc.) e seus IDs.</p>
-          </div>
-          <div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--g-surface,#fff);">
-            <strong style="color:var(--primary);font-family:monospace;font-size:13px;">list_scheduled_posts</strong>
-            <p class="dim" style="margin:4px 0 0;font-size:12px;">Consulta posts agendados, rascunhos, revisões e publicados, com filtro de status e período.</p>
-          </div>
-          <div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--g-surface,#fff);">
-            <strong style="color:var(--primary);font-family:monospace;font-size:13px;">create_social_post</strong>
-            <p class="dim" style="margin:4px 0 0;font-size:12px;">Cria e agenda publicações automaticamente com legendas, hashtags, mídias e data.</p>
-          </div>
-          <div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--g-surface,#fff);">
-            <strong style="color:var(--primary);font-family:monospace;font-size:13px;">get_social_analytics</strong>
-            <p class="dim" style="margin:4px 0 0;font-size:12px;">Retorna indicadores de desempenho, taxa de sucesso de publicação e histórico analítico.</p>
-          </div>
-          <div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--g-surface,#fff);">
-            <strong style="color:var(--primary);font-family:monospace;font-size:13px;">list_crm_contacts</strong>
-            <p class="dim" style="margin:4px 0 0;font-size:12px;">Acessa contatos da subconta para direcionamento de links de aprovação de conteúdo.</p>
-          </div>
-          <div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--g-surface,#fff);">
-            <strong style="color:var(--primary);font-family:monospace;font-size:13px;">send_social_message</strong>
-            <p class="dim" style="margin:4px 0 0;font-size:12px;">Envia ou responde mensagens no Inbox em canais como Instagram, Facebook ou WhatsApp.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
+  return `<div class="stack">${mcpView(c)}
     <section class="surface padded sp-section">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
         <div>
@@ -374,7 +307,7 @@ export function socialPlanner(c, { pageShell, utabs, marketingTabs }) {
     const review = c.s.socialPosts.filter(p => p.status === 'in_review').length, failed = c.s.socialPosts.filter(p => p.status === 'failed').length;
     const changes = c.s.socialPosts.filter(p => p.status === 'draft' && p.approval === 'rejected').length;
     const notes = `${review ? `<div class="sp-note">${i('bell', 15)} ${review} post(s) aguardando aprovação. <button class="text-link" data-sp-status-pick="in_review">Ver</button> · <button class="text-link" data-sp-approval>Enviar link de aprovação ao cliente</button></div>` : ''}${changes ? `<div class="sp-note">${i('note', 15)} ${changes} post(s) com ajustes pedidos na revisão. <button class="text-link" data-sp-status-pick="draft">Ver rascunhos</button></div>` : ''}${failed ?`<div class="sp-note bad">${i('alert', 15)} ${failed} post(s) falharam. <button class="text-link" data-sp-status-pick="failed">Ver</button></div>` : ''}`;
-    const content = { calendar: () => filters(c) + calendar(c), list: () => filters(c) + postList(c), accounts: () => accountsView(c), categories: () => categoriesView(c), hashtags: () => hashtagsView(c), rss: () => rssView(c), csv: () => csvView(c), competitors: () => competitorsView(c), mcp: () => mcpView(c) }[ui.view]();
+    const content = { calendar: () => filters(c) + calendar(c), list: () => filters(c) + postList(c), accounts: () => accountsView(c), categories: () => categoriesView(c), hashtags: () => hashtagsView(c), rss: () => rssView(c), csv: () => csvView(c), competitors: () => competitorsView(c), mcp: () => aiView(c) }[ui.view]();
     inner = `${notes}${content}`;
   }
   const plannerCard = utabs({
@@ -727,15 +660,11 @@ export function socialEvents({ c, G, api, url, mutate, render, flash, dialog, cl
   };
 
   document.addEventListener('click', async ev => {
-    const t = ev.target.closest('[data-sp-view],[data-sp-mode],[data-sp-move],[data-sp-new],[data-sp-open],[data-sp-dup],[data-sp-retry],[data-sp-review],[data-sp-connect],[data-sp-disconnect],[data-sp-edit],[data-sp-remove],[data-sp-delete],[data-sp-preview],[data-sp-file],[data-sp-add-url],[data-sp-unmedia],[data-sp-goto],[data-sp-zoom],[data-sp-status-pick],[data-sp-bulk-delete],[data-sp-clear],[data-sp-template],[data-sp-slot],[data-sp-unslot],[data-sp-decide],[data-sp-csv-back],[data-sp-invite],[data-sp-copy-invite],[data-sp-revoke-invite],[data-sp-approval],[data-sp-copy-approval],[data-sp-revoke-approval],[data-sp-send-wa],[data-sp-canva],[data-sp-ai],[data-sp-time],[data-sp-copy-mcp]');
+    if (mcpClick(c, ev.target, flash)) return;
+    const t = ev.target.closest('[data-sp-view],[data-sp-mode],[data-sp-move],[data-sp-new],[data-sp-open],[data-sp-dup],[data-sp-retry],[data-sp-review],[data-sp-connect],[data-sp-disconnect],[data-sp-edit],[data-sp-remove],[data-sp-delete],[data-sp-preview],[data-sp-file],[data-sp-add-url],[data-sp-unmedia],[data-sp-goto],[data-sp-zoom],[data-sp-status-pick],[data-sp-bulk-delete],[data-sp-clear],[data-sp-template],[data-sp-slot],[data-sp-unslot],[data-sp-decide],[data-sp-csv-back],[data-sp-invite],[data-sp-copy-invite],[data-sp-revoke-invite],[data-sp-approval],[data-sp-copy-approval],[data-sp-revoke-approval],[data-sp-send-wa],[data-sp-canva],[data-sp-ai],[data-sp-time]');
     if (!t) return;
     const ds = t.dataset;
     try {
-      if (t.hasAttribute('data-sp-copy-mcp') || ds.spCopyMcp !== undefined) {
-        const copyUrl = ds.url || `${location.origin}/api/mcp?workspace=${encodeURIComponent(c.workspace)}`;
-        navigator.clipboard?.writeText(copyUrl).then(() => flash('URL do servidor MCP copiada!')).catch(() => flash('URL copiada!'));
-        return;
-      }
       if (t.hasAttribute('data-sp-canva') || ds.spCanva !== undefined) { canvaDialog(); return; }
       if (t.hasAttribute('data-sp-send-wa') || ds.spSendWa !== undefined) {
         const form = t.closest('form');

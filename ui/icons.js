@@ -37,6 +37,14 @@ const defs = {
     k: 'panel-left-open',
     body: `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path class="la-chev" d="m14 9 3 3-3 3"/>`
   },
+  home: {
+    k: 'house',
+    body: `<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`
+  },
+  logout: {
+    k: 'logout',
+    body: `<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>`
+  },
   menu: {
     k: 'menu',
     body: `<line class="la-l1" x1="4" x2="20" y1="6" y2="6"/><line class="la-l2" x1="4" x2="20" y1="12" y2="12"/><line class="la-l3" x1="4" x2="20" y1="18" y2="18"/>`

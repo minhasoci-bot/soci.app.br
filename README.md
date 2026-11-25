@@ -18,6 +18,18 @@ Ao iniciar, o console mostra o banco em uso e se o agendador de um minuto (autom
 
 `npm.cmd run migrate:sqlite` copia os workspaces de `.data/go.sqlite` para o Supabase configurado e compara o conteúdo gravado com a origem. Um workspace que já tenha mudado no destino é preservado.
 
+## Livro da cobrança
+
+Cada pagamento, devolução, contestação e movimento de carteira vira uma linha em `go_billing_ledger`, que não aceita mudança nem exclusão. O fato nasce na mesma gravação do estado (`ledgerOutbox`) e segue para a tabela logo depois. Sem a tabela, os fatos esperam no estado e os pagamentos funcionam normalmente.
+
+Ordem em produção, cada passo com autorização:
+
+1. Aplicar `supabase/migrations/20261124120000_go_billing_ledger.sql`.
+2. Aplicar a parte do livro de `supabase/provision-storage.sql`, com o hash da chave do servidor.
+3. Publicar o app.
+4. No dia seguinte, simular a importação do passado com `node --env-file=.env.local scripts/ledger-backfill.mjs` e, conferidos os números, repetir com `--apply`. Pode rodar de novo sem duplicar.
+5. Cada agência e subconta já conectada ao AbacatePay clica em **Atualizar avisos**.
+
 ## Login com Supabase Auth
 
 1. Crie um cliente OAuth do tipo **Aplicativo da Web** no Google Cloud. Cadastre `https://<project-ref>.supabase.co/auth/v1/callback` como URI autorizada no cliente e informe o ID e o segredo em **Authentication → Sign In / Providers → Google**. [Login com Google no Supabase](https://supabase.com/docs/guides/auth/social-sign-in/auth-google)

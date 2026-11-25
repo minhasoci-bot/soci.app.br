@@ -54,6 +54,25 @@ export function themeMode(theme, mode) {
   return { preset: theme?.preset || 'default', mode, tokens: { ...base, primary, onPrimary: textOn(primary), tertiary: mixColor(base.surface, primary, dark ? 0.22 : 0.14) } };
 }
 
+/** The theme's main color as text (links, the active icon): darkened or lightened only as far as it needs to be read. */
+export const accentText = theme => { const t = tokensOf(theme); return readable(t.primary, themeIsDark(theme) ? '#ffffff' : '#000000', t.surface); };
+/** A theme built from one color only (the mobile app's "Suas cores"): the default theme with that color, readable text on it. */
+export const themeFromColor = color => {
+  const base = themePresets[0].tokens, primary = /^#[0-9a-f]{6}$/i.test(color || '') ? color.toLowerCase() : base.primary;
+  return { preset: 'custom', tokens: { ...base, primary, onPrimary: textOn(primary), background: mixColor('#ffffff', primary, 0.04), tertiary: mixColor('#ffffff', primary, 0.13), border: mixColor('#e6e6ec', primary, 0.06) } };
+};
+/** The theme as it is saved: a known preset or custom #rrggbb tokens. `error` says which color is wrong. */
+export function cleanTheme(input) {
+  const preset = themePresets.find(row => row.id === input?.preset);
+  let error = '';
+  const tokens = Object.fromEntries(themeTokens.map(([key, label]) => {
+    const value = String(input?.tokens?.[key] ?? preset?.tokens[key] ?? themePresets[0].tokens[key]).toLowerCase();
+    if (!error && !/^#[0-9a-f]{6}$/.test(value)) error = `A cor "${label}" precisa estar no formato #RRGGBB.`;
+    return [key, value];
+  }));
+  return { theme: { preset: preset ? preset.id : 'custom', tokens }, error };
+}
+
 /** Tabs of the community in the portal; the admin renames, hides and reorders them. */
 export const communityTabKeys = [['discussion', 'Discussão'], ['academy', 'Academia'], ['events', 'Eventos'], ['members', 'Membros'], ['ranking', 'Ranking'], ['about', 'Sobre']];
 export const defaultTabs = () => communityTabKeys.map(([key, label]) => ({ key, label, visible: true }));

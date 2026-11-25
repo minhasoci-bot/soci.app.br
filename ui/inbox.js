@@ -3,10 +3,13 @@ import { tr } from './i18n.js';
 import { avatar, badge, date, empty, h, money, search, tabs } from './screens.js';
 import { slaRecords } from './conversations.js';
 import { conversationAiBar } from './conversation-ai.js';
+import { messageParts, textPieces } from './message-media.js';
 import { composerAction, composerChannels, fixedRuleValues, inboxFilterFields, inboxRule, inboxSorts, replyChannel } from './inbox-data.js';
 
 // Inbox layout: box navigation | conversation list | open thread | contact panel with a section rail.
-export const inboxState = c => (c.inbox ??= { box:'team', nav:true, sort:'latest', sortOpen:false, rules:[], match:'and', picked:[], panel:'contact' });
+// On a phone the conversation list opens first; the folders are one tap away.
+const phone = () => typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches;
+export const inboxState = c => (c.inbox ??= { box:'team', nav:!phone(), sort:'latest', sortOpen:false, rules:[], match:'and', picked:[], panel:'contact' });
 export const me = c => c.access?.name || 'Owner';
 export function teammates(c) {
   const users = (c.agency?.users || []).filter(u => u.role?.startsWith('Agency') || u.accounts?.includes(c.workspace)).map(u => u.name);
@@ -130,10 +133,56 @@ function stamp(c, value) {
   return new Intl.DateTimeFormat('pt-BR', { timeZone: tz, ...(same ? { hour:'2-digit', minute:'2-digit' } : { day:'2-digit', month:'short' }) }).format(d);
 }
 function messageContent(value) {
-  const path = /(\/r\/(?:demo|[a-f0-9-]{36})\/[a-f0-9-]{36})/g;
-  return value.split(path).map((part, index) => index % 2
-    ? `<a class="text-link" href="${h(part)}" target="_blank" rel="noopener noreferrer">${h(new URL(part, location.origin).href)}</a>`
-    : h(part)).join('');
+  return textPieces(value).map(({ text, href }) => href
+    ? `<a class="text-link" href="${h(href)}" target="_blank" rel="noopener noreferrer nofollow">${h(href.startsWith('/') ? new URL(href, location.origin).href : text)}</a>`
+    : h(text)).join('');
+}
+
+const fileSize = bytes => bytes >= 1048576 ? `${(bytes / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+const mediaLabels = { image: 'Imagem', video: 'Vídeo', gif: 'GIF', audio: 'Áudio', document: 'Documento', sticker: 'Figurinha' };
+// A GIF do WhatsApp é um vídeo curto sem som: repete sozinha, menos para quem pediu menos movimento.
+const stillMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+// Com as medidas do arquivo, o espaço fica reservado e a conversa não pula quando a mídia carrega.
+function mediaBox({ kind, width, height }) {
+  if (!(width > 0 && height > 0)) return '';
+  const wide = Math.round(Math.min(kind === 'sticker' ? 150 : 300, width, 340 * width / height));
+  return ` style="width:${wide}px;aspect-ratio:${Number(width)}/${Number(height)}"`;
+}
+function attachmentView(c, message, part) {
+  const local = `/api/whatsapp/workspace/media?workspace=${encodeURIComponent(c.workspace)}&message=${encodeURIComponent(message.id)}`;
+  const src = h(part.url || local), download = h(part.url || `${local}&download=1`), label = h(tr(mediaLabels[part.kind])), name = part.name ? h(part.name) : label;
+  const missing = `data-message-media="${part.kind}"`, box = mediaBox(part);
+  switch (part.kind) {
+    case 'image':
+    case 'sticker': return `<a class="message-media ${part.kind === 'sticker' ? 'sticker' : ''}" ${missing} href="${src}" target="_blank" rel="noopener noreferrer" aria-label="${h(tr('Abrir imagem'))}"><img src="${src}"${box} alt="${name}" loading="lazy" decoding="async" referrerpolicy="no-referrer"></a>`;
+    case 'gif': return `<div class="message-media" ${missing}><video src="${src}"${box} ${stillMotion() ? 'controls' : 'autoplay'} loop muted playsinline preload="metadata" aria-label="${label}"></video></div>`;
+    case 'video': return `<div class="message-media" ${missing}><video src="${src}"${box} controls playsinline preload="metadata" aria-label="${label}"></video></div>`;
+    case 'audio': return `<div class="message-media audio" ${missing}><audio src="${src}" controls preload="none" aria-label="${label}"></audio></div>`;
+    default: return `<a class="message-file" href="${download}" target="_blank" rel="noopener noreferrer">${i('note', 18)}<span><b>${name}</b><small>${part.size ? `${fileSize(part.size)} · ` : ''}${h(tr('Baixar arquivo'))}</small></span></a>`;
+  }
+}
+// O arquivo não veio (apagado do WhatsApp, servidor fora do ar): diz o que era, no lugar do ícone quebrado.
+export function mediaFailed(event) {
+  const box = event.target?.closest?.('[data-message-media]');
+  if (!box) return;
+  const note = document.createElement('span');
+  note.className = 'message-media-missing';
+  note.textContent = `${tr(mediaLabels[box.dataset.messageMedia])} · ${tr('arquivo indisponível')}`;
+  box.replaceWith(note);
+}
+// A conversa abre no fim; a mídia que carrega depois não pode empurrar a última mensagem para fora da tela, a menos
+// que a pessoa já tenha rolado. Cada renderização cria a área de novo, sem a marca.
+export function mediaLoaded(event) {
+  const area = event.target?.closest?.('[data-message-media]')?.closest('.thread-messages');
+  if (area && !area.dataset.moved) area.scrollTop = area.scrollHeight;
+}
+export function threadMoved(event) {
+  const area = event.target?.closest?.('.thread-messages');
+  if (area) area.dataset.moved = '1';
+}
+function messageBody(c, message) {
+  const { text, attachments } = messageParts(message);
+  return attachments.map(part => attachmentView(c, message, part)).join('') + (text.trim() ? `<p>${messageContent(text)}</p>` : '');
 }
 
 const boxes = [['all','Todas','list'],['assigned','Atribuídas a mim','contacts'],['followed','Seguidas por mim','users']];
@@ -164,6 +213,7 @@ const channelBadge = ch => {
   if (ch === 'Instagram') return `<span style="display:inline-flex;align-items:center;gap:4px;color:#e1306c;">${brandIcon('instagram', 13)} <b>Instagram</b></span>`;
   if (ch === 'Facebook') return `<span style="display:inline-flex;align-items:center;gap:4px;color:#1877f2;">${brandIcon('facebook', 13)} <b>Facebook</b></span>`;
   if (ch === 'WhatsApp') return `<span style="display:inline-flex;align-items:center;gap:4px;color:#22c55e;">${i('whatsapp', 13)} <b>WhatsApp</b></span>`;
+  if (ch === 'Call') return `<span style="display:inline-flex;align-items:center;gap:4px;">${i('phone', 13)} <b>${h(tr('Ligação'))}</b></span>`;
   return h(tr(ch));
 };
 
@@ -229,7 +279,7 @@ function threadPanel(c, all) {
       <span class="badge ${item.state === 'Overdue' ? 'red' : 'blue'}" data-sla-clock="${item.id}">${tr(item.channel)} · ${tr(item.state)}</span>
       <button class="icon-btn" aria-label="Dispensar SLA de ${tr(item.channel)}" title="Dispensar SLA" data-dismiss-sla="${item.id}">${i('close',13)}</button></span>`).join('')}</div>` : ''}
     <div class="thread-messages">${t.messages.map(m => `<div class="message ${m.direction === 'Outbound' ? 'outbound' : ''} ${origin(m) !== 'human' ? 'automated' : ''}">
-      <small>${channelBadge(m.channel)} · ${date(m.created,c,true)}${origin(m) === 'workflow' ? ' · Automação' : ''}${m.failed ? ` · <span class="badge red" title="${h(tr(deliveryFailures[m.failed] || deliveryFailures.provider_error))}">${tr('Não entregue')}</span>` : ''}</small>${m.subject ? `<b class="message-subject">${h(m.subject)}</b>` : ''}<p>${messageContent(m.body)}</p>${m.callId && m.recordingUrl ? `<audio class="call-recording" controls preload="none" src="/api/phone/recording?workspace=${encodeURIComponent(c.workspace)}&amp;call=${encodeURIComponent(m.callId)}" aria-label="${h(tr('Gravação da ligação'))}"></audio>` : ''}</div>`).join('')}</div>
+      <small>${channelBadge(m.channel)} · ${date(m.created,c,true)}${origin(m) === 'workflow' ? ' · Automação' : ''}${m.failed ? ` · <span class="badge red" title="${h(tr(deliveryFailures[m.failed] || deliveryFailures.provider_error))}">${tr('Não entregue')}</span>` : ''}</small>${m.subject ? `<b class="message-subject">${h(m.subject)}</b>` : ''}${messageBody(c, m)}${m.callId && m.recordingUrl ? `<audio class="call-recording" controls preload="none" src="/api/phone/recording?workspace=${encodeURIComponent(c.workspace)}&amp;call=${encodeURIComponent(m.callId)}" aria-label="${h(tr('Gravação da ligação'))}"></audio>` : ''}</div>`).join('')}</div>
     ${conversationAiBar(c, contact.id)}
     <form class="message-compose" data-form="message"><p>As mensagens ficam registradas nesta caixa de entrada.</p>
       <div class="inline-gap"><select name="channel" aria-label="Canal">${composerChannels.map(([value, label]) => `<option value="${value}"${value === channel ? ' selected' : ''}>${label}</option>`).join('')}</select>
@@ -288,7 +338,7 @@ function teamChat(c) {
       <button class="icon-btn" data-inbox-nav aria-label="${inboxState(c).nav ? 'Recolher' : 'Expandir'} painel de caixas">${i(inboxState(c).nav ? 'left' : 'right',16)}</button>
       <h2>Chat interno</h2><small>Visível só para a equipe deste workspace.</small></div>
     <div class="thread-messages">${c.s.teamMessages.map(m => `<div class="message ${m.author === mine ? 'outbound' : ''}">
-      <small><b>${h(m.author)}</b> · ${date(m.created,c,true)}</small><p>${h(m.body)}</p></div>`).join('') || empty('Nenhuma mensagem da equipe','Combine retornos e passe contexto sem que o contato veja.','chat')}</div>
+      <small><b>${h(m.author)}</b> · ${date(m.created,c,true)}</small><p>${messageContent(m.body)}</p></div>`).join('') || empty('Nenhuma mensagem da equipe','Combine retornos e passe contexto sem que o contato veja.','chat')}</div>
     <form class="message-compose" data-form="team-message"><textarea name="body" maxlength="2000" placeholder="Escreva para a equipe…" aria-label="Mensagem para a equipe" required></textarea>
       <button class="primary">${i('send',15)} Enviar</button></form></section>`;
 }

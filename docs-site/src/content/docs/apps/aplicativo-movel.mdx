@@ -1,0 +1,88 @@
+---
+title: Criar o aplicativo móvel da agência
+description: Monte o app com a sua marca, escolha o tema e os módulos, publique e envie o link de instalação para a equipe dos clientes.
+modulo: apps
+sidebar:
+  order: 1
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+O aplicativo móvel leva a soci para o celular da equipe dos seus clientes com o nome, o ícone e as cores da sua agência. Você monta tudo em uma tela, com a prévia ao lado, e envia um link: a pessoa instala no Android ou no iPhone sem passar por loja.
+
+<Requisitos permissao="Dono ou admin da agência" />
+
+## Passo a passo
+
+<Steps>
+
+1. Na **Visão da agência**, abra **Aplicativo móvel**. A lista da esquerda mostra as partes do app e o que falta em cada uma. Em computador, a prévia fica à direita.
+
+   <Print src="docs/apps/aplicativo-movel/01-criador.88598b8d.webp" alt="Tela Aplicativo móvel com a lista de partes do app em destaque, os campos da Identidade no centro e a prévia do celular à direita." />
+
+2. Em **Identidade**, dê um nome ao app, clique em **Enviar ícone** e escolha um **Tema**. São os mesmos temas das comunidades. Em **Suas cores**, você usa a cor principal da sua marca; em **Ajustar todas as cores**, muda cada cor.
+
+   <Print src="docs/apps/aplicativo-movel/02-identidade.2e887472.webp" alt="Parte Identidade com o nome Agência Demo, o ícone enviado e a grade de temas em destaque com o tema Floresta marcado." />
+
+3. Em **Entrada**, escreva a frase de boas-vindas. Se quiser, envie uma **Imagem de capa**; sem ela, a entrada usa as cores do tema.
+
+   <Print src="docs/apps/aplicativo-movel/03-entrada.7b2a4ced.webp" alt="Parte Entrada com a frase de boas-vindas preenchida e a prévia da tela de entrada em destaque." />
+
+4. Em **Módulos**, marque o que aparece no app e mude a ordem arrastando ou com as setas. Os primeiros ficam na barra; os outros, em **Mais**. Deixe **Início** marcado para abrir o app no resumo do dia.
+
+   <Print src="docs/apps/aplicativo-movel/04-modulos.9b187304.webp" alt="Parte Módulos com a lista em destaque: Início como primeira aba, três módulos na barra e os outros em Mais." />
+
+5. Em **Links próprios**, clique em **Adicionar link** para criar até cinco botões que abrem um endereço seu. Eles aparecem em **Mais**.
+
+   <Print src="docs/apps/aplicativo-movel/05-links.b5ff4f56.webp" alt="Parte Links próprios com o botão Central de ajuda preenchido e a prévia da folha Mais ao lado." />
+
+6. Clique em **Salvar**. Nada muda para quem usa o app até você salvar; **Descartar** volta ao que estava salvo.
+
+   <Print src="docs/apps/aplicativo-movel/06-salvar.be256ef4.webp" alt="Rodapé do criador em destaque, com o aviso Alterações não salvas e os botões Descartar e Salvar." />
+
+7. Clique em **Publicar app**. Em **Publicação**, use **Copiar link** e envie o link para a equipe.
+
+   <Print src="docs/apps/aplicativo-movel/07-publicar.2d51ed9c.webp" alt="Parte Publicação com o link de instalação em destaque e os botões Copiar link e Abrir." />
+
+</Steps>
+
+<Aside type="note">
+Com o app no ar, o que você salva já vale para quem usa. **Publicar nova versão** atualiza o número da versão e os ícones de quem instalou.
+</Aside>
+
+## O que a equipe vê no celular
+
+<Print src="docs/apps/aplicativo-movel/08-app-no-celular.08f34048.webp" alt="Três telas do app no celular: a entrada com a marca e os passos de instalação, o Início com o resumo do dia e a folha Mais com os outros módulos e as preferências." />
+
+- **Entrada:** a sua marca, o botão **Entrar** e os passos para instalar no Android ou no iPhone.
+- **Início:** conversas que esperam resposta, agenda e tarefas de hoje e oportunidades abertas. Cada bloco só aparece para quem tem permissão no módulo.
+- **Barra:** os primeiros módulos que você escolheu.
+- **Mais:** os outros módulos, os links próprios, a troca de subconta, as notificações, o modo escuro e o idioma.
+
+## Publicar nas lojas
+
+O link de instalação funciona sem loja. Para publicar na App Store e no Google Play, preencha o que falta no quadro **Apple e Google**, em **Publicação**, e clique em **Baixar pacote das lojas**. O envio é feito nas contas de desenvolvedor da sua agência.
+
+## Perguntas frequentes
+
+**O app que já estava publicado muda de cor?**
+Não. Ele mantém a cor que você tinha, até você escolher um tema.
+
+**O consumidor final usa este app?**
+Não. Ele é para a equipe que atende na subconta. O consumidor usa o portal e as comunidades.
+
+**A pessoa vê módulos que não pode abrir?**
+Não. O app segue as permissões de cada usuário na subconta.
+
+**O app fica claro ou escuro?**
+Sem escolha, vale o modo do tema. Cada pessoa pode trocar em **Mais → Modo escuro**.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Colocar a marca da agência na soci" href="/agencia/white-label/" />
+  <LinkCard title="Adicionar usuários e definir permissões" href="/configuracoes/usuarios-e-permissoes/" />
+</CardGrid>

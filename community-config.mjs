@@ -3,7 +3,7 @@
 // (badges, analytics, the newsletter digest). Membership and activity live in the community document.
 import { randomUUID } from 'node:crypto';
 import { academyConfig } from './community-academy.mjs';
-import { badgeCatalog, communityTabKeys, defaultLayout, defaultTheme, planIntervals, spamPack, themePresets, themeTokens, widgetKeys } from './ui/community-data.js';
+import { badgeCatalog, cleanTheme, communityTabKeys, defaultLayout, defaultTheme, planIntervals, spamPack, widgetKeys } from './ui/community-data.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const str = (value, limit = 240) => typeof value === 'string' ? value.trim().slice(0, limit) : '';
@@ -37,14 +37,8 @@ export function communityConfig(d, prior = {}, s = null) {
   const onboarding = stepInput.map(row => ({ id: keepId(row?.id), title: str(row?.title, 80) || fail('Dê um título a cada etapa de boas-vindas.'),
     description: str(row?.description, 300), link: https(row?.link, 'O link da etapa') }));
   // Theme: a preset or custom tokens (#rrggbb each).
-  const themeInput = pick('theme') || defaultTheme();
-  const preset = themePresets.find(row => row.id === themeInput.preset);
-  const tokens = Object.fromEntries(themeTokens.map(([key, label]) => {
-    const value = String(themeInput.tokens?.[key] ?? preset?.tokens[key] ?? themePresets[0].tokens[key]).toLowerCase();
-    if (!/^#[0-9a-f]{6}$/.test(value)) fail(`A cor "${label}" precisa estar no formato #RRGGBB.`);
-    return [key, value];
-  }));
-  const theme = { preset: preset ? preset.id : 'custom', tokens };
+  const { theme, error: themeError } = cleanTheme(pick('theme') || defaultTheme());
+  if (themeError) fail(themeError);
   // Tabs: the known ones, in the order given, renamed and shown or hidden; at least one stays visible.
   const tabInput = Array.isArray(pick('tabs')) ? pick('tabs') : [];
   const tabs = [...tabInput.filter(row => communityTabKeys.some(([key]) => key === row?.key)), ...communityTabKeys.filter(([key]) => !tabInput.some(row => row?.key === key)).map(([key]) => ({ key }))]

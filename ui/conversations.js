@@ -205,8 +205,10 @@ function targetInputs(group, values) {
 function slaSettings(c) {
   const settings = c.s.conversationSla;
   return headline('Configurações de SLA','Defina metas de tempo de resposta para as mensagens recebidas no WhatsApp, e-mail, SMS, chat do site e redes sociais.') +
-    `<form class="surface padded settings-form sla-form" data-form="conversation-sla">
-      <label class="check"><input type="checkbox" name="enabled" role="switch" ${settings.enabled ? 'checked' : ''}> Ativar rastreamento de SLA</label>
+    `<form class="surface settings-form set-form sla-form" data-form="conversation-sla">
+      <section class="set-section"><header class="set-head"><h2>Rastreamento</h2><p class="dim">Conta o tempo até a equipe responder cada mensagem recebida.</p></header><div class="set-body">
+      <label class="check"><input type="checkbox" name="enabled" role="switch" ${settings.enabled ? 'checked' : ''}> Ativar rastreamento de SLA</label></div></section>
+      <section class="set-section"><header class="set-head"><h2>Metas</h2><p class="dim">Uma meta só para todos os canais ou uma para cada canal.</p></header><div class="set-body">
       <fieldset><legend>Metas por canais</legend>
         <label class="check"><input type="radio" name="mode" value="common" ${settings.mode === 'common' ? 'checked' : ''}> SLA comum</label>
         <label class="check"><input type="radio" name="mode" value="channel" ${settings.mode === 'channel' ? 'checked' : ''}> SLA específico por canal</label>
@@ -214,16 +216,17 @@ function slaSettings(c) {
       <fieldset data-sla-mode="common" ${settings.mode !== 'common' ? 'hidden disabled' : ''}><legend>Metas gerais</legend>${targetInputs('common',settings.common)}</fieldset>
       <fieldset data-sla-mode="channel" ${settings.mode !== 'channel' ? 'hidden disabled' : ''}><legend>Metas por canal</legend>
         ${SLA_CHANNELS.map(channel => `<b>${h(tr(channel))}</b>${targetInputs(channel,settings.channels[channel] || settings.common)}`).join('')}
-      </fieldset>
-      <fieldset><legend>Quais mensagens de automação contam como resposta?</legend>
+      </fieldset></div></section>
+      <section class="set-section"><header class="set-head"><h2>Automações</h2><p class="dim">Quais mensagens de automação contam como resposta?</p></header><div class="set-body">
+      <fieldset class="is-plain" aria-label="Quais mensagens de automação contam como resposta?">
         ${[['none','Nenhuma'],['all','Todas as mensagens de fluxos de trabalho'],['selected','Apenas fluxos de trabalho selecionados']].map(([value,label]) =>
           `<label class="check"><input type="radio" name="automation" value="${value}" ${settings.automation === value ? 'checked' : ''}> ${label}</label>`).join('')}
         <label data-sla-workflows ${settings.automation !== 'selected' ? 'hidden' : ''}>Fluxos de trabalho
           <select name="workflows" multiple ${settings.automation !== 'selected' ? 'disabled' : ''}>${c.s.workflows.map(workflow =>
             `<option value="${workflow.id}" ${settings.workflows.includes(workflow.id) ? 'selected' : ''}>${h(workflow.name)}</option>`).join('')}</select>
         </label>
-      </fieldset>
-      <p class="form-status" role="alert"></p><button class="primary">Salvar</button>
+      </fieldset></div></section>
+      <footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar</button></footer>
     </form>`;
 }
 

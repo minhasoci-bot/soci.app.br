@@ -111,7 +111,7 @@
 
 /* Configurações, moderação e analytics da comunidade (6.2) */
 .ca-jump{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 12px}
-.ca-jump button{padding:5px 12px;border-radius:999px;border:1px solid var(--line,#e3e8ef);background:var(--surface,#fff);font:inherit;font-size:13px;font-weight:600;color:inherit;cursor:pointer}
+.ca-jump button{padding:5px 12px;border-radius:999px;border:1px solid var(--line,#e3e8ef);background:var(--g-surface,#fff);font:inherit;font-size:13px;font-weight:600;color:inherit;cursor:pointer}
 .ca-rows{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:8px}
 .ca-row{display:grid;gap:8px;align-items:center}
 .ca-plan{grid-template-columns:2fr 1fr 1fr auto}
@@ -155,7 +155,7 @@
 .ca-daybars span{display:block;flex:1;min-width:2px;background:var(--g-brand,#b71889);border-radius:3px 3px 0 0;opacity:.85}
 .ca-heat{display:grid;gap:2px;overflow-x:auto;margin-bottom:10px}
 .ca-heat>div{display:grid;grid-template-columns:34px repeat(24,minmax(12px,1fr));gap:2px;align-items:center}
-.ca-heat b{font-size:11px;font-weight:600;color:var(--muted,#59677a)}
+.ca-heat b{font-size:11px;font-weight:600;color:var(--g-dim,#59677a)}
 .ca-heat i{height:16px;border-radius:3px;background:color-mix(in srgb,var(--g-brand,#b71889) calc(var(--v) * 100%),#f1f2f5)}
 .ca-member-extra{display:grid;gap:4px;margin-top:4px;justify-items:start}
 .ca-answers summary{cursor:pointer;font-size:13px}

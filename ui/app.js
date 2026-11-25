@@ -2,7 +2,8 @@ import {tabAccountId} from './account-guard.js';
 import {icon as i, logo, brandName, bootScreen} from './icons.js';
 import {nav,h,avatar,screens,publicView,money} from './screens.js';
 import { conversationSections, manualQueue, manualType, slaRecords, SLA_CHANNELS } from './conversations.js';
-import { deliveryFailures, inboxChange, inboxClick, inboxSubmit } from './inbox.js';
+import { createInboxFollower, patchInbox } from './inbox-live.js';
+import { deliveryFailures, inboxChange, inboxClick, inboxPage, inboxSubmit, mediaFailed, mediaLoaded, threadMoved } from './inbox.js';
 import { dashboardPreferences, installDashboardControls, reportGrid } from './dashboard-controls.js';
 import { drawDashboardGauges } from './dashboard.js';
 import { launchpadGuide } from './launchpad.js';
@@ -53,7 +54,7 @@ import { installSeo } from './seo.js';
 import { installWallet } from './wallet.js';
 import { installLabs } from './labs.js';
 import { installConversationAi } from './conversation-ai.js';
-import { installMobileShell } from './mobile-shell.js';
+import { installMobileShell, shellAgency } from './mobile-shell.js';
 import { appMenuUrl } from './app-studio-data.js';
 import { installAppMarketplace } from './app-marketplace.js';
 import { contactPreferences, installPreferences } from './preferences.js';
@@ -205,7 +206,9 @@ async function load(){
     if (workspace === c.workspace) Object.assign(c,{s:null,m:null,account:e.account});
   }
 }
-const allowedView = id => id === 'launchpad' ? !c.access?.modules || c.access.modules.length > 0 : !c.access?.modules || c.access.modules.includes(id) || (id === 'prancheta' && (!c.access?.modules || c.access.modules.includes('marketing') || c.access.modules.includes('prancheta')));
+const allowedView = id => id === 'launchpad' || id === 'home' ? !c.access?.modules || c.access.modules.length > 0 : !c.access?.modules || c.access.modules.includes(id) || (id === 'prancheta' && (!c.access?.modules || c.access.modules.includes('marketing') || c.access.modules.includes('prancheta')));
+// The agency's installed app (mobile-shell.js); outside it nothing changes.
+let mobileShell = { active: () => false, start: () => '', header: () => '', paint() {} };
 let agencyUI, agencyEnv, agencyLoading, openingWorkspace;
 // O painel da agência (agency.js e os módulos que só ele usa) é baixado na primeira vez que #agency abre:
 // quem trabalha só na subconta não carrega esse código. Os ouvintes dele só agem em #agency.
@@ -241,6 +244,7 @@ async function openInitialWorkspace() {
   }
 }
 function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
+  mobileShell.paint();
   if(key==='agency'){
     if (c.access && !c.access.agency) { location.replace('#dashboard'); return; }
     stopSubWaPoll();
@@ -258,7 +262,7 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
     openingWorkspace ??= openInitialWorkspace()
       .then(() => {
         if ((c.s || c.account) && c.mode !== 'agency') {
-          if ((!location.hash || location.hash === '#' || location.hash === '') && c.access?.agency) {
+          if ((!location.hash || location.hash === '#' || location.hash === '') && c.access?.agency && !mobileShell.active()) {
             location.replace('#agency/dashboard');
             return;
           }
@@ -271,14 +275,14 @@ function route(){ const [key,tab,project]=location.hash.slice(1).split('/');
       .finally(() => { openingWorkspace = null; });
     return;
   }
-  if ((!location.hash || location.hash === '#' || location.hash === '') && c.access?.agency) {
+  if ((!location.hash || location.hash === '#' || location.hash === '') && c.access?.agency && !mobileShell.active()) {
     location.replace('#agency/dashboard');
     return;
   }
   if (key === 'ask-ai' || key === 'marketplace') { location.hash = '#dashboard'; return; }
   // The AI Studio now lives inside Sites: old links keep working.
   if (key === 'studio') { location.replace(tab === 'project' && project ? `#sites/editor/${project}` : tab === 'build' ? '#sites/build' : '#sites/funnels'); return; }
-  const requested = key || 'launchpad';
+  const requested = key || mobileShell.start() || 'launchpad';
   const view = key === 'link' && allowedView('conversations') ? 'link'
     : Object.hasOwn(screens,requested) && allowedView(requested) ? requested
       : nav.find(([item]) => allowedView(item))?.[0];
@@ -347,7 +351,7 @@ function renderAccountLifecycle() {
     <div class="inline-gap"><button class="secondary" data-act="account-retry">Verificar acesso</button><button class="secondary" data-act="workspaces">Trocar de workspace</button></div></main>`;
 }
 function render(){
-  if (c.account) { renderAccountLifecycle(); return; }
+  if (c.account) { renderAccountLifecycle(); mobileShell.paint(); return; }
   if(viewPath||c.mode==='agency')return;
   unmountDesignStage(G('.dw-stage'));
   const viewKey = `${c.workspace}:${c.view}:${c.tab}:${c.studio.project}`;
@@ -358,10 +362,13 @@ function render(){
   const brand=agencyName||brandName(c.agency?.brand), customLink=c.agency?.menuLinks.find(l=>l.id===c.tab);
   const active=nav.find(x=>x[0]===c.view);
   document.title=brand;
-  applyBrandColor(c.agency?.primary, c.agency?.secondary, c.agency?.accent);
+  // In the agency's app the colors come from the app's theme.
+  if (mobileShell.active()) applyBrandColor();
+  else applyBrandColor(c.agency?.primary, c.agency?.secondary, c.agency?.accent);
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
-  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}${c.launchpadReturn && c.view!=='launchpad' ? `<div class="lp-return"><a href="#launchpad/${h(c.launchpadReturn)}">${i('left',14)} Voltar ao guia</a><span>Continue a configuração. Seu progresso será reconhecido ao voltar.</span><button class="icon-btn" aria-label="Fechar lembrete do guia" data-act="launchpad-dismiss">${i('close',14)}</button></div>` : ''}<main id="screen" class="screen">${c.billingNotice==='past_due'?`<div class="page-notice"><p class="surface padded ag-warn" role="status">${h(tr('O pagamento do plano desta subconta foi recusado. Confira o cartão ou fale com a sua agência para não perder o acesso.'))}</p></div>`:''}${screenHtml}</main></div></div>`;
+  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${mobileShell.active()?'':appSidebar(brand)}<div class="workspace">${mobileShell.active()?mobileShell.header():appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}${c.launchpadReturn && c.view!=='launchpad' ? `<div class="lp-return"><a href="#launchpad/${h(c.launchpadReturn)}">${i('left',14)} Voltar ao guia</a><span>Continue a configuração. Seu progresso será reconhecido ao voltar.</span><button class="icon-btn" aria-label="Fechar lembrete do guia" data-act="launchpad-dismiss">${i('close',14)}</button></div>` : ''}<main id="screen" class="screen">${c.billingNotice==='past_due'?`<div class="page-notice"><p class="surface padded ag-warn" role="status">${h(tr('O pagamento do plano desta subconta foi recusado. Confira o cartão ou fale com a sua agência para não perder o acesso.'))}</p></div>`:''}${screenHtml}</main></div></div>`;
+  mobileShell.paint();
   if (getLanguage() === 'es') translateDom(app);
   mountBeautifulUI(G('#screen'), c, { render });
   if(c.view==='conversations'&&c.thread) {const area=G('.thread-messages');if(area)area.scrollTop=area.scrollHeight;}
@@ -535,7 +542,7 @@ function switchingCover(name){
   document.body.append(cover);
   return cover;
 }
-async function useWorkspace(id, view='launchpad', name){
+async function useWorkspace(id, view=mobileShell.start()||'launchpad', name){
   const cover=switchingCover(name||c.workspaces.find(w=>w.id===id)?.name);
   try { await enterWorkspace(id, view); } finally { cover.remove(); }
 }
@@ -1113,6 +1120,10 @@ document.addEventListener('change', async e => {
   }
   if (el.dataset.move) try { await move(el.dataset.move,el.value); } catch (error) { render(); flash(error.message,true); }
 });
+// Carregar e falhar não sobem na página: só a fase de captura os vê.
+document.addEventListener('error',mediaFailed,true);
+for(const name of ['load','loadedmetadata'])document.addEventListener(name,mediaLoaded,true);
+for(const name of ['wheel','touchmove','pointerdown','keydown'])document.addEventListener(name,threadMoved,{capture:true,passive:true});
 document.addEventListener('dragstart',ev=>{const el=ev.target.closest('[data-drag]');if(el){ev.dataTransfer.effectAllowed='move';ev.dataTransfer.setData('text/plain',el.dataset.drag);}});
 document.addEventListener('dragover',ev=>{if(ev.target.closest('[data-drop]'))ev.preventDefault();});
 document.addEventListener('drop',async ev=>{const el=ev.target.closest('[data-drop]');if(!el)return;ev.preventDefault();try{await move(ev.dataTransfer.getData('text/plain'),el.dataset.drop);}catch(e){flash(e.message,true);}});
@@ -1320,7 +1331,6 @@ if(viewPath){
   installWallet({ c, api, url, flash, render });
   installLabs({ c, mutate, flash, render });
   installConversationAi({ c, api, url, flash, render });
-  void installMobileShell({ c, api, url, flash });
   installAppMarketplace({ c, api, url, flash, render });
   installContentAI({ api, flash, workspace: () => c.workspace, enabled: kind => Boolean(c.features?.contentAI || (kind === 'gbp' && c.features?.reviewAI)) });
   installEventPlanner({ c, mutate, flash, dialog, close, render, api, url, load });
@@ -1376,6 +1386,26 @@ if(viewPath){
       clock.classList.toggle('blue', active.state !== 'Overdue');
     }
   },15000);
+  // Conversas ao vivo: mensagens, ligações e atribuições chegam sem recarregar a página.
+  const inboxOpen=()=>c.mode!=='agency'&&!c.account&&!viewPath&&c.view==='conversations'&&!conversationSections.includes(c.tab)&&!document.hidden&&Boolean(G('.conversation-page'));
+  const drawInbox=()=>{const page=document.createElement('template');page.innerHTML=inboxPage(c);if(getLanguage()==='es')translateDom(page.content);return page.content;};
+  const showInbox=async apply=>{
+    const before=drawInbox(), unread=()=>c.s.messages.filter(m=>m.contactId===c.thread&&!m.read).length, had=unread();
+    if(!apply()) return;
+    const patch=drawn=>{ const root=G('.conversation-page'); if(root&&!patchInbox(root,drawn,drawInbox())&&!G('form :focus')) render(); };
+    patch(before);
+    // A conversa aberta diante da pessoa já está sendo lida.
+    if(c.thread&&unread()>had&&document.hasFocus()&&inboxOpen()){
+      const thread=c.thread, drawn=drawInbox();
+      await mutate({type:'thread',data:{contactId:thread,read:true}});
+      if(inboxOpen()&&c.thread===thread) patch(drawn);
+    }
+  };
+  const follower=createInboxFollower({c,watching:inboxOpen,request:mark=>api(`${url('/api/conversations/live')}&mark=${encodeURIComponent(mark)}`),changed:showInbox});
+  setInterval(()=>follower.tick(),1000);
+  for(const name of ['pointerdown','keydown','pointermove'])window.addEventListener(name,()=>follower.used(),{passive:true});
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) follower.tick({now:true}); });
+  window.addEventListener('focus',()=>follower.tick({now:true}));
   window.addEventListener('focus',async()=>{
     if (!c.s || overlay.innerHTML || busy || G('form :focus')) return;
     const live = (c.view === 'sites' && c.tab === 'submissions') ||
@@ -1384,5 +1414,9 @@ if(viewPath){
   });
   initI18n();
   window.addEventListener('soci:languagechange', () => { if (c.mode !== 'agency') render(); });
+  if (shellAgency()) {
+    app.innerHTML = bootScreen('Abrindo o app…');
+    mobileShell = await installMobileShell({ c, app, api, url, flash, allowed: allowedView, screens }).catch(() => mobileShell);
+  }
   route();
 }
