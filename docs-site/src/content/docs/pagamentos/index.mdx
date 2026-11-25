@@ -1,0 +1,34 @@
+---
+title: "Pagamentos e documentos"
+description: "Cobranças, faturas, assinaturas, loja e contratos."
+sidebar:
+  label: Visão geral
+  order: 0
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Cobre o cliente sem sair da soci. Cada subconta recebe no gateway dela, e os contratos podem gerar a cobrança assim que são assinados.
+
+## O que esta seção cobre
+
+- Gateways
+- Produtos
+- Faturas e orçamentos
+- Assinaturas
+- Links de pagamento
+- Pedidos e checkouts
+- Gift cards
+- Loja
+- Documentos e contratos
+- Recibos e impostos
+
+{/* artigos: gerado por docs-site/scripts/secoes.mjs */}
+## Artigos
+
+<CardGrid>
+  <LinkCard title="Conectar a AbacatePay para receber por Pix e cartão" href="/pagamentos/conectar-gateway/" description="Ligue a conta AbacatePay da subconta para gerar links de pagamento nas faturas e dar baixa automática quando o cliente paga." />
+  <LinkCard title="Emitir uma fatura" href="/pagamentos/fatura/" description="Crie uma fatura para um contato, acompanhe o status e cobre por Pix ou cartão com a AbacatePay." />
+  <LinkCard title="Enviar propostas e contratos para assinatura" href="/pagamentos/documentos-e-contratos/" description="Crie uma proposta ou um contrato a partir de um modelo, preencha com os dados do cliente e envie para assinatura eletrônica por e-mail e WhatsApp." />
+</CardGrid>
+{/* fim dos artigos */}

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeServer } from '../server.mjs';
 import { createSqliteStore } from '../storage.mjs';
+import { createWhatsAppHandler } from '../whatsapp.mjs';
 import { API_KEY, QR, fakeEvolution } from './helpers/fake-evolution.mjs';
 
 async function boot(t, options = {}) {
@@ -357,4 +358,23 @@ test('Evolution API nos fluxos: botões, lista e enquete; anúncio de clique par
   state = (await local.call('/api/state?workspace=demo')).body.state;
   const inbound = state.messages.filter(row => row.contactId === carla.id && row.direction === 'Inbound').map(row => row.body);
   assert.deepEqual(inbound, ['Olá! Quero saber mais', 'Agendar', 'Clareamento', 'Escolheu: Tarde']);
+});
+
+test('Primeira conexão: o webhook registrado na Evolution é o que o soci aceita', async t => {
+  const evo = fakeEvolution();
+  const options = { evolutionBaseUrl: 'https://evo.soci.test', evolutionApiKey: API_KEY };
+  const local = await boot(t, { whatsappRequest: evo.request, ...options });
+  // Em produção a origem é https; só assim o webhook é registrado no servidor.
+  const handler = createWhatsAppHandler({ store: local.store, secret: 'evolution-test-seal-secret-32-chars!', request: evo.request, ...options });
+  const view = await handler.handleWorkspaceApi({
+    req: {}, url: new URL('https://soci.test/api/whatsapp/workspace/connect'), method: 'POST', agencyId: 'agency', workspaceId: 'demo',
+    payload: async () => ({}), publicOrigin: 'https://soci.test', requireActiveAccount: async () => {}, json: data => data
+  });
+  const registered = evo.instances.get('soci_demo').webhook.url;
+  assert.equal(registered, view.webhookUrl);
+  const created = evo.calls.find(c => c.path === '/instance/create');
+  assert.equal(created.body.webhook.url, registered);
+  const inbound = await local.call(new URL(registered).pathname, upsert({ remoteJid: '5511977776666@s.whatsapp.net' }, { conversation: 'Primeira mensagem' }));
+  assert.equal(inbound.status, 200, inbound.body?.error);
+  assert.equal(inbound.body.stored, true);
 });

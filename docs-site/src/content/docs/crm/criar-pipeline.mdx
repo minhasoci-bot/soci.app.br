@@ -1,0 +1,74 @@
+---
+title: Criar um pipeline de vendas
+description: Monte as etapas do seu funil de vendas e acompanhe cada oportunidade no quadro.
+modulo: crm
+sidebar:
+  order: 1
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+import Automacao from '../../../components/Automacao.astro';
+
+O pipeline é o caminho que um negócio percorre até virar venda: cada coluna é uma etapa, e cada cartão é uma oportunidade. Crie um pipeline para cada tipo de venda da subconta, como "Venda de imóveis" e "Locação", para acompanhar cada um no seu próprio quadro.
+
+<Requisitos permissao="Acesso ao módulo Oportunidades na subconta" />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Oportunidades**. O quadro mostra o pipeline atual, com uma coluna por etapa. Clique na aba **Pipelines**.
+
+   <Print src="docs/crm/criar-pipeline/01-quadro-de-oportunidades.abb3f92c.webp" alt="Quadro de oportunidades da Imobiliária Horizonte com as colunas Novo lead, Qualificado, Proposta e Ganha, e a aba Pipelines em destaque." />
+
+2. A aba lista os pipelines da subconta, com o número de etapas e de oportunidades de cada um. Clique em **Criar pipeline**.
+
+   <Print src="docs/crm/criar-pipeline/02-lista-de-pipelines.8bc3fec1.webp" alt="Aba Pipelines com a lista de pipelines e o botão Criar pipeline em destaque." />
+
+3. Em **Nome do pipeline**, escreva um nome que a equipe reconheça, por exemplo "Locação". Clique em **Criar pipeline**.
+
+   <Print src="docs/crm/criar-pipeline/03-nome-do-pipeline.f6a02a97.webp" alt="Janela Novo pipeline com o campo Nome do pipeline preenchido com Locação." />
+
+4. O pipeline novo aparece na lista com três etapas: Novo lead, Qualificado e Proposta. Clique no ícone de editar ao lado dele para ajustar as etapas. Em **Etapas** você pode:
+
+   - clicar em **Adicionar etapa** para criar uma coluna nova;
+   - mudar a ordem das etapas com as setas;
+   - definir a **Probabilidade** de fechar a venda em cada etapa, usada na Previsão;
+   - escolher a **Cor** de cada etapa e como ela aparece no quadro (sem cor, ponto colorido ou fundo tingido).
+
+   <Print src="docs/crm/criar-pipeline/04-etapas-do-pipeline.ec57b33c.webp" alt="Edição do pipeline Locação na aba Etapas, com as opções de cores das etapas e o botão Adicionar etapa em destaque." />
+
+5. Volte para a aba **Oportunidades** e escolha o pipeline novo no seletor acima do quadro, onde antes aparecia "Pipeline de vendas".
+
+</Steps>
+
+<Aside type="tip">
+Para criar um pipeline parecido com outro, use **Duplicar** na lista de pipelines e ajuste só o que muda. As setas da lista mudam a ordem em que os pipelines aparecem no seletor.
+</Aside>
+
+## Automações ligadas
+
+Os workflows podem reagir ao que acontece no pipeline e também mover as oportunidades sozinhos.
+
+<Automacao gatilhos={['Oportunidade criada', 'Etapa do pipeline alterada', 'Status da oportunidade alterado', 'Oportunidade parada']} acoes={['Criar ou atualizar oportunidade', 'Mudar status da oportunidade', 'Dono da oportunidade']} />
+
+## Perguntas frequentes
+
+**Posso ter mais de um pipeline na mesma subconta?**
+Sim. Crie quantos precisar, um para cada tipo de venda. O seletor acima do quadro troca de um para o outro.
+
+**O que a opção "Usar probabilidade por oportunidade" faz?**
+Ligada, cada oportunidade usa a própria probabilidade de fechamento (ou a da etapa, se a dela estiver vazia). Desligada, a Previsão usa só a probabilidade da etapa.
+
+**Como faço para uma etapa não aparecer nos relatórios?**
+Na edição do pipeline, na coluna **Nos relatórios**, desmarque **Funil e distribuição** na linha da etapa.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Gatilhos de automação" href="/automacoes/gatilhos/" description="Todos os eventos que podem iniciar um workflow, inclusive os de oportunidades." />
+  <LinkCard title="CRM" href="/crm/" description="Contatos, empresas, oportunidades e tarefas da subconta." />
+</CardGrid>

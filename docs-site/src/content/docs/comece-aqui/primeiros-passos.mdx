@@ -1,0 +1,53 @@
+---
+title: Primeiros passos da agência
+description: A ordem para deixar a agência pronta na soci, do logotipo à primeira subconta atendendo clientes.
+sidebar:
+  order: 2
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+
+Quando a agência entra na soci pela primeira vez, o **Painel da agência** mostra a lista **Configuração da agência**, com o que ainda está pendente. Siga esta ordem: cada passo usa o que o anterior deixou pronto.
+
+<Print src="docs/comece-aqui/primeiros-passos/01-painel-da-agencia.9c644e9f.webp" alt="Painel da agência com os números das subcontas e a lista Configuração da agência com os itens pendentes." />
+
+## A ordem que recomendamos
+
+<Steps>
+
+1. **Coloque a sua marca.** Nome, logotipo e cores da agência, que os clientes vão ver dentro das subcontas.
+   [Colocar a marca da agência na soci](/agencia/white-label/)
+
+2. **Chame a equipe.** Cadastre quem trabalha com você e defina o que cada pessoa pode ver.
+   [Adicionar usuários e definir permissões](/configuracoes/usuarios-e-permissoes/)
+
+3. **Prepare o WhatsApp.** Teste o servidor e deixe tudo pronto para conectar o número de cada cliente.
+   [Conectar o WhatsApp das subcontas](/agencia/servidor-whatsapp/)
+
+4. **Crie a primeira subconta.** Cadastre um cliente e entre nela pelo Launchpad.
+   [Criar uma subconta para um cliente](/agencia/criar-subconta/)
+
+5. **Monte a operação do cliente.** Pipeline, contatos, agenda, a primeira automação e a cobrança:
+   [Criar um pipeline de vendas](/crm/criar-pipeline/) ·
+   [Importar contatos](/crm/importar-contatos/) ·
+   [Abrir a agenda para os clientes marcarem](/agendas/pagina-de-agendamento/) ·
+   [Criar o primeiro fluxo de trabalho](/automacoes/primeiro-workflow/) ·
+   [Conectar a AbacatePay](/pagamentos/conectar-gateway/)
+
+6. **Transforme o cliente em modelo.** Quando a primeira subconta estiver redonda, salve como setup e use nos próximos clientes do mesmo ramo.
+   [Reaproveitar uma subconta com setups de conta](/agencia/setups-de-conta/)
+
+</Steps>
+
+<Aside type="tip">
+Dentro de cada subconta, o **Launchpad** traz a própria lista de tarefas do cliente, com o progresso de cada uma. Use junto com esta ordem.
+</Aside>
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Conceitos" href="/comece-aqui/conceitos/" description="Agência, subconta, usuários e papéis." />
+  <LinkCard title="Novidades" href="/comece-aqui/novidades/" description="O que entrou ou mudou na soci." />
+</CardGrid>

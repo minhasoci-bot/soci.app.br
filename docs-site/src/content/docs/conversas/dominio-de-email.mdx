@@ -1,0 +1,56 @@
+---
+title: Enviar e-mails com o domínio da empresa
+description: Configure um domínio de envio próprio com SPF e DKIM para que faturas, recibos e campanhas saiam do endereço da empresa e cheguem com menos chance de cair no spam.
+modulo: conversas
+sidebar:
+  order: 2
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Sem domínio próprio, os e-mails da subconta (faturas, recibos, orçamentos, documentos para assinar, carrinhos abandonados e relatórios) saem do endereço da plataforma. Com um domínio de envio, eles saem do endereço da empresa, como contato@envio.suaempresa.com.br, e chegam com menos chance de cair no spam.
+
+<Requisitos permissao="Acesso às Configurações da subconta" integracoes={['Acesso ao painel de DNS do domínio da empresa (Registro.br, Cloudflare, GoDaddy ou outro)']} />
+
+## Passo a passo
+
+<Steps>
+
+1. Na subconta, abra **Configurações** e vá para a aba **Serviços de e-mail**. Em **Domínio**, escreva um subdomínio do site da empresa, como `envio.suaempresa.com.br`. Em **Endereço do remetente**, escreva a parte antes do @, como `contato`. Clique em **Adicionar domínio**.
+
+   <Print src="docs/conversas/dominio-de-email/01-dominio-e-remetente.0dd0d182.webp" alt="Aba Serviços de e-mail com o domínio envio.sorrisoleve.com.br, o remetente contato e o botão Adicionar domínio em destaque." />
+
+2. A soci mostra os registros que precisam entrar no DNS do domínio: dois de **SPF**, um de **DKIM** e um de **DMARC**, que é recomendado. Use o ícone de copiar ao lado de cada **Nome** e **Valor** e crie os registros no painel onde o domínio foi registrado. Depois clique em **Verificar agora**.
+
+   <Print src="docs/conversas/dominio-de-email/02-registros-dns.778da33b.webp" alt="Domínio envio.sorrisoleve.com.br aguardando DNS, com a tabela de registros SPF, DKIM e DMARC, o botão Verificar agora e a seção Remetente." />
+
+</Steps>
+
+<Aside type="caution">
+Os valores do print são só de exemplo. Copie sempre os registros que aparecem na sua tela: cada domínio recebe os próprios valores.
+</Aside>
+
+<Aside type="tip">
+Use um subdomínio (como `envio.` ou `mail.`) e não o domínio principal. Assim você não mexe no e-mail que a empresa já usa no dia a dia.
+</Aside>
+
+## Perguntas frequentes
+
+**Quanto tempo leva para o domínio ser verificado?**
+A propagação do DNS pode levar de alguns minutos a algumas horas. Enquanto o status for **Aguardando DNS**, os e-mails continuam saindo do endereço da plataforma.
+
+**Para onde vão as respostas dos clientes?**
+Para o endereço definido em **Remetente**. Mude a parte antes do @ e clique em **Salvar remetente**.
+
+**Como troco de domínio?**
+Clique em **Remover domínio** e adicione o novo.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Emitir uma fatura" href="/pagamentos/fatura/" description="As faturas passam a sair do endereço da empresa." />
+  <LinkCard title="Atender na caixa unificada" href="/conversas/caixa-unificada/" description="Responda os e-mails dos clientes junto com as outras conversas." />
+</CardGrid>

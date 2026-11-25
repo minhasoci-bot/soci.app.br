@@ -1,0 +1,58 @@
+---
+title: Emitir uma fatura
+description: Crie uma fatura para um contato, acompanhe o status e cobre por Pix ou cartão com a AbacatePay.
+modulo: pagamentos
+sidebar:
+  order: 2
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+import Automacao from '../../../components/Automacao.astro';
+
+A fatura registra quanto um contato deve e até quando. Com a AbacatePay conectada, ela vira cobrança por Pix ou cartão e a baixa é automática. Sem gateway, você marca o pagamento manualmente.
+
+<Requisitos permissao="Acesso ao módulo Pagamentos na subconta" integracoes={['AbacatePay, para cobrar por Pix ou cartão']} />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Pagamentos**. No topo ficam o **Saldo em aberto**, os **Pagamentos registrados** e o **Total de faturas**. Clique em **Nova fatura**.
+
+   <Print src="docs/pagamentos/fatura/01-faturas.6c0b56b8.webp" alt="Tela Pagamentos sem faturas, com os totais no topo e o botão Nova fatura em destaque." />
+
+2. Preencha o **Nome da fatura**, escolha o **Contato**, informe o **Valor (BRL)** e o **Vencimento**. Deixe o **Status** como rascunho enquanto revisa. Clique em **Criar fatura**.
+
+   <Print src="docs/pagamentos/fatura/02-nova-fatura.6cb1bc9a.webp" alt="Janela Nova fatura com Avaliação completa, a contato Ana Beatriz Souza, 150 reais e o vencimento." />
+
+3. A fatura entra na lista com o contato, o valor, o vencimento e o status. Use o ícone de editar para mudar o status quando ela for enviada, paga ou cancelada.
+
+   <Print src="docs/pagamentos/fatura/03-fatura-criada.b8fdecbe.webp" alt="Lista de faturas com Avaliação completa, Ana Beatriz Souza, 150 reais e o status Rascunho." />
+
+</Steps>
+
+<Aside type="tip">
+Para cobranças que se repetem todo mês, use a aba **Faturas recorrentes**. Para faturas parecidas, salve um modelo na aba **Modelos de fatura**.
+</Aside>
+
+## Automações ligadas
+
+<Automacao gatilhos={['Fatura', 'Pagamento recebido']} acoes={['Criar fatura', 'Enviar fatura', 'Iniciar fatura recorrente']} />
+
+## Perguntas frequentes
+
+**O cliente recebe a fatura por onde?**
+Com a AbacatePay conectada, a fatura ganha um link de pagamento para enviar ao contato. Um fluxo de trabalho com a ação **Enviar fatura** pode mandar o link automaticamente.
+
+**O que acontece quando o cliente paga?**
+Com a AbacatePay, a fatura é marcada como paga sozinha e o gatilho **Pagamento recebido** pode iniciar um fluxo, como um agradecimento.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Conectar a AbacatePay" href="/pagamentos/conectar-gateway/" description="Receba as faturas por Pix ou cartão." />
+  <LinkCard title="Criar o primeiro fluxo de trabalho" href="/automacoes/primeiro-workflow/" description="Envie a fatura e agradeça o pagamento sozinho." />
+</CardGrid>
