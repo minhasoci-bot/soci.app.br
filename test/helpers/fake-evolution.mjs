@@ -5,6 +5,7 @@ const json = (data, status = 200) => new Response(JSON.stringify(data), { status
 // Evolution API v2 falsa: só o que o soci usa.
 export function fakeEvolution() {
   const calls = [];
+  const media = new Map(); // id da mensagem -> { mimetype, base64 }, para /chat/getBase64FromMediaMessage
   const store = []; // mensagens guardadas no servidor, para /chat/findMessages
   const instances = new Map(); // name -> { state, ownerJid, profileName, webhook, pairing }
   async function request(url, init = {}) {
@@ -56,6 +57,11 @@ export function fakeEvolution() {
       const rows = store.filter(m => m.instance === name && m.messageTimestamp >= at(gte) && m.messageTimestamp <= at(lte)).sort((a, b) => b.messageTimestamp - a.messageTimestamp);
       return json({ messages: { total: rows.length, pages: Math.ceil(rows.length / body.offset), currentPage: body.page, records: rows.slice((body.page - 1) * body.offset, body.page * body.offset) } });
     }
+    if (group === 'chat' && action === 'getBase64FromMediaMessage' && method === 'POST') {
+      const file = media.get(body.message?.key?.id);
+      if (file?.timeout) throw Object.assign(new Error('timeout'), { name: 'TimeoutError' });
+      return file ? json({ mediaType: 'imageMessage', fileName: 'arquivo', ...file }, 201) : json({ status: 400, error: 'Bad Request', response: { message: ['Message not found'] } }, 400);
+    }
     if (group === 'chat' && action === 'fetchBusinessProfile' && method === 'POST') return json({ isBusiness: false, number: body.number });
     if (group === 'instance' && action === 'restart' && method === 'POST') return json({ instance: { instanceName: name, state: 'open' } });
     if (group === 'webhook' && action === 'set' && method === 'POST') {
@@ -81,5 +87,5 @@ export function fakeEvolution() {
     return new Response('Not found', { status: 404 });
   }
   const markOpen = (name, phone, profileName) => Object.assign(instances.get(name), { state: 'open', ownerJid: `${phone}@s.whatsapp.net`, profileName });
-  return { request, calls, instances, store, markOpen };
+  return { request, calls, instances, store, media, markOpen };
 }

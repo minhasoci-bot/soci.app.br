@@ -16,7 +16,7 @@ export function createWhatsappWebhookRoutes(deps) {
 }
 
 export function createWhatsappRoutes(deps) {
-  const { error, spaceId, whatsapp, waha, payload, publicBase, listWorkspaces, requireActiveAccount, webhookBlockReason, access, workspaceAccess } = deps;
+  const { messageMedia, error, spaceId, whatsapp, waha, payload, publicBase, listWorkspaces, requireActiveAccount, webhookBlockReason, access, workspaceAccess } = deps;
   return async function whatsappRoutes({ req, res, p, method, url, id, json }) {
     if (p.startsWith('/api/whatsapp/agency/')) {
       const who = await access(req, res);
@@ -28,6 +28,13 @@ export function createWhatsappRoutes(deps) {
     if (p.startsWith('/api/whatsapp/workspace/')) {
       if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
       const op = p.replace(/\/+$/, '').slice('/api/whatsapp/workspace/'.length);
+      // Uma mídia recebida, para quem vê a conversa.
+      if (method === 'GET' && op === 'media') {
+        const who = await workspaceAccess(req, res, id, { modules: ['conversations'] });
+        const message = await messageMedia.find(id, url.searchParams.get('message') || '');
+        if (!message) throw error('Mídia não encontrada.', 404);
+        return await messageMedia.serve({ res, agencyId: who.agencyId, workspace: id, message, attachment: url.searchParams.get('download') === '1' });
+      }
       // Os grupos são de quem planeja eventos; o resto da conexão, de quem cuida das configurações.
       const who = await workspaceAccess(req, res, id, { modules: method === 'GET' && op === 'groups' ? ['marketing', 'conversations'] : ['settings'] });
       if (method === 'POST' && op === 'test') requireModule(who, 'conversations');

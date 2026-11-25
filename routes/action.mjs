@@ -5,12 +5,13 @@
 import { requireWorkspaceCommand, workspaceView } from '../authorization.mjs';
 import { inboundAddress } from '../email-inbound.mjs';
 import { r2KeysOf } from '../media-model.mjs';
+import { mediaMessageIds } from '../message-media.mjs';
 import { eachStep } from '../ui/workflow-data.js';
 import { NEXT_ROUTE } from './next-route.mjs';
 
 export function createActionRoutes(deps) {
   const {
-    store, r2, clearVideoChunks, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess
+    store, r2, messageMedia, clearVideoChunks, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess
   } = deps;
   return async function actionRoute({ req, res, p, method, url, id, json, send }) {
     if (p==='/api/action' && method==='POST') {
@@ -37,7 +38,11 @@ export function createActionRoutes(deps) {
       const removedVideo = command.type === 'delete' && command.key === 'videoTestimonials' ? (await store.load(id)).videoTestimonials?.find(row => row.id === command.id) : null;
       const dropsFiles = (command.type === 'delete' && command.key === 'files') || command.type === 'media-empty-trash';
       const keysBefore = dropsFiles && r2 ? r2KeysOf((await store.load(id)).files) : null;
+      // A lixeira de contatos guarda as mensagens; a mídia delas sai do R2 quando saem de vez (esvaziar, excluir, 60 dias).
+      const dropsMessages = r2 && (/^contact-(trash-|restore$)/.test(command.type) || (command.key === 'contacts' && command.type === 'delete') || (command.type === 'bulk' && command.data?.operation === 'delete'));
+      const mediaBefore = dropsMessages ? mediaMessageIds(await store.load(id)) : null;
       const result = await change(id,command,who);
+      if (mediaBefore) await messageMedia.removeMissing(id, mediaBefore, mediaMessageIds(result.state));
       if (removedVideo) await clearVideoChunks(id, removedVideo);
       // Objects in R2 go when their records go (a failure only leaves an orphan object, never a broken record).
       const removedKeys = [...(keysBefore || [])].filter(key => !r2KeysOf(result.state.files).has(key));
