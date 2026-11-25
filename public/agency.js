@@ -949,7 +949,7 @@ Authorization: Bearer soci_app_…
       const removeBtn = w?.configured && cfg.hasInstance ? btn('Excluir instância', 'wa-sub-remove', `data-id="${a.id}"`) : '';
       return `<tr>
         <td><b>${h(a.name)}</b><br><small class="dim">${h(a.id)}</small></td>
-        <td>${waStatusBadge(cfg.status)}${cfg.phone ? `<br><small class="dim">+${h(cfg.phone)}</small>` : ''}</td>
+        <td>${waStatusBadge(cfg.status)}${cfg.guard?.down ? `<br><small class="form-status">${cfg.guard.reason === 'server' ? 'Servidor fora do ar' : 'Fora do ar'} desde ${h(new Date(cfg.guard.downSince).toLocaleString('pt-BR'))}</small>` : ''}${cfg.guard && (cfg.guard.recovered || cfg.guard.restarts || cfg.guard.webhookFixes) ? `<br><small class="dim" title="Proteção automática">${cfg.guard.recovered} mensagem(ns) recuperada(s) · ${cfg.guard.restarts} reinício(s) · ${cfg.guard.webhookFixes} conserto(s)</small>` : ''}${cfg.phone ? `<br><small class="dim">+${h(cfg.phone)}</small>` : ''}</td>
         <td><div class="inline-gap">${connectBtn}${removeBtn}</div></td>
         <td>${sw(`WhatsApp em ${a.name}`, cfg.enabled, `data-ag-wa-sub="${a.id}" data-field="enabled"`)}</td>
         <td>${sw(`Rebilling de WhatsApp em ${a.name}`, (D().saas.rebill?.[a.id] || []).includes('whatsapp'), `data-ag-rebill="${a.id}" data-product="whatsapp"`, !cfg.enabled)}</td>

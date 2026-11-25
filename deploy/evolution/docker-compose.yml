@@ -18,8 +18,8 @@ x-logging: &logging
 
 services:
   evolution:
-    # Versão fixa de propósito: nunca use "latest". A 2.4 passa a exigir ativação de licença.
-    image: evoapicloud/evolution-api:v2.3.7
+    # Versão fixa de propósito: nunca use "latest". A 2.3.8 corrige a instância que fica "open" e para de receber. A 2.4 exige ativação de licença.
+    image: evoapicloud/evolution-api:v2.3.8
     restart: unless-stopped
     env_file: .env
     environment:
