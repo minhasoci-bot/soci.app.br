@@ -275,6 +275,14 @@
 :root:root input[type=checkbox]:checked{box-shadow:none}
 :root:root input[type=checkbox]:focus-visible{outline:2px solid var(--g-ink);outline-offset:2px}
 :root:root input:is([type=radio],[type=range]){accent-color:var(--g-brand-fill)}
+/* checkbox com role=switch é interruptor: trilho em pílula e bolinha branca, não a caixa acima (que o deixava como um ponto rosa) */
+:root:root input[type=checkbox][role=switch]{width:36px;height:21px;border-radius:999px;background:var(--g-fill-press);box-shadow:none;transition:background-color .2s var(--ease-std)}
+:root:root input[type=checkbox][role=switch]::before{inset:3px auto 3px 3px;width:15px;height:15px;border-radius:50%;background:#fff;transform:none;box-shadow:0 1px 2px rgba(15,19,26,.25);transition:transform .28s var(--ease-out)}
+:root:root input[type=checkbox][role=switch]::after{display:none}
+:root:root input[type=checkbox][role=switch]:checked{background:var(--g-brand-fill)}
+:root:root input[type=checkbox][role=switch]:checked::before{transform:translateX(15px)}
+/* linha de interruptor: texto à esquerda e interruptor à direita (o label global do app é grid) */
+:root:root label.switch-row{display:flex;justify-content:space-between;align-items:center;gap:16px}
 /* interruptor: o botão vira vidro enquanto é pressionado */
 :root:root .ag-sw span{border-radius:var(--r-pill);background:var(--g-fill-press);transition:background-color .22s var(--ease-std)}
 :root:root .ag-sw input:checked+span{background:var(--g-brand-fill)}
