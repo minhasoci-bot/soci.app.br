@@ -1,5 +1,6 @@
 // Chat widget records and the visitor commands. A visitor's session points to the contact the chat
 // created or matched; its messages live in `messages` (channel "Live chat") so they show up in Conversas.
+import { tagsChanged } from './contact-tags.mjs';
 import { chatDefaults } from './ui/chat-widget-data.js';
 
 export const chatCollections = ['chatWidgets', 'chatSessions'];
@@ -65,7 +66,7 @@ export function chatCommand(s, command, { add, now, run }) {
     } else {
       if (!contact.phone && phone) contact.phone = phone;
       if (!contact.email && email) contact.email = email;
-      if (widget.tags.length) contact.tags = [...new Set([...(contact.tags || []), ...widget.tags])].slice(0, 20);
+      if (widget.tags.length) { const before = contact.tags || []; contact.tags = [...new Set([...before, ...widget.tags])].slice(0, 20); tagsChanged(s, contact, before, run); }
       contact.updated = now();
     }
     const session = add(s, 'chatSessions', { widgetId: widget.id, contactId: contact.id, tokenHash: d.tokenHash, page: str(d.page, 300), last: now(), messages: 1 });

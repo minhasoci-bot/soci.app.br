@@ -9,6 +9,8 @@ import { studioTemplates, studioThemes } from './ui/studio-data.js';
 import { transactionDeleted, transactionFact } from './ledger-model.mjs';
 import { optionalTaxId, sanitizeFiscal, taxIdKind } from './tax-id.mjs';
 import { afterSave, beforeDelete, bulk, companyWorkflow, crmCollections, crmFields, customData } from './crm-model.mjs';
+import { tagsChanged } from './contact-tags.mjs';
+import { paymentLinkCheckout } from './payment-link.mjs';
 import { inboxRule } from './ui/inbox-data.js';
 import { linkVisitor, saveTracking, sitePageview, trackingCollections, trackingDefaults, trackingEvent, trackingOf } from './tracking.mjs';
 import { adFormLead, leadFormCollections, newGoogleLeadKey } from './lead-forms.mjs';
@@ -341,6 +343,8 @@ function run(state, event, context = {}) {
   if (type === 'pipeline_stage_changed') ctx.stageId = context.stageId || context.stage;
   if (type === 'appointment_booked') { engine.emit(state, type, { contactId: ctx.contactId }); return; }
   engine.emit(state, type, ctx);
+  // 'Contact created' vem de quem criou o contato direto (formulário, chat, loja, importação…): as tags com que ele nasceu contam como adicionadas.
+  if (event === 'Contact created') { const contact = find(state, 'contacts', ctx.contactId); if (contact) tagsChanged(state, contact, [], run); }
   if (type === 'form_submitted') {
     const form = find(state, 'forms', ctx.formId);
     if (form?.kind === 'survey') engine.emit(state, 'survey_submitted', ctx);
@@ -368,7 +372,7 @@ export function receiveProspects(state, prospects, { opportunity: withOpportunit
     const notes = [row.website, row.address, [row.city, row.region, row.country].filter(Boolean).join(', ')].filter(Boolean).join('\n');
     const contact = reused?.id || execute(state, { type: 'save', key: 'contacts', data: { name: row.owner || row.name, email, phone, company: row.name,
       notes, tags: ['New Prospect Received'] } });
-    if (reused && !reused.tags.includes('New Prospect Received')) reused.tags.push('New Prospect Received');
+    if (reused && !reused.tags.includes('New Prospect Received')) { const before = [...reused.tags]; reused.tags.push('New Prospect Received'); tagsChanged(state, reused, before, run); }
     let opportunity = state.opportunities.some(item => item.id === previous?.opportunity && item.contactId === contact) ? previous.opportunity : '';
     if (withOpportunity && !opportunity && stage) opportunity = execute(state, { type: 'save', key: 'opportunities', data: { title: row.name,
       contactId: contact, stage: stage.id, value: 0, status: 'Open', source: 'Prospecting' } });
@@ -648,6 +652,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   if (type === 'chat-start' || type === 'chat-send') return chatCommand(s, { ...command, data:d }, { add, now, run });
   if (type === 'blog-view') return blogView(s, id);
   if (type === 'offer-checkout') return offerCheckout(s, id, d, { add, run });
+  if (type === 'payment-link-checkout') return paymentLinkCheckout(s, id, d, { add, run });
   if (type === 'offer-access') return offerAccessCommand(s, d, { run });
   if (typeof type === 'string' && /^event-(message|send|groups)-/.test(type)) return eventSendCommand(s, { ...command, data: d }, { add, zone: s.profile?.timezone || 'America/Sao_Paulo', emit: (event, ctx) => run(s, event, ctx), instant: (day, time) => zonedInstant(day, time, s.profile?.timezone || 'America/Sao_Paulo') });
   if (typeof type === 'string' && type.startsWith('event-plan-')) { const out = eventPlanCommand(s, { ...command, data:d }, { add, now, save: (key, data, itemId = '') => executeCommand(s, { type: 'save', key, id: itemId, data }, { workspace }), createSocial: data => executeCommand(s, { type: 'social-post', data }, { workspace }), emit: (event, ctx) => run(s, event, ctx), calendarInstant: (day, time) => zonedInstant(day, time, s.profile?.timezone || 'America/Sao_Paulo') }); if (out !== undefined) return out; }
@@ -891,6 +896,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
   }
   if (type === 'bulk') {
     return bulk(s, d, { add, remove, actor: command.actor, tags, stageOf: stageId => find(s,'stages',stageId),
+      tagged: (row, before) => tagsChanged(s, row, before, run),
       moved: row => run(s,'Opportunity stage changed',row) });
   }
   return other(s, command, type, key, id, d, workspace);
@@ -1060,7 +1066,7 @@ function other(s, command, type, key, id, d, workspace) {
       if (!c.email && info.email) c.email = info.email;
       if (!c.company && info.company) c.company = info.company;
       if (Object.keys(read.custom).length) c.custom = customData(s,'Contact',{ custom:{ ...(c.custom || {}), ...read.custom } });
-      if (addTags.length) c.tags = tags([...(c.tags || []), ...addTags]);
+      if (addTags.length) { const before = c.tags || []; c.tags = tags([...before, ...addTags]); tagsChanged(s, c, before, run); }
       c.updated = now();
     }
     const submission=add(s,'submissions',{ formId:id, contactId:c.id, name:info.name || c.name, email:info.email, phone:info.phone, answers:read.answers, source:str(d._source,40) || 'Link', ...(form.routes?.length ? { qualified:outcome.qualified } : {}), ...(read.result ? { result:{ score:read.result.score, max:read.result.max, percent:read.result.percent, tier:read.result.tier, categories:read.result.categories } } : {}) });

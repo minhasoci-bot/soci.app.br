@@ -7,6 +7,20 @@
   const failure = 'Não foi possível entrar com Google. Tente novamente.';
   let request;
 
+  // White Label: aberta no domínio de uma agência, a tela de entrada mostra o nome e o logotipo dela.
+  fetch('/api/marca').then(response => response.ok ? response.json() : {}).then(brand => {
+    if (!brand?.name) return;
+    const mark = document.querySelector('.brand');
+    mark.setAttribute('aria-label', brand.name);
+    mark.textContent = '';
+    if (/^data:image\/(png|jpeg|webp|gif);base64,/.test(brand.logo || '')) {
+      const logo = Object.assign(document.createElement('img'), { src: brand.logo, alt: brand.name });
+      logo.className = 'brand-logo';
+      mark.append(logo);
+    } else mark.textContent = brand.name;
+    document.title = `Entrar · ${brand.name}`;
+  }).catch(() => {});
+
   const showStatus = message => {
     status.textContent = message;
     status.hidden = !message;

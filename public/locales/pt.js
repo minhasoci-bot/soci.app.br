@@ -1089,7 +1089,7 @@ export default {
   "Escolha uma conta para ver a prévia.": "Escolha uma conta para ver a prévia.",
   "Escolha uma das opções.": "Escolha uma das opções.",
   "Escolha uma data de início e de fim válidas.": "Escolha uma data de início e de fim válidas.",
-  "Escolha uma receita pré-configurada baseada em fluxos de alto desempenho do HighLevel ou comece do zero.": "Escolha uma receita pré-configurada baseada em fluxos de alto desempenho do HighLevel ou comece do zero.",
+  "Escolha uma receita pronta, montada a partir de fluxos que funcionam bem, ou comece do zero.": "Escolha uma receita pronta, montada a partir de fluxos que funcionam bem, ou comece do zero.",
   "Escolha uma rede para começar.": "Escolha uma rede para começar.",
   "Escolha widgets na biblioteca à esquerda": "Escolha widgets na biblioteca à esquerda",
   "Escolher": "Escolher",

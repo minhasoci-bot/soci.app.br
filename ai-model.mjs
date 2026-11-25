@@ -55,7 +55,7 @@ export function editKnowledgeBase(state, operation, input) {
     if (state.knowledgeBases.length >= kbLimits.bases) fail(`A subconta guarda até ${kbLimits.bases} bases de conhecimento.`);
     const base = {
       id: randomUUID(), created: at, updated: at,
-      name: required(input.name || 'Nova base / Nueva base', kbLimits.name, 'o nome da base'),
+      name: required(input.name || 'Nova base de conhecimento', kbLimits.name, 'o nome da base'),
       description: optional(input.description, kbLimits.description, 'a descrição'),
       sources: validSources(input.sources || [])
     };
