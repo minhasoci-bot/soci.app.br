@@ -4,6 +4,7 @@
 // Os segredos ficam selados (AES-256-GCM) em `whatsapp-<agencyId>` no SQLite/Supabase.
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { execute } from './model.mjs';
+import { cleanGuard } from './whatsapp-guard.mjs';
 
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
 const digits = value => String(value || '').replace(/\D+/g, '');
@@ -138,15 +139,19 @@ function evolutionInbound(entry) {
   let jid = String(key.remoteJid || '');
   if (!jid || /@g\.us$|@broadcast$|@newsletter$/i.test(jid)) return null;
   // WhatsApp agora pode identificar o contato por LID; a Evolution manda o número real em remoteJidAlt/senderPn.
-  if (/@lid$/i.test(jid)) jid = String(key.remoteJidAlt || key.senderPn || entry.senderPn || '');
-  if (!jid || /@lid$/i.test(jid)) return null;
-  const phone = extractPhone(jid);
+  // Sem nenhum dos dois, a mensagem entra pelo LID: melhor um contato sem telefone do que uma mensagem perdida.
+  const lid = [key.remoteJid, key.remoteJidAlt].map(value => String(value || '')).find(value => /^\d+@lid$/i.test(value))?.replace(/@lid$/i, '') || '';
+  if (/@lid$/i.test(jid)) {
+    const alt = [key.remoteJidAlt, key.senderPn, entry.senderPn].map(value => String(value || '')).find(value => value && !/@lid$/i.test(value));
+    jid = alt || '';
+  }
+  const phone = jid ? extractPhone(jid) : '';
   const vote = pollVote(entry);
   const text = (vote ? `Escolheu: ${vote}` : evolutionText(entry.message)).trim().slice(0, 4000);
-  if (!phone || phone.length < 8 || !text) return null;
-  const senderName = String(entry.pushName || `+${phone}`).trim().slice(0, 120);
+  if (!text || (phone ? phone.length < 8 : !lid)) return null;
+  const senderName = String(entry.pushName || (phone ? `+${phone}` : 'Contato do WhatsApp')).trim().slice(0, 120);
   const ad = adReferral(entry);
-  return { id: String(key.id || '').slice(0, 120), phone, text, senderName, ...(ad ? { ad } : {}) };
+  return { id: String(key.id || '').slice(0, 120), phone, lid, text, senderName, at: (Number(entry.messageTimestamp) || 0) * 1000, ...(ad ? { ad } : {}) };
 }
 
 // "Click to WhatsApp" ads: the first message carries the ad in contextInfo.externalAdReply (Baileys), in the
@@ -262,6 +267,15 @@ function createEvolutionAdapter(call) {
       }
       return parsed;
     },
+    // QR que não vem (a Evolution às vezes responde vazio enquanto abre a conexão): espera e pede de novo.
+    async connectPatient(args) {
+      let parsed = await this.connect(args);
+      for (let attempt = 0; attempt < 2 && !parsed.missing && parsed.status !== 'connected' && !parsed.qrcode && !parsed.paircode; attempt++) {
+        await wait(args.pause);
+        parsed = await this.connect(args);
+      }
+      return parsed;
+    },
     async disconnect({ creds, sub }) {
       await send(creds, `/instance/logout/${name(sub)}`, { method: 'DELETE' });
     },
@@ -288,6 +302,43 @@ function createEvolutionAdapter(call) {
       const open = own.filter(row => normalizeStatus((row.instance || row).connectionStatus || (row.instance || row).status) === 'connected');
       return { ok: true, version, instances: own.length, connected: open.length, latencyMs: Date.now() - started };
     },
+    // ---------- Vigia (whatsapp-guard.mjs) ----------
+    /** Todas as instâncias do servidor: nome → { status }. */
+    async listAll({ creds }) {
+      const res = await send(creds, '/instance/fetchInstances', { timeout: 15000, bypass: true });
+      if (res.status === 404) return new Map();
+      const data = await readJsonSafe(res);
+      if (!res.ok || !Array.isArray(data)) throw fail(`A Evolution API respondeu HTTP ${res.status} ao listar as instâncias.`, 502);
+      return new Map(data.map(row => [String(row.name || row.instanceName || row.instance?.instanceName || ''), { status: normalizeStatus((row.instance || row).connectionStatus || (row.instance || row).status) }]));
+    },
+    async findMessages({ creds, sub }, { from, until, page, size }) {
+      const body = { where: { messageTimestamp: { gte: new Date(from).toISOString(), lte: new Date(until).toISOString() } }, page, offset: size };
+      const res = await send(creds, `/chat/findMessages/${name(sub)}`, { method: 'POST', body, timeout: 20000 });
+      const data = await readJsonSafe(res);
+      const records = data?.messages?.records;
+      if (!res.ok || !Array.isArray(records)) throw fail(`Não foi possível buscar as mensagens (HTTP ${res.status}).`, 502);
+      return { records, pages: Number(data.messages.pages) || 1 };
+    },
+    async webhook({ creds, sub }) {
+      const res = await send(creds, `/webhook/find/${name(sub)}`);
+      if (!res.ok) return null;
+      const data = await readJsonSafe(res);
+      return data && typeof data === 'object' ? data : null;
+    },
+    /** Pergunta que só uma conexão viva responde. true: respondeu · false: travou · null: não dá para saber. */
+    async probe({ creds, sub }) {
+      if (!sub.phone) return null;
+      try {
+        const res = await send(creds, `/chat/fetchBusinessProfile/${name(sub)}`, { method: 'POST', body: { number: sub.phone }, timeout: 20000 });
+        return res.ok ? true : res.status === 500 ? false : null;
+      } catch (err) {
+        return err?.status === 504 ? false : null;
+      }
+    },
+    async restart({ creds, sub }) {
+      const res = await send(creds, `/instance/restart/${name(sub)}`, { method: 'POST', timeout: 20000 });
+      if (!res.ok) throw fail(`Não foi possível reiniciar a instância (HTTP ${res.status}).`, 502);
+    },
     async groups({ creds, sub }) {
       const res = await send(creds, `/group/fetchAllGroups/${name(sub)}?getParticipants=false`, { timeout: 30000 });
       const data = await readJsonSafe(res);
@@ -297,7 +348,7 @@ function createEvolutionAdapter(call) {
     async send({ creds, sub, number, text, retry = true }) {
       const res = await send(creds, `/message/sendText/${name(sub)}`, { method: 'POST', body: { number, text }, retry, timeout: 25000 });
       const data = await readJsonSafe(res);
-      return { ok: res.ok, status: res.status, message: res.ok ? '' : evolutionError(data), id: String(data.key?.id || data.id || '') };
+      return { ok: res.ok, status: res.status, message: res.ok ? '' : evolutionError(data), id: String(data.key?.id || data.id || ''), jid: String(data.key?.remoteJid || '') };
     },
     // Workflows: a file by public URL (image, video, document or audio) and the "typing…" indicator.
     async sendMedia({ creds, sub, number, media }) {
@@ -375,7 +426,8 @@ function normalizeSub(workspaceId, raw) {
     status: normalizeStatus(sub.status),
     phone: digits(sub.phone),
     profileName: String(sub.profileName || '').slice(0, 120),
-    updatedAt: String(sub.updatedAt || '')
+    updatedAt: String(sub.updatedAt || ''),
+    ...(sub.guard ? { guard: cleanGuard(sub.guard) } : {})
   };
 }
 
@@ -404,13 +456,25 @@ export function createWhatsAppHandler({
   secret = process.env.GO_STORAGE_KEY,
   request = fetch,
   evolutionBaseUrl = process.env.EVOLUTION_BASE_URL || '',
-  evolutionApiKey = process.env.EVOLUTION_API_KEY || ''
+  evolutionApiKey = process.env.EVOLUTION_API_KEY || '',
+  qrPause = 2500
 }) {
   const managed = { baseUrl: String(evolutionBaseUrl || '').trim().replace(/\/+$/, ''), adminToken: String(evolutionApiKey || '').trim() };
   const hasManaged = Boolean(managed.baseUrl && managed.adminToken);
 
-  async function call(baseUrl, path, { method = 'GET', headers = {}, body, timeout = 15000, retry = false } = {}) {
+  // Disjuntor: servidor que não respondeu 3 vezes seguidas não segura os próximos envios; em 20 s tenta de novo.
+  // Só conta espera esgotada: recusa e 502/503 voltam na hora e não atrasam ninguém.
+  const breakers = new Map();
+  const breakerOf = baseUrl => { if (!breakers.has(baseUrl)) breakers.set(baseUrl, { fails: 0, until: 0 }); return breakers.get(baseUrl); };
+  const notDelivered = ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'];
+  const slow = err => ['TimeoutError', 'AbortError'].includes(err?.name) || ['ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT'].includes(networkCode(err));
+  const networkCode = err => err?.cause?.code || err?.code || 'unknown';
+
+  async function call(baseUrl, path, { method = 'GET', headers = {}, body, timeout = 15000, retry = false, bypass = false } = {}) {
     if (!baseUrl) throw fail(`Servidor ${PROVIDER_LABEL} não configurado.`, 400);
+    const breaker = breakerOf(baseUrl);
+    if (!bypass && breaker.until > Date.now()) throw Object.assign(fail(`A ${PROVIDER_LABEL} está fora do ar. Nova tentativa em instantes.`, 503), { network: 'CIRCUIT' });
+    const trip = () => { if (++breaker.fails >= 3) { breaker.fails = 0; breaker.until = Date.now() + 20_000; } };
     const allHeaders = { Accept: 'application/json', ...headers };
     if (body !== undefined) allHeaders['Content-Type'] = 'application/json';
     const attempt = async () => {
@@ -421,18 +485,22 @@ export function createWhatsAppHandler({
     let res;
     try {
       res = await attempt();
-      // Um 502/503 do proxy enquanto o container reinicia: tenta mais uma vez antes de desistir.
-      if (retry && [502, 503].includes(res.status)) { await wait(1500); res = await attempt(); }
-    } catch (err) {
-      if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
-        throw fail(`A ${PROVIDER_LABEL} não respondeu a tempo (timeout).`, 504);
-      }
-      if (retry) {
+      // Só repete o que com certeza não chegou: 503 do proxy (container reiniciando) ou conexão recusada.
+      // Um 502 ou uma conexão cortada no meio pode ter enviado; repetir duplicaria a mensagem.
+      if (retry && res.status === 503) { await wait(1500); res = await attempt(); }
+    } catch (first) {
+      let err = first;
+      if (retry && notDelivered.includes(networkCode(err))) {
         await wait(1500);
-        try { return await attempt(); } catch { /* cai no erro abaixo */ }
+        try { res = await attempt(); } catch (second) { err = second; }
       }
-      throw Object.assign(fail(`Não foi possível alcançar a ${PROVIDER_LABEL}: ${err?.message || 'erro de rede'}.`, 502), { network: err?.cause?.code || err?.code || 'unknown' });
+      if (!res) {
+        if (slow(err)) trip();
+        if (err?.name === 'TimeoutError' || err?.name === 'AbortError') throw fail(`A ${PROVIDER_LABEL} não respondeu a tempo (timeout).`, 504);
+        throw Object.assign(fail(`Não foi possível alcançar a ${PROVIDER_LABEL}: ${err?.message || 'erro de rede'}.`, 502), { network: networkCode(err) });
+      }
     }
+    breaker.fails = 0; breaker.until = 0;
     return res;
   }
 
@@ -501,6 +569,7 @@ export function createWhatsAppHandler({
       cur.tokenLast4 = '';
       cur.status = 'disconnected';
       cur.phone = '';
+      cur.guard = cleanGuard(null);
       current.subaccounts[workspaceId] = cur;
       return current;
     });
@@ -571,6 +640,11 @@ export function createWhatsAppHandler({
     }
   }
 
+  const guardView = sub => {
+    const g = cleanGuard(sub.guard);
+    return { down: g.alerted, downSince: g.downSince, reason: g.reason, recovered: g.recovered, restarts: g.restarts, webhookFixes: g.webhookFixes };
+  };
+
   function publicSubView(row, agencyId, workspaceId, publicOrigin, live = null) {
     const creds = serverCredentials(row, agencyId);
     const sub = subFor(row, workspaceId);
@@ -587,6 +661,7 @@ export function createWhatsAppHandler({
       profileName: live ? (live.profileName || sub.profileName) : sub.profileName,
       qrcode: live?.qrcode || '',
       paircode: live?.paircode || '',
+      guard: guardView(sub),
       webhookUrl: webhookUrlOf(publicOrigin, agencyId, workspaceId, sub),
       error: live?.error || ''
     };
@@ -613,6 +688,7 @@ export function createWhatsAppHandler({
           phone: sub.phone,
           profileName: sub.profileName,
           hasInstance: Boolean(sub.tokenSealed),
+          guard: guardView(sub),
           webhookUrl: webhookUrlOf(publicOrigin, agencyId, ws.id, sub)
         }];
       }))
@@ -680,24 +756,39 @@ export function createWhatsAppHandler({
     const text = typeof textRaw === 'string' ? textRaw.trim().slice(0, 4000) : '';
     if (number.length < 10 || number.length > 15) return { sent: false, reason: 'invalid-phone' };
     if (!text) return { sent: false, reason: 'empty-text' };
-    let row = await ensureRow(agencyId);
-    const creds = serverCredentials(row, agencyId);
-    let sub = subFor(row, workspaceId);
-    const token = instanceTokenOf(row, agencyId, workspaceId);
-    if (!creds.configured || !sub.enabled || !token) return { sent: false, reason: 'not-connected' };
-    if (sub.status !== 'connected') {
-      // O status salvo pode estar velho (webhook perdido durante uma queda): confere ao vivo antes de recusar.
-      const live = await fetchLiveSubStatus(row, agencyId, workspaceId);
-      if (live.status !== 'connected') return { sent: false, reason: 'not-connected' };
-      row = await ensureRow(agencyId);
-      sub = subFor(row, workspaceId);
+    const sender = await workspaceSender(agencyId, workspaceId, accountIsActive);
+    if (sender.reason) return { sent: false, reason: sender.reason };
+    const result = await sendOnce(sender, agencyId, workspaceId, number, () => adapter.send({ ...sender, number, text }));
+    if (result.outcome === 'sent') return { sent: true, id: result.id };
+    if (result.outcome === 'failed' && !result.wrongRecipient) throw fail(`Falha ao enviar pelo WhatsApp: ${result.error}`, 502);
+    return { sent: false, reason: result.wrongRecipient ? 'wrong-recipient' : { waiting: 'not-connected', retry: 'server-down' }[result.outcome] || 'unconfirmed' };
+  }
+
+  // A Evolution já entregou no próprio número em vez do contato (issue 2496): 200 não prova o destinatário.
+  // O nono dígito some em números antigos do Brasil, por isso compara os 8 últimos.
+  const tail = value => digits(value).slice(-8);
+  const reachedOther = (jid, number) => /@s\.whatsapp\.net$/i.test(jid) && tail(extractPhone(jid)) !== tail(number);
+
+  /**
+   * Um envio, classificado. Nunca lança. sent: saiu · waiting: número fora do ar · retry: com certeza não saiu ·
+   * unconfirmed: pode ter saído, não repetir sozinho · failed: recusada.
+   */
+  async function sendOnce(sender, agencyId, workspaceId, number, attempt) {
+    const result = (outcome, error = '', id = '', extra = {}) => ({ outcome, id, error: String(error).slice(0, 200), ...extra });
+    try {
+      const res = await attempt();
+      if (res.ok) return reachedOther(res.jid || '', number) ? result('failed', 'A Evolution entregou a mensagem em outro número.', res.id, { wrongRecipient: true }) : result('sent', '', res.id);
+      if (/connection closed/i.test(res.message)) return result('waiting', 'WhatsApp desconectado.');
+      // Pode ser a conexão (chave trocada, instância apagada) ou o destino (grupo que acabou). Só a conexão fora do ar vale esperar.
+      if ([401, 403, 404].includes(res.status)) {
+        const live = await fetchLiveSubStatus(await ensureRow(agencyId), agencyId, workspaceId);
+        if (live.reachable === false || live.status !== 'connected') return result('waiting', 'A conexão do WhatsApp recusou o envio.');
+      }
+      if (res.status === 503) return result('retry', 'O servidor do WhatsApp está reiniciando.');
+      return result(res.status >= 500 || [408, 429].includes(res.status) ? 'unconfirmed' : 'failed', res.message || `Resposta HTTP ${res.status}.`);
+    } catch (err) {
+      return result([...notDelivered, 'CIRCUIT'].includes(err?.network) ? 'retry' : 'unconfirmed', err?.message || 'Falha no envio.');
     }
-    if (!await accountIsActive(agencyId, workspaceId)) return { sent: false, reason: 'account-suspended' };
-    const result = await adapter.send({ creds, token, sub, number, text });
-    if (!result.ok) {
-      throw fail(`Falha ao enviar pelo WhatsApp (HTTP ${result.status})${result.message ? `: ${result.message}` : ''}.`, 502);
-    }
-    return { sent: true, id: result.id };
   }
 
   /** Planejador de eventos: grupos do número conectado, por nome. */
@@ -720,22 +811,112 @@ export function createWhatsAppHandler({
     try {
       const sender = await workspaceSender(agencyId, workspaceId, accountIsActive);
       if (sender.reason) return result('waiting', sender.reason === 'account-suspended' ? 'Conta suspensa.' : 'WhatsApp desconectado.');
-      const res = part.kind === 'poll'
-        ? await adapter.interactive({ ...sender, number, retry: false, message: { kind: 'poll', body: part.question, options: part.options } })
-        : await adapter.send({ ...sender, number, text: part.text, retry: false });
-      if (res.ok) return result('sent', '', res.id);
-      if (/connection closed/i.test(res.message)) return result('waiting', 'WhatsApp desconectado.');
-      // Pode ser a conexão (chave trocada, instância apagada) ou o destino (grupo que acabou). Só a conexão fora do ar vale esperar.
-      if ([401, 403, 404].includes(res.status)) {
-        const live = await fetchLiveSubStatus(await ensureRow(agencyId), agencyId, workspaceId);
-        if (live.reachable === false || live.status !== 'connected') return result('waiting', 'A conexão do WhatsApp recusou o envio.');
-      }
-      if (res.status === 503) return result('retry', 'O servidor do WhatsApp está reiniciando.');
-      return result(res.status >= 500 || [408, 429].includes(res.status) ? 'unconfirmed' : 'failed', res.message || `Resposta HTTP ${res.status}.`);
+      const { outcome, error, id } = await sendOnce(sender, agencyId, workspaceId, number, () => part.kind === 'poll'
+        ? adapter.interactive({ ...sender, number, retry: false, message: { kind: 'poll', body: part.question, options: part.options } })
+        : adapter.send({ ...sender, number, text: part.text, retry: false }));
+      return result(outcome, error, id);
     } catch (err) {
-      return result(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'].includes(err?.network) ? 'retry' : 'unconfirmed', err?.message || 'Falha no envio.');
+      return result([...notDelivered, 'CIRCUIT'].includes(err?.network) ? 'retry' : 'unconfirmed', err?.message || 'Falha no envio.');
     }
   }
+
+  // ---------- Vigia (whatsapp-guard.mjs) ----------
+
+  /** Guarda mensagens recebidas, do webhook ou da busca. Devolve quantas são novas. */
+  async function ingestItems(workspaceId, items, { recovered = false } = {}) {
+    let stored = 0;
+    await store.change(workspaceId, state => {
+      stored = 0;
+      for (const { id, phone, lid, text, senderName, ad, at } of items) {
+        // A Evolution repete o webhook quando não recebe a resposta a tempo: a mesma mensagem entra uma vez só.
+        if (id && state.messages.some(m => m.waId === id)) continue;
+        // Sem identificador não há como saber se já entrou: a busca não arrisca repetir.
+        if (recovered && !id) continue;
+        let contact = phone ? state.contacts.find(c => digits(c.phone) === phone) : null;
+        if (!contact && lid) contact = state.contacts.find(c => c.waLid === lid);
+        if (!contact) {
+          const contactId = execute(state, {
+            type: 'save',
+            key: 'contacts',
+            data: { name: senderName, phone: phone ? `+${phone}` : '', tags: phone ? ['WhatsApp'] : ['WhatsApp', 'Sem telefone'] }
+          });
+          contact = state.contacts.find(c => c.id === contactId);
+        }
+        if (!contact) continue;
+        if (lid) contact.waLid = lid;
+        // O número de um contato que entrou pelo LID apareceu depois.
+        if (phone && !contact.phone) {
+          contact.phone = `+${phone}`;
+          contact.tags = (contact.tags || []).filter(tag => tag !== 'Sem telefone');
+        }
+        const messageId = execute(state, {
+          type: 'message',
+          data: { contactId: contact.id, channel: 'WhatsApp', direction: 'Inbound', body: text }
+        });
+        const message = state.messages.find(m => m.id === messageId);
+        if (message && id) message.waId = id;
+        // Recuperada: fica na hora em que o contato escreveu, não na hora em que foi achada.
+        if (message && recovered && at > 0) { message.created = new Date(at).toISOString(); message.recovered = true; }
+        stored++;
+        // A message that came from a "Click to WhatsApp" ad: its own trigger and the ad in the contact's attribution.
+        if (ad) execute(state, { type: 'whatsapp-ad-click', data: { contactId: contact.id, ...ad, body: text } });
+      }
+    });
+    return stored;
+  }
+
+  const guardOps = {
+    /** Subcontas com instância e WhatsApp ligado, sem criar registro para quem nunca usou. */
+    async guardTargets(agencyId, workspaceIds, active) {
+      let row;
+      try { row = normalizeRow(await store.load(rowId(agencyId))); }
+      catch (error) { if (error?.status === 404) return []; throw error; }
+      const creds = serverCredentials(row, agencyId);
+      if (!creds.configured) return [];
+      const targets = [];
+      for (const workspaceId of workspaceIds) {
+        if (!row.subaccounts[workspaceId]) continue;
+        const sub = subFor(row, workspaceId), token = instanceTokenOf(row, agencyId, workspaceId);
+        if (!sub.enabled || !token) continue;
+        if (active && !await active(agencyId, workspaceId)) continue;
+        targets.push({ agencyId, workspaceId, creds, sub, token });
+      }
+      return targets;
+    },
+    liveAll: creds => adapter.listAll({ creds }),
+    findMessages: (ctx, range) => adapter.findMessages(ctx, range),
+    ingestEntries: (workspaceId, entries, options) => {
+      const items = entries.map(evolutionInbound).filter(Boolean);
+      return items.length ? ingestItems(workspaceId, items, options) : 0;
+    },
+    /** Webhook apagado, desligado ou com outro segredo: registra de novo. Mantém o domínio https que já estava lá. */
+    async repairWebhook(ctx, publicOrigin) {
+      const now = await adapter.webhook(ctx);
+      let origin = publicOrigin;
+      try { const url = new URL(now?.url || ''); if (url.protocol === 'https:') origin = url.origin; } catch { /* sem webhook válido */ }
+      const webhookUrl = webhookUrlOf(origin, ctx.agencyId, ctx.workspaceId, ctx.sub);
+      if (!isHttps(webhookUrl)) return false;
+      const events = Array.isArray(now?.events) ? now.events : [];
+      if (now && now.enabled !== false && now.url === webhookUrl && EVOLUTION_EVENTS.every(event => events.includes(event))) return false;
+      await adapter.setWebhook({ ...ctx, webhookUrl });
+      return true;
+    },
+    probe: ctx => adapter.probe(ctx),
+    restart: ctx => adapter.restart(ctx),
+    deliver(ctx, phoneRaw, text) {
+      const number = digits(phoneRaw);
+      if (number.length < 10 || number.length > 15) return { outcome: 'failed', error: 'Telefone inválido.' };
+      return sendOnce(ctx, ctx.agencyId, ctx.workspaceId, number, () => adapter.send({ ...ctx, number, text: String(text || '').slice(0, 4000), retry: false }));
+    },
+    saveGuards: (agencyId, updates) => changeRow(agencyId, row => {
+      for (const [workspaceId, guard] of Object.entries(updates)) {
+        const sub = row.subaccounts[workspaceId];
+        // Desligado de propósito no meio da rodada: a vigia não ressuscita o histórico.
+        if (sub?.tokenSealed) sub.guard = cleanGuard(guard);
+      }
+      return row;
+    })
+  };
 
   async function handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json, onStored = null }) {
     const rawPath = resolvePath(url);
@@ -774,35 +955,7 @@ export function createWhatsAppHandler({
       return json({ ok: true, ignored: true });
     }
 
-    let stored = 0;
-    await store.change(workspaceId, state => {
-      stored = 0;
-      for (const { id, phone, text, senderName, ad } of event.items) {
-        // A Evolution repete o webhook quando não recebe a resposta a tempo: a mesma mensagem entra uma vez só.
-        if (id && state.messages.some(m => m.waId === id)) continue;
-        let contact = state.contacts.find(c => digits(c.phone) === phone && phone.length >= 8);
-        if (!contact) {
-          const contactId = execute(state, {
-            type: 'save',
-            key: 'contacts',
-            data: { name: senderName, phone: `+${phone}`, tags: ['WhatsApp'] }
-          });
-          contact = state.contacts.find(c => c.id === contactId);
-        }
-        if (contact) {
-          const messageId = execute(state, {
-            type: 'message',
-            data: { contactId: contact.id, channel: 'WhatsApp', direction: 'Inbound', body: text }
-          });
-          const message = id && state.messages.find(m => m.id === messageId);
-          if (message) message.waId = id;
-          stored++;
-          // A message that came from a "Click to WhatsApp" ad: its own trigger and the ad in the contact's attribution.
-          if (ad) execute(state, { type: 'whatsapp-ad-click', data: { contactId: contact.id, ...ad, body: text } });
-        }
-      }
-    });
-
+    const stored = await ingestItems(workspaceId, event.items);
     if (!stored) return json({ ok: true, ignored: true, reason: 'DUPLICATE' });
     // Workflows the message started (Cliente respondeu, anúncio…) deliver now, not on the next tick.
     onStored?.(workspaceId);
@@ -915,12 +1068,20 @@ export function createWhatsAppHandler({
       await requireActiveAccount(agencyId, workspaceId, true, 'conversations');
       let ctx = await ensureInstance(agencyId, workspaceId, publicOrigin);
       await requireActiveAccount(agencyId, workspaceId, true, 'conversations');
-      let parsed = await adapter.connect({ ...ctx, phone });
+      let parsed = await adapter.connectPatient({ ...ctx, phone, pause: qrPause });
+      const empty = p => !p.missing && p.status !== 'connected' && !p.qrcode && !p.paircode;
+      if (empty(parsed) && !ctx.sub.phone && !cleanGuard(ctx.sub.guard).openSince) {
+        // Instância que nunca pareou e não gera QR: apaga e cria outra. A que já pareou nunca é apagada sozinha.
+        await adapter.remove(ctx).catch(() => {});
+        await forgetInstance(agencyId, workspaceId);
+        ctx = await ensureInstance(agencyId, workspaceId, publicOrigin);
+        parsed = await adapter.connectPatient({ ...ctx, phone, pause: qrPause });
+      }
       if (parsed.missing) {
         // A instância foi apagada no servidor: recria uma vez e tenta de novo.
         await forgetInstance(agencyId, workspaceId);
         ctx = await ensureInstance(agencyId, workspaceId, publicOrigin);
-        parsed = await adapter.connect({ ...ctx, phone });
+        parsed = await adapter.connectPatient({ ...ctx, phone, pause: qrPause });
         if (parsed.missing) throw fail('A instância do WhatsApp não foi encontrada no servidor.', 502);
       }
       const nextStatus = parsed.status === 'connected' ? 'connected' : 'connecting';
@@ -936,7 +1097,10 @@ export function createWhatsAppHandler({
         const sub = subFor(row, workspaceId);
         await adapter.disconnect({ creds, token, sub }).catch(() => {});
       }
-      const saved = await saveLive(agencyId, workspaceId, { status: 'disconnected' });
+      await saveLive(agencyId, workspaceId, { status: 'disconnected' });
+      // Desconectou porque quis: a vigia para de cuidar até conectar de novo.
+      const saved = await changeRow(agencyId, current => { current.subaccounts[workspaceId].guard = cleanGuard(null); return current; });
+      try { await store.change(workspaceId, state => { delete state.whatsappHealth; }); } catch { /* o aviso some na próxima conexão */ }
       return json(publicSubView(saved, agencyId, workspaceId, publicOrigin, { status: 'disconnected', qrcode: '', paircode: '', phone: '', profileName: '' }));
     }
 
@@ -962,5 +1126,5 @@ export function createWhatsAppHandler({
     throw fail('Rota do WhatsApp não encontrada.', 404);
   }
 
-  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, sendWorkspaceText, sendWorkspaceMedia, sendWorkspacePresence, sendWorkspaceInteractive, listWorkspaceGroups, sendEventMessage };
+  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, sendWorkspaceText, sendWorkspaceMedia, sendWorkspacePresence, sendWorkspaceInteractive, listWorkspaceGroups, sendEventMessage, guardOps };
 }
