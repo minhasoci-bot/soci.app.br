@@ -14,7 +14,7 @@ import { pranchetaFileRecord, createCanonicalTemplates, checkPranchetaSave, appl
 import { walletKeys, walletProducts, walletSummary } from './wallet-model.mjs';
 import { labCatalog, labModes } from './ui/labs-data.js';
 import { deleteStudioApp, marketplaceFor, publishStudioApp, rotateAppSecret, saveStudioApp } from './app-studio-model.mjs';
-import {
+import { apiScopes,
   accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog,
   mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys,
   appScopes, maxMarkup, rebillProducts, subFeatures, workflowBuilders
@@ -64,7 +64,7 @@ export function blankAgency() {
     company: { name: 'My Agency', brand: platformBrand, domain: '', website: '', phone: '', address: '', primary: defaultPrimary, secondary: defaultSecondary, accent: defaultAccent, logo: '', timezone: 'America/Sao_Paulo', currency: defaults.profile.currency },
     fiscal: null, ledgerOutbox: [],
     accounts: {}, plans: [], snapshots: [], snapshotLoads: [], prospects: [], partners: [], ideas: [], menuLinks: [], announcements: [],
-    users: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], audit: [], brandGroups: [], presentations: [], pranchetaFiles: [],
+    users: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], mcpGrants: [], audit: [], brandGroups: [], presentations: [], pranchetaFiles: [],
     reselling: Object.fromEntries(resellProducts.map(p => [p.key, { price: p.base, disabled: [] }])),
     affiliate: { accepted: false, steps: {}, code: '', payout: { method: 'PayPal', email: '' }, payments: [] },
     learning: { completed: [] },
@@ -784,7 +784,7 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
     }
     case 'private-integration': {
       if (state.privateIntegrations.length >= 20) fail('Delete an integration before creating another.');
-      const scopes = (Array.isArray(d.scopes) ? d.scopes : []).filter(s => ['subaccounts.read', 'contacts.read', 'contacts.write'].includes(s));
+      const scopes = (Array.isArray(d.scopes) ? d.scopes : []).filter(s => apiScopes.some(([key]) => key === s));
       if (!scopes.length) fail('Choose at least one scope.');
       const secret = `pit_${randomBytes(24).toString('hex')}`;
       const row = { id: uid(), name: req(d.name, 'Integration name', 80), description: str(d.description, 500), scopes, hash: hash(secret), last4: secret.slice(-4), created: now(), lastUsed: '' };

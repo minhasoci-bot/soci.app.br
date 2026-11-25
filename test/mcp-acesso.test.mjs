@@ -131,3 +131,34 @@ test('MCP: o erro de uma ferramenta não mostra caminhos do servidor', async t =
   assert.equal(response.body.result.isError, true);
   assert.doesNotMatch(response.body.result.content[0].text, /\.mjs|file:|\n\s+at /);
 });
+
+test('MCP: usar a chave várias vezes seguidas não regrava a agência a cada chamada', async t => {
+  const { store, tool, workspace, agencyAction, ownerA } = await start(t);
+  const { secret } = await agencyAction(ownerA, { type: 'api-key', data: { name: 'Claude' } });
+  const used = () => store.load('agency').apiKeys[0].lastUsed;
+  await tool(workspace, 'list_crm_contacts', {}, { headers: bearer(secret) });
+  const first = used();
+  assert.ok(first);
+  await new Promise(resolve => setTimeout(resolve, 5));
+  await tool(workspace, 'list_crm_contacts', {}, { headers: bearer(secret) });
+  assert.equal(used(), first);
+});
+
+test('MCP: os escopos da integração privada cobrem cada módulo, separados em ler e gravar', async t => {
+  const { store, post, tool, workspace, agencyAction, ownerA } = await start(t);
+  const { secret } = await agencyAction(ownerA, { type: 'private-integration', data: { name: 'Posts', scopes: ['marketing.write', 'opportunities.read', 'inventado.write'] } });
+  const headers = bearer(secret);
+  assert.deepEqual(store.load('agency').privateIntegrations[0].scopes, ['marketing.write', 'opportunities.read']);
+  assert.equal((await tool(workspace, 'create_social_post', { summary: 'x', accountIds: [], mode: 'draft' }, { headers })).body.result.isError, false);
+  assert.equal((await tool(workspace, 'list_pipelines', {}, { headers })).body.result.isError, false);
+  assert.equal((await tool(workspace, 'list_crm_contacts', {}, { headers })).body.result.isError, true);
+  const { result } = (await post(`/api/mcp/${workspace}`, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, { headers })).body;
+  assert.deepEqual(result.tools.map(item => item.name).sort(), ['create_social_post', 'list_opportunities', 'list_pipelines', 'reschedule_social_post', 'review_social_post']);
+});
+
+test('MCP: toda ferramenta tem um escopo que existe na tela de integrações', async () => {
+  const { apiScopes } = await import('../ui/agency-data.js');
+  const { mcpTools } = await import('../mcp-tools.mjs');
+  const known = new Set(apiScopes.map(([key]) => key));
+  for (const item of mcpTools) assert.ok(known.has(item.scope), `${item.name}: ${item.scope}`);
+});
