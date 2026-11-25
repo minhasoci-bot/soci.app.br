@@ -1079,7 +1079,9 @@ Authorization: Bearer soci_app_…
           </div>
         </div>`, `<button type="button" class="secondary" data-ag-brand-reset>${i('undo')} Restaurar paleta oficial</button>`)}
         ${section('whitelabel', 'White Label das subcontas', 'O endereço e o logotipo que as subcontas veem no lugar da marca da plataforma.', `<div class="field-grid">
-          <label>Domínio para subcontas<input name="domain" placeholder="app.suaagencia.com.br" value="${h(c.domain)}"></label>
+          <div><label>Domínio para subcontas<input name="domain" placeholder="app.suaagencia.com.br" value="${h(c.domain)}" aria-describedby="ag-domain-hint"></label>
+            ${c.domain ? `<p class="inline-gap"><button type="button" class="secondary" data-ag-domain-check>${i('check')} Verificar domínio</button></p><p class="dim" data-ag-domain-status role="status"></p>` : ''}
+            <small class="dim" id="ag-domain-hint">No DNS do domínio, crie um registro CNAME apontando para cname.vercel-dns.com.</small></div>
           <div class="ag-company-logo">
             <span class="ag-logo-preview">${c.logo ? `<img src="${h(c.logo)}" alt="Logotipo das subcontas">` : i('upload')}</span>
             <div>
@@ -1266,6 +1268,20 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const profBtn = ev.target.closest('[data-ag-profile]');
     if (profBtn) { go('settings', 'company'); return; }
 
+    const domainCheck = ev.target.closest('[data-ag-domain-check]');
+    if (domainCheck) {
+      const out = domainCheck.parentElement.parentElement.querySelector('[data-ag-domain-status]');
+      domainCheck.disabled = true;
+      out.textContent = tr('Verificando…');
+      try {
+        const { result: s } = await api('/api/agency/domain-status', {});
+        out.textContent = tr(!s.hosting ? 'A conexão automática com a hospedagem não está ativa: peça ao suporte da soci para adicionar o domínio.'
+          : !s.added ? 'O domínio ainda não foi adicionado à hospedagem. Salve de novo em alguns minutos.'
+          : s.pointing && s.verified ? 'Pronto: o domínio aponta para a soci.' : 'Aguardando o CNAME: a mudança de DNS pode levar algumas horas.');
+      } catch (problem) { out.textContent = problem.message; }
+      domainCheck.disabled = false;
+      return;
+    }
     const brandReset = ev.target.closest('[data-ag-brand-reset]');
     if (brandReset) {
       const form = brandReset.closest('form[data-ag-form="company"]');

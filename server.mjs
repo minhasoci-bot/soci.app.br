@@ -18,6 +18,8 @@ import { createWebinarRoutes } from './routes/webinars.mjs';
 import { createQrRoutes } from './routes/qr.mjs';
 import { createAffiliateRoutes } from './routes/affiliates.mjs';
 import { createOfferApiRoutes, createOfferPageRoutes } from './routes/offers.mjs';
+import { createPaymentLinkRoutes } from './routes/payment-links.mjs';
+import { hostingDomains, requestHost, requireFreeDomain, whiteLabelBrand, whiteLabelHost } from './white-label.mjs';
 import { createBookingRoutes } from './routes/booking.mjs';
 import { createPreferenceRoutes } from './routes/preferences.mjs';
 import { createAgencyAppRoutes } from './routes/agency-apps.mjs';
@@ -278,7 +280,7 @@ export function makeServer({
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   evolutionBaseUrl=process.env.EVOLUTION_BASE_URL || '', evolutionApiKey=process.env.EVOLUTION_API_KEY || '',
   portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(), campaignMail=campaignMailer(),
-  allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1', r2=r2FromEnv()
+  allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1', r2=r2FromEnv(), hosting=hostingDomains()
 }={}) {
   const cronReads = scopedReads(store);
   store = cronReads.store;
@@ -1056,6 +1058,10 @@ export function makeServer({
       const shareCode = input.type === 'snapshot-import' && typeof input.data?.code === 'string' ? input.data.code.trim().toLowerCase() : '';
       const shared = /^[0-9a-f]{12}$/.test(shareCode) ? await store.findAgency({ snapshots: [{ shareCode, shared: true }] }) : null;
       const sharedSnapshot = shared?.state.snapshots.find(item => item.shareCode === shareCode && item.shared);
+      // White Label: o domínio das subcontas é de uma agência só, e a hospedagem passa a atendê-lo.
+      const newDomain = input.type === 'company' && input.data?.domain !== undefined ? whiteLabelHost(input.data.domain) : null;
+      if (newDomain) await requireFreeDomain(store, newDomain, who.agencyId);
+      const priorDomain = newDomain ? (await loadAgency(who.agencyId)).company?.domain || '' : '';
       const outcome = await changeAgency(who.agencyId, agency => {
         const currentActor = userAccess(agency, who.userId);
         if (!currentActor) throw error('The selected user no longer exists.',403);
@@ -1072,6 +1078,7 @@ export function makeServer({
       // Reselling prices are copied into each sub-account's wallet.
       if (['saas-rebilling', 'rebill-account'].includes(input.type)) await syncWallets(who.agencyId, workspaces);
       if (input.type === 'labs') await syncLabs(who.agencyId, workspaces);
+      if (newDomain && newDomain !== priorDomain) await hosting.add(newDomain).catch(problem => console.error('white-label domain:', newDomain, problem.message));
       // An edited app reaches the sub-accounts where it is installed (new actions, triggers, events, link).
       if (input.type === 'studio-app-save') {
         const agency = await loadAgency(who.agencyId), app = agency.studioApps.find(row => row.id === outcome);
@@ -1080,6 +1087,11 @@ export function makeServer({
         }
       }
       return outcome;
+    }
+    // White Label: o domínio das subcontas está na hospedagem e o DNS já aponta para cá?
+    if (op === 'domain-status') {
+      requireCapability(who, 'settings', 'Seu usuário não pode ver as configurações da agência.');
+      return hosting.status((await loadAgency(who.agencyId)).company?.domain || '');
     }
     // App Studio: the signing secret of one app, for the agency's developers to check the deliveries.
     if (op === 'studio-app-secret') {
@@ -2219,6 +2231,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const affiliateRoute = createAffiliateRoutes({ store, ready, error, workspaceSegment, allowSign, change, flushLater, payload, publicAccountPolicy, publicBase, referralsOf });
   const offerPageRoute = createOfferPageRoutes({ store, ready, error, workspaceSegment, clientPortal, publicAccountPolicy, withPixels });
   const offerApiRoute = createOfferApiRoutes({ store, ready, error, workspaceSegment, abacate, change, grantOffer, payload, publicAccountPolicy, publicBase });
+  const paymentLinkRoute = createPaymentLinkRoutes({ store, ready, error, workspaceSegment, abacate, change, payload, publicAccountPolicy, publicBase, clientPortal, withPixels });
   const bookingRoute = createBookingRoutes({ store, ready, error, workspaceSegment, allowSign, change, flushLater, formBody, leave, publicAccountPolicy, withPixels });
   const preferenceRoute = createPreferenceRoutes({ store, ready, error, workspaceSegment, change, flushLater, formBody, publicAccountPolicy });
   const agencyAppRoute = createAgencyAppRoutes({ store, auth, ready, error, loadAgency });
@@ -2369,6 +2382,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const created = await change(account,{ type:'save', key:'contacts', data: input });
         return json({ id: created.id },201);
       }
+      // White Label: o login aberto no domínio de uma agência mostra a marca dela.
+      if (p === '/api/marca' && method === 'GET') { await ready; return json(await whiteLabelBrand(store, requestHost(req))); }
       if (p.startsWith('/api/auth/')) {
         if (!auth) throw error('O login do Supabase ainda não foi configurado.',503);
         const operation = p.slice('/api/auth/'.length);
@@ -2564,7 +2579,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const op = p.slice('/api/agency/'.length), body = await payload(req);
         const result = await agencyRequest(op, who, body);
         // Opening a sub-account only stamps lastLogin; skip rebuilding the full agency payload (it loads every sub-account).
-        if (op === 'action' && body?.type === 'account-open') return json({ result });
+        if ((op === 'action' && body?.type === 'account-open') || op === 'domain-status') return json({ result });
         return json(await agencyPayload(req,res, { result }));
       }
       if (p.startsWith('/api/abacatepay/webhook/') && method === 'POST') {
@@ -2795,6 +2810,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (certificateRouteHandled !== NEXT_ROUTE) return certificateRouteHandled;
       const offerApiRouteHandled = await offerApiRoute({ req, p, method, json });
       if (offerApiRouteHandled !== NEXT_ROUTE) return offerApiRouteHandled;
+      const paymentLinkHandled = await paymentLinkRoute({ req, res, p, method, url, json });
+      if (paymentLinkHandled !== NEXT_ROUTE) return paymentLinkHandled;
       const storeApiHandled = await storeApiRoute({ req, p, method, json });
       if (storeApiHandled !== NEXT_ROUTE) return storeApiHandled;
       const shareRouteHandled = await shareRoute({ res, p, method, url });

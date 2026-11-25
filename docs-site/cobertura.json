@@ -51,10 +51,9 @@
   {
     "grupo": "agencia",
     "artigo": "dominio-proprio",
-    "titulo": "Usar o seu domínio",
+    "titulo": "Usar o domínio da agência no endereço das subcontas",
     "fase": "F2",
-    "status": "pendente",
-    "nota": "Aguardando o app: o Domínio para subcontas é gravado em Empresa e marca, mas o servidor ainda não abre as subcontas nesse domínio."
+    "status": "escrito"
   },
   {
     "grupo": "agencia",
@@ -136,10 +135,9 @@
   {
     "grupo": "pagamentos",
     "artigo": "links-de-pagamento",
-    "titulo": "Links de pagamento",
+    "titulo": "Vender com um link de pagamento",
     "fase": "F2",
-    "status": "pendente",
-    "nota": "Aguardando o app: a aba mostra \"Neste projeto local os links ficam registrados\" também em produção e o link não gera checkout."
+    "status": "escrito"
   },
   {
     "grupo": "pagamentos",

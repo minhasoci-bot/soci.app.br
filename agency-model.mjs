@@ -13,6 +13,7 @@ import { isDeck, sanitizeDeck, applyOps as applyDeckOps, LIMITS as DECK_LIMITS }
 import { pranchetaFileRecord, createCanonicalTemplates, checkPranchetaSave, applyPranchetaSave, isThumbnailOnlySave } from './prancheta-model.mjs';
 import { walletKeys, walletProducts, walletSummary } from './wallet-model.mjs';
 import { labCatalog, labModes } from './ui/labs-data.js';
+import { whiteLabelHost } from './white-label.mjs';
 import { deleteStudioApp, marketplaceFor, publishStudioApp, rotateAppSecret, saveStudioApp } from './app-studio-model.mjs';
 import { apiScopes,
   accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog,
@@ -540,7 +541,7 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       return 'fiscal';
     }
     case 'company': {
-      Object.assign(state.company, { name: req(d.name, 'Nome da empresa', 120), brand: platformBrand, domain: str(d.domain, 200).toLowerCase(),
+      Object.assign(state.company, { name: req(d.name, 'Nome da empresa', 120), brand: platformBrand, domain: d.domain === undefined ? state.company.domain || '' : whiteLabelHost(d.domain),
         website: url(d.website, 'Website'), phone: str(d.phone, 48), address: str(d.address, 300), primary: color(d.primary),
         secondary: d.secondary === undefined ? state.company.secondary || defaultSecondary : color(d.secondary),
         accent: d.accent === undefined ? state.company.accent || defaultAccent : color(d.accent),
