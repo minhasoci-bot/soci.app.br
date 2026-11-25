@@ -55,7 +55,7 @@ export default {
       await page.locator('[data-mc="publish"]').first().click();
       await page.waitForTimeout(1500);
       // O endereço local muda de porta a cada captura: o print mostra um endereço de exemplo.
-      await page.locator('.mc-link code').evaluate(no => { no.textContent = 'https://app.agenciademo.com.br/mobile/agencia/'; });
+      await page.locator('.mc-link code').evaluate(no => { no.textContent = 'https://app.exemplo.test/mobile/agencia/'; });
     }, destacar: '.mc-link' },
     { nome: 'app-no-celular', acao: async page => {
       const app = hash => `/app?shell=mobile&agency=agency&workspace=${encodeURIComponent(new URL(page.url()).searchParams.get('workspace') || '')}${hash}`;
