@@ -20,7 +20,7 @@ import { enhanceCode } from './bui-mounts.js';
 import { brandGroupCsv, brandGroupHtml, groupPeriods } from './brand-group-data.js';
 import { presentationsHtml, attachPresentationListeners, closePresentationEditor } from './presentations.js';
 import { pranchetaScreen } from './prancheta.js';
-import {
+import { apiScopes,
   affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, learningTracks,
   marketplaceCategories, resellProducts, snapshotAssets, snapshotAssetGroups, subAccountModules, systemEmailKeys,
   appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav, walletProducts
@@ -1561,7 +1561,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'wallet': dialog('Lançamento na carteira', `<div class="field-grid"><label>Tipo de operação<select name="kind"><option value="Credit">Crédito</option><option value="Charge">Débito</option></select></label><label>Valor (R$)<input name="amount" type="number" min="0.01" step="0.01" required></label></div><label>Observação<input name="note" maxlength="200"></label>`, { form: 'wallet', submit: 'Registrar lançamento' }); break;
         case 'api-key': dialog('Criar chave de API', '<label>Identificação da chave<input name="name" required maxlength="80"></label>', { form: 'api-key', submit: 'Criar chave' }); break;
         case 'api-key-delete': confirmBox('Revogar esta chave de API?', 'Sistemas ou integrações que utilizam esta chave deixarão de funcionar imediatamente.', 'api-key-delete', id, 'Revogar'); break;
-        case 'private-integration': dialog('Criar integração privada', `<label>Nome da integração<input name="name" required maxlength="80"></label><label>Descrição do propósito<input name="description" maxlength="500"></label><fieldset class="ag-checks"><legend>Escopos de acesso</legend>${['subaccounts.read', 'contacts.read', 'contacts.write'].map(s => `<label class="check"><input type="checkbox" name="scopes" value="${s}"> ${s}</label>`).join('')}</fieldset>`, { form: 'private-integration', submit: 'Criar token' }); break;
+        case 'private-integration': dialog('Criar integração privada', `<label>Nome da integração<input name="name" required maxlength="80"></label><label>Descrição do propósito<input name="description" maxlength="500"></label><fieldset class="ag-checks"><legend>Escopos de acesso</legend>${apiScopes.map(([scope, label]) => `<label class="check"><input type="checkbox" name="scopes" value="${scope}"> ${h(tr(label))} <small class="dim">${scope}</small></label>`).join('')}</fieldset>`, { form: 'private-integration', submit: 'Criar token' }); break;
         case 'private-integration-delete': confirmBox('Excluir esta integração?', 'O token associado deixará de funcionar imediatamente.', 'private-integration-delete', id, 'Excluir'); break;
         case 'desktop-publish': await act('desktop-app-publish'); go('desktop-app'); flash('App desktop publicado. Envie o link de instalação para a equipe e os clientes.'); break;
         case 'desktop-remove': await act('desktop-app', { data: { [id]: 'remove' } }); go('desktop-app'); flash('Imagem removida.'); break;

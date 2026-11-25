@@ -20,6 +20,17 @@ export const subAccountModules = [
   ['settings', 'Configurações']
 ];
 
+// [scope, label]: what a private integration may do, in the public API (contacts and sub-accounts) and in the MCP server.
+export const apiScopes = [
+  ['subaccounts.read', 'Listar subcontas'], ['contacts.read', 'Ver contatos e tarefas'], ['contacts.write', 'Criar e mudar contatos e tarefas'],
+  ['opportunities.read', 'Ver funis e oportunidades'], ['opportunities.write', 'Criar e mover oportunidades'],
+  ['conversations.read', 'Ler conversas'], ['conversations.write', 'Enviar mensagens e anotar'],
+  ['calendars.read', 'Ver compromissos'], ['calendars.write', 'Marcar e cancelar compromissos'],
+  ['marketing.read', 'Ver redes e posts'], ['marketing.write', 'Criar, aprovar e agendar posts'],
+  ['automation.read', 'Ver fluxos'], ['automation.write', 'Inscrever contatos em fluxos'],
+  ['payments.read', 'Ver faturas'], ['sites.read', 'Ver sites']
+];
+
 // Record key of a sub-account mutation → module that must be permitted for the acting user.
 export const moduleOfRecord = {
   contacts: 'contacts', tasks: 'contacts', opportunities: 'opportunities', appointments: 'calendars', services: 'calendars', resources: 'calendars', meetings: 'calendars', workflows: 'automation',
