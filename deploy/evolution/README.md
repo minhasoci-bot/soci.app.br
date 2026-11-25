@@ -1,12 +1,12 @@
 # WhatsApp do soci.app com Evolution API na VPS da Hostinger
 
-Esta pasta sobe a Evolution API v2.3.7 numa VPS e liga o soci.app a ela. Depois disso, cada subconta conecta o próprio número lendo um QR Code.
+Esta pasta sobe a Evolution API v2.3.8 numa VPS e liga o soci.app a ela. Depois disso, cada subconta conecta o próprio número lendo um QR Code.
 
 ## Por que a Evolution costuma cair, e o que esta configuração faz
 
 | Problema comum | O que está configurado |
 |---|---|
-| Atualização automática para uma versão com bug | Versão fixa `v2.3.7` (a última estável). A 2.4 exige ativação de licença e ainda é pré-release. |
+| Atualização automática para uma versão com bug | Versão fixa `v2.3.8` (a última estável). A 2.4 exige ativação de licença e ainda é pré-release. |
 | Reiniciou e pediu QR Code de novo | Sessões no Postgres (`DATABASE_SAVE_DATA_INSTANCE=true`, `CACHE_REDIS_SAVE_INSTANCES=false`) e volume persistente. |
 | Container travado, mas ainda "vivo" | Healthcheck mais **autoheal**, que reinicia o container travado em até ~2 min. |
 | Número caiu e ficou desconectado | **watchdog**: reconecta quem caiu e reinicia instância presa em "connecting" há 10 min. Não mexe em logout nem em banimento. |
@@ -15,6 +15,13 @@ Esta pasta sobe a Evolution API v2.3.7 numa VPS e liga o soci.app a ela. Depois 
 | Mensagem "Aguardando mensagem" no celular do cliente | Mensagens novas ficam salvas para o WhatsApp poder pedir reenvio. |
 | Webhook perdido durante uma queda | Ao enviar, o soci confere o status ao vivo e regrava o webhook a cada conexão. |
 | Atualizar o Docker derruba tudo | `live-restore` no Docker e `restart: unless-stopped` em todos os serviços. |
+| Fica "conectada" mas para de receber, ou cai a cada ~50 min | Corrigido na `v2.3.8` (na 2.3.7 acontecia). Além disso, o soci reinicia sozinho a instância que não responde. |
+| Mensagem recebida que não chega ao soci | A cada 2 min o soci busca na Evolution o que o webhook não entregou (até 24 h para trás) e guarda sem repetir. |
+| Webhook apagado ou trocado | O soci confere a cada 10 min e registra de novo. |
+| Resposta que não saiu durante uma queda | O soci reenvia quando o número volta, por até 30 min, só se tiver certeza de que não saiu. |
+| Queda que ninguém percebe | Depois de 5 min fora do ar, aviso nas Conversas e na agência, e e-mail para a equipe se o envio de e-mail estiver configurado. |
+| Disco cheio de repente | `guard-vps.sh` a cada 10 min: com 85% limpa o Docker; com 92%, também os backups antigos (guarda os 3 mais novos). |
+| Docker parado | `guard-vps.sh` sobe de novo os containers que não estiverem rodando. |
 | Ataque ao SSH ou a portas abertas | Firewall (só 22, 80 e 443), fail2ban e atualizações de segurança automáticas (reinício às 04:30, quando necessário). |
 
 ## 1. Contratar a VPS
@@ -89,6 +96,8 @@ docker compose pull evolution && docker compose up -d evolution
 ```
 
 Se der problema, volte a tag anterior e rode `docker compose up -d evolution` de novo.
+
+Atualizar pelo seu PC é mais simples: rode o `enviar-vps.ps1` de novo com os mesmos dados. Ele faz um backup antes, troca só o que mudou e não mexe nas chaves nem nas sessões.
 
 ### Restaurar um backup
 

@@ -143,6 +143,11 @@ fi
 
 say "Subindo a Evolution API"
 chmod +x ./*.sh
+# Atualização: guarda o banco antes de trocar a versão.
+if [ -n "$(docker compose ps -q postgres 2>/dev/null)" ]; then
+  echo "Backup antes de atualizar"
+  ./maintenance.sh || warn "o backup falhou; a atualização continua, e o volume do banco não é apagado"
+fi
 docker compose pull
 docker compose up -d --remove-orphans
 
@@ -160,8 +165,18 @@ cat > /etc/cron.d/evolution-maintenance <<EOF
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 30 3 * * * root ${DIR}/maintenance.sh >> /var/log/evolution-maintenance.log 2>&1
+*/10 * * * * root ${DIR}/guard-vps.sh >> /var/log/evolution-guard.log 2>&1
 EOF
 chmod 644 /etc/cron.d/evolution-maintenance
+cat > /etc/logrotate.d/evolution <<'EOF'
+/var/log/evolution-*.log {
+  weekly
+  rotate 4
+  compress
+  missingok
+  notifempty
+}
+EOF
 
 say "Testando o endereço público (o certificado HTTPS pode levar um minuto)"
 public=""

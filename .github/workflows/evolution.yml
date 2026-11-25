@@ -4,7 +4,7 @@ name: Evolution API
 # reinício sem perder instância, backup e restauração. Roda só quando algo disso muda.
 on:
   pull_request:
-    paths: ['deploy/evolution/**', 'whatsapp.mjs', 'scripts/evolution-smoke.mjs', '.github/workflows/evolution.yml']
+    paths: ['deploy/evolution/**', 'whatsapp.mjs', 'whatsapp-guard.mjs', 'scripts/evolution-smoke.mjs', '.github/workflows/evolution.yml']
   workflow_dispatch:
 
 permissions:
@@ -61,6 +61,22 @@ jobs:
           gunzip -c backups/evolution-*.sql.gz | docker compose exec -T postgres psql -U evolution -d evolution -q -v ON_ERROR_STOP=1 --single-transaction
           docker compose exec -T postgres psql -U evolution -d evolution -tAc 'SELECT count(*) FROM "Instance" WHERE name = '"'ci_persiste'" | grep -qx 1
           docker compose up -d --wait --wait-timeout 240 evolution
+      - name: Vigia da VPS sobe container parado
+        run: |
+          docker compose stop redis
+          ! docker compose ps --status running --services | grep -qx redis
+          bash guard-vps.sh
+          docker compose ps --status running --services | grep -qx redis
+          docker compose up -d --wait --wait-timeout 240 evolution
+      - name: Atualizar da versão anterior mantém a instância
+        run: |
+          sed -i 's|evolution-api:v2.3.8|evolution-api:v2.3.7|' docker-compose.yml
+          docker compose up -d --wait --wait-timeout 240 evolution
+          curl -fsS "$EVOLUTION_BASE_URL/" | jq -e '.version == "2.3.7"'
+          sed -i 's|evolution-api:v2.3.7|evolution-api:v2.3.8|' docker-compose.yml
+          docker compose up -d --wait --wait-timeout 240 evolution
+          curl -fsS "$EVOLUTION_BASE_URL/" | jq -e '.version == "2.3.8"'
+          curl -fsS -H "apikey: $EVOLUTION_API_KEY" "$EVOLUTION_BASE_URL/instance/fetchInstances" | jq -e 'map(.name) | index("ci_persiste") != null'
       - name: Logs
         if: always()
         run: |
