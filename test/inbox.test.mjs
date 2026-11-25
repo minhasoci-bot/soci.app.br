@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { blank, execute, hydrateWorkspace } from '../model.mjs';
-import { inboxThreads, visibleThreads } from '../ui/inbox.js';
+import { inboxPage, inboxThreads, visibleThreads } from '../ui/inbox.js';
+import { composerAction, replyChannel } from '../ui/inbox-data.js';
 
 function workspace() {
   const s = blank('Inbox');
@@ -77,4 +78,44 @@ test('Saved views validate their conditions and team chat keeps who wrote', () =
   const old = blank('Old'); delete old.threads; delete old.teamMessages; delete old.inboxViews;
   const fresh = hydrateWorkspace(old);
   assert.deepEqual([fresh.threads, fresh.teamMessages, fresh.inboxViews], [[], [], []], 'older workspaces gain the new collections');
+});
+
+test('A conversa abre no canal da última mensagem, e a nota escolhida não vira mensagem ao cliente', () => {
+  const at = (channel, minute, direction = 'Inbound') => ({ channel, direction, created:`2026-11-25T04:${String(minute).padStart(2, '0')}:00.000Z` });
+  assert.equal(replyChannel([]), 'Note', 'sem conversa, continua em nota');
+  assert.equal(replyChannel([at('Note', 1)]), 'Note');
+  assert.equal(replyChannel([at('WhatsApp', 1)]), 'WhatsApp');
+  // A nota interna (a resposta que não saiu) não muda o canal do contato.
+  assert.equal(replyChannel([at('WhatsApp', 1), at('Note', 2, 'Outbound')]), 'WhatsApp');
+  assert.equal(replyChannel([at('WhatsApp', 5), at('Email', 2)]), 'WhatsApp', 'vale a mais recente, em qualquer ordem');
+  assert.equal(replyChannel([at('WhatsApp', 1), at('Instagram', 3)]), 'Instagram');
+  assert.equal(replyChannel([at('WhatsApp', 1), at('Call', 4)]), 'WhatsApp', 'canal que o formulário não oferece é ignorado');
+  // Quem escolheu "Nota" continua em nota quando a tela se atualiza ou chega mensagem nova.
+  assert.equal(replyChannel([at('WhatsApp', 1), at('WhatsApp', 9)], 'Note'), 'Note');
+  assert.equal(replyChannel([at('WhatsApp', 1)], 'Canal inexistente'), 'WhatsApp');
+});
+
+test('O botão diz o que vai acontecer: nota interna, envio ao contato ou só registro', () => {
+  assert.equal(composerAction('Note', 'Outbound'), 'Salvar nota');
+  for (const channel of ['WhatsApp', 'Email', 'Instagram', 'Facebook', 'Live chat']) assert.equal(composerAction(channel, 'Outbound'), 'Enviar');
+  assert.equal(composerAction('SMS', 'Outbound'), 'Registrar mensagem', 'SMS não sai por aqui');
+  assert.equal(composerAction('WhatsApp', 'Inbound'), 'Registrar mensagem');
+});
+
+test('O formulário renderizado já vem no canal certo e respeita a escolha de cada conversa', () => {
+  const { s, ana } = (() => {
+    const { s, run, contact } = workspace();
+    const ana = contact('Ana Reply');
+    run({ type:'message', data:{ contactId:ana, body:'Oi', direction:'Inbound', channel:'WhatsApp' } });
+    return { s, ana };
+  })();
+  const c = { s, thread:ana, tab:'all', workspace:'demo', access:{ name:'Ana Lima' }, features:{}, query:'' };
+  const selected = () => inboxPage(c).match(/<option value="([^"]+)" selected>/)?.[1];
+  assert.equal(selected(), 'WhatsApp');
+  assert.match(inboxPage(c), /data-compose-submit>.*<span>Enviar<\/span><\/button>/s);
+  c.composer = { thread:ana, channel:'Note' };
+  assert.equal(selected(), 'Note');
+  assert.match(inboxPage(c), /data-compose-submit>.*<span>Salvar nota<\/span><\/button>/s);
+  c.composer = { thread:'outra-conversa', channel:'Note' };
+  assert.equal(selected(), 'WhatsApp', 'a escolha vale só para a conversa em que foi feita');
 });
