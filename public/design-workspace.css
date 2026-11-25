@@ -1,4 +1,5 @@
-.shell:has(.dw-workspace) { grid-template-columns: minmax(0, 1fr); }
+/* :root:root .shell.shell beats the Liquid Glass shell grid (:root:root .shell.wide), or the editor lands in the sidebar column. */
+:root:root .shell.shell:has(.dw-workspace) { grid-template-columns: minmax(0, 1fr); }
 .shell:has(.dw-workspace) > .sidebar, .shell:has(.dw-workspace) > .workspace > .topbar { display: none; }
 .shell:has(.dw-workspace) > .workspace { grid-column: 1; display: flex; flex-direction: column; }
 .shell:has(.dw-workspace) #screen { flex: 1; }
