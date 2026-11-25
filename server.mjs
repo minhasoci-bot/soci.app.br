@@ -9,6 +9,8 @@ import { createGbpRoutes, createGoogleRoutes } from './routes/google.mjs';
 import { createAgentRoutes } from './routes/agents.mjs';
 import { createStudioRoutes } from './routes/studio.mjs';
 import { createStoreApiRoutes, createStorePageRoutes } from './routes/stores.mjs';
+import { createDocumentRoutes } from './routes/documents.mjs';
+import { createReputationRoutes } from './routes/reputation.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -33,10 +35,7 @@ import { brandFromPage, fetchPublicPage } from './brand-model.mjs';
 import { brandVoicePrompt, defaultBoard, voiceTraits } from './ui/brand-data.js';
 import { contentModule } from './ui/content-ai-data.js';
 import { runWorkflowAI } from './workflow-ai.mjs';
-import { reviewTokenHash } from './reputation-model.mjs';
-import { renderReviewPage, reviewPageCsp } from './reputation-page.mjs';
 import { mediaRowId } from './reputation-media.mjs';
-import { collectorCsp, renderCollector, renderWidget, widgetCsp, widgetLoader } from './reputation-widget.mjs';
 import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, previewHeaders, publicHeaders, publish, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withEmbeds, withMotion } from './studio-site.mjs';
 import { hasSiteTemplate, siteTemplatePreview } from './site-templates/index.mjs';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
@@ -118,9 +117,6 @@ import { campaignMailer } from './email-campaign-send.mjs';
 import { countdownGif } from './countdown-gif.mjs';
 import { deadlineOf, embedPage } from './ui/countdown-data.js';
 import { emailDomains, workspaceSender } from './email-domain.mjs';
-import { tokenHash as documentTokenHash } from './document-model.mjs';
-import { estimateTokenHash } from './estimate-model.mjs';
-import { invoiceTokenHash } from './invoice-model.mjs';
 import { abandonedOf } from './checkout-model.mjs';
 import { reportsDue } from './report-model.mjs';
 import { brandGroupData } from './ui/brand-group-data.js';
@@ -231,12 +227,6 @@ const webinarPath = new RegExp(`^/w/${workspaceSegment}/([0-9a-f-]{36})(?:/(sala
 const webinarApi = new RegExp(`^/api/webinar/${workspaceSegment}/([0-9a-f-]{36})/register$`);
 const qrPath = new RegExp(`^/q/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
-const reviewPagePath = new RegExp(`^/avaliar/${workspaceSegment}(?:/([0-9a-f]{48}))?/?$`);
-const reviewApi = new RegExp(`^/api/avaliar/${workspaceSegment}$`);
-const widgetPath = new RegExp(`^/rw/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js))?/?$`);
-const videoPath = new RegExp(`^/v/${workspaceSegment}/([0-9a-f-]{36})$`);
-const collectorPath = new RegExp(`^/depoimento/${workspaceSegment}/([0-9a-f-]{36})/?$`);
-const collectorApi = new RegExp(`^/api/depoimento/${workspaceSegment}/([0-9a-f-]{36})/(start|chunk|finish)$`);
 const affiliateLink = new RegExp(`^/r/${workspaceSegment}/([a-z0-9]{3,20})(?:/([0-9a-f-]{36}))?/?$`);
 const affiliatePagePath = new RegExp(`^/afiliados/${workspaceSegment}(?:/([0-9a-f]{48}))?/?$`);
 const affiliateSignupApi = new RegExp(`^/api/afiliados/${workspaceSegment}/signup$`);
@@ -260,12 +250,6 @@ const hookPath = new RegExp(`^/hooks/${workspaceSegment}/([0-9a-f-]{36})/([a-z0-
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialInvitePath = new RegExp(`^/social-connect/${workspaceSegment}/?$`);
 const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
-const signPagePath = new RegExp(`^/assinar/${workspaceSegment}/?$`);
-const signApiPath = new RegExp(`^/api/assinar/${workspaceSegment}$`);
-const estimatePagePath = new RegExp(`^/orcamento/${workspaceSegment}/?$`);
-const estimateApiPath = new RegExp(`^/api/orcamento/${workspaceSegment}$`);
-const invoicePagePath = new RegExp(`^/fatura/${workspaceSegment}/?$`);
-const invoiceApiPath = new RegExp(`^/api/fatura/${workspaceSegment}$`);
 const brandGroupRoute = /^\/marcas\/([0-9a-f]{64})\/?$/;
 const presentationRoute = /^\/apresentacao\/([0-9a-f]{64})\/?$/;
 const sharedReportRoute = new RegExp(`^/relatorio/${workspaceSegment}/([0-9a-f]{64})/?$`);
@@ -2205,6 +2189,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const storeApiRoute = createStoreApiRoutes({ store, ready, error, abacate, allowSign, allowTracking, change, flushLater, payload, publicAccountPolicy, publicBase, storeApi });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
+  const documentRoute = createDocumentRoutes({ store, ready, root, error, workspaceSegment, abacate, allowSign, change, flushLater, payload, publicAccountPolicy, publicBase });
+  const reputationRoute = createReputationRoutes({ store, ready, error, workspaceSegment, allowSign, change, clientPortal, flushLater, moveVideoToR2, payload, publicAccountPolicy, publicBase, sendVideo });
   const server=createServer(async (req,res) => {
     const requestPath = String(req.url || '/').split('?')[0];
     const touches = touchesOf(req), landing = requestPath.match(landingPath);
@@ -2386,114 +2372,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!row) throw error('Vídeo indisponível.', 404);
         return await sendVideo(req, res, method, workspace, row, 'public, max-age=86400');
       }
-      const signPage = p.match(signPagePath);
-      if (signPage && method === 'GET') {
-        await ready;
-        await publicAccountPolicy(signPage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
-        res.setHeader('Referrer-Policy', 'no-referrer');
-        res.setHeader('X-Robots-Tag', 'noindex');
-        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/document-sign.html')));
-      }
-      const signCall = p.match(signApiPath);
-      if (signCall) {
-        await ready;
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const workspace = signCall[1];
-        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
-        const input = await payload(req);
-        const action = ['open', 'sign', 'decline', 'pay'].includes(input.action) ? input.action : '';
-        if (!action) throw error('Ação inválida para este link.',400);
-        const digest = documentTokenHash(input.token);
-        if (!digest) throw error('Este link não é válido.',404);
-        await publicAccountPolicy(workspace, action !== 'open', 'payments');
-        if (action === 'pay') {
-          const due = (await change(workspace, { type: 'document-payable', data: { tokenHash: digest } })).id;
-          const current = await store.load(workspace), agencyId = current.agencyId || AGENCY_ID;
-          if (!(await abacate.connected(agencyId, workspace))) throw error('O pagamento online ainda não está disponível. Fale com quem enviou o documento.',409);
-          const page = `${publicBase(req)}/assinar/${workspace}`;
-          const back = { returnUrl: `${page}?pagamento=voltou`, completionUrl: `${page}?pagamento=ok` };
-          if (due.kind === 'invoice') return json({ url: (await abacate.chargeInvoice(agencyId, workspace, due.invoiceId, publicBase(req), back)).url });
-          if (due.checkout) return json({ url: due.checkout.url });
-          const checkout = await abacate.subscribeWorkspace(agencyId, workspace, { reference: `doc-${due.docId}`, name: due.title, amount: due.amount, ...back, metadata: { workspace, documentId: due.docId } });
-          await change(workspace, { type: 'document-subscription-checkout', data: { docId: due.docId, checkout } });
-          return json({ url: checkout.url });
-        }
-        const result = await change(workspace, { type: `document-${action}`, data: { tokenHash: digest, ip, userAgent: String(req.headers['user-agent'] || ''), origin: publicBase(req),
-          values: input.values, items: input.items, accept: input.accept, reason: input.reason } });
-        if (result.state.workflowOutbox?.length) flushLater(workspace);
-        if (result.id?.payment) result.id.payment.online = await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false);
-        return json(result.id);
-      }
-      const estimatePage = p.match(estimatePagePath);
-      if (estimatePage && method === 'GET') {
-        await ready;
-        await publicAccountPolicy(estimatePage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
-        res.setHeader('Referrer-Policy', 'no-referrer');
-        res.setHeader('X-Robots-Tag', 'noindex');
-        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/estimate-view.html')));
-      }
-      const estimateCall = p.match(estimateApiPath);
-      if (estimateCall) {
-        await ready;
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const workspace = estimateCall[1];
-        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
-        const input = await payload(req);
-        const action = ['open', 'accept', 'decline', 'pay'].includes(input.action) ? input.action : '';
-        if (!action) throw error('Ação inválida para este link.',400);
-        const digest = estimateTokenHash(input.token);
-        if (!digest) throw error('Este link não é válido.',404);
-        await publicAccountPolicy(workspace, action !== 'open', 'payments');
-        if (action === 'pay') {
-          const due = (await change(workspace, { type: 'estimate-payable', data: { tokenHash: digest } })).id;
-          const current = await store.load(workspace), agencyId = current.agencyId || AGENCY_ID;
-          if (!(await abacate.connected(agencyId, workspace))) throw error('O pagamento online ainda não está disponível. Fale com quem enviou o orçamento.',409);
-          const page = `${publicBase(req)}/orcamento/${workspace}`;
-          return json({ url: (await abacate.chargeInvoice(agencyId, workspace, due.invoiceId, publicBase(req), { returnUrl: `${page}?pagamento=voltou`, completionUrl: `${page}?pagamento=ok` })).url });
-        }
-        const result = await change(workspace, { type: `estimate-${action}`, data: { tokenHash: digest, ip, userAgent: String(req.headers['user-agent'] || ''), origin: publicBase(req),
-          name: input.name, items: input.items, reason: input.reason } });
-        if (result.state.workflowOutbox?.length) flushLater(workspace);
-        if (result.id?.invoice) result.id.online = await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false);
-        return json(result.id);
-      }
-      const invoicePage = p.match(invoicePagePath);
-      if (invoicePage && method === 'GET') {
-        await ready;
-        await publicAccountPolicy(invoicePage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
-        res.setHeader('Referrer-Policy', 'no-referrer');
-        res.setHeader('X-Robots-Tag', 'noindex');
-        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/invoice-view.html')));
-      }
-      const invoiceCall = p.match(invoiceApiPath);
-      if (invoiceCall) {
-        await ready;
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const workspace = invoiceCall[1];
-        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
-        const input = await payload(req);
-        const action = ['open', 'pay'].includes(input.action) ? input.action : '';
-        if (!action) throw error('Ação inválida para este link.',400);
-        const digest = invoiceTokenHash(input.token);
-        if (!digest) throw error('Este link não é válido.',404);
-        await publicAccountPolicy(workspace, action !== 'open', 'payments');
-        if (action === 'pay') {
-          const due = (await change(workspace, { type: 'invoice-payable', data: { tokenHash: digest } })).id;
-          const current = await store.load(workspace), agencyId = current.agencyId || AGENCY_ID;
-          if (!(await abacate.connected(agencyId, workspace))) throw error('O pagamento online ainda não está disponível. Fale com quem enviou a fatura.',409);
-          const page = `${publicBase(req)}/fatura/${workspace}`;
-          return json({ url: (await abacate.chargeInvoice(agencyId, workspace, due.invoiceId, publicBase(req), { returnUrl: `${page}?pagamento=voltou`, completionUrl: `${page}?pagamento=ok` })).url });
-        }
-        const result = await change(workspace, { type: 'invoice-open', data: { tokenHash: digest } });
-        result.id.online = result.id.payable ? await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false) : false;
-        return json(result.id);
-      }
+      const documentRouteHandled = await documentRoute({ req, res, p, method, json, send });
+      if (documentRouteHandled !== NEXT_ROUTE) return documentRouteHandled;
       if (p==='/api/state' && method!=='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
         const { agency, who: actor } = await accessContext(req,await verifiedUser(req,res));
@@ -3282,89 +3162,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         flushLater(workspace);
         return json(result.token ? { ok: true, approval: result.status, portal: `/afiliados/${workspace}/${result.token}` } : { ok: true }, 201);
       }
-      // Review widget (iframe page and loader script), approved videos, and the video testimonial collector.
-      const widgetRoute = p.match(widgetPath);
-      if (widgetRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, widgetId, part] = widgetRoute;
-        await publicAccountPolicy(workspace, false, 'reputation');
-        const state = await store.load(workspace);
-        const widget = state.reviewWidgets?.find(row => row.id === widgetId && row.active);
-        if (part) {
-          res.writeHead(widget ? 200 : 404, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Access-Control-Allow-Origin': '*' });
-          return res.end(method === 'HEAD' || !widget ? undefined : widgetLoader({ origin: publicBase(req), workspace, widgetId }));
-        }
-        if (!widget) throw error('Este widget não está ativo.', 404);
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=120', 'Content-Security-Policy': widgetCsp, 'Referrer-Policy': 'no-referrer' });
-        return res.end(method === 'HEAD' ? undefined : renderWidget(state, widget, { workspace }));
-      }
-      const videoRoute = p.match(videoPath);
-      if (videoRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, videoId] = videoRoute;
-        await publicAccountPolicy(workspace, false, 'reputation');
-        const row = (await store.load(workspace)).videoTestimonials?.find(item => item.id === videoId && item.status === 'approved');
-        if (!row) throw error('Vídeo não encontrado.', 404);
-        return await sendVideo(req, res, method, workspace, row, 'public, max-age=600');
-      }
-      const collectorRoute = p.match(collectorPath);
-      if (collectorRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, collectorId] = collectorRoute;
-        await publicAccountPolicy(workspace, false, 'reputation');
-        const state = await store.load(workspace);
-        const collector = state.videoCollectors?.find(row => row.id === collectorId && row.active);
-        if (!collector) throw error('Este link de depoimento não está ativo.', 404);
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': collectorCsp, 'Permissions-Policy': 'camera=(self), microphone=(self)', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' });
-        return res.end(method === 'HEAD' ? undefined : renderCollector(state, collector, { workspace }));
-      }
-      const collectorCall = p.match(collectorApi);
-      if (collectorCall && method === 'POST') {
-        await ready;
-        const [, workspace, collectorId, step] = collectorCall;
-        await publicAccountPolicy(workspace, true, 'reputation');
-        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-        if (step !== 'chunk' && !allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.', 429);
-        const input = await payload(req);
-        const result = (await change(workspace, { type: `video-${step}`, id: collectorId, data: input })).id;
-        if (step === 'chunk') {
-          const rowId = mediaRowId(workspace, result.upload.id, result.index);
-          if (!await store.insert(rowId, { data: result.data })) await store.change(rowId, row => { row.data = result.data; });
-          return json({ ok: true, index: result.index });
-        }
-        if (step === 'finish') { await moveVideoToR2(workspace, result); flushLater(workspace); return json({ ok: true }, 201); }
-        return json(result);
-      }
-      // Review link: the public page (generic or personal) and the review it sends.
-      const reviewRoute = p.match(reviewPagePath);
-      if (reviewRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, token = ''] = reviewRoute;
-        const active = await publicAccountPolicy(workspace, false, 'reputation');
-        const state = await store.load(workspace);
-        const tokenHash = token ? reviewTokenHash(token) : '';
-        const request = tokenHash ? state.reviewRequests?.find(row => row.tokenHash === tokenHash) : null;
-        if (token && !request) throw error('Este link de avaliação não é válido.', 404);
-        if (request && active && method === 'GET' && request.status === 'sent') await Promise.resolve().then(() => change(workspace, { type: 'review-open', data: { tokenHash } })).catch(() => {});
-        const contact = request ? state.contacts.find(row => row.id === request.contactId) : null;
-        const tint = (await clientPortal.directory(workspace).catch(() => null))?.settings?.color || '';
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': reviewPageCsp, 'X-Robots-Tag': 'noindex' });
-        return res.end(method === 'HEAD' ? undefined : renderReviewPage(state, { workspace, token, contactName: contact?.name || '', done: request?.status === 'reviewed', tint }));
-      }
-      const reviewSubmit = p.match(reviewApi);
-      if (reviewSubmit && method === 'POST') {
-        await ready;
-        const [, workspace] = reviewSubmit;
-        await publicAccountPolicy(workspace, true, 'reputation');
-        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.', 429);
-        const input = await payload(req);
-        const tokenHash = input.token ? reviewTokenHash(String(input.token)) : '';
-        if (input.token && !tokenHash) throw error('Este link de avaliação não é válido.', 404);
-        const result = await change(workspace, { type: 'review-submit', data: { tokenHash, score: input.score, text: input.text, name: input.name, website: input.website } });
-        if (result.state.workflowOutbox?.length) flushLater(workspace);
-        return json({ ok: true }, 201);
-      }
+      const reputationRouteHandled = await reputationRoute({ req, res, p, method, json });
+      if (reputationRouteHandled !== NEXT_ROUTE) return reputationRouteHandled;
       const offerRoute = p.match(offerPath);
       if (offerRoute && (method === 'GET' || method === 'HEAD')) {
         await ready;
