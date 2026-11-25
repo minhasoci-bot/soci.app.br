@@ -52,16 +52,6 @@ dialog.ag-wide{width:min(760px,calc(100vw - 24px))}
 .ag-vote svg{transform:rotate(-90deg)}
 .ag-vote.on{border-color:var(--g-brand-2,var(--blue));color:var(--g-brand-2-text,var(--blue-dark));background:var(--g-brand-2-surface,#f6f1ff)}
 .ag-idea select{border:1px solid var(--line);border-radius:var(--r-chip);padding:5px}
-.ag-builder{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;align-items:start}
-.ag-order{list-style:none;margin:0;padding:0;display:grid;gap:4px}
-.ag-order li{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:var(--r-chip);padding:4px 8px}
-.ag-order .icon-btn{font-size:12px}
-.ag-phone{border:10px solid #1b2534;border-radius:32px;min-height:520px;background:#fff;overflow:hidden;position:sticky;top:12px}
-.ag-phone-top{padding:28px 16px 16px;color:var(--g-brand-on,#2a0616);background:var(--blue)}
-.ag-login{padding:14px 16px 4px;font-weight:600}
-.ag-phone-list{list-style:none;margin:0;padding:8px 16px;display:grid;gap:4px}
-.ag-phone-list li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #edf0f4;font-size:13px}
-.ag-dot{width:10px;height:10px;border-radius:50%;background:#12b76a;flex:none}
 .ag-window{border:1px solid var(--line);border-radius:var(--r-control);overflow:hidden;background:#fff;box-shadow:var(--shadow)}
 .ag-window-bar{display:flex;align-items:center;gap:6px;padding:9px 12px;color:var(--g-brand-on,#2a0616);background:var(--blue)}
 .ag-window-bar span{width:10px;height:10px;border-radius:50%;background:#ffffff80}
@@ -109,7 +99,7 @@ dialog.ag-wide{width:min(760px,calc(100vw - 24px))}
 .workspace>.topbar{flex:none;min-height:51px}
 .ag-frame{height:100%;display:flex;flex-direction:column;gap:6px;padding:10px}
 .ag-frame iframe{flex:1;width:100%;border:1px solid var(--line);border-radius:var(--r-control);background:#fff;min-height:400px}
-@media(max-width:1000px){.ag-two,.ag-builder{grid-template-columns:minmax(0,1fr)}.ag-account{grid-template-columns:auto minmax(0,1fr)}.ag-facts{grid-column:1/-1;grid-template-columns:repeat(2,minmax(0,1fr))}.ag-account>.inline-gap{grid-column:1/-1}.ag-phone{position:static;max-width:320px}}
+@media(max-width:1000px){.ag-two{grid-template-columns:minmax(0,1fr)}.ag-account{grid-template-columns:auto minmax(0,1fr)}.ag-facts{grid-column:1/-1;grid-template-columns:repeat(2,minmax(0,1fr))}.ag-account>.inline-gap{grid-column:1/-1}.ag-phone{position:static;max-width:320px}}
 @media(max-width:600px){.ag-price{grid-template-columns:1fr}.ag-idea{grid-template-columns:auto minmax(0,1fr)}.ag-idea>.inline-gap{grid-column:1/-1}.ag-score{grid-template-columns:90px minmax(0,1fr) 40px}}
 /* Per-sub-account switches (Settings feature tables, SaaS accounts). */
 label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:none;gap:0;cursor:pointer}

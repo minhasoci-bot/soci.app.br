@@ -159,6 +159,24 @@
   --shc-icon-rest:#868d98; --shc-mono:#f3f4f6; --shc-whatsapp:#25d366;
 }
 
+/* App móvel da agência: a plataforma veste o tema do app (--cm-*, ver mobile-app-view.js). Cores de estado não mudam. */
+:root[data-app-mode],:root[data-app-mode][data-theme=dark]{
+  --g-ink:var(--cm-font); --g-ink-2:color-mix(in srgb,var(--cm-font) 88%,var(--cm-background)); --g-dim:color-mix(in srgb,var(--cm-font) 70%,var(--cm-background)); --g-faint:color-mix(in srgb,var(--cm-font) 64%,var(--cm-background));
+  --g-line:var(--cm-border); --g-line-2:color-mix(in srgb,var(--cm-font) 9%,var(--cm-border)); --g-line-strong:color-mix(in srgb,var(--cm-font) 28%,var(--cm-border));
+  --g-canvas:var(--cm-background); --g-stage:var(--cm-background); --g-shell:var(--cm-background);
+  --g-surface:var(--cm-surface); --g-surface-2:color-mix(in srgb,var(--cm-font) 4%,var(--cm-surface)); --g-surface-3:color-mix(in srgb,var(--cm-font) 10%,var(--cm-surface)); --panel:var(--cm-surface); --g-field:var(--cm-surface);
+  --g-fill:color-mix(in srgb,var(--cm-font) 9%,transparent); --g-fill-hover:color-mix(in srgb,var(--cm-font) 14%,transparent); --g-fill-press:color-mix(in srgb,var(--cm-font) 20%,transparent);
+  --g-brand:var(--cm-primary); --g-brand-hover:var(--ma-link); --g-brand-bright:var(--ma-link);
+  --g-brand-fill:var(--cm-primary); --g-brand-fill-hover:color-mix(in srgb,var(--cm-primary) 88%,var(--cm-onPrimary)); --g-brand-on:var(--cm-onPrimary);
+  --g-brand-surface:var(--cm-tertiary); --g-brand-line:color-mix(in srgb,var(--cm-primary) 32%,var(--cm-border)); --g-brand-tint:var(--ma-link); --g-brand-text:var(--ma-link);
+  --g-brand-accent:var(--cm-primary);
+  --g-brand-2:var(--cm-primary); --g-brand-2-hover:var(--ma-link); --g-brand-2-bright:var(--ma-link); --g-brand-2-surface:var(--cm-tertiary); --g-brand-2-line:color-mix(in srgb,var(--cm-primary) 32%,var(--cm-border));
+  --g-brand-2-tint:var(--ma-link); --g-brand-2-text:var(--ma-link); --g-brand-2-fill:var(--cm-primary); --g-brand-2-fill-hover:color-mix(in srgb,var(--cm-primary) 88%,var(--cm-onPrimary)); --g-brand-2-on:var(--cm-onPrimary);
+  --g-pink:var(--ma-link); --g-pink-100:var(--cm-tertiary);
+  --lg-regular:color-mix(in srgb,var(--cm-surface) 82%,transparent); --lg-thick:color-mix(in srgb,var(--cm-surface) 96%,transparent); --lg-tint-on:color-mix(in srgb,var(--cm-font) 8%,transparent);
+  --g-gauge-track:color-mix(in srgb,var(--cm-font) 12%,var(--cm-surface));
+}
+
 /* Reduzir transparência: o vidro vira superfície opaca, com a mesma hierarquia */
 @media (prefers-reduced-transparency:reduce){
   :root{--lg-blur:0px; --lg-sat:1; --lg-regular:#fbfbfd; --lg-thick:#ffffff; --lg-clear:rgba(20,22,26,.78); --lg-edge:rgba(20,22,26,.16)}

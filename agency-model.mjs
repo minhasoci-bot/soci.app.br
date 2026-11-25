@@ -2,7 +2,7 @@ import { AUDIT_IN_DOCUMENT } from './agency-audit.mjs';
 import { usageSummary } from './ui/ai-data.js';
 import { sanitizeFiscal } from './tax-id.mjs';
 import { desktopDefaults, publishDesktop, saveDesktop } from './agency-desktop.mjs';
-import { mobileOf, publishMobile, saveMobileStore } from './agency-mobile.mjs';
+import { mobileDefaults, mobileOf, publishMobile, saveMobileLook, saveMobileStore } from './agency-mobile.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { isAssetUrl } from './asset-store.mjs';
 import { defaults, metrics, uid, now } from './model.mjs';
@@ -16,7 +16,7 @@ import { labCatalog, labModes } from './ui/labs-data.js';
 import { deleteStudioApp, marketplaceFor, publishStudioApp, rotateAppSecret, saveStudioApp } from './app-studio-model.mjs';
 import {
   accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog,
-  mobileModules, resellProducts, snapshotAssets, subAccountModules, systemEmailKeys,
+  resellProducts, snapshotAssets, subAccountModules, systemEmailKeys,
   appScopes, maxMarkup, rebillProducts, subFeatures, workflowBuilders
 } from './ui/agency-data.js';
 
@@ -68,7 +68,7 @@ export function blankAgency() {
     reselling: Object.fromEntries(resellProducts.map(p => [p.key, { price: p.base, disabled: [] }])),
     affiliate: { accepted: false, steps: {}, code: '', payout: { method: 'PayPal', email: '' }, payments: [] },
     learning: { completed: [] },
-    mobileApp: { appName: 'My Agency', primary: '#1570ef', accent: '#12b76a', loginTitle: 'Welcome back', hidden: [], order: mobileModules.map(m => m[0]), custom: [] },
+    mobileApp: mobileDefaults(),
     desktopApp: desktopDefaults(),
     integrations: {},
     billing: { plan: 'Starter', wallet: [], autoRecharge: { enabled: false, threshold: 10, amount: 25 } },
@@ -99,12 +99,15 @@ const featureOn = (agency, key, account) => {
 
 export function hydrateAgency(state) {
   const fresh = blankAgency();
+  // A mobile app saved before the themes keeps its own color (mobileTheme derives one from it).
+  if (state.mobileApp && state.mobileApp.theme === undefined) state.mobileApp = { ...state.mobileApp, theme: null };
   // Agencies from before this option keep their sub-accounts running until they turn it on.
   if (!state.saas?.autoSuspend) state.saas = { ...fresh.saas, ...state.saas, autoSuspend: { ...fresh.saas.autoSuspend, enabled: false } };
   for (const [key, value] of Object.entries(fresh)) {
     if (state[key] === undefined) state[key] = value;
     else if (value && typeof value === 'object' && !Array.isArray(value) && !['accounts', 'integrations', 'reselling', 'systemEmails', 'labs'].includes(key)) state[key] = { ...value, ...state[key] };
   }
+  mobileOf(state);
   delete state.stripe;
   state.profile.language = platformLanguage;
   state.company.brand = platformBrand;
@@ -547,12 +550,7 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       return 'company';
     }
     case 'mobile-app': {
-      mobileOf(state);
-      const order = Array.isArray(d.order) ? d.order.filter(k => mobileModules.some(m => m[0] === k)) : [];
-      const custom = (Array.isArray(d.custom) ? d.custom : []).slice(0, 5).map(item => ({ label: req(item?.label, 'Module name', 40), url: url(item?.url, 'Module URL') || fail('Module URL is required.') }));
-      Object.assign(state.mobileApp, { appName: req(d.appName, 'App name', 40), primary: color(d.primary), accent: color(d.accent), loginTitle: str(d.loginTitle, 60),
-        hidden: (Array.isArray(d.hidden) ? d.hidden : []).filter(k => mobileModules.some(m => m[0] === k)),
-        order: [...new Set([...order, ...mobileModules.map(m => m[0])])], custom });
+      saveMobileLook(state, d);
       log('Mobile app settings saved', state.mobileApp.appName);
       return 'mobile';
     }

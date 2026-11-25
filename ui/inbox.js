@@ -7,7 +7,9 @@ import { messageParts, textPieces } from './message-media.js';
 import { composerAction, composerChannels, fixedRuleValues, inboxFilterFields, inboxRule, inboxSorts, replyChannel } from './inbox-data.js';
 
 // Inbox layout: box navigation | conversation list | open thread | contact panel with a section rail.
-export const inboxState = c => (c.inbox ??= { box:'team', nav:true, sort:'latest', sortOpen:false, rules:[], match:'and', picked:[], panel:'contact' });
+// On a phone the conversation list opens first; the folders are one tap away.
+const phone = () => typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches;
+export const inboxState = c => (c.inbox ??= { box:'team', nav:!phone(), sort:'latest', sortOpen:false, rules:[], match:'and', picked:[], panel:'contact' });
 export const me = c => c.access?.name || 'Owner';
 export function teammates(c) {
   const users = (c.agency?.users || []).filter(u => u.role?.startsWith('Agency') || u.accounts?.includes(c.workspace)).map(u => u.name);

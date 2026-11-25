@@ -40,7 +40,7 @@
 .ag-settings>.ag-hint{margin:0}
 .ag-two{gap:16px;margin-bottom:0;align-items:start}
 .stack{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
-.page>:is(.surface,.metrics,.table-shell,.settings-form,.ag-builder,.ag-two)+:is(.surface,.metrics,.table-shell,.settings-form,.ag-builder,.ag-two,.section-heading){margin-top:16px}
+.page>:is(.surface,.metrics,.table-shell,.settings-form,.ag-two)+:is(.surface,.metrics,.table-shell,.settings-form,.ag-two,.section-heading){margin-top:16px}
 .page>.metrics{margin-bottom:0}
 .page>.metrics+*{margin-top:16px}
 .surface.padded>p+:is(.secondary,.primary,.inline-gap,.field-grid,label),.surface.padded>h2+:is(.secondary,.primary,.inline-gap,.field-grid,label,ol,ul){margin-top:14px}
@@ -139,7 +139,6 @@ label.sc-starter:last-child{border-bottom:0;padding-bottom:0}
 .card-grid:has(>.resource):not(:has(>:nth-child(5))):has(>:nth-child(2)){grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr))}
 .rp-listings{gap:12px}
 .rp-nap{margin:0}
-.mobile-store .mobile-store{padding:0}
 
 @media(max-width:760px){.set-body .field-grid.is-three{grid-template-columns:minmax(0,1fr)}}
 
