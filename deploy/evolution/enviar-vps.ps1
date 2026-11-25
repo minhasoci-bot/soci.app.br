@@ -13,7 +13,7 @@ param(
 $ErrorActionPreference = 'Continue'
 
 # Lista fechada: o .env e os backups deste PC nunca vão para a VPS.
-$files = '.env.example', 'Caddyfile', 'docker-compose.yml', 'install.sh', 'maintenance.sh', 'watchdog.sh', 'README.md'
+$files = '.env.example', 'Caddyfile', 'docker-compose.yml', 'install.sh', 'maintenance.sh', 'guard-vps.sh', 'watchdog.sh', 'README.md'
 
 foreach ($tool in 'ssh', 'scp') {
   if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "$tool não encontrado. Instale o Cliente OpenSSH em Configurações > Aplicativos > Recursos opcionais." }

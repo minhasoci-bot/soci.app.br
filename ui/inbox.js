@@ -14,7 +14,8 @@ export function teammates(c) {
 }
 const origin = message => message?.origin || 'human';
 // Why an outbound message was not delivered (set by the server after the WhatsApp provider answers).
-const deliveryFailures = { not_connected: 'WhatsApp desconectado', no_phone: 'Contato sem telefone', invalid_phone: 'Telefone inválido',
+export const deliveryFailures = { not_connected: 'WhatsApp desconectado. Sai sozinha se o número voltar em até 30 minutos', server_down: 'Servidor do WhatsApp fora do ar. Sai sozinha se voltar em até 30 minutos',
+  unconfirmed: 'Envio não confirmado. Confira no celular antes de mandar de novo', wrong_recipient: 'O servidor entregou em outro número. Avise o suporte', no_phone: 'Contato sem telefone', invalid_phone: 'Telefone inválido',
   suspended: 'Conta suspensa', provider_error: 'Erro do provedor' };
 const time = message => message ? +new Date(message.created) : null;
 
@@ -202,6 +203,14 @@ function listPanel(c, st, list) {
       </button></div>`).join('') || empty('Nenhuma conversa', st.rules.length ? 'Nenhuma conversa corresponde aos filtros.' : 'Selecione uma caixa ou inicie uma nova conversa.','chat')}</div></section>`;
 }
 
+// O número da subconta está fora do ar há alguns minutos (whatsapp-guard.mjs).
+export function whatsappNotice(s) {
+  const health = s.whatsappHealth;
+  if (health?.status !== 'down') return '';
+  const why = health.reason === 'server' ? 'O servidor do WhatsApp não está respondendo. Estamos tentando de novo sozinhos.' : 'O número foi desconectado. Se não voltar sozinho, leia o QR Code em Configurações → WhatsApp.';
+  return `<div class="wa-notice" role="status"><b>${h(tr('WhatsApp fora do ar'))}</b><span>${h(tr(why))}</span><a class="text-link" href="#settings/whatsapp">${h(tr('Ver conexão'))}</a></div>`;
+}
+
 function threadPanel(c, all) {
   const t = all.find(item => item.contact.id === c.thread);
   if (!t) return `<section class="thread-body">${empty('Nenhuma conversa selecionada','Selecione uma caixa ou inicie uma nova conversa.','inbox')}</section>`;
@@ -290,7 +299,7 @@ export function inboxPage(c) {
   const all = inboxThreads(c.s);
   const internal = st.box === 'internal';
   const middle = internal ? teamChat(c) : listPanel(c, st, visibleThreads(c, all)) + threadPanel(c, all) + contactPanel(c, st, all);
-  return `<div class="conversation-page"><div class="inbox-shell ${st.nav ? 'nav-open' : ''} ${internal ? 'internal' : ''} ${c.thread && !internal ? 'has-thread' : ''}">${navPanel(c, st, all)}${middle}</div></div>`;
+  return `<div class="conversation-page">${whatsappNotice(c.s)}<div class="inbox-shell ${st.nav ? 'nav-open' : ''} ${internal ? 'internal' : ''} ${c.thread && !internal ? 'has-thread' : ''}">${navPanel(c, st, all)}${middle}</div></div>`;
 }
 
 // Event handlers. `ctx` carries app.js helpers so this module stays free of app state wiring.
