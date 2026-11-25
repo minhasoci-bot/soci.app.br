@@ -1,0 +1,152 @@
+/* The agency's mobile app: entry screen, header, tab bar, "Mais" sheet and Início. Same language as the community
+   (portal-community.css): 18px cards with a thin border and no shadow, pills, soft active items, dashed empty states.
+   Painted only with the app theme (--cm-*, set inline by appStyle in mobile-app-view.js), so the app, the install page
+   and the creator's preview are the same thing. The mode that repaints the modules is in tokens.css ([data-app-mode]). */
+.ma-root,.ma-frame,.ma-head,.ma-tabs,.ma-veil,.ma-home{--ma-ease:cubic-bezier(.16,1,.3,1);font-family:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.45;color:var(--cm-font);-webkit-tap-highlight-color:transparent}
+:is(.ma-root,.ma-frame,.ma-head,.ma-tabs,.ma-veil,.ma-home),:is(.ma-root,.ma-frame,.ma-head,.ma-tabs,.ma-veil,.ma-home) *{box-sizing:border-box}
+:is(.ma-root,.ma-frame,.ma-head,.ma-tabs,.ma-veil,.ma-home) :is(h1,h2,p,ul,ol){margin:0}
+:is(.ma-root,.ma-frame,.ma-head,.ma-tabs,.ma-veil,.ma-home) :is(button,a){font-family:inherit;color:inherit;text-decoration:none;touch-action:manipulation}
+:is(.ma-root,.ma-frame,.ma-head,.ma-tabs,.ma-veil,.ma-home) button{cursor:pointer}
+:is(.ma-root,.ma-frame,.ma-head,.ma-tabs,.ma-veil,.ma-home) :is(button,a):focus-visible{outline:2px solid var(--ma-link);outline-offset:2px}
+:is(.ma-root,.ma-frame,.ma-head,.ma-tabs,.ma-veil,.ma-home) small{font-size:13px;color:var(--ma-muted)}
+.ma-root{margin:0;min-height:100vh;min-height:100dvh;background:var(--cm-background)}
+.ma-root [hidden]{display:none !important}
+
+/* ── Pieces ── */
+.ma-card{background:var(--cm-surface);border:1px solid var(--cm-border);border-radius:18px;min-width:0}
+.ma-tile{flex:none;width:44px;height:44px;border-radius:14px;overflow:hidden;display:grid;place-items:center;background:var(--cm-primary);color:var(--cm-onPrimary);font-weight:800;font-size:18px}
+.ma-tile img{width:100%;height:100%;object-fit:cover;display:block}
+.ma-tile-lg{width:88px;height:88px;border-radius:24px;font-size:38px;border:5px solid var(--cm-background)}
+.ma-avatar{flex:none;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:hsl(var(--av) 70% 72%);color:#16121a;font-weight:750;font-size:14px}
+.ma-tag{flex:none;border-radius:999px;background:var(--cm-tertiary);padding:3px 10px;font-size:12.5px;font-weight:700;font-style:normal;white-space:nowrap}
+.ma-late{background:color-mix(in srgb,var(--g-red,#c4262e) 14%,var(--cm-surface));color:color-mix(in srgb,var(--g-red,#c4262e) 82%,var(--cm-font))}
+.ma-pill{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:50px;padding:0 24px;border:0;border-radius:999px;background:var(--cm-primary);font-size:16px;font-weight:700;transition:transform .2s var(--ma-ease),filter .2s}
+:is(.ma-root,.ma-frame) .ma-pill{color:var(--cm-onPrimary)}
+.ma-pill:active{transform:scale(.98)}
+.ma-pill-soft{background:var(--cm-tertiary);border:1px solid var(--cm-border)}
+:is(.ma-root,.ma-frame) .ma-pill-soft{color:var(--cm-font)}
+.ma-id{flex:1;min-width:0;display:flex;align-items:center;gap:10px}
+.ma-id-text{flex:1;min-width:0;display:grid;line-height:1.25;text-align:left}
+.ma-id-text>*{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ma-id-text strong{font-weight:750}
+
+/* ── Entry (install and sign in) ── */
+.ma-entry{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;background:var(--cm-background)}
+.ma-entry-band{flex:none;height:clamp(180px,32vh,320px);overflow:hidden;background:linear-gradient(to bottom,transparent 55%,var(--cm-background)),radial-gradient(130% 170% at 0 0,var(--cm-primary),transparent 70%),linear-gradient(135deg,var(--cm-tertiary),var(--cm-surface))}
+.ma-entry-band img{width:100%;height:100%;object-fit:cover;display:block}
+.ma-entry-body{width:min(440px,100%);margin:-48px auto 0;padding:0 20px calc(28px + env(safe-area-inset-bottom));display:grid;gap:18px;position:relative}
+.ma-entry-title{display:grid;gap:6px}
+.ma-entry h1{font-size:28px;font-weight:800;line-height:1.15;letter-spacing:-.02em;overflow-wrap:anywhere;text-wrap:balance}
+.ma-entry-title p{color:var(--ma-muted);font-size:16px}
+.ma-entry-actions{display:grid;gap:10px}
+.ma-steps{padding:16px;display:grid;gap:12px}
+.ma-steps h2{font-size:15px;font-weight:750}
+.ma-steps ol{list-style:none;padding:0;display:grid;gap:10px;counter-reset:s}
+.ma-steps li{counter-increment:s;display:flex;gap:12px;align-items:center}
+.ma-steps li::before{content:counter(s);flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--cm-tertiary);font-size:13px;font-weight:800}
+
+/* ── Header ── */
+.ma-head{flex:none;display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:var(--cm-background)}
+.ma-round{position:relative;flex:none;width:44px;height:44px;padding:0;border:1px solid var(--cm-border);border-radius:50%;background:var(--cm-surface);display:grid;place-items:center;overflow:visible}
+.ma-round:hover{background:var(--cm-tertiary)}
+.ma-dot{position:absolute;top:0;right:0;width:12px;height:12px;border-radius:50%;background:var(--cm-primary);border:2px solid var(--cm-background)}
+.ma-profile{font-size:13px;font-weight:750;overflow:hidden}
+.ma-profile img{width:100%;height:100%;object-fit:cover}
+
+/* ── Tab bar ── */
+.ma-tabs{flex:none;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);padding:6px max(4px,calc(50% - 300px)) calc(6px + env(safe-area-inset-bottom));background:var(--cm-sidebar);border-top:1px solid var(--cm-border)}
+.ma-tabs :is(a,button){display:grid;justify-items:center;align-content:center;gap:2px;min-height:52px;min-width:0;padding:2px 0;border:0;background:none;border-radius:14px;font-size:11.5px;font-weight:650;line-height:1.2}
+:is(.ma-tabs) :is(a,button):not([aria-current],[data-on]){color:var(--ma-muted)}
+.ma-tabs span{display:grid;place-items:center;width:min(56px,100%);height:30px;border-radius:999px;transition:background .25s var(--ma-ease)}
+.ma-tabs b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:inherit}
+.ma-tabs :is([aria-current],[data-on]){font-weight:750}
+.ma-tabs :is([aria-current],[data-on]) span{background:var(--cm-tertiary);color:var(--ma-link)}
+
+/* ── "Mais" sheet ── */
+.ma-veil{position:fixed;inset:0 0 var(--ma-bar,65px);z-index:40;display:flex;flex-direction:column;justify-content:flex-end;background:color-mix(in srgb,#000 46%,transparent);animation:ma-fade .2s both}
+.ma-sheet{width:min(640px,100%);max-height:100%;margin:0 auto;overflow-y:auto;overscroll-behavior:contain;display:grid;gap:12px;padding:10px 16px 18px;border-radius:26px 26px 0 0;background:var(--cm-background);animation:ma-rise .34s var(--ma-ease) both}
+.ma-sheet:focus{outline:none}
+.ma-sheet-grip{justify-self:center;width:40px;height:4px;border-radius:9px;background:var(--cm-border)}
+.ma-account{display:flex;align-items:center;gap:12px;padding:12px 14px;width:100%}
+.ma-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.ma-grid a{min-height:78px;padding:12px 4px;border:1px solid var(--cm-border);border-radius:18px;background:var(--cm-surface);display:grid;justify-items:center;align-content:center;gap:6px;font-size:12.5px;letter-spacing:-.01em;font-weight:650;text-align:center;min-width:0}
+.ma-grid:has(>:nth-child(4):last-child){grid-template-columns:repeat(2,minmax(0,1fr))}
+.ma-grid a span{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.ma-grid a svg{color:var(--ma-link)}
+.ma-grid a[aria-current]{background:var(--cm-tertiary)}
+.ma-lines{padding:2px 14px}
+.ma-line{width:100%;min-height:52px;padding:8px 0;border:0;background:none;display:flex;align-items:center;gap:12px;font-size:15px;font-weight:600;text-align:left}
+.ma-line+.ma-line{border-top:1px solid var(--cm-border)}
+.ma-line>span{flex:1;min-width:0;overflow-wrap:anywhere}
+.ma-line>svg:first-child{color:var(--ma-link)}
+.ma-line .lang-switcher{flex:none;border:1px solid var(--cm-border);background:var(--cm-background);box-shadow:none;border-radius:999px;padding:3px;display:flex;gap:2px}
+.ma-line .lang-btn{min-width:44px;min-height:38px;border:0;border-radius:999px;background:none;color:var(--ma-muted);font-weight:700}
+.ma-line .lang-btn.active{background:var(--cm-tertiary);color:var(--cm-font)}
+.ma-switch{flex:none;position:relative;width:46px;height:28px;border-radius:999px;background:color-mix(in srgb,var(--cm-font) 26%,var(--cm-surface));transition:background .2s}
+.ma-switch::after{content:"";position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:var(--cm-surface);transition:transform .25s var(--ma-ease)}
+.ma-switch.on{background:var(--cm-primary)}
+.ma-switch.on::after{transform:translateX(18px);background:var(--cm-onPrimary)}
+
+/* ── Início ── */
+.ma-home{width:min(680px,100%);margin:0 auto;padding:8px 16px 24px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+.ma-home h1{font-size:26px;font-weight:800;line-height:1.2;letter-spacing:-.02em;color:var(--cm-font);overflow-wrap:anywhere}
+.ma-chips{display:flex;gap:8px;overflow-x:auto;margin:0 -16px;padding:0 16px;scrollbar-width:none}
+.ma-chips::-webkit-scrollbar{display:none}
+.ma-chip{flex:none;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border:1px solid var(--cm-border);border-radius:999px;background:var(--cm-surface);font-size:14px;font-weight:650}
+.ma-chip svg{color:var(--ma-link)}
+.ma-chip:active{background:var(--cm-tertiary)}
+.ma-block{padding:14px 16px;display:grid;gap:6px}
+.ma-block>header{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:32px}
+.ma-block h2{font-size:16px;font-weight:750;letter-spacing:-.01em;color:var(--cm-font)}
+.ma-more{flex:none;min-height:44px;margin:-8px -10px -8px 0;padding:0 10px;border:0;background:none;display:inline-flex;align-items:center;border-radius:999px;font-size:13.5px;font-weight:700}
+:is(.ma-home,.ma-frame) .ma-more{color:var(--ma-link)}
+.ma-list{list-style:none;padding:0;display:grid}
+.ma-row{width:100%;min-width:0;min-height:58px;padding:7px 0;border:0;background:none;display:flex;align-items:center;gap:12px;text-align:left;font-size:15px}
+.ma-list li+li{border-top:1px solid var(--cm-border)}
+.ma-row-text{flex:1;min-width:0;display:grid;padding:0;border:0;background:none;text-align:left;line-height:1.3;font-size:15px}
+.ma-row-text>*{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ma-row-text b{font-weight:700}
+.ma-date{flex:none;width:44px;height:46px;border-radius:14px;background:var(--cm-tertiary);display:grid;place-items:center;align-content:center;line-height:1.1}
+.ma-date small{font-size:11px !important}
+.ma-date b{font-size:17px;font-weight:800}
+.ma-check{flex:none;position:relative;width:44px;height:44px;margin:0 -6px 0 -10px;padding:0;border:0;background:none}
+.ma-check::before{content:"";position:absolute;inset:10px;border:2px solid color-mix(in srgb,var(--cm-font) 42%,var(--cm-surface));border-radius:50%;transition:background .2s,border-color .2s}
+.ma-check:is(:hover,:active)::before{border-color:var(--cm-primary);background:var(--cm-tertiary)}
+.ma-none{color:var(--ma-muted);font-size:14px;padding:4px 0 6px}
+.ma-total{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ma-total b{font-size:24px;font-weight:800;letter-spacing:-.02em}
+.ma-empty{padding:34px 22px;border:1px dashed color-mix(in srgb,var(--cm-font) 24%,transparent);border-radius:18px;display:grid;justify-items:center;gap:8px;text-align:center;background:repeating-linear-gradient(135deg,transparent 0 12px,color-mix(in srgb,var(--cm-font) 3%,transparent) 12px 24px)}
+.ma-empty>span{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:var(--cm-tertiary);color:var(--ma-link)}
+.ma-empty h2{font-size:17px;font-weight:750;color:var(--cm-font)}
+.ma-empty p{color:var(--ma-muted);max-width:34ch}
+
+/* ── App mode: the platform inside the agency's app ── */
+:root:root[data-app-mode] :is(.shell,.shell.wide){grid-template-columns:minmax(0,1fr)}
+:root:root[data-app-mode] .shell>:is(.g-side,.sidebar){display:none}
+:root:root[data-app-mode] .workspace{min-width:0;padding-bottom:var(--ma-bar,65px)}
+:root:root[data-app-mode] .workspace>.screen{padding-top:4px;scroll-padding-top:8px;min-width:0}
+:root[data-app-mode] .ma-tabs{position:fixed;inset:auto 0 0;z-index:41}
+:root[data-app-mode] .toaster{bottom:calc(var(--ma-bar,65px) + 12px)}
+/* An open conversation takes the whole phone: the messages get the room of the title and the tabs. */
+@media (max-width:760px){
+  :root:root[data-app-mode] .conversations-page:has(.inbox-shell.has-thread:not(.nav-open)) :is(.page-head,.g-utabs-head){display:none}
+  :root[data-app-mode] .inbox-shell .thread-header{padding:8px 12px;gap:6px}
+  :root[data-app-mode] .inbox-shell .thread-header .spacer{display:none}
+  :root[data-app-mode] .inbox-shell .thread-header>b{flex:1 1 calc(100% - 100px);max-width:calc(100% - 100px)}
+  :root[data-app-mode] .inbox-shell .thread-header .thread-assign{flex:1 1 150px;min-width:150px}
+  :root[data-app-mode] .inbox-shell .message-compose .inline-gap{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  :root[data-app-mode] .inbox-shell .message-compose .inline-gap>*{flex:none;white-space:nowrap}
+}
+@media (max-width:360px){.ma-head{padding-inline:12px;gap:6px}.ma-home{padding-inline:12px}.ma-chips{margin:0 -12px;padding:0 12px}.ma-tabs :is(a,button){font-size:10.5px}}
+
+/* ── Preview in the creator: the same pieces at the size of a phone ── */
+.ma-frame{position:relative;isolation:isolate;width:375px;height:740px;overflow:hidden;display:flex;flex-direction:column;background:var(--cm-background);user-select:none}
+.ma-frame .ma-entry{flex:1;min-height:0;overflow:hidden}
+.ma-frame .ma-entry-band{height:220px}
+.ma-frame-screen{position:relative;flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.ma-frame .ma-veil{position:absolute;inset:0;animation:none}
+.ma-frame .ma-sheet{animation:none}
+
+@keyframes ma-fade{from{opacity:0}}
+@keyframes ma-rise{from{transform:translateY(28px);opacity:0}}
+@media (prefers-reduced-motion:reduce){:is(.ma-root,.ma-frame,.ma-head,.ma-tabs,.ma-veil,.ma-home),:is(.ma-root,.ma-frame,.ma-head,.ma-tabs,.ma-veil,.ma-home) *{animation:none !important;transition:none !important}}

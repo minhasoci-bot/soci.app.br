@@ -1,6 +1,6 @@
 import { brandHighlight, brandIcon, icon as i, logo, brandName, bootScreen, shcLayers } from './icons.js';
 import { desktopPage, desktopPreview, readDesktop } from './agency-desktop.js';
-import { mobileStoreCard, readMobileStore } from './agency-mobile.js';
+import { createMobileCreator } from './agency-mobile.js';
 import { formatTokens, formatUsd, usageKinds } from './ai-data.js';
 import { labCatalog, labModes } from './labs-data.js';
 import { appApiScopes, appCategories, appEvents } from './app-studio-data.js';
@@ -22,7 +22,7 @@ import { presentationsHtml, attachPresentationListeners, closePresentationEditor
 import { pranchetaScreen } from './prancheta.js';
 import { apiScopes,
   affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, learningTracks,
-  marketplaceCategories, mobileModules, resellProducts, snapshotAssets, snapshotAssetGroups, subAccountModules, systemEmailKeys,
+  marketplaceCategories, resellProducts, snapshotAssets, snapshotAssetGroups, subAccountModules, systemEmailKeys,
   appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav, walletProducts
 } from './agency-data.js';
 import { setupArt } from './setup-art.js';
@@ -636,18 +636,9 @@ export function startAgency(env) {
     return `<div class="page">${head('Ideias e sugestões', 'Compartilhe melhorias e vote nas funcionalidades mais desejadas para a plataforma.', primary('Enviar sugestão', 'new-record', 'data-key="ideas"'))}${tabCard('ideas', body, 'Seções de ideias')}</div>`;
   };
 
-  pages['mobile-app'] = () => {
-    const m = D().mobileApp;
-    const order = m.order.map(k => mobileModules.find(x => x[0] === k)).filter(Boolean);
-    const custom = [...m.custom, { label: '', url: '' }, { label: '', url: '' }].slice(0, 5);
-    return `<div class="page">${head('Aplicativo móvel', 'Personalize o aplicativo mobile dos seus clientes: nome, identidade visual, tela de login e ordem dos módulos.')}<div class="ag-builder">
-      <form class="surface settings-form set-form" data-ag-form="mobile-app"><section class="set-section"><header class="set-head"><h2>Identidade</h2><p class="dim">Nome, título e cores que o cliente vê ao abrir o app.</p></header><div class="set-body"><div class="field-grid"><label>Nome do app<input name="appName" required maxlength="40" value="${h(m.appName)}"></label><label>Título na tela de login<input name="loginTitle" maxlength="60" value="${h(m.loginTitle)}"></label>
-        <label>Cor primária<input name="primary" type="color" value="${h(m.primary)}"></label><label>Cor de destaque<input name="accent" type="color" value="${h(m.accent)}"></label></div></div></section>
-        <section class="set-section"><header class="set-head"><h2>Módulos</h2><p class="dim">Escolha o que aparece no app e em que ordem.</p></header><div class="set-body"><ol class="ag-order" aria-label="Módulos (ordem de exibição e visibilidade)">${order.map(([k, label]) => `<li data-module="${k}"><label class="check"><input type="checkbox" name="visible" value="${k}" ${m.hidden.includes(k) ? '' : 'checked'}> ${h(tr(label))}</label><span><button type="button" class="icon-btn" data-ag="move-up" aria-label="Mover ${h(label)} para cima">▲</button><button type="button" class="icon-btn" data-ag="move-down" aria-label="Mover ${h(label)} para baixo">▼</button></span></li>`).join('')}</ol></div></section>
-        <section class="set-section"><header class="set-head"><h2>Módulos adicionais</h2><p class="dim">Botões do app que abrem um endereço seu.</p></header><div class="set-body">${custom.map((c, k) => `<div class="field-grid"><label>Nome do botão<input name="customLabel${k}" maxlength="40" value="${h(c.label)}"></label><label>URL de destino<input name="customUrl${k}" type="url" value="${h(c.url)}"></label></div>`).join('')}</div></section>
-        <footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar aplicativo móvel</button></footer></form>
-      <div class="ag-phone" aria-label="Pré-visualização do celular"><div class="ag-phone-top" data-bg="${h(m.primary)}"><b data-preview="appName">${h(m.appName)}</b></div><p class="ag-login" data-preview="loginTitle">${h(m.loginTitle)}</p><ul class="ag-phone-list">${order.filter(([k]) => !m.hidden.includes(k)).map(([, label]) => `<li><span class="ag-dot" data-bg="${h(m.accent)}"></span>${h(tr(label))}</li>`).join('')}${m.custom.map(c => `<li><span class="ag-dot" data-bg="${h(m.accent)}"></span>${h(c.label)}</li>`).join('')}</ul></div></div>${mobileStoreCard(m, location.origin, A.data.access?.agencyId || 'agency')}</div>`;
-  };
+  // Lazy: the helpers it uses are declared further down.
+  let mobileCreator;
+  pages['mobile-app'] = () => (mobileCreator ??= createMobileCreator({ getApp: () => D().mobileApp, agencyId: () => A.data.access?.agencyId || 'agency', origin: location.origin, head, act, flash, download, rerender: render })).page();
 
   pages['desktop-app'] = () => desktopPage(D(), location.origin, A.data.access?.agencyId || 'agency');
 
@@ -1175,6 +1166,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     app.innerHTML = shell(page());
     enhanceCode(app);
     for (const picker of app.querySelectorAll('[data-color-picker]')) mountColorPicker(picker);
+    const creator = app.querySelector('[data-mobile-creator]');
+    if (creator) mobileCreator.mount(creator);
     const chatHost = app.querySelector('[data-soci-chat-host]');
     if (chatHost) sociChat.mount(chatHost, { conversationId: A.sub });
     else sociChat.unmount();
@@ -1570,16 +1563,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'api-key-delete': confirmBox('Revogar esta chave de API?', 'Sistemas ou integrações que utilizam esta chave deixarão de funcionar imediatamente.', 'api-key-delete', id, 'Revogar'); break;
         case 'private-integration': dialog('Criar integração privada', `<label>Nome da integração<input name="name" required maxlength="80"></label><label>Descrição do propósito<input name="description" maxlength="500"></label><fieldset class="ag-checks"><legend>Escopos de acesso</legend>${apiScopes.map(([scope, label]) => `<label class="check"><input type="checkbox" name="scopes" value="${scope}"> ${h(tr(label))} <small class="dim">${scope}</small></label>`).join('')}</fieldset>`, { form: 'private-integration', submit: 'Criar token' }); break;
         case 'private-integration-delete': confirmBox('Excluir esta integração?', 'O token associado deixará de funcionar imediatamente.', 'private-integration-delete', id, 'Excluir'); break;
-        case 'mobile-publish': await act('mobile-app-publish'); go('mobile-app'); flash('App mobile publicado. Envie o link de instalação para a equipe.'); break;
-        case 'mobile-copy': await navigator.clipboard.writeText(id).then(() => flash('Link copiado.'), () => flash('Selecione o link e copie.', true)); break;
-        case 'mobile-package': {
-          const response = await fetch('/api/mobile-app/package'), pack = await response.json();
-          if (!response.ok) throw new Error(pack.error || 'Não foi possível gerar o pacote.');
-          download('twa-manifest.json', JSON.stringify(pack.twaManifest, null, 2), 'application/json');
-          download('soci-app-lojas.json', JSON.stringify(pack, null, 2), 'application/json');
-          flash(pack.ready ? 'Pacote baixado: twa-manifest.json e soci-app-lojas.json.' : `Pacote baixado. Ainda falta: ${pack.missing.join(', ')}.`, !pack.ready);
-          break;
-        }
         case 'desktop-publish': await act('desktop-app-publish'); go('desktop-app'); flash('App desktop publicado. Envie o link de instalação para a equipe e os clientes.'); break;
         case 'desktop-remove': await act('desktop-app', { data: { [id]: 'remove' } }); go('desktop-app'); flash('Imagem removida.'); break;
         case 'desktop-copy': await navigator.clipboard.writeText(id).then(() => flash('Link copiado.'), () => flash('Selecione o link e copie.', true)); break;
@@ -1667,12 +1650,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       applyBrandColor(D().company.primary, D().company.secondary, D().company.accent);
     }
     if (el.form?.dataset.agForm === 'desktop-app') desktopPreview(el.form, el);
-    if (el.form?.dataset.agForm === 'mobile-app') {
-      const preview = el.form.parentElement;
-      if (el.name === 'appName' || el.name === 'loginTitle') preview.querySelectorAll(`[data-preview="${el.name}"]`).forEach(x => { x.textContent = el.value; });
-      if (el.name === 'primary') preview.querySelectorAll('.ag-phone-top,.ag-window-bar').forEach(x => { x.style.background = el.value; });
-      if (el.name === 'accent') preview.querySelectorAll('.ag-dot').forEach(x => { x.style.background = el.value; });
-    }
   });
 
   document.addEventListener('change', async ev => {
@@ -1878,14 +1855,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'affiliate-payout': await act('affiliate-payout', { data }); msg = 'Dados de pagamento atualizados.'; break;
         case 'idea-comment': await act('idea-comment', { id, data }); msg = 'Comentário adicionado.'; break;
         case 'integration': await act('integration', { id, data: { accounts: data.accounts } }); msg = 'Disponibilidade de integração atualizada.'; break;
-        case 'mobile-app': {
-          const order = [...f.querySelectorAll('.ag-order li')].map(li => li.dataset.module);
-          const visible = data.visible || [];
-          const custom = [0, 1, 2, 3, 4].map(k => ({ label: (data[`customLabel${k}`] || '').trim(), url: (data[`customUrl${k}`] || '').trim() })).filter(c => c.label || c.url);
-          await act('mobile-app', { data: { appName: data.appName, loginTitle: data.loginTitle, primary: data.primary, accent: data.accent, order, hidden: order.filter(k => !visible.includes(k)), custom } });
-          msg = 'Aplicativo móvel salvo.'; break;
-        }
-        case 'mobile-app-store': await act('mobile-app-store', { data: await readMobileStore(f) }); go('mobile-app'); msg = 'Dados das lojas salvos.'; break;
         case 'desktop-app': await act('desktop-app', { data: await readDesktop(f) }); go('desktop-app'); msg = 'Aplicativo desktop salvo.'; break;
         case 'profile': await act('profile', { data }); msg = 'Perfil atualizado com sucesso.'; break;
         case 'company': {

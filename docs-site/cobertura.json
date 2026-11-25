@@ -217,5 +217,12 @@
     "titulo": "Como pedir ajuda",
     "fase": "extra",
     "status": "escrito"
+  },
+  {
+    "grupo": "apps",
+    "artigo": "aplicativo-movel",
+    "titulo": "Criar o aplicativo móvel da agência",
+    "fase": "extra",
+    "status": "escrito"
   }
 ]
