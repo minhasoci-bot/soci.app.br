@@ -666,7 +666,7 @@ export function makeServer({
     if (lifecycle.status !== 'Active') throw pausedError(lifecycle, showReason);
     if (module) requireModule(access, module);
   }
-  const mcp = createMcpHandler({ store, change, accountIsActive });
+  const mcp = createMcpHandler({ store, change });
   async function webhookBlockReason(agencyId, id, provider) {
     const access = await systemWorkspaceAccess(id, agencyId);
     if (access.account.status === 'Active') return hasModule(access, 'conversations') ? null : 'MODULE_DISABLED';
@@ -812,28 +812,44 @@ export function makeServer({
       return { agencyId: match.id, install: { ...install }, app: { ...app } };
     });
   }
-  async function bearer(req, scope) {
+  // Whose key this is and what it may do. Scopes null = a full agency key; account = the only sub-account it opens.
+  async function apiCredential(req) {
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i,'');
     if (!token) throw error('Send an API key in the Authorization header.',401);
     const digest = hash(token);
     // A marketplace app's install token: only its own sub-account and the scopes the app declared.
     if (token.startsWith('soci_app_')) {
       const { agencyId, install, app } = await appBearer(req);
-      if (!app.scopes.includes(scope)) throw error(`O app ${app.name} não tem a permissão ${scope}.`, 403);
-      req.appAccount = install.account;
-      return agencyId;
+      return { agencyId, name: app.name, scopes: app.scopes, account: install.account, app: true };
     }
     const matches = await Promise.all([store.findAgency({ apiKeys: [{ hash: digest }] }), store.findAgency({ privateIntegrations: [{ hash: digest }] })]);
     const match = matches.find(Boolean);
     if (!match) throw error('This key is invalid or lacks the required scope.',401);
-    const allowed = await changeAgency(match.id, agency => {
+    const found = await changeAgency(match.id, agency => {
       const key = agency.apiKeys.find(k => k.hash === digest) || agency.privateIntegrations.find(k => k.hash === digest);
-      if (!key) return false;
+      if (!key) return null;
       key.lastUsed = stamp();
-      return !key.scopes || key.scopes.includes(scope);
+      return { name: key.name, scopes: key.scopes || null };
     });
-    if (!allowed) throw error('This key is invalid or lacks the required scope.',401);
-    return match.id;
+    if (!found) throw error('This key is invalid or lacks the required scope.',401);
+    return { agencyId: match.id, ...found, account: null, app: false };
+  }
+  async function bearer(req, scope) {
+    const key = await apiCredential(req);
+    if (key.scopes && !key.scopes.includes(scope)) {
+      throw key.app ? error(`O app ${key.name} não tem a permissão ${scope}.`, 403) : error('This key is invalid or lacks the required scope.',401);
+    }
+    if (key.account) req.appAccount = key.account;
+    return key.agencyId;
+  }
+  // MCP clients send an API key in the Authorization header; the app itself may use the signed-in session.
+  // A key in the header never falls back to the session, and a key in the URL is never read.
+  async function mcpAccess(req, res, workspace) {
+    if (!req.headers.authorization) return workspaceAccess(req, res, workspace, { hide: true });
+    const key = await apiCredential(req);
+    if (key.account && key.account !== workspace) throw error('O token deste app só vale para a subconta onde ele foi instalado.', 403);
+    const actor = { agencyId: key.agencyId, modules: null, name: `API · ${key.name}`, scopes: key.scopes };
+    return requireWorkspaceAccess(await loadAgency(key.agencyId), actor, workspace, { hide: true, reason: false });
   }
   // ---- AI Studio sites ----
   async function studioGuard(req, res, workspace) {
@@ -2693,21 +2709,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (!spaceId.test(wsParam) && !privateSpace.test(wsParam)) {
             throw error('Subconta não informada ou inválida. Informe ?workspace=<id> ou header X-Workspace.', 400);
           }
-          let actor = 'MCP Agent';
-          const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim() || url.searchParams.get('token') || '';
-          if (auth) {
-            try {
-              const who = await access(req, res);
-              actor = who.user?.name || who.session?.id || 'MCP User';
-            } catch {
-              if (!token) throw error('Autenticação necessária para o servidor MCP da Soci (Bearer token).', 401);
-              actor = `MCP Key (${token.slice(0, 8)}…)`;
-            }
-          }
-          await publicAccountPolicy(wsParam, false, 'marketing');
-          const state = await store.load(wsParam);
+          const who = await mcpAccess(req, res, wsParam);
           const body = await payload(req);
-          const response = await mcp.handleMcpRequest(body, { state, workspace: wsParam, actor });
+          const response = await mcp.handleMcpRequest(body, { workspace: wsParam, who });
           if (!response) return send(204, 'text/plain', '');
           return json(response);
         }

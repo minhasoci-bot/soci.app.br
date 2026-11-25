@@ -2,7 +2,27 @@
 // Exposes tools and resources for Anthropic Claude, Claude Code, OpenAI ChatGPT and external AI agents.
 // Specification: JSON-RPC 2.0 / MCP Protocol (2024-11-05).
 
-export function createMcpHandler({ store, change, accountIsActive }) {
+import { denies, requireModule } from './authorization.mjs';
+
+// What each tool needs: the sub-account module, and the API scope that lets a scoped key use it.
+// A tool without a scope is only for unscoped keys and signed-in users.
+const toolAccess = {
+  list_social_accounts: { module: 'marketing' },
+  list_scheduled_posts: { module: 'marketing' },
+  create_social_post: { module: 'marketing' },
+  get_social_analytics: { module: 'marketing' },
+  list_crm_contacts: { module: 'contacts', scope: 'contacts.read' },
+  send_social_message: { module: 'conversations' }
+};
+
+function requireTool(who, name) {
+  const needs = Object.hasOwn(toolAccess, name) ? toolAccess[name] : null;
+  if (!needs) throw denies(`Ferramenta desconhecida: ${name}`, 404);
+  if (who.scopes && !who.scopes.includes(needs.scope)) throw denies('Esta chave não tem permissão para esta ferramenta.');
+  requireModule(who, needs.module);
+}
+
+export function createMcpHandler({ store, change }) {
   function listTools() {
     return [
       {
@@ -108,9 +128,9 @@ export function createMcpHandler({ store, change, accountIsActive }) {
     ];
   }
 
-  async function callTool(initialState, name, args, { workspace, actor }) {
-    let state = initialState;
-    try { state = await store.load(workspace); } catch { state = initialState; }
+  async function callTool(name, args, { workspace, who }) {
+    requireTool(who, name);
+    const state = await store.load(workspace);
     switch (name) {
       case 'list_social_accounts': {
         const accounts = (state.socialAccounts || []).map(a => ({
@@ -152,8 +172,8 @@ export function createMcpHandler({ store, change, accountIsActive }) {
             firstComment: args.firstComment || '',
             needsApproval: Boolean(args.needsApproval)
           },
-          actor: actor || 'AI Agent (MCP)'
-        });
+          actor: who.name
+        }, who);
         const resultId = res?.id || res;
         return { success: true, postId: resultId, message: 'Publicação criada com sucesso no Social Planner da Soci.' };
       }
@@ -208,8 +228,9 @@ export function createMcpHandler({ store, change, accountIsActive }) {
             body,
             channel,
             direction: 'Outbound'
-          }
-        }, { name: actor });
+          },
+          actor: who.name
+        }, who);
         return { ok: true, messageId: res?.id || res };
       }
       default:
@@ -217,7 +238,7 @@ export function createMcpHandler({ store, change, accountIsActive }) {
     }
   }
 
-  async function handleMcpRequest(body, { state, workspace, actor }) {
+  async function handleMcpRequest(body, { workspace, who }) {
     const { jsonrpc, id, method, params } = body || {};
     if (jsonrpc !== '2.0' && !method) {
       return { jsonrpc: '2.0', id: id ?? null, error: { code: -32600, message: 'Invalid Request' } };
@@ -263,7 +284,7 @@ export function createMcpHandler({ store, change, accountIsActive }) {
       const toolName = params?.name;
       const toolArgs = params?.arguments || {};
       try {
-        const result = await callTool(state, toolName, toolArgs, { workspace, actor });
+        const result = await callTool(toolName, toolArgs, { workspace, who });
         return {
           jsonrpc: '2.0',
           id,
@@ -278,6 +299,7 @@ export function createMcpHandler({ store, change, accountIsActive }) {
           }
         };
       } catch (err) {
+        if (!err.status) console.error(`MCP ${toolName} (${workspace}): ${err.stack || err.message}`);
         return {
           jsonrpc: '2.0',
           id,
@@ -285,7 +307,8 @@ export function createMcpHandler({ store, change, accountIsActive }) {
             content: [
               {
                 type: 'text',
-                text: `Erro ao executar ${toolName}: ${err.stack || err.message}`
+                // A known refusal explains itself; anything else stays in the server log.
+                text: `Erro ao executar ${toolName}: ${err.status ? err.message : 'falha interna, tente de novo.'}`
               }
             ],
             isError: true
