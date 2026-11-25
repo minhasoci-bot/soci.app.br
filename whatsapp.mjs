@@ -516,6 +516,13 @@ export function createWhatsAppHandler({
     if (!sub.enabled) {
       throw fail('O recurso de WhatsApp não está habilitado para esta subconta.', 403);
     }
+    // Grava o vínculo antes de usá-lo: sem registro salvo, cada leitura sortearia outro segredo e a Evolution
+    // chamaria um endereço que o webhook recusa.
+    row = await changeRow(agencyId, current => {
+      current.subaccounts[workspaceId] = subFor(current, workspaceId);
+      return current;
+    });
+    sub = row.subaccounts[workspaceId];
     const webhookUrl = webhookUrlOf(publicOrigin, agencyId, workspaceId, sub);
 
     let token = instanceTokenOf(row, agencyId, workspaceId);

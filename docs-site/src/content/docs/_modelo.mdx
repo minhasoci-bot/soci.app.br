@@ -1,0 +1,54 @@
+---
+title: Título que diz o que a pessoa vai conseguir fazer
+description: Uma frase com o resultado do artigo. Aparece na busca e nos cartões.
+modulo: crm
+sidebar:
+  order: 10
+  # badge: { text: Novo, variant: tip }   (só nos primeiros 30 dias depois da entrega)
+---
+
+{/* MODELO DE ARTIGO. Arquivos que começam com _ não são publicados.
+   Copie para <grupo>/<artigo>.mdx e siga a ordem abaixo. Tire uma seção só quando ela não se aplicar.
+   Regras de escrita: frases curtas, voz ativa, "você"; botões em **negrito** com o nome exato da tela;
+   um print por passo que muda a tela; texto alternativo em todo print; nada de dados reais de clientes. */}
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../components/Print.astro';
+import Video from '../../components/Video.astro';
+import Requisitos from '../../components/Requisitos.astro';
+import Automacao from '../../components/Automacao.astro';
+
+Para que serve, em duas ou três frases, na língua do dono da agência.
+
+<Requisitos plano="Plano necessário" permissao="Papel ou permissão necessária" integracoes={['Integração necessária']} />
+
+<Video src="docs/<grupo>/<artigo>/video.<hash>.mp4" poster="docs/<grupo>/<artigo>/video.<hash>.webp" legenda="O que o vídeo mostra." />
+
+## Passo a passo
+
+<Steps>
+
+1. **Abra a tela** no menu da subconta.
+
+   <Print src="docs/<grupo>/<artigo>/01-<nome>.<hash>.webp" alt="Descrição do que aparece no print." />
+
+2. Clique em **Nome do botão**.
+
+</Steps>
+
+<Aside type="tip">Uma dica prática que poupa tempo.</Aside>
+
+## Automações ligadas
+
+<Automacao gatilhos={['Nome do gatilho como aparece no editor']} acoes={['Nome da ação como aparece no editor']} />
+
+## Perguntas frequentes
+
+**Pergunta que a agência costuma fazer?**
+Resposta curta e direta.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Artigo relacionado" href="/<grupo>/<artigo>/" />
+</CardGrid>

@@ -1,0 +1,33 @@
+name: Documentação
+
+# Regra da soci: toda entrega que muda o produto traz o artigo da central de ajuda (docs-site/) no mesmo PR.
+# Fica num workflow próprio para rodar de novo quando o corpo do PR é editado ("Documentação: não se aplica — motivo")
+# sem reiniciar os testes do app.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    name: Artigo da central de ajuda
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Artigo da central de ajuda
+        env:
+          BASE: ${{ github.base_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/docs-check.mjs
