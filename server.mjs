@@ -17,6 +17,9 @@ import { createQrRoutes } from './routes/qr.mjs';
 import { createAffiliateRoutes } from './routes/affiliates.mjs';
 import { createOfferApiRoutes, createOfferPageRoutes } from './routes/offers.mjs';
 import { createBookingRoutes } from './routes/booking.mjs';
+import { createPreferenceRoutes } from './routes/preferences.mjs';
+import { createAgencyAppRoutes } from './routes/agency-apps.mjs';
+import { createCertificateRoutes } from './routes/certificates.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -120,14 +123,11 @@ import { createAbacatePayHandler } from './abacatepay.mjs';
 import { makeClientPortal } from './client-portal.mjs';
 import { makeCommunity } from './community.mjs';
 import { fillWelcome } from './community-config.mjs';
-import { certificateCsp, certificatePage } from './course-credentials.mjs';
-import { preferenceCsp, preferencePage, preferenceView } from './preference-model.mjs';
 import { leaveCsp, leavePage, outcomeOf, resolveDestination } from './destinations.mjs';
 import { audioLimit, audioTypes, summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
 import { askAssistant } from './seo-ai.mjs';
 import { addTopup, paidTopup, pricingFor, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
-import { desktopCsp, desktopLaunchPage, desktopManifest, desktopOf, desktopWorker } from './agency-desktop.mjs';
-import { assetLinksFor, mobileConfig, mobileCsp, mobileLaunchPage, mobileManifest, mobileOf, mobileWorker, storePackage } from './agency-mobile.mjs';
+import { mobileOf, storePackage } from './agency-mobile.mjs';
 import { pushConfigured, pushSubscription, sendPush } from './web-push.mjs';
 import { pushTargets } from './push-model.mjs';
 import { pollConnector, readWebhook, runConnectorAction, testConnection } from './connectors.mjs';
@@ -211,10 +211,6 @@ const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const chatPath = new RegExp(`^/chat/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js|demo))?/?$`);
 const chatApi = new RegExp(`^/api/chat/${workspaceSegment}/([0-9a-f-]{36})/(start|send|messages)$`);
 const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
-const certificatePath = new RegExp(`^/certificado/${workspaceSegment}/([0-9A-F]{12})/?$`);
-const preferencePath = new RegExp(`^/preferencias/${workspaceSegment}/([0-9a-f]{32})/?$`);
-const desktopPath = /^\/desktop\/([\w-]{1,60})\/(manifest\.webmanifest|sw\.js|icon-(?:192|512|1024)\.png)?$/;
-const mobilePath = /^\/mobile\/([\w-]{1,60})\/(manifest\.webmanifest|sw\.js|config\.json|icon-(?:192|512|1024)\.png)?$/;
 const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout|cart|restore|review|view)$`);
 const blogPath = new RegExp(`^/b/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,80}|rss\\.xml))?/?$`);
 const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
@@ -2169,6 +2165,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const offerPageRoute = createOfferPageRoutes({ store, ready, error, workspaceSegment, clientPortal, publicAccountPolicy, withPixels });
   const offerApiRoute = createOfferApiRoutes({ store, ready, error, workspaceSegment, abacate, change, grantOffer, payload, publicAccountPolicy, publicBase });
   const bookingRoute = createBookingRoutes({ store, ready, error, workspaceSegment, allowSign, change, flushLater, formBody, leave, publicAccountPolicy, withPixels });
+  const preferenceRoute = createPreferenceRoutes({ store, ready, error, workspaceSegment, change, flushLater, formBody, publicAccountPolicy });
+  const agencyAppRoute = createAgencyAppRoutes({ store, auth, ready, error, loadAgency });
+  const certificateRoute = createCertificateRoutes({ store, ready, error, workspaceSegment, publicAccountPolicy });
   const siteRoute = createSiteRoutes({ store, ready, error, workspaceSegment, trackingPath, allowTracking, change, changeSite, flushLater, formFields, publicAccountPolicy, publicBase, siteDoc, studioGuard, trackingLog, withPixels });
   const webinarRoute = createWebinarRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, publicBase, publicPreview });
   const qrRoute = createQrRoutes({ store, ready, workspaceSegment, change, publicAccountPolicy, publicBase });
@@ -2954,89 +2953,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (offerPageRouteHandled !== NEXT_ROUTE) return offerPageRouteHandled;
       const bookingRouteHandled = await bookingRoute({ req, res, p, method, url });
       if (bookingRouteHandled !== NEXT_ROUTE) return bookingRouteHandled;
-      // Central de preferências: the contact's own page (link with a private token) to choose channels and topics.
-      const preference = p.match(preferencePath);
-      if (preference && ['GET', 'HEAD', 'POST'].includes(method)) {
-        await ready;
-        const [, workspace, token] = preference;
-        await publicAccountPolicy(workspace, method === 'POST', 'contacts');
-        let saved = false;
-        if (method === 'POST') {
-          const form = await formBody(req), list = value => [].concat(value || []);
-          await change(workspace, { type: 'preferences-save', data: { token, channels: list(form.channels), topics: list(form.topics), all: form.all === '1' } });
-          flushLater(workspace); saved = true;
-        }
-        const view = preferenceView(await store.load(workspace), token);
-        if (!view) throw error('Link de preferências inválido.',404);
-        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'same-origin', 'X-Robots-Tag':'noindex', 'Content-Security-Policy':preferenceCsp });
-        return res.end(method === 'HEAD' ? undefined : preferencePage(view, { saved }));
-      }
-      // The agency's mobile app (6.6): install page, manifest, icons, service worker (push) and the app-mode config.
-      const mobile = p.match(mobilePath);
-      if (mobile && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, agencyId, part = ''] = mobile;
-        let agency;
-        try { agency = await loadAgency(agencyId); } catch { throw error('App não encontrado.',404); }
-        const app = mobileOf(structuredClone(agency));
-        if (app.status !== 'published') throw error('Este app ainda não foi publicado pela agência.',404);
-        const done = (type, body, extra = {}) => { res.writeHead(200, { 'Content-Type':type, 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff', ...extra }); return res.end(method === 'HEAD' ? undefined : body); };
-        if (part === 'manifest.webmanifest') return done('application/manifest+json; charset=utf-8', JSON.stringify(mobileManifest(app, agencyId)));
-        if (part === 'sw.js') return done('text/javascript; charset=utf-8', mobileWorker(agencyId), { 'Service-Worker-Allowed':`/mobile/${agencyId}/` });
-        if (part === 'config.json') return done('application/json; charset=utf-8', JSON.stringify(mobileConfig(app, agencyId)));
-        if (part.startsWith('icon-')) {
-          const size = part.slice(5, -4), source = (size === '192' && app.icon192) || (size === '512' && app.icon512) || app.icon;
-          const image = source && await assetBytes(store, source);
-          if (!image) throw error('Ícone não encontrado.',404);
-          return done('image/png', image.bytes);
-        }
-        return done('text/html; charset=utf-8', mobileLaunchPage(app, agencyId), { 'Content-Security-Policy':mobileCsp, 'Referrer-Policy':'no-referrer' });
-      }
-      if (p === '/push/sw.js' && (method === 'GET' || method === 'HEAD')) {
-        res.writeHead(200, { 'Content-Type':'text/javascript; charset=utf-8', 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff' });
-        return res.end(method === 'HEAD' ? undefined : mobileWorker('push').replaceAll('/mobile/push/icon-192.png', '/favicon.svg'));
-      }
-      if (p === '/.well-known/assetlinks.json' && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase().split(':')[0];
-        const found = await Promise.resolve().then(() => store.findAgency({ mobileApp: { store: { domain: host } } })).catch(() => null);
-        const links = found && assetLinksFor([found.state], host);
-        if (!links) throw error('Not found.',404);
-        res.writeHead(200, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'public, max-age=3600' });
-        return res.end(method === 'HEAD' ? undefined : JSON.stringify(links));
-      }
-      // The agency's installable desktop app: the branded sign-in screen, its manifest, icons and service worker.
-      const desktop = p.match(desktopPath);
-      if (desktop && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, agencyId, part = ''] = desktop;
-        let agency;
-        try { agency = await loadAgency(agencyId); } catch { throw error('App não encontrado.',404); }
-        const app = desktopOf(structuredClone(agency));
-        if (app.status !== 'published') throw error('Este app ainda não foi publicado pela agência.',404);
-        const done = (type, body, extra = {}) => { res.writeHead(200, { 'Content-Type':type, 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff', ...extra }); return res.end(method === 'HEAD' ? undefined : body); };
-        if (part === 'manifest.webmanifest') return done('application/manifest+json; charset=utf-8', JSON.stringify(desktopManifest(app, agencyId)));
-        if (part === 'sw.js') return done('text/javascript; charset=utf-8', desktopWorker, { 'Service-Worker-Allowed':`/desktop/${agencyId}/` });
-        if (part.startsWith('icon-')) {
-          const size = part.slice(5, -4), source = (size === '192' && app.icon192) || (size === '512' && app.icon512) || app.icon;
-          const image = source && await assetBytes(store, source);
-          if (!image) throw error('Ícone não encontrado.',404);
-          return done('image/png', image.bytes);
-        }
-        return done('text/html; charset=utf-8', desktopLaunchPage(app, agencyId, { signedIn: Boolean(auth?.hasSession?.(req)) }), { 'Content-Security-Policy':desktopCsp, 'Referrer-Policy':'no-referrer' });
-      }
-      // Certificates and badges: a public page anyone with the code can open to see and verify it.
-      const certificate = p.match(certificatePath);
-      if (certificate && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, code] = certificate;
-        await publicAccountPolicy(workspace, false, 'memberships');
-        const state = await store.load(workspace);
-        const row = (state.credentialsIssued || []).find(item => item.code === code);
-        if (!row) throw error('Certificado não encontrado.',404);
-        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer', 'X-Robots-Tag':'noindex', 'Content-Security-Policy':certificateCsp });
-        return res.end(method === 'HEAD' ? undefined : certificatePage(state, row));
-      }
+      const preferenceRouteHandled = await preferenceRoute({ req, res, p, method });
+      if (preferenceRouteHandled !== NEXT_ROUTE) return preferenceRouteHandled;
+      const agencyAppRouteHandled = await agencyAppRoute({ req, res, p, method });
+      if (agencyAppRouteHandled !== NEXT_ROUTE) return agencyAppRouteHandled;
+      const certificateRouteHandled = await certificateRoute({ res, p, method });
+      if (certificateRouteHandled !== NEXT_ROUTE) return certificateRouteHandled;
       const offerApiRouteHandled = await offerApiRoute({ req, p, method, json });
       if (offerApiRouteHandled !== NEXT_ROUTE) return offerApiRouteHandled;
       const storeApiHandled = await storeApiRoute({ req, p, method, json });
