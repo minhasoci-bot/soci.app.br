@@ -170,6 +170,13 @@
     "status": "escrito"
   },
   {
+    "grupo": "ia",
+    "artigo": "servidor-mcp",
+    "titulo": "Conectar IAs pelo servidor MCP",
+    "fase": "extra",
+    "status": "escrito"
+  },
+  {
     "grupo": "marketing",
     "artigo": "planejador-social",
     "titulo": "Planejador social",

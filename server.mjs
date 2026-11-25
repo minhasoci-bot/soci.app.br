@@ -1,10 +1,11 @@
 import { createSocialRoutes } from './routes/social.mjs';
 import { createPortalRoutes } from './routes/portal.mjs';
 import { createPranchetaRoutes } from './routes/prancheta.mjs';
-import { createActionRoutes } from './routes/action.mjs';
+import { createActionRoutes, createCommandRunner } from './routes/action.mjs';
 import { createAdsRoutes } from './routes/ads.mjs';
 import { createBillingRoutes } from './routes/billing.mjs';
 import { createEmailRoutes } from './routes/email.mjs';
+import { createMcpRoutes } from './routes/mcp.mjs';
 import { createMetaRoutes } from './routes/meta.mjs';
 import { createGbpRoutes, createGoogleRoutes } from './routes/google.mjs';
 import { createAgentRoutes } from './routes/agents.mjs';
@@ -143,7 +144,6 @@ import { pushTargets } from './push-model.mjs';
 import { pollConnector, runConnectorAction } from './connectors.mjs';
 import { pollJobs } from './connector-model.mjs';
 import { unseal as unsealSecret } from './social-providers.mjs';
-import { createMcpHandler } from './mcp-server.mjs';
 import { randomBytes } from 'node:crypto';
 import { postSeo, writePost } from './blog-ai.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
@@ -180,7 +180,7 @@ export const staticFiles = new Map([
   ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
   ['/opportunity-data.js','text/javascript; charset=utf-8'], ['/opportunity-filters.js','text/javascript; charset=utf-8'], ['/opportunities.js','text/javascript; charset=utf-8'], ['/opportunities.css','text/css; charset=utf-8'],
   ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'], ['/event-planner.js','text/javascript; charset=utf-8'], ['/event-planner-data.js','text/javascript; charset=utf-8'], ['/event-copy-editor.js','text/javascript; charset=utf-8'], ['/event-message-parts.js','text/javascript; charset=utf-8'], ['/event-sends.js','text/javascript; charset=utf-8'], ['/event-planner.css','text/css; charset=utf-8'],
-  ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
+  ['/social-connect.js','text/javascript; charset=utf-8'], ['/mcp.js','text/javascript; charset=utf-8'], ['/mcp-autorizar.js','text/javascript; charset=utf-8'], ['/mcp.css','text/css; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
   ['/prancheta-editor.html','text/html; charset=utf-8'], ['/vendor/prancheta-editor.js','text/javascript; charset=utf-8'], ['/vendor/prancheta-editor.css','text/css; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/button-system.css','text/css; charset=utf-8'], ['/page-layout.css','text/css; charset=utf-8'], ['/tokens.css','text/css; charset=utf-8'], ['/liquid-glass.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
@@ -227,7 +227,7 @@ const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 function publicAgency(agency, who) {
   // The audit log has its own endpoint (GET /api/agency/audit).
-  const { audit: _audit, ledgerOutbox: _outbox, ...shared } = agency;
+  const { audit: _audit, ledgerOutbox: _outbox, mcpGrants: _grants, ...shared } = agency;
   const view = { ...shared,
     snapshots: agency.snapshots.map(({ studioSites: _studioSites, ...rest }) => rest),
     apiKeys: agency.apiKeys.map(({ hash: _hash, ...rest }) => rest),
@@ -666,7 +666,6 @@ export function makeServer({
     if (lifecycle.status !== 'Active') throw pausedError(lifecycle, showReason);
     if (module) requireModule(access, module);
   }
-  const mcp = createMcpHandler({ store, change });
   async function webhookBlockReason(agencyId, id, provider) {
     const access = await systemWorkspaceAccess(id, agencyId);
     if (access.account.status === 'Active') return hasModule(access, 'conversations') ? null : 'MODULE_DISABLED';
@@ -812,6 +811,7 @@ export function makeServer({
       return { agencyId: match.id, install: { ...install }, app: { ...app } };
     });
   }
+  const KEY_USE_WRITE = 10 * 60000;
   // Whose key this is and what it may do. Scopes null = a full agency key; account = the only sub-account it opens.
   async function apiCredential(req) {
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i,'');
@@ -825,14 +825,14 @@ export function makeServer({
     const matches = await Promise.all([store.findAgency({ apiKeys: [{ hash: digest }] }), store.findAgency({ privateIntegrations: [{ hash: digest }] })]);
     const match = matches.find(Boolean);
     if (!match) throw error('This key is invalid or lacks the required scope.',401);
-    const found = await changeAgency(match.id, agency => {
-      const key = agency.apiKeys.find(k => k.hash === digest) || agency.privateIntegrations.find(k => k.hash === digest);
-      if (!key) return null;
-      key.lastUsed = stamp();
-      return { name: key.name, scopes: key.scopes || null };
+    const keyOf = agency => [...(agency.apiKeys || []), ...(agency.privateIntegrations || [])].find(k => k.hash === digest);
+    const found = keyOf(match.state);
+    // "Last used" only needs to be roughly right: an AI makes many calls in a row, and each write rewrites the agency.
+    if (!(Date.now() - Date.parse(found.lastUsed) < KEY_USE_WRITE)) await changeAgency(match.id, agency => {
+      const key = keyOf(agency);
+      if (key) key.lastUsed = stamp();
     });
-    if (!found) throw error('This key is invalid or lacks the required scope.',401);
-    return { agencyId: match.id, ...found, account: null, app: false };
+    return { agencyId: match.id, name: found.name, scopes: found.scopes || null, account: null, app: false };
   }
   async function bearer(req, scope) {
     const key = await apiCredential(req);
@@ -841,15 +841,6 @@ export function makeServer({
     }
     if (key.account) req.appAccount = key.account;
     return key.agencyId;
-  }
-  // MCP clients send an API key in the Authorization header; the app itself may use the signed-in session.
-  // A key in the header never falls back to the session, and a key in the URL is never read.
-  async function mcpAccess(req, res, workspace) {
-    if (!req.headers.authorization) return workspaceAccess(req, res, workspace, { hide: true });
-    const key = await apiCredential(req);
-    if (key.account && key.account !== workspace) throw error('O token deste app só vale para a subconta onde ele foi instalado.', 403);
-    const actor = { agencyId: key.agencyId, modules: null, name: `API · ${key.name}`, scopes: key.scopes };
-    return requireWorkspaceAccess(await loadAgency(key.agencyId), actor, workspace, { hide: true, reason: false });
   }
   // ---- AI Studio sites ----
   async function studioGuard(req, res, workspace) {
@@ -2206,7 +2197,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   // Rotas por domínio (P2.1): cada módulo recebe o que vive neste fechamento e devolve NEXT_ROUTE quando a rota não é dele.
   const socialRoute = createSocialRoutes({ store, auth, localAccess, redirectToR2, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
   const adsRoute = createAdsRoutes({ store, localAccess, error, spaceId, privateSpace, stamp, adsAccess, adsCallbackPath, adsPopup, adsView, payload, publicBase, recordAudit, runAds, socialActor, socialRow, workspaceAccess });
-  const actionRoute = createActionRoutes({ store, r2, messageMedia, clearVideoChunks, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
+  const runCommand = createCommandRunner({ store, r2, messageMedia, clearVideoChunks, documentMail, error, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
+  const actionRoute = createActionRoutes({ error, spaceId, privateSpace, payload, workspaceAccess, runCommand });
+  const mcpRoute = createMcpRoutes({ store, ready, root, auth, localAccess, error, spaceId, privateSpace, payload, runCommand, publicBase, stamp, recordAudit, listWorkspaces, access, apiCredential, changeAgency, loadAgency, requireWorkspaceAccess, workspaceAccess });
   const emailRoute = createEmailRoutes({ store, ready, error, spaceId, privateSpace, stamp, campaignMail, emailDomainApi, flushLater, inboundFetch, payload, publicAccountPolicy, publicBase, recordAudit, sendingAddress, socialRow, testHits, workspaceAccess });
   const metaRoute = createMetaRoutes({ store, ready, error, change, flushLater, metaFetch, metaRoutesRow, metaSender, publicAccountPolicy });
   const googleRoute = createGoogleRoutes({ store, ready, localAccess, error, spaceId, privateSpace, stamp, workspaceSegment, flushLater, googleCache, googleCallbackPath, googleData, googlePopup, googleView, payload, publicAccountPolicy, publicBase, recordAudit, searchCache, socialActor, socialRow, workspaceAccess });
@@ -2532,6 +2525,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await change(id, { type: 'tracking-ga4-secret', data: { set: Boolean(secret) } });
         return json(workspaceView(who, result.state));
       }
+      const mcpRouteHandled = await mcpRoute({ req, res, p, method, url, json, send, goTo });
+      if (mcpRouteHandled !== NEXT_ROUTE) return mcpRouteHandled;
       const actionRouteHandled = await actionRoute({ req, res, p, method, url, id, json, send });
       if (actionRouteHandled !== NEXT_ROUTE) return actionRouteHandled;
       if (p==='/api/agency' && method!=='POST') {
@@ -2690,33 +2685,6 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (phoneRouteHandled !== NEXT_ROUTE) return phoneRouteHandled;
       const whatsappRouteHandled = await whatsappRoute({ req, res, p, method, url, id, json });
       if (whatsappRouteHandled !== NEXT_ROUTE) return whatsappRouteHandled;
-      if (p === '/api/mcp' || p.startsWith('/api/mcp/')) {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Workspace');
-        if (method === 'OPTIONS') return send(204, 'text/plain', '');
-        if (method === 'GET') {
-          return json({
-            name: 'soci-mcp-server',
-            version: '1.0.0',
-            description: 'Model Context Protocol (MCP) Server for Soci platform',
-            tools: mcp.listTools().map(t => t.name),
-            status: 'online'
-          });
-        }
-        if (method === 'POST') {
-          const wsParam = url.searchParams.get('workspace') || req.headers['x-workspace'] || id;
-          if (!spaceId.test(wsParam) && !privateSpace.test(wsParam)) {
-            throw error('Subconta não informada ou inválida. Informe ?workspace=<id> ou header X-Workspace.', 400);
-          }
-          const who = await mcpAccess(req, res, wsParam);
-          const body = await payload(req);
-          const response = await mcp.handleMcpRequest(body, { workspace: wsParam, who });
-          if (!response) return send(204, 'text/plain', '');
-          return json(response);
-        }
-        throw error('Método não permitido.', 405);
-      }
       if (p.startsWith('/api/ask/')) {
         const { agency, who } = await accessContext(req, await verifiedUser(req, res));
         requireCapability(who, 'agency', 'Seu usuário não pode acessar o Pergunte à Soci.');

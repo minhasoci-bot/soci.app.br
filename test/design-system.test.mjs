@@ -57,7 +57,7 @@ test('Reduzir transparência e aumentar contraste cobrem os materiais nos dois t
 });
 
 test('As páginas carregam tokens no começo e o vidro por último', () => {
-  for (const file of ['app.html', 'document-sign.html', 'estimate-view.html', 'invoice-view.html', 'social-approve.html', 'social-connect.html']) {
+  for (const file of ['app.html', 'document-sign.html', 'estimate-view.html', 'invoice-view.html', 'social-approve.html', 'social-connect.html', 'mcp-autorizar.html']) {
     const sheets = [...read(file).matchAll(/<link[^>]*rel="stylesheet"[^>]*href="\/([a-z-]+\.css)/g)].map(m => m[1]);
     assert.ok(sheets.indexOf('tokens.css') === sheets.indexOf('style.css') + 1, `${file}: tokens.css logo depois de style.css`);
     assert.equal(sheets.at(-1), 'liquid-glass.css', `${file}: liquid-glass.css por último`);
