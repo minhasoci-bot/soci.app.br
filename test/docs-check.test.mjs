@@ -62,3 +62,11 @@ test('lista de cobertura da documentação bate com os artigos escritos', async 
     }
   }
 });
+
+test('a checagem de documentação roda de novo quando o corpo do PR é editado', async () => {
+  const yml = await readFile(new URL('../.github/workflows/docs.yml', import.meta.url), 'utf8');
+  assert.match(yml, /types:\s*\[[^\]]*\bedited\b[^\]]*\]/);
+  assert.match(yml, /node scripts\/docs-check\.mjs/);
+  const ci = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  assert.doesNotMatch(ci, /docs-check\.mjs/, 'o job saiu do ci.yml para não reiniciar os testes do app a cada edição do corpo');
+});

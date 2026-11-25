@@ -43,7 +43,7 @@ Toda ferramenta nova ou melhoria visível para quem usa a soci cria ou atualiza 
 4. Se o editor de workflows mudou (`ui/workflow-data.js`), rode `npm run docs:catalogo`. Depois de criar ou renomear um artigo, rode `npm run docs:secoes` (atualiza os cartões da página da seção) e marque o artigo em `docs-site/cobertura.json`.
 5. Se a mudança não aparece para quem usa a soci, escreva no corpo do PR: `Documentação: não se aplica — <motivo>`.
 
-O CI (job "Documentação", `scripts/docs-check.mjs`) reprova o PR que muda `ui/`, `routes/` ou `*-model.mjs` sem artigo e sem essa linha.
+O CI (workflow "Documentação", `.github/workflows/docs.yml`, que roda de novo ao editar o corpo do PR) reprova o PR que muda `ui/`, `routes/` ou `*-model.mjs` sem artigo e sem essa linha.
 
 Comandos: `npm run docs:dev` (site local), `npm run docs:build`, `npm run docs:test`.
 Design: `docs/superpowers/specs/2026-11-24-doc-soci-design.md`.

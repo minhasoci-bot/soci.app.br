@@ -12,4 +12,4 @@ Documentação: <!-- caminho do artigo em docs-site/src/content/docs/ ou "não s
 
 <!-- Regra: toda ferramenta nova ou melhoria visível cria ou atualiza o artigo da central de ajuda (doc.soci.app.br)
      neste mesmo PR e acrescenta uma linha em docs-site/src/content/docs/comece-aqui/novidades.mdx.
-     O CI (job "Documentação") reprova o PR que muda ui/, routes/ ou *-model.mjs sem isso. -->
+     O CI (workflow "Documentação") reprova o PR que muda ui/, routes/ ou *-model.mjs sem isso. -->
