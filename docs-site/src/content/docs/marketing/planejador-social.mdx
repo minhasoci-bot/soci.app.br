@@ -1,0 +1,61 @@
+---
+title: Planejar e publicar posts nas redes sociais
+description: Conecte as redes do cliente, escreva o post uma vez, agende para várias redes e peça a aprovação do cliente antes de publicar.
+modulo: marketing
+sidebar:
+  order: 1
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+O Planejador social junta as redes do cliente num lugar só: Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest, Threads, Bluesky e Google Business. Você escreve o post uma vez, escolhe as redes, agenda e, se quiser, pede a aprovação do cliente antes de publicar.
+
+<Requisitos permissao="Acesso ao módulo Marketing na subconta" integracoes={['Contas das redes sociais do cliente']} />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Marketing**. Na aba **Planejador social**, em **Conecte suas redes sociais**, clique na rede que quer ligar. Se quem tem a senha das redes é o cliente, use **Convidar cliente para conectar**.
+
+   <Print src="docs/marketing/planejador-social/01-conectar-redes.fa7deafa.webp" alt="Planejador social com a lista de redes para conectar em destaque." />
+
+2. Clique em **Novo post**. Em **Publicar em**, escolha as contas. Escolha o **Tipo** (post, story ou reel) e escreva o **Texto**. Para pedir ajuda à IA, use **Escrever legenda com IA**; para mudar o texto em uma rede, use **Personalizar texto por rede**. Em **Mídia**, envie imagens ou vídeos.
+
+   <Print src="docs/marketing/planejador-social/02-novo-post.a0586644.webp" alt="Janela Novo post com o texto escrito sobre a avaliação completa da clínica." />
+
+3. Em **Quando publicar**, escolha **Publicar agora**, **Agendar** ou **Rascunho**. Ao agendar, escolha a data e a hora ou um dos **melhores horários** sugeridos, e se o post se repete. Marque **Exigir aprovação antes de publicar** para o cliente aprovar antes.
+
+   <Print src="docs/marketing/planejador-social/03-quando-publicar.f5def265.webp" alt="Seção Quando publicar com Agendar, a data, os melhores horários e a opção Exigir aprovação antes de publicar marcada." />
+
+4. Os posts aparecem no **Calendário** e na **Lista**, com as contas, a data e o status. Para o cliente aprovar sem precisar entrar na soci, envie o **Link de aprovação do cliente**.
+
+   <Print src="docs/marketing/planejador-social/04-lista-de-posts.b5131de4.webp" alt="Lista de posts com o post da clínica como rascunho e o botão Link de aprovação do cliente." />
+
+</Steps>
+
+<Aside type="note">
+Sem nenhuma conta conectada, o post fica salvo como rascunho. Conecte as redes para agendar e publicar.
+</Aside>
+
+<Aside type="tip">
+Para publicar muitos posts de uma vez, use **CSV em massa**. Para reaproveitar conteúdo de um blog, use **RSS**.
+</Aside>
+
+## Perguntas frequentes
+
+**Posso organizar os posts por assunto?**
+Sim. Crie categorias em **Categorias** e escolha a categoria em cada post.
+
+**O cliente precisa de login para aprovar?**
+Não. O **Link de aprovação do cliente** abre os posts para aprovação sem login.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Criar um agente de IA" href="/ia/agent-studio/" description="O modelo Posts para redes sociais transforma uma ideia em posts." />
+  <LinkCard title="Colocar a marca da agência na soci" href="/agencia/white-label/" description="Sua marca também aparece para o cliente." />
+</CardGrid>

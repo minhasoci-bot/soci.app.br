@@ -1,0 +1,310 @@
+---
+title: "Ações"
+description: "Todas as ações que um workflow da soci pode executar, agrupadas como no editor."
+sidebar:
+  order: 3
+---
+
+{/* Gerado por docs-site/scripts/catalogo-automacoes.mjs a partir de ui/workflow-data.js. Não edite à mão. */}
+
+A ação é o que o workflow faz depois do gatilho: enviar uma mensagem, mudar um contato, chamar a IA, esperar. A lista abaixo segue os grupos do editor de workflows.
+
+## Contato
+
+| Ação | Para que serve |
+| --- | --- |
+| **Adicionar tag** |  |
+| **Remover tag** |  |
+| **Atualizar campo do contato** |  |
+| **Atribuir a um usuário** |  |
+| **Remover usuário atribuído** |  |
+| **Editar conversa** |  |
+| **Seguidores da conversa** |  |
+| **Ativar ou desativar DND** |  |
+| **Adicionar nota** |  |
+| **Criar contato** | Cria outro contato (ex.: a pessoa indicada num formulário). Se já existir um com o mesmo e-mail ou telefone, usa esse. O fluxo segue com o contato atual; o novo fica em `{{steps.ID.id}}`. |
+| **Buscar contato** | Procura um contato pelo e-mail, telefone ou um campo. O resultado fica em `{{steps.ID.found}}` (yes ou no), `{{steps.ID.name}}` e `{{steps.ID.email}}`; dá para seguir o fluxo com o contato encontrado. |
+| **Excluir contato** | Manda o contato para a lixeira (60 dias para restaurar). As etapas seguintes ficam sem contato. |
+| **Criar e associar empresa** | Liga o contato à empresa com este nome; se ela não estiver no cadastro, cria. Use `{{steps.ID.name}}` depois. |
+| **Atualizar empresa associada** | Muda um campo da empresa do contato (a empresa com o nome que está no contato). |
+| **Limpar campos da empresa associada** | Apaga campos da empresa do contato. O nome nunca é apagado. |
+| **Verificar e-mail** | Confere o formato do e-mail do contato e se o domínio recebe e-mail (sem enviar nada). O fluxo espera a resposta: use `{{vars.email_status}}` (valid, invalid ou unknown) e `{{vars.email_motivo}}` num Se / Senão. |
+| **Gerar auditoria de marketing** | Audita o site da empresa do contato (velocidade, SEO, segurança e LGPD) e, com o Google Maps configurado, o perfil no Google e a reputação. O fluxo espera o resultado (até um minuto): nota do site (0 a 100) em `{{vars.nome}}`, as partes em `{{vars.nome_seo}}`, `{{vars.nome_seguranca}}`…, e um resumo com o que melhorar em `{{vars.nome_resumo}}`. |
+| **Copiar contato para outra subconta** | Cria o contato (nome, e-mail, telefone e empresa) noutra subconta da agência. Se ele já existir lá (mesmo e-mail ou telefone), só completa os campos vazios e soma as tags. Campos personalizados não vão. Quem salva o fluxo precisa ter acesso aos contatos da subconta de destino. |
+| **Mesclar contato** | Junta os contatos duplicados (mesmo e-mail ou telefone) num só: tags, campos vazios, notas, conversas, tarefas, oportunidades, agendamentos e faturas passam para o contato mantido, e os duplicados vão para a lixeira. |
+| **Tornar afiliado** | Cadastra o contato como afiliado na campanha (precisa de e-mail). |
+| **Atualizar afiliado** | Muda a situação do afiliado ligado ao contato (pelo e-mail ou por ter sido criado a partir dele). |
+| **Adicionar afiliado a campanha** | Coloca o afiliado ligado ao contato numa campanha, com o link e a comissão dela. |
+| **Tirar afiliado de campanha** | Tira o afiliado ligado ao contato de uma campanha. Comissões já geradas continuam. |
+| **Atribuir lead a afiliado** | Registra que o contato foi indicado pelo afiliado: as próximas faturas pagas dele geram comissão. |
+| **Registrar venda de afiliado** | Lança uma venda feita fora das faturas (no balcão, por exemplo) para o afiliado que indicou o contato. A comissão segue a regra da campanha e o prazo de carência. |
+
+## Comunicação
+
+| Ação | Para que serve |
+| --- | --- |
+| **Enviar e-mail** | Envia pelo domínio de envio da subconta (Serviços de e-mail), ou pelo endereço da plataforma se não houver. O rodapé leva o link para o contato escolher o que recebe. |
+| **Enviar SMS** |  |
+| **Enviar WhatsApp** |  |
+| **Enviar arquivo no WhatsApp** | Manda uma imagem, vídeo, documento (PDF) ou áudio por um endereço https público. O arquivo fica registrado em Conversas. Disponível com a Evolution API. |
+| **Enviar mensagem interativa no WhatsApp** | Manda botões de resposta (até 3), uma lista (até 10 opções) ou uma enquete (até 12), pela Evolution API. A escolha do contato chega como mensagem em Conversas e serve para o gatilho Cliente respondeu ou um Se / Senão. |
+| **Mostrar "digitando…" no WhatsApp** | Mostra "digitando…" para o contato por alguns segundos, antes da próxima mensagem do fluxo, para a conversa parecer natural. Disponível com a Evolution API. |
+| **Enviar Direct no Instagram** | Manda uma mensagem privada pela conta profissional do Instagram conectada no Social Planner, para quem já escreveu no Direct. A Meta só aceita a resposta até 24 horas depois da última mensagem do contato. Os botões viram respostas rápidas. |
+| **Enviar mensagem no Messenger** | Manda uma mensagem pelo Messenger da página do Facebook conectada no Social Planner, para quem já escreveu para a página. A Meta só aceita a resposta até 24 horas depois da última mensagem do contato. Os botões viram respostas rápidas. |
+| **Dar ou tirar pontos de fidelidade** | Soma (ou subtrai, com número negativo) pontos no programa de fidelidade. |
+| **Inscrever em sequência de e-mail** | Coloca o contato numa sequência ativa (uma vez enquanto estiver nela). |
+| **Tirar de sequência de e-mail** | Para os próximos e-mails da sequência para este contato. |
+| **Criar ticket** | Abre um ticket de atendimento para o contato. Use `{{action.<etapa>.number}}` para o número. |
+| **Mudar situação do ticket** | Muda a situação do ticket aberto mais recente do contato. |
+| **Emitir certificado** | Emite um certificado de um modelo para o contato, com página pública e código de verificação. Use `{{action.<etapa>.code}}` para o código. |
+| **Emitir badge** | Concede um badge de um modelo ao contato. |
+| **Liberar acesso a curso** | Dá ao contato acesso ao curso no portal do cliente (e envia o link de entrada, se o e-mail do portal estiver configurado). O contato precisa ter e-mail. |
+| **Remover acesso a curso** | Tira o acesso do contato ao curso no portal. O progresso fica guardado se o acesso voltar. |
+| **Liberar acesso a comunidade** | Coloca o contato como membro da comunidade (criando o acesso dele ao portal, se preciso). O contato precisa ter e-mail. |
+| **Liberar oferta** | Dá ao contato todos os cursos e comunidades de uma oferta, sem cobrança (e envia o link do portal, se o e-mail do portal estiver configurado). O contato precisa ter e-mail. |
+| **Remover oferta** | Tira do contato os cursos e comunidades da oferta. |
+| **Inscrever em evento da comunidade** | Confirma a presença do contato num evento da comunidade, se houver vaga. Ele precisa ser membro ativo da comunidade do evento. Num evento pago, só inscreve se você escolher cortesia (sem cobrar). |
+| **Notificação push** | Manda uma notificação no celular: para a equipe (app mobile da agência, com as notificações ativadas) ou para o contato (aparelhos em que ele ativou as notificações no portal do cliente). Tocar na notificação abre o link. |
+| **Liberar canal privado** | Dá ao contato acesso a um canal privado da comunidade. Ele precisa ser membro ativo da comunidade. |
+| **Remover canal privado** | Tira do contato o acesso a um canal privado da comunidade. Ele continua na comunidade. |
+| **Dar pontos no ranking da comunidade** | Soma (ou tira, com número negativo) pontos do contato no ranking da comunidade. Só vale para membros ativos. |
+| **Remover acesso a comunidade** | Tira o contato da comunidade. Membros banidos continuam banidos. |
+| **Ajustar pontuação do lead** | Soma ou subtrai pontos da pontuação do contato (use negativo para tirar). |
+| **Criar post social** | Cria um post no Social Planner como rascunho ou agendado. Sem conta escolhida, usa as contas da fila da categoria ou todas as conectadas. |
+| **Responder comentário público** |  |
+| **Enviar mensagem no chat do site** | Responde no chat do site em que o contato está conversando. Os botões aparecem embaixo da mensagem e, quando o visitante toca num, ele vai como resposta dele. |
+| **Registrar ligação** | Registra uma ligação feita ou recebida fora da Soci (no celular, por exemplo) no histórico de ligações e em Conversas. |
+| **Notificação interna** |  |
+| **Pedir consentimento (opt-in)** | Manda o link da página de preferências do contato, onde ele escolhe os canais e os assuntos que quer receber. Quando ele salva, dispara Preferências de comunicação mudaram. Use `{{link_preferencias}}` para pôr o link no meio do texto (sem ele, o link vai no fim). |
+| **Pedir avaliação** | Envia o link de avaliação pessoal do contato com a mensagem do canal definida em Reputação → Configurações. |
+| **Ação manual: SMS** |  |
+| **Ação manual: WhatsApp** |  |
+| **Ação manual: ligação** |  |
+
+## Telefonia
+
+| Ação | Para que serve |
+| --- | --- |
+| **Ligar para o contato** | Liga primeiro para o telefone da equipe e, quando alguém atende, completa a ligação com o contato, mostrando o número da Soci. A ligação aparece em Conversas e no relatório de ligações e dispara Ligação terminou. |
+| **Deixar recado por ligação** | Liga para o contato e, quando cai na caixa postal (ou alguém atende), fala o texto ou toca o áudio e desliga. |
+| **Adicionar ao discador** | Coloca o contato na fila do discador (Conversas → Discador), para a equipe ligar em sequência. Contatos sem telefone ou em não perturbe ficam de fora. |
+| **Ligação do Voice AI** | Um agente de IA publicado liga para o contato e conversa por voz, com a base de conhecimento dele e o objetivo desta etapa. Pode transferir para a equipe, encerrar ou marcar um horário do serviço escolhido. A transcrição vai para Conversas e dispara Ligação do Voice AI terminou. Usa a OpenAI de quem salvou o fluxo. |
+| **Validar telefone** | Consulta o telefone do contato (Twilio Lookup): se o número existe e o tipo de linha. Guarda em `{{vars.telefone_status}}` (valid ou invalid) e `{{vars.telefone_tipo}}` e dispara Telefone validado. |
+| **URA: falar ou tocar** | Fala um texto ou toca um áudio para quem ligou e segue para a próxima etapa. Só funciona em fluxos que começam por Início da URA, durante a ligação. |
+| **URA: coletar dígitos** | Fala o menu e espera a pessoa digitar no teclado. Os dígitos ficam em `{{vars.nome}}`: use Se / Senão para cada opção. Sem resposta, a variável fica vazia. Só funciona em fluxos que começam por Início da URA, durante a ligação. |
+| **URA: transferir ligação** | Toca nos telefones da equipe (um por linha, todos ao mesmo tempo) e conecta quem atender. O resultado fica em `{{vars.ivr_transferencia}}` (completed, no-answer, busy). Só funciona em fluxos que começam por Início da URA, durante a ligação. |
+| **URA: gravar recado** | Fala o aviso e grava o recado depois do bipe. O recado vai para Conversas e o link fica em `{{vars.ivr_gravacao}}`. Só funciona em fluxos que começam por Início da URA, durante a ligação. |
+| **URA: desligar** | Fala uma despedida (opcional) e encerra a ligação. As etapas seguintes que não são de URA continuam. Só funciona em fluxos que começam por Início da URA, durante a ligação. |
+
+## CRM e pagamentos
+
+| Ação | Para que serve |
+| --- | --- |
+| **Criar tarefa** |  |
+| **Criar ou atualizar oportunidade** |  |
+| **Mudar status da oportunidade** |  |
+| **Dono da oportunidade** | Define ou tira o dono da oportunidade aberta mais recente do contato. |
+| **Seguidores da oportunidade** | Adiciona ou remove seguidores da oportunidade aberta mais recente do contato. |
+| **Buscar oportunidade** | Acha a oportunidade mais recente do contato. O resultado fica em `{{steps.ID.found}}`, `{{steps.ID.title}}`, `{{steps.ID.value}}`, `{{steps.ID.stage}}`, `{{steps.ID.status}}` e `{{steps.ID.owner}}`. |
+| **Remover oportunidade** | Exclui a oportunidade mais recente do contato (do pipeline escolhido, se houver). |
+| **Agendar horário** | Marca o contato no primeiro horário livre do serviço, a partir de alguns dias. Use `{{steps.ID.start}}` para a data e hora. |
+| **Gerar link de agendamento de uso único** | Cria um link pessoal da página de agendamento, já com os dados do contato. Ele vale para um agendamento e vence depois dos dias escolhidos. Use `{{vars.link_agendamento}}` na mensagem. |
+| **Nota no agendamento** | Escreve nas observações do próximo agendamento do contato (ou do último criado). |
+| **Mudar status do agendamento** | Muda o próximo agendamento do contato (ou o último, se não houver próximo). |
+| **Enviar documento ou contrato** |  |
+| **Enviar orçamento** |  |
+| **Enviar fatura** |  |
+| **Atualizar estoque** |  |
+| **Iniciar fatura recorrente** |  |
+| **Criar fatura** |  |
+| **Atualizar valor personalizado** | Muda um valor personalizado da conta, usado como `{{custom_values.nome}}` em todo lugar. |
+
+## Marketing
+
+| Ação | Para que serve |
+| --- | --- |
+| **Enviar conversão para a Meta** | Manda um evento do contato para o seu Pixel da Meta pela API de Conversões (como Lead ou Compra), para os anúncios otimizarem com dados do CRM. E-mail, telefone e nome vão com hash (SHA-256). Precisa do Pixel em Marketing → Rastreamento e do Meta Ads conectado em Marketing → Anúncios. |
+| **Enviar evento para o Google Analytics** | Manda um evento do contato para a sua propriedade do GA4 (Measurement Protocol), como lead gerado ou compra, com valor opcional. O contato vai só com um identificador da Soci (nada de e-mail ou telefone). Precisa do ID de medição e do segredo da API em Marketing → Rastreamento. |
+| **Enviar conversão para o Google Ads** | Registra uma conversão offline do contato numa ação de conversão da conta conectada em Marketing → Anúncios, pelo clique que trouxe o lead (gclid guardado na atribuição). Opcionalmente manda e-mail e telefone com hash (conversões otimizadas para leads), o que vale também para quem não veio de um clique. |
+| **Público personalizado da Meta** | Inclui ou tira o contato (e-mail e telefone com hash SHA-256) de um público personalizado da Meta, para anunciar para ele ou excluí-lo dos anúncios. O ID do público fica no Gerenciador de Públicos. Precisa do Meta Ads conectado em Marketing → Anúncios. |
+
+## IA
+
+| Ação | Para que serve |
+| --- | --- |
+| **Bot de IA na conversa** | Um agente de IA publicado lê a conversa com o contato e responde à última mensagem dele, com a base de conhecimento do agente. Ele passa a conversa para a equipe quando o cliente pede uma pessoa ou quando não sabe responder, encerra quando o cliente se despede e, com um serviço escolhido, oferece horários livres e marca o escolhido. A resposta fica em `{{vars.nome}}`. |
+| **Ligar ou desligar o bot de IA** | Liga o bot de IA na conversa do contato: cada mensagem nova do cliente recebe a resposta do agente, até ele passar a conversa para a equipe, encerrar o atendimento ou ser desligado. As respostas usam a OpenAI de quem salvou este fluxo. Desligar também tira o bot da conversa. |
+| **Rodar agente de IA** | Manda uma mensagem para a versão publicada de um agente de IA desta subconta (com a base de conhecimento e a memória dele) e guarda a resposta em `{{vars.nome}}`. A execução aparece no histórico do agente. |
+| **Perguntar à IA** | Pede qualquer tarefa à IA com as suas palavras (escrever, reescrever, classificar, responder) e guarda o resultado em `{{vars.nome}}`. O texto de apoio vai como dado para a IA analisar, nunca como instrução. |
+| **Gerar imagem com IA** | Cria uma imagem a partir de uma descrição (OpenAI gpt-image-1) e guarda em Arquivos, com um link público em `{{vars.nome}}` para mandar por WhatsApp, e-mail ou post. Usa a OpenAI de quem salvou o fluxo. |
+| **Gerar vídeo com IA** | Cria um vídeo curto a partir de uma descrição (OpenAI sora-2). Leva alguns minutos: o fluxo espera o vídeo ficar pronto e guarda o link público em `{{vars.nome}}`. Usa a OpenAI de quem salvou o fluxo. |
+| **Decidir com IA** | A IA escolhe uma das opções. Use a variável num Se / Senão ou Roteador. |
+| **Resumir com IA** | Resume uma conversa ou um texto em poucas linhas. |
+| **Detectar intenção com IA** | Classifica a mensagem numa das intenções. Sem encaixe, a variável fica “outra”. |
+| **Traduzir com IA** |  |
+| **Extrair dados com IA** | Cada dado vira `{{vars.nome}}`. Use “Atualizar campo do contato” depois para gravar. |
+| **Analisar imagem com IA** | Descreve ou responde uma pergunta sobre uma imagem pública (https). |
+
+## Fluxo
+
+| Ação | Para que serve |
+| --- | --- |
+| **Aguardar** |  |
+| **Definir data do evento** | Guarda a data (e a hora) de um evento do contato, como uma consulta, um webinar ou uma entrega. As etapas Aguardar "em relação à data do evento" contam a partir dela. Aceita variáveis e datas como 2026-12-01 19:30 ou 01/12/2026 19:30, no fuso da subconta. Fica em `{{vars.data_evento}}`. |
+| **Se / Senão** |  |
+| **Filtro** | Só continua se a condição for verdadeira |
+| **Definir variável** | Guarda um valor para usar depois como `{{vars.nome}}` |
+| **Roteador** |  |
+| **Teste A/B** | Divide os contatos entre caminhos por percentual, para comparar mensagens, ofertas ou tempos de espera. Cada contato cai em um caminho por sorteio. |
+| **Repetir (loop)** | Roda as etapas de dentro uma vez para cada item de uma lista (ou um número de vezes) e depois segue o fluxo. Dentro, use `{{vars.item}}`, `{{vars.item_numero}}` e `{{vars.item_total}}`. Até 50 repetições. |
+| **Liberar em lotes** | Deixa passar só um lote de contatos a cada intervalo; os outros esperam a vez nesta etapa. Útil para não disparar tudo de uma vez. |
+| **Evento de meta** |  |
+| **Ir para outra etapa** |  |
+| **Disparar evento personalizado** | Dispara um evento com nome e dados. Os fluxos com o gatilho Evento personalizado de mesmo nome começam na hora, com este contato (se houver) e os dados em `{{trigger.campo}}`. Limites: o fluxo não dispara a si mesmo, até 5 eventos por execução, até 3 fluxos em sequência e até 50 fluxos por cascata. |
+| **Adicionar a outro fluxo** |  |
+| **Remover de um fluxo** |  |
+| **Remover de todos os fluxos** | Tira o contato de todos os fluxos em que ele está rodando ou esperando. |
+| **Código personalizado** | Calcula valores com a linguagem de expressões da Soci, uma linha por variável: nome = expressão. Cada linha pode usar as anteriores pelo nome, o contato (contact), o gatilho (trigger), as variáveis (vars) e as etapas (steps); as próximas etapas leem o resultado em `{{vars.nome}}`. Roda isolado, sem rede e sem disco. Ex.: total = number(trigger.total) * 0.9 |
+| **Operação matemática** |  |
+| **Formatar texto** |  |
+| **Formatar data** | Guarda uma data formatada em `{{vars.nome}}`. Aceita AAAA-MM-DD, data com hora ou a palavra hoje. |
+| **Formatar número** | Guarda um número formatado em `{{vars.nome}}`. |
+| **Janela de atendimento do WhatsApp** | Confere se o contato mandou WhatsApp nas últimas 24 horas (a janela de atendimento). Guarda aberta ou fechada em `{{vars.nome}}` e os minutos que restam em `{{vars.nome_minutos}}`, para usar num Se / Senão. |
+| **Formatar lista** | Trata um texto como lista (itens separados por vírgula ou outro separador) e guarda o resultado em `{{vars.nome}}`. |
+| **Ação de app** | Envia o contato e o texto abaixo para um app instalado do marketplace. O app recebe a ação no webhook dele. |
+| **Webhook de saída** |  |
+| **Webhook personalizado** | Chama uma API com o método, os cabeçalhos e o corpo que você escrever (todos aceitam variáveis) e espera a resposta: o corpo fica em `{{vars.nome}}`, o código HTTP em `{{vars.nome_status}}` e, numa resposta JSON, cada campo simples em `{{vars.nome_campo}}`. Só endereços https públicos. |
+| **Encerrar fluxo** |  |
+
+## Apps · Slack
+
+| Ação | Para que serve |
+| --- | --- |
+| **Enviar mensagem** | Usa a conexão do Slack (Configurações → Conectores). O resultado fica em `{{vars.slack_ts}}`, `{{vars.slack_channel}}`. |
+| **Atualizar mensagem** | Usa a conexão do Slack (Configurações → Conectores). O resultado fica em `{{vars.slack_ts}}`. |
+| **Criar canal** | Usa a conexão do Slack (Configurações → Conectores). O resultado fica em `{{vars.slack_channel}}`. |
+| **Convidar usuário para o canal** | Usa a conexão do Slack (Configurações → Conectores). O resultado fica em `{{vars.slack_channel}}`. |
+| **Encontrar canal pelo nome** | Usa a conexão do Slack (Configurações → Conectores). O resultado fica em `{{vars.slack_channel}}`. |
+| **Encontrar usuário pelo e-mail** | Usa a conexão do Slack (Configurações → Conectores). O resultado fica em `{{vars.slack_user}}`, `{{vars.slack_name}}`. |
+
+## Apps · Google Sheets
+
+| Ação | Para que serve |
+| --- | --- |
+| **Criar linha** | Usa a conexão do Google Sheets (Configurações → Conectores). O resultado fica em `{{vars.google_sheets_row}}`. |
+| **Criar várias linhas** | Usa a conexão do Google Sheets (Configurações → Conectores). O resultado fica em `{{vars.google_sheets_rows}}`. |
+| **Procurar linha** | Usa a conexão do Google Sheets (Configurações → Conectores). O resultado fica em `{{vars.google_sheets_row}}`, `{{vars.google_sheets_json}}`. |
+| **Procurar várias linhas** | Usa a conexão do Google Sheets (Configurações → Conectores). O resultado fica em `{{vars.google_sheets_count}}`, `{{vars.google_sheets_rows}}`, `{{vars.google_sheets_json}}`. |
+| **Atualizar linha específica** | Usa a conexão do Google Sheets (Configurações → Conectores). O resultado fica em `{{vars.google_sheets_row}}`. |
+| **Atualizar várias linhas** | Usa a conexão do Google Sheets (Configurações → Conectores). O resultado fica em `{{vars.google_sheets_count}}`. |
+| **Atualizar linha procurando um valor** | Usa a conexão do Google Sheets (Configurações → Conectores). O resultado fica em `{{vars.google_sheets_row}}`. |
+| **Limpar linha específica** | Usa a conexão do Google Sheets (Configurações → Conectores). O resultado fica em `{{vars.google_sheets_row}}`. |
+| **Limpar linha procurando um valor** | Usa a conexão do Google Sheets (Configurações → Conectores). O resultado fica em `{{vars.google_sheets_row}}`. |
+| **Formatar linhas** | Usa a conexão do Google Sheets (Configurações → Conectores). |
+| **Remover linhas** | Usa a conexão do Google Sheets (Configurações → Conectores). |
+
+## Apps · Shopify
+
+| Ação | Para que serve |
+| --- | --- |
+| **Encontrar cliente pelo e-mail** | Usa a conexão do Shopify (Configurações → Conectores). O resultado fica em `{{vars.shopify_customer}}`, `{{vars.shopify_orders}}`, `{{vars.shopify_spent}}`. |
+
+## Apps · Airtable
+
+| Ação | Para que serve |
+| --- | --- |
+| **Criar registro** | Usa a conexão do Airtable (Configurações → Conectores). O resultado fica em `{{vars.airtable_record}}`. |
+| **Encontrar registro** | Usa a conexão do Airtable (Configurações → Conectores). O resultado fica em `{{vars.airtable_record}}`, `{{vars.airtable_json}}`. |
+| **Atualizar registro** | Usa a conexão do Airtable (Configurações → Conectores). O resultado fica em `{{vars.airtable_record}}`. |
+
+## Apps · HubSpot
+
+| Ação | Para que serve |
+| --- | --- |
+| **Criar ou atualizar contato** | Usa a conexão do HubSpot (Configurações → Conectores). O resultado fica em `{{vars.hubspot_id}}`. |
+| **Criar negócio** | Usa a conexão do HubSpot (Configurações → Conectores). O resultado fica em `{{vars.hubspot_id}}`. |
+
+## Apps · Notion
+
+| Ação | Para que serve |
+| --- | --- |
+| **Criar página no banco de dados** | Usa a conexão do Notion (Configurações → Conectores). O resultado fica em `{{vars.notion_id}}`, `{{vars.notion_url}}`. |
+
+## Apps · Asana
+
+| Ação | Para que serve |
+| --- | --- |
+| **Criar tarefa** | Usa a conexão do Asana (Configurações → Conectores). O resultado fica em `{{vars.asana_id}}`, `{{vars.asana_url}}`. |
+
+## Apps · ClickUp
+
+| Ação | Para que serve |
+| --- | --- |
+| **Criar tarefa** | Usa a conexão do ClickUp (Configurações → Conectores). O resultado fica em `{{vars.clickup_id}}`, `{{vars.clickup_url}}`. |
+
+## Apps · Todoist
+
+| Ação | Para que serve |
+| --- | --- |
+| **Criar tarefa** | Usa a conexão do Todoist (Configurações → Conectores). O resultado fica em `{{vars.todoist_id}}`, `{{vars.todoist_url}}`. |
+
+## Apps · Linear
+
+| Ação | Para que serve |
+| --- | --- |
+| **Criar issue** | Usa a conexão do Linear (Configurações → Conectores). O resultado fica em `{{vars.linear_id}}`, `{{vars.linear_url}}`. |
+
+## Apps · Jira
+
+| Ação | Para que serve |
+| --- | --- |
+| **Criar issue** | Usa a conexão do Jira (Configurações → Conectores). O resultado fica em `{{vars.jira_key}}`, `{{vars.jira_url}}`. |
+
+## Apps · Monday.com
+
+| Ação | Para que serve |
+| --- | --- |
+| **Criar item** | Usa a conexão do Monday.com (Configurações → Conectores). O resultado fica em `{{vars.monday_id}}`. |
+
+## Apps · Basecamp
+
+| Ação | Para que serve |
+| --- | --- |
+| **Criar tarefa (to-do)** | Usa a conexão do Basecamp (Configurações → Conectores). O resultado fica em `{{vars.basecamp_id}}`, `{{vars.basecamp_url}}`. |
+
+## Apps · Klaviyo
+
+| Ação | Para que serve |
+| --- | --- |
+| **Adicionar perfil à lista** | Usa a conexão do Klaviyo (Configurações → Conectores). |
+| **Registrar evento** | Usa a conexão do Klaviyo (Configurações → Conectores). |
+
+## Apps · Housecall Pro
+
+| Ação | Para que serve |
+| --- | --- |
+| **Criar cliente** | Usa a conexão do Housecall Pro (Configurações → Conectores). O resultado fica em `{{vars.housecall_pro_id}}`. |
+
+## Apps · Apify
+
+| Ação | Para que serve |
+| --- | --- |
+| **Rodar ator** | Usa a conexão do Apify (Configurações → Conectores). O resultado fica em `{{vars.apify_run}}`, `{{vars.apify_dataset}}`, `{{vars.apify_status}}`. |
+
+## Apps · Browse AI
+
+| Ação | Para que serve |
+| --- | --- |
+| **Rodar robô** | Usa a conexão do Browse AI (Configurações → Conectores). O resultado fica em `{{vars.browse_ai_task}}`, `{{vars.browse_ai_status}}`. |
+
+## Apps · Mistral AI
+
+| Ação | Para que serve |
+| --- | --- |
+| **Perguntar ao modelo** | Usa a conexão do Mistral AI (Configurações → Conectores). O resultado fica em `{{vars.mistral_answer}}`. |
+
+## Apps · OpenRouter
+
+| Ação | Para que serve |
+| --- | --- |
+| **Perguntar ao modelo** | Usa a conexão do OpenRouter (Configurações → Conectores). O resultado fica em `{{vars.openrouter_answer}}`. |

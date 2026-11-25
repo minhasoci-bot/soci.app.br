@@ -1,0 +1,79 @@
+---
+title: Importar contatos de uma planilha
+description: Traga até 500 contatos de uma vez com um arquivo CSV, veja a prévia e deixe de fora quem já existe.
+modulo: crm
+sidebar:
+  order: 3
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+import Automacao from '../../../components/Automacao.astro';
+
+Quando o cliente da agência já tem uma lista de clientes em planilha, importe tudo de uma vez em vez de cadastrar um por um. A soci mostra uma prévia antes de gravar e pula os contatos cujo e-mail já existe na subconta.
+
+<Requisitos permissao="Acesso ao módulo Contatos na subconta" />
+
+## Prepare o arquivo
+
+Salve a planilha como **CSV**. A primeira linha tem os nomes das colunas, em inglês e minúsculas:
+
+| Coluna | O que vai nela | Obrigatória |
+| --- | --- | --- |
+| `name` | Nome completo | Sim |
+| `email` | E-mail | Não |
+| `phone` | Telefone, com DDI e DDD | Não |
+| `company` | Empresa | Não |
+| `tags` | Tags, separadas por vírgula | Não |
+| `notes` | Notas sobre o contato | Não |
+
+Cada arquivo importa até 500 contatos.
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Contatos** e clique em **Importar**.
+
+   <Print src="docs/crm/importar-contatos/01-botao-importar.b09046d3.webp" alt="Tela Contatos com o botão Importar em destaque." />
+
+2. Na janela **Importar contatos**, clique em **Escolher arquivo** e selecione o CSV.
+
+   <Print src="docs/crm/importar-contatos/02-escolher-arquivo.31aa6a38.webp" alt="Janela Importar contatos com as instruções do arquivo CSV e o campo Arquivo CSV em destaque." />
+
+3. Confira a **Prévia**. Os contatos novos aparecem em verde, com uma marca; os que já existem aparecem sem marca e não são importados. Para deixar um contato novo de fora, clique nele.
+
+   <Print src="docs/crm/importar-contatos/03-previa-da-importacao.d5c8a024.webp" alt="Prévia da importação com quatro contatos novos marcados e um contato que já existe, sem marca." />
+
+4. Clique em **Importar contatos**. Os contatos entram na lista na mesma hora.
+
+   <Print src="docs/crm/importar-contatos/04-contatos-importados.5dae697b.webp" alt="Lista de contatos depois da importação, agora com 19 contatos." />
+
+</Steps>
+
+<Aside type="caution">
+A prévia reconhece quem já existe pelo e-mail. Inclua a coluna `email` sempre que puder: sem ela, a prévia mostra todos os contatos do arquivo como novos.
+</Aside>
+
+## Automações ligadas
+
+Cada contato importado conta como um contato criado, então os workflows que começam por esse gatilho rodam para cada um.
+
+<Automacao gatilhos={['Contato criado']} acoes={['Adicionar tag', 'Atribuir a um usuário']} />
+
+## Perguntas frequentes
+
+**Minha planilha está no Excel. Como gero o CSV?**
+No Excel ou no Google Planilhas, use **Salvar como** ou **Fazer download** e escolha o formato CSV.
+
+**Tenho mais de 500 contatos. O que faço?**
+Divida a planilha em arquivos de até 500 linhas e importe um por vez.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Cadastrar e organizar contatos" href="/crm/contatos/" description="Crie contatos um a um, use tags e abra a ficha de cada um." />
+  <LinkCard title="Gatilhos de automação" href="/automacoes/gatilhos/" description="Todos os eventos que podem iniciar um workflow." />
+</CardGrid>

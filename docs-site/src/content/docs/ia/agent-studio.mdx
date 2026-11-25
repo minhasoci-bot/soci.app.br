@@ -1,0 +1,57 @@
+---
+title: Criar um agente de IA
+description: Monte um agente que atende clientes, qualifica leads ou prepara resumos, a partir de uma descrição ou de um modelo pronto, e teste antes de publicar.
+modulo: ia
+sidebar:
+  order: 1
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Um agente de IA trabalha sozinho quando algo acontece na subconta: responde quem mandou mensagem, qualifica um lead novo, confirma um agendamento ou escreve um resumo para a equipe. Cada agente tem instruções, gatilhos (quando ele age) e recursos (o que ele pode usar, como a base de conhecimento ou a pesquisa na web).
+
+<Requisitos permissao="Acesso ao módulo Agentes de IA na subconta" integracoes={['Chave da OpenAI conectada nas configurações da agência, para o agente conversar']} />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Agentes de IA**. Em **Crie seu próprio agente**, descreva o que o agente deve fazer, ou use **Prefere responder a algumas perguntas?** para montar a descrição em etapas.
+
+   <Print src="docs/ia/agent-studio/01-criar-agente.4445b5d0.webp" alt="Tela Agentes de IA vazia com o bloco Crie seu próprio agente em destaque." />
+
+2. Se preferir, comece por um caso de uso. Os modelos já vêm com gatilhos e recursos configurados: atendimento ao cliente, qualificação de leads, pedido de avaliação, resumo de nova oportunidade, confirmação de agendamento, posts para redes sociais, monitor de concorrentes e relatório semanal de marketing.
+
+   <Print src="docs/ia/agent-studio/02-modelos.292e8a37.webp" alt="Lista de modelos de agente com Atendimento ao cliente em destaque." />
+
+3. O agente abre no editor. No centro fica o **Modo de teste**, para conversar com ele antes de publicar. À direita, **Executa quando** mostra os gatilhos e os recursos; use **Editar agente** para mudar as instruções e **Adicionar gatilho** para incluir outros eventos. Quando estiver bom, clique em **Publicar**.
+
+   <Print src="docs/ia/agent-studio/03-editor-do-agente.15923b2f.webp" alt="Editor do agente Atendimento ao cliente com os gatilhos Cliente respondeu e Mensagem no chat, o modo de teste e o botão Publicar." />
+
+</Steps>
+
+<Aside type="caution">
+Sem uma chave da OpenAI conectada, o agente não conversa: a descrição vira só o rascunho das instruções. Conecte a chave em **Visão da agência**, **Configurações**, aba **OpenAI**.
+</Aside>
+
+<Aside type="tip">
+Alimente o agente com o que a empresa sabe (preços, horários, perguntas frequentes) em **Bases de conhecimento**, no canto inferior esquerdo da tela.
+</Aside>
+
+## Perguntas frequentes
+
+**Onde vejo o que o agente fez?**
+Na aba **Atividade** do editor e em **Logs**. Quando o agente precisa de aprovação antes de agir, o pedido aparece em **Aprovações**.
+
+**Quanto de IA a subconta está usando?**
+Em **Uso de IA**, no canto inferior esquerdo da tela Agentes de IA.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Atender na caixa unificada" href="/conversas/caixa-unificada/" description="As conversas que o agente responde aparecem aqui." />
+  <LinkCard title="Criar o primeiro fluxo de trabalho" href="/automacoes/primeiro-workflow/" description="Junte o agente a outras automações." />
+</CardGrid>

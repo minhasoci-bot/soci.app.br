@@ -17,7 +17,7 @@
  */
 window.PLANO_SOCI = {
   titulo: "Paridade Soci × GoHighLevel",
-  atualizadoEm: "2026-11-24 15:30",
+  atualizadoEm: "2026-11-24 20:00",
   etapaAtual: "T.2",
 
   regras: [
@@ -25,6 +25,7 @@ window.PLANO_SOCI = {
     "Toda funcionalidade nova nasce com gatilho e ação no motor de workflows quando fizer sentido.",
     "Textos em pt-BR e es (i18n), respeitando o modelo de permissões (authorization.mjs).",
     "Recriar comportamento e organização, não a marca: nomes, textos e visual são da Soci.",
+    "Toda ferramenta nova ou melhoria visível cria ou atualiza o artigo em docs-site/ (doc.soci.app.br) no mesmo PR e acrescenta uma linha em Novidades; o CI cobra (scripts/docs-check.mjs).",
     "Consultar o catálogo técnico (04c) antes de desenhar cada módulo: telas, campos, APIs e construtores do GHL estão lá."
   ],
 
@@ -192,6 +193,7 @@ window.PLANO_SOCI = {
   ],
 
   historico: [
+    { data: "2026-11-24", hora: "20:00", texto: "Central de ajuda (doc.soci.app.br): site Starlight em docs-site/, mídia no R2 público e regra no CI: todo PR que muda ui/, routes/ ou *-model.mjs traz o artigo junto ou declara Documentação: não se aplica — motivo." },
     { data: "2026-11-24", hora: "18:00", texto: "WhatsApp só pela Evolution API: o provedor anterior saiu do código, da interface, dos testes e das variáveis de ambiente; vínculos antigos são descartados ao carregar. Novo em Agência → Configurações → WhatsApp: Testar servidor e Excluir instância. Webhook repetido não duplica mensagem. Pasta deploy/evolution pronta para a VPS da Hostinger (enviar-vps.ps1, .env.example versionado, backup restaurável) com teste real da stack no CI (.github/workflows/evolution.yml)." },
     { data: "2026-11-24", hora: "15:30", texto: "Funil de reuniões qualificadas (extra soci): blocos de vídeo, formulário e agenda no editor de páginas; destino por resposta no formulário, com lead desqualificado; antecedência, janela e página de confirmação por serviço; Lead só para o qualificado e Schedule ao agendar; lembretes contados a partir da reunião; e um template de setup de conta com 4 páginas, 2 formulários, pipeline e 5 fluxos. Mesclado em 24/11/2026." },
     { data: "2026-11-24", hora: "15:00", texto: "7.4 ajustado a pedido: os 123 templates de setup por segmento foram removidos. A aba Templates de setup continua, com estado vazio; Meus setups, Importados e o histórico não mudam." },

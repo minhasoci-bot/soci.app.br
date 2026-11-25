@@ -1,0 +1,60 @@
+---
+title: Aplicar uma ação em vários contatos
+description: Selecione contatos na lista e adicione ou remova uma tag, ou exclua todos de uma vez, com o histórico de cada ação.
+modulo: crm
+sidebar:
+  order: 4
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Com as ações em massa, você muda vários contatos de uma vez: marca todos os que vieram de uma campanha, tira uma tag que não serve mais ou limpa contatos de teste. Cada ação fica registrada, com quem fez, quando e quantos contatos foram alterados.
+
+<Requisitos permissao="Acesso ao módulo Contatos na subconta" />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Contatos** e marque a caixa ao lado de cada contato que vai receber a ação. A barra de ações aparece acima da lista, com o número de selecionados. Para marcar todos os que estão na tela, use a caixa do cabeçalho da lista.
+
+   <Print src="docs/crm/acoes-em-massa/01-selecionar-contatos.19723e8a.webp" alt="Três contatos selecionados na lista e a barra de ações em massa em destaque." />
+
+2. Na barra, escolha a ação: **Adicionar tag**, **Remover tag** ou **Excluir**.
+
+   <Print src="docs/crm/acoes-em-massa/02-escolher-acao.d208ee82.webp" alt="Menu de ações aberto na barra de ações em massa." />
+
+3. Para adicionar ou remover uma tag, escreva o nome da tag no campo ao lado e clique em **Aplicar**. Para desistir, clique em **Limpar seleção**.
+
+   <Print src="docs/crm/acoes-em-massa/03-aplicar.b1be909c.webp" alt="Barra de ações com Adicionar tag, a tag Campanha de inverno e o botão Aplicar em destaque." />
+
+4. Para acompanhar o resultado, abra a aba **Ações em massa**. Cada linha mostra a ação, o status, quem aplicou, quando começou e terminou e quantos contatos foram alterados.
+
+   <Print src="docs/crm/acoes-em-massa/04-historico.4012f2b1.webp" alt="Aba Ações em massa com a ação Adicionar tag Campanha de inverno concluída para 3 de 3 contatos." />
+
+</Steps>
+
+<Aside type="caution">
+**Excluir** leva todos os contatos selecionados para a **Lixeira** de uma vez, junto com as tarefas, oportunidades, mensagens, agendamentos e faturas de cada um. Confira a seleção antes de aplicar.
+</Aside>
+
+## Perguntas frequentes
+
+**Uma tag adicionada em massa dispara automações?**
+Não. A ação em massa só grava a tag. O gatilho **Tag do contato** roda quando a tag é adicionada por um workflow, com a ação **Adicionar tag**.
+
+**Por quanto tempo os contatos excluídos ficam na Lixeira?**
+60 dias. Nesse prazo você pode restaurá-los pela aba **Lixeira**.
+
+**Posso selecionar só os contatos de uma tag?**
+Sim. Filtre a lista por **Todas as tags** antes de selecionar e use a caixa do cabeçalho para marcar todos.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Cadastrar e organizar contatos" href="/crm/contatos/" description="Crie contatos, use tags e abra a ficha de cada um." />
+  <LinkCard title="Importar contatos de uma planilha" href="/crm/importar-contatos/" description="Traga até 500 contatos de uma vez com um arquivo CSV." />
+</CardGrid>
