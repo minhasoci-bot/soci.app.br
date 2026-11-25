@@ -14,6 +14,9 @@ import { createReputationRoutes } from './routes/reputation.mjs';
 import { createSiteRoutes } from './routes/sites.mjs';
 import { createWebinarRoutes } from './routes/webinars.mjs';
 import { createQrRoutes } from './routes/qr.mjs';
+import { createAffiliateRoutes } from './routes/affiliates.mjs';
+import { createOfferApiRoutes, createOfferPageRoutes } from './routes/offers.mjs';
+import { createBookingRoutes } from './routes/booking.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -60,8 +63,6 @@ import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
 import { freshSecret, googleConfigured, googleError, googleReports, listLocations, locationDetails, searchError, searchReport } from './google-integrations.mjs';
 import { gbpChecklist } from './ui/gbp-data.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { affiliatePortal, portalTokenHash } from './affiliate-model.mjs';
-import { affiliatePageCsp, renderPortal, renderSignup } from './affiliate-page.mjs';
 
 // Per request: the affiliate referral cookies a public visitor carries (one per workspace).
 const requestScope = new AsyncLocalStorage();
@@ -76,7 +77,6 @@ function touchesOf(req) {
   }
   return out;
 }
-const affiliateCookie = workspace => `soci_af_${workspace.replace(/[^\w-]/g, '')}`;
 function referralsOf(req) {
   const refs = {};
   for (const part of String(req.headers.cookie || '').split(';')) {
@@ -123,7 +123,6 @@ import { fillWelcome } from './community-config.mjs';
 import { certificateCsp, certificatePage } from './course-credentials.mjs';
 import { preferenceCsp, preferencePage, preferenceView } from './preference-model.mjs';
 import { leaveCsp, leavePage, outcomeOf, resolveDestination } from './destinations.mjs';
-import { bookingCsp, bookingEmbedCsp, bookingPage, bookingView, clockIn, zoneOf } from './scheduling-model.mjs';
 import { audioLimit, audioTypes, summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
 import { askAssistant } from './seo-ai.mjs';
 import { addTopup, paidTopup, pricingFor, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
@@ -141,7 +140,6 @@ import { chatHistory } from './chat-model.mjs';
 import { chatPage, demoPage, loaderScript } from './ui/chat-widget-data.js';
 import { blogHome, blogPost, blogRss, isLive } from './ui/blog-data.js';
 import { localDraft, postSeo, writePost } from './blog-ai.mjs';
-import { renderOfferPage, offerPageCsp } from './offer-page.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
 import { ASSET_PATH, assetBytes, extractAssets, saveAssets } from './asset-store.mjs';
 import { inBackground } from './background.mjs';
@@ -213,16 +211,10 @@ const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const chatPath = new RegExp(`^/chat/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js|demo))?/?$`);
 const chatApi = new RegExp(`^/api/chat/${workspaceSegment}/([0-9a-f-]{36})/(start|send|messages)$`);
 const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
-const affiliateLink = new RegExp(`^/r/${workspaceSegment}/([a-z0-9]{3,20})(?:/([0-9a-f-]{36}))?/?$`);
-const affiliatePagePath = new RegExp(`^/afiliados/${workspaceSegment}(?:/([0-9a-f]{48}))?/?$`);
-const affiliateSignupApi = new RegExp(`^/api/afiliados/${workspaceSegment}/signup$`);
-const offerPath = new RegExp(`^/oferta/${workspaceSegment}/([0-9a-f-]{36})/?$`);
 const certificatePath = new RegExp(`^/certificado/${workspaceSegment}/([0-9A-F]{12})/?$`);
 const preferencePath = new RegExp(`^/preferencias/${workspaceSegment}/([0-9a-f]{32})/?$`);
-const bookingPath = new RegExp(`^/agendar/${workspaceSegment}/?$`);
 const desktopPath = /^\/desktop\/([\w-]{1,60})\/(manifest\.webmanifest|sw\.js|icon-(?:192|512|1024)\.png)?$/;
 const mobilePath = /^\/mobile\/([\w-]{1,60})\/(manifest\.webmanifest|sw\.js|config\.json|icon-(?:192|512|1024)\.png)?$/;
-const offerApi = new RegExp(`^/api/offer/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout|cart|restore|review|view)$`);
 const blogPath = new RegExp(`^/b/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,80}|rss\\.xml))?/?$`);
 const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
@@ -2173,6 +2165,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const documentRoute = createDocumentRoutes({ store, ready, root, error, workspaceSegment, abacate, allowSign, change, flushLater, payload, publicAccountPolicy, publicBase });
+  const affiliateRoute = createAffiliateRoutes({ store, ready, error, workspaceSegment, allowSign, change, flushLater, payload, publicAccountPolicy, publicBase, referralsOf });
+  const offerPageRoute = createOfferPageRoutes({ store, ready, error, workspaceSegment, clientPortal, publicAccountPolicy, withPixels });
+  const offerApiRoute = createOfferApiRoutes({ store, ready, error, workspaceSegment, abacate, change, grantOffer, payload, publicAccountPolicy, publicBase });
+  const bookingRoute = createBookingRoutes({ store, ready, error, workspaceSegment, allowSign, change, flushLater, formBody, leave, publicAccountPolicy, withPixels });
   const siteRoute = createSiteRoutes({ store, ready, error, workspaceSegment, trackingPath, allowTracking, change, changeSite, flushLater, formFields, publicAccountPolicy, publicBase, siteDoc, studioGuard, trackingLog, withPixels });
   const webinarRoute = createWebinarRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, publicBase, publicPreview });
   const qrRoute = createQrRoutes({ store, ready, workspaceSegment, change, publicAccountPolicy, publicBase });
@@ -2950,102 +2946,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (qrRouteHandled !== NEXT_ROUTE) return qrRouteHandled;
       const storePageHandled = await storePageRoute({ req, res, p, method, url });
       if (storePageHandled !== NEXT_ROUTE) return storePageHandled;
-      // Affiliates: the referral link, the program sign-up and the affiliate's private dashboard.
-      const referral = p.match(affiliateLink);
-      if (referral && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, code, campaignId = ''] = referral;
-        await publicAccountPolicy(workspace, false, 'marketing');
-        const clicked = method === 'GET' ? (await change(workspace, { type: 'affiliate-click', data: { code, campaignId } })).id : null;
-        if (!clicked) throw error('Este link de afiliado não está ativo.', 404);
-        const cookie = affiliateCookie(workspace);
-        const current = referralsOf(req)[workspace];
-        const headers = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer',
-          Location: clicked.destination.startsWith('/') ? publicBase(req) + clicked.destination : clicked.destination };
-        // First touch: an earlier referral keeps its credit while it is still valid.
-        if (!current || Date.now() - current.at > clicked.cookieDays * 864e5) {
-          const secure = String(req.headers['x-forwarded-proto'] || '').includes('https') || publicBase(req).startsWith('https') ? '; Secure' : '';
-          headers['Set-Cookie'] = [...[res.getHeader('Set-Cookie') || []].flat(), `${cookie}=${encodeURIComponent(`${clicked.affiliateId}.${clicked.campaignId}.${Date.now()}`)}; Max-Age=${clicked.cookieDays * 86400}; Path=/; HttpOnly; SameSite=Lax${secure}`];
-        }
-        res.writeHead(302, headers);
-        return res.end();
-      }
-      const affiliatePage = p.match(affiliatePagePath);
-      if (affiliatePage && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, token = ''] = affiliatePage;
-        await publicAccountPolicy(workspace, false, 'marketing');
-        const state = await store.load(workspace);
-        let page;
-        if (token) {
-          const portal = affiliatePortal(state, portalTokenHash(token));
-          if (!portal) throw error('Este link de painel não é válido. Peça um novo à empresa.', 404);
-          page = renderPortal(state, portal, { workspace, origin: publicBase(req) });
-        } else page = renderSignup(state, { workspace });
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': affiliatePageCsp, 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' });
-        return res.end(method === 'HEAD' ? undefined : page);
-      }
-      const affiliateJoin = p.match(affiliateSignupApi);
-      if (affiliateJoin && method === 'POST') {
-        await ready;
-        const [, workspace] = affiliateJoin;
-        await publicAccountPolicy(workspace, true, 'marketing');
-        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.', 429);
-        const input = await payload(req);
-        const result = (await change(workspace, { type: 'affiliate-signup', data: { name: input.name, email: input.email, phone: input.phone, pix: input.pix, terms: input.terms === true, website: input.website } })).id;
-        flushLater(workspace);
-        return json(result.token ? { ok: true, approval: result.status, portal: `/afiliados/${workspace}/${result.token}` } : { ok: true }, 201);
-      }
+      const affiliateRouteHandled = await affiliateRoute({ req, res, p, method, json });
+      if (affiliateRouteHandled !== NEXT_ROUTE) return affiliateRouteHandled;
       const reputationRouteHandled = await reputationRoute({ req, res, p, method, json });
       if (reputationRouteHandled !== NEXT_ROUTE) return reputationRouteHandled;
-      const offerRoute = p.match(offerPath);
-      if (offerRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, offerId] = offerRoute;
-        await publicAccountPolicy(workspace, false, 'memberships');
-        const state = await store.load(workspace);
-        const offer = state.offers?.find(row => row.id === offerId && row.status === 'published');
-        if (!offer) throw error('Esta oferta não está disponível.',404);
-        const color = (await clientPortal.directory(workspace)).settings?.color || '';
-        const status = ['pago','voltou'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : '';
-        const [offerHeaders, offerBody] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Content-Security-Policy':offerPageCsp }, renderOfferPage(state, offer, { workspace, status, color }));
-        res.writeHead(200, offerHeaders);
-        return res.end(method === 'HEAD' ? undefined : offerBody);
-      }
-      // Agenda de serviços: the public booking page (choose a service, a day and a free time; no script).
-      const booking = p.match(bookingPath);
-      if (booking && ['GET', 'HEAD', 'POST'].includes(method)) {
-        await ready;
-        const [, workspace] = booking;
-        await publicAccountPolicy(workspace, method === 'POST', 'calendars');
-        const q = url.searchParams, base = `/agendar/${workspace}`, embed = q.get('embed') === '1';
-        let done = null, failure = '', status = 200, form = {};
-        if (method === 'POST') {
-          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-          if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.', 429);
-          form = await formBody(req);
-          const one = value => Array.isArray(value) ? value[0] : value;
-          try {
-            const result = await change(workspace, { type: 'scheduling-book', data: { serviceId: one(form.servico), start: one(form.inicio), name: one(form.nome), email: one(form.email), phone: one(form.telefone), address: one(form.endereco), notes: one(form.notas), units: one(form.unidades), quantity: one(form.qtd), link: one(form.link) } });
-            flushLater(workspace);
-            const after = await store.load(workspace), zone = zoneOf(after), booked = result.id;
-            const event = hasPixels(after.tracking) ? `schedule.${booked.id}` : '';
-            const target = resolveDestination(after, workspace, after.services.find(x => x.id === one(form.servico))?.after, { event });
-            if (target) return leave(res, after, workspace, target, { embed, event });
-            done = { event, service: booked.service, staff: booked.staff, when: `${new Intl.DateTimeFormat('pt-BR', { timeZone: zone, weekday: 'long', day: '2-digit', month: 'long' }).format(new Date(booked.start))} às ${clockIn(Date.parse(booked.start), zone)}` };
-          } catch (failed) {
-            if (!failed.status || failed.status >= 500) throw failed;
-            failure = failed.message; status = failed.status;
-          }
-        }
-        const one2 = value => Array.isArray(value) ? value[0] : value;
-        const view = bookingView(await store.load(workspace), { serviceId: String(form.servico || q.get('servico') || ''), day: String(q.get('dia') || ''), units: Number(form.unidades || q.get('unidades')) || 1, quantity: Number(form.qtd || q.get('qtd')) || 1, link: String(one2(form.link) || q.get('link') || '') });
-        if (!view) throw error('O agendamento online desta empresa está desligado.', 404);
-        const [bookingHeaders, bookingBody] = withPixels(await store.load(workspace), workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'same-origin', 'Content-Security-Policy':embed ? bookingEmbedCsp : bookingCsp }, bookingPage(view, { base, done, error: failure, form, embed }));
-        res.writeHead(status, bookingHeaders);
-        return res.end(method === 'HEAD' ? undefined : bookingBody);
-      }
+      const offerPageRouteHandled = await offerPageRoute({ res, p, method, url });
+      if (offerPageRouteHandled !== NEXT_ROUTE) return offerPageRouteHandled;
+      const bookingRouteHandled = await bookingRoute({ req, res, p, method, url });
+      if (bookingRouteHandled !== NEXT_ROUTE) return bookingRouteHandled;
       // Central de preferências: the contact's own page (link with a private token) to choose channels and topics.
       const preference = p.match(preferencePath);
       if (preference && ['GET', 'HEAD', 'POST'].includes(method)) {
@@ -3129,27 +3037,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer', 'X-Robots-Tag':'noindex', 'Content-Security-Policy':certificateCsp });
         return res.end(method === 'HEAD' ? undefined : certificatePage(state, row));
       }
-      const offerCall = p.match(offerApi);
-      if (offerCall) {
-        await ready;
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const [, workspace, offerId] = offerCall;
-        const input = await payload(req);
-        await publicAccountPolicy(workspace, true, 'memberships');
-        const current = await store.load(workspace);
-        const offer = current.offers?.find(row => row.id === offerId && row.status === 'published');
-        if (!offer) throw error('Esta oferta não está disponível.',404);
-        const agencyId = current.agencyId || AGENCY_ID;
-        if (offer.type !== 'free' && !(await abacate.connected(agencyId, workspace))) throw error('O pagamento online desta oferta ainda não está disponível. Fale com a equipe.',409);
-        const result = await change(workspace,{ type:'offer-checkout', id:offerId, data:{ name:input.name, email:input.email } });
-        if (offer.type === 'free') {
-          const { emailed } = await grantOffer(workspace, offerId, result.id);
-          return json({ enrolled:true, emailed });
-        }
-        const origin = publicBase(req), page = `${origin}/oferta/${workspace}/${offerId}`;
-        const payment = await abacate.chargeInvoice(agencyId, workspace, result.id, origin, { returnUrl:`${page}?status=voltou`, completionUrl:`${page}?status=pago` });
-        return json({ payUrl:payment.url });
-      }
+      const offerApiRouteHandled = await offerApiRoute({ req, p, method, json });
+      if (offerApiRouteHandled !== NEXT_ROUTE) return offerApiRouteHandled;
       const storeApiHandled = await storeApiRoute({ req, p, method, json });
       if (storeApiHandled !== NEXT_ROUTE) return storeApiHandled;
       // Blogs: home with categories and pages, posts with SEO tags, and RSS. Drafts open with ?preview=1 when signed in.
