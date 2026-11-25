@@ -11,6 +11,9 @@ import { createStudioRoutes } from './routes/studio.mjs';
 import { createStoreApiRoutes, createStorePageRoutes } from './routes/stores.mjs';
 import { createDocumentRoutes } from './routes/documents.mjs';
 import { createReputationRoutes } from './routes/reputation.mjs';
+import { createSiteRoutes } from './routes/sites.mjs';
+import { createWebinarRoutes } from './routes/webinars.mjs';
+import { createQrRoutes } from './routes/qr.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -36,8 +39,7 @@ import { brandVoicePrompt, defaultBoard, voiceTraits } from './ui/brand-data.js'
 import { contentModule } from './ui/content-ai-data.js';
 import { runWorkflowAI } from './workflow-ai.mjs';
 import { mediaRowId } from './reputation-media.mjs';
-import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, previewHeaders, publicHeaders, publish, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withEmbeds, withMotion } from './studio-site.mjs';
-import { hasSiteTemplate, siteTemplatePreview } from './site-templates/index.mjs';
+import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
@@ -48,7 +50,7 @@ import { R2_MAX_BYTES, r2FromEnv } from './r2-storage.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
 import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
-import { hasPixels, injectPixels, pixelsScript, trackerScript, trackingOf, widenCsp } from './tracking.mjs';
+import { hasPixels, injectPixels, widenCsp } from './tracking.mjs';
 import { createTrackingLog } from './tracking-events.mjs';
 import { scopedReads } from './read-scope.mjs';
 import { localScheduler, startupLines } from './local-scheduler.mjs';
@@ -73,17 +75,6 @@ function touchesOf(req) {
     try { const v = JSON.parse(Buffer.from(decodeURIComponent(value), 'base64url').toString('utf8')); out[name.slice(8)] = { first: cleanTouch(v.f), last: cleanTouch(v.l) }; } catch { /* a broken cookie is ignored */ }
   }
   return out;
-}
-// Sites and funnels published on the Soci: a random visitor id, linked to the contact when the visitor sends
-// the site's form, so later page views can fire "Página do site ou funil visitada".
-const siteVisitorCookie = workspace => `soci_sv_${workspace.replace(/[^\w-]/g, '')}`;
-function siteVisitorOf(req, workspace) {
-  const name = siteVisitorCookie(workspace);
-  for (const part of String(req.headers.cookie || '').split(';')) {
-    const [key, value = ''] = part.trim().split('=');
-    if (key === name && /^[a-z0-9]{6,40}$/i.test(value)) return value;
-  }
-  return '';
 }
 const affiliateCookie = workspace => `soci_af_${workspace.replace(/[^\w-]/g, '')}`;
 function referralsOf(req) {
@@ -152,8 +143,6 @@ import { blogHome, blogPost, blogRss, isLive } from './ui/blog-data.js';
 import { localDraft, postSeo, writePost } from './blog-ai.mjs';
 import { renderOfferPage, offerPageCsp } from './offer-page.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
-import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
-import { deviceOf, qrTarget } from './qr-model.mjs';
 import { ASSET_PATH, assetBytes, extractAssets, saveAssets } from './asset-store.mjs';
 import { inBackground } from './background.mjs';
 import { createEventSender } from './event-sender.mjs';
@@ -223,9 +212,6 @@ const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|hom
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const chatPath = new RegExp(`^/chat/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js|demo))?/?$`);
 const chatApi = new RegExp(`^/api/chat/${workspaceSegment}/([0-9a-f-]{36})/(start|send|messages)$`);
-const webinarPath = new RegExp(`^/w/${workspaceSegment}/([0-9a-f-]{36})(?:/(sala|agenda\\.ics))?/?$`);
-const webinarApi = new RegExp(`^/api/webinar/${workspaceSegment}/([0-9a-f-]{36})/register$`);
-const qrPath = new RegExp(`^/q/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
 const affiliateLink = new RegExp(`^/r/${workspaceSegment}/([a-z0-9]{3,20})(?:/([0-9a-f-]{36}))?/?$`);
 const affiliatePagePath = new RegExp(`^/afiliados/${workspaceSegment}(?:/([0-9a-f]{48}))?/?$`);
@@ -253,13 +239,10 @@ const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
 const brandGroupRoute = /^\/marcas\/([0-9a-f]{64})\/?$/;
 const presentationRoute = /^\/apresentacao\/([0-9a-f]{64})\/?$/;
 const sharedReportRoute = new RegExp(`^/relatorio/${workspaceSegment}/([0-9a-f]{64})/?$`);
-const templatePreviewPath = /^\/studio-template\/([a-z0-9-]{1,40})\/([a-z0-9-]{1,40})$/;
-const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{36})/([0-9a-f-]{36})$`);
 // Pages a visitor lands on (sites, forms, offers, store, blog, webinars, QR codes and links): they remember the visit's source.
 // The tracking script (/t/<workspace>.js), the pixels loader (/t/<workspace>/pixels.js) and events (/t/<workspace>/e).
 const trackingPath = new RegExp(`^/t/${workspaceSegment}(\\.js|/pixels\\.js|/e)$`);
 const landingPath = new RegExp(`^/(s|form|oferta|loja|b|w|q|r)/${workspaceSegment}(?:/|$)`);
-const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,48}))?$`);
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 function publicAgency(agency, who) {
@@ -2190,6 +2173,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
   const documentRoute = createDocumentRoutes({ store, ready, root, error, workspaceSegment, abacate, allowSign, change, flushLater, payload, publicAccountPolicy, publicBase });
+  const siteRoute = createSiteRoutes({ store, ready, error, workspaceSegment, trackingPath, allowTracking, change, changeSite, flushLater, formFields, publicAccountPolicy, publicBase, siteDoc, studioGuard, trackingLog, withPixels });
+  const webinarRoute = createWebinarRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, publicBase, publicPreview });
+  const qrRoute = createQrRoutes({ store, ready, workspaceSegment, change, publicAccountPolicy, publicBase });
   const reputationRoute = createReputationRoutes({ store, ready, error, workspaceSegment, allowSign, change, clientPortal, flushLater, moveVideoToR2, payload, publicAccountPolicy, publicBase, sendVideo });
   const server=createServer(async (req,res) => {
     const requestPath = String(req.url || '/').split('?')[0];
@@ -2956,163 +2942,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (pranchetaRouteHandled !== NEXT_ROUTE) return pranchetaRouteHandled;
       const studioRouteHandled = await studioRoute({ req, res, p, method, url, id, json });
       if (studioRouteHandled !== NEXT_ROUTE) return studioRouteHandled;
-      // Prévia dos modelos de site da galeria: conteúdo fixo do catálogo, sem dados de cliente.
-      const templatePreview = p.match(templatePreviewPath);
-      if (templatePreview && method === 'GET') {
-        const [, templateId, slug] = templatePreview;
-        if (!hasSiteTemplate(templateId)) throw error('Modelo de site não encontrado.',404);
-        const thumb = url.searchParams.has('thumb');
-        const html = siteTemplatePreview(templateId, slug, { thumb });
-        const [headers, body] = thumb ? [previewHeaders, html] : withMotion(previewHeaders, html);
-        res.writeHead(200, { ...headers, 'Cache-Control': 'no-cache' });
-        return res.end(body);
-      }
-      const preview = p.match(previewPath);
-      if (preview && method === 'GET') {
-        await ready;
-        const [, workspace, projectId, pageId] = preview;
-        await studioGuard(req,res,workspace);
-        const doc = await siteDoc(workspace, projectId);
-        const page = findPage(doc, pageId);
-        const etag = `W/"${projectId}-${pageId}-${doc.rev || 0}"`;
-        if (req.headers['if-none-match'] === etag) {
-          res.writeHead(304, { ...previewHeaders, 'ETag': etag, 'Cache-Control': 'private, no-cache' });
-          return res.end();
-        }
-        res.writeHead(200, { ...previewHeaders, 'ETag': etag, 'Cache-Control': 'private, no-cache' });
-        return res.end(page.html);
-      }
-      // Rastreamento externo: the script for the business's site, the pixels loader and the events endpoint.
-      const tracker = p.match(trackingPath);
-      if (tracker) {
-        await ready;
-        const [, workspace, part] = tracker;
-        if (part === '/e') {
-          if (method !== 'POST') throw error('Method not allowed.', 405);
-          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-          const cors = { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' };
-          if (!allowTracking(ip)) { res.writeHead(429, cors); return res.end(); }
-          await publicAccountPolicy(workspace, true, 'sites');
-          let size = 0; const chunks = [];
-          for await (const chunk of req) { size += chunk.length; if (size > 64_000) throw error('Evento grande demais.', 413); chunks.push(chunk); }
-          let data;
-          try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw error('Evento inválido.', 400); }
-          if (!data || typeof data !== 'object' || Array.isArray(data)) throw error('Evento inválido.', 400);
-          if (await trackingLog.record(workspace, data, req.headers.origin)) flushLater(workspace);
-          res.writeHead(204, cors); return res.end();
-        }
-        if (method !== 'GET' && method !== 'HEAD') throw error('Method not allowed.', 405);
-        await publicAccountPolicy(workspace, false, 'sites');
-        const t = trackingOf(await store.load(workspace));
-        const body = part === '/pixels.js' ? pixelsScript(t) : trackerScript(workspace, publicBase(req), t);
-        res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Access-Control-Allow-Origin': '*', 'Cross-Origin-Resource-Policy': 'cross-origin' });
-        return res.end(method === 'HEAD' ? undefined : body);
-      }
-      const site = p.match(sitePath);
-      if (site) {
-        await ready;
-        const [, workspace, projectId, slug = 'index'] = site;
-        const active = await publicAccountPolicy(workspace, method === 'POST', 'sites');
-        const base = `/s/${workspace}/${projectId}`;
-        const doc = await siteDoc(workspace, projectId, false).catch(() => null);
-        if (!doc?.published) throw error('This site is not published.',404);
-        if (method === 'POST') {
-          const fields = await formFields(req);
-          await publicAccountPolicy(workspace, true, 'sites');
-          const back = fields._page && fields._page !== 'index' ? `${base}/${encodeURIComponent(fields._page)}` : base;
-          const project = (await store.load(workspace)).studioProjects.find(item => item.id === projectId);
-          try {
-            if (!project?.formId) throw error('This site is not accepting submissions.',404);
-            const vid = siteVisitorOf(req, workspace) || randomBytes(12).toString('hex');
-            const sent = await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _message:fields.message, _source:'Site', _vid:vid } });
-            const order = doc.published.pages;
-            const from = order.findIndex(item => item.slug === (fields._page || 'index'));
-            if (from >= 0) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, order[from].id, 'optins'))).catch(() => {});
-            const next = project.kind === 'funnel' && from >= 0 ? order[from + 1] : null;
-            const secure = String(req.headers['x-forwarded-proto'] || '').includes('https') || publicBase(req).startsWith('https') ? '; Secure' : '';
-            res.setHeader('Set-Cookie', [...[res.getHeader('Set-Cookie') || []].flat(), `${siteVisitorCookie(workspace)}=${vid}; Max-Age=${365 * 86400}; Path=/; HttpOnly; SameSite=Lax${secure}`]);
-            const event = hasPixels((await store.load(workspace)).tracking) ? `soci_ev=lead.${sent.id}` : '';
-            res.writeHead(303,{ Location:next ? `${base}/${encodeURIComponent(next.slug)}${event && `?${event}`}` : `${back}?sent=1${event && `&${event}`}` });
-          } catch {
-            res.writeHead(303,{ Location:`${back}?error=1` });
-          }
-          return res.end();
-        }
-        if (method !== 'GET') throw error('Method not allowed.',405);
-        const page = doc.published.pages.find(item => item.slug === slug);
-        if (!page) throw error('Page not found.',404);
-        if (active && !url.searchParams.has('sent') && !url.searchParams.has('error')) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, page.id, 'views'))).catch(() => {});
-        const visitor = active && method === 'GET' ? siteVisitorOf(req, workspace) : '';
-        if (visitor) {
-          // A browser that already sent this sub-account a site form: the view counts for its contact.
-          try { if (await change(workspace, { type:'site-pageview', data:{ projectId, pageId:page.id, page:page.slug, vid:visitor } })) flushLater(workspace); }
-          catch (failure) { console.error(`Site page view (${workspace}): ${failure.message}`); }
-        }
-        const pt = /<html\b[^>]*\blang\s*=\s*["']?pt/i.test(page.html), es = /<html\b[^>]*\blang\s*=\s*["']?es/i.test(page.html);
-        const notice = url.searchParams.has('sent') ? { ok:true, text:pt ? 'Obrigado! Seus dados foram enviados.' : es ? '¡Gracias! Tus datos fueron enviados.' : 'Thank you! Your details were sent.' }
-          : url.searchParams.has('error') ? { ok:false, text:pt ? 'Não foi possível enviar. Confira o nome e o e-mail e tente de novo.' : es ? 'No se pudo enviar. Revisa el nombre y el correo e inténtalo de nuevo.' : 'Your details could not be sent. Check the name and email and try again.' } : '';
-        const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, ...withEmbeds(...withMotion(publicHeaders, renderPublic(page,{ base, notice, workspace, link:url.searchParams.get('link') || '' }))));
-        res.writeHead(200, siteHeaders);
-        return res.end(siteBody);
-      }
-      // Webinars: registration, watch room (attendance when the room is open) and calendar file.
-      const webinarRoute = p.match(webinarPath);
-      if (webinarRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, webinarId, part] = webinarRoute;
-        const active = await publicAccountPolicy(workspace, false, 'sites');
-        const state = await store.load(workspace);
-        const webinar = state.webinars?.find(item => item.id === webinarId);
-        const preview = await publicPreview(req, res, url, workspace);
-        if (!webinar || (!webinar.active && !preview)) throw error('Este webinar não está disponível.',404);
-        const zone = state.profile?.timezone || 'America/Sao_Paulo';
-        const page = body => { res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }); return res.end(method === 'HEAD' ? undefined : body); };
-        if (!part) return page(registrationPage(webinar, { workspace, zone }));
-        const registration = state.webinarRegistrations.find(item => item.webinarId === webinarId && item.token === String(url.searchParams.get('t') || ''));
-        if (!registration) throw error('Inscrição não encontrada. Use o link que você recebeu.',404);
-        const session = webinar.sessions.find(item => item.id === registration.sessionId);
-        if (part === 'agenda.ics') {
-          if (!session) throw error('Sessão não encontrada.',404);
-          res.writeHead(200, { 'Content-Type':'text/calendar; charset=utf-8', 'Content-Disposition':'attachment; filename="webinar.ics"' });
-          return res.end(calendarFile(webinar, session, `${publicBase(req)}/w/${workspace}/${webinarId}/sala?t=${registration.token}`));
-        }
-        const now = Date.now();
-        if (active && session && webinar.active && method === 'GET' && now >= Date.parse(session.start) - webinar.openBefore * 60000 && now < Date.parse(session.start) + session.duration * 60000)
-          await Promise.resolve().then(() => change(workspace,{ type:'webinar-attend', id:webinarId, data:{ token:registration.token } })).catch(() => {});
-        return page(roomPage(webinar, registration, { workspace, zone, at:now }));
-      }
-      const webinarCall = p.match(webinarApi);
-      if (webinarCall) {
-        await ready;
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const [, workspace, webinarId] = webinarCall;
-        const input = await payload(req);
-        await publicAccountPolicy(workspace, true, 'sites');
-        const result = await change(workspace,{ type:'webinar-register', id:webinarId, data:{ name:input.name, email:input.email, phone:input.phone, sessionId:input.sessionId } });
-        const registration = result.state.webinarRegistrations.find(item => item.id === result.id);
-        return json({ room:`/w/${workspace}/${webinarId}/sala?t=${registration.token}` },201);
-      }
-      // QR Codes: count the scan and send the visitor on. The destination can change after printing.
-      const qrRoute = p.match(qrPath);
-      if (qrRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, qrId] = qrRoute;
-        const active = await publicAccountPolicy(workspace, false, 'sites');
-        const state = await store.load(workspace);
-        const qr = state.qrCodes?.find(item => item.id === qrId);
-        const target = qr?.active ? qrTarget(state, qr, { base:publicBase(req), workspace }) : '';
-        if (!target) {
-          res.writeHead(404, { 'Content-Type':'text/html; charset=utf-8', 'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'" });
-          return res.end(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR Code indisponível</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;color:#101828;background:#f2f4f7}main{max-width:420px;padding:32px;border-radius:18px;background:#fff;text-align:center}</style></head><body><main><h1 style="font-size:22px;margin:0 0 8px">Este QR Code não está ativo</h1><p style="margin:0;color:#475467">O destino foi pausado ou removido por quem criou o código.</p></main></body></html>`);
-        }
-        if (active && method === 'GET') {
-          const visitor = `${req.headers['x-forwarded-for'] || req.socket?.remoteAddress || ''}|${req.headers['user-agent'] || ''}`;
-          await Promise.resolve().then(() => change(workspace,{ type:'qr-scan', id:qrId, data:{ visitor, device:deviceOf(String(req.headers['user-agent'] || '')) } })).catch(() => {});
-        }
-        res.writeHead(302, { Location:target, 'Cache-Control':'no-store' });
-        return res.end();
-      }
+      const siteRouteHandled = await siteRoute({ req, res, p, method, url });
+      if (siteRouteHandled !== NEXT_ROUTE) return siteRouteHandled;
+      const webinarRouteHandled = await webinarRoute({ req, res, p, method, url, json });
+      if (webinarRouteHandled !== NEXT_ROUTE) return webinarRouteHandled;
+      const qrRouteHandled = await qrRoute({ req, res, p, method });
+      if (qrRouteHandled !== NEXT_ROUTE) return qrRouteHandled;
       const storePageHandled = await storePageRoute({ req, res, p, method, url });
       if (storePageHandled !== NEXT_ROUTE) return storePageHandled;
       // Affiliates: the referral link, the program sign-up and the affiliate's private dashboard.
