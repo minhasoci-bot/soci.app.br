@@ -1,7 +1,7 @@
 import {icon as i, logo, brandName, bootScreen} from './icons.js';
 import {nav,h,avatar,screens,publicView,money} from './screens.js';
 import { conversationSections, manualQueue, manualType, slaRecords, SLA_CHANNELS } from './conversations.js';
-import { deliveryFailures, inboxChange, inboxClick, inboxSubmit } from './inbox.js';
+import { deliveryFailures, inboxChange, inboxClick, inboxSubmit, mediaFailed, mediaLoaded, threadMoved } from './inbox.js';
 import { dashboardPreferences, installDashboardControls, reportGrid } from './dashboard-controls.js';
 import { drawDashboardGauges } from './dashboard.js';
 import { launchpadGuide } from './launchpad.js';
@@ -1119,6 +1119,10 @@ document.addEventListener('change', async e => {
   }
   if (el.dataset.move) try { await move(el.dataset.move,el.value); } catch (error) { render(); flash(error.message,true); }
 });
+// Carregar e falhar não sobem na página: só a fase de captura os vê.
+document.addEventListener('error',mediaFailed,true);
+for(const name of ['load','loadedmetadata'])document.addEventListener(name,mediaLoaded,true);
+for(const name of ['wheel','touchmove','pointerdown','keydown'])document.addEventListener(name,threadMoved,{capture:true,passive:true});
 document.addEventListener('dragstart',ev=>{const el=ev.target.closest('[data-drag]');if(el){ev.dataTransfer.effectAllowed='move';ev.dataTransfer.setData('text/plain',el.dataset.drag);}});
 document.addEventListener('dragover',ev=>{if(ev.target.closest('[data-drop]'))ev.preventDefault();});
 document.addEventListener('drop',async ev=>{const el=ev.target.closest('[data-drop]');if(!el)return;ev.preventDefault();try{await move(ev.dataTransfer.getData('text/plain'),el.dataset.drop);}catch(e){flash(e.message,true);}});

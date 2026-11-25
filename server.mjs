@@ -127,6 +127,7 @@ import { reportsDue } from './report-model.mjs';
 import { brandGroupData } from './ui/brand-group-data.js';
 import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
+import { createMessageMedia } from './message-media.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
 import { createWhatsAppGuard } from './whatsapp-guard.mjs';
 import { createAbacatePayHandler } from './abacatepay.mjs';
@@ -183,7 +184,7 @@ export const staticFiles = new Map([
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
   ['/prancheta-editor.html','text/html; charset=utf-8'], ['/vendor/prancheta-editor.js','text/javascript; charset=utf-8'], ['/vendor/prancheta-editor.css','text/css; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/button-system.css','text/css; charset=utf-8'], ['/page-layout.css','text/css; charset=utf-8'], ['/tokens.css','text/css; charset=utf-8'], ['/liquid-glass.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
-  ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
+  ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/message-media.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
   ['/fonts/plus-jakarta-sans.woff2','font/woff2'], ['/favicon.svg','image/svg+xml'],
   ['/privacidade.html','text/html; charset=utf-8'], ['/skull_flame_animated.svg','image/svg+xml'],
@@ -343,8 +344,12 @@ export function makeServer({
   const abacate = createAbacatePayHandler({ store, secret: openAISecret, request: abacatePayRequest });
   const whatsapp = createWhatsAppHandler({
     store, secret: openAISecret, request: whatsappRequest,
-    evolutionBaseUrl, evolutionApiKey
+    evolutionBaseUrl, evolutionApiKey,
+    onMedia: (agencyId, workspace, messages) => {
+      if (messageMedia.enabled) inBackground(`Message media (${workspace})`, () => messageMedia.store(agencyId || AGENCY_ID, workspace, messages));
+    }
   });
+  const messageMedia = createMessageMedia({ r2, load: workspace => store.load(workspace), fetchMedia: (...args) => whatsapp.fetchWorkspaceMedia(...args), redirect: (...args) => redirectToR2(...args) });
   // A quiz, an assignment or a grade: the student's contact gets the course triggers in the workflows.
   const onCourseActivity = async (workspace, data) => { await change(workspace, { type: 'course-activity', data }); flushLater(workspace); };
   // A member signed in to the portal: "Login no portal do cliente" (first sign-in = signup).
@@ -2185,7 +2190,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   // Rotas por domínio (P2.1): cada módulo recebe o que vive neste fechamento e devolve NEXT_ROUTE quando a rota não é dele.
   const socialRoute = createSocialRoutes({ store, auth, localAccess, redirectToR2, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
   const adsRoute = createAdsRoutes({ store, localAccess, error, spaceId, privateSpace, stamp, adsAccess, adsCallbackPath, adsPopup, adsView, payload, publicBase, recordAudit, runAds, socialActor, socialRow, workspaceAccess });
-  const actionRoute = createActionRoutes({ store, r2, clearVideoChunks, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
+  const actionRoute = createActionRoutes({ store, r2, messageMedia, clearVideoChunks, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
   const emailRoute = createEmailRoutes({ store, ready, error, spaceId, privateSpace, stamp, campaignMail, emailDomainApi, flushLater, inboundFetch, payload, publicAccountPolicy, publicBase, recordAudit, sendingAddress, socialRow, testHits, workspaceAccess });
   const metaRoute = createMetaRoutes({ store, ready, error, change, flushLater, metaFetch, metaRoutesRow, metaSender, publicAccountPolicy });
   const googleRoute = createGoogleRoutes({ store, ready, localAccess, error, spaceId, privateSpace, stamp, workspaceSegment, flushLater, googleCache, googleCallbackPath, googleData, googlePopup, googleView, payload, publicAccountPolicy, publicBase, recordAudit, searchCache, socialActor, socialRow, workspaceAccess });
@@ -2220,7 +2225,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const connectorRoute = createConnectorRoutes({ store, error, spaceId, privateSpace, change, payload, publicBase, requireActiveAccount, workspaceAccess, connectorRequest });
   const pushRoute = createPushRoutes({ error, spaceId, privateSpace, change, payload, pushEnv, access, loadAgency, workspaceAccess });
   const phoneRoute = createPhoneRoutes({ error, spaceId, privateSpace, phone, payload, workspaceAccess });
-  const whatsappRoute = createWhatsappRoutes({ error, spaceId, whatsapp, waha, payload, publicBase, listWorkspaces, requireActiveAccount, webhookBlockReason, access, workspaceAccess });
+  const whatsappRoute = createWhatsappRoutes({ messageMedia, error, spaceId, whatsapp, waha, payload, publicBase, listWorkspaces, requireActiveAccount, webhookBlockReason, access, workspaceAccess });
   const siteRoute = createSiteRoutes({ store, ready, error, workspaceSegment, trackingPath, allowTracking, change, changeSite, flushLater, formFields, publicAccountPolicy, publicBase, siteDoc, studioGuard, trackingLog, withPixels });
   const webinarRoute = createWebinarRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, publicBase, publicPreview });
   const qrRoute = createQrRoutes({ store, ready, workspaceSegment, change, publicAccountPolicy, publicBase });
