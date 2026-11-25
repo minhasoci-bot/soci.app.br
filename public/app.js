@@ -895,6 +895,7 @@ document.addEventListener('click',async ev=>{
         break;
       }
       case 'abacate-refresh': c.pay=null; render(); await refreshPay(); break;
+      case 'abacate-hooks': c.pay=await api(url('/api/abacatepay/workspace/refresh-webhook'),{}); render(); flash('Avisos do AbacatePay atualizados.'); break;
       case 'google-refresh': c.google=null; render(); await refreshGoogle(); break;
       case 'dialer-next': {
         const next=await api(url('/api/phone/dialer/next'),{});

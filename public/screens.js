@@ -2,6 +2,7 @@ import { reputationScreen } from './reputation.js';
 import {brandHighlight, brandIcon, icon as i, shcLayers} from './icons.js';
 import {tr, getLanguage} from './i18n.js';
 import {phoneField} from './phone-input.js';
+import {invoicePaymentState, invoiceStateLabels} from './invoice-data.js';
 import {conversationPage} from './conversations.js';
 import {inboxPage} from './inbox.js';
 import {dashboard} from './dashboard.js';
@@ -230,6 +231,8 @@ function invoicePayCell(r,c){
   const p=r.payment;
   if(r.status==='Paid') return p?.receiptUrl?`<a class="text-link" href="${h(p.receiptUrl)}" target="_blank" rel="noopener">Comprovante</a>`:(p?.method?h(tr(p.method)):'');
   if(r.status==='Void') return '';
+  if(p?.status==='MISMATCH') return `<span class="dim">${h(tr('Recebido'))} ${mt(p.received||0,c)}</span>`;
+  if(p?.status==='REFUNDED'||p?.status==='DISPUTED') return '';
   const send=r.status==='Open'&&r.value>0?`<button class="secondary" data-iv-act="send-invoice" data-id="${r.id}">${i('send',15)} Enviar</button>`:'';
   if(p?.provider==='abacatepay'&&p.status==='PENDING'&&p.url&&p.amount===r.value) return `<span class="inline-gap">${send}<a class="secondary" href="${h(p.url)}" target="_blank" rel="noopener">Abrir</a><button class="secondary" data-act="abacate-copy" data-url="${h(p.url)}">Copiar link</button></span>`;
   return `<span class="inline-gap">${send}${c.pay?.connected?`<button class="secondary" data-act="abacate-charge" data-id="${r.id}">${i('pay',15)} Cobrar</button>`:''}</span>`;
@@ -248,7 +251,8 @@ function abacateSubView(c){
   if(g.error) return card(`${tile}<h2>AbacatePay</h2><p class="form-status">${h(g.error)}</p><button class="secondary" data-act="abacate-refresh">Tentar novamente</button>`);
   if(!g.connected) return card(`${tile}<h2>Conectar AbacatePay</h2><p class="dim">Receba faturas e pedidos da loja por Pix ou cartão. Crie uma chave de API v2 com permissão de leitura e escrita em <a class="text-link" href="https://app.abacatepay.com/api-keys" target="_blank" rel="noopener">app.abacatepay.com</a>. Para experimentar sem dinheiro real, use a chave do modo teste.</p><form class="settings-form" data-form="abacate-connect"><label>Chave de API v2<input name="apiKey" required autocomplete="off" spellcheck="false" maxlength="400"></label><button class="primary">Conectar</button><p class="form-status" role="alert"></p></form>`);
   const hook=g.webhookStatus==='registered'?`<p>${badge('Webhook cadastrado automaticamente','green')}</p>`:`<p class="ag-warn surface padded">${h(g.webhookError||'Cadastre o webhook no painel do AbacatePay.')} Use os dados abaixo em app.abacatepay.com/webhooks.</p>`;
-  return card(`${tile}<div class="inline-gap"><h2>${h(g.storeName||'AbacatePay')}</h2>${badge('Conectado','green')}${g.devMode?badge('Modo teste','gold'):''}</div><p class="dim">Chave terminada em <b>${h(g.last4)}</b>. Faturas e pedidos da loja são cobrados por Pix ou cartão, e o pagamento é confirmado automaticamente.</p><div class="inline-gap"><a class="primary" href="#payments">Abrir faturas</a><button class="secondary" data-act="abacate-disconnect">Desconectar</button></div>`,true)
+  const update=g.webhookOutdated&&g.webhookSecret?`<div class="surface padded ag-notice">${i('pay',20)}<div><b>Há avisos novos do AbacatePay</b><p>Atualize para a soci saber de contestação e devolução.</p></div><button class="primary" data-act="abacate-hooks">Atualizar avisos</button></div>`:'';
+  return update+card(`${tile}<div class="inline-gap"><h2>${h(g.storeName||'AbacatePay')}</h2>${badge('Conectado','green')}${g.devMode?badge('Modo teste','gold'):''}</div><p class="dim">Chave terminada em <b>${h(g.last4)}</b>. Faturas e pedidos da loja são cobrados por Pix ou cartão, e o pagamento é confirmado automaticamente.</p><div class="inline-gap"><a class="primary" href="#payments">Abrir faturas</a><button class="secondary" data-act="abacate-disconnect">Desconectar</button></div>`,true)
     +`<section class="surface padded settings-form ag-gap"><h2>Webhook de pagamentos</h2>${hook}<label>URL<input readonly value="${h(g.webhookUrl)}"></label>${g.webhookSecret?`<label>Secret<input readonly value="${h(g.webhookSecret)}"></label>`:''}<p class="dim"><small>Eventos: ${h(g.events.join(', '))}</small></p></section>`;
 }
 function payments(c){
@@ -265,7 +269,7 @@ function payments(c){
     desc: 'Acompanhe as faturas registradas neste workspace.',
     cta: `${(s.invoiceTemplates||[]).length?`<button type="button" class="secondary" data-iv-act="use">${i('copy',15)} Usar modelo</button>`:''}${primary('Nova fatura','invoices')}`,
     tabs: { key: 'payments', items: crmTabs.payments, current: c.tab||'invoices', label: 'Seções de pagamentos' },
-    content: `<div class="metrics three"><div class="surface metric"><span>Saldo em aberto</span><b>${mt(s.invoices.filter(x=>x.status==='Open').reduce((a,r)=>a+r.value,0),c)}</b></div><div class="surface metric"><span>Pagamentos registrados</span><b>${mt(c.m.invoicesPaid,c)}</b></div><div class="surface metric"><span>Total de faturas</span><b>${s.invoices.length}</b></div></div>${gatewayStrip(c)}<div class="toolbar">${search(c.query,'Buscar faturas…')}</div>`+table(['Fatura','Contato','Valor','Vencimento','Status','Cobrança',''],records.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),mt(r.value,c),date(r.due,c),badge(r.status,r.status==='Paid'?'green':'blue'),invoicePayCell(r,c)],'invoices',r.id)),empty('Nenhuma fatura registrada','Crie uma fatura e cobre por Pix ou cartão com o AbacatePay, ou marque o pagamento manualmente.','pay'))
+    content: `<div class="metrics three"><div class="surface metric"><span>Saldo em aberto</span><b>${mt(s.invoices.filter(x=>x.status==='Open').reduce((a,r)=>a+r.value,0),c)}</b></div><div class="surface metric"><span>Pagamentos registrados</span><b>${mt(c.m.invoicesPaid,c)}</b></div><div class="surface metric"><span>Total de faturas</span><b>${s.invoices.length}</b></div></div>${gatewayStrip(c)}<div class="toolbar">${search(c.query,'Buscar faturas…')}</div>`+table(['Fatura','Contato','Valor','Vencimento','Status','Cobrança',''],records.map(r=>row([`<b>${h(r.title)}</b>`,h(name(r.contactId,c)),mt(r.value,c),date(r.due,c),badge(...invoiceStateLabels[invoicePaymentState(r)]),invoicePayCell(r,c)],'invoices',r.id)),empty('Nenhuma fatura registrada','Crie uma fatura e cobre por Pix ou cartão com o AbacatePay, ou marque o pagamento manualmente.','pay'))
   });
 }
 function marketing(c){

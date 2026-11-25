@@ -135,7 +135,7 @@ import { fillWelcome } from './community-config.mjs';
 import { leaveCsp, leavePage } from './destinations.mjs';
 import { audioLimit, audioTypes, summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
 import { askAssistant } from './seo-ai.mjs';
-import { addTopup, paidTopup, pricingFor, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
+import { addTopup, closeUsage, disputeTopup, paidTopup, pricingFor, reverseTopup, usageToClose, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
 import { sendPush } from './web-push.mjs';
 import { pushTargets } from './push-model.mjs';
 import { pollConnector, runConnectorAction } from './connectors.mjs';
@@ -1955,7 +1955,11 @@ export function makeServer({
       try { await runNewsletters(w.id, base); } catch (e) { console.error(`Community newsletters (${w.id}): ${e.message}`); }
       try { await runWorkflows(w.id); } catch (e) { console.error(`Workflows (${w.id}): ${e.message}`); }
       try { await runReportMail(w.id); } catch (e) { console.error(`Report e-mail (${w.id}): ${e.message}`); }
-      try { if ((await store.load(w.id)).ledgerOutbox?.length) await ledgerFlush.workspace(w.id); } catch (e) { console.error(`Livro (${w.id}): ${e.message}`); }
+      try {
+        const state = await store.load(w.id), today = usageToClose(state, at);
+        if (today) await store.change(w.id, s => closeUsage(s, today));
+        else if (state.ledgerOutbox?.length) await ledgerFlush.workspace(w.id);
+      } catch (e) { console.error(`Livro (${w.id}): ${e.message}`); }
       try { await runRecurringInvoices(w.id); } catch (e) { console.error(`Recurring invoices (${w.id}): ${e.message}`); }
       try { await runAbandonedCheckouts(w.id); } catch (e) { console.error(`Abandoned checkouts (${w.id}): ${e.message}`); }
       try { await runEmailCampaigns(w.id); } catch (e) { console.error(`E-mail campaigns (${w.id}): ${e.message}`); }
@@ -2531,10 +2535,15 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/abacatepay/webhook/') && method === 'POST') {
         await ready;
         return await abacate.handleWebhook({ req, url, json, listWorkspaces, changeAgency,
-          onWalletTopup: async (agencyId, { workspace, checkoutId, method }) => {
+          onWalletReversal: async (agencyId, { workspace, checkoutId, event, status, lost }) => {
+            if (!(await listWorkspaces(agencyId)).some(w => w.id === workspace)) return false;
+            const refunded = /\.refunded$/.test(event), gone = refunded || lost || status === 'REFUNDED';
+            return store.change(workspace, s => gone ? reverseTopup(s, { checkoutId, kind: refunded ? 'refund' : 'dispute_lost' }) : disputeTopup(s, { checkoutId, opened: status === 'UNDER_DISPUTE' }));
+          },
+          onWalletTopup: async (agencyId, { workspace, checkoutId, method, paidCents, feeCents, devMode }) => {
             const owned = (await listWorkspaces(agencyId)).map(w => w.id);
             for (const candidate of workspace ? [workspace].filter(item => owned.includes(item)) : owned) {
-              const credited = await store.change(candidate, s => paidTopup(s, { checkoutId, method }));
+              const credited = await store.change(candidate, s => paidTopup(s, { checkoutId, method, paidCents, feeCents, devMode }));
               if (credited) { flushLater(candidate); return credited; }
             }
             return false;
@@ -2556,6 +2565,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (op === 'connect') {
           const view = await abacate.connect(who.agencyId, scope, body.apiKey, origin);
           await recordAudit(who, 'AbacatePay conectado', view.storeName || 'Agência');
+          return json(view);
+        }
+        if (op === 'refresh-webhook') {
+          const view = await abacate.refreshWebhook(who.agencyId, scope, origin);
+          await recordAudit(who, 'Avisos do AbacatePay atualizados', view.storeName || 'Agência');
           return json(view);
         }
         if (op === 'disconnect') {
@@ -2594,7 +2608,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/abacatepay/workspace/')) {
         if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
         const op = p.slice('/api/abacatepay/workspace/'.length).replace(/\/+$/, ''), origin = publicBase(req);
-        const who = await workspaceAccess(req, res, id, { modules: op === 'connect' || op === 'disconnect' ? ['settings', 'payments'] : ['payments'] });
+        const who = await workspaceAccess(req, res, id, { modules: ['connect', 'disconnect', 'refresh-webhook'].includes(op) ? ['settings', 'payments'] : ['payments'] });
         if (op === 'status' && method === 'GET') {
           const view = await abacate.status(who.agencyId, id, origin);
           return json(hasModule(who, 'settings') ? view : { ...view, webhookSecret: undefined });
@@ -2603,6 +2617,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const body = await payload(req);
         if (op === 'connect') return json(await abacate.connect(who.agencyId, id, body.apiKey, origin));
         if (op === 'disconnect') return json(await abacate.disconnect(who.agencyId, id, origin));
+        if (op === 'refresh-webhook') return json(await abacate.refreshWebhook(who.agencyId, id, origin));
         if (op === 'charge') {
           const payment = await abacate.chargeInvoice(who.agencyId, id, String(body.invoiceId || ''), origin);
           return json({ payment, ...workspaceView(who, await store.load(id)) });

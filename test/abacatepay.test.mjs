@@ -77,7 +77,7 @@ test('A sub-account connects AbacatePay, charges an invoice and the webhook book
   assert.equal(s.invoices.find(row => row.id === invoice.id).status, 'Open');
 
   const paid = { id: 'log_1', event: 'checkout.completed', apiVersion: 2, devMode: true,
-    data: { checkout: { id: charged.body.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID', receiptUrl: 'https://app.abacatepay.com/receipt/1' }, payerInformation: { method: 'PIX' } } };
+    data: { checkout: { id: charged.body.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID', paidAmount: Math.round(invoice.value * 100), receiptUrl: 'https://app.abacatepay.com/receipt/1' }, payerInformation: { method: 'PIX' } } };
   assert.equal((await hook(connected.body.webhookUrl, 'f'.repeat(48), paid)).status, 401, 'the secret proves the sender');
   assert.equal((await hook(connected.body.webhookUrl, connected.body.webhookSecret, paid, { sign: false })).status, 401, 'the signature proves the body');
   const delivered = await hook(connected.body.webhookUrl, connected.body.webhookSecret, paid);
@@ -108,7 +108,7 @@ test('A store set to AbacatePay sends the buyer to the payment page and the webh
   let s = await state();
   const placed = s.orders.at(-1);
   const checkoutId = s.invoices.find(item => item.id === placed.invoiceId).payment.checkoutId;
-  await hook(connected.webhookUrl, connected.webhookSecret, { id: 'log_9', event: 'checkout.completed', data: { checkout: { id: checkoutId, frequency: 'ONE_TIME' }, payerInformation: { method: 'CARD' } } });
+  await hook(connected.webhookUrl, connected.webhookSecret, { id: 'log_9', event: 'checkout.completed', data: { checkout: { id: checkoutId, frequency: 'ONE_TIME', paidAmount: Math.round(placed.total * 100) }, payerInformation: { method: 'CARD' } } });
   s = await state();
   assert.equal(s.orders.at(-1).status, 'Paid');
   assert.equal(s.invoices.find(item => item.id === placed.invoiceId).status, 'Paid');

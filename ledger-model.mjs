@@ -54,7 +54,7 @@ function adjust(state, row, amountCents, detail, key) {
 }
 
 /** Called for a transaction that was created (prior = null) or changed; `row` is the new record. */
-export function transactionFact(state, prior, row) {
+export function transactionFact(state, prior, row, { refundKind = 'refund' } = {}) {
   if (!prior && testMoney(gatewayOf(state, row))) row.test = true;
   if (row.test) return;
   if (row.booked === undefined) {
@@ -74,7 +74,7 @@ export function transactionFact(state, prior, row) {
   }
   if (!row.booked) return;
   if (row.status === 'Refunded' && !row.refundBooked) {
-    postFact(state, { ...base(state, row), key: refundKey(gatewayOf(state, row), row.id), kind: 'refund', amountCents: -row.booked, feeCents: null, detail: {} });
+    postFact(state, { ...base(state, row), key: refundKey(gatewayOf(state, row), row.id), kind: refundKind, amountCents: -row.booked, feeCents: null, detail: {} });
     row.refundBooked = true;
     row.booked = 0;
     return;
