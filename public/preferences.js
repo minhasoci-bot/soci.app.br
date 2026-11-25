@@ -14,13 +14,10 @@ export function preferencesScreen(c, tabs) {
   const out = key => c.s.contacts.filter(x => x.optOut?.[key] || (key === 'email' && x.emailUnsubscribed)).length;
   const topicOut = id => c.s.contacts.filter(x => x.topics?.[id] === false).length;
   return pageShell({ title: 'Configurações', desc: 'Gerencie o workspace ativo.', tabs, content: `<div class="metrics">${[['Em não perturbe (saíram de tudo)', c.s.contacts.filter(x => x.dnd).length], ...channels.map(([k, l]) => [`Sem ${l}`, out(k)])].map(([t, v]) => `<div class="surface metric"><span>${t}</span><b>${v}</b></div>`).join('')}</div>
-    <form class="surface padded settings-form" data-pf-form="settings"><h2>Central de preferências</h2>
-      <p class="dim">Cada contato tem um link próprio para escolher os canais e os assuntos que quer receber, ou sair de tudo. Ele aparece na página de descadastro dos e-mails e na ficha do contato (Copiar link). Campanhas de e-mail podem escolher um assunto; workflows de envio também.</p>
-      <label>Título da página<input name="title" maxlength="120" value="${h(p.title)}"></label><label>Texto de abertura<textarea name="intro" rows="2" maxlength="400">${h(p.intro)}</textarea></label>
+    <form class="surface settings-form set-form" data-pf-form="settings"><section class="set-section"><header class="set-head"><h2>Central de preferências</h2><p class="dim">Cada contato tem um link próprio para escolher os canais e os assuntos que quer receber, ou sair de tudo. Ele aparece na página de descadastro dos e-mails e na ficha do contato (Copiar link). Campanhas de e-mail podem escolher um assunto; workflows de envio também.</p></header><div class="set-body"><label>Título da página<input name="title" maxlength="120" value="${h(p.title)}"></label><label>Texto de abertura<textarea name="intro" rows="2" maxlength="400">${h(p.intro)}</textarea></label>
       <h3>Assuntos</h3><ul class="pf-topics" data-pf-topics>${p.topics.map(t => topicRow(t)).join('')}</ul>
       <button type="button" class="secondary" data-pf="add-topic">${icon('plus', 15)} Adicionar assunto</button>
-      ${p.topics.length ? `<p class="dim">${p.topics.map(t => `${h(t.name)}: ${topicOut(t.id)} saíram`).join(' · ')}</p>` : ''}
-      <button class="primary">Salvar</button><p class="form-status" role="alert"></p></form>` });
+      ${p.topics.length ? `<p class="dim">${p.topics.map(t => `${h(t.name)}: ${topicOut(t.id)} saíram`).join(' · ')}</p>` : ''}</div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar</button></footer></form>` });
 }
 
 /** The summary inside the contact record dialog. */

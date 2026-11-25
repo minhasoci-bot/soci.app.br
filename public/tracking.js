@@ -77,9 +77,8 @@ function installView(c) {
 
 function settingsView(c) {
   const t = { ga4: '', gtm: '', metaPixel: '', domains: [], pageviews: true, forms: true, ...(c.s.tracking || {}) };
-  return `<form class="surface padded settings-form tk-section" data-tk-form="settings">
-      <h2>Pixels nas páginas do Soci</h2>
-      <p class="dim">Carregados em sites, funis, lojas, ofertas, blog e webinars desta subconta. Formulários enviados geram o evento <i>generate_lead</i> no GA4 e <i>Lead</i> no Pixel da Meta.</p>
+  return `<form class="surface settings-form set-form" data-tk-form="settings">
+      <section class="set-section"><header class="set-head"><h2>Pixels nas páginas do Soci</h2><p class="dim">Carregados em sites, funis, lojas, ofertas, blog e webinars desta subconta. Formulários enviados geram o evento <i>generate_lead</i> no GA4 e <i>Lead</i> no Pixel da Meta.</p></header><div class="set-body">
       <div class="field-grid">
         <label>ID de medição do Google Analytics 4<input name="ga4" value="${h(t.ga4)}" placeholder="G-XXXXXXXXXX" maxlength="24" spellcheck="false" autocomplete="off"></label>
         <label>ID do contêiner do Google Tag Manager<input name="gtm" value="${h(t.gtm)}" placeholder="GTM-XXXXXXX" maxlength="16" spellcheck="false" autocomplete="off"></label>
@@ -87,14 +86,14 @@ function settingsView(c) {
         <label>Segredo da API do GA4 (Measurement Protocol)<input name="ga4Secret" type="password" value="" placeholder="${t.ga4SecretSet ? 'Configurado. Deixe vazio para manter' : 'Opcional, para os fluxos enviarem eventos'}" maxlength="64" spellcheck="false" autocomplete="new-password"></label>
       </div>
       <p class="dim"><small>O segredo fica guardado com criptografia no servidor e não aparece de novo aqui. Ele é criado no GA4 em Administrador → Fluxos de dados → Chaves secretas da API do Measurement Protocol.${t.ga4SecretSet ? ' <button type="button" class="text-link" data-tk-ga4-clear>Remover segredo</button>' : ''}</small></p>
-      <p class="dim"><small>Tags do Tag Manager que injetam código inline ficam bloqueadas pela política de segurança das páginas; tags de GA4 e da Meta funcionam.</small></p>
-      <h2>Script do seu site</h2>
+      <p class="dim"><small>Tags do Tag Manager que injetam código inline ficam bloqueadas pela política de segurança das páginas; tags de GA4 e da Meta funcionam.</small></p></div></section>
+      <section class="set-section"><header class="set-head"><h2>Script do seu site</h2><p class="dim">O que o código instalado no site registra.</p></header><div class="set-body">
       <label class="switch-row"><span><b>Registrar visitas de página</b><br><small class="dim">Cada página aberta com o script conta como visita.</small></span><input type="checkbox" name="pageviews"${t.pageviews !== false ? ' checked' : ''}></label>
       <label class="switch-row"><span><b>Capturar formulários HTML</b><br><small class="dim">Formulários com e-mail ou telefone criam ou atualizam o contato.</small></span><input type="checkbox" name="forms"${t.forms !== false ? ' checked' : ''}></label>
       <label class="switch-row"><span><b>Acompanhar vídeos</b><br><small class="dim">Vídeos HTML5 (tag video) assistidos até 25, 50, 75 e 100% por contatos conhecidos disparam o gatilho Vídeo assistido. Vídeos do YouTube e de outros players em iframe não são lidos.</small></span><input type="checkbox" name="videos"${t.videos !== false ? ' checked' : ''}></label>
       <label>Domínios permitidos<textarea name="domains" rows="3" placeholder="suaempresa.com.br&#10;*.suaempresa.com.br" spellcheck="false">${h((t.domains || []).join('\n'))}</textarea></label>
-      <p class="dim"><small>Um por linha. Vazio aceita eventos de qualquer site; use <code>*.dominio.com</code> para incluir os subdomínios.</small></p>
-      <div class="rp-save"><span class="form-status" role="status"></span><button class="primary">Salvar configurações</button></div>
+      <p class="dim"><small>Um por linha. Vazio aceita eventos de qualquer site; use <code>*.dominio.com</code> para incluir os subdomínios.</small></p></div></section>
+      <footer class="set-foot"><p class="form-status" role="status"></p><button class="primary">Salvar configurações</button></footer>
     </form>`;
 }
 
@@ -152,9 +151,8 @@ export function scoringScreen(c, tabs) {
   const shown = rules.filter(r => !q || `${r.name} ${triggerSpec(r.trigger?.type)?.label || ''}`.toLowerCase().includes(q));
   const scored = c.s.contacts.filter(x => Number(x.score)), top = [...scored].sort((a, b) => b.score - a.score).slice(0, 10);
   const avg = scored.length ? Math.round(scored.reduce((n, x) => n + Number(x.score), 0) / scored.length) : 0;
-  const starters = rules.length ? '' : `<section class="surface padded tk-section"><h2>Comece com regras prontas</h2><p class="dim">Pontos sugeridos para os sinais de interesse mais comuns. Ajuste depois.</p>
-    <div class="sc-starters">${scoreStarters.map((r, n) => `<label class="sc-starter"><input type="checkbox" data-sc-starter="${n}" checked><span><b>${h(r.name)}</b> ${pointsBadge(r.points)}${r.once ? ' <small class="dim">uma vez</small>' : ''}</span></label>`).join('')}</div>
-    <button type="button" class="primary" data-tk-act="starters">${i('plus', 15)} Criar regras selecionadas</button></section>`;
+  const starters = rules.length ? '' : `<section class="surface set-card"><div class="set-section"><header class="set-head"><h2>Comece com regras prontas</h2><p class="dim">Pontos sugeridos para os sinais de interesse mais comuns. Ajuste depois.</p></header><div class="set-body"><div class="sc-starters">${scoreStarters.map((r, n) => `<label class="sc-starter"><input type="checkbox" data-sc-starter="${n}" checked><span><b>${h(r.name)}</b> ${pointsBadge(r.points)}${r.once ? ' <small class="dim">uma vez</small>' : ''}</span></label>`).join('')}</div>
+    </div></div><footer class="set-foot"><button type="button" class="primary" data-tk-act="starters">${i('plus', 15)} Criar regras selecionadas</button></footer></section>`;
   return pageShell({ title: 'Configurações', desc: 'Gerencie o workspace ativo.', tabs, className: 'tk-page',
     cta: `<button class="primary" data-tk-act="rule-new">${i('plus', 16)} Nova regra</button>`,
     content: `<p class="dim crm-intro">Cada ação do contato soma ou tira pontos. A pontuação aparece na lista de contatos, pode filtrar automações (gatilho <b>Pontuação do lead mudou</b>, com mínimo) e ser ajustada por elas (ação <b>Ajustar pontuação do lead</b>).</p>

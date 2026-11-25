@@ -22,7 +22,7 @@ export function callReportView(c, { pageShell, tabs }) {
   const numbers = new Map((c.s.phone?.numbers || []).map(row => [row.id, row]));
   const when = iso => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(c.lang === 'es' ? 'es' : 'pt-BR', { dateStyle: 'short', timeStyle: 'short' }); };
   const filter = [['', 'Todas'], ['inbound', 'Recebidas'], ['outbound', 'Feitas']].map(([key, label]) =>
-    `<button class="${direction === key ? 'primary' : 'secondary'}" data-call-filter="${key}" aria-pressed="${direction === key}">${h(tr(label))}</button>`).join('');
+    `<button class="seg-btn" data-call-filter="${key}" aria-pressed="${direction === key}">${h(tr(label))}</button>`).join('');
   const metric = (label, value) => `<div class="surface metric"><span>${h(tr(label))}</span><b>${h(value)}</b></div>`;
   const rows = t.rows.slice(0, 300).map(row => {
     const [label, tone] = STATUS[row.status] || [row.status, ''];
@@ -34,7 +34,7 @@ export function callReportView(c, { pageShell, tabs }) {
   });
   return pageShell({
     title: tr('Relatórios'), desc: tr('Ligações feitas e recebidas pelos números da Soci e as registradas nos fluxos.'), tabs,
-    content: `<div class="inline-gap call-filter" role="group" aria-label="${h(tr('Direção'))}">${filter}</div>
+    content: `<div class="seg call-filter" role="group" aria-label="${h(tr('Direção'))}">${filter}</div>
       <div class="metrics four">${metric('Ligações', t.total)}${metric('Atendidas', t.answered)}${metric('Não atendidas', t.missed)}${metric('Duração média', minutes(t.average))}</div>
       <div class="surface table-shell"><table><thead><tr>${['Data e hora', 'Contato', 'Direção', 'Resultado', 'Duração', 'Número', 'Gravação'].map(col => `<th scope="col">${h(tr(col))}</th>`).join('')}</tr></thead>
       <tbody>${rows.join('') || `<tr><td colspan="7" class="dim">${h(tr('Nenhuma ligação ainda. Compre um número em Configurações → Telefonia.'))}</td></tr>`}</tbody></table></div>`

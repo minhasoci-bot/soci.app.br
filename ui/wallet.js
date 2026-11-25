@@ -32,14 +32,12 @@ export function walletScreen(c, tabs) {
   return shell(`
     ${w.balance <= 0 && products.includes('ai') ? `<p class="surface padded wl-alert" role="alert">${icon('alert', 16)} Os créditos acabaram: os recursos de IA estão pausados até a recarga. E-mails e WhatsApp continuam e o saldo fica negativo.</p>` : ''}
     <div class="metrics">${metric('Saldo', `<span class="${w.balance < 0 ? 'wl-out' : ''}">${brl(w.balance)}</span>`, low ? 'Saldo baixo' : 'Disponível')}${metric('Gasto neste mês', brl(spent))}${metric('Produtos na carteira', products.length, products.map(label).map(x => x.split(' (')[0]).join(', '))}</div>
-    <div class="wl-two">
-      <form class="surface padded settings-form" data-wl-form="topup"><h2>Recarregar</h2><p class="dim">Pague por Pix ou cartão. O crédito entra assim que o pagamento é confirmado.</p>
+    <div class="stack">
+      <form class="surface settings-form set-form" data-wl-form="topup"><section class="set-section"><header class="set-head"><h2>Recarregar</h2><p class="dim">Pague por Pix ou cartão. O crédito entra assim que o pagamento é confirmado.</p></header><div class="set-body">
         <div class="wl-amounts" role="group" aria-label="Valores sugeridos">${[50, 100, 200, 500].map(v => `<button type="button" class="secondary" data-wl="amount" data-value="${v}">${brl(v)}</button>`).join('')}</div>
         <label>Valor (R$)<input name="amount" type="number" min="10" max="5000" step="1" required value="100"></label>
-        <button class="primary"${busy.topup ? ' disabled' : ''}>${icon('pay', 15)} ${busy.topup ? 'Gerando pagamento…' : 'Pagar com Pix ou cartão'}</button><p class="form-status" role="alert"></p>
-        ${pending.length ? `<p class="dim">Pagamentos em aberto: ${pending.map(t => `<a href="${h(t.url)}" target="_blank" rel="noopener">${brl(t.amount)} · ${h(when(t.createdAt))}</a>`).join(' · ')}</p>` : ''}</form>
-      <section class="surface padded"><h2>Preços</h2><ul class="wl-prices">${products.map(key => { const p = w.pricing[key]; const unit = p.unit * p.markup * (key === 'email' ? 1000 : 1); return `<li><span>${h(label(key))}</span><b>${fine(unit)}</b><small class="dim">${per[key] || ''}</small></li>`; }).join('')}</ul>
-        <p class="dim">O uso é somado por dia no extrato. Os preços são definidos pela sua agência.</p></section>
+        ${pending.length ? `<p class="dim">Pagamentos em aberto: ${pending.map(t => `<a href="${h(t.url)}" target="_blank" rel="noopener">${brl(t.amount)} · ${h(when(t.createdAt))}</a>`).join(' · ')}</p>` : ''}</div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary"${busy.topup ? ' disabled' : ''}>${icon('pay', 15)} ${busy.topup ? 'Gerando pagamento…' : 'Pagar com Pix ou cartão'}</button></footer></form>
+      <section class="surface set-card"><div class="set-section"><header class="set-head"><h2>Preços</h2><p class="dim">O uso é somado por dia no extrato. Os preços são definidos pela sua agência.</p></header><div class="set-body"><ul class="wl-prices">${products.map(key => { const p = w.pricing[key]; const unit = p.unit * p.markup * (key === 'email' ? 1000 : 1); return `<li><span>${h(label(key))}</span><b>${fine(unit)}</b><small class="dim">${per[key] || ''}</small></li>`; }).join('')}</ul></div></div></section>
     </div>
     <section class="surface padded"><h2>Extrato</h2>${(w.entries || []).length ? `<div class="table-shell"><table><thead><tr><th scope="col">Data</th><th scope="col">Descrição</th><th scope="col">Valor</th></tr></thead><tbody>${w.entries.slice(0, 100).map(line).join('')}</tbody></table></div>` : '<p class="dim">Nenhum lançamento ainda.</p>'}</section>`);
 }

@@ -8,15 +8,16 @@ const option = (value, label, current) => `<option value="${esc(value)}" ${value
 export function fiscalForm(fiscal, { attr = '', intro = '' } = {}) {
   const f = fiscal || {}, a = f.address || {};
   const field = (name, label, value, extra = '') => `<label>${label}<input name="${name}" value="${esc(value)}" autocomplete="off" ${extra}></label>`;
-  return `<form class="surface padded settings-form" ${attr}><h2>Cadastro fiscal</h2>
-    <p class="dim">${intro || 'Estes dados identificam quem vende nas faturas e recibos e vão para o livro que o contador usa.'}</p>
-    <div class="field-grid">
+  return `<form class="surface settings-form set-form" ${attr}><section class="set-section"><header class="set-head"><h2>Cadastro fiscal</h2>
+    <p class="dim">${intro || 'Estes dados identificam quem vende nas faturas e recibos e vão para o livro que o contador usa.'}</p></header><div class="set-body"><div class="field-grid">
       <label>Tipo<select name="person">${option('pj', 'Pessoa jurídica', f.person || 'pj')}${option('pf', 'Pessoa física', f.person)}</select></label>
       ${field('taxId', 'CPF ou CNPJ', formatTaxId(f.taxId || ''), 'required maxlength="18"')}
       ${field('name', 'Razão social ou nome completo', f.name, 'required maxlength="160"')}
       ${field('email', 'E-mail fiscal', f.email, 'type="email" required maxlength="160"')}
       <label>Regime tributário<select name="regime">${fiscalRegimes.map(value => option(value, regimeLabels[value], f.regime || '')).join('')}</select></label>
       ${field('cityRegistration', 'Inscrição municipal (opcional)', f.cityRegistration, 'maxlength="30"')}
+    </div></div></section>
+    <section class="set-section"><header class="set-head"><h2>Endereço fiscal</h2><p class="dim">O endereço de quem vende.</p></header><div class="set-body"><div class="field-grid">
       ${field('zip', 'CEP', (a.zip || '').replace(/^(\d{5})(\d{3})$/, '$1-$2'), 'required inputmode="numeric" maxlength="9"')}
       ${field('street', 'Endereço', a.street, 'required maxlength="160"')}
       ${field('number', 'Número', a.number, 'required maxlength="20"')}
@@ -25,8 +26,8 @@ export function fiscalForm(fiscal, { attr = '', intro = '' } = {}) {
       ${field('city', 'Município', a.city, 'required maxlength="80"')}
       <label>UF<select name="state" required>${option('', 'Escolha', a.state || '')}${brazilStates.map(value => option(value, value, a.state)).join('')}</select></label>
       ${field('ibge', 'Código IBGE do município', a.ibge, 'required inputmode="numeric" maxlength="7"')}
-    </div>
-    <p class="form-status" role="status"></p><button class="primary">Salvar cadastro fiscal</button></form>`;
+    </div></div></section>
+    <footer class="set-foot"><p class="form-status" role="status"></p><button class="primary">Salvar cadastro fiscal</button></footer></form>`;
 }
 
 /** The form's flat fields in the shape the server expects. */

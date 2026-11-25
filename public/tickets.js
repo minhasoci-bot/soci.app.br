@@ -58,11 +58,10 @@ function detail(c, t) {
 
 function settingsView(c) {
   const t = { categories: [], autoFromInbound: false, sla: {}, ...(c.s.ticketSettings || {}) };
-  return `<form class="surface padded settings-form tx-settings" data-tk-form="settings"><h2>Configurações de tickets</h2>
+  return `<form class="surface settings-form set-form tx-settings" data-tk-form="settings"><section class="set-section"><header class="set-head"><h2>Categorias e abertura</h2><p class="dim">Como os tickets são organizados e quando um abre sozinho.</p></header><div class="set-body">
     <label>Categorias (uma por linha)<textarea name="categories" rows="4">${h((t.categories || []).join('\n'))}</textarea></label>
-    <h3>Prazos de SLA (horas)</h3><div class="tx-sla-grid"><b></b><b>1ª resposta</b><b>Resolução</b>${ticketPriorities.map(([k, l]) => `<span>${l}</span><input type="number" min="1" max="720" name="first.${k}" value="${h(t.sla[k]?.first ?? '')}"><input type="number" min="1" max="2160" name="resolve.${k}" value="${h(t.sla[k]?.resolve ?? '')}">`).join('')}</div>
-    <label class="switch-row"><span><b>Criar ticket para cada conversa nova</b><br><small class="dim">Quando um contato sem ticket aberto manda mensagem, abre um ticket com a mensagem. Uma mensagem num ticket resolvido reabre o mesmo ticket.</small></span><input type="checkbox" name="autoFromInbound"${t.autoFromInbound ? ' checked' : ''}></label>
-    <div class="tx-actions"><button type="button" class="secondary" data-tk="settings-close">Voltar</button><button class="primary">Salvar</button></div><p class="form-status" role="alert"></p></form>`;
+    <label class="switch-row"><span><b>Criar ticket para cada conversa nova</b><br><small class="dim">Quando um contato sem ticket aberto manda mensagem, abre um ticket com a mensagem. Uma mensagem num ticket resolvido reabre o mesmo ticket.</small></span><input type="checkbox" name="autoFromInbound"${t.autoFromInbound ? ' checked' : ''}></label></div></section><section class="set-section"><header class="set-head"><h2>Prazos de SLA (horas)</h2><p class="dim">Primeira resposta e resolução, por prioridade.</p></header><div class="set-body"><div class="tx-sla-grid"><b></b><b>1ª resposta</b><b>Resolução</b>${ticketPriorities.map(([k, l]) => `<span>${l}</span><input type="number" min="1" max="720" name="first.${k}" value="${h(t.sla[k]?.first ?? '')}"><input type="number" min="1" max="2160" name="resolve.${k}" value="${h(t.sla[k]?.resolve ?? '')}">`).join('')}</div>
+</div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button type="button" class="secondary" data-tk="settings-close">Voltar</button><button class="primary">Salvar</button></footer></form>`;
 }
 
 export function ticketsPanel(c) {

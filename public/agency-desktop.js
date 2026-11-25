@@ -30,19 +30,19 @@ export function desktopPage(agency, origin, agencyId) {
   const steps = [Boolean(app.icon), Boolean(app.appName && app.title && app.subtitle), app.status === 'published'];
   return `<div class="page"><header class="page-head"><div><h1>Aplicativo desktop</h1><p>O app da sua agência para Windows, macOS e Linux: janela própria, seu nome e seu ícone, abrindo direto na tela de entrada com a sua marca.</p></div></header>
     <div class="dk-progress" role="progressbar" aria-valuenow="${Math.round(steps.filter(Boolean).length / 3 * 100)}" aria-valuemin="0" aria-valuemax="100"><span style="width:${Math.round(steps.filter(Boolean).length / 3 * 100)}%"></span></div>
-    <div class="dk-layout"><form class="surface padded settings-form" data-ag-form="desktop-app">
-      <h2>Tema</h2><div class="dk-presets">${desktopPresets.map(([id, name, bg, fg, btn]) => `<label class="dk-preset"><input type="radio" name="preset" value="${id}" ${app.theme.preset === id ? 'checked' : ''}>
+    <div class="dk-layout"><form class="surface settings-form set-form is-narrow" data-ag-form="desktop-app">
+      <section class="set-section"><header class="set-head"><h2>Tema</h2><p class="dim">Escolha um tema pronto ou monte o seu.</p></header><div class="set-body"><div class="dk-presets">${desktopPresets.map(([id, name, bg, fg, btn]) => `<label class="dk-preset"><input type="radio" name="preset" value="${id}" ${app.theme.preset === id ? 'checked' : ''}>
         <span style="background:${bg};color:${fg}"><i style="background:${btn}"></i>${h(name)}</span></label>`).join('')}
         <label class="dk-preset"><input type="radio" name="preset" value="custom" ${app.theme.preset === 'custom' ? 'checked' : ''}><span>${icon('edit', 13)} Personalizado</span></label></div>
-      <div class="field-grid">${tokens.map(([key, label]) => `<label>${label}<input type="color" name="${key}" value="${h(app.theme[key])}"></label>`).join('')}</div>
-      <h2>Identidade</h2>
+      <div class="field-grid">${tokens.map(([key, label]) => `<label>${label}<input type="color" name="${key}" value="${h(app.theme[key])}"></label>`).join('')}</div></div></section>
+      <section class="set-section"><header class="set-head"><h2>Identidade</h2><p class="dim">O nome na barra de tarefas e os textos da tela de entrada.</p></header><div class="set-body">
       <div class="field-grid"><label>Nome do app *<input name="appName" required maxlength="50" value="${h(app.appName)}" placeholder="Ex.: Agência Norte"></label>
         <label>Domínio (opcional)<input name="domain" maxlength="200" value="${h(app.domain || '')}" placeholder="app.suaagencia.com.br"></label></div>
       <label>Título da tela de entrada *<input name="title" required maxlength="150" value="${h(app.title)}"></label>
-      <label>Subtítulo *<input name="subtitle" required maxlength="200" value="${h(app.subtitle)}"></label>
-      <h2>Imagens</h2>${images.map(([key, label, hint, accept]) => `<div class="dk-image"><label>${label}<input type="file" name="${key}File" accept="${accept}"></label>
-        <small class="dim">${hint}</small>${app[key] ? `<span class="dk-thumb"><img src="${h(app[key])}" alt=""><button type="button" class="text-link" data-ag="desktop-remove" data-id="${key}">Remover</button></span>` : ''}</div>`).join('')}
-      <button class="primary">${icon('check', 16)} Salvar</button><p class="form-status" role="alert"></p></form>
+      <label>Subtítulo *<input name="subtitle" required maxlength="200" value="${h(app.subtitle)}"></label></div></section>
+      <section class="set-section"><header class="set-head"><h2>Imagens</h2><p class="dim">Só o ícone é obrigatório.</p></header><div class="set-body is-pairs">${images.map(([key, label, hint, accept]) => `<div class="dk-image"><label>${label}<input type="file" name="${key}File" accept="${accept}"></label>
+        <small class="dim">${hint}</small>${app[key] ? `<span class="dk-thumb"><img src="${h(app[key])}" alt=""><button type="button" class="text-link" data-ag="desktop-remove" data-id="${key}">Remover</button></span>` : ''}</div>`).join('')}</div></section>
+      <footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">${icon('check', 16)} Salvar</button></footer></form>
       <aside class="dk-aside"><h2>Pré-visualização</h2>${screen(app)}
         <section class="surface padded dk-status"><h2>Status</h2>
           ${app.status === 'published' ? `<p><span class="badge green">Publicado</span> versão ${app.version} · ${h(new Date(app.publishedAt).toLocaleString('pt-BR'))}</p>
