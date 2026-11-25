@@ -350,14 +350,8 @@ function whatsappSubView(c){
           <button class="secondary" data-act="wa-disconnect">Desconectar</button>
         </div>
       `,true)}
-      <form class="surface padded settings-form" data-form="wa-test">
-        <h2>Enviar mensagem de teste</h2>
-        <p class="dim">Teste o disparo real pelo WhatsApp conectado nesta subconta.</p>
-        <label>Número destino (com DDI)<input name="phone" required inputmode="numeric" placeholder="5511999999999"></label>
-        <label>Mensagem<textarea name="text" required maxlength="2000" placeholder="Olá! Mensagem de teste enviada pela Soci."></textarea></label>
-        <button class="primary">Enviar teste</button>
-        <p class="form-status" role="alert"></p>
-      </form>
+      <form class="surface settings-form set-form" data-form="wa-test"><section class="set-section"><header class="set-head"><h2>Enviar mensagem de teste</h2><p class="dim">Teste o disparo real pelo WhatsApp conectado nesta subconta.</p></header><div class="set-body"><label>Número destino (com DDI)<input name="phone" required inputmode="numeric" placeholder="5511999999999"></label>
+        <label>Mensagem<textarea name="text" required maxlength="2000" placeholder="Olá! Mensagem de teste enviada pela Soci."></textarea></label></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Enviar teste</button></footer></form>
     </div>`;
   }
   if(w.status==='connecting'){
@@ -417,7 +411,7 @@ function settings(c){
   if(c.tab&&!['business','workspaces','whatsapp','abacatepay','google','email','phone','connectors'].includes(c.tab)) return settingsTab(c,c.tab);
   const p=c.s.profile;
   const tab = c.tab || 'business';
-  const body = tab==='connectors'?connectorsView(c):tab==='phone'?phoneSettingsView(c):tab==='email'?emailServicesView(c):tab==='google'?googleSubView(c):tab==='abacatepay'?abacateSubView(c):tab==='whatsapp'?whatsappSubView(c):tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface padded settings-form"><h2>Perfil da empresa</h2><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'sub-profile-phone' })}<label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label><label>${tr('Idioma da plataforma')}<select data-lang-choice-select><option value="pt" ${getLanguage()==='pt'?'selected':''}>Português (Brasil)</option><option value="es" ${getLanguage()==='es'?'selected':''}>Español (Latinoamérica)</option></select></label></div><button class="primary">Salvar alterações</button></form>`;
+  const body = tab==='connectors'?connectorsView(c):tab==='phone'?phoneSettingsView(c):tab==='email'?emailServicesView(c):tab==='google'?googleSubView(c):tab==='abacatepay'?abacateSubView(c):tab==='whatsapp'?whatsappSubView(c):tab==='workspaces'?`<div class="surface padded"><h2>Seus workspaces</h2>${c.workspaces.map(w=>`<div class="line-item"><b>${h(w.name)}</b>${w.id===c.workspace?badge('Atual','blue'):`<button class="secondary" data-workspace="${w.id}">Trocar</button>`}</div>`).join('')}</div>`:`<form data-form="profile" class="surface settings-form set-form"><section class="set-section"><header class="set-head"><h2>Perfil da empresa</h2></header><div class="set-body"><div class="field-grid"><label>Nome do workspace<input name="name" value="${h(p.name)}" required></label><label>E-mail da empresa<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'sub-profile-phone' })}<label>Fuso horário<input name="timezone" value="${h(p.timezone)}" required></label><label>Moeda<input readonly value="Real brasileiro (BRL)"></label><label>${tr('Idioma da plataforma')}<select data-lang-choice-select><option value="pt" ${getLanguage()==='pt'?'selected':''}>Português (Brasil)</option><option value="es" ${getLanguage()==='es'?'selected':''}>Español (Latinoamérica)</option></select></label></div></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar alterações</button></footer></form>`;
   return pageShell({
     title: tr('Configurações'),
     desc: tr('Gerencie o workspace ativo.'),
