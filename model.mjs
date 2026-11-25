@@ -6,6 +6,8 @@ import { outcomeOf, validDestination, validRoutes } from './destinations.mjs';
 import { changeReport } from './report-model.mjs';
 import { defaultDashboard, opportunityStatuses, salesPipeline } from './ui/dashboard-data.js';
 import { studioTemplates, studioThemes } from './ui/studio-data.js';
+import { transactionDeleted, transactionFact } from './ledger-model.mjs';
+import { optionalTaxId, sanitizeFiscal, taxIdKind } from './tax-id.mjs';
 import { afterSave, beforeDelete, bulk, companyWorkflow, crmCollections, crmFields, customData } from './crm-model.mjs';
 import { inboxRule } from './ui/inbox-data.js';
 import { linkVisitor, saveTracking, sitePageview, trackingCollections, trackingDefaults, trackingEvent, trackingOf } from './tracking.mjs';
@@ -74,6 +76,7 @@ export const defaults = {
   ...Object.fromEntries([...crmCollections, ...socialCollections, ...chatCollections, ...blogCollections, ...storeCollections, ...webinarCollections, ...qrCollections, ...communityCollections, ...communityEventCollections, ...eventPlanCollections, ...eventSendCollections, ...credentialCollections, ...certificateCollections, ...ticketCollections, ...sequenceCollections, ...loyaltyCollections, ...schedulingCollections, ...meetingCollections, ...offerCollections, ...driveCollections, ...documentCollections, ...estimateCollections, ...invoiceCollections, ...emailCollections, ...checkoutCollections, ...catalogCollections].map(key => [key, []])),
   eventSendSettings: eventSendDefaults(),
   paymentSettings: paymentDefaults(),
+  fiscal: null, ledgerOutbox: [],
   ai: { limit: 0, alertAt: 0.8, ledger: [] },
   adSettings: adDefaults(), adCampaigns: [], adStats: [], attributionEvents: [],
   tracking: trackingDefaults(), trackingEvents: [], adFormLeads: [], calls: [], phone: phoneDefaults(), dialer: dialerDefaults(), aiVideoJobs: [], aiVideos: [], scoringRules: [],
@@ -89,6 +92,8 @@ export function hydrateWorkspace(state) {
   state.paymentSettings ??= paymentDefaults();
   state.ai ??= { limit: 0, alertAt: 0.8, ledger: [] };
   state.ai.ledger ??= [];
+  state.fiscal ??= null;
+  state.ledgerOutbox ??= [];
   reputationOf(state);
   state.listings ??= {};
   state.wallet ??= walletDefaults(); state.labs ??= labsDefaults(); state.appInstalls ??= []; state.appLog ??= []; state.seo ??= seoDefaults(); state.seoAudits ??= []; state.visibility ??= visibilityDefaults(); state.visibilityRuns ??= [];
@@ -165,11 +170,12 @@ const exists = (state, key, value, label, optional = false) => (!value && option
 function add(state, key, data) {
   const row = { id: uid(), created: now(), ...data }; state[key].push(row);
   if (key === 'messages' && row.direction === 'Outbound' && ['Email', 'WhatsApp'].includes(row.channel) && ['human', 'workflow', 'event'].includes(row.origin)) walletCharge(state, row.channel === 'Email' ? 'email' : 'whatsapp', 1, row.created);
+  if (key === 'transactions') transactionFact(state, null, row);
   return row;
 }
 const contactId = (s,v,optional = false) => exists(s, 'contacts', v, 'contact', optional);
 const fields = {
-  contacts: (s, d) => ({ name: req(d.name, 'Name'), email: email(d.email), phone: str(d.phone, 48), company: str(d.company), tags: tags(d.tags), notes: str(d.notes, 5000), custom: customData(s, 'Contact', d), ...(d.dnd !== undefined ? { dnd: Boolean(d.dnd) } : {}) }),
+  contacts: (s, d) => ({ name: req(d.name, 'Name'), email: email(d.email), phone: str(d.phone, 48), company: str(d.company), tags: tags(d.tags), notes: str(d.notes, 5000), custom: customData(s, 'Contact', d), ...(d.dnd !== undefined ? { dnd: Boolean(d.dnd) } : {}), ...(d.taxId !== undefined ? { taxId: optionalTaxId(d.taxId) } : {}) }),
   tasks: (s, d) => ({ title: req(d.title, 'Title'), contactId: contactId(s,d.contactId,true), due: d.due ? date(d.due) : '', done: Boolean(d.done), owner:str(d.owner,80), notes:str(d.notes,2500) }),
   opportunities: (s, d) => {
     const stage = find(s,'stages',d.stage);
@@ -404,7 +410,7 @@ function saveSla(state, data) {
 }
 export function metrics(s) {
   const open = s.opportunities.filter(v=>v.status==='Open'), won = s.opportunities.filter(v=>v.status==='Won');
-  return { contacts:s.contacts.length, open:open.length, openValue:open.reduce((n,r)=>n+r.value,0), won:won.length, wonValue:won.reduce((n,r)=>n+r.value,0), appointments:s.appointments.filter(a=>a.status!=='Canceled').length, invoicesPaid:s.invoices.filter(i=>i.status==='Paid').reduce((n,r)=>n+r.value,0), unread:s.messages.filter(m=>!m.read).length, reviews:s.reviews.length, average:s.reviews.length ? s.reviews.reduce((n,r)=>n+r.score,0)/s.reviews.length : 0 };
+  return { contacts:s.contacts.length, open:open.length, openValue:open.reduce((n,r)=>n+r.value,0), won:won.length, wonValue:won.reduce((n,r)=>n+r.value,0), appointments:s.appointments.filter(a=>a.status!=='Canceled').length, invoicesPaid:s.invoices.filter(i=>i.status==='Paid'&&i.payment?.status!=='REFUNDED').reduce((n,r)=>n+r.value,0), unread:s.messages.filter(m=>!m.read).length, reviews:s.reviews.length, average:s.reviews.length ? s.reviews.reduce((n,r)=>n+r.score,0)/s.reviews.length : 0 };
 }
 // Every command: contacts created by a referred visitor are attributed to the affiliate, then paid
 // invoices become commissions (see affiliate-model.mjs).
@@ -784,7 +790,8 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     let added=0;
     for (const input of d.rows) {
       if (!input || typeof input!=='object') fail('Invalid contact in import.');
-      const row=fields.contacts(s,input);
+      // An invalid document does not hold back the contact: it comes in without it.
+      const row=fields.contacts(s,input.taxId !== undefined && !taxIdKind(input.taxId) ? { ...input, taxId:'' } : input);
       if (row.email && s.contacts.some(c=>c.email===row.email)) continue;
       const contact=add(s,'contacts',row); run(s,'Contact created',{contactId:contact.id}); added++;
     }
@@ -862,6 +869,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
     }
     if (key === 'studioProjects' && !prior) row.viewedAt = row.created;
     if (['bulkActions','imports'].includes(key)) fail('Unknown record type.');
+    if (key === 'transactions' && prior) transactionFact(s, prior, row);
     afterSave(s, key, prior, row, add);
     storeAfterSave(s, key, prior, row, add);
     catalogAfterSave(s, key, prior, row, workspace);
@@ -890,6 +898,7 @@ function executeCommand(s, command, { workspace = 'demo', trackClick = true } = 
 
 // Deletes one record and everything that only made sense with it. Shared by single and bulk deletes.
 function remove(s, key, id) {
+    if (key === 'transactions') transactionDeleted(s, find(s, key, id));
     beforeDelete(s, key, id);
     socialBeforeDelete(s, key, id);
     chatBeforeDelete(s, key, id);
@@ -1083,6 +1092,7 @@ function other(s, command, type, key, id, d, workspace) {
     try { new Intl.DateTimeFormat('en',{timeZone:timezone}); } catch { fail('Use an IANA time zone, for example America/Sao_Paulo.'); }
     s.profile={name:req(d.name,'Workspace name'),email:email(d.email),phone:str(d.phone,48),timezone,currency:defaults.profile.currency}; return s.profile.name;
   }
+  if (type === 'fiscal') { s.fiscal = sanitizeFiscal(d); return s.fiscal.taxId; }
   if (type === 'stage') {
     const previous = id && find(s,'stages',id);
     if (id && !previous) fail('Stage not found.',404);

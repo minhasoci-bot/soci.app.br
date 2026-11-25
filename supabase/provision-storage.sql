@@ -49,4 +49,14 @@ with check ((select encode(sha256(convert_to(coalesce(nullif(current_setting('re
 create policy go_audit_delete on public.go_agency_audit for delete to anon
 using ((select encode(sha256(convert_to(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-go-storage-key', ''), 'UTF8')), 'hex') = 'GO_STORAGE_KEY_SHA256'));
 
+-- Livro da cobrança (go_billing_ledger): leitura e inclusão; nunca mudança.
+drop policy if exists go_ledger_read on public.go_billing_ledger;
+drop policy if exists go_ledger_insert on public.go_billing_ledger;
+
+create policy go_ledger_read on public.go_billing_ledger for select to anon
+using ((select encode(sha256(convert_to(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-go-storage-key', ''), 'UTF8')), 'hex') = 'GO_STORAGE_KEY_SHA256'));
+
+create policy go_ledger_insert on public.go_billing_ledger for insert to anon
+with check ((select encode(sha256(convert_to(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-go-storage-key', ''), 'UTF8')), 'hex') = 'GO_STORAGE_KEY_SHA256'));
+
 commit;

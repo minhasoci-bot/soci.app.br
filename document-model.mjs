@@ -6,6 +6,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { buildWorkflowContext, resolveTemplate } from './ui/expressions.js';
 import { documentContext, documentKinds, documentTotal, libraryCategories, paymentParts, signatureValid, validBlocks, validPayment, validRecipients, validTheme, validVariables } from './ui/document-data.js';
 import { renderCertificate, renderDocument } from './ui/document-render.js';
+import { bookTransaction } from './ledger-model.mjs';
 
 export const documentCollections = ['documents', 'documentTemplates', 'contentBlocks'];
 
@@ -443,10 +444,13 @@ function subscriptionEvent(s, d, run) {
   }
   if (['subscription.completed', 'subscription.renewed'].includes(d.event)) {
     const amount = Number(d.amount) > 0 ? Math.round(Number(d.amount) * 100) / 100 : sub.amount;
-    sub.payments = [...(sub.payments || []), { at, amount, receiptUrl: str(d.receiptUrl, 500) }].slice(-36);
-    s.transactions ||= [];
-    s.transactions.push({ id: randomUUID(), created: at, contactId: sub.contactId || doc.contactId || '', amount, date: at.slice(0, 10), method: str(d.method, 20) || 'Card',
-      source: 'Subscription', status: 'Succeeded', note: doc.title, invoiceId: '' });
+    const paymentId = str(d.paymentId, 80);
+    // A re-delivery of the same payment (the dashboard can resend with a new event id) changes nothing.
+    if (paymentId && (sub.payments || []).some(item => item.id === paymentId)) return true;
+    sub.payments = [...(sub.payments || []), { id: paymentId, at, amount, receiptUrl: str(d.receiptUrl, 500) }].slice(-36);
+    bookTransaction(s, { created: at, contactId: sub.contactId || doc.contactId || '', amount, date: at.slice(0, 10), method: str(d.method, 20) || 'Card',
+      source: 'Subscription', status: 'Succeeded', note: doc.title, invoiceId: '',
+      gateway: { provider: 'abacatepay', status: 'PAID', paymentId, checkoutId: paymentId ? checkoutId : '', subscriptionId, feeCents: Number.isInteger(d.feeCents) ? d.feeCents : null, devMode: Boolean(d.devMode) } });
     if (sub.status !== 'active') { sub.status = 'active'; sub.startedAt = at; markPaid(s, doc, run, `Assinatura mensal ativa · ${brl(amount)}`); }
     else audit(doc, 'payment', { detail: `Mensalidade · ${brl(amount)}` });
     return true;

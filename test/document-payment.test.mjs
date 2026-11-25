@@ -5,6 +5,7 @@ import { makeServer } from '../server.mjs';
 import { signBody } from '../abacatepay.mjs';
 import { tokenHash } from '../document-model.mjs';
 import { paymentParts, validPayment } from '../ui/document-data.js';
+import { saveFiscal } from './helpers/fiscal.mjs';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 const KEY = 'abc_dev_shopkey_0000bbbb';
@@ -125,6 +126,7 @@ test('Public page pays through AbacatePay and the webhook settles the document',
   assert.equal(signed.payment.online, false);
   assert.equal((await send('/api/assinar/demo', { action: 'pay', token })).status, 409, 'no gateway connected yet');
 
+  await send('/api/action?workspace=demo', saveFiscal);
   const connected = (await send('/api/abacatepay/workspace/connect?workspace=demo', { apiKey: KEY })).body;
   const paying = await send('/api/assinar/demo', { action: 'pay', token });
   assert.equal(paying.status, 200);
@@ -134,7 +136,7 @@ test('Public page pays through AbacatePay and the webhook settles the document',
   assert.doesNotMatch(JSON.stringify(checkout), new RegExp(token), 'the personal token never goes to the gateway');
 
   const invoice = (await send('/api/state?workspace=demo')).body.state.invoices.find(row => row.documentId === id);
-  const raw = JSON.stringify({ id: 'log_doc_1', event: 'checkout.completed', data: { checkout: { id: invoice.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID' }, payerInformation: { method: 'PIX' } } });
+  const raw = JSON.stringify({ id: 'log_doc_1', event: 'checkout.completed', data: { checkout: { id: invoice.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID', paidAmount: Math.round(invoice.value * 100) }, payerInformation: { method: 'PIX' } } });
   const hook = await fetch(`${connected.webhookUrl}?webhookSecret=${connected.webhookSecret}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': signBody(raw) }, body: raw });
   assert.equal(hook.status, 200);
   const doc = (await send('/api/state?workspace=demo')).body.state.documents.find(row => row.id === id);

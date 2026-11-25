@@ -12,6 +12,8 @@ import { tr, translateDom, getLanguage } from './i18n.js';
 import { money, utabs } from './screens.js';
 import { colorPicker, mountColorPicker } from './color-picker.js';
 import { phoneField } from './phone-input.js';
+import { fiscalForm, fiscalMissing, readFiscal } from './fiscal.js';
+import { installLedger, ledgerPanel } from './ledger.js';
 import { createProspecting, prospectRoutes } from './prospecting.js';
 import { createSociChat } from './soci-chat.js';
 import { enhanceCode } from './bui-mounts.js';
@@ -39,7 +41,7 @@ const subTabs = {
   affiliate: [['dashboard', 'Painel'], ['reports', 'Relatórios de indicações'], ['payment', 'Dados de pagamento'], ['history', 'Histórico de pagamentos']],
   ideas: [['all', 'Todas'], ['Under review', 'Em análise'], ['Planned', 'Planejadas'], ['In progress', 'Em andamento'], ['Completed', 'Concluídas']],
   saas: [['overview', 'Visão geral'], ['plans', 'Planos SaaS'], ['rebilling', 'Rebilling da carteira'], ['accounts', 'Subcontas SaaS']],
-  settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'],
+  settings: [['profile', 'Meu perfil'], ['company', 'Empresa e marca'], ['fiscal', 'Cadastro fiscal'], ['users', 'Equipe'], ['billing', 'Faturamento e carteira'], ['ledger', 'Livro da cobrança'],
     ['whatsapp', 'WhatsApp'], ['email-services', 'Serviços de e-mail'], ['emails', 'E-mails do sistema'], ['announcements', 'Comunicados'],
     ['workflow-premium', 'Workflow: recursos premium'], ['external-ai', 'Workflow: IA externa'], ['domain-purchase', 'Compra de domínios'],
     ['openai', 'OpenAI'], ['private-integrations', 'Integrações privadas'], ['affiliates', 'Afiliados'], ['menu-links', 'Links de menu'], ['abacatepay', 'AbacatePay'], ['api-keys', 'Chaves de API'],
@@ -669,17 +671,27 @@ export function startAgency(env) {
     if (sub === 'plans') return `<div class="page">${pageHead}${tabCard('saas', `<div class="page-head"><h2>Planos SaaS</h2>${primary('Novo plano', 'new-record', 'data-key="plans"')}</div>
       ${table(['Plano', 'Preço', 'Período de teste', 'Recursos inclusos', 'Subcontas assinantes', ''], D().plans.map(p => `<tr><td><b>${h(p.name)}</b></td><td>${money(p.price)}/mês</td><td>${p.trialDays ? `${p.trialDays} dias` : '—'}</td><td><small>${h((p.features || '').split('\n').filter(Boolean).join(' · ') || '—')}</small></td><td>${accounts().filter(a => a.plan === p.name).length}</td><td class="right">${btn('Editar', 'edit-record', `data-key="plans" data-id="${p.id}"`)}</td></tr>`), empty('Nenhum plano SaaS cadastrado', 'Os planos definem o valor mensal utilizado no cálculo de receita recorrente.'))}
       <h2 class="section-heading">Plano por subconta</h2>${table(['Subconta', 'Status', 'Plano', ''], accounts().map(a => `<tr><td>${h(a.name)}</td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td class="right">${btn('Alterar', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), '')}`, 'Seções do configurador SaaS')}</div>`;
+    const suspension = () => {
+      const a = s.autoSuspend;
+      return `<form class="surface padded settings-form" data-ag-form="saas-suspension"><h2>Plano não pago</h2>
+        <label class="check"><input type="checkbox" name="enabled" ${a.enabled ? 'checked' : ''}> Suspender a subconta quando a assinatura falhar</label>
+        <p class="dim">A suspensão acontece depois que o AbacatePay esgota as tentativas. A subconta pode pagar e voltar sozinha.</p>
+        <div class="field-grid"><label>Tentativas<input type="number" name="maxRetry" min="1" max="10" step="1" required value="${a.maxRetry}"></label>
+          <label>Dias entre tentativas<input type="number" name="retryEvery" min="1" max="30" step="1" required value="${a.retryEvery}"></label></div>
+        <p class="dim"><small>As tentativas valem para as assinaturas geradas a partir de agora.</small></p>
+        <p class="form-status" role="status"></p><button class="primary">Salvar</button></form>`;
+    };
     if (sub === 'rebilling') return `<div class="page">${pageHead}${tabCard('saas', rebillingPage(s), 'Seções do configurador SaaS')}</div>`;
     if (sub === 'accounts') return `<div class="page">${pageHead}${tabCard('saas', `<div class="toolbar">${search('Buscar subcontas…')}</div>${table(['Subconta', 'Status', 'Plano', 'Valor mensal', 'Modo SaaS', 'Assinatura', ''], accounts().filter(a => match(a.name)).map(a => `<tr><td><b>${h(a.name)}</b></td><td>${badge(a.status, tone(a.status))}</td><td>${h(a.plan || '—')}</td><td>${a.planPrice ? `${money(a.planPrice)}/mês` : '—'}</td><td>${sw(`Modo SaaS em ${a.name}`, s.accounts.includes(a.id), `data-ag-saas-account="${a.id}"`)}</td><td>${billingCell(a)}</td><td class="right">${btn('Alterar plano', 'edit-account', `data-id="${a.id}"`)}</td></tr>`), empty('Nenhuma subconta', 'Crie uma subconta para ativar o modo SaaS nela.'))}`, 'Seções do configurador SaaS')}</div>`;
     const mrr = inSaas.filter(a => a.status === 'Active').reduce((t, a) => t + a.planPrice, 0);
     const avg = rebillProducts.reduce((t, [k]) => t + s.rebilling[k], 0) / rebillProducts.length;
     const steps = [['Criar planos SaaS', D().plans.length, 'saas/plans'], ['Definir markups da carteira', rebillProducts.some(([k]) => s.rebilling[k] > 1), 'saas/rebilling'], ['Colocar subcontas no modo SaaS', inSaas.length, 'saas/accounts'], ['Conectar o AbacatePay', D().abacatepay?.connected, 'settings/abacatepay']];
     return `<div class="page">${pageHead}${tabCard('saas', `<div class="metrics">${metric('Subcontas no modo SaaS', `${inSaas.length} <small>/ ${accounts().length}</small>`)}${metric('MRR das subcontas SaaS', money(mrr), 'Planos de subcontas ativas')}${metric('Planos SaaS', D().plans.length)}${metric('Markup médio da carteira', `${avg.toFixed(2).replace('.', ',')}×`)}</div>
-      <section class="surface padded"><h2>Configuração</h2>${steps.map(([label, done, page]) => `<a class="line-item" href="#agency/${page}"><span>${done ? badge('Concluído', 'green') : badge('Pendente')} ${h(label)}</span>${i('arrow', 15)}</a>`).join('')}</section>`, 'Seções do configurador SaaS')}</div>`;
+      <section class="surface padded"><h2>Configuração</h2>${steps.map(([label, done, page]) => `<a class="line-item" href="#agency/${page}"><span>${done ? badge('Concluído', 'green') : badge('Pendente')} ${h(label)}</span>${i('arrow', 15)}</a>`).join('')}</section>${A.data.access?.settings === false ? '' : suspension()}`, 'Seções do configurador SaaS')}</div>`;
   };
 
-  const billingTone = { Pending: 'blue', Trial: 'gold', Active: 'green', Cancelled: 'red' };
-  const billingLabel = { Pending: 'Aguardando pagamento', Trial: 'Em teste', Active: 'Ativa', Cancelled: 'Cancelada' };
+  const billingTone = { Pending: 'blue', Trial: 'gold', Active: 'green', PastDue: 'red', Cancelled: 'red' };
+  const billingLabel = { Pending: 'Aguardando pagamento', Trial: 'Em teste', Active: 'Ativa', PastDue: 'Em atraso', Cancelled: 'Cancelada' };
   function billingCell(a) {
     const b = D().accounts[a.id]?.billing;
     const live = b?.provider === 'abacatepay' && b.status !== 'Cancelled';
@@ -806,8 +818,10 @@ Authorization: Bearer soci_app_…
       <p class="dim">Crie uma chave de API v2 com permissão de leitura e escrita em <a class="text-link" href="https://app.abacatepay.com/api-keys" target="_blank" rel="noopener">app.abacatepay.com</a>. Use a chave do modo teste para experimentar sem dinheiro real. Cada subconta conecta a própria conta em Configurações → AbacatePay para receber as suas faturas.</p><label>Chave de API v2<input name="apiKey" required autocomplete="off" spellcheck="false" maxlength="400"></label></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Conectar</button></footer></form>`;
     const hook = g.webhookStatus === 'registered' ? `<p>${badge('Webhook cadastrado automaticamente', 'green')}</p>`
       : `<p class="surface padded ag-warn">${h(g.webhookError || 'Cadastre o webhook no painel do AbacatePay.')} Use os dados abaixo em app.abacatepay.com/webhooks.</p>`;
-    return card(`${head(g.storeName || 'AbacatePay')}<p>${badge('Conectado', 'green')} ${g.devMode ? badge('Modo teste', 'gold') : ''}</p><p class="dim">Chave terminada em <b>${h(g.last4)}</b>, conectada em ${day(g.connectedAt)}. Gere as assinaturas em <a class="text-link" href="#agency/saas/accounts">Configurador SaaS → Subcontas SaaS</a>.</p><div class="inline-gap">${btn('Desconectar', 'abacate-disconnect')}</div>`, true)
-      + `<section class="surface set-card"><div class="set-section"><header class="set-head"><h2>Webhook de assinaturas</h2></header><div class="set-body">${hook}<label>URL<input readonly value="${h(g.webhookUrl)}"></label><label>Secret<input readonly value="${h(g.webhookSecret || '')}"></label><p class="dim"><small>Eventos: ${h(g.events.join(', '))}</small></p></div></div></section>`;
+    const update = g.webhookOutdated ? `<div class="surface padded ag-notice">${i('pay', 20)}<div><b>Há avisos novos do AbacatePay</b><p>Atualize para a soci saber de plano recusado, contestação e devolução.</p></div>${btn('Atualizar avisos', 'abacate-hooks', '', 'primary')}</div>` : '';
+    const missing = g.missingEvents?.length ? `<p class="dim"><small>O AbacatePay não aceitou: ${h(g.missingEvents.join(', '))}</small></p>` : '';
+    return (D().fiscal ? '' : fiscalMissing('#agency/settings/fiscal')) + update + card(`${head(g.storeName || 'AbacatePay')}<p>${badge('Conectado', 'green')} ${g.devMode ? badge('Modo teste', 'gold') : ''}</p><p class="dim">Chave terminada em <b>${h(g.last4)}</b>, conectada em ${day(g.connectedAt)}. Gere as assinaturas em <a class="text-link" href="#agency/saas/accounts">Configurador SaaS → Subcontas SaaS</a>.</p><div class="inline-gap">${btn('Desconectar', 'abacate-disconnect')}</div>`, true)
+      + `<section class="surface set-card"><div class="set-section"><header class="set-head"><h2>Webhook de assinaturas</h2></header><div class="set-body">${hook}<label>URL<input readonly value="${h(g.webhookUrl)}"></label><label>Secret<input readonly value="${h(g.webhookSecret || '')}"></label><p class="dim"><small>Eventos: ${h(g.events.join(', '))}</small></p>${missing}</div></div></section>`;
   }
   const isWhatsAppPage = () => A.page === 'settings' && A.sub === 'whatsapp';
   async function refreshWhatsApp() {
@@ -1114,6 +1128,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     'domain-purchase': () => featureTable('domain-purchase'),
     affiliates: () => { const aff = D().affiliate, link = `${location.origin}/?ref=${aff.code}`; return `<section class="surface set-card"><div class="set-section"><header class="set-head"><h2>Configurações de afiliado</h2></header><div class="set-body">${aff.accepted ? `<p>Este é o seu link de afiliado. Quem se cadastrar por ele gera ${Math.round(affiliateRate * 100)}% de comissão recorrente para você.</p><div class="ag-copy"><input readonly value="${h(link)}" aria-label="Link de afiliado">${btn('Copiar link', 'copy', `data-text="${h(link)}"`)}</div><p class="dim">Acrescente <code>?ref=${h(aff.code)}</code> ao final de qualquer URL do seu site.</p>` : `<p class="dim">Aceite os termos no Portal de afiliados para gerar seu link.</p><a class="secondary" href="#agency/affiliate">Abrir Portal de afiliados</a>`}</div></div></section>
       <form class="surface settings-form set-form" data-ag-form="affiliate-pixel"><section class="set-section"><header class="set-head"><h2>Configurações da página</h2></header><div class="set-body"><label>ID do Pixel do Facebook<input name="pixelId" inputmode="numeric" maxlength="20" placeholder="ID do Pixel" value="${h(aff.pixelId || '')}"></label></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar</button></footer></form>`; },
+    ledger: () => `<div class="page-head"><div><h2>Livro da cobrança</h2><p class="dim">O que a agência recebeu das subcontas: planos, recargas e o movimento das carteiras.</p></div></div>${ledgerPanel({ scope: 'agency', accounts: accounts() })}`,
+    fiscal: () => fiscalForm(D().fiscal, { attr: 'data-ag-form="fiscal"', intro: 'Estes dados identificam a agência nos planos e créditos que ela vende às subcontas e vão para o livro que o contador usa.' }),
     abacatepay: abacateSettings,
     announcements: () => `<div class="page-head"><div><h2>Comunicados gerais</h2><p class="dim">Comunicados ativos são exibidos em banner de destaque no topo das subcontas selecionadas.</p></div>${primary('Novo comunicado', 'new-record', 'data-key="announcements"')}</div>${table(['Título', 'Estilo', 'Público-alvo', 'Status', ''], [...D().announcements].reverse().map(a => `<tr><td><b>${h(a.title)}</b><br><small class="dim">${h(a.body.slice(0, 90))}</small></td><td>${h(tr(a.tone))}</td><td><small>${a.accounts.length ? h(a.accounts.map(accountName).join(', ')) : 'Todas as subcontas'}</small></td><td>${badge(a.published ? 'Publicado' : 'Rascunho', a.published ? 'green' : '')}</td><td class="right">${btn('Editar', 'edit-record', `data-key="announcements" data-id="${a.id}"`)}</td></tr>`), empty('Nenhum comunicado', 'Crie comunicados informativos ou alertas para os clientes da agência.'))}`,
     emails: () => `<div class="page-head"><div><h2>E-mails do sistema</h2><p class="dim">Modelos de e-mail disparados pela plataforma. O envio em produção requer um provedor de e-mail conectado.</p></div></div>${systemEmailKeys.map(([key, label]) => { const e = D().systemEmails[key]; return `<form class="surface settings-form set-form" data-ag-form="system-email" data-id="${key}"><section class="set-section"><header class="set-head"><h2>${h(tr(label))}</h2></header><div class="set-body"><label class="ag-full">Assunto<input name="subject" required value="${h(e.subject)}"></label><label class="ag-full">Mensagem<textarea name="body" required>${h(e.body)}</textarea></label></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar modelo</button></footer></form>`; }).join('')}`,
@@ -1249,6 +1265,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
   const oneAccount = (label = 'Subconta de destino') => `<label>${h(label)}<select name="workspace" required>${accounts().map(a => `<option value="${a.id}">${h(a.name)}</option>`).join('')}</select></label>`;
   const secretBox = (title, secret) => dialog(title, `<p>Copie este código agora. Ele não será exibido novamente.</p><div class="ag-copy"><input readonly value="${h(secret)}" aria-label="Código secreto">${btn('Copiar', 'copy', `data-text="${h(secret)}"`)}</div>`);
 
+  installLedger('agency', { api, render });
   document.addEventListener('click', async ev => {
     if (!active()) return;
 
@@ -1338,6 +1355,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'openai-disconnect': confirmBox('Desconectar a chave da OpenAI?', 'Você precisará conectar outra chave para voltar a usar os recursos de IA.', 'openai-disconnect', '', 'Desconectar'); break;
         case 'wa-refresh': await refreshWhatsApp(); flash('Status do WhatsApp atualizado.'); break;
         case 'abacate-refresh': A.abacate = null; render(); await refreshAbacate(); break;
+        case 'abacate-hooks': A.abacate = await api('/api/abacatepay/agency/refresh-webhook', {}); render(); flash('Avisos do AbacatePay atualizados.'); break;
         case 'abacate-disconnect': confirmBox('Desconectar o AbacatePay?', 'As assinaturas já contratadas continuam no AbacatePay, mas a agência deixa de receber as confirmações de pagamento aqui.', 'abacate-disconnect', '', 'Desconectar'); break;
         case 'abacate-copy': await navigator.clipboard.writeText(d.url); flash('Link da assinatura copiado.'); break;
         case 'abacate-subscribe': {
@@ -1877,6 +1895,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           await act('company', { data: { ...rest, ...(logoValue === undefined ? {} : { logo: logoValue }) } });
           msg = 'Dados da empresa salvos com sucesso.'; break;
         }
+        case 'fiscal': await act('fiscal', { data: readFiscal(data) }); msg = 'Cadastro fiscal salvo.'; break;
         case 'billing-plan': await act('billing-plan', { data }); msg = 'Plano da agência atualizado.'; break;
         case 'auto-recharge': await act('auto-recharge', { data }); msg = 'Regras de alerta de saldo salvas.'; break;
         case 'wallet': await act('wallet', { data }); msg = 'Lançamento na carteira registrado.'; break;
@@ -1892,6 +1911,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'api-key-delete': await act('api-key-delete', { id }); msg = 'Chave de API revogada.'; break;
         case 'private-integration': { const r = await act('private-integration', { data: { ...data, scopes: data.scopes || [] } }); close(); render(); secretBox('Token de integração privada criado', r.secret); keepOpen = true; msg = ''; break; }
         case 'private-integration-delete': await act('private-integration-delete', { id }); msg = 'Integração privada excluída.'; break;
+        case 'saas-suspension': await act('saas-suspension', { data }); msg = 'Regras de plano não pago salvas.'; break;
         case 'saas-rebilling': await act('saas-rebilling', { data }); msg = 'Markups da carteira salvos.'; break;
         case 'email-domain': await act('email-domain', { data }); msg = 'Domínio dedicado adicionado.'; break;
         case 'email-domain-accounts': await act('email-domain-accounts', { data: { accounts: data.accounts } }); msg = 'Subcontas do domínio dedicado salvas.'; break;

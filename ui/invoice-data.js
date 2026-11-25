@@ -3,6 +3,16 @@
 // days (YYYY-MM-DD) in the workspace time zone; monthly and yearly cycles keep the start day and fall back
 // to the last day of shorter months (31/01 → 28/02 → 31/03).
 
+/** How an invoice is shown: its status plus what happened to the money ('draft', 'open', 'void', 'paid', 'mismatch', 'refunded', 'disputed'). */
+export function invoicePaymentState(invoice) {
+  const payment = invoice.payment?.status;
+  if (payment === 'REFUNDED') return 'refunded';
+  if (payment === 'DISPUTED') return 'disputed';
+  if (payment === 'MISMATCH' && invoice.status === 'Open') return 'mismatch';
+  return { Paid: 'paid', Void: 'void', Draft: 'draft' }[invoice.status] || 'open';
+}
+export const invoiceStateLabels = { draft: ['Rascunho', ''], open: ['Em aberto', 'blue'], paid: ['Paga', 'green'], void: ['Anulada', ''], mismatch: ['Pagamento divergente', 'gold'], refunded: ['Reembolsada', ''], disputed: ['Em contestação', 'red'] };
+
 export const frequencies = [['daily', 'Diária', 'dia', 'dias'], ['weekly', 'Semanal', 'semana', 'semanas'],
   ['monthly', 'Mensal', 'mês', 'meses'], ['yearly', 'Anual', 'ano', 'anos']];
 export const endModes = [['never', 'Sem data para acabar'], ['count', 'Depois de um número de faturas'], ['date', 'Numa data']];
