@@ -26,6 +26,7 @@ import { apiScopes,
   appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav, walletProducts
 } from './agency-data.js';
 import { setupArt } from './setup-art.js';
+import { platformPage, platformBanner } from './platform.js';
 
 export { agencyNav };
 const h = x => String(x ?? '').replace(/[&<>"']/g, v => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[v]);
@@ -57,7 +58,7 @@ const aiState = a => !a.aiEnabled ? 'off' : !a.aiLimit ? 'nolimit' : a.aiCost >=
 
 export function startAgency(env) {
   const { app, overlay, api, flash, openWorkspace } = env;
-  const A = { data: null, openAI: null, openAIOnly: false, wa: null, waFocus: null, waPairOpen: false, page: 'dashboard', sub: '', query: '', status: '', category: '', mktOrigin: '', selected: new Set(), chat: [], navOpen: innerWidth > 700, aiFilter: '', aiPeriod: '30', aiUsage: null };
+  const A = { data: null, openAI: null, openAIOnly: false, wa: null, waFocus: null, waPairOpen: false, page: 'dashboard', sub: '', query: '', status: '', category: '', mktOrigin: '', selected: new Set(), chat: [], navOpen: innerWidth > 700, aiFilter: '', aiPeriod: '30', aiUsage: null, pf: null, pfError: '', pfLoading: false };
   let waPollTimer = null;
   function stopWaPoll() { if (waPollTimer) { clearInterval(waPollTimer); waPollTimer = null; } }
   const G = s => document.querySelector(s);
@@ -161,7 +162,9 @@ export function startAgency(env) {
     // Sem login (servidor local), "Agir como" vale também aqui: a faixa é a saída desse modo.
     const acting = !session && localStorage.getItem('go.user');
     const item = ([key, label, ico]) => ({ href: `#agency/${key}`, label: tr(label), icon: ico, current: A.page === key });
-    const currentPageLabel = tr(agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência');
+    const currentPageLabel = tr(A.page === 'plataforma' ? 'Plataforma' : agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência');
+    // Plataforma: só o dono da plataforma vê (limites de Supabase, Vercel, Cloudflare, Hostinger…).
+    const overview = [...agencyNav.slice(0, 5).map(item), ...(A.data.access?.platform ? [item(['plataforma', 'Plataforma', 'chart'])] : [])];
     return `<div class="shell ${A.navOpen ? 'wide' : ''} ag-shell">${sidebar({
       label: tr('Navegação da agência'),
       home: '#agency/dashboard',
@@ -171,7 +174,7 @@ export function startAgency(env) {
       toggle: 'data-ag="nav"',
       open: A.navOpen,
       groups: [
-        { title: tr('Visão geral'), items: agencyNav.slice(0, 5).map(item) },
+        { title: tr('Visão geral'), items: overview },
         { title: tr('Subcontas e ferramentas'), items: agencyNav.slice(5, 12).map(item) },
         { title: tr('Aprender e apps'), items: agencyNav.slice(12, -1).map(item) },
         { title: tr('Atalhos'), items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: tr(l.title), icon: l.icon, external: true })) }
@@ -338,10 +341,39 @@ export function startAgency(env) {
       <p class="dim">${h(tr('Use 0 para não limitar. Gasto neste mês:'))} ${formatUsd(a.aiCost)}.</p>`, { form: 'ai-limit', id, submit: 'Salvar limite' });
   }
 
+  // ---- Plataforma (admin geral, só o dono): limites dos serviços externos ----
+  const isPlatformOwner = () => Boolean(A.data?.access?.platform);
+  async function loadPlatform() {
+    if (A.pfLoading || !isPlatformOwner()) return;
+    A.pfLoading = true; A.pfError = '';
+    try { A.pf = await api('/api/platform/usage'); }
+    catch (e) { A.pfError = e.message; }
+    finally { A.pfLoading = false; }
+    if (A.page === 'plataforma' || A.page === 'dashboard') render();
+  }
+  pages.plataforma = () => {
+    if (!isPlatformOwner()) return pages.dashboard();
+    if (!A.pf && !A.pfError) { queueMicrotask(loadPlatform); return `<div class="page">${head('Plataforma', 'Conferindo os serviços…')}</div>`; }
+    if (!A.pf) return `<div class="page">${head('Plataforma')}<div class="surface padded"><p class="form-status">${h(A.pfError)}</p>${btn('Tentar de novo', 'pf-reload')}</div></div>`;
+    return platformPage(A.pf, { h, tr });
+  };
+  async function enablePlatformPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw Error(tr('Este navegador não aceita notificações.'));
+    const { key } = await api('/api/push/key');
+    if (!key) throw Error(tr('As notificações ainda não foram configuradas no servidor (WEB_PUSH_PUBLIC_KEY).'));
+    if (await Notification.requestPermission() !== 'granted') throw Error(tr('Permita as notificações nas configurações do navegador.'));
+    const reg = await navigator.serviceWorker.register('/push/sw.js', { scope: '/push/' });
+    const raw = atob((key + '='.repeat((4 - key.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+    const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, ch => ch.charCodeAt(0)) });
+    A.pf = await api('/api/platform/push', { subscription: sub.toJSON() });
+  }
+
   pages.dashboard = () => {
     const t = O().totals, growth = O().growth, max = Math.max(1, ...growth.map(g => g.total));
     const top = [...accounts()].sort((a, b) => b.contacts - a.contacts).slice(0, 8);
+    if (isPlatformOwner() && !A.pf && !A.pfError) queueMicrotask(loadPlatform);
     return `<div class="page">${head('Painel da agência', `Boas-vindas, ${D().profile.first}. Métricas consolidadas das suas subcontas e registros da agência.`, primary('Criar subconta', 'new-account'))}
+      ${isPlatformOwner() && A.pf ? platformBanner(A.pf, { h, tr }) : ''}
       ${D().abacatepay?.connected ? '' : `<div class="surface padded ag-notice">${i('pay', 20)}<div><b>Os KPIs de faturamento usam registros locais</b><p>A receita dos planos é calculada a partir do plano SaaS atribuído a cada subconta. Conecte o AbacatePay para cobrar as assinaturas por Pix ou cartão.</p></div><a class="secondary" href="#agency/settings/abacatepay">Conectar AbacatePay</a></div>`}
       <div class="metrics">${metric('Receita recorrente mensal (MRR)', money(t.mrr), 'Dos planos SaaS de contas ativas')}${metric('Subcontas ativas', `${t.active} <small>/ ${t.accounts}</small>`, `${t.paused} pausada(s) · ${t.closed} encerrada(s)`)}${metric('Novas neste mês', t.newThisMonth)}${metric('Planos SaaS cadastrados', D().plans.length, 'Disponíveis no Configurador SaaS')}</div>
       <div class="metrics">${metric('Contatos', t.contacts)}${metric('Oportunidades abertas', t.open)}${metric('Execuções de automação', t.runs)}${metric('Saldo da carteira', money(t.wallet))}</div>
@@ -1328,6 +1360,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'studio-rotate': confirmBox('Gerar um novo segredo?', 'As próximas entregas usam o segredo novo. Atualize o servidor do app antes, ou as assinaturas deixam de conferir.', 'studio-rotate', id, 'Gerar novo segredo'); break;
         case 'ai-limit': editAiLimit(id); break;
         case 'ai-period': await loadAiUsage(d.period); break;
+        case 'pf-reload': A.pfError = ''; render(); await loadPlatform(); break;
+        case 'pf-check': A.pf = await api('/api/platform/check', {}); render(); flash('Serviços conferidos agora.'); break;
+        case 'pf-push': await enablePlatformPush(); render(); flash('Notificações de alerta ativadas neste aparelho.'); break;
         case 'ai-apply': {
           const def = D().aiDefaults || {}, all = d.scope === 'all';
           confirmBox(all ? 'Aplicar o limite padrão em todas as subcontas?' : 'Aplicar o limite padrão nas subcontas sem limite?',
@@ -1889,6 +1924,10 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'app-install': await act('app-install', { id, data }); msg = `${appName(id)} instalado.`; break;
         case 'app-uninstall': await act('app-uninstall', { id }); msg = 'App desinstalado.'; break;
         case 'app-resell': await act('app-resell', { id, data }); msg = 'Preço de revenda salvo.'; break;
+        case 'pf-settings':
+          A.pf = await api('/api/platform/settings', { alertEmail: data.alertEmail, twilioMinUsd: Number(data.twilioMinUsd), plans: { supabase: data.supabase, vercel: data.vercel } });
+          msg = 'Configurações da Plataforma salvas.';
+          break;
         default: throw Error('Formulário desconhecido.');
       }
       if (!keepOpen) { close(); render(); }
