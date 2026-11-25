@@ -141,7 +141,7 @@ export function settleAffiliates(s, { emit }) {
     const value = commissionOf(campaign, Number(invoice.value));
     if (!(value > 0)) continue;
     const commission = { id: randomUUID(), created: at, affiliateId: affiliate.id, campaignId: campaign.id, contactId: contact.id, invoiceId: invoice.id,
-      base: money(invoice.value), value, status: 'pending', approveAfter: new Date(Date.now() + campaign.holdDays * 864e5).toISOString(), payoutId: '' };
+      base: money(invoice.value), value, status: 'pending', approveAfter: new Date(Date.parse(at) + campaign.holdDays * 864e5).toISOString(), payoutId: '' };
     s.affiliateCommissions.unshift(commission);
     emit(s, 'affiliate_sale', { contactId: contact.id, affiliateId: affiliate.id, total: value });
   }
@@ -240,7 +240,7 @@ export function affiliateWorkflow(s, contact, action, config, { emit }) {
     const value = commissionOf(campaign, base);
     const at = now();
     const commission = { id: randomUUID(), created: at, affiliateId: affiliate.id, campaignId: campaign.id, contactId: contact.id, invoiceId: '', base, value, status: 'pending',
-      approveAfter: new Date(Date.now() + campaign.holdDays * 864e5).toISOString(), payoutId: '', source: 'workflow', note: clip(c.note, 200) };
+      approveAfter: new Date(Date.parse(at) + campaign.holdDays * 864e5).toISOString(), payoutId: '', source: 'workflow', note: clip(c.note, 200) };
     s.affiliateCommissions.unshift(commission);
     emit(s, 'affiliate_sale', { contactId: contact.id, affiliateId: affiliate.id, total: value });
     const brl = amount => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount).replace(/\s/g, ' ');
