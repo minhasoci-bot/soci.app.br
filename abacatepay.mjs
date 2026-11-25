@@ -4,7 +4,7 @@
 // per-connection secret in the URL and their integrity with the HMAC-SHA256 signature of the raw body.
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { execute } from './model.mjs';
-import { disputeCharge, refundCharge, settleCharge } from './gateway-events.mjs';
+import { disputeCharge, paymentOf, refundCharge, settleCharge, settleOrphanInstalment } from './gateway-events.mjs';
 import { postFact } from './ledger-model.mjs';
 import { restoreFromBilling, suspendForBilling } from './agency-model.mjs';
 
@@ -310,8 +310,17 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     for (const [accountId, meta] of Object.entries(agency.accounts || {})) {
       const billing = meta?.billing?.previous?.find(item => (checkoutId && item.checkoutId === checkoutId) || (subscriptionId && item.subscriptionId === subscriptionId));
       if (!billing) continue;
-      if (event === 'subscription.completed' || event === 'subscription.renewed') bookPlanPayment(agency, accountId, billing, event, data, devMode);
-      return { accountId, effect: '' };
+      const paid = event === 'subscription.completed' || event === 'subscription.renewed', current = meta.billing;
+      // The customer paid a link that had been replaced, and nothing else is being charged: what was paid is the subscription.
+      if (paid && billing.status !== 'Cancelled' && ['Pending', 'Cancelled'].includes(current.status)) {
+        const { previous, history: _history, failures: _failures, url: _url, ...kept } = current;
+        meta.billing = { ...billing, previous: [...previous.filter(item => item !== billing), kept].slice(-12) };
+        return subscriptionEvent(agency, event, data, { devMode });
+      }
+      if (paid) bookPlanPayment(agency, accountId, billing, event, data, devMode);
+      // Two subscriptions being charged: the agency has to cancel one of them.
+      const twice = paid && billing.status !== 'Cancelled' && ['Active', 'Trial', 'PastDue'].includes(current.status);
+      return { accountId, effect: twice ? 'duplicate' : '', name: meta.name || accountId, plan: billing.planName || '', subscriptionId: subscriptionId || billing.subscriptionId || '' };
     }
     return { accountId: '', effect: '' };
   }
@@ -358,12 +367,14 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     billing.updatedAt = stamp();
     return { accountId: entry[0], effect, notify, name: entry[1].name || entry[0], plan: billing.planName || '', subscriptionId: billing.subscriptionId };
   }
-  // A refund or dispute of a plan's payment: the charge is the checkout of the subscription, so it is the latest payment.
+  // A refund or dispute of a plan's payment: the charge is the checkout of the subscription, so the moment tells which payment.
   function planReversal(agency, charge, event) {
     const [accountId, billing] = Object.entries(agency.accounts || {}).flatMap(([id, meta]) => meta?.billing ? [meta.billing, ...(meta.billing.previous || [])].map(item => [id, item]) : [])
       .find(([, item]) => charge.checkoutId && item.checkoutId === charge.checkoutId) || [];
-    const payment = billing?.payments?.at(-1);
-    if (!payment?.id) return '';
+    const payments = (billing?.payments || []).filter(item => item.id);
+    const payment = paymentOf(payments, charge.updatedAt, { at: item => item.at, returned: item => Boolean(item.refunded) });
+    if (payments.length && !payment) console.warn(`AbacatePay ${event}: sem data para saber de qual pagamento do plano (${accountId}); confira no painel do gateway.`);
+    if (!payment) return '';
     const lost = charge.lost || (/\.disputed$/.test(event) && charge.status === 'REFUNDED'), back = lost || /\.refunded$/.test(event);
     const kind = lost ? 'dispute_lost' : back ? 'refund' : charge.status === 'UNDER_DISPUTE' ? 'dispute_opened' : charge.status === 'PAID' ? 'dispute_won' : '';
     if (!kind) return '';
@@ -385,7 +396,7 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
       paidCents = whole(found?.paidAmount);
     }
     return { checkoutId, status: String(charge.status || ''), metadata: charge.metadata || null, frequency: charge.frequency, method: methodNames[data.payerInformation?.method] || 'Pix', receiptUrl: charge.receiptUrl || '',
-      paidCents, feeCents: whole(charge.platformFee), devMode: Boolean(body.devMode || conn.devMode), lost: /.lost$/.test(body.event) };
+      updatedAt: String(charge.updatedAt || ''), paidCents, feeCents: whole(charge.platformFee), devMode: Boolean(body.devMode || conn.devMode), lost: /.lost$/.test(body.event) };
   }
   // AbacatePay only repeats a delivery on 5xx, 408 or 429: a write conflict (409) would lose the event for good.
   async function handleWebhook(input) {
@@ -440,11 +451,13 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
         await store.change(scope, state => { handled = checkoutId ? disputeCharge(state, charge, scope) : false; });
         if (!checkoutId) console.warn(`AbacatePay ${event} sem cobrança (${scope}).`);
       } else if (event.startsWith('subscription.')) {
-        const pay = data?.payment || {};
+        const pay = data?.payment || {}, paid = /^subscription\.(completed|renewed)$/.test(event);
         await store.change(scope, state => {
           handled = execute(state, { type: 'document-subscription', data: { event, checkoutId, subscriptionId: String(data?.subscription?.id || ''), paymentId: String(pay.id || ''),
             feeCents: pay.platformFee, devMode: Boolean(body.devMode || conn.devMode),
             amount: Number(pay.paidAmount || pay.amount || 0) / 100, method: methodNames[data?.subscription?.method] || '', receiptUrl: String(pay.receiptUrl || '') } }, { workspace: scope });
+          if (!handled && paid) settleOrphanInstalment(state, { metadata: charge.metadata, paymentId: String(pay.id || ''), paidCents: whole(pay.paidAmount) ?? whole(pay.amount), feeCents: whole(pay.platformFee),
+            method: methodNames[data?.subscription?.method] || 'Card', devMode: charge.devMode }, scope);
         });
       }
     }
