@@ -189,5 +189,12 @@
     "titulo": "Responder uma conversa",
     "fase": "extra",
     "status": "escrito"
+  },
+  {
+    "grupo": "suporte",
+    "artigo": "como-pedir-ajuda",
+    "titulo": "Como pedir ajuda",
+    "fase": "extra",
+    "status": "escrito"
   }
 ]

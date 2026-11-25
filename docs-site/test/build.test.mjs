@@ -22,6 +22,12 @@ test('título da aba sem repetição: home só com o nome do site, artigo com ar
   assert.equal(titulo(await lerPagina('conversas/caixa-unificada')), 'Atender na caixa unificada | Central de ajuda da Soci');
 });
 
+test('página de suporte leva ao grupo de suporte no WhatsApp', async () => {
+  const html = await lerPagina('suporte/como-pedir-ajuda');
+  assert.match(html, /href="https:\/\/chat\.whatsapp\.com\/IuU6twK8qf606ye5wvP638"/);
+  assert.match(await lerPagina('suporte'), /href="\/suporte\/como-pedir-ajuda\/"/);
+});
+
 test('busca e llms.txt gerados', async () => {
   await access(`${dist}pagefind/pagefind.js`);
   await access(`${dist}llms.txt`);
