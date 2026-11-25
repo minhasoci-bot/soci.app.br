@@ -7,6 +7,7 @@ import { badgesOf, communityAnalytics, extendAccess, hasAccess, heldReason, news
 import { createSqliteStore } from '../storage.mjs';
 import { withAcademyTab } from '../ui/community-data.js';
 import { signBody } from '../abacatepay.mjs';
+import { saveFiscal } from './helpers/fiscal.mjs';
 
 const KEY = 'abc_dev_shopkey_0000dddd';
 const DAY = 86400000;
@@ -170,6 +171,7 @@ test('Paid community: trial, plan purchase through AbacatePay, welcome e-mail an
   assert.equal(locked.posts, undefined);
   assert.deepEqual(locked.group.plans.map(row => row.name), ['Mensal']);
   assert.equal((await act({ action: 'subscribe', planId: plan })).status, 409, 'AbacatePay not connected');
+  await call('/api/action?workspace=demo', saveFiscal);
   const connected = (await call('/api/abacatepay/workspace/connect?workspace=demo', { apiKey: KEY })).body;
   const bought = await act({ action: 'subscribe', planId: plan });
   assert.equal(bought.status, 200, JSON.stringify(bought.body));
@@ -177,7 +179,7 @@ test('Paid community: trial, plan purchase through AbacatePay, welcome e-mail an
   assert.equal(bought.body.community.membership.status, 'pending');
   const invoice = (await state()).invoices.find(row => row.communityPlan?.communityId === group);
   assert.deepEqual([invoice.title, invoice.value], ['Clube VIP: Mensal', 39]);
-  const raw = JSON.stringify({ id: 'log_plan_1', event: 'checkout.completed', data: { checkout: { id: invoice.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID' }, payerInformation: { method: 'PIX' } } });
+  const raw = JSON.stringify({ id: 'log_plan_1', event: 'checkout.completed', data: { checkout: { id: invoice.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID', paidAmount: Math.round(invoice.value * 100) }, payerInformation: { method: 'PIX' } } });
   assert.equal((await fetch(`${connected.webhookUrl}?webhookSecret=${connected.webhookSecret}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': signBody(raw) }, body: raw })).status, 200);
   const open = (await call(`${portal}/community/${group}`, undefined, { Cookie: ana })).body.community;
   assert.equal(open.membership.status, 'active');

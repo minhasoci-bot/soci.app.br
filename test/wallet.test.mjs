@@ -7,6 +7,7 @@ import { addTopup, paidTopup, pricingFor, setPricing, walletAdjust, walletSummar
 import { emailResults } from '../email-campaign-model.mjs';
 import { makeServer } from '../server.mjs';
 import { signBody } from '../abacatepay.mjs';
+import { saveFiscal } from './helpers/fiscal.mjs';
 
 const agencyWith = () => {
   const agency = blankAgency();
@@ -110,6 +111,7 @@ test('Agency sets prices, credits a wallet, the client recharges by Pix and AI s
   assert.match(blocked.body.error, /créditos/);
 
   assert.equal((await send('/api/wallet/topup?workspace=demo', { amount: 50 })).status, 409, 'the agency must connect AbacatePay');
+  await send('/api/agency/action', saveFiscal);
   const connected = (await send('/api/abacatepay/agency/connect', { apiKey: KEY })).body;
   assert.equal((await send('/api/wallet/topup?workspace=demo', { amount: 5 })).status, 400, 'minimum R$ 10');
   const topup = await send('/api/wallet/topup?workspace=demo', { amount: 50 });

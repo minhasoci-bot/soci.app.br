@@ -6,6 +6,7 @@ import { makeCommunity } from '../community.mjs';
 import { eventView, nextOccurrence, occurrences } from '../community-events.mjs';
 import { createSqliteStore } from '../storage.mjs';
 import { signBody } from '../abacatepay.mjs';
+import { saveFiscal } from './helpers/fiscal.mjs';
 
 const KEY = 'abc_dev_shopkey_0000cccc';
 const HOUR = 3600000, DAY = 24 * HOUR;
@@ -134,6 +135,7 @@ test('Portal: free RSVP, paid ticket through AbacatePay, going live and the work
 
   assert.equal((await act(ana, { action: 'rsvp', eventId: paid })).status, 402);
   assert.equal((await act(ana, { action: 'ticket', eventId: paid })).status, 409, 'no AbacatePay yet');
+  await call('/api/action?workspace=demo', saveFiscal);
   const connected = (await call('/api/abacatepay/workspace/connect?workspace=demo', { apiKey: KEY })).body;
   const ticket = await act(ana, { action: 'ticket', eventId: paid });
   assert.equal(ticket.status, 200, JSON.stringify(ticket.body));
@@ -142,7 +144,7 @@ test('Portal: free RSVP, paid ticket through AbacatePay, going live and the work
   const invoice = (await state()).invoices.find(row => row.eventTicket?.eventId === paid);
   assert.deepEqual([invoice.title, invoice.value, invoice.status], ['Ingresso: Workshop', 97, 'Open']);
 
-  const raw = JSON.stringify({ id: 'log_ticket_1', event: 'checkout.completed', data: { checkout: { id: invoice.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID' }, payerInformation: { method: 'PIX' } } });
+  const raw = JSON.stringify({ id: 'log_ticket_1', event: 'checkout.completed', data: { checkout: { id: invoice.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID', paidAmount: Math.round(invoice.value * 100) }, payerInformation: { method: 'PIX' } } });
   assert.equal((await fetch(`${connected.webhookUrl}?webhookSecret=${connected.webhookSecret}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': signBody(raw) }, body: raw })).status, 200);
   const after = (await call(`${portal}/community/${group}`, undefined, { Cookie: ana })).body.community.events.find(row => row.id === paid);
   assert.deepEqual([after.myStatus, after.recordings.length], ['going', 1]);

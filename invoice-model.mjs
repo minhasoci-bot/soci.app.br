@@ -7,8 +7,9 @@
 // to the next date from today.
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { itemsSummary, validItem } from './ui/document-data.js';
-import { addDays, frequencies, indexFrom, localDay, MAX_INTERVAL, occurrence, paymentDefaults, scheduleOver } from './ui/invoice-data.js';
+import { addDays, frequencies, indexFrom, invoicePaymentState, localDay, MAX_INTERVAL, occurrence, paymentDefaults, scheduleOver } from './ui/invoice-data.js';
 export { paymentDefaults } from './ui/invoice-data.js';
+import { formatTaxId } from './ui/tax-id.js';
 import { renderInvoice } from './ui/invoice-render.js';
 
 export const invoiceCollections = ['invoiceTemplates', 'recurringInvoices'];
@@ -171,12 +172,14 @@ export function invoiceTick(s, at, { workspace = 'demo', run }) {
 export function invoiceView(s, invoice) {
   const contact = s.contacts.find(row => row.id === invoice.contactId) || null;
   const logo = s.profile?.logoFileId ? (s.files || []).find(row => row.id === s.profile.logoFileId)?.data || '' : '';
+  // Who sells is always the sub-account, never the platform.
+  const seller = { name: s.fiscal?.name || s.profile?.name || '', taxId: formatTaxId(s.fiscal?.taxId || '') };
   return {
-    number: invoice.number || '', title: invoice.title, status: invoice.status, sender: s.profile?.name || '', issueDate: invoice.issueDate || String(invoice.created || '').slice(0, 10),
-    due: invoice.due, value: invoice.value, payable: invoice.status === 'Open',
-    receipt: invoice.status === 'Paid' && invoice.receiptNumber ? { title: paymentSettingsOf(s).receipts.title, number: invoice.receiptNumber, paidAt: invoice.paidAt || '' } : null,
+    seller, number: invoice.number || '', title: invoice.title, status: invoice.status, sender: s.profile?.name || '', issueDate: invoice.issueDate || String(invoice.created || '').slice(0, 10),
+    due: invoice.due, value: invoice.value, state: invoicePaymentState(invoice), payable: invoicePaymentState(invoice) === 'open',
+    receipt: invoice.status === 'Paid' && invoice.receiptNumber && invoice.payment?.status !== 'REFUNDED' ? { title: paymentSettingsOf(s).receipts.title, number: invoice.receiptNumber, paidAt: invoice.paidAt || '' } : null,
     html: renderInvoice(invoice, { company: s.profile?.name || '', contact: contact && { name: contact.name, company: contact.company, email: contact.email }, logo,
-      receiptTitle: paymentSettingsOf(s).receipts.title })
+      receiptTitle: paymentSettingsOf(s).receipts.title, seller })
   };
 }
 
