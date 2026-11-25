@@ -1,0 +1,66 @@
+---
+title: Enviar propostas e contratos para assinatura
+description: Crie uma proposta ou um contrato a partir de um modelo, preencha com os dados do cliente e envie para assinatura eletrônica por e-mail e WhatsApp.
+modulo: pagamentos
+sidebar:
+  order: 3
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+import Automacao from '../../../components/Automacao.astro';
+
+Em **Documentos e contratos**, você monta propostas e contratos em blocos, com os dados do cliente preenchidos sozinhos, a lista de produtos e os campos de assinatura. O cliente recebe um link pessoal para assinar, e o documento pode gerar a cobrança.
+
+<Requisitos permissao="Acesso ao módulo Pagamentos na subconta" />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Pagamentos** e vá para a aba **Documentos e contratos**. Os filtros mostram os documentos em rascunho, aguardando, concluídos, pagos e arquivados. Clique em **Novo documento**.
+
+   <Print src="docs/pagamentos/documentos-e-contratos/01-documentos.639180a8.webp" alt="Aba Documentos e contratos vazia com o botão Novo documento em destaque." />
+
+2. Dê um **Título**, escolha o **Tipo** (proposta, contrato ou documento) e o **Cliente**. Em **Começar com**, escolha **Em branco** ou um modelo pronto, como **Proposta comercial** ou **Contrato de prestação de serviços**. Clique em **Criar documento**.
+
+   <Print src="docs/pagamentos/documentos-e-contratos/02-novo-documento.9c1eb641.webp" alt="Janela Novo documento com o título do contrato, o tipo Contrato, a cliente Ana Beatriz Souza e o modelo de contrato." />
+
+3. No editor, mude o texto direto na página. À esquerda ficam os **Blocos** (texto, imagem, vídeo, tabela, lista de produtos, duas colunas, anexo PDF e quebra de página); à direita, as abas **Documento**, **Destinatários**, **Variáveis** e **Pagamento**. As variáveis entre chaves, como `{{contact.name}}`, viram os dados do cliente no documento enviado.
+
+   <Print src="docs/pagamentos/documentos-e-contratos/03-editor-do-documento.fb781852.webp" alt="Editor com o contrato de prestação de serviços, as variáveis do cliente e o bloco de assinatura." />
+
+4. Clique em **Enviar**. Cada pessoa recebe um link pessoal para assinar, sempre por e-mail e, se quiser, também por WhatsApp. Ajuste o assunto e a mensagem e clique em **Enviar agora**.
+
+   <Print src="docs/pagamentos/documentos-e-contratos/04-enviar-para-assinatura.6d64138d.webp" alt="Janela Enviar para assinatura com a destinatária, o envio por e-mail e a opção de WhatsApp." />
+
+</Steps>
+
+<Aside type="caution">
+Depois de enviado, o documento não pode mais ser editado. Use **Prévia** para revisar antes.
+</Aside>
+
+<Aside type="tip">
+Um contrato que você usa sempre vira modelo com **Salvar como modelo**. Trechos que se repetem em vários documentos ficam na aba **Biblioteca de conteúdo**.
+</Aside>
+
+## Automações ligadas
+
+<Automacao gatilhos={['Documento ou contrato', 'Assinatura', 'Documento pago']} acoes={['Enviar documento ou contrato']} />
+
+## Perguntas frequentes
+
+**O cliente precisa de conta na soci para assinar?**
+Não. Ele assina pelo link pessoal que recebe.
+
+**O contrato pode cobrar o cliente depois de assinado?**
+Sim. Configure a cobrança na aba **Pagamento** do editor. Para receber por Pix ou cartão, a subconta precisa da AbacatePay conectada.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Conectar a AbacatePay" href="/pagamentos/conectar-gateway/" description="Receba o pagamento do contrato por Pix ou cartão." />
+  <LinkCard title="Emitir uma fatura" href="/pagamentos/fatura/" description="Cobre o cliente sem precisar de contrato." />
+</CardGrid>

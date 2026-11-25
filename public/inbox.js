@@ -3,7 +3,7 @@ import { tr } from './i18n.js';
 import { avatar, badge, date, empty, h, money, search, tabs } from './screens.js';
 import { slaRecords } from './conversations.js';
 import { conversationAiBar } from './conversation-ai.js';
-import { fixedRuleValues, inboxFilterFields, inboxRule, inboxSorts } from './inbox-data.js';
+import { composerAction, composerChannels, fixedRuleValues, inboxFilterFields, inboxRule, inboxSorts, replyChannel } from './inbox-data.js';
 
 // Inbox layout: box navigation | conversation list | open thread | contact panel with a section rail.
 export const inboxState = c => (c.inbox ??= { box:'team', nav:true, sort:'latest', sortOpen:false, rules:[], match:'and', picked:[], panel:'contact' });
@@ -206,6 +206,7 @@ function threadPanel(c, all) {
   const t = all.find(item => item.contact.id === c.thread);
   if (!t) return `<section class="thread-body">${empty('Nenhuma conversa selecionada','Selecione uma caixa ou inicie uma nova conversa.','inbox')}</section>`;
   const { contact } = t, following = t.followers.includes(me(c));
+  const channel = replyChannel(t.messages, c.composer?.thread === contact.id ? c.composer.channel : '');
   const deadlines = slaRecords(c.s).filter(item => !item.answered && item.state !== 'Dismissed' && item.contactId === c.thread);
   return `<section class="thread-body"><div class="thread-header">
       <button class="icon-btn mobile-back" data-act="back-inbox" aria-label="Voltar para a caixa de entrada">${i('left')}</button>
@@ -222,13 +223,13 @@ function threadPanel(c, all) {
       <small>${channelBadge(m.channel)} · ${date(m.created,c,true)}${origin(m) === 'workflow' ? ' · Automação' : ''}${m.failed ? ` · <span class="badge red" title="${h(tr(deliveryFailures[m.failed] || deliveryFailures.provider_error))}">${tr('Não entregue')}</span>` : ''}</small>${m.subject ? `<b class="message-subject">${h(m.subject)}</b>` : ''}<p>${messageContent(m.body)}</p>${m.callId && m.recordingUrl ? `<audio class="call-recording" controls preload="none" src="/api/phone/recording?workspace=${encodeURIComponent(c.workspace)}&amp;call=${encodeURIComponent(m.callId)}" aria-label="${h(tr('Gravação da ligação'))}"></audio>` : ''}</div>`).join('')}</div>
     ${conversationAiBar(c, contact.id)}
     <form class="message-compose" data-form="message"><p>As mensagens ficam registradas nesta caixa de entrada.</p>
-      <div class="inline-gap"><select name="channel" aria-label="Canal"><option value="Note">Nota</option><option value="Email">E-mail</option><option value="SMS">SMS</option><option value="WhatsApp">WhatsApp</option><option value="Live chat">Chat ao vivo</option><option value="Instagram">Instagram</option><option value="Facebook">Facebook</option></select>
+      <div class="inline-gap"><select name="channel" aria-label="Canal">${composerChannels.map(([value, label]) => `<option value="${value}"${value === channel ? ' selected' : ''}>${label}</option>`).join('')}</select>
         <select name="direction" aria-label="Direção"><option value="Outbound">Enviada</option><option value="Inbound">Recebida</option></select>
         <button type="button" class="secondary" data-act="insert-snippet">Inserir modelo</button>
         <button type="button" class="secondary" data-act="insert-link">Inserir link de rastreamento</button></div>
-      <label class="message-email" hidden>Assunto<input name="subject" maxlength="240" disabled></label>
+      <label class="message-email"${channel === 'Email' ? '' : ' hidden'}>Assunto<input name="subject" maxlength="240"${channel === 'Email' ? '' : ' disabled'}></label>
       <textarea name="body" placeholder="Escreva uma mensagem… use @nome para mencionar alguém da equipe." aria-label="Mensagem" required></textarea>
-      <button class="primary">${i('send',15)} Registrar mensagem</button></form></section>`;
+      <button class="primary" data-compose-submit>${i('send',15)} <span>${composerAction(channel, 'Outbound')}</span></button></form></section>`;
 }
 
 const rail = [['contact','Contato','contacts'],['activity','Atividade','clock'],['opportunities','Oportunidades','leads'],['tasks','Tarefas','check'],

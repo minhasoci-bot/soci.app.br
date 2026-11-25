@@ -43,6 +43,9 @@ try {
   let live = await sub('connect', 'POST');
   check('instância criada', calls.some(c => c.path === '/instance/create' && c.status === 201));
   check('webhook aceito', calls.some(c => c.path.startsWith('/webhook/set/') && c.status < 300));
+  // O endereço que a Evolution guardou tem de ser o que o app aceita (segredo da subconta incluído).
+  const hook = await fetch(`${baseUrl.replace(/\/+$/, '')}/webhook/find/soci_${workspace}`, { headers: { apikey: apiKey } }).then(res => res.json()).catch(() => ({}));
+  check('webhook registrado é o que o app aceita', Boolean(hook?.url) && hook.url === live.webhookUrl);
   // O primeiro QR depende do servidor do WhatsApp: dá até 30 s.
   for (let i = 0; i < 10 && !live.qrcode; i++) {
     await new Promise(done => setTimeout(done, 3000));

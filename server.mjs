@@ -10,6 +10,29 @@ import { createGbpRoutes, createGoogleRoutes } from './routes/google.mjs';
 import { createAgentRoutes } from './routes/agents.mjs';
 import { createStudioRoutes } from './routes/studio.mjs';
 import { createStoreApiRoutes, createStorePageRoutes } from './routes/stores.mjs';
+import { createDocumentRoutes } from './routes/documents.mjs';
+import { createReputationRoutes } from './routes/reputation.mjs';
+import { createSiteRoutes } from './routes/sites.mjs';
+import { createWebinarRoutes } from './routes/webinars.mjs';
+import { createQrRoutes } from './routes/qr.mjs';
+import { createAffiliateRoutes } from './routes/affiliates.mjs';
+import { createOfferApiRoutes, createOfferPageRoutes } from './routes/offers.mjs';
+import { createBookingRoutes } from './routes/booking.mjs';
+import { createPreferenceRoutes } from './routes/preferences.mjs';
+import { createAgencyAppRoutes } from './routes/agency-apps.mjs';
+import { createCertificateRoutes } from './routes/certificates.mjs';
+import { createShareRoutes } from './routes/shares.mjs';
+import { createBlogRoutes } from './routes/blog.mjs';
+import { createChatRoutes } from './routes/chat.mjs';
+import { createFormRoutes } from './routes/forms.mjs';
+import { createWorkflowHookRoutes } from './routes/workflow-hooks.mjs';
+import { createCountdownRoutes } from './routes/countdowns.mjs';
+import { createEmailTrackingRoutes } from './routes/email-tracking.mjs';
+import { createLinkRoutes } from './routes/links.mjs';
+import { createWhatsappRoutes, createWhatsappWebhookRoutes } from './routes/whatsapp.mjs';
+import { createConnectorHookRoutes, createConnectorRoutes } from './routes/connectors.mjs';
+import { createPhoneRoutes, createTwilioWebhookRoutes } from './routes/phone.mjs';
+import { createPushRoutes } from './routes/push.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -34,13 +57,8 @@ import { brandFromPage, fetchPublicPage } from './brand-model.mjs';
 import { brandVoicePrompt, defaultBoard, voiceTraits } from './ui/brand-data.js';
 import { contentModule } from './ui/content-ai-data.js';
 import { runWorkflowAI } from './workflow-ai.mjs';
-import { reviewTokenHash } from './reputation-model.mjs';
-import { renderReviewPage, reviewPageCsp } from './reputation-page.mjs';
 import { mediaRowId } from './reputation-media.mjs';
-import { collectorCsp, renderCollector, renderWidget, widgetCsp, widgetLoader } from './reputation-widget.mjs';
-import { addPage, chatEntry, countVisit, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, previewHeaders, publicHeaders, publish, renamePage, renderPublic, restoreVersion, savePage, siteRowId, withEmbeds, withMotion } from './studio-site.mjs';
-import { hasSiteTemplate, siteTemplatePreview } from './site-templates/index.mjs';
-import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
+import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, replaceBilling } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
@@ -50,7 +68,7 @@ import { R2_MAX_BYTES, r2FromEnv } from './r2-storage.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
 import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
-import { hasPixels, injectPixels, pixelsScript, trackerScript, trackingOf, widenCsp } from './tracking.mjs';
+import { hasPixels, injectPixels, widenCsp } from './tracking.mjs';
 import { createTrackingLog } from './tracking-events.mjs';
 import { scopedReads } from './read-scope.mjs';
 import { createLedgerFlush, isAgencyRow, watchLedger } from './ledger-flush.mjs';
@@ -61,8 +79,6 @@ import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
 import { freshSecret, googleConfigured, googleError, googleReports, listLocations, locationDetails, searchError, searchReport } from './google-integrations.mjs';
 import { gbpChecklist } from './ui/gbp-data.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { affiliatePortal, portalTokenHash } from './affiliate-model.mjs';
-import { affiliatePageCsp, renderPortal, renderSignup } from './affiliate-page.mjs';
 
 // Per request: the affiliate referral cookies a public visitor carries (one per workspace).
 const requestScope = new AsyncLocalStorage();
@@ -77,18 +93,6 @@ function touchesOf(req) {
   }
   return out;
 }
-// Sites and funnels published on the Soci: a random visitor id, linked to the contact when the visitor sends
-// the site's form, so later page views can fire "Página do site ou funil visitada".
-const siteVisitorCookie = workspace => `soci_sv_${workspace.replace(/[^\w-]/g, '')}`;
-function siteVisitorOf(req, workspace) {
-  const name = siteVisitorCookie(workspace);
-  for (const part of String(req.headers.cookie || '').split(';')) {
-    const [key, value = ''] = part.trim().split('=');
-    if (key === name && /^[a-z0-9]{6,40}$/i.test(value)) return value;
-  }
-  return '';
-}
-const affiliateCookie = workspace => `soci_af_${workspace.replace(/[^\w-]/g, '')}`;
 function referralsOf(req) {
   const refs = {};
   for (const part of String(req.headers.cookie || '').split(';')) {
@@ -114,20 +118,13 @@ import { createPhoneHandler } from './phone-server.mjs';
 import { CHUNK_BYTES } from './reputation-media.mjs';
 import { network } from './ui/social-data.js';
 import { writeCaption } from './social-ai.mjs';
-import { findSharedReport, reportMailer, sharedReportPage } from './report-share.mjs';
+import { reportMailer } from './report-share.mjs';
 import { documentMailer, documentMessage } from './document-mail.mjs';
 import { campaignMailer } from './email-campaign-send.mjs';
-import { countdownGif } from './countdown-gif.mjs';
-import { deadlineOf, embedPage } from './ui/countdown-data.js';
 import { emailDomains, workspaceSender } from './email-domain.mjs';
-import { tokenHash as documentTokenHash } from './document-model.mjs';
-import { estimateTokenHash } from './estimate-model.mjs';
-import { invoiceTokenHash } from './invoice-model.mjs';
 import { abandonedOf } from './checkout-model.mjs';
 import { reportsDue } from './report-model.mjs';
 import { brandGroupData } from './ui/brand-group-data.js';
-import { brandGroupPage } from './brand-group-page.mjs';
-import { presentationPageHtml } from './presentation-model.mjs';
 import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
@@ -135,31 +132,19 @@ import { createAbacatePayHandler } from './abacatepay.mjs';
 import { makeClientPortal } from './client-portal.mjs';
 import { makeCommunity } from './community.mjs';
 import { fillWelcome } from './community-config.mjs';
-import { certificateCsp, certificatePage } from './course-credentials.mjs';
-import { preferenceCsp, preferencePage, preferenceView } from './preference-model.mjs';
-import { leaveCsp, leavePage, outcomeOf, resolveDestination } from './destinations.mjs';
-import { bookingCsp, bookingEmbedCsp, bookingPage, bookingView, clockIn, zoneOf } from './scheduling-model.mjs';
+import { leaveCsp, leavePage } from './destinations.mjs';
 import { audioLimit, audioTypes, summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
 import { askAssistant } from './seo-ai.mjs';
 import { addTopup, closeUsage, disputeTopup, paidTopup, pricingFor, reverseTopup, usageToClose, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
-import { desktopCsp, desktopLaunchPage, desktopManifest, desktopOf, desktopWorker } from './agency-desktop.mjs';
-import { assetLinksFor, mobileConfig, mobileCsp, mobileLaunchPage, mobileManifest, mobileOf, mobileWorker, storePackage } from './agency-mobile.mjs';
-import { pushConfigured, pushSubscription, sendPush } from './web-push.mjs';
+import { sendPush } from './web-push.mjs';
 import { pushTargets } from './push-model.mjs';
-import { pollConnector, readWebhook, runConnectorAction, testConnection } from './connectors.mjs';
-import { connectorPublic, pollJobs } from './connector-model.mjs';
-import { connectorById, connectors as connectorCatalog } from './ui/connectors-data.js';
-import { seal as sealSecret, unseal as unsealSecret } from './social-providers.mjs';
+import { pollConnector, runConnectorAction } from './connectors.mjs';
+import { pollJobs } from './connector-model.mjs';
+import { unseal as unsealSecret } from './social-providers.mjs';
 import { createMcpHandler } from './mcp-server.mjs';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { chatHistory } from './chat-model.mjs';
-import { chatPage, demoPage, loaderScript } from './ui/chat-widget-data.js';
-import { blogHome, blogPost, blogRss, isLive } from './ui/blog-data.js';
-import { localDraft, postSeo, writePost } from './blog-ai.mjs';
-import { renderOfferPage, offerPageCsp } from './offer-page.mjs';
+import { randomBytes } from 'node:crypto';
+import { postSeo, writePost } from './blog-ai.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
-import { calendarFile, registrationPage, roomPage } from './ui/webinar-data.js';
-import { deviceOf, qrTarget } from './qr-model.mjs';
 import { ASSET_PATH, assetBytes, extractAssets, saveAssets } from './asset-store.mjs';
 import { inBackground } from './background.mjs';
 import { createEventSender } from './event-sender.mjs';
@@ -227,57 +212,15 @@ const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
 const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community|offer-grant|loyalty|admin-enter|files|push)(?:/([0-9a-f-]{36}))?$`);
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
-const chatPath = new RegExp(`^/chat/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js|demo))?/?$`);
-const chatApi = new RegExp(`^/api/chat/${workspaceSegment}/([0-9a-f-]{36})/(start|send|messages)$`);
-const webinarPath = new RegExp(`^/w/${workspaceSegment}/([0-9a-f-]{36})(?:/(sala|agenda\\.ics))?/?$`);
-const webinarApi = new RegExp(`^/api/webinar/${workspaceSegment}/([0-9a-f-]{36})/register$`);
-const qrPath = new RegExp(`^/q/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
-const reviewPagePath = new RegExp(`^/avaliar/${workspaceSegment}(?:/([0-9a-f]{48}))?/?$`);
-const reviewApi = new RegExp(`^/api/avaliar/${workspaceSegment}$`);
-const widgetPath = new RegExp(`^/rw/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js))?/?$`);
-const videoPath = new RegExp(`^/v/${workspaceSegment}/([0-9a-f-]{36})$`);
-const collectorPath = new RegExp(`^/depoimento/${workspaceSegment}/([0-9a-f-]{36})/?$`);
-const collectorApi = new RegExp(`^/api/depoimento/${workspaceSegment}/([0-9a-f-]{36})/(start|chunk|finish)$`);
-const affiliateLink = new RegExp(`^/r/${workspaceSegment}/([a-z0-9]{3,20})(?:/([0-9a-f-]{36}))?/?$`);
-const affiliatePagePath = new RegExp(`^/afiliados/${workspaceSegment}(?:/([0-9a-f]{48}))?/?$`);
-const affiliateSignupApi = new RegExp(`^/api/afiliados/${workspaceSegment}/signup$`);
-const offerPath = new RegExp(`^/oferta/${workspaceSegment}/([0-9a-f-]{36})/?$`);
-const certificatePath = new RegExp(`^/certificado/${workspaceSegment}/([0-9A-F]{12})/?$`);
-const preferencePath = new RegExp(`^/preferencias/${workspaceSegment}/([0-9a-f]{32})/?$`);
-const bookingPath = new RegExp(`^/agendar/${workspaceSegment}/?$`);
-const desktopPath = /^\/desktop\/([\w-]{1,60})\/(manifest\.webmanifest|sw\.js|icon-(?:192|512|1024)\.png)?$/;
-const mobilePath = /^\/mobile\/([\w-]{1,60})\/(manifest\.webmanifest|sw\.js|config\.json|icon-(?:192|512|1024)\.png)?$/;
-const offerApi = new RegExp(`^/api/offer/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout|cart|restore|review|view)$`);
-const blogPath = new RegExp(`^/b/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,80}|rss\\.xml))?/?$`);
-const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
-const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
-const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const emailTrackPath = new RegExp(`^/e/(o|c|u)/${workspaceSegment}/([0-9a-f]{24})(?:/([0-9]{1,3}))?$`);
-const countdownPath = new RegExp(`^/cd/${workspaceSegment}/([0-9a-f-]{36})([.]gif)?$`);
-// A transparent 1x1 GIF for timers that no longer exist (an e-mail must not show a broken image).
-const blankGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
-const hookPath = new RegExp(`^/hooks/${workspaceSegment}/([0-9a-f-]{36})/([a-z0-9]{6,40})$`, 'i');
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialInvitePath = new RegExp(`^/social-connect/${workspaceSegment}/?$`);
 const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
-const signPagePath = new RegExp(`^/assinar/${workspaceSegment}/?$`);
-const signApiPath = new RegExp(`^/api/assinar/${workspaceSegment}$`);
-const estimatePagePath = new RegExp(`^/orcamento/${workspaceSegment}/?$`);
-const estimateApiPath = new RegExp(`^/api/orcamento/${workspaceSegment}$`);
-const invoicePagePath = new RegExp(`^/fatura/${workspaceSegment}/?$`);
-const invoiceApiPath = new RegExp(`^/api/fatura/${workspaceSegment}$`);
-const brandGroupRoute = /^\/marcas\/([0-9a-f]{64})\/?$/;
-const presentationRoute = /^\/apresentacao\/([0-9a-f]{64})\/?$/;
-const sharedReportRoute = new RegExp(`^/relatorio/${workspaceSegment}/([0-9a-f]{64})/?$`);
-const templatePreviewPath = /^\/studio-template\/([a-z0-9-]{1,40})\/([a-z0-9-]{1,40})$/;
-const previewPath = new RegExp(`^/studio-preview/${workspaceSegment}/([0-9a-f-]{36})/([0-9a-f-]{36})$`);
 // Pages a visitor lands on (sites, forms, offers, store, blog, webinars, QR codes and links): they remember the visit's source.
 // The tracking script (/t/<workspace>.js), the pixels loader (/t/<workspace>/pixels.js) and events (/t/<workspace>/e).
 const trackingPath = new RegExp(`^/t/${workspaceSegment}(\\.js|/pixels\\.js|/e)$`);
 const landingPath = new RegExp(`^/(s|form|oferta|loja|b|w|q|r)/${workspaceSegment}(?:/|$)`);
-const sitePath = new RegExp(`^/s/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,48}))?$`);
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 function publicAgency(agency, who) {
@@ -1350,7 +1293,7 @@ export function makeServer({
   // Documentos e contratos: signing links by e-mail/WhatsApp, and a per-IP limit on the public signing API.
   // Serviços de e-mail: the sub-account's verified sending domain, or '' to send from the platform address.
   const sendingAddress = async workspace => { try { return workspaceSender(await store.load(`email-${workspace}`)); } catch { return ''; } };
-  const signHits = new Map(), testHits = new Map(), countdownCache = new Map(), trackingHits = new Map();
+  const signHits = new Map(), testHits = new Map(), trackingHits = new Map();
   const trackingLog = createTrackingLog({ store });
   // Tracking events: up to 300 per connection every 10 minutes.
   const allowTracking = ip => {
@@ -2226,6 +2169,33 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const storeApiRoute = createStoreApiRoutes({ store, ready, error, abacate, allowSign, allowTracking, change, flushLater, payload, publicAccountPolicy, publicBase, storeApi });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
   const portalRoute = createPortalRoutes({ store, auth, ready, root, error, portalApi, portalPage, abacate, change, clientPortal, community, flushLater, grantOffer, payload, publicAccountPolicy, publicBase, requireActiveAccount, workspaceAccess });
+  const documentRoute = createDocumentRoutes({ store, ready, root, error, workspaceSegment, abacate, allowSign, change, flushLater, payload, publicAccountPolicy, publicBase });
+  const affiliateRoute = createAffiliateRoutes({ store, ready, error, workspaceSegment, allowSign, change, flushLater, payload, publicAccountPolicy, publicBase, referralsOf });
+  const offerPageRoute = createOfferPageRoutes({ store, ready, error, workspaceSegment, clientPortal, publicAccountPolicy, withPixels });
+  const offerApiRoute = createOfferApiRoutes({ store, ready, error, workspaceSegment, abacate, change, grantOffer, payload, publicAccountPolicy, publicBase });
+  const bookingRoute = createBookingRoutes({ store, ready, error, workspaceSegment, allowSign, change, flushLater, formBody, leave, publicAccountPolicy, withPixels });
+  const preferenceRoute = createPreferenceRoutes({ store, ready, error, workspaceSegment, change, flushLater, formBody, publicAccountPolicy });
+  const agencyAppRoute = createAgencyAppRoutes({ store, auth, ready, error, loadAgency });
+  const certificateRoute = createCertificateRoutes({ store, ready, error, workspaceSegment, publicAccountPolicy });
+  const shareRoute = createShareRoutes({ store, ready, error, workspaceSegment, brandWorkspaces, publicAccountPolicy });
+  const blogRoute = createBlogRoutes({ store, ready, error, workspaceSegment, brandVoiceOf, change, content, meteredAI, openAI, payload, publicAccountPolicy, publicBase, publicPreview, withPixels, workspaceAccess });
+  const chatRoute = createChatRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, workspaceAccess });
+  const formRoute = createFormRoutes({ store, ready, error, workspaceSegment, change, formBody, leave, publicAccountPolicy, withPixels, workspaceAccess });
+  const workflowHookRoute = createWorkflowHookRoutes({ store, ready, error, workspaceSegment, change, flushLater, payload, publicAccountPolicy });
+  const countdownRoute = createCountdownRoutes({ store, ready, workspaceSegment, publicAccountPolicy });
+  const emailTrackRoute = createEmailTrackingRoutes({ store, ready, workspaceSegment, change, flushLater, publicAccountPolicy });
+  const linkRoute = createLinkRoutes({ store, ready, workspaceSegment, publicAccountPolicy });
+  const whatsappWebhookRoute = createWhatsappWebhookRoutes({ whatsapp, payload, listWorkspaces, webhookBlockReason, flushLater });
+  const connectorHookRoute = createConnectorHookRoutes({ store, ready, error, change, flushLater, publicAccountPolicy, connectorAuth });
+  const twilioRoute = createTwilioWebhookRoutes({ ready, phone });
+  const connectorRoute = createConnectorRoutes({ store, error, spaceId, privateSpace, change, payload, publicBase, requireActiveAccount, workspaceAccess, connectorRequest });
+  const pushRoute = createPushRoutes({ error, spaceId, privateSpace, change, payload, pushEnv, access, loadAgency, workspaceAccess });
+  const phoneRoute = createPhoneRoutes({ error, spaceId, privateSpace, phone, payload, workspaceAccess });
+  const whatsappRoute = createWhatsappRoutes({ error, spaceId, whatsapp, waha, payload, publicBase, listWorkspaces, requireActiveAccount, webhookBlockReason, access, workspaceAccess });
+  const siteRoute = createSiteRoutes({ store, ready, error, workspaceSegment, trackingPath, allowTracking, change, changeSite, flushLater, formFields, publicAccountPolicy, publicBase, siteDoc, studioGuard, trackingLog, withPixels });
+  const webinarRoute = createWebinarRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, publicBase, publicPreview });
+  const qrRoute = createQrRoutes({ store, ready, workspaceSegment, change, publicAccountPolicy, publicBase });
+  const reputationRoute = createReputationRoutes({ store, ready, error, workspaceSegment, allowSign, change, clientPortal, flushLater, moveVideoToR2, payload, publicAccountPolicy, publicBase, sendVideo });
   const server=createServer(async (req,res) => {
     const requestPath = String(req.url || '/').split('?')[0];
     const touches = touchesOf(req), landing = requestPath.match(landingPath);
@@ -2407,114 +2377,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!row) throw error('Vídeo indisponível.', 404);
         return await sendVideo(req, res, method, workspace, row, 'public, max-age=86400');
       }
-      const signPage = p.match(signPagePath);
-      if (signPage && method === 'GET') {
-        await ready;
-        await publicAccountPolicy(signPage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
-        res.setHeader('Referrer-Policy', 'no-referrer');
-        res.setHeader('X-Robots-Tag', 'noindex');
-        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/document-sign.html')));
-      }
-      const signCall = p.match(signApiPath);
-      if (signCall) {
-        await ready;
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const workspace = signCall[1];
-        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
-        const input = await payload(req);
-        const action = ['open', 'sign', 'decline', 'pay'].includes(input.action) ? input.action : '';
-        if (!action) throw error('Ação inválida para este link.',400);
-        const digest = documentTokenHash(input.token);
-        if (!digest) throw error('Este link não é válido.',404);
-        await publicAccountPolicy(workspace, action !== 'open', 'payments');
-        if (action === 'pay') {
-          const due = (await change(workspace, { type: 'document-payable', data: { tokenHash: digest } })).id;
-          const current = await store.load(workspace), agencyId = current.agencyId || AGENCY_ID;
-          if (!(await abacate.connected(agencyId, workspace))) throw error('O pagamento online ainda não está disponível. Fale com quem enviou o documento.',409);
-          const page = `${publicBase(req)}/assinar/${workspace}`;
-          const back = { returnUrl: `${page}?pagamento=voltou`, completionUrl: `${page}?pagamento=ok` };
-          if (due.kind === 'invoice') return json({ url: (await abacate.chargeInvoice(agencyId, workspace, due.invoiceId, publicBase(req), back)).url });
-          if (due.checkout) return json({ url: due.checkout.url });
-          const checkout = await abacate.subscribeWorkspace(agencyId, workspace, { reference: `doc-${due.docId}`, name: due.title, amount: due.amount, ...back, metadata: { workspace, documentId: due.docId } });
-          await change(workspace, { type: 'document-subscription-checkout', data: { docId: due.docId, checkout } });
-          return json({ url: checkout.url });
-        }
-        const result = await change(workspace, { type: `document-${action}`, data: { tokenHash: digest, ip, userAgent: String(req.headers['user-agent'] || ''), origin: publicBase(req),
-          values: input.values, items: input.items, accept: input.accept, reason: input.reason } });
-        if (result.state.workflowOutbox?.length) flushLater(workspace);
-        if (result.id?.payment) result.id.payment.online = await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false);
-        return json(result.id);
-      }
-      const estimatePage = p.match(estimatePagePath);
-      if (estimatePage && method === 'GET') {
-        await ready;
-        await publicAccountPolicy(estimatePage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
-        res.setHeader('Referrer-Policy', 'no-referrer');
-        res.setHeader('X-Robots-Tag', 'noindex');
-        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/estimate-view.html')));
-      }
-      const estimateCall = p.match(estimateApiPath);
-      if (estimateCall) {
-        await ready;
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const workspace = estimateCall[1];
-        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
-        const input = await payload(req);
-        const action = ['open', 'accept', 'decline', 'pay'].includes(input.action) ? input.action : '';
-        if (!action) throw error('Ação inválida para este link.',400);
-        const digest = estimateTokenHash(input.token);
-        if (!digest) throw error('Este link não é válido.',404);
-        await publicAccountPolicy(workspace, action !== 'open', 'payments');
-        if (action === 'pay') {
-          const due = (await change(workspace, { type: 'estimate-payable', data: { tokenHash: digest } })).id;
-          const current = await store.load(workspace), agencyId = current.agencyId || AGENCY_ID;
-          if (!(await abacate.connected(agencyId, workspace))) throw error('O pagamento online ainda não está disponível. Fale com quem enviou o orçamento.',409);
-          const page = `${publicBase(req)}/orcamento/${workspace}`;
-          return json({ url: (await abacate.chargeInvoice(agencyId, workspace, due.invoiceId, publicBase(req), { returnUrl: `${page}?pagamento=voltou`, completionUrl: `${page}?pagamento=ok` })).url });
-        }
-        const result = await change(workspace, { type: `estimate-${action}`, data: { tokenHash: digest, ip, userAgent: String(req.headers['user-agent'] || ''), origin: publicBase(req),
-          name: input.name, items: input.items, reason: input.reason } });
-        if (result.state.workflowOutbox?.length) flushLater(workspace);
-        if (result.id?.invoice) result.id.online = await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false);
-        return json(result.id);
-      }
-      const invoicePage = p.match(invoicePagePath);
-      if (invoicePage && method === 'GET') {
-        await ready;
-        await publicAccountPolicy(invoicePage[1], false, 'payments');
-        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
-        res.setHeader('Referrer-Policy', 'no-referrer');
-        res.setHeader('X-Robots-Tag', 'noindex');
-        return send(200, 'text/html; charset=utf-8', readFileSync(resolve(root, 'ui/invoice-view.html')));
-      }
-      const invoiceCall = p.match(invoiceApiPath);
-      if (invoiceCall) {
-        await ready;
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const workspace = invoiceCall[1];
-        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.',429);
-        const input = await payload(req);
-        const action = ['open', 'pay'].includes(input.action) ? input.action : '';
-        if (!action) throw error('Ação inválida para este link.',400);
-        const digest = invoiceTokenHash(input.token);
-        if (!digest) throw error('Este link não é válido.',404);
-        await publicAccountPolicy(workspace, action !== 'open', 'payments');
-        if (action === 'pay') {
-          const due = (await change(workspace, { type: 'invoice-payable', data: { tokenHash: digest } })).id;
-          const current = await store.load(workspace), agencyId = current.agencyId || AGENCY_ID;
-          if (!(await abacate.connected(agencyId, workspace))) throw error('O pagamento online ainda não está disponível. Fale com quem enviou a fatura.',409);
-          const page = `${publicBase(req)}/fatura/${workspace}`;
-          return json({ url: (await abacate.chargeInvoice(agencyId, workspace, due.invoiceId, publicBase(req), { returnUrl: `${page}?pagamento=voltou`, completionUrl: `${page}?pagamento=ok` })).url });
-        }
-        const result = await change(workspace, { type: 'invoice-open', data: { tokenHash: digest } });
-        result.id.online = result.id.payable ? await abacate.connected(result.state.agencyId || AGENCY_ID, workspace).catch(() => false) : false;
-        return json(result.id);
-      }
+      const documentRouteHandled = await documentRoute({ req, res, p, method, json, send });
+      if (documentRouteHandled !== NEXT_ROUTE) return documentRouteHandled;
       if (p==='/api/state' && method!=='POST') {
         if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
         const { agency, who: actor } = await accessContext(req,await verifiedUser(req,res));
@@ -2760,102 +2624,22 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         throw error('Not found.', 404);
       }
-      if (p.startsWith('/api/whatsapp/webhook/') && method === 'POST') {
-        return await whatsapp.handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json, onStored: flushLater });
-      }
-      const appHook = p.match(/^\/api\/connectors\/hook\/(demo|[0-9a-f-]{36})\/([a-z_]{2,40})\/([\w-]{20,80})$/);
-      if (appHook && method === 'POST') {
-        await ready;
-        const [, workspace, appId, token] = appHook;
-        let size = 0; const chunks = [];
-        for await (const chunk of req) { size += chunk.length; if (size > 1_000_000) throw error('Payload too large.', 413); chunks.push(chunk); }
-        const state = await Promise.resolve().then(() => store.load(workspace)).catch(() => null), row = state?.connectors?.[appId];
-        const given = Buffer.from(token), expected = Buffer.from(String(row?.hook || ''));
-        if (!row || given.length !== expected.length || !timingSafeEqual(given, expected)) throw error('Not found.', 404);
-        if (!await publicAccountPolicy(workspace, true, 'automation').catch(() => false)) return json({ ok: true, ignored: true });
-        const read = readWebhook(appId, { raw: Buffer.concat(chunks).toString('utf8'), headers: req.headers, auth: connectorAuth(row) });
-        for (const event of read.events.slice(0, 50)) await change(workspace, { type: 'connector-event', data: { connector: appId, key: event.key, ctx: event.ctx, contact: event.contact } });
-        if (read.events.length) flushLater(workspace);
-        return json(read.reply || { ok: true });
-      }
-      if (p.startsWith('/api/phone/twilio/') && method === 'POST') {
-        await ready;
-        return await phone.twilioWebhook(req, res, url, p);
-      }
+      const whatsappWebhookHandled = await whatsappWebhookRoute({ req, p, method, url, json });
+      if (whatsappWebhookHandled !== NEXT_ROUTE) return whatsappWebhookHandled;
+      const connectorHookHandled = await connectorHookRoute({ req, p, method, json });
+      if (connectorHookHandled !== NEXT_ROUTE) return connectorHookHandled;
+      const twilioRouteHandled = await twilioRoute({ req, res, p, method, url });
+      if (twilioRouteHandled !== NEXT_ROUTE) return twilioRouteHandled;
       const metaRouteHandled = await metaRoute({ req, p, method, url, json, send });
       if (metaRouteHandled !== NEXT_ROUTE) return metaRouteHandled;
-      if (p.startsWith('/api/connectors/') && !p.startsWith('/api/connectors/hook/')) {
-        if (!spaceId.test(id) || privateSpace.test(id)) throw error('Subconta não encontrada.', 404);
-        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
-        const origin = publicBase(req);
-        const view = state => Object.fromEntries(connectorCatalog.map(def => {
-          const row = state.connectors?.[def.id];
-          return [def.id, { ...connectorPublic(row), ...(row?.hook && def.triggers.some(t => !t.poll) ? { hookUrl: `${origin}/api/connectors/hook/${id}/${def.id}/${row.hook}` } : {}) }];
-        }));
-        if (p === '/api/connectors/status' && method === 'GET') return json({ connectors: view(await store.load(id)) });
-        if (method !== 'POST') throw error('Método indisponível.', 405);
-        await requireActiveAccount(who.agencyId, id, true);
-        const body = await payload(req), def = connectorById(String(body.id || ''));
-        if (!def) throw error('Conector não encontrado.', 404);
-        if (p === '/api/connectors/connect') {
-          const auth = Object.fromEntries(def.auth.map(field => [field.key, String(body.fields?.[field.key] ?? '').trim().slice(0, 20000)]));
-          const account = await testConnection(def.id, auth, { request: connectorRequest });
-          const result = await change(id, { type: 'connector-save', data: { id: def.id, sealed: sealSecret(JSON.stringify(auth)), account, hook: randomBytes(24).toString('base64url') } });
-          return json({ connectors: view(result.state) });
-        }
-        if (p === '/api/connectors/disconnect') return json({ connectors: view((await change(id, { type: 'connector-remove', data: { id: def.id } })).state) });
-        throw error('Not found.', 404);
-      }
-      if (p === '/api/push/key' && method === 'GET') return json({ key: pushConfigured(pushEnv) ? pushEnv.WEB_PUSH_PUBLIC_KEY : '' });
-      if ((p === '/api/push/subscribe' || p === '/api/push/unsubscribe') && method === 'POST') {
-        if (!spaceId.test(id) || privateSpace.test(id)) throw error('Subconta não encontrada.', 404);
-        const who = await workspaceAccess(req, res, id, { modules: ['conversations'] });
-        const body = await payload(req);
-        if (p === '/api/push/unsubscribe') return json({ removed: (await change(id, { type: 'push-unsubscribe', data: { endpoint: String(body.endpoint || '') } })).id });
-        const sub = pushSubscription(body.subscription);
-        if (!sub) throw error('Inscrição de notificação inválida.', 400);
-        return json({ id: (await change(id, { type: 'push-subscribe', data: { ...sub, kind: 'team', userId: who.userId || 'local', app: String(body.app || '').slice(0, 80), messages: body.messages !== false } })).id });
-      }
-      if (p === '/api/mobile-app/package' && method === 'GET') {
-        const who = await access(req, res);
-        requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
-        const agencyId = who.agencyId || AGENCY_ID;
-        return json(storePackage(mobileOf(structuredClone(await loadAgency(agencyId))), agencyId, `${isVercel || req.socket?.encrypted ? 'https' : 'http'}://${req.headers.host}`));
-      }
-      if (p.startsWith('/api/phone/')) {
-        if (!spaceId.test(id) || privateSpace.test(id)) throw error('Subconta não encontrada.', 404);
-        const who = await workspaceAccess(req, res, id, { modules: [] });
-        const body = method === 'POST' ? await payload(req) : {};
-        return await phone.api(req, res, { url, path: p.replace(/\/+$/, ''), method, workspace: id, who, body, json, needs: module => requireModule(who, module) });
-      }
-      if (p.startsWith('/api/whatsapp/agency/')) {
-        const who = await access(req, res);
-        requireCapability(who, 'settings', 'Seu usuário não pode gerenciar a integração global com WhatsApp.');
-        return await whatsapp.handleAgencyApi({
-          req, url, method, who, payload, publicOrigin: publicBase(req), listWorkspaces, requireActiveAccount, json
-        });
-      }
-      if (p.startsWith('/api/whatsapp/workspace/')) {
-        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
-        const op = p.replace(/\/+$/, '').slice('/api/whatsapp/workspace/'.length);
-        // Os grupos são de quem planeja eventos; o resto da conexão, de quem cuida das configurações.
-        const who = await workspaceAccess(req, res, id, { modules: method === 'GET' && op === 'groups' ? ['marketing', 'conversations'] : ['settings'] });
-        if (method === 'POST' && op === 'test') requireModule(who, 'conversations');
-        return await whatsapp.handleWorkspaceApi({
-          req, url, method, agencyId: who.agencyId, workspaceId: id, payload, publicOrigin: publicBase(req), requireActiveAccount, json
-        });
-      }
-      if (p.startsWith('/api/waha/webhook/') && method === 'POST') {
-        return await waha.handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json });
-      }
-      if (p.startsWith('/api/waha/')) {
-        const who = await access(req, res);
-        requireCapability(who, 'settings', 'Seu usuário não pode gerenciar a integração com WhatsApp.');
-        if (method === 'POST' && p.replace(/\/+$/, '') === '/api/waha/test') requireModule(who, 'conversations');
-        return await waha.handleApi({
-          req, res, url, method, who, payload, publicOrigin: publicBase(req), listWorkspaces, requireActiveAccount, json
-        });
-      }
+      const connectorRouteHandled = await connectorRoute({ req, res, p, method, id, json });
+      if (connectorRouteHandled !== NEXT_ROUTE) return connectorRouteHandled;
+      const pushRouteHandled = await pushRoute({ req, res, p, method, id, json, isVercel });
+      if (pushRouteHandled !== NEXT_ROUTE) return pushRouteHandled;
+      const phoneRouteHandled = await phoneRoute({ req, res, p, method, url, id, json });
+      if (phoneRouteHandled !== NEXT_ROUTE) return phoneRouteHandled;
+      const whatsappRouteHandled = await whatsappRoute({ req, res, p, method, url, id, json });
+      if (whatsappRouteHandled !== NEXT_ROUTE) return whatsappRouteHandled;
       if (p === '/api/mcp' || p.startsWith('/api/mcp/')) {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -3128,721 +2912,48 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (pranchetaRouteHandled !== NEXT_ROUTE) return pranchetaRouteHandled;
       const studioRouteHandled = await studioRoute({ req, res, p, method, url, id, json });
       if (studioRouteHandled !== NEXT_ROUTE) return studioRouteHandled;
-      // Prévia dos modelos de site da galeria: conteúdo fixo do catálogo, sem dados de cliente.
-      const templatePreview = p.match(templatePreviewPath);
-      if (templatePreview && method === 'GET') {
-        const [, templateId, slug] = templatePreview;
-        if (!hasSiteTemplate(templateId)) throw error('Modelo de site não encontrado.',404);
-        const thumb = url.searchParams.has('thumb');
-        const html = siteTemplatePreview(templateId, slug, { thumb });
-        const [headers, body] = thumb ? [previewHeaders, html] : withMotion(previewHeaders, html);
-        res.writeHead(200, { ...headers, 'Cache-Control': 'no-cache' });
-        return res.end(body);
-      }
-      const preview = p.match(previewPath);
-      if (preview && method === 'GET') {
-        await ready;
-        const [, workspace, projectId, pageId] = preview;
-        await studioGuard(req,res,workspace);
-        const doc = await siteDoc(workspace, projectId);
-        const page = findPage(doc, pageId);
-        const etag = `W/"${projectId}-${pageId}-${doc.rev || 0}"`;
-        if (req.headers['if-none-match'] === etag) {
-          res.writeHead(304, { ...previewHeaders, 'ETag': etag, 'Cache-Control': 'private, no-cache' });
-          return res.end();
-        }
-        res.writeHead(200, { ...previewHeaders, 'ETag': etag, 'Cache-Control': 'private, no-cache' });
-        return res.end(page.html);
-      }
-      // Rastreamento externo: the script for the business's site, the pixels loader and the events endpoint.
-      const tracker = p.match(trackingPath);
-      if (tracker) {
-        await ready;
-        const [, workspace, part] = tracker;
-        if (part === '/e') {
-          if (method !== 'POST') throw error('Method not allowed.', 405);
-          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-          const cors = { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' };
-          if (!allowTracking(ip)) { res.writeHead(429, cors); return res.end(); }
-          await publicAccountPolicy(workspace, true, 'sites');
-          let size = 0; const chunks = [];
-          for await (const chunk of req) { size += chunk.length; if (size > 64_000) throw error('Evento grande demais.', 413); chunks.push(chunk); }
-          let data;
-          try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw error('Evento inválido.', 400); }
-          if (!data || typeof data !== 'object' || Array.isArray(data)) throw error('Evento inválido.', 400);
-          if (await trackingLog.record(workspace, data, req.headers.origin)) flushLater(workspace);
-          res.writeHead(204, cors); return res.end();
-        }
-        if (method !== 'GET' && method !== 'HEAD') throw error('Method not allowed.', 405);
-        await publicAccountPolicy(workspace, false, 'sites');
-        const t = trackingOf(await store.load(workspace));
-        const body = part === '/pixels.js' ? pixelsScript(t) : trackerScript(workspace, publicBase(req), t);
-        res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Access-Control-Allow-Origin': '*', 'Cross-Origin-Resource-Policy': 'cross-origin' });
-        return res.end(method === 'HEAD' ? undefined : body);
-      }
-      const site = p.match(sitePath);
-      if (site) {
-        await ready;
-        const [, workspace, projectId, slug = 'index'] = site;
-        const active = await publicAccountPolicy(workspace, method === 'POST', 'sites');
-        const base = `/s/${workspace}/${projectId}`;
-        const doc = await siteDoc(workspace, projectId, false).catch(() => null);
-        if (!doc?.published) throw error('This site is not published.',404);
-        if (method === 'POST') {
-          const fields = await formFields(req);
-          await publicAccountPolicy(workspace, true, 'sites');
-          const back = fields._page && fields._page !== 'index' ? `${base}/${encodeURIComponent(fields._page)}` : base;
-          const project = (await store.load(workspace)).studioProjects.find(item => item.id === projectId);
-          try {
-            if (!project?.formId) throw error('This site is not accepting submissions.',404);
-            const vid = siteVisitorOf(req, workspace) || randomBytes(12).toString('hex');
-            const sent = await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _message:fields.message, _source:'Site', _vid:vid } });
-            const order = doc.published.pages;
-            const from = order.findIndex(item => item.slug === (fields._page || 'index'));
-            if (from >= 0) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, order[from].id, 'optins'))).catch(() => {});
-            const next = project.kind === 'funnel' && from >= 0 ? order[from + 1] : null;
-            const secure = String(req.headers['x-forwarded-proto'] || '').includes('https') || publicBase(req).startsWith('https') ? '; Secure' : '';
-            res.setHeader('Set-Cookie', [...[res.getHeader('Set-Cookie') || []].flat(), `${siteVisitorCookie(workspace)}=${vid}; Max-Age=${365 * 86400}; Path=/; HttpOnly; SameSite=Lax${secure}`]);
-            const event = hasPixels((await store.load(workspace)).tracking) ? `soci_ev=lead.${sent.id}` : '';
-            res.writeHead(303,{ Location:next ? `${base}/${encodeURIComponent(next.slug)}${event && `?${event}`}` : `${back}?sent=1${event && `&${event}`}` });
-          } catch {
-            res.writeHead(303,{ Location:`${back}?error=1` });
-          }
-          return res.end();
-        }
-        if (method !== 'GET') throw error('Method not allowed.',405);
-        const page = doc.published.pages.find(item => item.slug === slug);
-        if (!page) throw error('Page not found.',404);
-        if (active && !url.searchParams.has('sent') && !url.searchParams.has('error')) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, page.id, 'views'))).catch(() => {});
-        const visitor = active && method === 'GET' ? siteVisitorOf(req, workspace) : '';
-        if (visitor) {
-          // A browser that already sent this sub-account a site form: the view counts for its contact.
-          try { if (await change(workspace, { type:'site-pageview', data:{ projectId, pageId:page.id, page:page.slug, vid:visitor } })) flushLater(workspace); }
-          catch (failure) { console.error(`Site page view (${workspace}): ${failure.message}`); }
-        }
-        const pt = /<html\b[^>]*\blang\s*=\s*["']?pt/i.test(page.html), es = /<html\b[^>]*\blang\s*=\s*["']?es/i.test(page.html);
-        const notice = url.searchParams.has('sent') ? { ok:true, text:pt ? 'Obrigado! Seus dados foram enviados.' : es ? '¡Gracias! Tus datos fueron enviados.' : 'Thank you! Your details were sent.' }
-          : url.searchParams.has('error') ? { ok:false, text:pt ? 'Não foi possível enviar. Confira o nome e o e-mail e tente de novo.' : es ? 'No se pudo enviar. Revisa el nombre y el correo e inténtalo de nuevo.' : 'Your details could not be sent. Check the name and email and try again.' } : '';
-        const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, ...withEmbeds(...withMotion(publicHeaders, renderPublic(page,{ base, notice, workspace, link:url.searchParams.get('link') || '' }))));
-        res.writeHead(200, siteHeaders);
-        return res.end(siteBody);
-      }
-      // Webinars: registration, watch room (attendance when the room is open) and calendar file.
-      const webinarRoute = p.match(webinarPath);
-      if (webinarRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, webinarId, part] = webinarRoute;
-        const active = await publicAccountPolicy(workspace, false, 'sites');
-        const state = await store.load(workspace);
-        const webinar = state.webinars?.find(item => item.id === webinarId);
-        const preview = await publicPreview(req, res, url, workspace);
-        if (!webinar || (!webinar.active && !preview)) throw error('Este webinar não está disponível.',404);
-        const zone = state.profile?.timezone || 'America/Sao_Paulo';
-        const page = body => { res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }); return res.end(method === 'HEAD' ? undefined : body); };
-        if (!part) return page(registrationPage(webinar, { workspace, zone }));
-        const registration = state.webinarRegistrations.find(item => item.webinarId === webinarId && item.token === String(url.searchParams.get('t') || ''));
-        if (!registration) throw error('Inscrição não encontrada. Use o link que você recebeu.',404);
-        const session = webinar.sessions.find(item => item.id === registration.sessionId);
-        if (part === 'agenda.ics') {
-          if (!session) throw error('Sessão não encontrada.',404);
-          res.writeHead(200, { 'Content-Type':'text/calendar; charset=utf-8', 'Content-Disposition':'attachment; filename="webinar.ics"' });
-          return res.end(calendarFile(webinar, session, `${publicBase(req)}/w/${workspace}/${webinarId}/sala?t=${registration.token}`));
-        }
-        const now = Date.now();
-        if (active && session && webinar.active && method === 'GET' && now >= Date.parse(session.start) - webinar.openBefore * 60000 && now < Date.parse(session.start) + session.duration * 60000)
-          await Promise.resolve().then(() => change(workspace,{ type:'webinar-attend', id:webinarId, data:{ token:registration.token } })).catch(() => {});
-        return page(roomPage(webinar, registration, { workspace, zone, at:now }));
-      }
-      const webinarCall = p.match(webinarApi);
-      if (webinarCall) {
-        await ready;
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const [, workspace, webinarId] = webinarCall;
-        const input = await payload(req);
-        await publicAccountPolicy(workspace, true, 'sites');
-        const result = await change(workspace,{ type:'webinar-register', id:webinarId, data:{ name:input.name, email:input.email, phone:input.phone, sessionId:input.sessionId } });
-        const registration = result.state.webinarRegistrations.find(item => item.id === result.id);
-        return json({ room:`/w/${workspace}/${webinarId}/sala?t=${registration.token}` },201);
-      }
-      // QR Codes: count the scan and send the visitor on. The destination can change after printing.
-      const qrRoute = p.match(qrPath);
-      if (qrRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, qrId] = qrRoute;
-        const active = await publicAccountPolicy(workspace, false, 'sites');
-        const state = await store.load(workspace);
-        const qr = state.qrCodes?.find(item => item.id === qrId);
-        const target = qr?.active ? qrTarget(state, qr, { base:publicBase(req), workspace }) : '';
-        if (!target) {
-          res.writeHead(404, { 'Content-Type':'text/html; charset=utf-8', 'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'" });
-          return res.end(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR Code indisponível</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;color:#101828;background:#f2f4f7}main{max-width:420px;padding:32px;border-radius:18px;background:#fff;text-align:center}</style></head><body><main><h1 style="font-size:22px;margin:0 0 8px">Este QR Code não está ativo</h1><p style="margin:0;color:#475467">O destino foi pausado ou removido por quem criou o código.</p></main></body></html>`);
-        }
-        if (active && method === 'GET') {
-          const visitor = `${req.headers['x-forwarded-for'] || req.socket?.remoteAddress || ''}|${req.headers['user-agent'] || ''}`;
-          await Promise.resolve().then(() => change(workspace,{ type:'qr-scan', id:qrId, data:{ visitor, device:deviceOf(String(req.headers['user-agent'] || '')) } })).catch(() => {});
-        }
-        res.writeHead(302, { Location:target, 'Cache-Control':'no-store' });
-        return res.end();
-      }
+      const siteRouteHandled = await siteRoute({ req, res, p, method, url });
+      if (siteRouteHandled !== NEXT_ROUTE) return siteRouteHandled;
+      const webinarRouteHandled = await webinarRoute({ req, res, p, method, url, json });
+      if (webinarRouteHandled !== NEXT_ROUTE) return webinarRouteHandled;
+      const qrRouteHandled = await qrRoute({ req, res, p, method });
+      if (qrRouteHandled !== NEXT_ROUTE) return qrRouteHandled;
       const storePageHandled = await storePageRoute({ req, res, p, method, url });
       if (storePageHandled !== NEXT_ROUTE) return storePageHandled;
-      // Affiliates: the referral link, the program sign-up and the affiliate's private dashboard.
-      const referral = p.match(affiliateLink);
-      if (referral && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, code, campaignId = ''] = referral;
-        await publicAccountPolicy(workspace, false, 'marketing');
-        const clicked = method === 'GET' ? (await change(workspace, { type: 'affiliate-click', data: { code, campaignId } })).id : null;
-        if (!clicked) throw error('Este link de afiliado não está ativo.', 404);
-        const cookie = affiliateCookie(workspace);
-        const current = referralsOf(req)[workspace];
-        const headers = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer',
-          Location: clicked.destination.startsWith('/') ? publicBase(req) + clicked.destination : clicked.destination };
-        // First touch: an earlier referral keeps its credit while it is still valid.
-        if (!current || Date.now() - current.at > clicked.cookieDays * 864e5) {
-          const secure = String(req.headers['x-forwarded-proto'] || '').includes('https') || publicBase(req).startsWith('https') ? '; Secure' : '';
-          headers['Set-Cookie'] = [...[res.getHeader('Set-Cookie') || []].flat(), `${cookie}=${encodeURIComponent(`${clicked.affiliateId}.${clicked.campaignId}.${Date.now()}`)}; Max-Age=${clicked.cookieDays * 86400}; Path=/; HttpOnly; SameSite=Lax${secure}`];
-        }
-        res.writeHead(302, headers);
-        return res.end();
-      }
-      const affiliatePage = p.match(affiliatePagePath);
-      if (affiliatePage && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, token = ''] = affiliatePage;
-        await publicAccountPolicy(workspace, false, 'marketing');
-        const state = await store.load(workspace);
-        let page;
-        if (token) {
-          const portal = affiliatePortal(state, portalTokenHash(token));
-          if (!portal) throw error('Este link de painel não é válido. Peça um novo à empresa.', 404);
-          page = renderPortal(state, portal, { workspace, origin: publicBase(req) });
-        } else page = renderSignup(state, { workspace });
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': affiliatePageCsp, 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' });
-        return res.end(method === 'HEAD' ? undefined : page);
-      }
-      const affiliateJoin = p.match(affiliateSignupApi);
-      if (affiliateJoin && method === 'POST') {
-        await ready;
-        const [, workspace] = affiliateJoin;
-        await publicAccountPolicy(workspace, true, 'marketing');
-        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.', 429);
-        const input = await payload(req);
-        const result = (await change(workspace, { type: 'affiliate-signup', data: { name: input.name, email: input.email, phone: input.phone, pix: input.pix, terms: input.terms === true, website: input.website } })).id;
-        flushLater(workspace);
-        return json(result.token ? { ok: true, approval: result.status, portal: `/afiliados/${workspace}/${result.token}` } : { ok: true }, 201);
-      }
-      // Review widget (iframe page and loader script), approved videos, and the video testimonial collector.
-      const widgetRoute = p.match(widgetPath);
-      if (widgetRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, widgetId, part] = widgetRoute;
-        await publicAccountPolicy(workspace, false, 'reputation');
-        const state = await store.load(workspace);
-        const widget = state.reviewWidgets?.find(row => row.id === widgetId && row.active);
-        if (part) {
-          res.writeHead(widget ? 200 : 404, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Access-Control-Allow-Origin': '*' });
-          return res.end(method === 'HEAD' || !widget ? undefined : widgetLoader({ origin: publicBase(req), workspace, widgetId }));
-        }
-        if (!widget) throw error('Este widget não está ativo.', 404);
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=120', 'Content-Security-Policy': widgetCsp, 'Referrer-Policy': 'no-referrer' });
-        return res.end(method === 'HEAD' ? undefined : renderWidget(state, widget, { workspace }));
-      }
-      const videoRoute = p.match(videoPath);
-      if (videoRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, videoId] = videoRoute;
-        await publicAccountPolicy(workspace, false, 'reputation');
-        const row = (await store.load(workspace)).videoTestimonials?.find(item => item.id === videoId && item.status === 'approved');
-        if (!row) throw error('Vídeo não encontrado.', 404);
-        return await sendVideo(req, res, method, workspace, row, 'public, max-age=600');
-      }
-      const collectorRoute = p.match(collectorPath);
-      if (collectorRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, collectorId] = collectorRoute;
-        await publicAccountPolicy(workspace, false, 'reputation');
-        const state = await store.load(workspace);
-        const collector = state.videoCollectors?.find(row => row.id === collectorId && row.active);
-        if (!collector) throw error('Este link de depoimento não está ativo.', 404);
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': collectorCsp, 'Permissions-Policy': 'camera=(self), microphone=(self)', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' });
-        return res.end(method === 'HEAD' ? undefined : renderCollector(state, collector, { workspace }));
-      }
-      const collectorCall = p.match(collectorApi);
-      if (collectorCall && method === 'POST') {
-        await ready;
-        const [, workspace, collectorId, step] = collectorCall;
-        await publicAccountPolicy(workspace, true, 'reputation');
-        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-        if (step !== 'chunk' && !allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.', 429);
-        const input = await payload(req);
-        const result = (await change(workspace, { type: `video-${step}`, id: collectorId, data: input })).id;
-        if (step === 'chunk') {
-          const rowId = mediaRowId(workspace, result.upload.id, result.index);
-          if (!await store.insert(rowId, { data: result.data })) await store.change(rowId, row => { row.data = result.data; });
-          return json({ ok: true, index: result.index });
-        }
-        if (step === 'finish') { await moveVideoToR2(workspace, result); flushLater(workspace); return json({ ok: true }, 201); }
-        return json(result);
-      }
-      // Review link: the public page (generic or personal) and the review it sends.
-      const reviewRoute = p.match(reviewPagePath);
-      if (reviewRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, token = ''] = reviewRoute;
-        const active = await publicAccountPolicy(workspace, false, 'reputation');
-        const state = await store.load(workspace);
-        const tokenHash = token ? reviewTokenHash(token) : '';
-        const request = tokenHash ? state.reviewRequests?.find(row => row.tokenHash === tokenHash) : null;
-        if (token && !request) throw error('Este link de avaliação não é válido.', 404);
-        if (request && active && method === 'GET' && request.status === 'sent') await Promise.resolve().then(() => change(workspace, { type: 'review-open', data: { tokenHash } })).catch(() => {});
-        const contact = request ? state.contacts.find(row => row.id === request.contactId) : null;
-        const tint = (await clientPortal.directory(workspace).catch(() => null))?.settings?.color || '';
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': reviewPageCsp, 'X-Robots-Tag': 'noindex' });
-        return res.end(method === 'HEAD' ? undefined : renderReviewPage(state, { workspace, token, contactName: contact?.name || '', done: request?.status === 'reviewed', tint }));
-      }
-      const reviewSubmit = p.match(reviewApi);
-      if (reviewSubmit && method === 'POST') {
-        await ready;
-        const [, workspace] = reviewSubmit;
-        await publicAccountPolicy(workspace, true, 'reputation');
-        const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-        if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.', 429);
-        const input = await payload(req);
-        const tokenHash = input.token ? reviewTokenHash(String(input.token)) : '';
-        if (input.token && !tokenHash) throw error('Este link de avaliação não é válido.', 404);
-        const result = await change(workspace, { type: 'review-submit', data: { tokenHash, score: input.score, text: input.text, name: input.name, website: input.website } });
-        if (result.state.workflowOutbox?.length) flushLater(workspace);
-        return json({ ok: true }, 201);
-      }
-      const offerRoute = p.match(offerPath);
-      if (offerRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, offerId] = offerRoute;
-        await publicAccountPolicy(workspace, false, 'memberships');
-        const state = await store.load(workspace);
-        const offer = state.offers?.find(row => row.id === offerId && row.status === 'published');
-        if (!offer) throw error('Esta oferta não está disponível.',404);
-        const color = (await clientPortal.directory(workspace)).settings?.color || '';
-        const status = ['pago','voltou'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : '';
-        const [offerHeaders, offerBody] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Content-Security-Policy':offerPageCsp }, renderOfferPage(state, offer, { workspace, status, color }));
-        res.writeHead(200, offerHeaders);
-        return res.end(method === 'HEAD' ? undefined : offerBody);
-      }
-      // Agenda de serviços: the public booking page (choose a service, a day and a free time; no script).
-      const booking = p.match(bookingPath);
-      if (booking && ['GET', 'HEAD', 'POST'].includes(method)) {
-        await ready;
-        const [, workspace] = booking;
-        await publicAccountPolicy(workspace, method === 'POST', 'calendars');
-        const q = url.searchParams, base = `/agendar/${workspace}`, embed = q.get('embed') === '1';
-        let done = null, failure = '', status = 200, form = {};
-        if (method === 'POST') {
-          const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
-          if (!allowSign(ip)) throw error('Muitas tentativas a partir desta conexão. Aguarde alguns minutos.', 429);
-          form = await formBody(req);
-          const one = value => Array.isArray(value) ? value[0] : value;
-          try {
-            const result = await change(workspace, { type: 'scheduling-book', data: { serviceId: one(form.servico), start: one(form.inicio), name: one(form.nome), email: one(form.email), phone: one(form.telefone), address: one(form.endereco), notes: one(form.notas), units: one(form.unidades), quantity: one(form.qtd), link: one(form.link) } });
-            flushLater(workspace);
-            const after = await store.load(workspace), zone = zoneOf(after), booked = result.id;
-            const event = hasPixels(after.tracking) ? `schedule.${booked.id}` : '';
-            const target = resolveDestination(after, workspace, after.services.find(x => x.id === one(form.servico))?.after, { event });
-            if (target) return leave(res, after, workspace, target, { embed, event });
-            done = { event, service: booked.service, staff: booked.staff, when: `${new Intl.DateTimeFormat('pt-BR', { timeZone: zone, weekday: 'long', day: '2-digit', month: 'long' }).format(new Date(booked.start))} às ${clockIn(Date.parse(booked.start), zone)}` };
-          } catch (failed) {
-            if (!failed.status || failed.status >= 500) throw failed;
-            failure = failed.message; status = failed.status;
-          }
-        }
-        const one2 = value => Array.isArray(value) ? value[0] : value;
-        const view = bookingView(await store.load(workspace), { serviceId: String(form.servico || q.get('servico') || ''), day: String(q.get('dia') || ''), units: Number(form.unidades || q.get('unidades')) || 1, quantity: Number(form.qtd || q.get('qtd')) || 1, link: String(one2(form.link) || q.get('link') || '') });
-        if (!view) throw error('O agendamento online desta empresa está desligado.', 404);
-        const [bookingHeaders, bookingBody] = withPixels(await store.load(workspace), workspace, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'same-origin', 'Content-Security-Policy':embed ? bookingEmbedCsp : bookingCsp }, bookingPage(view, { base, done, error: failure, form, embed }));
-        res.writeHead(status, bookingHeaders);
-        return res.end(method === 'HEAD' ? undefined : bookingBody);
-      }
-      // Central de preferências: the contact's own page (link with a private token) to choose channels and topics.
-      const preference = p.match(preferencePath);
-      if (preference && ['GET', 'HEAD', 'POST'].includes(method)) {
-        await ready;
-        const [, workspace, token] = preference;
-        await publicAccountPolicy(workspace, method === 'POST', 'contacts');
-        let saved = false;
-        if (method === 'POST') {
-          const form = await formBody(req), list = value => [].concat(value || []);
-          await change(workspace, { type: 'preferences-save', data: { token, channels: list(form.channels), topics: list(form.topics), all: form.all === '1' } });
-          flushLater(workspace); saved = true;
-        }
-        const view = preferenceView(await store.load(workspace), token);
-        if (!view) throw error('Link de preferências inválido.',404);
-        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'same-origin', 'X-Robots-Tag':'noindex', 'Content-Security-Policy':preferenceCsp });
-        return res.end(method === 'HEAD' ? undefined : preferencePage(view, { saved }));
-      }
-      // The agency's mobile app (6.6): install page, manifest, icons, service worker (push) and the app-mode config.
-      const mobile = p.match(mobilePath);
-      if (mobile && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, agencyId, part = ''] = mobile;
-        let agency;
-        try { agency = await loadAgency(agencyId); } catch { throw error('App não encontrado.',404); }
-        const app = mobileOf(structuredClone(agency));
-        if (app.status !== 'published') throw error('Este app ainda não foi publicado pela agência.',404);
-        const done = (type, body, extra = {}) => { res.writeHead(200, { 'Content-Type':type, 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff', ...extra }); return res.end(method === 'HEAD' ? undefined : body); };
-        if (part === 'manifest.webmanifest') return done('application/manifest+json; charset=utf-8', JSON.stringify(mobileManifest(app, agencyId)));
-        if (part === 'sw.js') return done('text/javascript; charset=utf-8', mobileWorker(agencyId), { 'Service-Worker-Allowed':`/mobile/${agencyId}/` });
-        if (part === 'config.json') return done('application/json; charset=utf-8', JSON.stringify(mobileConfig(app, agencyId)));
-        if (part.startsWith('icon-')) {
-          const size = part.slice(5, -4), source = (size === '192' && app.icon192) || (size === '512' && app.icon512) || app.icon;
-          const image = source && await assetBytes(store, source);
-          if (!image) throw error('Ícone não encontrado.',404);
-          return done('image/png', image.bytes);
-        }
-        return done('text/html; charset=utf-8', mobileLaunchPage(app, agencyId), { 'Content-Security-Policy':mobileCsp, 'Referrer-Policy':'no-referrer' });
-      }
-      if (p === '/push/sw.js' && (method === 'GET' || method === 'HEAD')) {
-        res.writeHead(200, { 'Content-Type':'text/javascript; charset=utf-8', 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff' });
-        return res.end(method === 'HEAD' ? undefined : mobileWorker('push').replaceAll('/mobile/push/icon-192.png', '/favicon.svg'));
-      }
-      if (p === '/.well-known/assetlinks.json' && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase().split(':')[0];
-        const found = await Promise.resolve().then(() => store.findAgency({ mobileApp: { store: { domain: host } } })).catch(() => null);
-        const links = found && assetLinksFor([found.state], host);
-        if (!links) throw error('Not found.',404);
-        res.writeHead(200, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'public, max-age=3600' });
-        return res.end(method === 'HEAD' ? undefined : JSON.stringify(links));
-      }
-      // The agency's installable desktop app: the branded sign-in screen, its manifest, icons and service worker.
-      const desktop = p.match(desktopPath);
-      if (desktop && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, agencyId, part = ''] = desktop;
-        let agency;
-        try { agency = await loadAgency(agencyId); } catch { throw error('App não encontrado.',404); }
-        const app = desktopOf(structuredClone(agency));
-        if (app.status !== 'published') throw error('Este app ainda não foi publicado pela agência.',404);
-        const done = (type, body, extra = {}) => { res.writeHead(200, { 'Content-Type':type, 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff', ...extra }); return res.end(method === 'HEAD' ? undefined : body); };
-        if (part === 'manifest.webmanifest') return done('application/manifest+json; charset=utf-8', JSON.stringify(desktopManifest(app, agencyId)));
-        if (part === 'sw.js') return done('text/javascript; charset=utf-8', desktopWorker, { 'Service-Worker-Allowed':`/desktop/${agencyId}/` });
-        if (part.startsWith('icon-')) {
-          const size = part.slice(5, -4), source = (size === '192' && app.icon192) || (size === '512' && app.icon512) || app.icon;
-          const image = source && await assetBytes(store, source);
-          if (!image) throw error('Ícone não encontrado.',404);
-          return done('image/png', image.bytes);
-        }
-        return done('text/html; charset=utf-8', desktopLaunchPage(app, agencyId, { signedIn: Boolean(auth?.hasSession?.(req)) }), { 'Content-Security-Policy':desktopCsp, 'Referrer-Policy':'no-referrer' });
-      }
-      // Certificates and badges: a public page anyone with the code can open to see and verify it.
-      const certificate = p.match(certificatePath);
-      if (certificate && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, code] = certificate;
-        await publicAccountPolicy(workspace, false, 'memberships');
-        const state = await store.load(workspace);
-        const row = (state.credentialsIssued || []).find(item => item.code === code);
-        if (!row) throw error('Certificado não encontrado.',404);
-        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer', 'X-Robots-Tag':'noindex', 'Content-Security-Policy':certificateCsp });
-        return res.end(method === 'HEAD' ? undefined : certificatePage(state, row));
-      }
-      const offerCall = p.match(offerApi);
-      if (offerCall) {
-        await ready;
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const [, workspace, offerId] = offerCall;
-        const input = await payload(req);
-        await publicAccountPolicy(workspace, true, 'memberships');
-        const current = await store.load(workspace);
-        const offer = current.offers?.find(row => row.id === offerId && row.status === 'published');
-        if (!offer) throw error('Esta oferta não está disponível.',404);
-        const agencyId = current.agencyId || AGENCY_ID;
-        if (offer.type !== 'free' && !(await abacate.connected(agencyId, workspace))) throw error('O pagamento online desta oferta ainda não está disponível. Fale com a equipe.',409);
-        const result = await change(workspace,{ type:'offer-checkout', id:offerId, data:{ name:input.name, email:input.email } });
-        if (offer.type === 'free') {
-          const { emailed } = await grantOffer(workspace, offerId, result.id);
-          return json({ enrolled:true, emailed });
-        }
-        const origin = publicBase(req), page = `${origin}/oferta/${workspace}/${offerId}`;
-        const payment = await abacate.chargeInvoice(agencyId, workspace, result.id, origin, { returnUrl:`${page}?status=voltou`, completionUrl:`${page}?status=pago` });
-        return json({ payUrl:payment.url });
-      }
+      const affiliateRouteHandled = await affiliateRoute({ req, res, p, method, json });
+      if (affiliateRouteHandled !== NEXT_ROUTE) return affiliateRouteHandled;
+      const reputationRouteHandled = await reputationRoute({ req, res, p, method, json });
+      if (reputationRouteHandled !== NEXT_ROUTE) return reputationRouteHandled;
+      const offerPageRouteHandled = await offerPageRoute({ res, p, method, url });
+      if (offerPageRouteHandled !== NEXT_ROUTE) return offerPageRouteHandled;
+      const bookingRouteHandled = await bookingRoute({ req, res, p, method, url });
+      if (bookingRouteHandled !== NEXT_ROUTE) return bookingRouteHandled;
+      const preferenceRouteHandled = await preferenceRoute({ req, res, p, method });
+      if (preferenceRouteHandled !== NEXT_ROUTE) return preferenceRouteHandled;
+      const agencyAppRouteHandled = await agencyAppRoute({ req, res, p, method });
+      if (agencyAppRouteHandled !== NEXT_ROUTE) return agencyAppRouteHandled;
+      const certificateRouteHandled = await certificateRoute({ res, p, method });
+      if (certificateRouteHandled !== NEXT_ROUTE) return certificateRouteHandled;
+      const offerApiRouteHandled = await offerApiRoute({ req, p, method, json });
+      if (offerApiRouteHandled !== NEXT_ROUTE) return offerApiRouteHandled;
       const storeApiHandled = await storeApiRoute({ req, p, method, json });
       if (storeApiHandled !== NEXT_ROUTE) return storeApiHandled;
-      // Blogs: home with categories and pages, posts with SEO tags, and RSS. Drafts open with ?preview=1 when signed in.
-      // Brand group reports shared by link: the token finds the agency, so no agency id is exposed.
-      const brandGroupShare = p.match(brandGroupRoute);
-      if (brandGroupShare && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const token = brandGroupShare[1];
-        const match = await store.findAgency({ brandGroups: [{ share: { id: token } }] });
-        const agency = match && hydrateAgency(match.state);
-        const group = agency?.brandGroups.find(row => row.share?.id === token);
-        if (!group || (group.share.expires && Date.parse(group.share.expires) <= Date.now())) throw error('Este relatório não está mais compartilhado.',404);
-        const asked = url.searchParams.get('lang');
-        const lang = ['pt', 'es'].includes(asked) ? asked : group.share.lang;
-        const data = brandGroupData(group, await brandWorkspaces(agency, match.id, group));
-        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer', 'X-Robots-Tag':'noindex',
-          'Content-Security-Policy':"default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" });
-        return res.end(method === 'HEAD' ? undefined : brandGroupPage(data, { lang, path: p, agency: agency.company }));
-      }
-      // Presentations shared by public link:
-      const presentationShare = p.match(presentationRoute);
-      if (presentationShare && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const token = presentationShare[1];
-        const match = await store.findAgency({ presentations: [{ share: { id: token } }] });
-        const agency = match && hydrateAgency(match.state);
-        const presentation = agency?.presentations?.find(row => row.share?.id === token);
-        if (!presentation || (presentation.share.expires && Date.parse(presentation.share.expires) <= Date.now())) throw error('Esta apresentação não está mais compartilhada.', 404);
-        const asked = url.searchParams.get('lang');
-        const lang = ['pt', 'es'].includes(asked) ? asked : (presentation.share.lang || 'pt');
-        const autoPrint = url.searchParams.has('print');
-        const html = presentationPageHtml(presentation, { lang, autoPrint, company: agency.company });
-        res.writeHead(200, {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'no-store',
-          'Referrer-Policy': 'no-referrer',
-          'X-Robots-Tag': 'noindex',
-          'Content-Security-Policy': "default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-        });
-        return res.end(method === 'HEAD' ? undefined : html);
-      }
-      // Shared reports: read-only, rendered here so the page never receives the workspace state.
-      const sharedReport = p.match(sharedReportRoute);
-      if (sharedReport && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, shareId] = sharedReport;
-        await publicAccountPolicy(workspace, false, 'reporting');
-        const state = await store.load(workspace);
-        const report = findSharedReport(state, shareId);
-        if (!report) throw error('Este relatório não está mais compartilhado.',404);
-        const asked = url.searchParams.get('lang');
-        const html = sharedReportPage(state, report, { lang: ['pt', 'es'].includes(asked) ? asked : report.share.lang, path: p });
-        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer', 'X-Robots-Tag':'noindex',
-          'Content-Security-Policy':"default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" });
-        return res.end(method === 'HEAD' ? undefined : html);
-      }
-      const blogRoute = p.match(blogPath);
-      if (blogRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, blogId, slug] = blogRoute;
-        const active = await publicAccountPolicy(workspace, false, 'sites');
-        const state = await store.load(workspace);
-        const blog = state.blogs?.find(item => item.id === blogId);
-        const preview = await publicPreview(req, res, url, workspace);
-        if (!blog || (!blog.active && !preview)) throw error('Este blog não está publicado.',404);
-        const base = `/b/${workspace}/${blogId}`, origin = publicBase(req);
-        const html = (status, page) => { const [headers, body] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Cache-Control':'no-store',
-          'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, page); res.writeHead(status, headers); return res.end(method === 'HEAD' ? undefined : body); };
-        if (slug === 'rss.xml') {
-          if (blog.rss === false) throw error('Este blog não tem RSS.',404);
-          res.writeHead(200, { 'Content-Type':'application/rss+xml; charset=utf-8', 'Cache-Control':'no-store' });
-          return res.end(method === 'HEAD' ? undefined : blogRss(state, blog, { base, origin }));
-        }
-        if (!slug) return html(200, blogHome(state, blog, { base, origin, category:String(url.searchParams.get('categoria') || '').slice(0,80), page:Number(url.searchParams.get('pagina')) || 1 }));
-        const post = state.blogPosts.find(item => item.blogId === blogId && item.slug === slug);
-        if (!post || (!isLive(post) && !preview)) throw error('Artigo não encontrado.',404);
-        if (active && !preview && method === 'GET') await Promise.resolve().then(() => change(workspace,{ type:'blog-view', id:post.id })).catch(() => {});
-        return html(200, blogPost(state, blog, post, { base, origin, preview }));
-      }
-      if (p === '/api/blog/ai' && method === 'POST') {
-        const who = await workspaceAccess(req,res,id,{ modules:['sites'] });
-        const input = await payload(req);
-        const connection = await openAI.status(who.session).then(status => status.configured ? openAI.requireConnection(who.session) : null);
-        if (input.mode === 'seo') {
-          if (!connection) throw error('Conecte a OpenAI em Configurações para gerar o SEO com IA.',409);
-          return json({ ai:true, seo:await meteredAI(who, id, 'blog', metered => content.postSeo(metered,{ title:input.title, body:input.body })) });
-        }
-        if (!String(input.topic || input.title || '').trim()) throw error('Descreva o tema do artigo.',400);
-        input.voice = await brandVoiceOf(id);
-        return json(connection ? { ai:true, post:await meteredAI(who, id, 'blog', metered => content.writePost(metered, input)) } : { ai:false, post:localDraft(input) });
-      }
-      // Chat widget: the loader a site embeds, the panel it opens in an iframe, a demo page and the visitor API.
-      const chatRoute = p.match(chatPath);
-      if (chatRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, widgetId, part] = chatRoute;
-        await publicAccountPolicy(workspace, false, 'sites');
-        const state = await store.load(workspace);
-        const widget = state.chatWidgets?.find(item => item.id === widgetId);
-        if (widget && !widget.active) await workspaceAccess(req, res, workspace, { modules: ['sites'], hide: true });
-        if (!widget) throw error('Este chat não está publicado.',404);
-        if (part === 'widget.js') {
-          res.writeHead(200, { 'Content-Type':'text/javascript; charset=utf-8', 'Cache-Control':'no-cache', 'Cross-Origin-Resource-Policy':'cross-origin' });
-          return res.end(method === 'HEAD' ? undefined : widget.active ? loaderScript(widget, { workspace }) : '/* chat em rascunho */');
-        }
-        if (part === 'demo') {
-          res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; frame-src 'self'; base-uri 'none'; frame-ancestors 'self'" });
-          return res.end(method === 'HEAD' ? undefined : demoPage(widget, { workspace, brand:state.profile?.name || '' }));
-        }
-        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors *" });
-        return res.end(method === 'HEAD' ? undefined : chatPage(widget, { workspace }));
-      }
-      const chatCall = p.match(chatApi);
-      if (chatCall) {
-        await ready;
-        const [, workspace, widgetId, op] = chatCall;
-        await publicAccountPolicy(workspace, method === 'POST', 'sites');
-        const token = String(req.headers['x-chat-token'] || '');
-        const tokenHash = /^[0-9a-f]{48}$/.test(token) ? hash(token) : '';
-        if (op === 'messages') {
-          if (method !== 'GET') throw error('Method not allowed.',405);
-          const state = await store.load(workspace);
-          if (!state.chatWidgets?.some(item => item.id === widgetId && item.active)) throw error('Este chat não está disponível.',404);
-          return json({ messages:chatHistory(state, widgetId, tokenHash) });
-        }
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const input = await payload(req);
-        if (op === 'start') {
-          const fresh = randomBytes(24).toString('hex');
-          const result = await change(workspace,{ type:'chat-start', id:widgetId, data:{ name:input.name, email:input.email, phone:input.phone, body:input.body, page:req.headers.referer || '', tokenHash:hash(fresh) } });
-          return json({ token:fresh, messages:chatHistory(result.state, widgetId, hash(fresh)) },201);
-        }
-        const result = await change(workspace,{ type:'chat-send', id:widgetId, data:{ body:input.body, tokenHash } });
-        return json({ messages:chatHistory(result.state, widgetId, tokenHash) },201);
-      }
-      const formRoute = p.match(formPath);
-      if (formRoute) {
-        await ready;
-        const [, workspace, formId] = formRoute;
-        const embed = url.searchParams.get('embed') === '1', preview = url.searchParams.get('preview') === '1';
-        if (preview) {
-          await workspaceAccess(req, res, workspace, { modules: ['sites'], hide: true });
-        }
-        const active = await publicAccountPolicy(workspace, method === 'POST', 'sites');
-        const state = await store.load(workspace);
-        const form = state.forms.find(item => item.id === formId);
-        if (!form || (!form.active && !preview)) throw error('Este formulário não está publicado.',404);
-        const outside = [form.onSubmit, ...(form.routes || []).map(rule => rule.dest)].some(dest => dest?.action === 'redirect');
-        const page = (status, options) => {
-          const [headers, body] = withPixels(preview ? null : state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'${outside ? ' https: http:' : ''}; frame-ancestors *` },
-            formPage(form, { action:`/form/${workspace}/${formId}${embed ? '?embed=1' : preview ? '?preview=1' : ''}`,
-            customFields:state.customFields || [], embed, brand:state.profile?.name || '', ...options }));
-          res.writeHead(status, headers);
-          return res.end(method === 'HEAD' ? undefined : body);
-        };
-        if (!formOpen(form)) return page(200, { notice:{ title:'Formulário encerrado', text:form.schedule?.closedMessage || 'Este formulário não está recebendo respostas agora.' } });
-        if (method === 'GET' || method === 'HEAD') {
-          if (active && method === 'GET' && !preview && form.active) await Promise.resolve().then(() => change(workspace,{ type:'form-view', id:formId })).catch(() => {});
-          const values = Object.fromEntries([...url.searchParams].filter(([key]) => !['embed','preview','__path'].includes(key)).map(([key, value]) => [key, value.slice(0,500)]));
-          return page(200, { values });
-        }
-        if (!form.active) throw error('Publique o formulário para receber respostas.',403);
-        const input = await formBody(req);
-        const read = readAnswers(form, input, state.customFields || []);
-        if (!read.ok) return page(422, { values:read.values, errors:read.errors });
-        await publicAccountPolicy(workspace, true, 'sites');
-        let sent;
-        try { sent = await change(workspace,{ type:'submit', id:formId, data:{ ...input, _vid:'', _source:embed ? 'Incorporado' : 'Link' } }); }
-        catch (failure) { return page(failure.status && failure.status < 500 ? 422 : 500, { values:read.values, errors:{ _form:failure.status && failure.status < 500 ? failure.message : 'Não foi possível enviar agora. Tente de novo.' } }); }
-        const { qualified, dest } = outcomeOf(form, read), after = await store.load(workspace);
-        // Só o lead qualificado conta como Lead no pixel, e depois de o envio ser aceito.
-        const event = qualified && hasPixels(after.tracking) ? `lead.${sent.id}` : '';
-        const target = resolveDestination(after, workspace, dest, { event, link:(after.bookingLinks || []).findLast(row => row.submissionId === sent.id)?.token || '' });
-        if (target) return leave(res, after, workspace, target, { embed, event });
-        const tier = read.result?.tierDetail, own = (form.routes || []).some(rule => rule.dest === dest) && dest.action === 'message' ? dest.message : '';
-        if (read.result) return page(200, { event, notice:{ result:read.result, text:own || tier?.message || form.onSubmit?.message || '', cta:tier?.ctaUrl ? { url:tier.ctaUrl, label:tier.ctaLabel } : null } });
-        return page(200, { event, notice:{ title:'Obrigado!', text:own || form.onSubmit?.message || 'Recebemos suas respostas.' } });
-      }
-      const hook = p.match(hookPath);
-      if (hook && method === 'POST') {
-        await ready;
-        const [, workspace, workflowId, triggerId] = hook;
-        const state = await Promise.resolve().then(() => store.load(workspace)).catch(() => null);
-        const flow = state?.workflows?.find(row => row.id === workflowId && row.active);
-        const secret = flow?.triggers?.find(t => t.id === triggerId && t.type === 'inbound_webhook')?.config?.secret || '';
-        const key = String(url.searchParams.get('key') || req.headers['x-soci-key'] || '');
-        if (!secret || key.length !== secret.length || !timingSafeEqual(Buffer.from(key), Buffer.from(secret))) throw error('Webhook não encontrado.', 404);
-        await publicAccountPolicy(workspace, true, 'automation');
-        const body = await payload(req).catch(() => ({}));
-        const result = await change(workspace, { type: 'workflow-hook', data: { workflowId, triggerId, payload: body && typeof body === 'object' && !Array.isArray(body) ? body : {} } });
-        if (result.state.workflowOutbox?.length) flushLater(workspace);
-        return json({ ok: true, run: result.id === 'already-enrolled' ? null : result.id }, 202);
-      }
-      // Contadores: the animated GIF for e-mails (?s= is when the e-mail was sent, for evergreen timers)
-      // and the page that sites embed in an iframe.
-      const countdownRoute = p.match(countdownPath);
-      if (countdownRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, timerId, gif] = countdownRoute;
-        let timer = null;
-        try { await publicAccountPolicy(workspace, false, 'marketing'); timer = (await store.load(workspace)).countdownTimers?.find(row => row.id === timerId) || null; } catch { timer = null; }
-        if (gif) {
-          let bytes = blankGif;
-          if (timer) {
-            const now = Date.now(), sent = Number(url.searchParams.get('s')) * 1000, created = Date.parse(timer.created) || 0;
-            const start = Number.isFinite(sent) && sent > 0 ? Math.min(now, Math.max(created, sent)) : now;
-            const key = `${workspace}:${timerId}:${timer.updated || timer.created}:${start}:${Math.floor(now / 1000)}`;
-            bytes = countdownCache.get(key);
-            if (!bytes) {
-              bytes = countdownGif(timer, deadlineOf(timer, start) - now);
-              if (countdownCache.size >= 200) countdownCache.delete(countdownCache.keys().next().value);
-              countdownCache.set(key, bytes);
-            }
-          }
-          res.writeHead(200, { 'Content-Type': 'image/gif', 'Content-Length': bytes.length, 'Cache-Control': 'no-store, no-cache, max-age=0', Expires: '0' });
-          return res.end(method === 'HEAD' ? undefined : bytes);
-        }
-        if (!timer) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Contador indisponível.'); }
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
-          'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors *" });
-        return res.end(method === 'HEAD' ? undefined : embedPage(timer, { key: `${workspace}-${timerId}` }));
-      }
-      // E-mail campaigns: open pixel, click redirect and unsubscribe page of one recipient.
-      const tracked = p.match(emailTrackPath);
-      if (tracked && ['GET', 'HEAD', 'POST'].includes(method)) {
-        await ready;
-        const [, kind, workspace, token, index] = tracked;
-        const page = (status, title, body) => {
-          res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'" });
-          return res.end(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;color:#18181b;background:#f4f4f5}main{max-width:440px;margin:16px;padding:32px;border-radius:16px;background:#fff;text-align:center}h1{font-size:22px;margin:0 0 8px}p{margin:0 0 16px;color:#52525b}button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:12px 20px;background:#18181b;color:#fff;cursor:pointer}</style></head><body><main><h1>${esc(title)}</h1>${body}</main></body></html>`);
-        };
-        let active = false;
-        try { active = await publicAccountPolicy(workspace, false, 'marketing'); }
-        catch { if (kind !== 'o') return page(404, 'Link indisponível', '<p>Este e-mail não está mais disponível.</p>'); }
-        const track = async (event, write) => {
-          if (!write) return execute(await store.load(workspace), { type: 'email-track', data: { token, event: 'info' } });
-          const result = await change(workspace, { type: 'email-track', data: { token, event, index } });
-          if (result.state.workflowOutbox?.length) flushLater(workspace);
-          return result.id;
-        };
-        if (kind === 'o') {
-          res.writeHead(200, { 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, max-age=0' });
-          res.end(Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64'));
-          if (active && method === 'GET') { const seen = await track('info', false).catch(() => null); if (seen && !seen.opened) await track('open', true).catch(() => null); }
-          return;
-        }
-        if (kind === 'c') {
-          const found = active ? await track('click', true) : execute(await store.load(workspace), { type: 'email-track', data: { token, event: 'click', index } });
-          if (!found?.url) return page(404, 'Link indisponível', '<p>Este link não existe mais.</p>');
-          res.writeHead(302, { Location: found.url, 'Cache-Control': 'no-store' }); return res.end();
-        }
-        const info = await track('info', false);
-        if (!info) return page(404, 'Link indisponível', '<p>Não encontramos esta inscrição.</p>');
-        // The contact's preference center: choose topics and channels instead of leaving everything.
-        let prefToken = '';
-        if (info.contactId) { try { prefToken = (await change(workspace, { type: 'preferences-link', data: { contactId: info.contactId } })).id; } catch { /* The page still works without the link. */ } }
-        const prefLink = prefToken ? `<p><a href="/preferencias/${workspace}/${prefToken}">Escolher o que quero receber</a></p>` : '';
-        // POST is the confirmation button and the one-click unsubscribe of mail clients (RFC 8058). It works even while the account is paused.
-        if (method === 'POST') { await track('unsubscribe', true); return page(200, 'Inscrição cancelada', `<p>Você não vai mais receber e-mails de marketing de ${esc(info.business || 'esta empresa')}.</p>${prefLink}`); }
-        if (info.unsubscribed) return page(200, 'Inscrição cancelada', `<p>Você já saiu da lista de e-mails de ${esc(info.business || 'esta empresa')}.</p>${prefLink}`);
-        return page(200, 'Cancelar inscrição', `<p>Deixar de receber os e-mails de marketing de <b>${esc(info.business || 'esta empresa')}</b>?</p><form method="post"><button>Cancelar inscrição</button></form>${prefLink}`);
-      }
-      const redirect = p.match(redirectPath);
-      if (redirect && method === 'GET') {
-        await ready;
-        const [, workspace, linkId] = redirect;
-        const active = await publicAccountPolicy(workspace, false, 'conversations');
-        const target = active
-          ? await store.change(workspace, state => execute(state, { type: 'link-click', id: linkId }))
-          : execute(await store.load(workspace), { type: 'link-click', id: linkId }, { trackClick: false });
-        res.writeHead(302, { Location: target });
-        return res.end();
-      }
+      const shareRouteHandled = await shareRoute({ res, p, method, url });
+      if (shareRouteHandled !== NEXT_ROUTE) return shareRouteHandled;
+      const blogRouteHandled = await blogRoute({ req, res, p, method, url, id, json });
+      if (blogRouteHandled !== NEXT_ROUTE) return blogRouteHandled;
+      const chatRouteHandled = await chatRoute({ req, res, p, method, json });
+      if (chatRouteHandled !== NEXT_ROUTE) return chatRouteHandled;
+      const formRouteHandled = await formRoute({ req, res, p, method, url });
+      if (formRouteHandled !== NEXT_ROUTE) return formRouteHandled;
+      const workflowHookHandled = await workflowHookRoute({ req, p, method, url, json });
+      if (workflowHookHandled !== NEXT_ROUTE) return workflowHookHandled;
+      const countdownRouteHandled = await countdownRoute({ res, p, method, url });
+      if (countdownRouteHandled !== NEXT_ROUTE) return countdownRouteHandled;
+      const emailTrackHandled = await emailTrackRoute({ res, p, method });
+      if (emailTrackHandled !== NEXT_ROUTE) return emailTrackHandled;
+      const linkRouteHandled = await linkRoute({ res, p, method });
+      if (linkRouteHandled !== NEXT_ROUTE) return linkRouteHandled;
       const match=p.replace(/^\/api\/view/,'').match(paths);
       if (p.startsWith('/api/view/') && match) {
         const [,kind,w,item]=match;
