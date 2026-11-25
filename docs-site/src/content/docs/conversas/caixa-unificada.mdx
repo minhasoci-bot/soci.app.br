@@ -12,7 +12,7 @@ import Print from '../../../components/Print.astro';
 import Requisitos from '../../../components/Requisitos.astro';
 import Automacao from '../../../components/Automacao.astro';
 
-Em **Conversas**, todas as mensagens da subconta chegam numa caixa só, seja qual for o canal. Cada conversa fica ligada ao contato, e a equipe vê o histórico inteiro antes de responder.
+Em **Conversas**, todas as mensagens da subconta chegam numa caixa só, seja qual for o canal. Cada conversa fica ligada ao contato, e a equipe vê o histórico inteiro antes de responder. Mensagens e ligações novas aparecem sozinhas em poucos segundos, sem recarregar a página.
 
 <Requisitos permissao="Acesso ao módulo Conversas na subconta" integracoes={['WhatsApp, e-mail ou redes sociais conectados, para enviar por esses canais']} />
 
@@ -28,7 +28,7 @@ Em **Conversas**, todas as mensagens da subconta chegam numa caixa só, seja qua
 
    <Print src="docs/conversas/caixa-unificada/02-abrir-conversa.96643aa1.webp" alt="Conversa com Ana Beatriz Souza aberta, com o cabeçalho da conversa em destaque e os dados do contato à direita." />
 
-3. Leia a conversa. Fotos, figurinhas, GIFs, vídeos e áudios do WhatsApp aparecem dentro da mensagem, com a legenda embaixo; clique na foto para abrir em tamanho cheio. Documentos mostram o nome e **Baixar arquivo**. Os links do texto são clicáveis e abrem em outra aba.
+3. Leia a conversa. Fotos, figurinhas, GIFs, vídeos e áudios do WhatsApp aparecem dentro da mensagem, com a legenda embaixo; clique na foto para abrir em tamanho cheio. Documentos mostram o nome e **Baixar arquivo**. Os links do texto são clicáveis e abrem em outra aba. A ligação que o contato faz pelo WhatsApp entra como **Ligação**, com o resultado: recebida, atendida, recusada ou não atendida.
 
    <Print src="docs/conversas/caixa-unificada/05-midia-e-links.e9a862df.webp" alt="Conversa com Ana Beatriz Souza mostrando um link clicável, uma foto com legenda e um GIF dentro das mensagens." />
 
@@ -58,6 +58,15 @@ Escreva @ e o nome de alguém da equipe dentro da mensagem para mencionar essa p
 
 **Para que serve "Recebida" na caixa de resposta?**
 Para registrar no histórico uma mensagem que o contato mandou por fora da soci, como uma ligação ou um recado no balcão.
+
+**Preciso recarregar a página para ver mensagens novas?**
+Não. Com a aba de **Conversas** à vista, a soci confere a cada 5 segundos; sem uso por dois minutos, a cada 20. Ao voltar para a aba, confere na hora. O que você está escrevendo não se perde. A mensagem que chega na conversa aberta é marcada como lida.
+
+**Uma ligação ficou como "recebida". Ela foi atendida?**
+O WhatsApp nem sempre diz. Quando alguém atende no celular, ou quando o contato desliga antes, a ligação pode continuar como **recebida**. Ligações de grupo não entram, e a soci não atende nem grava ligações do WhatsApp.
+
+**As mensagens que eu mando pelo celular aparecem aqui?**
+Não. A caixa mostra o que o contato envia e o que sai pela soci.
 
 **Por que aparece "arquivo indisponível"?**
 O WhatsApp não tem mais o arquivo, ou o servidor não respondeu. Abra a conversa de novo em alguns minutos. Mensagens sem legenda recebidas antes de 25 de novembro de 2026 também mostram a mídia, enquanto o servidor do WhatsApp ainda a guarda (30 dias).

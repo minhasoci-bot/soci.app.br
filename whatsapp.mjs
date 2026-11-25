@@ -2,7 +2,7 @@
 // (ou gerenciado pela plataforma via variáveis de ambiente). O servidor é a Evolution API v2
 // (https://doc.evolution-api.com), com a chave global no header `apikey`. A stack da VPS fica em deploy/evolution.
 // Os segredos ficam selados (AES-256-GCM) em `whatsapp-<agencyId>` no SQLite/Supabase.
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { execute } from './model.mjs';
 import { cleanGuard } from './whatsapp-guard.mjs';
 import { mediaPlaceholder } from './ui/message-media.js';
@@ -102,7 +102,7 @@ async function readJsonSafe(res) {
 
 const GROUP_JID = /^\d[\d-]{5,40}@g\.us$/;
 
-const EVOLUTION_EVENTS = ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'];
+const EVOLUTION_EVENTS = ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'CALL'];
 
 function evolutionError(data) {
   const raw = data?.response?.message ?? data?.message ?? data?.error ?? '';
@@ -146,7 +146,10 @@ function evolutionText(raw) {
   const text = message.conversation || message.extendedTextMessage?.text || message.imageMessage?.caption
     || message.videoMessage?.caption || message.documentMessage?.caption || message.buttonsResponseMessage?.selectedDisplayText
     || message.listResponseMessage?.title || message.templateButtonReplyMessage?.selectedDisplayText
-    || message.interactiveResponseMessage?.body?.text || '';
+    || message.interactiveResponseMessage?.body?.text
+    || message.templateMessage?.hydratedTemplate?.hydratedContentText || message.templateMessage?.hydratedFourRowTemplate?.hydratedContentText
+    || message.templateMessage?.interactiveMessageTemplate?.body?.text || message.interactiveMessage?.body?.text
+    || message.buttonsMessage?.contentText || message.listMessage?.description || message.listMessage?.title || '';
   if (text) return String(text);
   const media = evolutionMedia(raw);
   if (media) {
@@ -156,6 +159,14 @@ function evolutionText(raw) {
   }
   if (message.locationMessage || message.liveLocationMessage) return '[Localização]';
   if (message.contactMessage || message.contactsArrayMessage) return '[Contato]';
+  const titled = (label, title) => `[${label}] ${title || ''}`.trim();
+  const poll = message.pollCreationMessage || message.pollCreationMessageV2 || message.pollCreationMessageV3;
+  if (poll) return titled('Enquete', poll.name);
+  if (message.eventMessage) return titled('Evento', message.eventMessage.name);
+  if (message.productMessage) return titled('Produto', message.productMessage.product?.title);
+  if (message.orderMessage) return titled('Pedido', message.orderMessage.orderTitle);
+  if (message.groupInviteMessage) return titled('Convite de grupo', message.groupInviteMessage.groupName);
+  if (message.stickerPackMessage) return titled('Pacote de figurinhas', message.stickerPackMessage.name);
   return '';
 }
 
@@ -179,6 +190,20 @@ function evolutionInbound(entry) {
   const ad = adReferral(entry);
   const { skip, ...media } = evolutionMedia(entry.message) || { skip: 'none' };
   return { id: String(key.id || '').slice(0, 120), phone, lid, text, senderName, at: (Number(entry.messageTimestamp) || 0) * 1000, ...(ad ? { ad } : {}), ...(skip ? {} : { media }) };
+}
+
+// Ligação recebida no WhatsApp. Só o começo (offer) e os três resultados que dizem o que houve; `terminate` vem tanto
+// de quem desligou quanto de quem atendeu no celular, então não muda nada.
+const callResults = { offer: 'recebida', accept: 'atendida', reject: 'recusada', timeout: 'não atendida' };
+function evolutionCall(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const id = String(data.id || '').slice(0, 120), status = String(data.status || '');
+  if (!id || !Object.hasOwn(callResults, status) || data.isGroup) return null;
+  const from = [data.from, data.chatId].map(value => String(value || ''));
+  const jid = from.find(value => /@(s\.whatsapp\.net|c\.us)$/i.test(value)), hidden = from.find(value => /@lid$/i.test(value));
+  const phone = jid ? extractPhone(jid) : '', lid = hidden ? extractPhone(hidden) : '';
+  if (phone ? phone.length < 8 : !lid) return null;
+  return { id, status, video: Boolean(data.isVideo), phone, lid, senderName: phone ? `+${phone}` : 'Contato do WhatsApp' };
 }
 
 // "Click to WhatsApp" ads: the first message carries the ad in contextInfo.externalAdReply (Baileys), in the
@@ -424,6 +449,10 @@ function createEvolutionAdapter(call) {
             profileName: String(d.profileName || '').trim().slice(0, 120)
           }
         };
+      }
+      if (event === 'call') {
+        const call = evolutionCall(Array.isArray(body.data) ? body.data[0] : body.data);
+        return call ? { kind: 'call', call } : { kind: 'ignore' };
       }
       if (event !== 'messages.upsert') return { kind: 'ignore' };
       const list = Array.isArray(body.data) ? body.data : Array.isArray(body.data?.messages) ? body.data.messages : [body.data || {}];
@@ -867,6 +896,52 @@ export function createWhatsAppHandler({
 
   // ---------- Vigia (whatsapp-guard.mjs) ----------
 
+  /** O contato de quem escreveu ou ligou: pelo número, pelo LID, ou um novo. */
+  function contactOf(state, { phone, lid, senderName }) {
+    let contact = phone ? state.contacts.find(c => digits(c.phone) === phone) : null;
+    if (!contact && lid) contact = state.contacts.find(c => c.waLid === lid);
+    if (!contact) {
+      const contactId = execute(state, {
+        type: 'save',
+        key: 'contacts',
+        data: { name: senderName, phone: phone ? `+${phone}` : '', tags: phone ? ['WhatsApp'] : ['WhatsApp', 'Sem telefone'] }
+      });
+      contact = state.contacts.find(c => c.id === contactId);
+    }
+    if (!contact) return null;
+    if (lid) contact.waLid = lid;
+    // O número de um contato que entrou pelo LID apareceu depois.
+    if (phone && !contact.phone) {
+      contact.phone = `+${phone}`;
+      contact.tags = (contact.tags || []).filter(tag => tag !== 'Sem telefone');
+    }
+    return contact;
+  }
+
+  /** Ligação do WhatsApp: uma linha na conversa, que acompanha o resultado. Não é resposta do cliente: não dispara fluxo. */
+  async function ingestCall(workspaceId, { id, status, video, phone, lid, senderName }) {
+    let stored = false;
+    await store.change(workspaceId, state => {
+      stored = false;
+      const known = state.messages.find(m => m.waCall?.id === id);
+      if (known) {
+        // Repetição do aviso de início, ou um aviso atrasado depois do resultado.
+        if (known.waCall.status !== 'offer' || status === 'offer') return;
+        known.waCall = { id, status };
+        known.body = known.body.replace(/[^·]*$/, ` ${callResults[status]}`);
+        stored = true;
+        return;
+      }
+      if (status !== 'offer') return;
+      const contact = contactOf(state, { phone, lid, senderName });
+      if (!contact) return;
+      state.messages.push({ id: randomUUID(), created: new Date().toISOString(), contactId: contact.id, body: `Ligação de ${video ? 'vídeo' : 'voz'} do WhatsApp · ${callResults[status]}`, subject: '',
+        channel: 'Call', direction: 'Inbound', read: false, starred: false, origin: 'phone', waCall: { id, status } });
+      stored = true;
+    });
+    return stored;
+  }
+
   /** Guarda mensagens recebidas, do webhook ou da busca. Devolve quantas são novas. */
   async function ingestItems(workspaceId, items, { recovered = false } = {}) {
     let stored = 0, withMedia = [], owner = '';
@@ -877,23 +952,8 @@ export function createWhatsAppHandler({
         if (id && state.messages.some(m => m.waId === id)) continue;
         // Sem identificador não há como saber se já entrou: a busca não arrisca repetir.
         if (recovered && !id) continue;
-        let contact = phone ? state.contacts.find(c => digits(c.phone) === phone) : null;
-        if (!contact && lid) contact = state.contacts.find(c => c.waLid === lid);
-        if (!contact) {
-          const contactId = execute(state, {
-            type: 'save',
-            key: 'contacts',
-            data: { name: senderName, phone: phone ? `+${phone}` : '', tags: phone ? ['WhatsApp'] : ['WhatsApp', 'Sem telefone'] }
-          });
-          contact = state.contacts.find(c => c.id === contactId);
-        }
+        const contact = contactOf(state, { phone, lid, senderName });
         if (!contact) continue;
-        if (lid) contact.waLid = lid;
-        // O número de um contato que entrou pelo LID apareceu depois.
-        if (phone && !contact.phone) {
-          contact.phone = `+${phone}`;
-          contact.tags = (contact.tags || []).filter(tag => tag !== 'Sem telefone');
-        }
         const messageId = execute(state, {
           type: 'message',
           data: { contactId: contact.id, channel: 'WhatsApp', direction: 'Inbound', body: text }
@@ -996,6 +1056,11 @@ export function createWhatsAppHandler({
     if (event.kind === 'connection') {
       await saveLive(agencyId, workspaceId, event.parsed);
       return json({ ok: true, event: 'connection', status: event.parsed.status });
+    }
+
+    if (event.kind === 'call') {
+      const stored = await ingestCall(workspaceId, event.call);
+      return json({ ok: true, event: 'call', ...(stored ? { stored: true } : { ignored: true }) });
     }
 
     if (event.kind !== 'messages' || !event.items.length) {

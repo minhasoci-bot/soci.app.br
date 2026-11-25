@@ -6289,5 +6289,13 @@ export default {
   "Enviados sozinhos quando uma fatura é paga.": "Se envían solos cuando se paga una factura.",
   "Como o cliente recebe, com dados de exemplo.": "Cómo lo recibe el cliente, con datos de ejemplo.",
   "Endereço fiscal": "Dirección fiscal",
-  "O endereço de quem vende.": "La dirección de quien vende."
+  "O endereço de quem vende.": "La dirección de quien vende.",
+  "Ligação de voz do WhatsApp · recebida": "Llamada de voz de WhatsApp · recibida",
+  "Ligação de voz do WhatsApp · atendida": "Llamada de voz de WhatsApp · atendida",
+  "Ligação de voz do WhatsApp · recusada": "Llamada de voz de WhatsApp · rechazada",
+  "Ligação de voz do WhatsApp · não atendida": "Llamada de voz de WhatsApp · perdida",
+  "Ligação de vídeo do WhatsApp · recebida": "Llamada de video de WhatsApp · recibida",
+  "Ligação de vídeo do WhatsApp · atendida": "Llamada de video de WhatsApp · atendida",
+  "Ligação de vídeo do WhatsApp · recusada": "Llamada de video de WhatsApp · rechazada",
+  "Ligação de vídeo do WhatsApp · não atendida": "Llamada de video de WhatsApp · perdida"
 };
