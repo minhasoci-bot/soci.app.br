@@ -110,13 +110,18 @@ export function decideAlerts(previous, readings, now) {
     for (const metric of reading.metrics) {
       const id = `${reading.service}.${metric.key}`;
       const before = next.metrics[id] || { level: 'ok', sentAt: 0 };
+      // Leitura sem valor (série vazia, saldo ilegível) não muda o nível: senão o próximo valor alto avisaria de novo.
+      if (metric.used === null || metric.used === undefined) continue;
       const level = levelOf(metric, before.level);
-      let sentAt = before.sentAt;
-      if (rank[level] > rank[before.level] || (level === 'critical' && now - before.sentAt >= REMIND_MS)) {
+      let { sentAt, sentLevel } = before;
+      // O mesmo nível já avisado há menos de 24 h não avisa de novo (métrica oscilando em volta de 95%).
+      const recent = level === sentLevel && now - sentAt < REMIND_MS;
+      if ((rank[level] > rank[before.level] && !recent) || (level === 'critical' && now - sentAt >= REMIND_MS)) {
         alerts.push(metricAlert(reading, metric, level));
         sentAt = now;
+        sentLevel = level;
       }
-      next.metrics[id] = { level, sentAt };
+      next.metrics[id] = sentLevel ? { level, sentAt, sentLevel } : { level, sentAt };
     }
   }
   return { next, alerts };

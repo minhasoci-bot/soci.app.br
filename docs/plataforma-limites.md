@@ -25,7 +25,7 @@ Para as métricas que zeram por ciclo e para as acumuladas, a página mostra a p
 
 - **Quando confere:** de hora em hora, de carona no cron `/api/social/cron`, depois das publicações. O botão **Conferir agora** força uma conferência, no máximo a cada 2 minutos.
 - **Aviso a 80%** e **urgente a 95%**. A métrica só volta a "normal" abaixo de 75%, para não repetir o aviso quando oscila em volta de 80%.
-- O alerta sai quando o nível sobe. Enquanto estiver urgente, ele se repete a cada 24 h.
+- O alerta sai quando o nível sobe. Enquanto estiver urgente, ele se repete a cada 24 h. Uma métrica que oscila em volta de 95% não avisa de novo antes de 24 h, e uma leitura sem valor não muda o nível.
 - **Falha de leitura:** avisa uma vez após 3 conferências seguidas com erro, ou 2 no caso da Evolution. Um token vencido aparece assim.
 - **Vencimento da Hostinger:** avisa com 15 dias e com 3 dias.
 - **Canais:**

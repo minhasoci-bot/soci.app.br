@@ -101,6 +101,29 @@ test('decideAlerts: urgente repete só depois de 24 horas', () => {
   assert.deepEqual(reminder.alerts.map(a => a.level), ['critical']);
 });
 
+test('decideAlerts: urgente oscilando entre 96% e 94% avisa uma vez em 24 horas', () => {
+  let state = empty(), sent = 0;
+  for (let hour = 0; hour < 24; hour++) {
+    const { next, alerts } = decideAlerts(state, S(hour % 2 ? 94 : 96), hour * HOUR);
+    sent += alerts.length;
+    state = next;
+  }
+  assert.equal(sent, 1);
+  const { alerts } = decideAlerts(state, S(96), 24 * HOUR);
+  assert.equal(alerts.length, 1);
+});
+
+test('decideAlerts: leitura sem valor mantém o nível e não gera aviso repetido', () => {
+  let state = empty(), sent = 0;
+  for (let hour = 0; hour < 24; hour++) {
+    const { next, alerts } = decideAlerts(state, S(hour % 2 ? null : 85), hour * HOUR);
+    sent += alerts.length;
+    state = next;
+  }
+  assert.equal(sent, 1);
+  assert.equal(state.metrics['supabase.db'].level, 'warn');
+});
+
 test('decideAlerts: o texto traz a previsão quando a métrica tem uma', () => {
   const { alerts } = decideAlerts(empty(), S(82, { projection: '2026-12-12' }), Date.UTC(2026, 10, 20));
   assert.match(alerts[0].body, /No ritmo atual, enche em 12\/12/);
