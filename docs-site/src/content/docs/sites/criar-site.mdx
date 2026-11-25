@@ -1,0 +1,57 @@
+---
+title: Criar um site para o cliente
+description: Comece em branco, com IA ou a partir de um modelo pronto, organize as páginas e publique o site do cliente.
+modulo: sites
+sidebar:
+  order: 1
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Em **Sites**, você monta o site do cliente com várias páginas, menu entre elas e formulário de contato. Os contatos que chegam pelo site entram direto no CRM da subconta.
+
+<Requisitos permissao="Acesso ao módulo Sites na subconta" />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Sites** e vá para a aba **Sites**. Clique em **Começar em branco** (ou em **Novo site**, quando já houver sites).
+
+   <Print src="docs/sites/criar-site/01-sites.b9317985.webp" alt="Aba Sites vazia com os botões Construir com IA e Começar em branco." />
+
+2. Escolha como começar: **Em branco**, com uma página inicial para editar como quiser; **Construir com IA**, que pergunta a direção visual e monta as etapas; ou **A partir de modelo**, com sites prontos com fotos, vídeos e animações. Dê um **Nome do site**, escolha o modelo e clique em **Criar site**. Use **Pré-visualizar** para ver o modelo antes.
+
+   <Print src="docs/sites/criar-site/02-escolher-modelo.1eeea100.webp" alt="Janela Novo site com A partir de modelo escolhido, o nome Site da Imobiliária Horizonte e o modelo Corretora em destaque." />
+
+3. O site abre na aba **Páginas**, com a lista à esquerda e a prévia da página escolhida. Use **Adicionar página** para criar páginas, as setas para mudar a ordem e **Editar página** ou **Abrir editor** para mudar textos e imagens. A primeira página abre no endereço principal do site.
+
+   <Print src="docs/sites/criar-site/03-paginas-do-site.9f34ed93.webp" alt="Site da Imobiliária Horizonte com as páginas Início, Imóveis e Contato e a prévia da página inicial." />
+
+4. Quando o site estiver pronto, clique em **Publicar**. Enquanto não for publicado, ele fica como **Rascunho**.
+
+   <Print src="docs/sites/criar-site/04-publicar.37275b36.webp" alt="Site da Imobiliária Horizonte em rascunho com o botão Publicar em destaque." />
+
+</Steps>
+
+<Aside type="tip">
+Com a chave da OpenAI conectada na agência, use **Editar com IA** na página para pedir mudanças em texto, como "troque o título por uma chamada mais direta".
+</Aside>
+
+## Perguntas frequentes
+
+**Onde vejo as visitas do site?**
+Na aba **Estatísticas** do site. As abas **SEO** e **Configurações** cuidam do título nas buscas e dos dados do site.
+
+**Qual a diferença entre site e funil?**
+O site tem várias páginas com menu entre elas. O funil é uma sequência de páginas (captura, oferta e obrigado) em que o formulário de cada etapa leva para a próxima.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Montar um funil de reuniões qualificadas" href="/sites/funil-reunioes-qualificadas/" description="Um funil pronto para marcar reuniões com leads qualificados." />
+  <LinkCard title="Cadastrar e organizar contatos" href="/crm/contatos/" description="Quem preenche o formulário do site vira contato." />
+</CardGrid>

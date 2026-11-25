@@ -1,0 +1,65 @@
+---
+title: Adicionar usuários e definir permissões
+description: Cadastre as pessoas da equipe, escolha o papel de cada uma, as subcontas que ela acessa e os módulos que pode usar.
+modulo: configuracoes
+sidebar:
+  order: 1
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Cada pessoa que usa a soci tem um usuário com um papel. O papel diz onde ela atua (na agência ou numa subconta), e as permissões de módulos dizem o que ela vê. Assim, uma atendente pode trabalhar só em Conversas, Contatos e Calendários de um cliente, sem ver cobranças nem configurações.
+
+<Requisitos permissao="Dono ou admin da agência" />
+
+## Passo a passo
+
+<Steps>
+
+1. No painel da agência, abra **Configurações** e vá para a aba **Equipe**. Clique em **Adicionar usuário**.
+
+   <Print src="docs/configuracoes/usuarios-e-permissoes/01-equipe.25fcd9ad.webp" alt="Aba Equipe das configurações da agência, sem membros, com o botão Adicionar usuário em destaque." />
+
+2. Preencha **Nome**, **Sobrenome** e **E-mail** da pessoa. Em **Função**, escolha o papel: **Dono da agência**, **Admin da agência**, **Usuário da agência**, **Admin da conta** ou **Usuário da conta**.
+
+   <Print src="docs/configuracoes/usuarios-e-permissoes/02-dados-e-funcao.c87cc681.webp" alt="Janela Novo usuário com nome, sobrenome, e-mail e a função Usuário da conta." />
+
+3. Em **Acesso a subcontas**, marque os clientes em que a pessoa vai trabalhar. Em **Permissões de módulos**, marque os módulos liberados e, em **Modo de acesso**, escolha **Somente módulos selecionados**. Clique em **Criar**.
+
+   <Print src="docs/configuracoes/usuarios-e-permissoes/03-acesso-e-modulos.249f794d.webp" alt="Janela Novo usuário com acesso à Clínica Sorriso Leve e os módulos Conversas, Contatos e Calendários marcados, no modo Somente módulos selecionados." />
+
+4. O usuário aparece na lista com a função, as subcontas e quantos módulos estão liberados. Use **Editar** para mudar o acesso e **Agir como** para ver a soci exatamente como essa pessoa vê.
+
+   <Print src="docs/configuracoes/usuarios-e-permissoes/04-usuario-criado.b8656609.webp" alt="Lista da equipe com Marina Lopes, Usuário da conta, acesso à Clínica Sorriso Leve e 3 módulos permitidos." />
+
+</Steps>
+
+## Os modos de acesso
+
+| Modo | O que a pessoa vê |
+| --- | --- |
+| **Herdar todos os módulos** | Todos os módulos das subcontas que ela acessa. |
+| **Somente módulos selecionados** | Só os módulos marcados em Permissões de módulos. |
+| **Nenhum módulo** | Nenhum módulo das subcontas. |
+
+<Aside type="tip">
+Depois de criar ou mudar um usuário, use **Agir como** para conferir as permissões antes de avisar a pessoa.
+</Aside>
+
+## Perguntas frequentes
+
+**Qual a diferença entre os papéis da agência e os da conta?**
+Os papéis da agência (dono, admin e usuário da agência) trabalham no painel da agência e nas subcontas liberadas. Os papéis da conta (admin e usuário da conta) trabalham só dentro das subcontas marcadas. Veja a tabela completa em [Conceitos](/comece-aqui/conceitos/).
+
+**Quem pode mudar o acesso de um dono da agência?**
+Só outro dono da agência. Admins da agência não conseguem dar o papel de dono nem mudar um usuário que já é dono.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Conceitos" href="/comece-aqui/conceitos/" description="Agência, subconta, usuários e papéis." />
+  <LinkCard title="Criar uma subconta para um cliente" href="/agencia/criar-subconta/" description="Cadastre o cliente antes de dar acesso à equipe." />
+</CardGrid>

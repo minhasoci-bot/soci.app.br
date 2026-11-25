@@ -1,0 +1,68 @@
+---
+title: Criar o primeiro fluxo de trabalho
+description: Monte uma automação do zero, com um gatilho e uma ação, e publique para ela começar a rodar.
+modulo: automacoes
+sidebar:
+  order: 1
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Um fluxo de trabalho (workflow) faz uma tarefa sozinho sempre que algo acontece na subconta. Neste exemplo, toda vez que um contato novo entra, a soci cria uma tarefa para a equipe ligar para ele no dia seguinte. O mesmo caminho serve para qualquer automação: escolha o **gatilho** (o que inicia o fluxo) e as **ações** (o que o fluxo faz).
+
+<Requisitos permissao="Acesso ao módulo Automações na subconta" />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Automações** e clique em **Criar fluxo de trabalho**. Na janela de receitas, escolha **Iniciar do zero**. As receitas são fluxos prontos que você pode usar como ponto de partida.
+
+   <Print src="docs/automacoes/primeiro-workflow/01-lista-de-fluxos.c4f9a014.webp" alt="Lista de fluxos de trabalho vazia com o botão Criar fluxo de trabalho em destaque." />
+
+2. No editor, dê um nome ao fluxo em **Nome do fluxo**, por exemplo "Boas-vindas: ligar para o novo contato". Depois clique em **Adicionar gatilho**.
+
+   <Print src="docs/automacoes/primeiro-workflow/02-nome-do-fluxo.ea45ffc7.webp" alt="Editor de fluxo com o nome preenchido e o bloco Adicionar gatilho em destaque." />
+
+3. Busque e escolha o gatilho **Contato criado**. Os gatilhos estão agrupados por assunto, como Contato, Eventos, Agendamentos e Oportunidades.
+
+   <Print src="docs/automacoes/primeiro-workflow/03-escolher-gatilho.a0f31129.webp" alt="Lista de gatilhos filtrada pela busca Contato criado, com a opção em destaque." />
+
+4. Clique em **Adicionar ação**, busque "tarefa" e escolha **Criar tarefa**.
+
+   <Print src="docs/automacoes/primeiro-workflow/04-escolher-acao.2079688e.webp" alt="Lista de ações filtrada pela busca tarefa, com a ação Criar tarefa em destaque." />
+
+5. Configure a ação. Em **Título**, escreva o que a equipe deve fazer. Para usar dados do contato, clique no campo e depois na variável à esquerda: "Ligar para `{{contact.first_name}}`" vira "Ligar para Ana" quando o fluxo roda. Em **Prazo em dias**, coloque 1. Se quiser, escolha o **Responsável**.
+
+   <Print src="docs/automacoes/primeiro-workflow/05-configurar-acao.0346fb36.webp" alt="Configuração da ação Criar tarefa com o título Ligar para o primeiro nome do contato e o prazo de 1 dia." />
+
+6. Feche a configuração e confira o fluxo: o gatilho à esquerda, a ação ao lado. Clique em **Publicar**. Enquanto não for publicado, o fluxo fica como **Rascunho** e não roda.
+
+   <Print src="docs/automacoes/primeiro-workflow/06-publicar.33d71717.webp" alt="Fluxo com o gatilho Contato criado ligado à ação Criar tarefa e o botão Publicar em destaque." />
+
+</Steps>
+
+<Aside type="tip">
+Antes de publicar, use **Testar** para rodar o fluxo com um contato e ver o resultado de cada etapa, sem enviar nada de verdade. Use **Salvar rascunho** para continuar depois.
+</Aside>
+
+## Perguntas frequentes
+
+**Um fluxo pode ter mais de um gatilho?**
+Sim. Clique em **Adicionar gatilho** de novo: qualquer um dos gatilhos inscreve o contato no fluxo.
+
+**Como desfaço uma mudança no editor?**
+Use os botões de desfazer e refazer no canto do editor, ou **Ctrl + Z** e **Ctrl + Y**.
+
+**Onde vejo se o fluxo rodou?**
+Na tela Automações, aba **Histórico de execuções**.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Gatilhos" href="/automacoes/gatilhos/" description="Todos os eventos que podem iniciar um fluxo de trabalho." />
+  <LinkCard title="Ações" href="/automacoes/acoes/" description="Tudo o que um fluxo de trabalho pode fazer depois do gatilho." />
+</CardGrid>

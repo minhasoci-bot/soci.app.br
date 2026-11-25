@@ -1,0 +1,21 @@
+---
+// Gatilhos e ações de workflow ligados ao módulo do artigo.
+interface Props { gatilhos: string[]; acoes: string[] }
+const { gatilhos = [], acoes = [] } = Astro.props;
+---
+<div class="soci-automacao">
+  <div>
+    <h4><a href="/automacoes/gatilhos/">Gatilhos</a></h4>
+    <ul>{gatilhos.map(nome => <li>{nome}</li>)}</ul>
+  </div>
+  <div>
+    <h4><a href="/automacoes/acoes/">Ações</a></h4>
+    <ul>{acoes.map(nome => <li>{nome}</li>)}</ul>
+  </div>
+</div>
+
+<style>
+  .soci-automacao { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; }
+  .soci-automacao > div { border: 1px solid var(--sl-color-gray-5); border-radius: 0.5rem; padding: 0.75rem 1rem; }
+  .soci-automacao h4 { margin: 0; }
+</style>

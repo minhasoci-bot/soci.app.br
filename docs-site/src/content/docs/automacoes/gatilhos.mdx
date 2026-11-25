@@ -1,0 +1,242 @@
+---
+title: "Gatilhos"
+description: "Todos os eventos que podem iniciar um workflow na soci, agrupados como no editor."
+sidebar:
+  order: 2
+---
+
+{/* Gerado por docs-site/scripts/catalogo-automacoes.mjs a partir de ui/workflow-data.js. Não edite à mão. */}
+
+O gatilho é o evento que inicia o workflow. A lista abaixo segue os grupos do editor de workflows. Os grupos que começam com "Apps" vêm dos conectores e só aparecem depois que o app é conectado.
+
+## Contato
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Contato criado** |  |
+| **Contato alterado** |  |
+| **Tag do contato** |  |
+| **Não perturbe (DND)** |  |
+| **Associação criada** | Quando um contato é ligado a uma empresa do cadastro (no cadastro do contato, na importação ou pela ação Criar e associar empresa) ou quando uma oportunidade é ligada a um contato. Use `{{trigger.title}}` para o nome da empresa ou da oportunidade. |
+| **Lembrete de aniversário** |  |
+| **Lembrete de data personalizada** |  |
+| **Nota adicionada** |  |
+| **Nota alterada** | Quando as notas do contato são editadas. Use `{{trigger.body}}` para o texto novo. |
+| **Tarefa adicionada** |  |
+| **Tarefa concluída** |  |
+| **Lembrete de tarefa** | Uma vez por dia, para as tarefas em aberto que vencem no dia escolhido. |
+
+## Eventos
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Evento do bot de IA** | Quando o bot de IA das conversas responde, sugere uma resposta, marca um horário, passa a conversa para a equipe ou encerra o atendimento. Use `{{trigger.event}}`, `{{trigger.body}}` e `{{trigger.channel}}`. |
+| **Webhook de entrada** |  |
+| **App disparou um gatilho** | Quando um app instalado do marketplace dispara um dos gatilhos dele. Os dados enviados pelo app ficam em `{{trigger.payload}}`. |
+| **Uso de IA chegou ao alerta** | Quando o gasto do mês com IA passa da faixa de alerta ou atinge o limite definido pela agência. Não tem contato: use ações internas. `{{trigger.cost}}` e `{{trigger.limit}}` trazem os valores em US$. |
+| **Agendador** |  |
+| **Cliente respondeu** |  |
+| **E-mail recebido** | Quando chega um e-mail no endereço de Conversas da subconta (as respostas aos e-mails da equipe e dos fluxos vêm para cá). O contato é achado pelo e-mail ou criado. Use `{{trigger.subject}}`, `{{trigger.from}}` e `{{trigger.body}}`. |
+| **SLA da conversa** | Quando uma mensagem do cliente fica sem resposta até o prazo de SLA (perto de vencer ou vencido). Precisa do SLA ligado em Conversas → Configurações. Use `{{trigger.minutes}}` para os minutos sem resposta. |
+| **Evento personalizado** | Quando outro fluxo usa a ação Disparar evento personalizado com este nome. Os dados enviados ficam em `{{trigger.campo}}` e o nome em `{{trigger.event}}`. Pode vir sem contato: aí use ações internas. |
+| **Equipe respondeu** | Quando alguém da equipe manda uma mensagem ao contato pela caixa de entrada (notas internas não contam). Use `{{trigger.body}}` para a mensagem e `{{trigger.user}}` para quem respondeu. |
+| **Falha no envio de mensagem** | Quando uma mensagem de WhatsApp, e-mail, Messenger ou Direct da equipe ou de um fluxo não é entregue. Use `{{trigger.reason}}` para o motivo, `{{trigger.channel}}` para o canal e `{{trigger.body}}` para a mensagem. Fluxos com este gatilho não disparam de novo com as falhas das próprias mensagens. |
+| **Prospect recebido da agência** | Quando a agência envia um prospect da Prospecção para esta subconta (uma vez por prospect; reenviar não dispara de novo). O contato chega com a tag New Prospect Received. Use `{{trigger.company}}`, `{{trigger.website}}`, `{{trigger.city}}` e `{{trigger.category}}`. |
+| **Formulário enviado** |  |
+| **Pesquisa enviada** |  |
+| **Questionário enviado** |  |
+| **Evento de e-mail** |  |
+| **Link de rastreamento clicado** |  |
+| **Página do site ou funil visitada** | Quando um contato conhecido abre uma página de um site ou funil publicado na Soci. O navegador passa a ser reconhecido depois que a pessoa envia um formulário do site ou funil; visitas anônimas não disparam. Recarregar a mesma página em 30 minutos não conta de novo. Use `{{trigger.page}}` e `{{trigger.site}}`. |
+| **Chat do site iniciado** |  |
+| **Inscrição em webinar** |  |
+| **Preferências de comunicação mudaram** | Quando o contato muda canais ou assuntos na central de preferências. |
+| **Recompensa de fidelidade resgatada** | Quando um contato troca pontos por uma recompensa. Use `{{trigger.code}}` para o código. |
+| **Nível de fidelidade mudou** | Quando o contato sobe de nível no programa de fidelidade. Use `{{trigger.tier}}`. |
+| **Sequência de e-mail concluída** | Quando um contato recebe o último e-mail de uma sequência. |
+| **Ticket criado** | Quando um ticket de atendimento é aberto (pela equipe, pelo portal, por automação ou por uma conversa nova). Use `{{trigger.number}}` e `{{trigger.title}}`. |
+| **Situação do ticket mudou** | Quando um ticket muda de situação, como resolvido ou aguardando cliente. |
+| **Curso concluído** | Quando um aluno chega a 100% de um curso com certificado ligado. Use `{{trigger.course}}` para o nome do curso. |
+| **Aula concluída** | Quando o aluno marca uma aula como concluída no portal. Use `{{trigger.title}}` para o nome da aula. |
+| **Aula iniciada** | Quando o aluno abre uma aula no portal pela primeira vez (abrir de novo e aulas já concluídas não contam). Use `{{trigger.title}}` para o nome da aula e `{{trigger.course}}` para o curso. |
+| **Curso iniciado** | Quando o aluno conclui a primeira aula de um curso. Use `{{trigger.course}}` para o nome do curso. |
+| **Módulo do curso iniciado** | Quando o aluno conclui a primeira aula de um módulo. Use `{{trigger.module}}` para o nome do módulo. |
+| **Módulo do curso concluído** | Quando o aluno conclui todas as aulas publicadas de um módulo. Use `{{trigger.module}}` para o nome do módulo. |
+| **Acesso a curso liberado** | Quando o contato ganha acesso a um curso, por oferta ou por automação. |
+| **Acesso à oferta liberado** | Quando o contato recebe os cursos e comunidades de uma oferta: na compra, na inscrição gratuita ou por uma automação. Use `{{trigger.offer}}` para o nome da oferta. |
+| **Acesso à oferta removido** | Quando uma automação tira do contato os cursos e comunidades de uma oferta. |
+| **Acesso a curso removido** | Quando uma automação tira o acesso do contato a um curso. |
+| **Certificado emitido** | Quando um certificado de conclusão é emitido. Use `{{trigger.code}}` para o código de verificação. |
+| **Badge emitido** | Quando um aluno recebe o badge de matrícula de um curso. |
+| **Quiz do curso respondido** | Quando um aluno envia um quiz no portal. Use `{{trigger.score}}` para a nota (0 a 100) e `{{trigger.title}}` para a aula. |
+| **Tarefa do curso entregue** | Quando um aluno entrega uma tarefa no portal. |
+| **Tarefa do curso corrigida** | Quando a equipe aprova ou pede ajustes numa tarefa. |
+| **Membro entrou na comunidade** | Quando um membro entra numa comunidade (gratuita, aprovada, paga ou no teste grátis). Use `{{trigger.title}}` para o nome da comunidade. |
+| **Post criado na comunidade** | Quando um membro publica numa comunidade (posts retidos pela moderação contam quando são aprovados). Use `{{trigger.title}}` e `{{trigger.body}}`. |
+| **Comentário na comunidade** | Quando um membro comenta um post. Use `{{trigger.body}}` para o comentário e `{{trigger.title}}` para o post. |
+| **Pedido para entrar na comunidade** | Quando alguém pede para entrar numa comunidade privada. Use `{{trigger.answers}}` para as respostas das perguntas de entrada. |
+| **Pedido para entrar recusado** | Quando a equipe recusa (remove ou bane) um pedido para entrar. |
+| **Check-in em evento da comunidade** | Quando a equipe marca a presença de um participante no evento. Use `{{trigger.title}}` para o nome do evento. |
+| **Acesso a canal privado liberado** | Quando um membro recebe acesso a um canal privado da comunidade (pela equipe ou por uma automação). Use `{{trigger.channel}}` para o nome do canal. |
+| **Acesso a canal privado removido** | Quando um membro perde o acesso a um canal privado da comunidade. |
+| **Nível no ranking da comunidade mudou** | Quando um membro sobe ou desce de nível no ranking da comunidade (posts, comentários, curtidas recebidas e pontos dados por automações). Use `{{trigger.level}}` e `{{trigger.levelName}}`. |
+| **Acesso à comunidade removido** | Quando um membro ativo sai, é removido ou banido, ou uma automação tira o acesso dele. Use `{{trigger.reason}}` para o motivo. |
+| **Arquivo enviado no portal do cliente** | Quando o cliente envia um arquivo pela área "Enviar um arquivo para a equipe" do portal. O arquivo fica em Arquivos, ligado ao contato, e aparece em Conversas. Use `{{trigger.name}}` para o nome do arquivo. |
+| **Login no portal do cliente** | Quando o cliente entra no portal (área de membros) pelo link de acesso. O primeiro acesso conta como cadastro. Entradas da equipe para ver o portal não contam. |
+| **Inscrição em evento da comunidade** | Quando um membro confirma presença ou paga o ingresso de um evento da comunidade. Use `{{trigger.title}}` para o nome do evento. |
+| **Nova avaliação recebida** |  |
+| **Afiliado cadastrado** |  |
+| **Lead de afiliado** |  |
+| **Nova venda de afiliado** |  |
+| **Afiliado entrou em campanha** | Quando um afiliado passa a participar de uma campanha (na tela de afiliados ou por automação). Dispara no contato do afiliado; use `{{trigger.campaign}}` para o nome da campanha. |
+| **Depoimento em vídeo recebido** |  |
+
+## Telefonia
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Ligação terminou** | Quando termina uma ligação feita ou recebida por um número da Soci (Configurações → Telefonia). Use `{{trigger.status}}`, `{{trigger.direction}}`, `{{trigger.duration}}` (segundos) e `{{trigger.recording}}`. |
+| **Resultado do discador** | Quando a equipe marca o resultado de uma ligação do discador (Conversas → Discador). Use `{{trigger.disposition}}` e `{{trigger.note}}`. |
+| **Ligação do Voice AI terminou** | Quando termina uma ligação atendida ou feita pelo Voice AI. Use `{{trigger.transcript}}` (a conversa inteira), `{{trigger.outcome}}` (end, transfer, book, timeout) e `{{trigger.duration}}`: por exemplo, resuma com IA, extraia dados para o contato ou avise a equipe. |
+| **Telefone validado** | Quando a ação Validar telefone consulta o número do contato. Use `{{trigger.valid}}` (sim ou não), `{{trigger.lineType}}` e `{{trigger.carrier}}`. |
+| **Início da URA** | Quando chega uma ligação num número com a URA ligada (Configurações → Telefonia). O fluxo atende com as etapas URA: falar ou tocar, coletar dígitos, transferir, gravar recado e desligar. Se nenhum fluxo atender, a ligação segue o encaminhamento do número. |
+
+## Redes Sociais
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Comentário em post social (ManyChat)** |  |
+| **Mensagem direta / DM recebida** |  |
+| **Mensagem de anúncio no WhatsApp** | Quando alguém manda mensagem pelo botão de um anúncio "Clique para o WhatsApp" do Facebook ou do Instagram. O anúncio vai para a atribuição do contato. Use `{{trigger.title}}` (título do anúncio), `{{trigger.adId}}` e `{{trigger.body}}`. |
+| **Formulário de cadastro do Facebook** | Quando alguém envia um formulário de cadastro (Lead Ads) no Facebook ou no Instagram, de uma página conectada no Social Planner. O contato é criado ou atualizado e as respostas viram nota. Use `{{trigger.form}}` e `{{trigger.campaign}}`. |
+| **Formulário de lead do Google Ads** | Quando alguém envia o formulário de lead de um anúncio do Google Ads com o webhook da Soci (URL e chave em Marketing → Rastreamento → Formulários). O contato é criado ou atualizado, o clique (gclid) fica na atribuição e as respostas viram nota. Use `{{trigger.form}}` e `{{trigger.campaign}}`. |
+| **Lead de anúncio** | Quando um contato chega de um anúncio (Google Ads, Meta Ads ou outra mídia paga), por um formulário, site, loja ou webinar. Use `{{trigger.campaign}}` e `{{trigger.source}}`. |
+| **Vídeo assistido** | Quando um contato conhecido assiste a um vídeo HTML5 do seu site (com o script de rastreamento) até 25, 50, 75 ou 100%. Vídeos do YouTube e de outros players em iframe não são lidos. Use `{{trigger.percent}}`, `{{trigger.video}}` e `{{trigger.url}}`. |
+| **Evento do rastreamento externo** | Quando um contato conhecido visita uma página ou envia um formulário no seu site com o script de rastreamento instalado. |
+| **Pontuação do lead mudou** | Quando a pontuação do contato muda. Com um mínimo, dispara só quando a pontuação chega a esse valor. |
+| **Post social publicado** | Quando o Social Planner termina de publicar um post (agendado, recorrente, da fila evergreen ou do RSS). Use `{{trigger.url}}`, `{{trigger.summary}}` e `{{trigger.networks}}`. |
+
+## Agendamentos
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Agendamento criado** |  |
+| **Status do agendamento** |  |
+| **Resumo de reunião gerado** |  |
+| **Transcrição de reunião gerada** | Quando a transcrição de uma reunião ligada ao contato fica pronta (colada, de arquivo ou de áudio). |
+| **Reserva de serviço** | Quando o cliente reserva um serviço ou uma locação na página de agendamento. |
+| **Serviço em campo: situação mudou** |  |
+
+## Oportunidades
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Oportunidade criada** |  |
+| **Status da oportunidade alterado** |  |
+| **Etapa do pipeline alterada** |  |
+| **Oportunidade alterada** |  |
+| **Oportunidade parada** |  |
+
+## Pagamentos e lojas
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Fatura** |  |
+| **Pagamento recebido** |  |
+| **Pedido feito na loja** |  |
+| **Pedido pago** |  |
+| **Pedido entregue** |  |
+| **Avaliação de produto enviada** |  |
+| **Checkout abandonado** |  |
+| **Documento ou contrato** |  |
+| **Documento pago** |  |
+| **Orçamento** |  |
+| **Fatura recorrente** |  |
+| **Assinatura** | Quando uma assinatura é criada ou muda de status. |
+| **Reembolso** | Quando um pagamento do contato é marcado como reembolsado. Use `{{trigger.total}}`. |
+| **Cupom usado** | Quando um pedido da loja usa um cupom. Use `{{trigger.code}}`. |
+| **Cupom atingiu o limite de usos** | Quando um cupom chega ao número máximo de usos. Dispara para o contato do último pedido. |
+| **Cupom expirou** | No dia seguinte ao fim da validade de um cupom. Não tem contato: use para avisar a equipe, criar tarefa ou chamar um webhook. Use `{{trigger.code}}`. |
+| **Cupom aplicado no carrinho** | Quando um contato já cadastrado coloca um cupom válido no carrinho da loja, antes de fechar o pedido. Use `{{trigger.code}}`, `{{trigger.discount}}` e `{{trigger.total}}`. |
+| **Produto visualizado** | Quando um contato já identificado na loja (pelo e-mail que preencheu no carrinho) abre a página de um produto. No máximo uma vez por dia para cada produto. Use `{{trigger.title}}` e `{{trigger.price}}`. |
+| **Produtos adicionados ao carrinho** | Quando um contato já cadastrado coloca ou muda produtos no carrinho da loja. Use `{{trigger.total}}`. |
+
+## Apps · Slack
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Nova mensagem no canal (instantâneo)** | Chega pelo webhook do app. Conecte o Slack em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+| **Nova mensagem direta (instantâneo)** | Chega pelo webhook do app. Conecte o Slack em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+| **Nova menção (instantâneo)** | Chega pelo webhook do app. Conecte o Slack em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+| **Nova reação (instantâneo)** | Chega pelo webhook do app. Conecte o Slack em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+| **Usuário convidado para o canal (instantâneo)** | Chega pelo webhook do app. Conecte o Slack em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+
+## Apps · Google Sheets
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Nova linha na planilha (a cada 5 min)** | Consultado a cada 5 minutos. Conecte o Google Sheets em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+| **Nova planilha (a cada 5 min)** | Consultado a cada 5 minutos. Conecte o Google Sheets em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+| **Nova aba (a cada 5 min)** | Consultado a cada 5 minutos. Conecte o Google Sheets em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+
+## Apps · Shopify
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Pedido feito** | Chega pelo webhook do app, com o contato achado (ou criado) pelo e-mail ou telefone. Conecte o Shopify em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+
+## Apps · TikTok Lead Generation
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Formulário do TikTok enviado** | Chega pelo webhook do app, com o contato achado (ou criado) pelo e-mail ou telefone. Conecte o TikTok Lead Generation em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+
+## Apps · LinkedIn Lead Gen Forms
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Formulário do LinkedIn enviado** | Chega pelo webhook do app, com o contato achado (ou criado) pelo e-mail ou telefone. Conecte o LinkedIn Lead Gen Forms em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+
+## Apps · Airtable
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Novo registro (a cada 5 min)** | Consultado a cada 5 minutos. Conecte o Airtable em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+
+## Apps · Calendly
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Evento agendado** | Chega pelo webhook do app, com o contato achado (ou criado) pelo e-mail ou telefone. Conecte o Calendly em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+| **Evento cancelado** | Chega pelo webhook do app, com o contato achado (ou criado) pelo e-mail ou telefone. Conecte o Calendly em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+
+## Apps · Cal.com
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Reserva criada** | Chega pelo webhook do app, com o contato achado (ou criado) pelo e-mail ou telefone. Conecte o Cal.com em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+| **Reserva cancelada** | Chega pelo webhook do app, com o contato achado (ou criado) pelo e-mail ou telefone. Conecte o Cal.com em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+
+## Apps · Typeform
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Resposta enviada** | Chega pelo webhook do app, com o contato achado (ou criado) pelo e-mail ou telefone. Conecte o Typeform em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+
+## Apps · Jotform
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Envio do formulário** | Chega pelo webhook do app, com o contato achado (ou criado) pelo e-mail ou telefone. Conecte o Jotform em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+
+## Apps · Google Forms
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Resposta enviada** | Chega pelo webhook do app, com o contato achado (ou criado) pelo e-mail ou telefone. Conecte o Google Forms em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |
+
+## Apps · Fathom
+
+| Gatilho | Para que serve |
+| --- | --- |
+| **Resumo da reunião pronto** | Chega pelo webhook do app, com o contato achado (ou criado) pelo e-mail ou telefone. Conecte o Fathom em Configurações → Conectores. Os dados ficam em `{{trigger.*}}`. |

@@ -1,0 +1,14 @@
+---
+// Bloco "Antes de começar": o que a pessoa precisa ter antes de seguir o passo a passo.
+import { Aside } from '@astrojs/starlight/components';
+
+interface Props { plano?: string; permissao?: string; integracoes?: string[] }
+const { plano, permissao, integracoes = [] } = Astro.props;
+---
+<Aside type="note" title="Antes de começar">
+  <ul>
+    {plano && <li><strong>Plano:</strong> {plano}</li>}
+    {permissao && <li><strong>Permissão:</strong> {permissao}</li>}
+    {integracoes.length > 0 && <li><strong>Integrações:</strong> {integracoes.join(', ')}</li>}
+  </ul>
+</Aside>
