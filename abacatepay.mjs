@@ -300,7 +300,7 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
   function bookPlanPayment(agency, accountId, billing, event, data, devMode) {
     const pay = data?.payment || {}, id = String(pay.id || ''), paidCents = Math.round(Number(pay.paidAmount || pay.amount || 0));
     if (id && (billing.payments || []).some(item => item.id === id)) return;
-    billing.payments = [...(billing.payments || []), { id, amount: paidCents / 100, at: stamp(), receiptUrl: String(pay.receiptUrl || ''), ...(devMode && { test: true }) }].slice(-24);
+    billing.payments = [...(billing.payments || []), { id, amount: paidCents / 100, at: stamp(), receiptUrl: String(pay.receiptUrl || ''), ...(devMode ? { test: true } : id && { booked: true }) }].slice(-24);
     if (!id) console.warn(`AbacatePay ${event}: pagamento de plano sem id (${accountId}); confira no painel do gateway.`);
     else if (paidCents > 0 && !devMode) postFact(agency, { layer: 'agency', kind: 'plan_payment', key: `plan:abacatepay:${id}`, workspaceId: accountId, amountCents: paidCents, feeCents: Number.isInteger(pay.platformFee) ? pay.platformFee : null,
       method: methodNames[data?.subscription?.method] || '', provider: 'abacatepay', ref: id, source: { type: 'plan', id: billing.planId || '' }, at: stamp(), detail: { plan: billing.planName || '' } });
