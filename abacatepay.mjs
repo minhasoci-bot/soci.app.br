@@ -350,7 +350,8 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
       } else if (event.startsWith('subscription.')) {
         const pay = data?.payment || {};
         await store.change(scope, state => {
-          handled = execute(state, { type: 'document-subscription', data: { event, checkoutId, subscriptionId: String(data?.subscription?.id || ''),
+          handled = execute(state, { type: 'document-subscription', data: { event, checkoutId, subscriptionId: String(data?.subscription?.id || ''), paymentId: String(pay.id || ''),
+            feeCents: pay.platformFee, devMode: Boolean(body.devMode || conn.devMode),
             amount: Number(pay.paidAmount || pay.amount || 0) / 100, method: methodNames[data?.subscription?.method] || '', receiptUrl: String(pay.receiptUrl || '') } }, { workspace: scope });
         });
       }
