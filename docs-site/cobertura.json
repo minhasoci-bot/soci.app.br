@@ -57,6 +57,13 @@
     "nota": "Aguardando o app: o Domínio para subcontas é gravado em Empresa e marca, mas o servidor ainda não abre as subcontas nesse domínio."
   },
   {
+    "grupo": "agencia",
+    "artigo": "plano-nao-pago",
+    "titulo": "Suspender a subconta quando o plano não é pago",
+    "fase": "F2",
+    "status": "escrito"
+  },
+  {
     "grupo": "configuracoes",
     "artigo": "usuarios-e-permissoes",
     "titulo": "Usuários e permissões",
@@ -138,6 +145,13 @@
     "grupo": "pagamentos",
     "artigo": "documentos-e-contratos",
     "titulo": "Documentos e contratos",
+    "fase": "F2",
+    "status": "escrito"
+  },
+  {
+    "grupo": "pagamentos",
+    "artigo": "livro-da-cobranca",
+    "titulo": "Livro da cobrança e cadastro fiscal",
     "fase": "F2",
     "status": "escrito"
   },

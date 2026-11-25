@@ -1,0 +1,62 @@
+---
+title: Suspender a subconta quando o plano não é pago
+description: Configure as tentativas de cobrança, suspenda quem não paga e deixe o cliente reativar sozinho.
+modulo: agencia
+sidebar:
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Quando o cartão de uma subconta é recusado, o AbacatePay tenta de novo. Se todas as tentativas falharem, a soci pode suspender a subconta.
+
+<Requisitos permissao="Acesso a Configurações na agência" integracoes={['AbacatePay conectado na agência']} />
+
+## Ligar a suspensão
+
+<Steps>
+
+1. Abra **Configurador SaaS → Visão geral** e vá até **Plano não pago**. Se o modo SaaS ainda não estiver ligado, clique antes em **Ativar o modo SaaS**.
+
+   <Print src="docs/agencia/plano-nao-pago/01-plano-nao-pago.3e0319f7.webp" alt="Visão geral do Configurador SaaS com o quadro Plano não pago em destaque." />
+
+2. Marque **Suspender a subconta quando a assinatura falhar**. Defina o número de tentativas (1 a 10) e os dias entre elas (1 a 30). Clique em **Salvar**.
+
+   <Print src="docs/agencia/plano-nao-pago/02-ligar-e-salvar.1cd00639.webp" alt="Quadro Plano não pago com a suspensão marcada, quatro tentativas a cada dois dias e o botão Salvar em destaque." />
+
+</Steps>
+
+Agências criadas antes desta opção começam com ela desligada. As tentativas valem para as assinaturas geradas depois de salvar.
+
+## Atualizar os avisos do AbacatePay
+
+Se você já tinha conectado o AbacatePay, abra **Configurações → AbacatePay** e clique em **Atualizar avisos**. Cada subconta já conectada faz o mesmo em **Configurações → AbacatePay**. Sem isso, recusas e contestações não chegam à soci.
+
+## O que acontece em cada etapa
+
+| Etapa | Agência | Subconta |
+| --- | --- | --- |
+| Cartão recusado | Assinatura **Em atraso** e e-mail aos administradores, um por tentativa | Aviso no topo da tela |
+| Tentativas esgotadas | Subconta suspensa, se a opção estiver ligada | Tela **Subconta pausada** com **Pagar e reativar** |
+| Pagamento confirmado | Subconta ativa de novo | Acesso liberado |
+
+<Aside type="note">
+Só o administrador da subconta vê **Pagar e reativar**, e só quando a pausa veio da cobrança. Uma pausa feita por você nunca é desfeita por pagamento.
+</Aside>
+
+## Perguntas frequentes
+
+**Gerei um segundo link e o cliente pagou o primeiro. E agora?**
+A subconta volta a funcionar e a assinatura paga vira a atual. Se as duas forem pagas, você recebe um e-mail para cancelar uma delas no painel do AbacatePay.
+
+**O reembolso de um plano suspende a subconta?**
+Não. Ele só entra no livro da cobrança.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Livro da cobrança e cadastro fiscal" href="/pagamentos/livro-da-cobranca/" />
+  <LinkCard title="Criar uma subconta" href="/agencia/criar-subconta/" />
+</CardGrid>

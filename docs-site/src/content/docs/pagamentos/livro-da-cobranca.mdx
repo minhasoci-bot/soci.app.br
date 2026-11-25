@@ -1,0 +1,78 @@
+---
+title: Livro da cobrança e cadastro fiscal
+description: Veja tudo que entrou e voltou, exporte para o contador e identifique quem vende nas faturas.
+modulo: pagamentos
+sidebar:
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+O livro registra cada pagamento, devolução e contestação uma única vez. Nenhum lançamento é editado ou apagado: uma correção aparece como outro lançamento. O cadastro fiscal diz quem vende e aparece nas faturas.
+
+<Requisitos permissao="Pagamentos na subconta; Configurações na agência" integracoes={['AbacatePay, para os pagamentos online entrarem sozinhos']} />
+
+## Preencher o cadastro fiscal
+
+<Steps>
+
+1. Na subconta, abra **Configurações → Cadastro fiscal**. Na agência, abra **Configurações → Cadastro fiscal**. Escolha pessoa jurídica ou física e preencha CPF ou CNPJ, nome, e-mail e endereço. O CNPJ com letras também é aceito.
+
+   <Print src="docs/pagamentos/livro-da-cobranca/01-cadastro-fiscal.79cf8507.webp" alt="Formulário do cadastro fiscal preenchido, com CNPJ, razão social, e-mail e endereço." />
+
+2. Clique em **Salvar cadastro fiscal**.
+
+   <Print src="docs/pagamentos/livro-da-cobranca/02-salvar-cadastro.b83986e3.webp" alt="Botão Salvar cadastro fiscal em destaque no fim do formulário." />
+
+</Steps>
+
+O cadastro é obrigatório para conectar o AbacatePay pela primeira vez. Quem já estava conectado continua cobrando e vê um aviso para completar. A fatura mostra **Vendido por** com o nome e o documento da subconta.
+
+## Ver e exportar o livro
+
+<Steps>
+
+1. Na subconta, abra **Pagamentos → Livro**. Na agência, abra **Configurações → Livro da cobrança**. Escolha o período (até 366 dias) e, se quiser, o tipo. Clique em **Filtrar**.
+
+   <Print src="docs/pagamentos/livro-da-cobranca/03-livro.ccbc320e.webp" alt="Aba Livro com o filtro de período, os totais recebido, devolvido, taxas e líquido, e a lista de lançamentos." />
+
+2. Clique em **Exportar CSV** para baixar o arquivo do contador.
+
+   <Print src="docs/pagamentos/livro-da-cobranca/04-exportar.ff98a33f.webp" alt="Botão Exportar CSV em destaque ao lado do botão Filtrar." />
+
+</Steps>
+
+A subconta vê o que ela vendeu aos clientes dela. A agência vê o que ela vendeu às subcontas: planos, recargas e o movimento das carteiras. Uma não aparece no livro da outra.
+
+<Aside type="note">
+O líquido é estimado: valor recebido menos a taxa que o gateway informou. Pagamentos de teste não entram no livro.
+</Aside>
+
+## Entender os estados da fatura
+
+| Estado | O que aconteceu |
+| --- | --- |
+| Paga | O valor recebido cobre a fatura |
+| Pagamento divergente | Entrou menos que o valor da fatura. Ela continua aberta até você dar baixa |
+| Reembolsada | O pagamento foi devolvido |
+| Em contestação | O comprador contestou o pagamento. O resultado chega sozinho |
+
+## Perguntas frequentes
+
+**O reembolso retira o curso ou o ingresso do cliente?**
+Não. Se precisar, retire o acesso manualmente.
+
+**O cliente pagou a taxa do cartão. O que aparece no livro?**
+O valor que entrou, com a taxa na coluna ao lado. Em uma recarga de carteira, o saldo recebe só o valor da recarga.
+
+**E se eu excluir o contato ou a fatura depois do pagamento?**
+O lançamento fica. Uma devolução que vier depois também entra.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Conectar o gateway de pagamento" href="/pagamentos/conectar-gateway/" />
+  <LinkCard title="Emitir uma fatura" href="/pagamentos/fatura/" />
+</CardGrid>
