@@ -182,5 +182,12 @@
     "titulo": "Formulários",
     "fase": "F2",
     "status": "escrito"
+  },
+  {
+    "grupo": "conversas",
+    "artigo": "responder",
+    "titulo": "Responder uma conversa",
+    "fase": "extra",
+    "status": "escrito"
   }
 ]
