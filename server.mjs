@@ -23,6 +23,11 @@ import { createCertificateRoutes } from './routes/certificates.mjs';
 import { createShareRoutes } from './routes/shares.mjs';
 import { createBlogRoutes } from './routes/blog.mjs';
 import { createChatRoutes } from './routes/chat.mjs';
+import { createFormRoutes } from './routes/forms.mjs';
+import { createWorkflowHookRoutes } from './routes/workflow-hooks.mjs';
+import { createCountdownRoutes } from './routes/countdowns.mjs';
+import { createEmailTrackingRoutes } from './routes/email-tracking.mjs';
+import { createLinkRoutes } from './routes/links.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -49,7 +54,6 @@ import { contentModule } from './ui/content-ai-data.js';
 import { runWorkflowAI } from './workflow-ai.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
-import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
@@ -111,8 +115,6 @@ import { writeCaption } from './social-ai.mjs';
 import { reportMailer } from './report-share.mjs';
 import { documentMailer, documentMessage } from './document-mail.mjs';
 import { campaignMailer } from './email-campaign-send.mjs';
-import { countdownGif } from './countdown-gif.mjs';
-import { deadlineOf, embedPage } from './ui/countdown-data.js';
 import { emailDomains, workspaceSender } from './email-domain.mjs';
 import { abandonedOf } from './checkout-model.mjs';
 import { reportsDue } from './report-model.mjs';
@@ -124,7 +126,7 @@ import { createAbacatePayHandler } from './abacatepay.mjs';
 import { makeClientPortal } from './client-portal.mjs';
 import { makeCommunity } from './community.mjs';
 import { fillWelcome } from './community-config.mjs';
-import { leaveCsp, leavePage, outcomeOf, resolveDestination } from './destinations.mjs';
+import { leaveCsp, leavePage } from './destinations.mjs';
 import { audioLimit, audioTypes, summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
 import { askAssistant } from './seo-ai.mjs';
 import { addTopup, paidTopup, pricingFor, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
@@ -208,14 +210,6 @@ const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|hom
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
 const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout|cart|restore|review|view)$`);
-const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
-const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
-const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const emailTrackPath = new RegExp(`^/e/(o|c|u)/${workspaceSegment}/([0-9a-f]{24})(?:/([0-9]{1,3}))?$`);
-const countdownPath = new RegExp(`^/cd/${workspaceSegment}/([0-9a-f-]{36})([.]gif)?$`);
-// A transparent 1x1 GIF for timers that no longer exist (an e-mail must not show a broken image).
-const blankGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
-const hookPath = new RegExp(`^/hooks/${workspaceSegment}/([0-9a-f-]{36})/([a-z0-9]{6,40})$`, 'i');
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialInvitePath = new RegExp(`^/social-connect/${workspaceSegment}/?$`);
 const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
@@ -1286,7 +1280,7 @@ export function makeServer({
   // Documentos e contratos: signing links by e-mail/WhatsApp, and a per-IP limit on the public signing API.
   // Serviços de e-mail: the sub-account's verified sending domain, or '' to send from the platform address.
   const sendingAddress = async workspace => { try { return workspaceSender(await store.load(`email-${workspace}`)); } catch { return ''; } };
-  const signHits = new Map(), testHits = new Map(), countdownCache = new Map(), trackingHits = new Map();
+  const signHits = new Map(), testHits = new Map(), trackingHits = new Map();
   const trackingLog = createTrackingLog({ store });
   // Tracking events: up to 300 per connection every 10 minutes.
   const allowTracking = ip => {
@@ -2163,6 +2157,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const shareRoute = createShareRoutes({ store, ready, error, workspaceSegment, brandWorkspaces, publicAccountPolicy });
   const blogRoute = createBlogRoutes({ store, ready, error, workspaceSegment, brandVoiceOf, change, content, meteredAI, openAI, payload, publicAccountPolicy, publicBase, publicPreview, withPixels, workspaceAccess });
   const chatRoute = createChatRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, workspaceAccess });
+  const formRoute = createFormRoutes({ store, ready, error, workspaceSegment, change, formBody, leave, publicAccountPolicy, withPixels, workspaceAccess });
+  const workflowHookRoute = createWorkflowHookRoutes({ store, ready, error, workspaceSegment, change, flushLater, payload, publicAccountPolicy });
+  const countdownRoute = createCountdownRoutes({ store, ready, workspaceSegment, publicAccountPolicy });
+  const emailTrackRoute = createEmailTrackingRoutes({ store, ready, workspaceSegment, change, flushLater, publicAccountPolicy });
+  const linkRoute = createLinkRoutes({ store, ready, workspaceSegment, publicAccountPolicy });
   const siteRoute = createSiteRoutes({ store, ready, error, workspaceSegment, trackingPath, allowTracking, change, changeSite, flushLater, formFields, publicAccountPolicy, publicBase, siteDoc, studioGuard, trackingLog, withPixels });
   const webinarRoute = createWebinarRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, publicBase, publicPreview });
   const qrRoute = createQrRoutes({ store, ready, workspaceSegment, change, publicAccountPolicy, publicBase });
@@ -2964,145 +2963,16 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (blogRouteHandled !== NEXT_ROUTE) return blogRouteHandled;
       const chatRouteHandled = await chatRoute({ req, res, p, method, json });
       if (chatRouteHandled !== NEXT_ROUTE) return chatRouteHandled;
-      const formRoute = p.match(formPath);
-      if (formRoute) {
-        await ready;
-        const [, workspace, formId] = formRoute;
-        const embed = url.searchParams.get('embed') === '1', preview = url.searchParams.get('preview') === '1';
-        if (preview) {
-          await workspaceAccess(req, res, workspace, { modules: ['sites'], hide: true });
-        }
-        const active = await publicAccountPolicy(workspace, method === 'POST', 'sites');
-        const state = await store.load(workspace);
-        const form = state.forms.find(item => item.id === formId);
-        if (!form || (!form.active && !preview)) throw error('Este formulário não está publicado.',404);
-        const outside = [form.onSubmit, ...(form.routes || []).map(rule => rule.dest)].some(dest => dest?.action === 'redirect');
-        const page = (status, options) => {
-          const [headers, body] = withPixels(preview ? null : state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'${outside ? ' https: http:' : ''}; frame-ancestors *` },
-            formPage(form, { action:`/form/${workspace}/${formId}${embed ? '?embed=1' : preview ? '?preview=1' : ''}`,
-            customFields:state.customFields || [], embed, brand:state.profile?.name || '', ...options }));
-          res.writeHead(status, headers);
-          return res.end(method === 'HEAD' ? undefined : body);
-        };
-        if (!formOpen(form)) return page(200, { notice:{ title:'Formulário encerrado', text:form.schedule?.closedMessage || 'Este formulário não está recebendo respostas agora.' } });
-        if (method === 'GET' || method === 'HEAD') {
-          if (active && method === 'GET' && !preview && form.active) await Promise.resolve().then(() => change(workspace,{ type:'form-view', id:formId })).catch(() => {});
-          const values = Object.fromEntries([...url.searchParams].filter(([key]) => !['embed','preview','__path'].includes(key)).map(([key, value]) => [key, value.slice(0,500)]));
-          return page(200, { values });
-        }
-        if (!form.active) throw error('Publique o formulário para receber respostas.',403);
-        const input = await formBody(req);
-        const read = readAnswers(form, input, state.customFields || []);
-        if (!read.ok) return page(422, { values:read.values, errors:read.errors });
-        await publicAccountPolicy(workspace, true, 'sites');
-        let sent;
-        try { sent = await change(workspace,{ type:'submit', id:formId, data:{ ...input, _vid:'', _source:embed ? 'Incorporado' : 'Link' } }); }
-        catch (failure) { return page(failure.status && failure.status < 500 ? 422 : 500, { values:read.values, errors:{ _form:failure.status && failure.status < 500 ? failure.message : 'Não foi possível enviar agora. Tente de novo.' } }); }
-        const { qualified, dest } = outcomeOf(form, read), after = await store.load(workspace);
-        // Só o lead qualificado conta como Lead no pixel, e depois de o envio ser aceito.
-        const event = qualified && hasPixels(after.tracking) ? `lead.${sent.id}` : '';
-        const target = resolveDestination(after, workspace, dest, { event, link:(after.bookingLinks || []).findLast(row => row.submissionId === sent.id)?.token || '' });
-        if (target) return leave(res, after, workspace, target, { embed, event });
-        const tier = read.result?.tierDetail, own = (form.routes || []).some(rule => rule.dest === dest) && dest.action === 'message' ? dest.message : '';
-        if (read.result) return page(200, { event, notice:{ result:read.result, text:own || tier?.message || form.onSubmit?.message || '', cta:tier?.ctaUrl ? { url:tier.ctaUrl, label:tier.ctaLabel } : null } });
-        return page(200, { event, notice:{ title:'Obrigado!', text:own || form.onSubmit?.message || 'Recebemos suas respostas.' } });
-      }
-      const hook = p.match(hookPath);
-      if (hook && method === 'POST') {
-        await ready;
-        const [, workspace, workflowId, triggerId] = hook;
-        const state = await Promise.resolve().then(() => store.load(workspace)).catch(() => null);
-        const flow = state?.workflows?.find(row => row.id === workflowId && row.active);
-        const secret = flow?.triggers?.find(t => t.id === triggerId && t.type === 'inbound_webhook')?.config?.secret || '';
-        const key = String(url.searchParams.get('key') || req.headers['x-soci-key'] || '');
-        if (!secret || key.length !== secret.length || !timingSafeEqual(Buffer.from(key), Buffer.from(secret))) throw error('Webhook não encontrado.', 404);
-        await publicAccountPolicy(workspace, true, 'automation');
-        const body = await payload(req).catch(() => ({}));
-        const result = await change(workspace, { type: 'workflow-hook', data: { workflowId, triggerId, payload: body && typeof body === 'object' && !Array.isArray(body) ? body : {} } });
-        if (result.state.workflowOutbox?.length) flushLater(workspace);
-        return json({ ok: true, run: result.id === 'already-enrolled' ? null : result.id }, 202);
-      }
-      // Contadores: the animated GIF for e-mails (?s= is when the e-mail was sent, for evergreen timers)
-      // and the page that sites embed in an iframe.
-      const countdownRoute = p.match(countdownPath);
-      if (countdownRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, timerId, gif] = countdownRoute;
-        let timer = null;
-        try { await publicAccountPolicy(workspace, false, 'marketing'); timer = (await store.load(workspace)).countdownTimers?.find(row => row.id === timerId) || null; } catch { timer = null; }
-        if (gif) {
-          let bytes = blankGif;
-          if (timer) {
-            const now = Date.now(), sent = Number(url.searchParams.get('s')) * 1000, created = Date.parse(timer.created) || 0;
-            const start = Number.isFinite(sent) && sent > 0 ? Math.min(now, Math.max(created, sent)) : now;
-            const key = `${workspace}:${timerId}:${timer.updated || timer.created}:${start}:${Math.floor(now / 1000)}`;
-            bytes = countdownCache.get(key);
-            if (!bytes) {
-              bytes = countdownGif(timer, deadlineOf(timer, start) - now);
-              if (countdownCache.size >= 200) countdownCache.delete(countdownCache.keys().next().value);
-              countdownCache.set(key, bytes);
-            }
-          }
-          res.writeHead(200, { 'Content-Type': 'image/gif', 'Content-Length': bytes.length, 'Cache-Control': 'no-store, no-cache, max-age=0', Expires: '0' });
-          return res.end(method === 'HEAD' ? undefined : bytes);
-        }
-        if (!timer) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Contador indisponível.'); }
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
-          'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors *" });
-        return res.end(method === 'HEAD' ? undefined : embedPage(timer, { key: `${workspace}-${timerId}` }));
-      }
-      // E-mail campaigns: open pixel, click redirect and unsubscribe page of one recipient.
-      const tracked = p.match(emailTrackPath);
-      if (tracked && ['GET', 'HEAD', 'POST'].includes(method)) {
-        await ready;
-        const [, kind, workspace, token, index] = tracked;
-        const page = (status, title, body) => {
-          res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'" });
-          return res.end(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;color:#18181b;background:#f4f4f5}main{max-width:440px;margin:16px;padding:32px;border-radius:16px;background:#fff;text-align:center}h1{font-size:22px;margin:0 0 8px}p{margin:0 0 16px;color:#52525b}button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:12px 20px;background:#18181b;color:#fff;cursor:pointer}</style></head><body><main><h1>${esc(title)}</h1>${body}</main></body></html>`);
-        };
-        let active = false;
-        try { active = await publicAccountPolicy(workspace, false, 'marketing'); }
-        catch { if (kind !== 'o') return page(404, 'Link indisponível', '<p>Este e-mail não está mais disponível.</p>'); }
-        const track = async (event, write) => {
-          if (!write) return execute(await store.load(workspace), { type: 'email-track', data: { token, event: 'info' } });
-          const result = await change(workspace, { type: 'email-track', data: { token, event, index } });
-          if (result.state.workflowOutbox?.length) flushLater(workspace);
-          return result.id;
-        };
-        if (kind === 'o') {
-          res.writeHead(200, { 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, max-age=0' });
-          res.end(Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64'));
-          if (active && method === 'GET') { const seen = await track('info', false).catch(() => null); if (seen && !seen.opened) await track('open', true).catch(() => null); }
-          return;
-        }
-        if (kind === 'c') {
-          const found = active ? await track('click', true) : execute(await store.load(workspace), { type: 'email-track', data: { token, event: 'click', index } });
-          if (!found?.url) return page(404, 'Link indisponível', '<p>Este link não existe mais.</p>');
-          res.writeHead(302, { Location: found.url, 'Cache-Control': 'no-store' }); return res.end();
-        }
-        const info = await track('info', false);
-        if (!info) return page(404, 'Link indisponível', '<p>Não encontramos esta inscrição.</p>');
-        // The contact's preference center: choose topics and channels instead of leaving everything.
-        let prefToken = '';
-        if (info.contactId) { try { prefToken = (await change(workspace, { type: 'preferences-link', data: { contactId: info.contactId } })).id; } catch { /* The page still works without the link. */ } }
-        const prefLink = prefToken ? `<p><a href="/preferencias/${workspace}/${prefToken}">Escolher o que quero receber</a></p>` : '';
-        // POST is the confirmation button and the one-click unsubscribe of mail clients (RFC 8058). It works even while the account is paused.
-        if (method === 'POST') { await track('unsubscribe', true); return page(200, 'Inscrição cancelada', `<p>Você não vai mais receber e-mails de marketing de ${esc(info.business || 'esta empresa')}.</p>${prefLink}`); }
-        if (info.unsubscribed) return page(200, 'Inscrição cancelada', `<p>Você já saiu da lista de e-mails de ${esc(info.business || 'esta empresa')}.</p>${prefLink}`);
-        return page(200, 'Cancelar inscrição', `<p>Deixar de receber os e-mails de marketing de <b>${esc(info.business || 'esta empresa')}</b>?</p><form method="post"><button>Cancelar inscrição</button></form>${prefLink}`);
-      }
-      const redirect = p.match(redirectPath);
-      if (redirect && method === 'GET') {
-        await ready;
-        const [, workspace, linkId] = redirect;
-        const active = await publicAccountPolicy(workspace, false, 'conversations');
-        const target = active
-          ? await store.change(workspace, state => execute(state, { type: 'link-click', id: linkId }))
-          : execute(await store.load(workspace), { type: 'link-click', id: linkId }, { trackClick: false });
-        res.writeHead(302, { Location: target });
-        return res.end();
-      }
+      const formRouteHandled = await formRoute({ req, res, p, method, url });
+      if (formRouteHandled !== NEXT_ROUTE) return formRouteHandled;
+      const workflowHookHandled = await workflowHookRoute({ req, p, method, url, json });
+      if (workflowHookHandled !== NEXT_ROUTE) return workflowHookHandled;
+      const countdownRouteHandled = await countdownRoute({ res, p, method, url });
+      if (countdownRouteHandled !== NEXT_ROUTE) return countdownRouteHandled;
+      const emailTrackHandled = await emailTrackRoute({ res, p, method });
+      if (emailTrackHandled !== NEXT_ROUTE) return emailTrackHandled;
+      const linkRouteHandled = await linkRoute({ res, p, method });
+      if (linkRouteHandled !== NEXT_ROUTE) return linkRouteHandled;
       const match=p.replace(/^\/api\/view/,'').match(paths);
       if (p.startsWith('/api/view/') && match) {
         const [,kind,w,item]=match;
