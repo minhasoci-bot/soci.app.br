@@ -1,0 +1,73 @@
+---
+title: Abrir a agenda para os clientes marcarem
+description: Cadastre os serviços, defina o horário de funcionamento e publique a página onde o cliente escolhe o serviço, o dia e o horário.
+modulo: agendas
+sidebar:
+  order: 1
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+import Automacao from '../../../components/Automacao.astro';
+
+Com a página de agendamento, o cliente marca sozinho: escolhe o serviço, o dia e um horário livre e deixa nome, e-mail e telefone. O agendamento entra em **Calendários** e o contato é criado ou encontrado pelo e-mail.
+
+<Requisitos permissao="Acesso ao módulo Calendários na subconta" />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Calendários** e vá para a aba **Serviços**. Clique em **Novo serviço**.
+
+   <Print src="docs/agendas/pagina-de-agendamento/01-servicos.a8ce0a72.webp" alt="Aba Serviços sem serviços cadastrados, com o botão Novo serviço em destaque." />
+
+2. Preencha o **Nome**, a **Duração (minutos)** e o **Preço (R$)** do serviço. Se precisar, ajuste o **Intervalo depois (minutos)**, a **Antecedência mínima** e o que acontece **Depois de agendar**. Clique em **Salvar**.
+
+   <Print src="docs/agendas/pagina-de-agendamento/02-novo-servico.dd608008.webp" alt="Janela Novo serviço preenchida com Avaliação completa, 60 minutos e 150 reais." />
+
+3. Abra a aba **Página de agendamento** e ligue **Página de agendamento ligada**. Escreva o **Título** e o **Texto de abertura** que o cliente vai ver. Em **Horário de funcionamento**, marque os dias de atendimento e o horário de cada um. Em **Horários a cada**, escolha o intervalo entre os horários oferecidos.
+
+   <Print src="docs/agendas/pagina-de-agendamento/03-configurar-pagina.8a56c515.webp" alt="Aba Página de agendamento com a página ligada, título, texto de abertura e horário de funcionamento." />
+
+4. Em **Equipe**, cadastre quem atende. Cada pessoa tem a própria agenda, e dois clientes não marcam com a mesma pessoa no mesmo horário. Clique em **Salvar**. O endereço da página aparece no topo, com **Copiar link** e **Abrir**.
+
+   <Print src="docs/agendas/pagina-de-agendamento/04-link-da-pagina.56854a77.webp" alt="Endereço da página de agendamento com os botões Copiar link e Abrir em destaque." />
+
+5. Envie o link para os clientes ou coloque no site e nas redes. Esta é a página que eles abrem.
+
+   <Print src="docs/agendas/pagina-de-agendamento/05-pagina-publica.ca7d086d.webp" alt="Página pública de agendamento da Clínica Sorriso Leve com o serviço Avaliação completa." />
+
+6. O cliente escolhe o serviço, o dia e o horário e preenche os dados. Só aparecem os horários livres, dentro do horário de funcionamento e da antecedência mínima.
+
+   <Print src="docs/agendas/pagina-de-agendamento/06-escolher-horario.a043cbc8.webp" alt="Página pública com o serviço escolhido, os dias disponíveis, os horários livres e o formulário com nome, e-mail e telefone." />
+
+</Steps>
+
+<Aside type="tip">
+Use **Antecedência mínima (minutos)** para não receber agendamentos em cima da hora e **Agenda aberta por (dias)** para limitar até quando o cliente pode marcar.
+</Aside>
+
+## Automações ligadas
+
+<Automacao gatilhos={['Agendamento criado', 'Status do agendamento', 'Reserva de serviço']} acoes={['Agendar horário', 'Gerar link de agendamento de uso único', 'Mudar status do agendamento']} />
+
+## Perguntas frequentes
+
+**Onde vejo os agendamentos feitos pela página?**
+Na tela **Calendários**, aba **Calendário** (visão do mês) ou aba **Agendamentos** (lista).
+
+**Posso marcar um horário pelo cliente?**
+Sim. Em **Calendários**, clique em **Novo agendamento** ou num dia do calendário.
+
+**Como tiro a página do ar?**
+Desligue **Página de agendamento ligada** e clique em **Salvar**.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Criar o primeiro fluxo de trabalho" href="/automacoes/primeiro-workflow/" description="Mande uma confirmação ou um lembrete a cada agendamento." />
+  <LinkCard title="Cadastrar e organizar contatos" href="/crm/contatos/" description="Quem agenda vira contato da subconta." />
+</CardGrid>
