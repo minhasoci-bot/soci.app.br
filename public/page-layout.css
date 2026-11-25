@@ -174,3 +174,6 @@ label.sc-starter:last-child{border-bottom:0;padding-bottom:0}
 .page>.g-utabs,.g-utabs-panel{min-width:0;max-width:100%}
 .g-utabs-panel>*{min-width:0}
 .dc-page{grid-template-columns:minmax(0,1fr);min-width:0}
+.g-utabs-panel{grid-template-columns:minmax(0,1fr)}
+.g-utabs-panel>section{min-width:0;max-width:100%}
+@media(max-width:860px){.g-utabs-panel .table-shell,.ag-two .table-shell{overflow-x:auto}}
