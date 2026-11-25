@@ -19,7 +19,7 @@ function card(c, def, row) {
     ? `<label>${h(tr(f.label))}<textarea name="${h(f.key)}" rows="3" ${f.required ? 'required' : ''} autocomplete="off" spellcheck="false"></textarea></label>`
     : `<label>${h(tr(f.label))}<input name="${h(f.key)}" type="${f.kind === 'password' ? 'password' : 'text'}" ${f.required ? 'required' : ''} autocomplete="off"></label>`;
   const counts = [def.triggers.length && `${def.triggers.length} ${tr(def.triggers.length > 1 ? 'gatilhos' : 'gatilho')}`, def.actions.length && `${def.actions.length} ${tr(def.actions.length > 1 ? 'ações' : 'ação')}`].filter(Boolean).join(' · ');
-  return `<article class="surface padded connector-card${on ? ' is-connected' : ''}">
+  return `<article class="connector-card${on ? ' is-connected' : ''}">
     <div class="inline-gap"><b>${h(def.name)}</b>${on ? `<span class="badge green">${h(tr('Conectado'))}</span>` : ''}<div class="spacer"></div><span class="dim">${h(counts)}</span></div>
     ${on && row.account ? `<p class="dim">${h(row.account)}</p>` : ''}
     <details ${on ? '' : ''}><summary>${h(tr(on ? 'Detalhes e reconectar' : def.auth.length ? 'Conectar' : 'Ativar'))}</summary>
@@ -40,8 +40,8 @@ export function connectorsView(c) {
   const shown = connectors.filter(def => !q || `${def.name} ${def.category}`.toLowerCase().includes(q));
   const categories = [...new Set(shown.map(def => def.category))];
   const connected = connectors.filter(def => status.connectors[def.id]?.connected).length;
-  return `<div class="surface padded"><h2>${h(tr('Conectores'))}</h2>
-    <p class="dim">${h(tr('Apps com gatilhos e ações próprios nos fluxos (grupos "Apps" no editor). As chaves ficam guardadas cifradas no servidor e nunca voltam para o navegador.'))} ${h(tr('Conectados'))}: ${connected} ${h(tr('de'))} ${connectors.length}.</p>
-    <label class="search-field"><input type="search" data-connector-search value="${h(c.connectorQuery || '')}" placeholder="${h(tr('Buscar app…'))}" aria-label="${h(tr('Buscar app'))}"></label></div>
-    ${categories.map(category => `<h3 class="connector-group">${h(tr(category))}</h3><div class="card-grid">${shown.filter(def => def.category === category).map(def => card(c, def, status.connectors[def.id])).join('')}</div>`).join('')}`;
+  return `<section class="surface set-card"><div class="set-section"><header class="set-head"><h2>${h(tr('Conectores'))}</h2>
+    <p class="dim">${h(tr('Apps com gatilhos e ações próprios nos fluxos (grupos "Apps" no editor). As chaves ficam guardadas cifradas no servidor e nunca voltam para o navegador.'))} ${h(tr('Conectados'))}: ${connected} ${h(tr('de'))} ${connectors.length}.</p></header><div class="set-body">
+    <label class="search">${i('search', 15)}<input type="search" data-connector-search value="${h(c.connectorQuery || '')}" placeholder="${h(tr('Buscar app…'))}" aria-label="${h(tr('Buscar app'))}"></label></div></div>
+    ${categories.map(category => `<div class="set-section"><header class="set-head"><h3 class="connector-group">${h(tr(category))}</h3></header><div class="set-body is-list">${shown.filter(def => def.category === category).map(def => card(c, def, status.connectors[def.id])).join('')}</div></div>`).join('')}</section>`;
 }

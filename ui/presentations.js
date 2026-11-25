@@ -1,5 +1,6 @@
 // Agency presentations: gallery + the deck editor (ui/deck-editor.js).
 // Legacy (form-based) presentations are converted to the deck format the first time they are opened.
+import { icon } from './icons.js';
 import { createCanonicalPresentationTemplates, createBlankPresentation, createPresentationFromTemplate } from './presentation-data.js';
 import { isDeck, deckFromLegacy, createDeck } from './deck-model.js';
 import { renderSlideSvg } from './deck-render.js';
@@ -106,7 +107,7 @@ function renderGallery(presentations, templates, company) {
           <h1>Apresentações da Agência</h1>
           <p>Crie propostas, diagnósticos e apresentações com a marca da agência: editor livre com temas, layouts, formas, imagens e link público.</p>
         </div>
-        <div class="inline-gap"><button type="button" class="primary" data-pres-act="new-modal">+ Nova apresentação</button></div>
+        <div class="inline-gap"><button type="button" class="primary" data-pres-act="new-modal">${icon('plus', 16)} Nova apresentação</button></div>
       </header>
       <section class="pres-templates-shelf">
         <div class="pres-templates-header">

@@ -13,9 +13,6 @@
 @media (max-width: 1000px) { .iv-side { order: 2; } }
 
 /* Pagamentos → Configurações */
-.ps-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-.ps-grid h2 { margin: 0 0 12px; font-size: 16px; }
-.ps-grid h3 { margin: 8px 0 0; font-size: 14px; }
 .ps-head { justify-content: space-between; margin-bottom: 4px; }
 .ps-head h2 { margin: 0; }
 .ps-vars { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
@@ -29,9 +26,7 @@
 .ps-taxes th:last-child { width: 44px; }
 .ps-taxes th, .ps-taxes td { padding-left: 4px; padding-right: 4px; }
 .ps-taxes input { width: 100%; min-width: 0; }
-.ps-grid .dim + .dim { margin-top: 8px; }
 .ps-taxes td { vertical-align: middle; }
-@media (max-width: 1000px) { .ps-grid { grid-template-columns: 1fr; } }
 
 /* Pagamentos → Pedidos e Checkouts abandonados */
 .toolbar label.or-date, label.or-date { display: inline-flex; flex: 0 0 auto; width: auto; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--muted, #475467); }

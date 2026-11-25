@@ -78,10 +78,8 @@ function auditCard(c) {
 export function seoContent(c) {
   if (search.workspace !== c.workspace && !search.loading) queueMicrotask(() => loadSearch(c));
   const seo = c.s.seo || {};
-  return `<section class="surface padded"><h2>Site e palavras-chave</h2>
-    <form class="settings-form" data-seo-form="settings"><label>Endereço do site<input name="siteUrl" value="${h(seo.siteUrl || '')}" placeholder="https://suaempresa.com.br" maxlength="300"></label>
-      <label>Palavras-chave para acompanhar (uma por linha, até 50)<textarea name="keywords" rows="4" placeholder="dentista em curitiba&#10;clareamento dental">${h(lines(seo.keywords))}</textarea></label>
-      <div class="inline-gap"><button class="primary">Salvar</button></div><p class="form-status" role="alert"></p></form></section>
+  return `<form class="surface settings-form set-form" data-seo-form="settings"><section class="set-section"><header class="set-head"><h2>Site e palavras-chave</h2><p class="dim">O site que a auditoria abre e as pesquisas que você quer acompanhar.</p></header><div class="set-body"><label>Endereço do site<input name="siteUrl" value="${h(seo.siteUrl || '')}" placeholder="https://suaempresa.com.br" maxlength="300"></label>
+      <label>Palavras-chave para acompanhar (uma por linha, até 50)<textarea name="keywords" rows="4" placeholder="dentista em curitiba&#10;clareamento dental">${h(lines(seo.keywords))}</textarea></label></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar</button></footer></form>
     ${searchCard(c)}${auditCard(c)}`;
 }
 
@@ -89,18 +87,19 @@ function visibilityForm(c, inline = false) {
   const v = c.s.visibility || {};
   const brand = v.brand || c.s.profile?.name || '';
   const domain = v.domain || (c.s.seo?.siteUrl || '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, '');
-  return `<form class="settings-form" data-seo-form="visibility">
+  const intro = inline ? '<section class="set-section"><header class="set-head"><h2>Sua marca aparece quando perguntam à IA?</h2><p class="dim">Cada vez mais clientes perguntam ao ChatGPT “qual o melhor…” em vez de pesquisar no Google. Cadastre a marca, os concorrentes e as perguntas que seus clientes fazem: a soci pergunta ao ChatGPT com busca na web, mostra quem ele recomenda, em que posição a sua marca aparece e quais páginas ele usou como fonte.</p></header><div class="set-body">' : '';
+  return `<form class="${inline ? 'surface settings-form set-form' : 'settings-form'}" data-seo-form="visibility">${intro}
     <div class="field-grid"><label>Nome da marca<input name="brand" required maxlength="120" value="${h(brand)}"></label><label>Site (domínio)<input name="domain" maxlength="200" value="${h(domain)}" placeholder="suaempresa.com.br"></label></div>
     <label>Outros nomes da marca (separe por vírgula)<input name="aliases" maxlength="600" value="${h((v.aliases || []).join(', '))}" placeholder="Ex.: apelido, nome antigo"></label>
     <label>Concorrentes (um por linha: nome | site)<textarea name="competitors" rows="4" placeholder="Dental Prime | dentalprime.com.br&#10;OdontoMais">${h((v.competitors || []).map(row => row.domain ? `${row.name} | ${row.domain}` : row.name).join('\n'))}</textarea></label>
     <label>Perguntas que os clientes fazem à IA (uma por linha, até 10)<textarea name="prompts" rows="6" placeholder="Qual o melhor dentista em Curitiba?&#10;Onde fazer clareamento dental em Curitiba?">${h(lines(v.prompts))}</textarea></label>
     <p class="dim">Escreva como um cliente perguntaria, com o serviço e a cidade. Cada pergunta usa uma busca na web da OpenAI, cobrada à parte do uso de tokens.</p>
-    <div class="tx-actions">${inline ? '' : '<button type="button" class="secondary" data-act="close">Cancelar</button>'}<button class="primary">Salvar</button></div><p class="form-status" role="alert"></p></form>`;
+    ${inline ? '</div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar</button></footer>' : '<div class="tx-actions"><button type="button" class="secondary" data-act="close">Cancelar</button><button class="primary">Salvar</button></div><p class="form-status" role="alert"></p>'}</form>`;
 }
 
 export function visibilityContent(c) {
   const v = c.s.visibility || {}, runs = c.s.visibilityRuns || [], r = runs[0];
-  if (!v.brand) return `<section class="surface padded seo-intro"><h2>Sua marca aparece quando perguntam à IA?</h2><p class="dim">Cada vez mais clientes perguntam ao ChatGPT “qual o melhor…” em vez de pesquisar no Google. Cadastre a marca, os concorrentes e as perguntas que seus clientes fazem: a soci pergunta ao ChatGPT com busca na web, mostra quem ele recomenda, em que posição a sua marca aparece e quais páginas ele usou como fonte.</p>${visibilityForm(c, true)}</section>`;
+  if (!v.brand) return visibilityForm(c, true);
   const bar = `<div class="seo-head"><p class="dim">${h(v.brand)} · ${v.prompts.length} ${v.prompts.length === 1 ? 'pergunta' : 'perguntas'} · ${v.competitors.length} ${v.competitors.length === 1 ? 'concorrente' : 'concorrentes'}</p><div class="inline-gap"><button type="button" class="secondary" data-seo="visibility-edit">${icon('edit', 15)} Configurar</button><button type="button" class="primary" data-seo="run"${busy.run ? ' disabled' : ''}>${icon('spark', 15)} ${busy.run ? 'Perguntando à IA…' : 'Medir agora'}</button></div></div>`;
   if (!r) return `${bar}<section class="surface padded"><p class="dim">Nenhuma medição ainda. “Medir agora” faz as ${v.prompts.length} perguntas ao ChatGPT; leva de 30 segundos a 2 minutos.</p></section>`;
   const max = Math.max(1, ...r.share.map(row => row.mentions));

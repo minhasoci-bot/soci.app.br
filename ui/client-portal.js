@@ -104,13 +104,13 @@ function members(portal, c, query) {
 function settings(portal) {
   const { settings } = portal;
   return `<div class="cp-section-title"><div><h2>Configurações do portal</h2><p>Personalize a página que seus clientes veem ao entrar.</p></div></div>
-    <form class="cp-card cp-form" data-portal-form="settings">
-      <label>Nome do portal<input name="title" maxlength="100" value="${h(settings.title)}" placeholder="${h(portal.title)}"></label>
+    <form class="surface settings-form set-form" data-portal-form="settings">
+      <section class="set-section"><header class="set-head"><h2>Identidade</h2><p class="dim">Nome, mensagem e cor que o cliente vê ao entrar.</p></header><div class="set-body"><label>Nome do portal<input name="title" maxlength="100" value="${h(settings.title)}" placeholder="${h(portal.title)}"></label>
       <label>Mensagem de boas-vindas<textarea name="introduction" maxlength="400" rows="3">${h(settings.introduction)}</textarea></label>
-      <label class="cp-color">Cor de destaque<input type="color" name="color" value="${h(settings.color)}"></label>
-      <label class="cp-checkbox"><input name="enabled" type="checkbox" ${settings.enabled ? 'checked' : ''}>
-        <span><strong>Portal ativo</strong><small>Desativar encerra as sessões e invalida os links emitidos.</small></span></label>
-      <p role="alert" data-portal-error hidden></p><div><button class="primary" type="submit">Salvar configurações</button></div>
+      <label class="cp-color">Cor de destaque<input type="color" name="color" value="${h(settings.color)}"></label></div></section>
+      <section class="set-section"><header class="set-head"><h2>Acesso</h2><p class="dim">Ligue ou desligue o portal para todos os clientes.</p></header><div class="set-body"><label class="cp-checkbox"><input name="enabled" type="checkbox" ${settings.enabled ? 'checked' : ''}>
+        <span><strong>Portal ativo</strong><small>Desativar encerra as sessões e invalida os links emitidos.</small></span></label></div></section>
+      <footer class="set-foot"><p class="form-status" role="alert" data-portal-error hidden></p><button class="primary" type="submit">Salvar configurações</button></footer>
     </form>`;
 }
 

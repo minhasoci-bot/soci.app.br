@@ -39,7 +39,6 @@ dialog.ag-wide{width:min(760px,calc(100vw - 24px))}
 .ag-product details summary{cursor:pointer;font-size:13px;color:var(--g-brand-2-text,var(--blue-dark))}
 .ag-product details .ag-checks{margin-top:8px}
 .ag-big{font-size:24px;font-weight:700;letter-spacing:-.03em;margin-top:6px}.ag-big small{font-size:13px;color:var(--dim);font-weight:500}
-.ag-terms{display:grid;gap:12px;max-width:720px}
 .ag-steps{display:grid;gap:9px;margin:0;padding-left:20px}
 .ag-steps li{display:flex;align-items:center;gap:10px}
 .ag-copy{display:flex;gap:8px;margin-top:8px}.ag-copy input{flex:1;border:1px solid var(--line);border-radius:var(--r-chip);padding:7px 9px;background:#f8fafc;font-family:ui-monospace,monospace;font-size:12.5px}
@@ -183,7 +182,6 @@ label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:no
 .ag-ai-chart .ag-colbar{max-width:none;border-radius:3px}
 .ag-ai-chart .ag-colbar span{border-radius:3px 3px 0 0}
 .ag-ai-chart small{font-size:11px;white-space:nowrap;min-height:1.2em}
-.ag-ai-subhead{margin-top:22px}
 .ag-studio-docs{display:grid;gap:12px}.ag-studio-docs pre{background:var(--soft,#f6f7f9);border:1px solid var(--line,#e2e7ef);border-radius:var(--r-control);padding:12px;overflow:auto;font-size:12.5px}.ag-studio-docs ol{margin:0;padding-left:20px;display:grid;gap:6px}
 /* Snapshot load wizard (sub-accounts → records → conflicts) */
 .ag-snap-steps{list-style:none;margin:0;padding:0;display:grid;gap:12px}
