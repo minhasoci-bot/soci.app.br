@@ -32,6 +32,9 @@ import { createEmailTrackingRoutes } from './routes/email-tracking.mjs';
 import { createLinkRoutes } from './routes/links.mjs';
 import { createInboxRoutes } from './routes/inbox.mjs';
 import { createWhatsappRoutes, createWhatsappWebhookRoutes } from './routes/whatsapp.mjs';
+import { createAskRoutes } from './routes/ask.mjs';
+import { createBrandAIRoutes, createContentAIRoutes, createConversationAIRoutes } from './routes/content-ai.mjs';
+import { createSeoRoutes } from './routes/seo.mjs';
 import { createConnectorHookRoutes, createConnectorRoutes } from './routes/connectors.mjs';
 import { createPhoneRoutes, createTwilioWebhookRoutes } from './routes/phone.mjs';
 import { createPushRoutes } from './routes/push.mjs';
@@ -51,20 +54,18 @@ import { designAgent, replyAsAgent } from './agent-ai.mjs';
 import { createOpenAI, openAIModel } from './openai.mjs';
 import { agentWorkflowRequest, recordAgentRun } from './agent-model.mjs';
 import { agencyAiUsage, checkAiBudget, setAiAccess, setAiLimit, usageMeter } from './ai-model.mjs';
-import { requireLab, setLabsOffer } from './labs-model.mjs';
-import { conversationRequest, writeConversationReply, writeConversationSummary } from './conversation-ai.mjs';
+import { setLabsOffer } from './labs-model.mjs';
+import { writeConversationReply, writeConversationSummary } from './conversation-ai.mjs';
 import { addInstall, appSecret, appSignature, installedCopy, removeInstall, tokenHash as appTokenHash } from './app-studio-model.mjs';
-import { brandVoiceRequest, emailRequest, reviewReplyRequest, transformRequest, transformText, writeBrandVoice, writeEmail, writeReviewReply } from './content-ai.mjs';
-import { brandFromPage, fetchPublicPage } from './brand-model.mjs';
-import { brandVoicePrompt, defaultBoard, voiceTraits } from './ui/brand-data.js';
-import { contentModule } from './ui/content-ai-data.js';
+import { transformText, writeBrandVoice, writeEmail, writeReviewReply } from './content-ai.mjs';
+import { brandVoicePrompt, defaultBoard } from './ui/brand-data.js';
 import { runWorkflowAI } from './workflow-ai.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, replaceBilling } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
-import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
+import { collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
 import { importedFile, importedMeta, mediaLimitBytes, mediaTypes } from './media-model.mjs';
 import { R2_MAX_BYTES, r2FromEnv } from './r2-storage.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
@@ -78,7 +79,7 @@ import { localScheduler, startupLines } from './local-scheduler.mjs';
 import { AUDIT_IN_DOCUMENT, createAuditLog } from './agency-audit.mjs';
 import { adSettingsOf, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
-import { freshSecret, googleConfigured, googleError, googleReports, listLocations, locationDetails, searchError, searchReport } from './google-integrations.mjs';
+import { freshSecret, googleConfigured, googleError, googleReports, listLocations, locationDetails } from './google-integrations.mjs';
 import { gbpChecklist } from './ui/gbp-data.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
@@ -137,7 +138,7 @@ import { makeClientPortal } from './client-portal.mjs';
 import { makeCommunity } from './community.mjs';
 import { fillWelcome } from './community-config.mjs';
 import { leaveCsp, leavePage } from './destinations.mjs';
-import { audioLimit, audioTypes, summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
+import { summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
 import { askAssistant } from './seo-ai.mjs';
 import { addTopup, closeUsage, disputeTopup, paidTopup, pricingFor, reverseTopup, usageToClose, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
 import { sendPush } from './web-push.mjs';
@@ -2242,6 +2243,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const webinarRoute = createWebinarRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, publicBase, publicPreview });
   const qrRoute = createQrRoutes({ store, ready, workspaceSegment, change, publicAccountPolicy, publicBase });
   const reputationRoute = createReputationRoutes({ store, ready, error, workspaceSegment, allowSign, change, clientPortal, flushLater, moveVideoToR2, payload, publicAccountPolicy, publicBase, sendVideo });
+  const askRoute = createAskRoutes({ accessContext, verifiedUser, handleAsk, listWorkspaces, ensureAccounts, agencyWorkspaceViews, publicAgency, abacate });
+  const brandAIRoute = createBrandAIRoutes({ store, error, spaceId, privateSpace, workspaceAccess, payload, brandFetch, brandResolve, localAccess, contentAI, openAI, meteredAI, content });
+  const conversationAIRoute = createConversationAIRoutes({ store, error, spaceId, privateSpace, workspaceAccess, payload, change, flushLater, localAccess, contentAI, openAI, meteredAI, content });
+  const seoRoute = createSeoRoutes({ store, error, spaceId, privateSpace, workspaceAccess, payload, change, flushLater, stamp, prospectAudit, socialRow, searchCache, localAccess, contentAI, openAI, meteredAI, content });
+  const contentAIRoute = createContentAIRoutes({ error, spaceId, privateSpace, workspaceAccess, payload, brandVoiceOf, localAccess, contentAI, openAI, meteredAI, content });
   const server=createServer(async (req,res) => {
     const requestPath = String(req.url || '/').split('?')[0];
     const touches = touchesOf(req), landing = requestPath.match(landingPath);
@@ -2690,19 +2696,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (inboxRouteHandled !== NEXT_ROUTE) return inboxRouteHandled;
       const whatsappRouteHandled = await whatsappRoute({ req, res, p, method, url, id, json });
       if (whatsappRouteHandled !== NEXT_ROUTE) return whatsappRouteHandled;
-      if (p.startsWith('/api/ask/')) {
-        const { agency, who } = await accessContext(req, await verifiedUser(req, res));
-        requireCapability(who, 'agency', 'Seu usuário não pode acessar o Pergunte à Soci.');
-        return await handleAsk({
-          req, res, url, method, who, json,
-          loadContext: async () => {
-            const workspaces = await listWorkspaces(who.agencyId);
-            ensureAccounts(agency, workspaces);
-            const states = await agencyWorkspaceViews(agency, who, workspaces);
-            return { agency: { ...publicAgency(agency, who), abacatepay: { connected: await abacate.connected(who.agencyId, abacate.AGENCY_SCOPE) } }, overview: agencyOverview(agency, states) };
-          }
-        });
-      }
+      const askRouteHandled = await askRoute({ req, res, p, method, url, json });
+      if (askRouteHandled !== NEXT_ROUTE) return askRouteHandled;
       const gbpRouteHandled = await gbpRoute({ req, res, p, method, url, id, json });
       if (gbpRouteHandled !== NEXT_ROUTE) return gbpRouteHandled;
       if (p === '/api/video' && (method === 'GET' || method === 'HEAD')) {
@@ -2712,32 +2707,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!row) throw error('Vídeo não encontrado.', 404);
         return await sendVideo(req, res, method, id, row, 'private, no-store');
       }
-      const brandAction = p.match(/^\/api\/brand\/(import|voice-ai)$/);
-      if (brandAction && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
-        const input = await payload(req);
-        if (brandAction[1] === 'import') {
-          const page = await fetchPublicPage(String(input.url || ''), { fetchImpl: brandFetch, ...(brandResolve && { resolve: brandResolve }) });
-          return json({ board: brandFromPage(page) });
-        }
-        brandVoiceRequest(input);
-        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
-          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para gerar a voz da marca.', 409);
-        }
-        return json({ voice: await meteredAI(who, id, 'brand', connection => content.writeBrandVoice(connection, input, voiceTraits)) });
-      }
-      if (p === '/api/content-ai/review-reply' && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const input = await payload(req);
-        const who = await workspaceAccess(req, res, id, { modules: ['reputation'] });
-        const state = await store.load(id);
-        const request = reviewReplyRequest(state, { ...input, voice: brandVoicePrompt(defaultBoard(state.brandBoards)) });
-        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
-          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para responder com IA.', 409);
-        }
-        return json(await meteredAI(who, id, 'reputation', connection => content.writeReviewReply(connection, request)));
-      }
+      const brandAIRouteHandled = await brandAIRoute({ req, res, p, method, id, json });
+      if (brandAIRouteHandled !== NEXT_ROUTE) return brandAIRouteHandled;
       // App marketplace (7.3): a sub-account installs or removes an app its agency published.
       const appAction = p.match(/^\/api\/apps\/(install|uninstall)$/);
       if (appAction && method === 'POST') {
@@ -2772,51 +2743,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         return json({ ...workspaceView(who, (await store.load(id))), removed: removed.install.appId });
       }
-      // Labs in Conversas: a reply draft or a summary of the history with one contact (metered as "conversations").
-      const conversationAI = p.match(/^\/api\/conversations\/ai\/(reply|summary)$/);
-      if (conversationAI && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['conversations'] });
-        const mode = conversationAI[1];
-        const state = await store.load(id);
-        requireLab(state, mode === 'reply' ? 'conversation-reply' : 'conversation-summary');
-        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
-          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para usar a IA nas conversas.', 409);
-        }
-        const body = await payload(req);
-        const request = conversationRequest(state, String(body.contactId || ''), { mode, language: body.language });
-        const write = mode === 'reply' ? content.writeConversationReply : content.writeConversationSummary;
-        return json(await meteredAI(who, id, 'conversations', connection => write(connection, request)));
-      }
-      // Meetings + Notes AI: transcribe a meeting's audio, or summarize its transcript (both metered as "meetings").
-      const meetingAction = p.match(/^\/api\/meetings\/(transcribe|summarize)$/);
-      if (meetingAction && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['calendars'] });
-        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
-          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para usar as notas com IA.', 409);
-        }
-        const meetingId = String(url.searchParams.get('meeting') || '');
-        const meeting = ((await store.load(id)).meetings || []).find(row => row.id === meetingId);
-        if (!meeting) throw error('Reunião não encontrada.', 404);
-        const language = url.searchParams.get('lang') === 'es' ? 'es' : 'pt';
-        if (meetingAction[1] === 'transcribe') {
-          const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
-          if (!audioTypes.includes(mime)) throw error('Envie um áudio em WebM, OGG, MP3, M4A ou WAV.', 415);
-          let size = 0; const chunks = [];
-          for await (const part of req) { size += part.length; if (size > audioLimit) throw error('O áudio pode ter até 4 MB. Grave em partes ou envie a transcrição.', 413); chunks.push(part); }
-          const { text } = await meteredAI(who, id, 'meetings', connection => content.transcribeAudio(connection, { buffer: Buffer.concat(chunks), mime, language }));
-          await change(id, { type: 'meeting-transcript', data: { id: meetingId, transcript: text, source: url.searchParams.get('source') === 'recording' ? 'recording' : 'audio' } }, who);
-          flushLater(id);
-          return json({ ok: true, length: text.length });
-        }
-        if (!meeting.transcript) throw error('Adicione a transcrição antes de resumir.', 409);
-        const today = new Date().toISOString().slice(0, 10);
-        const result = await meteredAI(who, id, 'meetings', connection => content.summarizeMeeting(connection, { title: meeting.title, participants: meeting.participants, transcript: meeting.transcript, language, today }));
-        await change(id, { type: 'meeting-summary', data: { id: meetingId, result, language } }, who);
-        flushLater(id);
-        return json({ ok: true });
-      }
+      const conversationAIRouteHandled = await conversationAIRoute({ req, res, p, method, url, id, json });
+      if (conversationAIRouteHandled !== NEXT_ROUTE) return conversationAIRouteHandled;
       // Reselling: the client recharges its wallet by Pix or card, paid to the agency's AbacatePay account.
       if (p === '/api/wallet/topup' && method === 'POST') {
         if (!spaceId.test(id)) throw error('Subconta não encontrada.',404);
@@ -2833,90 +2761,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         flushLater(id);
         return json({ url: payment.url, checkoutId: payment.checkoutId, amount: payment.amount });
       }
-      // SEO (site audit and Search Console) and Visibility AI, in Reputação. The AI run is metered as "visibility".
-      if (p === '/api/seo/audit' && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['reputation'] });
-        const body = await payload(req);
-        const state = await store.load(id);
-        const typed = String(body.url || state.seo?.siteUrl || '').trim();
-        if (!typed) throw error('Informe o endereço do site para auditar.', 400);
-        const target = auditableUrl(typed);
-        if (!target) throw error('Este endereço não pode ser auditado. Use o endereço público do site, por exemplo https://suaempresa.com.br.', 400);
-        const audit = await prospectAudit({ website: target.href }, { places: false }).catch(() => null);
-        if (!audit?.website) throw error('Não foi possível abrir o site. Confira o endereço e tente de novo.', 502);
-        if (!state.seo?.siteUrl) await change(id, { type: 'seo-settings', data: { siteUrl: target.href } }, who);
-        const auditId = await change(id, { type: 'seo-audit', data: audit.website }, who);
-        flushLater(id);
-        return json({ ok: true, id: auditId });
-      }
-      if (p === '/api/seo/search' && method === 'GET') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        await workspaceAccess(req, res, id, { modules: ['reputation'] });
-        const rowId = `google-${id}`;
-        const g = (await socialRow(rowId)).google;
-        if (!g?.token) return json({ connected: false, configured: googleConfigured() });
-        if (!g.gscSite) return json({ connected: true, site: '', sites: (g.sites || []).length, error: g.errors?.search || '' });
-        const keywords = (await store.load(id)).seo?.keywords || [];
-        const key = `${g.gscSite}|${keywords.join(',')}`;
-        const cached = searchCache.get(id);
-        if (cached?.key === key && cached.at > Date.now() - 15 * 60_000 && url.searchParams.get('fresh') !== '1') return json(cached.data);
-        const secret = unseal(g.token);
-        if (!secret) return json({ connected: true, site: g.gscSite, error: 'A conexão com o Google precisa ser refeita.' });
-        const fresh = await freshSecret(secret).catch(() => null);
-        if (!fresh) return json({ connected: true, site: g.gscSite, error: 'O acesso ao Google expirou. Conecte a conta de novo em Configurações → Google.' });
-        if (fresh.changed) await store.change(rowId, row => { if (row.google) row.google.token = seal(fresh.secret); });
-        try {
-          const data = { connected: true, site: g.gscSite, siteName: g.sites?.find(row => row.id === g.gscSite)?.name || g.gscSite, report: await searchReport(fresh.secret.token, g.gscSite, keywords), at: stamp() };
-          searchCache.set(id, { key, at: Date.now(), data });
-          return json(data);
-        } catch (problem) {
-          return json({ connected: true, site: g.gscSite, error: searchError(problem).message });
-        }
-      }
-      if (p === '/api/visibility/run' && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['reputation'] });
-        const v = (await store.load(id)).visibility;
-        if (!v?.brand || !v.prompts?.length) throw error('Configure a marca e as perguntas antes de medir.', 409);
-        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
-          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para medir a visibilidade na IA.', 409);
-        }
-        const language = url.searchParams.get('lang') === 'es' ? 'es' : 'pt';
-        let model = '';
-        const answers = await meteredAI(who, id, 'visibility', async connection => {
-          const out = new Array(v.prompts.length);
-          let next = 0;
-          const worker = async () => {
-            while (next < v.prompts.length) {
-              const index = next++, prompt = v.prompts[index];
-              try { const reply = await content.askAssistant(connection, { prompt, language }); model ||= reply.model || ''; out[index] = { prompt, text: reply.text, sources: reply.sources }; }
-              catch (problem) { out[index] = { prompt, error: problem.message || 'A IA não respondeu.' }; }
-            }
-          };
-          await Promise.all([worker(), worker(), worker()]);
-          if (!out.some(row => row && !row.error)) throw error(out[0]?.error || 'A IA não respondeu. Tente de novo.', 502);
-          return out;
-        });
-        const runId = await change(id, { type: 'visibility-run', data: { answers, model } }, who);
-        flushLater(id);
-        return json({ ok: true, id: runId, failed: answers.filter(row => row.error).length });
-      }
-      const contentAction = p.match(/^\/api\/content-ai\/(transform|email)$/);
-      if (contentAction && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const input = await payload(req);
-        const email = contentAction[1] === 'email';
-        input.voice = await brandVoiceOf(id);
-        const request = email ? emailRequest(input) : transformRequest(input);
-        const kind = email ? 'email' : request.kind;
-        const who = await workspaceAccess(req, res, id, { modules: [contentModule[kind]] });
-        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
-          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para usar a IA de conteúdo.', 409);
-        }
-        const result = await meteredAI(who, id, kind === 'gbp' ? 'reputation' : kind, connection => email ? content.writeEmail(connection, input) : content.transformText(connection, input));
-        return json(result);
-      }
+      const seoRouteHandled = await seoRoute({ req, res, p, method, url, id, json });
+      if (seoRouteHandled !== NEXT_ROUTE) return seoRouteHandled;
+      const contentAIRouteHandled = await contentAIRoute({ req, res, p, method, id, json });
+      if (contentAIRouteHandled !== NEXT_ROUTE) return contentAIRouteHandled;
       const agentRouteHandled = await agentRoute({ req, res, p, method, url, id, json });
       if (agentRouteHandled !== NEXT_ROUTE) return agentRouteHandled;
       const pranchetaRouteHandled = await pranchetaRoute({ req, res, p, method, url, id, json, send });
