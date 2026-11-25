@@ -48,10 +48,14 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-brand);outline-of
 @keyframes g-label-in{from{opacity:0;transform:translateX(-6px)}}
 
 .side-head{position:relative;display:flex;align-items:center;justify-content:center;height:40px;padding:0 16px;margin-bottom:12px}
-.shell.wide:not(.ag-shell) .side-head{justify-content:center;padding:0 46px}
+/* The toggle only needs room on the right. The spacer keeps short names centred and gives its
+   width up first, so a long agency name uses the whole row and then wraps to a second line. */
+.shell.wide .side-head{padding:0 46px 0 14px}
+.shell.wide .side-head::before{content:"";flex:0 1 32px;min-width:0}
 .shell:not(.wide) .side-head{justify-content:center;padding:0}
 .g-side .logo{display:flex;align-items:center;justify-content:center;gap:0;min-width:0;max-width:100%;min-height:0;padding:0;line-height:1;color:var(--g-ink);font-weight:800;font-size:20px;letter-spacing:-.05em;border-radius:var(--r-group)}
-.shell.wide:not(.ag-shell) .g-side .logo{justify-content:center;font-size:16px;letter-spacing:-.025em}
+.shell.wide .g-side .logo{flex:none;font-size:16px;letter-spacing:-.025em}
+.shell.wide .g-side .side-word{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.2;white-space:normal;overflow-wrap:anywhere;text-wrap:balance}
 .g-side .logo .g-mark{margin-right:-2px}
 .g-side .logo .ag-logo{margin-right:6px}
 .g-side .logo .g-mark,.g-side .logo .ag-logo{flex:none;width:34px;height:34px;transition:transform .5s var(--ease-out)}
@@ -173,35 +177,22 @@ a.crumb:hover{color:var(--g-ink)}
 :root[data-theme=dark] .tt-moon{transform:none;opacity:1}
 .top-profile{position:relative;width:34px;height:34px;margin-left:2px;padding:0;overflow:hidden}
 .top-profile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
-.g-top .ag-acting{display:flex;align-items:center;gap:6px;width:auto;flex:none;color:var(--g-dim);flex-shrink:0}
-.g-top .ag-acting select{height:36px;padding:0 26px 0 10px;border:1px solid var(--g-line-2);border-radius:var(--r-control);background:var(--g-surface);color:var(--g-ink);font-size:12.5px;font-weight:600;cursor:pointer;outline:none;transition:border-color .2s,box-shadow .2s;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
-.g-top .ag-acting select:hover{border-color:var(--g-brand-line);color:var(--g-ink)}
-.g-top .ag-acting select:focus-visible{border-color:var(--g-brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--g-brand) 22%,transparent)}
-@media (max-width:1260px){
-  .g-top .ag-acting select{max-width:150px}
-}
 @media (max-width:1080px){
   .tool-group .tool-btn:not([data-act=notifications]):not([data-act=language]){display:none}
-  .g-top .ag-acting select{max-width:130px}
 }
 @media (max-width:960px){
   .top-search kbd{display:none}
 }
 @media (max-width:850px){
   .crumb,.crumb-sep{display:none}
-  .g-top .ag-acting select{max-width:115px}
 }
 @media (max-width:700px){
   .topbar.g-top{padding:0 10px 0 14px;gap:6px}
   .tool-group .tool-btn:not([data-act=notifications]){display:none}
-  .g-top .ag-acting select{max-width:105px}
 }
 @media (max-width:580px){
   .top-search{flex:none;width:36px;margin:0 4px 0 auto;padding:0;justify-content:center}
   .top-search span,.top-search kbd{display:none}
-}
-@media (max-width:540px){
-  .g-top .ag-acting{display:none}
 }
 .avatar{background:var(--g-brand-2-surface);color:var(--g-brand-2-text);font-weight:800}
 .avatar-pink{background:var(--g-grad-brand);color:var(--g-grad-on,#fff);text-transform:lowercase;letter-spacing:-.02em;box-shadow:0 4px 12px -4px color-mix(in srgb,var(--g-brand) 50%,transparent)}
@@ -770,12 +761,6 @@ dialog::backdrop{background:rgba(15,19,26,.38);-webkit-backdrop-filter:blur(2px)
   max-width:100%;
 }
 .fm-page .toolbar .g-select{width:auto;flex:0 1 280px}
-.ag-acting .g-select{width:auto;max-width:min(280px,46vw)}
-.g-top .ag-acting .g-select-trigger{min-height:36px;height:36px;padding:0 10px 0 11px;font-size:12.5px;font-weight:600;border-radius:var(--r-control)}
-@media (max-width:1260px){.g-top .ag-acting .g-select{max-width:165px}}
-@media (max-width:1080px){.g-top .ag-acting .g-select{max-width:140px}}
-@media (max-width:850px){.g-top .ag-acting .g-select{max-width:125px}}
-@media (max-width:700px){.g-top .ag-acting .g-select{max-width:115px}}
 
 .tag-filter .g-select{width:auto;flex:1 1 auto}
 .tag-filter .g-select-trigger{

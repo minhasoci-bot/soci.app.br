@@ -69,7 +69,7 @@ de concorrência por `revision` + RLS via `X-Go-Storage-Key`) ou SQLite local:
                                  |                        | auditoria (até 1.000 logs), etc.
   `chat-<agencyId>`              | Conta Principal        | Histórico do "Pergunte à Soci" (até 200
                                  |                        | conversas) e instruções personalizadas.
-  `whatsapp-<agencyId>`          | Conta Principal +      | Servidor UAZAPI (URL + admintoken cifrado) e
+  `whatsapp-<agencyId>`          | Conta Principal +      | Servidor Evolution (URL + chave cifrada) e
                                  | instâncias por Subconta| tokens/status/webhooks de cada subconta.
   `waha-<agencyId>`              | Conta Principal (leg.) | Config legado do servidor WAHA (backend).
   `marketplace-setups`           | Global da Plataforma   | Catálogo de setups publicados pela comunidade
@@ -313,9 +313,9 @@ Atenção: alterações em configurações da agência exigem `who.settings` (ap
       carteira, lançamento manual de créditos/débitos, histórico e regras de
       alerta de saldo mínimo / recarga sugerida.
   05. WhatsApp (`whatsapp`, alias `phone` | `whatsapp.mjs`):
-      - Configuração global do servidor UAZAPI (URL + `admintoken` cifrado em
+      - Configuração global do servidor Evolution API (URL + chave cifrada em
         AES-256-GCM) OU uso automático do servidor gerenciado via variáveis de
-        ambiente (`UAZAPI_BASE_URL` + `UAZAPI_ADMIN_TOKEN`, modo "1-clique").
+        ambiente (`EVOLUTION_BASE_URL` + `EVOLUTION_API_KEY`, modo "1-clique").
       - Tabela com todas as subcontas mostrando status real (Conectado,
         Aguardando QR Code, Hibernado, Desconectado), número conectado,
         switches individuais de "WhatsApp ativo" e "Rebilling ativo".
@@ -378,7 +378,7 @@ backend (`agency-model.mjs`, `agency-data.js`, `waha.mjs`):
   - App Marketplace da agência (`#agency/marketplace` — 10 integrações em
     `integrationCatalog`, instalação em agência/subconta e revenda);
   - Integração WhatsApp via WAHA (`waha.mjs`, rotas `/api/waha/*` e webhook
-    `/api/waha/webhook/...` — substituída na interface pela UAZAPI em
+    `/api/waha/webhook/...` — substituída na interface pela Evolution em
     `whatsapp.mjs`, mas ainda montada no servidor);
   - Switch `number-intelligence` em `subFeatures` (existe no modelo/API, mas
     sem aba dedicada na barra de Configurações).
@@ -443,7 +443,7 @@ Abaixo, o inventário completo de cada um dos 16 módulos da Conta Secundária:
           responsável, seguir).
         - Compositor de mensagens em 4 canais: Nota interna, E-mail, SMS e
           WhatsApp.
-          * WHATSAPP REAL: quando a subconta tem WhatsApp conectado via UAZAPI,
+          * WHATSAPP REAL: quando a subconta tem WhatsApp conectado via Evolution,
             mensagens enviadas pelo canal WhatsApp disparam de verdade para o
             telefone do contato, e mensagens recebidas no webhook entram
             automaticamente criando/atualizando o contato e a conversa.
@@ -707,9 +707,9 @@ Abaixo, o inventário completo de cada um dos 16 módulos da Conta Secundária:
       horário IANA (moeda fixa BRL).
   02. WhatsApp (`whatsapp`):
       - Interface de autoatendimento para a subconta conectar seu próprio número
-        via QR Code ou código de pareamento de 8 dígitos (UAZAPI), ver número
+        via QR Code ou código de pareamento de 8 dígitos (Evolution), ver número
         conectado, enviar mensagem de teste e desconectar.
-      - Só funciona se a Conta Principal tiver servidor UAZAPI ativo (ou
+      - Só funciona se a Conta Principal tiver servidor Evolution ativo (ou
         gerenciado) E mantiver o switch `enabled` ligado para esta subconta.
   03. Usuários (`users`): tabela SOMENTE LEITURA dos membros da agência e de
       subconta que possuem acesso a este workspace (o cadastro/edição só existe
@@ -788,7 +788,7 @@ servidor (HTTP 403) em:
   - Ativar/desativar Modo SaaS, editar Rebilling da carteira ou Modo SaaS por
     subconta;
   - Alterar Plano da agência, Carteira e Auto-recarga;
-  - Configurar servidor WhatsApp (UAZAPI/WAHA), ligar/desligar WhatsApp ou
+  - Configurar servidor WhatsApp (Evolution/WAHA), ligar/desligar WhatsApp ou
     rebilling em subcontas;
   - Alterar Domínio dedicado de e-mail, E-mails do sistema, Labs, Conformidade,
     Pixel de afiliado e Switches de recursos premium/IA externa/domínios;
@@ -823,7 +823,7 @@ A Conta Principal exerce 11 controles diretos sobre as Contas Secundárias:
   5. Controle de Acesso e Equipe: somente a Conta Principal cria/edita/remove
      usuários e define quais subcontas e quais dos 16 módulos cada pessoa vê.
      Na subconta, a aba `Configurações -> Usuários` é somente leitura.
-  6. Governança de WhatsApp (UAZAPI): a agência configura o servidor (ou usa o
+  6. Governança de WhatsApp (Evolution): a agência configura o servidor (ou usa o
      gerenciado), libera ou bloqueia o recurso por subconta (`enabled`), marca
      `rebill`, e pode parear/testar/desconectar o WhatsApp da subconta
      diretamente pelo painel da agência.
@@ -883,7 +883,7 @@ forma independente e isolada:
     uma nova agência própria vazia (`agency-<uuid>`).
   - Proteções HTTP: CSP estrito, bloqueio CSRF cross-site em POSTs, sanitização
     de HTML do AI Studio sem scripts, criptografia AES-256-GCM para chaves
-    OpenAI, tokens UAZAPI/WAHA e tokens OAuth sociais, hash SHA-256 para chaves
+    OpenAI, tokens Evolution/WAHA e tokens OAuth sociais, hash SHA-256 para chaves
     de API, webhooks com token secreto (`timingSafeEqual`) e links mágicos de
     uso único.
   - Modo de desenvolvimento local (`GO_DEV_NO_AUTH=1` sem Supabase): desabilita
@@ -898,7 +898,7 @@ forma independente e isolada:
 [A] FUNCIONA DE PONTA A PONTA COM INTEGRAÇÕES REAIS (quando variáveis configuradas)
   1. Autenticação Google OAuth + PKCE (Supabase Auth) e persistência Supabase
      com RLS e controle de revisão (ou SQLite local).
-  2. WhatsApp bidirecional real via UAZAPI (`whatsapp.mjs`): provisionamento de
+  2. WhatsApp bidirecional real via Evolution (`whatsapp.mjs`): provisionamento de
      instância isolada por subconta, QR Code, pareamento 8 dígitos, webhook de
      entrada criando contato/mensagem em Conversas e envio real pelo compositor.
   3. Planejador Social real (`social-providers.mjs`): OAuth + publicação +
@@ -948,7 +948,7 @@ forma independente e isolada:
   4. Conectar ou remover o módulo pronto de Relatórios Customizados
      (`report-model.mjs` + `ui/reports.js`), hoje desconectado da UI.
   5. Limpar ou reativar os módulos ocultos/legados: `waha.mjs` (substituído por
-     UAZAPI), além de `reselling`, `addons`, `desktop-app`, `saas-education` e
+     Evolution), além de `reselling`, `addons`, `desktop-app`, `saas-education` e
      `marketplace` (redirecionados para o dashboard).
   6. Avaliar se a chave OpenAI deve permanecer por usuário individual ou ganhar
      opção de "chave da agência compartilhada com subcontas" (essencial se for

@@ -6,6 +6,7 @@ import { dashboardPreferences, installDashboardControls, reportGrid } from './da
 import { drawDashboardGauges } from './dashboard.js';
 import { launchpadGuide } from './launchpad.js';
 import { opportunityStatuses } from './dashboard-data.js';
+import { composerAction } from './inbox-data.js';
 import { tr, initI18n, getLanguage, translateDom } from './i18n.js';
 import { toast } from './toast.js';
 import { cardFields, cardLayouts, opportunityCsv, opportunityCsvColumns, opportunityPreferences, opportunityResults, opportunitySorts, quickActions } from './opportunity-data.js';
@@ -332,7 +333,7 @@ function renderAccountLifecycle() {
     ${history.length ? `<details><summary>Histórico de status</summary><ul>${history.map(row =>
       `<li>${h(date(row.at))} · ${h(row.actor)} · ${h(tr(row.from))} → ${h(tr(row.to))}${row.reason ? ` · ${h(row.reason)}` : ''}</li>`).join('')}</ul></details>` : ''}
     ${Object.keys(account.ignoredWebhooks || {}).length ? `<details><summary>Eventos recebidos durante a suspensão</summary><ul>${Object.entries(account.ignoredWebhooks).map(([provider, row]) =>
-      `<li>${h({ uazapi: 'UAZAPI', evolution: 'Evolution API' }[provider] || 'WAHA')} · ${h(row.count)} ignorado(s) · último em ${h(date(row.lastAt))}</li>`).join('')}</ul></details>` : ''}
+      `<li>${h({ waha: 'WAHA', evolution: 'Evolution API' }[provider] || 'WhatsApp')} · ${h(row.count)} ignorado(s) · último em ${h(date(row.lastAt))}</li>`).join('')}</ul></details>` : ''}
     <a class="primary" href="#agency/accounts">Gerenciar subcontas</a>` : `<p>Entre em contato com o suporte da sua agência para recuperar o acesso.</p>`;
   app.innerHTML = `<main class="boot boot-error"><h1>Subconta ${status}</h1>
     ${account.suspendedReason ? `<p>${h(account.suspendedReason)}</p>` : ''}${support}
@@ -617,6 +618,13 @@ function showEmailSubject(form) {
   form.elements.subject.disabled = !isEmail;
 }
 
+// Remembers the channel of this conversation (the screen is rebuilt on every update) and refreshes the submit label.
+function composerChanged(form) {
+  c.composer = { thread: c.thread, channel: form.elements.channel.value };
+  showEmailSubject(form);
+  form.querySelector('[data-compose-submit] span').textContent = tr(composerAction(form.elements.channel.value, form.elements.direction.value));
+}
+
 function insertIntoComposer(value) {
   const body = composer().elements.body;
   const start = body.selectionStart;
@@ -652,7 +660,7 @@ function useSnippet(id) {
     const last = [...c.s.messages].reverse().find(m => m.contactId === c.thread && !['Email','Note'].includes(m.channel))?.channel;
     form.elements.channel.value = [...form.elements.channel.options].some(o => o.value === last) ? last : 'WhatsApp';
   }
-  showEmailSubject(form);
+  composerChanged(form);
   if (snippet.type === 'Email' && !form.elements.subject.value) form.elements.subject.value = merge(snippet.subject);
   insertIntoComposer(merge(snippet.body));
 }
@@ -716,7 +724,7 @@ function downloadReport(id) {
 function conversationFormControls(element) {
   const form = element.form;
   if (!form) return;
-  if (form.dataset.form === 'message' && element.name === 'channel') showEmailSubject(form);
+  if (form.dataset.form === 'message' && ['channel', 'direction'].includes(element.name)) composerChanged(form);
   if (form.dataset.form === 'phone-number' && element.name === 'mode') { const box = form.querySelector('.phone-voice'); if (box) box.hidden = element.value !== 'voice_ai'; }
   if (form.dataset.key === 'snippets' && element.name === 'type') showFieldset(form.querySelector('[data-snippet-subject]'),element.value === 'Email');
   if (form.dataset.form !== 'conversation-sla') return;

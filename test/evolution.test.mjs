@@ -5,77 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeServer } from '../server.mjs';
 import { createSqliteStore } from '../storage.mjs';
-
-const API_KEY = 'evo-global-key-super-secret';
-const QR = 'data:image/png;base64,' + Buffer.from('fake-evolution-qr').toString('base64');
-const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
-
-// Evolution API v2 falsa: só o que o soci usa.
-function fakeEvolution() {
-  const calls = [];
-  const instances = new Map(); // name -> { state, ownerJid, profileName, webhook, pairing }
-  async function request(url, init = {}) {
-    const u = new URL(url);
-    const method = init.method || 'GET';
-    const body = init.body ? JSON.parse(init.body) : null;
-    const headers = Object.fromEntries(Object.entries(init.headers || {}).map(([k, v]) => [k.toLowerCase(), v]));
-    calls.push({ path: u.pathname, search: u.search, method, headers, body });
-    if (headers.apikey !== API_KEY) return json({ status: 401, error: 'Unauthorized', response: { message: 'Unauthorized' } }, 401);
-
-    if (u.pathname === '/instance/create' && method === 'POST') {
-      if (instances.has(body.instanceName)) {
-        return json({ status: 403, error: 'Forbidden', response: { message: [`This name "${body.instanceName}" is already in use.`] } }, 403);
-      }
-      instances.set(body.instanceName, { state: 'close', ownerJid: '', profileName: '', webhook: body.webhook || null, pairing: '' });
-      return json({ instance: { instanceName: body.instanceName, status: 'created' }, hash: `hash-${body.instanceName}` }, 201);
-    }
-    const [, group, action, rawName] = u.pathname.split('/');
-    const name = decodeURIComponent(rawName || '');
-    if (u.pathname === '/instance/fetchInstances') {
-      const wanted = u.searchParams.get('instanceName');
-      const inst = instances.get(wanted);
-      if (!inst) return json({ status: 404, error: 'Not Found', response: { message: ['Instance not found'] } }, 404);
-      return json([{ name: wanted, connectionStatus: inst.state, ownerJid: inst.ownerJid || null, profileName: inst.profileName || null }]);
-    }
-    const inst = instances.get(name);
-    if (!inst) return json({ status: 404, error: 'Not Found', response: { message: [`The "${name}" instance does not exist`] } }, 404);
-    if (group === 'instance' && action === 'connect' && method === 'GET') {
-      if (inst.state === 'open') return json({ instance: { instanceName: name, state: 'open' } });
-      if (inst.state === 'connecting') return json({ pairingCode: inst.pairing || null, code: '2@abc', base64: QR, count: 1 });
-      inst.state = 'connecting';
-      inst.pairing = u.searchParams.get('number') ? 'WZYX-1234' : '';
-      return json({ pairingCode: inst.pairing || null, code: '2@abc', base64: QR, count: 1 });
-    }
-    if (group === 'instance' && action === 'logout' && method === 'DELETE') {
-      inst.state = 'close';
-      inst.ownerJid = '';
-      return json({ status: 'SUCCESS', error: false, response: { message: 'Instance logged out' } });
-    }
-    if (group === 'webhook' && action === 'set' && method === 'POST') {
-      inst.webhook = body.webhook;
-      return json({ webhook: { instanceName: name, ...body.webhook } }, 201);
-    }
-    if (group === 'message' && action === 'sendText' && method === 'POST') {
-      if (inst.state !== 'open') return json({ status: 400, error: 'Bad Request', response: { message: ['Connection Closed'] } }, 400);
-      if (body.number === '5511000000000') {
-        return json({ status: 400, error: 'Bad Request', response: { message: [{ exists: false, jid: '5511000000000@s.whatsapp.net', number: '5511000000000' }] } }, 400);
-      }
-      return json({ key: { remoteJid: `${body.number}@s.whatsapp.net`, fromMe: true, id: `EVO${calls.length}` }, status: 'PENDING' }, 201);
-    }
-    if (group === 'message' && action === 'sendMedia' && method === 'POST') {
-      if (inst.state !== 'open') return json({ status: 400, error: 'Bad Request', response: { message: ['Connection Closed'] } }, 400);
-      return json({ key: { remoteJid: `${body.number}@s.whatsapp.net`, fromMe: true, id: `EVOM${calls.length}` }, status: 'PENDING' }, 201);
-    }
-    if (group === 'chat' && action === 'sendPresence' && method === 'POST') return json({ presence: body.presence }, 201);
-    if (group === 'message' && ['sendButtons', 'sendList', 'sendPoll'].includes(action) && method === 'POST') {
-      if (inst.state !== 'open') return json({ status: 400, error: 'Bad Request', response: { message: ['Connection Closed'] } }, 400);
-      return json({ key: { remoteJid: `${body.number}@s.whatsapp.net`, fromMe: true, id: `EVOI${calls.length}` }, status: 'PENDING' }, 201);
-    }
-    return new Response('Not found', { status: 404 });
-  }
-  const markOpen = (name, phone, profileName) => Object.assign(instances.get(name), { state: 'open', ownerJid: `${phone}@s.whatsapp.net`, profileName });
-  return { request, calls, instances, markOpen };
-}
+import { createWhatsAppHandler } from '../whatsapp.mjs';
+import { API_KEY, QR, fakeEvolution } from './helpers/fake-evolution.mjs';
 
 async function boot(t, options = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'soci-evolution-'));
@@ -84,7 +15,6 @@ async function boot(t, options = {}) {
     store, auth: null, allowLocalAccess: true, port: 0,
     openAISecret: 'evolution-test-seal-secret-32-chars!',
     socialScheduler: false,
-    uazapiBaseUrl: '', uazapiAdminToken: '',
     ...options
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -103,9 +33,10 @@ async function boot(t, options = {}) {
   return { call, store };
 }
 
+let messageSeq = 0;
 const upsert = (key, message, pushName = 'Cliente') => ({
   event: 'messages.upsert', instance: 'soci_demo',
-  data: { key: { fromMe: false, id: 'MSG1', ...key }, pushName, message, messageType: 'conversation' }
+  data: { key: { fromMe: false, id: `MSG${++messageSeq}`, ...key }, pushName, message, messageType: 'conversation' }
 });
 
 test('Evolution API gerenciada: QR, status ao vivo, webhooks de entrada e envio pelas Conversas', async t => {
@@ -213,7 +144,6 @@ test('Evolution API: código de pareamento, instância apagada no servidor e ser
   const cfg = await local.call('/api/whatsapp/agency/config', { provider: 'evolution', baseUrl: 'https://wa.agencia.test/', adminToken: API_KEY });
   assert.equal(cfg.status, 200, cfg.body?.error);
   assert.equal(cfg.body.configured, true);
-  assert.equal(cfg.body.customProvider, 'evolution');
   assert.equal(cfg.body.adminTokenLast4, 'cret');
 
   const pair = await local.call('/api/whatsapp/workspace/connect?workspace=demo', { phone: '+55 (31) 99999-1111' });
@@ -250,30 +180,107 @@ test('Evolution API: código de pareamento, instância apagada no servidor e ser
   assert.match(refused.body.error, /API Key global/);
 });
 
-test('Trocar UAZAPI por Evolution não reaproveita instância nem status antigos', async t => {
+test('Vínculo salvo antes da Evolution: servidor, instância e status antigos são descartados', async t => {
   const evo = fakeEvolution();
   const local = await boot(t, { whatsappRequest: evo.request, evolutionBaseUrl: 'https://evo.soci.test', evolutionApiKey: API_KEY });
   await local.store.insert('whatsapp-agency', {
-    profile: { name: 'WhatsApp (UAZAPI)' }, provider: 'uazapi', baseUrl: '', adminTokenSealed: '', adminTokenLast4: '',
-    subaccounts: { demo: { enabled: true, tokenSealed: 'a.b.c', tokenLast4: 'oldt', status: 'connected', phone: '5511911112222', webhookSecret: 'f'.repeat(48) } }
+    profile: { name: 'WhatsApp (antigo)' }, provider: 'antigo', baseUrl: 'https://servidor-antigo.test', adminTokenSealed: 'x.y.z', adminTokenLast4: 'oldk',
+    subaccounts: { demo: { enabled: true, rebill: true, tokenSealed: 'a.b.c', tokenLast4: 'oldt', status: 'connected', phone: '5511911112222', webhookSecret: 'f'.repeat(48) } }
   });
   const view = await local.call('/api/whatsapp/agency/status');
   assert.equal(view.body.provider, 'evolution');
+  assert.equal(view.body.managed, true, 'a URL antiga não vale mais: usa a Evolution da plataforma');
+  assert.equal(view.body.hasCustomServer, false);
+  assert.equal(view.body.baseUrl, '');
   assert.equal(view.body.subaccounts.demo.status, 'disconnected');
   assert.equal(view.body.subaccounts.demo.hasInstance, false);
+  assert.equal(view.body.subaccounts.demo.rebill, true, 'o que a agência decidiu continua');
 
   const sent = await local.call('/api/whatsapp/workspace/test?workspace=demo', { phone: '5511977776666', text: 'oi' });
   assert.equal(sent.status, 409);
 
-  // Um webhook atrasado da UAZAPI não pode marcar a subconta como conectada na Evolution.
+  // Um webhook atrasado no formato antigo não pode marcar a subconta como conectada.
   const late = await local.call(`/api/whatsapp/webhook/agency/demo/${'f'.repeat(48)}`, { EventType: 'connection', instance: { status: 'connected' } });
   assert.equal(late.body.ignored, true);
+  assert.equal(evo.calls.some(c => c.path.includes('antigo')), false);
 
   const conn = await local.call('/api/whatsapp/workspace/connect?workspace=demo', {});
   assert.equal(conn.status, 200, conn.body?.error);
   assert.equal(conn.body.qrcode, QR);
-  assert.equal(local.store.load('whatsapp-agency').subaccounts.demo.provider, 'evolution');
-  assert.equal(local.store.load('whatsapp-agency').subaccounts.demo.webhookSecret, 'f'.repeat(48), 'mantém a URL do webhook');
+  const saved = local.store.load('whatsapp-agency');
+  assert.equal(saved.provider, 'evolution');
+  assert.equal(saved.adminTokenSealed, '');
+  assert.equal(saved.subaccounts.demo.webhookSecret, 'f'.repeat(48), 'mantém a URL do webhook');
+});
+
+test('Teste do servidor: versão e números, chave recusada, endereço errado e servidor fora do ar', async t => {
+  const evo = fakeEvolution();
+  let answer = null;
+  const request = (url, init) => answer ? answer(url, init) : evo.request(url, init);
+  const local = await boot(t, { whatsappRequest: request });
+  assert.deepEqual((await local.call('/api/whatsapp/agency/server')).body, { ok: false, error: 'Nenhum servidor de WhatsApp configurado.' });
+
+  await local.call('/api/whatsapp/agency/config', { baseUrl: 'https://wa.agencia.test', adminToken: API_KEY });
+  await local.call('/api/whatsapp/workspace/connect?workspace=demo', {});
+  evo.instances.set('soci_de_outra_agencia', { state: 'open' });
+  let check = (await local.call('/api/whatsapp/agency/server')).body;
+  assert.equal(check.ok, true);
+  assert.equal(check.version, '2.3.7');
+  assert.deepEqual([check.instances, check.connected], [1, 0], 'só conta as instâncias desta agência');
+  evo.markOpen('soci_demo', '5531988887777', 'Demo');
+  check = (await local.call('/api/whatsapp/agency/server')).body;
+  assert.equal(check.connected, 1);
+
+  answer = () => new Response('<html>outro site</html>', { status: 200 });
+  assert.match((await local.call('/api/whatsapp/agency/server')).body.error, /não é uma Evolution API/);
+  answer = () => { throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } }); };
+  const down = await local.call('/api/whatsapp/agency/server');
+  assert.equal(down.status, 200);
+  assert.equal(down.body.ok, false);
+  assert.match(down.body.error, /alcançar a Evolution API/);
+  answer = null;
+  await local.call('/api/whatsapp/agency/config', { baseUrl: 'https://wa.agencia.test', adminToken: 'chave-errada' });
+  const refused = (await local.call('/api/whatsapp/agency/server')).body;
+  assert.equal(refused.ok, false);
+  assert.match(refused.error, /recusou a API Key global/);
+});
+
+test('Excluir instância: sai do aparelho, apaga no servidor e o próximo conectar cria outra', async t => {
+  const evo = fakeEvolution();
+  const local = await boot(t, { whatsappRequest: evo.request, evolutionBaseUrl: 'https://evo.soci.test', evolutionApiKey: API_KEY });
+  await local.call('/api/whatsapp/workspace/connect?workspace=demo', {});
+  evo.markOpen('soci_demo', '5531988887777', 'Demo');
+  await local.call('/api/whatsapp/workspace/status?workspace=demo');
+
+  assert.equal((await local.call('/api/whatsapp/agency/remove-instance', { workspace: 'nao-existe' })).status, 400);
+  const removed = await local.call('/api/whatsapp/agency/remove-instance', { workspace: 'demo' });
+  assert.equal(removed.status, 200, removed.body?.error);
+  assert.equal(removed.body.subaccounts.demo.hasInstance, false);
+  assert.equal(removed.body.subaccounts.demo.status, 'disconnected');
+  assert.equal(evo.instances.size, 0);
+  const order = evo.calls.filter(c => c.method === 'DELETE').map(c => c.path);
+  assert.deepEqual(order, ['/instance/logout/soci_demo', '/instance/delete/soci_demo']);
+
+  // Já não existe no servidor: continua dando certo.
+  assert.equal((await local.call('/api/whatsapp/agency/remove-instance', { workspace: 'demo' })).status, 200);
+  assert.equal((await local.call('/api/whatsapp/workspace/connect?workspace=demo', {})).body.qrcode, QR);
+  assert.equal(evo.instances.size, 1);
+});
+
+test('Webhook repetido pela Evolution não duplica a mensagem', async t => {
+  const evo = fakeEvolution();
+  const local = await boot(t, { whatsappRequest: evo.request, evolutionBaseUrl: 'https://evo.soci.test', evolutionApiKey: API_KEY });
+  const conn = await local.call('/api/whatsapp/workspace/connect?workspace=demo', {});
+  const hook = new URL(conn.body.webhookUrl).pathname;
+  const message = upsert({ remoteJid: '5511977776666@s.whatsapp.net', id: 'REPETIDA' }, { conversation: 'Uma vez só' });
+  assert.equal((await local.call(hook, message)).body.stored, true);
+  const again = await local.call(hook, message);
+  assert.equal(again.status, 200);
+  assert.equal(again.body.reason, 'DUPLICATE');
+  // Outra mensagem com o mesmo texto é outra mensagem.
+  assert.equal((await local.call(hook, upsert({ remoteJid: '5511977776666@s.whatsapp.net', id: 'OUTRA' }, { conversation: 'Uma vez só' }))).body.stored, true);
+  const state = (await local.call('/api/state?workspace=demo')).body.state;
+  assert.equal(state.messages.filter(m => m.body === 'Uma vez só').length, 2);
 });
 
 test('Evolution API nos fluxos: "digitando…", arquivo por https público e endereço interno bloqueado', async t => {
@@ -351,4 +358,23 @@ test('Evolution API nos fluxos: botões, lista e enquete; anúncio de clique par
   state = (await local.call('/api/state?workspace=demo')).body.state;
   const inbound = state.messages.filter(row => row.contactId === carla.id && row.direction === 'Inbound').map(row => row.body);
   assert.deepEqual(inbound, ['Olá! Quero saber mais', 'Agendar', 'Clareamento', 'Escolheu: Tarde']);
+});
+
+test('Primeira conexão: o webhook registrado na Evolution é o que o soci aceita', async t => {
+  const evo = fakeEvolution();
+  const options = { evolutionBaseUrl: 'https://evo.soci.test', evolutionApiKey: API_KEY };
+  const local = await boot(t, { whatsappRequest: evo.request, ...options });
+  // Em produção a origem é https; só assim o webhook é registrado no servidor.
+  const handler = createWhatsAppHandler({ store: local.store, secret: 'evolution-test-seal-secret-32-chars!', request: evo.request, ...options });
+  const view = await handler.handleWorkspaceApi({
+    req: {}, url: new URL('https://soci.test/api/whatsapp/workspace/connect'), method: 'POST', agencyId: 'agency', workspaceId: 'demo',
+    payload: async () => ({}), publicOrigin: 'https://soci.test', requireActiveAccount: async () => {}, json: data => data
+  });
+  const registered = evo.instances.get('soci_demo').webhook.url;
+  assert.equal(registered, view.webhookUrl);
+  const created = evo.calls.find(c => c.path === '/instance/create');
+  assert.equal(created.body.webhook.url, registered);
+  const inbound = await local.call(new URL(registered).pathname, upsert({ remoteJid: '5511977776666@s.whatsapp.net' }, { conversation: 'Primeira mensagem' }));
+  assert.equal(inbound.status, 200, inbound.body?.error);
+  assert.equal(inbound.body.stored, true);
 });

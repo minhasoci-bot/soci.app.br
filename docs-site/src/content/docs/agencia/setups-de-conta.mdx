@@ -1,0 +1,57 @@
+---
+title: Reaproveitar uma subconta com setups de conta
+description: Empacote pipelines, fluxos, formulários, páginas e agentes de IA da sua melhor subconta e use em cada cliente novo.
+modulo: agencia
+sidebar:
+  order: 2
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Um setup de conta é uma cópia da configuração de uma subconta: pipelines, fluxos de trabalho, formulários, páginas, campos, calendários, modelos, agentes de IA e cursos. Monte uma subconta modelo para um ramo, como clínicas ou imobiliárias, salve como setup e cada cliente novo desse ramo já começa pronto.
+
+<Requisitos permissao="Dono ou admin da agência" />
+
+## Passo a passo
+
+<Steps>
+
+1. No painel da agência, abra **Setups de conta**. Na aba **Meus setups** ficam os setups que você criou. Clique em **Criar setup**.
+
+   <Print src="docs/agencia/setups-de-conta/01-meus-setups.82400b75.webp" alt="Tela Setups de conta vazia, com a explicação do que é um setup e o botão Criar setup em destaque." />
+
+2. Dê um **Nome do setup** e escolha a **Subconta de origem**, a que serve de modelo. Marque o que entra no setup: pipelines, fluxos, links de gatilho, formulários, páginas, sites, chats, modelos, campos, tags, calendários, contratos, agentes de IA, bases de conhecimento e cursos. Clique em **Criar setup**.
+
+   <Print src="docs/agencia/setups-de-conta/02-criar-setup.bc0ce89d.webp" alt="Janela Criar setup com o nome Clínica odontológica, a subconta de origem Clínica Sorriso Leve e a lista do que entra no setup." />
+
+3. O setup aparece em **Meus setups**, com a versão. Se a subconta de origem mudar, gere uma versão nova para os próximos clientes.
+
+   <Print src="docs/agencia/setups-de-conta/03-setup-criado.fc99d7a2.webp" alt="Setup Clínica odontológica na aba Meus setups, com a marca Setup da agência e a versão v1." />
+
+4. Para usar o setup, crie uma subconta e escolha o setup em **Setup inicial**. A subconta nova nasce com tudo o que o setup leva.
+
+   <Print src="docs/agencia/setups-de-conta/04-usar-na-subconta-nova.b407409b.webp" alt="Janela Criar nova subconta com o campo Setup inicial aberto, mostrando o setup Clínica odontológica." />
+
+</Steps>
+
+<Aside type="note">
+Contatos, conversas e pagamentos **nunca** entram num setup. Páginas, fluxos de trabalho e chats chegam **desligados** na subconta nova: revise e publique cada um quando o cliente estiver pronto.
+</Aside>
+
+## Perguntas frequentes
+
+**Onde vejo em quais subcontas um setup foi carregado?**
+Na aba **Histórico de cargas** da tela Setups de conta.
+
+**Recebi um setup de outra agência. Como uso?**
+Clique em **Importar setup**. Ele fica na aba **Importados**.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Criar uma subconta para um cliente" href="/agencia/criar-subconta/" description="Cadastre o cliente e escolha o setup inicial." />
+  <LinkCard title="Criar o primeiro fluxo de trabalho" href="/automacoes/primeiro-workflow/" description="Os fluxos da subconta modelo vão junto no setup." />
+</CardGrid>

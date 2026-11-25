@@ -125,7 +125,6 @@
 :root[data-theme=dark] .sx-versions small{color:#9aa0ab}
 :root[data-theme=dark] .sx-live input{background:rgb(21 23 27)}
 :root[data-theme=dark] .ag-logo{background:rgb(21 23 27)}
-:root[data-theme=dark] .ag-acting select{background:rgb(21 23 27)}
 :root[data-theme=dark] .ag-delete{color:#f2a7b5}
 :root[data-theme=dark] .ag-notice{background:var(--g-brand-2-surface,rgb(21 23 27));border-color:var(--g-brand-2-line,rgb(92 24 75))}
 :root[data-theme=dark] .ag-warn{background:var(--g-brand-2-surface,rgb(21 23 27));border-color:var(--g-brand-2-line,rgb(92 24 75))}
