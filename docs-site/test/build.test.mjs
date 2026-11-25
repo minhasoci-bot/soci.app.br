@@ -16,6 +16,12 @@ test('home publicada com tema da soci', async () => {
   assert.match(html, /Soci/);
 });
 
+test('título da aba sem repetição: home só com o nome do site, artigo com artigo e site', async () => {
+  const titulo = html => html.match(/<title>([^<]*)<\/title>/)[1];
+  assert.equal(titulo(await lerPagina('')), 'Central de ajuda da Soci');
+  assert.equal(titulo(await lerPagina('conversas/caixa-unificada')), 'Atender na caixa unificada | Central de ajuda da Soci');
+});
+
 test('busca e llms.txt gerados', async () => {
   await access(`${dist}pagefind/pagefind.js`);
   await access(`${dist}llms.txt`);
