@@ -77,7 +77,7 @@ export function blankAgency() {
     aiDefaults: { limit: 0, alertAt: 0.8, enabled: true },
     compliance: { retentionDays: 365, consent: 'By submitting, you agree to receive messages from this business.', cookieBanner: true, hipaa: false },
     saas: { enabled: false, enabledAt: '', rebilling: Object.fromEntries(rebillProducts.map(([key]) => [key, 1])), accounts: [],
-      unitCosts: Object.fromEntries(walletProducts.map(([key, , , cost]) => [key, cost])), rebill: {}, lowBalance: 20 },
+      unitCosts: Object.fromEntries(walletProducts.map(([key, , , cost]) => [key, cost])), rebill: {}, lowBalance: 20, autoSuspend: { enabled: true, maxRetry: 3, retryEvery: 1 } },
     workflowSettings: { builder: 'Standard', overrides: {} },
     subFeatures: Object.fromEntries(subFeatures.map(([key]) => [key, { on: {}, rebill: [] }])),
     emailServices: { domain: '', added: '', accounts: [] },
@@ -99,6 +99,8 @@ const featureOn = (agency, key, account) => {
 
 export function hydrateAgency(state) {
   const fresh = blankAgency();
+  // Agencies from before this option keep their sub-accounts running until they turn it on.
+  if (!state.saas?.autoSuspend) state.saas = { ...fresh.saas, ...state.saas, autoSuspend: { ...fresh.saas.autoSuspend, enabled: false } };
   for (const [key, value] of Object.entries(fresh)) {
     if (state[key] === undefined) state[key] = value;
     else if (value && typeof value === 'object' && !Array.isArray(value) && !['accounts', 'integrations', 'reselling', 'systemEmails', 'labs'].includes(key)) state[key] = { ...value, ...state[key] };
@@ -161,6 +163,7 @@ export function accountLifecycle(agency, id) {
     status,
     suspendedReason: status === 'Active' ? '' : meta?.suspendedReason || '',
     suspendedAt: status === 'Paused' ? meta?.suspendedAt || '' : '',
+    ...(status === 'Paused' && meta?.suspendedBy ? { suspendedBy: meta.suspendedBy } : {}),
     closedAt: status === 'Closed' ? meta?.closedAt || '' : ''
   };
 }
@@ -170,11 +173,39 @@ function updateAccountStatus(state, id, meta, status, reason, actor) {
   if (reason !== undefined || previous !== status) meta.suspendedReason = status === 'Active' ? '' : str(reason, 500);
   if (previous === status) return;
   const at = now();
+  meta.suspendedBy = '';
   Object.assign(meta, { status, suspendedAt: status === 'Paused' ? at : '', closedAt: status === 'Closed' ? at : '' });
   meta.statusHistory = [...(meta.statusHistory || []).slice(-99), {
     from: previous, to: status, at, actor, reason: meta.suspendedReason
   }];
   audit(state, actor, 'Sub-account status changed', id, `${previous} → ${status}`);
+}
+
+/** May this person pay to bring the sub-account back? Only its admins (or the agency's), and only a pause made by billing. */
+export const canReactivate = (state, id, who) => state.accounts?.[id]?.status === 'Paused' && state.accounts[id].suspendedBy === 'billing'
+  && ['Account Admin', 'Agency Owner', 'Agency Admin'].includes(who?.role);
+/** A new subscription takes the place of the old one, which stays known: its money can still come back or be disputed. */
+export function replaceBilling(state, id, billing) {
+  const meta = state.accounts[id] = { ...(state.accounts[id] || {}) }, old = meta.billing;
+  const { previous = [], history: _history, failures: _failures, url: _url, ...kept } = old || {};
+  meta.billing = { ...billing, ...(old && { previous: [...previous, kept].slice(-12) }) };
+  return meta.billing;
+}
+const billingActor = 'Cobrança automática';
+/** Pauses an active sub-account whose plan was not paid. False when there was nothing to pause. */
+export function suspendForBilling(state, id, reason = 'Pagamento do plano não confirmado.') {
+  const meta = state.accounts?.[id];
+  if (!meta || (meta.status || 'Active') !== 'Active') return false;
+  updateAccountStatus(state, id, meta, 'Paused', reason, billingActor);
+  meta.suspendedBy = 'billing';
+  return true;
+}
+/** Lifts only the pause that billing itself made. */
+export function restoreFromBilling(state, id) {
+  const meta = state.accounts?.[id];
+  if (meta?.status !== 'Paused' || meta.suspendedBy !== 'billing') return false;
+  updateAccountStatus(state, id, meta, 'Active', '', billingActor);
+  return true;
 }
 
 const pick = (state, key, id) => state[key].find(item => item.id === id) || fail('Record not found.', 404);
@@ -557,6 +588,12 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       if (state.saas.enabled && !state.saas.enabledAt) state.saas.enabledAt = now();
       log(state.saas.enabled ? 'SaaS mode enabled' : 'SaaS mode disabled');
       return state.saas.enabled;
+    }
+    case 'saas-suspension': {
+      const whole = (value, min, max, message) => { const n = Number(value); return Number.isInteger(n) && n >= min && n <= max ? n : fail(message); };
+      state.saas.autoSuspend = { enabled: flag(d.enabled), maxRetry: whole(d.maxRetry, 1, 10, 'O número de tentativas vai de 1 a 10.'), retryEvery: whole(d.retryEvery, 1, 30, 'O intervalo entre tentativas vai de 1 a 30 dias.') };
+      log('Plan payment failure settings updated', state.saas.autoSuspend.enabled ? 'On' : 'Off');
+      return 'suspension';
     }
     case 'saas-rebilling': {
       for (const [key, label] of rebillProducts) {

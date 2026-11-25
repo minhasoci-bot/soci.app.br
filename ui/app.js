@@ -193,7 +193,7 @@ async function load(){
   const workspace = c.workspace;
   try {
     const data = await api(url('/api/state'));
-    if (workspace === c.workspace) Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,account:data.account});
+    if (workspace === c.workspace) Object.assign(c,{s:data.state,m:data.metrics,workspaces:data.workspaces,features:data.features,agency:data.agency,access:data.access,account:data.account,billingNotice:data.billingNotice||''});
   } catch (e) {
     if (e.code !== 'ACCOUNT_SUSPENDED') throw e;
     if (workspace === c.workspace) Object.assign(c,{s:null,m:null,account:e.account});
@@ -334,7 +334,8 @@ function renderAccountLifecycle() {
       `<li>${h(date(row.at))} · ${h(row.actor)} · ${h(tr(row.from))} → ${h(tr(row.to))}${row.reason ? ` · ${h(row.reason)}` : ''}</li>`).join('')}</ul></details>` : ''}
     ${Object.keys(account.ignoredWebhooks || {}).length ? `<details><summary>Eventos recebidos durante a suspensão</summary><ul>${Object.entries(account.ignoredWebhooks).map(([provider, row]) =>
       `<li>${h({ waha: 'WAHA', evolution: 'Evolution API' }[provider] || 'WhatsApp')} · ${h(row.count)} ignorado(s) · último em ${h(date(row.lastAt))}</li>`).join('')}</ul></details>` : ''}
-    <a class="primary" href="#agency/accounts">Gerenciar subcontas</a>` : `<p>Entre em contato com o suporte da sua agência para recuperar o acesso.</p>`;
+    <a class="primary" href="#agency/accounts">Gerenciar subcontas</a>` : account.canReactivate ? `<p>${h(tr('Pague o plano para voltar a usar a subconta. O acesso volta assim que o pagamento for confirmado.'))}</p><button class="primary" data-act="account-pay">${h(tr('Pagar e reativar'))}</button>`
+    : `<p>Entre em contato com o suporte da sua agência para recuperar o acesso.</p>`;
   app.innerHTML = `<main class="boot boot-error"><h1>Subconta ${status}</h1>
     ${account.suspendedReason ? `<p>${h(account.suspendedReason)}</p>` : ''}${support}
     <div class="inline-gap"><button class="secondary" data-act="account-retry">Verificar acesso</button><button class="secondary" data-act="workspaces">Trocar de workspace</button></div></main>`;
@@ -354,7 +355,7 @@ function render(){
   applyBrandColor(c.agency?.primary, c.agency?.secondary, c.agency?.accent);
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
-  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}${c.launchpadReturn && c.view!=='launchpad' ? `<div class="lp-return"><a href="#launchpad/${h(c.launchpadReturn)}">${i('left',14)} Voltar ao guia</a><span>Continue a configuração. Seu progresso será reconhecido ao voltar.</span><button class="icon-btn" aria-label="Fechar lembrete do guia" data-act="launchpad-dismiss">${i('close',14)}</button></div>` : ''}<main id="screen" class="screen">${screenHtml}</main></div></div>`;
+  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${appSidebar(brand)}<div class="workspace">${appTopbar()}${c.billingNotice==='past_due'?`<p class="surface padded ag-warn" role="status">${h(tr('O pagamento do plano desta subconta foi recusado. Confira o cartão ou fale com a sua agência para não perder o acesso.'))}</p>`:''}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}${c.launchpadReturn && c.view!=='launchpad' ? `<div class="lp-return"><a href="#launchpad/${h(c.launchpadReturn)}">${i('left',14)} Voltar ao guia</a><span>Continue a configuração. Seu progresso será reconhecido ao voltar.</span><button class="icon-btn" aria-label="Fechar lembrete do guia" data-act="launchpad-dismiss">${i('close',14)}</button></div>` : ''}<main id="screen" class="screen">${screenHtml}</main></div></div>`;
   if (getLanguage() === 'es') translateDom(app);
   mountBeautifulUI(G('#screen'), c, { render });
   if(c.view==='conversations'&&c.thread) {const area=G('.thread-messages');if(area)area.scrollTop=area.scrollHeight;}
@@ -894,6 +895,7 @@ document.addEventListener('click',async ev=>{
         else if(live.status==='connected') flash('WhatsApp conectado!');
         break;
       }
+      case 'account-pay': location.href=(await api(url('/api/billing/reactivate'),{})).url; break;
       case 'abacate-refresh': c.pay=null; render(); await refreshPay(); break;
       case 'abacate-hooks': c.pay=await api(url('/api/abacatepay/workspace/refresh-webhook'),{}); render(); flash('Avisos do AbacatePay atualizados.'); break;
       case 'google-refresh': c.google=null; render(); await refreshGoogle(); break;

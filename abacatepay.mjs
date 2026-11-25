@@ -6,6 +6,7 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, 
 import { execute } from './model.mjs';
 import { disputeCharge, paymentOf, refundCharge, settleCharge, settleOrphanInstalment } from './gateway-events.mjs';
 import { postFact } from './ledger-model.mjs';
+import { restoreFromBilling, suspendForBilling } from './agency-model.mjs';
 
 export const ABACATEPAY_API = 'https://api.abacatepay.com/v2';
 // Published by AbacatePay for every account: it signs the body, the secret proves the sender.
@@ -16,6 +17,8 @@ export const webhookEvents = ['checkout.completed', 'checkout.refunded', 'checko
 // Documented as events, but not in the list accepted when a webhook is created: dropped when the gateway refuses them.
 const doubtfulEvents = ['subscription.payment_failed', 'subscription.plan_changed'];
 const AGENCY_SCOPE = 'agency';
+// The gateway gave up on the subscription by itself (the agency or the client cancelling is not this).
+const suspendingReasons = new Set(['max_payment_retries_exceeded', 'dispute_opened', 'pix_automatic_authorization_refused']);
 const methodNames = { PIX: 'Pix', CARD: 'Card', BOLETO: 'Boleto' };
 
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
@@ -247,18 +250,18 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
   }
 
   // ---- Agency: SaaS plans billed as subscriptions -------------------------------------------
-  async function subscribe(agencyId, workspaceId, plan, publicOrigin) {
+  async function subscribe(agencyId, workspaceId, plan, publicOrigin, { trial: withTrial = true, retryPolicy = null } = {}) {
     const row = await loadRow(agencyId);
     const apiKey = keyOf(row, agencyId, AGENCY_SCOPE);
     if (!plan) throw fail('Atribua um plano SaaS a esta subconta antes de gerar a assinatura.');
     const price = cents(plan.price);
     if (price < 100) throw fail('O plano precisa custar pelo menos R$ 1,00.');
     const product = { externalId: `soci-plan-${plan.id}-${price}`, name: clean(plan.name, 120) || 'Plano', price, cycle: 'MONTHLY' };
-    const trial = Math.round(Number(plan.trialDays) || 0);
+    const trial = withTrial ? Math.round(Number(plan.trialDays) || 0) : 0;
     if (trial >= 1 && trial <= 90) { product.trialDays = trial; product.externalId += `-t${trial}`; }
     const productId = await ensureProduct(apiKey, product);
     const body = { items: [{ id: productId, quantity: 1 }], externalId: `saas-${workspaceId}-${Date.now().toString(36)}`, methods: ['PIX', 'CARD'],
-      completionUrl: `${publicOrigin}/app`, returnUrl: `${publicOrigin}/app`, metadata: { workspace: workspaceId, planId: plan.id } };
+      completionUrl: `${publicOrigin}/app`, returnUrl: `${publicOrigin}/app`, metadata: { workspace: workspaceId, planId: plan.id }, ...(retryPolicy && { retryPolicy }) };
     let checkout;
     try { checkout = await call(apiKey, '/subscriptions/create', { method: 'POST', body }); }
     catch (err) {
@@ -294,50 +297,92 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     await call(keyOf(row, agencyId, AGENCY_SCOPE), '/subscriptions/cancel', { method: 'POST', body: { id: billing.subscriptionId } })
       .catch(err => { if (!/not found|not active/i.test(err.gateway || '')) throw err; });
   }
+  function bookPlanPayment(agency, accountId, billing, event, data, devMode) {
+    const pay = data?.payment || {}, id = String(pay.id || ''), paidCents = Math.round(Number(pay.paidAmount || pay.amount || 0));
+    if (id && (billing.payments || []).some(item => item.id === id)) return;
+    billing.payments = [...(billing.payments || []), { id, amount: paidCents / 100, at: stamp(), receiptUrl: String(pay.receiptUrl || ''), ...(devMode && { test: true }) }].slice(-24);
+    if (!id) console.warn(`AbacatePay ${event}: pagamento de plano sem id (${accountId}); confira no painel do gateway.`);
+    else if (paidCents > 0 && !devMode) postFact(agency, { layer: 'agency', kind: 'plan_payment', key: `plan:abacatepay:${id}`, workspaceId: accountId, amountCents: paidCents, feeCents: Number.isInteger(pay.platformFee) ? pay.platformFee : null,
+      method: methodNames[data?.subscription?.method] || '', provider: 'abacatepay', ref: id, source: { type: 'plan', id: billing.planId || '' }, at: stamp(), detail: { plan: billing.planName || '' } });
+  }
+  // A subscription that was already replaced: its money still counts, the account and the new subscription do not change.
+  function latePayment(agency, event, data, { checkoutId, subscriptionId, devMode }) {
+    for (const [accountId, meta] of Object.entries(agency.accounts || {})) {
+      const billing = meta?.billing?.previous?.find(item => (checkoutId && item.checkoutId === checkoutId) || (subscriptionId && item.subscriptionId === subscriptionId));
+      if (!billing) continue;
+      const paid = event === 'subscription.completed' || event === 'subscription.renewed', current = meta.billing;
+      // The customer paid a link that had been replaced, and nothing else is being charged: what was paid is the subscription.
+      if (paid && billing.status !== 'Cancelled' && ['Pending', 'Cancelled'].includes(current.status)) {
+        const { previous, history: _history, failures: _failures, url: _url, ...kept } = current;
+        meta.billing = { ...billing, previous: [...previous.filter(item => item !== billing), kept].slice(-12) };
+        return subscriptionEvent(agency, event, data, { devMode });
+      }
+      if (paid) bookPlanPayment(agency, accountId, billing, event, data, devMode);
+      // Two subscriptions being charged: the agency has to cancel one of them.
+      const twice = paid && billing.status !== 'Cancelled' && ['Active', 'Trial', 'PastDue'].includes(current.status);
+      return { accountId, effect: twice ? 'duplicate' : '', name: meta.name || accountId, plan: billing.planName || '', subscriptionId: subscriptionId || billing.subscriptionId || '' };
+    }
+    return { accountId: '', effect: '' };
+  }
   // Applies a subscription event to the sub-account's billing record, with the payment in the ledger.
   function subscriptionEvent(agency, event, data, { devMode = false } = {}) {
     const checkoutId = String(data?.checkout?.id || ''), subscriptionId = String(data?.subscription?.id || '');
     const entry = Object.entries(agency.accounts || {}).find(([, meta]) => meta?.billing?.provider === 'abacatepay'
       && ((checkoutId && meta.billing.checkoutId === checkoutId) || (subscriptionId && meta.billing.subscriptionId === subscriptionId)));
-    if (!entry) return { accountId: '', effect: '' };
+    if (!entry) return latePayment(agency, event, data, { checkoutId, subscriptionId, devMode });
     const billing = entry[1].billing;
     let effect = '';
     if (subscriptionId) billing.subscriptionId = subscriptionId;
-    billing.status = event === 'subscription.cancelled' || data?.subscription?.status === 'CANCELLED' ? 'Cancelled'
-      : event === 'subscription.trial_started' ? 'Trial' : 'Active';
+    const ended = event === 'subscription.cancelled' || data?.subscription?.status === 'CANCELLED';
+    // Deliveries can come out of order: what is cancelled stays cancelled (a new subscription is another record).
+    if (ended || billing.status === 'Cancelled') billing.status = 'Cancelled';
+    else if (event === 'subscription.payment_failed') billing.status = 'PastDue';
+    else if (event === 'subscription.trial_started') billing.status = 'Trial';
+    else if (event !== 'subscription.plan_changed') billing.status = 'Active';
+    billing.history = [...(billing.history || []), { at: stamp(), event, detail: clean(data?.subscription?.cancelledDueTo || data?.status || '', 200) }].slice(-100);
     billing.method = methodNames[data?.subscription?.method] || billing.method || '';
     if (event === 'subscription.completed' || event === 'subscription.renewed') {
-      const pay = data?.payment || {};
       billing.lastPaidAt = stamp();
       effect = 'paid';
-      const id = String(pay.id || ''), paidCents = Math.round(Number(pay.paidAmount || pay.amount || 0));
-      if (!id || !(billing.payments || []).some(item => item.id === id)) {
-        billing.payments = [...(billing.payments || []), { id, amount: paidCents / 100, at: stamp(), receiptUrl: String(pay.receiptUrl || ''), ...(devMode && { test: true }) }].slice(-24);
-        if (!id) console.warn(`AbacatePay ${event}: pagamento de plano sem id (${entry[0]}); confira no painel do gateway.`);
-        else if (paidCents > 0 && !devMode) postFact(agency, { layer: 'agency', kind: 'plan_payment', key: `plan:abacatepay:${id}`, workspaceId: entry[0], amountCents: paidCents, feeCents: Number.isInteger(pay.platformFee) ? pay.platformFee : null,
-          method: methodNames[data?.subscription?.method] || '', provider: 'abacatepay', ref: id, source: { type: 'plan', id: billing.planId || '' }, at: stamp(), detail: { plan: billing.planName || '' } });
-      }
+      bookPlanPayment(agency, entry[0], billing, event, data, devMode);
     }
     if (event === 'subscription.trial_started') effect = 'trial';
-    if (billing.status === 'Cancelled') billing.cancelledAt = stamp();
+    if (event === 'subscription.plan_changed') effect = 'changed';
+    let notify = 0;
+    if (event === 'subscription.payment_failed' && billing.status === 'PastDue') {
+      effect = 'past_due';
+      const retryNumber = Math.max(1, Math.round(Number(data?.retryNumber) || (billing.failures?.length || 0) + 1));
+      if (!(billing.failures || []).some(item => item.retryNumber === retryNumber)) {
+        billing.failures = [...(billing.failures || []), { at: stamp(), retryNumber }].slice(-40);
+        notify = retryNumber;
+      }
+    }
+    if (['Active', 'Trial'].includes(billing.status) && effect === 'paid') billing.failures = [];
+    if (['Active', 'Trial'].includes(billing.status) && ['paid', 'trial'].includes(effect)) restoreFromBilling(agency, entry[0]);
+    if (event === 'subscription.cancelled') {
+      effect = 'ended';
+      if (agency.saas?.autoSuspend?.enabled && suspendingReasons.has(String(data?.subscription?.cancelledDueTo || ''))) suspendForBilling(agency, entry[0]);
+    }
+    if (billing.status === 'Cancelled') billing.cancelledAt ||= stamp();
     billing.updatedAt = stamp();
-    return { accountId: entry[0], effect };
+    return { accountId: entry[0], effect, notify, name: entry[1].name || entry[0], plan: billing.planName || '', subscriptionId: billing.subscriptionId };
   }
   // A refund or dispute of a plan's payment: the charge is the checkout of the subscription, so the moment tells which payment.
   function planReversal(agency, charge, event) {
-    const entry = Object.entries(agency.accounts || {}).find(([, meta]) => charge.checkoutId && meta?.billing?.checkoutId === charge.checkoutId);
-    const payments = (entry?.[1].billing.payments || []).filter(item => item.id);
+    const [accountId, billing] = Object.entries(agency.accounts || {}).flatMap(([id, meta]) => meta?.billing ? [meta.billing, ...(meta.billing.previous || [])].map(item => [id, item]) : [])
+      .find(([, item]) => charge.checkoutId && item.checkoutId === charge.checkoutId) || [];
+    const payments = (billing?.payments || []).filter(item => item.id);
     const payment = paymentOf(payments, charge.updatedAt, { at: item => item.at, returned: item => Boolean(item.refunded) });
-    if (payments.length && !payment) console.warn(`AbacatePay ${event}: sem data para saber de qual pagamento do plano (${entry[0]}); confira no painel do gateway.`);
+    if (payments.length && !payment) console.warn(`AbacatePay ${event}: sem data para saber de qual pagamento do plano (${accountId}); confira no painel do gateway.`);
     if (!payment) return '';
     const lost = charge.lost || (/\.disputed$/.test(event) && charge.status === 'REFUNDED'), back = lost || /\.refunded$/.test(event);
     const kind = lost ? 'dispute_lost' : back ? 'refund' : charge.status === 'UNDER_DISPUTE' ? 'dispute_opened' : charge.status === 'PAID' ? 'dispute_won' : '';
     if (!kind) return '';
-    if (back && payment.refunded) return entry[0];
+    if (back && payment.refunded) return accountId;
     if (back) payment.refunded = true;
-    if (!payment.test && !charge.devMode) postFact(agency, { layer: 'agency', kind, key: `${back ? 'refund' : kind}:abacatepay:${payment.id}`, workspaceId: entry[0], amountCents: back ? -Math.round(payment.amount * 100) : 0,
-      provider: 'abacatepay', ref: payment.id, source: { type: 'plan', id: entry[1].billing.planId || '' }, at: stamp(), detail: { plan: entry[1].billing.planName || '' } });
-    return entry[0];
+    if (!payment.test && !charge.devMode) postFact(agency, { layer: 'agency', kind, key: `${back ? 'refund' : kind}:abacatepay:${payment.id}`, workspaceId: accountId, amountCents: back ? -Math.round(payment.amount * 100) : 0,
+      provider: 'abacatepay', ref: payment.id, source: { type: 'plan', id: billing.planId || '' }, at: stamp(), detail: { plan: billing.planName || '' } });
+    return accountId;
   }
 
   // ---- Webhook ------------------------------------------------------------------------------

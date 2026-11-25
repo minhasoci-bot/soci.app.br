@@ -24,6 +24,7 @@ export function fakeAbacate({ devMode = false } = {}) {
     }
     if (u.pathname === '/v2/checkouts/create' || u.pathname === '/v2/subscriptions/create') {
       if (!products.has(body.items[0].id)) return bad(400, `Product ${body.items[0].id} not found`);
+      await state.beforeCreate?.();
       const id = `bill_${++seq}`, row = { id, url: `https://app.abacatepay.com/pay/${id}`, status: 'PENDING', devMode, amount: products.get(body.items[0].id).price, externalId: body.externalId };
       checkouts.set(id, row);
       return ok(row);
@@ -80,4 +81,26 @@ export async function startBilling(t, { devMode = false, documentMail, store = c
   }
   const sum = async (layer, agencyId) => (await rows(layer, agencyId)).reduce((total, row) => total + row.amount_cents, 0);
   return { base, store, gateway, send, save, state, connect, deliver, rows, sum };
+}
+
+/** A sub-account with a SaaS plan and its subscription created (not paid yet). */
+export async function planBilling(t, { enabled = true, ...options } = {}) {
+  const mails = [];
+  const documentMail = { configured: true, linkOf: () => '', email: async (to, message, idempotency) => { mails.push({ to, ...message, idempotency }); return 'e-mail enviado'; } };
+  const b = await startBilling(t, { documentMail, ...options }), conn = await b.connect('agency');
+  const action = body => b.send('/api/agency/action', body);
+  await action({ type: 'saas-suspension', data: { enabled, maxRetry: 3, retryEvery: 1 } });
+  const planId = (await action({ type: 'save', key: 'plans', data: { name: 'Pro', price: 297, trialDays: 7 } })).body.result;
+  await action({ type: 'account-meta', id: 'demo', data: { plan: planId, status: 'Active' } });
+  await action({ type: 'save', key: 'users', data: { first: 'Rui', last: 'Dono', email: 'rui@agencia.com', role: 'Agency Admin' } });
+  const subscribe = () => b.send('/api/abacatepay/agency/subscribe', { workspace: 'demo' });
+  const created = await subscribe();
+  if (created.status !== 200) throw new Error(JSON.stringify(created.body));
+  const account = async () => (await b.send('/api/agency')).body.agency.accounts.demo;
+  const checkout = (await account()).billing.checkoutId;
+  const event = (name, { subscriptionId = 'subs_1', checkoutId = checkout, subscription = {}, ...rest } = {}) =>
+    ({ event: name, data: { subscription: { id: subscriptionId, status: name === 'subscription.cancelled' ? 'CANCELLED' : 'ACTIVE', method: 'CARD', ...subscription }, checkout: { id: checkoutId, frequency: 'SUBSCRIPTION' }, ...rest } });
+  const deliver = value => b.deliver(conn, value);
+  const paid = (id = 'card_1', extra = {}) => deliver(event('subscription.completed', { payment: { id, amount: 29700, platformFee: 900 }, ...extra }));
+  return { ...b, conn, mails, action, subscribe, account, event, deliver, paid, checkout, planId };
 }

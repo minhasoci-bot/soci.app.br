@@ -60,7 +60,7 @@ const commandModules = {
 };
 
 const agencySettingsCommands = new Set([
-  'account-meta', 'account-reactivate', 'saas-mode', 'saas-rebilling', 'rebill-account', 'saas-account', 'workflow-builder',
+  'account-meta', 'account-reactivate', 'saas-mode', 'saas-suspension', 'saas-rebilling', 'rebill-account', 'saas-account', 'workflow-builder',
   'sub-feature', 'email-domain', 'email-domain-accounts', 'email-domain-remove', 'affiliate-pixel', 'profile',
   'company', 'fiscal', 'billing-plan', 'wallet', 'auto-recharge', 'system-email', 'labs', 'ai-defaults', 'studio-app-save', 'studio-app-publish', 'studio-app-delete', 'studio-app-rotate', 'compliance',
   'api-key', 'api-key-delete', 'private-integration', 'private-integration-delete', 'resell',
