@@ -4,7 +4,7 @@
 
 /* ───────── 1. Material ─────────
    A camada flutuante. Quem recebe vidro está nesta lista e em nenhuma outra folha. */
-:root:root :is(.g-side,.top-search,.g-top .tool-group,.g-top .lang-switcher,.g-top .ag-acting .g-select-trigger,.g-top .ag-acting select:not(.g-select-native),
+:root:root :is(.g-side,.top-search,.g-top .tool-group,.g-top .lang-switcher,
   .g-menu-surface,.inbox-menu,.ag-kebab-menu,.co-menu-list,.md-menu-list,.opportunity-more-menu,.bui-prompt-menu,.bui-sidebar-menu,.bui-fc-menu,.bui-tune-menu,.bui-selection-float,.ags-menu-list,.icon-grid,.sd-pop,
   .wf-canvas-controls,.wf-dock,.report-editor-toolbar,.dashboard-page:has(.dash-save) .dashboard-toolbar,.lg-glass){
   border:0;
@@ -69,7 +69,10 @@
   -webkit-mask-image:linear-gradient(to bottom,#000 68%,transparent);mask-image:linear-gradient(to bottom,#000 68%,transparent);
 }
 :root:root .workspace>.screen{padding-top:var(--lg-top-h);scroll-padding-top:calc(var(--lg-top-h) + 8px)}
-:root:root .workspace>.ag-banner{margin-top:0}
+/* Avisos e o retorno ao guia ficam entre o topo flutuante e a tela: o primeiro desce a altura do topo
+   e a tela deixa de reservá-la. Sem isso, a faixa fica escondida atrás do topo. */
+:root:root .workspace>.topbar.g-top+:is(.ag-banner,.lp-return){margin-top:var(--lg-top-h)}
+:root:root .workspace>:is(.ag-banner,.lp-return)~.screen{padding-top:14px;scroll-padding-top:8px}
 :root:root .g-top .crumbs{padding-left:4px}
 :root:root .crumb-current{font-weight:650;letter-spacing:-.01em}
 :root:root .g-top .top-search{height:38px;border-radius:var(--r-pill);padding:0 8px 0 13px;color:var(--g-dim)}
@@ -84,8 +87,6 @@
 :root:root .lang-btn{min-height:34px;padding:0 10px;border:0;border-radius:var(--r-pill);background:transparent;color:var(--g-dim);font-size:12px;font-weight:650;box-shadow:none}
 :root:root .lang-btn:not(.active):hover{background:transparent;color:var(--g-ink)}
 :root:root .lang-btn.active{background:var(--lg-tint-on);color:var(--g-ink);box-shadow:none}
-:root:root .g-top .ag-acting{gap:7px}
-:root:root .g-top .ag-acting :is(.g-select-trigger,select:not(.g-select-native)){height:38px;min-height:38px;border-radius:var(--r-pill);padding-left:14px;font-weight:600}
 :root:root .g-top .top-profile{width:38px;height:38px;min-width:38px;border-radius:50%;background:var(--g-surface-3);color:var(--g-ink);box-shadow:none}
 
 /* ───────── 4. Menus e popovers ───────── */

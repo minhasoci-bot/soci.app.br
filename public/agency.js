@@ -155,9 +155,9 @@ export function startAgency(env) {
 
   function shell(content) {
     const company = D().company;
-    const users = D().users;
     const session = A.data.access?.session;
-    const acting = localStorage.getItem('go.user') || '';
+    // Sem login (servidor local), "Agir como" vale também aqui: a faixa é a saída desse modo.
+    const acting = !session && localStorage.getItem('go.user');
     const item = ([key, label, ico]) => ({ href: `#agency/${key}`, label: tr(label), icon: ico, current: A.page === key });
     const currentPageLabel = tr(agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência');
     return `<div class="shell ${A.navOpen ? 'wide' : ''} ag-shell">${sidebar({
@@ -185,7 +185,6 @@ export function startAgency(env) {
         { label: currentPageLabel }
       ],
       search: 'data-act="search"',
-      extra: session ? '' : `<div class="ag-acting">${i('users', 15)}<label class="sr-only" for="ag-user-select">Agindo como</label><select id="ag-user-select" data-ag-user aria-label="Agindo como"><option value="">${h(D().profile.name)} (Dono da agência)</option>${users.map(u => `<option value="${u.id}" ${u.id === acting ? 'selected' : ''}>${h(`${u.first} ${u.last}`)} (${h(tr(u.role))})</option>`).join('')}</select></div>`,
       tools: [
         { icon: 'bell', label: tr('Notificações'), attr: 'data-act="notifications"' }
       ],
@@ -195,7 +194,7 @@ export function startAgency(env) {
         label: session?.name || tr('Configurações da agência'),
         attr: session ? 'data-act="account"' : 'data-ag="go-profile"'
       }
-    })}<main id="screen" class="screen${A.page === 'ask' ? ' screen-ask-chat' : ''}">${content}</main></div></div>`;
+    })}${acting ? `<div class="ag-banner acting" role="status"><b>Agindo como ${h(A.data.access?.name || '')}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>` : ''}<main id="screen" class="screen${A.page === 'ask' ? ' screen-ask-chat' : ''}">${content}</main></div></div>`;
   }
 
   // ---- Pages -------------------------------------------------------------
@@ -290,7 +289,7 @@ export function startAgency(env) {
   };
   const aiUsageTab = () => {
     const u = A.aiUsage || {}, period = A.aiPeriod || '30';
-    const periods = `<div class="inline-gap ag-gap" role="group" aria-label="${h(tr('Período'))}">${aiPeriods.map(([v, label]) => btn(label, 'ai-period', `data-period="${v}" aria-pressed="${v === period}"`, v === period ? 'primary' : 'secondary')).join('')}</div>`;
+    const periods = `<div class="seg" role="group" aria-label="${h(tr('Período'))}">${aiPeriods.map(([v, label]) => btn(label, 'ai-period', `data-period="${v}" aria-pressed="${v === period}"`, 'seg-btn')).join('')}</div>`;
     if (u.error) return `${periods}<p class="form-status" role="alert">${h(u.error)}</p>${btn('Tentar de novo', 'ai-period', `data-period="${period}"`)}`;
     if (!u.data || u.period !== period) return `${periods}<p class="dim">${h(tr('Somando o uso de todas as subcontas…'))}</p>`;
     const d = u.data, t = d.totals, days = Object.entries(d.byDay), max = Math.max(0.000001, ...days.map(([, x]) => x.cost));
@@ -303,23 +302,21 @@ export function startAgency(env) {
       <div class="metrics">${metric('Custo estimado', formatUsd(t.cost), `${day(d.from)} a ${day(d.to)}`)}${metric('Chamadas de IA', t.calls)}${metric('Tokens', formatTokens(t.inputTokens + t.outputTokens), `${formatTokens(t.inputTokens)} de entrada`)}${metric('Erros', t.errors)}</div>
       <section class="surface padded"><h2>${h(tr('Custo por dia'))}</h2><div class="ag-chart ag-ai-chart">${days.map(([date, x], index) => `<div class="ag-col" title="${h(date.split('-').reverse().join('/'))}: ${h(formatUsd(x.cost))} · ${x.calls} ${h(tr('chamadas'))}"><span class="ag-colbar">${x.cost > 0 ? `<span data-h="${(x.cost / max) * 100}"></span>` : ''}</span><small>${index % step === 0 ? h(date.slice(8, 10) + '/' + date.slice(5, 7)) : ''}</small></div>`).join('')}</div></section>
       <h2 class="section-heading">${h(tr('Por subconta'))}</h2>${table(['Subconta', 'Chamadas', 'Tokens', 'Custo', ''], d.byAccount.map(x => `<tr><td><b>${h(x.name)}</b></td><td>${x.calls}</td><td>${formatTokens(x.inputTokens + x.outputTokens)}</td><td>${formatUsd(x.cost)}</td><td>${bar(t.cost ? (x.cost / t.cost) * 100 : 0)}</td></tr>`), empty('Nenhum uso de IA no período', 'As chamadas de IA das subcontas aparecem aqui.'))}
-      <div class="ag-two"><section><h2 class="section-heading">${h(tr('Por produto'))}</h2>${table(['Produto', 'Chamadas', 'Tokens', 'Custo', ''], rank(d.byKind, kindLabel), '')}</section>
-      <section><h2 class="section-heading">${h(tr('Por modelo'))}</h2>${table(['Modelo', 'Chamadas', 'Tokens', 'Custo', ''], rank(d.byModel, key => key), '')}</section></div>`;
+      <div class="ag-two"><section><h2 class="section-heading">${h(tr('Por produto'))}</h2>${table(['Produto', 'Chamadas', 'Tokens', 'Custo', ''], rank(d.byKind, kindLabel), `<p class="dim table-none">${h(tr('Nenhum uso de IA no período'))}</p>`)}</section>
+      <section><h2 class="section-heading">${h(tr('Por modelo'))}</h2>${table(['Modelo', 'Chamadas', 'Tokens', 'Custo', ''], rank(d.byModel, key => key), `<p class="dim table-none">${h(tr('Nenhum uso de IA no período'))}</p>`)}</section></div>`;
   };
   const aiSetupTab = () => {
     const def = D().aiDefaults || { limit: 0, alertAt: 0.8, enabled: true }, manage = A.data.access?.settings;
     const noLimit = accounts().filter(a => !a.aiLimit).length;
-    return `<div class="ag-two"><form class="surface padded settings-form" data-ag-form="ai-defaults"><h2>${h(tr('Padrões para subcontas novas'))}</h2><p class="dim">${h(tr('Toda subconta criada a partir de agora começa com estes valores.'))}</p>
-        <label>${h(tr('Limite mensal de IA (US$)'))}<input name="limit" type="number" min="0" max="100000" step="0.01" value="${h(def.limit)}"><small class="dim">${h(tr('Use 0 para não limitar.'))}</small></label>
+    return `<form class="surface settings-form set-form" data-ag-form="ai-defaults"><section class="set-section"><header class="set-head"><h2>${h(tr('Padrões para subcontas novas'))}</h2><p class="dim">${h(tr('Toda subconta criada a partir de agora começa com estes valores.'))}</p></header><div class="set-body"><label>${h(tr('Limite mensal de IA (US$)'))}<input name="limit" type="number" min="0" max="100000" step="0.01" value="${h(def.limit)}"><small class="dim">${h(tr('Use 0 para não limitar.'))}</small></label>
         <label>${h(tr('Avisar quando chegar a'))}<select name="alertAt">${aiAlertSteps.map(v => `<option value="${v}" ${Number(def.alertAt) === v ? 'selected' : ''}>${pct(v)} ${h(tr('do limite'))}</option>`).join('')}</select></label>
-        <label class="check"><input type="checkbox" name="enabled" ${def.enabled !== false ? 'checked' : ''}> ${h(tr('IA ligada nas subcontas novas'))}</label>
-        <button class="primary" ${manage ? '' : 'disabled'}>${h(tr('Salvar padrões'))}</button><p class="form-status" role="alert"></p></form>
-      <section class="surface padded"><h2>${h(tr('Aplicar o limite padrão agora'))}</h2><p class="dim">${h(tr('Leva o limite e o alerta padrão para as subcontas que já existem.'))}</p>
-        <div class="inline-gap">${btn(`Subcontas sem limite (${noLimit})`, 'ai-apply', 'data-scope="unlimited"', 'secondary')}${btn('Todas as subcontas', 'ai-apply', 'data-scope="all"', 'secondary')}</div>
-        <h2 class="ag-ai-subhead">${h(tr('Ligado à Central de IA'))}</h2>
+        <label class="check"><input type="checkbox" name="enabled" ${def.enabled !== false ? 'checked' : ''}> ${h(tr('IA ligada nas subcontas novas'))}</label></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary" ${manage ? '' : 'disabled'}>${h(tr('Salvar padrões'))}</button></footer></form>
+      <section class="surface set-card"><div class="set-section"><header class="set-head"><h2>${h(tr('Aplicar o limite padrão agora'))}</h2><p class="dim">${h(tr('Leva o limite e o alerta padrão para as subcontas que já existem.'))}</p></header>
+        <div class="set-body"><div class="inline-gap">${btn(`Subcontas sem limite (${noLimit})`, 'ai-apply', 'data-scope="unlimited"', 'secondary')}${btn('Todas as subcontas', 'ai-apply', 'data-scope="all"', 'secondary')}</div></div></div>
+        <div class="set-section"><header class="set-head"><h2>${h(tr('Ligado à Central de IA'))}</h2></header><div class="set-body is-list">
         <a class="line-item" href="#agency/settings/openai"><span>${h(tr('Chave da OpenAI usada pelas subcontas'))}</span>${i('arrow', 15)}</a>
         <a class="line-item" href="#agency/saas/rebilling"><span>${h(tr('Revenda de IA com margem (carteira de créditos)'))}</span>${i('arrow', 15)}</a>
-        <a class="line-item" href="#agency/settings/labs"><span>${h(tr('Recursos experimentais (Labs)'))}</span>${i('arrow', 15)}</a></section></div>`;
+        <a class="line-item" href="#agency/settings/labs"><span>${h(tr('Recursos experimentais (Labs)'))}</span>${i('arrow', 15)}</a></div></div></section>`;
   };
   pages['ai-suite'] = () => {
     const sub = A.sub || 'limits';
@@ -568,12 +565,10 @@ export function startAgency(env) {
         <td>${unitPrice(cost * markup)} <small class="dim">${key === 'email' ? 'por 1.000 e-mails' : key === 'ai' ? 'por US$ 1 de consumo' : 'por mensagem'}</small></td></tr>`;
     }).join('');
     return `<div class="metrics">${metric('Subcontas com revenda', `${rebilled.length} <small>/ ${accounts().length}</small>`)}${metric('Saldo nas carteiras', money(sum('balance')))}${metric('Cobrado no mês', money(sum('amount')), `Custo ${money(sum('cost'))}`)}${metric('Lucro no mês', money(sum('profit')))}</div>
-      <form class="surface padded settings-form" data-ag-form="saas-rebilling"><h2>Preços de revenda</h2><p class="dim">Informe quanto a agência paga por unidade e o markup (1× repassa sem margem; até ${maxMarkup}×). O uso das subcontas com revenda ligada é descontado da carteira delas pelo preço final.</p>
-        <div class="table-shell"><table><thead><tr><th scope="col">Produto</th><th scope="col">Seu custo</th><th scope="col">Markup</th><th scope="col">Cliente paga</th></tr></thead><tbody>${prices}</tbody></table></div>
+      <form class="surface settings-form set-form" data-ag-form="saas-rebilling"><section class="set-section"><header class="set-head"><h2>Preços de revenda</h2><p class="dim">Informe quanto a agência paga por unidade e o markup (1× repassa sem margem; até ${maxMarkup}×). O uso das subcontas com revenda ligada é descontado da carteira delas pelo preço final.</p></header><div class="set-body"><div class="table-shell"><table><thead><tr><th scope="col">Produto</th><th scope="col">Seu custo</th><th scope="col">Markup</th><th scope="col">Cliente paga</th></tr></thead><tbody>${prices}</tbody></table></div>
         ${others.map(([key]) => `<input type="hidden" name="${key}" value="${s.rebilling[key]}">`).join('')}
         <label>Avisar quando o saldo ficar abaixo de (R$)<input name="lowBalance" type="number" min="0" max="100000" step="1" value="${s.lowBalance ?? 20}"></label>
-        <p class="dim">Telefonia e Voice AI entram quando o provedor de telefonia for decidido (decisão D1). Com saldo zerado, a IA da subconta para; e-mails e WhatsApp continuam e o saldo fica negativo.</p>
-        <button class="primary">Salvar preços</button><p class="form-status" role="alert"></p></form>
+        <p class="dim">Telefonia e Voice AI entram quando o provedor de telefonia for decidido (decisão D1). Com saldo zerado, a IA da subconta para; e-mails e WhatsApp continuam e o saldo fica negativo.</p></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar preços</button></footer></form>
       <section class="surface padded"><div class="page-head"><div><h2>Carteiras das subcontas</h2><p class="dim">${gateway ? 'Os clientes podem recarregar por Pix ou cartão em Configurações → Carteira; o valor cai na conta AbacatePay da agência.' : 'Conecte o AbacatePay da agência para os clientes recarregarem por Pix. Até lá, lance os créditos aqui.'}</p></div>${gateway ? badge('Recarga por Pix ativa', 'green') : `<a class="secondary" href="#agency/settings/abacatepay">Conectar AbacatePay</a>`}</div>
         <div class="toolbar">${search('Buscar subcontas…')}</div>
         ${table(['Subconta', ...walletProducts.map(([, label]) => label.split(' (')[0]), 'Saldo', 'Cobrado no mês', 'Lucro no mês', ''], list.map(a => {
@@ -599,10 +594,9 @@ export function startAgency(env) {
         ['flowchart', 'Baixar o fluxograma de conformidade']
       ];
       const done = steps.every(([k]) => aff.steps[k]);
-      return `<div class="page">${head('Portal de afiliados', 'Ganhe comissões recorrentes indicando novos negócios para a plataforma.')}<form class="surface padded ag-terms" data-ag-form="affiliate-accept"><h2>Aceite os termos de afiliado</h2><p class="dim">Conclua cada etapa e aceite os termos para liberar seu link exclusivo de indicação.</p>
-        <ol class="ag-steps">${steps.map(([k, label]) => `<li>${aff.steps[k] ? badge('Concluído', 'green') : btn('Marcar como concluído', 'affiliate-step', `data-step="${k}" type="button"`)} ${h(label)}</li>`).join('')}</ol>
-        <label class="check"><input type="checkbox" name="agree" ${done ? '' : 'disabled'}> Li e concordo com os termos e políticas do programa de afiliados</label><button class="primary" ${done ? '' : 'disabled'}>Aceitar termos e participar</button><p class="form-status" role="alert"></p>
-        <ul class="ag-list"><li>${Math.round(affiliateRate * 100)}% de comissão recorrente em indicações ativas</li><li>Relatórios detalhados de promotor e histórico de pagamentos</li></ul></form></div>`;
+      return `<div class="page">${head('Portal de afiliados', 'Ganhe comissões recorrentes indicando novos negócios para a plataforma.')}<form class="surface settings-form set-form" data-ag-form="affiliate-accept"><section class="set-section"><header class="set-head"><h2>Aceite os termos de afiliado</h2><p class="dim">Conclua cada etapa e aceite os termos para liberar seu link exclusivo de indicação.</p><ul class="ag-list"><li>${Math.round(affiliateRate * 100)}% de comissão recorrente em indicações ativas</li><li>Relatórios detalhados de promotor e histórico de pagamentos</li></ul></header><div class="set-body">
+        <ol class="ag-steps">${steps.map(([k, label]) => `<li><span>${h(label)}</span>${aff.steps[k] ? badge('Concluído', 'green') : btn('Marcar como concluído', 'affiliate-step', `data-step="${k}" type="button"`)}</li>`).join('')}</ol>
+        <label class="check"><input type="checkbox" name="agree" ${done ? '' : 'disabled'}> Li e concordo com os termos e políticas do programa de afiliados</label></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary" ${done ? '' : 'disabled'}>Aceitar termos e participar</button></footer></form></div>`;
     }
     const sub = A.sub || 'dashboard', refs = D().referrals;
     const active = refs.filter(r => r.status === 'Active');
@@ -610,10 +604,10 @@ export function startAgency(env) {
     const paid = aff.payments.reduce((s, p) => s + p.amount, 0);
     const pageHead = head('Portal de afiliados', `Código de indicação: ${aff.code}`);
     if (sub === 'reports') return `<div class="page">${pageHead}${tabCard('affiliate', `<div class="page-head"><h2>Indicações</h2>${primary('Adicionar indicação', 'new-record', 'data-key="referrals"')}</div>${table(['Empresa', 'Plano', 'Valor da assinatura', 'Comissão mensal', 'Status', 'Pago', ''], refs.filter(r => match(r.name, r.email)).map(r => `<tr><td><b>${h(r.name)}</b><br><small class="dim">${h(r.email)}</small></td><td>${h(r.plan)}</td><td>${money(r.amount)}</td><td>${money(r.amount * affiliateRate)}</td><td>${badge(r.status, tone(r.status))}</td><td>${r.paid ? badge('Pago', 'green') : '—'}</td><td class="right">${btn('Editar', 'edit-record', `data-key="referrals" data-id="${r.id}"`)}</td></tr>`), empty('Nenhuma indicação cadastrada', 'Adicione as empresas que se registraram utilizando seu link.'))}`, 'Seções de afiliados')}</div>`;
-    if (sub === 'payment') return `<div class="page">${pageHead}${tabCard('affiliate', `<form class="surface padded settings-form" data-ag-form="affiliate-payout"><h2>Dados de pagamento</h2><div class="field-grid"><label>Método de recebimento<select name="method">${['Transferência bancária', 'PayPal', 'Wise', 'Pix'].map(m => `<option ${aff.payout.method === m ? 'selected' : ''}>${m}</option>`).join('')}</select></label><label>E-mail ou chave de recebimento<input name="email" type="email" value="${h(aff.payout.email)}"></label></div><button class="primary">Salvar dados</button><p class="form-status" role="alert"></p></form>`, 'Seções de afiliados')}</div>`;
+    if (sub === 'payment') return `<div class="page">${pageHead}${tabCard('affiliate', `<form class="surface settings-form set-form" data-ag-form="affiliate-payout"><section class="set-section"><header class="set-head"><h2>Dados de pagamento</h2></header><div class="set-body"><div class="field-grid"><label>Método de recebimento<select name="method">${['Transferência bancária', 'PayPal', 'Wise', 'Pix'].map(m => `<option ${aff.payout.method === m ? 'selected' : ''}>${m}</option>`).join('')}</select></label><label>E-mail ou chave de recebimento<input name="email" type="email" value="${h(aff.payout.email)}"></label></div></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar dados</button></footer></form>`, 'Seções de afiliados')}</div>`;
     if (sub === 'history') return `<div class="page">${pageHead}${tabCard('affiliate', `<div class="page-head"><h2>Histórico de pagamentos</h2>${btn('Registrar pagamento de comissões', 'affiliate-pay', '', 'primary')}</div>${table(['Data', 'Valor', 'Indicações', 'Método'], [...aff.payments].reverse().map(p => `<tr><td>${day(p.at, true)}</td><td>${money(p.amount)}</td><td>${p.referrals.length}</td><td>${h(p.method)}</td></tr>`), empty('Nenhum pagamento registrado', 'Os pagamentos de comissões registrados aparecerão aqui.'))}`, 'Seções de afiliados')}</div>`;
     return `<div class="page">${pageHead}${tabCard('affiliate', `<div class="metrics">${metric('Indicações ativas', active.length)}${metric('Comissão mensal', money(active.reduce((s, r) => s + r.amount * affiliateRate, 0)))}${metric('Comissão a receber', money(O().totals.affiliateDue))}${metric('Total pago até hoje', money(paid))}</div>
-      <div class="surface padded"><h2>Seu link de indicação</h2><div class="ag-copy"><input readonly value="${h(link)}" aria-label="Link de indicação">${btn('Copiar link', 'copy', `data-text="${h(link)}"`)}</div></div>`, 'Seções de afiliados')}</div>`;
+      <section class="surface set-card"><div class="set-section"><header class="set-head"><h2>Seu link de indicação</h2></header><div class="set-body"><div class="ag-copy"><input readonly value="${h(link)}" aria-label="Link de indicação">${btn('Copiar link', 'copy', `data-text="${h(link)}"`)}</div></div></div></section>`, 'Seções de afiliados')}</div>`;
   };
 
   pages.partners = () => `<div class="page">${head('Parceiros', 'Diretório centralizado de freelancers, agências parceiras e fornecedores da sua operação.', primary('Adicionar parceiro', 'new-record', 'data-key="partners"'))}<div class="toolbar">${search('Buscar parceiros…')}</div>
@@ -645,11 +639,11 @@ export function startAgency(env) {
     const order = m.order.map(k => mobileModules.find(x => x[0] === k)).filter(Boolean);
     const custom = [...m.custom, { label: '', url: '' }, { label: '', url: '' }].slice(0, 5);
     return `<div class="page">${head('Aplicativo móvel', 'Personalize o aplicativo mobile dos seus clientes: nome, identidade visual, tela de login e ordem dos módulos.')}<div class="ag-builder">
-      <form class="surface padded settings-form" data-ag-form="mobile-app"><div class="field-grid"><label>Nome do app<input name="appName" required maxlength="40" value="${h(m.appName)}"></label><label>Título na tela de login<input name="loginTitle" maxlength="60" value="${h(m.loginTitle)}"></label>
-        <label>Cor primária<input name="primary" type="color" value="${h(m.primary)}"></label><label>Cor de destaque<input name="accent" type="color" value="${h(m.accent)}"></label></div>
-        <fieldset class="ag-full"><legend>Módulos (ordem de exibição e visibilidade)</legend><ol class="ag-order">${order.map(([k, label]) => `<li data-module="${k}"><label class="check"><input type="checkbox" name="visible" value="${k}" ${m.hidden.includes(k) ? '' : 'checked'}> ${h(tr(label))}</label><span><button type="button" class="icon-btn" data-ag="move-up" aria-label="Mover ${h(label)} para cima">▲</button><button type="button" class="icon-btn" data-ag="move-down" aria-label="Mover ${h(label)} para baixo">▼</button></span></li>`).join('')}</ol></fieldset>
-        <fieldset class="ag-full"><legend>Módulos adicionais via URL personalizada</legend>${custom.map((c, k) => `<div class="field-grid"><label>Nome do botão<input name="customLabel${k}" maxlength="40" value="${h(c.label)}"></label><label>URL de destino<input name="customUrl${k}" type="url" value="${h(c.url)}"></label></div>`).join('')}</fieldset>
-        <button class="primary">Salvar aplicativo móvel</button><p class="form-status" role="alert"></p></form>
+      <form class="surface settings-form set-form" data-ag-form="mobile-app"><section class="set-section"><header class="set-head"><h2>Identidade</h2><p class="dim">Nome, título e cores que o cliente vê ao abrir o app.</p></header><div class="set-body"><div class="field-grid"><label>Nome do app<input name="appName" required maxlength="40" value="${h(m.appName)}"></label><label>Título na tela de login<input name="loginTitle" maxlength="60" value="${h(m.loginTitle)}"></label>
+        <label>Cor primária<input name="primary" type="color" value="${h(m.primary)}"></label><label>Cor de destaque<input name="accent" type="color" value="${h(m.accent)}"></label></div></div></section>
+        <section class="set-section"><header class="set-head"><h2>Módulos</h2><p class="dim">Escolha o que aparece no app e em que ordem.</p></header><div class="set-body"><ol class="ag-order" aria-label="Módulos (ordem de exibição e visibilidade)">${order.map(([k, label]) => `<li data-module="${k}"><label class="check"><input type="checkbox" name="visible" value="${k}" ${m.hidden.includes(k) ? '' : 'checked'}> ${h(tr(label))}</label><span><button type="button" class="icon-btn" data-ag="move-up" aria-label="Mover ${h(label)} para cima">▲</button><button type="button" class="icon-btn" data-ag="move-down" aria-label="Mover ${h(label)} para baixo">▼</button></span></li>`).join('')}</ol></div></section>
+        <section class="set-section"><header class="set-head"><h2>Módulos adicionais</h2><p class="dim">Botões do app que abrem um endereço seu.</p></header><div class="set-body">${custom.map((c, k) => `<div class="field-grid"><label>Nome do botão<input name="customLabel${k}" maxlength="40" value="${h(c.label)}"></label><label>URL de destino<input name="customUrl${k}" type="url" value="${h(c.url)}"></label></div>`).join('')}</div></section>
+        <footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar aplicativo móvel</button></footer></form>
       <div class="ag-phone" aria-label="Pré-visualização do celular"><div class="ag-phone-top" data-bg="${h(m.primary)}"><b data-preview="appName">${h(m.appName)}</b></div><p class="ag-login" data-preview="loginTitle">${h(m.loginTitle)}</p><ul class="ag-phone-list">${order.filter(([k]) => !m.hidden.includes(k)).map(([, label]) => `<li><span class="ag-dot" data-bg="${h(m.accent)}"></span>${h(tr(label))}</li>`).join('')}${m.custom.map(c => `<li><span class="ag-dot" data-bg="${h(m.accent)}"></span>${h(c.label)}</li>`).join('')}</ul></div></div>${mobileStoreCard(m, location.origin, A.data.access?.agencyId || 'agency')}</div>`;
   };
 
@@ -774,16 +768,15 @@ Authorization: Bearer soci_app_…
     if (A.data && !A.data.access.session) return `<section class="surface padded shc-card shc-panel" style="--shc-highlight:${hl}">${shcLayers()}${headHtml}<p>Entre na sua conta para conectar uma chave.</p></section>`;
     if (!connection) return `<section class="surface padded shc-card shc-panel" style="--shc-highlight:${hl}">${shcLayers()}${headHtml}<p role="status">Carregando conexão…</p></section>`;
     if (connection.error) return `<section class="surface padded shc-card shc-panel" style="--shc-highlight:${hl}">${shcLayers()}${headHtml}<p role="alert">${h(connection.error)}</p>${btn('Tentar novamente', 'openai-retry')}</section>`;
-    return `<form class="surface padded settings-form shc-card shc-panel${connection.configured ? ' is-connected' : ''}" data-ag-form="openai-connect" style="--shc-highlight:${hl}">
+    return `<form class="surface settings-form set-form shc-card shc-panel${connection.configured ? ' is-connected' : ''}" data-ag-form="openai-connect" style="--shc-highlight:${hl}">
       ${shcLayers()}
-      ${headHtml}
+      <section class="set-section"><header class="set-head">${headHtml}
       <p class="dim">Use a chave do seu projeto da OpenAI para gerar páginas no AI Studio e testar agentes. O uso é cobrado no seu projeto.</p>
+      <a class="text-link" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">Gerenciar chaves na OpenAI</a></header><div class="set-body">
       <p>${connection.configured ? `Chave conectada · final <code>${h(connection.last4)}</code> · ${h(connection.model)}` : 'Nenhuma chave conectada'}</p>
-      <label>${connection.configured ? 'Nova chave de API' : 'Chave de API'}<input name="apiKey" type="password" autocomplete="off" spellcheck="false" maxlength="512" placeholder="sk-…" required></label>
-      <a class="text-link" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">Gerenciar chaves na OpenAI</a>
-      <div class="inline-gap"><button type="submit" class="primary">${connection.configured ? 'Substituir chave' : 'Conectar chave'}</button>
-        ${connection.configured ? '<button type="button" class="secondary" data-ag="openai-disconnect">Desconectar</button>' : ''}</div>
-      <p class="form-status" role="alert"></p>
+      <label>${connection.configured ? 'Nova chave de API' : 'Chave de API'}<input name="apiKey" type="password" autocomplete="off" spellcheck="false" maxlength="512" placeholder="sk-…" required></label></div></section>
+      <footer class="set-foot"><p class="form-status" role="alert"></p>
+        ${connection.configured ? '<button type="button" class="secondary" data-ag="openai-disconnect">Desconectar</button>' : ''}<button type="submit" class="primary">${connection.configured ? 'Substituir chave' : 'Conectar chave'}</button></footer>
     </form>`;
   }
   async function refreshOpenAI() {
@@ -809,13 +802,12 @@ Authorization: Bearer soci_app_…
     const card = (body, on = false) => `<div class="surface padded shc-card shc-panel${on ? ' is-connected' : ''}" style="--shc-highlight:${hl}">${shcLayers()}${body}</div>`;
     if (!g) return card(`${head('AbacatePay')}<p class="dim">Verificando a conexão…</p>`);
     if (g.error) return card(`${head('AbacatePay')}<p class="form-status">${h(g.error)}</p>${btn('Tentar novamente', 'abacate-refresh')}`);
-    if (!g.connected) return card(`${head('Conectar o AbacatePay')}<p>O AbacatePay é o meio de pagamento da agência: cobra os planos SaaS das subcontas como assinaturas mensais por Pix ou cartão e confirma cada pagamento sozinho.</p>
-      <p class="dim">Crie uma chave de API v2 com permissão de leitura e escrita em <a class="text-link" href="https://app.abacatepay.com/api-keys" target="_blank" rel="noopener">app.abacatepay.com</a>. Use a chave do modo teste para experimentar sem dinheiro real. Cada subconta conecta a própria conta em Configurações → AbacatePay para receber as suas faturas.</p>
-      <form class="settings-form" data-ag-form="abacate-connect"><label>Chave de API v2<input name="apiKey" required autocomplete="off" spellcheck="false" maxlength="400"></label><button class="primary">Conectar</button><p class="form-status" role="alert"></p></form>`);
+    if (!g.connected) return `<form class="surface settings-form set-form shc-card shc-panel" data-ag-form="abacate-connect" style="--shc-highlight:${hl}">${shcLayers()}<section class="set-section"><header class="set-head">${head('Conectar o AbacatePay')}<p>O AbacatePay é o meio de pagamento da agência: cobra os planos SaaS das subcontas como assinaturas mensais por Pix ou cartão e confirma cada pagamento sozinho.</p>
+      <p class="dim">Crie uma chave de API v2 com permissão de leitura e escrita em <a class="text-link" href="https://app.abacatepay.com/api-keys" target="_blank" rel="noopener">app.abacatepay.com</a>. Use a chave do modo teste para experimentar sem dinheiro real. Cada subconta conecta a própria conta em Configurações → AbacatePay para receber as suas faturas.</p></header><div class="set-body"><label>Chave de API v2<input name="apiKey" required autocomplete="off" spellcheck="false" maxlength="400"></label></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Conectar</button></footer></form>`;
     const hook = g.webhookStatus === 'registered' ? `<p>${badge('Webhook cadastrado automaticamente', 'green')}</p>`
       : `<p class="surface padded ag-warn">${h(g.webhookError || 'Cadastre o webhook no painel do AbacatePay.')} Use os dados abaixo em app.abacatepay.com/webhooks.</p>`;
     return card(`${head(g.storeName || 'AbacatePay')}<p>${badge('Conectado', 'green')} ${g.devMode ? badge('Modo teste', 'gold') : ''}</p><p class="dim">Chave terminada em <b>${h(g.last4)}</b>, conectada em ${day(g.connectedAt)}. Gere as assinaturas em <a class="text-link" href="#agency/saas/accounts">Configurador SaaS → Subcontas SaaS</a>.</p><div class="inline-gap">${btn('Desconectar', 'abacate-disconnect')}</div>`, true)
-      + `<section class="surface padded settings-form ag-gap"><h2>Webhook de assinaturas</h2>${hook}<label>URL<input readonly value="${h(g.webhookUrl)}"></label><label>Secret<input readonly value="${h(g.webhookSecret || '')}"></label><p class="dim"><small>Eventos: ${h(g.events.join(', '))}</small></p></section>`;
+      + `<section class="surface set-card"><div class="set-section"><header class="set-head"><h2>Webhook de assinaturas</h2></header><div class="set-body">${hook}<label>URL<input readonly value="${h(g.webhookUrl)}"></label><label>Secret<input readonly value="${h(g.webhookSecret || '')}"></label><p class="dim"><small>Eventos: ${h(g.events.join(', '))}</small></p></div></div></section>`;
   }
   const isWhatsAppPage = () => A.page === 'settings' && A.sub === 'whatsapp';
   async function refreshWhatsApp() {
@@ -859,7 +851,8 @@ Authorization: Bearer soci_app_…
     const markup = String(D().saas.rebilling.whatsapp ?? 1).replace('.', ',');
     const subCfg = w?.subaccounts || {};
     const pl = w?.providerLabel || 'Evolution API';
-    const customProvider = w?.customProvider === 'uazapi' ? 'uazapi' : 'evolution';
+    const srv = A.waServer;
+    const serverCheck = srv ? `<p class="${srv.ok ? 'dim' : 'form-status'}" role="status">${srv.ok ? `Servidor no ar · versão ${h(srv.version)} · ${srv.connected} de ${srv.instances} número(s) conectado(s) · resposta em ${srv.latencyMs} ms` : h(srv.error)}</p>` : '';
     const statusBannerBadge = w?.error
       ? badge('Erro ao consultar', 'red')
       : !w
@@ -870,21 +863,16 @@ Authorization: Bearer soci_app_…
             ? badge(`${pl} conectada`, 'green')
             : badge('Aguardando configuração');
 
-    const serverForm = `
-      <form class="settings-form" data-ag-form="wa-config">
-        <div class="field-grid">
-          <label class="ag-full">Provedor<select name="provider">
-            <option value="evolution"${customProvider === 'evolution' ? ' selected' : ''}>Evolution API (recomendado)</option>
-            <option value="uazapi"${customProvider === 'uazapi' ? ' selected' : ''}>UAZAPI</option>
-          </select></label>
-          <label class="ag-full">URL do servidor<input name="baseUrl" type="url" required placeholder="https://whatsapp.suaagencia.com.br" value="${h(w?.baseUrl || '')}"></label>
-          <label class="ag-full">Chave de acesso <small class="dim">Evolution: API Key global (<code>AUTHENTICATION_API_KEY</code>) · UAZAPI: <code>admintoken</code></small><input name="adminToken" type="password" autocomplete="off" ${w?.hasAdminToken ? '' : 'required'} placeholder="${w?.hasAdminToken ? `Chave salva (••••${h(w.adminTokenLast4)}) — deixe em branco para manter` : 'Cole a chave de acesso do servidor'}"></label>
-        </div>
-        <div class="inline-gap">
-          <button class="primary">Salvar servidor de WhatsApp</button>
+    const serverForm = (heading = '') => `
+      <form class="${heading ? 'surface ' : ''}settings-form set-form" data-ag-form="wa-config">
+        <section class="set-section">${heading}<div class="set-body"><div class="field-grid">
+          <label class="ag-full">URL da Evolution API<input name="baseUrl" type="url" required placeholder="https://whatsapp.suaagencia.com.br" value="${h(w?.baseUrl || '')}"></label>
+          <label class="ag-full">API Key global <small class="dim">É o <code>AUTHENTICATION_API_KEY</code> do servidor</small><input name="adminToken" type="password" autocomplete="off" ${w?.hasAdminToken ? '' : 'required'} placeholder="${w?.hasAdminToken ? `Chave salva (••••${h(w.adminTokenLast4)}) — deixe em branco para manter` : 'Cole a API Key global do servidor'}"></label>
+        </div></div></section>
+        <footer class="set-foot"><p class="form-status" role="alert"></p>
           ${w?.hasCustomServer ? btn('Remover servidor próprio', 'wa-disconnect-server') : ''}
-        </div>
-        <p class="form-status" role="alert"></p>
+          <button class="primary">Salvar servidor de WhatsApp</button>
+        </footer>
       </form>`;
 
     const focus = A.waFocus;
@@ -950,10 +938,11 @@ Authorization: Bearer soci_app_…
         : cfg.status === 'connected'
           ? `<div class="inline-gap">${btn('Gerenciar', 'wa-sub-open', `data-id="${a.id}"`)}${btn('Desconectar', 'wa-sub-disconnect', `data-id="${a.id}"`)}</div>`
           : btn('Conectar QR Code', 'wa-sub-connect', `data-id="${a.id}"`, 'primary');
+      const removeBtn = w?.configured && cfg.hasInstance ? btn('Excluir instância', 'wa-sub-remove', `data-id="${a.id}"`) : '';
       return `<tr>
         <td><b>${h(a.name)}</b><br><small class="dim">${h(a.id)}</small></td>
         <td>${waStatusBadge(cfg.status)}${cfg.phone ? `<br><small class="dim">+${h(cfg.phone)}</small>` : ''}</td>
-        <td>${connectBtn}</td>
+        <td><div class="inline-gap">${connectBtn}${removeBtn}</div></td>
         <td>${sw(`WhatsApp em ${a.name}`, cfg.enabled, `data-ag-wa-sub="${a.id}" data-field="enabled"`)}</td>
         <td>${sw(`Rebilling de WhatsApp em ${a.name}`, (D().saas.rebill?.[a.id] || []).includes('whatsapp'), `data-ag-rebill="${a.id}" data-product="whatsapp"`, !cfg.enabled)}</td>
       </tr>`;
@@ -967,9 +956,11 @@ Authorization: Bearer soci_app_…
         <span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('whatsapp', 22)}</span></span>
         <div>
           <div class="inline-gap"><b>Integração com WhatsApp (${h(pl)})</b>${statusBannerBadge}</div>
-          <p>Conecte uma única vez o servidor de WhatsApp da agência (<a class="text-link" href="https://doc.evolution-api.com" target="_blank" rel="noopener">Evolution API</a> ou UAZAPI) para que <b>cada subconta</b> conecte o próprio número apenas lendo o QR Code. Markup SaaS atual: <b>${h(markup)}×</b>.</p>
+          <p>Conecte uma única vez o servidor da agência (<a class="text-link" href="https://doc.evolution-api.com" target="_blank" rel="noopener">Evolution API</a>) para que <b>cada subconta</b> conecte o próprio número apenas lendo o QR Code. Markup SaaS atual: <b>${h(markup)}×</b>.</p>
           ${w?.error ? `<p class="form-status">${h(w.error)}</p>` : ''}
+          ${serverCheck}
         </div>
+        ${w?.configured ? btn('Testar servidor', 'wa-server-check') : ''}
         <a class="secondary" href="#agency/saas/rebilling">Ajustar markup</a>
       </div>
 
@@ -977,14 +968,10 @@ Authorization: Bearer soci_app_…
         <div class="surface padded ag-gap">
           <div class="inline-gap">${badge('Modo 1-clique ativo', 'green')}<b>Servidor ${h(pl)} gerenciado pela plataforma</b></div>
           <p class="dim">Os usuários de cada subconta já podem abrir <b>Configurações → WhatsApp</b> e conectar o número apenas escaneando o QR Code — sem digitar URL nem chaves.</p>
-          <details class="ag-wa-details"><summary>Usar servidor de WhatsApp próprio (opcional)</summary>${serverForm}</details>
+          <details class="ag-wa-details"><summary>Usar servidor de WhatsApp próprio (opcional)</summary>${serverForm()}</details>
         </div>
       ` : `
-        <div class="surface padded ag-gap">
-          <h2>Servidor de WhatsApp da agência</h2>
-          <p class="dim">Informe uma única vez a URL e a chave de acesso do seu servidor Evolution API (ou UAZAPI). A chave fica criptografada no Supabase. Depois disso, cada subconta verá apenas o botão <b>Conectar WhatsApp</b> com QR Code.</p>
-          ${serverForm}
-        </div>
+        ${serverForm('<header class="set-head"><h2>Servidor de WhatsApp da agência</h2><p class="dim">Informe uma única vez a URL e a API Key global da sua Evolution API. A chave fica criptografada no Supabase. Depois disso, cada subconta verá apenas o botão <b>Conectar WhatsApp</b> com QR Code.</p></header>')}
       `}
 
       ${focusPanel}
@@ -1013,14 +1000,14 @@ Authorization: Bearer soci_app_…
   }
   const settingsPages = {
     openai: openAISettings,
-    profile: () => { const p = D().profile; return `<form class="surface padded settings-form" data-ag-form="profile"><h2>Dados pessoais</h2><div class="field-grid"><label>Nome<input name="first" required value="${h(p.first)}"></label><label>Sobrenome<input name="last" required value="${h(p.last)}"></label><label>E-mail<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'ag-profile-phone' })}</div><button class="primary">Salvar perfil</button><p class="form-status" role="alert"></p></form>`; },
+    profile: () => { const p = D().profile; return `<form class="surface settings-form set-form" data-ag-form="profile"><section class="set-section"><header class="set-head"><h2>Dados pessoais</h2></header><div class="set-body"><div class="field-grid"><label>Nome<input name="first" required value="${h(p.first)}"></label><label>Sobrenome<input name="last" required value="${h(p.last)}"></label><label>E-mail<input name="email" type="email" value="${h(p.email)}"></label>${phoneField({ name: 'phone', label: 'Telefone', value: p.phone, id: 'ag-profile-phone' })}</div></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar perfil</button></footer></form>`; },
     company: () => {
       const c = D().company;
-      const section = (id, title, text, body, extra = '') => `<section class="ag-company-section" aria-labelledby="ag-company-${id}">
-          <header class="ag-company-section-head"><h2 id="ag-company-${id}">${title}</h2><p class="dim">${text}</p>${extra}</header>
-          <div class="ag-company-section-body">${body}</div>
+      const section = (id, title, text, body, extra = '') => `<section class="set-section" aria-labelledby="ag-company-${id}">
+          <header class="set-head"><h2 id="ag-company-${id}">${title}</h2><p class="dim">${text}</p>${extra}</header>
+          <div class="set-body">${body}</div>
         </section>`;
-      return `<form class="surface settings-form ag-company-settings" data-ag-form="company">
+      return `<form class="surface settings-form set-form" data-ag-form="company">
         ${section('data', 'Dados da empresa', 'Como a sua agência se identifica para clientes e subcontas.', `<div class="field-grid">
           <label>Nome da empresa<input name="name" required maxlength="120" value="${h(c.name)}"></label>
           <label>Site institucional<input name="website" type="url" value="${h(c.website)}"></label>
@@ -1097,12 +1084,12 @@ Authorization: Bearer soci_app_…
             </div>
           </div>
         </div>`)}
-        <footer class="ag-company-footer"><p class="form-status" role="alert"></p><button class="primary">Salvar dados da empresa</button></footer>
+        <footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar dados da empresa</button></footer>
       </form>`;
     },
     users: () => `<div class="page-head"><div><h2>Membros da equipe</h2><p class="dim">${A.data.access?.session ? 'Use o e-mail confirmado no Supabase para conceder acesso à equipe.' : 'Use “Agir como” para testar as permissões de um usuário.'}</p></div>${primary('Adicionar usuário', 'new-record', 'data-key="users"')}</div>${table(['Nome', 'Função', 'Acesso', 'Permissões de módulos', ''], D().users.map(u => `<tr><td><b>${h(`${u.first} ${u.last}`)}</b><br><small class="dim">${h(u.email)}</small></td><td>${badge(u.role, u.role.startsWith('Agency') ? 'pink' : 'blue')}</td><td><small>${u.role.startsWith('Agency') ? 'Todas as subcontas' : h(u.accounts.map(accountName).join(', ') || 'Nenhuma subconta')}</small></td><td><small>${u.permissionMode === 'none' ? 'Nenhum módulo' : u.permissionMode === 'inherit' ? 'Todos os módulos' : u.permissionMode === 'restricted' || u.permissions?.length ? `${u.permissions?.length || 0} módulos permitidos` : 'Todos os módulos'}</small></td><td class="right inline-gap">${A.data.access?.session ? '' : btn('Agir como', 'act-as', `data-id="${u.id}"`)}${btn('Editar', 'edit-record', `data-key="users" data-id="${u.id}"`)}</td></tr>`), empty('Nenhum membro cadastrado', 'Adicione usuários e defina permissões específicas por subconta e módulo.'))}`,
-    billing: () => { const b = D().billing; const wallet = O().totals.wallet; return `<div class="ag-two"><form class="surface padded settings-form" data-ag-form="billing-plan"><h2>Plano da agência</h2><p class="dim">O plano é gravado localmente para cálculo de recursos; a alteração não gera cobrança automática no cartão.</p><div class="ag-plans">${agencyPlans.map(([name, price]) => `<label class="choice"><input type="radio" name="plan" value="${name}" ${b.plan === name ? 'checked' : ''}><strong>${name}</strong><span>${money(price)}/mês</span></label>`).join('')}</div><button class="primary">Alterar plano</button><p class="form-status" role="alert"></p></form>
-      <form class="surface padded settings-form" data-ag-form="auto-recharge"><h2>Saldo da carteira</h2><p class="ag-big">${money(wallet)}</p><label class="check"><input type="checkbox" name="enabled" ${b.autoRecharge.enabled ? 'checked' : ''}> Notificar quando o saldo estiver baixo</label><div class="field-grid"><label>Saldo mínimo de alerta<input name="threshold" type="number" min="0" step="0.01" value="${b.autoRecharge.threshold}"></label><label>Valor sugerido de recarga<input name="amount" type="number" min="0" step="0.01" value="${b.autoRecharge.amount}"></label></div><div class="inline-gap"><button class="primary">Salvar regras</button>${btn('Registrar lançamento', 'wallet')}</div><p class="form-status" role="alert"></p></form></div>
+    billing: () => { const b = D().billing; const wallet = O().totals.wallet; return `<form class="surface settings-form set-form" data-ag-form="billing-plan"><section class="set-section"><header class="set-head"><h2>Plano da agência</h2><p class="dim">O plano é gravado localmente para cálculo de recursos; a alteração não gera cobrança automática no cartão.</p></header><div class="set-body"><div class="ag-plans">${agencyPlans.map(([name, price]) => `<label class="choice"><input type="radio" name="plan" value="${name}" ${b.plan === name ? 'checked' : ''}><strong>${name}</strong><span>${money(price)}/mês</span></label>`).join('')}</div></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Alterar plano</button></footer></form>
+      <form class="surface settings-form set-form" data-ag-form="auto-recharge"><section class="set-section"><header class="set-head"><h2>Saldo da carteira</h2></header><div class="set-body"><p class="ag-big">${money(wallet)}</p><label class="check"><input type="checkbox" name="enabled" ${b.autoRecharge.enabled ? 'checked' : ''}> Notificar quando o saldo estiver baixo</label><div class="field-grid"><label>Saldo mínimo de alerta<input name="threshold" type="number" min="0" step="0.01" value="${b.autoRecharge.threshold}"></label><label>Valor sugerido de recarga<input name="amount" type="number" min="0" step="0.01" value="${b.autoRecharge.amount}"></label></div></div></section><footer class="set-foot"><p class="form-status" role="alert"></p>${btn('Registrar lançamento', 'wallet')}<button class="primary">Salvar regras</button></footer></form>
       ${b.autoRecharge.enabled && wallet < b.autoRecharge.threshold ? `<p class="surface padded ag-warn">O saldo da carteira está abaixo de ${money(b.autoRecharge.threshold)}. Registre uma recarga de ${money(b.autoRecharge.amount)}.</p>` : ''}
       <h2 class="section-heading">Histórico de transações da carteira</h2>${table(['Data', 'Tipo', 'Valor', 'Observação'], [...b.wallet].reverse().map(w => `<tr><td>${day(w.at, true)}</td><td>${badge(w.kind === 'Credit' ? 'Crédito' : 'Débito', w.kind === 'Credit' ? 'green' : 'orange')}</td><td>${money(w.amount)}</td><td>${h(w.note || '—')}</td></tr>`), empty('Nenhuma transação', 'Lance créditos e débitos para acompanhar o saldo da carteira da agência.'))}`; },
     'menu-links': () => `<div class="page-head"><div><h2>Links personalizados do menu</h2><p class="dim">Estes links aparecem na barra lateral das subcontas ou da própria agência.</p></div>${primary('Adicionar link', 'new-record', 'data-key="menuLinks"')}</div>${table(['Título', 'URL', 'Exibição', 'Subcontas com acesso', ''], D().menuLinks.map(l => `<tr><td>${i(l.icon, 15)} <b>${h(l.title)}</b></td><td><small>${h(l.url)}</small></td><td>${h(tr(l.showOn))} · ${h(tr(l.openIn))}</td><td><small>${l.accounts.length ? h(l.accounts.map(accountName).join(', ')) : 'Todas'}</small></td><td class="right">${btn('Editar', 'edit-record', `data-key="menuLinks" data-id="${l.id}"`)}</td></tr>`), empty('Nenhum link personalizado', 'Adicione atalhos para sistemas ou ferramentas externas utilizadas pelos clientes.'))}`,
@@ -1118,18 +1105,18 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     whatsapp: whatsappSettings,
     phone: whatsappSettings,
     'email-services': () => { const e = D().emailServices, hl = brandHighlight('email'); return `${e.domain ? `<div class="surface padded ag-notice shc-card shc-panel is-connected" style="--shc-highlight:${hl}">${shcLayers()}<span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('email', 22)}</span></span><div><b>Domínio dedicado: ${h(e.domain)}</b><p>Adicionado em ${day(e.added)}. A verificação de DNS e o aquecimento do domínio dependem do provedor de envio, que não está conectado neste projeto local.</p></div>${btn('Remover domínio', 'email-domain-remove')}</div>
-      <form class="surface padded settings-form ag-gap" data-ag-form="email-domain-accounts"><h2>Subcontas que enviam pelo domínio dedicado</h2>${pickAccounts('accounts', e.accounts)}<button class="primary">Salvar</button><p class="form-status" role="alert"></p></form>`
+      <form class="surface settings-form set-form" data-ag-form="email-domain-accounts"><section class="set-section"><header class="set-head"><h2>Subcontas que enviam pelo domínio dedicado</h2></header><div class="set-body">${pickAccounts('accounts', e.accounts)}</div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar</button></footer></form>`
       : `<div class="surface padded ag-notice shc-card shc-panel" style="--shc-highlight:${hl}">${shcLayers()}<span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('email', 22)}</span></span><div><b>Você está usando um domínio compartilhado</b><p>As subcontas enviam pelo domínio compartilhado da plataforma porque nenhum domínio da agência está conectado. Um domínio dedicado dá controle sobre a reputação de envio.</p></div></div>
-      <form class="surface padded settings-form ag-gap" data-ag-form="email-domain"><h2>Criar domínio dedicado</h2><label>Domínio de envio<input name="domain" required placeholder="mail.suaagencia.com.br" maxlength="200"></label><button class="primary">Adicionar domínio</button><p class="form-status" role="alert"></p></form>`}
+      <form class="surface settings-form set-form" data-ag-form="email-domain"><section class="set-section"><header class="set-head"><h2>Criar domínio dedicado</h2></header><div class="set-body"><label>Domínio de envio<input name="domain" required placeholder="mail.suaagencia.com.br" maxlength="200"></label></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Adicionar domínio</button></footer></form>`}
       <h2 class="section-heading">Desempenho das subcontas</h2>${table(['Subconta', 'Domínio de envio', 'Status'], accounts().map(a => `<tr><td><b>${h(a.name)}</b></td><td>${e.accounts.includes(a.id) ? h(e.domain) : 'Compartilhado'}</td><td>${badge(a.status, tone(a.status))}</td></tr>`), empty('Nenhuma subconta', 'As subcontas que enviam e-mails aparecem aqui.'))}`; },
     'workflow-premium': () => featureTable('workflow-premium'),
     'external-ai': () => featureTable('external-ai'),
     'domain-purchase': () => featureTable('domain-purchase'),
-    affiliates: () => { const aff = D().affiliate, link = `${location.origin}/?ref=${aff.code}`; return `<div class="surface padded"><h2>Configurações de afiliado</h2>${aff.accepted ? `<p>Este é o seu link de afiliado. Quem se cadastrar por ele gera ${Math.round(affiliateRate * 100)}% de comissão recorrente para você.</p><div class="ag-copy"><input readonly value="${h(link)}" aria-label="Link de afiliado">${btn('Copiar link', 'copy', `data-text="${h(link)}"`)}</div><p class="dim">Acrescente <code>?ref=${h(aff.code)}</code> ao final de qualquer URL do seu site.</p>` : `<p class="dim">Aceite os termos no Portal de afiliados para gerar seu link.</p><a class="secondary" href="#agency/affiliate">Abrir Portal de afiliados</a>`}</div>
-      <form class="surface padded settings-form ag-gap" data-ag-form="affiliate-pixel"><h2>Configurações da página</h2><label>ID do Pixel do Facebook<input name="pixelId" inputmode="numeric" maxlength="20" placeholder="ID do Pixel" value="${h(aff.pixelId || '')}"></label><button class="primary">Salvar</button><p class="form-status" role="alert"></p></form>`; },
+    affiliates: () => { const aff = D().affiliate, link = `${location.origin}/?ref=${aff.code}`; return `<section class="surface set-card"><div class="set-section"><header class="set-head"><h2>Configurações de afiliado</h2></header><div class="set-body">${aff.accepted ? `<p>Este é o seu link de afiliado. Quem se cadastrar por ele gera ${Math.round(affiliateRate * 100)}% de comissão recorrente para você.</p><div class="ag-copy"><input readonly value="${h(link)}" aria-label="Link de afiliado">${btn('Copiar link', 'copy', `data-text="${h(link)}"`)}</div><p class="dim">Acrescente <code>?ref=${h(aff.code)}</code> ao final de qualquer URL do seu site.</p>` : `<p class="dim">Aceite os termos no Portal de afiliados para gerar seu link.</p><a class="secondary" href="#agency/affiliate">Abrir Portal de afiliados</a>`}</div></div></section>
+      <form class="surface settings-form set-form" data-ag-form="affiliate-pixel"><section class="set-section"><header class="set-head"><h2>Configurações da página</h2></header><div class="set-body"><label>ID do Pixel do Facebook<input name="pixelId" inputmode="numeric" maxlength="20" placeholder="ID do Pixel" value="${h(aff.pixelId || '')}"></label></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar</button></footer></form>`; },
     abacatepay: abacateSettings,
     announcements: () => `<div class="page-head"><div><h2>Comunicados gerais</h2><p class="dim">Comunicados ativos são exibidos em banner de destaque no topo das subcontas selecionadas.</p></div>${primary('Novo comunicado', 'new-record', 'data-key="announcements"')}</div>${table(['Título', 'Estilo', 'Público-alvo', 'Status', ''], [...D().announcements].reverse().map(a => `<tr><td><b>${h(a.title)}</b><br><small class="dim">${h(a.body.slice(0, 90))}</small></td><td>${h(tr(a.tone))}</td><td><small>${a.accounts.length ? h(a.accounts.map(accountName).join(', ')) : 'Todas as subcontas'}</small></td><td>${badge(a.published ? 'Publicado' : 'Rascunho', a.published ? 'green' : '')}</td><td class="right">${btn('Editar', 'edit-record', `data-key="announcements" data-id="${a.id}"`)}</td></tr>`), empty('Nenhum comunicado', 'Crie comunicados informativos ou alertas para os clientes da agência.'))}`,
-    emails: () => `<h2>E-mails do sistema</h2><p class="dim ag-hint">Modelos de e-mail disparados pela plataforma. O envio em produção requer um provedor de e-mail conectado.</p>${systemEmailKeys.map(([key, label]) => { const e = D().systemEmails[key]; return `<form class="surface padded settings-form ag-gap" data-ag-form="system-email" data-id="${key}"><h2>${h(tr(label))}</h2><label class="ag-full">Assunto<input name="subject" required value="${h(e.subject)}"></label><label class="ag-full">Mensagem<textarea name="body" required>${h(e.body)}</textarea></label><button class="primary">Salvar modelo</button><p class="form-status" role="alert"></p></form>`; }).join('')}`,
+    emails: () => `<div class="page-head"><div><h2>E-mails do sistema</h2><p class="dim">Modelos de e-mail disparados pela plataforma. O envio em produção requer um provedor de e-mail conectado.</p></div></div>${systemEmailKeys.map(([key, label]) => { const e = D().systemEmails[key]; return `<form class="surface settings-form set-form" data-ag-form="system-email" data-id="${key}"><section class="set-section"><header class="set-head"><h2>${h(tr(label))}</h2></header><div class="set-body"><label class="ag-full">Assunto<input name="subject" required value="${h(e.subject)}"></label><label class="ag-full">Mensagem<textarea name="body" required>${h(e.body)}</textarea></label></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar modelo</button></footer></form>`; }).join('')}`,
     labs: () => {
       const all = accounts(), manage = A.data.access?.settings;
       const using = (key, mode) => mode === 'all' ? all.length : mode === 'optin' ? all.filter(a => (a.labsOn || []).includes(key)).length : 0;
@@ -1141,7 +1128,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
             <td>${using(key, mode)} <small class="dim">/ ${all.length}</small></td></tr>`;
         }), '')}`;
     },
-    compliance: () => { const c = D().compliance; return `<form class="surface padded settings-form" data-ag-form="compliance"><h2>Conformidade e privacidade (LGPD)</h2><div class="field-grid"><label>Período de retenção de dados (dias)<input name="retentionDays" type="number" min="0" max="3650" value="${c.retentionDays}"></label></div><label class="ag-full">Texto padrão de consentimento em formulários<textarea name="consent">${h(c.consent)}</textarea></label><label class="check"><input type="checkbox" name="cookieBanner" ${c.cookieBanner ? 'checked' : ''}> Exibir aviso e banner de cookies nas páginas publicadas</label><label class="check"><input type="checkbox" name="hipaa" ${c.hipaa ? 'checked' : ''}> Modo de dados sensíveis de saúde (requer o complemento correspondente)</label><button class="primary">Salvar conformidade</button><p class="form-status" role="alert"></p></form>`; },
+    compliance: () => { const c = D().compliance; return `<form class="surface settings-form set-form" data-ag-form="compliance"><section class="set-section"><header class="set-head"><h2>Conformidade e privacidade (LGPD)</h2></header><div class="set-body"><div class="field-grid"><label>Período de retenção de dados (dias)<input name="retentionDays" type="number" min="0" max="3650" value="${c.retentionDays}"></label></div><label class="ag-full">Texto padrão de consentimento em formulários<textarea name="consent">${h(c.consent)}</textarea></label><label class="check"><input type="checkbox" name="cookieBanner" ${c.cookieBanner ? 'checked' : ''}> Exibir aviso e banner de cookies nas páginas publicadas</label><label class="check"><input type="checkbox" name="hipaa" ${c.hipaa ? 'checked' : ''}> Modo de dados sensíveis de saúde (requer o complemento correspondente)</label></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar conformidade</button></footer></form>`; },
     audit: () => {
       if (audit.q !== A.query || Date.now() - audit.at > AUDIT_FRESH) scheduleAudit();
       const none = audit.error ? empty('Não foi possível carregar o log', audit.error, btn('Tentar de novo', 'audit-reload'))
@@ -1364,6 +1351,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         }
         case 'abacate-cancel': confirmBox(`Cancelar a assinatura de ${accountName(id)}?`, 'A cobrança recorrente é cancelada no AbacatePay. A subconta continua ativa até você mudar o status.', 'abacate-cancel', id, 'Cancelar assinatura'); break;
         case 'wa-disconnect-server': confirmBox('Remover servidor de WhatsApp próprio?', 'A URL e a chave de acesso cadastradas pela agência serão removidas.', 'wa-disconnect-server', '', 'Remover'); break;
+        case 'wa-server-check': A.waServer = await api('/api/whatsapp/agency/server'); render(); break;
+        case 'wa-sub-remove': confirmBox(`Excluir a instância de ${accountName(id)}?`, 'O número é desconectado e a instância sai do servidor. As conversas continuam no Soci. Para voltar a usar, é só conectar de novo com o QR Code.', 'wa-sub-remove', id, 'Excluir instância'); break;
         case 'wa-focus-close': stopWaPoll(); A.waFocus = null; render(); break;
         case 'wa-sub-open': {
           stopWaPoll();
@@ -1380,7 +1369,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           render();
           const live = await api(`/api/whatsapp/workspace/connect?workspace=${encodeURIComponent(id)}`, {});
           A.waFocus = { ...live, workspace: id };
-          if (A.wa?.subaccounts?.[id]) A.wa.subaccounts[id] = { ...A.wa.subaccounts[id], status: live.status, phone: live.phone, profileName: live.profileName };
+          if (A.wa?.subaccounts?.[id]) A.wa.subaccounts[id] = { ...A.wa.subaccounts[id], hasInstance: true, status: live.status, phone: live.phone, profileName: live.profileName };
           render();
           if (live.status === 'connecting') { startWaPoll(id); flash('QR Code pronto! Aponte a câmera do WhatsApp.'); }
           else if (live.status === 'connected') flash('WhatsApp conectado!');
@@ -1690,7 +1679,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       return;
     }
     try {
-      if (el.matches('[data-ag-user]')) { if (el.value) localStorage.setItem('go.user', el.value); else localStorage.removeItem('go.user'); location.reload(); }
       if (el.matches('[data-ag-status]')) { A.status = el.value; render(); G('[data-ag-status]').focus(); }
       if (el.matches('[data-ag-ai-filter]')) { A.aiFilter = el.value; render(); G('[data-ag-ai-filter]').focus(); }
       if (el.matches('[data-ag-ai-access]')) {
@@ -1787,20 +1775,30 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           stopWaPoll();
           A.waFocus = null;
           A.wa = await api('/api/whatsapp/agency/config', data);
-          msg = 'Servidor de WhatsApp salvo. As subcontas já podem conectar por QR Code!';
+          A.waServer = await api('/api/whatsapp/agency/server').catch(() => null);
+          msg = A.waServer?.ok === false ? 'Servidor salvo, mas o teste falhou. Veja o motivo no topo da página.' : 'Servidor de WhatsApp salvo. As subcontas já podem conectar por QR Code!';
           break;
         }
         case 'wa-disconnect-server': {
           stopWaPoll();
           A.waFocus = null;
+          A.waServer = null;
           A.wa = await api('/api/whatsapp/agency/disconnect-server', {});
           msg = 'Servidor de WhatsApp próprio removido.';
+          break;
+        }
+        case 'wa-sub-remove': {
+          stopWaPoll();
+          if (A.waFocus?.workspace === id) A.waFocus = null;
+          A.wa = await api('/api/whatsapp/agency/remove-instance', { workspace: id });
+          msg = 'Instância do WhatsApp excluída.';
           break;
         }
         case 'wa-sub-pair': {
           stopWaPoll();
           const live = await api(`/api/whatsapp/workspace/connect?workspace=${encodeURIComponent(id)}`, { phone: data.phone });
           A.waFocus = { ...live, workspace: id };
+          if (A.wa?.subaccounts?.[id]) A.wa.subaccounts[id] = { ...A.wa.subaccounts[id], hasInstance: true, status: live.status };
           if (live.status === 'connecting') startWaPoll(id);
           msg = live.paircode ? 'Código de pareamento gerado!' : 'Conexão iniciada.';
           break;

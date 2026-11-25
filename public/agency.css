@@ -2,8 +2,6 @@
 .ag-logo{width:36px;height:36px;object-fit:contain;border-radius:var(--r-control);background:#fff;flex:none}
 .side-tools .agency-switch{height:30px;background:#1b2534;color:#fff;border-color:#566377}
 .ag-shell .side-tools .location{height:38px}
-.ag-acting{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim);width:auto;flex:none}
-.ag-acting select{max-width:min(280px,46vw);border:1px solid var(--line);border-radius:var(--r-chip);padding:5px 8px;background:#fff}
 dialog.ag-wide{width:min(760px,calc(100vw - 24px))}
 .ag-full{grid-column:1/-1;width:100%}
 .ag-checks{border:1px solid var(--line);border-radius:var(--r-control);padding:10px 12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(190px,100%),1fr));gap:6px 14px;margin:0;width:100%}
@@ -102,17 +100,18 @@ dialog.ag-wide{width:min(760px,calc(100vw - 24px))}
 .ag-prompts{display:flex;flex-wrap:wrap;gap:8px}
 .ag-ask-form{display:flex;gap:8px}.ag-ask-form input{flex:1;border:1px solid var(--line);border-radius:var(--r-control);padding:9px 11px}
 .ag-banner{display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--g-brand-2-surface,#f6f1ff);border-bottom:1px solid var(--g-brand-2-line,#e5d7ff);font-size:13px}
-.ag-banner span{flex:1;color:#344054}
+.ag-banner>span{flex:1;color:#344054}
 .ag-banner.warn{background:color-mix(in srgb,var(--g-brand-accent) 12%,var(--g-surface));border-color:color-mix(in srgb,var(--g-brand-accent) 32%,var(--g-line))}
 .ag-banner.ok{background:#ecfdf3;border-color:#abefc6}
 .ag-banner.acting{background:#f4f3ff;border-color:#d9d6fe}
+@media(max-width:600px){.ag-banner{flex-wrap:wrap}.ag-banner>b{flex:1;min-width:0}.ag-banner>button{flex:none}.ag-banner>span{order:1;flex:1 0 100%}}
 .workspace{display:flex;flex-direction:column;min-height:0}
 .workspace>.screen{flex:1;min-height:0}
 .workspace>.topbar{flex:none;min-height:51px}
 .ag-frame{height:100%;display:flex;flex-direction:column;gap:6px;padding:10px}
 .ag-frame iframe{flex:1;width:100%;border:1px solid var(--line);border-radius:var(--r-control);background:#fff;min-height:400px}
 @media(max-width:1000px){.ag-two,.ag-builder{grid-template-columns:1fr}.ag-account{grid-template-columns:auto minmax(0,1fr)}.ag-facts{grid-column:1/-1;grid-template-columns:repeat(2,minmax(0,1fr))}.ag-account>.inline-gap{grid-column:1/-1}.ag-phone{position:static;max-width:320px}}
-@media(max-width:600px){.ag-price{grid-template-columns:1fr}.ag-idea{grid-template-columns:auto minmax(0,1fr)}.ag-idea>.inline-gap{grid-column:1/-1}.ag-acting span.sr-only+select{max-width:150px}.ag-score{grid-template-columns:90px minmax(0,1fr) 40px}}
+@media(max-width:600px){.ag-price{grid-template-columns:1fr}.ag-idea{grid-template-columns:auto minmax(0,1fr)}.ag-idea>.inline-gap{grid-column:1/-1}.ag-score{grid-template-columns:90px minmax(0,1fr) 40px}}
 /* Per-sub-account switches (Settings feature tables, SaaS accounts). */
 label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:none;gap:0;cursor:pointer}
 .ag-sw input[type=checkbox]{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;border:0;background:none;box-shadow:none;cursor:inherit;z-index:1}
@@ -131,7 +130,7 @@ label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:no
 .ag-hero-card{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--line);border-radius:var(--r-control);padding:12px 14px}
 .ag-hero-card b{font-size:18px}
 @media (max-width:760px){.ag-hero{grid-template-columns:1fr}}
-/* WhatsApp (UAZAPI) settings */
+/* WhatsApp settings */
 .ag-waha-icon{width:40px;height:40px;border-radius:var(--r-group);display:grid;place-items:center;flex:none;background:rgba(37,211,102,.14);color:#128046}
 :root[data-theme=dark] .ag-waha-icon{color:#25d366}
 .ag-waha-qr{display:grid;justify-items:center;gap:10px;padding:18px;border:1px solid var(--g-line,var(--line));border-radius:var(--r-group);background:var(--g-surface-2,#f4f6f8);text-align:center}
@@ -283,21 +282,8 @@ label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:no
 .ag-shell .phone-country-wrap .g-select-trigger:hover{background:color-mix(in srgb,var(--g-brand-2) 8%,transparent)!important}
 .ag-shell .phone-country-wrap .g-select-value{white-space:nowrap}
 
-/* Empresa e marca: uma seção por assunto, título à esquerda e campos à direita, com salvar sempre à mão. */
-.ag-company-settings{max-width:none;gap:0}
-.ag-company-section{display:grid;grid-template-columns:minmax(200px,260px) minmax(0,1fr);gap:20px 36px;align-items:start;padding:24px}
-.ag-company-section+.ag-company-section{border-top:1px solid var(--g-line,var(--line))}
-.ag-company-section-head{display:grid;justify-items:start;gap:6px}
-.ag-company-section-head h2,.ag-company-section-head p{margin:0}
-.ag-company-section-head p{font-size:13px;line-height:1.5}
-.ag-company-section-head .secondary{margin-top:8px}
-.ag-company-section-body{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;min-width:0}
-.ag-company-section-body .field-grid{gap:16px;align-items:start}
 .ag-company-colors{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .ag-company-logo{display:flex;align-items:flex-start;gap:14px;min-width:0}
 .ag-company-logo>div{display:grid;grid-template-columns:minmax(0,1fr);flex:1;gap:6px;min-width:0}
 .ag-company-logo input[type=file]{width:100%;min-width:0}
-.ag-company-footer{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:14px 24px;border-top:1px solid var(--g-line,var(--line));border-radius:0 0 var(--g-r) var(--g-r);background:var(--g-surface)}
-.ag-company-footer .form-status{flex:1;margin:0}
-@media(max-width:1100px){.ag-company-section{grid-template-columns:minmax(0,1fr)}.ag-company-section-head p{max-width:64ch}}
-@media(max-width:640px){.ag-company-section{padding:18px 16px}.ag-company-section-body .field-grid,.ag-company-colors{grid-template-columns:minmax(0,1fr)}.ag-company-footer{flex-wrap:wrap;padding:12px 16px}.ag-company-footer .primary{width:100%}.ag-company-footer .form-status{flex-basis:100%}}
+@media(max-width:640px){.ag-company-colors{grid-template-columns:minmax(0,1fr)}}

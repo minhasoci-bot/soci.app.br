@@ -34,7 +34,7 @@ async function connected(t, { open = true } = {}) {
   };
   const dir = mkdtempSync(join(tmpdir(), 'soci-evo-groups-')), store = createSqliteStore(join(dir, 'go.sqlite'));
   const options = { evolutionBaseUrl: 'https://evo.soci.test', evolutionApiKey: KEY };
-  const { server } = makeServer({ store, auth: null, allowLocalAccess: true, port: 0, openAISecret: SECRET, socialScheduler: false, uazapiBaseUrl: '', uazapiAdminToken: '', whatsappRequest: request, ...options });
+  const { server } = makeServer({ store, auth: null, allowLocalAccess: true, port: 0, openAISecret: SECRET, socialScheduler: false, whatsappRequest: request, ...options });
   await new Promise(done => server.listen(0, '127.0.0.1', done));
   const base = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => { await new Promise(done => server.close(done)); rmSync(dir, { recursive: true, force: true }); });
@@ -42,7 +42,7 @@ async function connected(t, { open = true } = {}) {
   if (open) evo.state = 'open';
   await fetch(`${base}/api/whatsapp/workspace/status?workspace=demo`);
   calls.length = 0;
-  const handler = createWhatsAppHandler({ store, secret: SECRET, request, envBaseUrl: '', envAdminToken: '', ...options });
+  const handler = createWhatsAppHandler({ store, secret: SECRET, request, ...options });
   return { evo, calls, base, store, send: message => handler.sendEventMessage('agency', 'demo', message, active), groups: () => handler.listWorkspaceGroups('agency', 'demo', active), handler };
 }
 const sends = calls => calls.filter(c => c.path.startsWith('/message/'));

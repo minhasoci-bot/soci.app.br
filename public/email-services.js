@@ -44,8 +44,6 @@ export function emailServicesView(c) {
   const checked = d.checkedAt ? `<p class="dim"><small>Última verificação: ${h(when(d.checkedAt))}${d.verifiedAt ? ` · verificado em ${h(when(d.verifiedAt))}` : ''}</small></p>` : '';
   return card(`${head}${lead}${problem}${recordsTable(d)}${checked}
     <div class="inline-gap">${verified ? '' : `<button class="primary" data-act="email-verify">${i('refresh', 16)} Verificar agora</button>`}<button class="secondary" data-act="email-remove">${i('trash', 16)} Remover domínio</button></div>`, verified)
-    + `<form class="surface padded settings-form ag-gap" data-form="email-domain-save"><h2>Remetente</h2>
-      <label>Endereço do remetente<span class="email-local"><input name="localPart" required maxlength="64" value="${h(d.localPart)}" autocomplete="off" spellcheck="false" aria-label="Parte antes do @"><span class="dim">@${h(d.name)}</span></span></label>
-      <p class="dim"><small>As respostas vão para o endereço de “Responder para” de cada envio; sem ele, para este endereço.</small></p>
-      <button class="primary">Salvar remetente</button><p class="form-status" role="alert"></p></form>`;
+    + `<form class="surface settings-form set-form" data-form="email-domain-save"><section class="set-section"><header class="set-head"><h2>Remetente</h2></header><div class="set-body"><label>Endereço do remetente<span class="email-local"><input name="localPart" required maxlength="64" value="${h(d.localPart)}" autocomplete="off" spellcheck="false" aria-label="Parte antes do @"><span class="dim">@${h(d.name)}</span></span></label>
+      <p class="dim"><small>As respostas vão para o endereço de “Responder para” de cada envio; sem ele, para este endereço.</small></p></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar remetente</button></footer></form>`;
 }
