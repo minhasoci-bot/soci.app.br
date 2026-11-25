@@ -1,0 +1,62 @@
+---
+title: Criar uma subconta para um cliente
+description: Cadastre um cliente da agência como subconta, escolha um setup inicial e um plano, e entre nela para começar a configuração.
+modulo: agencia
+sidebar:
+  order: 1
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+import Automacao from '../../../components/Automacao.astro';
+
+Cada cliente da agência ganha uma subconta: um espaço próprio com CRM, conversas, agenda, sites, cobranças e automações. Os dados de uma subconta não aparecem nas outras.
+
+<Requisitos permissao="Dono ou admin da agência" />
+
+## Passo a passo
+
+<Steps>
+
+1. No painel da agência, abra **Subcontas**. A lista mostra cada subconta com o status, a data de criação, o último acesso e o número de contatos e negócios abertos. Clique em **Criar subconta**.
+
+   <Print src="docs/agencia/criar-subconta/01-lista-de-subcontas.0d5de203.webp" alt="Lista de subcontas da Agência Demo com o botão Criar subconta em destaque." />
+
+2. Preencha **Nome da empresa**, **E-mail** e **Telefone** do cliente. Se quiser, informe o **Endereço** e confira o **Fuso horário**, que define os horários de agenda e automações.
+
+   <Print src="docs/agencia/criar-subconta/02-dados-da-subconta.2ff3760a.webp" alt="Janela Criar nova subconta com nome, e-mail, telefone e endereço do Pet Shop Amigo Fiel." />
+
+3. Em **Setup inicial**, escolha **Começar em branco** ou um setup de conta da agência, que já traz pipelines, fluxos de trabalho, calendários e modelos prontos. Em **Plano SaaS**, escolha o plano do cliente, se você vende a soci com planos. Clique em **Criar subconta**.
+
+   <Print src="docs/agencia/criar-subconta/03-setup-inicial.3fea88e6.webp" alt="Campo Setup inicial aberto, com a opção Começar em branco." />
+
+4. A soci confirma que a subconta está pronta. Clique em **Acessar subconta agora** para entrar nela.
+
+   <Print src="docs/agencia/criar-subconta/04-subconta-criada.5b321767.webp" alt="Mensagem Subconta criada com sucesso com o botão Acessar subconta agora em destaque." />
+
+5. A subconta abre no **Launchpad**, o guia de configuração: uma lista de tarefas para deixar o cliente funcionando, como criar o primeiro contato, importar a base, conectar o WhatsApp e montar a primeira automação. Clique em **Ir para o workspace** para usar a subconta direto.
+
+   <Print src="docs/agencia/criar-subconta/05-launchpad-da-subconta.1f16b31a.webp" alt="Guia de configuração da subconta Pet Shop Amigo Fiel, com as tarefas de configuração inicial." />
+
+</Steps>
+
+<Aside type="tip">
+Se você atende vários clientes do mesmo ramo, monte uma subconta modelo e salve como **setup de conta**. As próximas subcontas já nascem com tudo configurado.
+</Aside>
+
+## Perguntas frequentes
+
+**Como entro numa subconta que já existe?**
+Em **Subcontas**, clique em **Acessar subconta** no cliente. Para voltar, use **Visão da agência** no menu da subconta.
+
+**Posso pausar ou encerrar uma subconta?**
+Sim. Em **Subcontas**, clique em **Editar** no cliente para mudar o status. O filtro **Todos os status** mostra as subcontas ativas, pausadas e encerradas.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Conceitos" href="/comece-aqui/conceitos/" description="Agência, subconta, usuários e papéis." />
+  <LinkCard title="Conectar o WhatsApp das subcontas" href="/agencia/servidor-whatsapp/" description="Ligue o número de cada subconta por QR Code." />
+</CardGrid>

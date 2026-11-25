@@ -1,0 +1,50 @@
+---
+title: Conectar a AbacatePay para receber por Pix e cartão
+description: Ligue a conta AbacatePay da subconta para gerar links de pagamento nas faturas e dar baixa automática quando o cliente paga.
+modulo: pagamentos
+sidebar:
+  order: 1
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Cada subconta recebe na própria conta da AbacatePay: o dinheiro das faturas e da loja vai direto para o cliente da agência, por Pix ou cartão. Depois de conectar, as faturas ganham link de pagamento e a baixa acontece sozinha quando o pagamento cai.
+
+<Requisitos permissao="Acesso às Configurações da subconta" integracoes={['Conta na AbacatePay do cliente']} />
+
+## Passo a passo
+
+<Steps>
+
+1. Na conta AbacatePay do cliente, em app.abacatepay.com, crie uma **chave de API v2** com permissão de leitura e escrita. Para testar sem dinheiro de verdade, crie a chave do **modo teste**.
+
+2. Na subconta, abra **Pagamentos**. Enquanto a AbacatePay não está conectada, a tela mostra o aviso **Receba as faturas por Pix ou cartão**. Clique em **Conectar AbacatePay**.
+
+   <Print src="docs/pagamentos/conectar-gateway/01-aviso-nos-pagamentos.80eaf210.webp" alt="Tela Pagamentos com o aviso para conectar a AbacatePay e o botão Conectar AbacatePay em destaque." />
+
+3. Na aba **AbacatePay** das configurações, cole a chave em **Chave de API v2** e clique em **Conectar**.
+
+   <Print src="docs/pagamentos/conectar-gateway/02-chave-de-api.66a642c3.webp" alt="Aba AbacatePay das configurações da subconta com o campo Chave de API v2 e o botão Conectar em destaque." />
+
+</Steps>
+
+<Aside type="caution">
+A chave dá acesso à conta de pagamentos do cliente. Peça para o próprio cliente gerar e colar a chave, ou guarde-a só pelo tempo de configurar. Nunca envie a chave por e-mail ou mensagem.
+</Aside>
+
+## Perguntas frequentes
+
+**O dinheiro passa pela agência ou pela soci?**
+Não. Cada subconta recebe na conta AbacatePay que ela mesma conectou.
+
+**Dá para testar antes de cobrar de verdade?**
+Sim. Conecte com a chave do modo teste da AbacatePay; depois troque pela chave de produção.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Emitir uma fatura" href="/pagamentos/fatura/" description="Crie a fatura que o cliente vai pagar." />
+</CardGrid>
