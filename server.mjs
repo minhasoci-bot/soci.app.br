@@ -30,6 +30,7 @@ import { createWorkflowHookRoutes } from './routes/workflow-hooks.mjs';
 import { createCountdownRoutes } from './routes/countdowns.mjs';
 import { createEmailTrackingRoutes } from './routes/email-tracking.mjs';
 import { createLinkRoutes } from './routes/links.mjs';
+import { createInboxRoutes } from './routes/inbox.mjs';
 import { createWhatsappRoutes, createWhatsappWebhookRoutes } from './routes/whatsapp.mjs';
 import { createConnectorHookRoutes, createConnectorRoutes } from './routes/connectors.mjs';
 import { createPhoneRoutes, createTwilioWebhookRoutes } from './routes/phone.mjs';
@@ -184,7 +185,7 @@ export const staticFiles = new Map([
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
   ['/prancheta-editor.html','text/html; charset=utf-8'], ['/vendor/prancheta-editor.js','text/javascript; charset=utf-8'], ['/vendor/prancheta-editor.css','text/css; charset=utf-8'],
   ['/style.css','text/css; charset=utf-8'], ['/button-system.css','text/css; charset=utf-8'], ['/page-layout.css','text/css; charset=utf-8'], ['/tokens.css','text/css; charset=utf-8'], ['/liquid-glass.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
-  ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/message-media.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
+  ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/message-media.js','text/javascript; charset=utf-8'], ['/inbox-live.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
   ['/fonts/plus-jakarta-sans.woff2','font/woff2'], ['/favicon.svg','image/svg+xml'],
   ['/privacidade.html','text/html; charset=utf-8'], ['/skull_flame_animated.svg','image/svg+xml'],
@@ -2234,6 +2235,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const connectorRoute = createConnectorRoutes({ store, error, spaceId, privateSpace, change, payload, publicBase, requireActiveAccount, workspaceAccess, connectorRequest });
   const pushRoute = createPushRoutes({ error, spaceId, privateSpace, change, payload, pushEnv, access, loadAgency, workspaceAccess });
   const phoneRoute = createPhoneRoutes({ error, spaceId, privateSpace, phone, payload, workspaceAccess });
+  const inboxRoute = createInboxRoutes({ store, error, spaceId, privateSpace, workspaceAccess });
   const whatsappRoute = createWhatsappRoutes({ messageMedia, error, spaceId, whatsapp, waha, payload, publicBase, listWorkspaces, requireActiveAccount, webhookBlockReason, access, workspaceAccess });
   const siteRoute = createSiteRoutes({ store, ready, error, workspaceSegment, trackingPath, allowTracking, change, changeSite, flushLater, formFields, publicAccountPolicy, publicBase, siteDoc, studioGuard, trackingLog, withPixels });
   const webinarRoute = createWebinarRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, publicBase, publicPreview });
@@ -2683,6 +2685,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (pushRouteHandled !== NEXT_ROUTE) return pushRouteHandled;
       const phoneRouteHandled = await phoneRoute({ req, res, p, method, url, id, json });
       if (phoneRouteHandled !== NEXT_ROUTE) return phoneRouteHandled;
+      const inboxRouteHandled = await inboxRoute({ req, res, p, method, url, id, json });
+      if (inboxRouteHandled !== NEXT_ROUTE) return inboxRouteHandled;
       const whatsappRouteHandled = await whatsappRoute({ req, res, p, method, url, id, json });
       if (whatsappRouteHandled !== NEXT_ROUTE) return whatsappRouteHandled;
       if (p.startsWith('/api/ask/')) {

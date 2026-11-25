@@ -211,6 +211,7 @@ const channelBadge = ch => {
   if (ch === 'Instagram') return `<span style="display:inline-flex;align-items:center;gap:4px;color:#e1306c;">${brandIcon('instagram', 13)} <b>Instagram</b></span>`;
   if (ch === 'Facebook') return `<span style="display:inline-flex;align-items:center;gap:4px;color:#1877f2;">${brandIcon('facebook', 13)} <b>Facebook</b></span>`;
   if (ch === 'WhatsApp') return `<span style="display:inline-flex;align-items:center;gap:4px;color:#22c55e;">${i('whatsapp', 13)} <b>WhatsApp</b></span>`;
+  if (ch === 'Call') return `<span style="display:inline-flex;align-items:center;gap:4px;">${i('phone', 13)} <b>${h(tr('Ligação'))}</b></span>`;
   return h(tr(ch));
 };
 

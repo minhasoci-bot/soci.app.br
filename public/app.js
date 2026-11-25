@@ -1,7 +1,8 @@
 import {icon as i, logo, brandName, bootScreen} from './icons.js';
 import {nav,h,avatar,screens,publicView,money} from './screens.js';
 import { conversationSections, manualQueue, manualType, slaRecords, SLA_CHANNELS } from './conversations.js';
-import { deliveryFailures, inboxChange, inboxClick, inboxSubmit, mediaFailed, mediaLoaded, threadMoved } from './inbox.js';
+import { createInboxFollower, patchInbox } from './inbox-live.js';
+import { deliveryFailures, inboxChange, inboxClick, inboxPage, inboxSubmit, mediaFailed, mediaLoaded, threadMoved } from './inbox.js';
 import { dashboardPreferences, installDashboardControls, reportGrid } from './dashboard-controls.js';
 import { drawDashboardGauges } from './dashboard.js';
 import { launchpadGuide } from './launchpad.js';
@@ -1385,6 +1386,26 @@ if(viewPath){
       clock.classList.toggle('blue', active.state !== 'Overdue');
     }
   },15000);
+  // Conversas ao vivo: mensagens, ligações e atribuições chegam sem recarregar a página.
+  const inboxOpen=()=>c.mode!=='agency'&&!c.account&&!viewPath&&c.view==='conversations'&&!conversationSections.includes(c.tab)&&!document.hidden&&Boolean(G('.conversation-page'));
+  const drawInbox=()=>{const page=document.createElement('template');page.innerHTML=inboxPage(c);if(getLanguage()==='es')translateDom(page.content);return page.content;};
+  const showInbox=async apply=>{
+    const before=drawInbox(), unread=()=>c.s.messages.filter(m=>m.contactId===c.thread&&!m.read).length, had=unread();
+    if(!apply()) return;
+    const patch=drawn=>{ const root=G('.conversation-page'); if(root&&!patchInbox(root,drawn,drawInbox())&&!G('form :focus')) render(); };
+    patch(before);
+    // A conversa aberta diante da pessoa já está sendo lida.
+    if(c.thread&&unread()>had&&document.hasFocus()&&inboxOpen()){
+      const thread=c.thread, drawn=drawInbox();
+      await mutate({type:'thread',data:{contactId:thread,read:true}});
+      if(inboxOpen()&&c.thread===thread) patch(drawn);
+    }
+  };
+  const follower=createInboxFollower({c,watching:inboxOpen,request:mark=>api(`${url('/api/conversations/live')}&mark=${encodeURIComponent(mark)}`),changed:showInbox});
+  setInterval(()=>follower.tick(),1000);
+  for(const name of ['pointerdown','keydown','pointermove'])window.addEventListener(name,()=>follower.used(),{passive:true});
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) follower.tick({now:true}); });
+  window.addEventListener('focus',()=>follower.tick({now:true}));
   window.addEventListener('focus',async()=>{
     if (!c.s || overlay.innerHTML || busy || G('form :focus')) return;
     const live = (c.view === 'sites' && c.tab === 'submissions') ||
