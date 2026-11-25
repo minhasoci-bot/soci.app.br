@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { blank, execute, metrics } from '../model.mjs';
+import { refundCharge } from '../gateway-events.mjs';
 import { invoiceView } from '../invoice-model.mjs';
 import { invoicePaymentState } from '../ui/invoice-data.js';
 import { startBilling } from './helpers/abacate.mjs';
@@ -168,4 +169,72 @@ test('A página da fatura e o total recebido seguem o dinheiro', () => {
   assert.deepEqual([invoiceView(s, row).state, invoiceView(s, row).payable], ['mismatch', false]);
   row.payment = { status: 'PENDING' };
   assert.equal(invoiceView(s, row).payable, true);
+});
+
+test('Contato excluído depois de pagar: o reembolso do gateway marca a transação e o livro zera uma vez', async t => {
+  const c = await charged(t);
+  await c.deliver(c.conn, c.event('checkout.completed', { paidAmount: 15000 }));
+  await c.send('/api/action?workspace=demo', { type: 'delete', key: 'contacts', id: c.contactId });
+  const refund = c.event('checkout.refunded', { paidAmount: 15000, status: 'REFUNDED' });
+  assert.equal((await c.deliver(c.conn, refund)).body.handled, true);
+  await c.deliver(c.conn, refund);
+  assert.equal((await c.txs())[0].status, 'Refunded');
+  assert.equal(await c.sum(), 0);
+  assert.equal((await c.rows()).length, 2);
+});
+
+test('Pagamento com o contato na lixeira: restaurado, a fatura volta paga e não conta duas vezes', async t => {
+  const c = await charged(t);
+  await c.send('/api/action?workspace=demo', { type: 'delete', key: 'contacts', id: c.contactId });
+  await c.deliver(c.conn, c.event('checkout.completed', { paidAmount: 15000 }));
+  await c.send('/api/action?workspace=demo', { type: 'contact-restore', id: c.contactId });
+  assert.equal((await c.invoice()).status, 'Paid');
+  assert.equal((await c.send('/api/abacatepay/workspace/charge?workspace=demo', { invoiceId: c.invoiceId })).status, 409);
+  assert.equal(await c.sum(), 15000);
+  await c.deliver(c.conn, c.event('checkout.refunded', { paidAmount: 15000, status: 'REFUNDED' }));
+  assert.equal(await c.sum(), 0);
+});
+
+test('Transação excluída já saiu do livro: o reembolso dela não desconta de novo', async t => {
+  const c = await charged(t);
+  await c.deliver(c.conn, c.event('checkout.completed', { paidAmount: 15000 }));
+  await c.send('/api/action?workspace=demo', { type: 'delete', key: 'transactions', id: (await c.txs())[0].id });
+  assert.equal(await c.sum(), 0);
+  await c.deliver(c.conn, c.event('checkout.refunded', { paidAmount: 15000, status: 'REFUNDED' }));
+  assert.equal(await c.sum(), 0);
+});
+
+test('Reenvio sem valor não apaga o valor recebido', async t => {
+  const c = await charged(t);
+  await c.deliver(c.conn, c.event('checkout.completed', { paidAmount: 15000 }));
+  c.gateway.checkouts.clear();
+  await c.deliver(c.conn, c.event('checkout.completed', { amount: undefined, platformFee: undefined }));
+  const { payment } = await c.invoice();
+  assert.deepEqual([payment.status, payment.receivedCents, payment.feeCents], ['PAID', 15000, 80]);
+});
+
+test('Mensalidade de um contrato excluído entra no livro; a de um plano da agência não vira venda', async t => {
+  const c = await charged(t);
+  const renewal = (metadata, id) => ({ event: 'subscription.renewed', data: { subscription: { id: 'subs_x', status: 'ACTIVE', method: 'CARD' }, checkout: { id: 'bill_doc', frequency: 'SUBSCRIPTION', metadata }, payment: { id, amount: 9900, paidAmount: 9900, platformFee: 300 } } });
+  const gone = renewal({ workspace: 'demo', documentId: 'doc_1' }, 'card_1');
+  assert.deepEqual([(await c.deliver(c.conn, gone)).status, (await c.deliver(c.conn, gone)).status], [200, 200]);
+  await c.deliver(c.conn, renewal({ workspace: 'demo', planId: 'p1' }, 'card_2'));
+  await c.deliver(c.conn, renewal({ workspace: 'outra', documentId: 'doc_1' }, 'card_3'));
+  assert.deepEqual((await c.rows()).map(row => [row.key, row.kind, row.amount_cents, row.fee_cents, row.source]), [['demo:sale:abacatepay:card_1', 'sale', 9900, 300, { type: 'document', id: 'doc_1' }]]);
+  const refund = metadata => ({ event: 'checkout.refunded', data: { checkout: { id: 'bill_doc', frequency: 'SUBSCRIPTION', status: 'REFUNDED', amount: 9900, metadata, updatedAt: '2026-12-01T12:00:00.000Z' } } });
+  await c.deliver(c.conn, refund({ workspace: 'demo', planId: 'p1' }));
+  assert.equal(await c.sum(), 9900, 'a devolução de um plano não é da subconta');
+  await c.deliver(c.conn, refund({ workspace: 'demo', documentId: 'doc_1' }));
+  await c.deliver(c.conn, refund({ workspace: 'demo', documentId: 'doc_1' }));
+  assert.equal(await c.sum(), 0);
+});
+
+test('Reenvio do reembolso de uma mensalidade antiga não devolve a seguinte', () => {
+  const s = blank(), tx = (id, created) => ({ id, created, date: created.slice(0, 10), contactId: '', amount: 99, method: 'Card', status: 'Succeeded', invoiceId: '', booked: 9900, bookedFor: 9900, gateway: { provider: 'abacatepay', status: 'PAID', paymentId: `card_${id}`, checkoutId: 'bill_doc' } });
+  s.transactions.push(tx('1', '2026-10-01T12:00:00.000Z'), tx('2', '2026-11-01T12:00:00.000Z'));
+  const charge = { checkoutId: 'bill_doc', status: 'REFUNDED', updatedAt: '2026-10-05T12:00:00.000Z', metadata: { workspace: 'demo', documentId: 'doc_1' }, paidCents: 9900 };
+  refundCharge(s, charge, 'demo');
+  refundCharge(s, charge, 'demo');
+  assert.deepEqual(s.transactions.map(row => row.status), ['Refunded', 'Succeeded']);
+  assert.deepEqual(s.ledgerOutbox.map(fact => [fact.key, fact.amountCents]), [['refund:abacatepay:card_1', -9900]]);
 });

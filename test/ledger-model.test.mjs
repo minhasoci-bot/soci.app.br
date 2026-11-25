@@ -129,3 +129,41 @@ test('A caixa de saída não repete chave, não é cortada e não vaza', () => {
   assert.equal(cents(10.005), 1001);
   assert.equal(cents(0.1 + 0.2), 30);
 });
+
+test('Excluir o contato não faz a transação esquecer a cobrança do gateway', () => {
+  const { s, contactId, box, sum } = setup();
+  const id = invoice(s, contactId);
+  s.invoices[0].payment = { provider: 'abacatepay', checkoutId: 'bill_9', status: 'PAID', receivedCents: 15000, feeCents: 80, receiptUrl: 'x' };
+  pay(s, id);
+  assert.deepEqual([box()[0].key, box()[0].feeCents], ['sale:abacatepay:bill_9', 80]);
+  assert.deepEqual(s.transactions[0].gateway, { provider: 'abacatepay', status: 'PAID', paymentId: '', checkoutId: 'bill_9' });
+  execute(s, { type: 'delete', key: 'contacts', id: contactId });
+  assert.equal(s.invoices.length, 0);
+  execute(s, { type: 'save', key: 'transactions', id: s.transactions[0].id, data: { ...s.transactions[0], contactId: execute(s, { type: 'save', key: 'contacts', data: { name: 'Bia', email: 'bia@x.com' } }), status: 'Refunded' } });
+  assert.deepEqual([box()[1].key, sum()], ['refund:abacatepay:bill_9', 0], 'a devolução pelo gateway tem esta mesma chave');
+});
+
+test('Baixa manual entra no livro mesmo que a fatura tenha um link de teste nunca pago', () => {
+  const { s, contactId, box } = setup();
+  const id = invoice(s, contactId);
+  s.invoices[0].payment = { provider: 'abacatepay', checkoutId: 'bill_dev', status: 'PENDING', devMode: true };
+  pay(s, id);
+  assert.equal(s.transactions[0].test, undefined);
+  assert.deepEqual(box().map(fact => [fact.key, fact.kind, fact.amountCents]), [[`sale:tx:${s.transactions[0].id}`, 'manual_sale', 15000]]);
+});
+
+test('Pagamento de teste continua fora do livro', () => {
+  const { s, contactId, box } = setup();
+  const id = invoice(s, contactId);
+  s.invoices[0].payment = { provider: 'abacatepay', checkoutId: 'bill_dev', status: 'PAID', devMode: true };
+  pay(s, id);
+  assert.equal(s.transactions[0].test, true);
+  assert.equal(box().length, 0);
+});
+
+test('Data impossível não trava o livro: vale o momento do lançamento', () => {
+  const { s, contactId, box } = setup();
+  const today = new Date().toISOString().slice(0, 10);
+  for (const date of ['0000-01-01']) execute(s, { type: 'save', key: 'transactions', data: { contactId, amount: 10, date, method: 'Pix', status: 'Succeeded' } });
+  assert.deepEqual(box().map(fact => fact.at.slice(0, 10)), [today]);
+});

@@ -57,10 +57,29 @@ test('Recarga paga a menos credita o que entrou; em modo de teste não vai ao li
   assert.equal(s.wallet.balance, 40);
 });
 
+test('Recarga com taxa repassada: o saldo recebe o valor da recarga e o livro, o que entrou', () => {
+  const s = wallet();
+  addTopup(s, { checkoutId: 'bill_1', amount: 100 });
+  assert.equal(paidTopup(s, { checkoutId: 'bill_1', paidCents: 10500, feeCents: 500 }), 100);
+  assert.equal(s.wallet.balance, 100);
+  assert.deepEqual([facts(s)[0].amountCents, facts(s)[0].feeCents], [10500, 500]);
+  reverseTopup(s, { checkoutId: 'bill_1' });
+  assert.equal(s.wallet.balance, 0);
+  assert.equal(facts(s)[1].amountCents, -10500);
+});
+
+test('Reembolso que chega antes do pagamento: a recarga não credita depois', () => {
+  const s = wallet();
+  addTopup(s, { checkoutId: 'bill_1', amount: 100 });
+  assert.equal(reverseTopup(s, { checkoutId: 'bill_1' }), true);
+  assert.equal(paidTopup(s, { checkoutId: 'bill_1', paidCents: 10000 }), false);
+  assert.equal(s.wallet.balance, 0);
+  assert.equal(facts(s).length, 0);
+});
+
 test('Recarga devolvida debita uma vez e pode ficar negativa', () => {
   const s = wallet();
   addTopup(s, { checkoutId: 'bill_1', amount: 100 });
-  assert.equal(reverseTopup(s, { checkoutId: 'bill_1' }), false, 'ainda não foi paga');
   paidTopup(s, { checkoutId: 'bill_1' });
   walletAdjust(s, { kind: 'debit', amount: 90 });
   assert.equal(reverseTopup(s, { checkoutId: 'bill_1', kind: 'dispute_lost' }), true);
@@ -123,6 +142,25 @@ test('Reembolso de plano lança o negativo uma vez e não suspende', async t => 
   assert.equal(await c.sum('agency'), 0);
   assert.equal((await c.rows('agency')).length, 2);
   assert.equal((await c.account()).status, 'Active');
+});
+
+test('Reenvio de um reembolso antigo não devolve a renovação', async t => {
+  const c = await plan(t), pause = () => new Promise(resolve => setTimeout(resolve, 5));
+  const refund = updatedAt => c.deliver(c.conn, { event: 'checkout.refunded', data: { checkout: { id: c.checkoutId, frequency: 'SUBSCRIPTION', status: 'REFUNDED', amount: 29700, ...(updatedAt && { updatedAt }) } } });
+  await c.deliver(c.conn, c.event('subscription.completed'));
+  await pause();
+  const first = new Date().toISOString();
+  await refund(first);
+  await pause();
+  await c.deliver(c.conn, c.event('subscription.renewed', { payment: { id: 'card_2', amount: 29700 } }));
+  await refund(first);
+  assert.equal(await c.sum('agency'), 29700, 'a renovação continua no livro');
+  await refund();
+  assert.equal(await c.sum('agency'), 29700, 'sem a data, na dúvida não lança');
+  await pause();
+  await refund(new Date().toISOString());
+  assert.equal(await c.sum('agency'), 0, 'o reembolso da renovação entra');
+  assert.deepEqual((await c.rows('agency')).map(row => row.key).sort(), ['agency:plan:abacatepay:card_1', 'agency:plan:abacatepay:card_2', 'agency:refund:abacatepay:card_1', 'agency:refund:abacatepay:card_2']);
 });
 
 test('Contestação de plano: aberta vale zero, ganha zero, perdida devolve uma vez', async t => {
