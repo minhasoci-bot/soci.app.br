@@ -13,7 +13,7 @@ const sum = items => itemsSummary(items).total;
  * An invoice: company, number and dates, client, items (or a single line when the value was edited by hand
  * and no longer matches the items), notes and terms.
  */
-export function renderInvoice(inv, { company = '', contact = null, logo = '', label = 'Fatura', receiptTitle = 'Recibo' } = {}) {
+export function renderInvoice(inv, { company = '', contact = null, logo = '', label = 'Fatura', receiptTitle = 'Recibo', seller = null } = {}) {
   const items = (inv.items || []).map(item => ({ ...item, optional: false, selected: true }));
   const value = Number(inv.value ?? sum(items)) || 0;
   const list = items.length && Math.abs(sum(items) - value) < 0.005 ? items : [{ id: 'total', name: inv.title || label, qty: 1, price: value, discount: 0 }];
@@ -23,7 +23,8 @@ export function renderInvoice(inv, { company = '', contact = null, logo = '', la
         ${inv.due ? `<div><dt>Vencimento</dt><dd>${esc(day(inv.due))}</dd></div>` : ''}</dl></header>
     ${contact ? `<section class="es-client"><h2>Para</h2><p><b>${esc(contact.name)}</b>${contact.company ? `<br>${esc(contact.company)}` : ''}${contact.email ? `<br>${esc(contact.email)}` : ''}</p></section>` : ''}
     <section class="es-items">${value > 0 || items.length ? productsHtml({ items: list }, false) : '<p class="dc-placeholder">Nenhum item.</p>'}</section>
+    ${seller?.name ? `<section class="es-notes"><h2>Vendido por</h2><p>${esc(seller.name)}${seller.taxId ? `<br>CPF/CNPJ ${esc(seller.taxId)}` : ''}</p></section>` : ''}
     ${inv.notes ? `<section class="es-notes"><h2>Observações</h2>${paragraphs(inv.notes)}</section>` : ''}
     ${inv.terms ? `<section class="es-notes"><h2>Condições</h2>${paragraphs(inv.terms)}</section>` : ''}
-    ${inv.status === 'Paid' ? `<p class="ds-paid">${inv.receiptNumber ? `${esc(receiptTitle)} ${esc(inv.receiptNumber)} · ` : ''}Paga${inv.paidAt ? ` em ${esc(day(inv.paidAt))}` : ''} · ${esc(brl(value))}</p>` : ''}</article>`;
+    ${inv.status === 'Paid' && inv.payment?.status !== 'REFUNDED' ? `<p class="ds-paid">${inv.receiptNumber ? `${esc(receiptTitle)} ${esc(inv.receiptNumber)} · ` : ''}Paga${inv.paidAt ? ` em ${esc(day(inv.paidAt))}` : ''} · ${esc(brl(value))}</p>` : ''}</article>`;
 }

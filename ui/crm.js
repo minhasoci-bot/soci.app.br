@@ -2,6 +2,7 @@
 // bulk actions), Payments (products, subscriptions, links, transactions, coupons) and the Settings data pages.
 // screens.js calls the renderers; app.js calls crmForm/customInputs from its record dialog and crmEvents once.
 import { icon as i } from './icons.js';
+import { ledgerPanel } from './ledger.js';
 import { tr } from './i18n.js';
 import { badge, h, money, fmt, pageShell } from './screens.js';
 import { bulkOperations, couponKinds, couponStatus, customObjects, fieldTypes, forecast, intervals, paymentMethods, productKinds,
@@ -10,8 +11,8 @@ import { bulkOperations, couponKinds, couponStatus, customObjects, fieldTypes, f
 export const crmTabs = {
   contacts: [['all', 'Listas inteligentes'], ['bulk', 'Ações em massa'], ['fields', 'Campos personalizados'], ['tasks', 'Tarefas'], ['companies', 'Empresas'], ['trash', 'Lixeira']],
   opportunities: [['pipeline', 'Oportunidades'], ['list', 'Lista'], ['forecast', 'Previsão'], ['pipelines', 'Pipelines'], ['bulk', 'Ações em massa']],
-  payments: [['invoices', 'Faturas'], ['recurring', 'Faturas recorrentes'], ['invoice-templates', 'Modelos de fatura'], ['documents', 'Documentos e contratos'], ['estimates', 'Orçamentos'], ['orders', 'Pedidos'], ['abandoned-checkouts', 'Checkouts abandonados'], ['products', 'Produtos'], ['collections', 'Coleções'], ['inventory', 'Estoque'], ['reviews', 'Avaliações'], ['gift-cards', 'Cartões-presente'], ['subscriptions', 'Assinaturas'], ['links', 'Links de pagamento'], ['transactions', 'Transações'], ['coupons', 'Cupons'], ['payment-settings', 'Configurações']],
-  settings: [['business', 'Perfil da empresa'], ['whatsapp', 'WhatsApp'], ['abacatepay', 'AbacatePay'], ['google', 'Google'], ['email', 'Serviços de e-mail'], ['phone', 'Telefonia'], ['wallet', 'Carteira de créditos'], ['labs', 'Labs'], ['apps', 'Apps'], ['connectors', 'Conectores'], ['users', 'Usuários'], ['fields', 'Campos personalizados'], ['values', 'Valores personalizados'], ['tags', 'Tags'],
+  payments: [['invoices', 'Faturas'], ['recurring', 'Faturas recorrentes'], ['invoice-templates', 'Modelos de fatura'], ['documents', 'Documentos e contratos'], ['estimates', 'Orçamentos'], ['orders', 'Pedidos'], ['abandoned-checkouts', 'Checkouts abandonados'], ['products', 'Produtos'], ['collections', 'Coleções'], ['inventory', 'Estoque'], ['reviews', 'Avaliações'], ['gift-cards', 'Cartões-presente'], ['subscriptions', 'Assinaturas'], ['links', 'Links de pagamento'], ['transactions', 'Transações'], ['ledger', 'Livro'], ['coupons', 'Cupons'], ['payment-settings', 'Configurações']],
+  settings: [['business', 'Perfil da empresa'], ['fiscal', 'Cadastro fiscal'], ['whatsapp', 'WhatsApp'], ['abacatepay', 'AbacatePay'], ['google', 'Google'], ['email', 'Serviços de e-mail'], ['phone', 'Telefonia'], ['wallet', 'Carteira de créditos'], ['labs', 'Labs'], ['apps', 'Apps'], ['connectors', 'Conectores'], ['users', 'Usuários'], ['fields', 'Campos personalizados'], ['values', 'Valores personalizados'], ['tags', 'Tags'],
     ['scoring', 'Pontuação de leads'], ['tracking', 'Rastreamento externo'], ['preferences', 'Preferências de comunicação'], ['objects', 'Objetos'], ['import', 'Importar dados'], ['audit', 'Logs de auditoria'], ['workspaces', 'Workspaces']]
 };
 export const crmEntityNames = { customFields: 'Campo personalizado', customValues: 'Valor personalizado', tags: 'Tag', companies: 'Empresa', products: 'Produto',
@@ -142,6 +143,7 @@ export function paymentsTab(c, tab) {
     content: `<p class="surface padded ag-warn">O checkout dos links exige um gateway de pagamento conectado. Neste projeto local os links ficam registrados com produto e preço.</p><div class="toolbar">${search(c, 'Buscar links…')}</div>` +
       table(['Nome', 'Produto', 'Status', 'Preço', 'Criado em', ''], [...s.paymentLinks].reverse().filter(l => match(c, l.name, product(l.productId, c)?.name)).map(l => `<tr><td><b>${h(l.name)}</b></td><td>${h(product(l.productId, c)?.name || '—')}</td><td>${badge(l.active ? 'Ativo' : 'Inativo', l.active ? 'green' : '')}</td><td>${price(product(l.productId, c))}</td><td>${date(l.created, c)}</td>${edit('paymentLinks', l.id)}</tr>`), empty('Nenhum link de pagamento', 'Crie um produto e gere um link para ele.', 'link'))
   });
+  if (tab === 'ledger') return pageShell({ title: 'Pagamentos', desc: 'O registro permanente do que esta subconta recebeu e devolveu.', tabs: tabCfg, content: ledgerPanel({ scope: 'account', workspace: c.workspace }) });
   if (tab === 'transactions') {
     const ok = s.transactions.filter(t => t.status === 'Succeeded'), refunded = s.transactions.filter(t => t.status === 'Refunded');
     return pageShell({
