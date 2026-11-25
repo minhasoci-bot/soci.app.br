@@ -106,3 +106,9 @@ test('trocarChaves põe no MDX o hash novo de cada print refeito e mantém o res
   const novo = trocarChaves(texto, ['docs/crm/x/01-menu.12345678.webp']);
   assert.equal(novo, '<Print src="docs/crm/x/01-menu.12345678.webp" alt="a" />\n<Print src="docs/crm/x/02-tela.bbbbbbbb.webp" alt="b" />');
 });
+
+test('trocarChaves não reescreve outra chave parecida (ponto é ponto, não qualquer caractere)', async () => {
+  const { trocarChaves } = await import('../docs-site/scripts/midia.mjs');
+  const texto = '<Print src="docs/crm/x/01-menuX12345678.webp" alt="a" />';
+  assert.equal(trocarChaves(texto, ['docs/crm/x/01-menu.abcdef12.webp']), texto);
+});

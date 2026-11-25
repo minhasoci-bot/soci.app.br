@@ -94,10 +94,10 @@ export async function chavesAusentes(chaves, cliente) {
 export function trocarChaves(texto, chaves) {
   let saida = String(texto);
   for (const chave of chaves) {
-    const semHash = chave.replace(/.[0-9a-f]{8}(.[a-z0-9]+)$/, '');
+    const semHash = chave.replace(/\.[0-9a-f]{8}(\.[a-z0-9]+)$/, '');
     const ext = chave.slice(chave.lastIndexOf('.'));
-    const escapar = valor => valor.replace(/[.*+?^${}()|[]\/]/g, '\async function* arquivosMdx(pasta) {');
-    saida = saida.replace(new RegExp(`${escapar(semHash)}\.[0-9a-f]{8}${escapar(ext)}`, 'g'), chave);
+    const escapar = valor => valor.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+    saida = saida.replace(new RegExp(`${escapar(semHash)}\\.[0-9a-f]{8}${escapar(ext)}`, 'g'), chave);
   }
   return saida;
 }
