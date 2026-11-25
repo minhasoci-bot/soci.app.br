@@ -122,3 +122,11 @@ test('os componentes de mídia não dependem de código fora de docs-site/', asy
     assert.match(comp, /from '\.\.\/\.\.\/scripts\/midia-base\.mjs'/, `${nome}.astro importa de midia-base.mjs`);
   }
 });
+
+test('o verificar ignora rascunhos e a vitrine interna, que usam chaves de exemplo', async () => {
+  const { deveVerificar } = await import('../docs-site/scripts/midia.mjs');
+  assert.equal(deveVerificar('crm/contatos.mdx'), true);
+  assert.equal(deveVerificar('_modelo.mdx'), false);
+  assert.equal(deveVerificar('interno/componentes.mdx'), false);
+  assert.equal(deveVerificar('interno\\componentes.mdx'), false);
+});

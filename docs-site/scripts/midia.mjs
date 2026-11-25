@@ -119,6 +119,12 @@ async function* arquivosMdx(pasta) {
   }
 }
 
+// Rascunhos (_*.mdx) e a vitrine interna usam chaves de exemplo, que nunca vão para o bucket.
+export function deveVerificar(caminho) {
+  const partes = String(caminho).split(/[\\/]/);
+  return partes[0] !== 'interno' && !partes.some(parte => parte.startsWith('_'));
+}
+
 async function cli([comando, ...args]) {
   const env = process.env;
   if (comando === 'local' && args.length === 3) {
@@ -141,7 +147,7 @@ async function cli([comando, ...args]) {
     const docs = fileURLToPath(new URL('../src/content/docs/', import.meta.url));
     const chaves = [];
     for await (const arquivo of arquivosMdx(docs)) {
-      if (relative(docs, arquivo).split(/[\\/]/).some(parte => parte.startsWith('_'))) continue;
+      if (!deveVerificar(relative(docs, arquivo))) continue;
       chaves.push(...chavesNoMdx(await readFile(arquivo, 'utf8')));
     }
     const ausentes = await chavesAusentes(chaves, cliente);
