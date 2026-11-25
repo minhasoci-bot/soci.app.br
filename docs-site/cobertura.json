@@ -139,8 +139,7 @@
     "artigo": "documentos-e-contratos",
     "titulo": "Documentos e contratos",
     "fase": "F2",
-    "status": "pendente",
-    "nota": "Aguardando o app: o editor de documentos (dw-workspace) abre com 72 px de largura, como o de formulários; roteiro pronto em docs-site/roteiros/documentos-e-contratos.mjs."
+    "status": "escrito"
   },
   {
     "grupo": "ia",
@@ -182,7 +181,6 @@
     "artigo": "formularios",
     "titulo": "Formulários",
     "fase": "F2",
-    "status": "pendente",
-    "nota": "Aguardando o app: o editor de formulários (fb dw-workspace) abre com 72 px de largura no layout Liquid Glass; roteiro pronto em docs-site/roteiros/formularios.mjs."
+    "status": "escrito"
   }
 ]

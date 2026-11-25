@@ -21,6 +21,9 @@ export default {
       await page.locator('main').getByText('Publicar', { exact: true }).click();
       await page.waitForTimeout(1000);
       await page.locator('main').getByText('Integrar', { exact: true }).click();
-    }, espera: 1200 },
+      await page.waitForTimeout(800);
+      // O app local mostra 127.0.0.1; no print vai o endereço que o cliente vê na produção.
+      await page.locator('main input, main textarea').evaluateAll(campos => { for (const c of campos) c.value = c.value.replaceAll(/https?:\/\/127\.0\.0\.1:\d+/g, 'https://soci.app.br'); });
+    }, espera: 600 },
   ],
 };

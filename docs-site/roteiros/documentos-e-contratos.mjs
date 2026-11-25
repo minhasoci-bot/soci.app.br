@@ -18,5 +18,7 @@ export default {
       await page.locator('dialog[open] button:has-text("Criar documento")').click();
       await page.locator('dialog[open]').waitFor({ state: 'hidden' }).catch(() => {});
     }, espera: 2000 },
+    { nome: 'enviar-para-assinatura', acao: page => page.locator('button:has-text("Enviar")').filter({ hasText: /^\s*Enviar\s*$/ }).first().click(),
+      espera: 1000, destacar: 'dialog[open]' },
   ],
 };
