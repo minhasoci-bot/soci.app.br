@@ -159,7 +159,7 @@ export function afterSave(s, key, prior, row, add) {
   // A paid invoice books its payment once, the way a gateway would record the charge.
   if (key === 'invoices' && row.status === 'Paid' && prior?.status !== 'Paid' && !s.transactions.some(t => t.invoiceId === row.id))
     add(s, 'transactions', { contactId: row.contactId, amount: row.payment?.status === 'MISMATCH' ? row.payment.received || row.value : row.value, date: new Date().toISOString().slice(0, 10),
-      method: row.paidMethod || (row.payment?.status === 'MISMATCH' && row.payment.method) || 'Manual', source: 'Invoice', status: 'Succeeded', note: row.title, invoiceId: row.id });
+      method: row.paidMethod || (row.payment?.status === 'MISMATCH' && row.payment.method) || 'Manual', source: row.paymentLinkId ? 'Payment link' : 'Invoice', status: 'Succeeded', note: row.title, invoiceId: row.id });
   if (key === 'opportunities') {
     row.slips = prior?.slips || 0;
     if (prior?.closeDate && row.closeDate && row.closeDate > prior.closeDate && row.status === 'Open') row.slips++;
@@ -179,7 +179,7 @@ export function beforeDelete(s, key, id) {
  * Bulk action over contacts or opportunities. Each record is applied on its own; a failure is counted, not fatal.
  * `remove` deletes one record with the same cascade as a single delete.
  */
-export function bulk(s, d, { add, remove, actor = '', tags, stageOf, moved }) {
+export function bulk(s, d, { add, remove, actor = '', tags, stageOf, moved, tagged }) {
   const object = one(d.object, ['contacts', 'opportunities'], 'object');
   const ids = Array.isArray(d.ids) ? [...new Set(d.ids.filter(id => typeof id === 'string'))].slice(0, 500) : [];
   if (!ids.length) fail('Select at least one record.');
@@ -200,8 +200,8 @@ export function bulk(s, d, { add, remove, actor = '', tags, stageOf, moved }) {
     const row = s[object].find(r => r.id === id);
     if (!row) { failed++; continue; }
     if (operation === 'delete') remove(s, object, id);
-    else if (operation === 'add-tag') row.tags = tags([...row.tags, value]);
-    else if (operation === 'remove-tag') row.tags = row.tags.filter(t => !same(t, value));
+    else if (operation === 'add-tag') { const before = row.tags; row.tags = tags([...row.tags, value]); tagged?.(row, before); }
+    else if (operation === 'remove-tag') { const before = row.tags; row.tags = row.tags.filter(t => !same(t, value)); tagged?.(row, before); }
     else if (operation === 'move-stage' && row.stage !== value) { const stage = stageOf(value); row.stage = stage.id; row.pipelineId = stage.pipelineId; row.updated = started; row.stageChangedAt = started; moved?.(row); }
     else if (operation === 'status' && row.status !== value) { row.status = value; row.statusChangedAt = started; row.updated = started; }
     done++;

@@ -1,5 +1,6 @@
 // Webinars: sessions, public registration, the watch room (attendance) and reminders. Reminders are written
 // to the contact's conversation when they fall due, by the same per-minute scheduler that publishes social posts.
+import { tagsChanged } from './contact-tags.mjs';
 import { randomBytes } from 'node:crypto';
 
 export const webinarCollections = ['webinars', 'webinarRegistrations'];
@@ -58,7 +59,7 @@ export function webinarCommand(s, command, { add, run, now }) {
     if (phone && !/^[+()\d\s.-]{8,24}$/.test(phone)) fail('Use um telefone válido.');
     let contact = s.contacts.find(row => row.email === email) || (phone && s.contacts.find(row => digits(row.phone) && digits(row.phone) === digits(phone)));
     if (!contact) { contact = add(s, 'contacts', { name, email, phone, tags: webinar.addTags, company: '', notes: '', custom: {} }); run(s, 'Contact created', { contactId: contact.id }); }
-    else { if (!contact.phone && phone) contact.phone = phone; if (webinar.addTags.length) contact.tags = [...new Set([...(contact.tags || []), ...webinar.addTags])].slice(0, 20); contact.updated = now(); }
+    else { if (!contact.phone && phone) contact.phone = phone; if (webinar.addTags.length) { const before = contact.tags || []; contact.tags = [...new Set([...before, ...webinar.addTags])].slice(0, 20); tagsChanged(s, contact, before, run); } contact.updated = now(); }
     const existing = s.webinarRegistrations.find(row => row.webinarId === webinar.id && row.contactId === contact.id);
     if (existing) { existing.sessionId = session.id; existing.sent = {}; existing.updated = now(); return existing.id; }
     const registration = add(s, 'webinarRegistrations', { webinarId: webinar.id, sessionId: session.id, contactId: contact.id, name, email, phone, token: randomBytes(18).toString('hex'), sent: {}, attendedAt: '' });
