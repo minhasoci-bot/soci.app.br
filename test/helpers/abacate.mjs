@@ -24,6 +24,7 @@ export function fakeAbacate({ devMode = false } = {}) {
     }
     if (u.pathname === '/v2/checkouts/create' || u.pathname === '/v2/subscriptions/create') {
       if (!products.has(body.items[0].id)) return bad(400, `Product ${body.items[0].id} not found`);
+      await state.beforeCreate?.();
       const id = `bill_${++seq}`, row = { id, url: `https://app.abacatepay.com/pay/${id}`, status: 'PENDING', devMode, amount: products.get(body.items[0].id).price, externalId: body.externalId };
       checkouts.set(id, row);
       return ok(row);

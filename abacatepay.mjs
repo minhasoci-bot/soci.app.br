@@ -310,8 +310,17 @@ export function createAbacatePayHandler({ store, secret = process.env.GO_STORAGE
     for (const [accountId, meta] of Object.entries(agency.accounts || {})) {
       const billing = meta?.billing?.previous?.find(item => (checkoutId && item.checkoutId === checkoutId) || (subscriptionId && item.subscriptionId === subscriptionId));
       if (!billing) continue;
-      if (event === 'subscription.completed' || event === 'subscription.renewed') bookPlanPayment(agency, accountId, billing, event, data, devMode);
-      return { accountId, effect: '' };
+      const paid = event === 'subscription.completed' || event === 'subscription.renewed', current = meta.billing;
+      // The customer paid a link that had been replaced, and nothing else is being charged: what was paid is the subscription.
+      if (paid && billing.status !== 'Cancelled' && ['Pending', 'Cancelled'].includes(current.status)) {
+        const { previous, history: _history, failures: _failures, url: _url, ...kept } = current;
+        meta.billing = { ...billing, previous: [...previous.filter(item => item !== billing), kept].slice(-12) };
+        return subscriptionEvent(agency, event, data, { devMode });
+      }
+      if (paid) bookPlanPayment(agency, accountId, billing, event, data, devMode);
+      // Two subscriptions being charged: the agency has to cancel one of them.
+      const twice = paid && billing.status !== 'Cancelled' && ['Active', 'Trial', 'PastDue'].includes(current.status);
+      return { accountId, effect: twice ? 'duplicate' : '', name: meta.name || accountId, plan: billing.planName || '', subscriptionId: subscriptionId || billing.subscriptionId || '' };
     }
     return { accountId: '', effect: '' };
   }

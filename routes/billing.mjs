@@ -15,11 +15,17 @@ export function createBillingRoutes(deps) {
     if (!canReactivate(agency, id, who)) throw pausedError(lifecycle);
     const plan = agency.plans.find(row => row.id === meta.plan);
     if (!plan || !await abacate.connected(who.agencyId, abacate.AGENCY_SCOPE)) throw error('Não foi possível gerar o pagamento. Fale com a sua agência.', 409);
-    const pendingOf = state => { const b = state.accounts[id]?.billing; return b?.status === 'Pending' && b.url && b.planId === plan.id && b.amount === plan.price ? b : null; };
+    const pendingOf = state => { const b = state.accounts[id]?.billing; return b?.status === 'Pending' && b.reactivation && b.url && b.planId === plan.id && b.amount === plan.price ? b : null; };
     if (pendingOf(agency)) return json({ url: pendingOf(agency).url });
     const billing = await abacate.subscribe(who.agencyId, id, plan, publicBase(req), { trial: false, retryPolicy: retryPolicyOf(agency) });
     // Two clicks at once: only the first link is kept and shown, so nobody pays twice.
-    const kept = await changeAgency(who.agencyId, current => { const other = pendingOf(current); if (other) return other.url; replaceBilling(current, id, billing); return billing.url; });
+    // Paid meanwhile, by a link the agency had sent: the sub-account is already active.
+    const kept = await changeAgency(who.agencyId, current => {
+      if (accountLifecycle(current, id).status === 'Active') return '';
+      const other = pendingOf(current);
+      return other ? other.url : replaceBilling(current, id, { ...billing, reactivation: true }).url;
+    });
+    if (!kept) throw error('Esta subconta já está ativa.', 409);
     await recordAudit(who, 'Pagamento de reativação gerado', meta.name || id, billing.planName);
     return json({ url: kept });
   }

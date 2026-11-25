@@ -197,3 +197,67 @@ test('Depois de reativar, a devolução e o pagamento tardio da assinatura antig
   assert.equal(rows.length, 4);
   assert.deepEqual([(await c.account()).status, (await c.account()).billing.checkoutId], ['Active', fresh]);
 });
+
+test('Pagar um link que foi trocado também reativa, e a assinatura paga vira a atual', async t => {
+  const c = await suspended(t);
+  await c.pay(c.admin);
+  const mine = (await c.account()).billing.checkoutId;
+  assert.equal((await c.subscribe()).status, 200, 'a agência gera outro link');
+  const other = (await c.account()).billing.checkoutId;
+  assert.notEqual(other, mine);
+  await c.paid('card_2', { subscriptionId: 'subs_2', checkoutId: mine });
+  const account = await c.account();
+  assert.deepEqual([account.status, account.billing.checkoutId, account.billing.status, account.billing.subscriptionId], ['Active', mine, 'Active', 'subs_2']);
+  assert.equal(account.billing.payments.length, 1);
+  assert.ok(account.billing.previous.some(item => item.checkoutId === other), 'o link não pago continua conhecido');
+  assert.equal(account.billing.previous.some(item => item.checkoutId === mine), false);
+  assert.equal((await c.rows('agency')).filter(row => row.kind === 'plan_payment').length, 2);
+  assert.equal((await c.subscribe()).status, 409);
+});
+
+test('Pagamento em dobro avisa a agência uma vez e não troca a assinatura ativa', async t => {
+  const c = await suspended(t);
+  await c.pay(c.admin);
+  const mine = (await c.account()).billing.checkoutId;
+  await c.subscribe();
+  const other = (await c.account()).billing.checkoutId;
+  await c.paid('card_2', { subscriptionId: 'subs_2', checkoutId: other });
+  c.mails.length = 0;
+  await c.paid('card_3', { subscriptionId: 'subs_3', checkoutId: mine });
+  await c.paid('card_3', { subscriptionId: 'subs_3', checkoutId: mine });
+  assert.equal((await c.account()).billing.checkoutId, other);
+  assert.equal((await c.rows('agency')).filter(row => row.kind === 'plan_payment').length, 3, 'o dinheiro entra no livro');
+  assert.deepEqual([...new Set(c.mails.map(mail => mail.to))], ['rui@agencia.com']);
+  assert.equal(new Set(c.mails.map(mail => mail.idempotency)).size, 1);
+  assert.match(c.mails[0].text, /subs_3/);
+});
+
+test('O link de reativar não reaproveita o da agência, que pode ter teste grátis', async t => {
+  const c = await suspended(t);
+  await c.subscribe();
+  const fromAgency = (await c.account()).billing;
+  const { body } = await c.pay(c.admin);
+  assert.notEqual(body.url, fromAgency.url);
+  assert.equal((await c.pay(c.admin)).body.url, body.url);
+});
+
+test('Se o pagamento chega enquanto outro link é gerado, a assinatura paga fica', async t => {
+  const c = await suspended(t);
+  await c.pay(c.admin);
+  const mine = (await c.account()).billing.checkoutId;
+  let paid;
+  c.gateway.state.beforeCreate = async () => { c.gateway.state.beforeCreate = null; paid = await c.paid('card_2', { subscriptionId: 'subs_2', checkoutId: mine }); };
+  const late = await c.subscribe();
+  assert.equal(paid.status, 200);
+  assert.equal(late.status, 409);
+  assert.deepEqual([(await c.account()).status, (await c.account()).billing.checkoutId, (await c.account()).billing.status], ['Active', mine, 'Active']);
+});
+
+test('Se o pagamento chega enquanto o cliente gera outro link, a conta já está ativa', async t => {
+  const c = await suspended(t);
+  await c.subscribe();
+  const agencyLink = (await c.account()).billing.checkoutId;
+  c.gateway.state.beforeCreate = async () => { c.gateway.state.beforeCreate = null; await c.paid('card_2', { subscriptionId: 'subs_2', checkoutId: agencyLink }); };
+  assert.equal((await c.pay(c.admin)).status, 409);
+  assert.deepEqual([(await c.account()).status, (await c.account()).billing.checkoutId], ['Active', agencyLink]);
+});
