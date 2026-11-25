@@ -20,6 +20,9 @@ import { createBookingRoutes } from './routes/booking.mjs';
 import { createPreferenceRoutes } from './routes/preferences.mjs';
 import { createAgencyAppRoutes } from './routes/agency-apps.mjs';
 import { createCertificateRoutes } from './routes/certificates.mjs';
+import { createShareRoutes } from './routes/shares.mjs';
+import { createBlogRoutes } from './routes/blog.mjs';
+import { createChatRoutes } from './routes/chat.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -105,7 +108,7 @@ import { createPhoneHandler } from './phone-server.mjs';
 import { CHUNK_BYTES } from './reputation-media.mjs';
 import { network } from './ui/social-data.js';
 import { writeCaption } from './social-ai.mjs';
-import { findSharedReport, reportMailer, sharedReportPage } from './report-share.mjs';
+import { reportMailer } from './report-share.mjs';
 import { documentMailer, documentMessage } from './document-mail.mjs';
 import { campaignMailer } from './email-campaign-send.mjs';
 import { countdownGif } from './countdown-gif.mjs';
@@ -114,8 +117,6 @@ import { emailDomains, workspaceSender } from './email-domain.mjs';
 import { abandonedOf } from './checkout-model.mjs';
 import { reportsDue } from './report-model.mjs';
 import { brandGroupData } from './ui/brand-group-data.js';
-import { brandGroupPage } from './brand-group-page.mjs';
-import { presentationPageHtml } from './presentation-model.mjs';
 import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
@@ -136,10 +137,7 @@ import { connectorById, connectors as connectorCatalog } from './ui/connectors-d
 import { seal as sealSecret, unseal as unsealSecret } from './social-providers.mjs';
 import { createMcpHandler } from './mcp-server.mjs';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { chatHistory } from './chat-model.mjs';
-import { chatPage, demoPage, loaderScript } from './ui/chat-widget-data.js';
-import { blogHome, blogPost, blogRss, isLive } from './ui/blog-data.js';
-import { localDraft, postSeo, writePost } from './blog-ai.mjs';
+import { postSeo, writePost } from './blog-ai.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
 import { ASSET_PATH, assetBytes, extractAssets, saveAssets } from './asset-store.mjs';
 import { inBackground } from './background.mjs';
@@ -208,11 +206,8 @@ const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
 const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community|offer-grant|loyalty|admin-enter|files|push)(?:/([0-9a-f-]{36}))?$`);
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
-const chatPath = new RegExp(`^/chat/${workspaceSegment}/([0-9a-f-]{36})(?:/(widget\\.js|demo))?/?$`);
-const chatApi = new RegExp(`^/api/chat/${workspaceSegment}/([0-9a-f-]{36})/(start|send|messages)$`);
 const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
 const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout|cart|restore|review|view)$`);
-const blogPath = new RegExp(`^/b/${workspaceSegment}/([0-9a-f-]{36})(?:/([a-z0-9-]{1,80}|rss\\.xml))?/?$`);
 const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
 const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -224,9 +219,6 @@ const hookPath = new RegExp(`^/hooks/${workspaceSegment}/([0-9a-f-]{36})/([a-z0-
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialInvitePath = new RegExp(`^/social-connect/${workspaceSegment}/?$`);
 const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
-const brandGroupRoute = /^\/marcas\/([0-9a-f]{64})\/?$/;
-const presentationRoute = /^\/apresentacao\/([0-9a-f]{64})\/?$/;
-const sharedReportRoute = new RegExp(`^/relatorio/${workspaceSegment}/([0-9a-f]{64})/?$`);
 // Pages a visitor lands on (sites, forms, offers, store, blog, webinars, QR codes and links): they remember the visit's source.
 // The tracking script (/t/<workspace>.js), the pixels loader (/t/<workspace>/pixels.js) and events (/t/<workspace>/e).
 const trackingPath = new RegExp(`^/t/${workspaceSegment}(\\.js|/pixels\\.js|/e)$`);
@@ -2168,6 +2160,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const preferenceRoute = createPreferenceRoutes({ store, ready, error, workspaceSegment, change, flushLater, formBody, publicAccountPolicy });
   const agencyAppRoute = createAgencyAppRoutes({ store, auth, ready, error, loadAgency });
   const certificateRoute = createCertificateRoutes({ store, ready, error, workspaceSegment, publicAccountPolicy });
+  const shareRoute = createShareRoutes({ store, ready, error, workspaceSegment, brandWorkspaces, publicAccountPolicy });
+  const blogRoute = createBlogRoutes({ store, ready, error, workspaceSegment, brandVoiceOf, change, content, meteredAI, openAI, payload, publicAccountPolicy, publicBase, publicPreview, withPixels, workspaceAccess });
+  const chatRoute = createChatRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, workspaceAccess });
   const siteRoute = createSiteRoutes({ store, ready, error, workspaceSegment, trackingPath, allowTracking, change, changeSite, flushLater, formFields, publicAccountPolicy, publicBase, siteDoc, studioGuard, trackingLog, withPixels });
   const webinarRoute = createWebinarRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, publicBase, publicPreview });
   const qrRoute = createQrRoutes({ store, ready, workspaceSegment, change, publicAccountPolicy, publicBase });
@@ -2963,140 +2958,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (offerApiRouteHandled !== NEXT_ROUTE) return offerApiRouteHandled;
       const storeApiHandled = await storeApiRoute({ req, p, method, json });
       if (storeApiHandled !== NEXT_ROUTE) return storeApiHandled;
-      // Blogs: home with categories and pages, posts with SEO tags, and RSS. Drafts open with ?preview=1 when signed in.
-      // Brand group reports shared by link: the token finds the agency, so no agency id is exposed.
-      const brandGroupShare = p.match(brandGroupRoute);
-      if (brandGroupShare && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const token = brandGroupShare[1];
-        const match = await store.findAgency({ brandGroups: [{ share: { id: token } }] });
-        const agency = match && hydrateAgency(match.state);
-        const group = agency?.brandGroups.find(row => row.share?.id === token);
-        if (!group || (group.share.expires && Date.parse(group.share.expires) <= Date.now())) throw error('Este relatório não está mais compartilhado.',404);
-        const asked = url.searchParams.get('lang');
-        const lang = ['pt', 'es'].includes(asked) ? asked : group.share.lang;
-        const data = brandGroupData(group, await brandWorkspaces(agency, match.id, group));
-        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer', 'X-Robots-Tag':'noindex',
-          'Content-Security-Policy':"default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" });
-        return res.end(method === 'HEAD' ? undefined : brandGroupPage(data, { lang, path: p, agency: agency.company }));
-      }
-      // Presentations shared by public link:
-      const presentationShare = p.match(presentationRoute);
-      if (presentationShare && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const token = presentationShare[1];
-        const match = await store.findAgency({ presentations: [{ share: { id: token } }] });
-        const agency = match && hydrateAgency(match.state);
-        const presentation = agency?.presentations?.find(row => row.share?.id === token);
-        if (!presentation || (presentation.share.expires && Date.parse(presentation.share.expires) <= Date.now())) throw error('Esta apresentação não está mais compartilhada.', 404);
-        const asked = url.searchParams.get('lang');
-        const lang = ['pt', 'es'].includes(asked) ? asked : (presentation.share.lang || 'pt');
-        const autoPrint = url.searchParams.has('print');
-        const html = presentationPageHtml(presentation, { lang, autoPrint, company: agency.company });
-        res.writeHead(200, {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'no-store',
-          'Referrer-Policy': 'no-referrer',
-          'X-Robots-Tag': 'noindex',
-          'Content-Security-Policy': "default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-        });
-        return res.end(method === 'HEAD' ? undefined : html);
-      }
-      // Shared reports: read-only, rendered here so the page never receives the workspace state.
-      const sharedReport = p.match(sharedReportRoute);
-      if (sharedReport && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, shareId] = sharedReport;
-        await publicAccountPolicy(workspace, false, 'reporting');
-        const state = await store.load(workspace);
-        const report = findSharedReport(state, shareId);
-        if (!report) throw error('Este relatório não está mais compartilhado.',404);
-        const asked = url.searchParams.get('lang');
-        const html = sharedReportPage(state, report, { lang: ['pt', 'es'].includes(asked) ? asked : report.share.lang, path: p });
-        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'Referrer-Policy':'no-referrer', 'X-Robots-Tag':'noindex',
-          'Content-Security-Policy':"default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" });
-        return res.end(method === 'HEAD' ? undefined : html);
-      }
-      const blogRoute = p.match(blogPath);
-      if (blogRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, blogId, slug] = blogRoute;
-        const active = await publicAccountPolicy(workspace, false, 'sites');
-        const state = await store.load(workspace);
-        const blog = state.blogs?.find(item => item.id === blogId);
-        const preview = await publicPreview(req, res, url, workspace);
-        if (!blog || (!blog.active && !preview)) throw error('Este blog não está publicado.',404);
-        const base = `/b/${workspace}/${blogId}`, origin = publicBase(req);
-        const html = (status, page) => { const [headers, body] = withPixels(state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'strict-origin-when-cross-origin', 'Cache-Control':'no-store',
-          'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" }, page); res.writeHead(status, headers); return res.end(method === 'HEAD' ? undefined : body); };
-        if (slug === 'rss.xml') {
-          if (blog.rss === false) throw error('Este blog não tem RSS.',404);
-          res.writeHead(200, { 'Content-Type':'application/rss+xml; charset=utf-8', 'Cache-Control':'no-store' });
-          return res.end(method === 'HEAD' ? undefined : blogRss(state, blog, { base, origin }));
-        }
-        if (!slug) return html(200, blogHome(state, blog, { base, origin, category:String(url.searchParams.get('categoria') || '').slice(0,80), page:Number(url.searchParams.get('pagina')) || 1 }));
-        const post = state.blogPosts.find(item => item.blogId === blogId && item.slug === slug);
-        if (!post || (!isLive(post) && !preview)) throw error('Artigo não encontrado.',404);
-        if (active && !preview && method === 'GET') await Promise.resolve().then(() => change(workspace,{ type:'blog-view', id:post.id })).catch(() => {});
-        return html(200, blogPost(state, blog, post, { base, origin, preview }));
-      }
-      if (p === '/api/blog/ai' && method === 'POST') {
-        const who = await workspaceAccess(req,res,id,{ modules:['sites'] });
-        const input = await payload(req);
-        const connection = await openAI.status(who.session).then(status => status.configured ? openAI.requireConnection(who.session) : null);
-        if (input.mode === 'seo') {
-          if (!connection) throw error('Conecte a OpenAI em Configurações para gerar o SEO com IA.',409);
-          return json({ ai:true, seo:await meteredAI(who, id, 'blog', metered => content.postSeo(metered,{ title:input.title, body:input.body })) });
-        }
-        if (!String(input.topic || input.title || '').trim()) throw error('Descreva o tema do artigo.',400);
-        input.voice = await brandVoiceOf(id);
-        return json(connection ? { ai:true, post:await meteredAI(who, id, 'blog', metered => content.writePost(metered, input)) } : { ai:false, post:localDraft(input) });
-      }
-      // Chat widget: the loader a site embeds, the panel it opens in an iframe, a demo page and the visitor API.
-      const chatRoute = p.match(chatPath);
-      if (chatRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, widgetId, part] = chatRoute;
-        await publicAccountPolicy(workspace, false, 'sites');
-        const state = await store.load(workspace);
-        const widget = state.chatWidgets?.find(item => item.id === widgetId);
-        if (widget && !widget.active) await workspaceAccess(req, res, workspace, { modules: ['sites'], hide: true });
-        if (!widget) throw error('Este chat não está publicado.',404);
-        if (part === 'widget.js') {
-          res.writeHead(200, { 'Content-Type':'text/javascript; charset=utf-8', 'Cache-Control':'no-cache', 'Cross-Origin-Resource-Policy':'cross-origin' });
-          return res.end(method === 'HEAD' ? undefined : widget.active ? loaderScript(widget, { workspace }) : '/* chat em rascunho */');
-        }
-        if (part === 'demo') {
-          res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; frame-src 'self'; base-uri 'none'; frame-ancestors 'self'" });
-          return res.end(method === 'HEAD' ? undefined : demoPage(widget, { workspace, brand:state.profile?.name || '' }));
-        }
-        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-          'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors *" });
-        return res.end(method === 'HEAD' ? undefined : chatPage(widget, { workspace }));
-      }
-      const chatCall = p.match(chatApi);
-      if (chatCall) {
-        await ready;
-        const [, workspace, widgetId, op] = chatCall;
-        await publicAccountPolicy(workspace, method === 'POST', 'sites');
-        const token = String(req.headers['x-chat-token'] || '');
-        const tokenHash = /^[0-9a-f]{48}$/.test(token) ? hash(token) : '';
-        if (op === 'messages') {
-          if (method !== 'GET') throw error('Method not allowed.',405);
-          const state = await store.load(workspace);
-          if (!state.chatWidgets?.some(item => item.id === widgetId && item.active)) throw error('Este chat não está disponível.',404);
-          return json({ messages:chatHistory(state, widgetId, tokenHash) });
-        }
-        if (method !== 'POST') throw error('Method not allowed.',405);
-        const input = await payload(req);
-        if (op === 'start') {
-          const fresh = randomBytes(24).toString('hex');
-          const result = await change(workspace,{ type:'chat-start', id:widgetId, data:{ name:input.name, email:input.email, phone:input.phone, body:input.body, page:req.headers.referer || '', tokenHash:hash(fresh) } });
-          return json({ token:fresh, messages:chatHistory(result.state, widgetId, hash(fresh)) },201);
-        }
-        const result = await change(workspace,{ type:'chat-send', id:widgetId, data:{ body:input.body, tokenHash } });
-        return json({ messages:chatHistory(result.state, widgetId, tokenHash) },201);
-      }
+      const shareRouteHandled = await shareRoute({ res, p, method, url });
+      if (shareRouteHandled !== NEXT_ROUTE) return shareRouteHandled;
+      const blogRouteHandled = await blogRoute({ req, res, p, method, url, id, json });
+      if (blogRouteHandled !== NEXT_ROUTE) return blogRouteHandled;
+      const chatRouteHandled = await chatRoute({ req, res, p, method, json });
+      if (chatRouteHandled !== NEXT_ROUTE) return chatRouteHandled;
       const formRoute = p.match(formPath);
       if (formRoute) {
         await ready;
