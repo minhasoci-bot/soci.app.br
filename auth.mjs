@@ -4,7 +4,13 @@ const failure = (message, status) => Object.assign(new Error(message), { status 
 const ACCESS = 'go_access';
 const REFRESH = 'go_refresh';
 const GOOGLE_FLOW = 'go_google_flow';
+const ACCOUNT = 'go_account_';
+const ACTIVE = 'go_active';
 const DAY = 86400;
+const SESSION_AGE = 30 * DAY;   // parada por mais tempo, a conta pede o Google de novo
+const ENTRY_AGE = 90 * DAY;     // ...mas segue na lista, com o e-mail para sugerir
+const USER_ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
+export const MAX_ACCOUNTS = 5;
 
 export function afterLogin(next) {
   if (typeof next !== 'string' || next.length > 512 || /[\r\n]/.test(next)) return '/app';
@@ -22,25 +28,64 @@ function cookieName(req, name) {
   return process.env.VERCEL || req.socket?.encrypted ? '__Host-' + name : name;
 }
 
-function readCookie(req, name) {
-  const prefix = cookieName(req, name) + '=';
-  return req.headers.cookie?.split(';').map(part => part.trim()).find(part => part.startsWith(prefix))?.slice(prefix.length) || '';
+// Os cookies da requisição, já com o que ela mesma gravou: quem renova e depois troca de conta lê o token novo.
+const jars = new WeakMap();
+function cookieJar(req) {
+  if (!jars.has(req)) {
+    const pairs = String(req.headers.cookie || '').split(';').map(part => {
+      const at = part.indexOf('=');
+      return at < 0 ? ['', ''] : [part.slice(0, at).trim(), part.slice(at + 1).trim()];
+    });
+    jars.set(req, new Map(pairs.reverse()));   // com nomes repetidos vale o primeiro do cabeçalho
+  }
+  return jars.get(req);
 }
+const readCookie = (req, name) => cookieJar(req).get(cookieName(req, name)) || '';
 
 function writeCookie(req, res, name, value, age) {
   const key = cookieName(req, name);
   const secure = key.startsWith('__Host-') ? '; Secure' : '';
-  res.appendHeader('Set-Cookie', `${key}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${secure}`);
+  cookieJar(req).set(key, value);
+  const others = [res.getHeader('Set-Cookie') || []].flat().filter(line => !line.startsWith(key + '='));
+  res.setHeader('Set-Cookie', [...others, `${key}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${secure}`]);
 }
 
-function clearSession(req, res) {
-  for (const name of [ACCESS, REFRESH, GOOGLE_FLOW]) writeCookie(req, res, name, '', 0);
+function dropCookie(req, res, name) {
+  if (readCookie(req, name)) writeCookie(req, res, name, '', 0);
 }
 
-function saveSession(req, res, session) {
-  if (!session.access_token || !session.refresh_token) throw failure('O Supabase não retornou uma sessão válida.',502);
-  writeCookie(req, res, ACCESS, session.access_token, Math.max(1, Math.floor(Number(session.expires_in) || 3600)));
-  writeCookie(req, res, REFRESH, session.refresh_token, 30 * DAY);
+// Contas conectadas neste navegador. Cada conta tem um cookie próprio (token de renovação e o que o menu mostra);
+// go_active diz qual está aberta e go_access_<id> guarda o token de acesso só dela. Como uma renovação grava apenas
+// nos cookies da própria conta, uma resposta atrasada nunca devolve o navegador para a conta anterior.
+const clip = (value, size) => typeof value === 'string' ? value.slice(0, size) : '';
+
+function readEntry(req, id) {
+  if (typeof id !== 'string' || !USER_ID.test(id)) return null;
+  try {
+    const { r, e, n, p, a, t, u } = JSON.parse(Buffer.from(readCookie(req, ACCOUNT + id), 'base64url').toString('utf8'));
+    const email = clip(e, 254), picture = clip(p, 1024);
+    if (!email) return null;
+    return { id, email, name: clip(n, 100) || email, picture: /^https:\/\//i.test(picture) ? picture : '', agency: clip(a, 80),
+      refresh: clip(r, 2048), renewed: Number(t) || 0, used: Number(u) || 0 };
+  } catch {
+    return null;
+  }
+}
+
+function writeEntry(req, res, { id, email, name, picture, agency, refresh, renewed, used }) {
+  const value = { r: refresh, e: email, n: name, p: picture.length > 512 ? '' : picture, a: clip(agency, 80), t: renewed, u: used };
+  writeCookie(req, res, ACCOUNT + id, Buffer.from(JSON.stringify(value)).toString('base64url'), ENTRY_AGE);
+}
+
+function listEntries(req) {
+  const prefix = cookieName(req, ACCOUNT);
+  return [...cookieJar(req).keys()].filter(key => key.startsWith(prefix)).map(key => readEntry(req, key.slice(prefix.length))).filter(Boolean);
+}
+
+/** Conta aberta neste navegador segundo os cookies, sem conferir a sessão; '' quando não há. */
+export function activeAccountId(req) {
+  const id = readCookie(req, ACTIVE);
+  return USER_ID.test(id) ? id : '';
 }
 
 function buildFlow(next) {
@@ -50,7 +95,7 @@ function buildFlow(next) {
 
 function googleUser(user, verifiedToken) {
   if (!user?.email || !user.email_confirmed_at || user.is_anonymous ||
-      !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(user.id || '') ||
+      !USER_ID.test(user.id || '') ||
       !user.identities?.some(identity => identity.provider === 'google')) return null;
   // Only read AMR after Supabase validates or issues this access token.
   try {
@@ -61,7 +106,10 @@ function googleUser(user, verifiedToken) {
   }
 }
 
-export function createSupabaseAuth({ projectUrl, publishableKey, request = fetch }) {
+const googleSession = session => session?.access_token && session.refresh_token && googleUser(session.user, session.access_token) ? session : null;
+const ended = error => [400,401,403].includes(error.status);
+
+export function createSupabaseAuth({ projectUrl, publishableKey, request = fetch, now = Date.now, checkEvery = 60_000 }) {
   const base = new URL(projectUrl);
   if (base.origin !== base.href.slice(0,-1) || !/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(base.origin) || !publishableKey) {
     throw new Error('Set SUPABASE_URL to the HTTPS project origin and SUPABASE_PUBLISHABLE_KEY to its public key.');
@@ -100,34 +148,128 @@ export function createSupabaseAuth({ projectUrl, publishableKey, request = fetch
   }
 
   const grant = (type, body) => call('token', { query: { grant_type: type }, body });
-  async function refresh(req, res, token) {
-    try {
-      const session = await grant('refresh_token', { refresh_token: token });
-      if (!googleUser(session.user, session.access_token)) {
-        clearSession(req,res);
-        return null;
-      }
-      saveSession(req,res,session);
-      return session;
-    } catch (error) {
-      if (![400,401,403].includes(error.status)) throw error;
-      clearSession(req,res);
-      return null;
-    }
+  const signOutToken = token => call('logout', { query: { scope: 'local' }, body: {}, token });
+  const expired = entry => now() - entry.renewed > SESSION_AGE * 1000;
+  const usable = entry => Boolean(entry?.refresh) && !expired(entry);
+  const accessName = id => `${ACCESS}_${id}`;
+
+  function saveAccess(req, res, session) {
+    writeCookie(req, res, accessName(session.user.id), session.access_token, Math.max(1, Math.floor(Number(session.expires_in) || 3600)));
+  }
+  function saveAccount(req, res, session, agency) {
+    const profile = accountProfile(session.user), before = readEntry(req, profile.id);
+    writeEntry(req, res, { ...profile, agency: agency ?? before?.agency ?? '', refresh: session.refresh_token, renewed: now(), used: before?.used || 0 });
+  }
+  function activate(req, res, session) {
+    const id = session.user.id, before = activeAccountId(req);
+    if (before && before !== id) dropCookie(req, res, accessName(before));
+    saveAccess(req, res, session);
+    writeCookie(req, res, ACTIVE, id, ENTRY_AGE);
+    writeEntry(req, res, { ...readEntry(req, id), used: now() });
+  }
+  // A sessão da conta acabou: some o token e fica só o que o menu precisa para pedir o Google de novo.
+  function disconnect(req, res, id) {
+    const entry = readEntry(req, id);
+    dropCookie(req, res, accessName(id));
+    if (entry?.refresh) writeEntry(req, res, { ...entry, refresh: '' });
+  }
+  function forget(req, res, id) {
+    dropCookie(req, res, accessName(id));
+    dropCookie(req, res, ACCOUNT + id);
+    if (activeAccountId(req) === id) dropCookie(req, res, ACTIVE);
+  }
+  function clearLegacy(req, res) {
+    dropCookie(req, res, ACCESS);
+    dropCookie(req, res, REFRESH);
   }
 
+  // Renova a sessão de uma conta da lista. null quando ela acabou; falha de rede ou do provedor sobe sem apagar nada.
+  async function renew(req, res, id) {
+    const entry = readEntry(req, id);
+    if (!usable(entry)) { disconnect(req, res, id); return null; }
+    try {
+      const session = googleSession(await grant('refresh_token', { refresh_token: entry.refresh }));
+      // O cookie é do navegador: o dono do token tem de ser a conta da entrada.
+      if (session?.user.id === id) { saveAccount(req, res, session); return session; }
+    } catch (error) {
+      if (!ended(error)) throw error;
+    }
+    disconnect(req, res, id);
+    return null;
+  }
+
+  async function signedIn(req, res, id) {
+    const token = readCookie(req, accessName(id));
+    if (token) {
+      try {
+        const found = googleUser(await call('user',{ token }), token);
+        return found?.id === id ? found : null;
+      } catch (error) { if (![401,403].includes(error.status)) throw error; }
+    }
+    const session = await renew(req, res, id);
+    if (session) saveAccess(req, res, session);
+    return session?.user || null;
+  }
+
+  // Sessões de antes da troca rápida (um par de cookies por navegador): na primeira visita viram uma conta da lista.
+  const hasLegacy = req => !activeAccountId(req) && Boolean(readCookie(req, ACCESS) || readCookie(req, REFRESH));
+  async function adoptLegacy(req, res) {
+    const token = readCookie(req, ACCESS), refreshToken = readCookie(req, REFRESH);
+    let session = null;
+    if (token) {
+      try {
+        const found = googleUser(await call('user',{ token }), token);
+        if (!found) return null;
+        const { exp } = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+        session = { user: found, access_token: token, refresh_token: refreshToken, expires_in: exp ? exp - Math.floor(now() / 1000) : 3600 };
+      } catch (error) { if (![401,403].includes(error.status)) throw error; }
+    }
+    if (!session && refreshToken) {
+      try { session = googleSession(await grant('refresh_token', { refresh_token: refreshToken })); }
+      catch (error) { if (!ended(error)) throw error; }
+    }
+    clearLegacy(req, res);
+    if (!session) return null;
+    saveAccount(req, res, session);
+    activate(req, res, session);
+    return session.user;
+  }
+
+  async function user(req, res) {
+    if (hasLegacy(req)) return adoptLegacy(req, res);
+    const id = activeAccountId(req);
+    return id ? signedIn(req, res, id) : null;
+  }
+  function hasSession(req) {
+    const id = activeAccountId(req);
+    return id ? Boolean(readCookie(req, accessName(id))) || usable(readEntry(req, id)) : hasLegacy(req);
+  }
+
+  async function revoke(req, res, id) {
+    const token = activeAccountId(req) === id && readCookie(req, accessName(id)) || (await renew(req, res, id))?.access_token;
+    if (token) await signOutToken(token);
+  }
+  // Lugar para uma conta: quem já está na lista não conta de novo, e as encerradas há mais tempo cedem a vez.
+  function makeRoom(req, res, id) {
+    const others = listEntries(req).filter(entry => entry.id !== id);
+    const idle = others.filter(entry => !usable(entry)).sort((a, b) => a.used - b.used);
+    const extra = others.length - (MAX_ACCOUNTS - 1);
+    for (const entry of idle.slice(0, Math.max(0, extra))) forget(req, res, entry.id);
+    return extra <= idle.length;
+  }
+  function requireEntry(req, id) {
+    if (!readEntry(req, id)) throw failure('Esta conta não está conectada neste navegador.',404);
+  }
+  const byRecent = (a, b) => b.used - a.used;
+
   return {
-    hasSession: req => Boolean(readCookie(req,ACCESS) || readCookie(req,REFRESH)),
-    async user(req,res) {
-      const token = readCookie(req,ACCESS);
-      if (token) {
-        try { return googleUser(await call('user',{ token }), token); }
-        catch (error) { if (![401,403].includes(error.status)) throw error; }
+    hasSession,
+    user,
+    async google(req,res,origin,next,{ add = false, account = '' } = {}) {
+      const entry = readEntry(req, account);
+      if (add && !entry && listEntries(req).filter(usable).length >= MAX_ACCOUNTS) {
+        throw failure(`Este navegador já tem ${MAX_ACCOUNTS} contas conectadas. Remova uma para adicionar outra.`,409);
       }
-      const refreshToken = readCookie(req,REFRESH);
-      return refreshToken ? (await refresh(req,res,refreshToken))?.user : null;
-    },
-    async google(req,res,origin,next) {
       const settings = await call('settings');
       if (!settings.external?.google) throw failure('O login com Google ainda não está habilitado no Supabase.',503);
       const { verifier, challenge, next: destination } = buildFlow(next);
@@ -138,36 +280,88 @@ export function createSupabaseAuth({ projectUrl, publishableKey, request = fetch
         redirect_to: `${origin}/api/auth/callback/google`,
         code_challenge: challenge,
         code_challenge_method: 's256',
-        prompt: 'select_account'
+        // Entrar de novo numa conta da lista sugere o e-mail dela; nos outros casos a pessoa escolhe a conta.
+        ...(entry ? { login_hint: entry.email } : { prompt: 'select_account' })
       }).href;
     },
-    async callback(req,res,params,destination = (_user,next) => next) {
+    /** `destination(perfil, next)` devolve { next, agency }: para onde ir e o nome da agência que o menu mostra. */
+    async callback(req,res,params,destination = (_profile,next) => ({ next })) {
       const stored = readCookie(req,GOOGLE_FLOW);
       writeCookie(req,res,GOOGLE_FLOW,'',0);
       const code = params.get('code');
-      const retry = '/login?error=google';
-      if (!stored || !code || code.length > 512 || params.has('error')) return retry;
+      // Quem desistiu no Google com uma conta já aberta volta para ela.
+      const stop = reason => hasSession(req) ? `/app?conta=${reason}` : `/login?error=${reason === 'limite' ? 'limite' : 'google'}`;
+      if (!stored || !code || code.length > 512 || params.has('error')) return stop('erro');
       try {
         const flow = JSON.parse(Buffer.from(stored,'base64url').toString('utf8'));
-        if (!/^[a-zA-Z0-9_-]{43}$/.test(flow.verifier)) return retry;
-        const session = await grant('pkce',{ auth_code: code, code_verifier: flow.verifier });
-        if (!googleUser(session.user, session.access_token)) return retry;
-        const next = await destination(accountProfile(session.user), afterLogin(flow.next));
-        saveSession(req,res,session);
+        if (!/^[a-zA-Z0-9_-]{43}$/.test(flow.verifier)) return stop('erro');
+        const session = googleSession(await grant('pkce',{ auth_code: code, code_verifier: flow.verifier }));
+        if (!session) return stop('erro');
+        if (hasLegacy(req)) await adoptLegacy(req,res).catch(() => null);
+        if (!makeRoom(req,res,session.user.id)) {
+          await signOutToken(session.access_token).catch(() => null);
+          return stop('limite');
+        }
+        const { next, agency } = await destination(accountProfile(session.user), afterLogin(flow.next));
+        saveAccount(req,res,session,agency);
+        activate(req,res,session);
         return afterLogin(next);
       } catch {
-        return retry;
+        return stop('erro');
       }
     },
-    async logout(req,res) {
-      try {
-        let token = readCookie(req,ACCESS);
-        const refreshToken = readCookie(req,REFRESH);
-        if (!token && refreshToken) token = (await refresh(req,res,refreshToken))?.access_token;
-        if (token) await call('logout',{ query: { scope: 'local' },body: {},token });
-      } finally {
-        clearSession(req,res);
+    /** A conta aberta e as outras deste navegador, sem nenhum token. `label(perfil)` dá o nome da agência da conta aberta. */
+    async accounts(req,res,label = async () => '') {
+      const current = await user(req,res);
+      const profile = current && { ...accountProfile(current), agency: await label(accountProfile(current)) };
+      const mine = profile && readEntry(req, profile.id);
+      if (mine && mine.agency !== profile.agency) writeEntry(req, res, { ...mine, agency: profile.agency });
+      const others = listEntries(req).filter(entry => entry.id !== profile?.id);
+      // Uma conta revogada em outro lugar cai aqui; a conferência tem um intervalo para não girar o token a cada abertura.
+      await Promise.all(others.filter(entry => entry.refresh && (expired(entry) || now() - entry.renewed >= checkEvery))
+        .map(entry => renew(req,res,entry.id).catch(() => null)));
+      return {
+        current: profile,
+        others: others.map(entry => readEntry(req, entry.id)).sort(byRecent)
+          .map(entry => ({ id: entry.id, email: entry.email, name: entry.name, picture: entry.picture, agency: entry.agency, connected: usable(entry) })),
+        max: MAX_ACCOUNTS
+      };
+    },
+    /** Abre outra conta da lista. Só vale sessão deste navegador; se ela acabou, a conta aberta fica como está. */
+    async switchTo(req,res,id,destination) {
+      if (hasLegacy(req)) await adoptLegacy(req,res);
+      requireEntry(req, id);
+      const session = await renew(req,res,id);
+      if (!session) throw Object.assign(failure('A sessão desta conta terminou. Entre de novo com o Google.',401), { code: 'ACCOUNT_SIGNED_OUT' });
+      const { next, agency } = await destination(accountProfile(session.user), '/app');
+      saveAccount(req,res,session,agency);
+      activate(req,res,session);
+      return afterLogin(next);
+    },
+    async remove(req,res,id) {
+      if (hasLegacy(req)) await adoptLegacy(req,res);
+      requireEntry(req, id);
+      if (activeAccountId(req) === id && hasSession(req)) throw failure('Para sair da conta aberta, use Sair.',400);
+      try { await revoke(req,res,id); }
+      finally { forget(req,res,id); }
+    },
+    /** Sai da conta aberta e abre a usada por último que ainda vale; `all` sai de todas. Devolve o perfil aberto, ou null. */
+    async logout(req,res,{ all = false } = {}) {
+      if (hasLegacy(req)) await adoptLegacy(req,res).catch(() => null);
+      const id = activeAccountId(req);
+      const leaving = all ? listEntries(req).map(entry => entry.id) : [];
+      if (id && !leaving.includes(id)) leaving.push(id);
+      const results = await Promise.allSettled(leaving.map(account => revoke(req,res,account)));
+      for (const account of leaving) forget(req,res,account);
+      clearLegacy(req,res);
+      dropCookie(req,res,GOOGLE_FLOW);
+      const failed = results.find(result => result.status === 'rejected');
+      if (failed) throw failed.reason;
+      for (const entry of listEntries(req).filter(usable).sort(byRecent)) {
+        const session = await renew(req,res,entry.id).catch(() => null);
+        if (session) { activate(req,res,session); return accountProfile(session.user); }
       }
+      return null;
     }
   };
 }

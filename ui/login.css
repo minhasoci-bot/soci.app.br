@@ -15,5 +15,17 @@ p { margin: 0; color: #69636a; font-size: 14px; line-height: 1.65; }
 .google-button:focus-visible { outline: 3px solid rgb(255 0 187 / 28%); outline-offset: 3px; }
 .google-button:disabled { cursor: wait; opacity: .7; transform: none; }
 .google-button svg { width: 20px; height: 20px; flex: none; }
+.login-accounts { display: grid; gap: 8px; margin: 0 0 16px; padding: 0; list-style: none; }
+.login-accounts[hidden] { display: none; }
+.login-account { display: flex; width: 100%; min-height: 56px; align-items: center; gap: 12px; padding: 8px 14px; border: 1px solid #d9d4d9; border-radius: 10px; background: #fff; color: #16131a; text-align: left; cursor: pointer; }
+.login-account:hover { border-color: #bdb5bc; background: #fcfafc; }
+.login-account:focus-visible { outline: 3px solid rgb(255 0 187 / 28%); outline-offset: 3px; }
+.login-account:disabled { cursor: wait; opacity: .7; }
+.login-account img, .login-account i { display: grid; width: 36px; height: 36px; flex: none; place-items: center; border-radius: 50%; background: #f7f7f8; font-size: 13px; font-style: normal; font-weight: 700; }
+.login-account span { display: grid; min-width: 0; color: #69636a; font-size: 13px; line-height: 1.4; }
+.login-account b, .login-account small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.login-account b { color: #16131a; font-size: 14px; }
+.login-account small { font-size: 13px; }
+.login-account em { color: #bd0e50; font-style: normal; }
 .login-status { margin-top: 16px; color: #bd0e50; }
 @media (max-width: 480px) { .login-card { padding: 32px 24px; border-radius: 16px; } }

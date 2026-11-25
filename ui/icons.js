@@ -226,6 +226,10 @@ const defs = {
     k: 'plus',
     body: `<g class="la-spin"><path d="M5 12h14"/><path d="M12 5v14"/></g>`
   },
+  logout: {
+    k: 'log-out',
+    body: `<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><g class="la-fwd"><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></g>`
+  },
   close: {
     k: 'x',
     body: `<path class="la-draw la-x1" d="M18 6 6 18" pathLength="1"/><path class="la-draw la-x2" d="m6 6 12 12" pathLength="1"/>`

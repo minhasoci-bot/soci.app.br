@@ -64,6 +64,13 @@
     "status": "escrito"
   },
   {
+    "grupo": "configuracoes",
+    "artigo": "trocar-de-conta",
+    "titulo": "Trocar de conta sem sair",
+    "fase": "F2",
+    "status": "escrito"
+  },
+  {
     "grupo": "conversas",
     "artigo": "dominio-de-email",
     "titulo": "Domínio de envio de e-mail",

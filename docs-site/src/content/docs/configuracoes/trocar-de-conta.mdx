@@ -1,0 +1,82 @@
+---
+title: Trocar de conta sem sair
+description: Conecte até cinco contas Google no mesmo navegador e passe de uma agência para outra pelo menu do perfil, sem entrar de novo.
+modulo: configuracoes
+sidebar:
+  order: 2
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Se você usa duas contas Google na soci (por exemplo, uma para cada agência), conecte as duas no mesmo navegador. Depois, passe de uma para a outra pelo menu do perfil, na agência ou na subconta. Cada conta abre na última tela em que você estava.
+
+<Requisitos permissao="Qualquer usuário que entra com o Google" />
+
+## Passo a passo
+
+<Steps>
+
+1. Clique na sua foto ou nas suas iniciais, no canto superior direito. O menu existe na agência e em todas as subcontas.
+
+   <Print src="docs/configuracoes/trocar-de-conta/01-abrir-o-perfil.e4f244e8.webp" alt="Painel da agência com as iniciais da conta em destaque no canto superior direito." />
+
+2. Clique em **Adicionar conta** e escolha a outra conta na tela do Google. Você volta para a soci com a conta nova aberta, e a anterior continua conectada.
+
+   <Print src="docs/configuracoes/trocar-de-conta/02-adicionar-conta.2fd7909b.webp" alt="Menu do perfil com a conta de Marina Prado, da Agência Demo, e o botão Adicionar conta em destaque." />
+
+3. Para trocar, abra o menu do perfil e clique na outra conta. A lista mostra o nome, o e-mail e a agência de cada uma.
+
+   <Print src="docs/configuracoes/trocar-de-conta/03-trocar-de-conta.12701084.webp" alt="Menu do perfil com a conta aberta de Marina Prado e a conta de Rafael Dias, do Estúdio Norte, em destaque." />
+
+4. Para tirar uma conta da lista, clique no **X** ao lado dela. Isso encerra a sessão dessa conta neste navegador e não apaga nada da agência.
+
+   <Print src="docs/configuracoes/trocar-de-conta/04-remover-conta.b1bef143.webp" alt="Menu do perfil com o X da conta de Rafael Dias em destaque." />
+
+5. Para sair, use **Sair desta conta** ou **Sair de todas**. Ao sair de uma, a soci abre outra conta da lista. Com uma conta só, o botão se chama **Sair**.
+
+   <Print src="docs/configuracoes/trocar-de-conta/05-sair.fa2dc8c8.webp" alt="Menu do perfil com o botão Sair desta conta em destaque, acima de Sair de todas." />
+
+</Steps>
+
+<Aside type="caution">
+Em computador compartilhado, use **Sair de todas** antes de ir embora. Quem abrir o navegador depois de você consegue entrar em qualquer conta que ficou conectada.
+</Aside>
+
+## Quando a sessão foi encerrada
+
+Uma conta que expirou, ou que foi desconectada em outro lugar, aparece como **Sessão encerrada · entrar de novo**. Clique nela: a soci pede o Google só para essa conta, com o e-mail já sugerido. As outras continuam conectadas.
+
+<Print src="docs/configuracoes/trocar-de-conta/06-sessao-encerrada.7489e0dd.webp" alt="Menu do perfil com a conta de Rafael Dias marcada como Sessão encerrada, entrar de novo." />
+
+## Várias abas abertas
+
+O navegador fica em uma conta por vez. Se você trocar de conta em uma aba, as outras abas mostram um aviso e não salvam nada até você escolher: **Voltar para** a conta daquela aba ou **Continuar como** a conta nova.
+
+<Print src="docs/configuracoes/trocar-de-conta/07-aviso-outra-aba.f152e9dc.webp" alt="Aviso Você trocou de conta em outra aba, com os botões Voltar para Rafael e Continuar como Marina." />
+
+## Perguntas frequentes
+
+**Quantas contas posso conectar?**
+Até cinco por navegador. Para adicionar outra, remova uma da lista.
+
+**Preciso repetir isso em outro computador?**
+Sim. A lista vale só para o navegador em que você conectou as contas.
+
+**Por quanto tempo uma conta fica conectada?**
+Por 30 dias sem uso. Cada vez que você usa a conta, o prazo recomeça.
+
+**O que eu não salvei se perde na troca?**
+Se a tela tiver algo sem salvar, a soci pergunta antes de trocar.
+
+**Trocar de conta é o mesmo que Agir como?**
+Não. **Agir como** mostra a soci do jeito que outra pessoa da equipe vê, dentro da mesma agência. Trocar de conta abre outra conta Google, com as agências dela.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Adicionar usuários e definir permissões" href="/configuracoes/usuarios-e-permissoes/" description="Cadastre a equipe e escolha o que cada pessoa vê." />
+  <LinkCard title="Conceitos" href="/comece-aqui/conceitos/" description="Agência, subconta e papéis." />
+</CardGrid>

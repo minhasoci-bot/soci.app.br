@@ -1,3 +1,4 @@
+import {tabAccountId} from './account-guard.js';
 import {icon as i, logo, brandName, bootScreen} from './icons.js';
 import {nav,h,avatar,screens,publicView,money} from './screens.js';
 import { conversationSections, manualQueue, manualType, slaRecords, SLA_CHANNELS } from './conversations.js';
@@ -76,6 +77,7 @@ import './phone-input.js';
 import { clickWith, mountBeautifulUI } from './bui-mounts.js';
 import { diffTable, searchList } from './beautiful-ui-more.js';
 import { ask, askText } from './ask.js';
+import { installAccounts } from './accounts.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
@@ -173,6 +175,7 @@ const G=s=>document.querySelector(s);
 const url=path=>`${path}?workspace=${encodeURIComponent(c.workspace)}`;
 function flash(msg,isError=false){ return isError?toast.error(msg):toast.success(msg); }
 const actingUser = () => { try { return localStorage.getItem('go.user') || ''; } catch { return ''; } };
+const accounts = installAccounts({ session: () => c.access?.session || agencyUI?.session(), beforeLeave: async () => { if (editor) await editor.flush(); } });
 async function api(path,body){
   const headers = c.access?.session ? {} : { 'X-Go-User': actingUser() };
   const response = await fetch(path,body===undefined?{headers}:{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -189,7 +192,7 @@ async function api(path,body){
     }
     throw Object.assign(Error(data.error||'The request failed.'),{status:response.status,code:data.code,account:data.account});
   }
-  if (isAppPath && data.access) setThemeAccount(data.access.session?.id);
+  if (isAppPath && data.access) { setThemeAccount(data.access.session?.id); accounts.seen(data.access.session); }
   return data;
 }
 async function load(){
@@ -323,7 +326,7 @@ function appTopbar(){
   const profileText = session?.name?.slice(0, 2).toUpperCase() || 'gr';
   return topbar({crumbs:[{label:c.s.profile.name,href:'#launchpad'},{label:page}],search:'data-act="search"',
     tools:[{icon:'bell',label:tr('Notificações'),attr:'data-act="notifications"'}],
-    profile:{text:profileText,picture:session?.picture||'',label:profileLabel,attr:session?'data-act="account"':'data-go="settings"'}});
+    profile:{text:profileText,picture:session?.picture||'',label:profileLabel,attr:session?'data-act="account" aria-haspopup="dialog"':'data-go="settings"'}});
 }
 function renderAccountLifecycle() {
   stopSubWaPoll();
@@ -847,16 +850,7 @@ document.addEventListener('click',async ev=>{
       case 'account-retry':await load();route();break;
       case 'agency-view':close();location.hash='#agency/dashboard';break;
       case 'stop-acting':localStorage.removeItem('go.user');location.reload();break;
-      case 'account': {
-        const session = c.access?.session || agencyUI?.session();
-        if (session) dialog('Minha conta', '<p>' + h(session.name) + '<br>' + h(session.email) + '</p><button type="button" class="secondary" data-act="sign-out">Sair da conta</button>');
-        break;
-      }
-      case 'sign-out':
-        await api('/api/auth/logout', {});
-        localStorage.removeItem('go.workspace');
-        location.assign('/login');
-        break;
+      case 'account':await accounts.toggle(b);break;
       case 'new-workspace':dialog('Criar workspace',input('Nome do workspace','name','',true),{form:'workspace',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Criar workspace</button>'});break;
       case 'search':dialog('Buscar no workspace','<div id="search-results" class="bui-search-host"></div>');mountGlobalSearch();break;
       case 'dialer':dialog('Discador','<p>O discador não está conectado. Chamadas de voz exigem a configuração de um provedor de telefonia autorizado.</p>');break;
@@ -1338,6 +1332,7 @@ if(viewPath){
   installOrders({ c, mutate, flash, dialog, close, render });
   installCatalog({ c, mutate, flash, dialog, close, render });
   installPrancheta({
+    account: tabAccountId,
     c,
     api,
     url,
