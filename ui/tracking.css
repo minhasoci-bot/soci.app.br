@@ -1,6 +1,6 @@
 /* Configurações → Rastreamento externo e Pontuação de leads */
 .tk-views{display:flex;gap:4px;margin:0 0 16px;flex-wrap:wrap}
-.tk-views button{padding:7px 14px;border-radius:999px;font:inherit;font-size:13px;font-weight:600;color:var(--muted,#59677a);background:none;border:1px solid transparent;cursor:pointer}
+.tk-views button{padding:7px 14px;border-radius:999px;font:inherit;font-size:13px;font-weight:600;color:var(--g-dim,#59677a);background:none;border:1px solid transparent;cursor:pointer}
 .tk-views button:hover{background:var(--g-brand-surface,#fff0f6)}
 .tk-views button.active{background:var(--g-brand-surface,#fff0f6);color:var(--g-brand-text,#a00070);border-color:var(--g-brand-line,#fbc8e0)}
 .tk-page .tk-section{display:grid;gap:10px;margin-bottom:14px}

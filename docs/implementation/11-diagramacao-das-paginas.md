@@ -37,3 +37,10 @@ Entrega de 25/11/2026. Vale para a agência e para a subconta. As regras ficam e
 ```
 
 Formulários dentro de diálogos continuam com `.settings-form` simples.
+
+## Celular e tema escuro
+
+- Barra que rola na horizontal fica dentro de um contêiner com `min-width:0`; grade de uma coluna usa `minmax(0,1fr)`, nunca `1fr`.
+- Até 860 px, `.table-shell` dentro de painel rola na horizontal.
+- Cor sempre por token `--g-*`. `--surface`, `--soft`, `--muted` e `--accent` não existem e caem num valor fixo do tema claro.
+- O menu da agência começa fechado até 700 px.

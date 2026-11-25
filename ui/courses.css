@@ -100,7 +100,7 @@
 /* Construtor: submódulos, quiz, tarefa, sessões ao vivo e entregas (6.3) */
 .co-submodule{margin:4px 0 4px 10px;padding-left:8px;border-left:2px solid var(--line,#e3e8ef)}
 .co-sub strong{font-size:13px}
-.co-draft{margin-left:auto;font-size:11px;color:var(--muted,#59677a)}
+.co-draft{margin-left:auto;font-size:11px;color:var(--g-dim,#59677a)}
 .cx-block{display:grid;gap:12px;padding:14px;border:1px solid var(--line,#e3e8ef);border-radius:var(--r-group)}
 .cx-block h3{margin:0}
 .cx-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;align-items:end}
@@ -129,5 +129,5 @@
 .cx-funnel li{display:grid;grid-template-columns:minmax(140px,1.2fr) 2fr auto;gap:10px;align-items:center}
 .cx-funnel .cx-bar{height:10px;border-radius:999px;background:var(--surface-2,#f1f2f5);overflow:hidden}
 .cx-funnel .cx-bar span{display:block;height:100%;background:var(--g-brand,#b71889);border-radius:inherit}
-.cx-funnel small{color:var(--muted,#59677a)}
-.co-stats{color:var(--muted,#59677a)}
+.cx-funnel small{color:var(--g-dim,#59677a)}
+.co-stats{color:var(--g-dim,#59677a)}

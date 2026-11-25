@@ -177,3 +177,5 @@ label.sc-starter:last-child{border-bottom:0;padding-bottom:0}
 .g-utabs-panel{grid-template-columns:minmax(0,1fr)}
 .g-utabs-panel>section{min-width:0;max-width:100%}
 @media(max-width:860px){.g-utabs-panel .table-shell,.ag-two .table-shell{overflow-x:auto}}
+/* Campo sem ajuda ao lado de campo com ajuda: todos alinham pelo topo. */
+:is(.set-form,.set-section) label:not(:has(:is([type=checkbox],[type=radio]))){align-content:start;align-self:start}
