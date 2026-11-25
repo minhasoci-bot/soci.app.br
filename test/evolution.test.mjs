@@ -88,11 +88,19 @@ test('Evolution API gerenciada: QR, status ao vivo, webhooks de entrada e envio 
     upsert({ remoteJid: '120363000000000000@g.us', participant: '5511@s.whatsapp.net' }, { conversation: 'grupo' }),
     upsert({ remoteJid: 'status@broadcast' }, { conversation: 'status' }),
     upsert({ remoteJid: '5511977776666@s.whatsapp.net', fromMe: true }, { conversation: 'eco' }),
-    upsert({ remoteJid: '999@lid' }, { conversation: 'lid sem número' }),
     { event: 'qrcode.updated', data: { qrcode: { base64: QR } } }
   ]) {
     assert.equal((await local.call(hookPath, ignored)).body.ignored, true);
   }
+  // LID sem número: a mensagem entra num contato sem telefone, em vez de se perder; o número completa o contato depois.
+  assert.equal((await local.call(hookPath, upsert({ remoteJid: '999888777666@lid' }, { conversation: 'lid sem número' }, 'Duda'))).body.stored, true);
+  let duda = (await local.call('/api/state?workspace=demo')).body.state.contacts.filter(c => c.waLid === '999888777666');
+  assert.equal(duda.length, 1);
+  assert.equal(duda[0].phone || '', '');
+  await local.call(hookPath, upsert({ remoteJid: '999888777666@lid', remoteJidAlt: '5571944443333@s.whatsapp.net' }, { conversation: 'agora com número' }, 'Duda'));
+  duda = (await local.call('/api/state?workspace=demo')).body.state.contacts.filter(c => c.waLid === '999888777666');
+  assert.equal(duda.length, 1, 'o mesmo contato');
+  assert.equal(duda[0].phone, '+5571944443333');
   const state = (await local.call('/api/state?workspace=demo')).body.state;
   const carlos = state.contacts.find(c => c.name === 'Carlos Mendes');
   assert.equal(carlos.phone, '+5511977776666');
@@ -100,7 +108,7 @@ test('Evolution API gerenciada: QR, status ao vivo, webhooks de entrada e envio 
   assert.equal(bia.length, 1, 'LID e número real caem no mesmo contato');
   const biaMsgs = state.messages.filter(m => m.contactId === bia[0].id).map(m => m.body);
   assert.deepEqual(biaMsgs.sort(), ['Mensagem via LID', '[Imagem]'].sort());
-  assert.equal(state.messages.some(m => /grupo|status|eco|lid sem/.test(m.body)), false);
+  assert.equal(state.messages.some(m => /grupo|status|eco/.test(m.body)), false);
 
   const reply = await local.call('/api/action?workspace=demo', {
     type: 'message', data: { contactId: carlos.id, channel: 'WhatsApp', direction: 'Outbound', body: 'Claro, qual horário?' }
@@ -225,7 +233,7 @@ test('Teste do servidor: versão e números, chave recusada, endereço errado e 
   evo.instances.set('soci_de_outra_agencia', { state: 'open' });
   let check = (await local.call('/api/whatsapp/agency/server')).body;
   assert.equal(check.ok, true);
-  assert.equal(check.version, '2.3.7');
+  assert.equal(check.version, '2.3.8');
   assert.deepEqual([check.instances, check.connected], [1, 0], 'só conta as instâncias desta agência');
   evo.markOpen('soci_demo', '5531988887777', 'Demo');
   check = (await local.call('/api/whatsapp/agency/server')).body;

@@ -4,7 +4,9 @@ import { createDecipheriv, createECDH, createPublicKey, hkdfSync, randomBytes, v
 import { blank, execute } from '../model.mjs';
 import { makeServer } from '../server.mjs';
 import { encryptPayload, pushSubscription, vapidHeader, vapidKeys } from '../web-push.mjs';
-import { storePackage, mobileOf } from '../agency-mobile.mjs';
+import { blankAgency, hydrateAgency } from '../agency-model.mjs';
+import { mobileConfig, mobileOf, storePackage } from '../agency-mobile.mjs';
+import { defaultTheme } from '../ui/community-data.js';
 import { actionSpec } from '../ui/workflow-data.js';
 
 // App mobile white-label (6.6) and push notifications: the installable app, its app mode, the store package and
@@ -83,6 +85,18 @@ test('Store package: what is missing, the Bubblewrap manifest and the Digital As
   assert.deepEqual(pack.assetlinks[0].target.sha256_cert_fingerprints, ['AA:'.repeat(31) + 'AA']);
 });
 
+test('An app saved before themes, Início and cover keeps its color, order, hidden modules and links', () => {
+  const old = { appName: 'Agência Sol', primary: '#ff6600', accent: '#222222', loginTitle: 'Welcome back', hidden: ['reputation'], order: ['dashboard', 'contacts', 'conversations'], custom: [{ label: 'Ajuda', url: 'https://ajuda.sol.test/' }], status: 'published', version: 4 };
+  const state = hydrateAgency({ ...blankAgency(), mobileApp: structuredClone(old) });
+  const config = mobileConfig(mobileOf(state), 'agency');
+  assert.deepEqual([config.primary, config.theme.tokens.primary, config.home, config.version], ['#ff6600', '#ff6600', true, 4]);
+  assert.deepEqual([state.mobileApp.hidden, state.mobileApp.custom, state.mobileApp.loginTitle], [old.hidden, old.custom, 'Welcome back'], 'a published app keeps its own words');
+  assert.deepEqual(config.modules.slice(0, 3).map(row => row.key ?? row.route), ['dashboard', 'contacts', 'conversations']);
+  const draft = mobileOf(hydrateAgency({ ...blankAgency(), mobileApp: { ...structuredClone(old), appName: 'My Agency', status: 'draft' } }));
+  assert.deepEqual([draft.appName, draft.loginTitle], ['Minha Agência', 'Bem-vindo de volta']);
+  assert.equal(mobileOf(hydrateAgency(blankAgency())).theme.preset, defaultTheme().preset, 'a new agency starts with the default theme');
+});
+
 test('Server: the agency publishes the app; install page, manifest, worker and app-mode config; push to the team', async t => {
   const pushed = [];
   const keys = vapidKeys();
@@ -105,12 +119,39 @@ test('Server: the agency publishes the app; install page, manifest, worker and a
   assert.equal((await agencyAct({ type: 'mobile-app-publish' })).status, 200);
 
   const page = await fetch(`${base}/mobile/agency/`);
-  assert.match(await page.text(), /href="\/app\?shell=mobile&amp;agency=agency"/);
+  const html = await page.text();
+  assert.match(html, /href="\/app\?shell=mobile&amp;agency=agency#home"/);
+  assert.match(html, /rel="manifest" href="\/mobile\/agency\/manifest\.webmanifest"/);
+  assert.match(html, /serviceWorker\.register\('\/mobile\/agency\/sw\.js'/);
+  assert.match(html, /<h1>Agência Sol<\/h1><p>Bem-vindo<\/p>/);
+  assert.match(page.headers.get('content-security-policy'), /style-src 'self' 'unsafe-inline'/);
+  for (const file of ['/mobile-app.css', '/mobile-app-view.js', '/mobile-home-data.js']) assert.equal((await fetch(base + file)).status, 200, file);
   const manifest = await call('/mobile/agency/manifest.webmanifest');
   assert.deepEqual([manifest.body.name, manifest.body.theme_color, manifest.body.display, manifest.body.icons.length], ['Agência Sol', '#ff6600', 'standalone', 3]);
   const config = (await call('/mobile/agency/config.json')).body;
   assert.deepEqual(config.modules.map(m => m.route), ['conversations', 'contacts', 'calendars', 'payments', 'dashboard', 'opportunities']);
   assert.deepEqual(config.custom, [{ label: 'Ajuda', url: 'https://ajuda.sol.test/' }]);
+  assert.deepEqual([config.primary, config.theme.tokens.primary, config.home], ['#ff6600', '#ff6600', true], 'only a color: the theme comes from it');
+
+  // Theme, Início and cover; what a save leaves out stays as it was.
+  const look = data => agencyAct({ type: 'mobile-app', data: { appName: 'Agência Sol', ...data } });
+  assert.equal((await look({ theme: { preset: 'floresta', tokens: {} }, home: false, cover: PNG })).status, 200);
+  assert.equal((await call('/mobile/agency/manifest.webmanifest')).body.theme_color, '#1f7a4d');
+  const cover = await fetch(base + '/mobile/agency/cover');
+  assert.deepEqual([cover.status, cover.headers.get('content-type')], [200, 'image/png']);
+  assert.match(await (await fetch(base + '/mobile/agency/')).text(), /\/mobile\/agency\/cover\?v=[\s\S]*href="\/app\?shell=mobile&amp;agency=agency"/, 'without Início the app opens on its first module');
+  assert.equal((await look({})).status, 200);
+  const kept = (await call('/mobile/agency/config.json')).body;
+  assert.deepEqual([kept.theme.preset, kept.home, kept.modules.length, kept.custom.length, kept.modules[0].route], ['floresta', false, 6, 1, 'conversations']);
+  assert.equal((await fetch(base + '/mobile/agency/cover')).status, 200);
+  assert.equal((await look({ cover: 'remove', home: true })).status, 200);
+  assert.equal((await fetch(base + '/mobile/agency/cover')).status, 404);
+  assert.match((await look({ theme: { preset: 'custom', tokens: { primary: 'vermelho' } } })).body.error, /#RRGGBB/);
+  assert.match((await look({ primary: 'vermelho' })).body.error, /cor/);
+  assert.match((await look({ cover: 'data:text/html;base64,AAAA' })).body.error, /imagem/);
+  assert.match((await look({ cover: 'data:image/png;base64,' + 'A'.repeat(700001) })).body.error, /grande/);
+  assert.match((await look({ appName: '' })).body.error, /nome/i);
+  assert.match((await look({ custom: [{ label: 'x', url: 'javascript:alert(1)' }] })).body.error, /http/);
   const worker = await fetch(`${base}/mobile/agency/sw.js`);
   assert.equal(worker.headers.get('service-worker-allowed'), '/mobile/agency/');
   assert.match(await worker.text(), /showNotification/);

@@ -52,6 +52,15 @@ try {
     live = await sub('status');
   }
   check('QR Code recebido', /^data:image\//.test(live.qrcode || ''), live.error || live.status);
+  // As operações da vigia, no servidor real: listar, buscar mensagens e conferir o webhook.
+  const [target] = await handler.guardOps.guardTargets(agencyId, [workspace]);
+  const all = await handler.guardOps.liveAll(target.creds);
+  check('vigia: lista as instâncias', all.has(target.sub.instanceName));
+  const found = await handler.guardOps.findMessages(target, { from: Date.now() - 3600_000, until: Date.now(), page: 1, size: 100 });
+  check('vigia: busca mensagens', Array.isArray(found.records));
+  check('vigia: webhook certo não é mexido', await handler.guardOps.repairWebhook(target, common.publicOrigin) === false);
+  await fetch(`${baseUrl.replace(/\/+$/, '')}/webhook/set/soci_${workspace}`, { method: 'POST', headers: { apikey: apiKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ webhook: { enabled: true, url: 'https://errado.invalid/x', byEvents: false, base64: false, events: ['MESSAGES_UPSERT'] } }) });
+  check('vigia: webhook trocado é consertado', await handler.guardOps.repairWebhook(target, common.publicOrigin) === true && await handler.guardOps.repairWebhook(target, common.publicOrigin) === false);
   const now = await agency('server');
   check('instância aparece no servidor', now.instances === 1);
 } catch (err) {

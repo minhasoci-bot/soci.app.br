@@ -8,7 +8,7 @@ export const intervals = ['Weekly', 'Monthly', 'Yearly'];
 export const subscriptionStatuses = ['Active', 'Paused', 'Canceled'];
 export const paymentMethods = ['Manual', 'Cash', 'Bank transfer', 'Pix', 'Card', 'Boleto'];
 export const transactionSources = ['Invoice', 'Subscription', 'Payment link', 'Manual'];
-export const transactionStatuses = ['Succeeded', 'Refunded', 'Failed'];
+export const transactionStatuses = ['Succeeded', 'Refunded', 'Disputed', 'Failed'];
 export const couponKinds = ['Percent', 'Fixed'];
 export const bulkOperations = {
   contacts: [['add-tag', 'Add tag'], ['remove-tag', 'Remove tag'], ['delete', 'Delete']],

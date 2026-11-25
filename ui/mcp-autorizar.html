@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Conectar uma IA · Soci</title>
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/graao-dark.css">
+  <link rel="stylesheet" href="/graao.css">
+  <link rel="stylesheet" href="/button-system.css">
+  <link rel="stylesheet" href="/mcp.css"><link rel="stylesheet" href="/liquid-glass.css">
+  <script type="module" src="/mcp-autorizar.js"></script>
+</head>
+<body>
+  <main class="mcp-consent">
+    <p class="dim">Soci / Conectar uma IA</p>
+    <h1 id="title">Conferindo o pedido…</h1>
+    <p id="notice" role="status"></p>
+    <form id="consent" class="surface" hidden>
+      <p id="who" class="dim"></p>
+      <label>Subconta<select name="workspace" required></select></label>
+      <fieldset>
+        <legend>O que a IA pode fazer</legend>
+        <label class="mcp-choice"><input type="radio" name="access" value="read" checked><b>Só ler</b><small class="dim">Ver contatos, conversas, agenda, funis, posts e faturas, conforme o seu acesso.</small></label>
+        <label class="mcp-choice"><input type="radio" name="access" value="write"><b>Ler e agir</b><small class="dim">Também criar e mudar registros, enviar mensagens a contatos, publicar posts e inscrever em fluxos, em seu nome.</small></label>
+      </fieldset>
+      <p class="dim">Só autorize se foi você quem pediu esta conexão. Para desconectar: Marketing › Planejador social › IA & MCP.</p>
+      <footer><button type="button" class="secondary" id="deny">Recusar</button><button class="primary">Autorizar</button></footer>
+    </form>
+  </main>
+</body>
+</html>

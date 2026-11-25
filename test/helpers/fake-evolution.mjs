@@ -5,6 +5,8 @@ const json = (data, status = 200) => new Response(JSON.stringify(data), { status
 // Evolution API v2 falsa: só o que o soci usa.
 export function fakeEvolution() {
   const calls = [];
+  const media = new Map(); // id da mensagem -> { mimetype, base64 }, para /chat/getBase64FromMediaMessage
+  const store = []; // mensagens guardadas no servidor, para /chat/findMessages
   const instances = new Map(); // name -> { state, ownerJid, profileName, webhook, pairing }
   async function request(url, init = {}) {
     const u = new URL(url);
@@ -12,7 +14,7 @@ export function fakeEvolution() {
     const body = init.body ? JSON.parse(init.body) : null;
     const headers = Object.fromEntries(Object.entries(init.headers || {}).map(([k, v]) => [k.toLowerCase(), v]));
     calls.push({ path: u.pathname, search: u.search, method, headers, body });
-    if (u.pathname === '/') return json({ status: 200, message: 'Welcome to the Evolution API, it is working!', version: '2.3.7' });
+    if (u.pathname === '/') return json({ status: 200, message: 'Welcome to the Evolution API, it is working!', version: '2.3.8' });
     if (headers.apikey !== API_KEY) return json({ status: 401, error: 'Unauthorized', response: { message: 'Unauthorized' } }, 401);
 
     if (u.pathname === '/instance/create' && method === 'POST') {
@@ -50,6 +52,18 @@ export function fakeEvolution() {
       return json({ status: 'SUCCESS', error: false, response: { message: 'Instance deleted' } });
     }
     if (group === 'webhook' && action === 'find') return json(inst.webhook);
+    if (group === 'chat' && action === 'findMessages' && method === 'POST') {
+      const { gte, lte } = body.where.messageTimestamp, at = value => Math.floor(Date.parse(value) / 1000);
+      const rows = store.filter(m => m.instance === name && m.messageTimestamp >= at(gte) && m.messageTimestamp <= at(lte)).sort((a, b) => b.messageTimestamp - a.messageTimestamp);
+      return json({ messages: { total: rows.length, pages: Math.ceil(rows.length / body.offset), currentPage: body.page, records: rows.slice((body.page - 1) * body.offset, body.page * body.offset) } });
+    }
+    if (group === 'chat' && action === 'getBase64FromMediaMessage' && method === 'POST') {
+      const file = media.get(body.message?.key?.id);
+      if (file?.timeout) throw Object.assign(new Error('timeout'), { name: 'TimeoutError' });
+      return file ? json({ mediaType: 'imageMessage', fileName: 'arquivo', ...file }, 201) : json({ status: 400, error: 'Bad Request', response: { message: ['Message not found'] } }, 400);
+    }
+    if (group === 'chat' && action === 'fetchBusinessProfile' && method === 'POST') return json({ isBusiness: false, number: body.number });
+    if (group === 'instance' && action === 'restart' && method === 'POST') return json({ instance: { instanceName: name, state: 'open' } });
     if (group === 'webhook' && action === 'set' && method === 'POST') {
       inst.webhook = body.webhook;
       return json({ webhook: { instanceName: name, ...body.webhook } }, 201);
@@ -73,5 +87,5 @@ export function fakeEvolution() {
     return new Response('Not found', { status: 404 });
   }
   const markOpen = (name, phone, profileName) => Object.assign(instances.get(name), { state: 'open', ownerJid: `${phone}@s.whatsapp.net`, profileName });
-  return { request, calls, instances, markOpen };
+  return { request, calls, instances, store, media, markOpen };
 }

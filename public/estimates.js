@@ -3,6 +3,7 @@
 import { icon } from './icons.js';
 import { h, fmt, pageShell, search } from './screens.js';
 import { crmTabs } from './crm.js';
+import { invoicePaymentState, invoiceStateLabels } from './invoice-data.js';
 import { estimateStatuses, estimateTabs, renderEstimate } from './estimate-render.js';
 import { lineItemAction, lineItemInput, lineItemsEditor, itemsTotal } from './line-items.js';
 
@@ -100,7 +101,7 @@ function sentView(c, row) {
     <p class="dc-locked surface" role="status">${h(notes[row.status] || '')}</p>
     <div class="es-grid sent"><div class="es-preview" data-no-translate="1">${preview(c, row)}</div>
       <aside class="dc-sent-side">${invoice ? `<section><h2>Fatura</h2><ul class="dc-pay-list"><li><span data-no-translate="1">${h(invoice.title)}</span><small>${money(invoice.value)} · vence ${h(fmt(invoice.due, zone))}</small>
-          ${badge(invoice.status === 'Paid' ? 'Paga' : invoice.status === 'Void' ? 'Anulada' : 'Em aberto', invoice.status === 'Paid' ? 'green' : 'blue')}</li></ul><a class="secondary" href="#payments/invoices">Ver em Faturas</a></section>` : ''}
+          ${badge(...invoiceStateLabels[invoicePaymentState(invoice)])}</li></ul><a class="secondary" href="#payments/invoices">Ver em Faturas</a></section>` : ''}
         <section><h2>Trilha</h2><ol class="dc-trail">${[...(row.audit || [])].reverse().map(entry => `<li><b>${h(trailNames[entry.event] || entry.event)}</b> · ${h(fmt(entry.at, zone, true))}${entry.detail ? ` · <span data-no-translate="1">${h(entry.detail)}</span>` : ''}${entry.ip ? ` · IP ${h(entry.ip)}` : ''}</li>`).join('')}</ol></section></aside></div></div>`;
 }
 

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { blank, execute } from '../model.mjs';
 import { makeServer } from '../server.mjs';
 import { signBody } from '../abacatepay.mjs';
+import { saveFiscal } from './helpers/fiscal.mjs';
 
 const KEY = 'abc_dev_shopkey_0000bbbb';
 const save = (s, key, data, id) => execute(s, { type: 'save', key, id, data });
@@ -73,6 +74,7 @@ test('Free offers enroll at once; paid offers enroll after AbacatePay confirms t
 
   const paid = await saveRemote('offers', { title: 'Pacote', courseIds: [course], type: 'one_time', price: 97, status: 'published' });
   assert.equal((await send(`/api/offer/demo/${paid}`, { name: 'Dani', email: 'dani@example.test' })).status, 409);
+  await send('/api/action?workspace=demo', saveFiscal);
   const connected = (await send('/api/abacatepay/workspace/connect?workspace=demo', { apiKey: KEY })).body;
   const bought = await send(`/api/offer/demo/${paid}`, { name: 'Dani', email: 'dani@example.test' });
   assert.match(bought.body.payUrl, /^https:\/\/app\.abacatepay\.com\/pay\/bill_/);
@@ -81,7 +83,7 @@ test('Free offers enroll at once; paid offers enroll after AbacatePay confirms t
   assert.deepEqual([invoice.status, invoice.value], ['Open', 97]);
   assert.equal((await send('/api/client-portal/demo/admin')).body.members.some(row => row.email === 'dani@example.test'), false);
 
-  const event = { id: 'log_offer_1', event: 'checkout.completed', data: { checkout: { id: invoice.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID' }, payerInformation: { method: 'PIX' } } };
+  const event = { id: 'log_offer_1', event: 'checkout.completed', data: { checkout: { id: invoice.payment.checkoutId, frequency: 'ONE_TIME', status: 'PAID', paidAmount: Math.round(invoice.value * 100) }, payerInformation: { method: 'PIX' } } };
   const raw = JSON.stringify(event);
   const hook = await fetch(`${connected.webhookUrl}?webhookSecret=${connected.webhookSecret}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': signBody(raw) }, body: raw });
   assert.equal(hook.status, 200);

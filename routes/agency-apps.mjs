@@ -10,7 +10,7 @@ import { assetBytes } from '../asset-store.mjs';
 import { NEXT_ROUTE } from './next-route.mjs';
 
 const desktopPath = /^\/desktop\/([\w-]{1,60})\/(manifest\.webmanifest|sw\.js|icon-(?:192|512|1024)\.png)?$/;
-const mobilePath = /^\/mobile\/([\w-]{1,60})\/(manifest\.webmanifest|sw\.js|config\.json|icon-(?:192|512|1024)\.png)?$/;
+const mobilePath = /^\/mobile\/([\w-]{1,60})\/(manifest\.webmanifest|sw\.js|config\.json|icon-(?:192|512|1024)\.png|cover)?$/;
 
 export function createAgencyAppRoutes(deps) {
   const { store, auth, ready, error, loadAgency } = deps;
@@ -33,6 +33,11 @@ export function createAgencyAppRoutes(deps) {
         const image = source && await assetBytes(store, source);
         if (!image) throw error('Ícone não encontrado.',404);
         return done('image/png', image.bytes);
+      }
+      if (part === 'cover') {
+        const image = app.cover && await assetBytes(store, app.cover);
+        if (!image) throw error('Capa não encontrada.',404);
+        return done(image.mime, image.bytes);
       }
       return done('text/html; charset=utf-8', mobileLaunchPage(app, agencyId), { 'Content-Security-Policy':mobileCsp, 'Referrer-Policy':'no-referrer' });
     }

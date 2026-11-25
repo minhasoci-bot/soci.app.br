@@ -1792,7 +1792,7 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       }
     }
     if (key === 'invoices' && (!prior || prior.status !== row.status)) emit(s, 'invoice_status', { ...base, status: row.status, total: row.value });
-    if (key === 'transactions' && !prior) emit(s, 'payment_received', { ...base, total: row.amount });
+    if (key === 'transactions' && !prior && row.status === 'Succeeded') emit(s, 'payment_received', { ...base, total: row.amount });
     if (key === 'transactions' && row.status === 'Refunded' && prior?.status !== 'Refunded') emit(s, 'refund', { ...base, total: row.amount, transactionId: row.id });
     if (key === 'subscriptions' && (!prior || prior.status !== row.status)) emit(s, 'subscription_status', { ...base, status: row.status, subscriptionId: row.id });
     if (key === 'appointments' && !prior && row.serviceId) {

@@ -1,11 +1,13 @@
 import { createSocialRoutes } from './routes/social.mjs';
 import { createPortalRoutes } from './routes/portal.mjs';
 import { createPranchetaRoutes } from './routes/prancheta.mjs';
-import { createActionRoutes } from './routes/action.mjs';
+import { createActionRoutes, createCommandRunner } from './routes/action.mjs';
 import { createPlatformRoutes } from './routes/platform.mjs';
 import { createPlatformMonitor } from './platform-monitor.mjs';
 import { createAdsRoutes } from './routes/ads.mjs';
+import { createBillingRoutes } from './routes/billing.mjs';
 import { createEmailRoutes } from './routes/email.mjs';
+import { createMcpRoutes } from './routes/mcp.mjs';
 import { createMetaRoutes } from './routes/meta.mjs';
 import { createGbpRoutes, createGoogleRoutes } from './routes/google.mjs';
 import { createAgentRoutes } from './routes/agents.mjs';
@@ -25,6 +27,19 @@ import { createCertificateRoutes } from './routes/certificates.mjs';
 import { createShareRoutes } from './routes/shares.mjs';
 import { createBlogRoutes } from './routes/blog.mjs';
 import { createChatRoutes } from './routes/chat.mjs';
+import { createFormRoutes } from './routes/forms.mjs';
+import { createWorkflowHookRoutes } from './routes/workflow-hooks.mjs';
+import { createCountdownRoutes } from './routes/countdowns.mjs';
+import { createEmailTrackingRoutes } from './routes/email-tracking.mjs';
+import { createLinkRoutes } from './routes/links.mjs';
+import { createInboxRoutes } from './routes/inbox.mjs';
+import { createWhatsappRoutes, createWhatsappWebhookRoutes } from './routes/whatsapp.mjs';
+import { createAskRoutes } from './routes/ask.mjs';
+import { createBrandAIRoutes, createContentAIRoutes, createConversationAIRoutes } from './routes/content-ai.mjs';
+import { createSeoRoutes } from './routes/seo.mjs';
+import { createConnectorHookRoutes, createConnectorRoutes } from './routes/connectors.mjs';
+import { createPhoneRoutes, createTwilioWebhookRoutes } from './routes/phone.mjs';
+import { createPushRoutes } from './routes/push.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
@@ -41,21 +56,18 @@ import { designAgent, replyAsAgent } from './agent-ai.mjs';
 import { createOpenAI, openAIModel } from './openai.mjs';
 import { agentWorkflowRequest, recordAgentRun } from './agent-model.mjs';
 import { agencyAiUsage, checkAiBudget, setAiAccess, setAiLimit, usageMeter } from './ai-model.mjs';
-import { requireLab, setLabsOffer } from './labs-model.mjs';
-import { conversationRequest, writeConversationReply, writeConversationSummary } from './conversation-ai.mjs';
+import { setLabsOffer } from './labs-model.mjs';
+import { writeConversationReply, writeConversationSummary } from './conversation-ai.mjs';
 import { addInstall, appSecret, appSignature, installedCopy, removeInstall, tokenHash as appTokenHash } from './app-studio-model.mjs';
-import { brandVoiceRequest, emailRequest, reviewReplyRequest, transformRequest, transformText, writeBrandVoice, writeEmail, writeReviewReply } from './content-ai.mjs';
-import { brandFromPage, fetchPublicPage } from './brand-model.mjs';
-import { brandVoicePrompt, defaultBoard, voiceTraits } from './ui/brand-data.js';
-import { contentModule } from './ui/content-ai-data.js';
+import { transformText, writeBrandVoice, writeEmail, writeReviewReply } from './content-ai.mjs';
+import { brandVoicePrompt, defaultBoard } from './ui/brand-data.js';
 import { runWorkflowAI } from './workflow-ai.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
-import { formOpen, formPage, readAnswers } from './ui/form-fields.js';
-import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess } from './agency-model.mjs';
+import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, replaceBilling } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
-import { auditableUrl, collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
+import { collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
 import { importedFile, importedMeta, mediaLimitBytes, mediaTypes } from './media-model.mjs';
 import { R2_MAX_BYTES, r2FromEnv } from './r2-storage.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
@@ -64,11 +76,12 @@ import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, send
 import { hasPixels, injectPixels, widenCsp } from './tracking.mjs';
 import { createTrackingLog } from './tracking-events.mjs';
 import { scopedReads } from './read-scope.mjs';
+import { createLedgerFlush, isAgencyRow, watchLedger } from './ledger-flush.mjs';
 import { localScheduler, startupLines } from './local-scheduler.mjs';
 import { AUDIT_IN_DOCUMENT, createAuditLog } from './agency-audit.mjs';
 import { adSettingsOf, storeAdSync } from './ads-model.mjs';
 import { cleanTouch, touchFromVisit } from './ui/ads-data.js';
-import { freshSecret, googleConfigured, googleError, googleReports, listLocations, locationDetails, searchError, searchReport } from './google-integrations.mjs';
+import { freshSecret, googleConfigured, googleError, googleReports, listLocations, locationDetails } from './google-integrations.mjs';
 import { gbpChecklist } from './ui/gbp-data.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
@@ -113,32 +126,29 @@ import { writeCaption } from './social-ai.mjs';
 import { reportMailer } from './report-share.mjs';
 import { documentMailer, documentMessage } from './document-mail.mjs';
 import { campaignMailer } from './email-campaign-send.mjs';
-import { countdownGif } from './countdown-gif.mjs';
-import { deadlineOf, embedPage } from './ui/countdown-data.js';
 import { emailDomains, workspaceSender } from './email-domain.mjs';
 import { abandonedOf } from './checkout-model.mjs';
 import { reportsDue } from './report-model.mjs';
 import { brandGroupData } from './ui/brand-group-data.js';
 import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
+import { createMessageMedia } from './message-media.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
+import { createWhatsAppGuard } from './whatsapp-guard.mjs';
 import { createAbacatePayHandler } from './abacatepay.mjs';
 import { makeClientPortal } from './client-portal.mjs';
 import { makeCommunity } from './community.mjs';
 import { fillWelcome } from './community-config.mjs';
-import { leaveCsp, leavePage, outcomeOf, resolveDestination } from './destinations.mjs';
-import { audioLimit, audioTypes, summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
+import { leaveCsp, leavePage } from './destinations.mjs';
+import { summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
 import { askAssistant } from './seo-ai.mjs';
-import { addTopup, paidTopup, pricingFor, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
-import { mobileOf, storePackage } from './agency-mobile.mjs';
-import { pushConfigured, pushSubscription, sendPush } from './web-push.mjs';
+import { addTopup, closeUsage, disputeTopup, paidTopup, pricingFor, reverseTopup, usageToClose, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
+import { sendPush } from './web-push.mjs';
 import { pushTargets } from './push-model.mjs';
-import { pollConnector, readWebhook, runConnectorAction, testConnection } from './connectors.mjs';
-import { connectorPublic, pollJobs } from './connector-model.mjs';
-import { connectorById, connectors as connectorCatalog } from './ui/connectors-data.js';
-import { seal as sealSecret, unseal as unsealSecret } from './social-providers.mjs';
-import { createMcpHandler } from './mcp-server.mjs';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { pollConnector, runConnectorAction } from './connectors.mjs';
+import { pollJobs } from './connector-model.mjs';
+import { unseal as unsealSecret } from './social-providers.mjs';
+import { randomBytes } from 'node:crypto';
 import { postSeo, writePost } from './blog-ai.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
 import { ASSET_PATH, assetBytes, extractAssets, saveAssets } from './asset-store.mjs';
@@ -158,7 +168,7 @@ export const staticFiles = new Map([
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio-blocks.js','text/javascript; charset=utf-8'], ['/site-template-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/fiscal.js','text/javascript; charset=utf-8'], ['/tax-id.js','text/javascript; charset=utf-8'], ['/ledger.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/destination-field.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
   ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/platform.js','text/javascript; charset=utf-8'], ['/platform-format.js','text/javascript; charset=utf-8'], ['/setup-art.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/deck-model.js','text/javascript; charset=utf-8'], ['/deck-render.js','text/javascript; charset=utf-8'], ['/deck-editor.js','text/javascript; charset=utf-8'], ['/deck.css','text/css; charset=utf-8'],
@@ -174,11 +184,12 @@ export const staticFiles = new Map([
   ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
   ['/opportunity-data.js','text/javascript; charset=utf-8'], ['/opportunity-filters.js','text/javascript; charset=utf-8'], ['/opportunities.js','text/javascript; charset=utf-8'], ['/opportunities.css','text/css; charset=utf-8'],
   ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'], ['/event-planner.js','text/javascript; charset=utf-8'], ['/event-planner-data.js','text/javascript; charset=utf-8'], ['/event-copy-editor.js','text/javascript; charset=utf-8'], ['/event-message-parts.js','text/javascript; charset=utf-8'], ['/event-sends.js','text/javascript; charset=utf-8'], ['/event-planner.css','text/css; charset=utf-8'],
-  ['/social-connect.js','text/javascript; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
+  ['/social-connect.js','text/javascript; charset=utf-8'], ['/mcp.js','text/javascript; charset=utf-8'], ['/mcp-autorizar.js','text/javascript; charset=utf-8'], ['/mcp.css','text/css; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
   ['/prancheta-editor.html','text/html; charset=utf-8'], ['/vendor/prancheta-editor.js','text/javascript; charset=utf-8'], ['/vendor/prancheta-editor.css','text/css; charset=utf-8'],
-  ['/style.css','text/css; charset=utf-8'], ['/button-system.css','text/css; charset=utf-8'], ['/tokens.css','text/css; charset=utf-8'], ['/liquid-glass.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
-  ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
+  ['/mobile-app-view.js','text/javascript; charset=utf-8'], ['/mobile-home-data.js','text/javascript; charset=utf-8'], ['/mobile-app.css','text/css; charset=utf-8'], ['/mobile-creator.css','text/css; charset=utf-8'],
+  ['/style.css','text/css; charset=utf-8'], ['/button-system.css','text/css; charset=utf-8'], ['/page-layout.css','text/css; charset=utf-8'], ['/tokens.css','text/css; charset=utf-8'], ['/liquid-glass.css','text/css; charset=utf-8'], ['/index.html','text/html; charset=utf-8'],
+  ['/graao.css','text/css; charset=utf-8'], ['/lucide-animated.css','text/css; charset=utf-8'], ['/inbox.css','text/css; charset=utf-8'], ['/inbox.js','text/javascript; charset=utf-8'], ['/inbox-data.js','text/javascript; charset=utf-8'], ['/message-media.js','text/javascript; charset=utf-8'], ['/inbox-live.js','text/javascript; charset=utf-8'], ['/graao-dark.css','text/css; charset=utf-8'], ['/graao.js','text/javascript; charset=utf-8'], ['/sidebar.js','text/javascript; charset=utf-8'],
   ['/topbar.js','text/javascript; charset=utf-8'], ['/i18n.js','text/javascript; charset=utf-8'],
   ['/fonts/plus-jakarta-sans.woff2','font/woff2'], ['/favicon.svg','image/svg+xml'],
   ['/privacidade.html','text/html; charset=utf-8'], ['/skull_flame_animated.svg','image/svg+xml'],
@@ -202,7 +213,7 @@ const privateSpace = /^user-[0-9a-f-]{36}$/;
 // Why a WhatsApp message was not delivered, as the "Falha no envio de mensagem" trigger names it.
 // documentMail.email answers with a sentence: "e-mail enviado…" when Resend accepted it, anything else is a failure.
 const mailSent = outcome => typeof outcome === 'string' ? /^e-mail enviado/.test(outcome) : Boolean(outcome);
-const deliveryFailure = reason => ({ 'not-connected': 'not_connected', 'invalid-phone': 'invalid_phone', 'account-suspended': 'suspended' })[reason] || 'provider_error';
+const deliveryFailure = reason => ({ 'not-connected': 'not_connected', 'invalid-phone': 'invalid_phone', 'account-suspended': 'suspended', 'server-down': 'server_down', unconfirmed: 'unconfirmed', 'wrong-recipient': 'wrong_recipient' })[reason] || 'provider_error';
 const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
@@ -210,14 +221,6 @@ const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|hom
 const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
 const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout|cart|restore|review|view)$`);
-const formPath = new RegExp(`^/form/${workspaceSegment}/([0-9a-f-]{36})/?$`);
-const redirectPath = new RegExp(`^/r/${workspaceSegment}/([0-9a-f-]{36})$`);
-const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const emailTrackPath = new RegExp(`^/e/(o|c|u)/${workspaceSegment}/([0-9a-f]{24})(?:/([0-9]{1,3}))?$`);
-const countdownPath = new RegExp(`^/cd/${workspaceSegment}/([0-9a-f-]{36})([.]gif)?$`);
-// A transparent 1x1 GIF for timers that no longer exist (an e-mail must not show a broken image).
-const blankGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
-const hookPath = new RegExp(`^/hooks/${workspaceSegment}/([0-9a-f-]{36})/([a-z0-9]{6,40})$`, 'i');
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
 const socialInvitePath = new RegExp(`^/social-connect/${workspaceSegment}/?$`);
 const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
@@ -229,7 +232,7 @@ const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 function publicAgency(agency, who) {
   // The audit log has its own endpoint (GET /api/agency/audit).
-  const { audit: _audit, ...shared } = agency;
+  const { audit: _audit, ledgerOutbox: _outbox, mcpGrants: _grants, ...shared } = agency;
   const view = { ...shared,
     snapshots: agency.snapshots.map(({ studioSites: _studioSites, ...rest }) => rest),
     apiKeys: agency.apiKeys.map(({ hash: _hash, ...rest }) => rest),
@@ -237,10 +240,10 @@ function publicAgency(agency, who) {
   };
   if (!who.settings) {
     const empty = blankAgency();
-    for (const key of ['profile', 'users', 'billing', 'apiKeys', 'privateIntegrations', 'emailServices', 'systemEmails', 'compliance']) {
+    for (const key of ['profile', 'users', 'billing', 'fiscal', 'apiKeys', 'privateIntegrations', 'emailServices', 'systemEmails', 'compliance']) {
       if (Object.hasOwn(empty, key)) view[key] = empty[key];
     }
-    view.accounts = Object.fromEntries(Object.entries(agency.accounts).map(([id, { statusHistory, ignoredWebhooks, suspendedReason, billing, ...meta }]) => [id, meta]));
+    view.accounts = Object.fromEntries(Object.entries(agency.accounts).map(([id, { statusHistory, ignoredWebhooks, suspendedReason, suspendedBy, billing, ...meta }]) => [id, meta]));
   }
   if (who.modules !== null || !who.settings) view.snapshots = view.snapshots.map(({ assets, shareCode, ...snap }) => snap);
   // Setups imported with asset protection show only how many records each type has, never the records.
@@ -281,6 +284,9 @@ export function makeServer({
 }={}) {
   const cronReads = scopedReads(store);
   store = cronReads.store;
+  // Any write that leaves billing facts in a document's outbox sends them to the ledger right after.
+  const ledgerFlush = createLedgerFlush({ store });
+  store = watchLedger(store, id => inBackground(`Livro (${id})`, () => ledgerFlush.any(id)));
   const localAccess = !auth && !process.env.VERCEL && allowLocalAccess;
   const content = { transformText, writeEmail, writeReviewReply, writeBrandVoice, writeCaption, writePost, postSeo, transcribeAudio, summarizeMeeting, askAssistant, writeConversationReply, writeConversationSummary, ...contentAI };
   // The default brand board's voice, added by the server to every AI writer (never taken from the browser).
@@ -343,8 +349,12 @@ export function makeServer({
   const abacate = createAbacatePayHandler({ store, secret: openAISecret, request: abacatePayRequest });
   const whatsapp = createWhatsAppHandler({
     store, secret: openAISecret, request: whatsappRequest,
-    evolutionBaseUrl, evolutionApiKey
+    evolutionBaseUrl, evolutionApiKey,
+    onMedia: (agencyId, workspace, messages) => {
+      if (messageMedia.enabled) inBackground(`Message media (${workspace})`, () => messageMedia.store(agencyId || AGENCY_ID, workspace, messages));
+    }
   });
+  const messageMedia = createMessageMedia({ r2, load: workspace => store.load(workspace), fetchMedia: (...args) => whatsapp.fetchWorkspaceMedia(...args), redirect: (...args) => redirectToR2(...args) });
   // A quiz, an assignment or a grade: the student's contact gets the course triggers in the workflows.
   const onCourseActivity = async (workspace, data) => { await change(workspace, { type: 'course-activity', data }); flushLater(workspace); };
   // A member signed in to the portal: "Login no portal do cliente" (first sign-in = signup).
@@ -637,6 +647,12 @@ export function makeServer({
     belongsCache.set(cacheKey, { result, expiresAt: now + BELONGS_CACHE_TTL });
     return result;
   }
+  // A gateway is only connected for the first time when the books can say who sells; who already charges keeps going.
+  async function requireFiscal(fiscal, agencyId, scope) {
+    if (fiscal || await abacate.connected(agencyId, scope)) return;
+    throw Object.assign(error('Complete o cadastro fiscal em Configurações antes de conectar o AbacatePay.', 409), { code: 'FISCAL_REQUIRED' });
+  }
+  const retryPolicyOf = agency => ({ maxRetry: agency.saas.autoSuspend.maxRetry, retryEvery: agency.saas.autoSuspend.retryEvery });
   const pausedError = (lifecycle, showReason = false) => Object.assign(
     error(lifecycle.status === 'Closed' ? 'Esta subconta foi encerrada.' : 'Esta subconta está pausada.', 403),
     { code: 'ACCOUNT_SUSPENDED', account: showReason ? lifecycle : { status: lifecycle.status } }
@@ -657,7 +673,6 @@ export function makeServer({
     if (lifecycle.status !== 'Active') throw pausedError(lifecycle, showReason);
     if (module) requireModule(access, module);
   }
-  const mcp = createMcpHandler({ store, change, accountIsActive });
   async function webhookBlockReason(agencyId, id, provider) {
     const access = await systemWorkspaceAccess(id, agencyId);
     if (access.account.status === 'Active') return hasModule(access, 'conversations') ? null : 'MODULE_DISABLED';
@@ -683,7 +698,7 @@ export function makeServer({
     }
     const who = effectiveAccess(agency, actor, id, privateSpace.test(id));
     requireModule(who, ...modules);
-    if (who.account.status !== 'Active' && !(support && who.support)) throw pausedError(who.account, reason);
+    if (who.account.status !== 'Active' && !(support && who.support)) throw pausedError(canReactivate(agency, id, who) ? { ...who.account, canReactivate: true } : who.account, reason);
     return who;
   }
   async function workspaceAccess(req, res, id, options) {
@@ -803,28 +818,36 @@ export function makeServer({
       return { agencyId: match.id, install: { ...install }, app: { ...app } };
     });
   }
-  async function bearer(req, scope) {
+  const KEY_USE_WRITE = 10 * 60000;
+  // Whose key this is and what it may do. Scopes null = a full agency key; account = the only sub-account it opens.
+  async function apiCredential(req) {
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i,'');
     if (!token) throw error('Send an API key in the Authorization header.',401);
     const digest = hash(token);
     // A marketplace app's install token: only its own sub-account and the scopes the app declared.
     if (token.startsWith('soci_app_')) {
       const { agencyId, install, app } = await appBearer(req);
-      if (!app.scopes.includes(scope)) throw error(`O app ${app.name} não tem a permissão ${scope}.`, 403);
-      req.appAccount = install.account;
-      return agencyId;
+      return { agencyId, name: app.name, scopes: app.scopes, account: install.account, app: true };
     }
     const matches = await Promise.all([store.findAgency({ apiKeys: [{ hash: digest }] }), store.findAgency({ privateIntegrations: [{ hash: digest }] })]);
     const match = matches.find(Boolean);
     if (!match) throw error('This key is invalid or lacks the required scope.',401);
-    const allowed = await changeAgency(match.id, agency => {
-      const key = agency.apiKeys.find(k => k.hash === digest) || agency.privateIntegrations.find(k => k.hash === digest);
-      if (!key) return false;
-      key.lastUsed = stamp();
-      return !key.scopes || key.scopes.includes(scope);
+    const keyOf = agency => [...(agency.apiKeys || []), ...(agency.privateIntegrations || [])].find(k => k.hash === digest);
+    const found = keyOf(match.state);
+    // "Last used" only needs to be roughly right: an AI makes many calls in a row, and each write rewrites the agency.
+    if (!(Date.now() - Date.parse(found.lastUsed) < KEY_USE_WRITE)) await changeAgency(match.id, agency => {
+      const key = keyOf(agency);
+      if (key) key.lastUsed = stamp();
     });
-    if (!allowed) throw error('This key is invalid or lacks the required scope.',401);
-    return match.id;
+    return { agencyId: match.id, name: found.name, scopes: found.scopes || null, account: null, app: false };
+  }
+  async function bearer(req, scope) {
+    const key = await apiCredential(req);
+    if (key.scopes && !key.scopes.includes(scope)) {
+      throw key.app ? error(`O app ${key.name} não tem a permissão ${scope}.`, 403) : error('This key is invalid or lacks the required scope.',401);
+    }
+    if (key.account) req.appAccount = key.account;
+    return key.agencyId;
   }
   // ---- AI Studio sites ----
   async function studioGuard(req, res, workspace) {
@@ -1290,7 +1313,7 @@ export function makeServer({
   // Documentos e contratos: signing links by e-mail/WhatsApp, and a per-IP limit on the public signing API.
   // Serviços de e-mail: the sub-account's verified sending domain, or '' to send from the platform address.
   const sendingAddress = async workspace => { try { return workspaceSender(await store.load(`email-${workspace}`)); } catch { return ''; } };
-  const signHits = new Map(), testHits = new Map(), countdownCache = new Map(), trackingHits = new Map();
+  const signHits = new Map(), testHits = new Map(), trackingHits = new Map();
   const trackingLog = createTrackingLog({ store });
   // Tracking events: up to 300 per connection every 10 minutes.
   const allowTracking = ip => {
@@ -1916,6 +1939,33 @@ export function makeServer({
     }, { concurrency: 10, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
     await runInBatches(due, async id => { try { await eventSender.run(id); } catch (e) { console.error(`Event messages (${id}): ${e.message}`); } }, { concurrency: 25, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
   }
+  // Vigia do WhatsApp (whatsapp-guard.mjs): recupera mensagens, conserta webhook, avisa queda e reenvia o que não saiu.
+  async function whatsappIncident({ agencyId, workspaceId, kind, since, reason }) {
+    const agency = await store.load(agencyId), state = await store.load(workspaceId);
+    const people = (agency.users || []).filter(user => user.email && (String(user.role || '').startsWith('Agency') || user.accounts?.includes(workspaceId))).slice(0, 10);
+    const name = state.profile?.name || workspaceId, when = new Date(since).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const why = { server: 'O servidor do WhatsApp não está respondendo.', missing: 'A conexão não existe mais no servidor. Leia o QR Code de novo em Configurações → WhatsApp.',
+      disconnected: 'O número foi desconectado. Se ele não voltar sozinho, leia o QR Code de novo em Configurações → WhatsApp.' }[reason] || '';
+    const subject = kind === 'down' ? `WhatsApp fora do ar: ${name}` : `WhatsApp voltou: ${name}`;
+    const text = kind === 'down' ? `O WhatsApp de ${name} está fora do ar desde ${when}.\n\n${why}` : `O WhatsApp de ${name} voltou a funcionar. Tinha caído em ${when}.\n\nAs mensagens recebidas pelo servidor durante a queda estão sendo buscadas para Conversas.`;
+    for (const user of people) await documentMail.email(user.email, { subject, text }, `wa-${kind}-${workspaceId}-${since}-${user.id}`).catch(() => null);
+  }
+  const whatsappGuard = createWhatsAppGuard({
+    store, onStored: workspace => flushLater(workspace), onIncident: whatsappIncident,
+    wa: { ...whatsapp.guardOps, guardTargets: (agencyId, ids) => whatsapp.guardOps.guardTargets(agencyId, ids, (agency, id) => accountIsActive(agency, id, 'conversations').catch(() => false)) }
+  });
+  async function runWhatsAppGuard(base, spaces, at = Date.now()) {
+    const byAgency = new Map();
+    await runInBatches(spaces.filter(w => !privateSpace.test(w.id)), async ({ id }) => {
+      try {
+        const agencyId = (await store.load(id)).agencyId || AGENCY_ID;
+        byAgency.set(agencyId, [...(byAgency.get(agencyId) || []), id]);
+      } catch (e) { console.error(`WhatsApp guard (${id}): ${e.message}`); }
+    }, { concurrency: 10, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+    await runInBatches([...byAgency], async ([agencyId, ids]) => {
+      try { await whatsappGuard.run(agencyId, ids, base); } catch (e) { console.error(`WhatsApp guard (${agencyId}): ${e.message}`); }
+    }, { concurrency: 5, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+  }
   // Each document is read once per round, not once per task (read-scope.mjs).
   const runAllSocial = (base, at = Date.now()) => cronReads.run(() => runSocialRound(base, at));
   async function runSocialRound(base, at) {
@@ -1923,6 +1973,7 @@ export function makeServer({
     const spaces = (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id));
     await cronReads.prime(spaces.map(w => w.id)).catch(e => console.error(`Cron (revisões): ${e.message}`));
     inBackground('Event messages', () => runAllEventSends());
+    inBackground('WhatsApp guard', () => runWhatsAppGuard(base, spaces));
     const { skipped } = await runInBatches(spaces, async w => {
       try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
       try { await runWebinarReminders(w.id, base); } catch (e) { console.error(`Webinar reminders (${w.id}): ${e.message}`); }
@@ -1930,11 +1981,19 @@ export function makeServer({
       try { await runNewsletters(w.id, base); } catch (e) { console.error(`Community newsletters (${w.id}): ${e.message}`); }
       try { await runWorkflows(w.id); } catch (e) { console.error(`Workflows (${w.id}): ${e.message}`); }
       try { await runReportMail(w.id); } catch (e) { console.error(`Report e-mail (${w.id}): ${e.message}`); }
+      try {
+        const state = await store.load(w.id), today = usageToClose(state, at);
+        if (today) await store.change(w.id, s => closeUsage(s, today));
+        else if (state.ledgerOutbox?.length) await ledgerFlush.workspace(w.id);
+      } catch (e) { console.error(`Livro (${w.id}): ${e.message}`); }
       try { await runRecurringInvoices(w.id); } catch (e) { console.error(`Recurring invoices (${w.id}): ${e.message}`); }
       try { await runAbandonedCheckouts(w.id); } catch (e) { console.error(`Abandoned checkouts (${w.id}): ${e.message}`); }
       try { await runEmailCampaigns(w.id); } catch (e) { console.error(`E-mail campaigns (${w.id}): ${e.message}`); }
       try { await runAllAds(w.id); } catch (e) { console.error(`Ads (${w.id}): ${e.message}`); }
     }, { concurrency: cronConcurrency, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+    for (const { id } of (await store.list()).filter(row => isAgencyRow(row.id))) {
+      try { if ((await store.load(id)).ledgerOutbox?.length) await ledgerFlush.agency(id); } catch (e) { console.error(`Livro (${id}): ${e.message}`); }
+    }
     await trackingLog.sweep(at);
     await auditLog.sweep(at);
     if (skipped.length) console.warn(`Cron: ${skipped.length} de ${spaces.length} workspaces ficaram para o próximo minuto.`);
@@ -2147,13 +2206,17 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const platformRoute = createPlatformRoutes({ monitor: platformMonitor, verifiedUser, agencyOwnerId, auth, localAccess, error, payload });
   const socialRoute = createSocialRoutes({ platformMonitor, store, auth, localAccess, redirectToR2, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
   const adsRoute = createAdsRoutes({ store, localAccess, error, spaceId, privateSpace, stamp, adsAccess, adsCallbackPath, adsPopup, adsView, payload, publicBase, recordAudit, runAds, socialActor, socialRow, workspaceAccess });
-  const actionRoute = createActionRoutes({ store, r2, clearVideoChunks, documentMail, error, spaceId, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, payload, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
+  const runCommand = createCommandRunner({ store, r2, messageMedia, clearVideoChunks, documentMail, error, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
+  const actionRoute = createActionRoutes({ error, spaceId, privateSpace, payload, workspaceAccess, runCommand });
+  const mcpRoute = createMcpRoutes({ store, ready, root, auth, localAccess, error, spaceId, privateSpace, payload, runCommand, publicBase, stamp, recordAudit, listWorkspaces, access, apiCredential, changeAgency, loadAgency, requireWorkspaceAccess, workspaceAccess });
   const emailRoute = createEmailRoutes({ store, ready, error, spaceId, privateSpace, stamp, campaignMail, emailDomainApi, flushLater, inboundFetch, payload, publicAccountPolicy, publicBase, recordAudit, sendingAddress, socialRow, testHits, workspaceAccess });
   const metaRoute = createMetaRoutes({ store, ready, error, change, flushLater, metaFetch, metaRoutesRow, metaSender, publicAccountPolicy });
   const googleRoute = createGoogleRoutes({ store, ready, localAccess, error, spaceId, privateSpace, stamp, workspaceSegment, flushLater, googleCache, googleCallbackPath, googleData, googlePopup, googleView, payload, publicAccountPolicy, publicBase, recordAudit, searchCache, socialActor, socialRow, workspaceAccess });
   const gbpRoute = createGbpRoutes({ store, error, spaceId, change, flushLater, gbpAccess, gbpStatus, payload, recordAudit, workspaceAccess });
   const agentRoute = createAgentRoutes({ store, localAccess, error, spaceId, privateSpace, agentModel, designAgentConfig, generateAgentReply, listWorkspaces, openAI, payload, recordAudit, workspaceAccess });
   const studioRoute = createStudioRoutes({ store, error, change, openAI, payload, siteDoc, studioGuard, studioRequest, syncMeta });
+  const billingRoute = createBillingRoutes({ abacate, accessContext, verifiedUser, canOpen, changeAgency, recordAudit, error, pausedError, publicBase, retryPolicyOf, spaceId,
+    store, access, requireCapability, workspaceAccess, listWorkspaces });
   const storePageRoute = createStorePageRoutes({ store, ready, error, publicAccountPolicy, publicPreview, storePath, withPixels });
   const storeApiRoute = createStoreApiRoutes({ store, ready, error, abacate, allowSign, allowTracking, change, flushLater, payload, publicAccountPolicy, publicBase, storeApi });
   const pranchetaRoute = createPranchetaRoutes({ store, error, access, change, changeAgency, loadAgency, payload, requireActiveAccount, workspaceAccess });
@@ -2169,10 +2232,28 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const shareRoute = createShareRoutes({ store, ready, error, workspaceSegment, brandWorkspaces, publicAccountPolicy });
   const blogRoute = createBlogRoutes({ store, ready, error, workspaceSegment, brandVoiceOf, change, content, meteredAI, openAI, payload, publicAccountPolicy, publicBase, publicPreview, withPixels, workspaceAccess });
   const chatRoute = createChatRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, workspaceAccess });
+  const formRoute = createFormRoutes({ store, ready, error, workspaceSegment, change, formBody, leave, publicAccountPolicy, withPixels, workspaceAccess });
+  const workflowHookRoute = createWorkflowHookRoutes({ store, ready, error, workspaceSegment, change, flushLater, payload, publicAccountPolicy });
+  const countdownRoute = createCountdownRoutes({ store, ready, workspaceSegment, publicAccountPolicy });
+  const emailTrackRoute = createEmailTrackingRoutes({ store, ready, workspaceSegment, change, flushLater, publicAccountPolicy });
+  const linkRoute = createLinkRoutes({ store, ready, workspaceSegment, publicAccountPolicy });
+  const whatsappWebhookRoute = createWhatsappWebhookRoutes({ whatsapp, payload, listWorkspaces, webhookBlockReason, flushLater });
+  const connectorHookRoute = createConnectorHookRoutes({ store, ready, error, change, flushLater, publicAccountPolicy, connectorAuth });
+  const twilioRoute = createTwilioWebhookRoutes({ ready, phone });
+  const connectorRoute = createConnectorRoutes({ store, error, spaceId, privateSpace, change, payload, publicBase, requireActiveAccount, workspaceAccess, connectorRequest });
+  const pushRoute = createPushRoutes({ error, spaceId, privateSpace, change, payload, pushEnv, access, loadAgency, workspaceAccess });
+  const phoneRoute = createPhoneRoutes({ error, spaceId, privateSpace, phone, payload, workspaceAccess });
+  const inboxRoute = createInboxRoutes({ store, error, spaceId, privateSpace, workspaceAccess });
+  const whatsappRoute = createWhatsappRoutes({ messageMedia, error, spaceId, whatsapp, waha, payload, publicBase, listWorkspaces, requireActiveAccount, webhookBlockReason, access, workspaceAccess });
   const siteRoute = createSiteRoutes({ store, ready, error, workspaceSegment, trackingPath, allowTracking, change, changeSite, flushLater, formFields, publicAccountPolicy, publicBase, siteDoc, studioGuard, trackingLog, withPixels });
   const webinarRoute = createWebinarRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, publicBase, publicPreview });
   const qrRoute = createQrRoutes({ store, ready, workspaceSegment, change, publicAccountPolicy, publicBase });
   const reputationRoute = createReputationRoutes({ store, ready, error, workspaceSegment, allowSign, change, clientPortal, flushLater, moveVideoToR2, payload, publicAccountPolicy, publicBase, sendVideo });
+  const askRoute = createAskRoutes({ accessContext, verifiedUser, handleAsk, listWorkspaces, ensureAccounts, agencyWorkspaceViews, publicAgency, abacate });
+  const brandAIRoute = createBrandAIRoutes({ store, error, spaceId, privateSpace, workspaceAccess, payload, brandFetch, brandResolve, localAccess, contentAI, openAI, meteredAI, content });
+  const conversationAIRoute = createConversationAIRoutes({ store, error, spaceId, privateSpace, workspaceAccess, payload, change, flushLater, localAccess, contentAI, openAI, meteredAI, content });
+  const seoRoute = createSeoRoutes({ store, error, spaceId, privateSpace, workspaceAccess, payload, change, flushLater, stamp, prospectAudit, socialRow, searchCache, localAccess, contentAI, openAI, meteredAI, content });
+  const contentAIRoute = createContentAIRoutes({ error, spaceId, privateSpace, workspaceAccess, payload, brandVoiceOf, localAccess, contentAI, openAI, meteredAI, content });
   const server=createServer(async (req,res) => {
     const requestPath = String(req.url || '/').split('?')[0];
     const touches = touchesOf(req), landing = requestPath.match(landingPath);
@@ -2369,6 +2450,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         ]);
         if (who.support) await writeAudit(who, 'Sub-account support viewed', id, who.account.status);
         return json({ ...workspaceView(who, state), workspaces,
+          ...(!isPersonal && hasModule(who, 'settings') && agency.accounts[id]?.billing?.status === 'PastDue' && { billingNotice: 'past_due' }),
           features:{studioAI: Boolean(aiStatus?.configured && studio), socialAI: Boolean(aiStatus?.configured && marketing), contentAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && (marketing || studio)), reviewAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && reputation), reportEmail: reportMail.configured, social: marketing ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
           agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id,who.settings),
           ...(who.support && { account: { ...who.account, support: true, statusHistory: agency.accounts[id]?.statusHistory || [],
@@ -2460,6 +2542,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const result = await change(id, { type: 'tracking-ga4-secret', data: { set: Boolean(secret) } });
         return json(workspaceView(who, result.state));
       }
+      const mcpRouteHandled = await mcpRoute({ req, res, p, method, url, json, send, goTo });
+      if (mcpRouteHandled !== NEXT_ROUTE) return mcpRouteHandled;
       const actionRouteHandled = await actionRoute({ req, res, p, method, url, id, json, send });
       if (actionRouteHandled !== NEXT_ROUTE) return actionRouteHandled;
       if (p==='/api/agency' && method!=='POST') {
@@ -2494,10 +2578,26 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/abacatepay/webhook/') && method === 'POST') {
         await ready;
         return await abacate.handleWebhook({ req, url, json, listWorkspaces, changeAgency,
-          onWalletTopup: async (agencyId, { workspace, checkoutId, method }) => {
+          onSubscription: async (agencyId, { accountId, effect, notify, name, plan, subscriptionId }) => {
+            const twice = effect === 'duplicate';
+            if (!notify && !twice) return;
+            const agency = await loadAgency(agencyId);
+            const to = new Set([agency.profile.email, ...agency.users.filter(user => ['Agency Owner', 'Agency Admin'].includes(user.role)).map(user => user.email)].filter(Boolean).map(email => email.toLowerCase()));
+            const text = twice ? `A subconta ${name} pagou o plano ${plan} em uma assinatura que já tinha sido trocada por outra, que continua ativa.\n\nAs duas seguem cobrando. No painel do AbacatePay, cancele a assinatura ${subscriptionId} e devolva o pagamento, se for o caso.` : `O pagamento do plano ${plan} da subconta ${name} foi recusado (tentativa ${notify}).\n\nO AbacatePay tenta de novo sozinho. Acompanhe em Configurador SaaS → Subcontas SaaS.`;
+            for (const email of to) {
+              const outcome = await documentMail.email(email, { subject: `${twice ? 'Pagamento em dobro' : 'Pagamento recusado'}: ${name}`, text }, twice ? `plan-twice-${subscriptionId || accountId}-${email}` : `plan-failed-${subscriptionId || accountId}-${notify}-${email}`, { fromName: agency.company.name });
+              if (!mailSent(outcome)) console.warn(`Aviso de plano recusado (${accountId}): ${outcome}`);
+            }
+          },
+          onWalletReversal: async (agencyId, { workspace, checkoutId, event, status, lost }) => {
+            if (!(await listWorkspaces(agencyId)).some(w => w.id === workspace)) return false;
+            const refunded = /\.refunded$/.test(event), gone = refunded || lost || status === 'REFUNDED';
+            return store.change(workspace, s => gone ? reverseTopup(s, { checkoutId, kind: refunded ? 'refund' : 'dispute_lost' }) : disputeTopup(s, { checkoutId, opened: status === 'UNDER_DISPUTE' }));
+          },
+          onWalletTopup: async (agencyId, { workspace, checkoutId, method, paidCents, feeCents, devMode }) => {
             const owned = (await listWorkspaces(agencyId)).map(w => w.id);
             for (const candidate of workspace ? [workspace].filter(item => owned.includes(item)) : owned) {
-              const credited = await store.change(candidate, s => paidTopup(s, { checkoutId, method }));
+              const credited = await store.change(candidate, s => paidTopup(s, { checkoutId, method, paidCents, feeCents, devMode }));
               if (credited) { flushLater(candidate); return credited; }
             }
             return false;
@@ -2517,8 +2617,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (method !== 'POST') throw error('Method not allowed.', 405);
         const body = await payload(req);
         if (op === 'connect') {
+          await requireFiscal((await loadAgency(who.agencyId)).fiscal, who.agencyId, scope);
           const view = await abacate.connect(who.agencyId, scope, body.apiKey, origin);
           await recordAudit(who, 'AbacatePay conectado', view.storeName || 'Agência');
+          return json(view);
+        }
+        if (op === 'refresh-webhook') {
+          const view = await abacate.refreshWebhook(who.agencyId, scope, origin);
+          await recordAudit(who, 'Avisos do AbacatePay atualizados', view.storeName || 'Agência');
           return json(view);
         }
         if (op === 'disconnect') {
@@ -2532,9 +2638,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           const agency = await loadAgency(who.agencyId);
           const meta = agency.accounts[workspace] || {};
           if (op === 'subscribe') {
-            if (meta.billing?.provider === 'abacatepay' && ['Active', 'Trial'].includes(meta.billing.status)) throw error('Esta subconta já tem uma assinatura ativa. Cancele antes de gerar outra.', 409);
-            const billing = await abacate.subscribe(who.agencyId, workspace, agency.plans.find(plan => plan.id === meta.plan), origin);
-            await changeAgency(who.agencyId, current => { current.accounts[workspace] = { ...(current.accounts[workspace] || {}), billing }; });
+            const running = billing => billing?.provider === 'abacatepay' && ['Active', 'Trial', 'PastDue'].includes(billing.status), refuse = () => error('Esta subconta já tem uma assinatura ativa. Cancele antes de gerar outra.', 409);
+            if (running(meta.billing)) throw refuse();
+            const billing = await abacate.subscribe(who.agencyId, workspace, agency.plans.find(plan => plan.id === meta.plan), origin, { retryPolicy: retryPolicyOf(agency) });
+            // The customer may have paid the earlier link while this one was being made.
+            if (!await changeAgency(who.agencyId, current => !running(current.accounts[workspace]?.billing) && Boolean(replaceBilling(current, workspace, billing)))) throw refuse();
             await recordAudit(who, 'Assinatura AbacatePay gerada', meta.name || workspace, billing.planName);
             return json(await agencyPayload(req, res, { result: billing }));
           }
@@ -2548,6 +2656,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         throw error('Not found.', 404);
       }
+      const billingRouteHandled = await billingRoute({ req, res, p, method, url, id, json, send });
+      if (billingRouteHandled !== NEXT_ROUTE) return billingRouteHandled;
       const adsRouteHandled = await adsRoute({ req, res, p, method, url, id, json, send });
       if (adsRouteHandled !== NEXT_ROUTE) return adsRouteHandled;
       const googleRouteHandled = await googleRoute({ req, res, p, method, url, id, json, send });
@@ -2557,169 +2667,45 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (p.startsWith('/api/abacatepay/workspace/')) {
         if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
         const op = p.slice('/api/abacatepay/workspace/'.length).replace(/\/+$/, ''), origin = publicBase(req);
-        const who = await workspaceAccess(req, res, id, { modules: op === 'connect' || op === 'disconnect' ? ['settings', 'payments'] : ['payments'] });
+        const who = await workspaceAccess(req, res, id, { modules: ['connect', 'disconnect', 'refresh-webhook'].includes(op) ? ['settings', 'payments'] : ['payments'] });
         if (op === 'status' && method === 'GET') {
           const view = await abacate.status(who.agencyId, id, origin);
           return json(hasModule(who, 'settings') ? view : { ...view, webhookSecret: undefined });
         }
         if (method !== 'POST') throw error('Method not allowed.', 405);
         const body = await payload(req);
-        if (op === 'connect') return json(await abacate.connect(who.agencyId, id, body.apiKey, origin));
+        if (op === 'connect') {
+          await requireFiscal((await store.load(id)).fiscal, who.agencyId, id);
+          return json(await abacate.connect(who.agencyId, id, body.apiKey, origin));
+        }
         if (op === 'disconnect') return json(await abacate.disconnect(who.agencyId, id, origin));
+        if (op === 'refresh-webhook') return json(await abacate.refreshWebhook(who.agencyId, id, origin));
         if (op === 'charge') {
           const payment = await abacate.chargeInvoice(who.agencyId, id, String(body.invoiceId || ''), origin);
           return json({ payment, ...workspaceView(who, await store.load(id)) });
         }
         throw error('Not found.', 404);
       }
-      if (p.startsWith('/api/whatsapp/webhook/') && method === 'POST') {
-        return await whatsapp.handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json, onStored: flushLater });
-      }
-      const appHook = p.match(/^\/api\/connectors\/hook\/(demo|[0-9a-f-]{36})\/([a-z_]{2,40})\/([\w-]{20,80})$/);
-      if (appHook && method === 'POST') {
-        await ready;
-        const [, workspace, appId, token] = appHook;
-        let size = 0; const chunks = [];
-        for await (const chunk of req) { size += chunk.length; if (size > 1_000_000) throw error('Payload too large.', 413); chunks.push(chunk); }
-        const state = await Promise.resolve().then(() => store.load(workspace)).catch(() => null), row = state?.connectors?.[appId];
-        const given = Buffer.from(token), expected = Buffer.from(String(row?.hook || ''));
-        if (!row || given.length !== expected.length || !timingSafeEqual(given, expected)) throw error('Not found.', 404);
-        if (!await publicAccountPolicy(workspace, true, 'automation').catch(() => false)) return json({ ok: true, ignored: true });
-        const read = readWebhook(appId, { raw: Buffer.concat(chunks).toString('utf8'), headers: req.headers, auth: connectorAuth(row) });
-        for (const event of read.events.slice(0, 50)) await change(workspace, { type: 'connector-event', data: { connector: appId, key: event.key, ctx: event.ctx, contact: event.contact } });
-        if (read.events.length) flushLater(workspace);
-        return json(read.reply || { ok: true });
-      }
-      if (p.startsWith('/api/phone/twilio/') && method === 'POST') {
-        await ready;
-        return await phone.twilioWebhook(req, res, url, p);
-      }
+      const whatsappWebhookHandled = await whatsappWebhookRoute({ req, p, method, url, json });
+      if (whatsappWebhookHandled !== NEXT_ROUTE) return whatsappWebhookHandled;
+      const connectorHookHandled = await connectorHookRoute({ req, p, method, json });
+      if (connectorHookHandled !== NEXT_ROUTE) return connectorHookHandled;
+      const twilioRouteHandled = await twilioRoute({ req, res, p, method, url });
+      if (twilioRouteHandled !== NEXT_ROUTE) return twilioRouteHandled;
       const metaRouteHandled = await metaRoute({ req, p, method, url, json, send });
       if (metaRouteHandled !== NEXT_ROUTE) return metaRouteHandled;
-      if (p.startsWith('/api/connectors/') && !p.startsWith('/api/connectors/hook/')) {
-        if (!spaceId.test(id) || privateSpace.test(id)) throw error('Subconta não encontrada.', 404);
-        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
-        const origin = publicBase(req);
-        const view = state => Object.fromEntries(connectorCatalog.map(def => {
-          const row = state.connectors?.[def.id];
-          return [def.id, { ...connectorPublic(row), ...(row?.hook && def.triggers.some(t => !t.poll) ? { hookUrl: `${origin}/api/connectors/hook/${id}/${def.id}/${row.hook}` } : {}) }];
-        }));
-        if (p === '/api/connectors/status' && method === 'GET') return json({ connectors: view(await store.load(id)) });
-        if (method !== 'POST') throw error('Método indisponível.', 405);
-        await requireActiveAccount(who.agencyId, id, true);
-        const body = await payload(req), def = connectorById(String(body.id || ''));
-        if (!def) throw error('Conector não encontrado.', 404);
-        if (p === '/api/connectors/connect') {
-          const auth = Object.fromEntries(def.auth.map(field => [field.key, String(body.fields?.[field.key] ?? '').trim().slice(0, 20000)]));
-          const account = await testConnection(def.id, auth, { request: connectorRequest });
-          const result = await change(id, { type: 'connector-save', data: { id: def.id, sealed: sealSecret(JSON.stringify(auth)), account, hook: randomBytes(24).toString('base64url') } });
-          return json({ connectors: view(result.state) });
-        }
-        if (p === '/api/connectors/disconnect') return json({ connectors: view((await change(id, { type: 'connector-remove', data: { id: def.id } })).state) });
-        throw error('Not found.', 404);
-      }
-      if (p === '/api/push/key' && method === 'GET') return json({ key: pushConfigured(pushEnv) ? pushEnv.WEB_PUSH_PUBLIC_KEY : '' });
-      if ((p === '/api/push/subscribe' || p === '/api/push/unsubscribe') && method === 'POST') {
-        if (!spaceId.test(id) || privateSpace.test(id)) throw error('Subconta não encontrada.', 404);
-        const who = await workspaceAccess(req, res, id, { modules: ['conversations'] });
-        const body = await payload(req);
-        if (p === '/api/push/unsubscribe') return json({ removed: (await change(id, { type: 'push-unsubscribe', data: { endpoint: String(body.endpoint || '') } })).id });
-        const sub = pushSubscription(body.subscription);
-        if (!sub) throw error('Inscrição de notificação inválida.', 400);
-        return json({ id: (await change(id, { type: 'push-subscribe', data: { ...sub, kind: 'team', userId: who.userId || 'local', app: String(body.app || '').slice(0, 80), messages: body.messages !== false } })).id });
-      }
-      if (p === '/api/mobile-app/package' && method === 'GET') {
-        const who = await access(req, res);
-        requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
-        const agencyId = who.agencyId || AGENCY_ID;
-        return json(storePackage(mobileOf(structuredClone(await loadAgency(agencyId))), agencyId, `${isVercel || req.socket?.encrypted ? 'https' : 'http'}://${req.headers.host}`));
-      }
-      if (p.startsWith('/api/phone/')) {
-        if (!spaceId.test(id) || privateSpace.test(id)) throw error('Subconta não encontrada.', 404);
-        const who = await workspaceAccess(req, res, id, { modules: [] });
-        const body = method === 'POST' ? await payload(req) : {};
-        return await phone.api(req, res, { url, path: p.replace(/\/+$/, ''), method, workspace: id, who, body, json, needs: module => requireModule(who, module) });
-      }
-      if (p.startsWith('/api/whatsapp/agency/')) {
-        const who = await access(req, res);
-        requireCapability(who, 'settings', 'Seu usuário não pode gerenciar a integração global com WhatsApp.');
-        return await whatsapp.handleAgencyApi({
-          req, url, method, who, payload, publicOrigin: publicBase(req), listWorkspaces, requireActiveAccount, json
-        });
-      }
-      if (p.startsWith('/api/whatsapp/workspace/')) {
-        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
-        const op = p.replace(/\/+$/, '').slice('/api/whatsapp/workspace/'.length);
-        // Os grupos são de quem planeja eventos; o resto da conexão, de quem cuida das configurações.
-        const who = await workspaceAccess(req, res, id, { modules: method === 'GET' && op === 'groups' ? ['marketing', 'conversations'] : ['settings'] });
-        if (method === 'POST' && op === 'test') requireModule(who, 'conversations');
-        return await whatsapp.handleWorkspaceApi({
-          req, url, method, agencyId: who.agencyId, workspaceId: id, payload, publicOrigin: publicBase(req), requireActiveAccount, json
-        });
-      }
-      if (p.startsWith('/api/waha/webhook/') && method === 'POST') {
-        return await waha.handleWebhook({ req, url, payload, listWorkspaces, webhookBlockReason, json });
-      }
-      if (p.startsWith('/api/waha/')) {
-        const who = await access(req, res);
-        requireCapability(who, 'settings', 'Seu usuário não pode gerenciar a integração com WhatsApp.');
-        if (method === 'POST' && p.replace(/\/+$/, '') === '/api/waha/test') requireModule(who, 'conversations');
-        return await waha.handleApi({
-          req, res, url, method, who, payload, publicOrigin: publicBase(req), listWorkspaces, requireActiveAccount, json
-        });
-      }
-      if (p === '/api/mcp' || p.startsWith('/api/mcp/')) {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Workspace');
-        if (method === 'OPTIONS') return send(204, 'text/plain', '');
-        if (method === 'GET') {
-          return json({
-            name: 'soci-mcp-server',
-            version: '1.0.0',
-            description: 'Model Context Protocol (MCP) Server for Soci platform',
-            tools: mcp.listTools().map(t => t.name),
-            status: 'online'
-          });
-        }
-        if (method === 'POST') {
-          const wsParam = url.searchParams.get('workspace') || req.headers['x-workspace'] || id;
-          if (!spaceId.test(wsParam) && !privateSpace.test(wsParam)) {
-            throw error('Subconta não informada ou inválida. Informe ?workspace=<id> ou header X-Workspace.', 400);
-          }
-          let actor = 'MCP Agent';
-          const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim() || url.searchParams.get('token') || '';
-          if (auth) {
-            try {
-              const who = await access(req, res);
-              actor = who.user?.name || who.session?.id || 'MCP User';
-            } catch {
-              if (!token) throw error('Autenticação necessária para o servidor MCP da Soci (Bearer token).', 401);
-              actor = `MCP Key (${token.slice(0, 8)}…)`;
-            }
-          }
-          await publicAccountPolicy(wsParam, false, 'marketing');
-          const state = await store.load(wsParam);
-          const body = await payload(req);
-          const response = await mcp.handleMcpRequest(body, { state, workspace: wsParam, actor });
-          if (!response) return send(204, 'text/plain', '');
-          return json(response);
-        }
-        throw error('Método não permitido.', 405);
-      }
-      if (p.startsWith('/api/ask/')) {
-        const { agency, who } = await accessContext(req, await verifiedUser(req, res));
-        requireCapability(who, 'agency', 'Seu usuário não pode acessar o Pergunte à Soci.');
-        return await handleAsk({
-          req, res, url, method, who, json,
-          loadContext: async () => {
-            const workspaces = await listWorkspaces(who.agencyId);
-            ensureAccounts(agency, workspaces);
-            const states = await agencyWorkspaceViews(agency, who, workspaces);
-            return { agency: { ...publicAgency(agency, who), abacatepay: { connected: await abacate.connected(who.agencyId, abacate.AGENCY_SCOPE) } }, overview: agencyOverview(agency, states) };
-          }
-        });
-      }
+      const connectorRouteHandled = await connectorRoute({ req, res, p, method, id, json });
+      if (connectorRouteHandled !== NEXT_ROUTE) return connectorRouteHandled;
+      const pushRouteHandled = await pushRoute({ req, res, p, method, id, json, isVercel });
+      if (pushRouteHandled !== NEXT_ROUTE) return pushRouteHandled;
+      const phoneRouteHandled = await phoneRoute({ req, res, p, method, url, id, json });
+      if (phoneRouteHandled !== NEXT_ROUTE) return phoneRouteHandled;
+      const inboxRouteHandled = await inboxRoute({ req, res, p, method, url, id, json });
+      if (inboxRouteHandled !== NEXT_ROUTE) return inboxRouteHandled;
+      const whatsappRouteHandled = await whatsappRoute({ req, res, p, method, url, id, json });
+      if (whatsappRouteHandled !== NEXT_ROUTE) return whatsappRouteHandled;
+      const askRouteHandled = await askRoute({ req, res, p, method, url, json });
+      if (askRouteHandled !== NEXT_ROUTE) return askRouteHandled;
       const gbpRouteHandled = await gbpRoute({ req, res, p, method, url, id, json });
       if (gbpRouteHandled !== NEXT_ROUTE) return gbpRouteHandled;
       if (p === '/api/video' && (method === 'GET' || method === 'HEAD')) {
@@ -2729,32 +2715,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (!row) throw error('Vídeo não encontrado.', 404);
         return await sendVideo(req, res, method, id, row, 'private, no-store');
       }
-      const brandAction = p.match(/^\/api\/brand\/(import|voice-ai)$/);
-      if (brandAction && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['marketing'] });
-        const input = await payload(req);
-        if (brandAction[1] === 'import') {
-          const page = await fetchPublicPage(String(input.url || ''), { fetchImpl: brandFetch, ...(brandResolve && { resolve: brandResolve }) });
-          return json({ board: brandFromPage(page) });
-        }
-        brandVoiceRequest(input);
-        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
-          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para gerar a voz da marca.', 409);
-        }
-        return json({ voice: await meteredAI(who, id, 'brand', connection => content.writeBrandVoice(connection, input, voiceTraits)) });
-      }
-      if (p === '/api/content-ai/review-reply' && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const input = await payload(req);
-        const who = await workspaceAccess(req, res, id, { modules: ['reputation'] });
-        const state = await store.load(id);
-        const request = reviewReplyRequest(state, { ...input, voice: brandVoicePrompt(defaultBoard(state.brandBoards)) });
-        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
-          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para responder com IA.', 409);
-        }
-        return json(await meteredAI(who, id, 'reputation', connection => content.writeReviewReply(connection, request)));
-      }
+      const brandAIRouteHandled = await brandAIRoute({ req, res, p, method, id, json });
+      if (brandAIRouteHandled !== NEXT_ROUTE) return brandAIRouteHandled;
       // App marketplace (7.3): a sub-account installs or removes an app its agency published.
       const appAction = p.match(/^\/api\/apps\/(install|uninstall)$/);
       if (appAction && method === 'POST') {
@@ -2789,51 +2751,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         return json({ ...workspaceView(who, (await store.load(id))), removed: removed.install.appId });
       }
-      // Labs in Conversas: a reply draft or a summary of the history with one contact (metered as "conversations").
-      const conversationAI = p.match(/^\/api\/conversations\/ai\/(reply|summary)$/);
-      if (conversationAI && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['conversations'] });
-        const mode = conversationAI[1];
-        const state = await store.load(id);
-        requireLab(state, mode === 'reply' ? 'conversation-reply' : 'conversation-summary');
-        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
-          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para usar a IA nas conversas.', 409);
-        }
-        const body = await payload(req);
-        const request = conversationRequest(state, String(body.contactId || ''), { mode, language: body.language });
-        const write = mode === 'reply' ? content.writeConversationReply : content.writeConversationSummary;
-        return json(await meteredAI(who, id, 'conversations', connection => write(connection, request)));
-      }
-      // Meetings + Notes AI: transcribe a meeting's audio, or summarize its transcript (both metered as "meetings").
-      const meetingAction = p.match(/^\/api\/meetings\/(transcribe|summarize)$/);
-      if (meetingAction && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['calendars'] });
-        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
-          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para usar as notas com IA.', 409);
-        }
-        const meetingId = String(url.searchParams.get('meeting') || '');
-        const meeting = ((await store.load(id)).meetings || []).find(row => row.id === meetingId);
-        if (!meeting) throw error('Reunião não encontrada.', 404);
-        const language = url.searchParams.get('lang') === 'es' ? 'es' : 'pt';
-        if (meetingAction[1] === 'transcribe') {
-          const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
-          if (!audioTypes.includes(mime)) throw error('Envie um áudio em WebM, OGG, MP3, M4A ou WAV.', 415);
-          let size = 0; const chunks = [];
-          for await (const part of req) { size += part.length; if (size > audioLimit) throw error('O áudio pode ter até 4 MB. Grave em partes ou envie a transcrição.', 413); chunks.push(part); }
-          const { text } = await meteredAI(who, id, 'meetings', connection => content.transcribeAudio(connection, { buffer: Buffer.concat(chunks), mime, language }));
-          await change(id, { type: 'meeting-transcript', data: { id: meetingId, transcript: text, source: url.searchParams.get('source') === 'recording' ? 'recording' : 'audio' } }, who);
-          flushLater(id);
-          return json({ ok: true, length: text.length });
-        }
-        if (!meeting.transcript) throw error('Adicione a transcrição antes de resumir.', 409);
-        const today = new Date().toISOString().slice(0, 10);
-        const result = await meteredAI(who, id, 'meetings', connection => content.summarizeMeeting(connection, { title: meeting.title, participants: meeting.participants, transcript: meeting.transcript, language, today }));
-        await change(id, { type: 'meeting-summary', data: { id: meetingId, result, language } }, who);
-        flushLater(id);
-        return json({ ok: true });
-      }
+      const conversationAIRouteHandled = await conversationAIRoute({ req, res, p, method, url, id, json });
+      if (conversationAIRouteHandled !== NEXT_ROUTE) return conversationAIRouteHandled;
       // Reselling: the client recharges its wallet by Pix or card, paid to the agency's AbacatePay account.
       if (p === '/api/wallet/topup' && method === 'POST') {
         if (!spaceId.test(id)) throw error('Subconta não encontrada.',404);
@@ -2850,90 +2769,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         flushLater(id);
         return json({ url: payment.url, checkoutId: payment.checkoutId, amount: payment.amount });
       }
-      // SEO (site audit and Search Console) and Visibility AI, in Reputação. The AI run is metered as "visibility".
-      if (p === '/api/seo/audit' && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['reputation'] });
-        const body = await payload(req);
-        const state = await store.load(id);
-        const typed = String(body.url || state.seo?.siteUrl || '').trim();
-        if (!typed) throw error('Informe o endereço do site para auditar.', 400);
-        const target = auditableUrl(typed);
-        if (!target) throw error('Este endereço não pode ser auditado. Use o endereço público do site, por exemplo https://suaempresa.com.br.', 400);
-        const audit = await prospectAudit({ website: target.href }, { places: false }).catch(() => null);
-        if (!audit?.website) throw error('Não foi possível abrir o site. Confira o endereço e tente de novo.', 502);
-        if (!state.seo?.siteUrl) await change(id, { type: 'seo-settings', data: { siteUrl: target.href } }, who);
-        const auditId = await change(id, { type: 'seo-audit', data: audit.website }, who);
-        flushLater(id);
-        return json({ ok: true, id: auditId });
-      }
-      if (p === '/api/seo/search' && method === 'GET') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        await workspaceAccess(req, res, id, { modules: ['reputation'] });
-        const rowId = `google-${id}`;
-        const g = (await socialRow(rowId)).google;
-        if (!g?.token) return json({ connected: false, configured: googleConfigured() });
-        if (!g.gscSite) return json({ connected: true, site: '', sites: (g.sites || []).length, error: g.errors?.search || '' });
-        const keywords = (await store.load(id)).seo?.keywords || [];
-        const key = `${g.gscSite}|${keywords.join(',')}`;
-        const cached = searchCache.get(id);
-        if (cached?.key === key && cached.at > Date.now() - 15 * 60_000 && url.searchParams.get('fresh') !== '1') return json(cached.data);
-        const secret = unseal(g.token);
-        if (!secret) return json({ connected: true, site: g.gscSite, error: 'A conexão com o Google precisa ser refeita.' });
-        const fresh = await freshSecret(secret).catch(() => null);
-        if (!fresh) return json({ connected: true, site: g.gscSite, error: 'O acesso ao Google expirou. Conecte a conta de novo em Configurações → Google.' });
-        if (fresh.changed) await store.change(rowId, row => { if (row.google) row.google.token = seal(fresh.secret); });
-        try {
-          const data = { connected: true, site: g.gscSite, siteName: g.sites?.find(row => row.id === g.gscSite)?.name || g.gscSite, report: await searchReport(fresh.secret.token, g.gscSite, keywords), at: stamp() };
-          searchCache.set(id, { key, at: Date.now(), data });
-          return json(data);
-        } catch (problem) {
-          return json({ connected: true, site: g.gscSite, error: searchError(problem).message });
-        }
-      }
-      if (p === '/api/visibility/run' && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['reputation'] });
-        const v = (await store.load(id)).visibility;
-        if (!v?.brand || !v.prompts?.length) throw error('Configure a marca e as perguntas antes de medir.', 409);
-        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
-          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para medir a visibilidade na IA.', 409);
-        }
-        const language = url.searchParams.get('lang') === 'es' ? 'es' : 'pt';
-        let model = '';
-        const answers = await meteredAI(who, id, 'visibility', async connection => {
-          const out = new Array(v.prompts.length);
-          let next = 0;
-          const worker = async () => {
-            while (next < v.prompts.length) {
-              const index = next++, prompt = v.prompts[index];
-              try { const reply = await content.askAssistant(connection, { prompt, language }); model ||= reply.model || ''; out[index] = { prompt, text: reply.text, sources: reply.sources }; }
-              catch (problem) { out[index] = { prompt, error: problem.message || 'A IA não respondeu.' }; }
-            }
-          };
-          await Promise.all([worker(), worker(), worker()]);
-          if (!out.some(row => row && !row.error)) throw error(out[0]?.error || 'A IA não respondeu. Tente de novo.', 502);
-          return out;
-        });
-        const runId = await change(id, { type: 'visibility-run', data: { answers, model } }, who);
-        flushLater(id);
-        return json({ ok: true, id: runId, failed: answers.filter(row => row.error).length });
-      }
-      const contentAction = p.match(/^\/api\/content-ai\/(transform|email)$/);
-      if (contentAction && method === 'POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        const input = await payload(req);
-        const email = contentAction[1] === 'email';
-        input.voice = await brandVoiceOf(id);
-        const request = email ? emailRequest(input) : transformRequest(input);
-        const kind = email ? 'email' : request.kind;
-        const who = await workspaceAccess(req, res, id, { modules: [contentModule[kind]] });
-        if (!(localAccess && contentAI) && !(who.session && (await openAI.status(who.session)).configured)) {
-          throw error('Conecte a OpenAI em Visão da agência → Configurações → OpenAI para usar a IA de conteúdo.', 409);
-        }
-        const result = await meteredAI(who, id, kind === 'gbp' ? 'reputation' : kind, connection => email ? content.writeEmail(connection, input) : content.transformText(connection, input));
-        return json(result);
-      }
+      const seoRouteHandled = await seoRoute({ req, res, p, method, url, id, json });
+      if (seoRouteHandled !== NEXT_ROUTE) return seoRouteHandled;
+      const contentAIRouteHandled = await contentAIRoute({ req, res, p, method, id, json });
+      if (contentAIRouteHandled !== NEXT_ROUTE) return contentAIRouteHandled;
       const agentRouteHandled = await agentRoute({ req, res, p, method, url, id, json });
       if (agentRouteHandled !== NEXT_ROUTE) return agentRouteHandled;
       const pranchetaRouteHandled = await pranchetaRoute({ req, res, p, method, url, id, json, send });
@@ -2972,145 +2811,16 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (blogRouteHandled !== NEXT_ROUTE) return blogRouteHandled;
       const chatRouteHandled = await chatRoute({ req, res, p, method, json });
       if (chatRouteHandled !== NEXT_ROUTE) return chatRouteHandled;
-      const formRoute = p.match(formPath);
-      if (formRoute) {
-        await ready;
-        const [, workspace, formId] = formRoute;
-        const embed = url.searchParams.get('embed') === '1', preview = url.searchParams.get('preview') === '1';
-        if (preview) {
-          await workspaceAccess(req, res, workspace, { modules: ['sites'], hide: true });
-        }
-        const active = await publicAccountPolicy(workspace, method === 'POST', 'sites');
-        const state = await store.load(workspace);
-        const form = state.forms.find(item => item.id === formId);
-        if (!form || (!form.active && !preview)) throw error('Este formulário não está publicado.',404);
-        const outside = [form.onSubmit, ...(form.routes || []).map(rule => rule.dest)].some(dest => dest?.action === 'redirect');
-        const page = (status, options) => {
-          const [headers, body] = withPixels(preview ? null : state, workspace, { 'Content-Type':'text/html; charset=utf-8', 'Referrer-Policy':'same-origin',
-            'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'${outside ? ' https: http:' : ''}; frame-ancestors *` },
-            formPage(form, { action:`/form/${workspace}/${formId}${embed ? '?embed=1' : preview ? '?preview=1' : ''}`,
-            customFields:state.customFields || [], embed, brand:state.profile?.name || '', ...options }));
-          res.writeHead(status, headers);
-          return res.end(method === 'HEAD' ? undefined : body);
-        };
-        if (!formOpen(form)) return page(200, { notice:{ title:'Formulário encerrado', text:form.schedule?.closedMessage || 'Este formulário não está recebendo respostas agora.' } });
-        if (method === 'GET' || method === 'HEAD') {
-          if (active && method === 'GET' && !preview && form.active) await Promise.resolve().then(() => change(workspace,{ type:'form-view', id:formId })).catch(() => {});
-          const values = Object.fromEntries([...url.searchParams].filter(([key]) => !['embed','preview','__path'].includes(key)).map(([key, value]) => [key, value.slice(0,500)]));
-          return page(200, { values });
-        }
-        if (!form.active) throw error('Publique o formulário para receber respostas.',403);
-        const input = await formBody(req);
-        const read = readAnswers(form, input, state.customFields || []);
-        if (!read.ok) return page(422, { values:read.values, errors:read.errors });
-        await publicAccountPolicy(workspace, true, 'sites');
-        let sent;
-        try { sent = await change(workspace,{ type:'submit', id:formId, data:{ ...input, _vid:'', _source:embed ? 'Incorporado' : 'Link' } }); }
-        catch (failure) { return page(failure.status && failure.status < 500 ? 422 : 500, { values:read.values, errors:{ _form:failure.status && failure.status < 500 ? failure.message : 'Não foi possível enviar agora. Tente de novo.' } }); }
-        const { qualified, dest } = outcomeOf(form, read), after = await store.load(workspace);
-        // Só o lead qualificado conta como Lead no pixel, e depois de o envio ser aceito.
-        const event = qualified && hasPixels(after.tracking) ? `lead.${sent.id}` : '';
-        const target = resolveDestination(after, workspace, dest, { event, link:(after.bookingLinks || []).findLast(row => row.submissionId === sent.id)?.token || '' });
-        if (target) return leave(res, after, workspace, target, { embed, event });
-        const tier = read.result?.tierDetail, own = (form.routes || []).some(rule => rule.dest === dest) && dest.action === 'message' ? dest.message : '';
-        if (read.result) return page(200, { event, notice:{ result:read.result, text:own || tier?.message || form.onSubmit?.message || '', cta:tier?.ctaUrl ? { url:tier.ctaUrl, label:tier.ctaLabel } : null } });
-        return page(200, { event, notice:{ title:'Obrigado!', text:own || form.onSubmit?.message || 'Recebemos suas respostas.' } });
-      }
-      const hook = p.match(hookPath);
-      if (hook && method === 'POST') {
-        await ready;
-        const [, workspace, workflowId, triggerId] = hook;
-        const state = await Promise.resolve().then(() => store.load(workspace)).catch(() => null);
-        const flow = state?.workflows?.find(row => row.id === workflowId && row.active);
-        const secret = flow?.triggers?.find(t => t.id === triggerId && t.type === 'inbound_webhook')?.config?.secret || '';
-        const key = String(url.searchParams.get('key') || req.headers['x-soci-key'] || '');
-        if (!secret || key.length !== secret.length || !timingSafeEqual(Buffer.from(key), Buffer.from(secret))) throw error('Webhook não encontrado.', 404);
-        await publicAccountPolicy(workspace, true, 'automation');
-        const body = await payload(req).catch(() => ({}));
-        const result = await change(workspace, { type: 'workflow-hook', data: { workflowId, triggerId, payload: body && typeof body === 'object' && !Array.isArray(body) ? body : {} } });
-        if (result.state.workflowOutbox?.length) flushLater(workspace);
-        return json({ ok: true, run: result.id === 'already-enrolled' ? null : result.id }, 202);
-      }
-      // Contadores: the animated GIF for e-mails (?s= is when the e-mail was sent, for evergreen timers)
-      // and the page that sites embed in an iframe.
-      const countdownRoute = p.match(countdownPath);
-      if (countdownRoute && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, timerId, gif] = countdownRoute;
-        let timer = null;
-        try { await publicAccountPolicy(workspace, false, 'marketing'); timer = (await store.load(workspace)).countdownTimers?.find(row => row.id === timerId) || null; } catch { timer = null; }
-        if (gif) {
-          let bytes = blankGif;
-          if (timer) {
-            const now = Date.now(), sent = Number(url.searchParams.get('s')) * 1000, created = Date.parse(timer.created) || 0;
-            const start = Number.isFinite(sent) && sent > 0 ? Math.min(now, Math.max(created, sent)) : now;
-            const key = `${workspace}:${timerId}:${timer.updated || timer.created}:${start}:${Math.floor(now / 1000)}`;
-            bytes = countdownCache.get(key);
-            if (!bytes) {
-              bytes = countdownGif(timer, deadlineOf(timer, start) - now);
-              if (countdownCache.size >= 200) countdownCache.delete(countdownCache.keys().next().value);
-              countdownCache.set(key, bytes);
-            }
-          }
-          res.writeHead(200, { 'Content-Type': 'image/gif', 'Content-Length': bytes.length, 'Cache-Control': 'no-store, no-cache, max-age=0', Expires: '0' });
-          return res.end(method === 'HEAD' ? undefined : bytes);
-        }
-        if (!timer) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Contador indisponível.'); }
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
-          'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors *" });
-        return res.end(method === 'HEAD' ? undefined : embedPage(timer, { key: `${workspace}-${timerId}` }));
-      }
-      // E-mail campaigns: open pixel, click redirect and unsubscribe page of one recipient.
-      const tracked = p.match(emailTrackPath);
-      if (tracked && ['GET', 'HEAD', 'POST'].includes(method)) {
-        await ready;
-        const [, kind, workspace, token, index] = tracked;
-        const page = (status, title, body) => {
-          res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'" });
-          return res.end(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;color:#18181b;background:#f4f4f5}main{max-width:440px;margin:16px;padding:32px;border-radius:16px;background:#fff;text-align:center}h1{font-size:22px;margin:0 0 8px}p{margin:0 0 16px;color:#52525b}button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:12px 20px;background:#18181b;color:#fff;cursor:pointer}</style></head><body><main><h1>${esc(title)}</h1>${body}</main></body></html>`);
-        };
-        let active = false;
-        try { active = await publicAccountPolicy(workspace, false, 'marketing'); }
-        catch { if (kind !== 'o') return page(404, 'Link indisponível', '<p>Este e-mail não está mais disponível.</p>'); }
-        const track = async (event, write) => {
-          if (!write) return execute(await store.load(workspace), { type: 'email-track', data: { token, event: 'info' } });
-          const result = await change(workspace, { type: 'email-track', data: { token, event, index } });
-          if (result.state.workflowOutbox?.length) flushLater(workspace);
-          return result.id;
-        };
-        if (kind === 'o') {
-          res.writeHead(200, { 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, max-age=0' });
-          res.end(Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64'));
-          if (active && method === 'GET') { const seen = await track('info', false).catch(() => null); if (seen && !seen.opened) await track('open', true).catch(() => null); }
-          return;
-        }
-        if (kind === 'c') {
-          const found = active ? await track('click', true) : execute(await store.load(workspace), { type: 'email-track', data: { token, event: 'click', index } });
-          if (!found?.url) return page(404, 'Link indisponível', '<p>Este link não existe mais.</p>');
-          res.writeHead(302, { Location: found.url, 'Cache-Control': 'no-store' }); return res.end();
-        }
-        const info = await track('info', false);
-        if (!info) return page(404, 'Link indisponível', '<p>Não encontramos esta inscrição.</p>');
-        // The contact's preference center: choose topics and channels instead of leaving everything.
-        let prefToken = '';
-        if (info.contactId) { try { prefToken = (await change(workspace, { type: 'preferences-link', data: { contactId: info.contactId } })).id; } catch { /* The page still works without the link. */ } }
-        const prefLink = prefToken ? `<p><a href="/preferencias/${workspace}/${prefToken}">Escolher o que quero receber</a></p>` : '';
-        // POST is the confirmation button and the one-click unsubscribe of mail clients (RFC 8058). It works even while the account is paused.
-        if (method === 'POST') { await track('unsubscribe', true); return page(200, 'Inscrição cancelada', `<p>Você não vai mais receber e-mails de marketing de ${esc(info.business || 'esta empresa')}.</p>${prefLink}`); }
-        if (info.unsubscribed) return page(200, 'Inscrição cancelada', `<p>Você já saiu da lista de e-mails de ${esc(info.business || 'esta empresa')}.</p>${prefLink}`);
-        return page(200, 'Cancelar inscrição', `<p>Deixar de receber os e-mails de marketing de <b>${esc(info.business || 'esta empresa')}</b>?</p><form method="post"><button>Cancelar inscrição</button></form>${prefLink}`);
-      }
-      const redirect = p.match(redirectPath);
-      if (redirect && method === 'GET') {
-        await ready;
-        const [, workspace, linkId] = redirect;
-        const active = await publicAccountPolicy(workspace, false, 'conversations');
-        const target = active
-          ? await store.change(workspace, state => execute(state, { type: 'link-click', id: linkId }))
-          : execute(await store.load(workspace), { type: 'link-click', id: linkId }, { trackClick: false });
-        res.writeHead(302, { Location: target });
-        return res.end();
-      }
+      const formRouteHandled = await formRoute({ req, res, p, method, url });
+      if (formRouteHandled !== NEXT_ROUTE) return formRouteHandled;
+      const workflowHookHandled = await workflowHookRoute({ req, p, method, url, json });
+      if (workflowHookHandled !== NEXT_ROUTE) return workflowHookHandled;
+      const countdownRouteHandled = await countdownRoute({ res, p, method, url });
+      if (countdownRouteHandled !== NEXT_ROUTE) return countdownRouteHandled;
+      const emailTrackHandled = await emailTrackRoute({ res, p, method });
+      if (emailTrackHandled !== NEXT_ROUTE) return emailTrackHandled;
+      const linkRouteHandled = await linkRoute({ res, p, method });
+      if (linkRouteHandled !== NEXT_ROUTE) return linkRouteHandled;
       const match=p.replace(/^\/api\/view/,'').match(paths);
       if (p.startsWith('/api/view/') && match) {
         const [,kind,w,item]=match;
@@ -3162,7 +2872,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (!res.headersSent) json({
         error: e.status ? e.message : 'The workspace could not complete this request.',
-        ...(e.code === 'ACCOUNT_SUSPENDED' && { code: e.code, account: e.account })
+        ...(e.code === 'ACCOUNT_SUSPENDED' && { code: e.code, account: e.account }), ...(e.code === 'FISCAL_REQUIRED' && { code: e.code })
       }, e.status || 500);
     }
   });

@@ -27,14 +27,13 @@ export function emailServicesView(c) {
   if (e.error) return card(`${tile}<h2>Serviços de e-mail</h2><p class="form-status">${h(e.error)}</p><button class="secondary" data-act="email-refresh">Tentar novamente</button>`);
   if (!e.configured) return card(`${tile}<h2>Serviços de e-mail</h2><p class="dim">O envio de e-mail ainda não foi configurado nesta instalação da soci. Peça ao administrador da agência para definir <code>RESEND_API_KEY</code> e <code>PORTAL_EMAIL_FROM</code>.</p>`);
   const platform = e.platformAddress ? `<b>${h(e.platformAddress)}</b>` : 'o endereço da plataforma';
-  if (!e.domain) return card(`${tile}<h2>Domínio de envio próprio</h2>
-    <p class="dim">Hoje os e-mails desta subconta (faturas, recibos, orçamentos, documentos para assinar, carrinhos abandonados e relatórios) saem de ${platform}. Com um domínio próprio eles saem do endereço da empresa, com SPF e DKIM, e chegam com menos chance de cair no spam.</p>
-    <form class="settings-form" data-form="email-domain-add">
+  if (!e.domain) return `<form class="surface settings-form set-form" data-form="email-domain-add"><section class="set-section"><header class="set-head">${tile}<h2>Domínio de envio próprio</h2>
+    <p class="dim">Hoje os e-mails desta subconta (faturas, recibos, orçamentos, documentos para assinar, carrinhos abandonados e relatórios) saem de ${platform}. Com um domínio próprio eles saem do endereço da empresa, com SPF e DKIM, e chegam com menos chance de cair no spam.</p></header><div class="set-body">
       <div class="field-grid"><label>Domínio<input name="domain" required maxlength="253" placeholder="mail.suaempresa.com.br" autocomplete="off" spellcheck="false"></label>
       <label>Endereço do remetente<span class="email-local"><input name="localPart" required maxlength="64" value="contato" autocomplete="off" spellcheck="false" aria-label="Parte antes do @"><span class="dim">@ domínio</span></span></label></div>
-      <p class="dim"><small>Use um subdomínio (como <code>mail.</code> ou <code>envio.</code>) para não mexer no e-mail que a empresa já usa no domínio principal.</small></p>
-      <button class="primary">Adicionar domínio</button><p class="form-status" role="alert"></p>
-    </form>`);
+      <p class="dim"><small>Use um subdomínio (como <code>mail.</code> ou <code>envio.</code>) para não mexer no e-mail que a empresa já usa no domínio principal.</small></p></div></section>
+      <footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Adicionar domínio</button></footer>
+    </form>`;
   const d = e.domain, verified = d.status === 'verified';
   const head = `${tile}<div class="inline-gap"><h2>${h(d.name)}</h2>${badge(d.statusLabel, TONE[d.status] || '')}</div>`;
   const lead = verified
@@ -44,8 +43,6 @@ export function emailServicesView(c) {
   const checked = d.checkedAt ? `<p class="dim"><small>Última verificação: ${h(when(d.checkedAt))}${d.verifiedAt ? ` · verificado em ${h(when(d.verifiedAt))}` : ''}</small></p>` : '';
   return card(`${head}${lead}${problem}${recordsTable(d)}${checked}
     <div class="inline-gap">${verified ? '' : `<button class="primary" data-act="email-verify">${i('refresh', 16)} Verificar agora</button>`}<button class="secondary" data-act="email-remove">${i('trash', 16)} Remover domínio</button></div>`, verified)
-    + `<form class="surface padded settings-form ag-gap" data-form="email-domain-save"><h2>Remetente</h2>
-      <label>Endereço do remetente<span class="email-local"><input name="localPart" required maxlength="64" value="${h(d.localPart)}" autocomplete="off" spellcheck="false" aria-label="Parte antes do @"><span class="dim">@${h(d.name)}</span></span></label>
-      <p class="dim"><small>As respostas vão para o endereço de “Responder para” de cada envio; sem ele, para este endereço.</small></p>
-      <button class="primary">Salvar remetente</button><p class="form-status" role="alert"></p></form>`;
+    + `<form class="surface settings-form set-form" data-form="email-domain-save"><section class="set-section"><header class="set-head"><h2>Remetente</h2></header><div class="set-body"><label>Endereço do remetente<span class="email-local"><input name="localPart" required maxlength="64" value="${h(d.localPart)}" autocomplete="off" spellcheck="false" aria-label="Parte antes do @"><span class="dim">@${h(d.name)}</span></span></label>
+      <p class="dim"><small>As respostas vão para o endereço de “Responder para” de cada envio; sem ele, para este endereço.</small></p></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar remetente</button></footer></form>`;
 }
