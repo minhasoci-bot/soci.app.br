@@ -3259,5 +3259,7 @@ export default {
   "Ligue ou desligue o portal para todos os clientes.": "Ligue ou desligue o portal para todos os clientes.",
   "Recibos": "Recibos",
   "Enviados sozinhos quando uma fatura é paga.": "Enviados sozinhos quando uma fatura é paga.",
-  "Como o cliente recebe, com dados de exemplo.": "Como o cliente recebe, com dados de exemplo."
+  "Como o cliente recebe, com dados de exemplo.": "Como o cliente recebe, com dados de exemplo.",
+  "Endereço fiscal": "Endereço fiscal",
+  "O endereço de quem vende.": "O mesmo endereço do CNPJ ou do CPF."
 };

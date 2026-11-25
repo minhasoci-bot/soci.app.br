@@ -6282,5 +6282,7 @@ export default {
   "Nome, mensagem e cor que o cliente vê ao entrar.": "Nombre, mensaje y color que el cliente ve al entrar.",
   "Ligue ou desligue o portal para todos os clientes.": "Activa o desactiva el portal para todos los clientes.",
   "Enviados sozinhos quando uma fatura é paga.": "Se envían solos cuando se paga una factura.",
-  "Como o cliente recebe, com dados de exemplo.": "Cómo lo recibe el cliente, con datos de ejemplo."
+  "Como o cliente recebe, com dados de exemplo.": "Cómo lo recibe el cliente, con datos de ejemplo.",
+  "Endereço fiscal": "Dirección fiscal",
+  "O endereço de quem vende.": "La dirección de quien vende."
 };
