@@ -1,0 +1,58 @@
+---
+title: Ensinar o agente com uma base de conhecimento
+description: Reúna preços, horários, políticas e perguntas frequentes numa base que os agentes de IA consultam para responder os clientes.
+modulo: ia
+sidebar:
+  order: 2
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+A base de conhecimento é o que a empresa sabe, escrito de um jeito que o agente de IA consegue consultar: preços, horários, formas de pagamento, políticas e perguntas frequentes. Uma mesma base pode servir a vários agentes da subconta.
+
+<Requisitos permissao="Acesso ao módulo Agentes de IA na subconta" />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Agentes de IA** e vá para **Bases de conhecimento**. Clique em **Nova base**.
+
+   <Print src="docs/ia/base-de-conhecimento/01-bases.ef510c01.webp" alt="Tela Bases de conhecimento vazia com o botão Nova base em destaque." />
+
+2. Dê um **Nome** e uma **Descrição** à base, que ajudam a equipe a saber o que está nela.
+
+   <Print src="docs/ia/base-de-conhecimento/02-nome-da-base.1237caa2.webp" alt="Editor da base com o nome Atendimento da clínica e a descrição preenchidos." />
+
+3. Clique em **Adicionar fonte**. Escolha o **Tipo** (**Texto**, **Perguntas frequentes** ou **Página da web**, com o conteúdo colado), dê um **Título** e escreva ou cole o **Conteúdo**. Cada base aceita até 40 fontes. Clique em **Salvar base**.
+
+   <Print src="docs/ia/base-de-conhecimento/03-adicionar-fonte.87480b9f.webp" alt="Fonte do tipo Texto com o título Preços, horários e pagamento e o conteúdo com preços e horários da clínica." />
+
+4. Em **Testar a busca**, escreva uma pergunta como um cliente faria e clique em **Buscar**. Aparecem os trechos que o agente recebe para responder. A busca usa só o que está salvo e não gasta IA.
+
+   <Print src="docs/ia/base-de-conhecimento/04-testar-a-busca.41083436.webp" alt="Teste da busca com a pergunta Quanto custa a avaliação e o trecho da fonte de preços como resultado." />
+
+5. Para o agente usar a base, abra o agente no editor e conecte a base em **Bases da subconta**.
+
+</Steps>
+
+<Aside type="tip">
+Escreva fontes curtas e por assunto (uma para preços, outra para horários, outra para políticas). O agente recebe trechos mais certeiros do que quando tudo está num texto só.
+</Aside>
+
+## Perguntas frequentes
+
+**Se eu mudar um preço, preciso mexer no agente?**
+Não. Atualize a fonte e clique em **Salvar base**: os agentes ligados a ela passam a usar o conteúdo novo.
+
+**Posso usar a mesma base em mais de um agente?**
+Sim. Cada base pode servir a vários agentes da mesma subconta.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Criar um agente de IA" href="/ia/agent-studio/" description="Monte o agente que vai usar esta base." />
+</CardGrid>

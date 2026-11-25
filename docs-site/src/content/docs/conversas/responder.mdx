@@ -1,0 +1,33 @@
+---
+title: Responder uma conversa
+description: Escolha o canal da resposta, escreva notas internas e veja antes de clicar se a mensagem vai para o contato.
+modulo: conversas
+sidebar:
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+import Requisitos from '../../../components/Requisitos.astro';
+
+<Requisitos permissao="Acesso ao módulo Conversas na subconta" />
+
+<Steps>
+
+1. Em **Conversas**, abra a conversa do contato. O seletor de canal já vem no canal da última mensagem, como WhatsApp ou e-mail. Notas internas não contam.
+
+2. Escreva a resposta e confira o botão. Com **Enviada** selecionado, ele diz o que vai acontecer:
+   - **Enviar**: a mensagem vai para o contato pelo canal escolhido.
+   - **Salvar nota**: fica só para a equipe.
+   - **Registrar mensagem**: fica no histórico e não é enviada. É o caso do SMS e das mensagens marcadas como **Recebida**.
+
+3. Clique no botão. Se o envio falhar, a mensagem aparece como **Não entregue**.
+
+</Steps>
+
+## Escrever uma nota interna
+
+Troque o canal para **Nota**. A escolha fica guardada nessa conversa até você abrir outra conversa e mudar o canal lá, então a tela pode se atualizar sem que a nota vire mensagem para o contato. Para voltar a responder, escolha o canal de novo.
+
+<Aside type="caution">
+Se a tela se atualizar, o texto que ainda não foi enviado se perde. Confira o canal e o botão antes de escrever de novo.
+</Aside>

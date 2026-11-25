@@ -27,6 +27,25 @@ export const fixedRuleValues = {
 const fieldIds = inboxFilterFields.map(([id]) => id);
 
 // Returns a clean rule, or null when the input is not a valid condition.
+// Channels the conversation composer offers, in the order shown.
+export const composerChannels = [['Note', 'Nota'], ['Email', 'E-mail'], ['SMS', 'SMS'], ['WhatsApp', 'WhatsApp'], ['Live chat', 'Chat ao vivo'], ['Instagram', 'Instagram'], ['Facebook', 'Facebook']];
+const isComposerChannel = channel => composerChannels.some(([value]) => value === channel);
+
+// Where a reply starts: the channel the person picked in this conversation, else the one of its latest message.
+// Internal notes do not count. The pick must survive every redraw: a note can never turn into a message to the contact.
+export function replyChannel(messages, chosen = '') {
+  if (isComposerChannel(chosen)) return chosen;
+  let last = null;
+  for (const m of messages || []) if (m.channel !== 'Note' && isComposerChannel(m.channel) && (!last || String(m.created || '') >= String(last.created || ''))) last = m;
+  return last?.channel || 'Note';
+}
+
+// The submit label says what will happen. SMS and received messages are only recorded here.
+export function composerAction(channel, direction) {
+  if (direction !== 'Outbound') return 'Registrar mensagem';
+  return channel === 'Note' ? 'Salvar nota' : channel === 'SMS' ? 'Registrar mensagem' : 'Enviar';
+}
+
 export function inboxRule(rule) {
   if (!rule || typeof rule !== 'object' || !fieldIds.includes(rule.field) || !['is', 'not'].includes(rule.op)) return null;
   const value = typeof rule.value === 'string' ? rule.value.trim().slice(0, 120) : '';

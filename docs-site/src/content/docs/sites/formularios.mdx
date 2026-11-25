@@ -1,0 +1,66 @@
+---
+title: Criar um formulário de captação
+description: Monte um formulário a partir de um modelo, ajuste os campos, publique e coloque no site do cliente com um link ou um código.
+modulo: sites
+sidebar:
+  order: 2
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+import Automacao from '../../../components/Automacao.astro';
+
+O formulário é a porta de entrada dos leads: quem preenche vira contato da subconta, com as respostas guardadas, e pode iniciar uma automação. Use um link próprio ou coloque o formulário em qualquer site.
+
+<Requisitos permissao="Acesso ao módulo Sites na subconta" />
+
+## Passo a passo
+
+<Steps>
+
+1. No menu da subconta, abra **Sites** e vá para a aba **Formulários**. Clique em **Novo formulário**.
+
+   <Print src="docs/sites/formularios/01-formularios.57cb3ccd.webp" alt="Aba Formulários vazia com o botão Novo formulário em destaque." />
+
+2. Dê um **Nome** e escolha como começar: **Em branco**, **Contato**, **Pedido de orçamento**, **Agendar consultoria**, **Pesquisa de satisfação** ou **Newsletter**. Clique em **Criar formulário**.
+
+   <Print src="docs/sites/formularios/02-escolher-modelo.fe012bff.webp" alt="Janela Novo formulário com o modelo Pedido de orçamento em destaque." />
+
+3. O editor mostra o formulário no centro. À esquerda, **Camadas** lista os campos e **Adicionar** traz campos novos; à direita ficam as propriedades do campo ou do formulário, como o **Texto do botão** e a **Cor de destaque**.
+
+   <Print src="docs/sites/formularios/03-editor.700a043b.webp" alt="Editor do formulário Pedido de orçamento com os campos no centro, as camadas à esquerda e as propriedades à direita." />
+
+4. Use **Prévia** para ver como o visitante vai preencher. Quando estiver pronto, clique em **Publicar**.
+
+   <Print src="docs/sites/formularios/04-publicar.4d2550e8.webp" alt="Editor do formulário com o botão Publicar em destaque." />
+
+5. Na aba **Integrar**, copie o **Link direto** para mandar ou usar nas redes, ou o código de **Incorporar em um site** para colar no HTML do site. A altura do formulário se ajusta sozinha ao conteúdo.
+
+   <Print src="docs/sites/formularios/05-integrar.2ce91cbc.webp" alt="Aba Integrar com o link direto, o código para incorporar em um site e a prévia incorporada do formulário." />
+
+</Steps>
+
+<Aside type="tip">
+Dá para preencher campos pelo link: acrescente parâmetros no endereço, como `?email=ana@exemplo.com`.
+</Aside>
+
+## Automações ligadas
+
+<Automacao gatilhos={['Formulário enviado']} acoes={['Adicionar tag', 'Atribuir a um usuário', 'Enviar WhatsApp']} />
+
+## Perguntas frequentes
+
+**Onde vejo as respostas?**
+Na aba **Envios** do formulário. A aba **Análises** mostra visitas e conversões.
+
+**Posso colocar o formulário num site feito na soci?**
+Sim. Os sites da soci já trazem formulário de contato, e os funis usam o formulário de cada etapa para levar à próxima.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Criar um site para o cliente" href="/sites/criar-site/" description="Monte o site onde o formulário vai ficar." />
+  <LinkCard title="Criar o primeiro fluxo de trabalho" href="/automacoes/primeiro-workflow/" description="Responda cada lead assim que o formulário chegar." />
+</CardGrid>

@@ -49,6 +49,7 @@ export function fakeEvolution() {
       instances.delete(name);
       return json({ status: 'SUCCESS', error: false, response: { message: 'Instance deleted' } });
     }
+    if (group === 'webhook' && action === 'find') return json(inst.webhook);
     if (group === 'webhook' && action === 'set' && method === 'POST') {
       inst.webhook = body.webhook;
       return json({ webhook: { instanceName: name, ...body.webhook } }, 201);
