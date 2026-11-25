@@ -8,9 +8,9 @@ import { dirname, extname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { encodeKey, sha256, signHeaders } from './sigv4.mjs';
 
-export const MIDIA_BASE = 'https://midia.soci.app.br';
-// Prévia local: DOCS_MIDIA_BASE=/midia-local serve a mídia de docs-site/public/midia-local (ver comando `local`).
-export const midiaBase = (env = process.env) => String(env.DOCS_MIDIA_BASE || MIDIA_BASE).replace(/\/+$/, '');
+import { MIDIA_BASE, midiaBase } from './midia-base.mjs';
+
+export { MIDIA_BASE, midiaBase };
 const CACHE = 'public, max-age=31536000, immutable';
 const TIPOS = { webp: 'image/webp', png: 'image/png', mp4: 'video/mp4', vtt: 'text/vtt' };
 

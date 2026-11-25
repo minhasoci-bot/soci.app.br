@@ -112,3 +112,13 @@ test('trocarChaves não reescreve outra chave parecida (ponto é ponto, não qua
   const texto = '<Print src="docs/crm/x/01-menuX12345678.webp" alt="a" />';
   assert.equal(trocarChaves(texto, ['docs/crm/x/01-menu.abcdef12.webp']), texto);
 });
+
+test('os componentes de mídia não dependem de código fora de docs-site/', async () => {
+  const { readFile: ler } = await import('node:fs/promises');
+  const base = await ler(new URL('../docs-site/scripts/midia-base.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(base, /^\s*import\s/m, 'midia-base.mjs não importa nada');
+  for (const nome of ['Print', 'Video']) {
+    const comp = await ler(new URL(`../docs-site/src/components/${nome}.astro`, import.meta.url), 'utf8');
+    assert.match(comp, /from '\.\.\/\.\.\/scripts\/midia-base\.mjs'/, `${nome}.astro importa de midia-base.mjs`);
+  }
+});
