@@ -16,8 +16,9 @@ import { makeServer } from '../../server.mjs';
 import { semear } from './semear-demo.mjs';
 
 // App soci em memória, sem login, com a Agência Demo semeada. Devolve a base e a função que o desliga.
-export async function demoEmMemoria() {
-  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, dbPath: ':memory:', port: 0, socialScheduler: false });
+// `servidor` são opções extras do makeServer que um roteiro precisa, como um serviço externo simulado.
+export async function demoEmMemoria(servidor = {}) {
+  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, dbPath: ':memory:', port: 0, socialScheduler: false, ...servidor });
   await new Promise((ok, erro) => { server.on('error', erro); server.listen(0, host, ok); });
   const base = `http://${host}:${server.address().port}`;
   await semear({ base });
@@ -52,7 +53,7 @@ async function comDestaque(page, seletor, tirar) {
 export async function capturar(roteiro, { base, saida, navegador = process.env.DOCS_NAVEGADOR || 'chrome' } = {}) {
   const pasta = saida || fileURLToPath(new URL(`../.midia/${roteiro.grupo}/${roteiro.artigo}/`, import.meta.url));
   await mkdir(pasta, { recursive: true });
-  const demo = base ? null : await demoEmMemoria();
+  const demo = base ? null : await demoEmMemoria(roteiro.servidor);
   base ||= demo.base;
   const id = await subcontaId(base, roteiro.subconta);
   const browser = await chromium.launch({ channel: navegador });

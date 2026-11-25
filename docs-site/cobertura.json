@@ -68,7 +68,7 @@
     "artigo": "dominio-de-email",
     "titulo": "Domínio de envio de e-mail",
     "fase": "F2",
-    "status": "pendente"
+    "status": "escrito"
   },
   {
     "grupo": "conversas",
@@ -132,14 +132,15 @@
     "titulo": "Links de pagamento",
     "fase": "F2",
     "status": "pendente",
-    "nota": "Precisa de um gateway conectado para mostrar o checkout; no app local a tela mostra o aviso de projeto local."
+    "nota": "Aguardando o app: a aba mostra \"Neste projeto local os links ficam registrados\" também em produção e o link não gera checkout."
   },
   {
     "grupo": "pagamentos",
     "artigo": "documentos-e-contratos",
     "titulo": "Documentos e contratos",
     "fase": "F2",
-    "status": "pendente"
+    "status": "pendente",
+    "nota": "Aguardando o app: o editor de documentos (dw-workspace) abre com 72 px de largura, como o de formulários; roteiro pronto em docs-site/roteiros/documentos-e-contratos.mjs."
   },
   {
     "grupo": "ia",
