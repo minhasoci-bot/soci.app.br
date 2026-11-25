@@ -1,7 +1,7 @@
 import {icon as i, logo, brandName, bootScreen} from './icons.js';
 import {nav,h,avatar,screens,publicView,money} from './screens.js';
 import { conversationSections, manualQueue, manualType, slaRecords, SLA_CHANNELS } from './conversations.js';
-import { inboxChange, inboxClick, inboxSubmit } from './inbox.js';
+import { deliveryFailures, inboxChange, inboxClick, inboxSubmit } from './inbox.js';
 import { dashboardPreferences, installDashboardControls, reportGrid } from './dashboard-controls.js';
 import { drawDashboardGauges } from './dashboard.js';
 import { launchpadGuide } from './launchpad.js';
@@ -1200,7 +1200,13 @@ document.addEventListener('submit',async ev=>{
     else if(name==='thread'){await thread(data.contactId);return;}
     else if(name.startsWith('inbox-')||name==='team-message'){flash(await inboxSubmit(name,f,data,inboxContext()));return;}
     else if(name==='workspace'){const d=await api('/api/workspaces',data);await useWorkspace(d.id);flash('Workspace created.');return;}
-    else if(name==='message'){await mutate({type:'message',data:{...data,contactId:c.thread}});msg='Message logged.';}
+    else if(name==='message'){
+      await mutate({type:'message',data:{...data,contactId:c.thread}});
+      // O servidor marca na hora o que não saiu: sem isto a tela diria que deu certo.
+      const last=[...c.s.messages].filter(m=>m.contactId===c.thread&&m.direction==='Outbound').sort((a,b)=>String(b.created).localeCompare(String(a.created)))[0];
+      if(data.direction==='Outbound'&&last?.failed){f.reset();flash(`${tr('Não entregue')}: ${tr(deliveryFailures[last.failed]||deliveryFailures.provider_error)}`,true);render();return;}
+      msg='Message logged.';
+    }
     else if (name === 'manual-action') {
       if (data.status === 'Sent') {
         const item = c.s.manualActions.find(entry => entry.id === f.dataset.id);

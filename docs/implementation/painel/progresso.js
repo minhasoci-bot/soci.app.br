@@ -17,7 +17,7 @@
  */
 window.PLANO_SOCI = {
   titulo: "Paridade Soci × GoHighLevel",
-  atualizadoEm: "2026-11-25 09:00",
+  atualizadoEm: "2026-11-25 11:30",
   etapaAtual: "T.2",
 
   regras: [
@@ -193,6 +193,7 @@ window.PLANO_SOCI = {
   ],
 
   historico: [
+    { data: "2026-11-25", hora: "11:30", texto: "WhatsApp blindado contra as falhas conhecidas da Evolution API: vigia no cron (whatsapp-guard.mjs) recupera mensagem que o webhook perdeu, conserta webhook, avisa queda em Conversas e na agência, reinicia número que não responde e reenvia só o que com certeza não saiu. Envio separa o que falhou do que não se sabe, para nunca repetir. VPS: imagem v2.3.8, vigia de containers e disco, backup conferido. O CI sobe a stack real e testa a atualização 2.3.7 → 2.3.8." },
     { data: "2026-11-24", hora: "20:00", texto: "Central de ajuda (doc.soci.app.br): site Starlight em docs-site/, mídia no R2 público e regra no CI: todo PR que muda ui/, routes/ ou *-model.mjs traz o artigo junto ou declara Documentação: não se aplica — motivo." },
     { data: "2026-11-24", hora: "18:00", texto: "WhatsApp só pela Evolution API: o provedor anterior saiu do código, da interface, dos testes e das variáveis de ambiente; vínculos antigos são descartados ao carregar. Novo em Agência → Configurações → WhatsApp: Testar servidor e Excluir instância. Webhook repetido não duplica mensagem. Pasta deploy/evolution pronta para a VPS da Hostinger (enviar-vps.ps1, .env.example versionado, backup restaurável) com teste real da stack no CI (.github/workflows/evolution.yml)." },
     { data: "2026-11-24", hora: "17:30", texto: "Cobrança igual ao GHL, entrega 1 (extra soci, PRs abertos, sem mesclar): livro da cobrança imutável com exportação CSV, baixa que confere o valor, reembolso e contestação, suspensão por plano não pago com Pagar e reativar, avisos novos do AbacatePay e cadastro fiscal com CPF/CNPJ. Análise em docs/implementation/08-cobrancas-ghl-e-fiscal.md. Faltam as entregas 2 a 6." },

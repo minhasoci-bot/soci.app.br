@@ -128,6 +128,7 @@ import { brandGroupData } from './ui/brand-group-data.js';
 import { createAskHandler } from './soci-chat.mjs';
 import { createWahaHandler } from './waha.mjs';
 import { createWhatsAppHandler } from './whatsapp.mjs';
+import { createWhatsAppGuard } from './whatsapp-guard.mjs';
 import { createAbacatePayHandler } from './abacatepay.mjs';
 import { makeClientPortal } from './client-portal.mjs';
 import { makeCommunity } from './community.mjs';
@@ -206,7 +207,7 @@ const privateSpace = /^user-[0-9a-f-]{36}$/;
 // Why a WhatsApp message was not delivered, as the "Falha no envio de mensagem" trigger names it.
 // documentMail.email answers with a sentence: "e-mail enviado…" when Resend accepted it, anything else is a failure.
 const mailSent = outcome => typeof outcome === 'string' ? /^e-mail enviado/.test(outcome) : Boolean(outcome);
-const deliveryFailure = reason => ({ 'not-connected': 'not_connected', 'invalid-phone': 'invalid_phone', 'account-suspended': 'suspended' })[reason] || 'provider_error';
+const deliveryFailure = reason => ({ 'not-connected': 'not_connected', 'invalid-phone': 'invalid_phone', 'account-suspended': 'suspended', 'server-down': 'server_down', unconfirmed: 'unconfirmed', 'wrong-recipient': 'wrong_recipient' })[reason] || 'provider_error';
 const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
@@ -1919,6 +1920,33 @@ export function makeServer({
     }, { concurrency: 10, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
     await runInBatches(due, async id => { try { await eventSender.run(id); } catch (e) { console.error(`Event messages (${id}): ${e.message}`); } }, { concurrency: 25, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
   }
+  // Vigia do WhatsApp (whatsapp-guard.mjs): recupera mensagens, conserta webhook, avisa queda e reenvia o que não saiu.
+  async function whatsappIncident({ agencyId, workspaceId, kind, since, reason }) {
+    const agency = await store.load(agencyId), state = await store.load(workspaceId);
+    const people = (agency.users || []).filter(user => user.email && (String(user.role || '').startsWith('Agency') || user.accounts?.includes(workspaceId))).slice(0, 10);
+    const name = state.profile?.name || workspaceId, when = new Date(since).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const why = { server: 'O servidor do WhatsApp não está respondendo.', missing: 'A conexão não existe mais no servidor. Leia o QR Code de novo em Configurações → WhatsApp.',
+      disconnected: 'O número foi desconectado. Se ele não voltar sozinho, leia o QR Code de novo em Configurações → WhatsApp.' }[reason] || '';
+    const subject = kind === 'down' ? `WhatsApp fora do ar: ${name}` : `WhatsApp voltou: ${name}`;
+    const text = kind === 'down' ? `O WhatsApp de ${name} está fora do ar desde ${when}.\n\n${why}` : `O WhatsApp de ${name} voltou a funcionar. Tinha caído em ${when}.\n\nAs mensagens recebidas pelo servidor durante a queda estão sendo buscadas para Conversas.`;
+    for (const user of people) await documentMail.email(user.email, { subject, text }, `wa-${kind}-${workspaceId}-${since}-${user.id}`).catch(() => null);
+  }
+  const whatsappGuard = createWhatsAppGuard({
+    store, onStored: workspace => flushLater(workspace), onIncident: whatsappIncident,
+    wa: { ...whatsapp.guardOps, guardTargets: (agencyId, ids) => whatsapp.guardOps.guardTargets(agencyId, ids, (agency, id) => accountIsActive(agency, id, 'conversations').catch(() => false)) }
+  });
+  async function runWhatsAppGuard(base, spaces, at = Date.now()) {
+    const byAgency = new Map();
+    await runInBatches(spaces.filter(w => !privateSpace.test(w.id)), async ({ id }) => {
+      try {
+        const agencyId = (await store.load(id)).agencyId || AGENCY_ID;
+        byAgency.set(agencyId, [...(byAgency.get(agencyId) || []), id]);
+      } catch (e) { console.error(`WhatsApp guard (${id}): ${e.message}`); }
+    }, { concurrency: 10, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+    await runInBatches([...byAgency], async ([agencyId, ids]) => {
+      try { await whatsappGuard.run(agencyId, ids, base); } catch (e) { console.error(`WhatsApp guard (${agencyId}): ${e.message}`); }
+    }, { concurrency: 5, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
+  }
   // Each document is read once per round, not once per task (read-scope.mjs).
   const runAllSocial = (base, at = Date.now()) => cronReads.run(() => runSocialRound(base, at));
   async function runSocialRound(base, at) {
@@ -1926,6 +1954,7 @@ export function makeServer({
     const spaces = (await store.list()).filter(w => spaceId.test(w.id) || privateSpace.test(w.id));
     await cronReads.prime(spaces.map(w => w.id)).catch(e => console.error(`Cron (revisões): ${e.message}`));
     inBackground('Event messages', () => runAllEventSends());
+    inBackground('WhatsApp guard', () => runWhatsAppGuard(base, spaces));
     const { skipped } = await runInBatches(spaces, async w => {
       try { total += await runSocial(w.id, base); } catch (e) { console.error(`Social planner (${w.id}): ${e.message}`); }
       try { await runWebinarReminders(w.id, base); } catch (e) { console.error(`Webinar reminders (${w.id}): ${e.message}`); }
