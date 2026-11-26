@@ -430,6 +430,12 @@ function sentView(c, doc) {
         ${paymentSection(c, doc)}<section><h2>Trilha de auditoria</h2><ol class="dc-trail">${trail}</ol></section></aside></div></div>`;
 }
 
+// Exemplo da mensagem do envio: fala de proposta, contrato ou documento conforme o tipo.
+export function exemploDeMensagem(kind) {
+  const nome = { proposal: 'a proposta', contract: 'o contrato' }[kind] || 'o documento';
+  return `Olá! Segue ${nome} conforme conversamos.`;
+}
+
 function sendDialog(c, d) {
   const people = d.recipients.map(row => `<li><b data-no-translate="1">${h(row.name || row.label)}</b> <span class="dim" data-no-translate="1">${h(row.email || 'sem e-mail')}</span> · ${h(roleNames[row.role])}${d.ordered && row.role !== 'cc' ? ` · ${row.order}º` : ''}</li>`).join('');
   return `<form class="co-form" data-dc-form="send" data-id="${h(d.id)}">
@@ -439,7 +445,7 @@ function sendDialog(c, d) {
       <label><input type="checkbox" checked disabled><span><b>E-mail</b><small>Sempre: é por ele que chega a cópia final.</small></span></label>
       <label><input type="checkbox" name="whatsapp"><span><b>WhatsApp também</b><small>Para destinatários ligados a um contato com telefone.</small></span></label></fieldset>
     <label>Assunto (opcional)<input name="subject" maxlength="160" placeholder="${h(`${c.s.profile.name} enviou “${d.title}” para você assinar`)}"></label>
-    <label>Mensagem (opcional)<textarea name="message" rows="3" maxlength="2000" placeholder="Olá! Segue a proposta conforme conversamos."></textarea></label>
+    <label>Mensagem (opcional)<textarea name="message" rows="3" maxlength="2000" placeholder="${h(exemploDeMensagem(d.kind))}"></textarea></label>
     <p class="form-status" role="alert" data-dc-error></p>
     <div class="co-form-actions"><button type="button" class="secondary" data-act="close">Cancelar</button><button class="primary" type="submit">Enviar agora</button></div></form>`;
 }

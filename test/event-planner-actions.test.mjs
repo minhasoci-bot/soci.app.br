@@ -11,7 +11,8 @@ const realDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
 test.afterEach(() => { if (realDocument) Object.defineProperty(globalThis, 'document', realDocument); else delete globalThis.document; });
 
 // Liga os handlers reais da tela a um documento mínimo e ao modelo real, com a latência de uma rede de verdade.
-function mount(scrollTop = 0) {
+function mount(options = 0) {
+  let scrollTop = typeof options === 'number' ? options : 0;
   // #screen tem scroll-behavior: smooth: atribuir scrollTop anima a partir do topo, então só vale a rolagem instantânea.
   const screen = {};
   Object.defineProperty(screen, 'scrollTop', { get: () => scrollTop, set: () => {} });
@@ -20,15 +21,16 @@ function mount(scrollTop = 0) {
   execute(s, { type: 'save', key: 'eventPlans', id: '', data: { title: 'Aula', eventDate: '2026-12-10', plan: launchEventPlan('2026-12-10') } });
   const c = { s: structuredClone(s), agency: { users: [] }, workspace: 'w' };
   const opened = [];
+  const tl = { at: [300, 120], node: { clientWidth: 400, closest: () => ({ dataset: { day: '36', today: '3' } }), get scrollLeft() { return tl.at[0]; }, get scrollTop() { return tl.at[1]; }, scrollTo: ({ left, top, behavior }) => { if (behavior === 'instant') tl.at = [left, top ?? tl.at[1]]; } } };
   globalThis.document = {
     addEventListener: (type, fn) => { handlers[type] = fn; },
-    querySelector: selector => selector === '#screen' ? screen : null,
+    querySelector: selector => selector === '#screen' ? screen : selector === '[data-ep-tl-scroll]' ? tl.node : null,
     querySelectorAll: () => []
   };
   installEventPlanner({
-    c, close() {}, dialog: (_title, body) => opened.push(body),
+    ...(options.ask ? { ask: options.ask } : {}), c, close() {}, dialog: (_title, body) => opened.push(body),
     flash: (message, error) => messages.push((error ? 'ERRO ' : 'ok ') + message),
-    render: () => { scrollTop = 0; },
+    render: () => { scrollTop = 0; tl.at = [0, 0]; },
     mutate: async command => {
       await new Promise(done => setTimeout(done, 30));
       const id = execute(s, command);
@@ -39,7 +41,12 @@ function mount(scrollTop = 0) {
   const event = () => s.eventPlans[0];
   const status = (item, value) => handlers.change({ target: { value, dataset: { epEvent: event().id, epItemStatus: item.id }, matches: selector => selector === '[data-ep-item-status]' } });
   const click = dataset => handlers.click({ target: { closest: () => ({ dataset }) } });
-  return { event, status, click, messages, opened, screen };
+  const submit = (dataset, values) => {
+    globalThis.FormData = class { [Symbol.iterator]() { return Object.entries(values)[Symbol.iterator](); } getAll() { return []; } };
+    const note = { textContent: '' };
+    return handlers.submit({ preventDefault() {}, target: { dataset, matches: selector => selector === '[data-ep-form]', querySelector: selector => selector === '.form-status' ? note : null } });
+  };
+  return { s, c, event, status, click, submit, messages, opened, screen, tl };
 }
 
 test('Quick status changes in a row are all saved', async () => {
@@ -62,6 +69,27 @@ test('Saving an item keeps the scroll position', async () => {
   const app = mount(840);
   await app.status(app.event().plan.items[0], 'feito');
   assert.equal(app.screen.scrollTop, 840);
+});
+
+test('Saving keeps the timeline where it was, in both directions', async () => {
+  const app = mount();
+  await app.status(app.event().plan.items[0], 'feito');
+  assert.deepEqual(app.tl.at, [300, 120]);
+});
+
+test('Editing a scheduled message into the past asks before sending it', async () => {
+  const asked = [];
+  for (const answer of [false, true]) {
+    const app = mount({ ask: async title => { asked.push(title); return answer; } }), item = app.event().plan.items.find(row => row.code === 'MCWF001');
+    for (const state of [app.s, app.c.s]) {
+      state.eventPlans[0].deliveries = { [item.id]: { state: 'scheduled', dueAt: '2026-12-01T21:00:00.000Z', sent: 0 } };
+      Object.assign(state.eventPlans[0].plan.items.find(row => row.id === item.id), { notes: 'Oi', status: 'agendado' });
+    }
+    const fields = { title: 'Convite', phase: 'captura', status: 'agendado', channel: 'grupos', audience: 'base', team: 'copy', code: 'MCWF001', time: '18:00', notes: 'Oi', owner: '' };
+    await app.submit({ epForm: 'item', id: app.event().id, revision: '1', kind: 'message', itemId: item.id }, { ...fields, date: '2020-01-01' });
+    assert.equal(app.event().plan.items.find(row => row.id === item.id).date, answer ? '2020-01-01' : '2026-12-01');
+  }
+  assert.deepEqual(asked, ['Enviar agora?', 'Enviar agora?']);
 });
 
 test('Marks stay next to the words the way a double click selects them', () => {

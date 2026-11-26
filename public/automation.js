@@ -881,7 +881,7 @@ export function installAutomation({ c, mutate, render, flash, dialog, close }) {
         }
       } else if (op === 'recipe-picker') {
         dialog('Criar novo fluxo de automação', `<div class="wf-recipe-modal">
-          <p class="wf-recipe-intro">Escolha uma receita pré-configurada baseada em fluxos de alto desempenho do HighLevel ou comece do zero.</p>
+          <p class="wf-recipe-intro">Escolha uma receita pronta, montada a partir de fluxos que funcionam bem, ou comece do zero.</p>
           <div class="wf-recipe-grid">${workflowRecipes.map(recipe => `
             <button type="button" class="wf-recipe-card" data-wf="apply-recipe" data-wf-id="${recipe.id}" data-wf-folder="${h(id || '')}">
               <div class="wf-recipe-header">

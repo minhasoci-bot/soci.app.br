@@ -1,5 +1,6 @@
 import { icon as i } from './icons.js';
-import { ask } from './ask.js';
+import { ask as askUser } from './ask.js';
+import { eventGroups, galleryGroups, installTimeline, leavesNow, timelineHtml } from './event-timeline.js';
 import { deliveryActive, deliveryOf, deliveryView, installEventSends, sendBanner, sendSummary, sendTools, sendable, targetsField } from './event-sends.js';
 import { bindCopyEditor, copyEditorField, replaceText, whatsappHtml } from './event-copy-editor.js';
 import {
@@ -20,11 +21,11 @@ const usersOf = c => c.agency?.users || [];
 const primary = (label, attrs = '') => `<button class="primary" ${attrs}>${label}</button>`;
 const metric = (label, value) => `<div class="surface metric"><span>${label}</span><b>${value}</b></div>`;
 const empty = (title, text, icon) => `<div class="empty">${i(icon, 26)}<strong>${h(title)}</strong><p>${h(text)}</p></div>`;
-const ui = { workspace: '', selectedId: '', section: 'strategy', phase: 'all', status: 'all', channel: 'all', events: 'active' };
+const ui = { workspace: '', selectedId: '', section: 'strategy', phase: 'all', status: 'all', channel: 'all', events: 'active', view: 'cards', zoom: 'day' };
 
 function reset(workspace) {
   if (ui.workspace === workspace) return;
-  ui.workspace = workspace; ui.selectedId = ''; ui.events = 'active'; openSection('strategy');
+  ui.workspace = workspace; ui.selectedId = ''; ui.events = 'active'; ui.view = 'cards'; openSection('strategy');
 }
 function openSection(section) { ui.section = section; ui.phase = 'all'; ui.status = 'all'; ui.channel = 'all'; }
 function eventProgress(event) {
@@ -37,13 +38,19 @@ function eventProgress(event) {
   };
 }
 
+/* ── Linha do tempo ── */
+const todayOf = c => new Intl.DateTimeFormat('en-CA', { timeZone: c.s.profile?.timezone || 'America/Sao_Paulo' }).format(new Date());
+const toggle = (attr, rows, current) => `<span class="ep-toggle" role="group">${rows.map(([value, label]) => `<button type="button" ${attr}="${value}" aria-pressed="${value === current}">${label}</button>`).join('')}</span>`;
+const timelineTools = () => `<span class="ep-send-tools">${toggle('data-ep-tl-zoom', [['day', 'Dia'], ['week', 'Semana']], ui.zoom)}<button type="button" class="secondary" data-ep-tl-today>${i('k', 15)} Hoje</button></span>`;
+const timeline = (c, groups) => timelineHtml({ groups, zoom: ui.zoom, today: todayOf(c) });
+
 /* ── Galeria ── */
 const eventBadge = { em_andamento: ' blue', concluido: ' green' };
 function eventCard(event) {
   const p = eventProgress(event), total = p.tasks.length, percent = total ? Math.round(p.done / total * 100) : 0, key = h(event.id);
   return `<article class="surface ep-card"><button type="button" class="ep-card-body" data-ep-open="${key}"><span class="ep-card-meta"><span class="badge${eventBadge[event.status] || ''}">${h(eventStatusLabel(event.status))}</span><span>${h(dateLabel(event.eventDate) || 'Data a definir')}</span></span><strong class="ep-card-title">${h(event.title)}</strong><span class="ep-card-stats"><span>${total ? `${p.done} de ${total} ${total === 1 ? 'tarefa concluída' : 'tarefas concluídas'}` : 'Sem tarefas'}</span><span><b>${p.sent}/${p.messages.length}</b> mensagens</span><span><b>${p.ready}/${p.links.length}</b> links</span></span><span class="ep-progress" aria-hidden="true"><span style="width:${percent}%"></span></span></button><div class="ep-card-actions" role="group" aria-label="Ações para ${h(event.title)}"><button type="button" class="secondary" data-ep-manage="rename" data-id="${key}">Renomear</button><button type="button" class="secondary" data-ep-manage="duplicate" data-id="${key}">Duplicar</button><button type="button" class="danger plain" data-ep-manage="delete" data-id="${key}">Apagar</button></div></article>`;
 }
-function gallery(c, pageShell, marketingTabs) {
+function gallery(c, pageShell, marketingTabs, shown = ui.view) {
   const all = c.s.eventPlans || [];
   const events = all
     .filter(event => ui.events === 'all' || (ui.events === 'active' ? event.status !== 'arquivado' : event.status === ui.events))
@@ -51,9 +58,9 @@ function gallery(c, pageShell, marketingTabs) {
   const create = primary(`${i('plus', 16)} Novo evento`, 'type="button" data-ep-new');
   const nothing = all.length
     ? empty('Nenhum evento com este status', 'Troque o filtro para ver os outros eventos.', 'filter')
-    : `<div class="empty">${i('calendar', 26)}<strong>Nenhum evento planejado</strong><p>Crie um plano com estratégia, tarefas, mensagens, roteiro e links do lançamento.</p>${create}</div>`;
-  const filter = all.length ? `<div class="ep-toolbar"><label>Status<select data-ep-status-filter>${optionRows([['active', 'Ativos'], ['all', 'Todos'], ...eventPlanStatuses], ui.events)}</select></label></div>` : '';
-  return pageShell({ title: 'Planejador de eventos', desc: 'Organize estratégia, operação e comunicação de cada lançamento desta subconta.', className: 'ep', cta: create, tabs: { key: 'marketing', items: marketingTabs, current: 'events', label: 'Seções de marketing' }, content: `${filter}<section class="ep-gallery" aria-label="Eventos planejados">${events.map(eventCard).join('') || nothing}</section>` });
+    : `<div class="empty">${i('k', 26)}<strong>Nenhum evento planejado</strong><p>Crie um plano com estratégia, tarefas, mensagens, roteiro e links do lançamento.</p>${create}</div>`;
+  const filter = all.length ? `<div class="ep-toolbar"><label>Status<select data-ep-status-filter>${optionRows([['active', 'Ativos'], ['all', 'Todos'], ...eventPlanStatuses], ui.events)}</select></label><span class="spacer"></span>${shown === 'timeline' ? timelineTools() : ''}${toggle('data-ep-view', [['cards', 'Cartões'], ['timeline', 'Linha do tempo']], shown)}</div>` : '';
+  return pageShell({ title: 'Planejador de eventos', desc: 'Organize estratégia, operação e comunicação de cada lançamento desta subconta.', className: 'ep', cta: create, tabs: { key: 'marketing', items: marketingTabs, current: 'events', label: 'Seções de marketing' }, content: `${filter}${shown === 'timeline' && events.length ? timeline(c, galleryGroups(events)) : `<section class="ep-gallery" aria-label="Eventos planejados">${events.map(eventCard).join('') || nothing}</section>`}` });
 }
 
 /* ── Seções do evento ── */
@@ -106,6 +113,10 @@ function linksSection(c, event) {
   const rows = visible(records(event, 'link')).sort(byDate);
   return `${sectionHead('Links da operação', 'Centralize páginas, grupos, pesquisas, materiais e checkout.', newItem(event, 'link', 'Novo link'))}${filterBar('link')}<div class="ep-link-grid">${rows.map(item => `<article class="surface ep-link"><div class="ep-item-main"><h3>${h(item.title)}</h3>${meta([phaseLabel(item.phase), dateLabel(item.date), ownerLabel(item, usersOf(c))])}</div>${item.url ? `<a class="ep-url" href="${h(item.url)}" target="_blank" rel="noopener noreferrer">${h(item.url.replace(/^https?:\/\//, ''))} ${i('external', 13)}</a>` : '<p class="ep-note">Endereço ainda não adicionado.</p>'}${note(item)}<div class="ep-link-foot">${itemTools(event, item)}</div></article>`).join('')}</div>${rows.length ? '' : nothingHere(event, 'link', 'Guarde aqui as páginas, materiais e acessos da operação.', 'link')}`;
 }
+function timelineSection(c, event) {
+  const groups = eventGroups(event);
+  return `${sectionHead('Linha do tempo', 'Arraste para remarcar, ou use as setas do teclado. Clique para editar.', groups.length ? timelineTools() : '')}${groups.length ? timeline(c, groups) : empty('Nada para mostrar ainda', 'Crie tarefas ou mensagens com data para ver a linha do tempo.', 'k')}`;
+}
 function integrationsSection(_c, event) {
   const sends = sendSummary(event);
   const binding = event.orchestration || {}, rows = Object.values(binding.items || {});
@@ -120,6 +131,7 @@ const sections = [
   { value: 'messages', label: 'Comunicação', icon: 'send', content: messagesSection },
   { value: 'agenda', label: 'Roteiro do dia', icon: 'list', content: agendaSection },
   { value: 'links', label: 'Links', icon: 'link', content: linksSection },
+  { value: 'timeline', label: 'Linha do tempo', icon: 'clock', content: timelineSection },
   { value: 'integrations', label: 'Integrações', icon: 'flow', content: integrationsSection }
 ];
 
@@ -135,11 +147,11 @@ export function eventView(c, event, { pageShell, utabs, marketingTabs }, section
     content: `${metrics}${utabs({ key: 'ep-sections', nested: true, items, current: section, label: 'Seções do evento', content: sections.find(row => row.value === section).content(c, event) })}`
   });
 }
-export function eventPlanner(c, helpers) {
+export function eventPlanner(c, helpers, { view } = {}) {
   reset(c.workspace);
   const current = (c.s.eventPlans || []).find(item => item.id === ui.selectedId);
   if (!current) ui.selectedId = '';
-  return current ? eventView(c, current, helpers) : gallery(c, helpers.pageShell, helpers.marketingTabs);
+  return current ? eventView(c, current, helpers) : gallery(c, helpers.pageShell, helpers.marketingTabs, view);
 }
 
 /* ── Formulários ── */
@@ -226,27 +238,39 @@ async function copyText(text) {
   const area = document.createElement('textarea'); area.value = text; area.style.position = 'fixed'; area.style.opacity = '0'; document.body.append(area); area.select(); document.execCommand('copy'); area.remove();
 }
 
-export function installEventPlanner({ c, mutate, flash, dialog, close, render, api, url, load }) {
+/** Depois de desenhar, a linha do tempo volta para onde estava, ou para perto de hoje. */
+export function placeTimeline(left, top) {
+  const scroll = document.querySelector('[data-ep-tl-scroll]'); if (!scroll) return;
+  const { day, today } = scroll.closest('[data-ep-timeline]').dataset;
+  scroll.scrollTo({ left: left ?? (today === '' ? 0 : Math.max(0, today * day - scroll.clientWidth / 4)), top, behavior: 'instant' });
+}
+
+export function installEventPlanner({ c, mutate, flash, dialog, close, render: draw, api, url, load, ask = askUser }) {
+  const render = () => { draw(); placeTimeline(); };
   const find = id => (c.s.eventPlans || []).find(row => row.id === id);
   const itemOf = (event, id) => planOf(event).items.find(item => item.id === id);
   // Uma gravação por vez: cada uma lê o evento já com a revisão da anterior, senão duas trocas rápidas viram conflito.
   let queue = Promise.resolve();
   const inOrder = work => { const run = queue.then(work); queue = run.catch(() => {}); return run; };
   const save = command => inOrder(() => mutate(command));
-  const savePlan = (id, change, revision) => inOrder(() => {
+  // sendNow: a mensagem agendada cujo envio imediato a pessoa confirmou; sem isso o servidor recusa a data que já passou.
+  const savePlan = (id, change, revision, sendNow = '') => inOrder(() => {
     const event = find(id); if (!event) throw Error('Evento não encontrado.');
     const plan = structuredClone(planOf(event)); change(plan);
-    return mutate({ type: 'save', key: 'eventPlans', id, data: { plan, revision: revision ?? event.revision ?? 0 } });
+    return mutate({ type: 'save', key: 'eventPlans', id, data: { plan, revision: revision ?? event.revision ?? 0, ...(sendNow && { sendNow }) } });
   });
   // Redesenha sem perder a posição da rolagem nem as copies abertas.
   const repaint = () => {
     const top = document.querySelector('#screen')?.scrollTop || 0;
+    const { scrollLeft: left, scrollTop: down } = document.querySelector('[data-ep-tl-scroll]') || {};
     const openItems = new Set([...document.querySelectorAll('[data-ep-details][open]')].map(row => row.dataset.epDetails));
-    render();
+    draw();
+    placeTimeline(left, down);
     for (const row of document.querySelectorAll('[data-ep-details]')) row.open = openItems.has(row.dataset.epDetails);
     document.querySelector('#screen')?.scrollTo({ top, behavior: 'instant' });
   };
   installEventSends({ c, api, url, load, save, flash, dialog, close, repaint, find, itemOf, isOpen: () => c.view === 'marketing' && c.tab === 'events' && ui.section === 'messages' ? find(ui.selectedId) : null });
+  const timelineMoves = installTimeline({ find, itemOf, savePlan, openItem: (...args) => openItem(...args), repaint: () => repaint(), flash, ask, settled: () => queue, zone: () => c.s.profile?.timezone || 'America/Sao_Paulo' });
   const openItem = (event, kind, item = null) => {
     dialog(`${item ? 'Editar' : 'Adicionar'} ${kindLabel[kind]}`, itemDialogBody(c, event, kind, item));
     bindCopyEditor(document);
@@ -254,15 +278,18 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render, a
   const orchestrate = event => dialog('Orquestrar evento', `${formHead('orchestrate', event)}<p class="dim">A Soci cria somente os registros que ainda não estão vinculados a este evento.</p>${[['tasks', 'Criar tarefas no CRM'], ['calendar', 'Criar compromisso no Calendário a partir do roteiro'], ['social', 'Criar rascunhos do Instagram no Planejador social'], ['email', 'Criar rascunhos de e-mail para revisão']].map(([name, label]) => `<label class="check"><input type="checkbox" name="${name}" checked> ${label}</label>`).join('')}<p class="dim">Também será emitido o evento <code>event_plan_orchestrated</code> para os fluxos e webhooks configurados em Automações.</p>${formFoot('Sincronizar')}</form>`, { description: 'Nenhum envio será disparado automaticamente.' });
 
   document.addEventListener('click', async domEvent => {
-    const target = domEvent.target.closest('[data-ep-open],[data-ep-back],[data-ep-new],[data-ep-edit],[data-ep-manage],[data-ep-section],[data-ep-brief-group],[data-ep-item-new],[data-ep-item-edit],[data-ep-item-delete],[data-ep-copy],[data-ep-orchestrate],[data-ep-apply-template]');
+    const target = domEvent.target.closest('[data-ep-open],[data-ep-back],[data-ep-new],[data-ep-edit],[data-ep-manage],[data-ep-section],[data-ep-brief-group],[data-ep-item-new],[data-ep-item-edit],[data-ep-item-delete],[data-ep-copy],[data-ep-orchestrate],[data-ep-apply-template],[data-ep-view],[data-ep-tl-zoom],[data-ep-tl-today]');
     if (!target) return;
     const data = target.dataset;
     try {
-      if (data.epEdit || data.epManage || data.epEvent) await queue;
+      if (data.epEdit || data.epManage || data.epEvent) { await timelineMoves.flush(); await queue; }
       const event = find(data.epEvent);
       if (data.epOpen) { ui.selectedId = data.epOpen; openSection('strategy'); render(); return; }
       if (data.epBack !== undefined) { ui.selectedId = ''; render(); return; }
       if (data.epNew !== undefined) { dialog('Novo evento', eventDialogBody(null), { description: 'Cada evento fica restrito à subconta atual.' }); return; }
+      if (data.epView) { ui.view = data.epView; render(); return; }
+      if (data.epTlZoom) { ui.zoom = data.epTlZoom; render(); return; }
+      if (data.epTlToday !== undefined) { placeTimeline(); return; }
       if (data.epSection) { openSection(data.epSection); render(); return; }
       if (data.epOrchestrate) { const row = find(data.epOrchestrate); if (row) orchestrate(row); return; }
       if (data.epEdit) { const row = find(data.epEdit); if (row) dialog('Editar evento', eventDialogBody(row), { description: 'O plano do evento não muda. Arquivar cancela os envios agendados.' }); return; }
@@ -347,7 +374,9 @@ export function installEventPlanner({ c, mutate, flash, dialog, close, render, a
         done('Estratégia atualizada.');
       } else if (kind === 'item') {
         const previous = itemOf(event, form.dataset.itemId), row = itemFromValues(form.dataset.kind, values, previous, usersOf(c));
-        await savePlan(id, plan => { const at = plan.items.findIndex(item => item.id === row.id); if (at === -1) plan.items.push(row); else plan.items[at] = row; }, revision);
+        const leaves = (row.date !== previous?.date || row.time !== previous?.time) && leavesNow(event, row, row.date, c.s.profile?.timezone || 'America/Sao_Paulo', Date.now());
+        if (leaves && !await ask('Enviar agora?', { text: `“${row.title}” está agendada. Com essa data, o horário já passou e ela sai em seguida.`, ok: 'Enviar agora' })) return;
+        await savePlan(id, plan => { const at = plan.items.findIndex(item => item.id === row.id); if (at === -1) plan.items.push(row); else plan.items[at] = row; }, revision, leaves ? row.id : '');
         done(previous ? 'Item atualizado.' : 'Item criado.');
       }
     } catch (error) { if (status) status.textContent = error.message; else flash(error.message, true); }

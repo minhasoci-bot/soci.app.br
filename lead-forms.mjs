@@ -6,6 +6,7 @@
 // (/api/meta/webhook); o servidor busca os campos do lead com o token da página.
 // Os dois viram um contato (achado por e-mail ou telefone), uma nota com as respostas e o gatilho próprio.
 import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { tagsChanged } from './contact-tags.mjs';
 import { trackingOf } from './tracking.mjs';
 
 export const leadFormCollections = ['adFormLeads'];
@@ -76,7 +77,7 @@ export function adFormLead(s, d, { add, run, now }) {
     run(s, 'Contact created', { contactId: contact.id });
   } else {
     for (const key of ['email', 'phone', 'company']) if (!contact[key] && info[key]) contact[key] = info[key];
-    if (!(contact.tags || []).includes(label)) contact.tags = [...(contact.tags || []), label];
+    if (!(contact.tags || []).includes(label)) { const before = contact.tags || []; contact.tags = [...before, label]; tagsChanged(s, contact, before, run); }
     contact.updated = now();
   }
   const form = str(d.formName, 160) || str(d.formId, 80);

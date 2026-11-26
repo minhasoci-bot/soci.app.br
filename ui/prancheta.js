@@ -180,7 +180,7 @@ function renderGallery(c) {
  * Liga a galeria às ações e abre o editor da Prancheta (prancheta-editor/src,
  * servido em /prancheta-editor.html) num iframe em tela cheia sobre a galeria.
  */
-export function installPrancheta({ c, mutate, flash, render, getState }) {
+export function installPrancheta({ c, mutate, flash, render, getState, account }) {
   const isAgencyRoute = () => location.hash.startsWith('#agency');
   const getBaseHash = () => isAgencyRoute() ? '#agency/prancheta' : '#prancheta';
   const getFiles = () => (getState ? getState() : c.s)?.pranchetaFiles || [];
@@ -210,6 +210,7 @@ export function installPrancheta({ c, mutate, flash, render, getState }) {
     if (frame && frameFile === route.id) return;
     const query = new URLSearchParams({ workspace: route.workspace, file: route.id });
     if (pendingAction) query.set('action', pendingAction);
+    if (account()) query.set('account', account());   // account-guard.js: o editor só fala por esta conta
     pendingAction = '';
     if (!frame) {
       frame = document.createElement('iframe');

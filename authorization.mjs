@@ -47,7 +47,7 @@ const commandModules = {
   'stage-delete': 'opportunities', 'smart-tag': 'opportunities', 'smart-tag-delete': 'opportunities',
   'studio-visit': 'sites', 'studio-star': 'sites', 'studio-meta': 'sites',
   'chat-start': 'sites', 'chat-send': 'sites', 'blog-view': 'sites',
-  'store-checkout': 'payments', 'webinar-register': 'sites', 'webinar-attend': 'sites',
+  'store-checkout': 'payments', 'payment-link-checkout': 'payments', 'webinar-register': 'sites', 'webinar-attend': 'sites',
   'webinar-reminders': 'sites', 'qr-scan': 'sites',
   'community-event-ticket': 'memberships', 'community-event-joined': 'memberships', 'community-event-reminders': 'memberships',
   'community-plan-invoice': 'memberships', 'community-welcome': 'memberships', 'community-newsletter': 'memberships', 'community-activity': 'memberships', 'portal-login': 'memberships', 'course-activity': 'memberships', 'offer-access': 'memberships', 'credential-issue': 'memberships', 'credential-revoke': 'memberships',

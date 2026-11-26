@@ -20,7 +20,10 @@ export function createSocialRoutes(deps) {
   return async function socialRoute({ req, res, p, method, url, id, json, send }) {
     if (p === '/api/social/cron' && (method === 'GET' || method === 'POST')) {
       if (!sameSecret(String(req.headers.authorization || ''), process.env.CRON_SECRET && `Bearer ${process.env.CRON_SECRET}`)) throw error('Not allowed.',401);
-      return json({ published: await runAllSocial(publicBase(req)) });
+      const published = await runAllSocial(publicBase(req));
+      // Página Plataforma: de hora em hora confere os limites dos serviços. Depois das publicações e sem derrubá-las.
+      await deps.platformMonitor?.runIfDue().catch(problem => console.error(`Plataforma: ${problem.message}`));
+      return json({ published });
     }
     const socialFile = p.match(socialFilePath);
     if (socialFile && method === 'GET') {

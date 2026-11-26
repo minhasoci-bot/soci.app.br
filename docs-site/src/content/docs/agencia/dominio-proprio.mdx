@@ -1,0 +1,58 @@
+---
+title: Usar o domínio da agência no endereço das subcontas
+description: Faça seus clientes entrarem na soci por um endereço da agência, como app.suaagencia.com.br, com o seu logotipo na tela de entrada.
+modulo: agencia
+sidebar:
+  order: 4
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Com o domínio próprio, seus clientes entram na soci por um endereço da agência, como app.suaagencia.com.br. A tela de entrada mostra o nome e o logotipo da agência no lugar da marca soci. Você só precisa de um domínio e de acesso ao DNS dele (no Registro.br, na Cloudflare ou onde o domínio estiver).
+
+<Requisitos permissao="Dono ou admin da agência" integracoes={['Acesso ao DNS do domínio da agência']} />
+
+## Passo a passo
+
+<Steps>
+
+1. No painel da agência, abra **Configurações** e vá para a aba **Empresa e marca**. Em **White Label das subcontas**, digite o endereço em **Domínio para subcontas**, por exemplo app.suaagencia.com.br. Use um subdomínio (com "app." ou "portal." na frente), não o endereço do site da agência.
+
+   <Print src="docs/agencia/dominio-proprio/01-campo-do-dominio.329c4d23.webp" alt="Seção White Label das subcontas com app.agenciademo.com.br no campo Domínio para subcontas." />
+
+2. Clique em **Salvar dados da empresa**. A soci adiciona o domínio à hospedagem.
+
+3. No painel do seu domínio, crie um registro **CNAME** com o nome do subdomínio (por exemplo, `app`) apontando para `cname.vercel-dns.com`. Se o domínio estiver na Cloudflare, deixe o proxy desligado (nuvem cinza).
+
+4. De volta à **Empresa e marca**, clique em **Verificar domínio**. A mensagem diz em que ponto está: aguardando o CNAME ou pronto. A mudança de DNS pode levar algumas horas.
+
+   <Print src="docs/agencia/dominio-proprio/02-verificar-dominio.fa214d01.webp" alt="Botão Verificar domínio em destaque e, abaixo dele, a mensagem com a situação do domínio." />
+
+5. Quando aparecer **Pronto: o domínio aponta para a soci.**, mande o novo endereço aos clientes. A tela de entrada já mostra o nome e o logotipo da agência.
+
+</Steps>
+
+<Aside type="caution">Se a mensagem disser que a conexão automática com a hospedagem não está ativa, fale com o [suporte da soci](/suporte/como-pedir-ajuda/) e mande o domínio. A equipe adiciona o domínio à hospedagem por você.</Aside>
+
+<Aside type="tip">Coloque o logotipo da agência em **White Label das subcontas** antes de divulgar o endereço. Assim a tela de entrada e o menu das subcontas já saem com a sua marca. Veja [como colocar a marca da agência](/agencia/white-label/).</Aside>
+
+## Perguntas frequentes
+
+**Duas agências podem usar o mesmo domínio?**
+Não. Cada domínio fica com uma agência só. Se outra agência já usa o endereço, a soci avisa ao salvar.
+
+**O endereço antigo da soci continua funcionando?**
+Sim. Os clientes podem entrar pelos dois endereços. No domínio da agência, a tela de entrada mostra a sua marca.
+
+**Posso usar o domínio principal do site, sem o "app."?**
+Não é recomendado. O domínio principal costuma apontar para o site da agência, e mudá-lo tiraria o site do ar. Use um subdomínio só para a soci.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Colocar a marca da agência na soci" href="/agencia/white-label/" description="Logotipo e cores da agência dentro das subcontas." />
+  <LinkCard title="Criar uma subconta para um cliente" href="/agencia/criar-subconta/" description="Cadastre o cliente que vai entrar pelo seu domínio." />
+</CardGrid>

@@ -3,6 +3,8 @@
 .shell:has(.dw-workspace) > .sidebar, .shell:has(.dw-workspace) > .workspace > .topbar { display: none; }
 .shell:has(.dw-workspace) > .workspace { grid-column: 1; display: flex; flex-direction: column; }
 .shell:has(.dw-workspace) #screen { flex: 1; }
+/* A barra do topo some no editor; o espaço que o Liquid Glass guarda para ela (--lg-top-h) some junto. */
+:root:root .shell.shell:has(.dw-workspace) > .workspace > .screen { padding-top: 0; }
 .screen:has(.sx.dw-workspace) > .studio-shell, .studio-shell:has(.sx.dw-workspace) > .studio-main {
   display: flex;
   flex: 1;

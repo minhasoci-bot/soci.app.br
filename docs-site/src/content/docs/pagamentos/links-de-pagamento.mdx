@@ -1,0 +1,67 @@
+---
+title: Vender com um link de pagamento
+description: Crie um link para um produto e mande ao cliente, que paga por Pix ou cartão numa página com o nome da subconta.
+modulo: pagamentos
+sidebar:
+  order: 4
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+import Automacao from '../../../components/Automacao.astro';
+
+O link de pagamento serve para cobrar um produto sem montar fatura nem loja. Você cria o link uma vez e o manda por WhatsApp, e-mail, Instagram ou onde quiser. Quem abre vê o produto e o preço, informa nome e e-mail e paga por Pix ou cartão. O contato entra no CRM e o pagamento aparece em **Transações**.
+
+<Requisitos permissao="Acesso ao módulo Pagamentos na subconta" integracoes={['AbacatePay, para cobrar por Pix ou cartão']} />
+
+## Passo a passo
+
+<Steps>
+
+1. Em **Pagamentos**, abra a aba **Produtos** e clique em **Novo produto**. Preencha **Nome do produto**, **Descrição** e **Preço**. Em **Tipo de preço**, deixe **Pagamento único**. Depois clique em **Criar produto**.
+
+   <Print src="docs/pagamentos/links-de-pagamento/01-novo-produto.81cd35b8.webp" alt="Janela Novo produto com Clareamento dental, a descrição e o preço de 350 reais, e o botão Criar produto em destaque." />
+
+2. Abra a aba **Links de pagamento** e clique em **Novo link**. Dê um **Nome do link** que mostre onde você vai usá-lo, como "Clareamento no Instagram", e escolha o **Produto**. Clique em **Criar link de pagamento**.
+
+   <Print src="docs/pagamentos/links-de-pagamento/02-novo-link.d31c28ac.webp" alt="Janela Novo link de pagamento com o nome Clareamento no Instagram e o produto Clareamento dental escolhido." />
+
+3. O link aparece na lista. Clique em **Copiar link** e cole o endereço na mensagem para o cliente. **Abrir** mostra a página como o cliente vai vê-la.
+
+   <Print src="docs/pagamentos/links-de-pagamento/03-copiar-link.84f38010.webp" alt="Lista de links de pagamento com o link Clareamento no Instagram ativo, o preço de 350 reais e o botão Copiar link em destaque." />
+
+4. O cliente abre o link, vê o produto e o preço, informa nome e e-mail e clica em **Pagar agora**. A página segura da AbacatePay abre para ele pagar por Pix ou cartão. Quando o pagamento é confirmado, a fatura fica paga e o valor entra em **Transações**, com origem **Link de pagamento**.
+
+   <Print src="docs/pagamentos/links-de-pagamento/04-pagina-de-pagamento.241683ff.webp" alt="Página pública do link com o nome da Clínica Sorriso Leve, o produto Clareamento dental, o preço e o botão Pagar agora." />
+
+</Steps>
+
+<Aside type="tip">Crie um link para cada lugar onde você divulga o produto, como "Clareamento no Instagram" e "Clareamento no WhatsApp". Assim você sabe de onde vieram as vendas.</Aside>
+
+<Aside type="caution">Sem a AbacatePay conectada, a página abre, mas o botão **Pagar agora** avisa que o pagamento online ainda não está disponível. Veja como [conectar o gateway de pagamento](/pagamentos/conectar-gateway/).</Aside>
+
+## Automações ligadas
+
+Quem paga pelo link vira contato com a tag **link-de-pagamento** (ou mantém o contato que já tinha, se o e-mail for o mesmo). A compra abre uma fatura, então os gatilhos de fatura e de pagamento funcionam.
+
+<Automacao gatilhos={['Tag do contato', 'Fatura', 'Pagamento recebido']} acoes={['Enviar e-mail', 'Adicionar tag']} />
+
+## Perguntas frequentes
+
+**Posso cobrar uma assinatura pelo link?**
+Ainda não. O link cobra só produtos de pagamento único. Um link de produto recorrente fica na lista, mas sem endereço para compartilhar. Para assinaturas, registre a assinatura em **Pagamentos → Assinaturas**.
+
+**Como tiro um link do ar?**
+Edite o link e desmarque **Link ativo**. Quem abrir o endereço vai ver que o link não está disponível. Desativar o produto tem o mesmo efeito em todos os links dele.
+
+**O cliente precisa ter cadastro?**
+Não. Ele só informa nome e e-mail. Se já existir um contato com esse e-mail, a compra vai para ele.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Conectar o gateway de pagamento" href="/pagamentos/conectar-gateway/" description="Ligue a AbacatePay para receber por Pix e cartão." />
+  <LinkCard title="Criar e enviar uma fatura" href="/pagamentos/fatura/" description="Cobre um valor fechado de um cliente específico." />
+</CardGrid>

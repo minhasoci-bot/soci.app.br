@@ -252,7 +252,7 @@ export function mountAgentHub({ root, state, request, rerender, createAgent, fla
     button.addEventListener('click', async () => {
       button.disabled = true;
       try {
-        const { base } = await request('kb-create', { name: 'Nova base / Nueva base' });
+        const { base } = await request('kb-create', { name: tr('Nova base de conhecimento') });
         state().knowledgeBases = [...(state().knowledgeBases || []), base];
         location.hash = `#ai-agents/base/${encodeURIComponent(base.id)}`;
       } catch (error) { fail(null, error); button.disabled = false; }

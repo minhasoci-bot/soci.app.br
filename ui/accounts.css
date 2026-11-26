@@ -1,0 +1,38 @@
+/* Menu de contas (ui/accounts.js). O vidro vem de .g-menu-surface; as cores, de tokens.css. */
+:root:root .acc-menu{
+  left:auto; bottom:auto; width:min(340px,calc(100vw - 24px)); max-height:min(560px,calc(100dvh - 88px));
+  overflow:auto; overscroll-behavior:contain; background:var(--lg-thick);
+}
+.acc-menu[aria-busy=true]{cursor:progress}
+.acc-menu[aria-busy=true] .acc-item{opacity:.6}
+.acc-current,.acc-item{display:flex; align-items:center; gap:12px; width:100%; min-width:0; text-align:left}
+.acc-current{padding:12px 12px 14px}
+.acc-face{
+  display:grid; place-items:center; flex:none; width:34px; height:34px; overflow:hidden; border-radius:50%;
+  background:var(--g-surface-3); color:var(--g-ink); font-size:12px; font-weight:700;
+}
+.acc-face-lg{width:44px; height:44px; font-size:15px}
+.acc-face-icon{background:transparent; color:var(--g-dim)}
+.acc-face img{width:100%; height:100%; object-fit:cover}
+.acc-text{display:grid; gap:1px; min-width:0; flex:1; font-size:12.5px; line-height:1.35; color:var(--g-dim)}
+.acc-text>*{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.acc-text b{color:var(--g-ink); font-size:13.5px; font-weight:600}
+.acc-text .acc-agency{color:var(--g-ink-2)}
+.acc-text .acc-off{color:var(--g-red); white-space:normal}
+.acc-check{flex:none; color:var(--g-brand-text)}
+.acc-sr{position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap}
+.acc-list{margin:0; padding:0; list-style:none}
+.acc-body:not(:empty),.acc-actions{padding-top:6px; border-top:1px solid var(--g-line)}
+.acc-body:not(:empty){padding-bottom:6px}
+.acc-note{margin:0; padding:10px 12px; color:var(--g-dim); font-size:13px}
+.acc-row{display:flex; align-items:center; gap:2px}
+:root:root .acc-menu .acc-item{
+  min-height:44px; padding:7px 12px; border:0; border-radius:calc(var(--r-card) - 6px);
+  background:transparent; box-shadow:none; color:var(--g-ink); font:inherit; cursor:pointer;
+}
+:root:root .acc-menu :is(.acc-item,.acc-remove):is(:hover,:focus-visible):not(:disabled){background:var(--lg-tint-on)}
+:root:root .acc-menu :is(.acc-item,.acc-remove):focus-visible{outline:2px solid var(--g-ink); outline-offset:-2px}
+:root:root .acc-menu .acc-item:disabled{cursor:not-allowed; opacity:.6}
+:root:root .acc-menu .acc-remove{flex:none; width:36px; height:36px; min-height:36px; border:0; border-radius:50%; background:transparent; box-shadow:none; color:var(--g-dim)}
+@media (pointer:coarse){:root:root .acc-menu .acc-remove{width:44px; height:44px; min-height:44px}}
+@media (max-width:480px){:root:root .acc-menu{left:12px; right:12px !important; width:auto}}
