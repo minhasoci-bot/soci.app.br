@@ -5,7 +5,6 @@ import { createHash, randomBytes } from 'node:crypto';
 import { buildWorkflowContext, evaluateExpression, resolveTemplate } from './expressions.mjs';
 import { scoreTriggerMatches } from './scoring-model.mjs';
 import { canMessage } from './preference-model.mjs';
-import { appActionItem } from './app-studio-model.mjs';
 import { slaRecords } from './ui/conversation-sla.js';
 import { e164 } from './twilio.mjs';
 import { connectorStep } from './ui/connectors-data.js';
@@ -430,7 +429,6 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       case 'abandoned_checkout': return (!c.storeId || c.storeId === ctx.storeId) && (!c.status || c.status === ctx.status);
       case 'inbound_webhook': return ctx.triggerId === trigger.id;
       case 'ai_usage_alert': return !c.level || c.level === ctx.level;
-      case 'app_trigger': return !c.trigger || c.trigger === `${ctx.appId}:${ctx.key}`;
       case 'service_booked': return (!c.serviceId || c.serviceId === ctx.serviceId) && (!c.kind || c.kind === ctx.kind);
       case 'subscription_status': return !c.status || c.status === ctx.status;
       case 'coupon_redeemed': case 'coupon_limit_reached': case 'coupon_expired': return !c.couponId || c.couponId === ctx.couponId;
@@ -467,7 +465,7 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
 
   function perform(s, run, node, depth, id) {
     const contact = contactOf(s, run.contactId), c = node.config || {}, text = value => merge(value, s, contact, run);
-    const needsContact = !['internal_notification', 'custom_event', 'webhook', 'app_action', 'create_task', 'create_social_post', 'update_custom_value', 'date_format', 'number_format', 'list_format', 'create_contact', 'find_contact'].includes(node.type);
+    const needsContact = !['internal_notification', 'custom_event', 'webhook', 'create_task', 'create_social_post', 'update_custom_value', 'date_format', 'number_format', 'list_format', 'create_contact', 'find_contact'].includes(node.type);
     if (needsContact && !contact) return 'sem contato';
     const message = (channel, body, subject = '') => add(s, 'messages', { contactId: contact.id, body: text(body).slice(0, 5000), subject, channel, direction: 'Outbound', read: true, starred: false, origin: 'workflow', workflowId: run.workflowId });
     switch (node.type) {
@@ -1197,12 +1195,6 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
         run.vars = { ...(run.vars || {}), [name]: result };
         output(run, id, { [name]: result });
         return `${name} = ${result.slice(0, 80)}`;
-      }
-      case 'app_action': {
-        const made = appActionItem(s, c, { run, contact, data: text(c.data || '').slice(0, 4000) });
-        if (made.error) return `erro: ${made.error}`;
-        outbox(s, made.item);
-        return `${made.label}: na fila de envio`;
       }
       case 'webhook': {
         outbox(s, { kind: 'webhook', runId: run.id, url: c.url, method: c.method || 'POST', body: { workflow: { id: run.workflowId, name: run.name }, trigger: run.event, context: run.context,
