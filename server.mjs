@@ -591,8 +591,10 @@ export function makeServer({
       copy.updatedAt = stamp();
       // Forms and services shown inside the pages point at the records this account received.
       const relink = html => String(html || '').replace(/(<div\b[^>]*\sdata-soci-embed=[^>]*\sdata-id=")([^"]*)(")/gi, (_, a, ref, b) => a + (studioMap.ids?.get(ref) || ref) + b);
-      for (const version of copy.versions || []) version.pages = version.pages.map(pg => ({ ...pg, html: relink(pg.html) }));
-      if (Array.isArray(copy.pages)) copy.pages = copy.pages.map(pg => ({ ...pg, id: uid(), html: relink(pg.html) }));
+      // The pages get new ids, and the versions follow them: a version page without HTML shares the current page's.
+      const pageIds = new Map();
+      if (Array.isArray(copy.pages)) copy.pages = copy.pages.map(pg => { const id = uid(); pageIds.set(pg.id, id); return { ...pg, id, html: relink(pg.html) }; });
+      for (const version of copy.versions || []) version.pages = version.pages.map(pg => ({ ...pg, id: pageIds.get(pg.id) || pg.id, ...(typeof pg.html === 'string' && { html: relink(pg.html) }) }));
       const rowId = siteRowId(newId);
       const inserted = await store.insert(rowId, copy);
       if (!inserted) await store.change(rowId, state => Object.assign(state, copy));

@@ -916,14 +916,15 @@ export function extractSnapshot(workspace, include = snapshotAssets.map(a => a[0
 const refKey = key => /(^|[a-z])(Id|Ids)$/.test(key) || /^(id|ids|value|values|form|forms|pipeline|stage|link|workflow|calendar|template|service|agent|widget|baseRefs)$/i.test(key);
 // Every record id a snapshot record points to, at any depth (workflow triggers and steps keep their links in nested configs).
 function referencedIds(value, out = new Set(), key = '') {
-  if (typeof value === 'string') { if (key && refKey(key) && value.length >= 3) out.add(value); return out; }
+  if (typeof value === 'string') { if (value.startsWith('custom:')) out.add(value.slice(7)); else if (key && refKey(key) && value.length >= 3) out.add(value); return out; }
   if (Array.isArray(value)) { for (const entry of value) referencedIds(entry, out, key); return out; }
   if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) if (k !== 'id') referencedIds(v, out, k);
   return out;
 }
 // Rewrites every link inside a record with the ids the records received in the target account.
 function remapIds(value, idMap, key = '') {
-  if (typeof value === 'string') return key && refKey(key) && idMap.has(value) ? idMap.get(value) : value;
+  // A custom field named in a workflow ("custom:<id>", in conditions and field updates) follows its new id too.
+  if (typeof value === 'string') return value.startsWith('custom:') && idMap.has(value.slice(7)) ? `custom:${idMap.get(value.slice(7))}` : key && refKey(key) && idMap.has(value) ? idMap.get(value) : value;
   if (Array.isArray(value)) return value.map(entry => remapIds(entry, idMap, key));
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, k === 'id' ? v : remapIds(v, idMap, k)]));
   return value;

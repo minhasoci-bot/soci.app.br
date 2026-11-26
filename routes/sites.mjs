@@ -5,7 +5,7 @@
 // fechamento de makeServer (deps) e, a cada requisição, o contexto da rota (ctx).
 import { randomBytes } from 'node:crypto';
 import { hasSiteTemplate, siteTemplatePreview } from '../site-templates/index.mjs';
-import { countVisit, findPage, previewHeaders, publicHeaders, renderPublic, withEmbeds, withMotion } from '../studio-site.mjs';
+import { countVisit, findPage, previewHeaders, publicHeaders, publishedPages, renderPublic, siteValues, withEmbeds, withMotion } from '../studio-site.mjs';
 import { hasPixels, pixelsScript, trackerScript, trackingOf } from '../tracking.mjs';
 import { NEXT_ROUTE } from './next-route.mjs';
 
@@ -99,7 +99,7 @@ export function createSiteRoutes(deps) {
           if (!project?.formId) throw error('This site is not accepting submissions.',404);
           const vid = siteVisitorOf(req, workspace) || randomBytes(12).toString('hex');
           const sent = await change(workspace,{ type:'submit', id:project.formId, data:{ name:fields.name, email:fields.email, phone:fields.phone, _message:fields.message, _source:'Site', _vid:vid } });
-          const order = doc.published.pages;
+          const order = publishedPages(doc);
           const from = order.findIndex(item => item.slug === (fields._page || 'index'));
           if (from >= 0) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, order[from].id, 'optins'))).catch(() => {});
           const next = project.kind === 'funnel' && from >= 0 ? order[from + 1] : null;
@@ -113,7 +113,7 @@ export function createSiteRoutes(deps) {
         return res.end();
       }
       if (method !== 'GET') throw error('Method not allowed.',405);
-      const page = doc.published.pages.find(item => item.slug === slug);
+      const page = publishedPages(doc).find(item => item.slug === slug);
       if (!page) throw error('Page not found.',404);
       if (active && !url.searchParams.has('sent') && !url.searchParams.has('error')) await Promise.resolve().then(() => changeSite(projectId, d => countVisit(d, page.id, 'views'))).catch(() => {});
       const visitor = active && method === 'GET' ? siteVisitorOf(req, workspace) : '';
@@ -125,7 +125,8 @@ export function createSiteRoutes(deps) {
       const pt = /<html\b[^>]*\blang\s*=\s*["']?pt/i.test(page.html), es = /<html\b[^>]*\blang\s*=\s*["']?es/i.test(page.html);
       const notice = url.searchParams.has('sent') ? { ok:true, text:pt ? 'Obrigado! Seus dados foram enviados.' : es ? '¡Gracias! Tus datos fueron enviados.' : 'Thank you! Your details were sent.' }
         : url.searchParams.has('error') ? { ok:false, text:pt ? 'Não foi possível enviar. Confira o nome e o e-mail e tente de novo.' : es ? 'No se pudo enviar. Revisa el nombre y el correo e inténtalo de nuevo.' : 'Your details could not be sent. Check the name and email and try again.' } : '';
-      const [siteHeaders, siteBody] = withPixels(await store.load(workspace), workspace, ...withEmbeds(...withMotion(publicHeaders, renderPublic(page,{ base, notice, workspace, link:url.searchParams.get('link') || '' }))));
+      const state = await store.load(workspace);
+      const [siteHeaders, siteBody] = withPixels(state, workspace, ...withEmbeds(...withMotion(publicHeaders, renderPublic(page,{ base, notice, workspace, link:url.searchParams.get('link') || '', values:siteValues(state) }))));
       res.writeHead(200, siteHeaders);
       return res.end(siteBody);
     }
