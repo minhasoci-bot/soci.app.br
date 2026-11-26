@@ -25,6 +25,12 @@ dialog.ag-wide{width:min(760px,calc(100vw - 24px))}
 .ag-score{display:grid;grid-template-columns:130px minmax(0,1fr) 44px;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #edf0f4}
 .ag-score .ag-bar{width:100%;margin:0}
 .ag-accounts{display:grid;gap:12px}
+.ag-trash{margin-top:32px;display:grid;gap:8px}
+.ag-trash > h2{font-size:1.05rem;margin:0}
+.ag-trash > p{margin:0 0 4px}
+.ag-trash .ag-account{grid-template-columns:minmax(0,1.3fr) minmax(0,1.6fr) auto}
+.ag-trash .ag-facts{grid-template-columns:minmax(0,1fr)}
+@media(max-width:1000px){.ag-trash .ag-account{grid-template-columns:minmax(0,1fr)}}
 .ag-account{display:grid;grid-template-columns:auto minmax(0,1.3fr) minmax(0,1.6fr) auto;align-items:center;gap:16px}
 .ag-account h2{margin-bottom:4px}
 .ag-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0}

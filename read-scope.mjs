@@ -39,7 +39,8 @@ export function scopedReads(store, { clock = Date.now } = {}) {
       return scope.list.value.then(rows => structuredClone(rows));
     },
     change: (id, mutate) => open.size ? writing(id, () => store.change(id, mutate)) : store.change(id, mutate),
-    insert: (id, state) => open.size ? writing(id, () => store.insert(id, state)) : store.insert(id, state)
+    insert: (id, state) => open.size ? writing(id, () => store.insert(id, state)) : store.insert(id, state),
+    remove: id => open.size ? writing(id, () => store.remove(id)) : store.remove(id)
   };
   return {
     // The other methods (findAgency, tracking, audit, kind…) are the ones of the store itself.

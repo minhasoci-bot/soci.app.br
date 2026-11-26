@@ -76,7 +76,7 @@ import { brandVoicePrompt, defaultBoard } from './ui/brand-data.js';
 import { runWorkflowAI } from './workflow-ai.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
-import { AGENCY_ID, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate } from './agency-model.mjs';
+import { AGENCY_ID, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, inTrash, trashList, trashExpired } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { runProspectingAction } from './prospecting-model.mjs';
 import { collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
@@ -514,7 +514,12 @@ export function makeServer({
   const ready = Promise.all([store.insert('demo', seed()), store.insert(AGENCY_ID, blankAgency())]);
   ready.catch(() => {});
   const workspaceOwner = id => id === AGENCY_ID ? null : id;
-  const listWorkspaces = async agencyId => (await store.list(workspaceOwner(agencyId))).filter(w => spaceId.test(w.id));
+  // Subcontas da agência. As que estão na lixeira ficam de fora de tudo (listas, ações, rotas); só a lixeira as vê.
+  const ownedWorkspaces = async agencyId => (await store.list(workspaceOwner(agencyId))).filter(w => spaceId.test(w.id));
+  const listWorkspaces = async agencyId => {
+    const [rows, agency] = await Promise.all([ownedWorkspaces(agencyId), loadAgency(agencyId).catch(e => { if (e.status === 404) return null; throw e; })]);
+    return agency ? rows.filter(w => !inTrash(agency, w.id)) : rows;
+  };
   const agencyCache = new Map();
   const AGENCY_CACHE_TTL = 30000;
   const loadAgency = async id => {
@@ -709,6 +714,7 @@ export function makeServer({
     if ((!spaceId.test(id) && !privateSpace.test(id)) || !await canOpen(actor, id)) {
       throw error('Your user cannot open this sub-account.', hide ? 404 : 403);
     }
+    if (inTrash(agency, id)) throw error('Esta subconta foi excluída e está na lixeira da agência.', 404);
     const who = effectiveAccess(agency, actor, id, privateSpace.test(id));
     requireModule(who, ...modules);
     if (who.account.status !== 'Active' && !(support && who.support)) throw pausedError(canReactivate(agency, id, who) ? { ...who.account, canReactivate: true } : who.account, reason);
@@ -746,6 +752,7 @@ export function makeServer({
     const states = await agencyWorkspaceViews(agency, who, workspaces);
     const gateway = await abacate.status(who.agencyId, abacate.AGENCY_SCOPE, publicBase(req));
     return { agency: { ...publicAgency(agency, who), abacatepay: { connected: gateway.connected, storeName: gateway.storeName || '', devMode: Boolean(gateway.devMode) } }, overview: agencyOverview(agency, states), marketplace: publicMarketplaceList(marketplaceDoc, who.agencyId), workspaces, personalWorkspace, access: who,
+      trash: who.settings ? trashList(agency) : [],
       features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, ...extra };
   }
   // Sub-accounts of a brand group that still belong to the agency and are not closed, with their state.
@@ -1989,6 +1996,21 @@ export function makeServer({
       try { await whatsappGuard.run(agencyId, ids, base); } catch (e) { console.error(`WhatsApp guard (${agencyId}): ${e.message}`); }
     }, { concurrency: 5, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
   }
+  // Lixeira de subcontas: passados TRASH_DAYS da exclusão, o documento da subconta é apagado de vez e sai da agência.
+  async function purgeTrash(agencyId, at = Date.now()) {
+    const expired = trashExpired(await store.load(agencyId), at);
+    for (const id of expired) {
+      // Uma linha que já não é desta agência (apagada antes) só sai da lixeira.
+      if (await store.belongsToAgency(id, workspaceOwner(agencyId))) await store.remove(id);
+      await changeAgency(agencyId, agency => {
+        const name = agency.accounts[id]?.name || id;
+        delete agency.accounts[id];
+        logTo(agency, { name: 'Lixeira automática' }, 'Sub-account permanently deleted', name);
+      });
+    }
+    if (expired.length) belongsCache.clear();
+    return expired;
+  }
   // Each document is read once per round, not once per task (read-scope.mjs).
   const runAllSocial = (base, at = Date.now()) => cronReads.run(() => runSocialRound(base, at));
   async function runSocialRound(base, at) {
@@ -2016,6 +2038,7 @@ export function makeServer({
     }, { concurrency: cronConcurrency, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
     for (const { id } of (await store.list()).filter(row => isAgencyRow(row.id))) {
       try { if ((await store.load(id)).ledgerOutbox?.length) await ledgerFlush.agency(id); } catch (e) { console.error(`Livro (${id}): ${e.message}`); }
+      try { await purgeTrash(id, at); } catch (e) { console.error(`Lixeira de subcontas (${id}): ${e.message}`); }
     }
     await trackingLog.sweep(at);
     await auditLog.sweep(at);
@@ -2485,7 +2508,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     }
   });
   server.on('close',()=>{ if (socialTimer) clearInterval(socialTimer); store.close(); });
-  return {server,port,host,ready,backend:store.kind,scheduler:Boolean(socialTimer)};
+  return {server,port,host,ready,backend:store.kind,scheduler:Boolean(socialTimer),purgeTrash};
 }
 
 if (process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
