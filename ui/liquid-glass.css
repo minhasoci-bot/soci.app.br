@@ -218,7 +218,20 @@
 :root:root .g-utabs{border:0;border-radius:0;background:transparent;box-shadow:none}
 :root:root .g-utabs>.g-utabs-head{padding:0 0 14px}
 :root:root .g-utabs.is-nested>.g-utabs-head{padding:0 0 12px}
-:root:root .g-utabs-list{padding-bottom:0;scrollbar-width:none;border-radius:var(--r-pill)}
+:root:root .g-utabs-list{padding-bottom:0;scrollbar-width:none;border-radius:var(--r-pill);scroll-behavior:auto}
+/* a barra some sem barra de rolagem: com mouse ela é arrastada (graao.js) */
+:root:root .g-utabs-head[data-has-overflow] .g-utabs-list{cursor:grab}
+:root:root .g-utabs-list.is-dragging{cursor:grabbing;user-select:none}
+:root:root .g-utabs-list.is-dragging .g-utabs-tab{pointer-events:none}
+/* abas da página presas logo abaixo do topo flutuante (o padding-top da tela já desconta o topo);
+   presas, ganham a mesma borda desfocada do topo */
+:root:root .screen>.page>.g-utabs:not(.is-nested)>.g-utabs-head{position:sticky;top:0;z-index:40}
+:root:root .screen>.page>.g-utabs:not(.is-nested)>.g-utabs-head[data-stuck]::before{
+  content:"";position:absolute;inset:calc(-1 * var(--lg-top-h)) -10px -6px;z-index:-1;pointer-events:none;
+  background:linear-gradient(to bottom,color-mix(in srgb,var(--lg-scroll-edge,var(--g-canvas)) 94%,transparent) 70%,transparent);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  -webkit-mask-image:linear-gradient(to bottom,#000 80%,transparent);mask-image:linear-gradient(to bottom,#000 80%,transparent);
+}
 :root:root .g-utabs-list::-webkit-scrollbar{display:none}
 :root:root .g-utabs-track,:root:root .g-utabs-bar .g-utabs-track{min-width:0;width:max-content;gap:0;padding:3px;border:0;border-radius:var(--r-pill);background:var(--g-fill);align-items:center}
 :root:root .g-utabs-tab,:root:root .g-utabs.is-nested .g-utabs-tab{min-height:34px;padding:0 15px;border-radius:var(--r-pill);font-size:13.5px;font-weight:550;letter-spacing:-.005em;color:var(--g-ink-2);transition:color .2s var(--ease-std)}

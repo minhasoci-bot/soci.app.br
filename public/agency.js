@@ -170,7 +170,7 @@ export function startAgency(env) {
         { href: 'https://chat.whatsapp.com/IuU6twK8qf606ye5wvP638', label: tr('Comunidade'), icon: 'whatsapp', external: true }
       ]
     };
-    return `<div class="shell ${A.navOpen ? 'wide' : ''} ag-shell">${sidebar({
+    return `<div class="shell ${A.navOpen ? 'wide' : ''} ag-shell">${sideHtml = sidebar({
       label: tr('Navegação da agência'),
       home: '#agency/dashboard',
       brand: brandName(),
@@ -1198,7 +1198,14 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const page = pages[A.page] || pages.dashboard;
     document.title = 'soci';
     applyBrandColor(D().company.primary, D().company.secondary, D().company.accent);
+    // The menu stays put while the page redraws: same markup keeps the very same element (no flash, no
+    // replayed indicator); a changed one at least keeps where it was scrolled.
+    const oldSide = app.querySelector(':scope > .shell > .sidebar'), oldSideHtml = sideHtml;
+    const sideTop = oldSide?.querySelector('.side-nav')?.scrollTop || 0;
     app.innerHTML = shell(page());
+    const newSide = app.querySelector(':scope > .shell > .sidebar');
+    if (oldSide && newSide && sideHtml === oldSideHtml) newSide.replaceWith(oldSide);
+    app.querySelector(':scope > .shell > .sidebar .side-nav')?.scrollTo({ top: sideTop, behavior: 'instant' });
     enhanceCode(app);
     for (const picker of app.querySelectorAll('[data-color-picker]')) mountColorPicker(picker);
     const creator = app.querySelector('[data-mobile-creator]');
@@ -1219,10 +1226,10 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         flash
       }, () => render());
     }
-    const screen = document.querySelector('#screen'); if (screen && renderKey === `${A.page}/${A.sub}`) screen.scrollTop = prev;
+    const screen = document.querySelector('#screen'); if (screen && renderKey === `${A.page}/${A.sub}`) screen.scrollTo({ top: prev, behavior: 'instant' });
     renderKey = `${A.page}/${A.sub}`;
   }
-  let renderKey = '';
+  let renderKey = '', sideHtml = '';
 
   async function show(page, sub) {
     const nextPage = pages[page] ? page : 'dashboard';
