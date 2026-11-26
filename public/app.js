@@ -1000,7 +1000,7 @@ function mountGlobalSearch(){
   if(!host) return;
   let items;
   if(location.hash.startsWith('#agency')){
-    const agNavList=[['dashboard','Painel da agência'],['prospecting','Prospecção'],['accounts','Subcontas'],['snapshots','Setups de conta'],['affiliate','Portal de afiliados'],['partners','Parceiros'],['university','Universidade'],['ideas','Ideias'],['mobile-app','Aplicativo móvel'],['settings','Configurações']];
+    const agNavList=[['dashboard','Painel da agência'],['prospecting','Prospecção'],['accounts','Subcontas'],['snapshots','Setups de conta'],['affiliate','Portal de afiliados'],['partners','Parceiros'],['ideas','Ideias'],['mobile-app','Aplicativo móvel'],['settings','Configurações']];
     let accounts=[];
     try{accounts=JSON.parse(localStorage.getItem('ag_db_v1')||'{}').accounts||[];}catch{}
     items=[...agNavList.map(([k,label])=>({label,keywords:k,run:{agGo:k}})),...accounts.map(a=>({label:a.name||'Subconta',keywords:'subconta',searchOnly:true,run:{agGo:'accounts'}}))];
@@ -1053,7 +1053,6 @@ function globalSearch(value){
       ['snapshots', 'Setups de conta', 'box'],
       ['affiliate', 'Portal de afiliados', 'gift'],
       ['partners', 'Parceiros', 'users'],
-      ['university', 'Universidade', 'book'],
       ['ideas', 'Ideias', 'lightbulb'],
       ['mobile-app', 'Aplicativo móvel', 'phone'],
       ['settings', 'Configurações', 'cog']
