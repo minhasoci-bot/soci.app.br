@@ -50,6 +50,13 @@
   },
   {
     "grupo": "agencia",
+    "artigo": "templates-de-setup",
+    "titulo": "Templates de setup",
+    "fase": "F2",
+    "status": "escrito"
+  },
+  {
+    "grupo": "agencia",
     "artigo": "white-label",
     "titulo": "White label: a sua marca na soci",
     "fase": "F2",

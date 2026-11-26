@@ -396,9 +396,19 @@ export function buildWorkflowContext(state = {}, run = {}, contact = null) {
     company: '',
     tags: []
   };
+  // A custom field of the contact also answers by its key ({{contact.cpf}} for the field with key contact.cpf).
+  const custom = contact?.customFields || contact?.custom || {};
+  for (const field of state?.customFields || []) {
+    const key = String(field?.key || '');
+    if (contact && field.object === 'Contact' && key.startsWith('contact.') && !(key.slice(8) in contactObj)) contactObj[key.slice(8)] = custom[field.id] ?? '';
+  }
+  const profile = state?.profile || {};
 
   return {
     contact: contactObj,
+    // {{custom_values.<key>}}: the account's custom values. {{location.*}}: the account itself (the names GHL messages use).
+    custom_values: Object.fromEntries((state?.customValues || []).filter(row => String(row?.key || '').startsWith('custom_values.')).map(row => [row.key.slice(14), row.value ?? ''])),
+    location: { name: profile.name || '', email: profile.email || '', phone: profile.phone || '', address: profile.address || '', full_address: profile.address || '', website: profile.website || '' },
     first_name: firstName || 'Contato',
     name: fullName || 'Contato',
     email: contact?.email || '',

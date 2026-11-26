@@ -62,12 +62,15 @@ export const crmFields = {
     const name = req(d.name, 'Field name', 80), object = one(d.object, customObjects, 'object'), type = one(d.type, fieldTypes, 'field type');
     const options = type === 'Dropdown (single)' ? [...new Set(str(d.options, 2000).split(/\n|,/).map(v => v.trim().slice(0, 120)).filter(Boolean))].slice(0, 50) : [];
     if (type === 'Dropdown (single)' && !options.length) fail('Add at least one option to the dropdown.');
-    const key = `${object === 'Company' ? 'business' : object.toLowerCase()}.${slug(name)}`;
+    // Como no GHL, a chave nasce do nome e não muda ao renomear: mensagens e páginas que a usam continuam valendo.
+    const before = d.id && s.customFields.find(f => f.id === d.id && f.object === object && f.key);
+    const key = before?.key || `${object === 'Company' ? 'business' : object.toLowerCase()}.${slug(name)}`;
     unique(s.customFields, d.id, f => f.key === key, `A ${object.toLowerCase()} field named “${name}” already exists.`);
     return { name, object, type, options, folder: str(d.folder, 60), placeholder: str(d.placeholder, 120), key };
   },
   customValues: (s, d) => {
-    const name = req(d.name, 'Name', 80), key = `custom_values.${slug(name)}`;
+    const name = req(d.name, 'Name', 80);
+    const key = (d.id && s.customValues.find(v => v.id === d.id && v.key)?.key) || `custom_values.${slug(name)}`;
     unique(s.customValues, d.id, v => v.key === key, `A custom value named “${name}” already exists.`);
     return { name, folder: str(d.folder, 60), value: str(d.value, 5000), key };
   },
