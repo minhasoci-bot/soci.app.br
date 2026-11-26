@@ -145,8 +145,16 @@
     const out = [];
     for (const [name, value] of [['dump', rest], ['triggers', triggers], ['surveys', surveys]]) {
       const text = JSON.stringify(value);
-      const total = Math.max(1, Math.ceil(text.length / limit));
-      for (let index = 0; index < total; index++) out.push({ name, index, total, data: text.slice(index * limit, (index + 1) * limit) });
+      // Nunca corta um emoji (par de surrogates) no meio: o banco recusa um pedaço com meio emoji.
+      const pieces = [];
+      for (let start = 0; start < text.length || !pieces.length;) {
+        let end = Math.min(text.length, start + limit);
+        const code = text.charCodeAt(end - 1);
+        if (end < text.length && end - start > 1 && code >= 0xD800 && code <= 0xDBFF) end--;
+        pieces.push(text.slice(start, end));
+        start = end;
+      }
+      pieces.forEach((data, index) => out.push({ name, index, total: pieces.length, data }));
     }
     return out;
   }

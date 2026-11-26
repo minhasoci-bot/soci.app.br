@@ -16,7 +16,13 @@ const KEEP = 10;
 const plain = code => String(code || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
 export const codeHash = code => createHash('sha256').update(plain(code)).digest('hex');
 
-/** Gera o código e o job de uma importação nova (guarda só os 10 mais recentes). */
+/** Uma importação que não terminou em 2 horas foi abandonada (janela fechada, código vencido no meio do envio). */
+export const IMPORT_STALE = 2 * 60 * 60 * 1000;
+
+/**
+ * Gera o código e o job de uma importação nova (guarda só os 10 mais recentes). As importações abandonadas viram
+ * "failed" e `released` lista as linhas temporárias delas e das que saíram da lista, para a rota apagar.
+ */
 export function newImportCode(agency, { now = Date.now(), random = randomBytes } = {}) {
   if ((agency.snapshots || []).length >= 50) fail('Você já tem 50 setups. Apague um antes de importar.');
   const bytes = random(9);
@@ -24,8 +30,21 @@ export function newImportCode(agency, { now = Date.now(), random = randomBytes }
   const code = `${raw.slice(0, 3)}-${raw.slice(3, 6)}-${raw.slice(6, 9)}`;
   const job = { id: uid(), codeHash: codeHash(code), created: now, expiresAt: now + IMPORT_TTL, status: 'waiting', parts: {}, received: {}, bytes: 0,
     pagesDone: 0, pagesTotal: 0, imagesDone: 0, imagesTotal: 0, location: '', notes: [], errors: [], snapshotId: '', error: '' };
-  agency.ghlImports = [...(agency.ghlImports || []), job].slice(-KEEP);
-  return { code, job };
+  const released = [];
+  const all = [...(agency.ghlImports || []), job];
+  for (const row of all) {
+    if (row === job || ['done', 'failed'].includes(row.status) || now - (row.created || 0) < IMPORT_STALE) continue;
+    row.status = 'failed';
+    row.error = 'A importação ficou parada e foi cancelada. Gere outro código para importar de novo.';
+  }
+  const kept = all.slice(-KEEP);
+  for (const row of all) {
+    if (row === job || (kept.includes(row) && row.status !== 'failed')) continue;
+    released.push(...(row.rows || []));
+    row.rows = [];
+  }
+  agency.ghlImports = kept;
+  return { code, job, released };
 }
 
 /** O job de um código válido: existe, não expirou e ainda está recebendo partes. */
