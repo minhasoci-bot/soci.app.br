@@ -116,7 +116,8 @@ export function createGhlImportRoutes(deps) {
       const who = await access(req, res);
       requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
       if (!who.settings) throw error('Seu usuário não tem acesso às configurações da agência.', 403);
-      const { code, job } = await changeAgency(who.agencyId, a => newImportCode(a));
+      const { code, job, released } = await changeAgency(who.agencyId, a => newImportCode(a));
+      for (const id of released) { try { await store.remove(id); } catch { /* uma linha que não saiu não impede o código novo */ } }
       return json({ code, jobId: job.id, expiresAt: job.expiresAt });
     }
     const match = p.match(/^\/api\/agency\/ghl-import\/([\w-]{1,64})(\/step)?$/);

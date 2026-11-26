@@ -155,3 +155,29 @@ test('never fetches images on internal networks, not even through a redirect', a
   assert.ok(html.includes(META) && html.includes(INTERNAL) && html.includes(HOP));
   assert.ok(job.notes.some(text => /3 imagens/.test(text)), job.notes.join(' | '));
 });
+
+test('a new code cleans up imports that were abandoned halfway', async t => {
+  const local = await start(); t.after(local.close);
+  const first = await local.call('/api/agency/ghl-import-code', {});
+  // A extensão mandou só a primeira parte e a janela foi fechada: o job ficou recebendo, com uma linha temporária.
+  const sent = await local.call('/api/ghl-import/part', { name: 'dump', index: 0, total: 2, data: '{"a":' }, fromExtension(first.body.code));
+  assert.equal(sent.status, 200, JSON.stringify(sent.body));
+  const temp = async () => (await local.store.list()).filter(row => row.id.startsWith(`ghl-import-${first.body.jobId}`)).length;
+  assert.equal(await temp(), 1);
+  const owner = await local.store.findAgency({ ghlImports: [{ id: first.body.jobId }] });
+  await local.store.change(owner.id, state => { state.ghlImports.find(row => row.id === first.body.jobId).created -= 3 * 60 * 60 * 1000; });
+  const second = await local.call('/api/agency/ghl-import-code', {});
+  assert.equal(second.status, 200, JSON.stringify(second.body));
+  assert.equal(await temp(), 0, 'as linhas da importação abandonada continuam no banco');
+  const old = await local.call(`/api/agency/ghl-import/${first.body.jobId}`);
+  assert.equal(old.body.status, 'failed');
+});
+
+test('a recent import still in progress keeps its rows when a new code is made', async t => {
+  const local = await start(); t.after(local.close);
+  const first = await local.call('/api/agency/ghl-import-code', {});
+  await local.call('/api/ghl-import/part', { name: 'dump', index: 0, total: 2, data: '{"a":' }, fromExtension(first.body.code));
+  await local.call('/api/agency/ghl-import-code', {});
+  assert.equal((await local.store.list()).filter(row => row.id.startsWith(`ghl-import-${first.body.jobId}`)).length, 1);
+  assert.equal((await local.call(`/api/agency/ghl-import/${first.body.jobId}`)).body.status, 'receiving');
+});
