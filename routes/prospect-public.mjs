@@ -4,7 +4,8 @@
 // de makeServer (deps) e, a cada requisição, o contexto da rota (ctx).
 import { hydrateAgency } from '../agency-model.mjs';
 import { captureProspectWidget } from '../prospecting-model.mjs';
-import { shareReportHtml, widgetHtml } from '../ui/prospect-report.js';
+import { placeSummaries } from '../prospecting-places.mjs';
+import { isGooglePlace, shareReportHtml, widgetHtml, withPlace } from '../ui/prospect-report.js';
 import { NEXT_ROUTE } from './next-route.mjs';
 
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
@@ -38,7 +39,11 @@ export function createProspectPublicRoutes(deps) {
             });
           } catch { /* The report remains available if the view count cannot be updated. */ }
         }
-        return send(200,'text/html; charset=utf-8',method === 'HEAD' ? undefined : shareReportHtml(prospect.report));
+        if (method === 'HEAD') return send(200,'text/html; charset=utf-8');
+        // Prospect do Google Maps: nome e contatos lidos ao vivo pelo placeId, como na tela da agência.
+        const place = isGooglePlace(prospect.placeId) ? (await placeSummaries([prospect.placeId]).catch(() => ({})))[prospect.placeId] : null;
+        const report = place ? { ...prospect.report,business:withPlace(prospect.report.business,place) } : prospect.report;
+        return send(200,'text/html; charset=utf-8',shareReportHtml(report));
       }
       const match = await store.findAgency({ prospecting: { widgets: [{ id: token, active: true }] } });
       const widget = match?.state.prospecting.widgets.find(item => item.id === token && item.active);

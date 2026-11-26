@@ -243,5 +243,12 @@
     "titulo": "Criar o aplicativo móvel da agência",
     "fase": "extra",
     "status": "escrito"
+  },
+  {
+    "grupo": "agencia",
+    "artigo": "prospeccao",
+    "titulo": "Encontrar clientes no Google Maps com a Prospecção",
+    "fase": "extra",
+    "status": "escrito"
   }
 ]
