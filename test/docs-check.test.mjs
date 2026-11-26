@@ -70,3 +70,15 @@ test('a checagem de documentação roda de novo quando o corpo do PR é editado'
   const ci = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.doesNotMatch(ci, /docs-check\.mjs/, 'o job saiu do ci.yml para não reiniciar os testes do app a cada edição do corpo');
 });
+
+test('a página inicial da central lista as seções na ordem do menu e regerar não muda nada', async () => {
+  const { secoesDoMenu, atualizarInicio } = await import('../docs-site/scripts/secoes.mjs');
+  const config = await readFile(new URL('../docs-site/astro.config.mjs', import.meta.url), 'utf8');
+  const secoes = secoesDoMenu(config);
+  assert.deepEqual(secoes.slice(0, 2), [{ label: 'Comece aqui', grupo: 'comece-aqui' }, { label: 'Agência', grupo: 'agencia' }]);
+  const inicio = await readFile(new URL('../docs-site/src/content/docs/index.mdx', import.meta.url), 'utf8');
+  for (const { grupo } of secoes) assert.ok(inicio.includes(`href="/${grupo}/"`), `página inicial sem o cartão de ${grupo} (rode npm run docs:secoes)`);
+  const uma = atualizarInicio('---\ntitle: X\n---\n', [{ grupo: 'crm', label: 'CRM', description: 'Contatos "e" mais' }]);
+  assert.match(uma, /<LinkCard title="CRM" href="\/crm\/" description="Contatos &quot;e&quot; mais" \/>/);
+  assert.equal(atualizarInicio(uma, [{ grupo: 'crm', label: 'CRM', description: 'Contatos "e" mais' }]), uma);
+});

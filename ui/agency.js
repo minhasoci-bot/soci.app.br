@@ -21,9 +21,9 @@ import { brandGroupCsv, brandGroupHtml, groupPeriods } from './brand-group-data.
 import { presentationsHtml, attachPresentationListeners, closePresentationEditor } from './presentations.js';
 import { pranchetaScreen } from './prancheta.js';
 import { apiScopes,
-  affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog, learningTracks,
+  affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog,
   marketplaceCategories, resellProducts, snapshotAssets, snapshotAssetGroups, subAccountModules, systemEmailKeys,
-  appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav, walletProducts
+  appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav, helpCenterUrl, walletProducts
 } from './agency-data.js';
 import { setupArt } from './setup-art.js';
 import { platformPage, platformBanner } from './platform.js';
@@ -176,7 +176,7 @@ export function startAgency(env) {
       groups: [
         { title: tr('Visão geral'), items: overview },
         { title: tr('Subcontas e ferramentas'), items: agencyNav.slice(5, 12).map(item) },
-        { title: tr('Aprender e apps'), items: agencyNav.slice(12, -1).map(item) },
+        { title: tr('Aprender e apps'), items: [{ href: helpCenterUrl, label: tr('Central de ajuda'), icon: 'book', external: true }, ...agencyNav.slice(12, -1).map(item)] },
         { title: tr('Atalhos'), items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: tr(l.title), icon: l.icon, external: true })) }
       ],
       footer: [
@@ -664,14 +664,9 @@ export function startAgency(env) {
   pages.partners = () => `<div class="page">${head('Parceiros', 'Diretório centralizado de freelancers, agências parceiras e fornecedores da sua operação.', primary('Adicionar parceiro', 'new-record', 'data-key="partners"'))}<div class="toolbar">${search('Buscar parceiros…')}</div>
     ${table(['Parceiro', 'Serviço prestado', 'Contato', 'Site oficial', ''], D().partners.filter(p => match(p.name, p.service, p.contact)).map(p => `<tr><td><b>${h(p.name)}</b></td><td>${h(tr(p.service))}</td><td>${h(p.contact || '—')}<br><small class="dim">${h(p.email)}</small></td><td>${p.website ? `<a class="text-link" href="${h(p.website)}" target="_blank" rel="noopener">${h(new URL(p.website).hostname)}</a>` : '—'}</td><td class="right">${btn('Editar', 'edit-record', `data-key="partners" data-id="${p.id}"`)}</td></tr>`), empty('Nenhum parceiro cadastrado', 'Adicione parceiros para manter contatos e serviços centralizados.'))}</div>`;
 
-  const learning = (key, title, text) => () => {
-    const done = D().learning.completed, tracks = learningTracks[key];
-    const total = tracks.reduce((s, t) => s + t[2].length, 0), count = tracks.reduce((s, t) => s + t[2].filter(l => done.includes(l[0])).length, 0);
-    return `<div class="page">${head(title, text)}<div class="surface padded ag-progress"><b>${count} de ${total} aulas concluídas</b>${bar(total ? (count / total) * 100 : 0)}</div>
-      ${tracks.map(([, name, lessons]) => `<section class="surface padded ag-track"><h2>${h(name)}</h2>${lessons.map(([id, lesson, summary]) => `<div class="line-item"><div><b>${h(lesson)}</b><p class="dim">${h(summary)}</p></div>${btn(done.includes(id) ? 'Concluída' : 'Marcar como concluída', 'learn', `data-id="${id}" aria-pressed="${done.includes(id)}"`, done.includes(id) ? 'secondary ag-done' : 'secondary')}</div>`).join('')}</section>`).join('')}</div>`;
-  };
-  pages.university = learning('university', 'Universidade', 'Treinamentos práticos e metodológicos para estruturar e operar sua plataforma de agência.');
-  pages['saas-education'] = () => {
+  // A Universidade e a SaaS Education saíram: o aprendizado agora mora na central de ajuda (doc.soci.app.br,
+  // link no menu). Endereços antigos voltam para o painel.
+  pages.university = pages['saas-education'] = () => {
     location.replace('#agency/dashboard');
     return '';
   };
@@ -1631,7 +1626,6 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'affiliate-step': await act('affiliate-step', { data: { step: d.step } }); render(); break;
         case 'affiliate-pay': { const amount = await act('affiliate-pay'); render(); flash(`Pagamento de ${money(amount)} registrado.`); break; }
         case 'copy': await navigator.clipboard.writeText(d.text).then(() => flash('Copiado para a área de transferência.'), () => flash('Selecione o texto e copie manualmente.', true)); break;
-        case 'learn': await act('learning', { data: { lesson: id } }); render(); break;
         case 'idea-vote': await act('idea-vote', { id }); render(); break;
         case 'idea-comments': { const x = D().ideas.find(r => r.id === id); dialog(x.title, `${x.comments.map(cm => `<div class="line-item"><div><b>${h(cm.author)}</b> <small class="dim">${day(cm.at, true)}</small><p>${h(cm.body)}</p></div></div>`).join('') || '<p class="dim">Nenhum comentário registrado ainda.</p>'}<label>Adicionar comentário<textarea name="body" required maxlength="2000"></textarea></label>`, { form: 'idea-comment', id, submit: 'Comentar' }); break; }
         case 'move-up': case 'move-down': { const li = b.closest('li'); if (d.ag === 'move-up' && li.previousElementSibling) li.parentNode.insertBefore(li, li.previousElementSibling); if (d.ag === 'move-down' && li.nextElementSibling) li.parentNode.insertBefore(li.nextElementSibling, li); b.focus(); break; }
