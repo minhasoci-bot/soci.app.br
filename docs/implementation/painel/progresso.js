@@ -17,7 +17,7 @@
  */
 window.PLANO_SOCI = {
   titulo: "Paridade Soci × GoHighLevel",
-  atualizadoEm: "2026-11-25 20:55",
+  atualizadoEm: "2026-11-26 14:35",
   etapaAtual: "T.2",
 
   regras: [
@@ -193,6 +193,8 @@ window.PLANO_SOCI = {
   ],
 
   historico: [
+    { data: "2026-11-26", hora: "14:35", texto: "Templates do GHL traduzidos: páginas, nomes e endereços das páginas, formulários, tags e mensagens em português (dicionário revisado em scripts/ghl-template/traducao-pt.json e teste que reprova texto em inglês)." },
+    { data: "2026-11-26", hora: "14:00", texto: "7.4 ampliado: as subcontas do GHL viraram 5 templates de setup completos (Agência de Marketing, Paisagismo, Serviços Locais, Imobiliária com agente de IA e Cold Email A/B), com sites de até 50 páginas, fluxos, formulários, pesquisas, links de gatilho, chats, valores personalizados e agentes. Conversor em scripts/ghl-template/, sites grandes abrem uma página por vez no editor e as páginas publicadas preenchem os valores personalizados. Artigo agencia/templates-de-setup." },
     { data: "2026-11-25", hora: "20:55", texto: "Troca rápida de conta (extra soci): o menu do perfil, na agência e na subconta, lista até cinco contas Google do navegador, troca na hora, adiciona, remove e sai de uma ou de todas. Um cookie HttpOnly por conta, guarda por aba (a aba antiga não grava na conta nova) e artigo na central de ajuda." },
     { data: "2026-11-25", hora: "11:30", texto: "WhatsApp blindado contra as falhas conhecidas da Evolution API: vigia no cron (whatsapp-guard.mjs) recupera mensagem que o webhook perdeu, conserta webhook, avisa queda em Conversas e na agência, reinicia número que não responde e reenvia só o que com certeza não saiu. Envio separa o que falhou do que não se sabe, para nunca repetir. VPS: imagem v2.3.8, vigia de containers e disco, backup conferido. O CI sobe a stack real e testa a atualização 2.3.7 → 2.3.8." },
     { data: "2026-11-24", hora: "20:00", texto: "Central de ajuda (doc.soci.app.br): site Starlight em docs-site/, mídia no R2 público e regra no CI: todo PR que muda ui/, routes/ ou *-model.mjs traz o artigo junto ou declara Documentação: não se aplica — motivo." },

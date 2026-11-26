@@ -97,7 +97,7 @@ function pagesColumn(doc, page, funnel) {
     <button class="sx-page" data-studio-page="${item.id}" aria-current="${item.id === page.id}">${icon('site',15)}<span>${h(item.name)}</span><small>/${item.slug === 'index' ? '' : h(item.slug)}</small></button>
     <span class="sx-page-tools"><button class="icon-btn" data-studio-rename-page="${item.id}" aria-label="Renomear ${h(item.name)}">${icon('edit',14)}</button>${item.slug === 'index' ? '' :
       `<button class="icon-btn" data-studio-delete-page="${item.id}" aria-label="Excluir ${h(item.name)}">${icon('trash',14)}</button>`}</span></li>`).join('')}</ul>
-    <button class="secondary" data-studio-add-page ${doc.pages.length >= 8 ? 'disabled' : ''}>${icon('plus',15)} ${funnel ? 'Adicionar etapa' : 'Adicionar página'}</button></section>
+    <button class="secondary" data-studio-add-page ${doc.pages.length >= 50 ? 'disabled' : ''}>${icon('plus',15)} ${funnel ? 'Adicionar etapa' : 'Adicionar página'}</button></section>
     <section class="dw-panel-section"><h2>Camadas</h2><div data-studio-layers><p class="dim">${S().visual ? 'Carregando página…' : 'Disponíveis na edição visual.'}</p></div></section></aside>`;
 }
 
@@ -464,7 +464,7 @@ export function installStudio(environment) {
   async function call(op, body) {
     const { workspace } = c;
     const { project } = S();
-    const result = await api(url(`/api/studio/${op}`), { id: project, ...body });
+    const result = await api(url(`/api/studio/${op}`), { id: project, viewPage: S().page || '', ...body });
     if (c.workspace === workspace) {
       c.s = result.state; c.m = result.metrics;
       if (S().project === project) Object.assign(S(), { doc: result.doc, docFor: project });
@@ -475,7 +475,7 @@ export function installStudio(environment) {
     if (S().loading === projectId) return;
     S().loading = projectId;
     try {
-      const { doc } = await api(`${url('/api/studio/doc')}&id=${encodeURIComponent(projectId)}`);
+      const { doc } = await api(`${url('/api/studio/doc')}&id=${encodeURIComponent(projectId)}${S().page ? `&page=${encodeURIComponent(S().page)}` : ''}`);
       if (S().project !== projectId) return;
       Object.assign(S(), { doc, docFor: projectId, page: doc.pages.some(item => item.id === S().page) ? S().page : doc.pages[0].id, visual: true, code: false, panel: 'design', viewport: {} });
       render();
@@ -510,7 +510,17 @@ export function installStudio(environment) {
       }
       if ('studioLayer' in d) { const element = layers[Number(d.studioLayer)]; select(element); element?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' }); return; }
       if (d.studioInsert) { insertElement(d.studioInsert); const menu = button.closest('details'); menu.open = false; menu.querySelector('summary').focus(); return; }
-      if (d.studioPage) { if (d.studioPage === S().page || blocked()) return; S().page = d.studioPage; S().viewport = {}; render(); return; }
+      if (d.studioPage) {
+        if (d.studioPage === S().page || blocked()) return;
+        const project = S().project, target = d.studioPage;
+        // A large site comes with the HTML of one page at a time.
+        if (typeof S().doc.pages.find(item => item.id === target)?.html !== 'string') {
+          const { doc } = await api(`${url('/api/studio/doc')}&id=${encodeURIComponent(project)}&page=${encodeURIComponent(target)}`);
+          if (S().project !== project) return;
+          S().doc = doc;
+        }
+        S().page = target; S().viewport = {}; render(); return;
+      }
       if (d.studioUndo) { if (blocked()) return; button.disabled = true; await call('chat-undo', { entryId: d.studioUndo }); render(); flash('Alteração desfeita. As mudanças feitas depois dela também foram desfeitas.'); return; }
       if ('studioAddPage' in d) { if (blocked()) return;
         modal('Adicionar página', `<label>Nome da página<input name="name" required maxlength="60" placeholder="Sobre nós"></label><label>O que a página deve conter?<textarea name="description" maxlength="1500"></textarea></label>${c.features?.studioAI ? '<label class="check"><input type="checkbox" name="ai" checked> Gerar com IA no mesmo estilo da página inicial</label>' : ''}`, 'add-page', 'Adicionar página'); return; }

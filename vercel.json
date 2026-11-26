@@ -4,10 +4,10 @@
   "regions": ["gru1"],
   "functions": {
     "api/index.mjs": {
-      "includeFiles": "ui/**"
+      "includeFiles": "{ui/**,setup-templates/**}"
     },
     "server.mjs": {
-      "includeFiles": "ui/**"
+      "includeFiles": "{ui/**,setup-templates/**}"
     }
   },
   "rewrites": [

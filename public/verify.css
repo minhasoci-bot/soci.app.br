@@ -1,0 +1,20 @@
+/* Tela "Confirme seu celular" (ui/verify.js): cobre o app enquanto a agência não pode usar. */
+.vf-gate { position: fixed; inset: 0; z-index: 1000; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 32px 16px; background: var(--g-canvas); color: var(--g-ink); font-family: var(--font-ui); }
+.vf-brand { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; background: var(--g-grad-logo); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.vf-card { width: min(440px, 100%); background: var(--g-surface); border: 1px solid var(--g-line); border-radius: var(--g-r-lg); box-shadow: var(--g-shadow); padding: 28px; display: grid; gap: 14px; }
+.vf-card h1 { margin: 0; font-size: 22px; line-height: 1.25; }
+.vf-card p { margin: 0; line-height: 1.5; }
+.vf-card form { display: grid; gap: 10px; }
+.vf-card label { display: grid; gap: 6px; font-weight: 600; }
+.vf-card input { font-size: 17px; padding: 12px 14px; }
+.vf-hint { font-size: 13px; opacity: .7; }
+.vf-error { color: var(--g-red); font-size: 14px; }
+.vf-error:empty { display: none; }
+.vf-open { text-align: center; text-decoration: none; }
+.vf-qr { margin: 0; display: grid; justify-items: center; gap: 8px; }
+.vf-qr svg { border-radius: 12px; }
+.vf-qr figcaption { font-size: 13px; opacity: .7; text-align: center; }
+.vf-code strong { font-family: ui-monospace, monospace; letter-spacing: .12em; }
+.vf-wait { font-size: 14px; opacity: .75; }
+.vf-logout { background: none; border: 0; color: inherit; opacity: .7; cursor: pointer; text-decoration: underline; }
+@media (max-width: 480px) { .vf-card { padding: 20px; } .vf-qr { display: none; } }

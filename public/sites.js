@@ -110,7 +110,7 @@ function stepsSection(c, project, doc, w) {
       <button class="site-step-item" data-site-page="${item.id}" aria-current="${item.id === page.id}"><span class="site-step-index">${index + 1}</span><span><b>${h(item.name)}</b><small>/${item.slug === 'index' ? '' : h(item.slug)}</small></span></button>
       ${item.slug === 'index' ? '' : `<span class="site-move"><button class="icon-btn" data-site-move="up" data-page="${item.id}" aria-label="Subir ${h(item.name)}" ${index > 1 ? '' : 'disabled'}>${icon('chevron', 14)}</button>
         <button class="icon-btn" data-site-move="down" data-page="${item.id}" aria-label="Descer ${h(item.name)}" ${index < doc.pages.length - 1 ? '' : 'disabled'}>${icon('chevron', 14)}</button></span>`}</li>`).join('')}</ol>
-      <button class="primary site-add" data-site-add-step ${doc.pages.length >= 8 ? 'disabled title="Limite de 8 páginas"' : ''}>${icon('plus', 15)} Adicionar ${w.step}</button></aside>
+      <button class="primary site-add" data-site-add-step ${doc.pages.length >= 50 ? 'disabled title="Limite de 50 páginas"' : ''}>${icon('plus', 15)} Adicionar ${w.step}</button></aside>
     ${stepPanel(c, project, doc, page, w)}</div>`;
 }
 

@@ -10,7 +10,10 @@ export function createAuthRoutes(deps) {
   // Para onde a conta abre e o nome da agência dela, com as regras de acesso da própria conta.
   async function place(req, profile, next) {
     await ready;
-    const { agency, who } = await accessContext(req, profile);
+    // Cadastro fechado: a conta entra mesmo assim e o app mostra o aviso (SIGNUP_CLOSED) em vez de um erro solto.
+    const context = await accessContext(req, profile, { gate: false }).catch(e => { if (e.code === 'SIGNUP_CLOSED') return null; throw e; });
+    if (!context) return { next: '/app', agency: '' };
+    const { agency, who } = context;
     return {
       next: who.owner && who.agencyId !== AGENCY_ID && !/[?#]/.test(next) ? '/app#agency/dashboard' : next,
       agency: agency.company?.name || ''

@@ -6,7 +6,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { allowScript, renderEmbeds, withEmbeds } from './site-embeds.mjs';
 import { siteMotion } from './site-templates/motion.mjs';
 
-export const SITE_LIMITS = { pages: 8, html: 120000, versions: 12 };
+// versionChars: the HTML the old versions may hold together (they keep only the pages that changed after them).
+export const SITE_LIMITS = { pages: 50, html: 400000, versions: 12, versionChars: 4_000_000 };
 export const siteRowId = projectId => `studio-${projectId}`;
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 const now = () => new Date().toISOString();
@@ -77,17 +78,49 @@ export function newSiteDoc({ workspace, project, pages }) {
   snapshot(doc, 'Created');
   return doc;
 }
-const pageCopy = ({ id, name, slug, html, seo }) => ({ id, name, slug, html, ...(seo && { seo }) });
+// Versions and the published copy share the HTML of the pages, so a site of many large pages is not stored many times.
+// A page in a version without `html` has the HTML of the same page in the next newer version that has it, or else of the
+// current page; a page of the published copy without `html` has the HTML of the current page. Before the HTML of a page
+// changes or the page goes away, detach() writes the old HTML once where those copies look for it.
+const pageCopy = ({ id, name, slug, seo }) => ({ id, name, slug, ...(seo && { seo }) });
+const hasHtml = copy => typeof copy?.html === 'string';
+function detach(doc, pageId) {
+  const page = doc.pages.find(p => p.id === pageId);
+  if (!page) return;
+  for (let i = doc.versions.length - 1; i >= 0; i--) {
+    const copy = doc.versions[i].pages.find(p => p.id === pageId);
+    if (!copy) continue;
+    if (!hasHtml(copy)) copy.html = page.html;
+    break;
+  }
+  const live = doc.published?.pages?.find(p => p.id === pageId);
+  if (live && !hasHtml(live)) live.html = page.html;
+}
+function versionHtml(doc, index, pageId) {
+  for (let i = index; i < doc.versions.length; i++) {
+    const copy = doc.versions[i].pages.find(p => p.id === pageId);
+    if (hasHtml(copy)) return copy.html;
+  }
+  return doc.pages.find(p => p.id === pageId)?.html ?? '';
+}
+/** The pages of a version, with their HTML. */
+export const versionPages = (doc, version) => { const index = doc.versions.indexOf(version); return version.pages.map(p => ({ ...p, html: versionHtml(doc, index, p.id) })); };
+/** The published pages, with their HTML (none when the site is not published). */
+export const publishedPages = doc => (doc.published?.pages || []).map(p => hasHtml(p) ? p : { ...p, html: doc.pages.find(page => page.id === p.id)?.html ?? '' });
 function snapshot(doc, label) {
   doc.versions.push({ id: randomUUID(), at: now(), label: String(label || 'Saved').slice(0, 120), pages: doc.pages.map(pageCopy) });
   if (doc.versions.length > SITE_LIMITS.versions) doc.versions.splice(0, doc.versions.length - SITE_LIMITS.versions);
+  const kept = () => doc.versions.reduce((n, v) => n + v.pages.reduce((m, p) => m + (hasHtml(p) ? p.html.length : 0), 0), 0);
+  while (doc.versions.length > 1 && kept() > SITE_LIMITS.versionChars) doc.versions.shift();
   doc.rev = (doc.rev || 0) + 1;
 }
 export const findPage = (doc, pageId) => doc.pages.find(p => p.id === pageId) || fail('Page not found.', 404);
 
 export function savePage(doc, pageId, html, label) {
   const page = findPage(doc, pageId);
-  page.html = sanitizeHtml(html); page.updated = now();
+  const clean = sanitizeHtml(html);
+  if (clean !== page.html) detach(doc, page.id);
+  page.html = clean; page.updated = now();
   snapshot(doc, label);
   return page.id;
 }
@@ -108,6 +141,7 @@ export function renamePage(doc, pageId, name) {
 export function deletePage(doc, pageId) {
   const page = findPage(doc, pageId);
   if (page.slug === 'index') fail('The home page cannot be deleted.');
+  detach(doc, pageId);
   doc.pages = doc.pages.filter(p => p.id !== pageId);
   snapshot(doc, `Deleted page ${page.name}`);
   return pageId;
@@ -142,7 +176,10 @@ export function setSlug(doc, pageId, value) {
   const before = page.slug;
   if (before === slug) return page.id;
   const link = new RegExp(`(href\\s*=\\s*["'])page:${before}(["'])`, 'gi');
-  for (const other of doc.pages) other.html = other.html.replace(link, `$1page:${slug}$2`);
+  for (const other of doc.pages) {
+    const html = other.html.replace(link, `$1page:${slug}$2`);
+    if (html !== other.html) { detach(doc, other.id); other.html = html; }
+  }
   page.slug = slug;
   snapshot(doc, `Mudou o caminho de ${page.name} para /${slug}`);
   return page.id;
@@ -192,7 +229,9 @@ export function chatEntry(doc, { ask, reply, before = '', page = '' }) {
 
 export function restoreVersion(doc, versionId) {
   const version = doc.versions.find(v => v.id === versionId) || fail('Version not found.', 404);
-  doc.pages = version.pages.map(p => ({ ...p, updated: now() }));
+  const pages = versionPages(doc, version).map(p => ({ ...p, updated: now() }));
+  for (const page of doc.pages) if (pages.find(p => p.id === page.id)?.html !== page.html) detach(doc, page.id);
+  doc.pages = pages;
   snapshot(doc, `Restored “${version.label.slice(0, 90)}”`);
   return version.id;
 }
@@ -201,14 +240,17 @@ export function publish(doc, on) {
   return doc.published?.at || '';
 }
 // What the browser needs: page HTML for the code editor, version labels without their copies.
-export const publicDoc = doc => ({
-  rev: doc.rev, pages: doc.pages, chat: doc.chat || [], stats: doc.stats || {}, statsSince: doc.statsSince || '', published: doc.published ? { at: doc.published.at, rev: doc.published.rev, slugs: doc.published.pages.map(p => p.slug) } : null,
+// A large site sends only the HTML of the page on screen (`page`); the others come with their size and the editor asks for them.
+const SEND_ALL_HTML = 1_500_000;
+export const publicDoc = (doc, page = '') => ({
+  rev: doc.rev, pages: doc.pages.reduce((n, p) => n + p.html.length, 0) <= SEND_ALL_HTML ? doc.pages
+    : doc.pages.map((p, i) => p.id === page || (i === 0 && !doc.pages.some(other => other.id === page)) ? p : (({ html, ...rest }) => ({ ...rest, size: html.length }))(p)), chat: doc.chat || [], stats: doc.stats || {}, statsSince: doc.statsSince || '', published: doc.published ? { at: doc.published.at, rev: doc.published.rev, slugs: doc.published.pages.map(p => p.slug) } : null,
   versions: doc.versions.map(({ id, at, label }) => ({ id, at, label })).reverse()
 });
 
 // ---- Serving ----------------------------------------------------------------
 
-const pageCsp = ancestors => `default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src https: data:; media-src https:; form-action 'self'; base-uri 'none'; frame-ancestors ${ancestors}`;
+const pageCsp = ancestors => `default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; img-src https: data:; media-src https:; form-action 'self'; base-uri 'none'; frame-ancestors ${ancestors}`;
 export const previewHeaders = { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': pageCsp("'self'"), 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' };
 // same-origin (not no-referrer) so the browser sends a real Origin header when the lead form posts back.
 export const publicHeaders = { ...previewHeaders, 'Content-Security-Policy': pageCsp("'none'"), 'Referrer-Policy': 'same-origin' };
@@ -242,8 +284,11 @@ export function withMotion(headers, html) {
 }
 
 export { withEmbeds };
-export function renderPublic(page, { base, notice = '', workspace = '', link = '' }) {
-  let html = withSeo(workspace ? renderEmbeds(page.html, { workspace, link }) : page.html, page.seo)
+// The custom values of the account, by key without the prefix: {{custom_values.company_name}} in a page shows the value.
+export const siteValues = state => Object.fromEntries((state?.customValues || []).filter(row => String(row?.key || '').startsWith('custom_values.')).map(row => [row.key.slice(14), String(row.value ?? '')]));
+const fillValues = (html, values) => html.replace(/\{\{\s*custom_values\.(\w+)\s*\}\}/g, (_, key) => esc(values[key] ?? '')).replace(/\{\{\s*right_now\.year\s*\}\}/g, String(new Date().getFullYear()));
+export function renderPublic(page, { base, notice = '', workspace = '', link = '', values = {} }) {
+  let html = fillValues(withSeo(workspace ? renderEmbeds(page.html, { workspace, link }) : page.html, page.seo), values)
     .replace(/(href\s*=\s*["'])page:([a-z0-9-]+)(#[\w-]*)?(["'])/gi, (_, a, slug, hash = '', b) => `${a}${slug === 'index' ? base : `${base}/${slug}`}${hash}${b}`)
     .replace(/<form\b([^>]*)>/gi, (_, attrs) => `<form${attrs.replace(/\s(?:action|method|target|enctype)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')} data-soci-lead action="${base}" method="post"><input type="hidden" name="_page" value="${esc(page.slug)}">`);
   if (notice) {

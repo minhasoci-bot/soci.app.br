@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { createSupabaseAuth } from '../auth.mjs';
 import { makeServer } from '../server.mjs';
 import { createSqliteStore } from '../storage.mjs';
+import { verifiedAgencies } from './helpers/verified-agencies.mjs';
 
 const oauthClaims = Buffer.from(JSON.stringify({ amr: [{ method: 'oauth' }] })).toString('base64url');
 const identity = email => ({ id: randomUUID(), email, email_confirmed_at: '2026-11-18', identities: [{ provider: 'google' }] });
@@ -22,7 +23,7 @@ async function start(t) {
       return user ? Response.json(user) : Response.json({}, { status: 401 });
     }
   });
-  const store = createSqliteStore(':memory:');
+  const store = verifiedAgencies(createSqliteStore(':memory:'));
   const { server, host, ready } = makeServer({ store, auth, agencyOwnerId: ownerA.id, allowLocalAccess: false, socialScheduler: false, port: 0 });
   await ready;
   await new Promise(resolve => server.listen(0, host, resolve));
