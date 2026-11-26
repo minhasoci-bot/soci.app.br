@@ -1283,7 +1283,7 @@ document.addEventListener('submit',async ev=>{
 
 if(viewPath){
   try{const result=await api(`/api/view${viewPath}`), workspace=viewPath.split('/')[2]; document.title='soci';app.innerHTML=publicView(result,workspace);}
-  catch(e){app.innerHTML=`<div class="boot"><h1>Página indisponível</h1><p>${h(e.message)}</p><a href="/">Voltar para a plataforma</a></div>`;}
+  catch(e){app.innerHTML=`<div class="boot"><h1>Página indisponível</h1><p>${h(e.message)}</p><a href="/app">Voltar para a plataforma</a></div>`;}
 }else{
   installDashboardControls({ c,dialog,close,render,load,mutate,flash,go,download:downloads });
   agencyEnv = { app, overlay, api, flash, openWorkspace: useWorkspace, onBrandColorChange: (primary, secondary, accent) => {

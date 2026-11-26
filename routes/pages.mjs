@@ -56,16 +56,18 @@ export function createPageRoutes(deps) {
     // Política de privacidade pública (LGPD e o link exigido pelo login com Google).
     if (p === '/privacidade' || p === '/privacidade/') p = '/privacidade.html';
     const platformPaths = ['/app','/app/','/painel','/painel/'];
-    const loginPaths = ['/','/login','/index.html'];
-    if ((method==='GET'||method==='HEAD') && (loginPaths.includes(p) || platformPaths.includes(p) || paths.test(p) || staticFiles.has(p))) {
-      const isLogin = loginPaths.includes(p);
+    // A raiz é a página inicial pública (ui/index.html); o login com Google mora em /login (ui/login.html).
+    const homePaths = ['/','/index.html'];
+    const loginPaths = ['/login','/login.html'];
+    if ((method==='GET'||method==='HEAD') && (homePaths.includes(p) || loginPaths.includes(p) || platformPaths.includes(p) || paths.test(p) || staticFiles.has(p))) {
+      const isLogin = loginPaths.includes(p) || homePaths.includes(p);
       // Páginas estáticas que só abrem com sessão (como o app), por exemplo o editor da Prancheta.
       if (!isLogin && !paths.test(p) && (!staticFiles.has(p) || sessionOnlyFiles.has(p)) && !localAccess && !auth?.hasSession(req)) {
         const search = new URLSearchParams(url.search); search.delete('__path');
         const next = afterLogin(p + (search.size ? '?' + search : ''));
         return goTo('/login?' + new URLSearchParams({ next }));
       }
-      const f = isLogin ? '/index.html' : (platformPaths.includes(p) || legacyPage ? '/app.html' : p);
+      const f = homePaths.includes(p) ? '/index.html' : loginPaths.includes(p) ? '/login.html' : (platformPaths.includes(p) || legacyPage ? '/app.html' : p);
       // Setup illustrations are not mirrored in public/: without this every card refetched them from the
       // function. The browser keeps them a day; the Vercel CDN until the next deploy purges it.
       if (f.startsWith('/setup-art/')) res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=86400');

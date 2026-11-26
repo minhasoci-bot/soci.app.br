@@ -16,11 +16,11 @@ test('todo arquivo estático declarado no servidor existe em ui/', () => {
   assert.deepEqual(missing, []);
 });
 
-test('smoke cobre o login e todos os estáticos, menos o index que exige sessão', () => {
+test('smoke cobre a página inicial, o login e todos os estáticos', () => {
   const paths = smokePaths();
-  assert.equal(paths[0], '/login');
-  assert.ok(!paths.includes('/index.html'));
-  assert.equal(paths.length, staticFiles.size);
+  assert.deepEqual(paths.slice(0, 2), ['/', '/login']);
+  assert.ok(!paths.includes('/index.html'), '/ já confere a página inicial');
+  assert.equal(paths.length, staticFiles.size + 1);
 });
 
 test('smoke passa no servidor local e acusa o que não responde 200', async t => {
