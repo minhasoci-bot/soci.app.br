@@ -6,6 +6,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { hydrateWorkspace, uid } from './model.mjs';
 import { auditOptions, auditPage, storedEntry } from './agency-audit.mjs';
 import { listedEvent, pageOf, pageOptions, storedEvent } from './tracking-events.mjs';
+import { sqliteRequestLog, supabaseRequestLog } from './ai-gateway/request-log.mjs';
 
 export function workspaceMissing() {
   return Object.assign(new Error('Workspace not found.'), { status: 404 });
@@ -127,6 +128,8 @@ export function createSqliteStore(path) {
   return {
     kind: 'SQLite',
     tracking: sqliteTracking(db),
+    // soci AI Gateway: log de requisições (só metadados).
+    aiRequests: sqliteRequestLog(db),
     audit: sqliteAudit(db),
     load,
     list: agencyId => agencyId === undefined ? list.all() : listByAgency.all(agencyId),
@@ -350,6 +353,7 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
   return {
     kind: 'Supabase',
     tracking,
+    aiRequests: supabaseRequestLog(optionalTable('AI requests', 'ai_log_unavailable')),
     audit,
     load: async id => (await read(id)).state,
     unchanged,

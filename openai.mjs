@@ -6,7 +6,9 @@ const fail = (message, status) => Object.assign(new Error(message), { status });
 const connectMessage = 'Conecte sua chave da OpenAI em Visão da agência → Configurações → OpenAI.';
 const rowId = session => `openai-${session.id}`;
 
-export function createOpenAI({ store, model, secret, request = fetch }) {
+// `gateway` (soci AI Gateway, ai-gateway/gateway.mjs): quando presente, toda chamada à Responses API passa por ele
+// (kill switch, circuit breaker, log de requisições). Sem ele (testes antigos), a chamada vai direto como antes.
+export function createOpenAI({ store, model, secret, request = fetch, gateway = null }) {
   const key = secret && createHmac('sha256', secret).update('soci:openai:v1').digest();
 
   async function connection(session) {
@@ -25,17 +27,30 @@ export function createOpenAI({ store, model, secret, request = fetch }) {
     } catch { return null; }
   }
 
+  function gatewayScope(session, scope) {
+    if (!gateway) return {};
+    return { gateway, gatewayContext: { org: String(scope.org || `user:${session?.id || 'local'}`), user: String(session?.id || ''), feature: scope.feature || 'legacy.openai' } };
+  }
+
   const status = apiKey => ({ configured: Boolean(apiKey), last4: apiKey?.slice(-4) || '', model });
   return {
     async status(session) { return status(await connection(session)); },
-    async optionalConnection(session) {
+    async optionalConnection(session, scope = {}) {
       const apiKey = await connection(session);
-      return apiKey ? { apiKey, model, request } : null;
+      return apiKey ? { apiKey, model, request, ...gatewayScope(session, scope) } : null;
     },
-    async requireConnection(session) {
+    /**
+     * A chave da agência (BYOK). `scope`: { org, feature, allowPlatform }. Sem chave, e só quando o dono da plataforma
+     * liberou "Agências sem chave usam a IA gratuita da soci" e a funcionalidade usa apenas texto (allowPlatform),
+     * devolve uma conexão sem chave que o gateway atende com modelos gratuitos.
+     */
+    async requireConnection(session, scope = {}) {
       const apiKey = await connection(session);
-      if (!apiKey) throw fail(connectMessage, 503);
-      return { apiKey, model, request };
+      if (apiKey) return { apiKey, model, request, ...gatewayScope(session, scope) };
+      if (gateway && scope.allowPlatform && await gateway.platformFreeAvailable().catch(() => false)) {
+        return { apiKey: null, model, request, platform: true, ...gatewayScope(session, scope) };
+      }
+      throw fail(connectMessage, 503);
     },
     async connect(session, input) {
       if (!key) throw fail('O armazenamento seguro de chaves está indisponível.', 503);
@@ -77,12 +92,26 @@ async function openAIRequest(path, { apiKey, request, body, timeout, problem }) 
   return result;
 }
 
+// Erros do gateway na chamada com a chave da agência mantêm as mensagens de antes (a tela e os testes dependem delas).
+function legacyError(error, problem, byok) {
+  if (!byok || error?.name !== 'GatewayError') return error;
+  if (error.providerStatus === 401) return fail('A OpenAI recusou a chave. Verifique a chave ou conecte uma nova.', 422);
+  if ([403, 404].includes(error.providerStatus)) return fail('O projeto da chave não tem acesso ao modelo ou à operação solicitada na OpenAI.', 422);
+  if (error.providerStatus === 429) return fail('Verifique o saldo e os limites de uso do seu projeto na OpenAI.', 429);
+  if (['disabled', 'cancelled', 'policy'].includes(error.kind)) return error;
+  return fail(problem, 502);
+}
+
 // `onUsage`, when the caller meters AI spend, receives the model and token counts of every call,
 // including failed ones (with zero tokens and the error message).
-export async function openAIResponse(body, { apiKey, request, timeout, problem, onUsage }) {
+// Com `gateway` na conexão (o normal no servidor), a chamada passa pelo soci AI Gateway: o corpo segue igual para a
+// OpenAI com a chave da agência, ou, sem chave e com a IA gratuita da soci liberada, vai a um modelo gratuito.
+export async function openAIResponse(body, { apiKey, request, timeout, problem, onUsage, gateway, gatewayContext }) {
   const started = Date.now();
   try {
-    const result = await openAIRequest('/responses', { apiKey, request, timeout, problem, body: { ...body, store: false } });
+    const result = gateway
+      ? await gateway.responses(body, { ...gatewayContext, byok: apiKey ? { openai: apiKey } : {} }, { timeoutMs: timeout }).catch(error => { throw legacyError(error, problem, Boolean(apiKey)); })
+      : await openAIRequest('/responses', { apiKey, request, timeout, problem, body: { ...body, store: false } });
     await onUsage?.({ model: result.model || body.model, usage: result.usage || {}, ms: Date.now() - started });
     return result;
   } catch (error) {
