@@ -21,7 +21,7 @@ import { createQrRoutes } from './routes/qr.mjs';
 import { createAffiliateRoutes } from './routes/affiliates.mjs';
 import { createOfferApiRoutes, createOfferPageRoutes } from './routes/offers.mjs';
 import { createPaymentLinkRoutes } from './routes/payment-links.mjs';
-import { hostingDomains, requestHost, requireFreeDomain, whiteLabelBrand, whiteLabelHost } from './white-label.mjs';
+import { hostingDomains, requireFreeDomain, whiteLabelHost } from './white-label.mjs';
 import { createBookingRoutes } from './routes/booking.mjs';
 import { createPreferenceRoutes } from './routes/preferences.mjs';
 import { createAgencyAppRoutes } from './routes/agency-apps.mjs';
@@ -44,6 +44,10 @@ import { createDriveRoutes, createPublicMediaRoutes, createVideoRoutes } from '.
 import { createTrackingRoutes } from './routes/tracking.mjs';
 import { createAppApiRoutes, createAppInstallRoutes } from './routes/apps.mjs';
 import { createProspectPublicRoutes } from './routes/prospect-public.mjs';
+import { createAccountRoutes, createWhiteLabelRoutes } from './routes/account.mjs';
+import { createAgencyRoutes } from './routes/agency.mjs';
+import { createFaviconRoutes, createPageRoutes } from './routes/pages.mjs';
+import { createWorkspaceRoutes } from './routes/workspace.mjs';
 import { createConnectorHookRoutes, createConnectorRoutes } from './routes/connectors.mjs';
 import { createPhoneRoutes, createTwilioWebhookRoutes } from './routes/phone.mjs';
 import { createAuthRoutes } from './routes/auth.mjs';
@@ -51,13 +55,13 @@ import { createPushRoutes } from './routes/push.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { blank, seed, uid, execute, find, emitWorkflow, receiveProspects } from './model.mjs';
+import { blank, seed, uid, execute, emitWorkflow, receiveProspects } from './model.mjs';
 import { createSqliteStore, supabaseFromEnv } from './storage.mjs';
-import { accountProfile, afterLogin, authFromEnv } from './auth.mjs';
+import { accountProfile, authFromEnv } from './auth.mjs';
 import { generatePage, revisePage, suggestSeo } from './studio-ai.mjs';
 import { validDesign } from './ui/studio-design.js';
 import { designAgent, replyAsAgent } from './agent-ai.mjs';
@@ -72,7 +76,7 @@ import { brandVoicePrompt, defaultBoard } from './ui/brand-data.js';
 import { runWorkflowAI } from './workflow-ai.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
-import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, inTrash, trashList, trashExpired } from './agency-model.mjs';
+import { AGENCY_ID, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, inTrash, trashList, trashExpired } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { runProspectingAction } from './prospecting-model.mjs';
 import { collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
@@ -121,7 +125,7 @@ import { folded, prospectSearchText } from './ui/prospecting-data.js';
 import { snapshotAssets } from './ui/agency-data.js';
 import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, workspaceView } from './authorization.mjs';
 import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, settle } from './social-model.mjs';
-import { authUrl, availability, publish as socialPublish, seal, unseal } from './social-providers.mjs';
+import { authUrl, publish as socialPublish, seal, unseal } from './social-providers.mjs';
 import { quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
 import { generateImage, startVideo, videoContent, videoStatus } from './openai-media.mjs';
 import { inboundAddress } from './email-inbound.mjs';
@@ -224,7 +228,6 @@ const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
 const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community|offer-grant|loyalty|admin-enter|files|push)(?:/([0-9a-f-]{36}))?$`);
-const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
 const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout|cart|restore|review|view)$`);
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
@@ -1088,7 +1091,8 @@ export function makeServer({
         requireAgencyCommand(currentActor, input, agency);
         if (sharedSnapshot) requireSetupModules(currentActor, Object.keys(sharedSnapshot.assets || {}));
         ensureAccounts(agency, workspaces);
-        const result = executeAgency(agency, input, { accountIds: workspaces.map(w => w.id), actor: who.name, sharedSnapshot });        if (who.session && input.type === 'save' && input.key === 'users') {
+        const result = executeAgency(agency, input, { accountIds: workspaces.map(w => w.id), actor: who.name, sharedSnapshot });
+        if (who.session && input.type === 'save' && input.key === 'users') {
           agency.users.find(user => user.id === result).loginEnabled = true;
         }
         return result;
@@ -2308,6 +2312,12 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const prospectPublicRoute = createProspectPublicRoutes({ store, ready, error, changeAgency, csp });
   const appApiRoute = createAppApiRoutes({ store, error, appBearer, bearer, payload, change, flushLater, listWorkspaces, requireWorkspaceAccess, loadAgency });
   const appInstallRoute = createAppInstallRoutes({ store, error, spaceId, workspaceAccess, payload, changeAgency, change, logTo, deliverToApp, publicBase });
+  const faviconRoute = createFaviconRoutes();
+  const whiteLabelRoute = createWhiteLabelRoutes({ store, ready });
+  const accountRoute = createAccountRoutes({ error, verifiedUser, openAI, payload, access, createAccount, listWorkspaces, visibleWorkspaces });
+  const workspaceRoute = createWorkspaceRoutes({ store, error, spaceId, privateSpace, accessContext, verifiedUser, requireWorkspaceAccess, visibleWorkspaces, workspaceAccess, payload, openAI, writeAudit, localAccess, contentAI, reportMail, agentModel });
+  const agencyRoute = createAgencyRoutes({ error, spaceId, privateSpace, access, accessContext, verifiedUser, requireWorkspaceAccess, visibleWorkspaces, agencyPayload, agencyRequest, auditLog, payload });
+  const pageRoute = createPageRoutes({ store, ready, error, workspaceSegment, payload, change, publicAccountPolicy, staticFiles, sessionOnlyFiles, localAccess, auth, pranchetaEditorCsp, root });
   const server=createServer(async (req,res) => {
     const requestPath = String(req.url || '/').split('?')[0];
     const touches = touchesOf(req), landing = requestPath.match(landingPath);
@@ -2352,34 +2362,18 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       const id=url.searchParams.get('workspace') || 'demo';
       const portalRouteHandled = await portalRoute({ req, res, p, method, url, id, json, send, proto });
       if (portalRouteHandled !== NEXT_ROUTE) return portalRouteHandled;
-      if (p === '/favicon.ico') { res.writeHead(302, { Location: '/favicon.svg' }); return res.end(); }
+      const faviconRouteHandled = await faviconRoute({ res, p });
+      if (faviconRouteHandled !== NEXT_ROUTE) return faviconRouteHandled;
       const prospectPublicRouteHandled = await prospectPublicRoute({ req, res, p, method, url, send });
       if (prospectPublicRouteHandled !== NEXT_ROUTE) return prospectPublicRouteHandled;
       const appApiRouteHandled = await appApiRoute({ req, p, method, json });
       if (appApiRouteHandled !== NEXT_ROUTE) return appApiRouteHandled;
-      // White Label: o login aberto no domínio de uma agência mostra a marca dela.
-      if (p === '/api/marca' && method === 'GET') { await ready; return json(await whiteLabelBrand(store, requestHost(req))); }
+      const whiteLabelRouteHandled = await whiteLabelRoute({ req, p, method, json });
+      if (whiteLabelRouteHandled !== NEXT_ROUTE) return whiteLabelRouteHandled;
       const authRouteHandled = await authRoute({ req, res, p, method, url, json, goTo });
       if (authRouteHandled !== NEXT_ROUTE) return authRouteHandled;
-      if (p === '/api/openai') {
-        const session = await verifiedUser(req,res);
-        if (!session) throw error('Entre na sua conta para conectar sua chave da OpenAI.',401);
-        res.setHeader('Cache-Control','no-store');
-        if (method !== 'POST') return json(await openAI.status(session));
-        const input = await payload(req);
-        if (input.action === 'connect') return json(await openAI.connect(session,input.apiKey));
-        if (input.action === 'disconnect') return json(await openAI.disconnect(session));
-        throw error('Escolha uma ação válida para a conexão com a OpenAI.',400);
-      }
-      if (p==='/api/workspaces') {
-        const who = await access(req,res);
-        if (method==='POST') {
-          requireCapability(who, 'agency', 'Only agency users can create sub-accounts.');
-          const newId = await createAccount(who, await payload(req));
-          return json({id:newId,workspaces:await listWorkspaces(who.agencyId)},201);
-        }
-        return json({workspaces:await visibleWorkspaces(who), agency:who.agency});
-      }
+      const accountRouteHandled = await accountRoute({ req, res, p, method, json });
+      if (accountRouteHandled !== NEXT_ROUTE) return accountRouteHandled;
       const platformHandled = await platformRoute({ req, res, p, method, json });
       if (platformHandled !== NEXT_ROUTE) return platformHandled;
       const socialHandled = await socialRoute({ req, res, p, method, url, id, json, send });
@@ -2388,32 +2382,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (publicMediaRouteHandled !== NEXT_ROUTE) return publicMediaRouteHandled;
       const documentRouteHandled = await documentRoute({ req, res, p, method, json, send });
       if (documentRouteHandled !== NEXT_ROUTE) return documentRouteHandled;
-      if (p==='/api/state' && method!=='POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const { agency, who: actor } = await accessContext(req,await verifiedUser(req,res));
-        const isPersonal = privateSpace.test(id);
-        const who = await requireWorkspaceAccess(agency, actor, id, { support: true });
-        const studio = hasModule(who, 'sites'), agents = hasModule(who, 'ai-agents'), marketing = hasModule(who, 'marketing'), reputation = hasModule(who, 'reputation');
-        const [state, workspaces, aiStatus] = await Promise.all([
-          store.load(id), visibleWorkspaces(who), !who.support && (studio || agents || marketing || reputation) ? openAI.status(who.session) : null
-        ]);
-        if (who.support) await writeAudit(who, 'Sub-account support viewed', id, who.account.status);
-        return json({ ...workspaceView(who, state), workspaces,
-          ...(!isPersonal && hasModule(who, 'settings') && agency.accounts[id]?.billing?.status === 'PastDue' && { billingNotice: 'past_due' }),
-          features:{studioAI: Boolean(aiStatus?.configured && studio), socialAI: Boolean(aiStatus?.configured && marketing), contentAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && (marketing || studio)), reviewAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && reputation), reportEmail: reportMail.configured, social: marketing ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
-          agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id,who.settings),
-          ...(who.support && { account: { ...who.account, support: true, statusHistory: agency.accounts[id]?.statusHistory || [],
-            ignoredWebhooks: agency.accounts[id]?.ignoredWebhooks || {} } }),
-          access:{agency:who.agency,modules:who.modules,name:who.name,session:who.session}});
-      }
-      // Dry run of a workflow draft for one contact, on a copy of the workspace: nothing is saved or sent.
-      if (p==='/api/workflow-test' && method==='POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const body = await payload(req);
-        await workspaceAccess(req, res, id, { modules: ['automation'] });
-        const copy = structuredClone(await store.load(id));
-        return json({ result: execute(copy, { type: 'workflow-test', data: body }) });
-      }
+      const workspaceRouteHandled = await workspaceRoute({ req, res, p, method, id, json });
+      if (workspaceRouteHandled !== NEXT_ROUTE) return workspaceRouteHandled;
       const driveRouteHandled = await driveRoute({ req, res, p, method, id, json });
       if (driveRouteHandled !== NEXT_ROUTE) return driveRouteHandled;
       const trackingRouteHandled = await trackingRoute({ req, res, p, method, url, id, json });
@@ -2422,35 +2392,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (mcpRouteHandled !== NEXT_ROUTE) return mcpRouteHandled;
       const actionRouteHandled = await actionRoute({ req, res, p, method, url, id, json, send });
       if (actionRouteHandled !== NEXT_ROUTE) return actionRouteHandled;
-      if (p==='/api/agency' && method!=='POST') {
-        return json(await agencyPayload(req,res));
-      }
-      // Configurações da agência → Logs de auditoria: newest first (?q=, ?before=<cursor>, ?limit=).
-      if (p==='/api/agency/audit' && method==='GET') {
-        const who = await access(req,res);
-        requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
-        if (!who.settings) throw error('Seu usuário não tem acesso às configurações da agência.',403);
-        return json(await auditLog.read(who.agencyId, { q: url.searchParams.get('q') || '', before: url.searchParams.get('before') || '', limit: url.searchParams.get('limit') || '' }));
-      }
-      // Configurações da subconta → Log de auditoria: só as entradas desta subconta.
-      if (p==='/api/audit' && method==='GET') {
-        if (privateSpace.test(id)) return json({ entries: [], next: '' });
-        if (!spaceId.test(id)) throw error('Workspace not found.',404);
-        const { agency, who: actor } = await accessContext(req,await verifiedUser(req,res));
-        const who = await requireWorkspaceAccess(agency, actor, id, { support: true });
-        if (!who.support && !hasModule(who, 'settings')) throw error('Seu usuário não tem acesso às configurações.',403);
-        const account = (await visibleWorkspaces(who)).find(w => w.id === id)?.name || id;
-        return json(await auditLog.read(who.agencyId, { targets: [account, id], before: url.searchParams.get('before') || '', limit: url.searchParams.get('limit') || '' }));
-      }
-      if (p.startsWith('/api/agency/') && method==='POST') {
-        const who = await access(req,res);
-        requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
-        const op = p.slice('/api/agency/'.length), body = await payload(req);
-        const result = await agencyRequest(op, who, body);
-        // Opening a sub-account only stamps lastLogin; skip rebuilding the full agency payload (it loads every sub-account).
-        if ((op === 'action' && body?.type === 'account-open') || op === 'domain-status') return json({ result });
-        return json(await agencyPayload(req,res, { result }));
-      }
+      const agencyRouteHandled = await agencyRoute({ req, res, p, method, url, id, json });
+      if (agencyRouteHandled !== NEXT_ROUTE) return agencyRouteHandled;
       const abacatePayRouteHandled = await abacatePayRoute({ req, res, p, method, url, json });
       if (abacatePayRouteHandled !== NEXT_ROUTE) return abacatePayRouteHandled;
       const billingRouteHandled = await billingRoute({ req, res, p, method, url, id, json, send });
@@ -2549,48 +2492,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (emailTrackHandled !== NEXT_ROUTE) return emailTrackHandled;
       const linkRouteHandled = await linkRoute({ res, p, method });
       if (linkRouteHandled !== NEXT_ROUTE) return linkRouteHandled;
-      const match=p.replace(/^\/api\/view/,'').match(paths);
-      if (p.startsWith('/api/view/') && match) {
-        const [,kind,w,item]=match;
-        if (method==='POST') {
-          if (kind!=='f') throw error('Method not allowed.',405);
-          const input = await payload(req);
-          await publicAccountPolicy(w, true, 'sites');
-          // _vid links a site visitor to the contact; only the site route (which sets the cookie) may send it.
-          const submission = await change(w,{type:'submit',id:item,data:{ ...(input && typeof input === 'object' ? input : {}), _vid:'' }});
-          return json({id:submission.id},201);
-        }
-        await publicAccountPolicy(w, false, kind === 'course' ? 'memberships' : 'sites');
-        const state=await store.load(w), map={p:'pages',f:'forms',course:'courses'}, row=find(state,map[kind],item);
-        if(!row?.active || (kind==='course' && row.portalOnly)) throw error('This item is not published.',404);
-        const form=kind==='p' && row.formId ? find(state,'forms',row.formId) : null;
-        return json({kind,row,form:form?.active?form:null,brand:state.profile.name});
-      }
-      const legacyPage = method !== 'POST' && p.match(paths);
-      if (legacyPage) {
-        await ready;
-        await publicAccountPolicy(legacyPage[2], false, legacyPage[1] === 'course' ? 'memberships' : 'sites');
-      }
-      if (method === 'GET' && legacyPage?.[1] === 'f') { res.writeHead(302, { Location:`/form/${legacyPage[2]}/${legacyPage[3]}` }); return res.end(); }
-      // Política de privacidade pública (LGPD e o link exigido pelo login com Google).
-      if (p === '/privacidade' || p === '/privacidade/') p = '/privacidade.html';
-      const platformPaths = ['/app','/app/','/painel','/painel/'];
-      const loginPaths = ['/','/login','/index.html'];
-      if ((method==='GET'||method==='HEAD') && (loginPaths.includes(p) || platformPaths.includes(p) || paths.test(p) || staticFiles.has(p))) {
-        const isLogin = loginPaths.includes(p);
-        // Páginas estáticas que só abrem com sessão (como o app), por exemplo o editor da Prancheta.
-        if (!isLogin && !paths.test(p) && (!staticFiles.has(p) || sessionOnlyFiles.has(p)) && !localAccess && !auth?.hasSession(req)) {
-          const search = new URLSearchParams(url.search); search.delete('__path');
-          const next = afterLogin(p + (search.size ? '?' + search : ''));
-          return goTo('/login?' + new URLSearchParams({ next }));
-        }
-        const f = isLogin ? '/index.html' : (platformPaths.includes(p) ? '/app.html' : p);
-        // Setup illustrations are not mirrored in public/: without this every card refetched them from the
-        // function. The browser keeps them a day; the Vercel CDN until the next deploy purges it.
-        if (f.startsWith('/setup-art/')) res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=86400');
-        if (f === '/prancheta-editor.html') res.setHeader('Content-Security-Policy', pranchetaEditorCsp());
-        return send(200,staticFiles.get(f)||'text/html; charset=utf-8',method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
-      }
+      const pageRouteHandled = await pageRoute({ req, res, p, method, url, json, send, goTo });
+      if (pageRouteHandled !== NEXT_ROUTE) return pageRouteHandled;
       throw error('Page not found.',404);
     } catch(e) {
       if (!e.status) console.error(e.message);
