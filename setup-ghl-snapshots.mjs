@@ -48,7 +48,7 @@ export const imobIaSpec = {
   id: 'ghl-imobiliaria-agente-ia',
   title: 'Imobiliária com Agente de IA — Sofia, Consultora Virtual',
   summary: 'Agente de IA que qualifica compradores, locatários e investidores e agenda visitas com o corretor: pipeline, 3 workflows, base de conhecimento, 2 calendários e campos de qualificação.',
-  description: 'Convertido do snapshot "agente IA IMOB". A Sofia atende 24h no WhatsApp e no chat, entende a necessidade (compra, venda, aluguel ou investimento), o perfil do imóvel e a faixa de valor, capta os dados de contato e agenda visita ou call com o corretor. Workflows: Nova visita (confirmação + aviso ao corretor), Lead quente → corretor da região e Follow-up automático quando o contato para de responder. Preencha os valores personalizados e a base de conhecimento com os dados da sua imobiliária antes de ativar.',
+  description: 'A Sofia atende 24h no WhatsApp e no chat, entende a necessidade (compra, venda, aluguel ou investimento), o perfil do imóvel e a faixa de valor, capta os dados de contato e agenda visita ou call com o corretor. Workflows: Nova visita (confirmação + aviso ao corretor), Lead quente → corretor da região e Follow-up automático quando o contato para de responder. Preencha os valores personalizados e a base de conhecimento com os dados da sua imobiliária antes de ativar.',
   category: 'Imobiliário',
   tags: ['imobiliária', 'agente de ia', 'qualificação', 'visitas', 'whatsapp'],
   assets: {
@@ -161,7 +161,7 @@ export const coldEmailSpec = {
   id: 'ghl-cold-email-ab',
   title: 'Prospecção por Cold Email com Teste A/B',
   summary: 'Sequência de 5 e-mails frios com teste A/B de headline em cada envio, parada automática quando o lead responde ou agenda, pipeline de 5 etapas e notificações para o time.',
-  description: 'Convertido do snapshot "snapshot cold email". O workflow principal cria a oportunidade, marca a tag cold-email e dispara 5 rodadas de e-mail, cada uma dividida 50/50 entre duas headlines, com 1 dia de intervalo. Quando o lead responde, ele sai da sequência, avança para "Lead Respondeu" e o time é avisado; quando agenda a reunião, vai para "Reunião agendada". Inscreva os contatos no workflow em massa pela lista de contatos. Preencha os valores personalizados (remetente, oferta, case e link de agendamento) antes de ativar.',
+  description: 'O workflow principal cria a oportunidade, marca a tag cold-email e dispara 5 rodadas de e-mail, cada uma dividida 50/50 entre duas headlines, com 1 dia de intervalo. Quando o lead responde, ele sai da sequência, avança para "Lead Respondeu" e o time é avisado; quando agenda a reunião, vai para "Reunião agendada". Inscreva os contatos no workflow em massa pela lista de contatos. Preencha os valores personalizados (remetente, oferta, case e link de agendamento) antes de ativar.',
   category: 'B2B e SaaS',
   tags: ['cold email', 'prospecção', 'teste a/b', 'outbound', 'b2b'],
   assets: {
@@ -367,7 +367,7 @@ export const siteInteligenteSpec = localSetup({
   id: 'ghl-site-inteligente',
   title: 'Site Inteligente para Negócios Locais — Leads, Avaliações e Indicações',
   summary: 'Site de serviços locais com chat, ligação perdida que vira WhatsApp, confirmação multicanal, pedidos de avaliação, indique um amigo e reativação de base: 2 pipelines e 13 workflows.',
-  description: 'Convertido do snapshot "site inteligente". Todo lead que chega pelo site, chat, formulário, Facebook, Instagram ou ligação perdida recebe resposta em 1 minuto e entra no Pipeline Comercial. Cliente fechado recebe pedido de avaliação, convite para indicar amigos com desconto e acompanhamento de 1 ano. Feedback negativo alerta a equipe na hora e a base antiga é reativada com oferta. O site e as mensagens usam 46 valores personalizados (empresa, links, serviços e áreas atendidas): preencha-os e o setup fica pronto para o cliente.',
+  description: 'Todo lead que chega pelo site, chat, formulário, Facebook, Instagram ou ligação perdida recebe resposta em 1 minuto e entra no Pipeline Comercial. Cliente fechado recebe pedido de avaliação, convite para indicar amigos com desconto e acompanhamento de 1 ano. Feedback negativo alerta a equipe na hora e a base antiga é reativada com oferta. O site e as mensagens usam 46 valores personalizados (empresa, links, serviços e áreas atendidas): preencha-os e o setup fica pronto para o cliente.',
   tags: ['serviços locais', 'site', 'avaliações', 'indicação', 'ligação perdida']
 });
 
@@ -377,7 +377,7 @@ export const crewSystemsSpec = localSetup({
   id: 'ghl-crewsystems-paisagismo',
   title: 'CrewSystems — Paisagismo e Serviços Externos (PT/EN)',
   summary: 'Setup completo para paisagismo, jardinagem e serviços externos: tudo do Site Inteligente + gerador de orçamento, página de manutenção, assistente de IA, chat e pesquisa bilíngues.',
-  description: 'Convertido do snapshot "crewsystems snapshot pt-br". Inclui toda a operação do Site Inteligente (13 workflows de leads, avaliações, indicações e reativação) e acrescenta o funil de Manutenção de Jardim, o formulário Gerador de Orçamento de Paisagismo, o formulário de avaliação com sequência de 1 ano, chat e pesquisa de avaliação também em inglês, o assistente de IA "Luxury Landscaping" e o lembrete sazonal de manutenção.',
+  description: 'Inclui toda a operação do Site Inteligente (13 workflows de leads, avaliações, indicações e reativação) e acrescenta o funil de Manutenção de Jardim, o formulário Gerador de Orçamento de Paisagismo, o formulário de avaliação com sequência de 1 ano, chat e pesquisa de avaliação também em inglês, o assistente de IA "Luxury Landscaping" e o lembrete sazonal de manutenção.',
   tags: ['paisagismo', 'jardinagem', 'serviços locais', 'bilíngue', 'agente de ia'],
   extra: {
     forms: [
