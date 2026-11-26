@@ -27,6 +27,7 @@ import { apiScopes,
 } from './agency-data.js';
 import { setupArt } from './setup-art.js';
 import { platformPage, platformBanner } from './platform.js';
+import { createAiGatewayPanel } from './ai-gateway.js';
 
 export { agencyNav };
 const h = x => String(x ?? '').replace(/[&<>"']/g, v => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[v]);
@@ -162,7 +163,7 @@ export function startAgency(env) {
     // Sem login (servidor local), "Agir como" vale também aqui: a faixa é a saída desse modo.
     const acting = !session && localStorage.getItem('go.user');
     const item = ([key, label, ico]) => ({ href: `#agency/${key}`, label: tr(label), icon: ico, current: A.page === key });
-    const currentPageLabel = tr(A.page === 'plataforma' ? 'Plataforma' : agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência');
+    const currentPageLabel = tr(A.page === 'plataforma' ? 'Plataforma' : A.page === 'ai-gateway' ? 'AI Gateway' : agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência');
     const navOf = group => agencyNav.filter(n => n[3] === group).map(item);
     // Ajuda junta os links externos (central de ajuda, comunidade) com as ideias e sugestões.
     const extras = {
@@ -186,7 +187,7 @@ export function startAgency(env) {
       ],
       // Plataforma: só o dono da plataforma vê (limites de Supabase, Vercel, Cloudflare, Hostinger…).
       footer: [
-        ...(A.data.access?.platform ? [item(['plataforma', 'Plataforma', 'chart'])] : []),
+        ...(A.data.access?.platform ? [item(['plataforma', 'Plataforma', 'chart']), item(['ai-gateway', 'AI Gateway', 'spark'])] : []),
         ...navOf('rodape')
       ]
     })}
@@ -362,6 +363,13 @@ export function startAgency(env) {
     if (!A.pf && !A.pfError) { queueMicrotask(loadPlatform); return `<div class="page">${head('Plataforma', 'Conferindo os serviços…')}</div>`; }
     if (!A.pf) return `<div class="page">${head('Plataforma')}<div class="surface padded"><p class="form-status">${h(A.pfError)}</p>${btn('Tentar de novo', 'pf-reload')}</div></div>`;
     return platformPage(A.pf, { h, tr });
+  };
+  // AI Gateway (provedores, modelos, roteamento e custos da IA): também só o dono da plataforma.
+  const aiGateway = createAiGatewayPanel({ api, h, tr, flash, utabs, rerender: () => { if (A.page === 'ai-gateway') render(); } });
+  pages['ai-gateway'] = () => {
+    if (!isPlatformOwner()) return pages.dashboard();
+    aiGateway.install();
+    return aiGateway.render();
   };
   async function enablePlatformPush() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw Error(tr('Este navegador não aceita notificações.'));
