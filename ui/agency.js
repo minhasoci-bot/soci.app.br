@@ -871,6 +871,8 @@ Authorization: Bearer soci_app_…
       const data = await api('/api/whatsapp/agency/status');
       await refreshVerifyLine();
       if (currentVisit === visit) A.wa = data;
+      // A tela reaberta no meio da leitura do QR volta a conferir sozinha.
+      if (currentVisit === visit && A.vl?.status === 'connecting' && !vlPollTimer) startVerifyLinePoll();
     } catch (error) {
       if (currentVisit === visit) A.wa = { error: error.message };
     }
@@ -907,13 +909,16 @@ Authorization: Bearer soci_app_…
     if (!isPlatformOwner()) return;
     A.vl = await api('/api/verify/line').catch(e => ({ error: e.message }));
   }
+  // Confere a conexão a cada 3 s por até 10 min; quando para, a tela pede o Atualizar em vez de dizer que ainda confere.
+  function stopVerifyLinePoll() { clearInterval(vlPollTimer); vlPollTimer = null; }
   function startVerifyLinePoll() {
-    clearInterval(vlPollTimer);
-    const currentVisit = visit, until = Date.now() + 120000;
+    stopVerifyLinePoll();
+    const currentVisit = visit, until = Date.now() + 600000;
     vlPollTimer = setInterval(async () => {
-      if (currentVisit !== visit || !isWhatsAppPage() || Date.now() > until) { clearInterval(vlPollTimer); return; }
+      if (currentVisit !== visit || !isWhatsAppPage() || Date.now() > until) { stopVerifyLinePoll(); if (currentVisit === visit && isWhatsAppPage()) render(); return; }
       await refreshVerifyLine();
-      if (A.vl?.status === 'connected') { clearInterval(vlPollTimer); flash('WhatsApp de confirmação conectado!'); }
+      if (currentVisit !== visit) return;
+      if (A.vl?.status === 'connected') { stopVerifyLinePoll(); flash('WhatsApp de confirmação conectado!'); }
       render();
     }, 3000);
   }
@@ -926,7 +931,7 @@ Authorization: Bearer soci_app_…
       : !vl.server ? '<p class="form-status">O servidor gerenciado da Evolution (EVOLUTION_BASE_URL e EVOLUTION_API_KEY) não está configurado.</p>'
       : `<div class="inline-gap">${vl.missing ? badge('Instância ainda não criada') : waStatusBadge(vl.status)}<span class="dim">+${h(vl.number)} · instância ${h(vl.instance)}</span></div>
          ${vl.status === 'connected' ? '' : vl.qrcode
-           ? `<div class="ag-waha-qr ag-gap"><div class="ag-waha-qr-frame"><img src="${h(vl.qrcode)}" alt="QR Code do WhatsApp de confirmação"></div><b>Leia com o WhatsApp do número da soci</b><small class="dim">Aparelhos conectados → Conectar aparelho. Verificando sozinho…</small></div>`
+           ? `<div class="ag-waha-qr ag-gap"><div class="ag-waha-qr-frame"><img src="${h(vl.qrcode)}" alt="QR Code do WhatsApp de confirmação"></div><b>Leia com o WhatsApp do número da soci</b><small class="dim">Aparelhos conectados → Conectar aparelho. ${vlPollTimer ? 'Verificando sozinho…' : 'Depois de ler, clique em <b>Atualizar</b>.'}</small></div>`
            : vl.paircode ? `<p>Código de pareamento: <b class="ag-waha-code">${h(vl.paircode)}</b></p>` : ''}
          <div class="inline-gap ag-gap">${vl.status === 'connected' ? '' : btn('Conectar', 'vl-connect', 'type="button"', 'primary')}${btn('Atualizar', 'vl-refresh', 'type="button"', 'secondary', 'refresh')}</div>`;
     return `
@@ -1484,11 +1489,16 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           render();
           break;
         }
-        case 'vl-refresh': await refreshVerifyLine(); render(); break;
+        case 'vl-refresh': {
+          await refreshVerifyLine();
+          if (A.vl?.status === 'connecting') startVerifyLinePoll(); else stopVerifyLinePoll();
+          render();
+          break;
+        }
         case 'vl-connect': {
           A.vl = await api('/api/verify/line', { action: 'connect' });
+          if (A.vl.status !== 'connected') startVerifyLinePoll(); else stopVerifyLinePoll();
           render();
-          if (A.vl.status !== 'connected') startVerifyLinePoll();
           break;
         }
         case 'wa-sub-connect': {
