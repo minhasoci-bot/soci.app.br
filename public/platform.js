@@ -32,7 +32,7 @@ function metricValue(metric) {
 
 function metricRow(metric, h) {
   const level = ['warn', 'critical'].includes(metric.level) ? metric.level : 'ok';
-  const badge = metric.kind === 'check' ? (metric.used ? 'OK' : 'Pendente')
+  const badge = metric.kind === 'check' ? (metric.used === null || metric.used === undefined ? '—' : metric.used ? 'OK' : 'Pendente')
     : metric.pct !== null && metric.pct !== undefined ? `${Math.round(metric.pct)}%`
     : metric.used === null || metric.used === undefined ? '—' : LEVEL_TEXT[level];
   const bar = metric.pct !== null && metric.pct !== undefined

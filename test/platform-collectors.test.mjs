@@ -266,3 +266,12 @@ test('Meta: sem o cabeçalho de uso, a métrica fica sem valor', async () => {
   const reading = await collectMeta({ env: { META_APP_ID: '123', META_APP_SECRET: 'sec' }, request, store: {}, settings, now: NOW });
   assert.equal(metric(reading, 'appRate').used, null);
 });
+
+test('Resend: chave só de envio não é falha; o cartão diz que o domínio não é conferido', async () => {
+  const restricted = new Response(JSON.stringify({ statusCode: 401, name: 'restricted_api_key', message: 'This API key is restricted to only send emails' }), { status: 401, headers: { 'content-type': 'application/json' } });
+  const reading = await collectResend({ env: { RESEND_API_KEY: 're' }, request: fakeRequest([['/domains', restricted]]), store: {}, settings, now: NOW });
+  assert.equal(reading.status, 'ok');
+  assert.deepEqual([metric(reading, 'domain').used, metric(reading, 'domain').note], [null, 'a chave é só de envio: o domínio não é conferido']);
+  const invalid = await collectResend({ env: { RESEND_API_KEY: 're' }, request: fakeRequest([['/domains', Response.json({ name: 'validation_error' }, { status: 401 })]]), store: {}, settings, now: NOW });
+  assert.deepEqual([invalid.status, invalid.error], ['error', 'HTTP 401 em domínios']);
+});
