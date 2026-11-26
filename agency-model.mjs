@@ -15,7 +15,6 @@ import { pranchetaFileRecord, createCanonicalTemplates, checkPranchetaSave, appl
 import { walletKeys, walletProducts, walletSummary } from './wallet-model.mjs';
 import { labCatalog, labModes } from './ui/labs-data.js';
 import { whiteLabelHost } from './white-label.mjs';
-import { deleteStudioApp, marketplaceFor, publishStudioApp, rotateAppSecret, saveStudioApp } from './app-studio-model.mjs';
 import { apiScopes,
   accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog,
   resellProducts, snapshotAssets, subAccountModules, systemEmailKeys,
@@ -83,8 +82,7 @@ export function blankAgency() {
     workflowSettings: { builder: 'Standard', overrides: {} },
     subFeatures: Object.fromEntries(subFeatures.map(([key]) => [key, { on: {}, rebill: [] }])),
     emailServices: { domain: '', added: '', accounts: [] },
-    apps: { installs: [], resell: {} },
-    studioApps: [], appInstalls: []
+    apps: { installs: [], resell: {} }
   };
 }
 
@@ -770,26 +768,6 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       log('Labs features updated', labCatalog.map(([key, title]) => `${title}: ${labModes.find(([mode]) => mode === state.labs[key])[1]}`).join(' · '));
       return 'labs';
     }
-    case 'studio-app-save': {
-      const app = saveStudioApp(state, { id, data: d }, { accountIds, actor });
-      log(id ? 'App updated' : 'App created', app.name);
-      return app.id;
-    }
-    case 'studio-app-publish': {
-      const app = publishStudioApp(state, id, flag(d.published));
-      log(app.status === 'published' ? 'App published' : 'App unpublished', app.name);
-      return app.id;
-    }
-    case 'studio-app-delete': {
-      const app = deleteStudioApp(state, id);
-      log('App deleted', app.name);
-      return id;
-    }
-    case 'studio-app-rotate': {
-      const app = rotateAppSecret(state, id);
-      log('App signing secret replaced', app.name, `versão ${app.secretVersion}`);
-      return id;
-    }
     case 'ai-defaults': {
       const limit = Number(d.limit ?? 0);
       if (!Number.isFinite(limit) || limit < 0 || limit > 100000) fail('Informe um limite mensal entre US$ 0 e US$ 100.000. Use 0 para não limitar.');
@@ -1079,7 +1057,6 @@ export function agencyForWorkspace(agency, workspace, includePermissions = false
     brand: platformBrand, name: agency.company.name, primary: agency.company.primary, secondary: agency.company.secondary || defaultSecondary, accent: agency.company.accent || defaultAccent, logo: agency.company.logo,
     menuLinks: agency.menuLinks.filter(l => l.showOn !== 'Agency' && applies(l)).map(({ id, title, url: href, icon, openIn }) => ({ id, title, url: href, icon, openIn })),
     announcements: agency.announcements.filter(a => a.published && applies(a)).map(({ id, title, body, tone }) => ({ id, title, body, tone })),
-    apps: marketplaceFor(agency, workspace),
     users: agency.users.filter(user => String(user.role || '').startsWith('Agency') || user.accounts?.includes(workspace))
       .map(({ id, first, last, role, accounts, permissions }) => ({
         id, name: `${first} ${last}`, role, accounts: includePermissions ? accounts : (String(role || '').startsWith('Agency') ? [] : [workspace]),

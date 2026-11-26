@@ -45,7 +45,6 @@ import { loyaltyScreen } from './loyalty.js';
 import { preferencesScreen } from './preferences.js';
 import { walletScreen } from './wallet.js';
 import { labsScreen } from './labs.js';
-import { appsScreen } from './app-marketplace.js';
 import { trashView } from './contact-trash.js';
 import { schedulingScreen, schedulingTabs } from './scheduling.js';
 import { meetingsScreen } from './meetings.js';
@@ -331,10 +330,6 @@ function reporting(c){
     content: table(cols,values.map(r=>`<tr>${r.map((x,j)=>`<td>${j===0?`<b>${x}</b>`:x}</td>`).join('')}</tr>`),'')
   });
 }
-function marketplace(c){
-  const cards=[['AbacatePay','abacatepay','Receba faturas, pedidos e assinaturas por Pix ou cartão.'],['Google Agenda','google-calendar','Sincronize disponibilidade e agendamentos.'],['Twilio','twilio','Ative SMS e voz nas conversas.'],['Perfil da Empresa no Google','gbp','Sincronize avaliações e dados da empresa.'],['Meta','meta','Conecte Facebook e Instagram para publicar nas redes.'],['Provedor de e-mail','email','Envie campanhas e e-mails para clientes.']];
-  return wrap(head('Apps do marketplace','Conheça integrações que ampliariam este workspace.')+`<div class="toolbar">${search(c.query,'Buscar integrações…')}</div><div class="card-grid">${cards.filter(a=>a.join(' ').toLowerCase().includes(c.query.toLowerCase())).map(([n,brand,desc])=>`<article class="surface padded resource shc-card" style="--shc-highlight:${brandHighlight(brand)}">${shcLayers()}<span class="shc-icon" aria-hidden="true">${brandIcon(brand,32)}</span><div><h2>${n}</h2><p>${desc}</p></div>${badge('Não conectado')}${brand==='abacatepay'?'<a class="primary" href="#settings/abacatepay">Conectar</a>':`<button class="secondary" data-provider="${n}">Ver requisitos</button>`}</article>`).join('')||empty('Nenhuma integração encontrada','Tente outra busca.','apps')}</div>`);
-}
 function whatsappSubView(c){
   const w=c.wa, waHl=brandHighlight('whatsapp');
   const waCard=(body,connected=false)=>`<div class="surface padded sub-wa-card shc-card shc-panel${connected?' is-connected':''}" style="--shc-highlight:${waHl}">${shcLayers()}${body}</div>`;
@@ -407,7 +402,6 @@ function googleSubView(c){
       </div></section><footer class="set-foot"><p class="form-status" role="alert"></p><a class="secondary" href="#dashboard">Abrir painel</a><button class="primary">Salvar escolha</button></footer></form>`;
 }
 function settings(c){
-  if(c.tab==='apps') return appsScreen(c,{ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') });
   if(c.tab==='labs') return labsScreen(c,{ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') });
   if(c.tab==='wallet') return walletScreen(c,{ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') });
   if(['tracking','scoring','preferences'].includes(c.tab)){ const tabs={ key: 'settings', items: crmTabs.settings.map(([k, label]) => [k, tr(label)]), current: c.tab, label: tr('Seções de configurações') }; return c.tab==='tracking'?trackingScreen(c,tabs):c.tab==='preferences'?preferencesScreen(c,tabs):scoringScreen(c,tabs); }

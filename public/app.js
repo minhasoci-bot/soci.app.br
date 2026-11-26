@@ -55,8 +55,6 @@ import { installWallet } from './wallet.js';
 import { installLabs } from './labs.js';
 import { installConversationAi } from './conversation-ai.js';
 import { installMobileShell, shellAgency } from './mobile-shell.js';
-import { appMenuUrl } from './app-studio-data.js';
-import { installAppMarketplace } from './app-marketplace.js';
 import { contactPreferences, installPreferences } from './preferences.js';
 import { installContactTrash } from './contact-trash.js';
 import { afterDocumentsRender, installDocuments } from './documents.js';
@@ -324,8 +322,7 @@ const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}"
 const navItem=([id,pt,ico])=>({href:`#${id}`,label:tr(pt),icon:ico,current:c.view===id});
 function appSidebar(brand){
   const items=nav.slice(0,-1).map((n,k)=>[n,k]).filter(([n])=>allowedView(n[0]));
-  const links=(c.agency?.menuLinks||[]).map(l=>l.openIn==='Inside the app'?{href:`#link/${l.id}`,label:tr(l.title),icon:l.icon,current:c.view==='link'&&c.tab===l.id}:{href:l.url,label:tr(l.title),icon:l.icon,external:true})
-    .concat((c.s.appInstalls||[]).filter(app=>app.menu).map(app=>({href:appMenuUrl(app.menu.url,c.workspace),label:app.menu.label,icon:'apps',external:true})));
+  const links=(c.agency?.menuLinks||[]).map(l=>l.openIn==='Inside the app'?{href:`#link/${l.id}`,label:tr(l.title),icon:l.icon,current:c.view==='link'&&c.tab===l.id}:{href:l.url,label:tr(l.title),icon:l.icon,external:true});
   return sidebar({label:tr('Navegação'),home:c.access?.agency?'#agency/dashboard':'#launchpad',brand,mark:c.agency?.logo?`<img class="ag-logo" src="${h(c.agency.logo)}" alt="">`:logo,
     account:{name:c.s.profile.name,caption:tr('Subconta · trocar'),attr:'data-act="workspaces"',tip:tr('Trocar de workspace')},
     toggle:'data-act="nav"',open:c.navOpen,
@@ -1341,7 +1338,6 @@ if(viewPath){
   installWallet({ c, api, url, flash, render });
   installLabs({ c, mutate, flash, render });
   installConversationAi({ c, api, url, flash, render });
-  installAppMarketplace({ c, api, url, flash, render });
   installContentAI({ api, flash, workspace: () => c.workspace, enabled: kind => Boolean(c.features?.contentAI || (kind === 'gbp' && c.features?.reviewAI)) });
   installEventPlanner({ c, mutate, flash, dialog, close, render, api, url, load });
   installCountdowns({ c, mutate, flash, dialog, close, render });

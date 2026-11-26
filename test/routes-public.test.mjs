@@ -1,9 +1,9 @@
-// Contrato dos módulos de rota (P2.1): o que não é das páginas públicas da prospecção, da API dos apps nem da
-// instalação de apps volta como NEXT_ROUTE sem tocar em nada.
+// Contrato dos módulos de rota (P2.1): o que não é das páginas públicas da prospecção nem da API pública volta como
+// NEXT_ROUTE sem tocar em nada.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAppApiRoutes, createAppInstallRoutes } from '../routes/apps.mjs';
 import { createProspectPublicRoutes } from '../routes/prospect-public.mjs';
+import { createPublicApiRoutes } from '../routes/public-api.mjs';
 import { NEXT_ROUTE } from '../routes/next-route.mjs';
 
 const uuid = '11111111-2222-3333-4444-555555555555';
@@ -11,12 +11,11 @@ const ctx = (p, method = 'GET') => ({ req: { headers: {}, socket: {} }, res: {},
   json: () => assert.fail(`json chamado em ${p}`), send: () => assert.fail(`send chamado em ${p}`) });
 const spy = touched => new Proxy({}, { get: (_, name) => (...args) => { touched.push(name); return args; } });
 
-test('prospecção pública e apps devolvem NEXT_ROUTE para caminhos de outros domínios', async () => {
+test('prospecção pública e API pública devolvem NEXT_ROUTE para caminhos de outros domínios', async () => {
   const touched = [];
   const cases = [
     [createProspectPublicRoutes, [['/prospecting', 'POST'], ['/prospecting/search'], ['/prospecting/report/nada'], [`/prospecting/outro/${uuid}`]]],
-    [createAppApiRoutes, [['/api/apps/v1/trigger'], ['/api/v1/subaccounts/nada/contacts'], ['/api/v1/outro'], ['/api/apps/install', 'POST']]],
-    [createAppInstallRoutes, [['/api/apps/install'], ['/api/apps/outro', 'POST'], ['/api/apps/v1/trigger', 'POST']]],
+    [createPublicApiRoutes, [['/api/v1/subaccounts/nada/contacts'], ['/api/v1/outro'], ['/api/apps/v1/trigger', 'POST'], ['/api/apps/install', 'POST']]],
   ];
   for (const [factory, paths] of cases) {
     const route = factory(spy(touched));
@@ -38,8 +37,6 @@ test('atalhos da prospecção redirecionam e a API recusa o que não pode atende
   await assert.rejects(prospect(ctx(`/prospecting/report/${uuid}`, 'POST')), { status: 405 });
   await assert.rejects(prospect(ctx(`/prospecting/widget/${uuid}`)), { status: 404 });
 
-  const api = createAppApiRoutes({ error });
+  const api = createPublicApiRoutes({ error });
   await assert.rejects(api(ctx('/api/v1/subaccounts', 'POST')), { status: 405 });
-  const install = createAppInstallRoutes({ error, spaceId: /^demo$/ });
-  await assert.rejects(install({ ...ctx('/api/apps/install', 'POST'), id: 'outra' }), { status: 404 });
 });

@@ -171,7 +171,6 @@ A ação é o que o workflow faz depois do gatilho: enviar uma mensagem, mudar u
 | **Formatar número** | Guarda um número formatado em `{{vars.nome}}`. |
 | **Janela de atendimento do WhatsApp** | Confere se o contato mandou WhatsApp nas últimas 24 horas (a janela de atendimento). Guarda aberta ou fechada em `{{vars.nome}}` e os minutos que restam em `{{vars.nome_minutos}}`, para usar num Se / Senão. |
 | **Formatar lista** | Trata um texto como lista (itens separados por vírgula ou outro separador) e guarda o resultado em `{{vars.nome}}`. |
-| **Ação de app** | Envia o contato e o texto abaixo para um app instalado do marketplace. O app recebe a ação no webhook dele. |
 | **Webhook de saída** |  |
 | **Webhook personalizado** | Chama uma API com o método, os cabeçalhos e o corpo que você escrever (todos aceitam variáveis) e espera a resposta: o corpo fica em `{{vars.nome}}`, o código HTTP em `{{vars.nome_status}}` e, numa resposta JSON, cada campo simples em `{{vars.nome_campo}}`. Só endereços https públicos. |
 | **Encerrar fluxo** |  |
