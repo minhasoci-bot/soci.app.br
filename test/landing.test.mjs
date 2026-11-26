@@ -14,29 +14,39 @@ async function start(options = { auth: null, allowLocalAccess: true }) {
   return { base, close: () => new Promise(resolve => server.close(resolve)) };
 }
 
-test('Root is a Google login page and the platform stays under /app', async t => {
+test('Root is the public home page, /login is the Google login and the platform stays under /app', async t => {
   const local = await start();
   t.after(local.close);
 
-  for (const path of ['/', '/login', '/index.html']) {
+  for (const path of ['/', '/index.html']) {
     const res = await fetch(local.base + path);
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-type'), /text\/html/);
     const html = await res.text();
-    assert.match(html, /id="google-signin-btn"/);
-    assert.match(html, /Continuar com Google/);
-    assert.doesNotMatch(html, /Entrar na plataforma|<nav\b|<footer\b|<details\b/);
+    assert.match(html, /<h1 id="hero-title">/);
+    assert.match(html, /href="\/login"/, 'the home page links to the login');
+    assert.match(html, /href="\/home\.css"/);
+    assert.match(html, /src="\/home\.js"/);
+    assert.doesNotMatch(html, /id="google-signin-btn"/);
   }
 
-  const cssRes = await fetch(local.base + '/login.css');
-  assert.equal(cssRes.status, 200);
-  assert.match(cssRes.headers.get('content-type'), /text\/css/);
-  const jsRes = await fetch(local.base + '/login.js');
-  assert.equal(jsRes.status, 200);
-  assert.match(jsRes.headers.get('content-type'), /text\/javascript/);
+  for (const path of ['/login', '/login.html']) {
+    const res = await fetch(local.base + path);
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.match(html, /id="google-signin-btn"/);
+    assert.match(html, /Continuar com Google/);
+    assert.doesNotMatch(html, /<nav\b|<footer\b|<details\b/);
+  }
+
+  for (const [path, type] of [['/login.css', /text\/css/], ['/login.js', /text\/javascript/], ['/home.css', /text\/css/], ['/home.js', /text\/javascript/]]) {
+    const res = await fetch(local.base + path);
+    assert.equal(res.status, 200, path);
+    assert.match(res.headers.get('content-type'), type);
+  }
 
   for (const path of ['/landing.html', '/landing.css', '/landing.js']) {
-    assert.equal((await fetch(local.base + path)).status, 404, `${path} must no longer expose a public page`);
+    assert.equal((await fetch(local.base + path)).status, 404, `${path} must not expose an old page`);
   }
 
   for (const path of ['/app', '/painel']) {

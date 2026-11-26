@@ -8,9 +8,9 @@
 import { pathToFileURL } from 'node:url';
 import { sessionOnlyFiles, staticFiles } from '../server.mjs';
 
-/** '/login', '/' e '/index.html' servem a tela de login (pública); '/login' basta para conferi-la. */
+/** '/' (e '/index.html') servem a página inicial e '/login' o login, ambos públicos; '/' basta para a página inicial. */
 export function smokePaths(files = staticFiles) {
-  return ['/login', ...[...files.keys()].filter(path => path !== '/index.html')];
+  return ['/', '/login', ...[...files.keys()].filter(path => path !== '/index.html')];
 }
 
 /** Sem sessão, um estático comum responde 200 e um que exige sessão manda para o login (303 para /login). */

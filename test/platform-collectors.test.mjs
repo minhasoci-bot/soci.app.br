@@ -190,6 +190,33 @@ test('Hostinger: manda as datas sem milissegundos e diz qual chamada falhou', as
   assert.equal(asked.searchParams.get('date_to'), '2026-11-25T12:00:00Z');
 });
 
+test('Hostinger: um 500 passageiro nas métricas é tentado de novo', async () => {
+  const vms = [{ id: 7, plan: 'KVM 1', hostname: 'srv.hstgr.cloud', memory: 4096, disk: 51200, subscription_id: 'S', ipv4: [] }];
+  const metrics = { cpu_usage: { usage: { 1: 4 } }, ram_usage: { usage: { 1: 100 * MiB } }, disk_space: { usage: { 1: 200 * MiB } } };
+  let tries = 0;
+  const request = fakeRequest([['/metrics', () => (++tries === 1 ? new Response('', { status: 500 }) : metrics)], ['/virtual-machines', vms], ['/subscriptions', []]]);
+  const reading = await collectHostinger({ env: { HOSTINGER_API_TOKEN: 'h' }, request, store: {}, settings, now: NOW, retryWaitMs: 0 });
+  assert.equal(reading.status, 'ok');
+  assert.equal(metric(reading, 'disk').used, 200 * MiB);
+  assert.equal(tries, 2);
+});
+
+test('Hostinger: erro que não é do servidor (401) não é tentado de novo', async () => {
+  const vms = [{ id: 7, plan: 'KVM 1', hostname: 'srv.hstgr.cloud', memory: 4096, disk: 51200, subscription_id: 'S', ipv4: [] }];
+  const request = fakeRequest([['/metrics', new Response('', { status: 401 })], ['/virtual-machines', vms], ['/subscriptions', []]]);
+  const reading = await collectHostinger({ env: { HOSTINGER_API_TOKEN: 'h' }, request, store: {}, settings, now: NOW, retryWaitMs: 0 });
+  assert.equal(reading.error, 'HTTP 401 em métricas');
+  assert.equal(request.calls.filter(c => c.url.includes('/metrics')).length, 1);
+});
+
+test('Hostinger: sem tempo dentro do limite, não tenta de novo e mostra o erro', async () => {
+  const vms = [{ id: 7, plan: 'KVM 1', hostname: 'srv.hstgr.cloud', memory: 4096, disk: 51200, subscription_id: 'S', ipv4: [] }];
+  const request = fakeRequest([['/metrics', new Response('', { status: 503 })], ['/virtual-machines', vms], ['/subscriptions', []]]);
+  const reading = await collectHostinger({ env: { HOSTINGER_API_TOKEN: 'h' }, request, store: {}, settings, now: NOW, timeoutMs: 300, retryWaitMs: 0 });
+  assert.equal(reading.error, 'HTTP 503 em métricas');
+  assert.equal(request.calls.filter(c => c.url.includes('/metrics')).length, 1);
+});
+
 test('Hostinger: se a assinatura falhar, os números da VPS continuam', async () => {
   const vms = [{ id: 7, plan: 'KVM 1', hostname: 'srv.hstgr.cloud', memory: 4096, disk: 51200, subscription_id: 'S', ipv4: [] }];
   const metrics = { cpu_usage: { usage: { 1: 4 } }, ram_usage: { usage: { 1: 100 * MiB } }, disk_space: { usage: { 1: 200 * MiB } } };

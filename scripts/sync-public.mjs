@@ -20,7 +20,7 @@ export const PUBLIC_DIR = join(root, 'public');
 
 // .js, .css e .svg da raiz de ui/ sempre vão. Páginas HTML são servidas pelo servidor com cabeçalhos próprios
 // (CSP); só estas também saem como estáticas. As pastas de recursos vão inteiras.
-export const PUBLIC_HTML = ['app.html', 'client-portal.html', 'index.html', 'privacidade.html', 'social-approve.html', 'social-connect.html'];
+export const PUBLIC_HTML = ['app.html', 'client-portal.html', 'index.html', 'login.html', 'privacidade.html', 'social-approve.html', 'social-connect.html'];
 const assetDirs = ['brand', 'fonts', 'locales', 'vendor'];
 
 function walk(dir) {

@@ -6520,5 +6520,7 @@ export default {
   "Este número já tem uma conta na soci.": "Este número ya tiene una cuenta en soci.",
   "Você já pediu 5 códigos nesta hora. Aguarde um pouco e tente de novo.": "Ya pediste 5 códigos en esta hora. Espera un poco e intenta de nuevo.",
   "Muitas tentativas a partir desta conexão. Aguarde alguns minutos.": "Demasiados intentos desde esta conexión. Espera unos minutos.",
-  "Só o responsável pela agência confirma o celular.": "Solo el responsable de la agencia confirma el celular."
+  "Só o responsável pela agência confirma o celular.": "Solo el responsable de la agencia confirma el celular.",
+  "Clientes": "Clientes",
+  "Ajuda": "Ayuda"
 };

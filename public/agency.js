@@ -23,7 +23,7 @@ import { pranchetaScreen } from './prancheta.js';
 import { apiScopes,
   affiliateRate, agencyPlans, agencyRoles, auditAreas, collections, integrationCatalog,
   marketplaceCategories, resellProducts, snapshotAssets, snapshotAssetGroups, subAccountModules, systemEmailKeys,
-  appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav, helpCenterUrl, walletProducts
+  appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav, agencyNavGroups, helpCenterUrl, walletProducts
 } from './agency-data.js';
 import { setupArt } from './setup-art.js';
 import { platformPage, platformBanner } from './platform.js';
@@ -163,8 +163,15 @@ export function startAgency(env) {
     const acting = !session && localStorage.getItem('go.user');
     const item = ([key, label, ico]) => ({ href: `#agency/${key}`, label: tr(label), icon: ico, current: A.page === key });
     const currentPageLabel = tr(A.page === 'plataforma' ? 'Plataforma' : agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência');
-    // Plataforma: só o dono da plataforma vê (limites de Supabase, Vercel, Cloudflare, Hostinger…).
-    const overview = [...agencyNav.slice(0, 5).map(item), ...(A.data.access?.platform ? [item(['plataforma', 'Plataforma', 'chart'])] : [])];
+    const navOf = group => agencyNav.filter(n => n[3] === group).map(item);
+    // Ajuda junta os links externos (central de ajuda, comunidade) com as ideias e sugestões.
+    const extras = {
+      ajuda: [
+        { href: helpCenterUrl, label: tr('Central de ajuda'), icon: 'book', external: true },
+        ...navOf('ajuda'),
+        { href: 'https://chat.whatsapp.com/IuU6twK8qf606ye5wvP638', label: tr('Comunidade'), icon: 'whatsapp', external: true }
+      ]
+    };
     return `<div class="shell ${A.navOpen ? 'wide' : ''} ag-shell">${sidebar({
       label: tr('Navegação da agência'),
       home: '#agency/dashboard',
@@ -174,14 +181,13 @@ export function startAgency(env) {
       toggle: 'data-ag="nav"',
       open: A.navOpen,
       groups: [
-        { title: tr('Visão geral'), items: overview },
-        { title: tr('Subcontas e ferramentas'), items: agencyNav.slice(5, 12).map(item) },
-        { title: tr('Aprender e apps'), items: [{ href: helpCenterUrl, label: tr('Central de ajuda'), icon: 'book', external: true }, ...agencyNav.slice(12, -1).map(item)] },
+        ...agencyNavGroups.map(([key, title]) => ({ title: tr(title), items: extras[key] || navOf(key) })),
         { title: tr('Atalhos'), items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: tr(l.title), icon: l.icon, external: true })) }
       ],
+      // Plataforma: só o dono da plataforma vê (limites de Supabase, Vercel, Cloudflare, Hostinger…).
       footer: [
-        { href: 'https://chat.whatsapp.com/IuU6twK8qf606ye5wvP638', label: tr('Comunidade'), icon: 'whatsapp', external: true },
-        item(agencyNav.at(-1))
+        ...(A.data.access?.platform ? [item(['plataforma', 'Plataforma', 'chart'])] : []),
+        ...navOf('rodape')
       ]
     })}
     <div class="workspace">${topbar({
