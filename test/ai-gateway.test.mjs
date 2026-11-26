@@ -24,14 +24,17 @@ const CTX = { org: 'org-a', user: 'u1', plan: 'free' };
 
 function memoryStore({ failRuntime = () => false } = {}) {
   const rows = new Map();
+  // Como o Supabase: go_workspaces.name é gerada de state.profile.name e é NOT NULL.
+  const named = (id, state) => { if (typeof state?.profile?.name !== 'string') throw new Error(`documento ${id} sem profile.name (400 no Supabase)`); };
   return {
     rows,
     async load(id) { if (!rows.has(id)) throw Object.assign(new Error('not found'), { status: 404 }); return structuredClone(rows.get(id)); },
-    async insert(id, value) { if (failRuntime() && id === RUNTIME_ROW) throw new Error('storage down'); if (!rows.has(id)) rows.set(id, structuredClone(value)); },
+    async insert(id, value) { if (failRuntime() && id === RUNTIME_ROW) throw new Error('storage down'); named(id, value); if (!rows.has(id)) rows.set(id, structuredClone(value)); },
     async change(id, mutate) {
       if (failRuntime() && id === RUNTIME_ROW) throw new Error('storage down');
       const state = structuredClone(rows.get(id));
       const result = mutate(state); // síncrono: atômico como o compare-and-swap do store real
+      named(id, state);
       rows.set(id, state);
       return result;
     }
