@@ -76,6 +76,7 @@ import { transformText, writeBrandVoice, writeEmail, writeReviewReply } from './
 import { brandVoicePrompt, defaultBoard } from './ui/brand-data.js';
 import { runWorkflowAI } from './workflow-ai.mjs';
 import { mediaRowId } from './reputation-media.mjs';
+import { loadSetupSites, removeSetupSites, saveSetupSites } from './setup-sites-store.mjs';
 import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { AGENCY_ID, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, inTrash, trashList, trashExpired } from './agency-model.mjs';
 import { createAccountPurge, PURGE_GIVE_UP_MS, PURGE_RETRY_MS } from './account-purge.mjs';
@@ -578,6 +579,10 @@ export function makeServer({
     }
     return sites;
   }
+  // Setups importados do GHL guardam as páginas em linhas próprias (setup-sites-store.mjs), fora do estado da agência.
+  async function withStoredSites(snap) {
+    return snap?.sitesStored ? { ...snap, studioSites: await loadSetupSites(store, snap.id) } : snap;
+  }
   async function applyStudioSites(snap, studioMap, targetWorkspaceId) {
     if (!snap.studioSites || !studioMap?.size) return;
     for (const [oldId, newId] of studioMap.entries()) {
@@ -838,8 +843,9 @@ export function makeServer({
     if (input.snapshotId || input.templateId) {
       // A setup from the agency library, or a segment template straight from the gallery (like GHL snapshot templates).
       const template = input.templateId ? findMarketplaceSetup(await loadMarketplace(), input.templateId) : null;
-      const snap = template?.template ? { id: template.id, name: template.title, assets: template.assets, studioSites: template.studioSites || {} } : agency.snapshots.find(item => item.id === input.snapshotId);
-      if (!snap) throw error('Choose a valid snapshot.',400);
+      const found = template?.template ? { id: template.id, name: template.title, assets: template.assets, studioSites: template.studioSites || {} } : agency.snapshots.find(item => item.id === input.snapshotId);
+      if (!found) throw error('Choose a valid snapshot.',400);
+      const snap = await withStoredSites(found);
       const planned = { ...agency, accounts: { [newId]: { plan: input.plan } } };
       requireSetupModules(effectiveAccess(planned, who, newId), Object.keys(snap.assets || {}));
       loaded = { snap, report: applySnapshot(state, snap, 'skip', studioMap) };
@@ -1132,6 +1138,13 @@ export function makeServer({
         }
         return result;
       });
+      // Setups com páginas em linhas próprias: excluir apaga as linhas; importar por código copia para o setup novo.
+      if (input.type === 'snapshot-delete') await removeSetupSites(store, String(input.id || ''));
+      if (input.type === 'snapshot-import' && typeof outcome === 'string') {
+        const copy = (await loadAgency(who.agencyId)).snapshots.find(s => s.id === outcome);
+        const origin = sharedSnapshot || (await loadAgency(who.agencyId)).snapshots.find(s => s.shareCode === shareCode && s.shared);
+        if (copy?.sitesStored && origin) await saveSetupSites(store, copy.id, await loadSetupSites(store, origin.id));
+      }
       // Reselling prices are copied into each sub-account's wallet.
       if (['saas-rebilling', 'rebill-account'].includes(input.type)) await syncWallets(who.agencyId, workspaces);
       if (input.type === 'labs') await syncLabs(who.agencyId, workspaces);
@@ -1249,8 +1262,9 @@ export function makeServer({
     }
     if (op === 'snapshot-load') {
       const agency = await loadAgency(who.agencyId);
-      const snap = agency.snapshots.find(s => s.id === input.id);
-      if (!snap) throw error('Snapshot not found.',404);
+      const found = agency.snapshots.find(s => s.id === input.id);
+      if (!found) throw error('Snapshot not found.',404);
+      const snap = await withStoredSites(found);
       const targets = Array.isArray(input.workspaces) ? (await listWorkspaces(who.agencyId)).filter(w => input.workspaces.includes(w.id)) : [];
       if (!targets.length) throw error('Choose at least one sub-account.',400);
       for (const target of targets) {
