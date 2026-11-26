@@ -28,6 +28,22 @@ const step = (label, promise) => promise.catch(problem => {
   throw problem instanceof ProviderError && !(problem instanceof TimeoutError) ? new ProviderError(`${problem.message} em ${label}`) : problem;
 });
 
+/**
+ * Tenta de novo uma vez quando o serviço responde 5xx (falha passageira do lado dele), mas só se a
+ * segunda tentativa ainda cabe no tempo do coletor: senão o collectAll cortaria com "tempo esgotado"
+ * e o erro real sumiria. `attempt(ms)` recebe o tempo máximo da chamada.
+ */
+async function retryServerError(attempt, { timeoutMs, deadline, waitMs }) {
+  try {
+    return await attempt(timeoutMs);
+  } catch (problem) {
+    const left = deadline - Date.now() - waitMs;
+    if (!/^HTTP 5\d\d$/.test(problem?.message || '') || left < 1000) throw problem;
+    await new Promise(resolve => setTimeout(resolve, waitMs));
+    return attempt(Math.min(timeoutMs, left));
+  }
+}
+
 /** GET/POST com tempo máximo; qualquer resposta que não seja 2xx vira "HTTP <status>". */
 const fetchJson = async (request, url, options, timeoutMs) => (await fetchResponse(request, url, options, timeoutMs)).body;
 
@@ -130,7 +146,8 @@ export const collectCloudflare = guarded('cloudflare', 'Cloudflare R2', async fu
 const latest = series => { const keys = Object.keys(series?.usage || {}); return keys.length ? Number(series.usage[keys.sort((a, b) => b - a)[0]]) : null; };
 const average = series => { const values = Object.values(series?.usage || {}).map(Number); return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null; };
 
-export const collectHostinger = guarded('hostinger', 'Hostinger', async function collectHostinger({ env, request, now, timeoutMs = 8000 }) {
+export const collectHostinger = guarded('hostinger', 'Hostinger', async function collectHostinger({ env, request, now, timeoutMs = 8000, retryWaitMs = 500 }) {
+  const deadline = Date.now() + timeoutMs;
   const token = env.HOSTINGER_API_TOKEN;
   const link = 'https://hpanel.hostinger.com/vps';
   if (!token) return notConfigured('hostinger', 'Hostinger', link);
@@ -141,8 +158,10 @@ export const collectHostinger = guarded('hostinger', 'Hostinger', async function
   const vm = machines.find(m => evolutionHost && (m.hostname === evolutionHost || (m.ipv4 || []).some(ip => ip.address === evolutionHost))) || machines[0];
   const query = new URLSearchParams({ date_from: isoSeconds(now - 6 * 3_600_000), date_to: isoSeconds(now) });
   // A assinatura só traz o vencimento: se ela falhar, os números da VPS continuam aparecendo.
+  // As métricas às vezes dão 500 e voltam no minuto seguinte (visto em 26/11): uma segunda tentativa.
+  const metricsUrl = `${HOSTINGER}/api/vps/v1/virtual-machines/${vm.id}/metrics?${query}`;
   const [usage, subscriptions] = await Promise.all([
-    step('métricas', fetchJson(request, `${HOSTINGER}/api/vps/v1/virtual-machines/${vm.id}/metrics?${query}`, { headers }, timeoutMs)),
+    step('métricas', retryServerError(ms => fetchJson(request, metricsUrl, { headers }, ms), { timeoutMs, deadline, waitMs: retryWaitMs })),
     fetchJson(request, `${HOSTINGER}/api/billing/v1/subscriptions`, { headers }, timeoutMs).catch(() => null)
   ]);
   const cpu = average(usage?.cpu_usage);
