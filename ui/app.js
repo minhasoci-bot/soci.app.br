@@ -174,6 +174,12 @@ const G=s=>document.querySelector(s);
 const url=path=>`${path}?workspace=${encodeURIComponent(c.workspace)}`;
 function flash(msg,isError=false){ return isError?toast.error(msg):toast.success(msg); }
 const actingUser = () => { try { return localStorage.getItem('go.user') || ''; } catch { return ''; } };
+// Agência sem celular confirmado, convidado de agência não ativada ou agência bloqueada: a tela de verify.js cobre o app.
+let gateOpen=null;
+function showGate(data){
+  gateOpen ??= import('./verify.js').then(({ mountGate }) => mountGate(document.body, { code: data.code, error: data.error, api, onDone: () => location.reload() }))
+    .catch(error => { gateOpen = null; throw error; });
+}
 async function api(path,body){
   const headers = c.access?.session ? {} : { 'X-Go-User': actingUser() };
   const response = await fetch(path,body===undefined?{headers}:{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -183,6 +189,7 @@ async function api(path,body){
     location.replace('/login?' + new URLSearchParams({ next }));
   }
   if (!response.ok) {
+    if (response.status === 402 && ['PHONE_REQUIRED', 'AGENCY_NOT_ACTIVE', 'AGENCY_BLOCKED'].includes(data.code)) showGate(data);
     if (data.code === 'ACCOUNT_SUSPENDED' && c.mode !== 'agency' && !path.startsWith('/api/state?') &&
         new URL(path, location.origin).searchParams.get('workspace') === c.workspace) {
       await load();
