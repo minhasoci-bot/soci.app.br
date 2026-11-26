@@ -13,6 +13,22 @@ export function safeWebsite(value) {
   } catch { /* Invalid or incomplete URL. */ }
   return '';
 }
+// Prospects do Google Maps guardam só o placeId (regra do Google Maps Platform): o nome salvo é provisório
+// e os dados da empresa são lidos ao vivo na hora de mostrar, sem nunca voltar para o armazenamento.
+export const mapsPlaceholderName = 'Prospect do Maps';
+export const isGooglePlace = placeId => typeof placeId === 'string' && Boolean(placeId) && !placeId.startsWith('osm-');
+export function withPlace(business,place) {
+  if (!business || !place) return business;
+  const fill = (own,live) => own || live || '';
+  // O endereço do Google já vem completo (com cidade e país): só entra quando o prospect não tem endereço próprio.
+  const ownAddress = Boolean(business.address || business.city);
+  return { ...business,
+    name:business.name && business.name !== mapsPlaceholderName ? business.name : place.name || business.name,
+    ...(ownAddress || !place.address ? {} : { address:place.address,city:'',region:'',postal:'',country:'' }),
+    phone:fill(business.phone,place.phone), website:fill(business.website,place.website), category:fill(business.category,place.category),
+    rating:Number.isFinite(business.rating) ? business.rating : Number.isFinite(place.rating) ? place.rating : null,
+    reviews:business.reviews ?? place.reviews ?? null };
+}
 export function mapsAddress(business) {
   const street = [business.address,business.city,business.region].filter(Boolean);
   const address = [...street,...(street.length && business.country ? [business.country] : [])].join(', ');

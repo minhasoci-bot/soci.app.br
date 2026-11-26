@@ -150,7 +150,6 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     renaming: null,
     menuConvId: null,
     speakingId: null,
-    connectors: { treg: { enabled: true, token: '', googleMaps: true, instagram: true } },
     skills: [],
     activeTab: 'general'
   };
@@ -278,12 +277,11 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
 
     <dialog class="sc-modal sc-modal-settings" data-sc="settings-modal" aria-labelledby="sc-settings-title">
       <header>
-        <h2 id="sc-settings-title">Personalização do Chat & Conectores</h2>
+        <h2 id="sc-settings-title">Personalização do Chat</h2>
         <button type="button" class="sc-icon-btn" data-sc-action="close-modal" aria-label="Fechar">${icon('close', 17)}</button>
       </header>
       <div class="sc-modal-tabs" role="tablist">
         <button type="button" class="sc-tab-btn active" data-sc-tab="general" role="tab">Geral</button>
-        <button type="button" class="sc-tab-btn" data-sc-tab="connectors" role="tab">Conectores</button>
         <button type="button" class="sc-tab-btn" data-sc-tab="skills" role="tab">Habilidades</button>
       </div>
       <div class="sc-settings-body">
@@ -319,73 +317,6 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
           <div class="sc-setting-row">
             <div class="sc-setting-label">Excluir todos os chats</div>
             <button type="button" class="danger" data-sc-action="delete-all">Excluir tudo</button>
-          </div>
-        </div>
-
-        <!-- Aba Conectores -->
-        <div class="sc-tab-pane" data-sc-pane="connectors">
-          <div class="sc-connector-card">
-            <div class="sc-connector-head">
-              <div class="sc-connector-title-box">
-                <div class="sc-connector-logo">⚡</div>
-                <div>
-                  <div class="sc-connector-name">Treg — Inteligência Externa & Prospecção</div>
-                  <div class="sc-connector-desc">Acesso a dados reais do Google Maps, Instagram e +4.200 ferramentas de inteligência em tempo real.</div>
-                </div>
-              </div>
-              <span class="sc-badge" data-sc="treg-badge">Carregando...</span>
-            </div>
-
-            <div class="sc-connector-info-box" data-sc="treg-info-box">
-              <div class="sc-connector-info-item">
-                <span class="sc-connector-info-label">Saldo disponível:</span>
-                <strong data-sc="treg-balance">—</strong>
-              </div>
-              <div class="sc-connector-info-item">
-                <span class="sc-connector-info-label">Equipe:</span>
-                <span data-sc="treg-team">—</span>
-              </div>
-              <div class="sc-connector-info-item">
-                <span class="sc-connector-info-label">Ferramentas:</span>
-                <span data-sc="treg-tools">4.200+</span>
-              </div>
-            </div>
-
-            <div class="sc-setting-block" style="border-bottom:none; padding-bottom: 4px;">
-              <label class="sc-setting-label" for="sc-treg-token">Token da conta Treg (X-Treg-Token)</label>
-              <p class="sc-setting-hint">Insira o token da sua equipe Treg para que o agente utilize seus próprios créditos e ferramentas.</p>
-              <div class="sc-input-action-row">
-                <input type="password" id="sc-treg-token" data-sc="treg-token" placeholder="eyJ1aWQi..." autocomplete="off">
-                <button type="button" class="secondary" data-sc-action="test-treg">Testar conexão</button>
-                <button type="button" class="primary" data-sc-action="save-treg">Salvar conector</button>
-                <button type="button" class="secondary" data-sc="treg-remove" data-sc-action="remove-treg" hidden>Remover token</button>
-              </div>
-              <p class="sc-field-msg" data-sc="treg-status-msg"></p>
-            </div>
-
-            <div class="sc-connector-toggles">
-              <div class="sc-connector-toggle-row">
-                <div>
-                  <strong>🔍 Google Maps</strong>
-                  <p class="sc-setting-hint">Permite pesquisar empresas locais, comércios, telefones, notas e endereços no Google Maps.</p>
-                </div>
-                <label class="sc-switch">
-                  <input type="checkbox" data-sc="treg-toggle-maps" checked>
-                  <span class="sc-slider"></span>
-                </label>
-              </div>
-
-              <div class="sc-connector-toggle-row">
-                <div>
-                  <strong>📸 Instagram</strong>
-                  <p class="sc-setting-hint">Permite pesquisar perfis comerciais, bio, seguidores e dados públicos no Instagram.</p>
-                </div>
-                <label class="sc-switch">
-                  <input type="checkbox" data-sc="treg-toggle-instagram" checked>
-                  <span class="sc-slider"></span>
-                </label>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -480,15 +411,6 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     instructions: Q('instructions'),
     providerInfo: Q('provider-info'),
     importInput: Q('import-input'),
-    tregBadge: Q('treg-badge'),
-    tregBalance: Q('treg-balance'),
-    tregTeam: Q('treg-team'),
-    tregTools: Q('treg-tools'),
-    tregToken: Q('treg-token'),
-    tregRemove: Q('treg-remove'),
-    tregStatusMsg: Q('treg-status-msg'),
-    tregToggleMaps: Q('treg-toggle-maps'),
-    tregToggleInstagram: Q('treg-toggle-instagram'),
     skillsList: Q('skills-list'),
     skillFileInput: Q('skill-file-input'),
     skillForm: Q('skill-form'),
@@ -1443,101 +1365,6 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     });
   }
 
-  function renderConnectorsUI() {
-    const treg = state.connectors?.treg || {};
-    // O servidor nunca devolve o token: o campo fica vazio e só mostra que há um token salvo.
-    if (els.tregToken) {
-      els.tregToken.value = '';
-      els.tregToken.placeholder = treg.hasToken ? `Token salvo (…${treg.tokenLast4}). Digite outro para trocar.` : 'eyJ1aWQi...';
-    }
-    if (els.tregRemove) els.tregRemove.hidden = !treg.hasToken;
-    if (els.tregToggleMaps) {
-      els.tregToggleMaps.checked = treg.googleMaps !== false;
-    }
-    if (els.tregToggleInstagram) {
-      els.tregToggleInstagram.checked = treg.instagram !== false;
-    }
-
-    if (treg.hasToken) {
-      els.tregBadge.className = 'sc-badge sc-badge-success';
-      els.tregBadge.textContent = 'Token da agência ativo';
-    } else if (treg.serverDefaultAvailable) {
-      els.tregBadge.className = 'sc-badge sc-badge-info';
-      els.tregBadge.textContent = 'Padrão do servidor';
-    } else {
-      els.tregBadge.className = 'sc-badge sc-badge-muted';
-      els.tregBadge.textContent = 'Não configurado';
-    }
-  }
-
-  async function verifyTregInUI(customToken) {
-    // Sem token digitado, o servidor testa o token salvo da agência (ou o padrão do servidor).
-    const token = customToken !== undefined ? customToken : (els.tregToken?.value.trim() || undefined);
-    els.tregStatusMsg.textContent = 'Verificando com o servidor Treg...';
-    els.tregStatusMsg.className = 'sc-field-msg sc-msg-info';
-
-    try {
-      const res = await api('/api/ask/connectors', { action: 'verify', token });
-      if (res.valid) {
-        els.tregBadge.className = 'sc-badge sc-badge-success';
-        els.tregBadge.textContent = 'Conectado';
-        els.tregBalance.textContent = `$${res.balanceUsd} USD`;
-        els.tregTeam.textContent = res.team || res.account || 'Equipe ativa';
-        els.tregTools.textContent = res.toolsCount || '4.200+';
-        els.tregStatusMsg.textContent = `✓ Conexão bem-sucedida! Conta: ${res.account} (${res.team}). Saldo: $${res.balanceUsd} USD.`;
-        els.tregStatusMsg.className = 'sc-field-msg sc-msg-success';
-        return true;
-      } else {
-        els.tregBadge.className = 'sc-badge sc-badge-danger';
-        els.tregBadge.textContent = 'Erro de autenticação';
-        els.tregStatusMsg.textContent = `✗ ${res.error || 'Token inválido'}`;
-        els.tregStatusMsg.className = 'sc-field-msg sc-msg-danger';
-        return false;
-      }
-    } catch (err) {
-      els.tregStatusMsg.textContent = `✗ ${err.message || 'Erro ao conectar'}`;
-      els.tregStatusMsg.className = 'sc-field-msg sc-msg-danger';
-      return false;
-    }
-  }
-
-  async function saveTregConnector({ removeToken = false } = {}) {
-    // Campo vazio mantém o token salvo; só um token digitado o substitui.
-    const token = removeToken ? '' : els.tregToken.value.trim();
-    const googleMaps = els.tregToggleMaps.checked;
-    const instagram = els.tregToggleInstagram.checked;
-    els.tregStatusMsg.textContent = 'Salvando conector...';
-    els.tregStatusMsg.className = 'sc-field-msg sc-msg-info';
-
-    try {
-      const res = await api('/api/ask/connectors', {
-        treg: { enabled: true, googleMaps, instagram, ...(token ? { token } : {}), ...(removeToken ? { removeToken: true } : {}) },
-        verify: Boolean(token)
-      });
-      state.connectors = res.connectors;
-      renderConnectorsUI();
-      if (res.verification?.valid) {
-        els.tregBalance.textContent = `$${res.verification.balanceUsd} USD`;
-        els.tregTeam.textContent = res.verification.team || res.verification.account;
-        els.tregTools.textContent = res.verification.toolsCount || '4.200+';
-        els.tregStatusMsg.textContent = '✓ Conector salvo e verificado com sucesso!';
-        els.tregStatusMsg.className = 'sc-field-msg sc-msg-success';
-        flash('Conector Treg salvo com sucesso.');
-      } else if (res.verification) {
-        els.tregStatusMsg.textContent = `Atenção: Salvo, mas aviso da verificação: ${res.verification.error}`;
-        els.tregStatusMsg.className = 'sc-field-msg sc-msg-danger';
-      } else {
-        els.tregStatusMsg.textContent = '✓ Configurações do conector salvas.';
-        els.tregStatusMsg.className = 'sc-field-msg sc-msg-success';
-        flash('Configurações salvas.');
-      }
-    } catch (err) {
-      els.tregStatusMsg.textContent = `Erro: ${err.message}`;
-      els.tregStatusMsg.className = 'sc-field-msg sc-msg-danger';
-      flash(err.message || 'Erro ao salvar conector.', true);
-    }
-  }
-
   function renderSkillsUI() {
     if (!els.skillsList) return;
     els.skillsList.textContent = '';
@@ -1693,13 +1520,9 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     els.providerInfo.textContent = state.config.mode === 'live'
       ? `Conectado à IA generativa · modelo atual: ${modelLabel(state.model)}.`
       : 'Usando o Assistente local com os dados da agência. Conecte sua chave da OpenAI para liberar modelos generativos completos.';
-    renderConnectorsUI();
     renderSkillsUI();
     closeSkillForm();
     els.settingsModal.showModal();
-    if (tab === 'connectors' || state.connectors?.treg?.isConfigured) {
-      void verifyTregInUI();
-    }
   }
 
   // ---------- Eventos internos ----------
@@ -1707,9 +1530,6 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
     const tabBtn = e.target.closest('[data-sc-tab]');
     if (tabBtn) {
       switchSettingsTab(tabBtn.dataset.scTab);
-      if (tabBtn.dataset.scTab === 'connectors' && !els.tregBalance.textContent.includes('$')) {
-        void verifyTregInUI();
-      }
       return;
     }
 
@@ -1875,15 +1695,6 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
         }
         break;
       }
-      case 'test-treg':
-        await verifyTregInUI();
-        break;
-      case 'save-treg':
-        await saveTregConnector();
-        break;
-      case 'remove-treg':
-        await saveTregConnector({ removeToken: true });
-        break;
       case 'import-skill-file':
         els.skillFileInput.click();
         break;
@@ -1919,10 +1730,6 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
         await importSkillFile(target.files[0]);
         target.value = '';
       }
-      return;
-    }
-    if (target === els.tregToggleMaps || target === els.tregToggleInstagram) {
-      await saveTregConnector();
       return;
     }
   });
@@ -2081,9 +1888,6 @@ export function createSociChat({ api, flash, onOpenOpenAISettings, getHeaders })
       if (typeof data.instructions === 'string') {
         settings.instructions = data.instructions;
         writeStorage(STORAGE_KEY, settings);
-      }
-      if (data.connectors) {
-        state.connectors = data.connectors;
       }
       if (Array.isArray(data.skills)) {
         state.skills = data.skills;

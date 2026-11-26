@@ -84,7 +84,8 @@ import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMark
 import { runProspectingAction } from './prospecting-model.mjs';
 import { collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
 import { r2FromEnv } from './r2-storage.mjs';
-import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
+import { mapsEmbedKey, placeSummaries, placesConfigured, placesSearch } from './prospecting-places.mjs';
+import { isGooglePlace } from './ui/prospect-report.js';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
 import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
 import { hasPixels, injectPixels, widenCsp } from './tracking.mjs';
@@ -360,7 +361,7 @@ export function makeServer({
   const phone = createPhoneHandler({ store, change: (workspace, command) => change(workspace, command), flushLater: workspace => flushLater(workspace), request: twilioRequest, env: phoneEnv,
     accountActive: workspace => publicAccountPolicy(workspace, false, 'conversations'), agentReply: (workspace, options) => voiceAgentReply(workspace, options) });
   const phoneOrigin = () => String(phoneEnv.PHONE_PUBLIC_ORIGIN || phoneEnv.SOCIAL_PUBLIC_URL || phoneEnv.PORTAL_PUBLIC_ORIGIN || '').replace(/\/+$/, '');
-  const handleAsk = createAskHandler({ store, openAI, openAIRequest, secret: openAISecret });
+  const handleAsk = createAskHandler({ store, openAI, openAIRequest });
   const waha = createWahaHandler({ store, secret: openAISecret, request: wahaRequest });
   const abacate = createAbacatePayHandler({ store, secret: openAISecret, request: abacatePayRequest });
   const whatsapp = createWhatsAppHandler({
@@ -1071,6 +1072,12 @@ export function makeServer({
 
   async function agencyRequest(op, who, input) {
     if (op === 'prospecting-search') return findProspects(who,input);
+    if (op === 'prospecting-places') {
+      // Dados do Google Maps para mostrar na tela: lidos ao vivo pelo placeId, nunca gravados.
+      const agency = await loadAgency(who.agencyId);
+      const ids = Array.isArray(input.ids) ? input.ids.slice(0,60) : [];
+      return placeSummaries(ids.map(id => agency.prospects.find(row => row.id === id)?.placeId).filter(isGooglePlace));
+    }
     if (op === 'prospecting-transfer') return transferProspects(who,input);
     if (op === 'prospecting-action') {
       if (['brand','sections','widget'].includes(input.op)) requireCapability(who, 'settings', 'Somente administradores podem alterar essas configurações.');

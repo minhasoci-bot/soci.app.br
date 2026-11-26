@@ -1,9 +1,7 @@
-import { tregConfigured, placesSearchTreg } from './treg.mjs';
-
 const key = process.env.PROSPECTING_GOOGLE_PLACES_KEY?.trim();
 const embedKey = process.env.PROSPECTING_GOOGLE_MAPS_EMBED_KEY?.trim();
 const fieldMask = ['id','displayName','formattedAddress','primaryTypeDisplayName','location','rating','userRatingCount'].map(field => `places.${field}`).join(',');
-export const placesConfigured = Boolean(key) || tregConfigured;
+export const placesConfigured = Boolean(key);
 export const mapsEmbedKey = embedKey && embedKey !== key ? embedKey : '';
 
 function unavailable(message,status) { throw Object.assign(new Error(message),{status}); }
@@ -33,6 +31,35 @@ export async function placeDetails(placeId) {
   });
 }
 
+const summaryMask = ['id','displayName','formattedAddress','nationalPhoneNumber','websiteUri','rating','userRatingCount','primaryTypeDisplayName'].join(',');
+const summaryTtl = 10*60*1000;
+const summaryCache = new Map();
+
+// Live read for display only (cards, detail page, report). Kept in memory for a few minutes to spare quota and
+// never written to storage: Google Maps Platform only lets us store the place ID.
+export async function placeSummaries(placeIds,{ fetchSummary = placeId => readJson(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=pt-BR`,{
+  headers:{'X-Goog-Api-Key':key,'X-Goog-FieldMask':summaryMask}
+}),now = Date.now(),configured = placesConfigured } = {}) {
+  if (!configured) return {};
+  const ids = [...new Set((Array.isArray(placeIds) ? placeIds : []).filter(id => typeof id === 'string' && /^[\w-]{1,220}$/.test(id) && !id.startsWith('osm-')))].slice(0,60);
+  const result = {};
+  await Promise.all(ids.map(async placeId => {
+    const cached = summaryCache.get(placeId);
+    if (cached && cached.until > now) { result[placeId] = cached.value; return; }
+    try {
+      const place = await fetchSummary(placeId);
+      const value = { name:place.displayName?.text || '', address:place.formattedAddress || '', phone:place.nationalPhoneNumber || '',
+        website:place.websiteUri || '', category:place.primaryTypeDisplayName?.text || '',
+        rating:Number.isFinite(place.rating) ? place.rating : null, reviews:Number.isFinite(place.userRatingCount) ? place.userRatingCount : null };
+      summaryCache.delete(placeId);
+      summaryCache.set(placeId,{ value,until:now+summaryTtl });
+      if (summaryCache.size > 1000) summaryCache.delete(summaryCache.keys().next().value);
+      result[placeId] = value;
+    } catch { /* A place that fails to load keeps showing what was saved. */ }
+  }));
+  return result;
+}
+
 export async function findPlace(name,location) {
   if (!placesConfigured) return '';
   const result = await readJson('https://places.googleapis.com/v1/places:searchText',{
@@ -43,9 +70,6 @@ export async function findPlace(name,location) {
 }
 
 export async function placesSearch(keywords,location,km) {
-  if (tregConfigured && !key) {
-    return await placesSearchTreg(keywords, location);
-  }
   if (!placesConfigured) unavailable('Configure a chave do Google Maps para buscar novas empresas.',503);
   const geo = new URL('https://maps.googleapis.com/maps/api/geocode/json');
   geo.search = new URLSearchParams({address:location,key,language:'pt-BR'});
