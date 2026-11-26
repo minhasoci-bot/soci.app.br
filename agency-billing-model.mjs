@@ -33,3 +33,15 @@ export function agencyAccess(billing, now) {
   const daysLeft = Number.isFinite(end) ? Math.max(0, Math.ceil((end - now.getTime()) / DAY)) : null;
   return { status, canUse: !gate, daysLeft, gate, plan: billing?.plan || '' };
 }
+
+/** O que a tela da agência pode ver da própria cobrança (sem hash do código, sem celular inteiro). */
+export function publicBilling(billing, now) {
+  const { status, daysLeft, plan } = agencyAccess(billing, now);
+  const sub = billing?.subscription;
+  const phone = String(billing?.phone || '');
+  return {
+    status, trialEndsAt: billing?.trialEndsAt || '', extended: Boolean(billing?.extended), daysLeft, plan,
+    phone: phone ? `•••• ${phone.slice(-4)}` : '',
+    subscription: sub ? { status: sub.status || '', planId: sub.planId || '', nextChargeAt: sub.nextChargeAt || '', cancelAt: sub.cancelAt || '' } : null
+  };
+}

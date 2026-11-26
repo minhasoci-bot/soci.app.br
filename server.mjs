@@ -63,6 +63,7 @@ import { runWorkflowAI } from './workflow-ai.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, replaceBilling } from './agency-model.mjs';
+import { agencyAccess, publicBilling } from './agency-billing-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
 import { collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
@@ -228,13 +229,18 @@ const trackingPath = new RegExp(`^/t/${workspaceSegment}(\\.js|/pixels\\.js|/e)$
 const landingPath = new RegExp(`^/(s|form|oferta|loja|b|w|q|r)/${workspaceSegment}(?:/|$)`);
 const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
 const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
+// O código de confirmação (hash) nunca sai do servidor; o celular só com os 4 últimos dígitos.
+function safeBilling({ verify: _verify, phone, ...billing } = {}) {
+  return { ...billing, phone: phone ? publicBilling({ phone }, new Date()).phone : '' };
+}
 function publicAgency(agency, who) {
   // The audit log has its own endpoint (GET /api/agency/audit).
   const { audit: _audit, ledgerOutbox: _outbox, mcpGrants: _grants, ...shared } = agency;
   const view = { ...shared,
     snapshots: agency.snapshots.map(({ studioSites: _studioSites, ...rest }) => rest),
     apiKeys: agency.apiKeys.map(({ hash: _hash, ...rest }) => rest),
-    privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest)
+    privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest),
+    billing: safeBilling(agency.billing)
   };
   if (!who.settings) {
     const empty = blankAgency();
@@ -598,7 +604,18 @@ export function makeServer({
     }
     return requestUsers.get(req);
   }
-  async function accessContext(req,session) {
+  // Agência sem celular confirmado ou bloqueada só abre as rotas que levam até a confirmação ou o pagamento.
+  function requireAgencyOpen(agency, invited) {
+    const access = agencyAccess(agency.billing, new Date());
+    if (access.canUse) return;
+    const billing = publicBilling(agency.billing, new Date());
+    if (invited && access.gate === 'PHONE_REQUIRED') {
+      throw Object.assign(error('A agência ainda não foi ativada pelo responsável.', 402), { code: 'AGENCY_NOT_ACTIVE', billing });
+    }
+    const message = access.gate === 'PHONE_REQUIRED' ? 'Confirme seu celular pelo WhatsApp para começar a usar a soci.' : 'A agência está bloqueada por falta de pagamento.';
+    throw Object.assign(error(message, 402), { code: access.gate, billing });
+  }
+  async function accessContext(req,session,{ gate = true } = {}) {
     if (!session && !localAccess) throw error('O login do Supabase ainda não foi configurado.',503);
     const agencyId = !session || session.id === agencyOwnerId ? AGENCY_ID : `agency-${session.id}`;
     let agency;
@@ -611,6 +628,7 @@ export function makeServer({
         agency = hydrateAgency(invite.state, invite.id);
         const member = agency.users.find(user => user.loginEnabled && user.email === email);
         const who = { ...userAccess(agency,member.id), agencyId: invite.id, userId: member.id, session, owner: member.role === 'Agency Owner' };
+        if (gate) requireAgencyOpen(agency, true);
         return { agency, who };
       }
       const initial = blankAgency();
@@ -626,6 +644,7 @@ export function makeServer({
     const result = userAccess(agency,userId);
     if (!result) throw error('The selected user no longer exists. Choose another user.',403);
     const who = { ...result, agencyId, userId, session, ...(session ? { name: session.name, owner: true } : {}) };
+    if (gate) requireAgencyOpen(agency, Boolean(userId));
     return { agency, who };
   }
   const access = async (req,res) => (await accessContext(req,await verifiedUser(req,res))).who;
@@ -718,7 +737,7 @@ export function makeServer({
     return personalWorkspace ? [...visible, personalWorkspace] : visible;
   }
   async function agencyPayload(req, res, extra = {}) {
-    const { agency, who } = await accessContext(req,await verifiedUser(req,res));
+    const { agency, who } = await accessContext(req,await verifiedUser(req,res),{ gate: false });
     requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
     const [workspaces, personalWorkspace, marketplaceDoc] = await Promise.all([
       listWorkspaces(who.agencyId),
@@ -729,7 +748,7 @@ export function makeServer({
     const states = await agencyWorkspaceViews(agency, who, workspaces);
     const gateway = await abacate.status(who.agencyId, abacate.AGENCY_SCOPE, publicBase(req));
     return { agency: { ...publicAgency(agency, who), abacatepay: { connected: gateway.connected, storeName: gateway.storeName || '', devMode: Boolean(gateway.devMode) } }, overview: agencyOverview(agency, states), marketplace: publicMarketplaceList(marketplaceDoc, who.agencyId), workspaces, personalWorkspace, access: who,
-      features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, ...extra };
+      features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, billing: publicBilling(agency.billing, new Date()), ...extra };
   }
   // Sub-accounts of a brand group that still belong to the agency and are not closed, with their state.
   async function brandWorkspaces(agency, agencyId, group) {
@@ -2375,7 +2394,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         if (operation === 'callback/google' && method === 'GET') {
           return goTo(await auth.callback(req,res,url.searchParams,async (session,next) => {
             await ready;
-            const { who } = await accessContext(req,session);
+            const { who } = await accessContext(req,session,{ gate: false });
             return who.owner && who.agencyId !== AGENCY_ID && !/[?#]/.test(next) ? '/app#agency/dashboard' : next;
           }));
         }
@@ -2864,7 +2883,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (!res.headersSent) json({
         error: e.status ? e.message : 'The workspace could not complete this request.',
-        ...(e.code === 'ACCOUNT_SUSPENDED' && { code: e.code, account: e.account }), ...(e.code === 'FISCAL_REQUIRED' && { code: e.code })
+        ...(e.code === 'ACCOUNT_SUSPENDED' && { code: e.code, account: e.account }), ...(e.code === 'FISCAL_REQUIRED' && { code: e.code }),
+        ...(['PHONE_REQUIRED', 'AGENCY_BLOCKED', 'AGENCY_NOT_ACTIVE'].includes(e.code) && { code: e.code, billing: e.billing })
       }, e.status || 500);
     }
   });
