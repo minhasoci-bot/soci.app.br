@@ -143,7 +143,7 @@ import { writeCaption } from './social-ai.mjs';
 import { reportMailer } from './report-share.mjs';
 import { documentMailer, documentMessage } from './document-mail.mjs';
 import { campaignMailer } from './email-campaign-send.mjs';
-import { emailDomains, workspaceSender } from './email-domain.mjs';
+import { agencySender, emailDomains, normalizeLocalPart, workspaceSender } from './email-domain.mjs';
 import { abandonedOf } from './checkout-model.mjs';
 import { reportsDue } from './report-model.mjs';
 import { brandGroupData } from './ui/brand-group-data.js';
@@ -1117,7 +1117,26 @@ export function makeServer({
       // White Label: o domínio das subcontas é de uma agência só, e a hospedagem passa a atendê-lo.
       const newDomain = input.type === 'company' && input.data?.domain !== undefined ? whiteLabelHost(input.data.domain) : null;
       if (newDomain) await requireFreeDomain(store, newDomain, who.agencyId);
-      const priorDomain = newDomain ? (await loadAgency(who.agencyId)).company?.domain || '' : '';
+      const priorDomain = newDomain !== null ? (await loadAgency(who.agencyId)).company?.domain || '' : '';
+      // White Label: o domínio de envio da agência mora na Resend. Ele é criado, conferido e removido lá, depois de
+      // conferir a permissão, e o resultado entra no estado da agência.
+      let emailDomain, priorMail = {};
+      if (['email-domain', 'email-domain-status', 'email-domain-remove'].includes(input.type)) {
+        const agency = await loadAgency(who.agencyId), actor = userAccess(agency, who.userId);
+        if (!actor) throw error('The selected user no longer exists.',403);
+        requireCapability(actor, 'agency', 'Your user cannot open the agency view.');
+        requireAgencyCommand(actor, input, agency);
+        priorMail = agency.emailServices || {};
+      }
+      if (input.type === 'email-domain') {
+        normalizeLocalPart(input.data?.localPart || 'contato');
+        emailDomain = await emailDomainApi.add(input.data?.domain);
+      }
+      if (input.type === 'email-domain-status') {
+        if (!priorMail.resendId) throw error('Adicione o domínio de envio de novo para criá-lo no serviço de e-mail.',400);
+        await emailDomainApi.verify(priorMail.resendId).catch(() => {});
+        emailDomain = await emailDomainApi.get(priorMail.resendId);
+      }
       const outcome = await changeAgency(who.agencyId, agency => {
         const currentActor = userAccess(agency, who.userId);
         if (!currentActor) throw error('The selected user no longer exists.',403);
@@ -1125,7 +1144,7 @@ export function makeServer({
         requireAgencyCommand(currentActor, input, agency);
         if (sharedSnapshot) requireSetupModules(currentActor, Object.keys(sharedSnapshot.assets || {}));
         ensureAccounts(agency, workspaces);
-        const result = executeAgency(agency, input, { accountIds: workspaces.map(w => w.id), actor: who.name, sharedSnapshot });
+        const result = executeAgency(agency, input, { accountIds: workspaces.map(w => w.id), actor: who.name, sharedSnapshot, emailDomain });
         if (who.session && input.type === 'save' && input.key === 'users') {
           agency.users.find(user => user.id === result).loginEnabled = true;
         }
@@ -1141,7 +1160,15 @@ export function makeServer({
       // Reselling prices are copied into each sub-account's wallet.
       if (['saas-rebilling', 'rebill-account'].includes(input.type)) await syncWallets(who.agencyId, workspaces);
       if (input.type === 'labs') await syncLabs(who.agencyId, workspaces);
-      if (newDomain && newDomain !== priorDomain) await hosting.add(newDomain).catch(problem => console.error('white-label domain:', newDomain, problem.message));
+      // O domínio de envio trocado ou removido sai da Resend.
+      if (['email-domain', 'email-domain-remove'].includes(input.type) && priorMail.resendId && priorMail.resendId !== emailDomain?.id) {
+        await emailDomainApi.remove(priorMail.resendId).catch(problem => console.error('agency email domain:', priorMail.domain, problem.message));
+      }
+      if (newDomain !== null && newDomain !== priorDomain) {
+        if (newDomain) await hosting.add(newDomain).catch(problem => console.error('white-label domain:', newDomain, problem.message));
+        // The old address leaves the project: kept there it stayed tied to this agency's deploy for good.
+        if (priorDomain) await hosting.remove(priorDomain).catch(problem => console.error('white-label old domain:', priorDomain, problem.message));
+      }
       return outcome;
     }
     // White Label: o domínio das subcontas está na hospedagem e o DNS já aponta para cá?
@@ -1369,7 +1396,11 @@ export function makeServer({
   const publicBase = req => process.env.SOCIAL_PUBLIC_URL || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
   // Documentos e contratos: signing links by e-mail/WhatsApp, and a per-IP limit on the public signing API.
   // Serviços de e-mail: the sub-account's verified sending domain, or '' to send from the platform address.
-  const sendingAddress = async workspace => { try { return workspaceSender(await store.load(`email-${workspace}`)); } catch { return ''; } };
+  // O domínio próprio da subconta; sem ele, o domínio dedicado da agência quando ela escolheu esta subconta.
+  const sendingAddress = async workspace => {
+    try { const own = workspaceSender(await store.load(`email-${workspace}`)); if (own) return own; } catch { /* sem domínio próprio */ }
+    try { return agencySender((await loadAgency((await store.load(workspace)).agencyId || AGENCY_ID)).emailServices, workspace); } catch { return ''; }
+  };
   const signHits = new Map(), testHits = new Map(), trackingHits = new Map();
   const trackingLog = createTrackingLog({ store });
   // Tracking events: up to 300 per connection every 10 minutes.
@@ -2335,7 +2366,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const connectorHookRoute = createConnectorHookRoutes({ store, ready, error, change, flushLater, publicAccountPolicy, connectorAuth });
   const twilioRoute = createTwilioWebhookRoutes({ ready, phone });
   const connectorRoute = createConnectorRoutes({ store, error, spaceId, privateSpace, change, payload, publicBase, requireActiveAccount, workspaceAccess, connectorRequest });
-  const authRoute = createAuthRoutes({ auth, ready, error, payload, accessContext });
+  // White Label: a origem que o Supabase aceita na volta do Google; nos domínios das agências o código passa por ela.
+  const platformOrigin = String(process.env.PLATFORM_PUBLIC_ORIGIN || process.env.PORTAL_PUBLIC_ORIGIN || process.env.SOCIAL_PUBLIC_URL || '').replace(/\/+$/, '');
+  const authRoute = createAuthRoutes({ auth, ready, error, payload, accessContext, store, platformOrigin });
   const pushRoute = createPushRoutes({ error, spaceId, privateSpace, change, payload, pushEnv, access, loadAgency, workspaceAccess });
   const phoneRoute = createPhoneRoutes({ error, spaceId, privateSpace, phone, payload, workspaceAccess });
   const inboxRoute = createInboxRoutes({ store, error, spaceId, privateSpace, workspaceAccess });

@@ -8,6 +8,9 @@ const fail = (message, status = 400) => { throw Object.assign(new Error(message)
 export const whiteLabelCname = 'cname.vercel-dns.com';
 const platformHosts = ['soci.app.br', 'vercel.app', 'localhost'];
 
+/** soci.app.br, its subdomains, the Vercel preview addresses and localhost: never an agency's address. */
+export const isPlatformHost = host => !host || platformHosts.some(platform => host === platform || host.endsWith(`.${platform}`)) || /^(\d{1,3}\.){3}\d{1,3}$|^\[?::1\]?$/.test(host);
+
 /** "app.agencia.com.br" from what the agency typed (scheme, path and port go away); '' clears it. */
 export function whiteLabelHost(value) {
   const raw = String(value ?? '').trim().toLowerCase();
@@ -58,11 +61,37 @@ export function hostingDomains({ token = process.env.VERCEL_API_TOKEN, project =
       if (result.ok || (result.status === 409 && result.body?.error?.code === 'domain_already_in_use')) return true;
       fail(result.body?.error?.message || 'A hospedagem não aceitou o domínio.', 502);
     },
+    /** Takes a domain the agency no longer uses off the project. Already gone counts as removed. */
+    async remove(host) {
+      if (!configured || !host) return false;
+      const result = await call(`/v9/projects/${encodeURIComponent(project)}/domains/${encodeURIComponent(host)}`, { method: 'DELETE' });
+      if (result.ok || result.status === 404) return true;
+      fail(result.body?.error?.message || 'A hospedagem não removeu o domínio antigo.', 502);
+    },
     async status(host) {
-      if (!host) return { domain: '', cname: whiteLabelCname, hosting: configured };
-      if (!configured) return { domain: host, cname: whiteLabelCname, hosting: false };
-      const [domain, config] = await Promise.all([call(`/v9/projects/${encodeURIComponent(project)}/domains/${encodeURIComponent(host)}`), call(`/v6/domains/${encodeURIComponent(host)}/config`)]);
-      return { domain: host, cname: whiteLabelCname, hosting: true, added: domain.ok, verified: Boolean(domain.body?.verified), pointing: config.ok && config.body?.misconfigured === false };
+      if (!host) return { domain: '', cname: whiteLabelCname, hosting: configured, verification: [] };
+      if (!configured) return { domain: host, cname: whiteLabelCname, hosting: false, verification: [] };
+      const domainPath = `/v9/projects/${encodeURIComponent(project)}/domains/${encodeURIComponent(host)}`;
+      const [found, config] = await Promise.all([call(domainPath), call(`/v6/domains/${encodeURIComponent(host)}/config`)]);
+      let domain = found;
+      // A domain that is already in another Vercel account waits for a TXT ownership record. Each check asks
+      // the hosting to look again, so the agency does not wait for Vercel's own retry after publishing it.
+      if (domain.ok && !domain.body?.verified) {
+        const check = await call(`${domainPath}/verify`, { method: 'POST' });
+        if (check.ok) domain = check;
+      }
+      const verified = Boolean(domain.body?.verified);
+      const verification = verified ? [] : (Array.isArray(domain.body?.verification) ? domain.body.verification : [])
+        .map(row => ({ type: String(row.type || 'TXT'), name: String(row.domain || ''), value: String(row.value || '') }));
+      const dns = config.ok ? config.body || {} : {};
+      const best = list => [...(Array.isArray(list) ? list : [])].sort((a, b) => (a.rank || 0) - (b.rank || 0));
+      const cname = String(best(dns.recommendedCNAME)[0]?.value || whiteLabelCname).replace(/\.$/, '');
+      const vercelIps = best(dns.recommendedIPv4).flatMap(row => row.value || []);
+      // Cloudflare with the orange cloud answers with its own IPs instead of the CNAME: the hosting cannot
+      // issue the certificate behind it and the visitor sees error 525.
+      const proxied = (dns.nameservers || []).some(ns => /cloudflare/i.test(ns)) && !(dns.cnames || []).length
+        && (dns.aValues || []).length > 0 && !(dns.aValues || []).some(ip => vercelIps.includes(ip));
+      return { domain: host, cname, hosting: true, added: domain.ok, verified, pointing: config.ok && dns.misconfigured === false, verification, proxied };
     }
   };
 }
