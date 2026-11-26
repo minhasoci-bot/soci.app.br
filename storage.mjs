@@ -113,6 +113,7 @@ export function createSqliteStore(path) {
   const agencies = db.prepare("SELECT id, state FROM workspaces WHERE id = 'agency' OR id LIKE 'agency-%' ORDER BY rowid");
   const insert = db.prepare('INSERT INTO workspaces (id, state) VALUES (?, ?) ON CONFLICT(id) DO NOTHING');
   const update = db.prepare('UPDATE workspaces SET state = ? WHERE id = ?');
+  const remove = db.prepare('DELETE FROM workspaces WHERE id = ?');
 
   function load(id) {
     const row = get.get(id);
@@ -136,6 +137,8 @@ export function createSqliteStore(path) {
       return null;
     },
     insert: (id, state) => Boolean(insert.run(id, JSON.stringify(state)).changes),
+    /** Apaga o documento de vez (subconta que venceu a lixeira). */
+    remove: id => { remove.run(id); },
     // Página Plataforma: num banco local só há o tamanho do arquivo; storage e usuários ativos são do Supabase.
     platformUsage: () => {
       const { page_count } = db.prepare('PRAGMA page_count').get();
@@ -367,6 +370,20 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
         body: { id, state }
       });
       return rows.length === 1;
+    },
+    /**
+     * Apaga o documento de vez (subconta que venceu a lixeira). Enquanto o banco não libera DELETE para a chave do
+     * servidor (supabase/provision-storage.sql), a linha fica vazia e fora de toda agência: os dados somem do mesmo jeito.
+     */
+    async remove(id) {
+      forget(id);
+      try {
+        await api('go_workspaces', { id: `eq.${id}` }, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+      } catch (error) {
+        if (error.dataApiCode !== '42501') throw error;
+        await api('go_workspaces', { id: `eq.${id}` }, { method: 'PATCH', headers: { Prefer: 'return=minimal' },
+          body: { state: { agencyId: 'removida', removedAt: new Date(clock()).toISOString(), profile: { name: '' } }, revision: uid() } });
+      }
     },
     async change(id, mutate) {
       for (let attempt = 0; attempt < 6; attempt++) {

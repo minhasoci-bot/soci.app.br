@@ -409,10 +409,27 @@ export function startAgency(env) {
         ${!active && reason ? `<p class="dim">${h(reason)}</p>` : ''}
         <div class="inline-gap">${active || canManage ? btn(active ? 'Acessar subconta' : 'Abrir suporte', 'open-account', `data-id="${a.id}"`, 'primary') : ''}
         ${canManage ? btn('Editar', 'edit-account', `data-id="${a.id}"`) : ''}
-        ${canManage && !active ? btn('Reativar', 'reactivate-account', `data-id="${a.id}"`) : ''}</div></article>`;
+        ${canManage && !active ? btn('Reativar', 'reactivate-account', `data-id="${a.id}"`) : ''}
+        ${canManage ? btn('Excluir', 'trash-account', `data-id="${a.id}"`, 'danger') : ''}</div></article>`;
       }).join('') || empty('Nenhuma subconta encontrada', 'Tente outros termos de busca ou limpe os filtros.')}</div>
-      ${D().plans.length ? '' : `<p class="dim ag-hint">Dica: crie planos SaaS no Configurador SaaS para atribuir um plano e precificação a cada subconta.</p>`}</div>`;
+      ${D().plans.length ? '' : `<p class="dim ag-hint">Dica: crie planos SaaS no Configurador SaaS para atribuir um plano e precificação a cada subconta.</p>`}
+      ${canManage ? trashSection() : ''}</div>`;
   };
+
+  // Lixeira: subcontas excluídas ficam encerradas por 30 dias e podem voltar; depois os dados são apagados de vez.
+  function trashSection() {
+    const trash = A.data.trash || [];
+    if (!trash.length) return '';
+    const left = at => Math.max(0, Math.ceil((Date.parse(at) - Date.now()) / 86_400_000));
+    return `<section class="ag-trash" aria-labelledby="ag-trash-title"><h2 id="ag-trash-title">Lixeira</h2>
+      <p class="dim">Subcontas excluídas ficam aqui por 30 dias, sem acesso e sem automações. Depois disso, os dados são apagados de vez.</p>
+      <div class="ag-accounts">${trash.map(t => {
+        const days = left(t.purgeAt);
+        return `<article class="surface padded ag-account"><div class="ag-account-main"><h2>${h(t.name)}</h2><p class="dim">Excluída em ${day(t.deletedAt, true)} por ${h(t.deletedBy)}</p></div>
+        <dl class="ag-facts"><div><dt>Apagada de vez em</dt><dd>${days ? `${days} dia${days === 1 ? '' : 's'}` : 'menos de 1 dia'}</dd></div></dl>
+        <div class="inline-gap">${btn('Restaurar', 'restore-account', `data-id="${t.id}" data-name="${h(t.name)}"`)}</div></article>`;
+      }).join('')}</div></section>`;
+  }
 
   function accountForm(preset = {}) {
     const snaps = D().snapshots;
@@ -1483,6 +1500,18 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
             <label>Motivo da suspensão ou encerramento<textarea name="suspendedReason" maxlength="500">${h(meta.suspendedReason || '')}</textarea><small class="dim">Visível para usuários da subconta enquanto o acesso estiver bloqueado.</small></label>`, { form: 'account-meta', id, submit: 'Salvar alterações' });
           break;
         }
+        case 'trash-account': {
+          const name = accountName(id);
+          dialog(`Excluir ${name}?`, `<p>A subconta sai da lista e ninguém mais consegue entrar nela. Automações, campanhas e publicações param na hora.</p>
+            <p>Ela fica na <b>Lixeira</b> por 30 dias e pode ser restaurada nesse prazo. Depois, contatos, conversas, negócios e todos os outros dados são apagados de vez.</p>
+            <label>Para confirmar, digite <b>${h(name)}</b><input name="confirm" required autocomplete="off" spellcheck="false" maxlength="120"></label>`,
+          { form: 'account-trash', id, submit: 'Excluir subconta' });
+          G('#dialog form button.primary')?.classList.replace('primary', 'danger');
+          break;
+        }
+        case 'restore-account':
+          dialog(`Restaurar ${d.name || 'subconta'}?`, '<p>A subconta volta para a lista com o status que tinha antes de ser excluída. Os usuários recuperam o acesso permitido.</p>', { form: 'account-restore', id, submit: 'Restaurar subconta' });
+          break;
         case 'reactivate-account':
           dialog(`Reativar ${accountName(id)}`, '<p>Os usuários recuperam o acesso permitido. Publicações pendentes poderão voltar a ser processadas.</p>', { form: 'account-reactivate', id, submit: 'Reativar subconta' });
           break;
@@ -1873,6 +1902,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         }
         case 'account-meta': await act('account-meta', { id, data }); msg = 'Dados da subconta atualizados.'; break;
         case 'account-reactivate': await act('account-reactivate', { id }); msg = 'Subconta reativada.'; break;
+        case 'account-trash': await act('account-trash', { id, data: { confirm: data.confirm } }); A.selected.delete(id); msg = 'Subconta excluída. Ela fica na Lixeira por 30 dias.'; break;
+        case 'account-restore': await act('account-restore', { id }); msg = 'Subconta restaurada.'; break;
         case 'bulk-status': for (const x of A.selected) { const meta = D().accounts[x]; await act('account-meta', { id: x, data: { ...meta, status: data.status, suspendedReason: data.suspendedReason } }); } A.selected.clear(); msg = 'Status das subcontas atualizado.'; break;
         case 'bulk-snapshot': await call('snapshot-load', { id: data.id, workspaces: [...A.selected], mode: data.mode }); A.selected.clear(); msg = 'Setup carregado com sucesso.'; break;
         case 'prospect-convert': { const newId = await call('prospect-convert', { id, snapshotId: data.snapshotId }); msg = 'Subconta criada.'; close(); dialog('Subconta criada com sucesso', `<div class="inline-gap">${btn('Acessar subconta agora', 'open-account', `data-id="${newId}"`, 'primary')}</div>`); keepOpen = true; break; }

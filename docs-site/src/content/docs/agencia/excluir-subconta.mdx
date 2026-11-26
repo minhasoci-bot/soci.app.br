@@ -1,0 +1,73 @@
+---
+title: Excluir uma subconta
+description: Tire da agência uma subconta que não vai mais ser usada. Ela fica 30 dias na lixeira, pode ser restaurada nesse prazo e depois é apagada de vez.
+modulo: agencia
+sidebar:
+  order: 2
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Quando um cliente sai da agência ou uma subconta foi criada por engano, você pode excluí-la. A subconta sai da lista na hora e ninguém mais consegue entrar nela. Ela fica 30 dias na **Lixeira**, e nesse prazo você pode restaurá-la. Depois dos 30 dias, a soci apaga todos os dados dela de vez.
+
+<Requisitos permissao="Dono ou admin da agência" />
+
+## Passo a passo
+
+<Steps>
+
+1. No painel da agência, abra **Subcontas** e encontre o cliente. Use a busca se a lista for grande.
+
+2. No cartão da subconta, clique em **Excluir**.
+
+3. Leia o aviso. Para confirmar, digite o nome da subconta exatamente como ele aparece na lista e clique em **Excluir subconta**.
+
+4. A subconta sai da lista e aparece na **Lixeira**, no fim da página **Subcontas**. A lixeira mostra quem excluiu, quando e quantos dias faltam para os dados serem apagados.
+
+</Steps>
+
+<Aside type="caution">
+Depois dos 30 dias não há como recuperar a subconta. Contatos, conversas, negócios, agendas, sites, automações e todos os outros dados dela são apagados de vez. Se tiver dúvida, use **Editar** e mude o status para **Encerrada**: a subconta fica bloqueada, mas os dados continuam guardados.
+</Aside>
+
+## Restaurar uma subconta da lixeira
+
+<Steps>
+
+1. Abra **Subcontas** e desça até a **Lixeira**.
+
+2. No cartão da subconta, clique em **Restaurar** e confirme em **Restaurar subconta**.
+
+3. A subconta volta para a lista com o status que tinha antes de ser excluída, e os usuários recuperam o acesso.
+
+</Steps>
+
+## O que acontece enquanto ela está na lixeira
+
+- Ninguém consegue entrar na subconta, nem os usuários dela nem a equipe da agência.
+- Automações, campanhas, publicações agendadas e lembretes param.
+- As chaves de API e as integrações privadas não conseguem mais ler ou gravar nela.
+- Ela não aparece na troca de conta, nos relatórios da agência nem nos grupos de marcas.
+
+## Perguntas frequentes
+
+**Por que não consigo excluir uma subconta?**
+Se a subconta tem uma assinatura de plano em andamento, a soci pede que você cancele a cobrança primeiro. Assim o cliente não continua sendo cobrado por uma conta que não existe mais.
+
+**Quem pode excluir uma subconta?**
+Só o dono e os admins da agência. Usuários da agência sem essa permissão não veem o botão **Excluir**.
+
+**Excluí sem querer. E agora?**
+Abra a **Lixeira** no fim da página **Subcontas** e clique em **Restaurar**. Dá para fazer isso por 30 dias depois da exclusão.
+
+**O número de WhatsApp da subconta é desconectado?**
+A soci para de enviar e receber mensagens pela subconta. Se o número for usado em outra subconta, desconecte-o antes em **Conectar o WhatsApp das subcontas**.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Criar uma subconta para um cliente" href="/agencia/criar-subconta/" description="Cadastre um cliente como subconta." />
+  <LinkCard title="Conectar o WhatsApp das subcontas" href="/agencia/servidor-whatsapp/" description="Ligue e desligue o número de cada subconta." />
+</CardGrid>

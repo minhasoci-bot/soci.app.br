@@ -3,10 +3,15 @@
 -- Apply after the storage migrations (go_workspaces, go_tracking_events and go_agency_audit). Reapply with a new hash to rotate the key.
 begin;
 
-grant select, insert, update on table public.go_workspaces to anon;
+grant select, insert, update, delete on table public.go_workspaces to anon;
 drop policy if exists go_storage_read on public.go_workspaces;
 drop policy if exists go_storage_insert on public.go_workspaces;
 drop policy if exists go_storage_update on public.go_workspaces;
+drop policy if exists go_storage_delete on public.go_workspaces;
+
+-- Subconta que venceu a lixeira (30 dias) é apagada de vez.
+create policy go_storage_delete on public.go_workspaces for delete to anon
+using ((select encode(sha256(convert_to(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-go-storage-key', ''), 'UTF8')), 'hex') = 'GO_STORAGE_KEY_SHA256'));
 
 create policy go_storage_read on public.go_workspaces for select to anon
 using ((select encode(sha256(convert_to(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-go-storage-key', ''), 'UTF8')), 'hex') = 'GO_STORAGE_KEY_SHA256'));
