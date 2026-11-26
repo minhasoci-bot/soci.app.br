@@ -65,13 +65,30 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
   const placeOf = row => isGooglePlace(row?.placeId) ? S.places.get(row.placeId) || null : null;
   const shown = row => row && placeOf(row) ? withPlace(row,placeOf(row)) : row;
   const shownReport = row => row.report && placeOf(row) ? { ...row.report,business:withPlace(row.report.business,placeOf(row)) } : row.report;
+  // Lidos uma vez por sessão do navegador: ficam no sessionStorage da aba (some ao fechar) para que recarregar
+  // a página não gaste outra consulta ao Google. Falhas não são guardadas e tentam de novo na próxima carga.
+  const placesKey = () => `soci:prospect-places:${data().access?.agencyId || 'agencia'}`;
+  let placesRestored = false;
+  function restorePlaces() {
+    if (placesRestored) return;
+    placesRestored = true;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(placesKey()) || '{}');
+      for (const [placeId,place] of Object.entries(saved)) if (place && typeof place === 'object' && !S.places.has(placeId)) S.places.set(placeId,place);
+    } catch { /* Sem sessionStorage: os dados são lidos do servidor. */ }
+  }
+  function rememberPlaces() {
+    try { sessionStorage.setItem(placesKey(),JSON.stringify(Object.fromEntries([...S.places].filter(([,place]) => place).slice(-500)))); }
+    catch { /* Aba privada ou armazenamento cheio: fica só na memória da página. */ }
+  }
   function loadPlaces(rows) {
+    restorePlaces();
     const wanted = rows.filter(row => isGooglePlace(row?.placeId) && !S.places.has(row.placeId) && !S.placesPending.has(row.placeId));
     if (!wanted.length || !data().features?.prospectingMaps) return;
     const placeIds = [...new Set(wanted.map(row => row.placeId))];
     for (const placeId of placeIds) S.placesPending.add(placeId);
     call('prospecting-places',{ids:wanted.map(row => row.id).slice(0,60)})
-      .then(found => { for (const placeId of placeIds) S.places.set(placeId,found?.[placeId] || null); })
+      .then(found => { for (const placeId of placeIds) S.places.set(placeId,found?.[placeId] || null); rememberPlaces(); })
       .catch(() => { for (const placeId of placeIds) S.places.set(placeId,null); })
       .finally(() => { for (const placeId of placeIds) S.placesPending.delete(placeId); render(); });
   }
