@@ -197,7 +197,7 @@ export function startAgency(env) {
         text: initials(session?.name || company.name || D().profile.name || 'AG'),
         picture: session?.picture,
         label: session?.name || tr('Configurações da agência'),
-        attr: session ? 'data-act="account"' : 'data-ag="go-profile"'
+        attr: session ? 'data-act="account" aria-haspopup="dialog"' : 'data-ag="go-profile"'
       }
     })}${acting ? `<div class="ag-banner acting" role="status"><b>Agindo como ${h(A.data.access?.name || '')}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>` : ''}<main id="screen" class="screen${A.page === 'ask' ? ' screen-ask-chat' : ''}">${content}</main></div></div>`;
   }

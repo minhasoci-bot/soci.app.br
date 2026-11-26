@@ -42,6 +42,7 @@ import { createSeoRoutes } from './routes/seo.mjs';
 import { createAbacatePayRoutes, createAbacatePayWorkspaceRoutes, createWalletRoutes } from './routes/payments.mjs';
 import { createConnectorHookRoutes, createConnectorRoutes } from './routes/connectors.mjs';
 import { createPhoneRoutes, createTwilioWebhookRoutes } from './routes/phone.mjs';
+import { createAuthRoutes } from './routes/auth.mjs';
 import { createPushRoutes } from './routes/push.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
@@ -179,7 +180,7 @@ export const staticFiles = new Map([
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
   ['/beautiful-ui.js','text/javascript; charset=utf-8'], ['/beautiful-ui.css','text/css; charset=utf-8'],
   ['/beautiful-ui-more.js','text/javascript; charset=utf-8'], ['/beautiful-ui.html','text/html; charset=utf-8'], ['/bui-mounts.js','text/javascript; charset=utf-8'],
-  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'], ['/ask.js','text/javascript; charset=utf-8'], ['/ask.css','text/css; charset=utf-8'], ['/scope.css','text/css; charset=utf-8'],
+  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'], ['/ask.js','text/javascript; charset=utf-8'], ['/ask.css','text/css; charset=utf-8'], ['/accounts.js','text/javascript; charset=utf-8'], ['/accounts.css','text/css; charset=utf-8'], ['/account-guard.js','text/javascript; charset=utf-8'], ['/scope.css','text/css; charset=utf-8'],
   ['/vendor/marked.js','text/javascript; charset=utf-8'], ['/vendor/purify.js','text/javascript; charset=utf-8'],
   ['/color-picker.js','text/javascript; charset=utf-8'],
   ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],
@@ -598,6 +599,12 @@ export function makeServer({
     if (!requestUsers.has(req)) {
       requestUsers.set(req, auth.user(req,res).then(user => {
         if (!user) throw error('Entre na sua conta para continuar.',401);
+        // Uma aba aberta antes da troca de conta diz em qual conta está: se não é mais esta, nada é lido nem gravado.
+        const tabAccount = req.headers['x-soci-account'];
+        if (tabAccount && tabAccount !== user.id) {
+          res.setHeader('X-Soci-Account-Changed','1');
+          throw Object.assign(error('Você trocou de conta em outra aba. Recarregue a página para continuar.',409), { code: 'ACCOUNT_CHANGED' });
+        }
         return accountProfile(user);
       }));
     }
@@ -2255,6 +2262,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const connectorHookRoute = createConnectorHookRoutes({ store, ready, error, change, flushLater, publicAccountPolicy, connectorAuth });
   const twilioRoute = createTwilioWebhookRoutes({ ready, phone });
   const connectorRoute = createConnectorRoutes({ store, error, spaceId, privateSpace, change, payload, publicBase, requireActiveAccount, workspaceAccess, connectorRequest });
+  const authRoute = createAuthRoutes({ auth, ready, error, payload, accessContext });
   const pushRoute = createPushRoutes({ error, spaceId, privateSpace, change, payload, pushEnv, access, loadAgency, workspaceAccess });
   const phoneRoute = createPhoneRoutes({ error, spaceId, privateSpace, phone, payload, workspaceAccess });
   const inboxRoute = createInboxRoutes({ store, error, spaceId, privateSpace, workspaceAccess });
@@ -2394,26 +2402,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       // White Label: o login aberto no domínio de uma agência mostra a marca dela.
       if (p === '/api/marca' && method === 'GET') { await ready; return json(await whiteLabelBrand(store, requestHost(req))); }
-      if (p.startsWith('/api/auth/')) {
-        if (!auth) throw error('O login do Supabase ainda não foi configurado.',503);
-        const operation = p.slice('/api/auth/'.length);
-        if (operation === 'callback/google' && method === 'GET') {
-          return goTo(await auth.callback(req,res,url.searchParams,async (session,next) => {
-            await ready;
-            const { who } = await accessContext(req,session);
-            return who.owner && who.agencyId !== AGENCY_ID && !/[?#]/.test(next) ? '/app#agency/dashboard' : next;
-          }));
-        }
-        if (operation === 'logout' && method === 'POST') {
-          await auth.logout(req,res);
-          return json({ ok:true });
-        }
-        if (operation === 'google' && method === 'POST') {
-          const input = await payload(req);
-          return json({ url:await auth.google(req,res,url.origin,input.next) });
-        }
-        throw error('Page not found.',404);
-      }
+      const authRouteHandled = await authRoute({ req, res, p, method, url, json, goTo });
+      if (authRouteHandled !== NEXT_ROUTE) return authRouteHandled;
       if (p === '/api/openai') {
         const session = await verifiedUser(req,res);
         if (!session) throw error('Entre na sua conta para conectar sua chave da OpenAI.',401);
@@ -2780,7 +2770,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (!res.headersSent) json({
         error: e.status ? e.message : 'The workspace could not complete this request.',
-        ...(e.code === 'ACCOUNT_SUSPENDED' && { code: e.code, account: e.account }), ...(e.code === 'FISCAL_REQUIRED' && { code: e.code })
+        ...(e.code === 'ACCOUNT_SUSPENDED' && { code: e.code, account: e.account }), ...(['FISCAL_REQUIRED', 'ACCOUNT_CHANGED', 'ACCOUNT_SIGNED_OUT'].includes(e.code) && { code: e.code })
       }, e.status || 500);
     }
   });

@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { activeAccountId } from './auth.mjs';
 import { courseOutline, memberCourse, memberCourseCard } from './course-model.mjs';
 import { withCommunityGrants } from './community-academy.mjs';
 import { gradeQuiz } from './course-learning.mjs';
@@ -21,14 +22,19 @@ const blankPortal = () => ({
   members: [], links: [], sessions: []
 });
 
-export function portalCookie(req, res, workspace, token, secure) {
+// `staff`: a equipe entrou pelo app. O cookie leva a conta soci que entrou e só vale enquanto ela está aberta: trocar de
+// conta (ou sair) não deixa a próxima agir no portal como a anterior.
+export function portalCookie(req, res, workspace, token, secure, { staff = false } = {}) {
   const name = secure ? '__Secure-soci_portal' : 'soci_portal';
   if (token !== undefined) {
-    res.appendHeader('Set-Cookie', `${name}=${token}; Path=/api/client-portal/${workspace}/; HttpOnly; SameSite=Lax; Max-Age=${token ? sessionSeconds : 0}${secure ? '; Secure' : ''}`);
+    const owner = staff && token ? activeAccountId(req) : '';
+    res.appendHeader('Set-Cookie', `${name}=${token}${owner && '~' + owner}; Path=/api/client-portal/${workspace}/; HttpOnly; SameSite=Lax; Max-Age=${token ? sessionSeconds : 0}${secure ? '; Secure' : ''}`);
     return;
   }
   const prefix = name + '=';
-  return req.headers.cookie?.split(';').map(value => value.trim()).find(value => value.startsWith(prefix))?.slice(prefix.length) || '';
+  const value = req.headers.cookie?.split(';').map(part => part.trim()).find(part => part.startsWith(prefix))?.slice(prefix.length) || '';
+  const [session, owner] = value.split('~');
+  return owner && owner !== activeAccountId(req) ? '' : session;
 }
 
 function courseIds(state, input) {
