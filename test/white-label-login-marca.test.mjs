@@ -18,7 +18,7 @@ test('The login on an agency domain arrives with its name, logo, color and foote
   assert.match(page, /<meta name="theme-color" content="#2f9e44">/);
   assert.match(page, /Acesse a plataforma graao com a sua conta Google\./);
   assert.match(page, /© \d{4} graao\.</);
-  assert.match(page, /<html lang="pt-BR" data-marca="agencia">/, 'o login.js não troca de novo o que o servidor já montou');
+  assert.match(page, /<html lang="pt-BR" data-marca="agencia" data-marca-nome="graao"/, 'o login.js não troca de novo o que o servidor já montou');
   assert.match(page, /--marca:#2f9e44/);
   const shown = [...page.matchAll(/(?:alt|aria-label|content)="([^"]*)"/g)].map(m => m[1]).join(' ');
   const text = page.replace(/<style[\s\S]*?<\/style>|<[^>]+>/g, ' ');

@@ -2,6 +2,7 @@
 // convidado de agência ainda não ativada ou agência bloqueada). A confirmação é a pessoa mandando
 // "Confirmar soci XXXXXX" pelo WhatsApp; a tela consulta /api/verify/status até a mensagem chegar.
 import { qrSvg } from './qr.js';
+import { domainBrand } from './icons.js';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const POLL_MS = 3000;
@@ -18,7 +19,7 @@ export function statusMessage({ status, reason } = {}) {
 
 const errorLine = error => `<p class="vf-error" role="alert">${esc(error || '')}</p>`;
 
-export function verifyView(state = {}) {
+export function verifyView(state = {}, marca = domainBrand()) {
   if (state.step === 'waiting') {
     return `<section class="vf-card">
       <h1>Mande a mensagem no WhatsApp</h1>
@@ -34,7 +35,7 @@ export function verifyView(state = {}) {
   }
   return `<section class="vf-card">
     <h1>Confirme seu celular</h1>
-    <p>Cada conta da soci fica ligada a um celular com WhatsApp. Depois da confirmação você tem 15 dias de teste grátis, sem cartão.</p>
+    <p>${marca ? 'Para continuar, confirme o celular com WhatsApp do responsável pela conta.' : 'Cada conta da soci fica ligada a um celular com WhatsApp. Depois da confirmação você tem 15 dias de teste grátis, sem cartão.'}</p>
     <form data-vf-form>
       <label>Celular com WhatsApp
         <input type="tel" name="phone" autocomplete="tel" inputmode="tel" required placeholder="(11) 91234-5678" value="${esc(state.phone || '')}">
@@ -46,11 +47,16 @@ export function verifyView(state = {}) {
   </section>`;
 }
 
+const titles = { AGENCY_BLOCKED: 'Agência bloqueada', SIGNUP_CLOSED: 'Cadastro fechado', NOT_INVITED: 'Acesso não liberado' };
+
 /** O que cobre o app enquanto a agência não pode usar: formulário para o dono, aviso para os outros casos. */
-export function gateView({ code, error } = {}, state = { step: 'form' }) {
-  const inner = code === 'PHONE_REQUIRED' ? verifyView(state)
-    : `<section class="vf-card"><h1>${code === 'AGENCY_BLOCKED' ? 'Agência bloqueada' : code === 'SIGNUP_CLOSED' ? 'Cadastro fechado' : 'Quase lá'}</h1><p>${esc(error)}</p></section>`;
-  return `<div class="vf-brand">soci</div>${inner}<button type="button" class="vf-logout" data-vf-logout>Sair</button>`;
+export function gateView({ code, error } = {}, state = { step: 'form' }, marca = domainBrand()) {
+  const inner = code === 'PHONE_REQUIRED' ? verifyView(state, marca)
+    : `<section class="vf-card"><h1>${titles[code] || 'Quase lá'}</h1><p>${esc(error)}</p></section>`;
+  // White Label: no domínio da agência, o topo mostra o logotipo ou o nome dela no lugar da soci.
+  const brand = !marca ? 'soci' : marca.logo ? `<img class="vf-brand-logo" src="${esc(marca.logo)}" alt="${esc(marca.name)}">` : esc(marca.name);
+  const leave = code === 'NOT_INVITED' ? 'Entrar com outra conta' : 'Sair';
+  return `<div class="vf-brand">${brand}</div>${inner}<button type="button" class="vf-logout" data-vf-logout>${leave}</button>`;
 }
 
 export function mountGate(root, { code, error, api, onDone, open = link => window.open(link, '_blank', 'noopener') }) {

@@ -21,7 +21,7 @@ import { createQrRoutes } from './routes/qr.mjs';
 import { createAffiliateRoutes } from './routes/affiliates.mjs';
 import { createOfferApiRoutes, createOfferPageRoutes } from './routes/offers.mjs';
 import { createPaymentLinkRoutes } from './routes/payment-links.mjs';
-import { hostingDomains, requireFreeDomain, whiteLabelHost } from './white-label.mjs';
+import { hostingDomains, isPlatformHost, requestHost, requireFreeDomain, whiteLabelAgency, whiteLabelHost } from './white-label.mjs';
 import { createBookingRoutes } from './routes/booking.mjs';
 import { createPreferenceRoutes } from './routes/preferences.mjs';
 import { createAgencyAppRoutes } from './routes/agency-apps.mjs';
@@ -659,6 +659,19 @@ export function makeServer({
     const closed = agencyGate(agency, invited);
     if (closed) throw Object.assign(error(closed.error, 402), { code: closed.code, billing: publicBilling(agency.billing, new Date()) });
   }
+  // Qual agência é dona do domínio da requisição ({ id, name }) ou null na soci. Só o id e o nome ficam um minuto em
+  // memória: o resto da agência é sempre lido de novo.
+  const domainAgencies = new Map();
+  async function domainAgency(req) {
+    const host = req ? requestHost(req) : '';
+    if (isPlatformHost(host)) return null;
+    const cached = domainAgencies.get(host);
+    if (cached && cached.expiresAt > Date.now()) return cached.agency;
+    const owner = await whiteLabelAgency(store, host);
+    const agency = owner ? { id: owner.id, name: owner.state?.company?.name || 'esta agência' } : null;
+    domainAgencies.set(host, { agency, expiresAt: Date.now() + 60000 });
+    return agency;
+  }
   async function accessContext(req,session,{ gate = true } = {}) {
     if (!session && !localAccess) throw error('O login do Supabase ainda não foi configurado.',503);
     const agencyId = !session || session.id === agencyOwnerId ? AGENCY_ID : `agency-${session.id}`;
@@ -667,7 +680,16 @@ export function makeServer({
     catch (e) { if (e.status !== 404 || agencyId === AGENCY_ID) throw e; }
     if (!agency) {
       const email = session.email.toLowerCase();
-      const invite = await store.findAgency({ users: [{ email, loginEnabled: true }] });
+      // White Label: no domínio de uma agência só entra quem ela liberou; ninguém vira cliente novo da soci por ali.
+      const domain = await domainAgency(req);
+      let invite = await store.findAgency({ users: [{ email, loginEnabled: true }] });
+      if (domain && invite && invite.id !== domain.id) {
+        const state = await store.load(domain.id);
+        invite = hydrateAgency(state, domain.id).users.some(user => user.loginEnabled && user.email === email) ? { id: domain.id, state } : null;
+      }
+      if (domain && !invite) {
+        throw Object.assign(error(`O e-mail ${session.email} ainda não tem acesso a ${domain.name}. Peça a quem administra ${domain.name} para liberar o seu acesso ou entre com outra conta.`, 403), { code: 'NOT_INVITED' });
+      }
       if (invite) {
         agency = hydrateAgency(invite.state, invite.id);
         const member = agency.users.find(user => user.loginEnabled && user.email === email);
@@ -2598,7 +2620,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         error: e.status ? e.message : 'The workspace could not complete this request.',
         ...(e.code === 'ACCOUNT_SUSPENDED' && { code: e.code, account: e.account }), ...(['FISCAL_REQUIRED', 'ACCOUNT_CHANGED', 'ACCOUNT_SIGNED_OUT'].includes(e.code) && { code: e.code }),
         ...(['PHONE_REQUIRED', 'AGENCY_BLOCKED', 'AGENCY_NOT_ACTIVE'].includes(e.code) && { code: e.code, billing: e.billing }),
-        ...(['PHONE_TAKEN', 'VERIFY_OFF', 'ALREADY_VERIFIED', 'SIGNUP_CLOSED'].includes(e.code) && { code: e.code })
+        ...(['PHONE_TAKEN', 'VERIFY_OFF', 'ALREADY_VERIFIED', 'SIGNUP_CLOSED', 'NOT_INVITED'].includes(e.code) && { code: e.code })
       }, e.status || 500);
     }
   });

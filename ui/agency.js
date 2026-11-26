@@ -1,4 +1,4 @@
-import { brandHighlight, brandIcon, icon as i, logo, brandName, bootScreen, shcLayers } from './icons.js';
+import { brandHighlight, brandIcon, icon as i, logo, brandName, bootScreen, domainBrand, shcLayers } from './icons.js';
 import { rodapeHtml } from './rodape.js';
 import { desktopPage, desktopPreview, readDesktop } from './agency-desktop.js';
 import { createMobileCreator } from './agency-mobile.js';
@@ -1252,7 +1252,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     }
     const prev = document.querySelector('#screen')?.scrollTop || 0;
     const page = pages[A.page] || pages.dashboard;
-    document.title = 'soci';
+    document.title = domainBrand()?.name || 'soci';
     applyBrandColor(D().company.primary, D().company.secondary, D().company.accent);
     // The menu stays put while the page redraws: same markup keeps the very same element (no flash, no
     // replayed indicator); a changed one at least keeps where it was scrolled.
