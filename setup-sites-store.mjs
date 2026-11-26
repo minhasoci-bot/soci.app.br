@@ -5,11 +5,13 @@
 const indexId = snapshotId => `setup-sites-${snapshotId}`;
 const rowId = (snapshotId, projectId) => `setup-sites-${snapshotId}-${projectId}`;
 
-async function readRow(store, id) {
+/** A linha, ou null quando não existe. */
+export async function readRow(store, id) {
   try { return await store.load(id); } catch (e) { if (e.status === 404) return null; throw e; }
 }
 
-async function put(store, id, doc) {
+/** Grava a linha inteira, criando ou trocando o conteúdo (também usado pelas linhas temporárias da importação do GHL). */
+export async function putRow(store, id, doc) {
   if (await store.insert(id, doc)) return;
   // A linha já existe (ou ficou vazia num remove sem DELETE no Supabase): troca o conteúdo inteiro.
   await store.change(id, state => {
@@ -22,8 +24,8 @@ async function put(store, id, doc) {
 export async function saveSetupSites(store, snapshotId, sites) {
   await removeSetupSites(store, snapshotId);
   const projects = Object.keys(sites || {});
-  for (const projectId of projects) await put(store, rowId(snapshotId, projectId), sites[projectId]);
-  await put(store, indexId(snapshotId), { snapshotId, projects });
+  for (const projectId of projects) await putRow(store, rowId(snapshotId, projectId), sites[projectId]);
+  await putRow(store, indexId(snapshotId), { snapshotId, projects });
 }
 
 /** Os sites de um setup, no mesmo formato de studioSites; {} quando o setup não tem linhas. */

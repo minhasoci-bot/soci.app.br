@@ -525,7 +525,7 @@ export function convert(source, meta) {
       const fills = [];
       walk(data.sections);
       const raw = page(p._id);
-      if (!raw) note(`Página "${p.name}" sem HTML baixado.`);
+      if (!raw) note(`A página "${p.name}" não pôde ser baixada.`);
       for (const { url } of backgrounds) for (const key of url.matchAll(/custom_values\.(\w+)/g)) pageValues.add(key[1]);
       const html = raw ? cleanPage(raw, { title: p.name, elements, fills, links, backgrounds }) : `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${p.name}</title></head><body><h1>${p.name}</h1></body></html>`;
       return { name: p.name.replace(/\s+clone(\s+clone)*$/i, '').trim() || p.name, slug: slugs[i], html };

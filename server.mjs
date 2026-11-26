@@ -47,6 +47,8 @@ import { createAppApiRoutes, createAppInstallRoutes } from './routes/apps.mjs';
 import { createProspectPublicRoutes } from './routes/prospect-public.mjs';
 import { createAccountRoutes, createWhiteLabelRoutes } from './routes/account.mjs';
 import { createAgencyRoutes } from './routes/agency.mjs';
+import { createGhlImportRoutes, GHL_IMPORT_PUBLIC } from './routes/ghl-import.mjs';
+import { jobView } from './ghl-import-model.mjs';
 import { createFaviconRoutes, createPageRoutes } from './routes/pages.mjs';
 import { createWorkspaceRoutes } from './routes/workspace.mjs';
 import { createConnectorHookRoutes, createConnectorRoutes } from './routes/connectors.mjs';
@@ -250,6 +252,7 @@ function publicAgency(agency, who) {
   const { audit: _audit, ledgerOutbox: _outbox, mcpGrants: _grants, ...shared } = agency;
   const view = { ...shared,
     snapshots: agency.snapshots.map(({ studioSites: _studioSites, ...rest }) => rest),
+    ghlImports: (agency.ghlImports || []).map(jobView),
     apiKeys: agency.apiKeys.map(({ hash: _hash, ...rest }) => rest),
     privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest),
     billing: safeBilling(agency.billing)
@@ -292,7 +295,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 
 export function makeServer({
   pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=localScheduler(store.kind), cronConcurrency=4, cronBudgetMs=45_000,
-  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, inboundFetch=fetch, twilioRequest=fetch, phoneEnv=process.env, brandResolve=null, designAgentConfig=designAgent,
+  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, ghlFetch=fetch, metaFetch=fetch, inboundFetch=fetch, twilioRequest=fetch, phoneEnv=process.env, brandResolve=null, designAgentConfig=designAgent,
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   evolutionBaseUrl=process.env.EVOLUTION_BASE_URL || '', evolutionApiKey=process.env.EVOLUTION_API_KEY || '',
   phoneVerify={ number: process.env.SOCI_VERIFY_WHATSAPP || '', instance: process.env.SOCI_VERIFY_INSTANCE || '', secret: process.env.SOCI_VERIFY_SECRET || '' },
@@ -2391,6 +2394,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const whiteLabelRoute = createWhiteLabelRoutes({ store, ready });
   const accountRoute = createAccountRoutes({ error, verifiedUser, openAI, payload, access, createAccount, listWorkspaces, visibleWorkspaces });
   const workspaceRoute = createWorkspaceRoutes({ store, error, spaceId, privateSpace, accessContext, verifiedUser, requireWorkspaceAccess, visibleWorkspaces, workspaceAccess, payload, openAI, writeAudit, localAccess, contentAI, reportMail, agentModel });
+  const ghlImportRoute = createGhlImportRoutes({ store, error, access, loadAgency, changeAgency, logTo, ghlFetch,
+    publicOrigin: String(process.env.PORTAL_PUBLIC_ORIGIN || 'https://soci.app.br').replace(/\/+$/, '') });
   const agencyRoute = createAgencyRoutes({ error, spaceId, privateSpace, access, accessContext, verifiedUser, requireWorkspaceAccess, visibleWorkspaces, agencyPayload, agencyRequest, auditLog, payload });
   const pageRoute = createPageRoutes({ store, ready, error, workspaceSegment, payload, change, publicAccountPolicy, staticFiles, sessionOnlyFiles, localAccess, auth, pranchetaEditorCsp, root });
   const server=createServer(async (req,res) => {
@@ -2430,9 +2435,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (!p.startsWith('/')) p = '/' + p;
       p = p.replace(/\/+/g, '/');
       const method=req.method;
-      if (!['GET','HEAD','POST'].includes(method)) throw error('Method not allowed.',405);
+      // Importar do GHL: a extensão do Chrome envia de chrome-extension://, autenticada pelo código de importação.
+      const ghlImportPublic = GHL_IMPORT_PUBLIC.test(p);
+      if (!['GET','HEAD','POST'].includes(method) && !(ghlImportPublic && method === 'OPTIONS')) throw error('Method not allowed.',405);
       // Tracking events come from the business's own site, so they are the one cross-site POST accepted.
-      if (method==='POST' && !trackingPath.test(p) && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
+      if (method==='POST' && !trackingPath.test(p) && !ghlImportPublic && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
       if (p.startsWith('/api/') && !p.startsWith('/api/auth/')) await ready;
       const id=url.searchParams.get('workspace') || 'demo';
       const portalRouteHandled = await portalRoute({ req, res, p, method, url, id, json, send, proto });
@@ -2467,6 +2474,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (mcpRouteHandled !== NEXT_ROUTE) return mcpRouteHandled;
       const actionRouteHandled = await actionRoute({ req, res, p, method, url, id, json, send });
       if (actionRouteHandled !== NEXT_ROUTE) return actionRouteHandled;
+      const ghlImportRouteHandled = await ghlImportRoute({ req, res, p, method, json });
+      if (ghlImportRouteHandled !== NEXT_ROUTE) return ghlImportRouteHandled;
       const agencyRouteHandled = await agencyRoute({ req, res, p, method, url, id, json });
       if (agencyRouteHandled !== NEXT_ROUTE) return agencyRouteHandled;
       const abacatePayRouteHandled = await abacatePayRoute({ req, res, p, method, url, json });
