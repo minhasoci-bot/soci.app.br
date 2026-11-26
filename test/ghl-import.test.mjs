@@ -181,3 +181,9 @@ test('a recent import still in progress keeps its rows when a new code is made',
   assert.equal((await local.store.list()).filter(row => row.id.startsWith(`ghl-import-${first.body.jobId}`)).length, 1);
   assert.equal((await local.call(`/api/agency/ghl-import/${first.body.jobId}`)).body.status, 'receiving');
 });
+
+test('report says when email templates lost their images', async t => {
+  const emailTemplates = [{ id: 'em1', name: 'Boas-vindas', html: `<html><body><p>Olá</p><img src="${IMAGE}"></body></html>` }];
+  const { job } = await runImport(t, { source: { ...fixture, dump: { ...fixture.dump, emailTemplates } } });
+  assert.ok(job.notes.some(text => /e-mail/.test(text) && /imagens/.test(text)), job.notes.join(' | '));
+});
