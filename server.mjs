@@ -42,6 +42,8 @@ import { createSeoRoutes } from './routes/seo.mjs';
 import { createAbacatePayRoutes, createAbacatePayWorkspaceRoutes, createWalletRoutes } from './routes/payments.mjs';
 import { createDriveRoutes, createPublicMediaRoutes, createVideoRoutes } from './routes/media.mjs';
 import { createTrackingRoutes } from './routes/tracking.mjs';
+import { createAppApiRoutes, createAppInstallRoutes } from './routes/apps.mjs';
+import { createProspectPublicRoutes } from './routes/prospect-public.mjs';
 import { createConnectorHookRoutes, createConnectorRoutes } from './routes/connectors.mjs';
 import { createPhoneRoutes, createTwilioWebhookRoutes } from './routes/phone.mjs';
 import { createAuthRoutes } from './routes/auth.mjs';
@@ -64,7 +66,7 @@ import { agentWorkflowRequest, recordAgentRun } from './agent-model.mjs';
 import { agencyAiUsage, checkAiBudget, setAiAccess, setAiLimit, usageMeter } from './ai-model.mjs';
 import { setLabsOffer } from './labs-model.mjs';
 import { writeConversationReply, writeConversationSummary } from './conversation-ai.mjs';
-import { addInstall, appSecret, appSignature, installedCopy, removeInstall, tokenHash as appTokenHash } from './app-studio-model.mjs';
+import { appSecret, appSignature, installedCopy, tokenHash as appTokenHash } from './app-studio-model.mjs';
 import { transformText, writeBrandVoice, writeEmail, writeReviewReply } from './content-ai.mjs';
 import { brandVoicePrompt, defaultBoard } from './ui/brand-data.js';
 import { runWorkflowAI } from './workflow-ai.mjs';
@@ -72,7 +74,7 @@ import { mediaRowId } from './reputation-media.mjs';
 import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate } from './agency-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
-import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
+import { runProspectingAction } from './prospecting-model.mjs';
 import { collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
 import { r2FromEnv } from './r2-storage.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
@@ -116,7 +118,6 @@ function referralsOf(req) {
 // Visitor-facing requests (pages, forms, store, chat, webinar, offers). App screens never attribute.
 const publicRequest = path => !path.startsWith('/api/') || /^\/api\/(store|chat|webinar|offer|avaliar|depoimento)\//.test(path);
 import { folded, prospectSearchText } from './ui/prospecting-data.js';
-import { shareReportHtml, widgetHtml } from './ui/prospect-report.js';
 import { snapshotAssets } from './ui/agency-data.js';
 import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, workspaceView } from './authorization.mjs';
 import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, settle } from './social-model.mjs';
@@ -233,8 +234,6 @@ const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
 // The tracking script (/t/<workspace>.js), the pixels loader (/t/<workspace>/pixels.js) and events (/t/<workspace>/e).
 const trackingPath = new RegExp(`^/t/${workspaceSegment}(\\.js|/pixels\\.js|/e)$`);
 const landingPath = new RegExp(`^/(s|form|oferta|loja|b|w|q|r)/${workspaceSegment}(?:/|$)`);
-const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
-const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 function publicAgency(agency, who) {
   // The audit log has its own endpoint (GET /api/agency/audit).
   const { audit: _audit, ledgerOutbox: _outbox, mcpGrants: _grants, ...shared } = agency;
@@ -2284,6 +2283,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const driveRoute = createDriveRoutes({ store, error, spaceId, privateSpace, payload, workspaceAccess, r2, fetchMedia, change });
   const trackingRoute = createTrackingRoutes({ store, error, spaceId, privateSpace, payload, workspaceAccess, trackingLog, socialRow, change });
   const videoRoute = createVideoRoutes({ store, error, spaceId, privateSpace, workspaceAccess, sendVideo });
+  const prospectPublicRoute = createProspectPublicRoutes({ store, ready, error, changeAgency, csp });
+  const appApiRoute = createAppApiRoutes({ store, error, appBearer, bearer, payload, change, flushLater, listWorkspaces, requireWorkspaceAccess, loadAgency });
+  const appInstallRoute = createAppInstallRoutes({ store, error, spaceId, workspaceAccess, payload, changeAgency, change, logTo, deliverToApp, publicBase });
   const server=createServer(async (req,res) => {
     const requestPath = String(req.url || '/').split('?')[0];
     const touches = touchesOf(req), landing = requestPath.match(landingPath);
@@ -2329,82 +2331,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       const portalRouteHandled = await portalRoute({ req, res, p, method, url, id, json, send, proto });
       if (portalRouteHandled !== NEXT_ROUTE) return portalRouteHandled;
       if (p === '/favicon.ico') { res.writeHead(302, { Location: '/favicon.svg' }); return res.end(); }
-      if (['/prospecting','/prospecting/','/prospecting/add-prospect'].includes(p) && method !== 'POST') {
-        res.writeHead(302,{Location:p.endsWith('add-prospect') ? '/#agency/prospecting/search' : '/#agency/prospecting'});
-        return res.end();
-      }
-      const prospectPublic = p.match(prospectPublicPath);
-      if (prospectPublic) {
-        await ready;
-        const [,kind,token] = prospectPublic;
-        if (kind === 'report') {
-          if (method === 'POST') throw error('Method not allowed.',405);
-          const findReport = agency => agency.prospects.find(row => row.shareId === token && !row.archived && row.report);
-          const match = await store.findAgency({ prospects: [{ shareId: token }] });
-          const prospect = match && findReport(hydrateAgency(match.state));
-          if (!prospect) throw error('Relatório indisponível.',404);
-          if (method === 'GET' && !String(req.headers.purpose || req.headers['sec-purpose'] || '').includes('prefetch')) {
-            try {
-              await changeAgency(match.id, agency => {
-                const row = findReport(agency);
-                if (!row) return;
-                const date = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-                row.views[date] = (row.views[date] || 0)+1;
-                const dates = Object.keys(row.views).sort();
-                for (const old of dates.slice(0,Math.max(0,dates.length-370))) delete row.views[old];
-              });
-            } catch { /* The report remains available if the view count cannot be updated. */ }
-          }
-          return send(200,'text/html; charset=utf-8',method === 'HEAD' ? undefined : shareReportHtml(prospect.report));
-        }
-        const match = await store.findAgency({ prospecting: { widgets: [{ id: token, active: true }] } });
-        const widget = match?.state.prospecting.widgets.find(item => item.id === token && item.active);
-        if (!widget) throw error('Formulário indisponível.',404);
-        res.setHeader('Content-Security-Policy',csp.replace("frame-ancestors 'none'",'frame-ancestors *'));
-        if (method === 'POST') {
-          if (!/^application\/x-www-form-urlencoded/i.test(req.headers['content-type'] || '')) throw error('Envie os campos do formulário.',415);
-          let size=0; const chunks=[];
-          for await (const part of req) { size+=part.length; if (size>12000) throw error('Formulário muito longo.',413); chunks.push(part); }
-          const data = Object.fromEntries(new URLSearchParams(Buffer.concat(chunks).toString('utf8')));
-          try { if (!data.fax) await changeAgency(match.id, agency => captureProspectWidget(agency,token,data)); }
-          catch (error) { if (error.status) return send(error.status,'text/html; charset=utf-8',widgetHtml(widget,false,error.message)); throw error; }
-          res.writeHead(303,{Location:`${p}?sent=1`}); return res.end();
-        }
-        return send(200,'text/html; charset=utf-8',method === 'HEAD' ? undefined : widgetHtml(widget,url.searchParams.has('sent')));
-      }
-      // A marketplace app fires one of its workflow triggers in the sub-account it is installed in.
-      if (p === '/api/apps/v1/trigger' && method === 'POST') {
-        const { install } = await appBearer(req);
-        const body = await payload(req);
-        const result = await change(install.account, { type: 'app-trigger', data: { appId: install.appId, key: String(body.trigger || ''),
-          contact: body.contact && typeof body.contact === 'object' ? body.contact : {}, payload: body.data } });
-        flushLater(install.account);
-        return json({ ok: true, ...result.id }, 202);
-      }
-      const apiMatch = p.match(apiPath);
-      if (apiMatch) {
-        const [, account] = apiMatch;
-        if (!account) {
-          if (method !== 'GET') throw error('Method not allowed.',405);
-          if (String(req.headers.authorization || '').includes('soci_app_')) {
-            const { agencyId, install } = await appBearer(req);
-            return json({ subaccounts: (await listWorkspaces(agencyId)).filter(w => w.id === install.account) });
-          }
-          const agencyId = await bearer(req,'subaccounts.read');
-          return json({ subaccounts: await listWorkspaces(agencyId) });
-        }
-        const agencyId = await bearer(req,method === 'POST' ? 'contacts.write' : 'contacts.read');
-        if (req.appAccount && req.appAccount !== account) throw error('O token deste app só vale para a subconta onde ele foi instalado.', 403);
-        const input = method === 'POST' ? await payload(req) : null;
-        await requireWorkspaceAccess(await loadAgency(agencyId), { agencyId, modules: null }, account, {
-          modules: ['contacts'], hide: true, reason: false
-        });
-        if (method !== 'POST') {
-          return json({ contacts: (await store.load(account)).contacts });
-        }
-        const created = await change(account,{ type:'save', key:'contacts', data: input });
-        return json({ id: created.id },201);
-      }
+      const prospectPublicRouteHandled = await prospectPublicRoute({ req, res, p, method, url, send });
+      if (prospectPublicRouteHandled !== NEXT_ROUTE) return prospectPublicRouteHandled;
+      const appApiRouteHandled = await appApiRoute({ req, p, method, json });
+      if (appApiRouteHandled !== NEXT_ROUTE) return appApiRouteHandled;
       // White Label: o login aberto no domínio de uma agência mostra a marca dela.
       if (p === '/api/marca' && method === 'GET') { await ready; return json(await whiteLabelBrand(store, requestHost(req))); }
       const authRouteHandled = await authRoute({ req, res, p, method, url, json, goTo });
@@ -2537,40 +2467,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (videoRouteHandled !== NEXT_ROUTE) return videoRouteHandled;
       const brandAIRouteHandled = await brandAIRoute({ req, res, p, method, id, json });
       if (brandAIRouteHandled !== NEXT_ROUTE) return brandAIRouteHandled;
-      // App marketplace (7.3): a sub-account installs or removes an app its agency published.
-      const appAction = p.match(/^\/api\/apps\/(install|uninstall)$/);
-      if (appAction && method === 'POST') {
-        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
-        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
-        const body = await payload(req);
-        const agencyId = (await store.load(id)).agencyId || AGENCY_ID;
-        if (appAction[1] === 'install') {
-          const { app, install, token } = await changeAgency(agencyId, agency => {
-            const made = addInstall(agency, String(body.appId || ''), id, who.name);
-            logTo(agency, who, 'App installed', made.app.name, id);
-            return made;
-          });
-          await change(id, { type: 'app-installed', data: { copy: installedCopy(app, install) } });
-          // The app gets its token once, in the signed "app.installed" notice; Soci keeps only its hash.
-          const sent = app.webhookUrl
-            ? await deliverToApp(agencyId, id, app.id, { type: 'app.installed', token: app.scopes.length ? token : '', scopes: app.scopes, events: app.events,
-              api: { base: `${publicBase(req)}/api/v1`, trigger: `${publicBase(req)}/api/apps/v1/trigger` } })
-            : { name: app.name, text: 'sem webhook' };
-          await change(id, { type: 'app-log', data: { entries: [{ app: app.name, appId: app.id, kind: 'install', text: `Instalado por ${who.name}: ${sent.text}` }] } });
-          return json({ ...workspaceView(who, (await store.load(id))), installed: app.id, delivery: sent.text }, 201);
-        }
-        const removed = await changeAgency(agencyId, agency => {
-          const made = removeInstall(agency, String(body.installId || ''), id);
-          logTo(agency, who, 'App uninstalled', made.app?.name || made.install.appId, id);
-          return made;
-        });
-        await change(id, { type: 'app-removed', data: { appId: removed.install.appId } });
-        if (removed.app?.webhookUrl) {
-          const sent = await deliverToApp(agencyId, id, removed.app.id, { type: 'app.uninstalled', installId: removed.install.id });
-          await change(id, { type: 'app-log', data: { entries: [{ app: removed.app.name, appId: removed.app.id, kind: 'uninstall', text: `Desinstalado por ${who.name}: ${sent.text}` }] } });
-        }
-        return json({ ...workspaceView(who, (await store.load(id))), removed: removed.install.appId });
-      }
+      const appInstallRouteHandled = await appInstallRoute({ req, res, p, method, id, json });
+      if (appInstallRouteHandled !== NEXT_ROUTE) return appInstallRouteHandled;
       const conversationAIRouteHandled = await conversationAIRoute({ req, res, p, method, url, id, json });
       if (conversationAIRouteHandled !== NEXT_ROUTE) return conversationAIRouteHandled;
       const walletRouteHandled = await walletRoute({ req, res, p, method, id, json });
