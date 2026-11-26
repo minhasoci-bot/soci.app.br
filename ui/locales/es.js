@@ -6456,7 +6456,8 @@ export default {
   "Noite neon": "Noche neón",
   "versão": "versión",
   "opcional": "opcional",
-  "qua": "mié",
+  "qua": "mié"
+,
   "Registro excluído.": "Registro eliminado.",
   "Perfil da empresa salvo.": "Perfil de la empresa guardado.",
   "Etapa salva.": "Etapa guardada.",

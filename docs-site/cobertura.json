@@ -189,6 +189,13 @@
     "status": "escrito"
   },
   {
+    "grupo": "marketing",
+    "artigo": "planejador-de-eventos",
+    "titulo": "Planejar um evento e enviar as mensagens",
+    "fase": "extra",
+    "status": "escrito"
+  },
+  {
     "grupo": "reputacao",
     "artigo": "pedidos-de-avaliacao",
     "titulo": "Pedidos de avaliação",
