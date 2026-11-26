@@ -93,8 +93,9 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-brand);outline-of
 .side-account:hover{border-color:var(--g-brand-line);box-shadow:var(--g-shadow)}
 .side-account:active{transform:scale(.98)}
 .side-avatar{flex:none;width:30px;height:30px;display:grid;place-items:center;border-radius:var(--r-control);background:var(--g-grad-brand);color:var(--g-grad-on,#fff);font-size:12px;font-weight:800;letter-spacing:-.02em}
-.side-avatar-logo{background:var(--g-surface-2);border:1px solid var(--g-line);padding:3px;overflow:hidden}
-.side-avatar-logo img{width:100%;height:100%;object-fit:contain;display:block}
+.side-avatar-logo{background:var(--g-surface-2);border:1px solid var(--g-line);padding:0;overflow:hidden}
+/* O logotipo da agência preenche o formato do avatar (antes ficava pequeno, com fundo sobrando em volta). */
+.side-avatar-logo img{width:100%;height:100%;object-fit:cover;display:block}
 .side-account-text{flex:1;display:grid;line-height:1.25}
 .side-account-text b{font-size:13px;font-weight:750;overflow:hidden;text-overflow:ellipsis}
 .side-account-text small{font-size:12px;color:var(--g-dim);overflow:hidden;text-overflow:ellipsis}
