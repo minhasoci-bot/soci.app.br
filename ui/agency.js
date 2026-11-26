@@ -26,6 +26,7 @@ import { apiScopes,
   appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav, agencyNavGroups, helpCenterUrl, walletProducts
 } from './agency-data.js';
 import { setupArt } from './setup-art.js';
+import { GHL_RUNNING, ghlImportBody, ghlImportState } from './ghl-import-view.js';
 import { platformPage, platformBanner } from './platform.js';
 
 export { agencyNav };
@@ -99,6 +100,48 @@ export function startAgency(env) {
     d.querySelector('input:not([type=hidden]),select,textarea')?.focus();
   }
   const confirmBox = (title, text, form, id, submit) => dialog(title, `<p>${h(text)}</p>`, { form, id, submit });
+
+  // ---- Importar do GHL ---------------------------------------------------
+  // A janela mostra o código; a extensão do Chrome envia a leitura; daqui a soci consulta o andamento a cada 2 s e,
+  // quando os dados chegam, avança a conversão passo a passo (cada passo leva menos de 20 s no servidor).
+  let ghlJob = '', ghlTimer = null;
+  const stopGhl = () => { clearTimeout(ghlTimer); ghlTimer = null; ghlJob = ''; };
+  function paintGhl(job, summary = '') {
+    const box = G('#dialog [data-ghl-state]');
+    if (!box) return false;
+    box.innerHTML = ghlImportState(job, { summary });
+    for (const el of box.querySelectorAll('[data-w]')) el.style.width = `${el.dataset.w}%`;
+    return true;
+  }
+  async function watchGhl(jobId) {
+    if (ghlJob !== jobId || !G('#dialog [data-ghl-state]')) return;
+    let job;
+    try {
+      job = await api(`/api/agency/ghl-import/${jobId}`);
+      while (GHL_RUNNING.includes(job.status) && ghlJob === jobId && paintGhl(job)) job = await api(`/api/agency/ghl-import/${jobId}/step`, {});
+    } catch (problem) {
+      if (!job) { ghlTimer = setTimeout(() => watchGhl(jobId), 4000); return; }
+      job = { ...job, status: 'failed', error: problem.message || 'A conversão parou. Tente de novo.' };
+    }
+    if (ghlJob !== jobId) return;
+    if (job.status === 'waiting' && Date.now() > job.expiresAt) job = { ...job, status: 'failed', error: 'O código expirou. Gere outro para continuar.' };
+    if (job.status === 'done') {
+      A.data = await api('/api/agency');
+      render();
+      const setup = D().snapshots.find(s => s.id === job.snapshotId);
+      paintGhl(job, setup ? assetSummary(setup.counts) : '');
+    } else paintGhl(job);
+    if (['done', 'failed'].includes(job.status)) ghlJob = '';
+    else ghlTimer = setTimeout(() => watchGhl(jobId), 2000);
+  }
+  async function openGhlImport() {
+    stopGhl();
+    const issued = await api('/api/agency/ghl-import-code', {});
+    dialog('Importar do GHL', ghlImportBody({ code: issued.code, expiresAt: issued.expiresAt }), { wide: true, description: 'Traga o snapshot da sua agência no GHL como um setup da soci.' });
+    for (const el of G('#dialog').querySelectorAll('[data-w]')) el.style.width = `${el.dataset.w}%`;
+    ghlJob = issued.jobId;
+    ghlTimer = setTimeout(() => watchGhl(issued.jobId), 2000);
+  }
 
   // ---- Form fields -------------------------------------------------------
   const options = token => token === '@accounts' ? accounts().map(a => [a.id, a.name]) : token === '@modules' ? subAccountModules : token.map(v => [v, tr(v)]);
@@ -471,7 +514,7 @@ export function startAgency(env) {
     'Criativo': 'creative', 'Finanças': 'finance', 'Saúde e Bem-estar': 'health', 'Serviços Residenciais': 'home', 'Seguros': 'insurance', 'Jurídico': 'legal',
     'Agências e Marketing': 'agency', 'Clínicas e Saúde': 'medical', 'Outros Serviços': 'other', 'Restaurantes e Bares': 'food', 'Viagem e Hospitalidade': 'travel'
   };
-  const setupCategory = s => s.marketplaceCategory || (s.kind === 'mine' ? 'Setup da agência' : s.kind === 'imported' ? 'Importado por código' : 'Marketplace');
+  const setupCategory = s => s.marketplaceCategory || (s.kind === 'mine' ? 'Setup da agência' : s.kind === 'imported' ? (s.origin === 'ghl' ? 'Importado do GHL' : 'Importado por código') : 'Marketplace');
   const setupSegment = s => s.marketplaceSegment || categorySegments[s.marketplaceCategory] || (s.kind === 'mine' ? 'agency' : 'other');
   // Search, category filter and grid/list switch shared by the setup galleries (scope keeps each tab's choices apart).
   function galleryToolbar(scope, cats, placeholder, extra = '') {
@@ -508,7 +551,7 @@ export function startAgency(env) {
       <tbody>${rows.map(s => {
         const linked = linkedAccounts(s.id).size;
         const badges = [s.official || s.kind === 'marketplace' ? verified : '', s.shared ? '<span class="badge green">Compartilhado</span>' : '', s.protected ? '<span class="badge blue">Protegido</span>' : '', publishedIds.has(s.id) ? '<span class="badge">No marketplace</span>' : ''].join('');
-        const origin = s.kind === 'marketplace' ? `${s.official ? 'Soci' : h(s.marketplaceAuthor || 'Marketplace')}${s.marketplaceCategory ? ` · ${h(s.marketplaceCategory)}` : ''}` : s.kind === 'imported' ? 'Importado por código' : (s.workspace ? h(accountName(s.workspace)) : 'Setup da agência');
+        const origin = s.kind === 'marketplace' ? `${s.official ? 'Soci' : h(s.marketplaceAuthor || 'Marketplace')}${s.marketplaceCategory ? ` · ${h(s.marketplaceCategory)}` : ''}` : s.kind === 'imported' ? (s.origin === 'ghl' ? 'Importado do GHL' : 'Importado por código') : (s.workspace ? h(accountName(s.workspace)) : 'Setup da agência');
         return `<tr><td><div class="ag-lib-name"><b>${h(s.name)}</b>${badges}</div><small class="dim">${origin} · ${linked ? `${linked} subconta(s) vinculada(s)` : 'nenhuma subconta vinculada'} · ${h(assetSummary(s.counts))}</small></td>
           <td><span class="ag-ver">v${s.version || 1}</span></td><td>${day(dateOf(s), true)}</td>
           <td class="right"><div class="ag-lib-actions">${icon('snapshot-account', 'plus', 'Criar subconta com este setup', s)}${icon('snapshot-rename', 'edit', 'Renomear', s)}${icon('snapshot-load', 'upload', 'Carregar em subcontas', s)}${kebab(s)}</div></td></tr>`;
@@ -561,7 +604,7 @@ export function startAgency(env) {
 
   pages.snapshots = () => {
     const sub = ['mine', 'imported', 'templates', 'history'].includes(A.sub) ? A.sub : 'mine';
-    const actions = `${btn('Importar setup', 'snapshot-import', '', 'secondary', 'download')}${primary('Criar setup', 'snapshot-create')}`;
+    const actions = `${btn('Importar do GHL', 'ghl-import', '', 'secondary', 'download')}${btn('Importar setup', 'snapshot-import', '', 'secondary', 'download')}${primary('Criar setup', 'snapshot-create')}`;
 
     if (sub === 'history') {
       return `<div class="page">${head('Setups de conta', 'Crie e gerencie seus setups', actions)}${tabCard('snapshots', table(['Setup', 'Subconta', 'Modo', 'Adicionados', 'Sobrescritos', 'Ignorados', 'Carregado em'], [...D().snapshotLoads].reverse().map(l => `<tr><td><b>${h(l.snapshot)}</b></td><td>${h(l.account)}</td><td>${l.mode === 'overwrite' ? 'Sobrescrever' : 'Manter existentes'}${l.partial ? ' · seleção' : ''}</td><td>${l.added}</td><td>${l.overwritten}</td><td>${l.skipped}</td><td>${day(l.at, true)}</td></tr>`), empty('Nenhum carregamento registrado', 'Ao carregar um setup em uma subconta, o histórico aparecerá aqui.')), 'Seções de setups')}</div>`;
@@ -572,7 +615,7 @@ export function startAgency(env) {
       const list = D().snapshots.filter(s => mine ? s.kind === 'mine' : s.kind !== 'mine');
       const emptyHtml = mine
         ? `<div class="surface padded ag-explain"><h2>Para que servem os setups de conta</h2><ul><li><b>Reutilização:</b> empacote pipelines, automações, formulários, páginas, agentes de IA e sites da sua melhor subconta.</li><li><b>Consistência:</b> carregue o mesmo setup em cada novo cliente em poucos cliques.</li><li><b>Templates:</b> comece por um dos templates prontos por segmento.</li><li><b>Segurança:</b> contatos, conversas e pagamentos nunca entram no setup.</li></ul><div class="inline-gap">${primary('Criar setup', 'snapshot-create')}${btn('Ver templates de setup', 'go-templates')}</div></div>`
-        : `<div class="surface padded ag-explain"><h2>Nenhum setup importado ainda</h2><p class="dim">Setups que você importar por código ou salvar a partir dos templates aparecem aqui.</p><div class="inline-gap">${primary('Importar setup', 'snapshot-import')}${btn('Ver templates de setup', 'go-templates')}</div></div>`;
+        : `<div class="surface padded ag-explain"><h2>Nenhum setup importado ainda</h2><p class="dim">Setups que você importar por código, trouxer do GHL ou salvar a partir dos templates aparecem aqui.</p><div class="inline-gap">${primary('Importar setup', 'snapshot-import')}${btn('Importar do GHL', 'ghl-import', '', 'secondary', 'download')}${btn('Ver templates de setup', 'go-templates')}</div></div>`;
       const cat = A.galCat?.[sub] || '', shown = list.filter(s => !cat || setupCategory(s) === cat);
       const body = list.length ? `${galleryToolbar(sub, [...new Set(list.map(setupCategory))], 'Nome do setup')}${A.galView?.[sub] === 'list' ? libraryTable(shown, mine, false) : setupGallery(shown)}` : emptyHtml;
       return `<div class="page">${head('Setups de conta', 'Crie e gerencie seus setups', actions)}${tabCard('snapshots', `<div class="ag-snap-head"><h2>${mine ? 'Meus setups' : 'Setups importados'}</h2><p class="dim">${mine ? 'Setups criados por você aparecem aqui' : 'Setups importados por você aparecem aqui'}</p></div>${body}`, 'Seções de setups')}</div>`;
@@ -1613,6 +1656,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'snapshot-delete': confirmBox('Excluir setup?', 'As subcontas que já carregaram este setup manterão seus recursos normalmente.', 'snapshot-delete', id, 'Excluir'); break;
         case 'go-marketplace': close(); go('snapshots', 'templates'); break;
         case 'go-my-setups': close(); go('snapshots', 'imported'); break;
+        case 'ghl-import': await openGhlImport(); break;
+        case 'ghl-view-setup': stopGhl(); close(); go('snapshots', 'imported'); break;
         case 'go-templates': close(); go('snapshots', 'templates'); break;
         case 'snap-sort': A.snapSort = A.snapSort === 'asc' ? 'desc' : 'asc'; render(); G('[data-ag="snap-sort"]')?.focus(); break;
         case 'gal-view': A.galView = { ...A.galView, [d.scope]: d.view }; render(); G(`[data-ag="gal-view"][data-scope="${d.scope}"][data-view="${d.view}"]`)?.focus(); break;

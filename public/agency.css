@@ -319,3 +319,11 @@ label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:no
 .pf-actions{display:flex;align-items:center;gap:12px;grid-column:1/-1}
 .pf-push{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px}
 @media(max-width:720px){.pf-grid{grid-template-columns:1fr}.pf-banner{flex-direction:column;align-items:stretch}.pf .head-actions{flex-wrap:wrap}}
+/* Importar do GHL (ui/ghl-import-view.js) */
+.ag-ghl-steps{margin:0 0 12px;padding-left:20px;display:grid;gap:6px}
+.ag-ghl-code{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0 6px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r-chip);background:var(--g-field,#f8fafc)}
+.ag-ghl-code .ag-ghl-value{font:700 26px/1 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.14em}
+.ag-ghl-report{display:grid;gap:10px}.ag-ghl-report h3{margin:4px 0 0;font-size:14px}
+.ag-ghl-notes{margin:0;padding-left:20px;display:grid;gap:4px;max-height:220px;overflow:auto}
+[data-ghl-state]{margin-top:14px}
+.ag-ghl-link{display:inline-flex;align-items:center;text-decoration:none}
