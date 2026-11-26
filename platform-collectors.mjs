@@ -40,7 +40,11 @@ async function fetchResponse(request, url, options, timeoutMs) {
     if (problem?.name === 'TimeoutError' || problem?.name === 'AbortError') throw new TimeoutError();
     throw new ProviderError('sem conexão');
   }
-  if (!response.ok) throw new ProviderError(`HTTP ${response.status}`);
+  if (!response.ok) {
+    // O corpo fica só em `code` (o "name" que a API devolve), para o coletor decidir; nunca vai para a tela.
+    const code = await response.json().then(body => String(body?.name || body?.code || ''), () => '');
+    throw Object.assign(new ProviderError(`HTTP ${response.status}`), { code });
+  }
   try { return { response, body: await response.json() }; } catch { throw new ProviderError('resposta inválida'); }
 }
 
@@ -204,8 +208,17 @@ export const collectResend = guarded('resend', 'Resend', async function collectR
   const key = env.RESEND_API_KEY;
   if (!key) return notConfigured('resend', 'Resend', 'https://resend.com/emails');
   const base = String(env.RESEND_API_URL || 'https://api.resend.com').replace(/\/+$/, '');
-  // Ler domínios pede uma chave de acesso total; uma chave só de envio responde 401.
-  const data = await step('domínios', fetchJson(request, `${base}/domains`, { headers: { Authorization: `Bearer ${key}` } }, timeoutMs));
+  // Ler domínios pede uma chave de acesso total. Uma chave só de envio (o mínimo de poder) responde 401
+  // "restricted_api_key": não é falha, só não dá para conferir o domínio.
+  let data;
+  try {
+    data = await fetchJson(request, `${base}/domains`, { headers: { Authorization: `Bearer ${key}` } }, timeoutMs);
+  } catch (problem) {
+    if (problem?.code !== 'restricted_api_key') throw problem instanceof ProviderError && !(problem instanceof TimeoutError) ? new ProviderError(`${problem.message} em domínios`) : problem;
+    return reading('resend', 'Resend', { plan: 'chave só de envio', link: 'https://resend.com/domains', metrics: [
+      metric('domain', 'Domínio do remetente', null, null, 'check', 'now', { kind: 'check', note: 'a chave é só de envio: o domínio não é conferido' })
+    ] });
+  }
   const domains = Array.isArray(data?.data) ? data.data : [];
   const sender = String(env.PORTAL_EMAIL_FROM || '').match(/@([^>\s]+)/)?.[1]?.toLowerCase() || '';
   const domain = sender ? domains.find(d => String(d.name).toLowerCase() === sender) : domains[0];

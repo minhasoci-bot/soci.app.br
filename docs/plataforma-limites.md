@@ -15,7 +15,7 @@ Na visão da agência, o menu **Visão geral → Plataforma** (`/app#agency/plat
 | Evolution API | Se responde e quantas instâncias existem |
 | Twilio | Saldo da conta contra o mínimo definido na página (padrão US$ 10) |
 | OpenAI | Com `OPENAI_ADMIN_KEY`, o gasto do mês em dólares da conta da soci (sem limite: a OpenAI não expõe o saldo pela API). Com `OPENAI_API_KEY`, se ela é aceita |
-| Resend | Se o domínio do remetente (`PORTAL_EMAIL_FROM`) está verificado. Pendente gera aviso |
+| Resend | Se o domínio do remetente (`PORTAL_EMAIL_FROM`) está verificado. Pendente gera aviso. Com chave só de envio (a de produção), o cartão diz isso e não confere o domínio |
 | Meta | Quanto do limite de chamadas por hora do app já foi usado (cabeçalho `X-App-Usage`) |
 
 AbacatePay e Google aparecem só como atalhos para o painel de cada um: no AbacatePay cada agência usa a própria chave (não há conta da plataforma para ler), e o Google não tem API de uso para as chaves que o app guarda.
@@ -56,7 +56,7 @@ Sem esse passo, o cartão do Supabase mostra "Não consegui ler os dados".
 
 ### 2. Variáveis na Vercel (Production)
 
-Situação em 26/11/2026: em produção já estão `VERCEL_TEAM_ID`, `VERCEL_API_TOKEN`, `CLOUDFLARE_API_TOKEN`, `HOSTINGER_API_TOKEN`, `RESEND_API_KEY`, `PORTAL_EMAIL_FROM`, `WEB_PUSH_*`, `EVOLUTION_*`, `META_APP_ID`/`META_APP_SECRET`, `CRON_SECRET` e `GO_AGENCY_OWNER_ID`. Faltam só `TWILIO_*` (se a telefonia for usada) e, opcional, `OPENAI_ADMIN_KEY`.
+Situação em 26/11/2026: em produção já estão `VERCEL_TEAM_ID`, `VERCEL_API_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `HOSTINGER_API_TOKEN`, `RESEND_API_KEY`, `PORTAL_EMAIL_FROM`, `WEB_PUSH_*`, `EVOLUTION_*`, `META_APP_ID`/`META_APP_SECRET`, `CRON_SECRET` e `GO_AGENCY_OWNER_ID`. Faltam só `TWILIO_*` (se a telefonia for usada) e, opcional, `OPENAI_ADMIN_KEY`.
 
 **Leitura dos serviços**
 
@@ -65,12 +65,12 @@ Situação em 26/11/2026: em produção já estão `VERCEL_TEAM_ID`, `VERCEL_API
 | `VERCEL_API_TOKEN` | vercel.com → Account Settings → Tokens | Escopo só no time `soci3`, com validade definida |
 | `VERCEL_TEAM_ID` | Settings do time `soci3` → Team ID (`team_…`) | — |
 | `CLOUDFLARE_API_TOKEN` | dash.cloudflare.com → My Profile → API Tokens → Custom token | Account → **Account Analytics: Read** e **Workers R2 Storage: Read**, só na conta do R2 |
-| `CLOUDFLARE_ACCOUNT_ID` (opcional) | dash.cloudflare.com → R2 → Account ID | Só se o token enxergar mais de uma conta. Sem ela, a conta sai do próprio token. **Não use `R2_ACCOUNT_ID` para isso:** sozinha ela liga o armazenamento R2 do app, que exige bucket e chaves, e derruba o servidor |
+| `CLOUDFLARE_ACCOUNT_ID` | dash.cloudflare.com → R2 → Account ID (a mesma conta do R2 da doc) | Sem ela, a conta sai do próprio token, mas só se o token tiver permissão de listar contas; o token de produção não tem ("o token não vê nenhuma conta"). **Não use `R2_ACCOUNT_ID` para isso:** sozinha ela liga o armazenamento R2 do app, que exige bucket e chaves, e derruba o servidor |
 | `HOSTINGER_API_TOKEN` | hPanel → Perfil → API → Novo token | Token da conta, com validade definida |
 | `TWILIO_ACCOUNT_SID` e `TWILIO_AUTH_TOKEN` | console.twilio.com → Account Info | Só se a soci usar a telefonia; as mesmas variáveis ligam a compra de números |
 | `OPENAI_ADMIN_KEY` (opcional) | platform.openai.com → Organization → Admin keys | Só leitura de uso. Mostra o gasto do mês da conta da soci. As agências usam chaves próprias da OpenAI, que não entram aqui |
 | `OPENAI_API_KEY` (opcional) | A chave do "Pergunte à Soci", se for usada | O cartão confere se a chave é aceita. `STUDIO_OPENAI_API_KEY` não é lida pelo app e não entra |
-| `RESEND_API_KEY` | Já usada pelo app | Precisa de **Full access**: uma chave só de envio responde 401 ao ler domínios |
+| `RESEND_API_KEY` | Já usada pelo app | Só de envio basta (é a de produção). Para o cartão conferir o domínio, ela precisaria de **Full access** |
 | `META_APP_ID` e `META_APP_SECRET` | Já usadas pelo app | — |
 
 **Canais de alerta.** Sem pelo menos um deles, a página mostra os números mas não avisa ninguém.

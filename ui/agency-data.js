@@ -7,10 +7,13 @@ export const agencyLevel = role => role.startsWith('Agency');
 export const agencyNav = [
   ['ask', 'Pergunte à Soci', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['saas', 'Configurador SaaS', 'chart'], ['prospecting', 'Prospecção', 'search'],
   ['accounts', 'Subcontas', 'users'], ['brand-groups', 'Grupos de marcas', 'chart'], ['presentations', 'Apresentações', 'monitor'], ['prancheta', 'Prancheta', 'palette'], ['snapshots', 'Setups de conta', 'box'],
-  ['affiliate', 'Portal de afiliados', 'link'], ['partners', 'Parceiros', 'award'], ['university', 'Universidade', 'book'],
+  ['affiliate', 'Portal de afiliados', 'link'], ['partners', 'Parceiros', 'award'],
   ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'], ['desktop-app', 'Aplicativo desktop', 'monitor'], ['marketplace', 'Marketplace de apps', 'apps'],
   ['settings', 'Configurações', 'gear']
 ];
+
+// Central de ajuda (docs-site/): o menu da agência leva para cá no lugar da antiga Universidade.
+export const helpCenterUrl = 'https://doc.soci.app.br/';
 
 export const subAccountModules = [
   ['dashboard', 'Painel'], ['conversations', 'Conversas'], ['calendars', 'Calendários'], ['contacts', 'Contatos'],
@@ -131,43 +134,6 @@ export const integrationCatalog = [
   ['shopify', 'Shopify', 'pay', 'Commerce', 'Import orders and customers.'],
   ['wordpress', 'WordPress', 'site', 'Sites', 'Embed forms and calendars on WordPress.']
 ];
-
-// Learning tracks for University and SaaS Education: [trackId, title, [[lessonId, title, summary], …]]
-export const learningTracks = {
-  university: [
-    ['start', 'Getting started', [
-      ['u-1', 'Set up your agency profile', 'Fill in company details and branding so every sub-account inherits them.'],
-      ['u-2', 'Create your first sub-account', 'Create an account for a client and load an account setup to start ready.'],
-      ['u-3', 'Invite your team', 'Add users with the right role and limit each one to the accounts they serve.']
-    ]],
-    ['crm', 'CRM and pipelines', [
-      ['u-4', 'Import contacts', 'Bring a CSV of contacts into a sub-account and tag them by source.'],
-      ['u-5', 'Design a pipeline', 'Map the stages a lead passes through and move deals between them.']
-    ]],
-    ['automation', 'Automation', [
-      ['u-6', 'Your first workflow', 'Use the form submission trigger to create a task and an opportunity.'],
-      ['u-7', 'Manual call and SMS steps', 'Queue follow-ups that a person completes from Conversations.']
-    ]],
-    ['sites', 'Sites and forms', [
-      ['u-8', 'Publish a landing page', 'Start from a template, connect a form and publish it locally.'],
-      ['u-9', 'Track submissions', 'Read submissions and follow their workflow runs.']
-    ]]
-  ],
-  saas: [
-    ['plans', 'Packaging your offer', [
-      ['s-1', 'Define SaaS plans', 'Group features into plans with a monthly price and an optional trial.'],
-      ['s-2', 'Assign plans to sub-accounts', 'Each account’s plan feeds monthly recurring revenue on the agency dashboard.']
-    ]],
-    ['rebilling', 'Reselling and rebilling', [
-      ['s-3', 'Set reselling prices', 'Choose what clients pay for each product and see your profit per account.'],
-      ['s-4', 'Turn products on per account', 'Enable a product only for the accounts that bought it.']
-    ]],
-    ['retention', 'Onboarding and retention', [
-      ['s-5', 'Setup-based onboarding', 'Load a standard account setup so every new client starts with the same assets.'],
-      ['s-6', 'Announcements', 'Publish messages that appear inside your clients’ accounts.']
-    ]]
-  ]
-};
 
 export const systemEmailKeys = [
   ['welcome', 'Welcome email', 'Welcome to {{agency.name}}', 'Hi {{user.first_name}}, your account is ready. Sign in at {{agency.domain}}.'],
