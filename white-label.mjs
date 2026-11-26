@@ -21,6 +21,13 @@ export function whiteLabelHost(value) {
   return host;
 }
 
+/** graao.com from app.graao.com, agencia.com.br from app.agencia.com.br, when the hosting did not say. */
+const guessApex = host => {
+  const labels = host.split('.');
+  const second = labels.length > 2 && labels.at(-1).length === 2 && /^(com|net|org|gov|edu|co|ac|art|adv|eng|med|tur|ind|inf)$/.test(labels.at(-2));
+  return labels.slice(second ? -3 : -2).join('.');
+};
+
 /** The host the request came in on, without the port. */
 export const requestHost = req => String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim().toLowerCase().replace(/:\d+$/, '');
 
@@ -91,7 +98,16 @@ export function hostingDomains({ token = process.env.VERCEL_API_TOKEN, project =
       // issue the certificate behind it and the visitor sees error 525.
       const proxied = (dns.nameservers || []).some(ns => /cloudflare/i.test(ns)) && !(dns.cnames || []).length
         && (dns.aValues || []).length > 0 && !(dns.aValues || []).some(ip => vercelIps.includes(ip));
-      return { domain: host, cname, hosting: true, added: domain.ok, verified, pointing: config.ok && dns.misconfigured === false, verification, proxied };
+      // The records exactly as the DNS panel asks for them. Panels such as Squarespace, Registro.br and GoDaddy add
+      // ".graao.com" to the name on their own, so the full name became graao.com.graao.com: the short one goes.
+      // A domain without subdomain cannot hold a CNAME; the hosting asks for an A record there.
+      const apex = String(found.body?.apexName || domain.body?.apexName || guessApex(host));
+      const short = name => name === apex ? '@' : name.endsWith(`.${apex}`) ? name.slice(0, -apex.length - 1) : name;
+      const address = host === apex
+        ? { type: 'A', name: '@', value: String(best(dns.recommendedIPv4)[0]?.value?.[0] || '76.76.21.21') }
+        : { type: 'CNAME', name: short(host), value: cname };
+      const records = [address, ...verification.map(row => ({ ...row, name: short(row.name) }))];
+      return { domain: host, apex, cname, hosting: true, added: domain.ok, verified, pointing: config.ok && dns.misconfigured === false, verification, records, proxied };
     }
   };
 }

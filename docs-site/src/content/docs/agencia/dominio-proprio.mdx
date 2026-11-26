@@ -21,15 +21,15 @@ Com o domínio próprio, seus clientes entram na soci por um endereço da agênc
 
 1. No painel da agência, abra **Configurações** e vá para a aba **Empresa e marca**. Em **White Label das subcontas**, digite o endereço em **Domínio para subcontas**, por exemplo app.suaagencia.com.br. Use um subdomínio (com "app." ou "portal." na frente), não o endereço do site da agência.
 
-   <Print src="docs/agencia/dominio-proprio/01-campo-do-dominio.de00b0ba.webp" alt="Seção White Label das subcontas com app.agenciademo.com.br no campo Domínio para subcontas." />
+   <Print src="docs/agencia/dominio-proprio/01-campo-do-dominio.02a1d4fa.webp" alt="Seção White Label das subcontas com app.agenciademo.com.br no campo Domínio para subcontas." />
 
 2. Clique em **Salvar dados da empresa**. A soci adiciona o domínio à hospedagem.
 
 3. Clique em **Verificar domínio**. Abaixo do botão aparece uma tabela com os registros que faltam no DNS: o **CNAME** do endereço (por exemplo, `app` apontando para `cname.vercel-dns.com`) e, quando a hospedagem pede, um **TXT** que prova que o domínio é seu. Cada linha traz o tipo, o nome e o valor exatos.
 
-4. No painel do seu domínio, crie os registros da tabela. Se o domínio estiver na Cloudflare, deixe o registro do endereço como **Somente DNS** (nuvem cinza). Depois volte à **Empresa e marca** e clique em **Verificar domínio** de novo. A mudança de DNS pode levar algumas horas.
+4. No painel do seu domínio, crie os registros da tabela. No campo **Nome**, digite só o que aparece na coluna Nome (`app`, `_vercel` ou `@`): o painel completa com o resto do domínio sozinho. Se digitar o nome inteiro, o registro vira `app.suaagencia.com.br.suaagencia.com.br` e não funciona. Se o domínio estiver na Cloudflare, deixe o registro do endereço como **Somente DNS** (nuvem cinza). Depois volte à **Empresa e marca** e clique em **Verificar domínio** de novo. A mudança de DNS pode levar algumas horas.
 
-   <Print src="docs/agencia/dominio-proprio/02-verificar-dominio.6a07fe65.webp" alt="Abaixo do botão Verificar domínio, a mensagem pedindo a prova de posse e a tabela com o registro CNAME e o registro TXT _vercel." />
+   <Print src="docs/agencia/dominio-proprio/02-verificar-dominio.6f48ae07.webp" alt="Abaixo do botão Verificar domínio, a mensagem pedindo a prova de posse, o aviso sobre o campo Nome e a tabela com o CNAME app e o TXT _vercel." />
 
 5. Quando aparecer **Pronto: o domínio aponta para a soci.**, mande o novo endereço aos clientes. Quem abre o endereço vai direto para a tela de entrada com o nome e o logotipo da agência, e o botão de entrar com o Google funciona no próprio domínio da agência.
 
@@ -54,7 +54,10 @@ O registro está passando pelo proxy da Cloudflare (nuvem laranja). Mude para **
 Não. Ao trocar ou apagar o domínio em **Domínio para subcontas**, o endereço antigo sai da hospedagem e pode ser usado em outro lugar.
 
 **Posso usar o domínio principal do site, sem o "app."?**
-Não é recomendado. O domínio principal costuma apontar para o site da agência, e mudá-lo tiraria o site do ar. Use um subdomínio só para a soci.
+Não é recomendado. O domínio principal costuma apontar para o site da agência, e mudá-lo tiraria o site do ar. Use um subdomínio só para a soci. Se mesmo assim usar o domínio principal, a tabela pede um registro **A** com o nome `@` no lugar do CNAME, porque o domínio principal não aceita CNAME.
+
+**Criei os registros e a verificação não passa. O que conferir?**
+Veja se o painel do domínio não juntou o nome duas vezes, como `_vercel.suaagencia.com.br.suaagencia.com.br`. Apague o registro e crie de novo só com o nome curto da tabela. Depois espere alguns minutos e clique em **Verificar domínio**.
 
 ## Veja também
 
