@@ -171,3 +171,13 @@ test('formatAmount: bytes, dólares, contagens e dias em português', () => {
   assert.equal(formatAmount(61, 'percent'), '61%');
   assert.equal(formatAmount(null, 'bytes'), '—');
 });
+
+test('verificação: OK não avisa; pendente pede atenção e o alerta traz o motivo', () => {
+  assert.equal(levelOf({ kind: 'check', used: 1, limit: null }), 'ok');
+  assert.equal(levelOf({ kind: 'check', used: 0, limit: null }), 'warn');
+  const reading = { service: 'resend', name: 'Resend', status: 'ok', metrics: [{ key: 'domain', label: 'Domínio do remetente', used: 0, limit: null, unit: 'check', cycle: 'now', kind: 'check', note: 'soci.app.br: pending' }] };
+  const { alerts } = decideAlerts({}, [reading], Date.UTC(2026, 10, 26));
+  assert.equal(alerts.length, 1);
+  assert.equal(alerts[0].title, 'Resend: Domínio do remetente (soci.app.br: pending)');
+  assert.doesNotMatch(alerts[0].body, /NaN|undefined/);
+});

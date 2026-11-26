@@ -83,3 +83,11 @@ test('formatAmount é o mesmo do servidor', () => {
   assert.equal(formatAmount(432013312, 'bytes'), '412,0 MB');
   assert.equal(formatAmount(7.5, 'usd'), 'US$ 7,50');
 });
+
+test('verificação aparece como OK ou Pendente, com o motivo', () => {
+  const check = (used, note) => ({ key: 'domain', label: 'Domínio do remetente', used, limit: null, unit: 'check', cycle: 'now', kind: 'check', note, pct: null, level: used ? 'ok' : 'warn', projection: null });
+  const html = platformPage(view([{ service: 'resend', name: 'Resend', status: 'ok', plan: '', link: '', metrics: [check(1, 'soci.app.br verificado')] }, { service: 'openai', name: 'OpenAI', status: 'ok', plan: '', link: '', metrics: [check(0, 'chave recusada')] }]), { h, tr });
+  assert.match(html, />OK</);
+  assert.match(html, /soci\.app\.br verificado/);
+  assert.match(html, /pf-level warn">Pendente</);
+});

@@ -40,12 +40,12 @@ async function start(t, { withAuth = true } = {}) {
   return { owner, other, call };
 }
 
-test('o dono da plataforma abre o uso com os 6 serviços e o e-mail de alerta preenchido', async t => {
+test('o dono da plataforma abre o uso com os 9 serviços e o e-mail de alerta preenchido', async t => {
   const { owner, call } = await start(t);
   const response = await call('/api/platform/usage', { user: owner });
   assert.equal(response.status, 200, response.text);
   const view = JSON.parse(response.text);
-  assert.deepEqual(view.services.map(s => s.service), ['supabase', 'vercel', 'cloudflare', 'hostinger', 'evolution', 'twilio']);
+  assert.deepEqual(view.services.map(s => s.service), ['supabase', 'vercel', 'cloudflare', 'hostinger', 'evolution', 'twilio', 'openai', 'resend', 'meta']);
   assert.equal(view.services.find(s => s.service === 'supabase').status, 'ok');
   assert.equal(view.services.find(s => s.service === 'vercel').status, 'not-configured');
   assert.equal(view.settings.alertEmail, 'dono@example.test');

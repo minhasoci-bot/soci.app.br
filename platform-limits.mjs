@@ -38,6 +38,7 @@ export function levelOf(metric, previous = 'ok') {
   if (used === null || used === undefined) return 'ok';
   const kind = metric.kind || 'usage';
   if (kind === 'deadline') return used <= DEADLINE_CRITICAL ? 'critical' : used <= DEADLINE_WARN ? 'warn' : 'ok';
+  if (kind === 'check') return used ? 'ok' : 'warn';
   if (limit === null || limit === undefined) return 'ok';
   if (kind === 'floor') return used < limit / 2 ? 'critical' : used < limit ? 'warn' : 'ok';
   const pct = percentOf(metric);
@@ -80,8 +81,9 @@ function metricAlert(reading, metric, level) {
   const pct = percentOf(metric);
   const title = kind === 'deadline' ? `${reading.name}: ${metric.label.toLowerCase()} em ${formatAmount(metric.used, 'days')}`
     : kind === 'floor' ? `${reading.name}: ${metric.label} em ${formatAmount(metric.used, metric.unit)}`
+    : kind === 'check' ? `${reading.name}: ${metric.label} (${metric.note || 'com problema'})`
     : `${reading.name}: ${metric.label} em ${Math.round(pct)}%`;
-  const amount = kind === 'deadline' ? '' : kind === 'floor'
+  const amount = kind === 'deadline' || kind === 'check' ? '' : kind === 'floor'
     ? `Mínimo definido: ${formatAmount(metric.limit, metric.unit)}. `
     : `${formatAmount(metric.used, metric.unit)} de ${formatAmount(metric.limit, metric.unit)}. `;
   const forecast = metric.projection && metric.projection !== 'safe' ? `No ritmo atual, enche em ${dayMonth(metric.projection)}. ` : '';
