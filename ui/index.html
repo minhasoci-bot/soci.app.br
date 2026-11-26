@@ -3,29 +3,391 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Acesse a plataforma soci.">
-    <meta name="theme-color" content="#ff4f9a">
-    <title>Entrar · soci</title>
+    <title>soci · Plataforma para agências de marketing</title>
+    <meta name="description" content="A soci é a plataforma onde a sua agência atende, vende e entrega. Cada cliente ganha uma subconta com CRM, WhatsApp, agenda, sites, cobrança, automações e IA, com a marca da agência.">
+    <meta name="theme-color" content="#101216">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="soci">
+    <meta property="og:title" content="soci · Plataforma para agências de marketing">
+    <meta property="og:description" content="CRM, WhatsApp, agenda, sites, cobrança, automações e IA para cada cliente da sua agência, com a sua marca.">
+    <meta property="og:url" content="https://soci.app.br/">
+    <link rel="canonical" href="https://soci.app.br/">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="preload" href="/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/login.css">
-    <script defer src="/login.js"></script>
+    <link rel="stylesheet" href="/home.css">
+    <script defer src="/home.js"></script>
   </head>
   <body>
-    <main class="login-shell">
-      <section class="login-card" aria-labelledby="login-title">
-        <div class="brand" aria-label="soci">soci<span aria-hidden="true">.</span></div>
-        <div class="login-copy">
-          <h1 id="login-title">Entre na sua conta</h1>
-          <p>Acesse a plataforma soci com a sua conta Google.</p>
+    <a class="skip" href="#conteudo">Pular para o conteúdo</a>
+
+    <header class="nav" id="topo">
+      <div class="wrap nav-row">
+        <a class="logo" href="/" aria-label="soci, página inicial">soci<span aria-hidden="true">.</span></a>
+        <nav class="nav-links" id="nav-links" aria-label="Seções da página">
+          <a href="#ferramentas">Ferramentas</a>
+          <a href="#agencias">Para agências</a>
+          <a href="#ia">IA</a>
+          <a href="#aplicativo">Aplicativo</a>
+          <a href="https://doc.soci.app.br/">Central de ajuda</a>
+          <a class="nav-login-mobile" href="/login">Entrar</a>
+        </nav>
+        <div class="nav-actions">
+          <a class="link-quiet" href="/login">Entrar</a>
+          <a class="btn btn-primary btn-sm" href="/login">Criar conta</a>
+          <button class="menu-btn" id="menu-btn" type="button" aria-expanded="false" aria-controls="nav-links">
+            <span class="sr">Abrir o menu</span><span class="menu-bars" aria-hidden="true"></span>
+          </button>
         </div>
-        <ul class="login-accounts" id="login-accounts" aria-label="Contas deste navegador" hidden></ul>
-        <button class="google-button" id="google-signin-btn" type="button">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.35 12.2c0-.71-.06-1.23-.2-1.77H12v3.35h5.37c-.11.83-.72 2.08-2.08 2.92l-.02.11 3.02 2.34.21.02c1.93-1.78 2.85-4.39 2.85-6.97Z"/><path fill="#34A853" d="M12 21.67c2.63 0 4.83-.87 6.44-2.36l-3.07-2.38c-.82.57-1.92.97-3.37.97a5.84 5.84 0 0 1-5.53-4.03l-.1.01-3.14 2.43-.03.1A9.73 9.73 0 0 0 12 21.67Z"/><path fill="#FBBC05" d="M6.47 13.87A5.9 5.9 0 0 1 6.16 12c0-.65.11-1.28.3-1.87v-.12L3.3 7.54l-.1.05A9.69 9.69 0 0 0 2.33 12c0 1.6.39 3.11.87 4.41l3.27-2.54Z"/><path fill="#EA4335" d="M12 6.1c1.83 0 3.06.79 3.77 1.45l2.75-2.68C16.82 3.28 14.63 2.33 12 2.33A9.73 9.73 0 0 0 3.2 7.59l3.26 2.54A5.86 5.86 0 0 1 12 6.1Z"/></svg>
-          <span>Continuar com Google</span>
-        </button>
-        <p class="login-status" id="login-status" role="alert" hidden></p>
+      </div>
+    </header>
+
+    <main id="conteudo">
+      <!-- 1. Abertura: o que é vendido, para quem, e o produto de verdade -->
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-glow" aria-hidden="true"></div>
+        <div class="wrap hero-grid">
+          <div class="hero-copy enter">
+            <p class="eyebrow">Plataforma para agências de marketing</p>
+            <h1 id="hero-title">Todos os clientes da sua agência num só painel.</h1>
+            <p class="lead">Cada cliente da agência ganha uma subconta com CRM, WhatsApp, agenda, sites, cobrança, automações e IA. Tudo com o nome, as cores e o domínio da sua agência.</p>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="/login">Criar conta com Google</a>
+              <a class="btn btn-ghost" href="#ferramentas">Ver as ferramentas</a>
+            </div>
+            <p class="hero-note">Você entra com a conta Google da agência.</p>
+          </div>
+
+          <div class="app-frame enter enter-2" aria-label="Prévia da plataforma soci" role="img">
+            <div class="af-bar"><i></i><i></i><i></i><span>soci.app.br/app</span></div>
+            <div class="af-body">
+              <aside class="af-side" aria-hidden="true">
+                <b class="af-brand">Agência Demo</b>
+                <span class="on">Oportunidades</span><span>Conversas</span><span>Contatos</span><span>Agendas</span><span>Automações</span><span>Pagamentos</span><span>Sites</span>
+              </aside>
+              <div class="af-main" aria-hidden="true">
+                <div class="af-head"><b>Funil de vendas</b><em>Clínica Aurora</em></div>
+                <div class="af-board">
+                  <div class="col"><p>Novo lead <small>3</small></p>
+                    <div class="deal"><b>Marina Lopes</b><span>Formulário do site</span><em>R$ 480</em></div>
+                    <div class="deal"><b>Rafael Prado</b><span>Instagram</span><em>R$ 960</em></div>
+                  </div>
+                  <div class="col"><p>Agendado <small>2</small></p>
+                    <div class="deal hot"><b>Beatriz Nunes</b><span>Avaliação · qui, 14h</span><em>R$ 1.200</em></div>
+                    <div class="deal"><b>Caio Mendes</b><span>Retorno · sex, 9h</span><em>R$ 350</em></div>
+                  </div>
+                  <div class="col"><p>Ganho <small>1</small></p>
+                    <div class="deal won"><b>Lia Torres</b><span>Pago por Pix</span><em>R$ 2.400</em></div>
+                  </div>
+                </div>
+              </div>
+              <div class="af-chat" aria-hidden="true">
+                <p class="af-chat-head"><b>Beatriz Nunes</b><span>WhatsApp</span></p>
+                <p class="msg in">Oi! Ainda tem horário essa semana?</p>
+                <p class="msg out">Tem sim, quinta às 14h. Já deixei reservado para você.</p>
+                <p class="msg in">Perfeito, obrigada!</p>
+                <p class="typing"><i></i><i></i><i></i></p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <ul class="wrap hero-facts" aria-label="O que vem em cada subconta">
+          <li>Subconta para cada cliente</li>
+          <li>WhatsApp no seu próprio servidor</li>
+          <li>Pix e cartão pela AbacatePay</li>
+          <li>Aplicativo com a sua marca</li>
+          <li>Ajuda em português</li>
+        </ul>
+      </section>
+
+      <!-- 2. Ferramentas, organizadas pela jornada do cliente -->
+      <section class="sec" id="ferramentas" aria-labelledby="ferramentas-title">
+        <div class="wrap">
+          <div class="sec-head">
+            <p class="eyebrow eyebrow-dark">Tudo em uma plataforma</p>
+            <h2 id="ferramentas-title">Do primeiro clique ao cliente que volta.</h2>
+            <p class="sec-lead">As ferramentas seguem o caminho de quem compra. Escolha uma etapa e veja o que a subconta já traz.</p>
+          </div>
+
+          <div class="tabs" role="tablist" aria-label="Etapas da jornada do cliente">
+            <button role="tab" id="tab-atrair" aria-controls="painel-atrair" aria-selected="true">Atrair</button>
+            <button role="tab" id="tab-conversar" aria-controls="painel-conversar" aria-selected="false" tabindex="-1">Conversar</button>
+            <button role="tab" id="tab-vender" aria-controls="painel-vender" aria-selected="false" tabindex="-1">Vender</button>
+            <button role="tab" id="tab-encantar" aria-controls="painel-encantar" aria-selected="false" tabindex="-1">Encantar</button>
+            <button role="tab" id="tab-automatizar" aria-controls="painel-automatizar" aria-selected="false" tabindex="-1">Automatizar</button>
+          </div>
+
+          <div class="panel" role="tabpanel" id="painel-atrair" aria-labelledby="tab-atrair">
+            <div class="panel-copy">
+              <h3>Traga mais gente para o funil</h3>
+              <p>Sites, funis e formulários prontos para publicar. Cada envio vira contato no CRM, já com a origem anotada.</p>
+              <ul class="ticks">
+                <li>Sites e funis a partir de modelos</li>
+                <li>Formulários e pesquisas</li>
+                <li>Planejador social para as redes</li>
+                <li>Blog com SEO</li>
+                <li>Prospecção de empresas por região</li>
+                <li>Links com QR code</li>
+              </ul>
+              <a class="arrow-link" href="https://doc.soci.app.br/sites/criar-site/">Como criar um site</a>
+            </div>
+            <div class="panel-visual" aria-hidden="true">
+              <div class="card-ui form-ui">
+                <p class="ui-title">Agende sua avaliação</p>
+                <label>Nome<span>Marina Lopes</span></label>
+                <label>WhatsApp<span>(11) 9···· ····</span></label>
+                <label>Melhor horário<span>Manhã</span></label>
+                <b class="ui-btn">Quero agendar</b>
+              </div>
+              <div class="card-ui toast-ui"><b>Novo contato</b><span>Marina Lopes · Formulário do site</span></div>
+            </div>
+          </div>
+
+          <div class="panel" role="tabpanel" id="painel-conversar" aria-labelledby="tab-conversar" hidden>
+            <div class="panel-copy">
+              <h3>Todas as conversas numa caixa só</h3>
+              <p>WhatsApp, e-mail e o chat do site chegam na mesma caixa, ao vivo. A equipe responde, manda áudio e foto e vê o histórico do contato ao lado.</p>
+              <ul class="ticks">
+                <li>Caixa de entrada unificada</li>
+                <li>WhatsApp com fotos, áudios e arquivos</li>
+                <li>E-mail com o domínio do cliente</li>
+                <li>Chat para o site</li>
+                <li>Prazo de resposta por conversa</li>
+                <li>Agentes de IA que respondem por você</li>
+              </ul>
+              <a class="arrow-link" href="https://doc.soci.app.br/conversas/caixa-unificada/">Conhecer a caixa unificada</a>
+            </div>
+            <div class="panel-visual" aria-hidden="true">
+              <div class="card-ui inbox-ui">
+                <p class="row on"><b>Beatriz Nunes</b><span>Perfeito, obrigada!</span><em>WhatsApp</em></p>
+                <p class="row"><b>Caio Mendes</b><span>Posso remarcar para sexta?</span><em>WhatsApp</em></p>
+                <p class="row"><b>Lia Torres</b><span>Segue o comprovante.</span><em>E-mail</em></p>
+                <p class="row"><b>Visitante do site</b><span>Vocês atendem sábado?</span><em>Chat</em></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel" role="tabpanel" id="painel-vender" aria-labelledby="tab-vender" hidden>
+            <div class="panel-copy">
+              <h3>Feche e receba sem trocar de tela</h3>
+              <p>Funil de oportunidades, agenda online, orçamento, contrato e fatura no mesmo contato. O cliente paga por Pix ou cartão e a baixa acontece sozinha.</p>
+              <ul class="ticks">
+                <li>Funis de oportunidades</li>
+                <li>Agenda com página de reserva</li>
+                <li>Orçamentos e faturas</li>
+                <li>Contratos com assinatura</li>
+                <li>Links de pagamento</li>
+                <li>Recebimento na conta do cliente</li>
+              </ul>
+              <a class="arrow-link" href="https://doc.soci.app.br/pagamentos/links-de-pagamento/">Ver os links de pagamento</a>
+            </div>
+            <div class="panel-visual" aria-hidden="true">
+              <div class="card-ui invoice-ui">
+                <p class="ui-title">Fatura 0042</p>
+                <p class="line"><span>Pacote de 4 sessões</span><b>R$ 2.400,00</b></p>
+                <p class="line total"><span>Total</span><b>R$ 2.400,00</b></p>
+                <p class="paid">Paga por Pix</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel" role="tabpanel" id="painel-encantar" aria-labelledby="tab-encantar" hidden>
+            <div class="panel-copy">
+              <h3>Transforme cliente em fã</h3>
+              <p>Peça avaliação na hora certa, responda as notas num só lugar e mantenha a turma perto com cursos, comunidade e programa de fidelidade.</p>
+              <ul class="ticks">
+                <li>Pedidos de avaliação</li>
+                <li>Gestão de reputação</li>
+                <li>Cursos e área de membros</li>
+                <li>Comunidades</li>
+                <li>Programa de fidelidade</li>
+                <li>Portal do cliente</li>
+              </ul>
+              <a class="arrow-link" href="https://doc.soci.app.br/reputacao/pedidos-de-avaliacao/">Como pedir avaliações</a>
+            </div>
+            <div class="panel-visual" aria-hidden="true">
+              <div class="card-ui review-ui">
+                <p class="stars">★★★★★</p>
+                <p class="quote">Atendimento rápido e tudo pelo WhatsApp. Voltarei com certeza.</p>
+                <p class="who">Avaliação de exemplo</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel" role="tabpanel" id="painel-automatizar" aria-labelledby="tab-automatizar" hidden>
+            <div class="panel-copy">
+              <h3>Deixe o repetitivo por conta da plataforma</h3>
+              <p>Workflows disparam mensagens, movem oportunidades e avisam a equipe. Monte do zero ou comece de um modelo pronto.</p>
+              <ul class="ticks">
+                <li>Editor visual de workflows</li>
+                <li>Gatilhos por formulário, tag e agenda</li>
+                <li>Lembretes de horário</li>
+                <li>Campanhas de e-mail</li>
+                <li>Reativação de contatos parados</li>
+                <li>Relatórios por cliente</li>
+              </ul>
+              <a class="arrow-link" href="https://doc.soci.app.br/automacoes/primeiro-workflow/">Criar o primeiro workflow</a>
+            </div>
+            <div class="panel-visual" aria-hidden="true">
+              <div class="flow-ui">
+                <p class="node trig">Formulário enviado</p>
+                <p class="node">Criar oportunidade</p>
+                <p class="node">Enviar WhatsApp de boas-vindas</p>
+                <p class="node">Esperar 1 dia</p>
+                <p class="node end">Avisar a equipe</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Para a agência: marca, subcontas e cobrança -->
+      <section class="sec sec-dark" id="agencias" aria-labelledby="agencias-title">
+        <div class="wrap">
+          <div class="sec-head">
+            <p class="eyebrow">Para agências</p>
+            <h2 id="agencias-title">Revenda a plataforma com a sua marca.</h2>
+            <p class="sec-lead">Seus clientes veem a sua agência. Você controla as subcontas, os acessos e a cobrança de cada uma.</p>
+          </div>
+          <div class="pillars">
+            <article class="pillar">
+              <span class="pill-num" aria-hidden="true">01</span>
+              <h3>Sua marca em tudo</h3>
+              <p>Logo, cores e domínio próprio no painel, no login e no aplicativo. O nome soci fica nos bastidores.</p>
+              <a class="arrow-link" href="https://doc.soci.app.br/agencia/white-label/">Configurar a marca</a>
+            </article>
+            <article class="pillar">
+              <span class="pill-num" aria-hidden="true">02</span>
+              <h3>Subcontas em minutos</h3>
+              <p>Crie a conta do cliente a partir de um setup pronto, com funis, automações e páginas já montados. Troque de conta sem sair do painel.</p>
+              <a class="arrow-link" href="https://doc.soci.app.br/agencia/criar-subconta/">Criar uma subconta</a>
+            </article>
+            <article class="pillar">
+              <span class="pill-num" aria-hidden="true">03</span>
+              <h3>Cobrança em cadeia</h3>
+              <p>A agência cobra o cliente, e o cliente cobra os consumidores dele. Cada um recebe no próprio gateway, sem repasse pela soci.</p>
+              <a class="arrow-link" href="https://doc.soci.app.br/pagamentos/livro-da-cobranca/">Entender a cobrança</a>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. IA no meio do trabalho -->
+      <section class="sec" id="ia" aria-labelledby="ia-title">
+        <div class="wrap split">
+          <div class="split-copy">
+            <p class="eyebrow eyebrow-dark">Inteligência artificial</p>
+            <h2 id="ia-title">IA que trabalha com os dados do cliente.</h2>
+            <p class="sec-lead">Monte agentes que respondem no WhatsApp com a base de conhecimento da empresa. E conecte o Claude ou o ChatGPT à soci para consultar contatos, agendas e oportunidades conversando.</p>
+            <ul class="ticks ticks-one">
+              <li>Agent Studio para criar agentes de atendimento</li>
+              <li>Base de conhecimento com os documentos do cliente</li>
+              <li>Servidor MCP para Claude, ChatGPT e outras IAs</li>
+            </ul>
+            <a class="arrow-link" href="https://doc.soci.app.br/ia/servidor-mcp/">Conectar uma IA à soci</a>
+          </div>
+          <div class="hub" aria-hidden="true">
+            <svg class="hub-lines" viewBox="0 0 400 400" preserveAspectRatio="none">
+              <path d="M200 200 L104 88"/><path d="M200 200 L296 88"/><path d="M200 200 L104 312"/><path d="M200 200 L296 312"/>
+              <circle class="pulse p1" r="4"/><circle class="pulse p2" r="4"/><circle class="pulse p3" r="4"/><circle class="pulse p4" r="4"/>
+            </svg>
+            <span class="hub-core">soci<span>.</span></span>
+            <span class="hub-node n1">Claude</span>
+            <span class="hub-node n2">ChatGPT</span>
+            <span class="hub-node n3">Agente no WhatsApp</span>
+            <span class="hub-node n4">Base de conhecimento</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. Aplicativo móvel -->
+      <section class="sec sec-soft" id="aplicativo" aria-labelledby="aplicativo-title">
+        <div class="wrap split split-rev">
+          <div class="phone" aria-hidden="true">
+            <div class="phone-screen">
+              <p class="ph-top"><b>Agência Demo</b><span>Hoje</span></p>
+              <p class="ph-card"><b>3 conversas novas</b><span>Beatriz, Caio e mais 1</span></p>
+              <p class="ph-card"><b>Próximo horário</b><span>Avaliação · 14h</span></p>
+              <p class="ph-card"><b>Oportunidade ganha</b><span>Lia Torres · R$ 2.400</span></p>
+              <p class="ph-tabs"><i class="on"></i><i></i><i></i><i></i></p>
+            </div>
+          </div>
+          <div class="split-copy">
+            <p class="eyebrow eyebrow-dark">Aplicativo</p>
+            <h2 id="aplicativo-title">Um aplicativo com o nome da sua agência.</h2>
+            <p class="sec-lead">Monte o app com o ícone, as cores e os módulos que fazem sentido e mande o link de instalação para a equipe dos clientes. Conversas, contatos e agenda no bolso, com aviso a cada mensagem nova.</p>
+            <a class="arrow-link" href="https://doc.soci.app.br/apps/aplicativo-movel/">Criar o aplicativo da agência</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6. Como começar -->
+      <section class="sec" id="comecar" aria-labelledby="comecar-title">
+        <div class="wrap">
+          <div class="sec-head">
+            <p class="eyebrow eyebrow-dark">Primeiros passos</p>
+            <h2 id="comecar-title">Três passos até o primeiro cliente rodando.</h2>
+          </div>
+          <ol class="steps">
+            <li>
+              <span class="step-n" aria-hidden="true">1</span>
+              <h3>Entre com o Google</h3>
+              <p>Use a conta Google da agência. O painel da agência abre na hora.</p>
+            </li>
+            <li>
+              <span class="step-n" aria-hidden="true">2</span>
+              <h3>Crie a subconta do cliente</h3>
+              <p>Comece de um setup pronto e ajuste o funil, as páginas e as automações.</p>
+            </li>
+            <li>
+              <span class="step-n" aria-hidden="true">3</span>
+              <h3>Ligue WhatsApp e pagamentos</h3>
+              <p>Conecte o número do cliente e a conta da AbacatePay para receber por Pix e cartão.</p>
+            </li>
+          </ol>
+          <p class="steps-more"><a class="arrow-link" href="https://doc.soci.app.br/comece-aqui/primeiros-passos/">Ler o guia de primeiros passos</a></p>
+        </div>
+      </section>
+
+      <!-- 7. Fechamento -->
+      <section class="close" aria-labelledby="close-title">
+        <div class="hero-glow" aria-hidden="true"></div>
+        <div class="wrap close-inner">
+          <h2 id="close-title">Coloque a sua agência inteira na soci.</h2>
+          <p>Clientes, conversas, vendas e cobrança num painel com a sua marca.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="/login">Criar conta com Google</a>
+            <a class="btn btn-ghost" href="https://doc.soci.app.br/suporte/como-pedir-ajuda/">Falar com o suporte</a>
+          </div>
+        </div>
       </section>
     </main>
+
+    <footer class="foot">
+      <div class="wrap foot-grid">
+        <div>
+          <a class="logo" href="/" aria-label="soci, página inicial">soci<span aria-hidden="true">.</span></a>
+          <p class="foot-note">A plataforma das agências de marketing.</p>
+        </div>
+        <nav aria-label="Produto">
+          <p class="foot-h">Produto</p>
+          <a href="#ferramentas">Ferramentas</a>
+          <a href="#agencias">Para agências</a>
+          <a href="#ia">IA</a>
+          <a href="#aplicativo">Aplicativo</a>
+        </nav>
+        <nav aria-label="Ajuda">
+          <p class="foot-h">Ajuda</p>
+          <a href="https://doc.soci.app.br/">Central de ajuda</a>
+          <a href="https://doc.soci.app.br/comece-aqui/novidades/">Novidades</a>
+          <a href="https://doc.soci.app.br/suporte/como-pedir-ajuda/">Como pedir ajuda</a>
+        </nav>
+        <nav aria-label="Conta">
+          <p class="foot-h">Conta</p>
+          <a href="/login">Entrar</a>
+          <a href="/privacidade">Privacidade</a>
+        </nav>
+      </div>
+      <div class="wrap foot-bar">© 2026 soci</div>
+    </footer>
   </body>
 </html>
