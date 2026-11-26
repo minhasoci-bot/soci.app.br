@@ -210,6 +210,8 @@ test('Without the table everything works as before, in the document', async t =>
   assert.equal(await send({ title: 'Início' }), 204);
   const tried = seen.loads;
   seen.loads = 0;
+  // Os dois eventos precisam de horários diferentes: no mesmo milissegundo a ordem cai no id aleatório.
+  await new Promise(resolve => setTimeout(resolve, 5));
   assert.equal(await send({ type: 'form', form: 'contato', fields: { email: 'bia@exemplo.com' } }), 204);
   assert.equal(seen.loads, tried - 1, 'no extra read of the document while the table is known to be missing');
   const state = await store.load('demo');
