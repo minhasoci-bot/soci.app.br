@@ -86,4 +86,21 @@ $$;
 revoke all on function public.go_platform_usage() from public, anon, authenticated;
 grant execute on function public.go_platform_usage() to anon;
 
+-- soci AI Gateway: log de requisições de IA (migração 20261126150000_go_ai_requests.sql). Só metadados, só inclusão.
+grant select, insert, delete on table public.go_ai_requests to anon;
+grant execute on function public.go_ai_requests_summary(timestamptz) to anon;
+drop policy if exists go_ai_requests_read on public.go_ai_requests;
+drop policy if exists go_ai_requests_insert on public.go_ai_requests;
+drop policy if exists go_ai_requests_delete on public.go_ai_requests;
+
+create policy go_ai_requests_read on public.go_ai_requests for select to anon
+using ((select encode(sha256(convert_to(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-go-storage-key', ''), 'UTF8')), 'hex') = 'GO_STORAGE_KEY_SHA256'));
+
+create policy go_ai_requests_insert on public.go_ai_requests for insert to anon
+with check ((select encode(sha256(convert_to(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-go-storage-key', ''), 'UTF8')), 'hex') = 'GO_STORAGE_KEY_SHA256'));
+
+-- Retenção: o servidor apaga linhas antigas (180 dias). Atualizar continua proibido pelo gatilho.
+create policy go_ai_requests_delete on public.go_ai_requests for delete to anon
+using ((select encode(sha256(convert_to(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-go-storage-key', ''), 'UTF8')), 'hex') = 'GO_STORAGE_KEY_SHA256'));
+
 commit;

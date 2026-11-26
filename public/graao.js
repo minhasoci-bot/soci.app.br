@@ -278,6 +278,9 @@ function mountSlidingUnderline({ host, head = null, list, track, panel = null, k
     }
   }
 
+  // `*{scroll-behavior:smooth}` would animate every restore: reveal() then reads a stale 0 and pushes the
+  // active tab to the edge. Restores, reveals and drags jump; only the arrow buttons glide.
+  const jump = left => scroller.scrollTo({ left, behavior: 'instant' });
   const scrollStep = () => Math.max(180, Math.floor(scroller.clientWidth * 0.65));
   const onPrev = e => { e.preventDefault(); scroller.scrollBy({ left: -scrollStep(), behavior: 'smooth' }); };
   const onNext = e => { e.preventDefault(); scroller.scrollBy({ left: scrollStep(), behavior: 'smooth' }); };
@@ -292,12 +295,50 @@ function mountSlidingUnderline({ host, head = null, list, track, panel = null, k
       const canRight = e.deltaY > 0 && scroller.scrollLeft < overflow - 1;
       const canLeft = e.deltaY < 0 && scroller.scrollLeft > 1;
       if (canRight || canLeft) {
-        scroller.scrollLeft += e.deltaY;
+        jump(scroller.scrollLeft + e.deltaY);
         e.preventDefault();
       }
     }
   };
   scroller.addEventListener('wheel', onWheel, { passive: false });
+
+  // Drag the strip with the mouse (touch already pans natively). A drag never counts as a click on a tab.
+  let drag = null, dragged = false;
+  const onDown = e => {
+    if (e.pointerType !== 'mouse' || e.button !== 0 || scroller.scrollWidth - scroller.clientWidth <= 1) return;
+    drag = { id: e.pointerId, x: e.clientX, left: scroller.scrollLeft, moved: false };
+    dragged = false;
+  };
+  const onMove = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    if (!drag.moved) {
+      if (Math.abs(dx) < 6) return;
+      drag.moved = true;
+      scroller.setPointerCapture?.(e.pointerId);
+      scroller.classList.add('is-dragging');
+    }
+    jump(drag.left - dx);
+  };
+  const onUp = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    dragged = drag.moved;
+    drag = null;
+    scroller.classList.remove('is-dragging');
+  };
+  const onClickCapture = e => {
+    if (!dragged) return;
+    dragged = false;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  const onDragStart = e => e.preventDefault();
+  scroller.addEventListener('pointerdown', onDown);
+  scroller.addEventListener('pointermove', onMove);
+  scroller.addEventListener('pointerup', onUp);
+  scroller.addEventListener('pointercancel', onUp);
+  scroller.addEventListener('click', onClickCapture, true);
+  scroller.addEventListener('dragstart', onDragStart);
 
   const syncFade = () => {
     const overflow = scroller.scrollWidth - scroller.clientWidth;
@@ -316,7 +357,15 @@ function mountSlidingUnderline({ host, head = null, list, track, panel = null, k
       nextBtn.disabled = disabled;
     }
   };
-  if (utabScroll.has(key)) scroller.scrollLeft = utabScroll.get(key);
+  if (utabScroll.has(key)) jump(utabScroll.get(key));
+
+  // Page tabs stick under the floating top bar (CSS); while stuck they get the same blurred edge as the bar.
+  // A head that is not sticky never leaves the top of its card, so the check is the same for every strip.
+  const syncStuck = () => {
+    if (!host.isConnected) { cleanup(); return; }
+    headEl.toggleAttribute('data-stuck', headEl.getBoundingClientRect().top - host.getBoundingClientRect().top > 1);
+  };
+  if (headEl) { document.addEventListener('scroll', syncStuck, { capture: true, passive: true }); syncStuck(); }
   const onScroll = () => { utabScroll.set(key, scroller.scrollLeft); syncFade(); };
   scroller.addEventListener('scroll', onScroll, { passive: true });
 
@@ -340,9 +389,9 @@ function mountSlidingUnderline({ host, head = null, list, track, panel = null, k
     const right = left + on.offsetWidth;
     const pad = 36;
     if (left < scroller.scrollLeft + pad) {
-      scroller.scrollLeft = Math.max(0, left - pad);
+      jump(Math.max(0, left - pad));
     } else if (right > scroller.scrollLeft + scroller.clientWidth - pad) {
-      scroller.scrollLeft = Math.min(scroller.scrollWidth - scroller.clientWidth, right - scroller.clientWidth + pad);
+      jump(Math.min(scroller.scrollWidth - scroller.clientWidth, right - scroller.clientWidth + pad));
     }
     utabScroll.set(key, scroller.scrollLeft);
   };
@@ -437,6 +486,13 @@ function mountSlidingUnderline({ host, head = null, list, track, panel = null, k
     ro?.disconnect();
     scroller.removeEventListener('scroll', onScroll);
     scroller.removeEventListener('wheel', onWheel);
+    document.removeEventListener('scroll', syncStuck, { capture: true });
+    scroller.removeEventListener('pointerdown', onDown);
+    scroller.removeEventListener('pointermove', onMove);
+    scroller.removeEventListener('pointerup', onUp);
+    scroller.removeEventListener('pointercancel', onUp);
+    scroller.removeEventListener('click', onClickCapture, true);
+    scroller.removeEventListener('dragstart', onDragStart);
     prevBtn?.removeEventListener('click', onPrev);
     nextBtn?.removeEventListener('click', onNext);
   };

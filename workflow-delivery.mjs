@@ -32,9 +32,8 @@ export async function deliverWebhook(item, { fetchImpl = fetch, resolve = lookup
   try {
     const response = await fetchImpl(target, {
       method, redirect: 'manual', signal: AbortSignal.timeout(timeout),
-      // Marketplace apps get signature headers over the exact bytes sent (item.raw).
-      headers: { 'content-type': 'application/json', 'user-agent': item.headers ? 'soci-apps/1.0' : 'soci-workflows/1.0', ...(item.headers || {}) },
-      ...(method === 'GET' ? {} : { body: item.raw ?? JSON.stringify(item.body ?? {}) })
+      headers: { 'content-type': 'application/json', 'user-agent': 'soci-workflows/1.0' },
+      ...(method === 'GET' ? {} : { body: JSON.stringify(item.body ?? {}) })
     });
     return response.ok ? `enviado (${response.status})` : `falhou (${response.status})`;
   } catch (error) {

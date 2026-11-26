@@ -10,7 +10,7 @@ export const agencyNav = [
   ['dashboard', 'Painel da agência', 'grid', 'inicio'], ['ask', 'Pergunte à Soci', 'spark', 'inicio'], ['ai-suite', 'Central de IA', 'studio', 'inicio'],
   ['accounts', 'Subcontas', 'users', 'clientes'], ['brand-groups', 'Grupos de marcas', 'tag', 'clientes'], ['snapshots', 'Setups de conta', 'box', 'clientes'], ['saas', 'Configurador SaaS', 'sliders', 'clientes'],
   ['prospecting', 'Prospecção', 'search', 'vendas'], ['presentations', 'Apresentações', 'play', 'vendas'], ['prancheta', 'Prancheta', 'palette', 'vendas'], ['affiliate', 'Portal de afiliados', 'link', 'vendas'], ['partners', 'Parceiros', 'award', 'vendas'],
-  ['marketplace', 'Marketplace de apps', 'apps', 'apps'], ['mobile-app', 'Aplicativo móvel', 'mobile', 'apps'], ['desktop-app', 'Aplicativo desktop', 'monitor', 'apps'],
+  ['mobile-app', 'Aplicativo móvel', 'mobile', 'apps'], ['desktop-app', 'Aplicativo desktop', 'monitor', 'apps'],
   ['ideas', 'Ideias e sugestões', 'bulb', 'ajuda'],
   ['settings', 'Configurações', 'gear', 'rodape']
 ];

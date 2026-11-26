@@ -1,7 +1,7 @@
 import { icon } from './icons.js';
 import { pageShell } from './screens.js';
 import { auditAreas } from './agency-data.js';
-import { auditReport, escapeProspect as h, mapsAddress, offlineReportHtml, safeWebsite } from './prospect-report.js';
+import { auditReport, escapeProspect as h, isGooglePlace, mapsAddress, offlineReportHtml, safeWebsite, withPlace } from './prospect-report.js';
 import { folded, leadStatus, opportunityScore, prospectLeadStatus, prospectSearchText, prospectSections, prospectSources, prospectThemes } from './prospecting-data.js';
 
 const base = '#agency/prospecting';
@@ -57,8 +57,41 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
   });
   const S = {
     filters:{query:'',category:'',source:'',status:'',archived:false}, months:6, sections:null,
-    search:{keyword:'',location:'',radius:5,result:null,agent:'',showMap:false,selected:new Set()}
+    search:{keyword:'',location:'',radius:5,result:null,agent:'',showMap:false,selected:new Set()},
+    places:new Map(), placesPending:new Set()
   };
+  // Prospects do Google Maps só guardam o placeId: nome, endereço, telefone, site e nota vêm ao vivo do Google
+  // (prospecting-places) e ficam só na memória da página.
+  const placeOf = row => isGooglePlace(row?.placeId) ? S.places.get(row.placeId) || null : null;
+  const shown = row => row && placeOf(row) ? withPlace(row,placeOf(row)) : row;
+  const shownReport = row => row.report && placeOf(row) ? { ...row.report,business:withPlace(row.report.business,placeOf(row)) } : row.report;
+  // Lidos uma vez por sessão do navegador: ficam no sessionStorage da aba (some ao fechar) para que recarregar
+  // a página não gaste outra consulta ao Google. Falhas não são guardadas e tentam de novo na próxima carga.
+  const placesKey = () => `soci:prospect-places:${data().access?.agencyId || 'agencia'}`;
+  let placesRestored = false;
+  function restorePlaces() {
+    if (placesRestored) return;
+    placesRestored = true;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(placesKey()) || '{}');
+      for (const [placeId,place] of Object.entries(saved)) if (place && typeof place === 'object' && !S.places.has(placeId)) S.places.set(placeId,place);
+    } catch { /* Sem sessionStorage: os dados são lidos do servidor. */ }
+  }
+  function rememberPlaces() {
+    try { sessionStorage.setItem(placesKey(),JSON.stringify(Object.fromEntries([...S.places].filter(([,place]) => place).slice(-500)))); }
+    catch { /* Aba privada ou armazenamento cheio: fica só na memória da página. */ }
+  }
+  function loadPlaces(rows) {
+    restorePlaces();
+    const wanted = rows.filter(row => isGooglePlace(row?.placeId) && !S.places.has(row.placeId) && !S.placesPending.has(row.placeId));
+    if (!wanted.length || !data().features?.prospectingMaps) return;
+    const placeIds = [...new Set(wanted.map(row => row.placeId))];
+    for (const placeId of placeIds) S.placesPending.add(placeId);
+    call('prospecting-places',{ids:wanted.map(row => row.id).slice(0,60)})
+      .then(found => { for (const placeId of placeIds) S.places.set(placeId,found?.[placeId] || null); rememberPlaces(); })
+      .catch(() => { for (const placeId of placeIds) S.places.set(placeId,null); })
+      .finally(() => { for (const placeId of placeIds) S.placesPending.delete(placeId); render(); });
+  }
   const lookup = id => agency().prospects.find(row => row.id === id);
   const act = (op,id = '',body = {}) => call('prospecting-action',{op,id,data:body});
   const go = (page,id) => {
@@ -84,7 +117,7 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
     const s = S.filters;
     return Boolean(row.archived) === s.archived && (!s.category || row.categories.includes(s.category)) &&
       (!s.source || row.source === s.source) && (!s.status || leadStatus(row) === s.status) &&
-      (!s.query || folded([prospectSearchText(row),row.owner,row.email,row.phone].filter(Boolean).join(' ')).includes(folded(s.query)));
+      (!s.query || folded([prospectSearchText(shown(row)),row.owner,row.email,shown(row).phone].filter(Boolean).join(' ')).includes(folded(s.query)));
   }
 
   function prospectFacts(row) {
@@ -141,6 +174,7 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
   function all() {
     const f = S.filters;
     const rows = agency().prospects.filter(listed).sort((a,b) => (b.created || '').localeCompare(a.created || ''));
+    loadPlaces(rows);
     return `<div class="pr-account-layout"><section aria-label="Prospects cadastrados">
       <div class="pr-toolbar">
         <label class="pr-search-field">${ico('search')}<input data-pr-filter="query" aria-label="Buscar prospects" placeholder="Buscar prospects…" value="${h(f.query)}"></label>
@@ -150,7 +184,7 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
         ${btn(f.archived ? 'Ver ativos' : 'Arquivados','filter-archive',{name:'box',attrs:`aria-pressed="${f.archived}"`})}
       </div>
       <p class="pr-result-count" aria-live="polite">${rows.length} ${rows.length === 1 ? 'prospect' : 'prospects'}</p>
-      <div class="pr-cards">${rows.length ? rows.map(card).join('') :
+      <div class="pr-cards">${rows.length ? rows.map(row => card(shown(row))).join('') :
         empty('search',f.archived ? 'Nenhum prospect arquivado' : 'Nenhum prospect encontrado',
           active().length || f.archived ? 'Revise os termos e filtros para ver mais resultados.' : 'Busque uma empresa ou cadastre um prospect para começar.',
           f.archived || active().length ? btn('Limpar filtros','filters-clear') : link('Adicionar prospect','search',{primary:true,name:'plus'}))}</div>
@@ -241,7 +275,7 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
     return `<div class="pr-report-tools pr-panel"><div><strong>Relatório de marketing</strong><p class="pr-muted">${row.shareId && !row.archived ? 'Link público ativo.' : 'Visualização privada.'}</p></div><div class="pr-actions">
       ${btn('Atualizar auditoria','audit',{id:row.id,name:'sliders'})}${btn('Exportar HTML','export',{id:row.id,name:'download'})}
       ${row.archived ? '' : btn('Compartilhar','share',{id:row.id,primary:true,name:'link'})}
-      ${row.shareId ? btn('Revogar link','unshare',{id:row.id}) : ''}</div></div>${auditReport(row.report,{navigation:false})}`;
+      ${row.shareId ? btn('Revogar link','unshare',{id:row.id}) : ''}</div></div>${auditReport(shownReport(row),{navigation:false})}`;
   }
 
   function agents() {
@@ -348,13 +382,14 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
     const id = location.hash.split('/')[3] || '';
     const row = lookup(id);
     const key = page || 'all';
+    if (row && ['detail','report'].includes(key)) loadPlaces([row]);
     const selected = ['search','manual','detail','report'].includes(key) ? 'all' : key === 'migrate' ? 'settings' : key;
     const titles = {
       all:'Contas de prospecção', search:'Adicionar prospect', manual:row ? 'Editar prospect' : 'Adicionar prospect manualmente',
-      detail:row?.name || 'Prospect indisponível', report:row?.name || 'Relatório indisponível',
+      detail:shown(row)?.name || 'Prospect indisponível', report:shown(row)?.name || 'Relatório indisponível',
       ai:'Prospect AI',widgets:'Widgets',builder:'Editor de relatórios',analytics:'Analytics',settings:'Configurações',migrate:'Migrar prospects'
     };
-    const views = {all,search,manual:() => businessForm(row),detail:() => detail(row),report:() => report(row),ai:agents,widgets,builder,analytics,settings,migrate};
+    const views = {all,search,manual:() => businessForm(row),detail:() => detail(shown(row)),report:() => report(row),ai:agents,widgets,builder,analytics,settings,migrate};
     const back = key === 'report' && row ? ['Detalhes do prospect','detail',row.id] : key === 'manual' && row ? ['Detalhes do prospect','detail',row.id]
       : key === 'manual' ? ['Adicionar prospect','search'] : key === 'migrate' ? ['Configurações','settings'] : ['Todas as contas','all'];
     const isNested = ['search','manual','detail','report','migrate'].includes(key);
@@ -474,7 +509,7 @@ export function createProspecting({data,accounts,call,render,dialog,close,flash,
           break;
         }
         case 'unshare': openForm('unshare','Revogar link público','<p>O link atual deixará de abrir o relatório.</p>',{id,label:'Revogar'}); break;
-        case 'export': download(`${slug(row)}-auditoria.html`,offlineReportHtml(row.report),'text/html;charset=utf-8'); break;
+        case 'export': download(`${slug(shown(row))}-auditoria.html`,offlineReportHtml(shownReport(row)),'text/html;charset=utf-8'); break;
         case 'copy-phone': if (row?.phone) await copy(row.phone); break;
         case 'copy-field': {
           const node = button.closest('.pr-copy').querySelector('[data-pr-copy-value]');

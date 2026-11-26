@@ -264,5 +264,12 @@
     "titulo": "Criar a conta e confirmar o celular",
     "fase": "extra",
     "status": "escrito"
+  },
+  {
+    "grupo": "agencia",
+    "artigo": "prospeccao",
+    "titulo": "Encontrar clientes no Google Maps com a Prospecção",
+    "fase": "extra",
+    "status": "escrito"
   }
 ]

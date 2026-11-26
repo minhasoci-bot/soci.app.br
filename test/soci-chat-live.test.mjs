@@ -4,7 +4,7 @@ import { makeServer } from '../server.mjs';
 import { createSqliteStore } from '../storage.mjs';
 
 // Caminho "ao vivo" do Pergunte à Soci: um provedor compatível com a OpenAI (aqui simulado por
-// openAIRequest, sem rede) com streaming, raciocínio e chamadas de ferramenta do Treg.
+// openAIRequest, sem rede) com streaming e raciocínio.
 const AI_BASE = 'http://ia.teste/v1';
 
 function useAiEnv(t) {
@@ -57,28 +57,14 @@ test('modelo ao vivo: lista de modelos vem da API, sem embeddings e com o modelo
   assert.deepEqual(state.body.config.models ?? state.body.models, ['modelo-teste', 'modelo-a', 'modelo-b']);
 });
 
-test('modelo ao vivo: chama a ferramenta do Treg, devolve o resultado ao modelo e transmite a resposta', async t => {
+test('modelo ao vivo: transmite resposta e raciocínio, sem ferramentas externas', async t => {
   useAiEnv(t);
-  const original = globalThis.fetch;
-  const tregCalls = [];
-  t.mock.method(globalThis, 'fetch', async (url, init) => {
-    if (!String(url).startsWith('https://treg.to/')) return original(url, init);
-    tregCalls.push({ url: String(url), token: init.headers['X-Treg-Token'], body: JSON.parse(init.body) });
-    return Response.json({ output: { places: [{ title: 'Padaria A', place_id: 'p1', phone: '13 3333-0000' }] } });
-  });
   const aiCalls = [];
   const local = await start(t, async (url, init) => {
     const payload = JSON.parse(init.body);
     if (!payload.stream) return titleReply(payload);
     aiCalls.push(payload);
     assert.equal(init.headers.Authorization, 'Bearer chave-teste');
-    if (aiCalls.length === 1) {
-      return sse([
-        { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_1', function: { name: 'procurar_negocios_google', arguments: '{"query":' } }] } }] },
-        { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '"padaria santos"}' } }] }, finish_reason: 'tool_calls' }] },
-        '[DONE]'
-      ]);
-    }
     return sse([
       { choices: [{ delta: { reasoning_content: 'Comparando avaliações.' } }] },
       { choices: [{ delta: { content: 'Achei a ' } }] },
@@ -88,41 +74,16 @@ test('modelo ao vivo: chama a ferramenta do Treg, devolve o resultado ao modelo 
     ]);
   });
 
-  const saved = await local.call('/api/ask/connectors', { treg: { token: 'tok-agencia', googleMaps: true, instagram: false }, verify: false });
-  assert.equal(saved.status, 200);
-
   const answer = await local.ask('Procure padarias em Santos');
   assert.equal(answer.status, 200);
-  assert.match(answer.text, /Consultando Google Maps via Treg/);
   assert.match(answer.text, /Achei a Padaria A\./);
   assert.ok(answer.events.some(e => e.event === 'reasoning' && /Comparando/.test(e.data.v)));
   assert.ok(answer.events.some(e => e.event === 'title' && e.data.title === 'Padarias em Santos'), 'título gerado pelo modelo');
 
-  assert.equal(aiCalls.length, 2);
+  assert.equal(aiCalls.length, 1);
   assert.equal(aiCalls[0].model, 'modelo-teste');
-  assert.deepEqual(aiCalls[0].tools.map(tool => tool.function.name), ['procurar_negocios_google'], 'Instagram desligado no conector');
-  const toolMessage = aiCalls[1].messages.find(message => message.role === 'tool');
-  assert.equal(toolMessage.tool_call_id, 'call_1');
-  assert.equal(JSON.parse(toolMessage.content)[0].name, 'Padaria A');
-  assert.deepEqual(tregCalls.map(call => [call.token, call.body.q]), [['tok-agencia', 'padaria santos']]);
-});
-
-test('modelo ao vivo: API sem suporte a ferramentas recebe a pergunta de novo sem elas', async t => {
-  useAiEnv(t);
-  const original = globalThis.fetch;
-  t.mock.method(globalThis, 'fetch', async (url, init) => original(url, init));
-  const payloads = [];
-  const local = await start(t, async (url, init) => {
-    const payload = JSON.parse(init.body);
-    if (!payload.stream) return titleReply(payload);
-    payloads.push(payload);
-    if (payload.tools) return new Response(JSON.stringify({ error: { message: 'tools not supported' } }), { status: 400 });
-    return sse([{ choices: [{ delta: { content: 'Resposta sem ferramentas.' }, finish_reason: 'stop' }] }, '[DONE]']);
-  });
-  await local.call('/api/ask/connectors', { treg: { token: 'tok-agencia', googleMaps: true, instagram: true }, verify: false });
-  const answer = await local.ask('Oi');
-  assert.match(answer.text, /Resposta sem ferramentas\./);
-  assert.deepEqual(payloads.map(payload => Boolean(payload.tools)), [true, false]);
+  assert.equal(aiCalls[0].tools, undefined, 'o chat não oferece ferramentas externas ao modelo');
+  assert.doesNotMatch(JSON.stringify(aiCalls[0].messages), /Treg|procurar_negocios/);
 });
 
 test('modelo ao vivo: chave recusada vira uma mensagem clara, sem derrubar a conversa', async t => {
