@@ -1,20 +1,12 @@
-// soci — página inicial pública: barra que fica sólida ao rolar, menu do celular e abas da jornada.
+// soci — página inicial pública: menu do celular e abas da jornada.
 (() => {
-  const nav = document.querySelector('.nav');
-  const hero = document.querySelector('.hero');
   const menuBtn = document.getElementById('menu-btn');
   const links = document.getElementById('nav-links');
-
-  // A barra é transparente sobre a abertura escura e vira vidro claro depois dela.
-  const solid = () => nav.classList.toggle('solid', window.scrollY > hero.offsetHeight - nav.offsetHeight);
-  solid();
-  window.addEventListener('scroll', solid, { passive: true });
 
   const setMenu = open => {
     menuBtn.setAttribute('aria-expanded', String(open));
     menuBtn.querySelector('.sr').textContent = open ? 'Fechar o menu' : 'Abrir o menu';
     links.classList.toggle('open', open);
-    nav.classList.toggle('menu-open', open);
     document.body.style.overflow = open ? 'hidden' : '';
   };
   menuBtn.addEventListener('click', () => setMenu(menuBtn.getAttribute('aria-expanded') !== 'true'));
