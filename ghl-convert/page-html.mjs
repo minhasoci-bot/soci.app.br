@@ -162,3 +162,22 @@ export function cleanPage(html, { title = '', elements = [], fills = [], links =
     + [...new Set(fonts)].map(href => `<link rel="stylesheet" href="${esc(href)}">`).join('\n')
     + `\n<style>${style}</style></head><body>${body.trim()}</body></html>`;
 }
+
+/** Endereços http(s) de imagens num HTML ou CSS: src, srcset e url(...). Sem repetição, na ordem em que aparecem. */
+export function imageUrls(value) {
+  const text = String(value || '');
+  const found = [];
+  const add = url => { url = url.trim().replace(/&amp;/g, '&'); if (/^https?:\/\//i.test(url) && !found.includes(url)) found.push(url); };
+  for (const m of text.matchAll(/\ssrc="([^"]+)"/gi)) add(m[1]);
+  for (const m of text.matchAll(/\ssrcset="([^"]+)"/gi)) for (const part of m[1].split(',')) add(part.trim().split(/\s+/)[0]);
+  for (const m of text.matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi)) add(m[2]);
+  return found;
+}
+
+/** Troca endereços (chaves do map) pelos novos, numa string ou em qualquer objeto (devolve uma cópia). */
+export function replaceUrls(value, map) {
+  if (typeof value === 'string') { let out = value; for (const [from, to] of map) if (out.includes(from)) out = out.split(from).join(to); return out; }
+  if (Array.isArray(value)) return value.map(item => replaceUrls(item, map));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceUrls(item, map)]));
+  return value;
+}

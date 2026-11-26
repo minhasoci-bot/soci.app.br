@@ -17,7 +17,7 @@
  */
 window.PLANO_SOCI = {
   titulo: "Paridade Soci × GoHighLevel",
-  atualizadoEm: "2026-11-26 14:35",
+  atualizadoEm: "2026-11-26 15:36",
   etapaAtual: "T.2",
 
   regras: [
@@ -194,6 +194,7 @@ window.PLANO_SOCI = {
 
   historico: [
     { data: "2026-11-26", hora: "18:00", texto: "7.3 retirado a pedido do dono: o Marketplace de apps e o App Studio saíram da soci (página da agência, aba Apps da subconta, gatilho e ação de app nos workflows, /api/apps). A API pública /api/v1 das chaves e integrações privadas continua em routes/public-api.mjs." },
+    { data: "2026-11-26", hora: "15:36", texto: "Importar do GHL: a agência gera um código em Setups de conta, a extensão do Chrome (extensions/ghl-import, só GET, sem senha nem token) lê a subconta com o snapshot e envia em partes, e a soci converte em passos curtos (páginas, conversão, imagens) até um setup em Importados com relatório. Páginas dos setups importados ficam fora do estado da agência (setup-sites-store.mjs). Artigo agencia/importar-do-ghl na doc." },
     { data: "2026-11-26", hora: "14:35", texto: "Templates do GHL traduzidos: páginas, nomes e endereços das páginas, formulários, tags e mensagens em português (dicionário revisado em scripts/ghl-template/traducao-pt.json e teste que reprova texto em inglês)." },
     { data: "2026-11-26", hora: "14:00", texto: "7.4 ampliado: as subcontas do GHL viraram 5 templates de setup completos (Agência de Marketing, Paisagismo, Serviços Locais, Imobiliária com agente de IA e Cold Email A/B), com sites de até 50 páginas, fluxos, formulários, pesquisas, links de gatilho, chats, valores personalizados e agentes. Conversor em scripts/ghl-template/, sites grandes abrem uma página por vez no editor e as páginas publicadas preenchem os valores personalizados. Artigo agencia/templates-de-setup." },
     { data: "2026-11-25", hora: "20:55", texto: "Troca rápida de conta (extra soci): o menu do perfil, na agência e na subconta, lista até cinco contas Google do navegador, troca na hora, adiciona, remove e sai de uma ou de todas. Um cookie HttpOnly por conta, guarda por aba (a aba antiga não grava na conta nova) e artigo na central de ajuda." },

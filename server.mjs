@@ -47,6 +47,8 @@ import { createProspectPublicRoutes } from './routes/prospect-public.mjs';
 import { createPublicApiRoutes } from './routes/public-api.mjs';
 import { createAccountRoutes, createWhiteLabelRoutes } from './routes/account.mjs';
 import { createAgencyRoutes } from './routes/agency.mjs';
+import { createGhlImportRoutes, GHL_IMPORT_PUBLIC } from './routes/ghl-import.mjs';
+import { jobView } from './ghl-import-model.mjs';
 import { createFaviconRoutes, createPageRoutes } from './routes/pages.mjs';
 import { createWorkspaceRoutes } from './routes/workspace.mjs';
 import { createConnectorHookRoutes, createConnectorRoutes } from './routes/connectors.mjs';
@@ -76,6 +78,7 @@ import { transformText, writeBrandVoice, writeEmail, writeReviewReply } from './
 import { brandVoicePrompt, defaultBoard } from './ui/brand-data.js';
 import { runWorkflowAI } from './workflow-ai.mjs';
 import { mediaRowId } from './reputation-media.mjs';
+import { loadSetupSites, removeSetupSites, saveSetupSites } from './setup-sites-store.mjs';
 import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { AGENCY_ID, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, inTrash, trashList, trashExpired } from './agency-model.mjs';
 import { createAccountPurge, PURGE_GIVE_UP_MS, PURGE_RETRY_MS } from './account-purge.mjs';
@@ -195,7 +198,7 @@ export const staticFiles = new Map([
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
   ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/fiscal.js','text/javascript; charset=utf-8'], ['/tax-id.js','text/javascript; charset=utf-8'], ['/ledger.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/destination-field.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
-  ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/platform.js','text/javascript; charset=utf-8'], ['/ai-gateway.js','text/javascript; charset=utf-8'], ['/platform-format.js','text/javascript; charset=utf-8'], ['/setup-art.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
+  ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/platform.js','text/javascript; charset=utf-8'], ['/ai-gateway.js','text/javascript; charset=utf-8'], ['/ghl-import-view.js','text/javascript; charset=utf-8'], ['/platform-format.js','text/javascript; charset=utf-8'], ['/setup-art.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/deck-model.js','text/javascript; charset=utf-8'], ['/deck-render.js','text/javascript; charset=utf-8'], ['/deck-editor.js','text/javascript; charset=utf-8'], ['/deck.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
@@ -261,6 +264,7 @@ function publicAgency(agency, who) {
   const { audit: _audit, ledgerOutbox: _outbox, mcpGrants: _grants, ...shared } = agency;
   const view = { ...shared,
     snapshots: agency.snapshots.map(({ studioSites: _studioSites, ...rest }) => rest),
+    ghlImports: (agency.ghlImports || []).map(jobView),
     apiKeys: agency.apiKeys.map(({ hash: _hash, ...rest }) => rest),
     privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest),
     billing: safeBilling(agency.billing)
@@ -308,7 +312,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 
 export function makeServer({
   pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=localScheduler(store.kind), cronConcurrency=4, cronBudgetMs=45_000,
-  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, inboundFetch=fetch, twilioRequest=fetch, phoneEnv=process.env, brandResolve=null, designAgentConfig=designAgent,
+  auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, ghlFetch=fetch, metaFetch=fetch, inboundFetch=fetch, twilioRequest=fetch, phoneEnv=process.env, brandResolve=null, designAgentConfig=designAgent,
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, aiGatewayEnv=process.env, aiGatewayRequest=null, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch,
   evolutionBaseUrl=process.env.EVOLUTION_BASE_URL || '', evolutionApiKey=process.env.EVOLUTION_API_KEY || '',
   phoneVerify={ number: process.env.SOCI_VERIFY_WHATSAPP || '', instance: process.env.SOCI_VERIFY_INSTANCE || '', secret: process.env.SOCI_VERIFY_SECRET || '' },
@@ -582,6 +586,10 @@ export function makeServer({
     }
     return sites;
   }
+  // Setups importados do GHL guardam as páginas em linhas próprias (setup-sites-store.mjs), fora do estado da agência.
+  async function withStoredSites(snap) {
+    return snap?.sitesStored ? { ...snap, studioSites: await loadSetupSites(store, snap.id) } : snap;
+  }
   async function applyStudioSites(snap, studioMap, targetWorkspaceId) {
     if (!snap.studioSites || !studioMap?.size) return;
     for (const [oldId, newId] of studioMap.entries()) {
@@ -842,8 +850,9 @@ export function makeServer({
     if (input.snapshotId || input.templateId) {
       // A setup from the agency library, or a segment template straight from the gallery (like GHL snapshot templates).
       const template = input.templateId ? findMarketplaceSetup(await loadMarketplace(), input.templateId) : null;
-      const snap = template?.template ? { id: template.id, name: template.title, assets: template.assets, studioSites: template.studioSites || {} } : agency.snapshots.find(item => item.id === input.snapshotId);
-      if (!snap) throw error('Choose a valid snapshot.',400);
+      const found = template?.template ? { id: template.id, name: template.title, assets: template.assets, studioSites: template.studioSites || {} } : agency.snapshots.find(item => item.id === input.snapshotId);
+      if (!found) throw error('Choose a valid snapshot.',400);
+      const snap = await withStoredSites(found);
       const planned = { ...agency, accounts: { [newId]: { plan: input.plan } } };
       requireSetupModules(effectiveAccess(planned, who, newId), Object.keys(snap.assets || {}));
       loaded = { snap, report: applySnapshot(state, snap, 'skip', studioMap) };
@@ -1141,6 +1150,13 @@ export function makeServer({
         }
         return result;
       });
+      // Setups com páginas em linhas próprias: excluir apaga as linhas; importar por código copia para o setup novo.
+      if (input.type === 'snapshot-delete') await removeSetupSites(store, String(input.id || ''));
+      if (input.type === 'snapshot-import' && typeof outcome === 'string') {
+        const copy = (await loadAgency(who.agencyId)).snapshots.find(s => s.id === outcome);
+        const origin = sharedSnapshot || (await loadAgency(who.agencyId)).snapshots.find(s => s.shareCode === shareCode && s.shared);
+        if (copy?.sitesStored && origin) await saveSetupSites(store, copy.id, await loadSetupSites(store, origin.id));
+      }
       // Reselling prices are copied into each sub-account's wallet.
       if (['saas-rebilling', 'rebill-account'].includes(input.type)) await syncWallets(who.agencyId, workspaces);
       if (input.type === 'labs') await syncLabs(who.agencyId, workspaces);
@@ -1251,8 +1267,9 @@ export function makeServer({
     }
     if (op === 'snapshot-load') {
       const agency = await loadAgency(who.agencyId);
-      const snap = agency.snapshots.find(s => s.id === input.id);
-      if (!snap) throw error('Snapshot not found.',404);
+      const found = agency.snapshots.find(s => s.id === input.id);
+      if (!found) throw error('Snapshot not found.',404);
+      const snap = await withStoredSites(found);
       const targets = Array.isArray(input.workspaces) ? (await listWorkspaces(who.agencyId)).filter(w => input.workspaces.includes(w.id)) : [];
       if (!targets.length) throw error('Choose at least one sub-account.',400);
       for (const target of targets) {
@@ -2379,6 +2396,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const whiteLabelRoute = createWhiteLabelRoutes({ store, ready });
   const accountRoute = createAccountRoutes({ error, verifiedUser, openAI, payload, access, createAccount, listWorkspaces, visibleWorkspaces });
   const workspaceRoute = createWorkspaceRoutes({ store, error, spaceId, privateSpace, accessContext, verifiedUser, requireWorkspaceAccess, visibleWorkspaces, workspaceAccess, payload, openAI, writeAudit, localAccess, contentAI, reportMail, agentModel });
+  const ghlImportRoute = createGhlImportRoutes({ store, error, access, loadAgency, changeAgency, logTo, ghlFetch,
+    publicOrigin: String(process.env.PORTAL_PUBLIC_ORIGIN || 'https://soci.app.br').replace(/\/+$/, '') });
   const agencyRoute = createAgencyRoutes({ error, spaceId, privateSpace, access, accessContext, verifiedUser, requireWorkspaceAccess, visibleWorkspaces, agencyPayload, agencyRequest, auditLog, payload });
   const pageRoute = createPageRoutes({ store, ready, error, workspaceSegment, payload, change, publicAccountPolicy, staticFiles, sessionOnlyFiles, localAccess, auth, pranchetaEditorCsp, root });
   const server=createServer(async (req,res) => {
@@ -2418,9 +2437,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (!p.startsWith('/')) p = '/' + p;
       p = p.replace(/\/+/g, '/');
       const method=req.method;
-      if (!['GET','HEAD','POST'].includes(method)) throw error('Method not allowed.',405);
+      // Importar do GHL: a extensão do Chrome envia de chrome-extension://, autenticada pelo código de importação.
+      const ghlImportPublic = GHL_IMPORT_PUBLIC.test(p);
+      if (!['GET','HEAD','POST'].includes(method) && !(ghlImportPublic && method === 'OPTIONS')) throw error('Method not allowed.',405);
       // Tracking events come from the business's own site, so they are the one cross-site POST accepted.
-      if (method==='POST' && !trackingPath.test(p) && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
+      if (method==='POST' && !trackingPath.test(p) && !ghlImportPublic && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
       // Versão para o rodapé das páginas (ui/rodape.js): pública, sem banco, guardada por alguns minutos.
       if (p === '/api/versao' && (method === 'GET' || method === 'HEAD')) {
         res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300');
@@ -2462,6 +2483,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (mcpRouteHandled !== NEXT_ROUTE) return mcpRouteHandled;
       const actionRouteHandled = await actionRoute({ req, res, p, method, url, id, json, send });
       if (actionRouteHandled !== NEXT_ROUTE) return actionRouteHandled;
+      const ghlImportRouteHandled = await ghlImportRoute({ req, res, p, method, json });
+      if (ghlImportRouteHandled !== NEXT_ROUTE) return ghlImportRouteHandled;
       const agencyRouteHandled = await agencyRoute({ req, res, p, method, url, id, json });
       if (agencyRouteHandled !== NEXT_ROUTE) return agencyRouteHandled;
       const abacatePayRouteHandled = await abacatePayRoute({ req, res, p, method, url, json });

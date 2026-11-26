@@ -65,7 +65,7 @@ export function blankAgency() {
     profile: { name: 'Agency', first: 'Agency', last: 'Owner', email: '', phone: '', language: platformLanguage },
     company: { name: 'My Agency', brand: platformBrand, domain: '', website: '', phone: '', address: '', primary: defaultPrimary, secondary: defaultSecondary, accent: defaultAccent, logo: '', timezone: 'America/Sao_Paulo', currency: defaults.profile.currency },
     fiscal: null, ledgerOutbox: [],
-    accounts: {}, plans: [], snapshots: [], snapshotLoads: [], prospects: [], partners: [], ideas: [], menuLinks: [], announcements: [],
+    accounts: {}, plans: [], snapshots: [], snapshotLoads: [], ghlImports: [], prospects: [], partners: [], ideas: [], menuLinks: [], announcements: [],
     users: [], referrals: [], addonRequests: [], apiKeys: [], privateIntegrations: [], mcpGrants: [], audit: [], brandGroups: [], presentations: [], pranchetaFiles: [],
     reselling: Object.fromEntries(resellProducts.map(p => [p.key, { price: p.base, disabled: [] }])),
     affiliate: { accepted: false, steps: {}, code: '', payout: { method: 'PayPal', email: '' }, payments: [] },

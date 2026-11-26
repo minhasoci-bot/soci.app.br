@@ -1,0 +1,2134 @@
+{
+ "dump": {
+  "locationId": "Fx000000000000000000",
+  "extractedAt": "2026-11-26T00:00:00.000Z",
+  "location": {
+   "location": {
+    "_id": "Fx000000000000000000",
+    "id": "Fx000000000000000000",
+    "companyId": "Fx000000000000000001",
+    "name": "Jardim Teste"
+   }
+  },
+  "customFieldFolders": {
+   "customFieldFolders": [
+    {
+     "_id": "Fx000000000000000002",
+     "dateAdded": "2026-11-26T00:00:00.000Z",
+     "documentType": "folder",
+     "locationId": "Fx000000000000000000",
+     "model": "contact",
+     "originId": "Fx000000000000000003",
+     "position": 100,
+     "standard": true,
+     "standardFieldsFolder": true,
+     "fieldsCount": 7,
+     "id": "Fx000000000000000002",
+     "name": "Item 2"
+    },
+    {
+     "_id": "Fx000000000000000004",
+     "dateAdded": "2026-11-26T00:00:00.000Z",
+     "documentType": "folder",
+     "locationId": "Fx000000000000000000",
+     "model": "opportunity",
+     "originId": "Fx000000000000000005",
+     "position": 100,
+     "standard": true,
+     "standardFieldsFolder": true,
+     "fieldsCount": 10,
+     "id": "Fx000000000000000004",
+     "name": "Item 3"
+    },
+    {
+     "_id": "Fx000000000000000006",
+     "dateAdded": "2026-11-26T00:00:00.000Z",
+     "documentType": "folder",
+     "generalFieldsFolder": true,
+     "locationId": "Fx000000000000000000",
+     "model": "contact",
+     "originId": "Fx000000000000000007",
+     "position": 200,
+     "standard": true,
+     "fieldsCount": 8,
+     "id": "Fx000000000000000006",
+     "name": "Item 4"
+    },
+    {
+     "_id": "Fx000000000000000008",
+     "customFieldsFolder": true,
+     "dateAdded": "2026-11-26T00:00:00.000Z",
+     "documentType": "folder",
+     "locationId": "Fx000000000000000000",
+     "model": "contact",
+     "originId": "Fx000000000000000009",
+     "position": 300,
+     "standard": true,
+     "fieldsCount": 3,
+     "id": "Fx000000000000000008",
+     "name": "Item 5"
+    },
+    {
+     "_id": "Fx000000000000000010",
+     "dateAdded": "2026-11-26T00:00:00.000Z",
+     "documentType": "folder",
+     "locationId": "Fx000000000000000000",
+     "model": "contact",
+     "originId": "Fx000000000000000011",
+     "position": 400,
+     "fieldsCount": 0,
+     "id": "Fx000000000000000010",
+     "name": "Item 6"
+    },
+    {
+     "_id": "Fx000000000000000012",
+     "dateAdded": "2026-11-26T00:00:00.000Z",
+     "documentType": "folder",
+     "locationId": "Fx000000000000000000",
+     "model": "business",
+     "position": 450,
+     "standard": true,
+     "fieldsCount": 12,
+     "id": "Fx000000000000000012",
+     "name": "Item 7"
+    }
+   ],
+   "totalItems": 6,
+   "traceId": "f1x70013-0000-4000-8000-000000000013"
+  },
+  "customFields": {
+   "customFields": [
+    {
+     "_id": "Fx000000000000000014",
+     "allowCustomOption": false,
+     "dataType": "LARGE_TEXT",
+     "dateAdded": "2026-11-26T00:00:00.000Z",
+     "description": "",
+     "fieldKey": "contact.your_feedback",
+     "locationId": "Fx000000000000000000",
+     "model": "contact",
+     "originId": "Fx000000000000000015",
+     "parentId": "Fx000000000000000008",
+     "picklistOptions": [
+      ""
+     ],
+     "picklistOptionsImage": [],
+     "position": 0,
+     "standard": false,
+     "fieldsCount": 0,
+     "id": "Fx000000000000000014",
+     "name": "Item 8"
+    },
+    {
+     "_id": "Fx000000000000000016",
+     "allowCustomOption": false,
+     "dataType": "LARGE_TEXT",
+     "dateAdded": "2026-11-26T00:00:00.000Z",
+     "description": "",
+     "documentType": "field",
+     "fieldKey": "contact.your_message",
+     "locationId": "Fx000000000000000000",
+     "model": "contact",
+     "originId": "Fx000000000000000017",
+     "parentId": "Fx000000000000000008",
+     "picklistOptionsImage": [],
+     "placeholder": "",
+     "position": 50,
+     "standard": false,
+     "fieldsCount": 0,
+     "id": "Fx000000000000000016",
+     "name": "Item 9"
+    }
+   ]
+  },
+  "customValueFolders": {
+   "customValueFolders": [
+    {
+     "dateAdded": "2026-11-26T00:00:00.000Z",
+     "dateUpdated": "2026-11-26T00:00:00.000Z",
+     "documentType": "folder",
+     "locationId": "Fx000000000000000000",
+     "name": "Item 10",
+     "fieldsCount": 14,
+     "id": "Fx000000000000000018"
+    },
+    {
+     "dateAdded": "2026-11-26T00:00:00.000Z",
+     "dateUpdated": "2026-11-26T00:00:00.000Z",
+     "documentType": "folder",
+     "locationId": "Fx000000000000000000",
+     "name": "Item 11",
+     "fieldsCount": 12,
+     "id": "Fx000000000000000019"
+    }
+   ],
+   "traceId": "f1x70020-0000-4000-8000-000000000020"
+  },
+  "customValues": {
+   "customValues": [
+    {
+     "id": "Fx000000000000000021",
+     "name": "Item 12",
+     "fieldKey": "{{ custom_values.company_owner_first_name }}",
+     "locationId": "Fx000000000000000000",
+     "documentType": "field"
+    },
+    {
+     "id": "Fx000000000000000022",
+     "name": "Item 13",
+     "fieldKey": "{{ custom_values.company_facebook_link }}",
+     "locationId": "Fx000000000000000000",
+     "documentType": "field"
+    }
+   ]
+  },
+  "tags": {
+   "tags": [
+    {
+     "id": "Fx000000000000000023",
+     "name": "Item 14",
+     "locationId": "Fx000000000000000000",
+     "categoryId": null,
+     "description": null,
+     "color": null
+    },
+    {
+     "id": "Fx000000000000000024",
+     "name": "Item 15",
+     "locationId": "Fx000000000000000000",
+     "categoryId": null,
+     "description": null,
+     "color": null
+    },
+    {
+     "id": "Fx000000000000000025",
+     "name": "cliente",
+     "locationId": "Fx000000000000000000",
+     "categoryId": null,
+     "description": null,
+     "color": null
+    }
+   ]
+  },
+  "pipelines": {
+   "pipelines": [
+    {
+     "id": "Fx000000000000000026",
+     "name": "Item 16",
+     "showInFunnel": false,
+     "showInPieChart": false,
+     "useOpportunityProbability": false,
+     "dateAdded": "2026-11-26T00:00:00.000Z",
+     "dateUpdated": "2026-11-26T00:00:00.000Z",
+     "stages": [
+      {
+       "id": "f1x70027-0000-4000-8000-000000000027",
+       "name": "Item 17",
+       "showInFunnel": true,
+       "showInPieChart": true,
+       "position": 0,
+       "stageWinProbability": 20,
+       "originId": "Texto de exemplo 18"
+      },
+      {
+       "id": "f1x70028-0000-4000-8000-000000000028",
+       "name": "Item 19",
+       "showInFunnel": true,
+       "showInPieChart": true,
+       "position": 1,
+       "stageWinProbability": 40,
+       "originId": "Texto de exemplo 20"
+      },
+      {
+       "id": "f1x70029-0000-4000-8000-000000000029",
+       "name": "Item 21",
+       "showInFunnel": true,
+       "showInPieChart": true,
+       "position": 2,
+       "stageWinProbability": 60,
+       "originId": "Texto de exemplo 22"
+      },
+      {
+       "id": "f1x70030-0000-4000-8000-000000000030",
+       "name": "Item 23",
+       "showInFunnel": true,
+       "showInPieChart": true,
+       "position": 3,
+       "stageWinProbability": 80,
+       "originId": "Texto de exemplo 24"
+      }
+     ],
+     "locationId": "Fx000000000000000000",
+     "originId": "Fx000000000000000031",
+     "position": "Texto de exemplo 25"
+    }
+   ]
+  },
+  "calendars": {
+   "calendars": [],
+   "traceId": "Texto de exemplo 26"
+  },
+  "links": {
+   "links": [
+    {
+     "id": "Fx000000000000000032",
+     "name": "Item 27",
+     "redirectTo": "{{ custom_values.company_website_link }} Texto 28 ",
+     "fieldKey": "{{trigger_link.JNAm9unTcELVcMTvNwDM}}",
+     "isInternal": false,
+     "folderId": null,
+     "deleted": false,
+     "locationId": "Fx000000000000000000"
+    }
+   ]
+  },
+  "chatWidgets": {
+   "chatWidgets": []
+  },
+  "forms": [
+   {
+    "_id": "Fx000000000000000033",
+    "dateAdded": "2026-11-26T00:00:00.000Z",
+    "dateUpdated": "2026-11-26T00:00:00.000Z",
+    "deleted": false,
+    "formData": {
+     "autoResponder": false,
+     "emailNotifications": false,
+     "form": {
+      "address": {
+       "autoCompleteEnabled": true,
+       "children": [],
+       "label": "Item 29",
+       "placeholder": "Texto de exemplo 30",
+       "required": true
+      },
+      "autoResponderConfig": null,
+      "company": {
+       "domain": "app.realtylab.ai",
+       "logoURL": "",
+       "name": "Item 31"
+      },
+      "conditionalLogic": null,
+      "contactAssociationSettings": null,
+      "customStyle": "",
+      "emailNotificationsConfig": null,
+      "enableTimezone": true,
+      "fbPixelId": "",
+      "fieldCSS": "contato@exemplo.com.br",
+      "fieldStyle": {
+       "activeTagBgColor": "Texto de exemplo 32",
+       "bgColor": "e9ecef",
+       "border": {
+        "border": 0,
+        "color": "FFFFFF",
+        "radius": 5,
+        "type": "none"
+       },
+       "fontColor": "000000",
+       "labelAlignment": "top",
+       "labelColor": "FFFFFFFF",
+       "labelFontFamily": "Texto de exemplo 33",
+       "labelFontSize": "14",
+       "labelFontWeight": 900,
+       "labelWidth": 200,
+       "padding": {
+        "bottom": 15,
+        "left": 20,
+        "right": 20,
+        "top": 15
+       },
+       "placeholderColor": "Texto de exemplo 34",
+       "placeholderFontFamily": "Texto de exemplo 35",
+       "placeholderFontSize": "14",
+       "placeholderFontWeight": 800,
+       "shadow": {
+        "blur": 0,
+        "color": "FFFFFF",
+        "horizontal": 0,
+        "spread": 0,
+        "vertical": 0
+       },
+       "shortLabel": {
+        "color": "FFFFFFFF",
+        "fontFamily": "Texto de exemplo 36",
+        "fontSize": 12,
+        "fontWeight": 300
+       }
+      },
+      "fields": [
+       {
+        "active": false,
+        "hiddenFieldQueryKey": "image_1",
+        "label": "Item 37",
+        "placeholder": "",
+        "standard": true,
+        "tag": "image",
+        "type": "img",
+        "url": "https://assets.cdn.filesafe.space/fixture/img-38.png",
+        "width": 200
+       },
+       {
+        "active": false,
+        "align": "left",
+        "bgColor": "FFFFFF00",
+        "border": {
+         "border": 0,
+         "color": "FFFFFF",
+         "radius": 0,
+         "type": "none"
+        },
+        "color": "FFFAFAFF",
+        "fieldWidthPercentage": 100,
+        "fontFamily": "Texto de exemplo 39",
+        "hiddenFieldQueryKey": "header_1",
+        "label": "Item 40",
+        "padding": {
+         "bottom": 0,
+         "left": 20,
+         "right": 20,
+         "top": 0
+        },
+        "placeholder": "header",
+        "shadow": {
+         "blur": 20,
+         "color": "E88763FF",
+         "horizontal": 0,
+         "spread": 1,
+         "vertical": 0
+        },
+        "standard": true,
+        "tag": "header",
+        "type": "h1",
+        "weight": 400
+       },
+       {
+        "active": false,
+        "fieldKey": "primeiro_nome_do_cliente",
+        "fieldWidthPercentage": 100,
+        "hiddenFieldQueryKey": "first_name",
+        "label": "Item 41",
+        "placeholder": "Texto de exemplo 42",
+        "preview": "Texto de exemplo 43",
+        "required": true,
+        "standard": true,
+        "tag": "first_name",
+        "type": "text"
+       },
+       {
+        "active": false,
+        "enableCountryPicker": true,
+        "fieldKey": "telefone_inclua_o_ddd_voce_nao_conseguira_enviar_se_o_numero_for_digitado_incorretamente",
+        "fieldWidthPercentage": 100,
+        "hiddenFieldQueryKey": "phone",
+        "label": "Item 44",
+        "placeholder": "Texto de exemplo 45",
+        "preview": "Texto de exemplo 46",
+        "required": true,
+        "standard": true,
+        "tag": "phone",
+        "type": "text"
+       },
+       {
+        "active": false,
+        "align": "left",
+        "bgColor": "FFFFFFFF",
+        "border": 0,
+        "borderColor": "FFFFFF",
+        "borderRadius": 0,
+        "borderType": "none",
+        "color": "Texto de exemplo 47",
+        "fieldWidthPercentage": 100,
+        "fontFamily": "Texto de exemplo 48",
+        "fontSize": 30,
+        "fullwidth": true,
+        "hiddenFieldQueryKey": "button",
+        "label": "Item 49",
+        "padding": {
+         "bottom": 15,
+         "left": 11,
+         "right": 11,
+         "top": 15
+        },
+        "placeholder": "Texto de exemplo 50",
+        "shadow": {
+         "blur": 17,
+         "color": "E88763FF",
+         "horizontal": 0,
+         "spread": 7,
+         "vertical": 0
+        },
+        "standard": true,
+        "subTextColor": "000000",
+        "subTextFontFamily": "Texto de exemplo 51",
+        "subTextFontSize": 14,
+        "subTextWeight": 200,
+        "submitSubText": "",
+        "tag": "button",
+        "type": "submit",
+        "weight": 900
+       }
+      ],
+      "formAction": {
+       "actionType": "1",
+       "headerImageSrc": "",
+       "mobileHeaderImageSrc": "",
+       "redirectUrl": "{{ custom_values.company_website_link }} Texto 52 ",
+       "thankyouText": "Texto de exemplo 53"
+      },
+      "formLabelVisible": true,
+      "formSubmissionEvent": "Texto de exemplo 54",
+      "fullScreenMode": true,
+      "height": 814,
+      "inputStyleType": "box",
+      "isGDPRCompliant": false,
+      "layout": 1,
+      "mobileFieldCSS": "contato@exemplo.com.br",
+      "opportunitySettings": null,
+      "pageViewEvent": "Texto de exemplo 55",
+      "payment": null,
+      "stickyContact": false,
+      "style": {
+       "acBranding": false,
+       "background": "Texto de exemplo 56",
+       "bgImage": "",
+       "border": {
+        "border": 1,
+        "color": "CDE0EC",
+        "radius": 4,
+        "style": "dashed"
+       },
+       "fieldSpacing": 16,
+       "margin": {
+        "bottom": "auto",
+        "left": "auto",
+        "right": "auto",
+        "top": "auto"
+       },
+       "mobileBgImage": "",
+       "mobileMargin": {
+        "bottom": "auto",
+        "left": "auto",
+        "right": "auto",
+        "top": "auto"
+       },
+       "padding": {
+        "bottom": 0,
+        "left": 20,
+        "right": 20,
+        "top": 0
+       },
+       "shadow": {
+        "blur": 0,
+        "color": "FFFFFF",
+        "horizontal": 0,
+        "spread": 0,
+        "vertical": 0
+       }
+      },
+      "submitMessageStyle": {
+       "bgColor": "FFFFFF00",
+       "color": "FFFFFFFF",
+       "cornerRadius": 10,
+       "fontFamily": "Texto de exemplo 57",
+       "fontSize": 50,
+       "fontWeight": 500,
+       "isEnabled": true,
+       "margin": {
+        "bottom": "auto",
+        "left": "auto",
+        "right": "auto",
+        "top": "auto"
+       },
+       "mobileBgColor": "FFFFFF00",
+       "mobileFontWeight": 500,
+       "padding": {
+        "bottom": 48,
+        "left": 48,
+        "right": 48,
+        "top": 48
+       }
+      },
+      "width": 600
+     },
+     "language": "Texto de exemplo 58",
+     "recurringProductCurrency": null,
+     "recurringProductId": null,
+     "recurringProducts": [],
+     "lastUpdatedAt": "2026-11-26T00:00:00.000Z"
+    },
+    "locationId": "Fx000000000000000000",
+    "name": "Item 59",
+    "originId": "Fx000000000000000034",
+    "productType": "form",
+    "source": "snapshot",
+    "updatedBy": "",
+    "versionHistory": [
+     {
+      "formDataDownloadUrl": "https://exemplo.com.br/p60",
+      "formDataUrl": "Texto de exemplo 61",
+      "updatedAt": "2026-11-26T00:00:00.000Z",
+      "updatedBy": "Fx000000000000000035",
+      "updatedByUser": "Texto de exemplo 62",
+      "versionId": "f1x70036-0000-4000-8000-000000000036"
+     },
+     {
+      "formDataDownloadUrl": "https://exemplo.com.br/p63",
+      "formDataUrl": "Texto de exemplo 64",
+      "updatedAt": "2026-11-26T00:00:00.000Z",
+      "updatedBy": "Fx000000000000000035",
+      "updatedByUser": "Texto de exemplo 65",
+      "versionId": "f1x70037-0000-4000-8000-000000000037"
+     },
+     {
+      "formDataDownloadUrl": "https://exemplo.com.br/p66",
+      "formDataUrl": "Texto de exemplo 67",
+      "updatedAt": "2026-11-26T00:00:00.000Z",
+      "updatedBy": "Fx000000000000000035",
+      "updatedByUser": "Texto de exemplo 68",
+      "versionId": "f1x70038-0000-4000-8000-000000000038"
+     }
+    ],
+    "updatedAt": "2026-11-26T00:00:00.000Z"
+   }
+  ],
+  "emailTemplates": [],
+  "workflowFolders": [],
+  "workflows": [
+   {
+    "_id": "f1x70039-0000-4000-8000-000000000039",
+    "locationId": "Fx000000000000000000",
+    "name": "Item 69",
+    "status": "published",
+    "version": 2,
+    "allowMultiple": false,
+    "timezone": "account",
+    "removeContactFromLastStep": true,
+    "filePath": "Texto de exemplo 70",
+    "fileUrl": "https://exemplo.com.br/p71",
+    "stopOnResponse": false,
+    "autoMarkAsRead": false,
+    "originId": "f1x70040-0000-4000-8000-000000000040",
+    "permission": 380,
+    "type": "workflow",
+    "meta": null,
+    "updatedBy": "snapshot",
+    "createdAt": "2026-11-26T00:00:00.000Z",
+    "updatedAt": "2026-11-26T00:00:00.000Z",
+    "deleted": false,
+    "creationSource": "builder",
+    "isTriggerBucketMigrated": true,
+    "originType": "snapshot",
+    "__v": 0,
+    "allowMultipleOpportunity": false,
+    "companyId": "Fx000000000000000041",
+    "dataVersion": 7,
+    "eventStartDate": null,
+    "parentId": "f1x70042-0000-4000-8000-000000000042",
+    "senderAddress": null,
+    "triggersFilePath": "Texto de exemplo 72",
+    "window": null,
+    "workflowNote": {
+     "content": "",
+     "createdBy": "snapshot",
+     "createdByName": "snapshot",
+     "createdAt": "2026-11-26T00:00:00.000Z",
+     "updatedBy": "snapshot",
+     "updatedByName": "snapshot",
+     "updatedAt": "2026-11-26T00:00:00.000Z"
+    },
+    "id": "f1x70039-0000-4000-8000-000000000039",
+    "workflowData": {
+     "templates": [
+      {
+       "id": "f1x70043-0000-4000-8000-000000000043",
+       "order": 0,
+       "attributes": {
+        "tags": [
+         "Texto de exemplo 73"
+        ]
+       },
+       "name": "Item 74",
+       "type": "add_contact_tag",
+       "next": "f1x70044-0000-4000-8000-000000000044"
+      },
+      {
+       "id": "f1x70044-0000-4000-8000-000000000044",
+       "order": 1,
+       "attributes": {
+        "type": "sms",
+        "sms": {
+         "userType": "all",
+         "body": " Texto 75 {{custom_values.company_owner_first_name}} Texto 76 {{contact.first_name}} Texto 77 {{contact.your_feedback}} Texto 78 ",
+         "attachments": []
+        }
+       },
+       "name": "Item 79",
+       "type": "internal_notification",
+       "cat": "actions",
+       "next": null,
+       "parentKey": "f1x70043-0000-4000-8000-000000000043"
+      }
+     ]
+    },
+    "permissionMeta": {
+     "canRead": true,
+     "canWrite": true
+    },
+    "folderId": "f1x70042-0000-4000-8000-000000000042"
+   },
+   {
+    "_id": "f1x70045-0000-4000-8000-000000000045",
+    "locationId": "Fx000000000000000000",
+    "name": "Item 80",
+    "status": "published",
+    "version": 2,
+    "allowMultiple": true,
+    "timezone": "account",
+    "removeContactFromLastStep": true,
+    "filePath": "Texto de exemplo 81",
+    "fileUrl": "https://exemplo.com.br/p82",
+    "stopOnResponse": false,
+    "autoMarkAsRead": false,
+    "originId": "f1x70046-0000-4000-8000-000000000046",
+    "permission": 380,
+    "type": "workflow",
+    "meta": null,
+    "updatedBy": "snapshot",
+    "createdAt": "2026-11-26T00:00:00.000Z",
+    "updatedAt": "2026-11-26T00:00:00.000Z",
+    "deleted": false,
+    "creationSource": "builder",
+    "isTriggerBucketMigrated": true,
+    "originType": "snapshot",
+    "__v": 0,
+    "allowMultipleOpportunity": false,
+    "companyId": "Fx000000000000000041",
+    "dataVersion": 7,
+    "eventStartDate": null,
+    "parentId": "f1x70042-0000-4000-8000-000000000042",
+    "senderAddress": null,
+    "triggersFilePath": "Texto de exemplo 83",
+    "window": null,
+    "workflowNote": {
+     "content": "",
+     "createdBy": "snapshot",
+     "createdByName": "snapshot",
+     "createdAt": "2026-11-26T00:00:00.000Z",
+     "updatedBy": "snapshot",
+     "updatedByName": "snapshot",
+     "updatedAt": "2026-11-26T00:00:00.000Z"
+    },
+    "id": "f1x70045-0000-4000-8000-000000000045",
+    "workflowData": {
+     "templates": [
+      {
+       "id": "f1x70047-0000-4000-8000-000000000047",
+       "order": 0,
+       "attributes": {
+        "tags": [
+         "Texto de exemplo 84"
+        ]
+       },
+       "name": "Item 85",
+       "type": "add_contact_tag",
+       "next": "f1x70048-0000-4000-8000-000000000048"
+      },
+      {
+       "id": "f1x70048-0000-4000-8000-000000000048",
+       "order": 1,
+       "attributes": {
+        "type": "sms",
+        "sms": {
+         "userType": "all",
+         "body": " Texto 86 {{custom_values.company_owner_first_name}} Texto 87 {{contact.first_name}} Texto 88 {{contact.name}} Texto 89 {{contact.phone}} Texto 90 {{contact.your_message}} Texto 91 ",
+         "attachments": []
+        }
+       },
+       "name": "Item 92",
+       "type": "internal_notification",
+       "next": "f1x70049-0000-4000-8000-000000000049",
+       "parentKey": "f1x70047-0000-4000-8000-000000000047"
+      },
+      {
+       "id": "f1x70049-0000-4000-8000-000000000049",
+       "order": 2,
+       "attributes": {
+        "type": "time",
+        "startAfter": {
+         "type": "minutes",
+         "value": 2,
+         "when": "after"
+        }
+       },
+       "name": "Item 93",
+       "type": "wait",
+       "next": "f1x70050-0000-4000-8000-000000000050",
+       "parentKey": "f1x70048-0000-4000-8000-000000000048"
+      },
+      {
+       "id": "f1x70050-0000-4000-8000-000000000050",
+       "order": 3,
+       "attributes": {
+        "body": " Texto 94 {{contact.first_name}} Texto 95 {{custom_values.company_owner_first_name}} Texto 96 {{custom_values.company_name}}",
+        "attachments": []
+       },
+       "name": "Item 97",
+       "type": "sms",
+       "parentKey": "f1x70049-0000-4000-8000-000000000049"
+      }
+     ]
+    },
+    "permissionMeta": {
+     "canRead": true,
+     "canWrite": true
+    },
+    "folderId": "f1x70042-0000-4000-8000-000000000042"
+   }
+  ],
+  "funnels": [
+   {
+    "_id": "Fx000000000000000051",
+    "autoGenerateSchema": true,
+    "dateAdded": "2026-11-26T00:00:00.000Z",
+    "dateUpdated": "2026-11-26T00:00:00.000Z",
+    "deleted": false,
+    "domainId": "",
+    "locationId": "Fx000000000000000000",
+    "name": "Item 98",
+    "orderFormVersion": 2,
+    "originId": "Fx000000000000000052",
+    "steps": [
+     {
+      "id": "f1x70053-0000-4000-8000-000000000053",
+      "name": "Item 99",
+      "originId": "f1x70054-0000-4000-8000-000000000054",
+      "pages": [
+       "Fx000000000000000055"
+      ],
+      "products": [],
+      "sequence": 1,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 100"
+     },
+     {
+      "id": "f1x70056-0000-4000-8000-000000000056",
+      "name": "Item 101",
+      "originId": "f1x70057-0000-4000-8000-000000000057",
+      "pages": [
+       "Fx000000000000000058"
+      ],
+      "products": [],
+      "sequence": 2,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 102"
+     },
+     {
+      "id": "f1x70059-0000-4000-8000-000000000059",
+      "name": "Item 103",
+      "originId": "f1x70060-0000-4000-8000-000000000060",
+      "pages": [
+       "Fx000000000000000061"
+      ],
+      "products": [],
+      "sequence": 3,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 104"
+     },
+     {
+      "id": "f1x70062-0000-4000-8000-000000000062",
+      "name": "Item 105",
+      "originId": "f1x70063-0000-4000-8000-000000000063",
+      "pages": [
+       "Fx000000000000000064"
+      ],
+      "products": [],
+      "sequence": 4,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 106"
+     },
+     {
+      "id": "f1x70065-0000-4000-8000-000000000065",
+      "name": "Item 107",
+      "originId": "f1x70066-0000-4000-8000-000000000066",
+      "pages": [
+       "Fx000000000000000067"
+      ],
+      "products": [],
+      "sequence": 5,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 108"
+     },
+     {
+      "id": "f1x70068-0000-4000-8000-000000000068",
+      "name": "Item 109",
+      "originId": "f1x70069-0000-4000-8000-000000000069",
+      "pages": [
+       "Fx000000000000000070"
+      ],
+      "products": [],
+      "sequence": 6,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 110"
+     },
+     {
+      "id": "f1x70071-0000-4000-8000-000000000071",
+      "name": "Item 111",
+      "originId": "f1x70072-0000-4000-8000-000000000072",
+      "pages": [
+       "Fx000000000000000073"
+      ],
+      "products": [],
+      "sequence": 7,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 112"
+     },
+     {
+      "id": "f1x70074-0000-4000-8000-000000000074",
+      "name": "Item 113",
+      "originId": "f1x70075-0000-4000-8000-000000000075",
+      "pages": [
+       "Fx000000000000000076"
+      ],
+      "products": [],
+      "sequence": 8,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 114"
+     },
+     {
+      "id": "f1x70077-0000-4000-8000-000000000077",
+      "name": "Item 115",
+      "originId": "f1x70078-0000-4000-8000-000000000078",
+      "pages": [
+       "Fx000000000000000079"
+      ],
+      "products": [],
+      "sequence": 9,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 116"
+     },
+     {
+      "id": "f1x70080-0000-4000-8000-000000000080",
+      "name": "Item 117",
+      "originId": "f1x70081-0000-4000-8000-000000000081",
+      "pages": [
+       "Fx000000000000000082"
+      ],
+      "products": [],
+      "sequence": 10,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 118"
+     },
+     {
+      "id": "f1x70083-0000-4000-8000-000000000083",
+      "name": "Item 119",
+      "originId": "f1x70084-0000-4000-8000-000000000084",
+      "pages": [
+       "Fx000000000000000085"
+      ],
+      "products": [],
+      "sequence": 11,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 120"
+     },
+     {
+      "id": "f1x70086-0000-4000-8000-000000000086",
+      "name": "Item 121",
+      "originId": "f1x70087-0000-4000-8000-000000000087",
+      "pages": [
+       "Fx000000000000000088"
+      ],
+      "products": [],
+      "sequence": 12,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 122"
+     },
+     {
+      "id": "f1x70089-0000-4000-8000-000000000089",
+      "name": "Item 123",
+      "originId": "f1x70090-0000-4000-8000-000000000090",
+      "pages": [
+       "Fx000000000000000091"
+      ],
+      "products": [],
+      "sequence": 13,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 124"
+     },
+     {
+      "id": "f1x70092-0000-4000-8000-000000000092",
+      "name": "Item 125",
+      "originId": "f1x70093-0000-4000-8000-000000000093",
+      "pages": [
+       "Fx000000000000000094"
+      ],
+      "products": [],
+      "sequence": 14,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 126"
+     },
+     {
+      "id": "f1x70095-0000-4000-8000-000000000095",
+      "name": "Item 127",
+      "originId": "f1x70096-0000-4000-8000-000000000096",
+      "pages": [
+       "Fx000000000000000097"
+      ],
+      "products": [],
+      "sequence": 15,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 128"
+     },
+     {
+      "id": "f1x70098-0000-4000-8000-000000000098",
+      "name": "Item 129",
+      "originId": "f1x70099-0000-4000-8000-000000000099",
+      "pages": [
+       "Fx000000000000000100"
+      ],
+      "products": [],
+      "sequence": 16,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 130"
+     },
+     {
+      "id": "f1x70101-0000-4000-8000-000000000101",
+      "name": "Item 131",
+      "originId": "f1x70102-0000-4000-8000-000000000102",
+      "pages": [
+       "Fx000000000000000103"
+      ],
+      "products": [],
+      "sequence": 17,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 132"
+     },
+     {
+      "id": "f1x70104-0000-4000-8000-000000000104",
+      "name": "Item 133",
+      "originId": "f1x70105-0000-4000-8000-000000000105",
+      "pages": [
+       "Fx000000000000000106"
+      ],
+      "products": [],
+      "sequence": 18,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 134"
+     },
+     {
+      "id": "f1x70107-0000-4000-8000-000000000107",
+      "name": "Item 135",
+      "originId": "f1x70108-0000-4000-8000-000000000108",
+      "pages": [
+       "Fx000000000000000109"
+      ],
+      "products": [],
+      "sequence": 19,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 136"
+     },
+     {
+      "id": "f1x70110-0000-4000-8000-000000000110",
+      "name": "Item 137",
+      "originId": "f1x70111-0000-4000-8000-000000000111",
+      "pages": [
+       "Fx000000000000000112"
+      ],
+      "products": [],
+      "sequence": 20,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 138"
+     },
+     {
+      "id": "f1x70113-0000-4000-8000-000000000113",
+      "name": "Item 139",
+      "originId": "f1x70114-0000-4000-8000-000000000114",
+      "pages": [
+       "Fx000000000000000115"
+      ],
+      "products": [],
+      "sequence": 21,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 140"
+     },
+     {
+      "id": "f1x70116-0000-4000-8000-000000000116",
+      "name": "Item 141",
+      "originId": "f1x70117-0000-4000-8000-000000000117",
+      "pages": [
+       "Fx000000000000000118"
+      ],
+      "products": [],
+      "sequence": 22,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 142"
+     },
+     {
+      "id": "f1x70119-0000-4000-8000-000000000119",
+      "name": "Item 143",
+      "originId": "f1x70120-0000-4000-8000-000000000120",
+      "pages": [
+       "Fx000000000000000121"
+      ],
+      "products": [],
+      "sequence": 23,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 144"
+     },
+     {
+      "id": "f1x70122-0000-4000-8000-000000000122",
+      "name": "Item 145",
+      "originId": "f1x70123-0000-4000-8000-000000000123",
+      "pages": [
+       "Fx000000000000000124"
+      ],
+      "products": [],
+      "sequence": 24,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 146"
+     },
+     {
+      "id": "f1x70125-0000-4000-8000-000000000125",
+      "name": "Item 147",
+      "originId": "f1x70126-0000-4000-8000-000000000126",
+      "pages": [
+       "Fx000000000000000127"
+      ],
+      "products": [],
+      "sequence": 25,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 148"
+     },
+     {
+      "id": "f1x70128-0000-4000-8000-000000000128",
+      "name": "Item 149",
+      "originId": "f1x70129-0000-4000-8000-000000000129",
+      "pages": [
+       "Fx000000000000000130"
+      ],
+      "products": [],
+      "sequence": 26,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 150"
+     },
+     {
+      "id": "f1x70131-0000-4000-8000-000000000131",
+      "name": "Item 151",
+      "originId": "f1x70132-0000-4000-8000-000000000132",
+      "pages": [
+       "Fx000000000000000133"
+      ],
+      "products": [],
+      "sequence": 27,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 152"
+     },
+     {
+      "id": "f1x70134-0000-4000-8000-000000000134",
+      "name": "Item 153",
+      "originId": "f1x70135-0000-4000-8000-000000000135",
+      "pages": [
+       "Fx000000000000000136"
+      ],
+      "products": [],
+      "sequence": 28,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 154"
+     },
+     {
+      "id": "f1x70137-0000-4000-8000-000000000137",
+      "name": "Item 155",
+      "originId": "f1x70138-0000-4000-8000-000000000138",
+      "pages": [
+       "Fx000000000000000139"
+      ],
+      "products": [],
+      "sequence": 29,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 156"
+     },
+     {
+      "id": "f1x70140-0000-4000-8000-000000000140",
+      "name": "Item 157",
+      "originId": "f1x70141-0000-4000-8000-000000000141",
+      "pages": [
+       "Fx000000000000000142"
+      ],
+      "products": [],
+      "sequence": 30,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 158"
+     },
+     {
+      "controlTraffic": 100,
+      "id": "f1x70143-0000-4000-8000-000000000143",
+      "name": "Item 159",
+      "originId": "f1x70144-0000-4000-8000-000000000144",
+      "pages": [
+       "Fx000000000000000145"
+      ],
+      "products": [],
+      "sequence": 31,
+      "split": false,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 160"
+     },
+     {
+      "controlTraffic": 100,
+      "id": "f1x70146-0000-4000-8000-000000000146",
+      "name": "Item 161",
+      "originId": "f1x70147-0000-4000-8000-000000000147",
+      "pages": [
+       "Fx000000000000000148"
+      ],
+      "products": [],
+      "sequence": 32,
+      "split": false,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 162"
+     },
+     {
+      "controlTraffic": 100,
+      "id": "f1x70149-0000-4000-8000-000000000149",
+      "name": "Item 163",
+      "originId": "f1x70150-0000-4000-8000-000000000150",
+      "pages": [
+       "Fx000000000000000151"
+      ],
+      "products": [],
+      "sequence": 33,
+      "split": false,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 164"
+     },
+     {
+      "controlTraffic": 100,
+      "id": "f1x70152-0000-4000-8000-000000000152",
+      "name": "Item 165",
+      "originId": "f1x70153-0000-4000-8000-000000000153",
+      "pages": [
+       "Fx000000000000000154"
+      ],
+      "products": [],
+      "sequence": 34,
+      "split": false,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 166"
+     },
+     {
+      "controlTraffic": 100,
+      "id": "f1x70155-0000-4000-8000-000000000155",
+      "name": "Item 167",
+      "originId": "f1x70156-0000-4000-8000-000000000156",
+      "pages": [
+       "Fx000000000000000157"
+      ],
+      "products": [],
+      "sequence": 35,
+      "split": false,
+      "type": "optin_funnel_page",
+      "url": "Texto de exemplo 168"
+     }
+    ],
+    "type": "website",
+    "updatedAt": "2026-11-26T00:00:00.000Z",
+    "webshotSuppressUntil": 1795195067299,
+    "faviconUrl": "",
+    "globalSectionVersion": 1,
+    "globalSectionsPath": "Texto de exemplo 169",
+    "globalSectionsUrl": "https://exemplo.com.br/p170",
+    "isStoreActive": false,
+    "trackingCodeBody": "",
+    "trackingCodeHead": "",
+    "url": "Texto de exemplo 171",
+    "upperName": "Texto de exemplo 172",
+    "kind": "website",
+    "pages": [
+     {
+      "popups": [],
+      "products": [],
+      "_id": "Fx000000000000000112",
+      "colors": [],
+      "dateAdded": "2026-11-26T00:00:00.000Z",
+      "dateUpdated": "2026-11-26T00:00:00.000Z",
+      "deleted": false,
+      "funnelId": "Fx000000000000000051",
+      "locationId": "Fx000000000000000000",
+      "meta": {
+       "author": "{{ custom_values.company_name }}",
+       "canonicalMeta": [],
+       "customMeta": [],
+       "description": " Texto 173 {{ custom_values.service_4 }} Texto 174 {{ custom_values.biz_area_1 }} Texto 175 {{ custom_values.company_name }} Texto 176 {{ custom_values.service_4 }} Texto 177 ",
+       "imageUrl": "{{ custom_values.service_1_image }}",
+       "keywords": "{{ custom_values.service_4 }} {{ custom_values.biz_area_1 }} Texto 178 {{ custom_values.biz_area_1 }} {{ custom_values.service_4 }} Texto 179 {{ custom_values.service_4 }} {{ custom_values.biz_area_2 }} Texto 180 {{ custom_values.biz_area_2 }} {{ custom_values.service_4 }} Texto 181 {{ custom_values.service_4 }} {{ custom_values.biz_area_3 }} Texto 182 {{ custom_values.biz_area_3 }} {{ custom_values.service_4 }} Texto 183 {{ custom_values.service_4 }} {{ custom_values.biz_area_4 }} Texto 184 {{ custom_values.biz_area_4 }} {{ custom_values.service_4 }} Texto 185 {{ custom_values.service_4 }} {{ custom_values.biz_area_5 }} Texto 186 {{ custom_values.biz_area_5 }} {{ custom_values.service_4 }} Texto 187 {{ custom_values.service_4 }} {{ custom_values.biz_area_6 }} Texto 188 {{ custom_values.biz_area_6 }} {{ custom_values.service_4 }} Texto 189 {{ custom_values.service_4 }} {{ custom_values.biz_area_7 }} Texto 190 {{ custom_values.biz_area_7 }} {{ custom_values.service_4 }} Texto 191 {{ custom_values.service_4 }} {{ custom_values.biz_area_8 }} Texto 192 {{ custom_values.biz_area_8 }} {{ custom_values.service_4 }} Texto 193 {{ custom_values.service_4 }} {{ custom_values.biz_area_9 }} Texto 194 {{ custom_values.biz_area_9 }} {{ custom_values.service_4 }} Texto 195 {{ custom_values.service_4 }} {{ custom_values.biz_area_10 }} Texto 196 {{ custom_values.biz_area_10 }} {{ custom_values.service_4 }} Texto 197 {{ custom_values.service_4 }} {{ custom_values.biz_area_11 }} Texto 198 {{ custom_values.biz_area_11 }} {{ custom_values.service_4 }} Texto 199 {{ custom_values.service_4 }} {{ custom_values.biz_area_12 }} Texto 200 {{ custom_values.biz_area_12 }} {{ custom_values.service_4 }} Texto 201 {{ custom_values.service_4 }} {{ custom_values.biz_area_13 }} Texto 202 {{ custom_values.biz_area_13 }} {{ custom_values.service_4 }} Texto 203 {{ custom_values.service_4 }} {{ custom_values.biz_area_14 }} Texto 204 {{ custom_values.biz_area_14 }} {{ custom_values.service_4 }}\n",
+       "language": "en",
+       "title": "{{ custom_values.company_name }} Texto 205 {{ custom_values.service_4 }} {{ custom_values.biz_area_1 }}"
+      },
+      "name": "Item 206",
+      "origin": "snapshot",
+      "originId": "Fx000000000000000158",
+      "pageDataDownloadUrl": "https://exemplo.com.br/p207",
+      "pageDataUrl": "Texto de exemplo 208",
+      "pageVersion": 2,
+      "previewSnapshot": "https://assets.cdn.filesafe.space/fixture/img-209.png",
+      "sectionVersion": 1,
+      "stepId": "f1x70110-0000-4000-8000-000000000110",
+      "templateType": "",
+      "url": "Texto de exemplo 210",
+      "version": 4,
+      "versionHistory": [
+       {
+        "integrations": {
+         "blogMeta": {
+          "categoryNavigationList": [],
+          "selectedBlogCategories": []
+         },
+         "button": 50,
+         "customCode": 1,
+         "divider": 5,
+         "form": 2,
+         "heading": 1,
+         "image": 11,
+         "navMenu": 2,
+         "paragraph": 17,
+         "popup": true,
+         "reviewWidget": 1,
+         "subHeading": 16,
+         "videoBackground": false
+        },
+        "meta": {
+         "author": "{{ custom_values.company_name }}",
+         "canonicalMeta": [],
+         "customMeta": [],
+         "description": " Texto 211 {{ custom_values.service_4 }} Texto 212 {{ custom_values.biz_area_1 }} Texto 213 {{ custom_values.company_name }} Texto 214 {{ custom_values.service_4 }} Texto 215 ",
+         "imageUrl": "{{ custom_values.service_1_image }}",
+         "keywords": "{{ custom_values.service_4 }} {{ custom_values.biz_area_1 }} Texto 216 {{ custom_values.biz_area_1 }} {{ custom_values.service_4 }} Texto 217 {{ custom_values.service_4 }} {{ custom_values.biz_area_2 }} Texto 218 {{ custom_values.biz_area_2 }} {{ custom_values.service_4 }} Texto 219 {{ custom_values.service_4 }} {{ custom_values.biz_area_3 }} Texto 220 {{ custom_values.biz_area_3 }} {{ custom_values.service_4 }} Texto 221 {{ custom_values.service_4 }} {{ custom_values.biz_area_4 }} Texto 222 {{ custom_values.biz_area_4 }} {{ custom_values.service_4 }} Texto 223 {{ custom_values.service_4 }} {{ custom_values.biz_area_5 }} Texto 224 {{ custom_values.biz_area_5 }} {{ custom_values.service_4 }} Texto 225 {{ custom_values.service_4 }} {{ custom_values.biz_area_6 }} Texto 226 {{ custom_values.biz_area_6 }} {{ custom_values.service_4 }} Texto 227 {{ custom_values.service_4 }} {{ custom_values.biz_area_7 }} Texto 228 {{ custom_values.biz_area_7 }} {{ custom_values.service_4 }} Texto 229 {{ custom_values.service_4 }} {{ custom_values.biz_area_8 }} Texto 230 {{ custom_values.biz_area_8 }} {{ custom_values.service_4 }} Texto 231 {{ custom_values.service_4 }} {{ custom_values.biz_area_9 }} Texto 232 {{ custom_values.biz_area_9 }} {{ custom_values.service_4 }} Texto 233 {{ custom_values.service_4 }} {{ custom_values.biz_area_10 }} Texto 234 {{ custom_values.biz_area_10 }} {{ custom_values.service_4 }} Texto 235 {{ custom_values.service_4 }} {{ custom_values.biz_area_11 }} Texto 236 {{ custom_values.biz_area_11 }} {{ custom_values.service_4 }} Texto 237 {{ custom_values.service_4 }} {{ custom_values.biz_area_12 }} Texto 238 {{ custom_values.biz_area_12 }} {{ custom_values.service_4 }} Texto 239 {{ custom_values.service_4 }} {{ custom_values.biz_area_13 }} Texto 240 {{ custom_values.biz_area_13 }} {{ custom_values.service_4 }} Texto 241 {{ custom_values.service_4 }} {{ custom_values.biz_area_14 }} Texto 242 {{ custom_values.biz_area_14 }} {{ custom_values.service_4 }}\n",
+         "language": "en",
+         "title": "{{ custom_values.company_name }} Texto 243 {{ custom_values.service_4 }} {{ custom_values.biz_area_1 }}"
+        },
+        "pageType": "draft",
+        "pageDownloadPath": "Texto de exemplo 244",
+        "pageDownloadUrl": "https://exemplo.com.br/p245",
+        "updatedAt": 1795194467785,
+        "versionId": "f1x70159-0000-4000-8000-000000000159"
+       }
+      ],
+      "updatedAt": "2026-11-26T00:00:00.000Z",
+      "pageData": null
+     },
+     {
+      "popups": [],
+      "products": [],
+      "_id": "Fx000000000000000055",
+      "colors": [],
+      "dateAdded": "2026-11-26T00:00:00.000Z",
+      "dateUpdated": "2026-11-26T00:00:00.000Z",
+      "deleted": false,
+      "funnelId": "Fx000000000000000051",
+      "locationId": "Fx000000000000000000",
+      "meta": {
+       "author": "{{ custom_values.company_name }}",
+       "canonicalMeta": [],
+       "customMeta": [],
+       "description": "{{ custom_values.company_name }} Texto 246 {{ custom_values.biz_area_1 }} Texto 247 {{ custom_values.broad_service_name }} Texto 248 {{ custom_values.broad_service_name }} Texto 249 ",
+       "imageUrl": "",
+       "keywords": "{{ custom_values.service_1 }} {{ custom_values.biz_area_1 }} Texto 250 {{ custom_values.biz_area_1 }} {{ custom_values.service_2 }} Texto 251 {{ custom_values.biz_area_1 }} {{ custom_values.service_3 }} Texto 252 {{ custom_values.biz_area_1 }} {{ custom_values.service_4 }} Texto 253 {{ custom_values.biz_area_1 }} {{ custom_values.service_5 }} Texto 254 {{ custom_values.biz_area_2 }} {{ custom_values.service_1 }} Texto 255 {{ custom_values.biz_area_2 }} {{ custom_values.service_2 }} Texto 256 {{ custom_values.biz_area_2 }} {{ custom_values.service_3 }} Texto 257 {{ custom_values.biz_area_2 }} {{ custom_values.service_4 }} Texto 258 {{ custom_values.biz_area_2 }} {{ custom_values.service_5 }} Texto 259 {{ custom_values.biz_area_3 }} {{ custom_values.service_1 }} Texto 260 {{ custom_values.biz_area_3 }} {{ custom_values.service_2 }} Texto 261 {{ custom_values.biz_area_3 }} {{ custom_values.service_3 }} Texto 262 {{ custom_values.biz_area_3 }} {{ custom_values.service_4 }} Texto 263 {{ custom_values.biz_area_3 }} {{ custom_values.service_5 }}\n",
+       "language": "en",
+       "title": "{{ custom_values.company_name }} Texto 264 {{ custom_values.broad_service_name }} Texto 265 {{ custom_values.biz_area_1 }}"
+      },
+      "name": "Item 266",
+      "origin": "snapshot",
+      "originId": "Fx000000000000000160",
+      "pageDataDownloadUrl": "https://exemplo.com.br/p267",
+      "pageDataUrl": "Texto de exemplo 268",
+      "pageVersion": 2,
+      "previewSnapshot": "https://assets.cdn.filesafe.space/fixture/img-269.png",
+      "sectionVersion": 1,
+      "stepId": "f1x70053-0000-4000-8000-000000000053",
+      "templateType": "",
+      "url": "Texto de exemplo 270",
+      "version": 4,
+      "versionHistory": [
+       {
+        "integrations": {
+         "blogMeta": {
+          "categoryNavigationList": [],
+          "selectedBlogCategories": []
+         },
+         "button": 61,
+         "customCode": 1,
+         "divider": 5,
+         "faq": 1,
+         "form": 2,
+         "heading": 1,
+         "image": 32,
+         "navMenu": 2,
+         "paragraph": 27,
+         "popup": true,
+         "reviewWidget": 1,
+         "subHeading": 17,
+         "videoBackground": false
+        },
+        "meta": {
+         "author": "{{ custom_values.company_name }}",
+         "canonicalMeta": [],
+         "customMeta": [],
+         "description": "{{ custom_values.company_name }} Texto 271 {{ custom_values.biz_area_1 }} Texto 272 {{ custom_values.broad_service_name }} Texto 273 {{ custom_values.broad_service_name }} Texto 274 ",
+         "imageUrl": "",
+         "keywords": "{{ custom_values.service_1 }} {{ custom_values.biz_area_1 }} Texto 275 {{ custom_values.biz_area_1 }} {{ custom_values.service_2 }} Texto 276 {{ custom_values.biz_area_1 }} {{ custom_values.service_3 }} Texto 277 {{ custom_values.biz_area_1 }} {{ custom_values.service_4 }} Texto 278 {{ custom_values.biz_area_1 }} {{ custom_values.service_5 }} Texto 279 {{ custom_values.biz_area_2 }} {{ custom_values.service_1 }} Texto 280 {{ custom_values.biz_area_2 }} {{ custom_values.service_2 }} Texto 281 {{ custom_values.biz_area_2 }} {{ custom_values.service_3 }} Texto 282 {{ custom_values.biz_area_2 }} {{ custom_values.service_4 }} Texto 283 {{ custom_values.biz_area_2 }} {{ custom_values.service_5 }} Texto 284 {{ custom_values.biz_area_3 }} {{ custom_values.service_1 }} Texto 285 {{ custom_values.biz_area_3 }} {{ custom_values.service_2 }} Texto 286 {{ custom_values.biz_area_3 }} {{ custom_values.service_3 }} Texto 287 {{ custom_values.biz_area_3 }} {{ custom_values.service_4 }} Texto 288 {{ custom_values.biz_area_3 }} {{ custom_values.service_5 }}\n",
+         "language": "en",
+         "title": "{{ custom_values.company_name }} Texto 289 {{ custom_values.broad_service_name }} Texto 290 {{ custom_values.biz_area_1 }}"
+        },
+        "pageType": "draft",
+        "pageDownloadPath": "Texto de exemplo 291",
+        "pageDownloadUrl": "https://exemplo.com.br/p292",
+        "updatedAt": 1795194467864,
+        "versionId": "f1x70161-0000-4000-8000-000000000161"
+       }
+      ],
+      "updatedAt": "2026-11-26T00:00:00.000Z",
+      "pageData": null
+     }
+    ]
+   }
+  ],
+  "aiEmployees": [],
+  "knowledgeBases": [],
+  "errors": []
+ },
+ "triggers": {
+  "7ec8066f-911c-428e-9a9b-e1bf6937c6e6": [
+   {
+    "id": "Fx000000000000000162",
+    "date_added": "2026-11-26T00:00:00.000Z",
+    "deleted": false,
+    "belongs_to": "workflow",
+    "location_id": "Fx000000000000000000",
+    "origin_id": "Fx000000000000000163",
+    "active": true,
+    "workflow_id": "f1x70039-0000-4000-8000-000000000039",
+    "masterType": "highlevel",
+    "name": "Item 293",
+    "type": "survey_submission",
+    "conditions": [
+     {
+      "operator": "Texto de exemplo 294",
+      "field": "Texto de exemplo 295",
+      "value": "Texto de exemplo 296",
+      "title": "Item 297",
+      "type": "select",
+      "id": "Fx000000000000000164"
+     },
+     {
+      "operator": "is-any-of",
+      "field": "survey.id",
+      "value": [
+       "Fx000000000000000165"
+      ],
+      "title": "Item 298",
+      "type": "string"
+     }
+    ],
+    "actions": [
+     {
+      "workflow_id": "f1x70039-0000-4000-8000-000000000039",
+      "type": "add_to_workflow"
+     }
+    ],
+    "schedule_config": {},
+    "date_updated": "2026-11-26T00:00:00.000Z",
+    "last_conditions_change_at": ""
+   },
+   {
+    "id": "Fx000000000000000166",
+    "date_added": "2026-11-26T00:00:00.000Z",
+    "deleted": false,
+    "belongs_to": "workflow",
+    "location_id": "Fx000000000000000000",
+    "origin_id": "Fx000000000000000167",
+    "active": true,
+    "workflow_id": "f1x70039-0000-4000-8000-000000000039",
+    "masterType": "highlevel",
+    "name": "Item 299",
+    "type": "survey_submission",
+    "conditions": [
+     {
+      "operator": "Texto de exemplo 300",
+      "field": "Texto de exemplo 301",
+      "value": "Texto de exemplo 302",
+      "title": "Item 303",
+      "type": "select",
+      "id": "Fx000000000000000164"
+     },
+     {
+      "operator": "is-any-of",
+      "field": "survey.id",
+      "value": [
+       "Fx000000000000000165"
+      ],
+      "title": "Item 304",
+      "type": "string"
+     }
+    ],
+    "actions": [
+     {
+      "workflow_id": "f1x70039-0000-4000-8000-000000000039",
+      "type": "add_to_workflow"
+     }
+    ],
+    "schedule_config": {},
+    "date_updated": "2026-11-26T00:00:00.000Z",
+    "last_conditions_change_at": ""
+   },
+   {
+    "id": "Fx000000000000000168",
+    "date_added": "2026-11-26T00:00:00.000Z",
+    "deleted": false,
+    "belongs_to": "workflow",
+    "location_id": "Fx000000000000000000",
+    "origin_id": "Fx000000000000000169",
+    "active": true,
+    "workflow_id": "f1x70039-0000-4000-8000-000000000039",
+    "masterType": "highlevel",
+    "name": "Item 305",
+    "type": "survey_submission",
+    "conditions": [
+     {
+      "operator": "Texto de exemplo 306",
+      "field": "Texto de exemplo 307",
+      "value": "Texto de exemplo 308",
+      "title": "Item 309",
+      "type": "select",
+      "id": "Fx000000000000000164"
+     },
+     {
+      "operator": "is-any-of",
+      "field": "survey.id",
+      "value": [
+       "Fx000000000000000165"
+      ],
+      "title": "Item 310",
+      "type": "string"
+     }
+    ],
+    "actions": [
+     {
+      "workflow_id": "f1x70039-0000-4000-8000-000000000039",
+      "type": "add_to_workflow"
+     }
+    ],
+    "schedule_config": {},
+    "date_updated": "2026-11-26T00:00:00.000Z",
+    "last_conditions_change_at": ""
+   }
+  ],
+  "eff7cd9d-99de-4528-92d2-75b87c8deb90": [
+   {
+    "id": "Fx000000000000000170",
+    "date_added": "2026-11-26T00:00:00.000Z",
+    "deleted": false,
+    "belongs_to": "workflow",
+    "location_id": "Fx000000000000000000",
+    "origin_id": "Fx000000000000000171",
+    "active": true,
+    "workflow_id": "f1x70045-0000-4000-8000-000000000045",
+    "masterType": "highlevel",
+    "name": "Item 311",
+    "type": "form_submission",
+    "conditions": [
+     {
+      "field": "form.id",
+      "title": "Item 312",
+      "type": "string",
+      "value": [
+       "Fx000000000000000172"
+      ],
+      "operator": "is-any-of"
+     }
+    ],
+    "actions": [
+     {
+      "workflow_id": "f1x70045-0000-4000-8000-000000000045",
+      "type": "add_to_workflow"
+     }
+    ],
+    "date_updated": "2026-11-26T00:00:00.000Z",
+    "last_conditions_change_at": ""
+   }
+  ]
+ },
+ "surveys": [
+  {
+   "_id": "Fx000000000000000165",
+   "dateAdded": "2026-11-26T00:00:00.000Z",
+   "dateUpdated": "2026-11-26T00:00:00.000Z",
+   "deleted": false,
+   "formData": {
+    "autoResponder": false,
+    "emailNotifications": false,
+    "enablePartialContactCreation": false,
+    "fieldCSS": "contato@exemplo.com.br",
+    "form": {
+     "address": {
+      "autoCompleteEnabled": true,
+      "children": [],
+      "label": "Item 313",
+      "placeholder": "Texto de exemplo 314",
+      "required": true
+     },
+     "autoResponderConfig": null,
+     "company": {
+      "domain": "app.realtylab.ai",
+      "logoURL": "",
+      "name": "Item 315"
+     },
+     "conditionalLogic": null,
+     "contactAssociationSettings": null,
+     "customStyle": "",
+     "disableAutoNavigation": false,
+     "emailNotificationsConfig": null,
+     "enableTimezone": true,
+     "fbPixelId": "",
+     "fieldStyle": {
+      "activeTagBgColor": "Texto de exemplo 316",
+      "bgColor": "F7FAFC",
+      "border": {
+       "border": 0,
+       "color": "FFFFFF",
+       "radius": 5,
+       "type": "none"
+      },
+      "labelAlignment": "top",
+      "labelColor": "000000",
+      "labelFontFamily": "Texto de exemplo 317",
+      "labelFontSize": 16,
+      "labelFontWeight": 900,
+      "labelWidth": 200,
+      "padding": {
+       "bottom": 15,
+       "left": 20,
+       "right": 20,
+       "top": 15
+      },
+      "placeholderColor": "AFB8BC",
+      "placeholderFontFamily": "Texto de exemplo 318",
+      "placeholderFontSize": 16,
+      "placeholderFontWeight": 800,
+      "shadow": {
+       "blur": 0,
+       "color": "FFFFFF",
+       "horizontal": 0,
+       "spread": 0,
+       "vertical": 0
+      },
+      "shortLabel": {
+       "color": "Texto de exemplo 319",
+       "fontFamily": "Texto de exemplo 320",
+       "fontSize": 12,
+       "fontWeight": 300
+      },
+      "width": 550
+     },
+     "footerStyle": {
+      "backgroundFill": "Texto de exemplo 321",
+      "buttonStyle": {
+       "backButtonBgColor": "FFFFFF00",
+       "buttonType": "Texto de exemplo 322",
+       "fontColor": "FFFFFF",
+       "nextBtnText": "NEXT",
+       "nextButtonBgColor": "00000012",
+       "position": "Texto de exemplo 323",
+       "prevBtnText": "PREV",
+       "submitBtnText": "SUBMIT",
+       "submitButtonBgColor": "00000012"
+      },
+      "computedStyles": {
+       "showArrow": true,
+       "showText": true,
+       "styles": {
+        "backButton": {
+         "backgroundColor": "Texto de exemplo 324",
+         "borderRadius": "Texto de exemplo 325",
+         "opacity": 0.8
+        },
+        "container": {
+         "color": "Texto de exemplo 326",
+         "height": "Texto de exemplo 327",
+         "justifyContent": "space-between",
+         "position": "static"
+        },
+        "footer": {
+         "backgroundColor": "Texto de exemplo 328",
+         "borderRadius": "Texto de exemplo 329",
+         "boxShadow": "Texto de exemplo 330",
+         "fontFamily": "Texto de exemplo 331",
+         "fontSize": "Texto de exemplo 332",
+         "fontWeight": 400,
+         "height": "Texto de exemplo 333",
+         "position": "static",
+         "webkitBoxShadow": "Texto de exemplo 334"
+        },
+        "icon": {
+         "height": "Texto de exemplo 335",
+         "verticalAlign": "text-bottom",
+         "width": "Texto de exemplo 336"
+        },
+        "loader": {
+         "position": "relative",
+         "right": "Texto de exemplo 337",
+         "transform": "Texto de exemplo 338"
+        },
+        "nextButton": {
+         "backgroundColor": "#00000012",
+         "borderRadius": "Texto de exemplo 339"
+        },
+        "progressBar": {
+         "barStyle": {
+          "backgroundColor": "Texto de exemplo 340",
+          "border": "Texto de exemplo 341",
+          "borderRadius": "Texto de exemplo 342"
+         },
+         "fillStyle": {
+          "backgroundColor": "Texto de exemplo 343",
+          "borderRadius": "Texto de exemplo 344",
+          "color": "Texto de exemplo 345"
+         },
+         "textStyle": {
+          "color": "Texto de exemplo 346"
+         }
+        },
+        "submitButton": {
+         "backgroundColor": "#00000012",
+         "borderRadius": "Texto de exemplo 347"
+        },
+        "surveyWrapper": {
+         "borderRadius": "Texto de exemplo 348",
+         "boxShadow": "Texto de exemplo 349",
+         "marginBottom": "Texto de exemplo 350"
+        }
+       }
+      },
+      "enableProgressBar": false,
+      "fontFamily": "Texto de exemplo 351",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "height": 50,
+      "progressBarStyle": {
+       "borderColor": "Texto de exemplo 352",
+       "borderRadius": 12,
+       "borderWidth": 1,
+       "completeFillColor": "Texto de exemplo 353",
+       "inactiveFillColor": "FFFFFF00",
+       "textColor": "B2CCFF"
+      },
+      "stickyFooter": true,
+      "theme": "steps"
+     },
+     "formAction": {
+      "actionType": 2,
+      "disqualifiedText": "Texto de exemplo 354",
+      "disqualifiedType": "1",
+      "disqualifiedUrl": "{{ custom_values.review_google_url }}",
+      "endsurveyText": "Texto de exemplo 355",
+      "endsurveyType": "2",
+      "endsurveyUrl": "",
+      "fieldPerPage": 2,
+      "fieldSettingEnable": false,
+      "footerHtml": "",
+      "headerFullWidthEnable": false,
+      "headerImageSrc": "",
+      "mobileHeaderImageSrc": "",
+      "redirectUrl": "",
+      "thankyouText": "Texto de exemplo 356"
+     },
+     "formLabelVisible": true,
+     "formSubmissionEvent": "Texto de exemplo 357",
+     "inputStyleType": "box",
+     "isAnimationDisabled": false,
+     "isBackButtonEnable": false,
+     "isGDPRCompliant": false,
+     "isProgressBarEnabled": true,
+     "isSurveyScrollEnabled": false,
+     "mobileFooterStyle": {
+      "backgroundFill": "Texto de exemplo 358",
+      "buttonStyle": {
+       "arrowFillColor": "FFFFFF",
+       "buttonType": "Texto de exemplo 359",
+       "fontColor": "FFFFFF",
+       "position": "Texto de exemplo 360",
+       "submitBtnText": "SUBMIT",
+       "submitButtonBgColor": "00000012"
+      },
+      "computedStyles": null,
+      "enableProgressBar": true,
+      "fontFamily": "Texto de exemplo 361",
+      "fontSize": 14,
+      "fontWeight": 400,
+      "height": 50,
+      "progressBarStyle": {
+       "completeFillColor": "Texto de exemplo 362",
+       "inactiveFillColor": "FFFFFF00",
+       "textColor": "B2CCFF"
+      },
+      "stickyFooter": true
+     },
+     "opportunitySettings": null,
+     "pageViewEvent": "Texto de exemplo 363",
+     "payment": null,
+     "stickyContact": false,
+     "style": {
+      "acBranding": false,
+      "background": "FFFFFF",
+      "bgImage": "",
+      "border": {
+       "border": 1,
+       "color": "CDE0EC",
+       "radius": 4,
+       "style": "dashed"
+      },
+      "fieldSpacing": 16,
+      "margin": {
+       "bottom": "auto",
+       "left": "auto",
+       "right": "auto",
+       "top": "auto"
+      },
+      "mobileBgImage": "",
+      "mobileMargin": {
+       "bottom": "auto",
+       "left": "auto",
+       "right": "auto",
+       "top": "auto"
+      },
+      "padding": {
+       "bottom": 0,
+       "left": 20,
+       "right": 20,
+       "top": 0
+      },
+      "shadow": {
+       "blur": 0,
+       "color": "FFFFFF",
+       "horizontal": 0,
+       "spread": 0,
+       "vertical": 0
+      }
+     },
+     "submitMessageStyle": {
+      "bgColor": "FFFFFF",
+      "cornerRadius": 10,
+      "fontWeight": 400,
+      "isEnabled": true,
+      "margin": {
+       "bottom": "auto",
+       "left": "auto",
+       "right": "auto",
+       "top": "auto"
+      },
+      "mobileBgColor": "FFFFFF",
+      "mobileFontWeight": 400,
+      "mobileMargin": {
+       "bottom": "auto",
+       "left": "auto",
+       "right": "auto",
+       "top": "auto"
+      },
+      "mobilePadding": {
+       "bottom": 48,
+       "left": 48,
+       "right": 48,
+       "top": 48
+      },
+      "padding": {
+       "bottom": 48,
+       "left": 48,
+       "right": 48,
+       "top": 48
+      }
+     },
+     "width": 550
+    },
+    "language": "Texto de exemplo 364",
+    "mobileFieldCSS": "contato@exemplo.com.br",
+    "newFooter": false,
+    "recurringProductCurrency": "USD",
+    "recurringProductId": null,
+    "recurringProducts": [],
+    "slides": [
+     {
+      "active": false,
+      "button": {
+       "background": "Texto de exemplo 365",
+       "border": {
+        "border": 0,
+        "padding": {
+         "bottom": 0,
+         "left": 0,
+         "right": 0,
+         "top": 0
+        },
+        "radius": 0
+       },
+       "color": "FFFFFF"
+      },
+      "id": "1674487600966-0",
+      "logic": {
+       "FuQnjUMLzFyvkD8TEgRb": {
+        "option_0": {
+         "fieldId": "Fx000000000000000164",
+         "id": "disqualify",
+         "index": -1,
+         "name": "Item 366",
+         "optionIndex": 0,
+         "optionName": "Texto de exemplo 367",
+         "status": true
+        },
+        "option_1": {
+         "fieldId": "Fx000000000000000164",
+         "id": "disqualify",
+         "index": -1,
+         "name": "Item 368",
+         "optionIndex": 1,
+         "optionName": "Texto de exemplo 369",
+         "status": true
+        },
+        "option_2": {
+         "fieldId": "Fx000000000000000164",
+         "id": "1674487697323-1",
+         "index": 1,
+         "name": "Item 370",
+         "optionIndex": 2,
+         "optionName": "Texto de exemplo 371",
+         "status": true
+        },
+        "option_3": {
+         "fieldId": "Fx000000000000000164",
+         "id": "1674487697323-1",
+         "index": 1,
+         "name": "Item 372",
+         "optionIndex": 3,
+         "optionName": "Texto de exemplo 373",
+         "status": true
+        },
+        "option_4": {
+         "fieldId": "Fx000000000000000164",
+         "id": "1674487697323-1",
+         "index": 1,
+         "name": "Item 374",
+         "optionIndex": 4,
+         "optionName": "Texto de exemplo 375",
+         "status": true
+        }
+       },
+       "zEJbRpCudBKG7bgTXWfi": {
+        "option_0": {
+         "fieldId": "Fx000000000000000173",
+         "id": "disqualify",
+         "index": -1,
+         "name": "Item 376",
+         "optionIndex": 0,
+         "optionName": "Texto de exemplo 377",
+         "status": true
+        },
+        "option_1": {
+         "fieldId": "Fx000000000000000173",
+         "id": "disqualify",
+         "index": -1,
+         "name": "Item 378",
+         "optionIndex": 1,
+         "optionName": "Texto de exemplo 379",
+         "status": true
+        },
+        "option_2": {
+         "fieldId": "Fx000000000000000173",
+         "id": "1674487697323-1",
+         "index": 1,
+         "name": "Item 380",
+         "optionIndex": 2,
+         "optionName": "Texto de exemplo 381",
+         "status": true
+        },
+        "option_3": {
+         "fieldId": "Fx000000000000000173",
+         "id": "1674487697323-1",
+         "index": 1,
+         "name": "Item 382",
+         "optionIndex": 3,
+         "optionName": "Texto de exemplo 383",
+         "status": true
+        },
+        "option_4": {
+         "fieldId": "Fx000000000000000173",
+         "id": "1674487697323-1",
+         "index": 1,
+         "name": "Item 384",
+         "optionIndex": 4,
+         "optionName": "Texto de exemplo 385",
+         "status": true
+        }
+       }
+      },
+      "slideData": [
+       {
+        "__pendingClone": false,
+        "availableOn": [],
+        "calculatedOptions": [
+         {
+          "calculatedValue": "",
+          "label": "Item 386"
+         },
+         {
+          "calculatedValue": "",
+          "label": "Item 387"
+         },
+         {
+          "calculatedValue": "",
+          "label": "Item 388"
+         },
+         {
+          "calculatedValue": "",
+          "label": "Item 389"
+         },
+         {
+          "calculatedValue": "",
+          "label": "Item 390"
+         }
+        ],
+        "customEdited": true,
+        "customFieldLabel": "Texto de exemplo 391",
+        "customfieldUpdated": true,
+        "dataType": "RADIO",
+        "dateAdded": "2026-11-26T00:00:00.000Z",
+        "dateUpdated": "2026-11-26T00:00:00.000Z",
+        "deleted": false,
+        "description": "",
+        "documentType": "field",
+        "fieldKey": "contact.rate_us",
+        "fieldName": "Texto de exemplo 392",
+        "hiddenFieldQueryKey": "rate_us",
+        "id": "Fx000000000000000164",
+        "isAllowedCustomOption": false,
+        "label": "Item 393",
+        "locationId": "Fx000000000000000000",
+        "model": "contact",
+        "name": "Item 394",
+        "originId": "Fx000000000000000174",
+        "parentId": "Fx000000000000000008",
+        "picklistOptions": [
+         "Texto de exemplo 395",
+         "Texto de exemplo 396",
+         "Texto de exemplo 397",
+         "Texto de exemplo 398",
+         "Texto de exemplo 399"
+        ],
+        "picklistOptionsImage": [],
+        "placeholder": "Texto de exemplo 400",
+        "position": 550,
+        "required": true,
+        "standard": false,
+        "tag": "Fx000000000000000164",
+        "type": "radio",
+        "uuid": "f1x70175-0000-4000-8000-000000000175"
+       }
+      ],
+      "slideName": "Texto de exemplo 401"
+     },
+     {
+      "active": false,
+      "button": {
+       "background": "Texto de exemplo 402",
+       "border": {
+        "border": 0,
+        "padding": {
+         "bottom": 0,
+         "left": 0,
+         "right": 0,
+         "top": 0
+        },
+        "radius": 0
+       },
+       "color": "FFFFFF"
+      },
+      "id": "1674487697323-1",
+      "slideData": [
+       {
+        "active": false,
+        "hiddenFieldQueryKey": "html_1",
+        "html": "Texto de exemplo 403",
+        "label": "Item 404",
+        "placeholder": "Texto de exemplo 405",
+        "standard": true,
+        "tag": "html",
+        "type": "html",
+        "uuid": "f1x70176-0000-4000-8000-000000000176"
+       },
+       {
+        "active": false,
+        "hiddenFieldQueryKey": "full_name",
+        "label": "Item 406",
+        "placeholder": "Texto de exemplo 407",
+        "preview": "Texto de exemplo 408",
+        "required": false,
+        "standard": true,
+        "tag": "full_name",
+        "type": "text",
+        "uuid": "f1x70177-0000-4000-8000-000000000177"
+       },
+       {
+        "active": false,
+        "hiddenFieldQueryKey": "email",
+        "label": "Item 409",
+        "placeholder": "Texto de exemplo 410",
+        "required": false,
+        "shortLabel": "",
+        "standard": true,
+        "tag": "email",
+        "type": "email",
+        "uuid": "f1x70178-0000-4000-8000-000000000178"
+       },
+       {
+        "Id": "Fx000000000000000014",
+        "active": false,
+        "allowCustomOption": false,
+        "customFieldLabel": "Texto de exemplo 411",
+        "dataType": "LARGE_TEXT",
+        "dateAdded": "2026-11-26T00:00:00.000Z",
+        "description": "",
+        "edit": false,
+        "fieldKey": "contact.your_feedback",
+        "fieldsCount": 0,
+        "hiddenFieldQueryKey": "your_feedback",
+        "id": "Fx000000000000000014",
+        "label": "Item 412",
+        "locationId": "Fx000000000000000000",
+        "model": "contact",
+        "name": "Item 413",
+        "originId": "Fx000000000000000179",
+        "parentId": "Fx000000000000000008",
+        "picklistOptions": [
+         ""
+        ],
+        "picklistOptionsImage": [],
+        "placeholder": "Texto de exemplo 414",
+        "position": 0,
+        "preview": "Texto de exemplo 415",
+        "required": false,
+        "standard": false,
+        "tag": "Fx000000000000000014",
+        "type": "large_text",
+        "uuid": "f1x70180-0000-4000-8000-000000000180"
+       }
+      ],
+      "slideName": "Texto de exemplo 416"
+     }
+    ],
+    "surveyLogicLinkById": true,
+    "lastUpdatedAt": "2026-11-26T00:00:00.000Z"
+   },
+   "locationId": "Fx000000000000000000",
+   "name": "Item 417",
+   "originId": "Fx000000000000000181",
+   "source": "snapshot",
+   "updatedAt": "2026-11-26T00:00:00.000Z"
+  }
+ ]
+}

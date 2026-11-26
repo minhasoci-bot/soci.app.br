@@ -57,6 +57,13 @@
   },
   {
     "grupo": "agencia",
+    "artigo": "importar-do-ghl",
+    "titulo": "Importar do GHL",
+    "fase": "F2",
+    "status": "escrito"
+  },
+  {
+    "grupo": "agencia",
     "artigo": "white-label",
     "titulo": "White label: a sua marca na soci",
     "fase": "F2",
