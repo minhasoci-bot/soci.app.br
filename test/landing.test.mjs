@@ -23,7 +23,10 @@ test('Root is the public home page, /login is the Google login and the platform 
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-type'), /text\/html/);
     const html = await res.text();
-    assert.match(html, /<h1 id="hero-title">/);
+    assert.match(html, /<h1 id="hero-title"[ >]/);
+    assert.match(html, /<video class="bg-video" autoplay muted loop playsinline/, 'the opening plays the background video');
+    assert.equal((html.match(/class="stat-value" data-target=/g) || []).length, 4, 'the opening shows four counting numbers');
+    assert.doesNotMatch(html, /Trusted by|2000\+|Enterprises/, 'no client claims from the reference template');
     assert.match(html, /href="\/login"/, 'the home page links to the login');
     assert.match(html, /href="\/home\.css"/);
     assert.match(html, /src="\/home\.js"/);
