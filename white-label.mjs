@@ -31,10 +31,15 @@ const guessApex = host => {
 /** The host the request came in on, without the port. */
 export const requestHost = req => String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim().toLowerCase().replace(/:\d+$/, '');
 
+/** The agency that owns this host ({ id, state }), or null on the platform's own addresses and unknown hosts. */
+export async function whiteLabelAgency(store, host) {
+  if (!host || platformHosts.some(platform => host === platform || host.endsWith(`.${platform}`))) return null;
+  return (await store.findAgency({ company: { domain: host } })) || null;
+}
+
 /** Name, logo and color of the agency that owns this host, or {} on the platform's own addresses. */
 export async function whiteLabelBrand(store, host) {
-  if (!host || platformHosts.some(platform => host === platform || host.endsWith(`.${platform}`))) return {};
-  const owner = await store.findAgency({ company: { domain: host } });
+  const owner = await whiteLabelAgency(store, host);
   const company = owner?.state?.company;
   return company ? { name: company.name || '', logo: company.logo || '', primary: company.primary || '' } : {};
 }
@@ -124,8 +129,11 @@ export function brandedPage(html, brand = {}) {
   const name = escapeHtml(String(brand.name || '').slice(0, 120)) || 'Entrar';
   const logo = safeLogo(brand.logo);
   const color = /^#[0-9a-f]{6}$/i.test(brand.primary || '') ? brand.primary : '';
+  // The loading screen, the phone check and the tab title read the name and logo from <html> (ui/icons.js domainBrand).
+  const mark = logo ? `<img class="boot-logo" src="${escapeHtml(logo)}" alt="">` : '';
   let page = html
-    .replace('<html lang="pt-BR">', '<html lang="pt-BR" data-marca="agencia">')
+    .replace('<html lang="pt-BR">', `<html lang="pt-BR" data-marca="agencia" data-marca-nome="${name}"${logo ? ` data-marca-logo="${escapeHtml(logo)}"` : ''}>`)
+    .replace('<strong class="boot-title">Abrindo a soci…</strong>', `${mark}<strong class="boot-title">Abrindo ${name}…</strong>`)
     .replace(/<title>Entrar · soci<\/title>/, `<title>Entrar · ${name}</title>`)
     .replace(/<title>soci<\/title>/, `<title>${name}</title>`)
     .replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="Acesse ${name}.">`)

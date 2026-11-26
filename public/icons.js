@@ -610,7 +610,23 @@ const quips = [
   'Polindo a caveira pra você…'
 ];
 const quip = quips[Math.floor(Math.random() * quips.length)];
+const escText = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+/**
+ * White Label: aberto no domínio de uma agência, o servidor marca o <html> com o nome e o logotipo dela
+ * (white-label.mjs brandedPage). Devolve { name, logo } nesse caso e null na soci.
+ */
+export const domainBrand = () => {
+  const data = typeof document === 'undefined' ? null : document.documentElement.dataset;
+  return data?.marca === 'agencia' ? { name: data.marcaNome || '', logo: data.marcaLogo || '' } : null;
+};
 export const bootScreen = title => {
+  const marca = domainBrand();
+  // No domínio da agência: o logotipo e o nome dela, sem a caveira nem as piadas da soci.
+  if (marca) {
+    const mark = marca.logo ? `<img class="boot-logo" src="${escText(marca.logo)}" alt="">` : '';
+    const line = title === 'Abrindo a soci…' && marca.name ? `Abrindo ${marca.name}…` : tr(title);
+    return `<div class="boot boot-live boot-marca" role="status">${mark}<strong class="boot-title">${escText(line)}</strong></div>`;
+  }
   const quip = quips[Math.floor(Math.random() * quips.length)];
   return `<div class="boot boot-live" role="status">${logo.replace('class="g-mark" width="36" height="36"', 'class="g-mark boot-mark" width="96" height="96"')}<strong class="boot-title">${tr(title)}</strong><small class="boot-quip">${tr(quip)}</small></div>`;
 };

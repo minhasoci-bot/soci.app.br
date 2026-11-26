@@ -20,6 +20,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--g-brand);outline-of
 .boot{min-height:111.111111dvh;display:grid;place-content:center;justify-items:center;text-align:center;gap:10px;padding:24px;color:var(--g-dim);font-weight:600}
 .boot::before{content:'';width:96px;height:96px;margin:0 auto 12px;background:url(/skull_flame_animated.svg) center/contain no-repeat;transform-origin:50% 85%;animation:g-flicker 1.6s var(--ease-std) infinite alternate}
 @keyframes g-flicker{to{transform:translateY(-3px) rotate(-5deg) scale(1.04)}}
+:root[data-marca=agencia] .boot::before{display:none}.boot .boot-logo{width:88px;height:88px;margin:0 auto 12px;object-fit:cover;border-radius:22px}
 .boot-live::before{display:none}.boot .boot-mark{width:96px;height:96px;margin:0 auto 12px;transform-origin:50% 85%;animation:g-flicker 1.6s var(--ease-std) infinite alternate}
 @media (prefers-reduced-motion:reduce){.boot::before,.boot .boot-mark{animation:none}}
 .boot-title{font-size:19px;font-weight:700;letter-spacing:-.015em;color:var(--g-ink)}

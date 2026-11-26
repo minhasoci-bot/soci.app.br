@@ -16,8 +16,9 @@ export function createAuthRoutes(deps) {
   // Para onde a conta abre e o nome da agência dela, com as regras de acesso da própria conta.
   async function place(req, profile, next) {
     await ready;
-    // Cadastro fechado: a conta entra mesmo assim e o app mostra o aviso (SIGNUP_CLOSED) em vez de um erro solto.
-    const context = await accessContext(req, profile, { gate: false }).catch(e => { if (e.code === 'SIGNUP_CLOSED') return null; throw e; });
+    // Cadastro fechado ou e-mail sem acesso à agência do domínio: a conta entra mesmo assim e o app mostra o aviso
+    // (SIGNUP_CLOSED, NOT_INVITED) em vez de um erro solto.
+    const context = await accessContext(req, profile, { gate: false }).catch(e => { if (['SIGNUP_CLOSED', 'NOT_INVITED'].includes(e.code)) return null; throw e; });
     if (!context) return { next: '/app', agency: '' };
     const { agency, who } = context;
     return {

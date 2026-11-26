@@ -1,6 +1,6 @@
 import {tabAccountId} from './account-guard.js';
 import {rodapeHtml} from './rodape.js';
-import {icon as i, logo, brandName, bootScreen} from './icons.js';
+import {icon as i, logo, brandName, bootScreen, domainBrand} from './icons.js';
 import {nav,h,avatar,screens,publicView,money} from './screens.js';
 import { conversationSections, manualQueue, manualType, slaRecords, SLA_CHANNELS } from './conversations.js';
 import { createInboxFollower, patchInbox } from './inbox-live.js';
@@ -191,7 +191,7 @@ async function api(path,body){
     location.replace('/login?' + new URLSearchParams({ next }));
   }
   if (!response.ok) {
-    if ((response.status === 402 && ['PHONE_REQUIRED', 'AGENCY_NOT_ACTIVE', 'AGENCY_BLOCKED'].includes(data.code)) || data.code === 'SIGNUP_CLOSED') showGate(data);
+    if ((response.status === 402 && ['PHONE_REQUIRED', 'AGENCY_NOT_ACTIVE', 'AGENCY_BLOCKED'].includes(data.code)) || ['SIGNUP_CLOSED', 'NOT_INVITED'].includes(data.code)) showGate(data);
     if (data.code === 'ACCOUNT_SUSPENDED' && c.mode !== 'agency' && !path.startsWith('/api/state?') &&
         new URL(path, location.origin).searchParams.get('workspace') === c.workspace) {
       await load();
@@ -1289,7 +1289,7 @@ document.addEventListener('submit',async ev=>{
 });
 
 if(viewPath){
-  try{const result=await api(`/api/view${viewPath}`), workspace=viewPath.split('/')[2]; document.title='soci';app.innerHTML=publicView(result,workspace);}
+  try{const result=await api(`/api/view${viewPath}`), workspace=viewPath.split('/')[2]; document.title=domainBrand()?.name||'soci';app.innerHTML=publicView(result,workspace);}
   catch(e){app.innerHTML=`<div class="boot"><h1>Página indisponível</h1><p>${h(e.message)}</p><a href="/app">Voltar para a plataforma</a></div>`;}
 }else{
   installDashboardControls({ c,dialog,close,render,load,mutate,flash,go,download:downloads });
