@@ -8,6 +8,7 @@ sidebar:
 ---
 
 import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
 import Requisitos from '../../../components/Requisitos.astro';
 
 Quando um cliente sai da agência ou uma subconta foi criada por engano, você pode excluí-la. A subconta sai da lista na hora e ninguém mais consegue entrar nela. Ela fica 30 dias na **Lixeira**, e nesse prazo você pode restaurá-la. Depois dos 30 dias, a soci apaga todos os dados dela de vez.
@@ -22,9 +23,15 @@ Quando um cliente sai da agência ou uma subconta foi criada por engano, você p
 
 2. No cartão da subconta, clique em **Excluir**.
 
+   <Print src="docs/agencia/excluir-subconta/01-botao-excluir.f922bcc4.webp" alt="Lista de subcontas da Agência Demo com o botão Excluir da Academia Pulso Forte em destaque." />
+
 3. Leia o aviso. Para confirmar, digite o nome da subconta exatamente como ele aparece na lista e clique em **Excluir subconta**.
 
+   <Print src="docs/agencia/excluir-subconta/02-confirmar-pelo-nome.8cd60389.webp" alt="Janela Excluir Academia Pulso Forte com o nome digitado no campo de confirmação e o botão Excluir subconta." />
+
 4. A subconta sai da lista e aparece na **Lixeira**, no fim da página **Subcontas**. A lixeira mostra quem excluiu, quando e quantos dias faltam para os dados serem apagados.
+
+   <Print src="docs/agencia/excluir-subconta/03-lixeira.5de5edf4.webp" alt="Seção Lixeira com a Academia Pulso Forte, a data da exclusão, 30 dias até ser apagada e o botão Restaurar." />
 
 </Steps>
 
@@ -39,6 +46,8 @@ Depois dos 30 dias não há como recuperar a subconta. Contatos, conversas, neg�
 1. Abra **Subcontas** e desça até a **Lixeira**.
 
 2. No cartão da subconta, clique em **Restaurar** e confirme em **Restaurar subconta**.
+
+   <Print src="docs/agencia/excluir-subconta/04-restaurar.703c171b.webp" alt="Janela Restaurar Academia Pulso Forte com o botão Restaurar subconta." />
 
 3. A subconta volta para a lista com o status que tinha antes de ser excluída, e os usuários recuperam o acesso.
 
