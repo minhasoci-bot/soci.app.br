@@ -1,4 +1,5 @@
 import { brandHighlight, brandIcon, icon as i, logo, brandName, bootScreen, shcLayers } from './icons.js';
+import { rodapeHtml } from './rodape.js';
 import { desktopPage, desktopPreview, readDesktop } from './agency-desktop.js';
 import { createMobileCreator } from './agency-mobile.js';
 import { formatTokens, formatUsd, usageKinds } from './ai-data.js';
@@ -203,7 +204,7 @@ export function startAgency(env) {
         label: session?.name || tr('Configurações da agência'),
         attr: session ? 'data-act="account" aria-haspopup="dialog"' : 'data-ag="go-profile"'
       }
-    })}${acting ? `<div class="ag-banner acting" role="status"><b>Agindo como ${h(A.data.access?.name || '')}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>` : ''}<main id="screen" class="screen${A.page === 'ask' ? ' screen-ask-chat' : ''}">${content}</main></div></div>`;
+    })}${acting ? `<div class="ag-banner acting" role="status"><b>Agindo como ${h(A.data.access?.name || '')}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>` : ''}<main id="screen" class="screen${A.page === 'ask' ? ' screen-ask-chat' : ''}">${content}${rodapeHtml(brandName())}</main></div></div>`;
   }
 
   // ---- Pages -------------------------------------------------------------

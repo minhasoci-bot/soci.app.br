@@ -15,6 +15,7 @@ export default defineConfig({
       defaultLocale: 'root',
       locales: { root: { label: 'Português', lang: 'pt-BR' } },
       customCss: ['./src/styles/soci.css'],
+      components: { Footer: './src/components/Rodape.astro' },
       lastUpdated: true,
       social: [],
       sidebar: [

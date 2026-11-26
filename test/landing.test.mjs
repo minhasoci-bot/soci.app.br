@@ -36,7 +36,12 @@ test('Root is the public home page, /login is the Google login and the platform 
     const html = await res.text();
     assert.match(html, /id="google-signin-btn"/);
     assert.match(html, /Continuar com Google/);
-    assert.doesNotMatch(html, /<nav\b|<footer\b|<details\b/);
+    assert.doesNotMatch(html, /<nav\b|<details\b/);
+    // O único rodapé do login é a linha de direitos e versão, sem links.
+    const footer = html.match(/<footer\b[\s\S]*?<\/footer>/g) || [];
+    assert.equal(footer.length, 1);
+    assert.match(footer[0], /Feita no Brasil com ☕, carinho e muita API\./);
+    assert.doesNotMatch(footer[0], /<a\b/);
   }
 
   for (const [path, type] of [['/login.css', /text\/css/], ['/login.js', /text\/javascript/], ['/home.css', /text\/css/], ['/home.js', /text\/javascript/]]) {
