@@ -9,6 +9,11 @@ dialog.ag-wide{width:min(760px,calc(100vw - 24px))}
 .ag-delete{margin-top:12px;color:#b42318}
 .ag-gap{margin-top:18px}
 .ag-hint{margin-top:12px}
+/* White Label: o resultado de "Verificar domínio" com os registros que faltam no DNS. */
+.ag-domain-status{display:grid;gap:6px;margin-top:6px}
+.ag-domain-status:empty{display:none}
+.ag-domain-status .table-shell{display:block;overflow-x:auto;margin-top:4px}
+.ag-domain-status code{word-break:break-all;user-select:all}
 .ag-two{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:12px;margin-bottom:17px}
 .ag-notice,.ag-warn{display:flex;align-items:center;gap:14px;margin-bottom:17px;background:var(--g-brand-2-surface,#f6f1ff);border-color:var(--g-brand-2-line,#e5d7ff)}
 .ag-notice>div{flex:1}.ag-notice p{color:var(--dim)}

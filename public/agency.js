@@ -1114,7 +1114,7 @@ export function startAgency(env) {
         </div>`, `<button type="button" class="secondary" data-ag-brand-reset>${i('undo')} Restaurar paleta oficial</button>`)}
         ${section('whitelabel', 'White Label das subcontas', 'O endereço e o logotipo que as subcontas veem no lugar da marca da plataforma.', `<div class="field-grid">
           <div><label>Domínio para subcontas<input name="domain" placeholder="app.suaagencia.com.br" value="${h(c.domain)}" aria-describedby="ag-domain-hint"></label>
-            ${c.domain ? `<p class="inline-gap"><button type="button" class="secondary" data-ag-domain-check>${i('check')} Verificar domínio</button></p><p class="dim" data-ag-domain-status role="status"></p>` : ''}
+            ${c.domain ? `<p class="inline-gap"><button type="button" class="secondary" data-ag-domain-check>${i('check')} Verificar domínio</button></p><div class="dim ag-domain-status" data-ag-domain-status role="status"></div>` : ''}
             <small class="dim" id="ag-domain-hint">No DNS do domínio, crie um registro CNAME apontando para cname.vercel-dns.com.</small></div>
           <div class="ag-company-logo">
             <span class="ag-logo-preview">${c.logo ? `<img src="${h(c.logo)}" alt="Logotipo das subcontas">` : i('upload')}</span>
@@ -1145,11 +1145,23 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       ${table(['Nome', 'Escopos autorizados', 'Token', 'Criada em', 'Último uso', ''], D().privateIntegrations.map(k => `<tr><td><b>${h(k.name)}</b><br><small class="dim">${h(k.description)}</small></td><td><small>${h(k.scopes.join(', '))}</small></td><td><code>pit_…${h(k.last4)}</code></td><td>${day(k.created, true)}</td><td>${k.lastUsed ? day(k.lastUsed, true) : 'Nunca'}</td><td class="right">${btn('Excluir', 'private-integration-delete', `data-id="${k.id}"`)}</td></tr>`), empty('Nenhuma integração privada', 'Crie uma integração privada para scripts que exigem apenas permissões pontuais.'))}`,
     whatsapp: whatsappSettings,
     phone: whatsappSettings,
-    'email-services': () => { const e = D().emailServices, hl = brandHighlight('email'); return `${e.domain ? `<div class="surface padded ag-notice shc-card shc-panel is-connected" style="--shc-highlight:${hl}">${shcLayers()}<span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('email', 22)}</span></span><div><b>Domínio dedicado: ${h(e.domain)}</b><p>Adicionado em ${day(e.added)}. A verificação de DNS e o aquecimento do domínio dependem do provedor de envio, que não está conectado neste projeto local.</p></div>${btn('Remover domínio', 'email-domain-remove')}</div>
-      <form class="surface settings-form set-form" data-ag-form="email-domain-accounts"><section class="set-section"><header class="set-head"><h2>Subcontas que enviam pelo domínio dedicado</h2></header><div class="set-body">${pickAccounts('accounts', e.accounts)}</div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar</button></footer></form>`
-      : `<div class="surface padded ag-notice shc-card shc-panel" style="--shc-highlight:${hl}">${shcLayers()}<span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('email', 22)}</span></span><div><b>Você está usando um domínio compartilhado</b><p>As subcontas enviam pelo domínio compartilhado da plataforma porque nenhum domínio da agência está conectado. Um domínio dedicado dá controle sobre a reputação de envio.</p></div></div>
-      <form class="surface settings-form set-form" data-ag-form="email-domain"><section class="set-section"><header class="set-head"><h2>Criar domínio dedicado</h2></header><div class="set-body"><label>Domínio de envio<input name="domain" required placeholder="mail.suaagencia.com.br" maxlength="200"></label></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Adicionar domínio</button></footer></form>`}
-      <h2 class="section-heading">Desempenho das subcontas</h2>${table(['Subconta', 'Domínio de envio', 'Status'], accounts().map(a => `<tr><td><b>${h(a.name)}</b></td><td>${e.accounts.includes(a.id) ? h(e.domain) : 'Compartilhado'}</td><td>${badge(a.status, tone(a.status))}</td></tr>`), empty('Nenhuma subconta', 'As subcontas que enviam e-mails aparecem aqui.'))}`; },
+    'email-services': () => { const e = D().emailServices, hl = brandHighlight('email');
+      // White Label: o domínio de envio da agência na Resend, com os registros SPF/DKIM que faltam publicar.
+      const mailStatus = { verified: ['Verificado', 'green'], pending: ['Verificando', 'blue'], failed: ['Falhou', 'red'], temporary_failure: ['Falha temporária', 'red'], not_started: ['Aguardando DNS', ''] };
+      const [statusLabel, statusTone] = mailStatus[e.status] || mailStatus.not_started;
+      const copyCell = value => `<span class="email-dns-value"><code>${h(value)}</code><button type="button" class="icon-btn" data-ag="copy" data-text="${h(value)}" aria-label="Copiar">${i('copy', 15)}</button></span>`;
+      const records = [...(e.records || []), { record: 'DMARC', type: 'TXT', name: `_dmarc.${e.domain}`, value: 'v=DMARC1; p=none;', status: 'recommended' }];
+      const recordRows = records.map(r => `<tr><td><b>${h(r.record)}</b></td><td>${h(r.type)}</td><td>${copyCell(r.name)}</td><td>${copyCell(r.value)}</td><td>${r.priority ?? '—'}</td><td>${r.status === 'recommended' ? badge('Recomendado') : badge(...(mailStatus[r.status] || mailStatus.not_started))}</td></tr>`);
+      const address = `${e.localPart || 'contato'}@${e.domain}`;
+      const connectedText = !e.resendId ? 'Este domínio foi salvo antes da ligação com o serviço de e-mail e nunca foi criado nele. Remova e adicione de novo para receber os registros de DNS.'
+        : e.status === 'verified' ? `Verificado. As subcontas escolhidas abaixo enviam como ${h(address)}; as que têm domínio próprio continuam com o delas.`
+        : `Publique os registros abaixo no DNS do domínio e clique em <b>Verificar agora</b>. Até lá, as subcontas seguem pelo domínio compartilhado.`;
+      return `${e.domain ? `<div class="surface padded ag-notice shc-card shc-panel${e.status === 'verified' ? ' is-connected' : ''}" style="--shc-highlight:${hl}">${shcLayers()}<span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('email', 22)}</span></span><div><b>Domínio dedicado: ${h(e.domain)}</b> ${badge(statusLabel, statusTone)}<p>${connectedText}</p></div><div class="inline-gap">${e.resendId && e.status !== 'verified' ? btn('Verificar agora', 'email-domain-status') : ''}${btn('Remover domínio', 'email-domain-remove')}</div></div>
+      ${e.resendId ? `<div class="surface table-shell email-dns ag-gap"><table><thead><tr><th scope="col">Registro</th><th scope="col">Tipo</th><th scope="col">Nome</th><th scope="col">Valor</th><th scope="col">Prioridade</th><th scope="col">Status</th></tr></thead><tbody>${recordRows.join('')}</tbody></table></div>` : ''}
+      <form class="surface settings-form set-form" data-ag-form="email-domain-accounts"><section class="set-section"><header class="set-head"><h2>Subcontas que enviam pelo domínio dedicado</h2></header><div class="set-body"><label>Endereço de envio<span class="email-local"><input name="localPart" required maxlength="64" value="${h(e.localPart || 'contato')}" aria-label="Parte antes do @"><span>@${h(e.domain)}</span></span></label>${pickAccounts('accounts', e.accounts)}</div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Salvar</button></footer></form>`
+      : `<div class="surface padded ag-notice shc-card shc-panel" style="--shc-highlight:${hl}">${shcLayers()}<span class="shc-icon-tile" aria-hidden="true"><span class="shc-icon">${brandIcon('email', 22)}</span></span><div><b>Você está usando um domínio compartilhado</b><p>As subcontas enviam pelo domínio compartilhado da plataforma porque nenhum domínio da agência está conectado. Com um domínio dedicado, faturas, documentos, campanhas e automações das subcontas escolhidas saem com o endereço da agência.</p></div></div>
+      <form class="surface settings-form set-form" data-ag-form="email-domain"><section class="set-section"><header class="set-head"><h2>Criar domínio dedicado</h2></header><div class="set-body"><div class="field-grid"><label>Domínio de envio<input name="domain" required placeholder="mail.suaagencia.com.br" maxlength="200"></label><label>Endereço antes do @<input name="localPart" required maxlength="64" value="contato" placeholder="contato"></label></div></div></section><footer class="set-foot"><p class="form-status" role="alert"></p><button class="primary">Adicionar domínio</button></footer></form>`}
+      <h2 class="section-heading">Desempenho das subcontas</h2>${table(['Subconta', 'Domínio de envio', 'Status'], accounts().map(a => `<tr><td><b>${h(a.name)}</b></td><td>${e.accounts.includes(a.id) && e.status === 'verified' ? h(`${e.localPart || 'contato'}@${e.domain}`) : e.accounts.includes(a.id) ? `${h(e.domain)} (aguardando verificação)` : 'Compartilhado'}</td><td>${badge(a.status, tone(a.status))}</td></tr>`), empty('Nenhuma subconta', 'As subcontas que enviam e-mails aparecem aqui.'))}`; },
     'workflow-premium': () => featureTable('workflow-premium'),
     'external-ai': () => featureTable('external-ai'),
     'domain-purchase': () => featureTable('domain-purchase'),
@@ -1316,9 +1328,17 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
       out.textContent = tr('Verificando…');
       try {
         const { result: s } = await api('/api/agency/domain-status', {});
-        out.textContent = tr(!s.hosting ? 'A conexão automática com a hospedagem não está ativa: peça ao suporte da soci para adicionar o domínio.'
+        const proof = s.verification || [];
+        const ready = s.pointing && s.verified && !s.proxied;
+        const message = !s.hosting ? 'A conexão automática com a hospedagem não está ativa: peça ao suporte da soci para adicionar o domínio.'
           : !s.added ? 'O domínio ainda não foi adicionado à hospedagem. Salve de novo em alguns minutos.'
-          : s.pointing && s.verified ? 'Pronto: o domínio aponta para a soci.' : 'Aguardando o CNAME: a mudança de DNS pode levar algumas horas.');
+          : ready ? 'Pronto: o domínio aponta para a soci.'
+          : proof.length ? 'Falta provar que o domínio é seu: crie no DNS os registros abaixo e clique em Verificar domínio de novo.'
+          : s.proxied ? 'O registro está passando pelo proxy da Cloudflare (nuvem laranja). Mude para “Somente DNS” (nuvem cinza): com o proxy, o endereço mostra erro 525.'
+          : 'Aguardando o CNAME: a mudança de DNS pode levar algumas horas.';
+        // Os registros que faltam no DNS da agência: o CNAME do endereço e, quando a hospedagem pede, o TXT de posse.
+        const records = s.hosting && s.added && !ready ? [{ type: 'CNAME', name: s.domain, value: s.cname }, ...proof] : [];
+        out.innerHTML = `<span>${h(tr(message))}</span>${s.proxied && proof.length ? `<span class="ag-hint">${h(tr('No Cloudflare, deixe o registro do endereço como “Somente DNS” (nuvem cinza).'))}</span>` : ''}${records.length ? `<span class="surface table-shell ag-gap"><table><thead><tr><th scope="col">${h(tr('Tipo'))}</th><th scope="col">${h(tr('Nome'))}</th><th scope="col">${h(tr('Valor'))}</th></tr></thead><tbody>${records.map(r => `<tr><td>${h(r.type)}</td><td><code>${h(r.name)}</code></td><td><code>${h(r.value)}</code></td></tr>`).join('')}</tbody></table></span>` : ''}`;
       } catch (problem) { out.textContent = problem.message; }
       domainCheck.disabled = false;
       return;
@@ -1634,6 +1654,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           break;
         }
         case 'app-uninstall': confirmBox('Desinstalar este app?', 'A instalação sai da lista e deixa de contar nos ganhos.', 'app-uninstall', id, 'Desinstalar'); break;
+        case 'email-domain-status': { const status = await act('email-domain-status'); render(); flash(status === 'verified' ? 'Domínio verificado: as subcontas escolhidas já enviam por ele.' : 'Ainda não verificado. A propagação do DNS pode levar algumas horas.', status !== 'verified'); break; }
         case 'email-domain-remove': confirmBox('Remover o domínio dedicado?', 'As subcontas voltam a enviar pelo domínio compartilhado.', 'email-domain-remove', '', 'Remover'); break;
         case 'audit-page': if (!audit.busy) await loadAudit(Number(d.step) > 0 ? [...audit.trail, audit.next] : audit.trail.slice(0, -1)); break;
         case 'audit-reload': await loadAudit(); break;
@@ -1947,8 +1968,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'private-integration-delete': await act('private-integration-delete', { id }); msg = 'Integração privada excluída.'; break;
         case 'saas-suspension': await act('saas-suspension', { data }); msg = 'Regras de plano não pago salvas.'; break;
         case 'saas-rebilling': await act('saas-rebilling', { data }); msg = 'Markups da carteira salvos.'; break;
-        case 'email-domain': await act('email-domain', { data }); msg = 'Domínio dedicado adicionado.'; break;
-        case 'email-domain-accounts': await act('email-domain-accounts', { data: { accounts: data.accounts } }); msg = 'Subcontas do domínio dedicado salvas.'; break;
+        case 'email-domain': await act('email-domain', { data }); msg = 'Domínio criado. Publique os registros de DNS e clique em Verificar agora.'; break;
+        case 'email-domain-accounts': await act('email-domain-accounts', { data: { accounts: data.accounts, localPart: data.localPart } }); msg = 'Subcontas do domínio dedicado salvas.'; break;
         case 'email-domain-remove': await act('email-domain-remove'); msg = 'Domínio dedicado removido.'; break;
         case 'affiliate-pixel': await act('affiliate-pixel', { data }); msg = 'Configurações da página salvas.'; break;
         case 'app-install': await act('app-install', { id, data }); msg = `${appName(id)} instalado.`; break;
