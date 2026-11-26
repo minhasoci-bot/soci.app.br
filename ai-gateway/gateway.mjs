@@ -98,19 +98,20 @@ export function createSociAI({ store, env = process.env, request = fetch, clock 
     configCache = { at: clock(), value };
     return value;
   }
-  async function changeRow(id, blank, normalize, mutate) {
+  // go_workspaces.name é gerada de state.profile.name e não aceita nulo: todo documento leva um nome.
+  async function changeRow(id, label, blank, normalize, mutate) {
     try { await store.load(id); }
-    catch (error) { if (error.status !== 404) throw error; await store.insert(id, blank()); }
+    catch (error) { if (error.status !== 404) throw error; await store.insert(id, { ...blank(), profile: { name: label } }); }
     return store.change(id, state => {
       const value = normalize(state);
       const result = mutate(value);
       for (const key of Object.keys(state)) delete state[key];
-      Object.assign(state, value);
+      Object.assign(state, value, { profile: { name: label } });
       return result;
     });
   }
-  const changeConfig = async mutate => { const result = await changeRow(CONFIG_ROW, blankConfig, withDefaults, mutate); configCache = null; return result; };
-  const changeRuntime = mutate => changeRow(RUNTIME_ROW, blankRuntime, withRuntimeDefaults, mutate);
+  const changeConfig = async mutate => { const result = await changeRow(CONFIG_ROW, 'AI Gateway', blankConfig, withDefaults, mutate); configCache = null; return result; };
+  const changeRuntime = mutate => changeRow(RUNTIME_ROW, 'AI Gateway (estado)', blankRuntime, withRuntimeDefaults, mutate);
   const loadRuntime = async () => withRuntimeDefaults(await loadRow(RUNTIME_ROW, blankRuntime));
 
   // ---------- Credenciais ----------
