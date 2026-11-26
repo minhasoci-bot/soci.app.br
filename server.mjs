@@ -633,16 +633,17 @@ export function makeServer({
   const verifyOn = Boolean(phoneVerify?.number && phoneVerify?.instance && phoneVerify?.secret);
   // Fora da Vercel (testes, máquina local) o cadastro fica aberto mesmo sem a linha.
   const openSignup = signupOpen ?? (verifyOn || !platformEnv.VERCEL);
-  function requireAgencyOpen(agency, invited) {
-    if (!verifyOn) return;
+  // O que fecha a agência agora ({ code, error }) ou null. A tela da agência recebe isto em `gate` e cobre o app.
+  function agencyGate(agency, invited) {
+    if (!verifyOn) return null;
     const access = agencyAccess(agency.billing, new Date());
-    if (access.canUse) return;
-    const billing = publicBilling(agency.billing, new Date());
-    if (invited && access.gate === 'PHONE_REQUIRED') {
-      throw Object.assign(error('A agência ainda não foi ativada pelo responsável.', 402), { code: 'AGENCY_NOT_ACTIVE', billing });
-    }
-    const message = access.gate === 'PHONE_REQUIRED' ? 'Confirme seu celular pelo WhatsApp para começar a usar a soci.' : 'A agência está bloqueada por falta de pagamento.';
-    throw Object.assign(error(message, 402), { code: access.gate, billing });
+    if (access.canUse) return null;
+    if (invited && access.gate === 'PHONE_REQUIRED') return { code: 'AGENCY_NOT_ACTIVE', error: 'A agência ainda não foi ativada pelo responsável.' };
+    return { code: access.gate, error: access.gate === 'PHONE_REQUIRED' ? 'Confirme seu celular pelo WhatsApp para começar a usar a soci.' : 'A agência está bloqueada por falta de pagamento.' };
+  }
+  function requireAgencyOpen(agency, invited) {
+    const closed = agencyGate(agency, invited);
+    if (closed) throw Object.assign(error(closed.error, 402), { code: closed.code, billing: publicBilling(agency.billing, new Date()) });
   }
   async function accessContext(req,session,{ gate = true } = {}) {
     if (!session && !localAccess) throw error('O login do Supabase ainda não foi configurado.',503);
@@ -785,7 +786,7 @@ export function makeServer({
     const gateway = await abacate.status(who.agencyId, abacate.AGENCY_SCOPE, publicBase(req));
     return { agency: { ...publicAgency(agency, who), abacatepay: { connected: gateway.connected, storeName: gateway.storeName || '', devMode: Boolean(gateway.devMode) } }, overview: agencyOverview(agency, states), marketplace: publicMarketplaceList(marketplaceDoc, who.agencyId), workspaces, personalWorkspace, access: who,
       trash: who.settings ? trashList(agency) : [],
-      features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, billing: publicBilling(agency.billing, new Date()), ...extra };
+      features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, billing: publicBilling(agency.billing, new Date()), gate: agencyGate(agency, Boolean(who.userId)), ...extra };
   }
   // Sub-accounts of a brand group that still belong to the agency and are not closed, with their state.
   async function brandWorkspaces(agency, agencyId, group) {

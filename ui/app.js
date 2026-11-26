@@ -201,6 +201,8 @@ async function api(path,body){
     throw Object.assign(Error(data.error||'The request failed.'),{status:response.status,code:data.code,account:data.account});
   }
   if (isAppPath && data.access) { setThemeAccount(data.access.session?.id); accounts.seen(data.access.session); }
+  // A tela da agência abre mesmo fechada (marca e nome atrás); `gate` diz o que cobre o app.
+  if (data?.gate?.code) showGate(data.gate);
   return data;
 }
 async function load(){

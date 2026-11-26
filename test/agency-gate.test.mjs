@@ -39,6 +39,7 @@ test('Agência nova fica fechada até confirmar o celular, mas vê a própria te
   const agency = await get('/api/agency', 'nova');
   assert.equal(agency.status, 200, JSON.stringify(agency.body));
   assert.equal(agency.body.billing.status, 'Unverified');
+  assert.equal(agency.body.gate?.code, 'PHONE_REQUIRED', 'a tela da agência diz ao app para mostrar a confirmação');
   const blocked = await get('/api/workspaces', 'nova');
   assert.equal(blocked.status, 402);
   assert.equal(blocked.body.code, 'PHONE_REQUIRED');
@@ -79,6 +80,7 @@ test('Sem a linha de confirmação, a agência que já existe segue aberta', asy
   const agency = await get('/api/agency', 'nova');
   assert.equal(agency.status, 200, JSON.stringify(agency.body));
   assert.equal((await store.load('agency-u1')).billing.status, 'Unverified');
+  assert.equal(agency.body.gate, null);
   const list = await get('/api/workspaces', 'nova');
   assert.equal(list.status, 200, JSON.stringify(list.body));
 });
