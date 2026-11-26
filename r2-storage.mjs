@@ -81,6 +81,29 @@ export function createR2({ accountId, accessKeyId, secretAccessKey, bucket, juri
       const response = await call('DELETE', pathOf(key));
       if (!response.ok && response.status !== 404) throw fail(`O R2 não apagou o arquivo (${response.status}).`, 502);
     },
+    // Uma página das chaves que começam com `prefix` (ListObjectsV2); `next` continua a listagem.
+    async list(prefix, next = '') {
+      const response = await call('GET', `/${bucket}`, { query: { 'list-type': '2', prefix, ...(next && { 'continuation-token': next }) } });
+      if (!response.ok) throw fail(`O R2 não listou os arquivos (${response.status}).`, 502);
+      const xml = await response.text();
+      const text = value => value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+      const keys = [...xml.matchAll(/<Key>([\s\S]*?)<\/Key>/g)].map(match => text(match[1]));
+      const more = /<IsTruncated>true<\/IsTruncated>/.test(xml) && xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/);
+      return { keys, next: more ? text(more[1]) : '' };
+    },
+    // Apaga tudo o que está numa pasta (`ws/<subconta>/`). Só aceita pasta com barra no fim, nunca o bucket inteiro.
+    async removePrefix(prefix) {
+      if (!/^[^/].*\/$/.test(String(prefix))) throw fail('Pasta do R2 inválida.', 400);
+      // Lista de novo do começo a cada página apagada (a continuação de uma listagem não vale depois de apagar).
+      let removed = 0, last = '';
+      for (;;) {
+        const { keys } = await this.list(prefix);
+        if (!keys.length) return removed;
+        if (keys[0] === last) throw fail('O R2 não apagou os arquivos da pasta.', 502);
+        last = keys[0];
+        for (const key of keys) { await this.remove(key); removed++; }
+      }
+    },
     // Lets the app's pages PUT straight into the bucket and read the files back.
     async setCors(origins) {
       const xml = `<CORSConfiguration>${origins.map(origin => `<CORSRule><AllowedOrigin>${origin}</AllowedOrigin><AllowedMethod>PUT</AllowedMethod><AllowedMethod>GET</AllowedMethod><AllowedMethod>HEAD</AllowedMethod><AllowedHeader>content-type</AllowedHeader><ExposeHeader>etag</ExposeHeader><MaxAgeSeconds>3600</MaxAgeSeconds></CORSRule>`).join('')}</CORSConfiguration>`;

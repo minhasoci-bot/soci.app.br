@@ -16,7 +16,7 @@ export function statusMessage({ status, reason } = {}) {
   return '';
 }
 
-const alert = error => `<p class="vf-error" role="alert">${esc(error || '')}</p>`;
+const errorLine = error => `<p class="vf-error" role="alert">${esc(error || '')}</p>`;
 
 export function verifyView(state = {}) {
   if (state.step === 'waiting') {
@@ -28,7 +28,7 @@ export function verifyView(state = {}) {
         <figcaption>No computador? Leia este QR com a câmera do celular.</figcaption></figure>
       <p class="vf-code">Código: <strong>${esc(state.code)}</strong></p>
       <p class="vf-wait" aria-live="polite">Esperando a sua mensagem…</p>
-      ${alert(state.error)}
+      ${errorLine(state.error)}
       <button type="button" class="secondary" data-vf-reset>Usar outro número</button>
     </section>`;
   }
@@ -40,7 +40,7 @@ export function verifyView(state = {}) {
         <input type="tel" name="phone" autocomplete="tel" inputmode="tel" required placeholder="(11) 91234-5678" value="${esc(state.phone || '')}">
       </label>
       <p class="vf-hint">Fora do Brasil? Comece com + e o código do país.</p>
-      ${alert(state.error)}
+      ${errorLine(state.error)}
       <button type="submit" class="primary" ${state.busy ? 'disabled' : ''}>Confirmar pelo WhatsApp</button>
     </form>
   </section>`;
@@ -49,7 +49,7 @@ export function verifyView(state = {}) {
 /** O que cobre o app enquanto a agência não pode usar: formulário para o dono, aviso para os outros casos. */
 export function gateView({ code, error } = {}, state = { step: 'form' }) {
   const inner = code === 'PHONE_REQUIRED' ? verifyView(state)
-    : `<section class="vf-card"><h1>${code === 'AGENCY_BLOCKED' ? 'Agência bloqueada' : 'Quase lá'}</h1><p>${esc(error)}</p></section>`;
+    : `<section class="vf-card"><h1>${code === 'AGENCY_BLOCKED' ? 'Agência bloqueada' : code === 'SIGNUP_CLOSED' ? 'Cadastro fechado' : 'Quase lá'}</h1><p>${esc(error)}</p></section>`;
   return `<div class="vf-brand">soci</div>${inner}<button type="button" class="vf-logout" data-vf-logout>Sair</button>`;
 }
 

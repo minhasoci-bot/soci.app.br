@@ -14,6 +14,7 @@ import { isDeck, sanitizeDeck, applyOps as applyDeckOps, LIMITS as DECK_LIMITS }
 import { pranchetaFileRecord, createCanonicalTemplates, checkPranchetaSave, applyPranchetaSave, isThumbnailOnlySave } from './prancheta-model.mjs';
 import { walletKeys, walletProducts, walletSummary } from './wallet-model.mjs';
 import { labCatalog, labModes } from './ui/labs-data.js';
+import { whiteLabelHost } from './white-label.mjs';
 import { deleteStudioApp, marketplaceFor, publishStudioApp, rotateAppSecret, saveStudioApp } from './app-studio-model.mjs';
 import { apiScopes,
   accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog,
@@ -161,6 +162,20 @@ export function audit(state, actor, action, target = '', details = '') {
   state.audit.push({ id: uid(), at: now(), actor: str(actor, 120) || 'Agency Owner', action, target: str(target, 200), details: str(details, 500) });
   if (state.audit.length > AUDIT_IN_DOCUMENT) state.audit.splice(0, state.audit.length - AUDIT_IN_DOCUMENT);
 }
+
+/** Dias que uma subconta excluída fica na lixeira, encerrada, antes de os dados serem apagados de vez. */
+export const TRASH_DAYS = 30;
+const DAY_MS = 86_400_000;
+export const inTrash = (agency, id) => Boolean(agency?.accounts?.[id]?.trash);
+/** A lixeira da agência, da exclusão mais recente para a mais antiga, com a data em que cada uma será apagada. */
+export function trashList(agency) {
+  return Object.entries(agency.accounts || {}).filter(([, meta]) => meta?.trash).map(([id, meta]) => ({
+    id, name: meta.name || id, deletedAt: meta.trash.at, deletedBy: meta.trash.by,
+    purgeAt: new Date(Date.parse(meta.trash.at) + TRASH_DAYS * DAY_MS).toISOString()
+  })).sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
+}
+/** Subcontas cuja lixeira venceu em `at` (ms): os dados delas podem ser apagados. */
+export const trashExpired = (agency, at = Date.now()) => trashList(agency).filter(row => Date.parse(row.purgeAt) <= at).map(row => row.id);
 
 export function accountLifecycle(agency, id) {
   const meta = agency.accounts?.[id];
@@ -454,6 +469,26 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       updateAccountStatus(state, id, meta, 'Active', '', actor);
       return id;
     }
+    // Excluir subconta: vai para a lixeira encerrada (ninguém entra, nada roda) e os dados somem depois de TRASH_DAYS.
+    case 'account-trash': {
+      const meta = accountIds.includes(id) && state.accounts[id] || fail('Sub-account not found.', 404);
+      const name = meta.name || id;
+      if (str(d.confirm, 120) !== name) fail('Digite o nome da subconta exatamente como aparece para confirmar a exclusão.');
+      if (['Active', 'Trial', 'PastDue'].includes(meta.billing?.status)) fail('Esta subconta tem uma assinatura de plano em andamento. Cancele a cobrança antes de excluí-la.');
+      const before = { status: meta.status || 'Active', reason: meta.suspendedReason || '' };
+      updateAccountStatus(state, id, meta, 'Closed', 'Subconta excluída pela agência.', actor);
+      meta.trash = { at: now(), by: str(actor, 120) || 'Agency Owner', ...before };
+      log('Sub-account deleted', name, `Lixeira por ${TRASH_DAYS} dias`);
+      return id;
+    }
+    case 'account-restore': {
+      const meta = state.accounts[id]?.trash ? state.accounts[id] : fail('Esta subconta não está na lixeira.', 404);
+      const { status, reason } = meta.trash;
+      delete meta.trash;
+      updateAccountStatus(state, id, meta, accountStatuses.includes(status) ? status : 'Active', reason || '', actor);
+      log('Sub-account restored', meta.name || id);
+      return id;
+    }
     case 'account-open': {
       const meta = accountIds.includes(id) && state.accounts[id] || fail('Sub-account not found.', 404);
       if (meta.status && meta.status !== 'Active') return id;
@@ -543,7 +578,7 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       return 'fiscal';
     }
     case 'company': {
-      Object.assign(state.company, { name: req(d.name, 'Nome da empresa', 120), brand: platformBrand, domain: str(d.domain, 200).toLowerCase(),
+      Object.assign(state.company, { name: req(d.name, 'Nome da empresa', 120), brand: platformBrand, domain: d.domain === undefined ? state.company.domain || '' : whiteLabelHost(d.domain),
         website: url(d.website, 'Website'), phone: str(d.phone, 48), address: str(d.address, 300), primary: color(d.primary),
         secondary: d.secondary === undefined ? state.company.secondary || defaultSecondary : color(d.secondary),
         accent: d.accent === undefined ? state.company.accent || defaultAccent : color(d.accent),

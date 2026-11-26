@@ -6,19 +6,8 @@ const h = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp
 
 export const offerPageCsp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
 
-export function renderOfferPage(state, offer, { workspace, status = '', color: tint = '' }) {
-  const color = /^#[\da-f]{6}$/i.test(tint) ? tint : '#b71889';
-  const cover = offer.coverFileId && state.files.find(file => file.id === offer.coverFileId && file.data.startsWith('data:image/'))?.data;
-  const courses = offer.courseIds.map(id => state.courses.find(row => row.id === id)).filter(Boolean);
-  const groups = offer.communityIds.map(id => state.communities.find(row => row.id === id)).filter(Boolean);
-  const lessons = course => courseOutline(course).reduce((sum, module) => sum + module.lessons.length, 0);
-  const paid = offer.type !== 'free';
-  const notice = status === 'pago' ? '<p class="note ok" role="status">Pagamento enviado! Assim que o AbacatePay confirmar, você recebe o acesso por e-mail.</p>'
-    : status === 'voltou' ? '<p class="note" role="status">O pagamento não foi concluído. Você pode tentar de novo quando quiser.</p>' : '';
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${h(offer.title)} · ${h(state.profile.name)}</title><meta name="description" content="${h(offer.description.slice(0, 160))}">
-<style>
-:root{--c:${color};--ink:#1e1821;--muted:#635a66;--line:#e8e1e9}
+// O visual das páginas públicas de compra (oferta e link de pagamento): marca, conteúdo à esquerda e o cartão de compra à direita.
+export const checkoutCss = color => `:root{--c:${color};--ink:#1e1821;--muted:#635a66;--line:#e8e1e9}
 *{box-sizing:border-box}body{margin:0;background:#f8f6f8;color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
 main{width:min(980px,100%);margin:auto;padding:28px 16px 48px;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr);gap:24px;align-items:start}
 .brand{grid-column:1/-1;font-weight:750}
@@ -41,7 +30,20 @@ button:disabled{opacity:.6;cursor:wait}
 .note{padding:11px 13px;border-radius:10px;background:#f3eef4;margin:0 0 12px}.note.ok{background:#e8f7ef;color:#0b6b48}
 .error{background:#fff5f7;color:#921c42}
 .fine{font-size:12.5px;color:var(--muted);margin:4px 0 0}
-@media(max-width:760px){main{grid-template-columns:1fr}aside{position:static}}
+@media(max-width:760px){main{grid-template-columns:1fr}aside{position:static}}`;
+
+export function renderOfferPage(state, offer, { workspace, status = '', color: tint = '' }) {
+  const color = /^#[\da-f]{6}$/i.test(tint) ? tint : '#b71889';
+  const cover = offer.coverFileId && state.files.find(file => file.id === offer.coverFileId && file.data.startsWith('data:image/'))?.data;
+  const courses = offer.courseIds.map(id => state.courses.find(row => row.id === id)).filter(Boolean);
+  const groups = offer.communityIds.map(id => state.communities.find(row => row.id === id)).filter(Boolean);
+  const lessons = course => courseOutline(course).reduce((sum, module) => sum + module.lessons.length, 0);
+  const paid = offer.type !== 'free';
+  const notice = status === 'pago' ? '<p class="note ok" role="status">Pagamento enviado! Assim que o AbacatePay confirmar, você recebe o acesso por e-mail.</p>'
+    : status === 'voltou' ? '<p class="note" role="status">O pagamento não foi concluído. Você pode tentar de novo quando quiser.</p>' : '';
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${h(offer.title)} · ${h(state.profile.name)}</title><meta name="description" content="${h(offer.description.slice(0, 160))}">
+<style>${checkoutCss(color)}
 </style></head><body><main>
 <div class="brand">${h(state.profile.name)}</div>
 <section>${cover ? `<img class="cover" src="${h(cover)}" alt="">` : ''}<h1>${h(offer.title)}</h1>

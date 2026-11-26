@@ -1,5 +1,6 @@
 // Stores: a storefront over the Payments products, the checkout that turns a cart into an order and an
 // open invoice, and the order lifecycle (paid → transaction, cancelled → stock back and invoice void).
+import { tagsChanged } from './contact-tags.mjs';
 import { slugify } from './ui/blog-data.js';
 import { giftCardFor, inventoryCheck, moveInventory, redeemGiftCard } from './catalog-model.mjs';
 
@@ -133,7 +134,7 @@ export function storeCheckout(s, command, { add, run }) {
     run(s, 'Contact created', { contactId: contact.id });
   } else {
     if (!contact.phone && phone) contact.phone = phone;
-    if (store.addTags.length) contact.tags = [...new Set([...(contact.tags || []), ...store.addTags])].slice(0, 20);
+    if (store.addTags.length) { const before = contact.tags || []; contact.tags = [...new Set([...before, ...store.addTags])].slice(0, 20); tagsChanged(s, contact, before, run); }
     contact.updated = new Date().toISOString();
   }
   for (const line of quote.lines) { const item = store.items.find(entry => entry.productId === line.productId); if (item.stock !== null) item.stock -= line.qty; }

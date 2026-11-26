@@ -72,3 +72,17 @@ test('configuration comes from the environment and fails loudly when partial', (
   assert.throws(() => r2FromEnv({ R2_BUCKET: 'soci-arquivos' }), /R2_ACCOUNT_ID/);
   assert.equal(r2FromEnv({ R2_ACCOUNT_ID: account, R2_ACCESS_KEY_ID: 'k', R2_SECRET_ACCESS_KEY: 's', R2_BUCKET: 'soci-arquivos' }).bucket, 'soci-arquivos');
 });
+
+test('lista uma pasta, decodifica as chaves e nunca apaga o bucket inteiro', async () => {
+  const seen = [];
+  const request = async (url, init) => {
+    const address = new URL(url);
+    seen.push(`${init.method} ${address.pathname}${address.search}`);
+    return new Response('<ListBucketResult><Contents><Key>ws/a/files/x&amp;y</Key></Contents><IsTruncated>true</IsTruncated><NextContinuationToken>t&amp;1</NextContinuationToken></ListBucketResult>');
+  };
+  const r2 = createR2({ accountId: 'd'.repeat(32), accessKeyId: 'key', secretAccessKey: 'secret', bucket: 'soci-arquivos', request });
+  assert.deepEqual(await r2.list('ws/a/'), { keys: ['ws/a/files/x&y'], next: 't&1' });
+  assert.match(seen[0], /^GET \/soci-arquivos\?list-type=2&prefix=ws%2Fa%2F$/);
+  for (const prefix of ['', 'ws', '/ws/a/', 'ws/a']) await assert.rejects(r2.removePrefix(prefix), { status: 400 }, prefix);
+  assert.equal(seen.length, 1);
+});

@@ -11,7 +11,7 @@ export function workspaceMissing() {
   return Object.assign(new Error('Workspace not found.'), { status: 404 });
 }
 
-export const isDocument = id => id === 'agency' || /^(agency|studio|social|openai|chat|portal|community|waha|whatsapp|abacatepay|marketplace|google|ads|email|media|phone)-/.test(id);
+export const isDocument = id => id === 'agency' || /^(agency|studio|social|openai|chat|portal|community|waha|whatsapp|abacatepay|marketplace|google|ads|email|media|platform|phone)-/.test(id);
 
 // Livro da cobrança: só inclusão, com chave única por fato (ledger-model.mjs monta as linhas).
 const ledgerLayers = ['platform', 'agency', 'account'];
@@ -56,7 +56,9 @@ function sqliteTracking(db) {
   const byForm = db.prepare(`SELECT data ->> 'formKey' AS name, data ->> 'url' AS url, count(*) AS total, count(DISTINCT nullif(data ->> 'contactId', '')) AS contacts, max(created) AS last
     FROM tracking_events WHERE workspace = ? AND data ->> 'type' = 'form' GROUP BY 1 ORDER BY last DESC, name LIMIT 200`);
   const prune = db.prepare('DELETE FROM tracking_events WHERE created < ?');
+  const dropWorkspace = db.prepare('DELETE FROM tracking_events WHERE workspace = ?');
   return {
+    removeWorkspace(workspace) { dropWorkspace.run(workspace); },
     append(workspace, rows) {
       for (const row of rows.map(storedEvent)) insert.run(workspace, row.id, row.created, JSON.stringify(row));
     },
@@ -113,6 +115,7 @@ export function createSqliteStore(path) {
   const agencies = db.prepare("SELECT id, state FROM workspaces WHERE id = 'agency' OR id LIKE 'agency-%' ORDER BY rowid");
   const insert = db.prepare('INSERT INTO workspaces (id, state) VALUES (?, ?) ON CONFLICT(id) DO NOTHING');
   const update = db.prepare('UPDATE workspaces SET state = ? WHERE id = ?');
+  const remove = db.prepare('DELETE FROM workspaces WHERE id = ?');
 
   function load(id) {
     const row = get.get(id);
@@ -136,6 +139,14 @@ export function createSqliteStore(path) {
       return null;
     },
     insert: (id, state) => Boolean(insert.run(id, JSON.stringify(state)).changes),
+    /** Apaga o documento de vez (subconta que venceu a lixeira). */
+    remove: id => { remove.run(id); },
+    // Página Plataforma: num banco local só há o tamanho do arquivo; storage e usuários ativos são do Supabase.
+    platformUsage: () => {
+      const { page_count } = db.prepare('PRAGMA page_count').get();
+      const { page_size } = db.prepare('PRAGMA page_size').get();
+      return { db_bytes: page_count * page_size, storage_bytes: 0, mau: null };
+    },
     change(id, mutate) {
       db.exec('BEGIN IMMEDIATE');
       try {
@@ -256,6 +267,9 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
     },
     async prune(before) {
       await events('go_tracking_events', { created_at: `lt.${before}` }, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+    },
+    async removeWorkspace(workspace) {
+      await events('go_tracking_events', { workspace: `eq.${workspace}` }, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
     }
   };
 
@@ -341,6 +355,10 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
     unchanged,
     list: agencyId => table({ select: 'id,name', order: 'created_at.asc,id.asc',
       ...(agencyId !== undefined && { 'state->>agencyId': agencyFilter(agencyId) }) }),
+    // Página Plataforma: tamanho do banco, do Storage e usuários ativos no mês (função go_platform_usage).
+    async platformUsage() {
+      return (await api('rpc/go_platform_usage', {}, { method: 'POST', body: {} })).json();
+    },
     async belongsToAgency(id, agencyId) {
       const rows = await table({ select: 'id', id: `eq.${id}`, 'state->>agencyId': agencyFilter(agencyId) });
       return rows.length !== 0;
@@ -357,6 +375,20 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
         body: { id, state }
       });
       return rows.length === 1;
+    },
+    /**
+     * Apaga o documento de vez (subconta que venceu a lixeira). Enquanto o banco não libera DELETE para a chave do
+     * servidor (supabase/provision-storage.sql), a linha fica vazia e fora de toda agência: os dados somem do mesmo jeito.
+     */
+    async remove(id) {
+      forget(id);
+      try {
+        await api('go_workspaces', { id: `eq.${id}` }, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+      } catch (error) {
+        if (error.dataApiCode !== '42501') throw error;
+        await api('go_workspaces', { id: `eq.${id}` }, { method: 'PATCH', headers: { Prefer: 'return=minimal' },
+          body: { state: { agencyId: 'removida', removedAt: new Date(clock()).toISOString(), profile: { name: '' } }, revision: uid() } });
+      }
     },
     async change(id, mutate) {
       for (let attempt = 0; attempt < 6; attempt++) {

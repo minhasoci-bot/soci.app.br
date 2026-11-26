@@ -122,7 +122,7 @@ test('Google OAuth requires a PKCE verifier and rejects password sessions', asyn
   assert.equal((await post(base, '/api/auth/signup', { email: alice.email, password: 'example' })).status, 404);
 
   const startGoogle = await post(base, '/api/auth/google', { next: '/app#dashboard', email: alice.email, credential: 'fake.jwt.token' });
-  assert.doesNotMatch(cookies(startGoogle), /go_access=/);
+  assert.doesNotMatch(cookies(startGoogle), /go_access/);
   const target = new URL((await startGoogle.json()).url);
   assert.equal(target.pathname, '/auth/v1/authorize');
   assert.equal(target.searchParams.get('provider'), 'google');
@@ -134,10 +134,10 @@ test('Google OAuth requires a PKCE verifier and rejects password sessions', asyn
   assert.equal((await fetch(back, { redirect: 'manual' })).headers.get('location'), '/login?error=google');
   const result = await fetch(back, { redirect: 'manual', headers: { Cookie: cookies(startGoogle) } });
   assert.equal(result.headers.get('location'), '/app#dashboard');
-  assert.match(result.headers.getSetCookie().join('\n'), /go_access=.*HttpOnly; SameSite=Lax/);
+  assert.match(result.headers.getSetCookie().join('\n'), /go_access_[a-f0-9-]{36}=.*HttpOnly; SameSite=Lax/);
   const wrongMethod = await oauthLogin(base, 'alice-password');
   assert.equal(wrongMethod.headers.get('location'), '/login?error=google');
-  assert.doesNotMatch(cookies(wrongMethod), /go_access=/);
+  assert.doesNotMatch(cookies(wrongMethod), /go_access/);
   for (const cookie of ['go_access=' + session('alice','password').access_token, 'go_refresh=alice-password']) {
     assert.equal((await fetch(base + '/api/state', { headers: { Cookie: cookie } })).status, 401);
   }
@@ -205,7 +205,7 @@ test('Google accounts open empty agencies and existing agency permissions still 
 
   const renewed = await fetch(base + '/api/workspaces', { headers: { Cookie: 'go_refresh=alice-oauth' } });
   assert.equal(renewed.status, 200);
-  assert.match(cookies(renewed), /go_access=/);
+  assert.match(cookies(renewed), /go_access_[a-f0-9-]{36}=/);
   const logout = await post(base, '/api/auth/logout', {}, headers);
   assert.equal(logout.status, 200);
   assert.ok(logout.headers.getSetCookie().every(line => line.includes('Max-Age=0')));

@@ -33,6 +33,14 @@ const head = (title, desc, cta, sub) => `<header class="page-head"><div><h1>${ti
 const empty = (title, desc, ico = 'inbox') => `<div class="empty">${i(ico, 26)}<strong>${title}</strong><p>${desc}</p></div>`;
 const search = (c, text) => `<label class="search">${i('search', 16)}<input id="page-search" value="${h(c.query)}" placeholder="${text}" aria-label="${text}" autocomplete="off"></label>`;
 const table = (cols, rows, nothing) => `<div class="surface table-shell"><table><thead><tr>${cols.map(x => `<th scope="col">${x}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length ? '' : nothing}</div>`;
+// A página pública do link (/pagar/<subconta>/<link>): copiar e abrir quando o link e o produto estão ativos e o preço é único.
+const linkAddress = (c, link) => {
+  const item = product(link.productId, c);
+  if (!link.active || !item?.active) return `<small class="dim">${h(tr('Ative o link e o produto para compartilhar'))}</small>`;
+  if (item.kind === 'Recurring') return `<small class="dim">${h(tr('Produto recorrente: sem página de pagamento'))}</small>`;
+  const path = `/pagar/${encodeURIComponent(c.workspace)}/${encodeURIComponent(link.id)}`;
+  return `<span class="inline-gap"><button type="button" class="secondary" data-copy-path="${h(path)}">${i('copy', 15)} ${h(tr('Copiar link'))}</button><a class="secondary" href="${h(path)}" target="_blank" rel="noopener">${i('external', 15)} ${h(tr('Abrir'))}</a></span>`;
+};
 const edit = (key, id) => `<td class="right"><button class="icon-btn" title="Editar registro" aria-label="Editar registro" data-edit="${key}" data-id="${id}">${i('edit', 16)}</button></td>`;
 const metric = (title, value, note = '') => `<div class="surface metric"><span>${title}</span><b>${value}</b>${note ? `<small class="dim">${note}</small>` : ''}</div>`;
 const page = content => `<div class="page">${content}</div>`;
@@ -140,8 +148,8 @@ export function paymentsTab(c, tab) {
     desc: 'Crie e gerencie links de pagamento.',
     cta: primary('Novo link', 'paymentLinks'),
     tabs: tabCfg,
-    content: `<p class="surface padded ag-warn">O checkout dos links exige um gateway de pagamento conectado. Neste projeto local os links ficam registrados com produto e preço.</p><div class="toolbar">${search(c, 'Buscar links…')}</div>` +
-      table(['Nome', 'Produto', 'Status', 'Preço', 'Criado em', ''], [...s.paymentLinks].reverse().filter(l => match(c, l.name, product(l.productId, c)?.name)).map(l => `<tr><td><b>${h(l.name)}</b></td><td>${h(product(l.productId, c)?.name || '—')}</td><td>${badge(l.active ? 'Ativo' : 'Inativo', l.active ? 'green' : '')}</td><td>${price(product(l.productId, c))}</td><td>${date(l.created, c)}</td>${edit('paymentLinks', l.id)}</tr>`), empty('Nenhum link de pagamento', 'Crie um produto e gere um link para ele.', 'link'))
+    content: `<p class="surface padded">Cada link ativo tem uma página de pagamento própria: o cliente informa nome e e-mail e paga por Pix ou cartão pela AbacatePay. Produtos recorrentes não são cobrados por link.</p><div class="toolbar">${search(c, 'Buscar links…')}</div>` +
+      table(['Nome', 'Produto', 'Status', 'Preço', 'Endereço', 'Criado em', ''], [...s.paymentLinks].reverse().filter(l => match(c, l.name, product(l.productId, c)?.name)).map(l => `<tr><td><b>${h(l.name)}</b></td><td>${h(product(l.productId, c)?.name || '—')}</td><td>${badge(l.active ? 'Ativo' : 'Inativo', l.active ? 'green' : '')}</td><td>${price(product(l.productId, c))}</td><td>${linkAddress(c, l)}</td><td>${date(l.created, c)}</td>${edit('paymentLinks', l.id)}</tr>`), empty('Nenhum link de pagamento', 'Crie um produto e gere um link para ele.', 'link'))
   });
   if (tab === 'ledger') return pageShell({ title: 'Pagamentos', desc: 'O registro permanente do que esta subconta recebeu e devolveu.', tabs: tabCfg, content: ledgerPanel({ scope: 'account', workspace: c.workspace }) });
   if (tab === 'transactions') {

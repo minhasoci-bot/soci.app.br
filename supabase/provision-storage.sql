@@ -3,10 +3,15 @@
 -- Apply after the storage migrations (go_workspaces, go_tracking_events and go_agency_audit). Reapply with a new hash to rotate the key.
 begin;
 
-grant select, insert, update on table public.go_workspaces to anon;
+grant select, insert, update, delete on table public.go_workspaces to anon;
 drop policy if exists go_storage_read on public.go_workspaces;
 drop policy if exists go_storage_insert on public.go_workspaces;
 drop policy if exists go_storage_update on public.go_workspaces;
+drop policy if exists go_storage_delete on public.go_workspaces;
+
+-- Subconta que venceu a lixeira (30 dias) é apagada de vez.
+create policy go_storage_delete on public.go_workspaces for delete to anon
+using ((select encode(sha256(convert_to(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-go-storage-key', ''), 'UTF8')), 'hex') = 'GO_STORAGE_KEY_SHA256'));
 
 create policy go_storage_read on public.go_workspaces for select to anon
 using ((select encode(sha256(convert_to(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-go-storage-key', ''), 'UTF8')), 'hex') = 'GO_STORAGE_KEY_SHA256'));
@@ -58,5 +63,27 @@ using ((select encode(sha256(convert_to(coalesce(nullif(current_setting('request
 
 create policy go_ledger_insert on public.go_billing_ledger for insert to anon
 with check ((select encode(sha256(convert_to(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-go-storage-key', ''), 'UTF8')), 'hex') = 'GO_STORAGE_KEY_SHA256'));
+
+-- Página Plataforma (migração 20261125120000_go_platform_usage.sql): uso do projeto, só com a chave do servidor.
+create or replace function public.go_platform_usage()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if encode(sha256(convert_to(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-go-storage-key', ''), 'UTF8')), 'hex') <> 'GO_STORAGE_KEY_SHA256' then
+    raise exception 'not allowed';
+  end if;
+  return jsonb_build_object(
+    'db_bytes', pg_catalog.pg_database_size(pg_catalog.current_database()),
+    'storage_bytes', coalesce((select sum((o.metadata ->> 'size')::bigint) from storage.objects o), 0),
+    'mau', (select count(*) from auth.users u where u.last_sign_in_at >= pg_catalog.date_trunc('month', pg_catalog.now()))
+  );
+end;
+$$;
+revoke all on function public.go_platform_usage() from public, anon, authenticated;
+grant execute on function public.go_platform_usage() to anon;
 
 commit;

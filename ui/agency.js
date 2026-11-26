@@ -26,6 +26,7 @@ import { apiScopes,
   appScopes, maxMarkup, rebillProducts, subFeatures, agencyNav, walletProducts
 } from './agency-data.js';
 import { setupArt } from './setup-art.js';
+import { platformPage, platformBanner } from './platform.js';
 
 export { agencyNav };
 const h = x => String(x ?? '').replace(/[&<>"']/g, v => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[v]);
@@ -57,7 +58,7 @@ const aiState = a => !a.aiEnabled ? 'off' : !a.aiLimit ? 'nolimit' : a.aiCost >=
 
 export function startAgency(env) {
   const { app, overlay, api, flash, openWorkspace } = env;
-  const A = { data: null, openAI: null, openAIOnly: false, wa: null, waFocus: null, waPairOpen: false, page: 'dashboard', sub: '', query: '', status: '', category: '', mktOrigin: '', selected: new Set(), chat: [], navOpen: innerWidth > 700, aiFilter: '', aiPeriod: '30', aiUsage: null };
+  const A = { data: null, openAI: null, openAIOnly: false, wa: null, waFocus: null, waPairOpen: false, page: 'dashboard', sub: '', query: '', status: '', category: '', mktOrigin: '', selected: new Set(), chat: [], navOpen: innerWidth > 700, aiFilter: '', aiPeriod: '30', aiUsage: null, pf: null, pfError: '', pfLoading: false };
   let waPollTimer = null;
   function stopWaPoll() { if (waPollTimer) { clearInterval(waPollTimer); waPollTimer = null; } }
   const G = s => document.querySelector(s);
@@ -161,7 +162,9 @@ export function startAgency(env) {
     // Sem login (servidor local), "Agir como" vale também aqui: a faixa é a saída desse modo.
     const acting = !session && localStorage.getItem('go.user');
     const item = ([key, label, ico]) => ({ href: `#agency/${key}`, label: tr(label), icon: ico, current: A.page === key });
-    const currentPageLabel = tr(agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência');
+    const currentPageLabel = tr(A.page === 'plataforma' ? 'Plataforma' : agencyNav.find(n => n[0] === A.page)?.[1] || 'Painel da agência');
+    // Plataforma: só o dono da plataforma vê (limites de Supabase, Vercel, Cloudflare, Hostinger…).
+    const overview = [...agencyNav.slice(0, 5).map(item), ...(A.data.access?.platform ? [item(['plataforma', 'Plataforma', 'chart'])] : [])];
     return `<div class="shell ${A.navOpen ? 'wide' : ''} ag-shell">${sidebar({
       label: tr('Navegação da agência'),
       home: '#agency/dashboard',
@@ -171,7 +174,7 @@ export function startAgency(env) {
       toggle: 'data-ag="nav"',
       open: A.navOpen,
       groups: [
-        { title: tr('Visão geral'), items: agencyNav.slice(0, 5).map(item) },
+        { title: tr('Visão geral'), items: overview },
         { title: tr('Subcontas e ferramentas'), items: agencyNav.slice(5, 12).map(item) },
         { title: tr('Aprender e apps'), items: agencyNav.slice(12, -1).map(item) },
         { title: tr('Atalhos'), items: D().menuLinks.filter(l => l.showOn !== 'Sub-accounts').map(l => ({ href: l.url, label: tr(l.title), icon: l.icon, external: true })) }
@@ -194,7 +197,7 @@ export function startAgency(env) {
         text: initials(session?.name || company.name || D().profile.name || 'AG'),
         picture: session?.picture,
         label: session?.name || tr('Configurações da agência'),
-        attr: session ? 'data-act="account"' : 'data-ag="go-profile"'
+        attr: session ? 'data-act="account" aria-haspopup="dialog"' : 'data-ag="go-profile"'
       }
     })}${acting ? `<div class="ag-banner acting" role="status"><b>Agindo como ${h(A.data.access?.name || '')}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>` : ''}<main id="screen" class="screen${A.page === 'ask' ? ' screen-ask-chat' : ''}">${content}</main></div></div>`;
   }
@@ -338,10 +341,39 @@ export function startAgency(env) {
       <p class="dim">${h(tr('Use 0 para não limitar. Gasto neste mês:'))} ${formatUsd(a.aiCost)}.</p>`, { form: 'ai-limit', id, submit: 'Salvar limite' });
   }
 
+  // ---- Plataforma (admin geral, só o dono): limites dos serviços externos ----
+  const isPlatformOwner = () => Boolean(A.data?.access?.platform);
+  async function loadPlatform() {
+    if (A.pfLoading || !isPlatformOwner()) return;
+    A.pfLoading = true; A.pfError = '';
+    try { A.pf = await api('/api/platform/usage'); }
+    catch (e) { A.pfError = e.message; }
+    finally { A.pfLoading = false; }
+    if (A.page === 'plataforma' || A.page === 'dashboard') render();
+  }
+  pages.plataforma = () => {
+    if (!isPlatformOwner()) return pages.dashboard();
+    if (!A.pf && !A.pfError) { queueMicrotask(loadPlatform); return `<div class="page">${head('Plataforma', 'Conferindo os serviços…')}</div>`; }
+    if (!A.pf) return `<div class="page">${head('Plataforma')}<div class="surface padded"><p class="form-status">${h(A.pfError)}</p>${btn('Tentar de novo', 'pf-reload')}</div></div>`;
+    return platformPage(A.pf, { h, tr });
+  };
+  async function enablePlatformPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw Error(tr('Este navegador não aceita notificações.'));
+    const { key } = await api('/api/push/key');
+    if (!key) throw Error(tr('As notificações ainda não foram configuradas no servidor (WEB_PUSH_PUBLIC_KEY).'));
+    if (await Notification.requestPermission() !== 'granted') throw Error(tr('Permita as notificações nas configurações do navegador.'));
+    const reg = await navigator.serviceWorker.register('/push/sw.js', { scope: '/push/' });
+    const raw = atob((key + '='.repeat((4 - key.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+    const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, ch => ch.charCodeAt(0)) });
+    A.pf = await api('/api/platform/push', { subscription: sub.toJSON() });
+  }
+
   pages.dashboard = () => {
     const t = O().totals, growth = O().growth, max = Math.max(1, ...growth.map(g => g.total));
     const top = [...accounts()].sort((a, b) => b.contacts - a.contacts).slice(0, 8);
+    if (isPlatformOwner() && !A.pf && !A.pfError) queueMicrotask(loadPlatform);
     return `<div class="page">${head('Painel da agência', `Boas-vindas, ${D().profile.first}. Métricas consolidadas das suas subcontas e registros da agência.`, primary('Criar subconta', 'new-account'))}
+      ${isPlatformOwner() && A.pf ? platformBanner(A.pf, { h, tr }) : ''}
       ${D().abacatepay?.connected ? '' : `<div class="surface padded ag-notice">${i('pay', 20)}<div><b>Os KPIs de faturamento usam registros locais</b><p>A receita dos planos é calculada a partir do plano SaaS atribuído a cada subconta. Conecte o AbacatePay para cobrar as assinaturas por Pix ou cartão.</p></div><a class="secondary" href="#agency/settings/abacatepay">Conectar AbacatePay</a></div>`}
       <div class="metrics">${metric('Receita recorrente mensal (MRR)', money(t.mrr), 'Dos planos SaaS de contas ativas')}${metric('Subcontas ativas', `${t.active} <small>/ ${t.accounts}</small>`, `${t.paused} pausada(s) · ${t.closed} encerrada(s)`)}${metric('Novas neste mês', t.newThisMonth)}${metric('Planos SaaS cadastrados', D().plans.length, 'Disponíveis no Configurador SaaS')}</div>
       <div class="metrics">${metric('Contatos', t.contacts)}${metric('Oportunidades abertas', t.open)}${metric('Execuções de automação', t.runs)}${metric('Saldo da carteira', money(t.wallet))}</div>
@@ -377,10 +409,27 @@ export function startAgency(env) {
         ${!active && reason ? `<p class="dim">${h(reason)}</p>` : ''}
         <div class="inline-gap">${active || canManage ? btn(active ? 'Acessar subconta' : 'Abrir suporte', 'open-account', `data-id="${a.id}"`, 'primary') : ''}
         ${canManage ? btn('Editar', 'edit-account', `data-id="${a.id}"`) : ''}
-        ${canManage && !active ? btn('Reativar', 'reactivate-account', `data-id="${a.id}"`) : ''}</div></article>`;
+        ${canManage && !active ? btn('Reativar', 'reactivate-account', `data-id="${a.id}"`) : ''}
+        ${canManage ? btn('Excluir', 'trash-account', `data-id="${a.id}"`, 'danger') : ''}</div></article>`;
       }).join('') || empty('Nenhuma subconta encontrada', 'Tente outros termos de busca ou limpe os filtros.')}</div>
-      ${D().plans.length ? '' : `<p class="dim ag-hint">Dica: crie planos SaaS no Configurador SaaS para atribuir um plano e precificação a cada subconta.</p>`}</div>`;
+      ${D().plans.length ? '' : `<p class="dim ag-hint">Dica: crie planos SaaS no Configurador SaaS para atribuir um plano e precificação a cada subconta.</p>`}
+      ${canManage ? trashSection() : ''}</div>`;
   };
+
+  // Lixeira: subcontas excluídas ficam encerradas por 30 dias e podem voltar; depois os dados são apagados de vez.
+  function trashSection() {
+    const trash = A.data.trash || [];
+    if (!trash.length) return '';
+    const left = at => Math.max(0, Math.ceil((Date.parse(at) - Date.now()) / 86_400_000));
+    return `<section class="ag-trash" aria-labelledby="ag-trash-title"><h2 id="ag-trash-title">Lixeira</h2>
+      <p class="dim">Subcontas excluídas ficam aqui por 30 dias, sem acesso e sem automações. Depois disso, os dados são apagados de vez.</p>
+      <div class="ag-accounts">${trash.map(t => {
+        const days = left(t.purgeAt);
+        return `<article class="surface padded ag-account"><div class="ag-account-main"><h2>${h(t.name)}</h2><p class="dim">Excluída em ${day(t.deletedAt, true)} por ${h(t.deletedBy)}</p></div>
+        <dl class="ag-facts"><div><dt>Apagada de vez em</dt><dd>${days ? `${days} dia${days === 1 ? '' : 's'}` : 'menos de 1 dia'}</dd></div></dl>
+        <div class="inline-gap">${btn('Restaurar', 'restore-account', `data-id="${t.id}" data-name="${h(t.name)}"`)}</div></article>`;
+      }).join('')}</div></section>`;
+  }
 
   function accountForm(preset = {}) {
     const snaps = D().snapshots;
@@ -1079,7 +1128,9 @@ Authorization: Bearer soci_app_…
           </div>
         </div>`, `<button type="button" class="secondary" data-ag-brand-reset>${i('undo')} Restaurar paleta oficial</button>`)}
         ${section('whitelabel', 'White Label das subcontas', 'O endereço e o logotipo que as subcontas veem no lugar da marca da plataforma.', `<div class="field-grid">
-          <label>Domínio para subcontas<input name="domain" placeholder="app.suaagencia.com.br" value="${h(c.domain)}"></label>
+          <div><label>Domínio para subcontas<input name="domain" placeholder="app.suaagencia.com.br" value="${h(c.domain)}" aria-describedby="ag-domain-hint"></label>
+            ${c.domain ? `<p class="inline-gap"><button type="button" class="secondary" data-ag-domain-check>${i('check')} Verificar domínio</button></p><p class="dim" data-ag-domain-status role="status"></p>` : ''}
+            <small class="dim" id="ag-domain-hint">No DNS do domínio, crie um registro CNAME apontando para cname.vercel-dns.com.</small></div>
           <div class="ag-company-logo">
             <span class="ag-logo-preview">${c.logo ? `<img src="${h(c.logo)}" alt="Logotipo das subcontas">` : i('upload')}</span>
             <div>
@@ -1266,6 +1317,20 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     const profBtn = ev.target.closest('[data-ag-profile]');
     if (profBtn) { go('settings', 'company'); return; }
 
+    const domainCheck = ev.target.closest('[data-ag-domain-check]');
+    if (domainCheck) {
+      const out = domainCheck.parentElement.parentElement.querySelector('[data-ag-domain-status]');
+      domainCheck.disabled = true;
+      out.textContent = tr('Verificando…');
+      try {
+        const { result: s } = await api('/api/agency/domain-status', {});
+        out.textContent = tr(!s.hosting ? 'A conexão automática com a hospedagem não está ativa: peça ao suporte da soci para adicionar o domínio.'
+          : !s.added ? 'O domínio ainda não foi adicionado à hospedagem. Salve de novo em alguns minutos.'
+          : s.pointing && s.verified ? 'Pronto: o domínio aponta para a soci.' : 'Aguardando o CNAME: a mudança de DNS pode levar algumas horas.');
+      } catch (problem) { out.textContent = problem.message; }
+      domainCheck.disabled = false;
+      return;
+    }
     const brandReset = ev.target.closest('[data-ag-brand-reset]');
     if (brandReset) {
       const form = brandReset.closest('form[data-ag-form="company"]');
@@ -1328,6 +1393,9 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'studio-rotate': confirmBox('Gerar um novo segredo?', 'As próximas entregas usam o segredo novo. Atualize o servidor do app antes, ou as assinaturas deixam de conferir.', 'studio-rotate', id, 'Gerar novo segredo'); break;
         case 'ai-limit': editAiLimit(id); break;
         case 'ai-period': await loadAiUsage(d.period); break;
+        case 'pf-reload': A.pfError = ''; render(); await loadPlatform(); break;
+        case 'pf-check': A.pf = await api('/api/platform/check', {}); render(); flash('Serviços conferidos agora.'); break;
+        case 'pf-push': await enablePlatformPush(); render(); flash('Notificações de alerta ativadas neste aparelho.'); break;
         case 'ai-apply': {
           const def = D().aiDefaults || {}, all = d.scope === 'all';
           confirmBox(all ? 'Aplicar o limite padrão em todas as subcontas?' : 'Aplicar o limite padrão nas subcontas sem limite?',
@@ -1432,6 +1500,18 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
             <label>Motivo da suspensão ou encerramento<textarea name="suspendedReason" maxlength="500">${h(meta.suspendedReason || '')}</textarea><small class="dim">Visível para usuários da subconta enquanto o acesso estiver bloqueado.</small></label>`, { form: 'account-meta', id, submit: 'Salvar alterações' });
           break;
         }
+        case 'trash-account': {
+          const name = accountName(id);
+          dialog(`Excluir ${name}?`, `<p>A subconta sai da lista e ninguém mais consegue entrar nela. Automações, campanhas e publicações param na hora.</p>
+            <p>Ela fica na <b>Lixeira</b> por 30 dias e pode ser restaurada nesse prazo. Depois, contatos, conversas, negócios e todos os outros dados são apagados de vez.</p>
+            <label>Para confirmar, digite <b>${h(name)}</b><input name="confirm" required autocomplete="off" spellcheck="false" maxlength="120"></label>`,
+          { form: 'account-trash', id, submit: 'Excluir subconta' });
+          G('#dialog form button.primary')?.classList.replace('primary', 'danger');
+          break;
+        }
+        case 'restore-account':
+          dialog(`Restaurar ${d.name || 'subconta'}?`, '<p>A subconta volta para a lista com o status que tinha antes de ser excluída. Os usuários recuperam o acesso permitido.</p>', { form: 'account-restore', id, submit: 'Restaurar subconta' });
+          break;
         case 'reactivate-account':
           dialog(`Reativar ${accountName(id)}`, '<p>Os usuários recuperam o acesso permitido. Publicações pendentes poderão voltar a ser processadas.</p>', { form: 'account-reactivate', id, submit: 'Reativar subconta' });
           break;
@@ -1822,6 +1902,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         }
         case 'account-meta': await act('account-meta', { id, data }); msg = 'Dados da subconta atualizados.'; break;
         case 'account-reactivate': await act('account-reactivate', { id }); msg = 'Subconta reativada.'; break;
+        case 'account-trash': await act('account-trash', { id, data: { confirm: data.confirm } }); A.selected.delete(id); msg = 'Subconta excluída. Ela fica na Lixeira por 30 dias.'; break;
+        case 'account-restore': await act('account-restore', { id }); msg = 'Subconta restaurada.'; break;
         case 'bulk-status': for (const x of A.selected) { const meta = D().accounts[x]; await act('account-meta', { id: x, data: { ...meta, status: data.status, suspendedReason: data.suspendedReason } }); } A.selected.clear(); msg = 'Status das subcontas atualizado.'; break;
         case 'bulk-snapshot': await call('snapshot-load', { id: data.id, workspaces: [...A.selected], mode: data.mode }); A.selected.clear(); msg = 'Setup carregado com sucesso.'; break;
         case 'prospect-convert': { const newId = await call('prospect-convert', { id, snapshotId: data.snapshotId }); msg = 'Subconta criada.'; close(); dialog('Subconta criada com sucesso', `<div class="inline-gap">${btn('Acessar subconta agora', 'open-account', `data-id="${newId}"`, 'primary')}</div>`); keepOpen = true; break; }
@@ -1889,6 +1971,10 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
         case 'app-install': await act('app-install', { id, data }); msg = `${appName(id)} instalado.`; break;
         case 'app-uninstall': await act('app-uninstall', { id }); msg = 'App desinstalado.'; break;
         case 'app-resell': await act('app-resell', { id, data }); msg = 'Preço de revenda salvo.'; break;
+        case 'pf-settings':
+          A.pf = await api('/api/platform/settings', { alertEmail: data.alertEmail, twilioMinUsd: Number(data.twilioMinUsd), plans: { supabase: data.supabase, vercel: data.vercel } });
+          msg = 'Configurações da Plataforma salvas.';
+          break;
         default: throw Error('Formulário desconhecido.');
       }
       if (!keepOpen) { close(); render(); }

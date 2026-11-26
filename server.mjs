@@ -2,6 +2,8 @@ import { createSocialRoutes } from './routes/social.mjs';
 import { createPortalRoutes } from './routes/portal.mjs';
 import { createPranchetaRoutes } from './routes/prancheta.mjs';
 import { createActionRoutes, createCommandRunner } from './routes/action.mjs';
+import { createPlatformRoutes } from './routes/platform.mjs';
+import { createPlatformMonitor } from './platform-monitor.mjs';
 import { createAdsRoutes } from './routes/ads.mjs';
 import { createBillingRoutes } from './routes/billing.mjs';
 import { createEmailRoutes } from './routes/email.mjs';
@@ -18,6 +20,8 @@ import { createWebinarRoutes } from './routes/webinars.mjs';
 import { createQrRoutes } from './routes/qr.mjs';
 import { createAffiliateRoutes } from './routes/affiliates.mjs';
 import { createOfferApiRoutes, createOfferPageRoutes } from './routes/offers.mjs';
+import { createPaymentLinkRoutes } from './routes/payment-links.mjs';
+import { hostingDomains, requireFreeDomain, whiteLabelHost } from './white-label.mjs';
 import { createBookingRoutes } from './routes/booking.mjs';
 import { createPreferenceRoutes } from './routes/preferences.mjs';
 import { createAgencyAppRoutes } from './routes/agency-apps.mjs';
@@ -36,19 +40,29 @@ import { createAskRoutes } from './routes/ask.mjs';
 import { createVerifyRoutes } from './routes/verify.mjs';
 import { createBrandAIRoutes, createContentAIRoutes, createConversationAIRoutes } from './routes/content-ai.mjs';
 import { createSeoRoutes } from './routes/seo.mjs';
+import { createAbacatePayRoutes, createAbacatePayWorkspaceRoutes, createWalletRoutes } from './routes/payments.mjs';
+import { createDriveRoutes, createPublicMediaRoutes, createVideoRoutes } from './routes/media.mjs';
+import { createTrackingRoutes } from './routes/tracking.mjs';
+import { createAppApiRoutes, createAppInstallRoutes } from './routes/apps.mjs';
+import { createProspectPublicRoutes } from './routes/prospect-public.mjs';
+import { createAccountRoutes, createWhiteLabelRoutes } from './routes/account.mjs';
+import { createAgencyRoutes } from './routes/agency.mjs';
+import { createFaviconRoutes, createPageRoutes } from './routes/pages.mjs';
+import { createWorkspaceRoutes } from './routes/workspace.mjs';
 import { createConnectorHookRoutes, createConnectorRoutes } from './routes/connectors.mjs';
 import { createPhoneRoutes, createTwilioWebhookRoutes } from './routes/phone.mjs';
+import { createAuthRoutes } from './routes/auth.mjs';
 import { createPushRoutes } from './routes/push.mjs';
 import { NEXT_ROUTE } from './routes/next-route.mjs';
 import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { blank, seed, uid, execute, find, emitWorkflow, receiveProspects } from './model.mjs';
+import { blank, seed, uid, execute, emitWorkflow, receiveProspects } from './model.mjs';
 import { createSqliteStore, supabaseFromEnv } from './storage.mjs';
-import { accountProfile, afterLogin, authFromEnv } from './auth.mjs';
+import { accountProfile, authFromEnv } from './auth.mjs';
 import { generatePage, revisePage, suggestSeo } from './studio-ai.mjs';
 import { validDesign } from './ui/studio-design.js';
 import { designAgent, replyAsAgent } from './agent-ai.mjs';
@@ -57,19 +71,19 @@ import { agentWorkflowRequest, recordAgentRun } from './agent-model.mjs';
 import { agencyAiUsage, checkAiBudget, setAiAccess, setAiLimit, usageMeter } from './ai-model.mjs';
 import { setLabsOffer } from './labs-model.mjs';
 import { writeConversationReply, writeConversationSummary } from './conversation-ai.mjs';
-import { addInstall, appSecret, appSignature, installedCopy, removeInstall, tokenHash as appTokenHash } from './app-studio-model.mjs';
+import { appSecret, appSignature, installedCopy, tokenHash as appTokenHash } from './app-studio-model.mjs';
 import { transformText, writeBrandVoice, writeEmail, writeReviewReply } from './content-ai.mjs';
 import { brandVoicePrompt, defaultBoard } from './ui/brand-data.js';
 import { runWorkflowAI } from './workflow-ai.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
-import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, replaceBilling } from './agency-model.mjs';
+import { AGENCY_ID, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, inTrash, trashList, trashExpired } from './agency-model.mjs';
+import { createAccountPurge, PURGE_GIVE_UP_MS, PURGE_RETRY_MS } from './account-purge.mjs';
 import { agencyAccess, publicBilling } from './agency-billing-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
-import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
+import { runProspectingAction } from './prospecting-model.mjs';
 import { collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
-import { importedFile, importedMeta, mediaLimitBytes, mediaTypes } from './media-model.mjs';
-import { R2_MAX_BYTES, r2FromEnv } from './r2-storage.mjs';
+import { r2FromEnv } from './r2-storage.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
 import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
@@ -111,11 +125,10 @@ function referralsOf(req) {
 // Visitor-facing requests (pages, forms, store, chat, webinar, offers). App screens never attribute.
 const publicRequest = path => !path.startsWith('/api/') || /^\/api\/(store|chat|webinar|offer|avaliar|depoimento)\//.test(path);
 import { folded, prospectSearchText } from './ui/prospecting-data.js';
-import { shareReportHtml, widgetHtml } from './ui/prospect-report.js';
 import { snapshotAssets } from './ui/agency-data.js';
-import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, requireWorkspaceCommand, workspaceView } from './authorization.mjs';
+import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, workspaceView } from './authorization.mjs';
 import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, settle } from './social-model.mjs';
-import { authUrl, availability, publish as socialPublish, seal, unseal } from './social-providers.mjs';
+import { authUrl, publish as socialPublish, seal, unseal } from './social-providers.mjs';
 import { quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
 import { generateImage, startVideo, videoContent, videoStatus } from './openai-media.mjs';
 import { inboundAddress } from './email-inbound.mjs';
@@ -142,7 +155,7 @@ import { fillWelcome } from './community-config.mjs';
 import { leaveCsp, leavePage } from './destinations.mjs';
 import { summarizeMeeting, transcribeAudio } from './meeting-ai.mjs';
 import { askAssistant } from './seo-ai.mjs';
-import { addTopup, closeUsage, disputeTopup, paidTopup, pricingFor, reverseTopup, usageToClose, setPricing, walletAdjust, walletLimits } from './wallet-model.mjs';
+import { closeUsage, pricingFor, usageToClose, setPricing, walletAdjust } from './wallet-model.mjs';
 import { sendPush } from './web-push.mjs';
 import { pushTargets } from './push-model.mjs';
 import { pollConnector, runConnectorAction } from './connectors.mjs';
@@ -151,7 +164,7 @@ import { unseal as unsealSecret } from './social-providers.mjs';
 import { randomBytes } from 'node:crypto';
 import { postSeo, writePost } from './blog-ai.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
-import { ASSET_PATH, assetBytes, extractAssets, saveAssets } from './asset-store.mjs';
+import { extractAssets, saveAssets } from './asset-store.mjs';
 import { inBackground } from './background.mjs';
 import { createEventSender } from './event-sender.mjs';
 import { eventSendDue } from './event-send-model.mjs';
@@ -170,20 +183,20 @@ export const staticFiles = new Map([
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
   ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/fiscal.js','text/javascript; charset=utf-8'], ['/tax-id.js','text/javascript; charset=utf-8'], ['/ledger.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/destination-field.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
-  ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/setup-art.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
+  ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/platform.js','text/javascript; charset=utf-8'], ['/platform-format.js','text/javascript; charset=utf-8'], ['/setup-art.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/deck-model.js','text/javascript; charset=utf-8'], ['/deck-render.js','text/javascript; charset=utf-8'], ['/deck-editor.js','text/javascript; charset=utf-8'], ['/deck.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
   ['/beautiful-ui.js','text/javascript; charset=utf-8'], ['/beautiful-ui.css','text/css; charset=utf-8'],
   ['/beautiful-ui-more.js','text/javascript; charset=utf-8'], ['/beautiful-ui.html','text/html; charset=utf-8'], ['/bui-mounts.js','text/javascript; charset=utf-8'],
-  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'], ['/ask.js','text/javascript; charset=utf-8'], ['/ask.css','text/css; charset=utf-8'], ['/scope.css','text/css; charset=utf-8'],
+  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'], ['/ask.js','text/javascript; charset=utf-8'], ['/ask.css','text/css; charset=utf-8'], ['/accounts.js','text/javascript; charset=utf-8'], ['/accounts.css','text/css; charset=utf-8'], ['/account-guard.js','text/javascript; charset=utf-8'], ['/scope.css','text/css; charset=utf-8'],
   ['/vendor/marked.js','text/javascript; charset=utf-8'], ['/vendor/purify.js','text/javascript; charset=utf-8'],
   ['/color-picker.js','text/javascript; charset=utf-8'],
   ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],
   ['/prospect-report.js','text/javascript; charset=utf-8'], ['/prospecting.css','text/css; charset=utf-8'],
   ['/crm.js','text/javascript; charset=utf-8'], ['/crm-data.js','text/javascript; charset=utf-8'],
   ['/opportunity-data.js','text/javascript; charset=utf-8'], ['/opportunity-filters.js','text/javascript; charset=utf-8'], ['/opportunities.js','text/javascript; charset=utf-8'], ['/opportunities.css','text/css; charset=utf-8'],
-  ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'], ['/event-planner.js','text/javascript; charset=utf-8'], ['/event-planner-data.js','text/javascript; charset=utf-8'], ['/event-copy-editor.js','text/javascript; charset=utf-8'], ['/event-message-parts.js','text/javascript; charset=utf-8'], ['/event-sends.js','text/javascript; charset=utf-8'], ['/event-planner.css','text/css; charset=utf-8'],
+  ['/social.js','text/javascript; charset=utf-8'], ['/social-data.js','text/javascript; charset=utf-8'], ['/social.css','text/css; charset=utf-8'], ['/event-planner.js','text/javascript; charset=utf-8'], ['/event-planner-data.js','text/javascript; charset=utf-8'], ['/event-copy-editor.js','text/javascript; charset=utf-8'], ['/event-message-parts.js','text/javascript; charset=utf-8'], ['/event-sends.js','text/javascript; charset=utf-8'], ['/event-timeline.js','text/javascript; charset=utf-8'], ['/event-planner.css','text/css; charset=utf-8'],
   ['/social-connect.js','text/javascript; charset=utf-8'], ['/mcp.js','text/javascript; charset=utf-8'], ['/mcp-autorizar.js','text/javascript; charset=utf-8'], ['/mcp.css','text/css; charset=utf-8'], ['/social-approve.js','text/javascript; charset=utf-8'], ['/brand-group-data.js','text/javascript; charset=utf-8'], ['/brand-groups.css','text/css; charset=utf-8'],
   ['/prancheta.js','text/javascript; charset=utf-8'], ['/prancheta.css','text/css; charset=utf-8'],
   ['/prancheta-editor.html','text/html; charset=utf-8'], ['/vendor/prancheta-editor.js','text/javascript; charset=utf-8'], ['/vendor/prancheta-editor.css','text/css; charset=utf-8'],
@@ -218,7 +231,6 @@ const personalId = session => `user-${session.id}`;
 const workspaceSegment = '(demo|(?:user-)?[0-9a-f-]{36})';
 const portalPage = new RegExp(`^/portal/${workspaceSegment}/?$`);
 const portalApi = new RegExp(`^/api/client-portal/${workspaceSegment}/(admin|home|exchange|logout|course|progress|community-admin|community|offer-grant|loyalty|admin-enter|files|push)(?:/([0-9a-f-]{36}))?$`);
-const paths = new RegExp(`^/(p|f|course)/${workspaceSegment}/([0-9a-f-]{36})$`);
 const storePath = new RegExp(`^/loja/${workspaceSegment}/([0-9a-f-]{36})(?:/(carrinho)|/p/([a-z0-9-]{1,80}))?/?$`);
 const storeApi = new RegExp(`^/api/store/${workspaceSegment}/([0-9a-f-]{36})/(quote|checkout|cart|restore|review|view)$`);
 const socialFilePath = new RegExp(`^/m/${workspaceSegment}/([0-9a-f-]{36})$`);
@@ -228,8 +240,6 @@ const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
 // The tracking script (/t/<workspace>.js), the pixels loader (/t/<workspace>/pixels.js) and events (/t/<workspace>/e).
 const trackingPath = new RegExp(`^/t/${workspaceSegment}(\\.js|/pixels\\.js|/e)$`);
 const landingPath = new RegExp(`^/(s|form|oferta|loja|b|w|q|r)/${workspaceSegment}(?:/|$)`);
-const prospectPublicPath = /^\/prospecting\/(report|widget)\/([0-9a-f-]{36})$/;
-const apiPath = /^\/api\/v1\/subaccounts(?:\/(demo|[0-9a-f-]{36})\/contacts)?$/;
 // O código de confirmação (hash) nunca sai do servidor; o celular só com os 4 últimos dígitos.
 function safeBilling({ verify: _verify, phone, ...billing } = {}) {
   return { ...billing, phone: phone ? publicBilling({ phone }, new Date()).phone : '' };
@@ -286,7 +296,7 @@ export function makeServer({
   evolutionBaseUrl=process.env.EVOLUTION_BASE_URL || '', evolutionApiKey=process.env.EVOLUTION_API_KEY || '',
   phoneVerify={ number: process.env.SOCI_VERIFY_WHATSAPP || '', instance: process.env.SOCI_VERIFY_INSTANCE || '', secret: process.env.SOCI_VERIFY_SECRET || '' },
   portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(), campaignMail=campaignMailer(),
-  allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1', r2=r2FromEnv()
+  signupOpen=undefined, allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1', r2=r2FromEnv(), platformEnv=process.env, platformRequest=fetch, hosting=hostingDomains()
 }={}) {
   const cronReads = scopedReads(store);
   store = cronReads.store;
@@ -513,7 +523,12 @@ export function makeServer({
   const ready = Promise.all([store.insert('demo', seed()), store.insert(AGENCY_ID, blankAgency())]);
   ready.catch(() => {});
   const workspaceOwner = id => id === AGENCY_ID ? null : id;
-  const listWorkspaces = async agencyId => (await store.list(workspaceOwner(agencyId))).filter(w => spaceId.test(w.id));
+  // Subcontas da agência. As que estão na lixeira ficam de fora de tudo (listas, ações, rotas); só a lixeira as vê.
+  const ownedWorkspaces = async agencyId => (await store.list(workspaceOwner(agencyId))).filter(w => spaceId.test(w.id));
+  const listWorkspaces = async agencyId => {
+    const [rows, agency] = await Promise.all([ownedWorkspaces(agencyId), loadAgency(agencyId).catch(e => { if (e.status === 404) return null; throw e; })]);
+    return agency ? rows.filter(w => !inTrash(agency, w.id)) : rows;
+  };
   const agencyCache = new Map();
   const AGENCY_CACHE_TTL = 30000;
   const loadAgency = async id => {
@@ -602,13 +617,24 @@ export function makeServer({
     if (!requestUsers.has(req)) {
       requestUsers.set(req, auth.user(req,res).then(user => {
         if (!user) throw error('Entre na sua conta para continuar.',401);
+        // Uma aba aberta antes da troca de conta diz em qual conta está: se não é mais esta, nada é lido nem gravado.
+        const tabAccount = req.headers['x-soci-account'];
+        if (tabAccount && tabAccount !== user.id) {
+          res.setHeader('X-Soci-Account-Changed','1');
+          throw Object.assign(error('Você trocou de conta em outra aba. Recarregue a página para continuar.',409), { code: 'ACCOUNT_CHANGED' });
+        }
         return accountProfile(user);
       }));
     }
     return requestUsers.get(req);
   }
   // Agência sem celular confirmado ou bloqueada só abre as rotas que levam até a confirmação ou o pagamento.
+  // Sem a linha de confirmação (SOCI_VERIFY_*), as agências que já existem seguem como estão e só o cadastro novo fecha.
+  const verifyOn = Boolean(phoneVerify?.number && phoneVerify?.instance && phoneVerify?.secret);
+  // Fora da Vercel (testes, máquina local) o cadastro fica aberto mesmo sem a linha.
+  const openSignup = signupOpen ?? (verifyOn || !platformEnv.VERCEL);
   function requireAgencyOpen(agency, invited) {
+    if (!verifyOn) return;
     const access = agencyAccess(agency.billing, new Date());
     if (access.canUse) return;
     const billing = publicBilling(agency.billing, new Date());
@@ -631,7 +657,7 @@ export function makeServer({
         agency = hydrateAgency(invite.state, invite.id);
         const member = agency.users.find(user => user.loginEnabled && user.email === email);
         const who = { ...userAccess(agency,member.id), agencyId: invite.id, userId: member.id, session, owner: member.role === 'Agency Owner' };
-        if (gate && !agencyAccess(agency.billing, new Date()).canUse) agency = hydrateAgency((await store.load(invite.id)), invite.id);
+        if (gate && verifyOn && !agencyAccess(agency.billing, new Date()).canUse) agency = hydrateAgency((await store.load(invite.id)), invite.id);
         if (gate) requireAgencyOpen(agency, true);
         return { agency, who };
       }
@@ -641,15 +667,18 @@ export function makeServer({
       initial.profile.first = first || 'Responsável';
       initial.profile.last = last.join(' ');
       initial.company.name = 'Minha agência';
+      if (!openSignup) throw Object.assign(error('O cadastro de agências novas está temporariamente fechado. Tente de novo mais tarde.', 503), { code: 'SIGNUP_CLOSED' });
       await store.insert(agencyId,initial);
       agency = await loadAgency(agencyId);
     }
     const userId = localAccess ? String(req.headers['x-go-user'] || req.localSocialUser || '') : '';
     const result = userAccess(agency,userId);
     if (!result) throw error('The selected user no longer exists. Choose another user.',403);
-    const who = { ...result, agencyId, userId, session, ...(session ? { name: session.name, owner: true } : {}) };
+    // platform: o dono da plataforma (página Plataforma, limites dos serviços). Sem login, só o servidor local.
+    const platform = Boolean(session ? agencyOwnerId && session.id === agencyOwnerId : localAccess);
+    const who = { ...result, agencyId, userId, session, platform, ...(session ? { name: session.name, owner: true } : {}) };
     // A confirmação pode ter chegado por outra instância: antes de fechar, relê sem o cache.
-    if (gate && !agencyAccess(agency.billing, new Date()).canUse) agency = await loadFresh(agencyId);
+    if (gate && verifyOn && !agencyAccess(agency.billing, new Date()).canUse) agency = await loadFresh(agencyId);
     if (gate) requireAgencyOpen(agency, Boolean(userId));
     return { agency, who };
   }
@@ -717,6 +746,7 @@ export function makeServer({
     if ((!spaceId.test(id) && !privateSpace.test(id)) || !await canOpen(actor, id)) {
       throw error('Your user cannot open this sub-account.', hide ? 404 : 403);
     }
+    if (inTrash(agency, id)) throw error('Esta subconta foi excluída e está na lixeira da agência.', 404);
     const who = effectiveAccess(agency, actor, id, privateSpace.test(id));
     requireModule(who, ...modules);
     if (who.account.status !== 'Active' && !(support && who.support)) throw pausedError(canReactivate(agency, id, who) ? { ...who.account, canReactivate: true } : who.account, reason);
@@ -754,6 +784,7 @@ export function makeServer({
     const states = await agencyWorkspaceViews(agency, who, workspaces);
     const gateway = await abacate.status(who.agencyId, abacate.AGENCY_SCOPE, publicBase(req));
     return { agency: { ...publicAgency(agency, who), abacatepay: { connected: gateway.connected, storeName: gateway.storeName || '', devMode: Boolean(gateway.devMode) } }, overview: agencyOverview(agency, states), marketplace: publicMarketplaceList(marketplaceDoc, who.agencyId), workspaces, personalWorkspace, access: who,
+      trash: who.settings ? trashList(agency) : [],
       features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, billing: publicBilling(agency.billing, new Date()), ...extra };
   }
   // Sub-accounts of a brand group that still belong to the agency and are not closed, with their state.
@@ -1081,6 +1112,10 @@ export function makeServer({
       const shareCode = input.type === 'snapshot-import' && typeof input.data?.code === 'string' ? input.data.code.trim().toLowerCase() : '';
       const shared = /^[0-9a-f]{12}$/.test(shareCode) ? await store.findAgency({ snapshots: [{ shareCode, shared: true }] }) : null;
       const sharedSnapshot = shared?.state.snapshots.find(item => item.shareCode === shareCode && item.shared);
+      // White Label: o domínio das subcontas é de uma agência só, e a hospedagem passa a atendê-lo.
+      const newDomain = input.type === 'company' && input.data?.domain !== undefined ? whiteLabelHost(input.data.domain) : null;
+      if (newDomain) await requireFreeDomain(store, newDomain, who.agencyId);
+      const priorDomain = newDomain ? (await loadAgency(who.agencyId)).company?.domain || '' : '';
       const outcome = await changeAgency(who.agencyId, agency => {
         const currentActor = userAccess(agency, who.userId);
         if (!currentActor) throw error('The selected user no longer exists.',403);
@@ -1097,6 +1132,7 @@ export function makeServer({
       // Reselling prices are copied into each sub-account's wallet.
       if (['saas-rebilling', 'rebill-account'].includes(input.type)) await syncWallets(who.agencyId, workspaces);
       if (input.type === 'labs') await syncLabs(who.agencyId, workspaces);
+      if (newDomain && newDomain !== priorDomain) await hosting.add(newDomain).catch(problem => console.error('white-label domain:', newDomain, problem.message));
       // An edited app reaches the sub-accounts where it is installed (new actions, triggers, events, link).
       if (input.type === 'studio-app-save') {
         const agency = await loadAgency(who.agencyId), app = agency.studioApps.find(row => row.id === outcome);
@@ -1105,6 +1141,11 @@ export function makeServer({
         }
       }
       return outcome;
+    }
+    // White Label: o domínio das subcontas está na hospedagem e o DNS já aponta para cá?
+    if (op === 'domain-status') {
+      requireCapability(who, 'settings', 'Seu usuário não pode ver as configurações da agência.');
+      return hosting.status((await loadAgency(who.agencyId)).company?.domain || '');
     }
     // App Studio: the signing secret of one app, for the agency's developers to check the deliveries.
     if (op === 'studio-app-secret') {
@@ -1987,6 +2028,46 @@ export function makeServer({
       try { await whatsappGuard.run(agencyId, ids, base); } catch (e) { console.error(`WhatsApp guard (${agencyId}): ${e.message}`); }
     }, { concurrency: 5, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
   }
+  const accountPurge = createAccountPurge({ store, r2, whatsapp });
+  // Lixeira de subcontas: passados TRASH_DAYS da exclusão, a subconta é apagada de vez com tudo o que era dela
+  // (account-purge.mjs) e sai da agência. Se o R2 ou a Evolution falham, ela espera na lixeira e o servidor tenta de
+  // novo a cada hora; depois de 7 dias de falha, apaga o que é da soci e anota no histórico o que ficou de fora.
+  async function purgeTrash(agencyId, at = Date.now()) {
+    const agency = await store.load(agencyId), done = [];
+    for (const id of trashExpired(agency, at)) {
+      const failed = agency.accounts[id]?.trash?.purgeFailed;
+      if (failed && at - Date.parse(failed.at) < PURGE_RETRY_MS) continue;
+      let leftOut = [];
+      // Uma linha que já não é desta agência (apagada antes) só sai da lixeira.
+      if (await store.belongsToAgency(id, workspaceOwner(agencyId))) {
+        const since = Date.parse(failed?.since || '') || at, givingUp = at - since >= PURGE_GIVE_UP_MS;
+        const failures = await accountPurge.external(agencyId, id, { force: givingUp });
+        if (failures.length && !givingUp) {
+          console.error(`Lixeira de subcontas (${id}): ${failures.join(' · ')}`);
+          await changeAgency(agencyId, current => {
+            const trash = current.accounts[id]?.trash;
+            if (trash) trash.purgeFailed = { at: new Date(at).toISOString(), since: new Date(since).toISOString(), error: failures.join(' · ').slice(0, 500) };
+          });
+          continue;
+        }
+        leftOut = failures;
+        await accountPurge.local(id);
+        await store.remove(id);
+      }
+      await changeAgency(agencyId, current => {
+        const name = current.accounts[id]?.name || id;
+        delete current.accounts[id];
+        const drop = list => Array.isArray(list) ? list.filter(account => account !== id) : list;
+        for (const user of current.users || []) user.accounts = drop(user.accounts);
+        if (current.saas) current.saas.accounts = drop(current.saas.accounts);
+        if (current.emailServices) current.emailServices.accounts = drop(current.emailServices.accounts);
+        logTo(current, { name: 'Lixeira automática' }, 'Sub-account permanently deleted', name, leftOut.length ? `Ficou de fora: ${leftOut.join(' · ')}`.slice(0, 500) : '');
+      });
+      done.push(id);
+    }
+    if (done.length) belongsCache.clear();
+    return done;
+  }
   // Each document is read once per round, not once per task (read-scope.mjs).
   const runAllSocial = (base, at = Date.now()) => cronReads.run(() => runSocialRound(base, at));
   async function runSocialRound(base, at) {
@@ -2014,6 +2095,7 @@ export function makeServer({
     }, { concurrency: cronConcurrency, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
     for (const { id } of (await store.list()).filter(row => isAgencyRow(row.id))) {
       try { if ((await store.load(id)).ledgerOutbox?.length) await ledgerFlush.agency(id); } catch (e) { console.error(`Livro (${id}): ${e.message}`); }
+      try { await purgeTrash(id, at); } catch (e) { console.error(`Lixeira de subcontas (${id}): ${e.message}`); }
     }
     await trackingLog.sweep(at);
     await auditLog.sweep(at);
@@ -2223,7 +2305,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
     catch { throw error('Invalid JSON request.',400); }
   };
   // Rotas por domínio (P2.1): cada módulo recebe o que vive neste fechamento e devolve NEXT_ROUTE quando a rota não é dele.
-  const socialRoute = createSocialRoutes({ store, auth, localAccess, redirectToR2, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
+  const platformMonitor = createPlatformMonitor({ store, env: platformEnv, request: platformRequest, mailer: documentMail, pushEnv, pushRequest });
+  const platformRoute = createPlatformRoutes({ monitor: platformMonitor, verifiedUser, agencyOwnerId, auth, localAccess, error, payload });
+  const socialRoute = createSocialRoutes({ platformMonitor, store, auth, localAccess, redirectToR2, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
   const adsRoute = createAdsRoutes({ store, localAccess, error, spaceId, privateSpace, stamp, adsAccess, adsCallbackPath, adsPopup, adsView, payload, publicBase, recordAudit, runAds, socialActor, socialRow, workspaceAccess });
   const runCommand = createCommandRunner({ store, r2, messageMedia, clearVideoChunks, documentMail, error, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
   const actionRoute = createActionRoutes({ error, spaceId, privateSpace, payload, workspaceAccess, runCommand });
@@ -2244,6 +2328,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const affiliateRoute = createAffiliateRoutes({ store, ready, error, workspaceSegment, allowSign, change, flushLater, payload, publicAccountPolicy, publicBase, referralsOf });
   const offerPageRoute = createOfferPageRoutes({ store, ready, error, workspaceSegment, clientPortal, publicAccountPolicy, withPixels });
   const offerApiRoute = createOfferApiRoutes({ store, ready, error, workspaceSegment, abacate, change, grantOffer, payload, publicAccountPolicy, publicBase });
+  const paymentLinkRoute = createPaymentLinkRoutes({ store, ready, error, workspaceSegment, abacate, change, payload, publicAccountPolicy, publicBase, clientPortal, withPixels });
   const bookingRoute = createBookingRoutes({ store, ready, error, workspaceSegment, allowSign, change, flushLater, formBody, leave, publicAccountPolicy, withPixels });
   const preferenceRoute = createPreferenceRoutes({ store, ready, error, workspaceSegment, change, flushLater, formBody, publicAccountPolicy });
   const agencyAppRoute = createAgencyAppRoutes({ store, auth, ready, error, loadAgency });
@@ -2260,6 +2345,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const connectorHookRoute = createConnectorHookRoutes({ store, ready, error, change, flushLater, publicAccountPolicy, connectorAuth });
   const twilioRoute = createTwilioWebhookRoutes({ ready, phone });
   const connectorRoute = createConnectorRoutes({ store, error, spaceId, privateSpace, change, payload, publicBase, requireActiveAccount, workspaceAccess, connectorRequest });
+  const authRoute = createAuthRoutes({ auth, ready, error, payload, accessContext });
   const pushRoute = createPushRoutes({ error, spaceId, privateSpace, change, payload, pushEnv, access, loadAgency, workspaceAccess });
   const phoneRoute = createPhoneRoutes({ error, spaceId, privateSpace, phone, payload, workspaceAccess });
   const inboxRoute = createInboxRoutes({ store, error, spaceId, privateSpace, workspaceAccess });
@@ -2274,6 +2360,22 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const conversationAIRoute = createConversationAIRoutes({ store, error, spaceId, privateSpace, workspaceAccess, payload, change, flushLater, localAccess, contentAI, openAI, meteredAI, content });
   const seoRoute = createSeoRoutes({ store, error, spaceId, privateSpace, workspaceAccess, payload, change, flushLater, stamp, prospectAudit, socialRow, searchCache, localAccess, contentAI, openAI, meteredAI, content });
   const contentAIRoute = createContentAIRoutes({ error, spaceId, privateSpace, workspaceAccess, payload, brandVoiceOf, localAccess, contentAI, openAI, meteredAI, content });
+  const abacatePayRoute = createAbacatePayRoutes({ store, ready, error, abacate, access, payload, publicBase, listWorkspaces, loadAgency, changeAgency, agencyPayload, recordAudit, requireFiscal, retryPolicyOf, stamp, documentMail, mailSent, flushLater, grantOffer, grantEventTicket, community });
+  const abacatePayWorkspaceRoute = createAbacatePayWorkspaceRoutes({ store, error, abacate, spaceId, workspaceAccess, payload, publicBase, requireFiscal });
+  const walletRoute = createWalletRoutes({ store, error, abacate, spaceId, workspaceAccess, payload, publicBase, flushLater });
+  const publicMediaRoute = createPublicMediaRoutes({ store, error, ready, workspaceSegment, publicAccountPolicy, sendVideo });
+  const driveRoute = createDriveRoutes({ store, error, spaceId, privateSpace, payload, workspaceAccess, r2, fetchMedia, change });
+  const trackingRoute = createTrackingRoutes({ store, error, spaceId, privateSpace, payload, workspaceAccess, trackingLog, socialRow, change });
+  const videoRoute = createVideoRoutes({ store, error, spaceId, privateSpace, workspaceAccess, sendVideo });
+  const prospectPublicRoute = createProspectPublicRoutes({ store, ready, error, changeAgency, csp });
+  const appApiRoute = createAppApiRoutes({ store, error, appBearer, bearer, payload, change, flushLater, listWorkspaces, requireWorkspaceAccess, loadAgency });
+  const appInstallRoute = createAppInstallRoutes({ store, error, spaceId, workspaceAccess, payload, changeAgency, change, logTo, deliverToApp, publicBase });
+  const faviconRoute = createFaviconRoutes();
+  const whiteLabelRoute = createWhiteLabelRoutes({ store, ready });
+  const accountRoute = createAccountRoutes({ error, verifiedUser, openAI, payload, access, createAccount, listWorkspaces, visibleWorkspaces });
+  const workspaceRoute = createWorkspaceRoutes({ store, error, spaceId, privateSpace, accessContext, verifiedUser, requireWorkspaceAccess, visibleWorkspaces, workspaceAccess, payload, openAI, writeAudit, localAccess, contentAI, reportMail, agentModel });
+  const agencyRoute = createAgencyRoutes({ error, spaceId, privateSpace, access, accessContext, verifiedUser, requireWorkspaceAccess, visibleWorkspaces, agencyPayload, agencyRequest, auditLog, payload });
+  const pageRoute = createPageRoutes({ store, ready, error, workspaceSegment, payload, change, publicAccountPolicy, staticFiles, sessionOnlyFiles, localAccess, auth, pranchetaEditorCsp, root });
   const server=createServer(async (req,res) => {
     const requestPath = String(req.url || '/').split('?')[0];
     const touches = touchesOf(req), landing = requestPath.match(landingPath);
@@ -2318,362 +2420,40 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       const id=url.searchParams.get('workspace') || 'demo';
       const portalRouteHandled = await portalRoute({ req, res, p, method, url, id, json, send, proto });
       if (portalRouteHandled !== NEXT_ROUTE) return portalRouteHandled;
-      if (p === '/favicon.ico') { res.writeHead(302, { Location: '/favicon.svg' }); return res.end(); }
-      if (['/prospecting','/prospecting/','/prospecting/add-prospect'].includes(p) && method !== 'POST') {
-        res.writeHead(302,{Location:p.endsWith('add-prospect') ? '/#agency/prospecting/search' : '/#agency/prospecting'});
-        return res.end();
-      }
-      const prospectPublic = p.match(prospectPublicPath);
-      if (prospectPublic) {
-        await ready;
-        const [,kind,token] = prospectPublic;
-        if (kind === 'report') {
-          if (method === 'POST') throw error('Method not allowed.',405);
-          const findReport = agency => agency.prospects.find(row => row.shareId === token && !row.archived && row.report);
-          const match = await store.findAgency({ prospects: [{ shareId: token }] });
-          const prospect = match && findReport(hydrateAgency(match.state, match.id));
-          if (!prospect) throw error('Relatório indisponível.',404);
-          if (method === 'GET' && !String(req.headers.purpose || req.headers['sec-purpose'] || '').includes('prefetch')) {
-            try {
-              await changeAgency(match.id, agency => {
-                const row = findReport(agency);
-                if (!row) return;
-                const date = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-                row.views[date] = (row.views[date] || 0)+1;
-                const dates = Object.keys(row.views).sort();
-                for (const old of dates.slice(0,Math.max(0,dates.length-370))) delete row.views[old];
-              });
-            } catch { /* The report remains available if the view count cannot be updated. */ }
-          }
-          return send(200,'text/html; charset=utf-8',method === 'HEAD' ? undefined : shareReportHtml(prospect.report));
-        }
-        const match = await store.findAgency({ prospecting: { widgets: [{ id: token, active: true }] } });
-        const widget = match?.state.prospecting.widgets.find(item => item.id === token && item.active);
-        if (!widget) throw error('Formulário indisponível.',404);
-        res.setHeader('Content-Security-Policy',csp.replace("frame-ancestors 'none'",'frame-ancestors *'));
-        if (method === 'POST') {
-          if (!/^application\/x-www-form-urlencoded/i.test(req.headers['content-type'] || '')) throw error('Envie os campos do formulário.',415);
-          let size=0; const chunks=[];
-          for await (const part of req) { size+=part.length; if (size>12000) throw error('Formulário muito longo.',413); chunks.push(part); }
-          const data = Object.fromEntries(new URLSearchParams(Buffer.concat(chunks).toString('utf8')));
-          try { if (!data.fax) await changeAgency(match.id, agency => captureProspectWidget(agency,token,data)); }
-          catch (error) { if (error.status) return send(error.status,'text/html; charset=utf-8',widgetHtml(widget,false,error.message)); throw error; }
-          res.writeHead(303,{Location:`${p}?sent=1`}); return res.end();
-        }
-        return send(200,'text/html; charset=utf-8',method === 'HEAD' ? undefined : widgetHtml(widget,url.searchParams.has('sent')));
-      }
-      // A marketplace app fires one of its workflow triggers in the sub-account it is installed in.
-      if (p === '/api/apps/v1/trigger' && method === 'POST') {
-        const { install } = await appBearer(req);
-        const body = await payload(req);
-        const result = await change(install.account, { type: 'app-trigger', data: { appId: install.appId, key: String(body.trigger || ''),
-          contact: body.contact && typeof body.contact === 'object' ? body.contact : {}, payload: body.data } });
-        flushLater(install.account);
-        return json({ ok: true, ...result.id }, 202);
-      }
-      const apiMatch = p.match(apiPath);
-      if (apiMatch) {
-        const [, account] = apiMatch;
-        if (!account) {
-          if (method !== 'GET') throw error('Method not allowed.',405);
-          if (String(req.headers.authorization || '').includes('soci_app_')) {
-            const { agencyId, install } = await appBearer(req);
-            return json({ subaccounts: (await listWorkspaces(agencyId)).filter(w => w.id === install.account) });
-          }
-          const agencyId = await bearer(req,'subaccounts.read');
-          return json({ subaccounts: await listWorkspaces(agencyId) });
-        }
-        const agencyId = await bearer(req,method === 'POST' ? 'contacts.write' : 'contacts.read');
-        if (req.appAccount && req.appAccount !== account) throw error('O token deste app só vale para a subconta onde ele foi instalado.', 403);
-        const input = method === 'POST' ? await payload(req) : null;
-        await requireWorkspaceAccess(await loadAgency(agencyId), { agencyId, modules: null }, account, {
-          modules: ['contacts'], hide: true, reason: false
-        });
-        if (method !== 'POST') {
-          return json({ contacts: (await store.load(account)).contacts });
-        }
-        const created = await change(account,{ type:'save', key:'contacts', data: input });
-        return json({ id: created.id },201);
-      }
-      if (p.startsWith('/api/auth/')) {
-        if (!auth) throw error('O login do Supabase ainda não foi configurado.',503);
-        const operation = p.slice('/api/auth/'.length);
-        if (operation === 'callback/google' && method === 'GET') {
-          return goTo(await auth.callback(req,res,url.searchParams,async (session,next) => {
-            await ready;
-            const { who } = await accessContext(req,session,{ gate: false });
-            return who.owner && who.agencyId !== AGENCY_ID && !/[?#]/.test(next) ? '/app#agency/dashboard' : next;
-          }));
-        }
-        if (operation === 'logout' && method === 'POST') {
-          await auth.logout(req,res);
-          return json({ ok:true });
-        }
-        if (operation === 'google' && method === 'POST') {
-          const input = await payload(req);
-          return json({ url:await auth.google(req,res,url.origin,input.next) });
-        }
-        throw error('Page not found.',404);
-      }
-      if (p === '/api/openai') {
-        const session = await verifiedUser(req,res);
-        if (!session) throw error('Entre na sua conta para conectar sua chave da OpenAI.',401);
-        res.setHeader('Cache-Control','no-store');
-        if (method !== 'POST') return json(await openAI.status(session));
-        const input = await payload(req);
-        if (input.action === 'connect') return json(await openAI.connect(session,input.apiKey));
-        if (input.action === 'disconnect') return json(await openAI.disconnect(session));
-        throw error('Escolha uma ação válida para a conexão com a OpenAI.',400);
-      }
-      if (p==='/api/workspaces') {
-        const who = await access(req,res);
-        if (method==='POST') {
-          requireCapability(who, 'agency', 'Only agency users can create sub-accounts.');
-          const newId = await createAccount(who, await payload(req));
-          return json({id:newId,workspaces:await listWorkspaces(who.agencyId)},201);
-        }
-        return json({workspaces:await visibleWorkspaces(who), agency:who.agency});
-      }
+      const faviconRouteHandled = await faviconRoute({ res, p });
+      if (faviconRouteHandled !== NEXT_ROUTE) return faviconRouteHandled;
+      const prospectPublicRouteHandled = await prospectPublicRoute({ req, res, p, method, url, send });
+      if (prospectPublicRouteHandled !== NEXT_ROUTE) return prospectPublicRouteHandled;
+      const appApiRouteHandled = await appApiRoute({ req, p, method, json });
+      if (appApiRouteHandled !== NEXT_ROUTE) return appApiRouteHandled;
+      const whiteLabelRouteHandled = await whiteLabelRoute({ req, p, method, json });
+      if (whiteLabelRouteHandled !== NEXT_ROUTE) return whiteLabelRouteHandled;
+      const authRouteHandled = await authRoute({ req, res, p, method, url, json, goTo });
+      if (authRouteHandled !== NEXT_ROUTE) return authRouteHandled;
+      const accountRouteHandled = await accountRoute({ req, res, p, method, json });
+      if (accountRouteHandled !== NEXT_ROUTE) return accountRouteHandled;
+      const platformHandled = await platformRoute({ req, res, p, method, json });
+      if (platformHandled !== NEXT_ROUTE) return platformHandled;
       const socialHandled = await socialRoute({ req, res, p, method, url, id, json, send });
       if (socialHandled !== NEXT_ROUTE) return socialHandled;
-      // "Gerar vídeo com IA": the finished video, public (it is made to be sent).
-      // Imagens guardadas fora dos documentos (asset-store.mjs): públicas e imutáveis (o endereço é o hash do conteúdo).
-      const assetMatch = p.match(ASSET_PATH);
-      if (assetMatch && (method === 'GET' || method === 'HEAD')) {
-        const image = await assetBytes(store, p);
-        if (!image) throw error('Imagem não encontrada.', 404);
-        res.writeHead(200, { 'Content-Type': image.mime, 'Content-Length': image.bytes.length, 'Cache-Control': 'public, max-age=31536000, immutable',
-          'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'", 'Cross-Origin-Resource-Policy': 'cross-origin' });
-        return res.end(method === 'HEAD' ? undefined : image.bytes);
-      }
-      const aiVideo = p.match(new RegExp(`^/m/${workspaceSegment}/video/([0-9a-f-]{36})$`));
-      if (aiVideo && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, videoId] = aiVideo;
-        await publicAccountPolicy(workspace);
-        const row = ((await store.load(workspace)).aiVideos || []).find(item => item.id === videoId);
-        if (!row) throw error('Vídeo indisponível.', 404);
-        return await sendVideo(req, res, method, workspace, row, 'public, max-age=86400');
-      }
+      const publicMediaRouteHandled = await publicMediaRoute({ req, res, p, method });
+      if (publicMediaRouteHandled !== NEXT_ROUTE) return publicMediaRouteHandled;
       const documentRouteHandled = await documentRoute({ req, res, p, method, json, send });
       if (documentRouteHandled !== NEXT_ROUTE) return documentRouteHandled;
-      if (p==='/api/state' && method!=='POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const { agency, who: actor } = await accessContext(req,await verifiedUser(req,res));
-        const isPersonal = privateSpace.test(id);
-        const who = await requireWorkspaceAccess(agency, actor, id, { support: true });
-        const studio = hasModule(who, 'sites'), agents = hasModule(who, 'ai-agents'), marketing = hasModule(who, 'marketing'), reputation = hasModule(who, 'reputation');
-        const [state, workspaces, aiStatus] = await Promise.all([
-          store.load(id), visibleWorkspaces(who), !who.support && (studio || agents || marketing || reputation) ? openAI.status(who.session) : null
-        ]);
-        if (who.support) await writeAudit(who, 'Sub-account support viewed', id, who.account.status);
-        return json({ ...workspaceView(who, state), workspaces,
-          ...(!isPersonal && hasModule(who, 'settings') && agency.accounts[id]?.billing?.status === 'PastDue' && { billingNotice: 'past_due' }),
-          features:{studioAI: Boolean(aiStatus?.configured && studio), socialAI: Boolean(aiStatus?.configured && marketing), contentAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && (marketing || studio)), reviewAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && reputation), reportEmail: reportMail.configured, social: marketing ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
-          agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id,who.settings),
-          ...(who.support && { account: { ...who.account, support: true, statusHistory: agency.accounts[id]?.statusHistory || [],
-            ignoredWebhooks: agency.accounts[id]?.ignoredWebhooks || {} } }),
-          access:{agency:who.agency,modules:who.modules,name:who.name,session:who.session}});
-      }
-      // Dry run of a workflow draft for one contact, on a copy of the workspace: nothing is saved or sent.
-      if (p==='/api/workflow-test' && method==='POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const body = await payload(req);
-        await workspaceAccess(req, res, id, { modules: ['automation'] });
-        const copy = structuredClone(await store.load(id));
-        return json({ result: execute(copy, { type: 'workflow-test', data: body }) });
-      }
-      if (p==='/api/media/import' && method==='POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const input = await payload(req);
-        const who = await workspaceAccess(req, res, id);
-        requireWorkspaceCommand(who, { type:'save', key:'files' });
-        if (typeof input.url !== 'string' || !input.url.trim() || input.url.length > 2000) throw error('Cole o link do arquivo.',400);
-        const address = input.url.trim();
-        let response;
-        const limit = r2 ? R2_MAX_BYTES : mediaLimitBytes;
-        try { response = await fetchMedia(address, { maxBytes: limit + 1, timeout: r2 ? 30000 : 10000 }); }
-        catch (e) { throw error(['EINVALID','EBLOCKED'].includes(e.code) ? 'Use um link público que comece com https://.' : 'Não foi possível baixar o arquivo desse link.', 422); }
-        const folderId = typeof input.folderId === 'string' ? input.folderId : '';
-        if (r2 && response.body?.length > mediaLimitBytes) {
-          const { name, mime } = importedMeta(response, address, limit);
-          const fileId = uid(), r2Key = `ws/${id}/files/${fileId}`;
-          if ((await store.load(id)).files.length >= 60) throw error('The local drive holds up to 60 files.', 400);
-          await r2.put(r2Key, response.body, mime);
-          let result;
-          try { result = await change(id, { type:'media-stored', data:{ id: fileId, r2Key, mime, size: response.body.length, name, folderId } }); }
-          catch (e) { await r2.remove(r2Key).catch(() => {}); throw e; }
-          return json({ id: result.id, ...workspaceView(who, result.state) });
-        }
-        const file = importedFile(response, address);
-        const result = await change(id, { type:'save', key:'files', data:{ ...file, folderId } }, who);
-        return json({ id: result.id, ...workspaceView(who, result.state) });
-      }
-      // Configurações → Rastreamento: the events received, newest first (?type=, ?before=<cursor>).
-      if (p==='/api/tracking/events' && method==='GET') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        await workspaceAccess(req, res, id, { modules: ['settings'] });
-        return json(await trackingLog.read(id, { type: url.searchParams.get('type') || '', before: url.searchParams.get('before') || '' }));
-      }
-      // Mídia Drive → files over 700 KB: the browser PUTs them straight into R2 with a signed link, then
-      // asks for the record; the server checks the stored object (size and type) before writing it.
-      if ((p==='/api/media/upload-url' || p==='/api/media/upload-done') && method==='POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const input = await payload(req);
-        const who = await workspaceAccess(req, res, id);
-        requireWorkspaceCommand(who, { type:'save', key:'files' });
-        if (!r2) throw error('O armazenamento de arquivos grandes (Cloudflare R2) ainda não foi configurado. Envie arquivos de até 700 KB.', 503);
-        if (p==='/api/media/upload-url') {
-          const mime = typeof input.mime === 'string' ? input.mime.trim().toLowerCase() : '';
-          const size = Number(input.size);
-          if (!mediaTypes[mime]) throw error('Escolha um arquivo de imagem, vídeo, áudio, PDF, TXT ou CSV.', 400);
-          if (!Number.isInteger(size) || size < 1 || size > R2_MAX_BYTES) throw error('O arquivo pode ter até 50 MB.', 413);
-          if ((await store.load(id)).files.length >= 60) throw error('The local drive holds up to 60 files.', 400);
-          const fileId = uid(), key = `ws/${id}/files/${fileId}`;
-          const token = r2.seal({ k: key, i: fileId, w: id, m: mime, s: size, n: typeof input.name === 'string' ? input.name.slice(0, 240) : '',
-            f: typeof input.folderId === 'string' ? input.folderId.slice(0, 60) : '', exp: Date.now() + 15 * 60000 });
-          return json({ uploadUrl: r2.uploadUrl(key, mime), headers: { 'Content-Type': mime }, token });
-        }
-        const ticket = r2.open(input.token);
-        if (ticket.w !== id) throw error('Envio inválido. Comece de novo.', 400);
-        const stored = await r2.head(ticket.k);
-        if (!stored) throw error('O arquivo não chegou ao armazenamento. Tente de novo.', 409);
-        if (stored.size !== ticket.s || stored.type !== ticket.m) {
-          await r2.remove(ticket.k).catch(() => {});
-          throw error('O arquivo enviado não confere com o que foi pedido. Tente de novo.', 422);
-        }
-        let result;
-        try { result = await change(id, { type:'media-stored', data:{ id: ticket.i, r2Key: ticket.k, mime: ticket.m, size: ticket.s, name: ticket.n, folderId: ticket.f } }); }
-        catch (e) { await r2.remove(ticket.k).catch(() => {}); throw e; }
-        return json({ id: result.id, ...workspaceView(who, result.state) }, 201);
-      }
-      // Marketing → Rastreamento: the GA4 Measurement Protocol API secret. Write-only: sealed in the ads-<workspace> row,
-      // never sent back; the sub-account state only says whether it is set. An empty value removes it.
-      if (p==='/api/tracking/ga4-secret' && method==='POST') {
-        if (!spaceId.test(id)) throw error('Workspace not found.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
-        const input = await payload(req);
-        const secret = typeof input?.secret === 'string' ? input.secret.trim() : '';
-        if (secret && !/^[\w-]{8,64}$/.test(secret)) throw error('Segredo da API do GA4 inválido.', 400);
-        await socialRow(`ads-${id}`);
-        await store.change(`ads-${id}`, row => { if (secret) row.ga4Secret = seal(secret); else delete row.ga4Secret; });
-        const result = await change(id, { type: 'tracking-ga4-secret', data: { set: Boolean(secret) } });
-        return json(workspaceView(who, result.state));
-      }
+      const workspaceRouteHandled = await workspaceRoute({ req, res, p, method, id, json });
+      if (workspaceRouteHandled !== NEXT_ROUTE) return workspaceRouteHandled;
+      const driveRouteHandled = await driveRoute({ req, res, p, method, id, json });
+      if (driveRouteHandled !== NEXT_ROUTE) return driveRouteHandled;
+      const trackingRouteHandled = await trackingRoute({ req, res, p, method, url, id, json });
+      if (trackingRouteHandled !== NEXT_ROUTE) return trackingRouteHandled;
       const mcpRouteHandled = await mcpRoute({ req, res, p, method, url, json, send, goTo });
       if (mcpRouteHandled !== NEXT_ROUTE) return mcpRouteHandled;
       const actionRouteHandled = await actionRoute({ req, res, p, method, url, id, json, send });
       if (actionRouteHandled !== NEXT_ROUTE) return actionRouteHandled;
-      if (p==='/api/agency' && method!=='POST') {
-        return json(await agencyPayload(req,res));
-      }
-      // Configurações da agência → Logs de auditoria: newest first (?q=, ?before=<cursor>, ?limit=).
-      if (p==='/api/agency/audit' && method==='GET') {
-        const who = await access(req,res);
-        requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
-        if (!who.settings) throw error('Seu usuário não tem acesso às configurações da agência.',403);
-        return json(await auditLog.read(who.agencyId, { q: url.searchParams.get('q') || '', before: url.searchParams.get('before') || '', limit: url.searchParams.get('limit') || '' }));
-      }
-      // Configurações da subconta → Log de auditoria: só as entradas desta subconta.
-      if (p==='/api/audit' && method==='GET') {
-        if (privateSpace.test(id)) return json({ entries: [], next: '' });
-        if (!spaceId.test(id)) throw error('Workspace not found.',404);
-        const { agency, who: actor } = await accessContext(req,await verifiedUser(req,res));
-        const who = await requireWorkspaceAccess(agency, actor, id, { support: true });
-        if (!who.support && !hasModule(who, 'settings')) throw error('Seu usuário não tem acesso às configurações.',403);
-        const account = (await visibleWorkspaces(who)).find(w => w.id === id)?.name || id;
-        return json(await auditLog.read(who.agencyId, { targets: [account, id], before: url.searchParams.get('before') || '', limit: url.searchParams.get('limit') || '' }));
-      }
-      if (p.startsWith('/api/agency/') && method==='POST') {
-        const who = await access(req,res);
-        requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
-        const op = p.slice('/api/agency/'.length), body = await payload(req);
-        const result = await agencyRequest(op, who, body);
-        // Opening a sub-account only stamps lastLogin; skip rebuilding the full agency payload (it loads every sub-account).
-        if (op === 'action' && body?.type === 'account-open') return json({ result });
-        return json(await agencyPayload(req,res, { result }));
-      }
-      if (p.startsWith('/api/abacatepay/webhook/') && method === 'POST') {
-        await ready;
-        return await abacate.handleWebhook({ req, url, json, listWorkspaces, changeAgency,
-          onSubscription: async (agencyId, { accountId, effect, notify, name, plan, subscriptionId }) => {
-            const twice = effect === 'duplicate';
-            if (!notify && !twice) return;
-            const agency = await loadAgency(agencyId);
-            const to = new Set([agency.profile.email, ...agency.users.filter(user => ['Agency Owner', 'Agency Admin'].includes(user.role)).map(user => user.email)].filter(Boolean).map(email => email.toLowerCase()));
-            const text = twice ? `A subconta ${name} pagou o plano ${plan} em uma assinatura que já tinha sido trocada por outra, que continua ativa.\n\nAs duas seguem cobrando. No painel do AbacatePay, cancele a assinatura ${subscriptionId} e devolva o pagamento, se for o caso.` : `O pagamento do plano ${plan} da subconta ${name} foi recusado (tentativa ${notify}).\n\nO AbacatePay tenta de novo sozinho. Acompanhe em Configurador SaaS → Subcontas SaaS.`;
-            for (const email of to) {
-              const outcome = await documentMail.email(email, { subject: `${twice ? 'Pagamento em dobro' : 'Pagamento recusado'}: ${name}`, text }, twice ? `plan-twice-${subscriptionId || accountId}-${email}` : `plan-failed-${subscriptionId || accountId}-${notify}-${email}`, { fromName: agency.company.name });
-              if (!mailSent(outcome)) console.warn(`Aviso de plano recusado (${accountId}): ${outcome}`);
-            }
-          },
-          onWalletReversal: async (agencyId, { workspace, checkoutId, event, status, lost }) => {
-            if (!(await listWorkspaces(agencyId)).some(w => w.id === workspace)) return false;
-            const refunded = /\.refunded$/.test(event), gone = refunded || lost || status === 'REFUNDED';
-            return store.change(workspace, s => gone ? reverseTopup(s, { checkoutId, kind: refunded ? 'refund' : 'dispute_lost' }) : disputeTopup(s, { checkoutId, opened: status === 'UNDER_DISPUTE' }));
-          },
-          onWalletTopup: async (agencyId, { workspace, checkoutId, method, paidCents, feeCents, devMode }) => {
-            const owned = (await listWorkspaces(agencyId)).map(w => w.id);
-            for (const candidate of workspace ? [workspace].filter(item => owned.includes(item)) : owned) {
-              const credited = await store.change(candidate, s => paidTopup(s, { checkoutId, method, paidCents, feeCents, devMode }));
-              if (credited) { flushLater(candidate); return credited; }
-            }
-            return false;
-          },
-          onInvoicePaid: async (workspace, invoice) => {
-            if (invoice.offerId && !invoice.offerGrantedAt) await grantOffer(workspace, invoice.offerId, invoice.contactId, invoice.id);
-            if (invoice.eventTicket && !invoice.ticketGrantedAt) await grantEventTicket(workspace, invoice);
-            if (invoice.communityPlan) await community.grantPlan(workspace, await store.load(workspace), invoice.communityPlan, invoice.id);
-            flushLater(workspace);
-          } });
-      }
-      if (p.startsWith('/api/abacatepay/agency/')) {
-        const who = await access(req, res);
-        requireCapability(who, 'settings', 'Seu usuário não pode gerenciar a cobrança da agência.');
-        const op = p.slice('/api/abacatepay/agency/'.length).replace(/\/+$/, ''), origin = publicBase(req), scope = abacate.AGENCY_SCOPE;
-        if (op === 'status' && method === 'GET') return json(await abacate.status(who.agencyId, scope, origin));
-        if (method !== 'POST') throw error('Method not allowed.', 405);
-        const body = await payload(req);
-        if (op === 'connect') {
-          await requireFiscal((await loadAgency(who.agencyId)).fiscal, who.agencyId, scope);
-          const view = await abacate.connect(who.agencyId, scope, body.apiKey, origin);
-          await recordAudit(who, 'AbacatePay conectado', view.storeName || 'Agência');
-          return json(view);
-        }
-        if (op === 'refresh-webhook') {
-          const view = await abacate.refreshWebhook(who.agencyId, scope, origin);
-          await recordAudit(who, 'Avisos do AbacatePay atualizados', view.storeName || 'Agência');
-          return json(view);
-        }
-        if (op === 'disconnect') {
-          const view = await abacate.disconnect(who.agencyId, scope, origin);
-          await recordAudit(who, 'AbacatePay desconectado', 'Agência');
-          return json(view);
-        }
-        if (op === 'subscribe' || op === 'cancel') {
-          const workspace = String(body.workspace || '');
-          if (!(await listWorkspaces(who.agencyId)).some(w => w.id === workspace)) throw error('Subconta não encontrada.', 404);
-          const agency = await loadAgency(who.agencyId);
-          const meta = agency.accounts[workspace] || {};
-          if (op === 'subscribe') {
-            const running = billing => billing?.provider === 'abacatepay' && ['Active', 'Trial', 'PastDue'].includes(billing.status), refuse = () => error('Esta subconta já tem uma assinatura ativa. Cancele antes de gerar outra.', 409);
-            if (running(meta.billing)) throw refuse();
-            const billing = await abacate.subscribe(who.agencyId, workspace, agency.plans.find(plan => plan.id === meta.plan), origin, { retryPolicy: retryPolicyOf(agency) });
-            // The customer may have paid the earlier link while this one was being made.
-            if (!await changeAgency(who.agencyId, current => !running(current.accounts[workspace]?.billing) && Boolean(replaceBilling(current, workspace, billing)))) throw refuse();
-            await recordAudit(who, 'Assinatura AbacatePay gerada', meta.name || workspace, billing.planName);
-            return json(await agencyPayload(req, res, { result: billing }));
-          }
-          await abacate.cancelSubscription(who.agencyId, meta.billing);
-          await changeAgency(who.agencyId, current => {
-            const billing = current.accounts[workspace]?.billing;
-            if (billing) Object.assign(billing, { status: 'Cancelled', cancelledAt: stamp(), updatedAt: stamp() });
-          });
-          await recordAudit(who, 'Assinatura AbacatePay cancelada', meta.name || workspace);
-          return json(await agencyPayload(req, res));
-        }
-        throw error('Not found.', 404);
-      }
+      const agencyRouteHandled = await agencyRoute({ req, res, p, method, url, id, json });
+      if (agencyRouteHandled !== NEXT_ROUTE) return agencyRouteHandled;
+      const abacatePayRouteHandled = await abacatePayRoute({ req, res, p, method, url, json });
+      if (abacatePayRouteHandled !== NEXT_ROUTE) return abacatePayRouteHandled;
       const billingRouteHandled = await billingRoute({ req, res, p, method, url, id, json, send });
       if (billingRouteHandled !== NEXT_ROUTE) return billingRouteHandled;
       const adsRouteHandled = await adsRoute({ req, res, p, method, url, id, json, send });
@@ -2682,28 +2462,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (googleRouteHandled !== NEXT_ROUTE) return googleRouteHandled;
       const emailRouteHandled = await emailRoute({ req, res, p, method, id, json });
       if (emailRouteHandled !== NEXT_ROUTE) return emailRouteHandled;
-      if (p.startsWith('/api/abacatepay/workspace/')) {
-        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
-        const op = p.slice('/api/abacatepay/workspace/'.length).replace(/\/+$/, ''), origin = publicBase(req);
-        const who = await workspaceAccess(req, res, id, { modules: ['connect', 'disconnect', 'refresh-webhook'].includes(op) ? ['settings', 'payments'] : ['payments'] });
-        if (op === 'status' && method === 'GET') {
-          const view = await abacate.status(who.agencyId, id, origin);
-          return json(hasModule(who, 'settings') ? view : { ...view, webhookSecret: undefined });
-        }
-        if (method !== 'POST') throw error('Method not allowed.', 405);
-        const body = await payload(req);
-        if (op === 'connect') {
-          await requireFiscal((await store.load(id)).fiscal, who.agencyId, id);
-          return json(await abacate.connect(who.agencyId, id, body.apiKey, origin));
-        }
-        if (op === 'disconnect') return json(await abacate.disconnect(who.agencyId, id, origin));
-        if (op === 'refresh-webhook') return json(await abacate.refreshWebhook(who.agencyId, id, origin));
-        if (op === 'charge') {
-          const payment = await abacate.chargeInvoice(who.agencyId, id, String(body.invoiceId || ''), origin);
-          return json({ payment, ...workspaceView(who, await store.load(id)) });
-        }
-        throw error('Not found.', 404);
-      }
+      const abacatePayWorkspaceRouteHandled = await abacatePayWorkspaceRoute({ req, res, p, method, id, json });
+      if (abacatePayWorkspaceRouteHandled !== NEXT_ROUTE) return abacatePayWorkspaceRouteHandled;
       const verifyRouteHandled = await verifyRoute({ req, res, p, method, json });
       if (verifyRouteHandled !== NEXT_ROUTE) return verifyRouteHandled;
       const whatsappWebhookHandled = await whatsappWebhookRoute({ req, p, method, url, json });
@@ -2728,67 +2488,16 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (askRouteHandled !== NEXT_ROUTE) return askRouteHandled;
       const gbpRouteHandled = await gbpRoute({ req, res, p, method, url, id, json });
       if (gbpRouteHandled !== NEXT_ROUTE) return gbpRouteHandled;
-      if (p === '/api/video' && (method === 'GET' || method === 'HEAD')) {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        await workspaceAccess(req, res, id, { modules: ['reputation'] });
-        const row = (await store.load(id)).videoTestimonials?.find(item => item.id === url.searchParams.get('id'));
-        if (!row) throw error('Vídeo não encontrado.', 404);
-        return await sendVideo(req, res, method, id, row, 'private, no-store');
-      }
+      const videoRouteHandled = await videoRoute({ req, res, p, method, url, id });
+      if (videoRouteHandled !== NEXT_ROUTE) return videoRouteHandled;
       const brandAIRouteHandled = await brandAIRoute({ req, res, p, method, id, json });
       if (brandAIRouteHandled !== NEXT_ROUTE) return brandAIRouteHandled;
-      // App marketplace (7.3): a sub-account installs or removes an app its agency published.
-      const appAction = p.match(/^\/api\/apps\/(install|uninstall)$/);
-      if (appAction && method === 'POST') {
-        if (!spaceId.test(id)) throw error('Subconta não encontrada.', 404);
-        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
-        const body = await payload(req);
-        const agencyId = (await store.load(id)).agencyId || AGENCY_ID;
-        if (appAction[1] === 'install') {
-          const { app, install, token } = await changeAgency(agencyId, agency => {
-            const made = addInstall(agency, String(body.appId || ''), id, who.name);
-            logTo(agency, who, 'App installed', made.app.name, id);
-            return made;
-          });
-          await change(id, { type: 'app-installed', data: { copy: installedCopy(app, install) } });
-          // The app gets its token once, in the signed "app.installed" notice; Soci keeps only its hash.
-          const sent = app.webhookUrl
-            ? await deliverToApp(agencyId, id, app.id, { type: 'app.installed', token: app.scopes.length ? token : '', scopes: app.scopes, events: app.events,
-              api: { base: `${publicBase(req)}/api/v1`, trigger: `${publicBase(req)}/api/apps/v1/trigger` } })
-            : { name: app.name, text: 'sem webhook' };
-          await change(id, { type: 'app-log', data: { entries: [{ app: app.name, appId: app.id, kind: 'install', text: `Instalado por ${who.name}: ${sent.text}` }] } });
-          return json({ ...workspaceView(who, (await store.load(id))), installed: app.id, delivery: sent.text }, 201);
-        }
-        const removed = await changeAgency(agencyId, agency => {
-          const made = removeInstall(agency, String(body.installId || ''), id);
-          logTo(agency, who, 'App uninstalled', made.app?.name || made.install.appId, id);
-          return made;
-        });
-        await change(id, { type: 'app-removed', data: { appId: removed.install.appId } });
-        if (removed.app?.webhookUrl) {
-          const sent = await deliverToApp(agencyId, id, removed.app.id, { type: 'app.uninstalled', installId: removed.install.id });
-          await change(id, { type: 'app-log', data: { entries: [{ app: removed.app.name, appId: removed.app.id, kind: 'uninstall', text: `Desinstalado por ${who.name}: ${sent.text}` }] } });
-        }
-        return json({ ...workspaceView(who, (await store.load(id))), removed: removed.install.appId });
-      }
+      const appInstallRouteHandled = await appInstallRoute({ req, res, p, method, id, json });
+      if (appInstallRouteHandled !== NEXT_ROUTE) return appInstallRouteHandled;
       const conversationAIRouteHandled = await conversationAIRoute({ req, res, p, method, url, id, json });
       if (conversationAIRouteHandled !== NEXT_ROUTE) return conversationAIRouteHandled;
-      // Reselling: the client recharges its wallet by Pix or card, paid to the agency's AbacatePay account.
-      if (p === '/api/wallet/topup' && method === 'POST') {
-        if (!spaceId.test(id)) throw error('Subconta não encontrada.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
-        const body = await payload(req);
-        const state = await store.load(id);
-        if (!Object.keys(state.wallet?.pricing || {}).length) throw error('Esta subconta não tem carteira de créditos ativa.', 409);
-        const amount = Math.round(Number(body.amount) * 100) / 100;
-        if (!(amount >= walletLimits.minTopup && amount <= walletLimits.maxTopup)) throw error(`A recarga vai de R$ ${walletLimits.minTopup} a R$ ${walletLimits.maxTopup.toLocaleString('pt-BR')}.`, 400);
-        if (!(await abacate.connected(who.agencyId, abacate.AGENCY_SCOPE))) throw error('A recarga por Pix ainda não foi ativada pela agência. Fale com ela para lançar os créditos.', 409);
-        const back = `${publicBase(req)}/app?workspace=${encodeURIComponent(id)}#settings/wallet`;
-        const payment = await abacate.createCheckout(who.agencyId, abacate.AGENCY_SCOPE, { reference: `wallet-${id}`, name: 'Recarga de créditos', amount, returnUrl: back, completionUrl: back, metadata: { walletTopup: id } });
-        await store.change(id, s => { addTopup(s, payment); });
-        flushLater(id);
-        return json({ url: payment.url, checkoutId: payment.checkoutId, amount: payment.amount });
-      }
+      const walletRouteHandled = await walletRoute({ req, res, p, method, id, json });
+      if (walletRouteHandled !== NEXT_ROUTE) return walletRouteHandled;
       const seoRouteHandled = await seoRoute({ req, res, p, method, url, id, json });
       if (seoRouteHandled !== NEXT_ROUTE) return seoRouteHandled;
       const contentAIRouteHandled = await contentAIRoute({ req, res, p, method, id, json });
@@ -2823,6 +2532,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (certificateRouteHandled !== NEXT_ROUTE) return certificateRouteHandled;
       const offerApiRouteHandled = await offerApiRoute({ req, p, method, json });
       if (offerApiRouteHandled !== NEXT_ROUTE) return offerApiRouteHandled;
+      const paymentLinkHandled = await paymentLinkRoute({ req, res, p, method, url, json });
+      if (paymentLinkHandled !== NEXT_ROUTE) return paymentLinkHandled;
       const storeApiHandled = await storeApiRoute({ req, p, method, json });
       if (storeApiHandled !== NEXT_ROUTE) return storeApiHandled;
       const shareRouteHandled = await shareRoute({ res, p, method, url });
@@ -2841,48 +2552,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (emailTrackHandled !== NEXT_ROUTE) return emailTrackHandled;
       const linkRouteHandled = await linkRoute({ res, p, method });
       if (linkRouteHandled !== NEXT_ROUTE) return linkRouteHandled;
-      const match=p.replace(/^\/api\/view/,'').match(paths);
-      if (p.startsWith('/api/view/') && match) {
-        const [,kind,w,item]=match;
-        if (method==='POST') {
-          if (kind!=='f') throw error('Method not allowed.',405);
-          const input = await payload(req);
-          await publicAccountPolicy(w, true, 'sites');
-          // _vid links a site visitor to the contact; only the site route (which sets the cookie) may send it.
-          const submission = await change(w,{type:'submit',id:item,data:{ ...(input && typeof input === 'object' ? input : {}), _vid:'' }});
-          return json({id:submission.id},201);
-        }
-        await publicAccountPolicy(w, false, kind === 'course' ? 'memberships' : 'sites');
-        const state=await store.load(w), map={p:'pages',f:'forms',course:'courses'}, row=find(state,map[kind],item);
-        if(!row?.active || (kind==='course' && row.portalOnly)) throw error('This item is not published.',404);
-        const form=kind==='p' && row.formId ? find(state,'forms',row.formId) : null;
-        return json({kind,row,form:form?.active?form:null,brand:state.profile.name});
-      }
-      const legacyPage = method !== 'POST' && p.match(paths);
-      if (legacyPage) {
-        await ready;
-        await publicAccountPolicy(legacyPage[2], false, legacyPage[1] === 'course' ? 'memberships' : 'sites');
-      }
-      if (method === 'GET' && legacyPage?.[1] === 'f') { res.writeHead(302, { Location:`/form/${legacyPage[2]}/${legacyPage[3]}` }); return res.end(); }
-      // Política de privacidade pública (LGPD e o link exigido pelo login com Google).
-      if (p === '/privacidade' || p === '/privacidade/') p = '/privacidade.html';
-      const platformPaths = ['/app','/app/','/painel','/painel/'];
-      const loginPaths = ['/','/login','/index.html'];
-      if ((method==='GET'||method==='HEAD') && (loginPaths.includes(p) || platformPaths.includes(p) || paths.test(p) || staticFiles.has(p))) {
-        const isLogin = loginPaths.includes(p);
-        // Páginas estáticas que só abrem com sessão (como o app), por exemplo o editor da Prancheta.
-        if (!isLogin && !paths.test(p) && (!staticFiles.has(p) || sessionOnlyFiles.has(p)) && !localAccess && !auth?.hasSession(req)) {
-          const search = new URLSearchParams(url.search); search.delete('__path');
-          const next = afterLogin(p + (search.size ? '?' + search : ''));
-          return goTo('/login?' + new URLSearchParams({ next }));
-        }
-        const f = isLogin ? '/index.html' : (platformPaths.includes(p) ? '/app.html' : p);
-        // Setup illustrations are not mirrored in public/: without this every card refetched them from the
-        // function. The browser keeps them a day; the Vercel CDN until the next deploy purges it.
-        if (f.startsWith('/setup-art/')) res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=86400');
-        if (f === '/prancheta-editor.html') res.setHeader('Content-Security-Policy', pranchetaEditorCsp());
-        return send(200,staticFiles.get(f)||'text/html; charset=utf-8',method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
-      }
+      const pageRouteHandled = await pageRoute({ req, res, p, method, url, json, send, goTo });
+      if (pageRouteHandled !== NEXT_ROUTE) return pageRouteHandled;
       throw error('Page not found.',404);
     } catch(e) {
       if (!e.status) console.error(e.message);
@@ -2892,14 +2563,14 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (!res.headersSent) json({
         error: e.status ? e.message : 'The workspace could not complete this request.',
-        ...(e.code === 'ACCOUNT_SUSPENDED' && { code: e.code, account: e.account }), ...(e.code === 'FISCAL_REQUIRED' && { code: e.code }),
+        ...(e.code === 'ACCOUNT_SUSPENDED' && { code: e.code, account: e.account }), ...(['FISCAL_REQUIRED', 'ACCOUNT_CHANGED', 'ACCOUNT_SIGNED_OUT'].includes(e.code) && { code: e.code }),
         ...(['PHONE_REQUIRED', 'AGENCY_BLOCKED', 'AGENCY_NOT_ACTIVE'].includes(e.code) && { code: e.code, billing: e.billing }),
-        ...(['PHONE_TAKEN', 'VERIFY_OFF', 'ALREADY_VERIFIED'].includes(e.code) && { code: e.code })
+        ...(['PHONE_TAKEN', 'VERIFY_OFF', 'ALREADY_VERIFIED', 'SIGNUP_CLOSED'].includes(e.code) && { code: e.code })
       }, e.status || 500);
     }
   });
   server.on('close',()=>{ if (socialTimer) clearInterval(socialTimer); store.close(); });
-  return {server,port,host,ready,backend:store.kind,scheduler:Boolean(socialTimer)};
+  return {server,port,host,ready,backend:store.kind,scheduler:Boolean(socialTimer),purgeTrash};
 }
 
 if (process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {

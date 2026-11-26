@@ -13,14 +13,16 @@ const people = {
   convidado: { id: 'u2', email: 'convidado@agencia.test' }
 };
 
-async function boot(t) {
+const LINE = { number: '5500000000000', instance: 'soci-verify', secret: 'segredo-de-teste' };
+
+async function boot(t, options = {}) {
   const store = createSqliteStore(':memory:');
   const auth = {
     user: async req => people[req.headers['x-test-user']] || null,
     hasSession: req => Boolean(people[req.headers['x-test-user']]),
     session: async req => people[req.headers['x-test-user']] || null
   };
-  const { server, host, ready } = makeServer({ store, auth, agencyOwnerId: 'root-owner', allowLocalAccess: false, port: 0, socialScheduler: false });
+  const { server, host, ready } = makeServer({ store, auth, agencyOwnerId: 'root-owner', allowLocalAccess: false, port: 0, socialScheduler: false, phoneVerify: LINE, ...options });
   await ready;
   await new Promise(resolve => server.listen(0, host, resolve));
   t.after(() => new Promise(resolve => server.close(resolve)));
@@ -70,6 +72,25 @@ test('Página pública de subconta de agência sem celular confirmado continua n
   await store.change('agency-u1', state => { state.accounts[WS] = { name: 'Cliente', status: 'Active' }; });
   const view = await get(`/api/view/p/${WS}/${PAGE}`);
   assert.equal(view.status, 200, JSON.stringify(view.body));
+});
+
+test('Sem a linha de confirmação, a agência que já existe segue aberta', async t => {
+  const { store, get } = await boot(t, { phoneVerify: { number: '', instance: '', secret: '' } });
+  const agency = await get('/api/agency', 'nova');
+  assert.equal(agency.status, 200, JSON.stringify(agency.body));
+  assert.equal((await store.load('agency-u1')).billing.status, 'Unverified');
+  const list = await get('/api/workspaces', 'nova');
+  assert.equal(list.status, 200, JSON.stringify(list.body));
+});
+
+test('Sem a linha de confirmação no ar, o cadastro de agência nova fica fechado', async t => {
+  const { store, get } = await boot(t, { phoneVerify: { number: '', instance: '', secret: '' }, signupOpen: false });
+  const closed = await get('/api/agency', 'nova');
+  assert.equal(closed.status, 503);
+  assert.equal(closed.body.code, 'SIGNUP_CLOSED');
+  await assert.rejects(async () => store.load('agency-u1'), /not found/i, 'nenhuma agência foi criada');
+  const root = await get('/api/agency', 'root');
+  assert.equal(root.status, 200, 'a agência da soci continua entrando');
 });
 
 test('A cobrança pública não mostra o celular inteiro', () => {

@@ -1,3 +1,4 @@
+import {tabAccountId} from './account-guard.js';
 import {icon as i, logo, brandName, bootScreen} from './icons.js';
 import {nav,h,avatar,screens,publicView,money} from './screens.js';
 import { conversationSections, manualQueue, manualType, slaRecords, SLA_CHANNELS } from './conversations.js';
@@ -22,7 +23,7 @@ import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm.js';
 import { socialEvents } from './social.js';
-import { installEventPlanner } from './event-planner.js';
+import { installEventPlanner, placeTimeline } from './event-planner.js';
 import { mountAgentScreen } from './agents.js';
 import { mountAgentHub } from './agent-hub.js';
 import { installContentAI } from './content-ai.js';
@@ -77,6 +78,7 @@ import './phone-input.js';
 import { clickWith, mountBeautifulUI } from './bui-mounts.js';
 import { diffTable, searchList } from './beautiful-ui-more.js';
 import { ask, askText } from './ask.js';
+import { installAccounts } from './accounts.js';
 
 const app=document.querySelector('#app'), overlay=document.querySelector('#overlay');
 const isAppPath=['/','/index.html','/app','/app/','/painel','/painel/'].includes(location.pathname);
@@ -174,7 +176,8 @@ const G=s=>document.querySelector(s);
 const url=path=>`${path}?workspace=${encodeURIComponent(c.workspace)}`;
 function flash(msg,isError=false){ return isError?toast.error(msg):toast.success(msg); }
 const actingUser = () => { try { return localStorage.getItem('go.user') || ''; } catch { return ''; } };
-// Agência sem celular confirmado, convidado de agência não ativada ou agência bloqueada: a tela de verify.js cobre o app.
+const accounts = installAccounts({ session: () => c.access?.session || agencyUI?.session(), beforeLeave: async () => { if (editor) await editor.flush(); } });
+// Agência sem celular confirmado, convidado de agência não ativada, agência bloqueada ou cadastro fechado: a tela de verify.js cobre o app.
 let gateOpen=null;
 function showGate(data){
   gateOpen ??= import('./verify.js').then(({ mountGate }) => mountGate(document.body, { code: data.code, error: data.error, api, onDone: () => location.reload() }))
@@ -189,7 +192,7 @@ async function api(path,body){
     location.replace('/login?' + new URLSearchParams({ next }));
   }
   if (!response.ok) {
-    if (response.status === 402 && ['PHONE_REQUIRED', 'AGENCY_NOT_ACTIVE', 'AGENCY_BLOCKED'].includes(data.code)) showGate(data);
+    if ((response.status === 402 && ['PHONE_REQUIRED', 'AGENCY_NOT_ACTIVE', 'AGENCY_BLOCKED'].includes(data.code)) || data.code === 'SIGNUP_CLOSED') showGate(data);
     if (data.code === 'ACCOUNT_SUSPENDED' && c.mode !== 'agency' && !path.startsWith('/api/state?') &&
         new URL(path, location.origin).searchParams.get('workspace') === c.workspace) {
       await load();
@@ -197,7 +200,7 @@ async function api(path,body){
     }
     throw Object.assign(Error(data.error||'The request failed.'),{status:response.status,code:data.code,account:data.account});
   }
-  if (isAppPath && data.access) setThemeAccount(data.access.session?.id);
+  if (isAppPath && data.access) { setThemeAccount(data.access.session?.id); accounts.seen(data.access.session); }
   return data;
 }
 async function load(){
@@ -334,7 +337,7 @@ function appTopbar(){
   const profileText = session?.name?.slice(0, 2).toUpperCase() || 'gr';
   return topbar({crumbs:[{label:c.s.profile.name,href:'#launchpad'},{label:page}],search:'data-act="search"',
     tools:[{icon:'bell',label:tr('Notificações'),attr:'data-act="notifications"'}],
-    profile:{text:profileText,picture:session?.picture||'',label:profileLabel,attr:session?'data-act="account"':'data-go="settings"'}});
+    profile:{text:profileText,picture:session?.picture||'',label:profileLabel,attr:session?'data-act="account" aria-haspopup="dialog"':'data-go="settings"'}});
 }
 function renderAccountLifecycle() {
   stopSubWaPoll();
@@ -361,6 +364,7 @@ function render(){
   const viewKey = `${c.workspace}:${c.view}:${c.tab}:${c.studio.project}`;
   const previousScroll = renderedView === viewKey ? G('#screen')?.scrollTop || 0 : 0;
   const kanbanScroll = renderedView === viewKey ? G('.kanban')?.scrollLeft || 0 : 0;
+  const timelineScroll = renderedView === viewKey ? G('[data-ep-tl-scroll]') : null, timelineAt = timelineScroll && [timelineScroll.scrollLeft, timelineScroll.scrollTop];
   renderedView = viewKey;
   const agencyName=c.agency?.name&&!['My Agency','Minha agência'].includes(c.agency.name)?c.agency.name:'';
   const brand=agencyName||brandName(c.agency?.brand), customLink=c.agency?.menuLinks.find(l=>l.id===c.tab);
@@ -377,6 +381,7 @@ function render(){
   mountBeautifulUI(G('#screen'), c, { render });
   if(c.view==='conversations'&&c.thread) {const area=G('.thread-messages');if(area)area.scrollTop=area.scrollHeight;}
   if(c.view==='dashboard') { G('#screen').scrollTop=previousScroll; }
+  if(c.view==='marketing'&&c.tab==='events') placeTimeline(...(timelineAt||[]));
   if(c.view==='dashboard' || c.view==='reporting') { drawDashboardGauges(app); }
   if(c.view==='opportunities') {
     G('#screen').scrollTop = previousScroll;
@@ -521,7 +526,7 @@ function edit(key,id,preset={}){
       break;
     }
     case 'triggerLinks': body = input('Nome','name',r.name,true) + input('URL do link','url',r.url,true,'url'); break;
-    case 'invoices':body=input('Nome da fatura','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices())+`<div class="field-grid">${input(`Valor (${c.s.profile.currency})`,'value',r.value??0,true,'number')}${input('Vencimento','due',r.due?.slice(0,10),true,'date')}</div>`+option('Status','status',r.status||'Draft',['Draft','Open','Paid','Void']);break;
+    case 'invoices':body=input('Nome da fatura','title',r.title,true)+option('Contato','contactId',r.contactId,contactChoices())+`<div class="field-grid">${input(`Valor (${c.s.profile.currency})`,'value',r.value??0,true,'number')}${input('Vencimento','due',r.due?.slice(0,10),true,'date')}</div>`+option('Status','status',r.status||'Draft',[['Draft','Rascunho'],['Open','Em aberto'],['Paid','Paga'],['Void','Cancelada']]);break;
     case 'campaigns':body=input('Nome da campanha','name',r.name,true)+option('Canal','channel',r.channel||'Social',[['Social','Social'],['Email','E-mail']])+area('Conteúdo','body',r.body,true)+input('Data prevista','date',r.date?.slice(0,10),false,'date')+option('Status','status',r.status||'Draft',[['Draft','Rascunho'],['Planned','Planejado'],['Archived','Arquivado']]);break;
     case 'pages':body=input('Nome da página','name',r.name,true)+option('Tipo','kind',r.kind||'Funnel',[['Funnel','Funil'],['Website','Site']])+input('Título principal','headline',r.headline,true)+area('Texto da página','body',r.body)+input('Texto do botão','button',r.button)+option('Formulário','formId',r.formId,[['','Nenhum formulário'],...c.s.forms.map(a=>[a.id,`${a.name}${a.active?'':' (Rascunho)'}`])],false)+check('Publicar localmente','active',r.active);break;
     case 'forms':body=input('Nome do formulário','name',r.name,true)+area('Descrição','description',r.description)+check('Pedir número de telefone','askPhone',r.askPhone)+check('Publicar localmente','active',r.active);break;
@@ -701,9 +706,9 @@ async function copyLink(path) {
   const url = new URL(path, location.origin).href;
   try {
     await navigator.clipboard.writeText(url);
-    flash('Trigger link copied.');
+    flash('Link copiado.');
   } catch {
-    dialog('Copy trigger link', `<label>URL<input readonly value="${h(url)}"></label>`);
+    dialog('Copiar link', `<label>URL<input readonly value="${h(url)}"></label>`);
     G('#dialog input').select();
   }
 }
@@ -816,7 +821,7 @@ document.addEventListener('click',async ev=>{
       dialog('Rename pipeline',input('Pipeline name','name',pipeline.name,true),{form:'pipeline',id:pipeline.id}); return;
     }
     if (d.manual) { manualDetails(d.manual); return; }
-    if (d.dismissSla) { await mutate({type:'dismiss-sla',id:d.dismissSla}); render(); flash('SLA timer dismissed.'); return; }
+    if (d.dismissSla) { await mutate({type:'dismiss-sla',id:d.dismissSla}); render(); flash('Prazo de atendimento dispensado.'); return; }
     if (d.manualPage) { c.conversationFilters.manualPage = Number(d.manualPage); render(); return; }
     if (d.openFolder) { c.conversationFilters.folder = d.openFolder; go('conversations','snippets'); return; }
     if (d.copyPath) { await copyLink(d.copyPath); return; }
@@ -861,16 +866,7 @@ document.addEventListener('click',async ev=>{
       case 'account-retry':await load();route();break;
       case 'agency-view':close();location.hash='#agency/dashboard';break;
       case 'stop-acting':localStorage.removeItem('go.user');location.reload();break;
-      case 'account': {
-        const session = c.access?.session || agencyUI?.session();
-        if (session) dialog('Minha conta', '<p>' + h(session.name) + '<br>' + h(session.email) + '</p><button type="button" class="secondary" data-act="sign-out">Sair da conta</button>');
-        break;
-      }
-      case 'sign-out':
-        await api('/api/auth/logout', {});
-        localStorage.removeItem('go.workspace');
-        location.assign('/login');
-        break;
+      case 'account':await accounts.toggle(b);break;
       case 'new-workspace':dialog('Criar workspace',input('Nome do workspace','name','',true),{form:'workspace',buttons:'<button class="secondary" type="button" data-act="close">Cancelar</button><button class="primary">Criar workspace</button>'});break;
       case 'search':dialog('Buscar no workspace','<div id="search-results" class="bui-search-host"></div>');mountGlobalSearch();break;
       case 'dialer':dialog('Discador','<p>O discador não está conectado. Chamadas de voz exigem a configuração de um provedor de telefonia autorizado.</p>');break;
@@ -1148,15 +1144,15 @@ document.addEventListener('submit',async ev=>{
   if(status)status.textContent='';
   const btn=f.querySelector('button[type="submit"],button:not([type])');if(btn)btn.disabled=true;
   try {
-    let msg='Saved.';
+    let msg='Salvo.';
     if(name==='record'){
       const {key,id}=f.dataset;
       for(const el of f.querySelectorAll('input[type="checkbox"]'))data[el.name]=el.checked;
       if(key==='appointments'){data.start=toInstant(data.start,zones());data.end=toInstant(data.end,zones());}
       await mutate({type:'save',key,id,data});msg=id?'Alterações salvas.':`${entityNames[key]} ${feminine.has(key)?'criada':'criado'}.`;
-    } else if(name==='delete'){await mutate({type:'delete',key:f.dataset.key,id:f.dataset.id});msg='Record deleted.';}
+    } else if(name==='delete'){await mutate({type:'delete',key:f.dataset.key,id:f.dataset.id});msg='Registro excluído.';}
     else if(name==='fiscal'){await mutate({type:'fiscal',data:readFiscal(data)});msg='Cadastro fiscal salvo.';}
-    else if(name==='profile'){await mutate({type:'profile',data});await load();msg='Business profile saved.';}
+    else if(name==='profile'){await mutate({type:'profile',data});await load();msg='Perfil da empresa salvo.';}
     else if(name==='wa-pair'){
       stopSubWaPoll();
       const live=await api(url('/api/whatsapp/workspace/connect'),{phone:data.phone});
@@ -1213,17 +1209,17 @@ document.addEventListener('submit',async ev=>{
       await api(url('/api/whatsapp/workspace/test'),{phone:data.phone,text:data.text});
       msg='Mensagem de teste enviada pelo WhatsApp!';
     }
-    else if (name==='stage') { await mutate({type:'stage',id:f.dataset.id,data:{ ...data,visible:f.elements.visible.checked }}); msg='Stage saved.'; }
-    else if (name==='pipeline') { await mutate({type:'pipeline',id:f.dataset.id,data}); msg='Pipeline saved.'; }
+    else if (name==='stage') { await mutate({type:'stage',id:f.dataset.id,data:{ ...data,visible:f.elements.visible.checked }}); msg='Etapa salva.'; }
+    else if (name==='pipeline') { await mutate({type:'pipeline',id:f.dataset.id,data}); msg='Pipeline salvo.'; }
     else if(name==='thread'){await thread(data.contactId);return;}
     else if(name.startsWith('inbox-')||name==='team-message'){flash(await inboxSubmit(name,f,data,inboxContext()));return;}
-    else if(name==='workspace'){const d=await api('/api/workspaces',data);await useWorkspace(d.id);flash('Workspace created.');return;}
+    else if(name==='workspace'){const d=await api('/api/workspaces',data);await useWorkspace(d.id);flash('Subconta criada.');return;}
     else if(name==='message'){
       await mutate({type:'message',data:{...data,contactId:c.thread}});
       // O servidor marca na hora o que não saiu: sem isto a tela diria que deu certo.
       const last=[...c.s.messages].filter(m=>m.contactId===c.thread&&m.direction==='Outbound').sort((a,b)=>String(b.created).localeCompare(String(a.created)))[0];
       if(data.direction==='Outbound'&&last?.failed){f.reset();flash(`${tr('Não entregue')}: ${tr(deliveryFailures[last.failed]||deliveryFailures.provider_error)}`,true);render();return;}
-      msg='Message logged.';
+      msg='Mensagem registrada.';
     }
     else if (name === 'manual-action') {
       if (data.status === 'Sent') {
@@ -1247,7 +1243,7 @@ document.addEventListener('submit',async ev=>{
       const targets = key => ({ soon: data[`${key}Soon`], overdue: data[`${key}Overdue`] });
       await mutate({ type:'conversation-sla', data:{ enabled:f.elements.enabled.checked, mode:data.mode, automation:data.automation,
         workflows:fd.getAll('workflows'), common:targets('common'), channels:Object.fromEntries(SLA_CHANNELS.map(channel => [channel, targets(channel)])) } });
-      msg = 'SLA settings saved.';
+      msg = 'Prazos de atendimento salvos.';
     }
     else if(name==='assistant'){const q=data.prompt.trim();if(q){c.chat.push({self:true,body:q},{body:assistant(q)});render();G('.ask-composer input')?.focus();}return;}
     else if(name==='lead'){await api(`/api/view/f/${f.dataset.workspace}/${f.dataset.id}`,data);f.reset();status.textContent='Thank you. Your information was submitted.';status.classList.add('confirmed');return;}
@@ -1262,7 +1258,7 @@ document.addEventListener('submit',async ev=>{
       if(name==='opportunity-fields') c.opportunityCard=opportunityPreferences(c.workspace,c.access?.session?.id,{layout:data.layout,fields:fd.getAll('field'),actions:fd.getAll('action')});
       close();render();G(`[data-act="${name}"]`)?.focus();return;
     }
-    else if(name==='upload'){ const file=data.file;if(file.size>700000)throw Error('Choose a file under 700 KB.');const encoded=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('File could not be read.'));reader.readAsDataURL(file);});await mutate({type:'save',key:'files',data:{name:file.name,data:encoded}});msg='File uploaded.';}
+    else if(name==='upload'){ const file=data.file;if(file.size>700000)throw Error('Choose a file under 700 KB.');const encoded=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('File could not be read.'));reader.readAsDataURL(file);});await mutate({type:'save',key:'files',data:{name:file.name,data:encoded}});msg='Arquivo enviado.';}
     else if (name === 'studio-create') {
       const generating=data.engine==='model', submitter=ev.submitter, original=submitter?.innerHTML;
       const buttons=[...f.querySelectorAll('button')];
@@ -1286,7 +1282,7 @@ document.addEventListener('submit',async ev=>{
     else if (name === 'studio-edit') {
       const project=c.s.studioProjects.find(item=>item.id===f.dataset.id);
       const blocks=fd.getAll('blockTitle').map((title,index)=>({title,body:fd.getAll('blockBody')[index]}));
-      await mutate({type:'save',key:'studioProjects',id:project.id,data:{...project,...data,blocks}}); msg='Project saved.';
+      await mutate({type:'save',key:'studioProjects',id:project.id,data:{...project,...data,blocks}}); msg='Projeto salvo.';
     }
     close();render();flash(msg);
   } catch(e){if(status){status.classList.remove('confirmed');status.textContent=e.message;}else flash(e.message,true);}
@@ -1355,6 +1351,7 @@ if(viewPath){
   installOrders({ c, mutate, flash, dialog, close, render });
   installCatalog({ c, mutate, flash, dialog, close, render });
   installPrancheta({
+    account: tabAccountId,
     c,
     api,
     url,

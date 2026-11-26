@@ -36,6 +36,13 @@
   },
   {
     "grupo": "agencia",
+    "artigo": "excluir-subconta",
+    "titulo": "Excluir uma subconta",
+    "fase": "F2",
+    "status": "escrito"
+  },
+  {
+    "grupo": "agencia",
     "artigo": "setups-de-conta",
     "titulo": "Setups de conta",
     "fase": "F2",
@@ -51,10 +58,9 @@
   {
     "grupo": "agencia",
     "artigo": "dominio-proprio",
-    "titulo": "Usar o seu domínio",
+    "titulo": "Usar o domínio da agência no endereço das subcontas",
     "fase": "F2",
-    "status": "pendente",
-    "nota": "Aguardando o app: o Domínio para subcontas é gravado em Empresa e marca, mas o servidor ainda não abre as subcontas nesse domínio."
+    "status": "escrito"
   },
   {
     "grupo": "agencia",
@@ -67,6 +73,13 @@
     "grupo": "configuracoes",
     "artigo": "usuarios-e-permissoes",
     "titulo": "Usuários e permissões",
+    "fase": "F2",
+    "status": "escrito"
+  },
+  {
+    "grupo": "configuracoes",
+    "artigo": "trocar-de-conta",
+    "titulo": "Trocar de conta sem sair",
     "fase": "F2",
     "status": "escrito"
   },
@@ -136,10 +149,9 @@
   {
     "grupo": "pagamentos",
     "artigo": "links-de-pagamento",
-    "titulo": "Links de pagamento",
+    "titulo": "Vender com um link de pagamento",
     "fase": "F2",
-    "status": "pendente",
-    "nota": "Aguardando o app: a aba mostra \"Neste projeto local os links ficam registrados\" também em produção e o link não gera checkout."
+    "status": "escrito"
   },
   {
     "grupo": "pagamentos",
@@ -181,6 +193,13 @@
     "artigo": "planejador-social",
     "titulo": "Planejador social",
     "fase": "F2",
+    "status": "escrito"
+  },
+  {
+    "grupo": "marketing",
+    "artigo": "planejador-de-eventos",
+    "titulo": "Planejar um evento e enviar as mensagens",
+    "fase": "extra",
     "status": "escrito"
   },
   {

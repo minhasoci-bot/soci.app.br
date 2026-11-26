@@ -138,7 +138,7 @@ export function createPortalRoutes(deps) {
           await community.enroll(workspace, result.memberId, state.communities.map(g => g.id));
         }
         const session = await clientPortal.exchange(workspace, result.token, { staff: true });
-        portalCookie(req, res, workspace, session, secure);
+        portalCookie(req, res, workspace, session, secure, { staff: true });
         return json({ ok: true });
       }
       if (method === 'POST' && operation === 'exchange') {
@@ -177,7 +177,7 @@ export function createPortalRoutes(deps) {
             await community.enroll(workspace, result.memberId, state.communities.map(g => g.id));
           }
           const session = await clientPortal.exchange(workspace, result.token, { staff: true });
-          portalCookie(req, res, workspace, session, secure);
+          portalCookie(req, res, workspace, session, secure, { staff: true });
           page = await clientPortal.content(workspace, state, session, courseId, lessonId, { track: active });
         } catch {}
       }
