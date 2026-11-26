@@ -1,4 +1,5 @@
 import {tabAccountId} from './account-guard.js';
+import {rodapeHtml} from './rodape.js';
 import {icon as i, logo, brandName, bootScreen} from './icons.js';
 import {nav,h,avatar,screens,publicView,money} from './screens.js';
 import { conversationSections, manualQueue, manualType, slaRecords, SLA_CHANNELS } from './conversations.js';
@@ -55,8 +56,6 @@ import { installWallet } from './wallet.js';
 import { installLabs } from './labs.js';
 import { installConversationAi } from './conversation-ai.js';
 import { installMobileShell, shellAgency } from './mobile-shell.js';
-import { appMenuUrl } from './app-studio-data.js';
-import { installAppMarketplace } from './app-marketplace.js';
 import { contactPreferences, installPreferences } from './preferences.js';
 import { installContactTrash } from './contact-trash.js';
 import { afterDocumentsRender, installDocuments } from './documents.js';
@@ -324,8 +323,7 @@ const iconBtn=(name,label,attributes='',cls='icon-btn')=>`<button class="${cls}"
 const navItem=([id,pt,ico])=>({href:`#${id}`,label:tr(pt),icon:ico,current:c.view===id});
 function appSidebar(brand){
   const items=nav.slice(0,-1).map((n,k)=>[n,k]).filter(([n])=>allowedView(n[0]));
-  const links=(c.agency?.menuLinks||[]).map(l=>l.openIn==='Inside the app'?{href:`#link/${l.id}`,label:tr(l.title),icon:l.icon,current:c.view==='link'&&c.tab===l.id}:{href:l.url,label:tr(l.title),icon:l.icon,external:true})
-    .concat((c.s.appInstalls||[]).filter(app=>app.menu).map(app=>({href:appMenuUrl(app.menu.url,c.workspace),label:app.menu.label,icon:'apps',external:true})));
+  const links=(c.agency?.menuLinks||[]).map(l=>l.openIn==='Inside the app'?{href:`#link/${l.id}`,label:tr(l.title),icon:l.icon,current:c.view==='link'&&c.tab===l.id}:{href:l.url,label:tr(l.title),icon:l.icon,external:true});
   return sidebar({label:tr('Navegação'),home:c.access?.agency?'#agency/dashboard':'#launchpad',brand,mark:c.agency?.logo?`<img class="ag-logo" src="${h(c.agency.logo)}" alt="">`:logo,
     account:{name:c.s.profile.name,caption:tr('Subconta · trocar'),attr:'data-act="workspaces"',tip:tr('Trocar de workspace')},
     toggle:'data-act="nav"',open:c.navOpen,
@@ -377,7 +375,7 @@ function render(){
   else applyBrandColor(c.agency?.primary, c.agency?.secondary, c.agency?.accent);
   const notices=(c.agency?.announcements||[]).filter(a=>!sessionDismissed.has(a.id)).map(a=>`<div class="ag-banner ${a.tone==='Warning'?'warn':a.tone==='Success'?'ok':''}" role="status"><b>${h(a.title)}</b><span>${h(a.body)}</span><button class="icon-btn" data-dismiss-notice="${h(a.id)}" aria-label="Dispensar aviso">${i('close',15)}</button></div>`).join('');
   const screenHtml=c.view==='link'?(customLink?`<div class="ag-frame"><iframe src="${h(customLink.url)}" title="${h(customLink.title)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><p class="dim">Se a página ficar em branco, o site não permite incorporação. <a class="text-link" href="${h(customLink.url)}" target="_blank" rel="noopener">Abrir em nova aba</a></p></div>`:'<div class="page"><p>Este link não está mais disponível.</p></div>'):screens[c.view](c);
-  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${mobileShell.active()?'':appSidebar(brand)}<div class="workspace">${mobileShell.active()?mobileShell.header():appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}${c.launchpadReturn && c.view!=='launchpad' ? `<div class="lp-return"><a href="#launchpad/${h(c.launchpadReturn)}">${i('left',14)} Voltar ao guia</a><span>Continue a configuração. Seu progresso será reconhecido ao voltar.</span><button class="icon-btn" aria-label="Fechar lembrete do guia" data-act="launchpad-dismiss">${i('close',14)}</button></div>` : ''}<main id="screen" class="screen">${c.billingNotice==='past_due'?`<div class="page-notice"><p class="surface padded ag-warn" role="status">${h(tr('O pagamento do plano desta subconta foi recusado. Confira o cartão ou fale com a sua agência para não perder o acesso.'))}</p></div>`:''}${screenHtml}</main></div></div>`;
+  app.innerHTML=`<div class="shell ${c.navOpen?'wide':''}">${mobileShell.active()?'':appSidebar(brand)}<div class="workspace">${mobileShell.active()?mobileShell.header():appTopbar()}${c.access?.name&&!c.access.session&&actingUser()?`<div class="ag-banner acting" role="status"><b>Agindo como ${h(c.access.name)}</b><span>Módulos e subcontas seguem as permissões deste usuário.</span><button class="secondary" data-act="stop-acting">Parar</button></div>`:''}${notices}${c.launchpadReturn && c.view!=='launchpad' ? `<div class="lp-return"><a href="#launchpad/${h(c.launchpadReturn)}">${i('left',14)} Voltar ao guia</a><span>Continue a configuração. Seu progresso será reconhecido ao voltar.</span><button class="icon-btn" aria-label="Fechar lembrete do guia" data-act="launchpad-dismiss">${i('close',14)}</button></div>` : ''}<main id="screen" class="screen">${c.billingNotice==='past_due'?`<div class="page-notice"><p class="surface padded ag-warn" role="status">${h(tr('O pagamento do plano desta subconta foi recusado. Confira o cartão ou fale com a sua agência para não perder o acesso.'))}</p></div>`:''}${screenHtml}${rodapeHtml(brand)}</main></div></div>`;
   mobileShell.paint();
   if (getLanguage() === 'es') translateDom(app);
   mountBeautifulUI(G('#screen'), c, { render });
@@ -1341,7 +1339,6 @@ if(viewPath){
   installWallet({ c, api, url, flash, render });
   installLabs({ c, mutate, flash, render });
   installConversationAi({ c, api, url, flash, render });
-  installAppMarketplace({ c, api, url, flash, render });
   installContentAI({ api, flash, workspace: () => c.workspace, enabled: kind => Boolean(c.features?.contentAI || (kind === 'gbp' && c.features?.reviewAI)) });
   installEventPlanner({ c, mutate, flash, dialog, close, render, api, url, load });
   installCountdowns({ c, mutate, flash, dialog, close, render });

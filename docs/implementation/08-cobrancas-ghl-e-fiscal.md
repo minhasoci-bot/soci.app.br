@@ -97,7 +97,7 @@ Situação na Soci: ✅ existe · 🟡 parcial · ❌ não existe.
 | F4 | Reembolso muda a transação, mas a fatura continua "Paga"; não há tratamento de reembolso parcial | `abacatepay.mjs:231` |
 | F5 | Não há livro contábil: extrato guarda 500 linhas, pagamentos 24 e eventos vistos 300; o resto some | `wallet-model.mjs:12`, `abacatepay.mjs:301` e `:358` |
 | F6 | Plano da agência não cobra nem limita | `agency-model.mjs:655` |
-| F7 | Serviços pagos pela Soci (Resend, Twilio, Evolution, Google Places, Treg) não são cobrados da agência: o crédito da subconta vai para a agência | `server.mjs` (rota `/api/wallet/topup`) |
+| F7 | Serviços pagos pela Soci (Resend, Twilio, Evolution, Google Places) não são cobrados da agência: o crédito da subconta vai para a agência | `server.mjs` (rota `/api/wallet/topup`) |
 | F8 | Custo padrão do WhatsApp é R$ 0, então a revenda cobra zero mesmo com margem | `ui/agency-data.js:237` |
 
 ## 5. Regras do GHL que completam as tabelas

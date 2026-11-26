@@ -43,8 +43,8 @@ import { createSeoRoutes } from './routes/seo.mjs';
 import { createAbacatePayRoutes, createAbacatePayWorkspaceRoutes, createWalletRoutes } from './routes/payments.mjs';
 import { createDriveRoutes, createPublicMediaRoutes, createVideoRoutes } from './routes/media.mjs';
 import { createTrackingRoutes } from './routes/tracking.mjs';
-import { createAppApiRoutes, createAppInstallRoutes } from './routes/apps.mjs';
 import { createProspectPublicRoutes } from './routes/prospect-public.mjs';
+import { createPublicApiRoutes } from './routes/public-api.mjs';
 import { createAccountRoutes, createWhiteLabelRoutes } from './routes/account.mjs';
 import { createAgencyRoutes } from './routes/agency.mjs';
 import { createFaviconRoutes, createPageRoutes } from './routes/pages.mjs';
@@ -58,6 +58,7 @@ import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
 import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { blank, seed, uid, execute, emitWorkflow, receiveProspects } from './model.mjs';
@@ -71,7 +72,6 @@ import { agentWorkflowRequest, recordAgentRun } from './agent-model.mjs';
 import { agencyAiUsage, checkAiBudget, setAiAccess, setAiLimit, usageMeter } from './ai-model.mjs';
 import { setLabsOffer } from './labs-model.mjs';
 import { writeConversationReply, writeConversationSummary } from './conversation-ai.mjs';
-import { appSecret, appSignature, installedCopy, tokenHash as appTokenHash } from './app-studio-model.mjs';
 import { transformText, writeBrandVoice, writeEmail, writeReviewReply } from './content-ai.mjs';
 import { brandVoicePrompt, defaultBoard } from './ui/brand-data.js';
 import { runWorkflowAI } from './workflow-ai.mjs';
@@ -84,7 +84,8 @@ import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMark
 import { runProspectingAction } from './prospecting-model.mjs';
 import { collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
 import { r2FromEnv } from './r2-storage.mjs';
-import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
+import { mapsEmbedKey, placeSummaries, placesConfigured, placesSearch } from './prospecting-places.mjs';
+import { isGooglePlace } from './ui/prospect-report.js';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
 import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
 import { hasPixels, injectPixels, widenCsp } from './tracking.mjs';
@@ -161,7 +162,6 @@ import { pushTargets } from './push-model.mjs';
 import { pollConnector, runConnectorAction } from './connectors.mjs';
 import { pollJobs } from './connector-model.mjs';
 import { unseal as unsealSecret } from './social-providers.mjs';
-import { randomBytes } from 'node:crypto';
 import { postSeo, writePost } from './blog-ai.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
 import { extractAssets, saveAssets } from './asset-store.mjs';
@@ -169,8 +169,20 @@ import { inBackground } from './background.mjs';
 import { createEventSender } from './event-sender.mjs';
 import { eventSendDue } from './event-send-model.mjs';
 import { runInBatches } from './cron-batch.mjs';
+import { createSociAI } from './ai-gateway/gateway.mjs';
+import { createAiGatewayRoutes } from './routes/ai-gateway.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
+// A versão no rodapé é o commit publicado: na Vercel vem da variável do deploy; na máquina, do git; sem nenhum, "local".
+let cachedBuild = '';
+export function buildId(env = process.env, readGit = () => execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000 }).toString()) {
+  if (env === process.env && cachedBuild) return cachedBuild;
+  let id = String(env.VERCEL_GIT_COMMIT_SHA || '').trim().slice(0, 7);
+  if (!id) { try { id = String(readGit()).trim().slice(0, 7); } catch { id = ''; } }
+  id = /^[0-9a-f]{7}$/i.test(id) ? id.toLowerCase() : 'local';
+  if (env === process.env) cachedBuild = id;
+  return id;
+}
 export const staticFiles = new Map([
   ['/launchpad.js','text/javascript; charset=utf-8'], ['/launchpad-data.js','text/javascript; charset=utf-8'], ['/launchpad.css','text/css; charset=utf-8'],
   ['/app.js','text/javascript; charset=utf-8'], ['/icons.js','text/javascript; charset=utf-8'],
@@ -181,15 +193,15 @@ export const staticFiles = new Map([
   ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/verify.js','text/javascript; charset=utf-8'], ['/verify.css','text/css; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio-blocks.js','text/javascript; charset=utf-8'], ['/site-template-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
-  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/fiscal.js','text/javascript; charset=utf-8'], ['/tax-id.js','text/javascript; charset=utf-8'], ['/ledger.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
+  ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/fiscal.js','text/javascript; charset=utf-8'], ['/tax-id.js','text/javascript; charset=utf-8'], ['/ledger.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
   ['/agents.js','text/javascript; charset=utf-8'], ['/agents-data.js','text/javascript; charset=utf-8'], ['/ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.js','text/javascript; charset=utf-8'], ['/content-ai-data.js','text/javascript; charset=utf-8'], ['/content-ai.css','text/css; charset=utf-8'], ['/reputation.js','text/javascript; charset=utf-8'], ['/gbp-data.js','text/javascript; charset=utf-8'], ['/affiliates.js','text/javascript; charset=utf-8'], ['/ads.js','text/javascript; charset=utf-8'], ['/ads-data.js','text/javascript; charset=utf-8'], ['/ads.css','text/css; charset=utf-8'], ['/affiliates.css','text/css; charset=utf-8'], ['/brand-data.js','text/javascript; charset=utf-8'], ['/brand.js','text/javascript; charset=utf-8'], ['/brand.css','text/css; charset=utf-8'], ['/tracking.js','text/javascript; charset=utf-8'], ['/tracking.css','text/css; charset=utf-8'], ['/scoring-data.js','text/javascript; charset=utf-8'],['/destination-field.js','text/javascript; charset=utf-8'],['/reputation.css','text/css; charset=utf-8'], ['/agent-hub.js','text/javascript; charset=utf-8'], ['/agents.css','text/css; charset=utf-8'],
-  ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/platform.js','text/javascript; charset=utf-8'], ['/platform-format.js','text/javascript; charset=utf-8'], ['/setup-art.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
+  ['/agency.js','text/javascript; charset=utf-8'], ['/agency-data.js','text/javascript; charset=utf-8'], ['/platform.js','text/javascript; charset=utf-8'], ['/ai-gateway.js','text/javascript; charset=utf-8'], ['/platform-format.js','text/javascript; charset=utf-8'], ['/setup-art.js','text/javascript; charset=utf-8'], ['/agency.css','text/css; charset=utf-8'],
   ['/deck-model.js','text/javascript; charset=utf-8'], ['/deck-render.js','text/javascript; charset=utf-8'], ['/deck-editor.js','text/javascript; charset=utf-8'], ['/deck.css','text/css; charset=utf-8'],
   ['/presentations.js','text/javascript; charset=utf-8'], ['/presentation-data.js','text/javascript; charset=utf-8'], ['/presentations.css','text/css; charset=utf-8'],
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
   ['/beautiful-ui.js','text/javascript; charset=utf-8'], ['/beautiful-ui.css','text/css; charset=utf-8'],
   ['/beautiful-ui-more.js','text/javascript; charset=utf-8'], ['/beautiful-ui.html','text/html; charset=utf-8'], ['/bui-mounts.js','text/javascript; charset=utf-8'],
-  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'], ['/ask.js','text/javascript; charset=utf-8'], ['/ask.css','text/css; charset=utf-8'], ['/accounts.js','text/javascript; charset=utf-8'], ['/accounts.css','text/css; charset=utf-8'], ['/account-guard.js','text/javascript; charset=utf-8'], ['/scope.css','text/css; charset=utf-8'],
+  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'], ['/rodape.js','text/javascript; charset=utf-8'], ['/rodape.css','text/css; charset=utf-8'], ['/ask.js','text/javascript; charset=utf-8'], ['/ask.css','text/css; charset=utf-8'], ['/accounts.js','text/javascript; charset=utf-8'], ['/accounts.css','text/css; charset=utf-8'], ['/account-guard.js','text/javascript; charset=utf-8'], ['/scope.css','text/css; charset=utf-8'],
   ['/vendor/marked.js','text/javascript; charset=utf-8'], ['/vendor/purify.js','text/javascript; charset=utf-8'],
   ['/color-picker.js','text/javascript; charset=utf-8'],
   ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],
@@ -285,6 +297,11 @@ function loadChoices(input) {
   return { items, modes };
 }
 
+// Tipo de uso de IA da subconta (ai-model.mjs) → funcionalidade do soci AI Gateway (política, classe de dado, log).
+const AI_FEATURE_OF_KIND = { blog: 'blog.writer', brand: 'content.writer', reputation: 'content.writer', conversations: 'conversation.reply', meetings: 'meeting.summary',
+  visibility: 'seo.writer', social: 'social.writer', workflow: 'workflow.ai', agents: 'agent.reply', email: 'content.writer', sms: 'content.writer' };
+const aiFeatureOf = kind => AI_FEATURE_OF_KIND[kind] || 'content.writer';
+
 const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) : (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
   ? resolve(tmpdir(), 'go.sqlite')
   : resolve(root, '.data', 'go.sqlite');
@@ -292,7 +309,7 @@ const defaultDbPath = process.env.GO_DB_PATH ? resolve(process.env.GO_DB_PATH) :
 export function makeServer({
   pushEnv=process.env, pushRequest=fetch, connectorRequest=fetch, dbPath=defaultDbPath, port=defaultPort, store=createSqliteStore(dbPath), socialScheduler=localScheduler(store.kind), cronConcurrency=4, cronBudgetMs=45_000,
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, inboundFetch=fetch, twilioRequest=fetch, phoneEnv=process.env, brandResolve=null, designAgentConfig=designAgent,
-  emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
+  emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, aiGatewayEnv=process.env, aiGatewayRequest=null, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch,
   evolutionBaseUrl=process.env.EVOLUTION_BASE_URL || '', evolutionApiKey=process.env.EVOLUTION_API_KEY || '',
   phoneVerify={ number: process.env.SOCI_VERIFY_WHATSAPP || '', instance: process.env.SOCI_VERIFY_INSTANCE || '', secret: process.env.SOCI_VERIFY_SECRET || '' },
   portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(), campaignMail=campaignMailer(),
@@ -312,8 +329,10 @@ export function makeServer({
   async function meteredAI(who, id, kind, run) {
     checkAiBudget(await store.load(id));
     const meter = usageMeter();
+    // Escopo do soci AI Gateway: a subconta é a organização do pedido; transcrição e busca na web só com a chave da agência.
+    const scope = { org: id, feature: aiFeatureOf(kind), allowPlatform: !['meetings', 'visibility'].includes(kind) };
     const connection = localAccess && contentAI ? { onUsage: meter.onUsage, model: agentModel }
-      : { ...await openAI.requireConnection(who.session), onUsage: meter.onUsage };
+      : { ...await openAI.requireConnection(who.session, scope), onUsage: meter.onUsage };
     try {
       const result = await run(connection);
       await store.change(id, state => { meter.charge(state, kind, ''); });
@@ -323,24 +342,9 @@ export function makeServer({
       throw problem;
     }
   }
-  const openAI = createOpenAI({ store, model: agentModel, secret: openAISecret, request: openAIRequest });
-  // Marketplace apps (7.3): signing secrets derive from the storage key; without one (local runs) from a per-process key.
-  const appSigningKey = openAISecret || randomBytes(32).toString('hex');
-  const appDeliveryOptions = { ...(appRequest && { fetchImpl: appRequest }), ...(appResolve && { resolve: appResolve }) };
-  // One signed POST to an app's webhook. `body` is the event, action or lifecycle notice.
-  async function deliverToApp(agencyId, workspace, appId, body) {
-    const agency = await loadAgency(agencyId);
-    const app = (agency.studioApps || []).find(row => row.id === appId);
-    const install = (agency.appInstalls || []).find(row => row.appId === appId && row.account === workspace);
-    if (!app) return { name: 'App', text: 'app excluído: não enviado' };
-    if (!install && body.type !== 'app.uninstalled') return { name: app.name, text: 'app desinstalado: não enviado' };
-    if (!app.webhookUrl) return { name: app.name, text: 'o app não tem webhook' };
-    const payload = { ...body, app: { id: app.id, name: app.name }, workspace, installId: install?.id || body.installId || '', sentAt: stamp() };
-    const raw = JSON.stringify(payload), timestamp = String(Math.floor(Date.now() / 1000));
-    const headers = { 'x-soci-app': app.id, 'x-soci-event': body.event || body.type, 'x-soci-timestamp': timestamp,
-      'x-soci-signature': appSignature(appSecret(appSigningKey, agencyId, app), timestamp, raw) };
-    return { name: app.name, text: await deliverWebhook({ url: app.webhookUrl, method: 'POST', body: payload, raw, headers }, appDeliveryOptions) };
-  }
+  // soci AI Gateway: camada única entre as funcionalidades e os provedores de IA (ai-gateway/, docs/ai-gateway/).
+  const sociAI = createSociAI({ store, env: aiGatewayEnv, request: aiGatewayRequest || openAIRequest, allowLocalUrls: localAccess, log: console });
+  const openAI = createOpenAI({ store, model: agentModel, secret: openAISecret, request: openAIRequest, gateway: sociAI });
   async function voiceAgentReply(workspace, { agentId, input, workflowId = '', voiceKey = null }) {
     const state = await store.load(workspace);
     const connection = localAccess && generateAgentReply !== replyAsAgent ? { model: agentModel }
@@ -360,7 +364,7 @@ export function makeServer({
   const phone = createPhoneHandler({ store, change: (workspace, command) => change(workspace, command), flushLater: workspace => flushLater(workspace), request: twilioRequest, env: phoneEnv,
     accountActive: workspace => publicAccountPolicy(workspace, false, 'conversations'), agentReply: (workspace, options) => voiceAgentReply(workspace, options) });
   const phoneOrigin = () => String(phoneEnv.PHONE_PUBLIC_ORIGIN || phoneEnv.SOCIAL_PUBLIC_URL || phoneEnv.PORTAL_PUBLIC_ORIGIN || '').replace(/\/+$/, '');
-  const handleAsk = createAskHandler({ store, openAI, openAIRequest, secret: openAISecret });
+  const handleAsk = createAskHandler({ store, openAI, openAIRequest });
   const waha = createWahaHandler({ store, secret: openAISecret, request: wahaRequest });
   const abacate = createAbacatePayHandler({ store, secret: openAISecret, request: abacatePayRequest });
   const whatsapp = createWhatsAppHandler({
@@ -859,31 +863,12 @@ export function makeServer({
     });
     return newId;
   }
-  async function appBearer(req) {
-    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i,'');
-    if (!/^soci_app_[0-9a-f]{48}$/.test(token)) throw error('Envie o token de instalação do app no cabeçalho Authorization.', 401);
-    const digest = appTokenHash(token);
-    const match = await store.findAgency({ appInstalls: [{ tokenHash: digest }] });
-    if (!match) throw error('Token de app inválido ou o app foi desinstalado.', 401);
-    return changeAgency(match.id, agency => {
-      const install = (agency.appInstalls || []).find(row => row.tokenHash === digest);
-      const app = install && (agency.studioApps || []).find(row => row.id === install.appId);
-      if (!install || !app) throw error('Token de app inválido ou o app foi desinstalado.', 401);
-      install.lastUsed = stamp();
-      return { agencyId: match.id, install: { ...install }, app: { ...app } };
-    });
-  }
   const KEY_USE_WRITE = 10 * 60000;
-  // Whose key this is and what it may do. Scopes null = a full agency key; account = the only sub-account it opens.
+  // Whose key this is and what it may do. Scopes null = a full agency key.
   async function apiCredential(req) {
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i,'');
     if (!token) throw error('Send an API key in the Authorization header.',401);
     const digest = hash(token);
-    // A marketplace app's install token: only its own sub-account and the scopes the app declared.
-    if (token.startsWith('soci_app_')) {
-      const { agencyId, install, app } = await appBearer(req);
-      return { agencyId, name: app.name, scopes: app.scopes, account: install.account, app: true };
-    }
     const matches = await Promise.all([store.findAgency({ apiKeys: [{ hash: digest }] }), store.findAgency({ privateIntegrations: [{ hash: digest }] })]);
     const match = matches.find(Boolean);
     if (!match) throw error('This key is invalid or lacks the required scope.',401);
@@ -894,14 +879,13 @@ export function makeServer({
       const key = keyOf(agency);
       if (key) key.lastUsed = stamp();
     });
-    return { agencyId: match.id, name: found.name, scopes: found.scopes || null, account: null, app: false };
+    return { agencyId: match.id, name: found.name, scopes: found.scopes || null };
   }
   async function bearer(req, scope) {
     const key = await apiCredential(req);
     if (key.scopes && !key.scopes.includes(scope)) {
-      throw key.app ? error(`O app ${key.name} não tem a permissão ${scope}.`, 403) : error('This key is invalid or lacks the required scope.',401);
+      throw error('This key is invalid or lacks the required scope.',401);
     }
-    if (key.account) req.appAccount = key.account;
     return key.agencyId;
   }
   // ---- AI Studio sites ----
@@ -1071,6 +1055,12 @@ export function makeServer({
 
   async function agencyRequest(op, who, input) {
     if (op === 'prospecting-search') return findProspects(who,input);
+    if (op === 'prospecting-places') {
+      // Dados do Google Maps para mostrar na tela: lidos ao vivo pelo placeId, nunca gravados.
+      const agency = await loadAgency(who.agencyId);
+      const ids = Array.isArray(input.ids) ? input.ids.slice(0,60) : [];
+      return placeSummaries(ids.map(id => agency.prospects.find(row => row.id === id)?.placeId).filter(isGooglePlace));
+    }
     if (op === 'prospecting-transfer') return transferProspects(who,input);
     if (op === 'prospecting-action') {
       if (['brand','sections','widget'].includes(input.op)) requireCapability(who, 'settings', 'Somente administradores podem alterar essas configurações.');
@@ -1163,27 +1153,12 @@ export function makeServer({
         // The old address leaves the project: kept there it stayed tied to this agency's deploy for good.
         if (priorDomain) await hosting.remove(priorDomain).catch(problem => console.error('white-label old domain:', priorDomain, problem.message));
       }
-      // An edited app reaches the sub-accounts where it is installed (new actions, triggers, events, link).
-      if (input.type === 'studio-app-save') {
-        const agency = await loadAgency(who.agencyId), app = agency.studioApps.find(row => row.id === outcome);
-        for (const install of (agency.appInstalls || []).filter(row => row.appId === outcome)) {
-          await change(install.account, { type: 'app-installed', data: { copy: installedCopy(app, install) } });
-        }
-      }
       return outcome;
     }
     // White Label: o domínio das subcontas está na hospedagem e o DNS já aponta para cá?
     if (op === 'domain-status') {
       requireCapability(who, 'settings', 'Seu usuário não pode ver as configurações da agência.');
       return hosting.status((await loadAgency(who.agencyId)).company?.domain || '');
-    }
-    // App Studio: the signing secret of one app, for the agency's developers to check the deliveries.
-    if (op === 'studio-app-secret') {
-      requireCapability(who, 'settings', 'Seu usuário não pode ver o segredo dos apps.');
-      const agency = await loadAgency(who.agencyId);
-      const app = (agency.studioApps || []).find(row => row.id === String(input.id || '')) || (() => { throw error('App não encontrado.', 404); })();
-      await recordAudit(who, 'Segredo de assinatura do app consultado', app.name);
-      return { secret: appSecret(appSigningKey, who.agencyId, app), version: app.secretVersion || 1 };
     }
     // Central de IA: usage over a period, and the agency's limit and switch for each sub-account.
     if (op === 'ai-usage') {
@@ -1755,17 +1730,11 @@ export function makeServer({
     const state = await store.load(workspace);
     if (!state.workflowOutbox?.length) return 0;
     const items = (await change(workspace, { type: 'workflow-outbox-take' })).id || [];
-    const results = [], aiResults = [], appEntries = [];
+    const results = [], aiResults = [];
     const fromAddress = items.some(item => ['document', 'document-owner', 'review-email', 'email'].includes(item.kind)) ? await sendingAddress(workspace) : '';
     const absolute = item => (item.path && !item.origin ? String(item.body || '').split(item.path).join(documentMail.linkOf(item)) : item.body);
     for (const item of items) {
       if (item.kind === 'webhook') results.push({ runId: item.runId, kind: 'webhook', text: await deliverWebhook(item) });
-      if (item.kind === 'app') {
-        const sent = await deliverToApp(state.agencyId || AGENCY_ID, workspace, item.appId, item.body || {});
-        if (item.runId) results.push({ runId: item.runId, kind: 'app', text: sent.text });
-        const what = item.body?.type === 'action' ? `Ação ${item.body.action}` : `Evento ${item.body?.event}`;
-        appEntries.push({ app: sent.name, appId: item.appId, kind: item.body?.type || 'event', text: `${what}: ${sent.text}` });
-      }
       if (item.kind === 'ai') { const answered = await workflowAIStep(workspace, state, item); if (answered) aiResults.push(answered); }
       if (item.kind === 'marketing-audit') auditLater(workspace, item);
       if (item.kind === 'ga4-event') results.push({ runId: item.runId, kind: 'ga4', text: await workflowGa4(workspace, item).catch(problem => `erro: ${problem.message}`) });
@@ -1865,7 +1834,6 @@ export function makeServer({
       const reported = await change(workspace, { type: 'workflow-outbox-result', data: { results } });
       if (results.some(item => item.failed) && reported.state.workflowOutbox?.length) flushLater(workspace);
     }
-    if (appEntries.length) await change(workspace, { type: 'app-log', data: { entries: appEntries } });
     if (aiResults.length) {
       // Resuming can queue the next AI step or webhook of the same run.
       const resumed = await change(workspace, { type: 'workflow-ai-result', data: { results: aiResults } });
@@ -2133,6 +2101,7 @@ export function makeServer({
     }
     await trackingLog.sweep(at);
     await auditLog.sweep(at);
+    await sociAI.admin.prune(at);
     if (skipped.length) console.warn(`Cron: ${skipped.length} de ${spaces.length} workspaces ficaram para o próximo minuto.`);
     return total;
   }
@@ -2341,6 +2310,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   // Rotas por domínio (P2.1): cada módulo recebe o que vive neste fechamento e devolve NEXT_ROUTE quando a rota não é dele.
   const platformMonitor = createPlatformMonitor({ store, env: platformEnv, request: platformRequest, mailer: documentMail, pushEnv, pushRequest });
   const platformRoute = createPlatformRoutes({ monitor: platformMonitor, verifiedUser, agencyOwnerId, auth, localAccess, error, payload });
+  const aiGatewayRoute = createAiGatewayRoutes({ gateway: sociAI, verifiedUser, agencyOwnerId, auth, localAccess, error, payload });
   const socialRoute = createSocialRoutes({ platformMonitor, store, auth, localAccess, redirectToR2, ready, root, error, spaceId, privateSpace, stamp, socialFilePath, socialInvitePath, socialApprovePath, accountIsActive, approvalView, brandVoiceOf, callbackPath, change, content, fileBytes, inviteAttach, meteredAI, openAI, payload, publicAccountPolicy, publicBase, routeMetaAccounts, runAllSocial, runSocial, socialActor, socialPopup, socialRow, socialSecrets, startSocialOAuth, validateApproval, validateInvite, whatsapp, workspaceAccess });
   const adsRoute = createAdsRoutes({ store, localAccess, error, spaceId, privateSpace, stamp, adsAccess, adsCallbackPath, adsPopup, adsView, payload, publicBase, recordAudit, runAds, socialActor, socialRow, workspaceAccess });
   const runCommand = createCommandRunner({ store, r2, messageMedia, clearVideoChunks, documentMail, error, privateSpace, mailSent, deliveryFailure, accountIsActive, change, deliverMetaMessage, emailLater, eventSendsLater, flushLater, listWorkspaces, publicBase, recordAudit, sendingAddress, whatsapp, workspaceAccess });
@@ -2403,9 +2373,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const driveRoute = createDriveRoutes({ store, error, spaceId, privateSpace, payload, workspaceAccess, r2, fetchMedia, change });
   const trackingRoute = createTrackingRoutes({ store, error, spaceId, privateSpace, payload, workspaceAccess, trackingLog, socialRow, change });
   const videoRoute = createVideoRoutes({ store, error, spaceId, privateSpace, workspaceAccess, sendVideo });
+  const publicApiRoute = createPublicApiRoutes({ store, error, bearer, payload, change, listWorkspaces, requireWorkspaceAccess, loadAgency });
   const prospectPublicRoute = createProspectPublicRoutes({ store, ready, error, changeAgency, csp });
-  const appApiRoute = createAppApiRoutes({ store, error, appBearer, bearer, payload, change, flushLater, listWorkspaces, requireWorkspaceAccess, loadAgency });
-  const appInstallRoute = createAppInstallRoutes({ store, error, spaceId, workspaceAccess, payload, changeAgency, change, logTo, deliverToApp, publicBase });
   const faviconRoute = createFaviconRoutes();
   const whiteLabelRoute = createWhiteLabelRoutes({ store, ready });
   const accountRoute = createAccountRoutes({ error, verifiedUser, openAI, payload, access, createAccount, listWorkspaces, visibleWorkspaces });
@@ -2452,6 +2421,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (!['GET','HEAD','POST'].includes(method)) throw error('Method not allowed.',405);
       // Tracking events come from the business's own site, so they are the one cross-site POST accepted.
       if (method==='POST' && !trackingPath.test(p) && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
+      // Versão para o rodapé das páginas (ui/rodape.js): pública, sem banco, guardada por alguns minutos.
+      if (p === '/api/versao' && (method === 'GET' || method === 'HEAD')) {
+        res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300');
+        return json({ build: buildId() });
+      }
       if (p.startsWith('/api/') && !p.startsWith('/api/auth/')) await ready;
       const id=url.searchParams.get('workspace') || 'demo';
       const portalRouteHandled = await portalRoute({ req, res, p, method, url, id, json, send, proto });
@@ -2460,8 +2434,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (faviconRouteHandled !== NEXT_ROUTE) return faviconRouteHandled;
       const prospectPublicRouteHandled = await prospectPublicRoute({ req, res, p, method, url, send });
       if (prospectPublicRouteHandled !== NEXT_ROUTE) return prospectPublicRouteHandled;
-      const appApiRouteHandled = await appApiRoute({ req, p, method, json });
-      if (appApiRouteHandled !== NEXT_ROUTE) return appApiRouteHandled;
+      const publicApiRouteHandled = await publicApiRoute({ req, p, method, json });
+      if (publicApiRouteHandled !== NEXT_ROUTE) return publicApiRouteHandled;
       const whiteLabelRouteHandled = await whiteLabelRoute({ req, p, method, json });
       if (whiteLabelRouteHandled !== NEXT_ROUTE) return whiteLabelRouteHandled;
       const authRouteHandled = await authRoute({ req, res, p, method, url, json, goTo });
@@ -2470,6 +2444,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (accountRouteHandled !== NEXT_ROUTE) return accountRouteHandled;
       const platformHandled = await platformRoute({ req, res, p, method, json });
       if (platformHandled !== NEXT_ROUTE) return platformHandled;
+      const aiGatewayHandled = await aiGatewayRoute({ req, res, p, method, url, json });
+      if (aiGatewayHandled !== NEXT_ROUTE) return aiGatewayHandled;
       const socialHandled = await socialRoute({ req, res, p, method, url, id, json, send });
       if (socialHandled !== NEXT_ROUTE) return socialHandled;
       const publicMediaRouteHandled = await publicMediaRoute({ req, res, p, method });
@@ -2528,8 +2504,6 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (videoRouteHandled !== NEXT_ROUTE) return videoRouteHandled;
       const brandAIRouteHandled = await brandAIRoute({ req, res, p, method, id, json });
       if (brandAIRouteHandled !== NEXT_ROUTE) return brandAIRouteHandled;
-      const appInstallRouteHandled = await appInstallRoute({ req, res, p, method, id, json });
-      if (appInstallRouteHandled !== NEXT_ROUTE) return appInstallRouteHandled;
       const conversationAIRouteHandled = await conversationAIRoute({ req, res, p, method, url, id, json });
       if (conversationAIRouteHandled !== NEXT_ROUTE) return conversationAIRouteHandled;
       const walletRouteHandled = await walletRoute({ req, res, p, method, id, json });

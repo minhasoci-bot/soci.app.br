@@ -324,3 +324,39 @@ label.ag-sw{position:relative;display:inline-flex;width:38px;height:22px;flex:no
 .pf-actions{display:flex;align-items:center;gap:12px;grid-column:1/-1}
 .pf-push{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px}
 @media(max-width:720px){.pf-grid{grid-template-columns:1fr}.pf-banner{flex-direction:column;align-items:stretch}.pf .head-actions{flex-wrap:wrap}}
+
+/* AI Gateway (página do dono da plataforma). Só tokens de ui/tokens.css; vidro fica na navegação. */
+[data-aig-root] .badge.orange{background:var(--g-orange-100);color:var(--g-orange-ink)}
+.aig-tiles{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+.aig-tile{gap:6px}
+.aig-tile b{font-size:22px;font-variant-numeric:tabular-nums;color:var(--g-ink);overflow-wrap:anywhere}
+.aig-skeleton{min-height:92px;background:var(--g-surface-2)}
+.aig-kill{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:4px}
+.aig-kill h2{margin:0 0 4px;font-size:16px}
+.aig-kill p{margin:0}
+:root:root .surface.aig-kill.on{border-color:color-mix(in srgb,var(--g-red) 45%,var(--g-line));background:color-mix(in srgb,var(--g-red) 8%,var(--g-surface))}
+.aig-alerts,.aig-audit,.aig-prompts,.aig-rejected{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:13px}
+.aig-alerts li{padding:8px 10px;border-radius:var(--g-r-sm);background:var(--g-surface-2)}
+.aig-alerts li.warn{background:var(--g-orange-100);color:var(--g-orange-ink)}
+.aig-alerts li.critical{background:var(--g-red-100);color:var(--g-red)}
+.aig-provider details,.aig-table details{font-size:13px}
+.aig-provider summary,.aig-table summary{cursor:pointer;color:var(--g-dim)}
+.aig-form{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+:root:root .aig-check{display:flex;flex-direction:row;align-items:center;gap:8px;font-size:13px;font-weight:500}
+:root:root .aig-check input{flex:none;margin:0}
+.aig-limits{grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}
+.aig-caps{display:flex;flex-wrap:wrap;gap:6px 14px;border:1px solid var(--g-line);border-radius:var(--g-r-sm);padding:8px 12px}
+.aig-filter{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.aig-filter label{min-width:180px}
+.aig-table-wrap{overflow-x:auto}
+.aig-table{width:100%;border-collapse:collapse;font-size:13px}
+.aig-table th,.aig-table td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--g-line);vertical-align:top}
+.aig-table td small{display:block}
+.aig-inline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.aig-order{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px}
+.aig-order li span{display:inline-block;min-width:140px}
+.aig-version{display:inline-flex;align-items:center;gap:6px;font-size:13px}
+.aig-result{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.aig-candidates{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.aig-output{white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto;margin:0;padding:12px;border-radius:var(--g-r-sm);background:var(--g-surface-2);color:var(--g-ink);font-size:13px}
+@media(max-width:720px){.aig-kill{flex-direction:column;align-items:stretch}.aig-filter label{min-width:0;flex:1 1 100%}}

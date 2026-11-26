@@ -33,8 +33,6 @@ export const refSources = {
   services: s => (s.services || []).map(row => [row.id, row.name]),
   coupons: s => (s.coupons || []).map(row => [row.id, `${row.code} · ${row.name}`]),
   customValues: s => (s.customValues || []).map(row => [row.id, row.name]),
-  appActions: s => (s.appInstalls || []).flatMap(app => app.actions.map(item => [`${app.appId}:${item.key}`, `${app.name} · ${item.label}`])),
-  appTriggers: s => (s.appInstalls || []).flatMap(app => app.triggers.map(item => [`${app.appId}:${item.key}`, `${app.name} · ${item.label}`])),
   products: s => (s.products || []).filter(row => row.kind !== 'Recurring').map(row => [row.id, row.name]),
   documentTemplates: s => (s.documentTemplates || []).map(row => [row.id, row.title]),
   estimates: s => (s.estimates || []).map(row => [row.id, `${row.number} · ${row.title}`]),
@@ -83,7 +81,6 @@ export const triggerCatalog = [
       f('agentId', 'Agente', 'ref', { source: 'agents', empty: 'Qualquer agente' })
     ] },
     { type: 'inbound_webhook', label: 'Webhook de entrada', icon: 'link', fields: [] },
-    { type: 'app_trigger', label: 'App disparou um gatilho', icon: 'grid', description: 'Quando um app instalado do marketplace dispara um dos gatilhos dele. Os dados enviados pelo app ficam em {{trigger.payload}}.', fields: [f('trigger', 'Gatilho do app', 'ref', { source: 'appTriggers', empty: 'Qualquer gatilho de app' })] },
     { type: 'ai_usage_alert', label: 'Uso de IA chegou ao alerta', icon: 'spark', description: 'Quando o gasto do mês com IA passa da faixa de alerta ou atinge o limite definido pela agência. Não tem contato: use ações internas. {{trigger.cost}} e {{trigger.limit}} trazem os valores em US$.', fields: [f('level', 'Quando', 'select', { options: [any('Alerta ou limite'), ['alert', 'Passar da faixa de alerta'], ['blocked', 'Atingir o limite']] })] },
     { type: 'scheduler', label: 'Agendador', icon: 'clock', scheduled: true, fields: [f('frequency', 'Frequência', 'select', { options: [['daily', 'Todo dia'], ['weekly', 'Toda semana']] }), f('weekday', 'Dia da semana', 'select', { options: weekdays, when: { frequency: 'weekly' } }), f('time', 'Horário', 'time', { value: '09:00' }), f('tag', 'Somente contatos com a tag', 'text', { placeholder: 'Obrigatório: limita quem entra', required: true })] },
     { type: 'customer_replied', label: 'Cliente respondeu', icon: 'chat', fields: [f('channel', 'Canal', 'select', { options: channels }), f('keyword', 'Contém a palavra', 'text', { placeholder: 'Ex.: QUERO' })] },
@@ -753,7 +750,6 @@ export const actionCatalog = [
       f('joiner', 'Juntar o resultado com', 'select', { options: [['comma', 'Vírgula (a, b)'], ['semicolon', 'Ponto e vírgula (a; b)'], ['pipe', 'Barra (a | b)'], ['and', 'A palavra e (a e b)'], ['line', 'Um por linha'], ['space', 'Espaço (a b)'], ['none', 'Nada (ab)']] }),
       f('variable', 'Nome da variável', 'text', { required: true, placeholder: 'lista' })
     ] },
-    { type: 'app_action', label: 'Ação de app', icon: 'grid', description: 'Envia o contato e o texto abaixo para um app instalado do marketplace. O app recebe a ação no webhook dele.', fields: [f('action', 'Ação', 'ref', { source: 'appActions', empty: 'Escolha a ação de um app', required: true }), f('data', 'Dados enviados ao app', 'textarea', { placeholder: 'Ex.: plano {{contact.custom.plano}}' })] },
     { type: 'webhook', label: 'Webhook de saída', icon: 'send', fields: [f('url', 'Endereço (https://)', 'text', { required: true, placeholder: 'https://' }), f('method', 'Método', 'select', { options: [['POST', 'POST'], ['PUT', 'PUT'], ['GET', 'GET']] })] },
     { type: 'custom_webhook', label: 'Webhook personalizado', icon: 'send', description: 'Chama uma API com o método, os cabeçalhos e o corpo que você escrever (todos aceitam variáveis) e espera a resposta: o corpo fica em {{vars.nome}}, o código HTTP em {{vars.nome_status}} e, numa resposta JSON, cada campo simples em {{vars.nome_campo}}. Só endereços https públicos.', fields: [
       f('method', 'Método', 'select', { options: [['POST', 'POST'], ['GET', 'GET'], ['PUT', 'PUT'], ['PATCH', 'PATCH'], ['DELETE', 'DELETE']] }),

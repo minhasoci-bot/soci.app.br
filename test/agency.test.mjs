@@ -77,6 +77,11 @@ test('Saving Google Maps leads persists only the place references, and duplicate
   assert.equal(lead.report, undefined);
   assert.deepEqual((await prospectAction(local, 'save-maps', '', payload)).body.result, []);
   assert.equal((await prospectAction(local, 'save-maps', '', { placeIds: ['invalid/id'] })).status, 400);
+  // The screen reads the business details live; without a Places key there is nothing to read and nothing is stored.
+  const live = await local.call('/api/agency/prospecting-places', { ids: [lead.id, 'unknown'] });
+  assert.equal(live.status, 200);
+  assert.deepEqual(live.body.result, {});
+  assert.equal(live.body.agency.prospects[0].name, 'Prospect do Maps');
 });
 
 test('Prospecting keeps legacy records, shares reports without private details, and imports to the CRM idempotently', async t => {

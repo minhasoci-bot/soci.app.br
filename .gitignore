@@ -10,3 +10,9 @@ supabase/.temp/
 .vercel
 .env*
 !.env.example
+
+# Arquivos locais: skills instaladas e imagens geradas (187 MB) ficam fora do git
+.agents/
+skills-lock.json
+assets-geradas/
+scratch/
