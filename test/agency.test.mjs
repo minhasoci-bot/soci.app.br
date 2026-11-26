@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { makeServer } from '../server.mjs';
 import { createSqliteStore } from '../storage.mjs';
 import { blank } from '../model.mjs';
-import { agencyNav, helpCenterUrl } from '../ui/agency-data.js';
+import { agencyNav, agencyNavGroups, helpCenterUrl } from '../ui/agency-data.js';
 
 async function start(store = createSqliteStore(':memory:')) {
   const { server, host } = makeServer({ allowLocalAccess: true, auth: null, store, port: 0 });
@@ -316,11 +316,14 @@ test('Reselling, plans, affiliate payouts and announcements feed the dashboard a
 
   // A biblioteca de modelos da agência saiu do produto: nem o menu nem o comando existem mais.
   assert.ok(!agencyNav.some(([key]) => key === 'templates'));
-  // A Universidade saiu: o menu leva para a central de ajuda. O menu lateral fatia a lista por posição,
-  // então "Aprender e apps" precisa continuar começando em Ideias (a central de ajuda entra antes, fora da lista).
+  // A Universidade saiu: o menu leva para a central de ajuda.
   assert.ok(!agencyNav.some(([key]) => key === 'university'));
-  assert.equal(agencyNav[12][0], 'ideas');
   assert.equal(helpCenterUrl, 'https://doc.soci.app.br/');
+  // Cada item do menu pertence a uma seção conhecida (ou ao rodapé), e nenhuma seção fica vazia.
+  const sections = agencyNavGroups.map(([key]) => key);
+  for (const [key, , , group] of agencyNav) assert.ok([...sections, 'rodape'].includes(group), `${key} sem seção`);
+  for (const section of sections) assert.ok(agencyNav.some(n => n[3] === section), `seção ${section} vazia`);
+  assert.equal(new Set(agencyNav.map(n => n[2])).size, agencyNav.length, 'ícones repetidos no menu da agência');
   assert.equal((await local.call('/api/agency/template-install', { template: 'tpl-dental', workspace: 'demo' })).status, 404);
   assert.equal((await action(local, { type: 'save', key: 'templates', data: { name: 'X' } })).status, 400);
 });
