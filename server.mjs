@@ -40,6 +40,8 @@ import { createAskRoutes } from './routes/ask.mjs';
 import { createBrandAIRoutes, createContentAIRoutes, createConversationAIRoutes } from './routes/content-ai.mjs';
 import { createSeoRoutes } from './routes/seo.mjs';
 import { createAbacatePayRoutes, createAbacatePayWorkspaceRoutes, createWalletRoutes } from './routes/payments.mjs';
+import { createDriveRoutes, createPublicMediaRoutes, createVideoRoutes } from './routes/media.mjs';
+import { createTrackingRoutes } from './routes/tracking.mjs';
 import { createConnectorHookRoutes, createConnectorRoutes } from './routes/connectors.mjs';
 import { createPhoneRoutes, createTwilioWebhookRoutes } from './routes/phone.mjs';
 import { createAuthRoutes } from './routes/auth.mjs';
@@ -72,8 +74,7 @@ import { AGENCY_ID, agencyForWorkspace, agencyOverview, applySnapshot, blankAgen
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { captureProspectWidget, runProspectingAction } from './prospecting-model.mjs';
 import { collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
-import { importedFile, importedMeta, mediaLimitBytes, mediaTypes } from './media-model.mjs';
-import { R2_MAX_BYTES, r2FromEnv } from './r2-storage.mjs';
+import { r2FromEnv } from './r2-storage.mjs';
 import { mapsEmbedKey, placesConfigured, placesSearch } from './prospecting-places.mjs';
 import { osmLookup, osmSearch } from './prospecting-osm.mjs';
 import { adsConfigured, changeMetaAudience, freshAdsSecret, sendMetaEvents, sendGa4Event, syncAds, uploadGoogleConversion } from './ads-providers.mjs';
@@ -117,7 +118,7 @@ const publicRequest = path => !path.startsWith('/api/') || /^\/api\/(store|chat|
 import { folded, prospectSearchText } from './ui/prospecting-data.js';
 import { shareReportHtml, widgetHtml } from './ui/prospect-report.js';
 import { snapshotAssets } from './ui/agency-data.js';
-import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, requireWorkspaceCommand, workspaceView } from './authorization.mjs';
+import { effectiveAccess, hasModule, requireAgencyCommand, requireCapability, requireModule, requireRecordEffects, requireSetupModules, workspaceView } from './authorization.mjs';
 import { attachAccounts, claimDue, evergreenDue, feedPosts, parseFeed, settle } from './social-model.mjs';
 import { authUrl, availability, publish as socialPublish, seal, unseal } from './social-providers.mjs';
 import { quickReplies, sendMetaMessage, subscribeMetaPage } from './meta-messaging.mjs';
@@ -155,7 +156,7 @@ import { unseal as unsealSecret } from './social-providers.mjs';
 import { randomBytes } from 'node:crypto';
 import { postSeo, writePost } from './blog-ai.mjs';
 import { deliverCustomWebhook, deliverWebhook, publicTarget } from './workflow-delivery.mjs';
-import { ASSET_PATH, assetBytes, extractAssets, saveAssets } from './asset-store.mjs';
+import { extractAssets, saveAssets } from './asset-store.mjs';
 import { inBackground } from './background.mjs';
 import { createEventSender } from './event-sender.mjs';
 import { eventSendDue } from './event-send-model.mjs';
@@ -2279,6 +2280,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const abacatePayRoute = createAbacatePayRoutes({ store, ready, error, abacate, access, payload, publicBase, listWorkspaces, loadAgency, changeAgency, agencyPayload, recordAudit, requireFiscal, retryPolicyOf, stamp, documentMail, mailSent, flushLater, grantOffer, grantEventTicket, community });
   const abacatePayWorkspaceRoute = createAbacatePayWorkspaceRoutes({ store, error, abacate, spaceId, workspaceAccess, payload, publicBase, requireFiscal });
   const walletRoute = createWalletRoutes({ store, error, abacate, spaceId, workspaceAccess, payload, publicBase, flushLater });
+  const publicMediaRoute = createPublicMediaRoutes({ store, error, ready, workspaceSegment, publicAccountPolicy, sendVideo });
+  const driveRoute = createDriveRoutes({ store, error, spaceId, privateSpace, payload, workspaceAccess, r2, fetchMedia, change });
+  const trackingRoute = createTrackingRoutes({ store, error, spaceId, privateSpace, payload, workspaceAccess, trackingLog, socialRow, change });
+  const videoRoute = createVideoRoutes({ store, error, spaceId, privateSpace, workspaceAccess, sendVideo });
   const server=createServer(async (req,res) => {
     const requestPath = String(req.url || '/').split('?')[0];
     const touches = touchesOf(req), landing = requestPath.match(landingPath);
@@ -2427,25 +2432,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (platformHandled !== NEXT_ROUTE) return platformHandled;
       const socialHandled = await socialRoute({ req, res, p, method, url, id, json, send });
       if (socialHandled !== NEXT_ROUTE) return socialHandled;
-      // "Gerar vídeo com IA": the finished video, public (it is made to be sent).
-      // Imagens guardadas fora dos documentos (asset-store.mjs): públicas e imutáveis (o endereço é o hash do conteúdo).
-      const assetMatch = p.match(ASSET_PATH);
-      if (assetMatch && (method === 'GET' || method === 'HEAD')) {
-        const image = await assetBytes(store, p);
-        if (!image) throw error('Imagem não encontrada.', 404);
-        res.writeHead(200, { 'Content-Type': image.mime, 'Content-Length': image.bytes.length, 'Cache-Control': 'public, max-age=31536000, immutable',
-          'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'", 'Cross-Origin-Resource-Policy': 'cross-origin' });
-        return res.end(method === 'HEAD' ? undefined : image.bytes);
-      }
-      const aiVideo = p.match(new RegExp(`^/m/${workspaceSegment}/video/([0-9a-f-]{36})$`));
-      if (aiVideo && (method === 'GET' || method === 'HEAD')) {
-        await ready;
-        const [, workspace, videoId] = aiVideo;
-        await publicAccountPolicy(workspace);
-        const row = ((await store.load(workspace)).aiVideos || []).find(item => item.id === videoId);
-        if (!row) throw error('Vídeo indisponível.', 404);
-        return await sendVideo(req, res, method, workspace, row, 'public, max-age=86400');
-      }
+      const publicMediaRouteHandled = await publicMediaRoute({ req, res, p, method });
+      if (publicMediaRouteHandled !== NEXT_ROUTE) return publicMediaRouteHandled;
       const documentRouteHandled = await documentRoute({ req, res, p, method, json, send });
       if (documentRouteHandled !== NEXT_ROUTE) return documentRouteHandled;
       if (p==='/api/state' && method!=='POST') {
@@ -2474,83 +2462,10 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         const copy = structuredClone(await store.load(id));
         return json({ result: execute(copy, { type: 'workflow-test', data: body }) });
       }
-      if (p==='/api/media/import' && method==='POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const input = await payload(req);
-        const who = await workspaceAccess(req, res, id);
-        requireWorkspaceCommand(who, { type:'save', key:'files' });
-        if (typeof input.url !== 'string' || !input.url.trim() || input.url.length > 2000) throw error('Cole o link do arquivo.',400);
-        const address = input.url.trim();
-        let response;
-        const limit = r2 ? R2_MAX_BYTES : mediaLimitBytes;
-        try { response = await fetchMedia(address, { maxBytes: limit + 1, timeout: r2 ? 30000 : 10000 }); }
-        catch (e) { throw error(['EINVALID','EBLOCKED'].includes(e.code) ? 'Use um link público que comece com https://.' : 'Não foi possível baixar o arquivo desse link.', 422); }
-        const folderId = typeof input.folderId === 'string' ? input.folderId : '';
-        if (r2 && response.body?.length > mediaLimitBytes) {
-          const { name, mime } = importedMeta(response, address, limit);
-          const fileId = uid(), r2Key = `ws/${id}/files/${fileId}`;
-          if ((await store.load(id)).files.length >= 60) throw error('The local drive holds up to 60 files.', 400);
-          await r2.put(r2Key, response.body, mime);
-          let result;
-          try { result = await change(id, { type:'media-stored', data:{ id: fileId, r2Key, mime, size: response.body.length, name, folderId } }); }
-          catch (e) { await r2.remove(r2Key).catch(() => {}); throw e; }
-          return json({ id: result.id, ...workspaceView(who, result.state) });
-        }
-        const file = importedFile(response, address);
-        const result = await change(id, { type:'save', key:'files', data:{ ...file, folderId } }, who);
-        return json({ id: result.id, ...workspaceView(who, result.state) });
-      }
-      // Configurações → Rastreamento: the events received, newest first (?type=, ?before=<cursor>).
-      if (p==='/api/tracking/events' && method==='GET') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        await workspaceAccess(req, res, id, { modules: ['settings'] });
-        return json(await trackingLog.read(id, { type: url.searchParams.get('type') || '', before: url.searchParams.get('before') || '' }));
-      }
-      // Mídia Drive → files over 700 KB: the browser PUTs them straight into R2 with a signed link, then
-      // asks for the record; the server checks the stored object (size and type) before writing it.
-      if ((p==='/api/media/upload-url' || p==='/api/media/upload-done') && method==='POST') {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Workspace not found.',404);
-        const input = await payload(req);
-        const who = await workspaceAccess(req, res, id);
-        requireWorkspaceCommand(who, { type:'save', key:'files' });
-        if (!r2) throw error('O armazenamento de arquivos grandes (Cloudflare R2) ainda não foi configurado. Envie arquivos de até 700 KB.', 503);
-        if (p==='/api/media/upload-url') {
-          const mime = typeof input.mime === 'string' ? input.mime.trim().toLowerCase() : '';
-          const size = Number(input.size);
-          if (!mediaTypes[mime]) throw error('Escolha um arquivo de imagem, vídeo, áudio, PDF, TXT ou CSV.', 400);
-          if (!Number.isInteger(size) || size < 1 || size > R2_MAX_BYTES) throw error('O arquivo pode ter até 50 MB.', 413);
-          if ((await store.load(id)).files.length >= 60) throw error('The local drive holds up to 60 files.', 400);
-          const fileId = uid(), key = `ws/${id}/files/${fileId}`;
-          const token = r2.seal({ k: key, i: fileId, w: id, m: mime, s: size, n: typeof input.name === 'string' ? input.name.slice(0, 240) : '',
-            f: typeof input.folderId === 'string' ? input.folderId.slice(0, 60) : '', exp: Date.now() + 15 * 60000 });
-          return json({ uploadUrl: r2.uploadUrl(key, mime), headers: { 'Content-Type': mime }, token });
-        }
-        const ticket = r2.open(input.token);
-        if (ticket.w !== id) throw error('Envio inválido. Comece de novo.', 400);
-        const stored = await r2.head(ticket.k);
-        if (!stored) throw error('O arquivo não chegou ao armazenamento. Tente de novo.', 409);
-        if (stored.size !== ticket.s || stored.type !== ticket.m) {
-          await r2.remove(ticket.k).catch(() => {});
-          throw error('O arquivo enviado não confere com o que foi pedido. Tente de novo.', 422);
-        }
-        let result;
-        try { result = await change(id, { type:'media-stored', data:{ id: ticket.i, r2Key: ticket.k, mime: ticket.m, size: ticket.s, name: ticket.n, folderId: ticket.f } }); }
-        catch (e) { await r2.remove(ticket.k).catch(() => {}); throw e; }
-        return json({ id: result.id, ...workspaceView(who, result.state) }, 201);
-      }
-      // Marketing → Rastreamento: the GA4 Measurement Protocol API secret. Write-only: sealed in the ads-<workspace> row,
-      // never sent back; the sub-account state only says whether it is set. An empty value removes it.
-      if (p==='/api/tracking/ga4-secret' && method==='POST') {
-        if (!spaceId.test(id)) throw error('Workspace not found.',404);
-        const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
-        const input = await payload(req);
-        const secret = typeof input?.secret === 'string' ? input.secret.trim() : '';
-        if (secret && !/^[\w-]{8,64}$/.test(secret)) throw error('Segredo da API do GA4 inválido.', 400);
-        await socialRow(`ads-${id}`);
-        await store.change(`ads-${id}`, row => { if (secret) row.ga4Secret = seal(secret); else delete row.ga4Secret; });
-        const result = await change(id, { type: 'tracking-ga4-secret', data: { set: Boolean(secret) } });
-        return json(workspaceView(who, result.state));
-      }
+      const driveRouteHandled = await driveRoute({ req, res, p, method, id, json });
+      if (driveRouteHandled !== NEXT_ROUTE) return driveRouteHandled;
+      const trackingRouteHandled = await trackingRoute({ req, res, p, method, url, id, json });
+      if (trackingRouteHandled !== NEXT_ROUTE) return trackingRouteHandled;
       const mcpRouteHandled = await mcpRoute({ req, res, p, method, url, json, send, goTo });
       if (mcpRouteHandled !== NEXT_ROUTE) return mcpRouteHandled;
       const actionRouteHandled = await actionRoute({ req, res, p, method, url, id, json, send });
@@ -2618,13 +2533,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (askRouteHandled !== NEXT_ROUTE) return askRouteHandled;
       const gbpRouteHandled = await gbpRoute({ req, res, p, method, url, id, json });
       if (gbpRouteHandled !== NEXT_ROUTE) return gbpRouteHandled;
-      if (p === '/api/video' && (method === 'GET' || method === 'HEAD')) {
-        if (!spaceId.test(id) && !privateSpace.test(id)) throw error('Subconta não encontrada.',404);
-        await workspaceAccess(req, res, id, { modules: ['reputation'] });
-        const row = (await store.load(id)).videoTestimonials?.find(item => item.id === url.searchParams.get('id'));
-        if (!row) throw error('Vídeo não encontrado.', 404);
-        return await sendVideo(req, res, method, id, row, 'private, no-store');
-      }
+      const videoRouteHandled = await videoRoute({ req, res, p, method, url, id });
+      if (videoRouteHandled !== NEXT_ROUTE) return videoRouteHandled;
       const brandAIRouteHandled = await brandAIRoute({ req, res, p, method, id, json });
       if (brandAIRouteHandled !== NEXT_ROUTE) return brandAIRouteHandled;
       // App marketplace (7.3): a sub-account installs or removes an app its agency published.
