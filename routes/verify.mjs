@@ -35,7 +35,7 @@ export function verifyStatus(billing, now) {
 }
 
 export function createVerifyRoutes(deps) {
-  const { store, accessContext, verifiedUser, changeAgency, loadFresh, whatsapp, phoneVerify, payload, error, now = () => new Date() } = deps;
+  const { store, accessContext, verifiedUser, changeAgency, loadFresh, whatsapp, phoneVerify, payload, error, publicBase, now = () => new Date() } = deps;
   const ipHits = new Map();
   const configured = Boolean(phoneVerify?.number && phoneVerify?.instance && phoneVerify?.secret);
   const line = () => configured ? whatsapp.verifyLine(phoneVerify.instance) : null;
@@ -130,6 +130,36 @@ export function createVerifyRoutes(deps) {
         current.billing.verify = { phone, hash, expiresAt, refused: '', problem: '', starts: [...starts, at.toISOString()] };
       });
       return json({ link: verifyLink(phoneVerify.number, code), code, expiresAt, number: phoneVerify.number });
+    }
+
+    // Linha de confirmação (só o dono da plataforma): ver, conectar pelo QR e liberar um número travado.
+    if (p === '/api/verify/line' || p === '/api/verify/release') {
+      const { who } = await accessContext(req, await verifiedUser(req, res), { gate: false });
+      if (!who.platform) throw error('Só o dono da plataforma mexe na linha de confirmação.', 403);
+      if (p === '/api/verify/release') {
+        if (method !== 'POST') throw error('Method not allowed.', 405);
+        const phone = normalizePhone((await payload(req)).phone);
+        if (!phone) throw error('Digite o celular com DDD.', 400);
+        if (!await lockOwner(phone)) return json({ released: false });
+        await store.change(phoneKey(phone), lock => { lock.released = now().toISOString(); });
+        return json({ released: true });
+      }
+      const missing = [['SOCI_VERIFY_WHATSAPP', phoneVerify?.number], ['SOCI_VERIFY_INSTANCE', phoneVerify?.instance], ['SOCI_VERIFY_SECRET', phoneVerify?.secret]]
+        .filter(([, value]) => !value).map(([name]) => name);
+      if (missing.length) return json({ configured: false, missing });
+      const evo = line();
+      if (!evo) return json({ configured: true, server: false, number: phoneVerify.number, instance: phoneVerify.instance });
+      const base = { configured: true, server: true, number: phoneVerify.number, instance: phoneVerify.instance };
+      if (method === 'POST') {
+        const { action } = await payload(req);
+        if (action !== 'connect') throw error('Ação desconhecida.', 400);
+        await evo.provision(`${publicBase(req)}/api/verify/whatsapp/${phoneVerify.secret}`);
+        const started = await evo.connect();
+        const live = await evo.status();
+        return json({ ...base, ...live, qrcode: live.qrcode || started.qrcode || '', paircode: live.paircode || started.paircode || '' });
+      }
+      if (method !== 'GET') throw error('Method not allowed.', 405);
+      return json({ ...base, ...await evo.status() });
     }
 
     if (p === '/api/verify/status' && method === 'GET') {

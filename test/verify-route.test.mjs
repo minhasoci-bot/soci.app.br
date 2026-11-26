@@ -132,3 +132,29 @@ test('Celular inválido: 400', async t => {
   const { call } = await boot(t);
   assert.equal((await call('/api/verify/start', { who: 'nova', body: { phone: '31 3333-4444' } })).status, 400);
 });
+
+test('Linha de confirmação: só o dono da plataforma vê, conecta e libera um número', async t => {
+  const { call, deliver, from } = await boot(t);
+  assert.equal((await call('/api/verify/line', { who: 'nova' })).status, 403);
+  const line = await call('/api/verify/line', { who: 'root-owner' });
+  assert.equal(line.status, 200, JSON.stringify(line.body));
+  assert.equal(line.body.configured, true);
+  assert.equal(line.body.status, 'connected');
+  assert.equal(line.body.instance, LINE.instance);
+  const connected = await call('/api/verify/line', { who: 'root-owner', body: { action: 'connect' } });
+  assert.equal(connected.status, 200, JSON.stringify(connected.body));
+  const started = await call('/api/verify/start', { who: 'nova', body: { phone: PHONE } });
+  await deliver(from(PHONE), `Confirmar soci ${started.body.code}`);
+  assert.equal((await call('/api/verify/start', { who: 'outra', body: { phone: PHONE } })).body.code, 'PHONE_TAKEN');
+  assert.equal((await call('/api/verify/release', { who: 'nova', body: { phone: PHONE } })).status, 403);
+  const released = await call('/api/verify/release', { who: 'root-owner', body: { phone: PHONE } });
+  assert.deepEqual(released.body, { released: true });
+  assert.equal((await call('/api/verify/start', { who: 'outra', body: { phone: PHONE } })).status, 200, 'número liberado pode ser usado de novo');
+  assert.deepEqual((await call('/api/verify/release', { who: 'root-owner', body: { phone: '5531900001111' } })).body, { released: false });
+});
+
+test('Linha de confirmação sem as variáveis diz quais faltam', async t => {
+  const { call } = await boot(t, { number: '', instance: 'soci-verify', secret: '' });
+  const line = await call('/api/verify/line', { who: 'root-owner' });
+  assert.deepEqual(line.body, { configured: false, missing: ['SOCI_VERIFY_WHATSAPP', 'SOCI_VERIFY_SECRET'] });
+});

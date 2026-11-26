@@ -47,3 +47,10 @@ test('O servidor entrega o código e o estilo da tela', async () => {
   assert.match(staticFiles.get('/verify.js') || '', /javascript/);
   assert.match(staticFiles.get('/verify.css') || '', /css/);
 });
+
+test('Cadastro fechado mostra o aviso em vez da tela do celular', () => {
+  const html = gateView({ code: 'SIGNUP_CLOSED', error: 'O cadastro de agências novas está temporariamente fechado. Tente de novo mais tarde.' });
+  assert.match(html, /Cadastro fechado/);
+  assert.match(html, /temporariamente fechado/);
+  assert.doesNotMatch(html, /name="phone"/);
+});
