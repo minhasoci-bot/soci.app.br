@@ -42,7 +42,7 @@ export async function backfill({ store, dryRun = true, log = console.log }) {
     const agency = isAgencyRow(id);
     if (!agency && isDocument(id)) continue;
     try {
-      const run = state => agency ? importAgency(hydrateAgency(state)) : importWorkspace(state);
+      const run = state => agency ? importAgency(hydrateAgency(state, id)) : importWorkspace(state);
       const facts = run(structuredClone(await store.load(id)));
       if (facts && !dryRun) await store.change(id, state => { run(state); });
       if (!dryRun) await flush.any(id);

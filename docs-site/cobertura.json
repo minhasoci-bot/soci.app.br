@@ -50,6 +50,13 @@
   },
   {
     "grupo": "agencia",
+    "artigo": "templates-de-setup",
+    "titulo": "Templates de setup",
+    "fase": "F2",
+    "status": "escrito"
+  },
+  {
+    "grupo": "agencia",
     "artigo": "white-label",
     "titulo": "White label: a sua marca na soci",
     "fase": "F2",
@@ -241,6 +248,13 @@
     "grupo": "apps",
     "artigo": "aplicativo-movel",
     "titulo": "Criar o aplicativo móvel da agência",
+    "fase": "extra",
+    "status": "escrito"
+  },
+  {
+    "grupo": "comece-aqui",
+    "artigo": "criar-conta",
+    "titulo": "Criar a conta e confirmar o celular",
     "fase": "extra",
     "status": "escrito"
   }

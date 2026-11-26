@@ -80,12 +80,13 @@ test('The cold email sequence keeps the GHL A/B structure: 5 sends split 50/50 w
   assert.equal(sequence.steps.filter(step => step.type === 'wait').length, 4);
 });
 
-test('The setup template gallery offers only the meetings funnel and a removed template no longer creates a sub-account', async t => {
+test('The setup template gallery offers the meetings funnel and the GHL templates, and a removed template no longer creates a sub-account', async t => {
   const local = await start(); t.after(local.close);
   const agency = (await local.call('/api/agency')).body;
   assert.ok(!agency.marketplace.some(item => item.template), 'the marketplace list stays small');
   const gallery = (await local.call('/api/agency/setup-templates', {})).body.result;
-  assert.deepEqual(gallery.map(item => item.title), ['Funil de Reuniões Qualificadas']);
+  assert.equal(gallery[0].title, 'Funil de Reuniões Qualificadas');
+  assert.equal(gallery.length, 6);
   assert.ok(gallery.every(item => item.template && item.segment && item.category && item.assets === undefined));
   const before = Object.keys((await local.call('/api/agency')).body.agency.accounts || {}).length;
   const account = await local.call('/api/agency/accounts', { name: 'Clínica Sorriso', templateId: 'template-dental' });

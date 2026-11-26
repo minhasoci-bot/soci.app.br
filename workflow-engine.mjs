@@ -292,6 +292,13 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
   };
   // Templates use the shared expression engine: {{contact.first_name}}, {{upper(contact.name)}}, {{trigger.body}}…
   const output = (run, id, data) => { run.outputs = { ...(run.outputs || {}), [id]: data }; };
+  // A flow value in a condition: a variable, a step result (steps.<id>.<field>) or a custom value of the account (custom_values.<key>).
+  const flowValue = (s, run, key = '') => {
+    const step = /^steps\.([^.]+)\.(\w+)$/.exec(key);
+    if (step) return run.outputs?.[step[1]]?.[step[2]] ?? '';
+    if (key.startsWith('custom_values.')) return (s.customValues || []).find(row => row.key === key)?.value ?? '';
+    return run.vars?.[aiVariableName(key) || key] ?? '';
+  };
   const mergeContext = (s, contact, run = {}) => ({ ...buildWorkflowContext(s, run, contact), workspace: { name: s.profile?.name || '' }, trigger: { ...(run.context || {}), ...(run.context?.payload || {}) }, vars: run.vars || {}, steps: run.outputs || {} });
   const merge = (text, s, contact, run = {}) => {
     const context = { ...buildWorkflowContext(s, run, contact), workspace: { name: s.profile?.name || '' }, trigger: { ...(run.context || {}), ...(run.context?.payload || {}) }, vars: run.vars || {}, steps: run.outputs || {} };
@@ -313,7 +320,7 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
       case 'replied': { const yes = s.messages.some(row => row.contactId === run.contactId && row.direction === 'Inbound' && row.created >= run.created); return cond.op === 'no' ? !yes : yes; }
       case 'submitted': { const yes = s.submissions.some(row => row.contactId === run.contactId && (!value || row.formId === value)); return cond.op === 'no' ? !yes : yes; }
       case 'field': case 'trigger': case 'var': {
-        const actual = cond.subject === 'field' ? fieldValue(s, contact, cond.key) : cond.subject === 'var' ? run.vars?.[aiVariableName(cond.key) || cond.key] ?? '' : run.context?.[cond.key] ?? '';
+        const actual = cond.subject === 'field' ? fieldValue(s, contact, cond.key) : cond.subject === 'var' ? flowValue(s, run, cond.key) : run.context?.[cond.key] ?? '';
         const a = lower(Array.isArray(actual) ? actual.join(',') : actual), b = lower(value);
         switch (cond.op) {
           case 'equals': return a === b; case 'not_equals': return a !== b; case 'contains': return a.includes(b); case 'not_contains': return !a.includes(b);
@@ -1742,9 +1749,11 @@ export function createEngine({ add, now, preferencePath = null, makeAffiliate = 
     for (const workflow of s.workflows.filter(row => row.active)) {
       if (type === 'custom_event' && (ctx.fromWorkflow === workflow.id || eventCascade?.left <= 0)) continue;
       const flow = upgradeWorkflow(workflow);
-      if (!(flow.triggers || []).some(trigger => matchTrigger(trigger, type, ctx))) continue;
+      const matched = (flow.triggers || []).find(trigger => matchTrigger(trigger, type, ctx));
+      if (!matched) continue;
       if (type === 'custom_event' && eventCascade) eventCascade.left--;
-      enroll(s, workflow, { ...ctx, depth }, triggerSpec(type)?.label || type);
+      // triggerId: which trigger started the run, for conditions like "came in through this trigger".
+      enroll(s, workflow, { ...ctx, depth, triggerId: ctx.triggerId || matched.id }, triggerSpec(type)?.label || type);
     }
   }
 

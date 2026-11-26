@@ -60,7 +60,7 @@ const aiState = a => !a.aiEnabled ? 'off' : !a.aiLimit ? 'nolimit' : a.aiCost >=
 export function startAgency(env) {
   const { app, overlay, api, flash, openWorkspace } = env;
   const A = { data: null, openAI: null, openAIOnly: false, wa: null, waFocus: null, waPairOpen: false, page: 'dashboard', sub: '', query: '', status: '', category: '', mktOrigin: '', selected: new Set(), chat: [], navOpen: innerWidth > 700, aiFilter: '', aiPeriod: '30', aiUsage: null, pf: null, pfError: '', pfLoading: false };
-  let waPollTimer = null;
+  let waPollTimer = null, vlPollTimer = null;
   function stopWaPoll() { if (waPollTimer) { clearInterval(waPollTimer); waPollTimer = null; } }
   const G = s => document.querySelector(s);
   const D = () => A.data.agency;
@@ -877,7 +877,10 @@ Authorization: Bearer soci_app_…
     const currentVisit = visit;
     try {
       const data = await api('/api/whatsapp/agency/status');
+      await refreshVerifyLine();
       if (currentVisit === visit) A.wa = data;
+      // A tela reaberta no meio da leitura do QR volta a conferir sozinha.
+      if (currentVisit === visit && A.vl?.status === 'connecting' && !vlPollTimer) startVerifyLinePoll();
     } catch (error) {
       if (currentVisit === visit) A.wa = { error: error.message };
     }
@@ -908,6 +911,47 @@ Authorization: Bearer soci_app_…
     if (status === 'connecting') return badge('Aguardando QR Code', 'blue');
     if (status === 'hibernated') return badge('Hibernado', 'gold');
     return badge('Desconectado', '');
+  }
+  // Linha da soci que recebe o "Confirmar soci XXXXXX" de quem cria uma agência. Só o dono da plataforma vê.
+  async function refreshVerifyLine() {
+    if (!isPlatformOwner()) return;
+    A.vl = await api('/api/verify/line').catch(e => ({ error: e.message }));
+  }
+  // Confere a conexão a cada 3 s por até 10 min; quando para, a tela pede o Atualizar em vez de dizer que ainda confere.
+  function stopVerifyLinePoll() { clearInterval(vlPollTimer); vlPollTimer = null; }
+  function startVerifyLinePoll() {
+    stopVerifyLinePoll();
+    const currentVisit = visit, until = Date.now() + 600000;
+    vlPollTimer = setInterval(async () => {
+      if (currentVisit !== visit || !isWhatsAppPage() || Date.now() > until) { stopVerifyLinePoll(); if (currentVisit === visit && isWhatsAppPage()) render(); return; }
+      await refreshVerifyLine();
+      if (currentVisit !== visit) return;
+      if (A.vl?.status === 'connected') { stopVerifyLinePoll(); flash('WhatsApp de confirmação conectado!'); }
+      render();
+    }, 3000);
+  }
+  function verifyLineSection() {
+    if (!isPlatformOwner()) return '';
+    const vl = A.vl;
+    const body = !vl ? '<p class="dim">Carregando…</p>'
+      : vl.error ? `<p class="form-status" role="alert">${h(vl.error)}</p>`
+      : !vl.configured ? `<p class="form-status">Faltam na Vercel: <b>${vl.missing.map(h).join(', ')}</b>.</p><p class="dim">Enquanto faltar, as agências que já existem seguem abertas e o cadastro de agência nova fica fechado.</p>`
+      : !vl.server ? '<p class="form-status">O servidor gerenciado da Evolution (EVOLUTION_BASE_URL e EVOLUTION_API_KEY) não está configurado.</p>'
+      : `<div class="inline-gap">${vl.missing ? badge('Instância ainda não criada') : waStatusBadge(vl.status)}<span class="dim">+${h(vl.number)} · instância ${h(vl.instance)}</span></div>
+         ${vl.status === 'connected' ? '' : vl.qrcode
+           ? `<div class="ag-waha-qr ag-gap"><div class="ag-waha-qr-frame"><img src="${h(vl.qrcode)}" alt="QR Code do WhatsApp de confirmação"></div><b>Leia com o WhatsApp do número da soci</b><small class="dim">Aparelhos conectados → Conectar aparelho. ${vlPollTimer ? 'Verificando sozinho…' : 'Depois de ler, clique em <b>Atualizar</b>.'}</small></div>`
+           : vl.paircode ? `<p>Código de pareamento: <b class="ag-waha-code">${h(vl.paircode)}</b></p>` : ''}
+         <div class="inline-gap ag-gap">${vl.status === 'connected' ? '' : btn('Conectar', 'vl-connect', 'type="button"', 'primary')}${btn('Atualizar', 'vl-refresh', 'type="button"', 'secondary', 'refresh')}</div>`;
+    return `
+      <form class="surface settings-form set-form ag-gap" data-ag-form="vl-release">
+        <section class="set-section"><header class="set-head"><h2>WhatsApp de confirmação</h2>
+          <p class="dim">Número da soci que recebe a mensagem de quem cria uma agência e confirma o celular. Nada do que chega nele é guardado.</p></header>
+          <div class="set-body">${body}</div></section>
+        <section class="set-section"><header class="set-head"><h3>Liberar um número</h3>
+          <p class="dim">Para o suporte trocar o celular de uma agência: o número volta a poder confirmar outra conta.</p></header>
+          <div class="set-body"><label>Celular com DDD<input name="phone" required inputmode="tel" placeholder="(31) 98123-4567"></label></div></section>
+        <footer class="set-foot"><p class="form-status" role="alert"></p><button class="secondary">Liberar número</button></footer>
+      </form>`;
   }
   function whatsappSettings() {
     const w = A.wa;
@@ -1036,6 +1080,8 @@ Authorization: Bearer soci_app_…
       ` : `
         ${serverForm('<header class="set-head"><h2>Servidor de WhatsApp da agência</h2><p class="dim">Informe uma única vez a URL e a API Key global da sua Evolution API. A chave fica criptografada no Supabase. Depois disso, cada subconta verá apenas o botão <b>Conectar WhatsApp</b> com QR Code.</p></header>')}
       `}
+
+      ${verifyLineSection()}
 
       ${focusPanel}
 
@@ -1451,6 +1497,18 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           render();
           break;
         }
+        case 'vl-refresh': {
+          await refreshVerifyLine();
+          if (A.vl?.status === 'connecting') startVerifyLinePoll(); else stopVerifyLinePoll();
+          render();
+          break;
+        }
+        case 'vl-connect': {
+          A.vl = await api('/api/verify/line', { action: 'connect' });
+          if (A.vl.status !== 'connected') startVerifyLinePoll(); else stopVerifyLinePoll();
+          render();
+          break;
+        }
         case 'wa-sub-connect': {
           stopWaPoll();
           A.waFocus = { workspace: id, status: 'connecting', qrcode: '', paircode: '', phone: '', profileName: '' };
@@ -1860,6 +1918,11 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           A.wa = await api('/api/whatsapp/agency/config', data);
           A.waServer = await api('/api/whatsapp/agency/server').catch(() => null);
           msg = A.waServer?.ok === false ? 'Servidor salvo, mas o teste falhou. Veja o motivo no topo da página.' : 'Servidor de WhatsApp salvo. As subcontas já podem conectar por QR Code!';
+          break;
+        }
+        case 'vl-release': {
+          const out = await api('/api/verify/release', data);
+          msg = out.released ? 'Número liberado. Ele já pode confirmar outra conta.' : 'Esse número não estava preso a nenhuma agência.';
           break;
         }
         case 'wa-disconnect-server': {

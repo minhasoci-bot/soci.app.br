@@ -7,6 +7,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { isAssetUrl } from './asset-store.mjs';
 import { defaults, metrics, uid, now } from './model.mjs';
 import { hydrateProspecting } from './prospecting-model.mjs';
+import { hydrateBilling } from './agency-billing-model.mjs';
 import { agentTemplate } from './agent-model.mjs';
 import { sanitizePresentation } from './presentation-model.mjs';
 import { isDeck, sanitizeDeck, applyOps as applyDeckOps, LIMITS as DECK_LIMITS } from './ui/deck-model.js';
@@ -72,7 +73,7 @@ export function blankAgency() {
     mobileApp: mobileDefaults(),
     desktopApp: desktopDefaults(),
     integrations: {},
-    billing: { plan: 'Starter', wallet: [], autoRecharge: { enabled: false, threshold: 10, amount: 25 } },
+    billing: hydrateBilling({ plan: 'Starter', wallet: [], autoRecharge: { enabled: false, threshold: 10, amount: 25 } }),
     systemEmails: Object.fromEntries(systemEmailKeys.map(([key, , subject, body]) => [key, { subject, body }])),
     labs: Object.fromEntries(labCatalog.map(([key]) => [key, 'off'])),
     aiDefaults: { limit: 0, alertAt: 0.8, enabled: true },
@@ -98,7 +99,8 @@ const featureOn = (agency, key, account) => {
   return Object.hasOwn(on, account) ? on[account] : Boolean(spec?.[3]);
 };
 
-export function hydrateAgency(state) {
+/** `id` decide a isenção da raiz; sem id, a cobrança guardada fica como está (só leitura). */
+export function hydrateAgency(state, id) {
   const fresh = blankAgency();
   // A mobile app saved before the themes keeps its own color (mobileTheme derives one from it).
   if (state.mobileApp && state.mobileApp.theme === undefined) state.mobileApp = { ...state.mobileApp, theme: null };
@@ -119,6 +121,7 @@ export function hydrateAgency(state) {
   for (const product of resellProducts) state.reselling[product.key] ??= { price: product.base, disabled: [] };
   for (const [key] of rebillProducts) state.saas.rebilling[key] ??= 1;
   state.fiscal ??= null; state.ledgerOutbox ??= [];
+  hydrateBilling(state.billing, { root: id === AGENCY_ID });
   state.saas.unitCosts ??= {}; state.saas.rebill ??= {}; state.saas.lowBalance ??= 20;
   for (const [key, , , cost] of walletProducts) state.saas.unitCosts[key] ??= cost;
   for (const [key] of subFeatures) state.subFeatures[key] ??= { on: {}, rebill: [] };
@@ -913,14 +916,15 @@ export function extractSnapshot(workspace, include = snapshotAssets.map(a => a[0
 const refKey = key => /(^|[a-z])(Id|Ids)$/.test(key) || /^(id|ids|value|values|form|forms|pipeline|stage|link|workflow|calendar|template|service|agent|widget|baseRefs)$/i.test(key);
 // Every record id a snapshot record points to, at any depth (workflow triggers and steps keep their links in nested configs).
 function referencedIds(value, out = new Set(), key = '') {
-  if (typeof value === 'string') { if (key && refKey(key) && value.length >= 3) out.add(value); return out; }
+  if (typeof value === 'string') { if (value.startsWith('custom:')) out.add(value.slice(7)); else if (key && refKey(key) && value.length >= 3) out.add(value); return out; }
   if (Array.isArray(value)) { for (const entry of value) referencedIds(entry, out, key); return out; }
   if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) if (k !== 'id') referencedIds(v, out, k);
   return out;
 }
 // Rewrites every link inside a record with the ids the records received in the target account.
 function remapIds(value, idMap, key = '') {
-  if (typeof value === 'string') return key && refKey(key) && idMap.has(value) ? idMap.get(value) : value;
+  // A custom field named in a workflow ("custom:<id>", in conditions and field updates) follows its new id too.
+  if (typeof value === 'string') return value.startsWith('custom:') && idMap.has(value.slice(7)) ? `custom:${idMap.get(value.slice(7))}` : key && refKey(key) && idMap.has(value) ? idMap.get(value) : value;
   if (Array.isArray(value)) return value.map(entry => remapIds(entry, idMap, key));
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, k === 'id' ? v : remapIds(v, idMap, k)]));
   return value;

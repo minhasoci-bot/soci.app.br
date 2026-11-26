@@ -87,7 +87,7 @@ export function createStudioRoutes(deps) {
     if (p==='/api/studio/doc' && method!=='POST') {
       await studioGuard(req,res,id);
       const projectId = url.searchParams.get('id') || '';
-      return json({ doc: publicDoc(await siteDoc(id, projectId)) });
+      return json({ doc: publicDoc(await siteDoc(id, projectId), url.searchParams.get('page') || '') });
     }
     if (p.startsWith('/api/studio/') && method==='POST') {
       const who = await studioGuard(req,res,id);
@@ -95,7 +95,7 @@ export function createStudioRoutes(deps) {
       const result = await studioRequest(id, p.slice('/api/studio/'.length), input, who.session);
       const doc = await siteDoc(id, input.id);
       const synced = await syncMeta(id, input.id, doc);
-      return json({ id: synced.id, ...workspaceView(who, synced.state), doc: publicDoc(doc), result });
+      return json({ id: synced.id, ...workspaceView(who, synced.state), doc: publicDoc(doc, typeof input.viewPage === 'string' ? input.viewPage : typeof input.pageId === 'string' ? input.pageId : ''), result });
     }
     return NEXT_ROUTE;
   };

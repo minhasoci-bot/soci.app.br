@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createSupabaseAuth } from '../auth.mjs';
 import { makeServer } from '../server.mjs';
 import { createSqliteStore } from '../storage.mjs';
+import { verifiedAgencies } from './helpers/verified-agencies.mjs';
 import { blank } from '../model.mjs';
 
 const oauthClaims = Buffer.from(JSON.stringify({ amr: [{ method: 'oauth' }] })).toString('base64url');
@@ -27,7 +28,7 @@ async function start(t) {
       return user ? Response.json(user) : Response.json({}, { status: 401 });
     }
   });
-  const store = createSqliteStore(':memory:');
+  const store = verifiedAgencies(createSqliteStore(':memory:'));
   const { server, host, ready } = makeServer({
     store, auth, agencyOwnerId: ownerA.id, allowLocalAccess: false, socialScheduler: false, port: 0
   });

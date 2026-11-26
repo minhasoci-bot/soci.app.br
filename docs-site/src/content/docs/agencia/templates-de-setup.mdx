@@ -1,0 +1,85 @@
+---
+title: Criar uma subconta pronta com um template de setup
+description: Escolha um template por ramo e a subconta nova já nasce com sites, automações, formulários, pipelines e mensagens.
+modulo: agencia
+sidebar:
+  order: 3
+  badge: { text: Novo, variant: tip }
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Print from '../../../components/Print.astro';
+import Requisitos from '../../../components/Requisitos.astro';
+
+Os templates de setup são subcontas completas, prontas para um ramo de negócio. Ao criar a subconta de um cliente com um template, ela já vem com os sites, as automações, os formulários, os pipelines, os campos, os valores personalizados, as tags, os modelos de e-mail e os agentes de IA do template. Você só troca os dados do cliente e liga o que for usar.
+
+<Requisitos permissao="Dono ou admin da agência" />
+
+## Os templates disponíveis
+
+| Template | O que vem pronto |
+| --- | --- |
+| **Funil de Reuniões Qualificadas** | Funil de captação com qualificação, agenda e lembretes da reunião. |
+| **Agência de Marketing: Captação, Vendas e Onboarding** | 2 sites e 3 funis (onboarding, consultoria gratuita e agendamento), 33 automações de captação, vendas, onboarding e cobrança, 3 pipelines, 7 formulários e pesquisas e 3 agentes de IA. |
+| **Paisagismo e Serviços Externos: Sites, Avaliações e Indicações** | 2 sites e a página de avaliação (71 páginas), 14 automações de avaliação, indicação e reativação, 2 chats do site e um assistente de orçamentos com IA. |
+| **Site Inteligente para Serviços Locais: Páginas por Serviço e Região** | Site de 35 páginas por serviço e por região atendida, 14 automações e chat do site. |
+| **Imobiliária com Agente de IA: Qualificação e Visitas** | Agente de IA que qualifica o comprador e marca a visita, com base de conhecimento e pipeline de vendas. |
+| **Cold Email com Teste A/B: 5 E-mails até a Reunião** | Sequência de 5 e-mails com duas versões de cada, 1 dia entre os envios, até a reunião marcada. |
+
+## Passo a passo
+
+<Steps>
+
+1. No painel da agência, abra **Setups de conta** e clique na aba **Templates de setup**. Filtre por segmento ou busque pelo nome.
+
+   <Print src="docs/agencia/templates-de-setup/01-galeria.4790a7b7.webp" alt="Aba Templates de setup com os seis templates em cartões, com o de Paisagismo e Serviços Externos em destaque." />
+
+2. Clique num template para ver o que ele traz. Clique em **Criar subconta com este template**.
+
+   <Print src="docs/agencia/templates-de-setup/02-detalhes.8fe0fa3e.webp" alt="Detalhes do template de Paisagismo, com a descrição, o que vem pronto e o botão Criar subconta com este template." />
+
+3. Preencha o **Nome da empresa** do cliente e, se quiser, e-mail, telefone, endereço e plano. O campo **Template de setup** já vem preenchido. Clique em **Criar subconta**.
+
+   <Print src="docs/agencia/templates-de-setup/03-criar-subconta.64637c9b.webp" alt="Janela Criar subconta com o nome Jardim Verde Paisagismo e o template de Paisagismo escolhido." />
+
+4. A subconta fica pronta em alguns segundos. Clique em **Acessar subconta agora**.
+
+   <Print src="docs/agencia/templates-de-setup/04-subconta-criada.367bcc86.webp" alt="Aviso Subconta criada com sucesso, com o botão Acessar subconta agora." />
+
+5. Os sites do template já aparecem em **Sites**, e os funis em **Funis**, como rascunho. Abra cada um no editor, revise os textos e publique quando o cliente estiver pronto.
+
+   <Print src="docs/agencia/templates-de-setup/05-sites-instalados.5d0cd6fb.webp" alt="Tela Sites da subconta nova com os sites Site do cliente, de 41 páginas, e Manutenção de gramados, de 29 páginas, em rascunho." />
+
+</Steps>
+
+<Aside type="tip">
+Comece pelos **valores personalizados** (Configurações da subconta): nome da empresa, telefone, serviços e áreas atendidas. As páginas e as mensagens usam esses valores, então tudo se atualiza de uma vez.
+</Aside>
+
+<Aside type="note">
+Automações, sites e chats chegam **desligados**. Contatos, conversas e pagamentos nunca vêm no template.
+</Aside>
+
+## Perguntas frequentes
+
+**Os sites vêm em português?**
+Sim. Tudo chega em português: textos e botões das páginas, nomes e endereços das páginas, formulários, tags, mensagens e e-mails. Onde o modelo original tinha texto de exemplo, a página mostra um aviso como "Escreva aqui…" para você trocar pelo texto do cliente. As imagens de exemplo continuam as do modelo até você trocá-las.
+
+**Por que o fundo do topo do site aparece escuro?**
+A imagem de fundo e o logo vêm dos valores personalizados de imagem, como **Imagem Principal (URL)**, **Logo** e **Logo do Menu**. Cole neles o endereço de uma imagem do cliente, começando com https://, e as páginas mostram a imagem na hora.
+
+**Um site pode ter quantas páginas?**
+Até 50 páginas por site. Os sites grandes abrem no editor uma página por vez, para carregar rápido.
+
+**O que preciso ajustar antes de ligar as automações?**
+Confira o responsável nas ações de atribuir contato e o campo de data de nascimento no lembrete de aniversário. As esperas que no modelo original só contavam em horário comercial contam o tempo corrido. O endereço do webhook vem em branco: cole o seu, se usar.
+
+**Posso salvar um template para mexer nele antes de usar?**
+Sim. Nos detalhes do template, clique em **Salvar em Importados**. Ele fica na aba **Importados** e pode ser carregado em subcontas que já existem.
+
+## Veja também
+
+<CardGrid>
+  <LinkCard title="Reaproveitar uma subconta com setups de conta" href="/agencia/setups-de-conta/" description="Crie o seu próprio setup a partir de uma subconta modelo." />
+  <LinkCard title="Criar uma subconta para um cliente" href="/agencia/criar-subconta/" description="Cadastre o cliente do zero ou com um setup." />
+</CardGrid>

@@ -4,7 +4,7 @@ import { agentTemplate } from './agent-model.mjs';
 import { marketplaceCategories } from './ui/agency-data.js';
 import { agenciaCompleta360Spec } from './setup-agencia-360.mjs';
 import { funilReunioesSpec } from './setup-funil-reunioes.mjs';
-import { setupTemplateSpecs } from './setup-templates.mjs';
+import { setupTemplateSpecs, templateSites } from './setup-templates.mjs';
 
 export const MARKETPLACE_DOC_ID = 'marketplace-setups';
 export const MAX_MARKETPLACE_LISTINGS = 500;
@@ -363,7 +363,8 @@ const OFFICIAL_SETUPS = [
     }
   })
 ];
-// Templates de setup (aba Templates de setup), usados para criar subcontas: hoje, o funil de reuniões.
+// Templates de setup (aba Templates de setup), usados para criar subcontas: o funil de reuniões e os convertidos do GHL.
+// Os sites dos convertidos não ficam na memória: chegam por templateSites() quando o template é instalado.
 const TEMPLATE_SETUPS = [funilReunioesSpec, ...setupTemplateSpecs].map(spec => ({ ...buildOfficial({ publishedAt: '2026-11-22T12:00:00.000Z', ...spec }), template: true, segment: spec.segment }));
 export const setupTemplates = () => TEMPLATE_SETUPS;
 
@@ -374,7 +375,10 @@ export function officialSetups() {
 export function findMarketplaceSetup(doc, id) {
   const mkt = hydrateMarketplace(doc);
   const official = OFFICIAL_SETUPS.find(item => item.id === id) || TEMPLATE_SETUPS.find(item => item.id === id);
-  if (official) return { ...official, installs: mkt.officialInstalls[official.id] || 0 };
+  if (official) {
+    const sites = official.template && !Object.keys(official.studioSites || {}).length ? templateSites(official.id) : null;
+    return { ...official, ...(sites && { studioSites: sites }), installs: mkt.officialInstalls[official.id] || 0 };
+  }
   return mkt.listings.find(item => item.id === id) || null;
 }
 

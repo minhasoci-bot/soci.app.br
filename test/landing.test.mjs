@@ -5,6 +5,7 @@ import { createSupabaseAuth } from '../auth.mjs';
 import { blank } from '../model.mjs';
 import { makeServer } from '../server.mjs';
 import { createSqliteStore } from '../storage.mjs';
+import { verifiedAgencies } from './helpers/verified-agencies.mjs';
 
 async function start(options = { auth: null, allowLocalAccess: true }) {
   const { server, host } = makeServer({ dbPath: ':memory:', port: 0, ...options });
@@ -153,7 +154,7 @@ test('Google OAuth requires a PKCE verifier and rejects password sessions', asyn
 });
 
 test('Google accounts open empty agencies and existing agency permissions still apply', async t => {
-  const store = createSqliteStore(':memory:');
+  const store = verifiedAgencies(createSqliteStore(':memory:'));
   const ownerWorkspaceId = 'user-' + owner.id;
   await store.insert(ownerWorkspaceId, blank('Workspace pessoal do proprietário'));
   const { base, close } = await start({ auth: provider(), agencyOwnerId: owner.id, store });
@@ -222,7 +223,7 @@ test('Google accounts open empty agencies and existing agency permissions still 
 });
 
 test('Users in one agency supply their own OpenAI key for Studio and agent tests', async t => {
-  const store = createSqliteStore(':memory:');
+  const store = verifiedAgencies(createSqliteStore(':memory:'));
   const aliceKey = 'sk-fixture-alice-123456789012';
   const bobKey = 'sk-fixture-bob-987654321098';
   const html = '<!doctype html><html lang="pt-BR"><head><title>Site</title></head><body><h1>Site de teste</h1></body></html>';
@@ -292,7 +293,7 @@ test('Users in one agency supply their own OpenAI key for Studio and agent tests
 });
 
 test('Agency profiles force Brazilian Portuguese even with a legacy language value', async t => {
-  const store = createSqliteStore(':memory:');
+  const store = verifiedAgencies(createSqliteStore(':memory:'));
   const { base, close } = await start({ auth: null, allowLocalAccess: true, store });
   t.after(close);
   await store.change('agency', state => { state.profile.language = 'English (United States)'; });

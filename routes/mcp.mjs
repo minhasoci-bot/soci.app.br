@@ -47,7 +47,7 @@ export function createMcpRoutes(deps) {
     const match = await store.findAgency(grantFilters.token(token));
     const grant = match && liveGrant(match.state, token);
     if (!grant) throw ended();
-    const agency = hydrateAgency(match.state);
+    const agency = hydrateAgency(match.state, match.id);
     const person = userAccess(agency, grant.userId);
     if (!person || (grant.userId && !agency.users.find(user => user.id === grant.userId)?.loginEnabled)) throw ended();
     if (asked && asked !== grant.workspace) throw error('Esta conexão é de outra subconta.', 403);

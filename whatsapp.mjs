@@ -170,6 +170,15 @@ function evolutionText(raw) {
   return '';
 }
 
+/** Só o texto e o remetente das mensagens recebidas, para quem não guarda nada (a confirmação do celular). */
+export function inboundTexts(payload) {
+  const event = String(payload?.event || payload?.type || '').toLowerCase().replace(/_/g, '.');
+  if (event !== 'messages.upsert') return [];
+  const data = payload.data;
+  const list = Array.isArray(data) ? data : Array.isArray(data?.messages) ? data.messages : [data || {}];
+  return list.map(evolutionInbound).filter(Boolean).map(({ phone, lid, text }) => ({ phone, lid, text }));
+}
+
 function evolutionInbound(entry) {
   const key = entry?.key || {};
   if (key.fromMe) return null;
@@ -1251,5 +1260,20 @@ export function createWhatsAppHandler({
     return true;
   }
 
-  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, fetchWorkspaceMedia, removeWorkspace, sendWorkspaceText, sendWorkspaceMedia, sendWorkspacePresence, sendWorkspaceInteractive, listWorkspaceGroups, sendEventMessage, guardOps };
+  // A linha de confirmação do celular (routes/verify.mjs): uma instância da soci no servidor global, sem row de agência.
+  function verifyLine(instanceName) {
+    if (!hasManaged || !instanceName) return null;
+    const sub = { instanceName };
+    return {
+      provision: webhookUrl => adapter.provision({ creds: managed, sub, webhookUrl }).then(async created => {
+        await adapter.setWebhook({ creds: managed, sub, webhookUrl });
+        return created;
+      }),
+      status: () => adapter.status({ creds: managed, sub }),
+      connect: () => adapter.connectPatient({ creds: managed, sub, phone: '', pause: qrPause }),
+      sendText: (number, text) => adapter.send({ creds: managed, sub, number, text, retry: false })
+    };
+  }
+
+  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, fetchWorkspaceMedia, removeWorkspace, sendWorkspaceText, sendWorkspaceMedia, sendWorkspacePresence, sendWorkspaceInteractive, listWorkspaceGroups, sendEventMessage, guardOps, verifyLine };
 }
