@@ -24,13 +24,13 @@ if (!found) {
   console.error(`Nenhuma agência encontrada para ${email}. A pessoa precisa ter entrado na soci pelo menos uma vez.`);
   process.exit(1);
 }
-const preview = seedSetups(hydrateAgency(structuredClone(found.state)));
+const preview = seedSetups(hydrateAgency(structuredClone(found.state), found.id));
 console.log(`Agência ${found.id} (${found.state.profile?.name || 'sem nome'})`);
 console.log(`  a adicionar: ${preview.added.join(' · ') || 'nada'}`);
 if (preview.skipped.length) console.log(`  já existem: ${preview.skipped.join(' · ')}`);
 if (dryRun || !preview.added.length) process.exit(0);
 const result = await store.change(found.id, state => {
-  const agency = hydrateAgency(state);
+  const agency = hydrateAgency(state, found.id);
   const out = seedSetups(agency);
   Object.assign(state, agency);
   audit(state, 'Soci', 'Setups imported', out.added.join(', '), 'Snapshots GHL convertidos');

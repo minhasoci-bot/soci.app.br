@@ -177,6 +177,12 @@ const url=path=>`${path}?workspace=${encodeURIComponent(c.workspace)}`;
 function flash(msg,isError=false){ return isError?toast.error(msg):toast.success(msg); }
 const actingUser = () => { try { return localStorage.getItem('go.user') || ''; } catch { return ''; } };
 const accounts = installAccounts({ session: () => c.access?.session || agencyUI?.session(), beforeLeave: async () => { if (editor) await editor.flush(); } });
+// Agência sem celular confirmado, convidado de agência não ativada, agência bloqueada ou cadastro fechado: a tela de verify.js cobre o app.
+let gateOpen=null;
+function showGate(data){
+  gateOpen ??= import('./verify.js').then(({ mountGate }) => mountGate(document.body, { code: data.code, error: data.error, api, onDone: () => location.reload() }))
+    .catch(error => { gateOpen = null; throw error; });
+}
 async function api(path,body){
   const headers = c.access?.session ? {} : { 'X-Go-User': actingUser() };
   const response = await fetch(path,body===undefined?{headers}:{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -186,6 +192,7 @@ async function api(path,body){
     location.replace('/login?' + new URLSearchParams({ next }));
   }
   if (!response.ok) {
+    if ((response.status === 402 && ['PHONE_REQUIRED', 'AGENCY_NOT_ACTIVE', 'AGENCY_BLOCKED'].includes(data.code)) || data.code === 'SIGNUP_CLOSED') showGate(data);
     if (data.code === 'ACCOUNT_SUSPENDED' && c.mode !== 'agency' && !path.startsWith('/api/state?') &&
         new URL(path, location.origin).searchParams.get('workspace') === c.workspace) {
       await load();
@@ -194,6 +201,8 @@ async function api(path,body){
     throw Object.assign(Error(data.error||'The request failed.'),{status:response.status,code:data.code,account:data.account});
   }
   if (isAppPath && data.access) { setThemeAccount(data.access.session?.id); accounts.seen(data.access.session); }
+  // A tela da agência abre mesmo fechada (marca e nome atrás); `gate` diz o que cobre o app.
+  if (data?.gate?.code) showGate(data.gate);
   return data;
 }
 async function load(){

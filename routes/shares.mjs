@@ -23,7 +23,7 @@ export function createShareRoutes(deps) {
       await ready;
       const token = brandGroupShare[1];
       const match = await store.findAgency({ brandGroups: [{ share: { id: token } }] });
-      const agency = match && hydrateAgency(match.state);
+      const agency = match && hydrateAgency(match.state, match.id);
       const group = agency?.brandGroups.find(row => row.share?.id === token);
       if (!group || (group.share.expires && Date.parse(group.share.expires) <= Date.now())) throw error('Este relatório não está mais compartilhado.',404);
       const asked = url.searchParams.get('lang');
@@ -39,7 +39,7 @@ export function createShareRoutes(deps) {
       await ready;
       const token = presentationShare[1];
       const match = await store.findAgency({ presentations: [{ share: { id: token } }] });
-      const agency = match && hydrateAgency(match.state);
+      const agency = match && hydrateAgency(match.state, match.id);
       const presentation = agency?.presentations?.find(row => row.share?.id === token);
       if (!presentation || (presentation.share.expires && Date.parse(presentation.share.expires) <= Date.now())) throw error('Esta apresentação não está mais compartilhada.', 404);
       const asked = url.searchParams.get('lang');

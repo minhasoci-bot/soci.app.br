@@ -37,6 +37,7 @@ import { createLinkRoutes } from './routes/links.mjs';
 import { createInboxRoutes } from './routes/inbox.mjs';
 import { createWhatsappRoutes, createWhatsappWebhookRoutes } from './routes/whatsapp.mjs';
 import { createAskRoutes } from './routes/ask.mjs';
+import { createVerifyRoutes } from './routes/verify.mjs';
 import { createBrandAIRoutes, createContentAIRoutes, createConversationAIRoutes } from './routes/content-ai.mjs';
 import { createSeoRoutes } from './routes/seo.mjs';
 import { createAbacatePayRoutes, createAbacatePayWorkspaceRoutes, createWalletRoutes } from './routes/payments.mjs';
@@ -78,6 +79,7 @@ import { mediaRowId } from './reputation-media.mjs';
 import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { AGENCY_ID, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, inTrash, trashList, trashExpired } from './agency-model.mjs';
 import { createAccountPurge, PURGE_GIVE_UP_MS, PURGE_RETRY_MS } from './account-purge.mjs';
+import { agencyAccess, publicBilling } from './agency-billing-model.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { runProspectingAction } from './prospecting-model.mjs';
 import { collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
@@ -176,7 +178,7 @@ export const staticFiles = new Map([
   ['/dashboard.js','text/javascript; charset=utf-8'], ['/dashboard-data.js','text/javascript; charset=utf-8'],
   ['/dashboard-controls.js','text/javascript; charset=utf-8'], ['/dashboard-metrics.js','text/javascript; charset=utf-8'], ['/dashboard.css','text/css; charset=utf-8'],
   ['/reports.js','text/javascript; charset=utf-8'], ['/report-data.js','text/javascript; charset=utf-8'], ['/reports.css','text/css; charset=utf-8'],
-  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio-blocks.js','text/javascript; charset=utf-8'], ['/site-template-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
+  ['/studio.js','text/javascript; charset=utf-8'], ['/sites.js','text/javascript; charset=utf-8'], ['/forms.js','text/javascript; charset=utf-8'], ['/form-fields.js','text/javascript; charset=utf-8'], ['/forms.css','text/css; charset=utf-8'], ['/blogs.js','text/javascript; charset=utf-8'], ['/stores.js','text/javascript; charset=utf-8'], ['/webinars.js','text/javascript; charset=utf-8'], ['/webinar-data.js','text/javascript; charset=utf-8'], ['/qr.js','text/javascript; charset=utf-8'], ['/verify.js','text/javascript; charset=utf-8'], ['/verify.css','text/css; charset=utf-8'], ['/qr-codes.js','text/javascript; charset=utf-8'], ['/sites-analytics.js','text/javascript; charset=utf-8'], ['/marketing-sites.css','text/css; charset=utf-8'], ['/stores.css','text/css; charset=utf-8'], ['/store-data.js','text/javascript; charset=utf-8'], ['/blogs.css','text/css; charset=utf-8'], ['/blog-data.js','text/javascript; charset=utf-8'], ['/chat-widgets.js','text/javascript; charset=utf-8'], ['/chat-widgets.css','text/css; charset=utf-8'], ['/chat-widget-data.js','text/javascript; charset=utf-8'], ['/studio-builder.js','text/javascript; charset=utf-8'], ['/studio-design.js','text/javascript; charset=utf-8'], ['/studio-builder.css','text/css; charset=utf-8'], ['/sites.css','text/css; charset=utf-8'], ['/studio-data.js','text/javascript; charset=utf-8'], ['/studio-blocks.js','text/javascript; charset=utf-8'], ['/site-template-data.js','text/javascript; charset=utf-8'], ['/studio.css','text/css; charset=utf-8'],
   ['/design-workspace.js','text/javascript; charset=utf-8'], ['/design-workspace.css','text/css; charset=utf-8'],
   ['/automation.js','text/javascript; charset=utf-8'], ['/automation.css','text/css; charset=utf-8'], ['/expressions.js','text/javascript; charset=utf-8'], ['/workflow-data.js','text/javascript; charset=utf-8'], ['/workflow-builder.js','text/javascript; charset=utf-8'],
   ['/client-portal.js','text/javascript; charset=utf-8'], ['/media.js','text/javascript; charset=utf-8'], ['/media.css','text/css; charset=utf-8'], ['/scheduling.js','text/javascript; charset=utf-8'], ['/meetings.js','text/javascript; charset=utf-8'], ['/seo.js','text/javascript; charset=utf-8'], ['/wallet.js','text/javascript; charset=utf-8'], ['/wallet.css','text/css; charset=utf-8'], ['/labs.js','text/javascript; charset=utf-8'], ['/app-studio-data.js','text/javascript; charset=utf-8'], ['/app-marketplace.js','text/javascript; charset=utf-8'], ['/apps.css','text/css; charset=utf-8'], ['/conversation-ai.js','text/javascript; charset=utf-8'], ['/labs-data.js','text/javascript; charset=utf-8'], ['/labs.css','text/css; charset=utf-8'], ['/seo.css','text/css; charset=utf-8'], ['/scheduling.css','text/css; charset=utf-8'], ['/portal-page.js','text/javascript; charset=utf-8'], ['/portal-community.js','text/javascript; charset=utf-8'], ['/portal-community-feed.js','text/javascript; charset=utf-8'], ['/portal-community-academy.js','text/javascript; charset=utf-8'], ['/portal-community.css','text/css; charset=utf-8'], ['/portal-smooth-scroll.js','text/javascript; charset=utf-8'],['/portal-loyalty.js','text/javascript; charset=utf-8'], ['/portal-course-extra.js','text/javascript; charset=utf-8'], ['/phone-input.js','text/javascript; charset=utf-8'], ['/locales/es.js','text/javascript; charset=utf-8'], ['/client-portal.css','text/css; charset=utf-8'], ['/courses.js','text/javascript; charset=utf-8'], ['/courses.css','text/css; charset=utf-8'], ['/communities.js','text/javascript; charset=utf-8'], ['/community-events.js','text/javascript; charset=utf-8'], ['/community-data.js','text/javascript; charset=utf-8'], ['/community-admin.js','text/javascript; charset=utf-8'], ['/course-builder-extra.js','text/javascript; charset=utf-8'], ['/certificates.js','text/javascript; charset=utf-8'], ['/tickets.js','text/javascript; charset=utf-8'], ['/sequences.js','text/javascript; charset=utf-8'], ['/loyalty.js','text/javascript; charset=utf-8'], ['/preferences.js','text/javascript; charset=utf-8'], ['/contact-trash.js','text/javascript; charset=utf-8'], ['/ticket-data.js','text/javascript; charset=utf-8'], ['/agency-desktop.js','text/javascript; charset=utf-8'], ['/certificate-data.js','text/javascript; charset=utf-8'],['/offers.js','text/javascript; charset=utf-8'], ['/documents.js','text/javascript; charset=utf-8'], ['/document-render.js','text/javascript; charset=utf-8'], ['/document-sign.js','text/javascript; charset=utf-8'], ['/document-sign.css','text/css; charset=utf-8'], ['/estimate-render.js','text/javascript; charset=utf-8'], ['/estimate-view.js','text/javascript; charset=utf-8'], ['/estimates.js','text/javascript; charset=utf-8'], ['/estimates.css','text/css; charset=utf-8'], ['/invoices.js','text/javascript; charset=utf-8'], ['/invoices.css','text/css; charset=utf-8'], ['/invoice-data.js','text/javascript; charset=utf-8'], ['/fiscal.js','text/javascript; charset=utf-8'], ['/tax-id.js','text/javascript; charset=utf-8'], ['/ledger.js','text/javascript; charset=utf-8'], ['/invoice-render.js','text/javascript; charset=utf-8'], ['/invoice-view.js','text/javascript; charset=utf-8'], ['/payment-settings.js','text/javascript; charset=utf-8'], ['/email-services.js','text/javascript; charset=utf-8'], ['/phone-settings.js','text/javascript; charset=utf-8'], ['/call-report.js','text/javascript; charset=utf-8'], ['/dialer.js','text/javascript; charset=utf-8'], ['/mobile-shell.js','text/javascript; charset=utf-8'], ['/agency-mobile.js','text/javascript; charset=utf-8'], ['/connectors.js','text/javascript; charset=utf-8'], ['/connectors-data.js','text/javascript; charset=utf-8'], ['/email-blocks.js','text/javascript; charset=utf-8'], ['/email-marketing.js','text/javascript; charset=utf-8'], ['/countdown-data.js','text/javascript; charset=utf-8'], ['/countdowns.js','text/javascript; charset=utf-8'], ['/checkout-data.js','text/javascript; charset=utf-8'], ['/catalog.js','text/javascript; charset=utf-8'], ['/orders.js','text/javascript; charset=utf-8'], ['/line-items.js','text/javascript; charset=utf-8'], ['/document-data.js','text/javascript; charset=utf-8'], ['/documents.css','text/css; charset=utf-8'], ['/communities.css','text/css; charset=utf-8'],
@@ -238,13 +240,18 @@ const socialApprovePath = new RegExp(`^/aprovar/${workspaceSegment}/?$`);
 // The tracking script (/t/<workspace>.js), the pixels loader (/t/<workspace>/pixels.js) and events (/t/<workspace>/e).
 const trackingPath = new RegExp(`^/t/${workspaceSegment}(\\.js|/pixels\\.js|/e)$`);
 const landingPath = new RegExp(`^/(s|form|oferta|loja|b|w|q|r)/${workspaceSegment}(?:/|$)`);
+// O código de confirmação (hash) nunca sai do servidor; o celular só com os 4 últimos dígitos.
+function safeBilling({ verify: _verify, phone, ...billing } = {}) {
+  return { ...billing, phone: phone ? publicBilling({ phone }, new Date()).phone : '' };
+}
 function publicAgency(agency, who) {
   // The audit log has its own endpoint (GET /api/agency/audit).
   const { audit: _audit, ledgerOutbox: _outbox, mcpGrants: _grants, ...shared } = agency;
   const view = { ...shared,
     snapshots: agency.snapshots.map(({ studioSites: _studioSites, ...rest }) => rest),
     apiKeys: agency.apiKeys.map(({ hash: _hash, ...rest }) => rest),
-    privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest)
+    privateIntegrations: agency.privateIntegrations.map(({ hash: _hash, ...rest }) => rest),
+    billing: safeBilling(agency.billing)
   };
   if (!who.settings) {
     const empty = blankAgency();
@@ -287,8 +294,9 @@ export function makeServer({
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, inboundFetch=fetch, twilioRequest=fetch, phoneEnv=process.env, brandResolve=null, designAgentConfig=designAgent,
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   evolutionBaseUrl=process.env.EVOLUTION_BASE_URL || '', evolutionApiKey=process.env.EVOLUTION_API_KEY || '',
+  phoneVerify={ number: process.env.SOCI_VERIFY_WHATSAPP || '', instance: process.env.SOCI_VERIFY_INSTANCE || '', secret: process.env.SOCI_VERIFY_SECRET || '' },
   portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(), campaignMail=campaignMailer(),
-  allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1', r2=r2FromEnv(), platformEnv=process.env, platformRequest=fetch, hosting=hostingDomains()
+  signupOpen=undefined, allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1', r2=r2FromEnv(), platformEnv=process.env, platformRequest=fetch, hosting=hostingDomains()
 }={}) {
   const cronReads = scopedReads(store);
   store = cronReads.store;
@@ -527,10 +535,11 @@ export function makeServer({
     const cached = agencyCache.get(id);
     const now = Date.now();
     if (cached && cached.expiresAt > now) return structuredClone(cached.data);
-    const fresh = hydrateAgency(await store.load(id));
+    const fresh = hydrateAgency(await store.load(id), id);
     agencyCache.set(id, { data: structuredClone(fresh), expiresAt: now + AGENCY_CACHE_TTL });
     return fresh;
   };
+  const loadFresh = id => { agencyCache.delete(id); return loadAgency(id); };
   // Imagens grandes em base64 saem do documento da agência a cada gravação (asset-store.mjs):
   // o documento guarda só /asset/<hash>; as linhas das imagens são gravadas antes da resposta.
   const auditLog = createAuditLog({ store });
@@ -538,7 +547,7 @@ export function makeServer({
     agencyCache.delete(id);
     const images = new Map();
     let waiting = 0;
-    const result = await store.change(id, state => { const out = mutate(hydrateAgency(state)); extractAssets(state, images); waiting = state.audit.length; return out; });
+    const result = await store.change(id, state => { const out = mutate(hydrateAgency(state, id)); extractAssets(state, images); waiting = state.audit.length; return out; });
     if (images.size) await saveAssets(store, images);
     await auditLog.settle(id, waiting);
     agencyCache.delete(id);
@@ -619,7 +628,24 @@ export function makeServer({
     }
     return requestUsers.get(req);
   }
-  async function accessContext(req,session) {
+  // Agência sem celular confirmado ou bloqueada só abre as rotas que levam até a confirmação ou o pagamento.
+  // Sem a linha de confirmação (SOCI_VERIFY_*), as agências que já existem seguem como estão e só o cadastro novo fecha.
+  const verifyOn = Boolean(phoneVerify?.number && phoneVerify?.instance && phoneVerify?.secret);
+  // Fora da Vercel (testes, máquina local) o cadastro fica aberto mesmo sem a linha.
+  const openSignup = signupOpen ?? (verifyOn || !platformEnv.VERCEL);
+  // O que fecha a agência agora ({ code, error }) ou null. A tela da agência recebe isto em `gate` e cobre o app.
+  function agencyGate(agency, invited) {
+    if (!verifyOn) return null;
+    const access = agencyAccess(agency.billing, new Date());
+    if (access.canUse) return null;
+    if (invited && access.gate === 'PHONE_REQUIRED') return { code: 'AGENCY_NOT_ACTIVE', error: 'A agência ainda não foi ativada pelo responsável.' };
+    return { code: access.gate, error: access.gate === 'PHONE_REQUIRED' ? 'Confirme seu celular pelo WhatsApp para começar a usar a soci.' : 'A agência está bloqueada por falta de pagamento.' };
+  }
+  function requireAgencyOpen(agency, invited) {
+    const closed = agencyGate(agency, invited);
+    if (closed) throw Object.assign(error(closed.error, 402), { code: closed.code, billing: publicBilling(agency.billing, new Date()) });
+  }
+  async function accessContext(req,session,{ gate = true } = {}) {
     if (!session && !localAccess) throw error('O login do Supabase ainda não foi configurado.',503);
     const agencyId = !session || session.id === agencyOwnerId ? AGENCY_ID : `agency-${session.id}`;
     let agency;
@@ -629,9 +655,11 @@ export function makeServer({
       const email = session.email.toLowerCase();
       const invite = await store.findAgency({ users: [{ email, loginEnabled: true }] });
       if (invite) {
-        agency = hydrateAgency(invite.state);
+        agency = hydrateAgency(invite.state, invite.id);
         const member = agency.users.find(user => user.loginEnabled && user.email === email);
         const who = { ...userAccess(agency,member.id), agencyId: invite.id, userId: member.id, session, owner: member.role === 'Agency Owner' };
+        if (gate && verifyOn && !agencyAccess(agency.billing, new Date()).canUse) agency = hydrateAgency((await store.load(invite.id)), invite.id);
+        if (gate) requireAgencyOpen(agency, true);
         return { agency, who };
       }
       const initial = blankAgency();
@@ -640,6 +668,7 @@ export function makeServer({
       initial.profile.first = first || 'Responsável';
       initial.profile.last = last.join(' ');
       initial.company.name = 'Minha agência';
+      if (!openSignup) throw Object.assign(error('O cadastro de agências novas está temporariamente fechado. Tente de novo mais tarde.', 503), { code: 'SIGNUP_CLOSED' });
       await store.insert(agencyId,initial);
       agency = await loadAgency(agencyId);
     }
@@ -649,6 +678,9 @@ export function makeServer({
     // platform: o dono da plataforma (página Plataforma, limites dos serviços). Sem login, só o servidor local.
     const platform = Boolean(session ? agencyOwnerId && session.id === agencyOwnerId : localAccess);
     const who = { ...result, agencyId, userId, session, platform, ...(session ? { name: session.name, owner: true } : {}) };
+    // A confirmação pode ter chegado por outra instância: antes de fechar, relê sem o cache.
+    if (gate && verifyOn && !agencyAccess(agency.billing, new Date()).canUse) agency = await loadFresh(agencyId);
+    if (gate) requireAgencyOpen(agency, Boolean(userId));
     return { agency, who };
   }
   const access = async (req,res) => (await accessContext(req,await verifiedUser(req,res))).who;
@@ -742,7 +774,7 @@ export function makeServer({
     return personalWorkspace ? [...visible, personalWorkspace] : visible;
   }
   async function agencyPayload(req, res, extra = {}) {
-    const { agency, who } = await accessContext(req,await verifiedUser(req,res));
+    const { agency, who } = await accessContext(req,await verifiedUser(req,res),{ gate: false });
     requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
     const [workspaces, personalWorkspace, marketplaceDoc] = await Promise.all([
       listWorkspaces(who.agencyId),
@@ -754,7 +786,7 @@ export function makeServer({
     const gateway = await abacate.status(who.agencyId, abacate.AGENCY_SCOPE, publicBase(req));
     return { agency: { ...publicAgency(agency, who), abacatepay: { connected: gateway.connected, storeName: gateway.storeName || '', devMode: Boolean(gateway.devMode) } }, overview: agencyOverview(agency, states), marketplace: publicMarketplaceList(marketplaceDoc, who.agencyId), workspaces, personalWorkspace, access: who,
       trash: who.settings ? trashList(agency) : [],
-      features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, ...extra };
+      features:{prospectingMaps:placesConfigured,prospectingMapsEmbed:mapsEmbedKey}, billing: publicBilling(agency.billing, new Date()), gate: agencyGate(agency, Boolean(who.userId)), ...extra };
   }
   // Sub-accounts of a brand group that still belong to the agency and are not closed, with their state.
   async function brandWorkspaces(agency, agencyId, group) {
@@ -2323,6 +2355,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const webinarRoute = createWebinarRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, publicBase, publicPreview });
   const qrRoute = createQrRoutes({ store, ready, workspaceSegment, change, publicAccountPolicy, publicBase });
   const reputationRoute = createReputationRoutes({ store, ready, error, workspaceSegment, allowSign, change, clientPortal, flushLater, moveVideoToR2, payload, publicAccountPolicy, publicBase, sendVideo });
+  const verifyRoute = createVerifyRoutes({ store, accessContext, verifiedUser, changeAgency, loadFresh, whatsapp, phoneVerify, payload, error, publicBase });
   const askRoute = createAskRoutes({ accessContext, verifiedUser, handleAsk, listWorkspaces, ensureAccounts, agencyWorkspaceViews, publicAgency, abacate });
   const brandAIRoute = createBrandAIRoutes({ store, error, spaceId, privateSpace, workspaceAccess, payload, brandFetch, brandResolve, localAccess, contentAI, openAI, meteredAI, content });
   const conversationAIRoute = createConversationAIRoutes({ store, error, spaceId, privateSpace, workspaceAccess, payload, change, flushLater, localAccess, contentAI, openAI, meteredAI, content });
@@ -2432,6 +2465,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (emailRouteHandled !== NEXT_ROUTE) return emailRouteHandled;
       const abacatePayWorkspaceRouteHandled = await abacatePayWorkspaceRoute({ req, res, p, method, id, json });
       if (abacatePayWorkspaceRouteHandled !== NEXT_ROUTE) return abacatePayWorkspaceRouteHandled;
+      const verifyRouteHandled = await verifyRoute({ req, res, p, method, json });
+      if (verifyRouteHandled !== NEXT_ROUTE) return verifyRouteHandled;
       const whatsappWebhookHandled = await whatsappWebhookRoute({ req, p, method, url, json });
       if (whatsappWebhookHandled !== NEXT_ROUTE) return whatsappWebhookHandled;
       const connectorHookHandled = await connectorHookRoute({ req, p, method, json });
@@ -2529,7 +2564,9 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       }
       if (!res.headersSent) json({
         error: e.status ? e.message : 'The workspace could not complete this request.',
-        ...(e.code === 'ACCOUNT_SUSPENDED' && { code: e.code, account: e.account }), ...(['FISCAL_REQUIRED', 'ACCOUNT_CHANGED', 'ACCOUNT_SIGNED_OUT'].includes(e.code) && { code: e.code })
+        ...(e.code === 'ACCOUNT_SUSPENDED' && { code: e.code, account: e.account }), ...(['FISCAL_REQUIRED', 'ACCOUNT_CHANGED', 'ACCOUNT_SIGNED_OUT'].includes(e.code) && { code: e.code }),
+        ...(['PHONE_REQUIRED', 'AGENCY_BLOCKED', 'AGENCY_NOT_ACTIVE'].includes(e.code) && { code: e.code, billing: e.billing }),
+        ...(['PHONE_TAKEN', 'VERIFY_OFF', 'ALREADY_VERIFIED', 'SIGNUP_CLOSED'].includes(e.code) && { code: e.code })
       }, e.status || 500);
     }
   });

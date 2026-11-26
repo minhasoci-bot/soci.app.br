@@ -24,7 +24,7 @@ export function createProspectPublicRoutes(deps) {
         if (method === 'POST') throw error('Method not allowed.',405);
         const findReport = agency => agency.prospects.find(row => row.shareId === token && !row.archived && row.report);
         const match = await store.findAgency({ prospects: [{ shareId: token }] });
-        const prospect = match && findReport(hydrateAgency(match.state));
+        const prospect = match && findReport(hydrateAgency(match.state, match.id));
         if (!prospect) throw error('Relatório indisponível.',404);
         if (method === 'GET' && !String(req.headers.purpose || req.headers['sec-purpose'] || '').includes('prefetch')) {
           try {

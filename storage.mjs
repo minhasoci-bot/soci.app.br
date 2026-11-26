@@ -11,7 +11,7 @@ export function workspaceMissing() {
   return Object.assign(new Error('Workspace not found.'), { status: 404 });
 }
 
-export const isDocument = id => id === 'agency' || /^(agency|studio|social|openai|chat|portal|community|waha|whatsapp|abacatepay|marketplace|google|ads|email|media|platform)-/.test(id);
+export const isDocument = id => id === 'agency' || /^(agency|studio|social|openai|chat|portal|community|waha|whatsapp|abacatepay|marketplace|google|ads|email|media|platform|phone)-/.test(id);
 
 // Livro da cobrança: só inclusão, com chave única por fato (ledger-model.mjs monta as linhas).
 const ledgerLayers = ['platform', 'agency', 'account'];
