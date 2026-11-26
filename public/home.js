@@ -1,20 +1,57 @@
-// soci — página inicial pública: menu do celular e abas da jornada.
+// soci — página inicial pública: menu do celular, números da abertura e abas da jornada.
 (() => {
+  // Menu do celular: folha branca sobre um véu escuro, abaixo do topo da abertura.
   const menuBtn = document.getElementById('menu-btn');
-  const links = document.getElementById('nav-links');
-
+  const menu = document.getElementById('vh-menu');
+  const overlay = document.getElementById('vh-overlay');
+  const isOpen = () => menuBtn.getAttribute('aria-expanded') === 'true';
   const setMenu = open => {
     menuBtn.setAttribute('aria-expanded', String(open));
     menuBtn.querySelector('.sr').textContent = open ? 'Fechar o menu' : 'Abrir o menu';
-    links.classList.toggle('open', open);
-    document.body.style.overflow = open ? 'hidden' : '';
+    menu.hidden = !open;
+    overlay.hidden = !open;
+    document.body.classList.toggle('menu-open', open);
   };
-  menuBtn.addEventListener('click', () => setMenu(menuBtn.getAttribute('aria-expanded') !== 'true'));
-  links.addEventListener('click', event => { if (event.target.closest('a')) setMenu(false); });
+  menuBtn.addEventListener('click', () => setMenu(!isOpen()));
+  overlay.addEventListener('click', () => setMenu(false));
+  menu.addEventListener('click', event => { if (event.target.closest('a')) setMenu(false); });
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && links.classList.contains('open')) { setMenu(false); menuBtn.focus(); }
+    if (event.key === 'Escape' && isOpen()) { setMenu(false); menuBtn.focus(); }
   });
-  window.matchMedia('(min-width: 961px)').addEventListener('change', event => { if (event.matches) setMenu(false); });
+  window.matchMedia('(min-width: 721px)').addEventListener('change', event => { if (event.matches) setMenu(false); });
+
+  // Números da abertura: contam do zero até o valor quando aparecem (uma vez só).
+  const stats = [...document.querySelectorAll('.stat-value[data-target]')];
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const show = (el, value) => {
+    const decimals = Number(el.dataset.decimals || 0);
+    el.textContent = value.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) + (el.dataset.suffix || '');
+  };
+  const count = (el, i) => {
+    const target = Number(el.dataset.target);
+    const duration = 1500 + i * 80;
+    const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+    show(el, 0);
+    setTimeout(() => {
+      const t0 = performance.now();
+      const tick = now => {
+        const p = Math.min(1, (now - t0) / duration);
+        show(el, target * easeOutCubic(p));
+        if (p < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }, 480 + i * 90);
+  };
+  if (!still && 'IntersectionObserver' in window && stats.length) {
+    const seen = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        seen.unobserve(entry.target);
+        count(entry.target, stats.indexOf(entry.target));
+      }
+    }, { threshold: 0.25 });
+    for (const el of stats) seen.observe(el);
+  }
 
   // Abas: clique, setas, Home e End (padrão WAI-ARIA de abas com ativação automática).
   const tabs = [...document.querySelectorAll('[role="tab"]')];

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>soci · Plataforma para agências de marketing</title>
     <meta name="description" content="A soci é a plataforma onde a sua agência atende, vende e entrega. Cada cliente ganha uma subconta com CRM, WhatsApp, agenda, sites, cobrança, automações e IA, com a marca da agência.">
-    <meta name="theme-color" content="#f2f3f6">
+    <meta name="theme-color" content="#000000">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="soci">
     <meta property="og:title" content="soci · Plataforma para agências de marketing">
@@ -14,6 +14,11 @@
     <link rel="canonical" href="https://soci.app.br/">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="preload" href="/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/geist@1.9.2/dist/fonts/geist-pixel/GeistPixel-Circle.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer">
     <link rel="stylesheet" href="/tokens.css">
     <link rel="stylesheet" href="/home.css">
     <script defer src="/home.js"></script>
@@ -23,84 +28,60 @@
   <body>
     <a class="skip" href="#conteudo">Pular para o conteúdo</a>
 
-    <header class="nav" id="topo">
-      <div class="wrap nav-row">
-        <a class="logo" href="/" aria-label="soci, página inicial"><img class="mark" src="/skull_flame_animated.svg" width="34" height="34" alt=""><span>soci</span></a>
-        <nav class="nav-links" id="nav-links" aria-label="Seções da página">
-          <a href="#ferramentas">Ferramentas</a>
-          <a href="#agencias">Para agências</a>
-          <a href="#ia">IA</a>
-          <a href="#aplicativo">Aplicativo</a>
-          <a href="https://doc.soci.app.br/">Central de ajuda</a>
-          <a class="nav-login-mobile" href="/login">Entrar</a>
-        </nav>
-        <div class="nav-actions">
-          <a class="link-quiet" href="/login">Entrar</a>
-          <a class="btn btn-primary btn-sm" href="/login">Criar conta</a>
-          <button class="menu-btn" id="menu-btn" type="button" aria-expanded="false" aria-controls="nav-links">
-            <span class="sr">Abrir o menu</span><span class="menu-bars" aria-hidden="true"></span>
-          </button>
-        </div>
+    <!-- 1. Abertura em tela cheia: vídeo ao fundo, topo, chamada e números -->
+    <section class="vh" id="topo" aria-labelledby="hero-title">
+      <div class="bg" aria-hidden="true">
+        <video class="bg-video" autoplay muted loop playsinline preload="metadata">
+          <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260809_012548_ef22562c-c0ae-4816-ad9d-f8922af4e6a7.mp4" type="video/mp4">
+        </video>
       </div>
-    </header>
 
-    <main id="conteudo">
-      <!-- 1. Abertura: o que é vendido, para quem, e o produto de verdade -->
-      <section class="hero" aria-labelledby="hero-title">
-        <div class="hero-glow" aria-hidden="true"></div>
-        <div class="wrap hero-grid">
-          <div class="hero-copy enter">
-            <p class="eyebrow eyebrow-pill"><img src="/skull_flame_animated.svg" width="22" height="22" alt="">Plataforma para agências de marketing</p>
-            <h1 id="hero-title">Todos os clientes da sua agência num só painel.</h1>
-            <p class="lead">Cada cliente da agência ganha uma subconta com CRM, WhatsApp, agenda, sites, cobrança, automações e IA. Tudo com o nome, as cores e o domínio da sua agência.</p>
-            <div class="hero-actions">
-              <a class="btn btn-primary" href="/login">Criar conta com Google</a>
-              <a class="btn btn-secondary" href="#ferramentas">Ver as ferramentas</a>
-            </div>
-            <p class="hero-note">Você entra com a conta Google da agência.</p>
-          </div>
+      <div class="vh-page">
+        <header class="vh-header">
+          <a class="vh-logo" href="/" aria-label="soci, página inicial"><img src="/skull_flame_animated.svg" width="52" height="52" alt=""></a>
+          <nav class="vh-nav" aria-label="Seções da página">
+            <a class="is-active" href="/" aria-current="page">Início</a>
+            <a href="#ferramentas">Ferramentas</a>
+            <a href="#agencias">Agências</a>
+            <a href="https://doc.soci.app.br/">Ajuda</a>
+          </nav>
+          <a class="vh-signin" href="/login">Entrar</a>
+          <button class="vh-burger" id="menu-btn" type="button" aria-expanded="false" aria-controls="vh-menu">
+            <span class="sr">Abrir o menu</span><i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i>
+          </button>
+        </header>
 
-          <div class="app-frame enter enter-2" aria-label="Prévia da plataforma soci" role="img">
-            <div class="af-bar"><i></i><i></i><i></i><span>soci.app.br/app</span></div>
-            <div class="af-body">
-              <aside class="af-side" aria-hidden="true">
-                <b class="af-brand">Agência Demo</b>
-                <span class="on">Oportunidades</span><span>Conversas</span><span>Contatos</span><span>Agendas</span><span>Automações</span><span>Pagamentos</span><span>Sites</span>
-              </aside>
-              <div class="af-main" aria-hidden="true">
-                <div class="af-head"><b>Funil de vendas</b><em>Clínica Aurora</em></div>
-                <div class="af-board">
-                  <div class="col"><p>Novo lead <small>3</small></p>
-                    <div class="deal"><b>Marina Lopes</b><span>Formulário do site</span><em>R$ 480</em></div>
-                    <div class="deal"><b>Rafael Prado</b><span>Instagram</span><em>R$ 960</em></div>
-                  </div>
-                  <div class="col"><p>Agendado <small>2</small></p>
-                    <div class="deal hot"><b>Beatriz Nunes</b><span>Avaliação · qui, 14h</span><em>R$ 1.200</em></div>
-                    <div class="deal"><b>Caio Mendes</b><span>Retorno · sex, 9h</span><em>R$ 350</em></div>
-                  </div>
-                  <div class="col"><p>Ganho <small>1</small></p>
-                    <div class="deal won"><b>Lia Torres</b><span>Pago por Pix</span><em>R$ 2.400</em></div>
-                  </div>
-                </div>
-              </div>
-              <div class="af-chat" aria-hidden="true">
-                <p class="af-chat-head"><b>Beatriz Nunes</b><span>WhatsApp</span></p>
-                <p class="msg in">Oi! Ainda tem horário essa semana?</p>
-                <p class="msg out">Tem sim, quinta às 14h. Já deixei reservado para você.</p>
-                <p class="msg in">Perfeito, obrigada!</p>
-                <p class="typing"><i></i><i></i><i></i></p>
-              </div>
-            </div>
-          </div>
+        <div class="vh-hero" id="conteudo" tabindex="-1">
+          <p class="trust anim" style="--d: .05s">
+            <span class="trust-av a1" aria-hidden="true"><span><i class="fa-brands fa-whatsapp"></i></span></span>
+            <span class="trust-av a2" aria-hidden="true"><span><i class="fa-brands fa-google"></i></span></span>
+            <span class="trust-av a3" aria-hidden="true"><span><i class="fa-brands fa-pix"></i></span></span>
+            <span class="trust-pill">WhatsApp, Google e Pix integrados</span>
+          </p>
+          <h1 id="hero-title" class="headline anim"><span>Todos os clientes</span><span>em um painel</span></h1>
+          <p class="vh-sub anim" style="--d: .28s">Cada cliente da sua agência ganha uma subconta com CRM, WhatsApp, agenda, sites, cobrança, automações e IA, com a sua marca.</p>
+          <a class="vh-cta anim" style="--d: .4s" href="/login">Criar conta com Google</a>
         </div>
-        <ul class="wrap hero-facts" aria-label="O que vem em cada subconta">
-          <li>Subconta para cada cliente</li>
-          <li>WhatsApp no seu próprio servidor</li>
-          <li>Pix e cartão pela AbacatePay</li>
-          <li>Aplicativo com a sua marca</li>
-          <li>Ajuda em português</li>
+
+        <ul class="stats" aria-label="A soci em números">
+          <li class="stat anim" style="--d: .5s"><span class="stat-icon" aria-hidden="true">*</span><b class="stat-value" data-target="24" data-suffix="/7" data-decimals="0">24/7</b><span class="stat-label">Automações e IA de plantão</span></li>
+          <li class="stat anim" style="--d: .58s"><span class="stat-icon" aria-hidden="true">#</span><b class="stat-value" data-target="5" data-suffix="" data-decimals="0">5</b><span class="stat-label">Etapas da jornada do cliente</span></li>
+          <li class="stat anim" style="--d: .66s"><span class="stat-icon" aria-hidden="true">&lt;</span><b class="stat-value" data-target="3" data-suffix="" data-decimals="0">3</b><span class="stat-label">Passos até o primeiro cliente</span></li>
+          <li class="stat anim" style="--d: .74s"><span class="stat-icon" aria-hidden="true">%</span><b class="stat-value" data-target="100" data-suffix="%" data-decimals="0">100%</b><span class="stat-label">Em português, com ajuda</span></li>
         </ul>
-      </section>
+      </div>
+
+      <div class="vh-overlay" id="vh-overlay" hidden></div>
+      <nav class="vh-menu" id="vh-menu" aria-label="Menu" hidden>
+        <a class="is-active" href="/" aria-current="page" style="--i: 0">Início</a>
+        <a href="#ferramentas" style="--i: 1">Ferramentas</a>
+        <a href="#agencias" style="--i: 2">Agências</a>
+        <a href="https://doc.soci.app.br/" style="--i: 3">Ajuda</a>
+        <a class="vh-menu-signin" href="/login" style="--i: 4">Entrar</a>
+      </nav>
+    </section>
+
+    <main>
 
       <!-- 2. Ferramentas, organizadas pela jornada do cliente -->
       <section class="sec" id="ferramentas" aria-labelledby="ferramentas-title">
