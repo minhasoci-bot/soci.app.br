@@ -7,6 +7,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { isAssetUrl } from './asset-store.mjs';
 import { defaults, metrics, uid, now } from './model.mjs';
 import { hydrateProspecting } from './prospecting-model.mjs';
+import { hydrateBilling } from './agency-billing-model.mjs';
 import { agentTemplate } from './agent-model.mjs';
 import { sanitizePresentation } from './presentation-model.mjs';
 import { isDeck, sanitizeDeck, applyOps as applyDeckOps, LIMITS as DECK_LIMITS } from './ui/deck-model.js';
@@ -71,7 +72,7 @@ export function blankAgency() {
     mobileApp: mobileDefaults(),
     desktopApp: desktopDefaults(),
     integrations: {},
-    billing: { plan: 'Starter', wallet: [], autoRecharge: { enabled: false, threshold: 10, amount: 25 } },
+    billing: hydrateBilling({ plan: 'Starter', wallet: [], autoRecharge: { enabled: false, threshold: 10, amount: 25 } }),
     systemEmails: Object.fromEntries(systemEmailKeys.map(([key, , subject, body]) => [key, { subject, body }])),
     labs: Object.fromEntries(labCatalog.map(([key]) => [key, 'off'])),
     aiDefaults: { limit: 0, alertAt: 0.8, enabled: true },
@@ -97,7 +98,8 @@ const featureOn = (agency, key, account) => {
   return Object.hasOwn(on, account) ? on[account] : Boolean(spec?.[3]);
 };
 
-export function hydrateAgency(state) {
+/** `id` decide a isenção da raiz; sem id, a cobrança guardada fica como está (só leitura). */
+export function hydrateAgency(state, id) {
   const fresh = blankAgency();
   // A mobile app saved before the themes keeps its own color (mobileTheme derives one from it).
   if (state.mobileApp && state.mobileApp.theme === undefined) state.mobileApp = { ...state.mobileApp, theme: null };
@@ -118,6 +120,7 @@ export function hydrateAgency(state) {
   for (const product of resellProducts) state.reselling[product.key] ??= { price: product.base, disabled: [] };
   for (const [key] of rebillProducts) state.saas.rebilling[key] ??= 1;
   state.fiscal ??= null; state.ledgerOutbox ??= [];
+  hydrateBilling(state.billing, { root: id === AGENCY_ID });
   state.saas.unitCosts ??= {}; state.saas.rebill ??= {}; state.saas.lowBalance ??= 20;
   for (const [key, , , cost] of walletProducts) state.saas.unitCosts[key] ??= cost;
   for (const [key] of subFeatures) state.subFeatures[key] ??= { on: {}, rebill: [] };

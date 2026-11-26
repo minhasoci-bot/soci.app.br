@@ -512,7 +512,7 @@ export function makeServer({
     const cached = agencyCache.get(id);
     const now = Date.now();
     if (cached && cached.expiresAt > now) return structuredClone(cached.data);
-    const fresh = hydrateAgency(await store.load(id));
+    const fresh = hydrateAgency(await store.load(id), id);
     agencyCache.set(id, { data: structuredClone(fresh), expiresAt: now + AGENCY_CACHE_TTL });
     return fresh;
   };
@@ -523,7 +523,7 @@ export function makeServer({
     agencyCache.delete(id);
     const images = new Map();
     let waiting = 0;
-    const result = await store.change(id, state => { const out = mutate(hydrateAgency(state)); extractAssets(state, images); waiting = state.audit.length; return out; });
+    const result = await store.change(id, state => { const out = mutate(hydrateAgency(state, id)); extractAssets(state, images); waiting = state.audit.length; return out; });
     if (images.size) await saveAssets(store, images);
     await auditLog.settle(id, waiting);
     agencyCache.delete(id);
@@ -608,7 +608,7 @@ export function makeServer({
       const email = session.email.toLowerCase();
       const invite = await store.findAgency({ users: [{ email, loginEnabled: true }] });
       if (invite) {
-        agency = hydrateAgency(invite.state);
+        agency = hydrateAgency(invite.state, invite.id);
         const member = agency.users.find(user => user.loginEnabled && user.email === email);
         const who = { ...userAccess(agency,member.id), agencyId: invite.id, userId: member.id, session, owner: member.role === 'Agency Owner' };
         return { agency, who };
@@ -2305,7 +2305,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
           if (method === 'POST') throw error('Method not allowed.',405);
           const findReport = agency => agency.prospects.find(row => row.shareId === token && !row.archived && row.report);
           const match = await store.findAgency({ prospects: [{ shareId: token }] });
-          const prospect = match && findReport(hydrateAgency(match.state));
+          const prospect = match && findReport(hydrateAgency(match.state, match.id));
           if (!prospect) throw error('Relatório indisponível.',404);
           if (method === 'GET' && !String(req.headers.purpose || req.headers['sec-purpose'] || '').includes('prefetch')) {
             try {
