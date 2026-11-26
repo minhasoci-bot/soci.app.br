@@ -58,6 +58,7 @@ import { createServer } from 'node:http';
 import { checkEmailAddress } from './email-verify.mjs';
 import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { blank, seed, uid, execute, emitWorkflow, receiveProspects } from './model.mjs';
@@ -172,6 +173,16 @@ import { eventSendDue } from './event-send-model.mjs';
 import { runInBatches } from './cron-batch.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
+// A versão no rodapé é o commit publicado: na Vercel vem da variável do deploy; na máquina, do git; sem nenhum, "local".
+let cachedBuild = '';
+export function buildId(env = process.env, readGit = () => execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000 }).toString()) {
+  if (env === process.env && cachedBuild) return cachedBuild;
+  let id = String(env.VERCEL_GIT_COMMIT_SHA || '').trim().slice(0, 7);
+  if (!id) { try { id = String(readGit()).trim().slice(0, 7); } catch { id = ''; } }
+  id = /^[0-9a-f]{7}$/i.test(id) ? id.toLowerCase() : 'local';
+  if (env === process.env) cachedBuild = id;
+  return id;
+}
 export const staticFiles = new Map([
   ['/launchpad.js','text/javascript; charset=utf-8'], ['/launchpad-data.js','text/javascript; charset=utf-8'], ['/launchpad.css','text/css; charset=utf-8'],
   ['/app.js','text/javascript; charset=utf-8'], ['/icons.js','text/javascript; charset=utf-8'],
@@ -190,7 +201,7 @@ export const staticFiles = new Map([
   ['/soci-chat.js','text/javascript; charset=utf-8'], ['/soci-chat.css','text/css; charset=utf-8'],
   ['/beautiful-ui.js','text/javascript; charset=utf-8'], ['/beautiful-ui.css','text/css; charset=utf-8'],
   ['/beautiful-ui-more.js','text/javascript; charset=utf-8'], ['/beautiful-ui.html','text/html; charset=utf-8'], ['/bui-mounts.js','text/javascript; charset=utf-8'],
-  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'], ['/ask.js','text/javascript; charset=utf-8'], ['/ask.css','text/css; charset=utf-8'], ['/accounts.js','text/javascript; charset=utf-8'], ['/accounts.css','text/css; charset=utf-8'], ['/account-guard.js','text/javascript; charset=utf-8'], ['/scope.css','text/css; charset=utf-8'],
+  ['/highlight.js','text/javascript; charset=utf-8'], ['/toast.js','text/javascript; charset=utf-8'], ['/toast.css','text/css; charset=utf-8'], ['/rodape.js','text/javascript; charset=utf-8'], ['/rodape.css','text/css; charset=utf-8'], ['/ask.js','text/javascript; charset=utf-8'], ['/ask.css','text/css; charset=utf-8'], ['/accounts.js','text/javascript; charset=utf-8'], ['/accounts.css','text/css; charset=utf-8'], ['/account-guard.js','text/javascript; charset=utf-8'], ['/scope.css','text/css; charset=utf-8'],
   ['/vendor/marked.js','text/javascript; charset=utf-8'], ['/vendor/purify.js','text/javascript; charset=utf-8'],
   ['/color-picker.js','text/javascript; charset=utf-8'],
   ['/prospecting.js','text/javascript; charset=utf-8'], ['/prospecting-data.js','text/javascript; charset=utf-8'],
@@ -2426,6 +2437,11 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (!['GET','HEAD','POST'].includes(method)) throw error('Method not allowed.',405);
       // Tracking events come from the business's own site, so they are the one cross-site POST accepted.
       if (method==='POST' && !trackingPath.test(p) && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin && req.headers.origin!==url.origin))) throw error('This workspace only accepts local requests.',403);
+      // Versão para o rodapé das páginas (ui/rodape.js): pública, sem banco, guardada por alguns minutos.
+      if (p === '/api/versao' && (method === 'GET' || method === 'HEAD')) {
+        res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300');
+        return json({ build: buildId() });
+      }
       if (p.startsWith('/api/') && !p.startsWith('/api/auth/')) await ready;
       const id=url.searchParams.get('workspace') || 'demo';
       const portalRouteHandled = await portalRoute({ req, res, p, method, url, id, json, send, proto });

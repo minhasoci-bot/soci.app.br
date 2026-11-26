@@ -7,6 +7,8 @@
   <meta name="description" content="Como a soci coleta, usa e protege dados pessoais.">
   <title>soci</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/rodape.css">
+  <script type="module" src="/rodape.js"></script>
   <style>
     @font-face { font-family: "Plus Jakarta Sans"; src: url("/fonts/plus-jakarta-sans.woff2") format("woff2"); font-weight: 300 800; font-display: swap; }
     :root { color-scheme: dark; --bg: #0b0c0e; --surface: #101216; --line: #23262d; --text: #f1f2f4; --muted: #aab0b9; --brand: #ff4f9a; }
@@ -34,6 +36,7 @@
     .table-wrap { overflow-x: auto; }
     footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
     footer .bar { justify-content: center; }
+    footer .rodape-soci { flex: 1; margin: 0; padding: 0; border: 0; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -119,7 +122,7 @@
   </main>
 
   <footer>
-    <div class="bar">© 2026 soci · <a href="/">soci.app.br</a></div>
+    <div class="bar"><div class="rodape-soci"><span>© 2026 soci. Feita no Brasil com ☕, carinho e muita API.</span><span class="rodape-build" data-rodape-build></span></div></div>
   </footer>
 </body>
 </html>

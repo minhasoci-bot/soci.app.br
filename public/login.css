@@ -1,9 +1,9 @@
 @font-face { font-family: "Plus Jakarta Sans"; src: url("/fonts/plus-jakarta-sans.woff2") format("woff2"); font-display: swap; }
 :root { color-scheme: light; font-family: "Plus Jakarta Sans", system-ui, sans-serif; background: #f7f7f8; color: #16131a; }
 * { box-sizing: border-box; }
-body { min-width: 320px; min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 0%, #ffe1f5 0, #f7f7f8 37rem); }
+body { display: flex; flex-direction: column; min-width: 320px; min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 0%, #ffe1f5 0, #f7f7f8 37rem); }
 button { font: inherit; }
-.login-shell { display: grid; min-height: 100vh; place-items: center; padding: 24px; }
+.login-shell { display: grid; flex: 1; place-items: center; padding: 24px; }
 .login-card { width: min(100%, 400px); padding: 40px; border: 1px solid #e6e2e6; border-radius: 20px; background: #fff; box-shadow: 0 20px 50px rgb(38 22 34 / 9%); }
 .brand { margin-bottom: 42px; color: #16131a; font-size: 25px; font-weight: 800; letter-spacing: -1.8px; }
 .brand span { color: #ff4f9a; }
