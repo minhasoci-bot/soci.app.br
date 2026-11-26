@@ -350,7 +350,8 @@ test('SaaS Configurator, sub-account feature switches, email domain and app rese
 
   assert.equal((await action(local, { type: 'workflow-builder', data: { builder: 'Advanced', [`o_${ws}`]: 'Standard' } })).body.agency.workflowSettings.overrides[ws], 'Standard');
   assert.equal((await action(local, { type: 'email-domain', data: { domain: 'not a domain' } })).status, 400);
-  assert.equal((await action(local, { type: 'email-domain', data: { domain: 'https://Mail.Example.com/' } })).body.agency.emailServices.domain, 'mail.example.com');
+  // Sem RESEND_API_KEY o domínio dedicado não é guardado: antes ele ficava salvo sem existir no serviço de e-mail.
+  assert.equal((await action(local, { type: 'email-domain', data: { domain: 'https://Mail.Example.com/' } })).status, 503);
   assert.equal((await action(local, { type: 'affiliate-pixel', data: { pixelId: 'abc' } })).status, 400);
 
   assert.equal((await action(local, { type: 'app-resell', id: 'slack', data: { cost: 10, price: 5 } })).status, 400);

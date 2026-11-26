@@ -39,7 +39,9 @@ export function createEmailRoutes(deps) {
       const op = p.slice('/api/email/workspace/'.length).replace(/\/+$/, '');
       const who = await workspaceAccess(req, res, id, { modules: ['settings'] });
       const rowId = `email-${id}`;
-      const view = row => emailDomainView(row, { configured: emailDomainApi.configured, platformFrom: process.env.PORTAL_EMAIL_FROM || '' });
+      // Sem domínio próprio, a subconta pode estar enviando pelo domínio dedicado da agência (White Label).
+      const agencyAddress = await sendingAddress(id).catch(() => '');
+      const view = row => { const shown = emailDomainView(row, { configured: emailDomainApi.configured, platformFrom: process.env.PORTAL_EMAIL_FROM || '' }); return { ...shown, agencyAddress: shown.sender ? '' : agencyAddress }; };
       // Copies Resend's view of the domain (status and per-record status) into the row.
       const refresh = async () => {
         const row = await socialRow(rowId), d = row.emailDomain;
