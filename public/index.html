@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>soci · Plataforma para agências de marketing</title>
     <meta name="description" content="A soci é a plataforma onde a sua agência atende, vende e entrega. Cada cliente ganha uma subconta com CRM, WhatsApp, agenda, sites, cobrança, automações e IA, com a marca da agência.">
-    <meta name="theme-color" content="#101216">
+    <meta name="theme-color" content="#f2f3f6">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="soci">
     <meta property="og:title" content="soci · Plataforma para agências de marketing">
@@ -14,6 +14,7 @@
     <link rel="canonical" href="https://soci.app.br/">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="preload" href="/fonts/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/tokens.css">
     <link rel="stylesheet" href="/home.css">
     <script defer src="/home.js"></script>
   </head>
@@ -22,7 +23,7 @@
 
     <header class="nav" id="topo">
       <div class="wrap nav-row">
-        <a class="logo" href="/" aria-label="soci, página inicial">soci<span aria-hidden="true">.</span></a>
+        <a class="logo" href="/" aria-label="soci, página inicial"><img class="mark" src="/skull_flame_animated.svg" width="34" height="34" alt=""><span>soci</span></a>
         <nav class="nav-links" id="nav-links" aria-label="Seções da página">
           <a href="#ferramentas">Ferramentas</a>
           <a href="#agencias">Para agências</a>
@@ -47,12 +48,12 @@
         <div class="hero-glow" aria-hidden="true"></div>
         <div class="wrap hero-grid">
           <div class="hero-copy enter">
-            <p class="eyebrow">Plataforma para agências de marketing</p>
+            <p class="eyebrow eyebrow-pill"><img src="/skull_flame_animated.svg" width="22" height="22" alt="">Plataforma para agências de marketing</p>
             <h1 id="hero-title">Todos os clientes da sua agência num só painel.</h1>
             <p class="lead">Cada cliente da agência ganha uma subconta com CRM, WhatsApp, agenda, sites, cobrança, automações e IA. Tudo com o nome, as cores e o domínio da sua agência.</p>
             <div class="hero-actions">
               <a class="btn btn-primary" href="/login">Criar conta com Google</a>
-              <a class="btn btn-ghost" href="#ferramentas">Ver as ferramentas</a>
+              <a class="btn btn-secondary" href="#ferramentas">Ver as ferramentas</a>
             </div>
             <p class="hero-note">Você entra com a conta Google da agência.</p>
           </div>
@@ -103,7 +104,7 @@
       <section class="sec" id="ferramentas" aria-labelledby="ferramentas-title">
         <div class="wrap">
           <div class="sec-head">
-            <p class="eyebrow eyebrow-dark">Tudo em uma plataforma</p>
+            <p class="eyebrow">Tudo em uma plataforma</p>
             <h2 id="ferramentas-title">Do primeiro clique ao cliente que volta.</h2>
             <p class="sec-lead">As ferramentas seguem o caminho de quem compra. Escolha uma etapa e veja o que a subconta já traz.</p>
           </div>
@@ -241,7 +242,7 @@
       </section>
 
       <!-- 3. Para a agência: marca, subcontas e cobrança -->
-      <section class="sec sec-dark" id="agencias" aria-labelledby="agencias-title">
+      <section class="sec sec-soft" id="agencias" aria-labelledby="agencias-title">
         <div class="wrap">
           <div class="sec-head">
             <p class="eyebrow">Para agências</p>
@@ -275,7 +276,7 @@
       <section class="sec" id="ia" aria-labelledby="ia-title">
         <div class="wrap split">
           <div class="split-copy">
-            <p class="eyebrow eyebrow-dark">Inteligência artificial</p>
+            <p class="eyebrow">Inteligência artificial</p>
             <h2 id="ia-title">IA que trabalha com os dados do cliente.</h2>
             <p class="sec-lead">Monte agentes que respondem no WhatsApp com a base de conhecimento da empresa. E conecte o Claude ou o ChatGPT à soci para consultar contatos, agendas e oportunidades conversando.</p>
             <ul class="ticks ticks-one">
@@ -290,7 +291,7 @@
               <path d="M200 200 L104 88"/><path d="M200 200 L296 88"/><path d="M200 200 L104 312"/><path d="M200 200 L296 312"/>
               <circle class="pulse p1" r="4"/><circle class="pulse p2" r="4"/><circle class="pulse p3" r="4"/><circle class="pulse p4" r="4"/>
             </svg>
-            <span class="hub-core">soci<span>.</span></span>
+            <span class="hub-core"><img src="/skull_flame_animated.svg" width="72" height="72" alt=""></span>
             <span class="hub-node n1">Claude</span>
             <span class="hub-node n2">ChatGPT</span>
             <span class="hub-node n3">Agente no WhatsApp</span>
@@ -300,7 +301,7 @@
       </section>
 
       <!-- 5. Aplicativo móvel -->
-      <section class="sec sec-soft" id="aplicativo" aria-labelledby="aplicativo-title">
+      <section class="sec" id="aplicativo" aria-labelledby="aplicativo-title">
         <div class="wrap split split-rev">
           <div class="phone" aria-hidden="true">
             <div class="phone-screen">
@@ -312,7 +313,7 @@
             </div>
           </div>
           <div class="split-copy">
-            <p class="eyebrow eyebrow-dark">Aplicativo</p>
+            <p class="eyebrow">Aplicativo</p>
             <h2 id="aplicativo-title">Um aplicativo com o nome da sua agência.</h2>
             <p class="sec-lead">Monte o app com o ícone, as cores e os módulos que fazem sentido e mande o link de instalação para a equipe dos clientes. Conversas, contatos e agenda no bolso, com aviso a cada mensagem nova.</p>
             <a class="arrow-link" href="https://doc.soci.app.br/apps/aplicativo-movel/">Criar o aplicativo da agência</a>
@@ -324,7 +325,7 @@
       <section class="sec" id="comecar" aria-labelledby="comecar-title">
         <div class="wrap">
           <div class="sec-head">
-            <p class="eyebrow eyebrow-dark">Primeiros passos</p>
+            <p class="eyebrow">Primeiros passos</p>
             <h2 id="comecar-title">Três passos até o primeiro cliente rodando.</h2>
           </div>
           <ol class="steps">
@@ -352,11 +353,12 @@
       <section class="close" aria-labelledby="close-title">
         <div class="hero-glow" aria-hidden="true"></div>
         <div class="wrap close-inner">
+          <img class="close-mark" src="/skull_flame_animated.svg" width="112" height="112" alt="">
           <h2 id="close-title">Coloque a sua agência inteira na soci.</h2>
           <p>Clientes, conversas, vendas e cobrança num painel com a sua marca.</p>
           <div class="hero-actions">
             <a class="btn btn-primary" href="/login">Criar conta com Google</a>
-            <a class="btn btn-ghost" href="https://doc.soci.app.br/suporte/como-pedir-ajuda/">Falar com o suporte</a>
+            <a class="btn btn-secondary" href="https://doc.soci.app.br/suporte/como-pedir-ajuda/">Falar com o suporte</a>
           </div>
         </div>
       </section>
@@ -365,7 +367,7 @@
     <footer class="foot">
       <div class="wrap foot-grid">
         <div>
-          <a class="logo" href="/" aria-label="soci, página inicial">soci<span aria-hidden="true">.</span></a>
+          <a class="logo" href="/" aria-label="soci, página inicial"><img class="mark" src="/skull_flame_animated.svg" width="34" height="34" alt=""><span>soci</span></a>
           <p class="foot-note">A plataforma das agências de marketing.</p>
         </div>
         <nav aria-label="Produto">
