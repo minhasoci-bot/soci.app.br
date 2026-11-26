@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { afterLogin } from '../auth.mjs';
 import { find } from '../model.mjs';
 import { NEXT_ROUTE } from './next-route.mjs';
-import { isPlatformHost, requestHost, whiteLabelBrand } from '../white-label.mjs';
+import { brandedPage, isPlatformHost, requestHost, whiteLabelBrand } from '../white-label.mjs';
 
 export function createFaviconRoutes() {
   return async function faviconRoutes({ res, p }) {
@@ -81,6 +81,12 @@ export function createPageRoutes(deps) {
       // function. The browser keeps them a day; the Vercel CDN until the next deploy purges it.
       if (f.startsWith('/setup-art/')) res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=86400');
       if (f === '/prancheta-editor.html') res.setHeader('Content-Security-Policy', pranchetaEditorCsp());
+      // White Label: no domínio da agência, a entrada e o app já saem com o nome, o logotipo e a cor dela.
+      if ((f === '/login.html' || f === '/app.html') && !isPlatformHost(requestHost(req))) {
+        await ready;
+        const brand = await whiteLabelBrand(store, requestHost(req));
+        if (brand.name !== undefined) return send(200, 'text/html; charset=utf-8', method === 'HEAD' ? undefined : brandedPage(readFileSync(resolve(root,'ui',f.slice(1)),'utf8'), brand));
+      }
       return send(200,staticFiles.get(f)||'text/html; charset=utf-8',method==='HEAD'?undefined:readFileSync(resolve(root,'ui',f.slice(1))));
     }
     return NEXT_ROUTE;

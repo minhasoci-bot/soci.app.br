@@ -111,3 +111,31 @@ export function hostingDomains({ token = process.env.VERCEL_API_TOKEN, project =
     }
   };
 }
+
+const escapeHtml = text => String(text ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+/** The logo as the agency saved it: an image kept in the document or one moved to the asset store. */
+const safeLogo = value => typeof value === 'string' && (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(value) || /^\/asset\/[0-9a-f]{64}\.(png|jpg|webp|gif)$/.test(value)) ? value : '';
+
+/**
+ * login.html or app.html already in the agency's brand, so the page never shows soci first: name, logo, tab icon,
+ * theme color, the line under the title and the footer. `data-marca` tells login.js not to brand it again.
+ */
+export function brandedPage(html, brand = {}) {
+  const name = escapeHtml(String(brand.name || '').slice(0, 120)) || 'Entrar';
+  const logo = safeLogo(brand.logo);
+  const color = /^#[0-9a-f]{6}$/i.test(brand.primary || '') ? brand.primary : '';
+  let page = html
+    .replace('<html lang="pt-BR">', '<html lang="pt-BR" data-marca="agencia">')
+    .replace(/<title>Entrar · soci<\/title>/, `<title>Entrar · ${name}</title>`)
+    .replace(/<title>soci<\/title>/, `<title>${name}</title>`)
+    .replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="Acesse ${name}.">`)
+    .replace(/<div class="brand" aria-label="soci">[\s\S]*?<\/div>/, `<div class="brand" aria-label="${name}">${logo ? `<img class="brand-logo" src="${escapeHtml(logo)}" alt="${name}">` : name}</div>`)
+    .replace('Acesse a plataforma soci com a sua conta Google.', `Acesse a plataforma ${name} com a sua conta Google.`)
+    .replace(/© \d{4} soci\. Feita no Brasil com ☕, carinho e muita API\./, `© ${new Date().getFullYear()} ${name}.`);
+  if (logo) page = page.replace(/<link rel="icon" type="image\/svg\+xml" href="\/favicon\.svg">/, `<link rel="icon" href="${escapeHtml(logo)}">`);
+  if (color) {
+    page = page.replace(/<meta name="theme-color" content="[^"]*">/, `<meta name="theme-color" content="${color}">`)
+      .replace('</head>', `<style>:root{--marca:${color}}body{background:radial-gradient(circle at 50% 0%,color-mix(in srgb,var(--marca) 16%,#f7f7f8) 0,#f7f7f8 37rem)}.google-button:focus-visible,.login-account:focus-visible{outline-color:color-mix(in srgb,var(--marca) 35%,transparent)}</style></head>`);
+  }
+  return page;
+}
