@@ -9,7 +9,7 @@ import { launchEventPlan } from '../ui/event-planner-data.js';
 
 const helpers = { pageShell, utabs, marketingTabs: [['social', 'Planejador social'], ['events', 'Eventos']] };
 const users = [{ id: 'u1', name: 'Bia' }, { id: 'u2', name: 'Caio' }];
-const sections = ['strategy', 'tasks', 'messages', 'agenda', 'links', 'integrations'];
+const sections = ['strategy', 'tasks', 'messages', 'agenda', 'links', 'timeline', 'integrations'];
 function context(data) {
   const s = blank();
   execute(s, { type: 'save', key: 'eventPlans', id: '', data });
@@ -111,6 +111,17 @@ test('Items follow the planning rules of the original tool', () => {
 test('New agenda blocks continue the script order', () => {
   const c = launched();
   assert.match(itemDialogBody(c, c.s.eventPlans[0], 'agenda'), /name="order"[^>]*value="8"/);
+});
+
+test('The event timeline shows tasks and messages with zoom and today', () => {
+  const html = view(launched(), 'timeline');
+  assert.equal((html.match(/data-ep-tl-bar=/g) || []).length, 46);
+  assert.match(html, /data-ep-tl-zoom="day" aria-pressed="true"/);
+  assert.match(html, /data-ep-tl-zoom="week" aria-pressed="false"/);
+  assert.match(html, /data-ep-tl-today/);
+  assert.match(html, /Captação[\s\S]*Vendas/);
+  const empty = context({ title: 'Vazio', eventDate: '', plan: { brief: {}, items: [] } });
+  assert.match(view(empty, 'timeline'), /class="empty"/);
 });
 
 test('Every icon used by the planner exists', () => {

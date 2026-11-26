@@ -23,7 +23,7 @@ import { sidebar } from './sidebar.js';
 import { topbar } from './topbar.js';
 import { crmEntityNames, crmEvents, crmForm, crmTabs, customInputs } from './crm.js';
 import { socialEvents } from './social.js';
-import { installEventPlanner } from './event-planner.js';
+import { installEventPlanner, placeTimeline } from './event-planner.js';
 import { mountAgentScreen } from './agents.js';
 import { mountAgentHub } from './agent-hub.js';
 import { installContentAI } from './content-ai.js';
@@ -357,6 +357,7 @@ function render(){
   const viewKey = `${c.workspace}:${c.view}:${c.tab}:${c.studio.project}`;
   const previousScroll = renderedView === viewKey ? G('#screen')?.scrollTop || 0 : 0;
   const kanbanScroll = renderedView === viewKey ? G('.kanban')?.scrollLeft || 0 : 0;
+  const timelineScroll = renderedView === viewKey ? G('[data-ep-tl-scroll]') : null, timelineAt = timelineScroll && [timelineScroll.scrollLeft, timelineScroll.scrollTop];
   renderedView = viewKey;
   const agencyName=c.agency?.name&&!['My Agency','Minha agência'].includes(c.agency.name)?c.agency.name:'';
   const brand=agencyName||brandName(c.agency?.brand), customLink=c.agency?.menuLinks.find(l=>l.id===c.tab);
@@ -373,6 +374,7 @@ function render(){
   mountBeautifulUI(G('#screen'), c, { render });
   if(c.view==='conversations'&&c.thread) {const area=G('.thread-messages');if(area)area.scrollTop=area.scrollHeight;}
   if(c.view==='dashboard') { G('#screen').scrollTop=previousScroll; }
+  if(c.view==='marketing'&&c.tab==='events') placeTimeline(...(timelineAt||[]));
   if(c.view==='dashboard' || c.view==='reporting') { drawDashboardGauges(app); }
   if(c.view==='opportunities') {
     G('#screen').scrollTop = previousScroll;
