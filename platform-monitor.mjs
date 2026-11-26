@@ -11,11 +11,12 @@ const DUE_MS = 55 * MINUTE, MANUAL_MS = 2 * MINUTE;
 const HOURLY_MAX = 168, DAILY_MAX = 90, PUSH_MAX = 10;
 const PAGE_URL = '/app#agency/plataforma';
 
-/** Serviços sem leitura automática: aparecem na página só como atalho para o painel de cada um. */
+/**
+ * Serviços sem leitura automática: aparecem na página só como atalho para o painel de cada um.
+ * AbacatePay: cada agência usa a própria chave, não há uma conta da plataforma para ler.
+ * Google: login e Places não têm API de uso com a chave que o app guarda.
+ */
 export const UNMONITORED = [
-  { name: 'OpenAI', url: 'https://platform.openai.com/usage' },
-  { name: 'Resend', url: 'https://resend.com/emails' },
-  { name: 'Meta', url: 'https://developers.facebook.com/apps/' },
   { name: 'AbacatePay', url: 'https://www.abacatepay.com/app' },
   { name: 'Google', url: 'https://console.cloud.google.com/billing' }
 ];

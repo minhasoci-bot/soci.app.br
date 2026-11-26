@@ -20,8 +20,19 @@ const guarded = (service, name, collect) => async context => {
   try { return await collect(context); } catch (problem) { return failed(service, name, problem); }
 };
 
+/** Data no formato que as APIs aceitam: sem milissegundos (a Hostinger responde 500 a "…00.123Z"). */
+const isoSeconds = at => new Date(at).toISOString().replace(/\.\d{3}Z$/, 'Z');
+const monthStartOf = now => { const at = new Date(now); return Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1); };
+/** Acrescenta a etapa ao erro ("HTTP 500 em métricas"), para saber qual chamada falhou. */
+const step = (label, promise) => promise.catch(problem => {
+  throw problem instanceof ProviderError && !(problem instanceof TimeoutError) ? new ProviderError(`${problem.message} em ${label}`) : problem;
+});
+
 /** GET/POST com tempo máximo; qualquer resposta que não seja 2xx vira "HTTP <status>". */
-async function fetchJson(request, url, options, timeoutMs) {
+const fetchJson = async (request, url, options, timeoutMs) => (await fetchResponse(request, url, options, timeoutMs)).body;
+
+/** Como fetchJson, mas devolve também a resposta, para ler cabeçalhos de uso. */
+async function fetchResponse(request, url, options, timeoutMs) {
   let response;
   try {
     response = await request(url, { redirect: 'error', signal: AbortSignal.timeout(timeoutMs), ...options });
@@ -30,7 +41,7 @@ async function fetchJson(request, url, options, timeoutMs) {
     throw new ProviderError('sem conexão');
   }
   if (!response.ok) throw new ProviderError(`HTTP ${response.status}`);
-  try { return await response.json(); } catch { throw new ProviderError('resposta inválida'); }
+  try { return { response, body: await response.json() }; } catch { throw new ProviderError('resposta inválida'); }
 }
 
 export const collectSupabase = guarded('supabase', 'Supabase', async function collectSupabase({ env, store, settings }) {
@@ -78,10 +89,18 @@ const R2_QUERY = `query($account: String!, $since: Time!, $monthStart: Time!, $n
 }`;
 
 export const collectCloudflare = guarded('cloudflare', 'Cloudflare R2', async function collectCloudflare({ env, request, now, timeoutMs = 8000 }) {
-  const token = env.CLOUDFLARE_API_TOKEN, account = env.R2_ACCOUNT_ID;
-  if (!token || !account) return notConfigured('cloudflare', 'Cloudflare R2', 'https://dash.cloudflare.com/');
-  const at = new Date(now);
-  const variables = { account, since: new Date(now - DAY).toISOString(), monthStart: new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1)).toISOString(), now: at.toISOString() };
+  const token = env.CLOUDFLARE_API_TOKEN;
+  if (!token) return notConfigured('cloudflare', 'Cloudflare R2', 'https://dash.cloudflare.com/');
+  // A conta vem da variável ou, sem ela, do próprio token (um token de uma conta só lista essa conta).
+  // CLOUDFLARE_ACCOUNT_ID existe porque R2_ACCOUNT_ID sozinho liga o armazenamento R2 do app e derruba o servidor.
+  let account = env.R2_ACCOUNT_ID || env.CLOUDFLARE_ACCOUNT_ID;
+  if (!account) {
+    const listed = await step('contas', fetchJson(request, 'https://api.cloudflare.com/client/v4/accounts?per_page=5', { headers: { Authorization: `Bearer ${token}` } }, timeoutMs));
+    const accounts = Array.isArray(listed?.result) ? listed.result : [];
+    if (accounts.length !== 1) throw new ProviderError(accounts.length ? 'o token vê mais de uma conta: defina CLOUDFLARE_ACCOUNT_ID' : 'o token não vê nenhuma conta');
+    account = accounts[0].id;
+  }
+  const variables = { account, since: isoSeconds(now - DAY), monthStart: isoSeconds(monthStartOf(now)), now: isoSeconds(now) };
   const data = await fetchJson(request, 'https://api.cloudflare.com/client/v4/graphql', {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: R2_QUERY, variables })
   }, timeoutMs);
@@ -112,14 +131,15 @@ export const collectHostinger = guarded('hostinger', 'Hostinger', async function
   const link = 'https://hpanel.hostinger.com/vps';
   if (!token) return notConfigured('hostinger', 'Hostinger', link);
   const headers = { Authorization: `Bearer ${token}` };
-  const machines = await fetchJson(request, `${HOSTINGER}/api/vps/v1/virtual-machines`, { headers }, timeoutMs);
+  const machines = await step('VPS', fetchJson(request, `${HOSTINGER}/api/vps/v1/virtual-machines`, { headers }, timeoutMs));
   if (!Array.isArray(machines) || !machines.length) throw new ProviderError('nenhuma VPS na conta');
   const evolutionHost = URL.parse(env.EVOLUTION_BASE_URL || '')?.hostname || '';
   const vm = machines.find(m => evolutionHost && (m.hostname === evolutionHost || (m.ipv4 || []).some(ip => ip.address === evolutionHost))) || machines[0];
-  const query = new URLSearchParams({ date_from: new Date(now - 6 * 3_600_000).toISOString(), date_to: new Date(now).toISOString() });
+  const query = new URLSearchParams({ date_from: isoSeconds(now - 6 * 3_600_000), date_to: isoSeconds(now) });
+  // A assinatura só traz o vencimento: se ela falhar, os números da VPS continuam aparecendo.
   const [usage, subscriptions] = await Promise.all([
-    fetchJson(request, `${HOSTINGER}/api/vps/v1/virtual-machines/${vm.id}/metrics?${query}`, { headers }, timeoutMs),
-    fetchJson(request, `${HOSTINGER}/api/billing/v1/subscriptions`, { headers }, timeoutMs)
+    step('métricas', fetchJson(request, `${HOSTINGER}/api/vps/v1/virtual-machines/${vm.id}/metrics?${query}`, { headers }, timeoutMs)),
+    fetchJson(request, `${HOSTINGER}/api/billing/v1/subscriptions`, { headers }, timeoutMs).catch(() => null)
   ]);
   const cpu = average(usage?.cpu_usage);
   const metrics = [
@@ -159,12 +179,69 @@ export const collectTwilio = guarded('twilio', 'Twilio', async function collectT
   ] });
 });
 
+export const collectOpenAI = guarded('openai', 'OpenAI', async function collectOpenAI({ env, request, now, timeoutMs = 8000 }) {
+  // Só as chaves da conta da soci: OPENAI_API_KEY é a do "Pergunte à Soci"; as agências usam chaves próprias.
+  const key = env.OPENAI_API_KEY, admin = env.OPENAI_ADMIN_KEY;
+  const link = 'https://platform.openai.com/usage';
+  if (!key && !admin) return notConfigured('openai', 'OpenAI', link);
+  const metrics = [];
+  if (key) {
+    const base = String(env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    await step('chave', fetchJson(request, `${base}/models`, { headers: { Authorization: `Bearer ${key}` } }, timeoutMs));
+    metrics.push(metric('key', 'Chave da API', 1, null, 'check', 'now', { kind: 'check', note: 'aceita pela OpenAI' }));
+  }
+  if (admin) {
+    // Gasto do mês pela Costs API: só uma chave de administrador (sk-admin-…) lê.
+    const query = new URLSearchParams({ start_time: String(Math.floor(monthStartOf(now) / 1000)), bucket_width: '1d', limit: '31' });
+    const costs = await step('gastos', fetchJson(request, `https://api.openai.com/v1/organization/costs?${query}`, { headers: { Authorization: `Bearer ${admin}` } }, timeoutMs));
+    const spent = (costs?.data || []).flatMap(bucket => bucket.results || []).reduce((sum, row) => sum + Number(row.amount?.value || 0), 0);
+    metrics.push(metric('spend', 'Gasto no mês', Math.round(spent * 100) / 100, null, 'usd', 'month'));
+  }
+  return reading('openai', 'OpenAI', { plan: 'pago por uso', link, metrics });
+});
+
+export const collectResend = guarded('resend', 'Resend', async function collectResend({ env, request, timeoutMs = 8000 }) {
+  const key = env.RESEND_API_KEY;
+  if (!key) return notConfigured('resend', 'Resend', 'https://resend.com/emails');
+  const base = String(env.RESEND_API_URL || 'https://api.resend.com').replace(/\/+$/, '');
+  // Ler domínios pede uma chave de acesso total; uma chave só de envio responde 401.
+  const data = await step('domínios', fetchJson(request, `${base}/domains`, { headers: { Authorization: `Bearer ${key}` } }, timeoutMs));
+  const domains = Array.isArray(data?.data) ? data.data : [];
+  const sender = String(env.PORTAL_EMAIL_FROM || '').match(/@([^>\s]+)/)?.[1]?.toLowerCase() || '';
+  const domain = sender ? domains.find(d => String(d.name).toLowerCase() === sender) : domains[0];
+  const verified = domain?.status === 'verified';
+  const note = !domain ? (sender ? `${sender} não está cadastrado no Resend` : 'nenhum domínio cadastrado')
+    : verified ? `${domain.name} verificado` : `${domain.name}: ${domain.status || 'sem status'}`;
+  return reading('resend', 'Resend', { link: 'https://resend.com/domains', metrics: [
+    metric('domain', 'Domínio do remetente', verified ? 1 : 0, null, 'check', 'now', { kind: 'check', note })
+  ] });
+});
+
+export const collectMeta = guarded('meta', 'Meta', async function collectMeta({ env, request, timeoutMs = 8000 }) {
+  const id = env.META_APP_ID, secret = env.META_APP_SECRET;
+  if (!id || !secret) return notConfigured('meta', 'Meta', 'https://developers.facebook.com/apps/');
+  const version = env.META_GRAPH_VERSION || 'v23.0';
+  // Token do app no cabeçalho, nunca na URL. O X-App-Usage diz quanto do limite por hora o app já usou.
+  const { response, body } = await step('app', fetchResponse(request, `https://graph.facebook.com/${version}/${encodeURIComponent(id)}?fields=name`, {
+    headers: { Authorization: `OAuth ${id}|${secret}` }
+  }, timeoutMs));
+  let usage = null;
+  try {
+    const parsed = JSON.parse(response.headers?.get?.('x-app-usage') || 'null');
+    if (parsed) usage = Math.max(...['call_count', 'total_time', 'total_cputime'].map(k => Number(parsed[k]) || 0));
+  } catch { usage = null; }
+  return reading('meta', 'Meta', { plan: body?.name ? String(body.name).slice(0, 60) : '', link: `https://developers.facebook.com/apps/${encodeURIComponent(id)}/dashboard/`, metrics: [
+    metric('appRate', 'Limite de chamadas (1 h)', usage, 100, 'percent', 'now', usage === null ? { note: 'a Meta não informou' } : {})
+  ] });
+});
+
 const COLLECTORS = [
   ['supabase', 'Supabase', collectSupabase], ['vercel', 'Vercel', collectVercel], ['cloudflare', 'Cloudflare R2', collectCloudflare],
-  ['hostinger', 'Hostinger', collectHostinger], ['evolution', 'Evolution API', collectEvolution], ['twilio', 'Twilio', collectTwilio]
+  ['hostinger', 'Hostinger', collectHostinger], ['evolution', 'Evolution API', collectEvolution], ['twilio', 'Twilio', collectTwilio],
+  ['openai', 'OpenAI', collectOpenAI], ['resend', 'Resend', collectResend], ['meta', 'Meta', collectMeta]
 ];
 
-/** Os 6 serviços em paralelo, cada um com tempo máximo. Uma falha vira `status: 'error'` só daquele serviço. */
+/** Os serviços em paralelo, cada um com tempo máximo. Uma falha vira `status: 'error'` só daquele serviço. */
 export async function collectAll({ env, request, store, settings, now, timeoutMs = 8000 }) {
   const context = { env, request, store, settings, now, timeoutMs };
   return Promise.all(COLLECTORS.map(async ([service, name, collect]) => {

@@ -8,10 +8,13 @@ const PLAN_NAMES = { free: 'Free', pro: 'Pro', hobby: 'Hobby' };
 const SETUP = {
   supabase: 'a função go_platform_usage no SQL Editor do Supabase',
   vercel: 'VERCEL_API_TOKEN e VERCEL_TEAM_ID',
-  cloudflare: 'CLOUDFLARE_API_TOKEN e R2_ACCOUNT_ID',
+  cloudflare: 'CLOUDFLARE_API_TOKEN',
   hostinger: 'HOSTINGER_API_TOKEN',
   evolution: 'EVOLUTION_BASE_URL e EVOLUTION_API_KEY',
-  twilio: 'TWILIO_ACCOUNT_SID e TWILIO_AUTH_TOKEN'
+  twilio: 'TWILIO_ACCOUNT_SID e TWILIO_AUTH_TOKEN (só se a soci usar a telefonia)',
+  openai: 'OPENAI_ADMIN_KEY (gasto do mês da conta da soci; as agências usam chaves próprias)',
+  resend: 'RESEND_API_KEY com acesso total',
+  meta: 'META_APP_ID e META_APP_SECRET'
 };
 const LEVEL_TEXT = { ok: 'Normal', warn: 'Atenção', critical: 'Urgente' };
 
@@ -21,6 +24,7 @@ const alerting = view => view.services.flatMap(service => service.status === 'ok
 function metricValue(metric) {
   const kind = metric.kind || 'usage';
   if (kind === 'deadline') return `vence em ${formatAmount(metric.used, 'days')}`;
+  if (kind === 'check') return metric.note || '';
   if (kind === 'floor') return `${formatAmount(metric.used, metric.unit)} (mínimo ${formatAmount(metric.limit, metric.unit)})`;
   if (metric.used === null || metric.used === undefined) return metric.note || 'sem dados';
   return metric.limit ? `${formatAmount(metric.used, metric.unit)} de ${formatAmount(metric.limit, metric.unit)}` : formatAmount(metric.used, metric.unit);
@@ -28,7 +32,8 @@ function metricValue(metric) {
 
 function metricRow(metric, h) {
   const level = ['warn', 'critical'].includes(metric.level) ? metric.level : 'ok';
-  const badge = metric.pct !== null && metric.pct !== undefined ? `${Math.round(metric.pct)}%`
+  const badge = metric.kind === 'check' ? (metric.used ? 'OK' : 'Pendente')
+    : metric.pct !== null && metric.pct !== undefined ? `${Math.round(metric.pct)}%`
     : metric.used === null || metric.used === undefined ? '—' : LEVEL_TEXT[level];
   const bar = metric.pct !== null && metric.pct !== undefined
     ? `<span class="pf-bar ${level}" aria-hidden="true"><span data-w="${Math.max(0, Math.min(100, Math.round(metric.pct)))}"></span></span>` : '';

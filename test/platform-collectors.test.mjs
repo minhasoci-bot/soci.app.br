@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { collectAll, collectSupabase, collectVercel, collectCloudflare, collectHostinger, collectEvolution, collectTwilio } from '../platform-collectors.mjs';
+import { collectAll, collectSupabase, collectVercel, collectCloudflare, collectHostinger, collectEvolution, collectTwilio, collectOpenAI, collectResend, collectMeta } from '../platform-collectors.mjs';
 
 const NOW = Date.UTC(2026, 10, 25, 12);
 const MiB = 1024 * 1024;
@@ -24,7 +24,7 @@ const never = () => new Promise(() => {});
 
 test('cada coletor sem as variáveis devolve "não configurado" sem chamar a rede', async () => {
   const request = fakeRequest([]);
-  for (const collect of [collectVercel, collectCloudflare, collectHostinger, collectEvolution, collectTwilio]) {
+  for (const collect of [collectVercel, collectCloudflare, collectHostinger, collectEvolution, collectTwilio, collectOpenAI, collectResend, collectMeta]) {
     const reading = await collect({ env: {}, request, store: {}, settings, now: NOW });
     assert.equal(reading.status, 'not-configured', reading.service);
   }
@@ -83,7 +83,7 @@ test('Cloudflare: classe A, classe B e operações grátis do R2', async () => {
   assert.equal(metric(reading, 'r2ClassA').limit, 1000000);
   const body = JSON.parse(request.calls[0].options.body);
   assert.equal(body.variables.account, 'acc');
-  assert.equal(body.variables.monthStart, '2026-11-01T00:00:00.000Z');
+  assert.equal(body.variables.monthStart, '2026-11-01T00:00:00Z');
 });
 
 test('Cloudflare: erro no GraphQL vira erro curto', async () => {
@@ -163,7 +163,7 @@ test('collectAll: um serviço travado não segura os outros', async () => {
   const started = Date.now();
   const readings = await collectAll({ env, request, store, settings, now: NOW, timeoutMs: 50 });
   assert.ok(Date.now() - started < 9000);
-  assert.deepEqual(readings.map(r => r.service), ['supabase', 'vercel', 'cloudflare', 'hostinger', 'evolution', 'twilio']);
+  assert.deepEqual(readings.map(r => r.service), ['supabase', 'vercel', 'cloudflare', 'hostinger', 'evolution', 'twilio', 'openai', 'resend', 'meta']);
   const by = Object.fromEntries(readings.map(r => [r.service, r]));
   assert.deepEqual([by.twilio.status, by.twilio.error], ['error', 'tempo esgotado']);
   assert.equal(by.evolution.status, 'ok');
@@ -177,4 +177,92 @@ test('collectAll: uma exceção inesperada num coletor vira erro daquele serviç
   const supabase = readings.find(r => r.service === 'supabase');
   assert.equal(supabase.status, 'error');
   assert.equal(supabase.error, 'falha na leitura');
+});
+
+test('Hostinger: manda as datas sem milissegundos e diz qual chamada falhou', async () => {
+  const vms = [{ id: 7, plan: 'KVM 1', hostname: 'srv.hstgr.cloud', memory: 4096, disk: 51200, subscription_id: 'S', ipv4: [] }];
+  const request = fakeRequest([['/metrics', new Response('', { status: 500 })], ['/virtual-machines', vms], ['/subscriptions', []]]);
+  const reading = await collectHostinger({ env: { HOSTINGER_API_TOKEN: 'h' }, request, store: {}, settings, now: NOW + 123 });
+  assert.equal(reading.status, 'error');
+  assert.equal(reading.error, 'HTTP 500 em métricas');
+  const asked = new URL(request.calls.find(c => c.url.includes('/metrics')).url);
+  assert.equal(asked.searchParams.get('date_from'), '2026-11-25T06:00:00Z');
+  assert.equal(asked.searchParams.get('date_to'), '2026-11-25T12:00:00Z');
+});
+
+test('Hostinger: se a assinatura falhar, os números da VPS continuam', async () => {
+  const vms = [{ id: 7, plan: 'KVM 1', hostname: 'srv.hstgr.cloud', memory: 4096, disk: 51200, subscription_id: 'S', ipv4: [] }];
+  const metrics = { cpu_usage: { usage: { 1: 4 } }, ram_usage: { usage: { 1: 100 * MiB } }, disk_space: { usage: { 1: 200 * MiB } } };
+  const request = fakeRequest([['/metrics', metrics], ['/virtual-machines', vms], ['/subscriptions', new Response('', { status: 500 })]]);
+  const reading = await collectHostinger({ env: { HOSTINGER_API_TOKEN: 'h' }, request, store: {}, settings, now: NOW });
+  assert.equal(reading.status, 'ok');
+  assert.equal(metric(reading, 'disk').used, 200 * MiB);
+  assert.equal(metric(reading, 'expires'), undefined);
+});
+
+test('Cloudflare: sem conta na variável, descobre a conta pelo token', async () => {
+  const request = fakeRequest([['/accounts', { result: [{ id: 'acc-do-token', name: 'soci' }] }], ['/graphql', { data: { viewer: { accounts: [{ storage: [], operations: [] }] } } }]]);
+  const reading = await collectCloudflare({ env: { CLOUDFLARE_API_TOKEN: 'cf' }, request, store: {}, settings, now: NOW });
+  assert.equal(reading.status, 'ok');
+  assert.equal(JSON.parse(request.calls[1].options.body).variables.account, 'acc-do-token');
+  assert.equal(reading.link, 'https://dash.cloudflare.com/acc-do-token/r2/overview');
+});
+
+test('Cloudflare: CLOUDFLARE_ACCOUNT_ID dispensa a descoberta; token com várias contas pede a variável', async () => {
+  const graph = ['/graphql', { data: { viewer: { accounts: [{ storage: [], operations: [] }] } } }];
+  const direct = fakeRequest([graph]);
+  await collectCloudflare({ env: { CLOUDFLARE_API_TOKEN: 'cf', CLOUDFLARE_ACCOUNT_ID: 'fixa' }, request: direct, store: {}, settings, now: NOW });
+  assert.equal(direct.calls.length, 1);
+  const many = fakeRequest([['/accounts', { result: [{ id: 'a' }, { id: 'b' }] }], graph]);
+  const reading = await collectCloudflare({ env: { CLOUDFLARE_API_TOKEN: 'cf' }, request: many, store: {}, settings, now: NOW });
+  assert.equal(reading.status, 'error');
+  assert.match(reading.error, /CLOUDFLARE_ACCOUNT_ID/);
+});
+
+test('OpenAI: confere a chave e, com a chave de administrador, soma o gasto do mês', async () => {
+  const request = fakeRequest([
+    ['/models', { data: [{ id: 'gpt' }] }],
+    ['/organization/costs', { data: [{ results: [{ amount: { value: 1.255, currency: 'usd' } }] }, { results: [{ amount: { value: 2 } }] }] }]
+  ]);
+  const reading = await collectOpenAI({ env: { OPENAI_API_KEY: 'sk', OPENAI_ADMIN_KEY: 'sk-admin' }, request, store: {}, settings, now: NOW });
+  assert.equal(reading.status, 'ok');
+  assert.equal(metric(reading, 'key').used, 1);
+  assert.equal(metric(reading, 'spend').used, 3.26);
+  const costs = new URL(request.calls.find(c => c.url.includes('/costs')).url);
+  assert.equal(costs.searchParams.get('start_time'), String(Date.UTC(2026, 10, 1) / 1000));
+  assert.equal(request.calls.find(c => c.url.includes('/costs')).options.headers.Authorization, 'Bearer sk-admin');
+});
+
+test('OpenAI: chave recusada vira erro curto', async () => {
+  const request = fakeRequest([['/models', new Response('{"error":"bad key sk-123"}', { status: 401 })]]);
+  const reading = await collectOpenAI({ env: { OPENAI_API_KEY: 'sk-123' }, request, store: {}, settings, now: NOW });
+  assert.equal(reading.error, 'HTTP 401 em chave');
+});
+
+test('Resend: o domínio do remetente verificado fica OK; pendente pede atenção', async () => {
+  const domains = status => ({ data: [{ name: 'outro.com', status: 'verified' }, { name: 'soci.app.br', status }] });
+  const env = { RESEND_API_KEY: 're', PORTAL_EMAIL_FROM: 'soci <avisos@soci.app.br>' };
+  const ok = await collectResend({ env, request: fakeRequest([['/domains', domains('verified')]]), store: {}, settings, now: NOW });
+  assert.deepEqual([metric(ok, 'domain').used, metric(ok, 'domain').note], [1, 'soci.app.br verificado']);
+  const pending = await collectResend({ env, request: fakeRequest([['/domains', domains('pending')]]), store: {}, settings, now: NOW });
+  assert.deepEqual([metric(pending, 'domain').used, metric(pending, 'domain').note], [0, 'soci.app.br: pending']);
+  const missing = await collectResend({ env: { ...env, PORTAL_EMAIL_FROM: 'x@novo.com' }, request: fakeRequest([['/domains', domains('verified')]]), store: {}, settings, now: NOW });
+  assert.equal(metric(missing, 'domain').note, 'novo.com não está cadastrado no Resend');
+});
+
+test('Meta: lê o uso do limite por hora no X-App-Usage, com o token no cabeçalho', async () => {
+  const usage = JSON.stringify({ call_count: 12, total_time: 40, total_cputime: 7 });
+  const request = fakeRequest([['graph.facebook.com', new Response('{"name":"soci","id":"123"}', { headers: { 'content-type': 'application/json', 'x-app-usage': usage } })]]);
+  const reading = await collectMeta({ env: { META_APP_ID: '123', META_APP_SECRET: 'sec' }, request, store: {}, settings, now: NOW });
+  assert.equal(reading.status, 'ok');
+  assert.equal(reading.plan, 'soci');
+  assert.deepEqual([metric(reading, 'appRate').used, metric(reading, 'appRate').limit], [40, 100]);
+  assert.ok(!request.calls[0].url.includes('sec'));
+  assert.equal(request.calls[0].options.headers.Authorization, 'OAuth 123|sec');
+});
+
+test('Meta: sem o cabeçalho de uso, a métrica fica sem valor', async () => {
+  const request = fakeRequest([['graph.facebook.com', { name: 'soci' }]]);
+  const reading = await collectMeta({ env: { META_APP_ID: '123', META_APP_SECRET: 'sec' }, request, store: {}, settings, now: NOW });
+  assert.equal(metric(reading, 'appRate').used, null);
 });
