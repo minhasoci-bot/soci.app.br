@@ -8,7 +8,7 @@ const PLAN_NAMES = { free: 'Free', pro: 'Pro', hobby: 'Hobby' };
 const SETUP = {
   supabase: 'a função go_platform_usage no SQL Editor do Supabase',
   vercel: 'VERCEL_API_TOKEN e VERCEL_TEAM_ID',
-  cloudflare: 'CLOUDFLARE_API_TOKEN (R2_ACCOUNT_ID já existe)',
+  cloudflare: 'CLOUDFLARE_API_TOKEN e R2_ACCOUNT_ID',
   hostinger: 'HOSTINGER_API_TOKEN',
   evolution: 'EVOLUTION_BASE_URL e EVOLUTION_API_KEY',
   twilio: 'TWILIO_ACCOUNT_SID e TWILIO_AUTH_TOKEN'

@@ -36,6 +36,13 @@
   },
   {
     "grupo": "agencia",
+    "artigo": "excluir-subconta",
+    "titulo": "Excluir uma subconta",
+    "fase": "F2",
+    "status": "escrito"
+  },
+  {
+    "grupo": "agencia",
     "artigo": "setups-de-conta",
     "titulo": "Setups de conta",
     "fase": "F2",

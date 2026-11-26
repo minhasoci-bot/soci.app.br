@@ -47,16 +47,31 @@ Não usa token de administração: o token da Management API não tem modo só l
 
 Sem esse passo, o cartão do Supabase mostra "Não consegui ler os dados".
 
-### 2. Variáveis novas na Vercel (Production)
+**Situação:** criada em produção em 26/11/2026, com a chave copiada das policies existentes. Ela recusa chamadas sem a chave do servidor.
+
+### 2. Variáveis na Vercel (Production)
+
+Situação em 26/11/2026: só `VERCEL_TEAM_ID`, `EVOLUTION_BASE_URL`, `EVOLUTION_API_KEY`, `CRON_SECRET` e `GO_AGENCY_OWNER_ID` existem em produção. Todas as outras desta seção faltam.
+
+**Leitura dos serviços**
 
 | Variável | Onde criar | Permissão mínima |
 |---|---|---|
 | `VERCEL_API_TOKEN` | vercel.com → Account Settings → Tokens | Escopo só no time `soci3`, com validade definida |
 | `VERCEL_TEAM_ID` | Settings do time `soci3` → Team ID (`team_…`) | — |
 | `CLOUDFLARE_API_TOKEN` | dash.cloudflare.com → My Profile → API Tokens → Custom token | Account → **Account Analytics: Read** e **Workers R2 Storage: Read**, só na conta do R2 |
+| `R2_ACCOUNT_ID` | dash.cloudflare.com → R2 → Account ID | — |
 | `HOSTINGER_API_TOKEN` | hPanel → Perfil → API → Novo token | Token da conta, com validade definida |
+| `TWILIO_ACCOUNT_SID` e `TWILIO_AUTH_TOKEN` | console.twilio.com → Account Info | Só se a soci usar o Twilio |
 
-As variáveis abaixo já existem e são reaproveitadas: `R2_ACCOUNT_ID`, `EVOLUTION_BASE_URL`, `EVOLUTION_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `PORTAL_EMAIL_FROM`, `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY`, `CRON_SECRET` e `GO_AGENCY_OWNER_ID`.
+**Canais de alerta.** Sem pelo menos um deles, a página mostra os números mas não avisa ninguém.
+
+| Variável | Onde criar |
+|---|---|
+| `RESEND_API_KEY` e `PORTAL_EMAIL_FROM` | resend.com → API Keys. O remetente precisa ser de um domínio verificado no Resend |
+| `WEB_PUSH_PUBLIC_KEY` e `WEB_PUSH_PRIVATE_KEY` | Gere uma vez com `node scripts/vapid-keys.mjs` e cole as duas linhas |
+
+Já existentes e reaproveitadas: `EVOLUTION_BASE_URL`, `EVOLUTION_API_KEY`, `CRON_SECRET` e `GO_AGENCY_OWNER_ID`. Variáveis novas só valem a partir do próximo deploy.
 
 Um serviço sem as suas variáveis aparece como **Não conectado**, com o nome do que falta, e nunca gera alerta.
 
