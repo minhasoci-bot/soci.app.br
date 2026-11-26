@@ -31,7 +31,7 @@ export default {
       await botao.click();
       const situacao = page.locator('[data-ag-domain-status] table');
       await situacao.waitFor();
-      await situacao.evaluate(no => window.scrollBy(0, no.getBoundingClientRect().bottom - window.innerHeight / 2));
-    }, destacar: '[data-ag-domain-check]' },
+      await situacao.evaluate(no => no.closest('[data-ag-domain-status]').scrollIntoView({ block: 'center' }));
+    }, destacar: '[data-ag-domain-status]' },
   ],
 };
