@@ -56,7 +56,9 @@ function sqliteTracking(db) {
   const byForm = db.prepare(`SELECT data ->> 'formKey' AS name, data ->> 'url' AS url, count(*) AS total, count(DISTINCT nullif(data ->> 'contactId', '')) AS contacts, max(created) AS last
     FROM tracking_events WHERE workspace = ? AND data ->> 'type' = 'form' GROUP BY 1 ORDER BY last DESC, name LIMIT 200`);
   const prune = db.prepare('DELETE FROM tracking_events WHERE created < ?');
+  const dropWorkspace = db.prepare('DELETE FROM tracking_events WHERE workspace = ?');
   return {
+    removeWorkspace(workspace) { dropWorkspace.run(workspace); },
     append(workspace, rows) {
       for (const row of rows.map(storedEvent)) insert.run(workspace, row.id, row.created, JSON.stringify(row));
     },
@@ -265,6 +267,9 @@ export function createSupabaseStore({ projectUrl, publishableKey, storageKey, re
     },
     async prune(before) {
       await events('go_tracking_events', { created_at: `lt.${before}` }, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+    },
+    async removeWorkspace(workspace) {
+      await events('go_tracking_events', { workspace: `eq.${workspace}` }, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
     }
   };
 

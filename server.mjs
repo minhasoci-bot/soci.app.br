@@ -77,6 +77,7 @@ import { runWorkflowAI } from './workflow-ai.mjs';
 import { mediaRowId } from './reputation-media.mjs';
 import { addPage, chatEntry, designedPage, deletePage, duplicatePage, findPage, movePage, resetStats, setSeo, setSlug, newSiteDoc, pageFromStructure, publish, renamePage, restoreVersion, savePage, siteRowId } from './studio-site.mjs';
 import { AGENCY_ID, agencyOverview, applySnapshot, blankAgency, executeAgency, extractSnapshot, hash, hydrateAgency, previewSnapshot, userAccess, canReactivate, inTrash, trashList, trashExpired } from './agency-model.mjs';
+import { createAccountPurge, PURGE_GIVE_UP_MS, PURGE_RETRY_MS } from './account-purge.mjs';
 import { MARKETPLACE_DOC_ID, emptyMarketplace, findMarketplaceSetup, hydrateMarketplace, publicMarketplaceList, publishToMarketplace, recordMarketplaceInstall, templateGallery, unpublishFromMarketplace } from './setup-marketplace.mjs';
 import { runProspectingAction } from './prospecting-model.mjs';
 import { collectProspectAudit, fetchPage, marketingAuditVars } from './prospect-audit.mjs';
@@ -1996,20 +1997,45 @@ export function makeServer({
       try { await whatsappGuard.run(agencyId, ids, base); } catch (e) { console.error(`WhatsApp guard (${agencyId}): ${e.message}`); }
     }, { concurrency: 5, budgetMs: cronBudgetMs, start: Math.floor(at / 60_000) });
   }
-  // Lixeira de subcontas: passados TRASH_DAYS da exclusão, o documento da subconta é apagado de vez e sai da agência.
+  const accountPurge = createAccountPurge({ store, r2, whatsapp });
+  // Lixeira de subcontas: passados TRASH_DAYS da exclusão, a subconta é apagada de vez com tudo o que era dela
+  // (account-purge.mjs) e sai da agência. Se o R2 ou a Evolution falham, ela espera na lixeira e o servidor tenta de
+  // novo a cada hora; depois de 7 dias de falha, apaga o que é da soci e anota no histórico o que ficou de fora.
   async function purgeTrash(agencyId, at = Date.now()) {
-    const expired = trashExpired(await store.load(agencyId), at);
-    for (const id of expired) {
+    const agency = await store.load(agencyId), done = [];
+    for (const id of trashExpired(agency, at)) {
+      const failed = agency.accounts[id]?.trash?.purgeFailed;
+      if (failed && at - Date.parse(failed.at) < PURGE_RETRY_MS) continue;
+      let leftOut = [];
       // Uma linha que já não é desta agência (apagada antes) só sai da lixeira.
-      if (await store.belongsToAgency(id, workspaceOwner(agencyId))) await store.remove(id);
-      await changeAgency(agencyId, agency => {
-        const name = agency.accounts[id]?.name || id;
-        delete agency.accounts[id];
-        logTo(agency, { name: 'Lixeira automática' }, 'Sub-account permanently deleted', name);
+      if (await store.belongsToAgency(id, workspaceOwner(agencyId))) {
+        const since = Date.parse(failed?.since || '') || at, givingUp = at - since >= PURGE_GIVE_UP_MS;
+        const failures = await accountPurge.external(agencyId, id, { force: givingUp });
+        if (failures.length && !givingUp) {
+          console.error(`Lixeira de subcontas (${id}): ${failures.join(' · ')}`);
+          await changeAgency(agencyId, current => {
+            const trash = current.accounts[id]?.trash;
+            if (trash) trash.purgeFailed = { at: new Date(at).toISOString(), since: new Date(since).toISOString(), error: failures.join(' · ').slice(0, 500) };
+          });
+          continue;
+        }
+        leftOut = failures;
+        await accountPurge.local(id);
+        await store.remove(id);
+      }
+      await changeAgency(agencyId, current => {
+        const name = current.accounts[id]?.name || id;
+        delete current.accounts[id];
+        const drop = list => Array.isArray(list) ? list.filter(account => account !== id) : list;
+        for (const user of current.users || []) user.accounts = drop(user.accounts);
+        if (current.saas) current.saas.accounts = drop(current.saas.accounts);
+        if (current.emailServices) current.emailServices.accounts = drop(current.emailServices.accounts);
+        logTo(current, { name: 'Lixeira automática' }, 'Sub-account permanently deleted', name, leftOut.length ? `Ficou de fora: ${leftOut.join(' · ')}`.slice(0, 500) : '');
       });
+      done.push(id);
     }
-    if (expired.length) belongsCache.clear();
-    return expired;
+    if (done.length) belongsCache.clear();
+    return done;
   }
   // Each document is read once per round, not once per task (read-scope.mjs).
   const runAllSocial = (base, at = Date.now()) => cronReads.run(() => runSocialRound(base, at));

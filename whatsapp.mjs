@@ -1238,5 +1238,18 @@ export function createWhatsAppHandler({
     throw fail('Rota do WhatsApp não encontrada.', 404);
   }
 
-  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, fetchWorkspaceMedia, sendWorkspaceText, sendWorkspaceMedia, sendWorkspacePresence, sendWorkspaceInteractive, listWorkspaceGroups, sendEventMessage, guardOps };
+  // Subconta apagada de vez: desconecta o aparelho, apaga a instância na Evolution e tira a subconta da linha da agência.
+  // Sem servidor configurado não há instância para apagar. Erro da Evolution sobe (quem chama tenta de novo).
+  async function removeWorkspace(agencyId, workspaceId) {
+    // Só lê: uma agência sem WhatsApp não ganha uma linha nova por causa da exclusão.
+    const raw = await Promise.resolve().then(() => store.load(rowId(agencyId))).catch(e => { if (e?.status === 404) return null; throw e; });
+    if (!raw?.subaccounts?.[workspaceId]) return false;
+    const row = normalizeRow(raw);
+    const creds = serverCredentials(row, agencyId);
+    if (creds.configured) await adapter.remove({ creds, sub: subFor(row, workspaceId) });
+    await changeRow(agencyId, current => { delete current.subaccounts[workspaceId]; return current; });
+    return true;
+  }
+
+  return { handleAgencyApi, handleWorkspaceApi, handleWebhook, fetchWorkspaceMedia, removeWorkspace, sendWorkspaceText, sendWorkspaceMedia, sendWorkspacePresence, sendWorkspaceInteractive, listWorkspaceGroups, sendEventMessage, guardOps };
 }
