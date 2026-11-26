@@ -71,6 +71,13 @@
   },
   {
     "grupo": "agencia",
+    "artigo": "dominio-de-envio",
+    "titulo": "Enviar e-mails com o domínio da agência",
+    "fase": "F2",
+    "status": "escrito"
+  },
+  {
+    "grupo": "agencia",
     "artigo": "plano-nao-pago",
     "titulo": "Suspender a subconta quando o plano não é pago",
     "fase": "F2",

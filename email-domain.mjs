@@ -76,6 +76,15 @@ export function workspaceSender(row) {
   return d?.status === 'verified' && d.name && d.localPart ? `${d.localPart}@${d.name}` : '';
 }
 
+/**
+ * White Label: the agency's dedicated domain for the sub-accounts it picked, once Resend verified it.
+ * A sub-account with its own verified domain keeps it (workspaceSender wins).
+ */
+export function agencySender(services, workspace) {
+  const s = services || {};
+  return s.status === 'verified' && s.domain && s.localPart && Array.isArray(s.accounts) && s.accounts.includes(workspace) ? `${s.localPart}@${s.domain}` : '';
+}
+
 /** What Settings → Serviços de e-mail shows. */
 export function emailDomainView(row, { configured, platformFrom = '' }) {
   const d = row?.emailDomain;

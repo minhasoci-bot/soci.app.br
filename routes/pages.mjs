@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { afterLogin } from '../auth.mjs';
 import { find } from '../model.mjs';
 import { NEXT_ROUTE } from './next-route.mjs';
+import { isPlatformHost, requestHost, whiteLabelBrand } from '../white-label.mjs';
 
 export function createFaviconRoutes() {
   return async function faviconRoutes({ res, p }) {
@@ -59,6 +60,14 @@ export function createPageRoutes(deps) {
     // A raiz é a página inicial pública (ui/index.html); o login com Google mora em /login (ui/login.html).
     const homePaths = ['/','/index.html'];
     const loginPaths = ['/login','/login.html'];
+    // White Label: no domínio de uma agência a raiz é a entrada com a marca dela, nunca a página inicial da soci.
+    if ((method==='GET'||method==='HEAD') && homePaths.includes(p) && !isPlatformHost(requestHost(req))) {
+      await ready;
+      if ((await whiteLabelBrand(store, requestHost(req))).name !== undefined) {
+        const search = new URLSearchParams(url.search); search.delete('__path');
+        return goTo('/login' + (search.size ? '?' + search : ''));
+      }
+    }
     if ((method==='GET'||method==='HEAD') && (homePaths.includes(p) || loginPaths.includes(p) || platformPaths.includes(p) || paths.test(p) || staticFiles.has(p))) {
       const isLogin = loginPaths.includes(p) || homePaths.includes(p);
       // Páginas estáticas que só abrem com sessão (como o app), por exemplo o editor da Prancheta.

@@ -15,6 +15,7 @@ import { pranchetaFileRecord, createCanonicalTemplates, checkPranchetaSave, appl
 import { walletKeys, walletProducts, walletSummary } from './wallet-model.mjs';
 import { labCatalog, labModes } from './ui/labs-data.js';
 import { whiteLabelHost } from './white-label.mjs';
+import { applyDomainStatus, normalizeLocalPart } from './email-domain.mjs';
 import { apiScopes,
   accountStatuses, affiliateRate, agencyLevel, agencyPlans, addOns, collections, integrationCatalog,
   resellProducts, snapshotAssets, subAccountModules, systemEmailKeys,
@@ -230,7 +231,7 @@ export function restoreFromBilling(state, id) {
 const pick = (state, key, id) => state[key].find(item => item.id === id) || fail('Record not found.', 404);
 
 // Commands that only touch the agency record.
-export function executeAgency(state, command, { accountIds = [], actor, sharedSnapshot } = {}) {
+export function executeAgency(state, command, { accountIds = [], actor, sharedSnapshot, emailDomain } = {}) {
   const { type, key, id } = command;
   const d = command.data && typeof command.data === 'object' && !Array.isArray(command.data) ? command.data : {};
   const log = (action, target, details) => audit(state, actor, action, target, details);
@@ -688,13 +689,23 @@ export function executeAgency(state, command, { accountIds = [], actor, sharedSn
       log(`${spec[1]} ${field === 'on' ? 'access' : 'rebilling'} ${value ? 'enabled' : 'disabled'}`, account);
       return id;
     }
+    // White Label: o domínio de envio da agência é criado na Resend (o servidor passa o resultado em emailDomain) e,
+    // verificado, vira o remetente das subcontas escolhidas que não têm domínio próprio.
     case 'email-domain': {
-      state.emailServices = { domain: domainName(d.domain), added: now(), accounts: [] };
+      const live = emailDomain || fail('O domínio de envio precisa ser criado no serviço de e-mail.', 503);
+      state.emailServices = { domain: domainName(d.domain), added: now(), accounts: [], localPart: normalizeLocalPart(d.localPart || 'contato'),
+        resendId: live.id, region: live.region, status: live.status, records: live.records, checkedAt: now(), verifiedAt: live.status === 'verified' ? now() : '' };
       log('Dedicated sending domain added', state.emailServices.domain);
       return state.emailServices.domain;
     }
+    case 'email-domain-status': {
+      if (!state.emailServices.domain || !emailDomain) fail('Add a dedicated domain first.');
+      state.emailServices = applyDomainStatus(state.emailServices, emailDomain, now());
+      return state.emailServices.status;
+    }
     case 'email-domain-accounts': {
       if (!state.emailServices.domain) fail('Add a dedicated domain first.');
+      if (d.localPart !== undefined) state.emailServices.localPart = normalizeLocalPart(d.localPart);
       state.emailServices.accounts = Array.isArray(d.accounts) ? d.accounts.filter(v => accountIds.includes(v)) : [];
       log('Dedicated domain sub-accounts changed', state.emailServices.domain, `${state.emailServices.accounts.length} sub-accounts`);
       return 'email';

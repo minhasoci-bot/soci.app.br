@@ -21,17 +21,17 @@ Com o domínio próprio, seus clientes entram na soci por um endereço da agênc
 
 1. No painel da agência, abra **Configurações** e vá para a aba **Empresa e marca**. Em **White Label das subcontas**, digite o endereço em **Domínio para subcontas**, por exemplo app.suaagencia.com.br. Use um subdomínio (com "app." ou "portal." na frente), não o endereço do site da agência.
 
-   <Print src="docs/agencia/dominio-proprio/01-campo-do-dominio.329c4d23.webp" alt="Seção White Label das subcontas com app.agenciademo.com.br no campo Domínio para subcontas." />
+   <Print src="docs/agencia/dominio-proprio/01-campo-do-dominio.2818a86f.webp" alt="Seção White Label das subcontas com app.agenciademo.com.br no campo Domínio para subcontas." />
 
 2. Clique em **Salvar dados da empresa**. A soci adiciona o domínio à hospedagem.
 
-3. No painel do seu domínio, crie um registro **CNAME** com o nome do subdomínio (por exemplo, `app`) apontando para `cname.vercel-dns.com`. Se o domínio estiver na Cloudflare, deixe o proxy desligado (nuvem cinza).
+3. Clique em **Verificar domínio**. Abaixo do botão aparece uma tabela com os registros que faltam no DNS: o **CNAME** do endereço (por exemplo, `app` apontando para `cname.vercel-dns.com`) e, quando a hospedagem pede, um **TXT** que prova que o domínio é seu. Cada linha traz o tipo, o nome e o valor exatos.
 
-4. De volta à **Empresa e marca**, clique em **Verificar domínio**. A mensagem diz em que ponto está: aguardando o CNAME ou pronto. A mudança de DNS pode levar algumas horas.
+4. No painel do seu domínio, crie os registros da tabela. Se o domínio estiver na Cloudflare, deixe o registro do endereço como **Somente DNS** (nuvem cinza). Depois volte à **Empresa e marca** e clique em **Verificar domínio** de novo. A mudança de DNS pode levar algumas horas.
 
-   <Print src="docs/agencia/dominio-proprio/02-verificar-dominio.fa214d01.webp" alt="Botão Verificar domínio em destaque e, abaixo dele, a mensagem com a situação do domínio." />
+   <Print src="docs/agencia/dominio-proprio/02-verificar-dominio.c7cdcab8.webp" alt="Botão Verificar domínio em destaque e, abaixo dele, a mensagem com a situação do domínio." />
 
-5. Quando aparecer **Pronto: o domínio aponta para a soci.**, mande o novo endereço aos clientes. A tela de entrada já mostra o nome e o logotipo da agência.
+5. Quando aparecer **Pronto: o domínio aponta para a soci.**, mande o novo endereço aos clientes. Quem abre o endereço vai direto para a tela de entrada com o nome e o logotipo da agência, e o botão de entrar com o Google funciona no próprio domínio da agência.
 
 </Steps>
 
@@ -47,6 +47,12 @@ Não. Cada domínio fica com uma agência só. Se outra agência já usa o ender
 **O endereço antigo da soci continua funcionando?**
 Sim. Os clientes podem entrar pelos dois endereços. No domínio da agência, a tela de entrada mostra a sua marca.
 
+**O endereço abre com erro 525. O que fazer?**
+O registro está passando pelo proxy da Cloudflare (nuvem laranja). Mude para **Somente DNS** (nuvem cinza) e clique em **Verificar domínio**. A soci avisa quando detecta o proxy.
+
+**Troquei o domínio. O antigo continua ligado à agência?**
+Não. Ao trocar ou apagar o domínio em **Domínio para subcontas**, o endereço antigo sai da hospedagem e pode ser usado em outro lugar.
+
 **Posso usar o domínio principal do site, sem o "app."?**
 Não é recomendado. O domínio principal costuma apontar para o site da agência, e mudá-lo tiraria o site do ar. Use um subdomínio só para a soci.
 
@@ -54,5 +60,6 @@ Não é recomendado. O domínio principal costuma apontar para o site da agênci
 
 <CardGrid>
   <LinkCard title="Colocar a marca da agência na soci" href="/agencia/white-label/" description="Logotipo e cores da agência dentro das subcontas." />
+  <LinkCard title="Enviar e-mails com o domínio da agência" href="/agencia/dominio-de-envio/" description="Faturas, campanhas e automações saindo com o endereço da agência." />
   <LinkCard title="Criar uma subconta para um cliente" href="/agencia/criar-subconta/" description="Cadastre o cliente que vai entrar pelo seu domínio." />
 </CardGrid>
