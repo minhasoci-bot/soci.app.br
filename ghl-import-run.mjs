@@ -3,6 +3,8 @@
 // images (cópia das imagens para os assets da soci, 20 por passo) → done (setup em Importados). Erro: failed.
 // Tudo o que o passo lê e grava passa por `io` (routes/ghl-import.mjs), para o módulo não conhecer o banco.
 import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
+import { isPrivateAddress } from './ai-gateway/ssrf.mjs';
 import { uid } from './model.mjs';
 import { convert, pagesOf } from './ghl-convert/convert.mjs';
 import { imageUrls, replaceUrls } from './ghl-convert/page-html.mjs';
@@ -20,9 +22,37 @@ const stamp = () => new Date().toISOString();
 
 async function download(io, url) {
   try {
-    const response = await io.fetch(url, { signal: AbortSignal.timeout(TIMEOUT), redirect: 'follow' });
+    const response = await io.fetch(url, { signal: AbortSignal.timeout(TIMEOUT) });
     return response.ok ? response : null;
   } catch { return null; }
+}
+
+/** Só http(s) nas portas padrão, sem usuário/senha, e o host não pode cair em rede interna (as páginas são do cliente). */
+async function publicUrl(io, raw) {
+  let url;
+  try { url = new URL(raw); } catch { return false; }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || (url.port && !['80', '443'].includes(url.port))) return false;
+  const host = url.hostname.replace(/^[|]$/g, '');
+  if (isIP(host)) return !isPrivateAddress(host);
+  try {
+    const records = await io.resolve(host);
+    return records.length > 0 && !records.some(record => isPrivateAddress(record.address));
+  } catch { return false; }
+}
+
+/** Baixa uma imagem seguindo no máximo 3 redirecionamentos, conferindo cada endereço antes de pedir. */
+async function downloadImage(io, raw) {
+  let url = raw;
+  for (let hop = 0; hop < 4; hop++) {
+    if (!(await publicUrl(io, url))) return null;
+    let response;
+    try { response = await io.fetch(url, { signal: AbortSignal.timeout(TIMEOUT), redirect: 'manual' }); } catch { return null; }
+    if (response.status < 300 || response.status >= 400) return response.ok ? response : null;
+    const next = response.headers.get('location');
+    if (!next) return null;
+    try { url = new URL(next, url).toString(); } catch { return null; }
+  }
+  return null;
 }
 
 async function readSource(io) {
@@ -85,7 +115,7 @@ async function stepImages(job, io) {
   const batch = converted.images.slice(job.imagesDone, job.imagesDone + IMAGES_PER_STEP);
   const found = new Map();
   await Promise.all(batch.map(async url => {
-    const response = await download(io, url);
+    const response = await downloadImage(io, url);
     const mime = String(response?.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
     const bytes = response && EXT[mime] ? Buffer.from(await response.arrayBuffer().catch(() => new ArrayBuffer(0))) : null;
     if (!bytes?.length || bytes.length > IMAGE_MAX) { job.imagesFailed = (job.imagesFailed || 0) + 1; return; }

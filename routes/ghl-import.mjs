@@ -1,6 +1,7 @@
 // Importar do GHL (/api/ghl-import/* e /api/agency/ghl-import*): a agência gera um código, a extensão do Chrome manda a
 // extração em partes autenticadas por ele (sem sessão: vem de chrome-extension://) e a janela da soci avança a conversão
 // em passos (ghl-import-run.mjs). A soci nunca recebe senha, token ou cookie do GHL.
+import { lookup } from 'node:dns/promises';
 import { requireCapability } from '../authorization.mjs';
 import { acceptPart, finishUpload, jobByCode, jobView, codeHash, newImportCode, PART_MAX } from '../ghl-import-model.mjs';
 import { runStep } from '../ghl-import-run.mjs';
@@ -22,6 +23,7 @@ export function ghlImportCors(req) {
 
 export function createGhlImportRoutes(deps) {
   const { store, error, access, loadAgency, changeAgency, logTo, ghlFetch, publicOrigin } = deps;
+  const ghlResolve = deps.ghlResolve || (host => lookup(host, { all: true, verbatim: true }));
 
   async function body(req) {
     const chunks = [];
@@ -46,6 +48,7 @@ export function createGhlImportRoutes(deps) {
     return {
       origin: publicOrigin,
       fetch: ghlFetch,
+      resolve: ghlResolve,
       async readPart(name) {
         let text = '';
         for (let index = 0; index < (job.parts[name] || 0); index++) {

@@ -95,6 +95,17 @@ test('splits a read into parts of up to the size limit', async () => {
   }
 });
 
+test('never cuts an emoji in half between two pieces', () => {
+  const { reader } = loadReader();
+  // '["' tem 2 caracteres: com pedaços de 3, o corte cai no meio do primeiro emoji.
+  const surveys = ['😀😀😀😀😀'];
+  const parts = JSON.parse(JSON.stringify(reader.parts({ surveys }, 3))).filter(p => p.name === 'surveys');
+  const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  assert.ok(parts.every(p => !lone.test(p.data)), 'um pedaço terminou ou começou com meio emoji');
+  assert.ok(parts.every((p, i) => p.index === i && p.total === parts.length));
+  assert.deepEqual(JSON.parse(parts.map(p => p.data).join('')), surveys);
+});
+
 test('the manifest asks only for activeTab, scripting and storage', () => {
   const manifest = JSON.parse(readFileSync(new URL('manifest.json', dir), 'utf8'));
   assert.equal(manifest.manifest_version, 3);

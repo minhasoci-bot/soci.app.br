@@ -11,23 +11,28 @@ import { loadSetupSites } from '../setup-sites-store.mjs';
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/ghl-location.json', import.meta.url), 'utf8'));
 const IMAGE = 'https://assets.cdn.filesafe.space/fx/foto.png';
 const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
-const preview = name => `<!doctype html><html><head><title>${name}</title></head><body><h1>${name}</h1><img src="${IMAGE}"></body></html>`;
+const preview = (name, extra = []) => `<!doctype html><html><head><title>${name}</title></head><body><h1>${name}</h1><img src="${IMAGE}">${extra.map(src => `<img src="${src}">`).join('')}</body></html>`;
 
 /** O GHL falso: pré-visualizações em sites.leadconnectorhq.com/preview/<id> e a imagem; `broken` lista o que responde 404. */
-function fakeGhl(broken = []) {
+function fakeGhl(broken = [], { extra = [], routes = {}, seen = [] } = {}) {
   return async url => {
     url = String(url);
+    seen.push(url);
+    if (routes[url]) return routes[url]();
     if (broken.some(part => url.includes(part))) return new Response('não encontrado', { status: 404 });
     const page = url.match(/^https:\/\/sites\.leadconnectorhq\.com\/preview\/([^/?#]+)/);
-    if (page) return new Response(preview(`Página ${page[1]}`), { headers: { 'Content-Type': 'text/html' } });
+    if (page) return new Response(preview(`Página ${page[1]}`, extra), { headers: { 'Content-Type': 'text/html' } });
     if (url === IMAGE) return new Response(PNG, { headers: { 'Content-Type': 'image/png' } });
     return new Response('', { status: 404 });
   };
 }
 
-async function start({ ghlFetch = fakeGhl() } = {}) {
+// DNS falso: todo host é público, menos os de `privados`.
+const publicDns = (privados = {}) => async host => [{ address: privados[host] || '93.184.216.34' }];
+
+async function start({ ghlFetch = fakeGhl(), ghlResolve = publicDns() } = {}) {
   const store = createSqliteStore(':memory:');
-  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, store, port: 0, ghlFetch });
+  const { server, host } = makeServer({ allowLocalAccess: true, auth: null, store, port: 0, ghlFetch, ghlResolve });
   await new Promise((resolve, reject) => { server.on('error', reject); server.listen(0, host, resolve); });
   const base = `http://${host}:${server.address().port}`;
   const call = async (path, body, headers = {}) => {
@@ -56,8 +61,8 @@ async function upload(local, code, source) {
 }
 
 /** Gera o código, envia a extração e avança os passos até o fim. */
-async function runImport(t, { ghlFetch, source = fixture } = {}) {
-  const local = await start({ ghlFetch }); t.after(local.close);
+async function runImport(t, { ghlFetch, ghlResolve, source = fixture } = {}) {
+  const local = await start({ ghlFetch, ghlResolve }); t.after(local.close);
   const issued = await local.call('/api/agency/ghl-import-code', {});
   assert.equal(issued.status, 200, JSON.stringify(issued.body));
   const jobId = await upload(local, issued.body.code, source);
@@ -132,4 +137,21 @@ test('replaces copied images with soci asset urls', async t => {
   const hash = createHash('sha256').update(PNG).digest('hex');
   assert.ok(html.includes(`https://soci.app.br/asset/${hash}.png`));
   assert.ok(!html.includes(IMAGE));
+});
+
+test('never fetches images on internal networks, not even through a redirect', async t => {
+  const seen = [];
+  const META = 'http://169.254.169.254/latest/meta-data/foto.png';
+  const INTERNAL = 'https://interno.exemplo/foto.png';
+  const HOP = 'https://assets.cdn.filesafe.space/fx/salto.png';
+  const LOOP = 'http://127.0.0.1:8080/foto.png';
+  const ghlFetch = fakeGhl([], { extra: [META, INTERNAL, HOP], seen, routes: {
+    [HOP]: () => new Response(null, { status: 302, headers: { Location: LOOP } }),
+    [LOOP]: () => new Response(PNG, { headers: { 'Content-Type': 'image/png' } }),
+  } });
+  const { job, html } = await runImport(t, { ghlFetch, ghlResolve: publicDns({ 'interno.exemplo': '10.0.0.5' }) });
+  for (const url of [META, INTERNAL, LOOP]) assert.ok(!seen.includes(url), `a soci pediu ${url}`);
+  assert.ok(seen.includes(HOP));
+  assert.ok(html.includes(META) && html.includes(INTERNAL) && html.includes(HOP));
+  assert.ok(job.notes.some(text => /3 imagens/.test(text)), job.notes.join(' | '));
 });
