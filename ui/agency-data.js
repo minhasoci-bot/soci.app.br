@@ -4,13 +4,18 @@
 export const agencyRoles = ['Agency Owner', 'Agency Admin', 'Agency User', 'Account Admin', 'Account User'];
 export const agencyLevel = role => role.startsWith('Agency');
 
+// Menu lateral da agência: [chave, rótulo, ícone, grupo]. O grupo decide a seção do menu (agencyNavGroups);
+// a ordem dentro da seção é a desta lista. 'rodape' fica embaixo, fora das seções.
 export const agencyNav = [
-  ['ask', 'Pergunte à Soci', 'spark'], ['ai-suite', 'Central de IA', 'studio'], ['dashboard', 'Painel da agência', 'grid'], ['saas', 'Configurador SaaS', 'chart'], ['prospecting', 'Prospecção', 'search'],
-  ['accounts', 'Subcontas', 'users'], ['brand-groups', 'Grupos de marcas', 'chart'], ['presentations', 'Apresentações', 'monitor'], ['prancheta', 'Prancheta', 'palette'], ['snapshots', 'Setups de conta', 'box'],
-  ['affiliate', 'Portal de afiliados', 'link'], ['partners', 'Parceiros', 'award'],
-  ['ideas', 'Ideias e sugestões', 'bulb'], ['mobile-app', 'Aplicativo móvel', 'mobile'], ['desktop-app', 'Aplicativo desktop', 'monitor'], ['marketplace', 'Marketplace de apps', 'apps'],
-  ['settings', 'Configurações', 'gear']
+  ['dashboard', 'Painel da agência', 'grid', 'inicio'], ['ask', 'Pergunte à Soci', 'spark', 'inicio'], ['ai-suite', 'Central de IA', 'studio', 'inicio'],
+  ['accounts', 'Subcontas', 'users', 'clientes'], ['brand-groups', 'Grupos de marcas', 'tag', 'clientes'], ['snapshots', 'Setups de conta', 'box', 'clientes'], ['saas', 'Configurador SaaS', 'sliders', 'clientes'],
+  ['prospecting', 'Prospecção', 'search', 'vendas'], ['presentations', 'Apresentações', 'play', 'vendas'], ['prancheta', 'Prancheta', 'palette', 'vendas'], ['affiliate', 'Portal de afiliados', 'link', 'vendas'], ['partners', 'Parceiros', 'award', 'vendas'],
+  ['marketplace', 'Marketplace de apps', 'apps', 'apps'], ['mobile-app', 'Aplicativo móvel', 'mobile', 'apps'], ['desktop-app', 'Aplicativo desktop', 'monitor', 'apps'],
+  ['ideas', 'Ideias e sugestões', 'bulb', 'ajuda'],
+  ['settings', 'Configurações', 'gear', 'rodape']
 ];
+
+export const agencyNavGroups = [['inicio', 'Início'], ['clientes', 'Clientes'], ['vendas', 'Vendas'], ['apps', 'Apps'], ['ajuda', 'Ajuda']];
 
 // Central de ajuda (docs-site/): o menu da agência leva para cá no lugar da antiga Universidade.
 export const helpCenterUrl = 'https://doc.soci.app.br/';

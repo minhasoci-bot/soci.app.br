@@ -6490,5 +6490,7 @@ export default {
   "A conexão automática com a hospedagem não está ativa: peça ao suporte da soci para adicionar o domínio.": "La conexión automática con el hosting no está activa: pide al soporte de soci que agregue el dominio.",
   "O domínio ainda não foi adicionado à hospedagem. Salve de novo em alguns minutos.": "El dominio aún no se agregó al hosting. Guarda de nuevo en unos minutos.",
   "Pronto: o domínio aponta para a soci.": "Listo: el dominio apunta a soci.",
-  "Aguardando o CNAME: a mudança de DNS pode levar algumas horas.": "Esperando el CNAME: el cambio de DNS puede tardar algunas horas."
+  "Aguardando o CNAME: a mudança de DNS pode levar algumas horas.": "Esperando el CNAME: el cambio de DNS puede tardar algunas horas.",
+  "Clientes": "Clientes",
+  "Ajuda": "Ayuda"
 };
