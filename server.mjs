@@ -33,6 +33,7 @@ import { createLinkRoutes } from './routes/links.mjs';
 import { createInboxRoutes } from './routes/inbox.mjs';
 import { createWhatsappRoutes, createWhatsappWebhookRoutes } from './routes/whatsapp.mjs';
 import { createAskRoutes } from './routes/ask.mjs';
+import { createVerifyRoutes } from './routes/verify.mjs';
 import { createBrandAIRoutes, createContentAIRoutes, createConversationAIRoutes } from './routes/content-ai.mjs';
 import { createSeoRoutes } from './routes/seo.mjs';
 import { createConnectorHookRoutes, createConnectorRoutes } from './routes/connectors.mjs';
@@ -283,6 +284,7 @@ export function makeServer({
   auth=authFromEnv(), agencyOwnerId=process.env.GO_AGENCY_OWNER_ID, agentModel=openAIModel, generateAgentReply=replyAsAgent, contentAI=null, workflowAI=null, mediaAI=null, brandFetch=fetch, metaFetch=fetch, inboundFetch=fetch, twilioRequest=fetch, phoneEnv=process.env, brandResolve=null, designAgentConfig=designAgent,
   emailResolver=undefined, openAISecret=process.env.GO_STORAGE_KEY, openAIRequest=fetch, fetchMedia=fetchPage, wahaRequest=fetch, whatsappRequest=fetch, abacatePayRequest=fetch, appRequest=null, appResolve=null,
   evolutionBaseUrl=process.env.EVOLUTION_BASE_URL || '', evolutionApiKey=process.env.EVOLUTION_API_KEY || '',
+  phoneVerify={ number: process.env.SOCI_VERIFY_WHATSAPP || '', instance: process.env.SOCI_VERIFY_INSTANCE || '', secret: process.env.SOCI_VERIFY_SECRET || '' },
   portalOptions={}, prospectAudit=collectProspectAudit, reportMail=reportMailer(), documentMail=documentMailer(), emailDomainApi=emailDomains(), campaignMail=campaignMailer(),
   allowLocalAccess=process.env.GO_DEV_NO_AUTH === '1', r2=r2FromEnv()
 }={}) {
@@ -522,6 +524,7 @@ export function makeServer({
     agencyCache.set(id, { data: structuredClone(fresh), expiresAt: now + AGENCY_CACHE_TTL });
     return fresh;
   };
+  const loadFresh = id => { agencyCache.delete(id); return loadAgency(id); };
   // Imagens grandes em base64 saem do documento da agência a cada gravação (asset-store.mjs):
   // o documento guarda só /asset/<hash>; as linhas das imagens são gravadas antes da resposta.
   const auditLog = createAuditLog({ store });
@@ -628,6 +631,7 @@ export function makeServer({
         agency = hydrateAgency(invite.state, invite.id);
         const member = agency.users.find(user => user.loginEnabled && user.email === email);
         const who = { ...userAccess(agency,member.id), agencyId: invite.id, userId: member.id, session, owner: member.role === 'Agency Owner' };
+        if (gate && !agencyAccess(agency.billing, new Date()).canUse) agency = hydrateAgency((await store.load(invite.id)), invite.id);
         if (gate) requireAgencyOpen(agency, true);
         return { agency, who };
       }
@@ -644,6 +648,8 @@ export function makeServer({
     const result = userAccess(agency,userId);
     if (!result) throw error('The selected user no longer exists. Choose another user.',403);
     const who = { ...result, agencyId, userId, session, ...(session ? { name: session.name, owner: true } : {}) };
+    // A confirmação pode ter chegado por outra instância: antes de fechar, relê sem o cache.
+    if (gate && !agencyAccess(agency.billing, new Date()).canUse) agency = await loadFresh(agencyId);
     if (gate) requireAgencyOpen(agency, Boolean(userId));
     return { agency, who };
   }
@@ -2262,6 +2268,7 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
   const webinarRoute = createWebinarRoutes({ store, ready, error, workspaceSegment, change, payload, publicAccountPolicy, publicBase, publicPreview });
   const qrRoute = createQrRoutes({ store, ready, workspaceSegment, change, publicAccountPolicy, publicBase });
   const reputationRoute = createReputationRoutes({ store, ready, error, workspaceSegment, allowSign, change, clientPortal, flushLater, moveVideoToR2, payload, publicAccountPolicy, publicBase, sendVideo });
+  const verifyRoute = createVerifyRoutes({ store, accessContext, verifiedUser, changeAgency, loadFresh, whatsapp, phoneVerify, payload, error });
   const askRoute = createAskRoutes({ accessContext, verifiedUser, handleAsk, listWorkspaces, ensureAccounts, agencyWorkspaceViews, publicAgency, abacate });
   const brandAIRoute = createBrandAIRoutes({ store, error, spaceId, privateSpace, workspaceAccess, payload, brandFetch, brandResolve, localAccess, contentAI, openAI, meteredAI, content });
   const conversationAIRoute = createConversationAIRoutes({ store, error, spaceId, privateSpace, workspaceAccess, payload, change, flushLater, localAccess, contentAI, openAI, meteredAI, content });
@@ -2697,6 +2704,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
         }
         throw error('Not found.', 404);
       }
+      const verifyRouteHandled = await verifyRoute({ req, res, p, method, json });
+      if (verifyRouteHandled !== NEXT_ROUTE) return verifyRouteHandled;
       const whatsappWebhookHandled = await whatsappWebhookRoute({ req, p, method, url, json });
       if (whatsappWebhookHandled !== NEXT_ROUTE) return whatsappWebhookHandled;
       const connectorHookHandled = await connectorHookRoute({ req, p, method, json });
@@ -2884,7 +2893,8 @@ if (window.opener) { window.opener.postMessage(m, ${JSON.stringify(base)}); wind
       if (!res.headersSent) json({
         error: e.status ? e.message : 'The workspace could not complete this request.',
         ...(e.code === 'ACCOUNT_SUSPENDED' && { code: e.code, account: e.account }), ...(e.code === 'FISCAL_REQUIRED' && { code: e.code }),
-        ...(['PHONE_REQUIRED', 'AGENCY_BLOCKED', 'AGENCY_NOT_ACTIVE'].includes(e.code) && { code: e.code, billing: e.billing })
+        ...(['PHONE_REQUIRED', 'AGENCY_BLOCKED', 'AGENCY_NOT_ACTIVE'].includes(e.code) && { code: e.code, billing: e.billing }),
+        ...(['PHONE_TAKEN', 'VERIFY_OFF', 'ALREADY_VERIFIED'].includes(e.code) && { code: e.code })
       }, e.status || 500);
     }
   });
