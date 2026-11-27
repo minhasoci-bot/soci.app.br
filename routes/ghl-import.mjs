@@ -58,8 +58,9 @@ export function createGhlImportRoutes(deps) {
         }
         return text;
       },
-      readTemp: key => readRow(store, tempId(key)),
-      async writeTemp(key, value) { remember(tempId(key)); await putRow(store, tempId(key), value); },
+      // O valor vai dentro de { value }: a linha ganha profile.name (setup-sites-store.mjs) sem misturar com os dados.
+      readTemp: async key => (await readRow(store, tempId(key)))?.value ?? null,
+      async writeTemp(key, value) { remember(tempId(key)); await putRow(store, tempId(key), { value }); },
       async clearTemp() {
         for (const id of rows) await store.remove(id);
         job.rows = [];

@@ -30,8 +30,24 @@ function fakeGhl(broken = [], { extra = [], routes = {}, seen = [] } = {}) {
 // DNS falso: todo host é público, menos os de `privados`.
 const publicDns = (privados = {}) => async host => [{ address: privados[host] || '93.184.216.34' }];
 
+/**
+ * Um banco que recusa linha sem profile.name, como o Supabase: a coluna name de go_workspaces é gerada de
+ * state.profile.name e é not null (supabase/migrations/20261116193826_go_workspace_storage.sql).
+ */
+function supabaseLike(store) {
+  const check = (id, state) => {
+    if (typeof state?.profile?.name !== 'string') throw Object.assign(new Error(`Supabase Data API request failed (400): ${id} sem profile.name`), { status: undefined });
+  };
+  return new Proxy(store, { get(target, key) {
+    if (key === 'insert') return async (id, state) => { check(id, state); return target.insert(id, state); };
+    if (key === 'change') return (id, mutate) => target.change(id, state => { const out = mutate(state); check(id, state); return out; });
+    const value = target[key];
+    return typeof value === 'function' ? value.bind(target) : value;
+  } });
+}
+
 async function start({ ghlFetch = fakeGhl(), ghlResolve = publicDns() } = {}) {
-  const store = createSqliteStore(':memory:');
+  const store = supabaseLike(createSqliteStore(':memory:'));
   const { server, host } = makeServer({ allowLocalAccess: true, auth: null, store, port: 0, ghlFetch, ghlResolve });
   await new Promise((resolve, reject) => { server.on('error', reject); server.listen(0, host, resolve); });
   const base = `http://${host}:${server.address().port}`;
