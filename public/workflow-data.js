@@ -632,7 +632,7 @@ export const actionCatalog = [
       f('serviceId', 'Marcar horários do serviço (opcional)', 'ref', { source: 'services', empty: 'Não marcar horários' }),
       f('variable', 'Guardar a resposta na variável', 'text', { required: true, value: 'resposta_bot' })
     ] },
-    { type: 'conversation_ai_status', label: 'Ligar ou desligar o bot de IA', icon: 'spark', description: 'Liga o bot de IA na conversa do contato: cada mensagem nova do cliente recebe a resposta do agente, até ele passar a conversa para a equipe, encerrar o atendimento ou ser desligado. As respostas usam a OpenAI de quem salvou este fluxo. Desligar também tira o bot da conversa.', fields: [
+    { type: 'conversation_ai_status', label: 'Ligar ou desligar o bot de IA', icon: 'spark', description: 'Liga o bot de IA na conversa do contato: cada mensagem nova do cliente recebe a resposta do agente, até ele passar a conversa para a equipe, encerrar o atendimento ou ser desligado. As respostas usam a OpenAI de quem salvou este fluxo ou, sem a chave, a IA gratuita da soci, quando liberada. Desligar também tira o bot da conversa.', fields: [
       f('state', 'Bot', 'select', { options: [['on', 'Ligar'], ['off', 'Desligar']] }),
       f('agentId', 'Agente (publicado)', 'ref', { source: 'agents', empty: 'Escolha o agente', when: { state: 'on' } }),
       f('mode', 'Modo', 'select', { options: [['auto', 'Responder sozinho'], ['suggest', 'Sugerir à equipe (nota em Conversas)']], when: { state: 'on' } }),

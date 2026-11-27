@@ -33,11 +33,20 @@ export function createOpenAI({ store, model, secret, request = fetch, gateway = 
   }
 
   const status = apiKey => ({ configured: Boolean(apiKey), last4: apiKey?.slice(-4) || '', model });
+  // A IA gratuita da soci está liberada para quem não tem chave (o dono ligou a opção e há modelo grátis ativo).
+  const platformFree = async () => Boolean(gateway && await gateway.platformFreeAvailable().catch(() => false));
+  const platformConnection = (session, scope) => ({ apiKey: null, model, request, platform: true, ...gatewayScope(session, scope) });
   return {
     async status(session) { return status(await connection(session)); },
+    platformAvailable: platformFree,
+    /**
+     * A chave de quem salvou (fluxos, Voice AI). Sem chave: null, ou, com `scope.allowPlatform` e a IA gratuita da
+     * soci liberada, uma conexão sem chave que o gateway atende com modelos gratuitos (só texto).
+     */
     async optionalConnection(session, scope = {}) {
       const apiKey = await connection(session);
-      return apiKey ? { apiKey, model, request, ...gatewayScope(session, scope) } : null;
+      if (apiKey) return { apiKey, model, request, ...gatewayScope(session, scope) };
+      return scope.allowPlatform && await platformFree() ? platformConnection(session, scope) : null;
     },
     /**
      * A chave da agência (BYOK). `scope`: { org, feature, allowPlatform }. Sem chave, e só quando o dono da plataforma
@@ -47,9 +56,7 @@ export function createOpenAI({ store, model, secret, request = fetch, gateway = 
     async requireConnection(session, scope = {}) {
       const apiKey = await connection(session);
       if (apiKey) return { apiKey, model, request, ...gatewayScope(session, scope) };
-      if (gateway && scope.allowPlatform && await gateway.platformFreeAvailable().catch(() => false)) {
-        return { apiKey: null, model, request, platform: true, ...gatewayScope(session, scope) };
-      }
+      if (scope.allowPlatform && await platformFree()) return platformConnection(session, scope);
       throw fail(connectMessage, 503);
     },
     async connect(session, input) {

@@ -20,10 +20,12 @@ export function createWorkspaceRoutes(deps) {
       const [state, workspaces, aiStatus] = await Promise.all([
         store.load(id), visibleWorkspaces(who), !who.support && (studio || agents || marketing || reputation) ? openAI.status(who.session) : null
       ]);
+      // Sem chave, as ações de texto dos fluxos usam a IA gratuita da soci quando o dono da plataforma a liberou.
+      const freeAI = Boolean(aiStatus && !aiStatus.configured && await openAI.platformAvailable?.());
       if (who.support) await writeAudit(who, 'Sub-account support viewed', id, who.account.status);
       return json({ ...workspaceView(who, state), workspaces,
         ...(!isPersonal && hasModule(who, 'settings') && agency.accounts[id]?.billing?.status === 'PastDue' && { billingNotice: 'past_due' }),
-        features:{studioAI: Boolean(aiStatus?.configured && studio), socialAI: Boolean(aiStatus?.configured && marketing), contentAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && (marketing || studio)), reviewAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && reputation), reportEmail: reportMail.configured, social: marketing ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
+        features:{studioAI: Boolean(aiStatus?.configured && studio), socialAI: Boolean(aiStatus?.configured && marketing), contentAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && (marketing || studio)), reviewAI: Boolean((aiStatus?.configured || (localAccess && contentAI)) && reputation), reportEmail: reportMail.configured, freeAI, social: marketing ? availability() : {}, agentModel: aiStatus?.configured && agents ? agentModel : ''},
         agency:agencyForWorkspace(isPersonal ? blankAgency() : agency,id,who.settings),
         ...(who.support && { account: { ...who.account, support: true, statusHistory: agency.accounts[id]?.statusHistory || [],
           ignoredWebhooks: agency.accounts[id]?.ignoredWebhooks || {} } }),
