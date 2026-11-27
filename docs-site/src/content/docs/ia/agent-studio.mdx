@@ -13,7 +13,7 @@ import Requisitos from '../../../components/Requisitos.astro';
 
 Um agente de IA trabalha sozinho quando algo acontece na subconta: responde quem mandou mensagem, qualifica um lead novo, confirma um agendamento ou escreve um resumo para a equipe. Cada agente tem instruções, gatilhos (quando ele age) e recursos (o que ele pode usar, como a base de conhecimento ou a pesquisa na web).
 
-<Requisitos permissao="Acesso ao módulo Agentes de IA na subconta" integracoes={['Chave da OpenAI conectada nas configurações da agência, para o agente conversar']} />
+<Requisitos permissao="Acesso ao módulo Agentes de IA na subconta" integracoes={['Chave da OpenAI conectada nas configurações da agência, para conversar com o agente no Modo de teste', 'Nas automações, sem a chave, o agente usa a IA gratuita da soci quando ela está liberada']} />
 
 ## Passo a passo
 
@@ -34,17 +34,38 @@ Um agente de IA trabalha sozinho quando algo acontece na subconta: responde quem
 </Steps>
 
 <Aside type="caution">
-Sem uma chave da OpenAI conectada, o agente não conversa: a descrição vira só o rascunho das instruções. Conecte a chave em **Visão da agência**, **Configurações**, aba **OpenAI**.
+Sem uma chave da OpenAI conectada, o agente não conversa no Modo de teste: a descrição vira só o rascunho das instruções. Conecte a chave em **Visão da agência**, **Configurações**, aba **OpenAI**.
 </Aside>
 
 <Aside type="tip">
 Alimente o agente com o que a empresa sabe (preços, horários, perguntas frequentes) em **Bases de conhecimento**, no canto inferior esquerdo da tela.
 </Aside>
 
+## Colocar o agente para responder no WhatsApp
+
+Quem coloca o agente no WhatsApp é uma automação. Os gatilhos que aparecem no editor do agente ainda não fazem isso sozinhos.
+
+<Steps>
+
+1. Publique o agente. A automação só mostra agentes publicados.
+
+2. Em **Automações**, crie um fluxo e adicione o gatilho **Cliente respondeu**, com **Canal** WhatsApp. Para achar mais rápido, digite *respondeu* na busca de gatilhos.
+
+3. Adicione a ação **Ligar ou desligar o bot de IA**, no grupo **IA**. Escolha **Ligar**, o agente, o modo **Responder sozinho** e o canal **WhatsApp**. Com um serviço escolhido, o agente também oferece horários livres e marca o escolhido.
+
+4. Clique em **Publicar**. A partir daí, cada mensagem nova do cliente recebe a resposta do agente, até ele passar a conversa para a equipe, encerrar o atendimento ou ser desligado.
+
+</Steps>
+
+As respostas usam a chave da OpenAI de quem salvou o fluxo. Sem a chave, o agente responde com a IA gratuita da soci, quando a plataforma a liberou; o editor do fluxo avisa qual das duas vale. Agentes com **pesquisa na web** e as ações **Gerar imagem com IA** e **Gerar vídeo com IA** precisam da chave.
+
 ## Perguntas frequentes
 
 **Onde vejo o que o agente fez?**
 Na aba **Atividade** do editor e em **Logs**. Quando o agente precisa de aprovação antes de agir, o pedido aparece em **Aprovações**.
+
+**Preciso de uma chave da OpenAI para o agente atender no WhatsApp?**
+Não, quando a IA gratuita da soci está liberada: o editor do fluxo mostra "esta etapa usa a IA gratuita da soci". Com a chave conectada, o fluxo usa a OpenAI da agência.
 
 **Quanto de IA a subconta está usando?**
 Em **Uso de IA**, no canto inferior esquerdo da tela Agentes de IA.

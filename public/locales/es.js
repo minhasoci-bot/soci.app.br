@@ -5377,7 +5377,7 @@ export default {
   "Marcar horários do serviço (opcional)": "Agendar horarios del servicio (opcional)",
   "Não marcar horários": "No agendar horarios",
   "Ligar ou desligar o bot de IA": "Activar o desactivar el bot de IA",
-  "Liga o bot de IA na conversa do contato: cada mensagem nova do cliente recebe a resposta do agente, até ele passar a conversa para a equipe, encerrar o atendimento ou ser desligado. As respostas usam a OpenAI de quem salvou este fluxo. Desligar também tira o bot da conversa.": "Activa el bot de IA en la conversación del contacto: cada mensaje nuevo del cliente recibe la respuesta del agente, hasta que pase la conversación al equipo, cierre la atención o se desactive. Las respuestas usan la OpenAI de quien guardó este flujo. Desactivar también saca el bot de la conversación.",
+  "Liga o bot de IA na conversa do contato: cada mensagem nova do cliente recebe a resposta do agente, até ele passar a conversa para a equipe, encerrar o atendimento ou ser desligado. As respostas usam a OpenAI de quem salvou este fluxo ou, sem a chave, a IA gratuita da soci, quando liberada. Desligar também tira o bot da conversa.": "Activa el bot de IA en la conversación del contacto: cada mensaje nuevo del cliente recibe la respuesta del agente, hasta que pase la conversación al equipo, cierre la atención o se desactive. Las respuestas usan la OpenAI de quien guardó este flujo o, sin la clave, la IA gratuita de soci, cuando está habilitada. Desactivar también saca el bot de la conversación.",
   "Bot": "Bot",
   "Ligar": "Activar",
   "Desligar": "Desactivar",

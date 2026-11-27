@@ -1681,11 +1681,12 @@ export function makeServer({
   }
   // AI steps run in the background with the OpenAI key of whoever saved the workflow, and only while that
   // person still belongs to the agency that owns the sub-account (or it is their own personal account).
-  async function workflowConnection(workspace, state, workflowId) {
+  // Sem a chave, as etapas só de texto (`scope.allowPlatform`) usam a IA gratuita da soci quando o dono a liberou.
+  async function workflowConnection(workspace, state, workflowId, scope = {}) {
     if (localAccess && workflowAI) return { model: agentModel };
-    return keyConnection(workspace, state, state.workflows.find(row => row.id === workflowId)?.aiKey, 'salve o fluxo de novo, com a OpenAI conectada, para usar as ações de IA', 'quem salvou o fluxo não tem mais acesso a esta subconta; salve o fluxo de novo', 'conecte a OpenAI de quem salvou o fluxo (Visão da agência → Configurações → OpenAI)');
+    return keyConnection(workspace, state, state.workflows.find(row => row.id === workflowId)?.aiKey, 'salve o fluxo de novo para usar as ações de IA', 'quem salvou o fluxo não tem mais acesso a esta subconta; salve o fluxo de novo', 'conecte a OpenAI de quem salvou o fluxo (Visão da agência → Configurações → OpenAI)', { org: workspace, feature: 'workflow.ai', ...scope });
   }
-  async function keyConnection(workspace, state, key, missing, revoked, disconnected) {
+  async function keyConnection(workspace, state, key, missing, revoked, disconnected, scope = { org: workspace }) {
     if (!key?.session) throw error(missing, 409);
     const agencyId = state.agencyId || AGENCY_ID;
     let allowed = false;
@@ -1695,7 +1696,7 @@ export function makeServer({
       else allowed = agencyId === `agency-${key.session}` || (agencyId === AGENCY_ID && key.session === agencyOwnerId);
     }
     if (!allowed) throw error(revoked, 403);
-    const connection = await openAI.optionalConnection({ id: key.session });
+    const connection = await openAI.optionalConnection({ id: key.session }, scope);
     if (!connection) throw error(disconnected, 409);
     return connection;
   }
@@ -1703,7 +1704,11 @@ export function makeServer({
     // The bot switched on in a conversation has no run: its answer goes back by contact.
     const base = item.bot ? { runId: '', stepId: '', bot: true, contactId: item.contactId } : { runId: item.runId, stepId: item.stepId };
     try {
-      const connection = await workflowConnection(workspace, state, item.workflowId);
+      // Gerar imagem e vídeo usam APIs da OpenAI fora do gateway: só com a chave. O resto é texto (ou visão),
+      // e o gateway escolhe um modelo gratuito que atenda (ou recusa, como no agente com busca na web).
+      const media = ['ai_image_generate', 'ai_video_generate'].includes(item.action);
+      const agent = ['ai_agent', 'conversation_ai'].includes(item.action);
+      const connection = await workflowConnection(workspace, state, item.workflowId, { feature: agent ? 'agent.reply' : 'workflow.ai', allowPlatform: !media });
       checkAiBudget(await store.load(workspace));
       const meter = usageMeter();
       try {
