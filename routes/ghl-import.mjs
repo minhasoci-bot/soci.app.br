@@ -1,6 +1,7 @@
 // Importar do GHL (/api/ghl-import/* e /api/agency/ghl-import*): a agência gera um código, a extensão do Chrome manda a
 // extração em partes autenticadas por ele (sem sessão: vem de chrome-extension://) e a janela da soci avança a conversão
 // em passos (ghl-import-run.mjs). A soci nunca recebe senha, token ou cookie do GHL.
+import { lookup } from 'node:dns/promises';
 import { requireCapability } from '../authorization.mjs';
 import { acceptPart, finishUpload, jobByCode, jobView, codeHash, newImportCode, PART_MAX } from '../ghl-import-model.mjs';
 import { runStep } from '../ghl-import-run.mjs';
@@ -22,6 +23,7 @@ export function ghlImportCors(req) {
 
 export function createGhlImportRoutes(deps) {
   const { store, error, access, loadAgency, changeAgency, logTo, ghlFetch, publicOrigin } = deps;
+  const ghlResolve = deps.ghlResolve || (host => lookup(host, { all: true, verbatim: true }));
 
   async function body(req) {
     const chunks = [];
@@ -46,6 +48,7 @@ export function createGhlImportRoutes(deps) {
     return {
       origin: publicOrigin,
       fetch: ghlFetch,
+      resolve: ghlResolve,
       async readPart(name) {
         let text = '';
         for (let index = 0; index < (job.parts[name] || 0); index++) {
@@ -55,8 +58,9 @@ export function createGhlImportRoutes(deps) {
         }
         return text;
       },
-      readTemp: key => readRow(store, tempId(key)),
-      async writeTemp(key, value) { remember(tempId(key)); await putRow(store, tempId(key), value); },
+      // O valor vai dentro de { value }: a linha ganha profile.name (setup-sites-store.mjs) sem misturar com os dados.
+      readTemp: async key => (await readRow(store, tempId(key)))?.value ?? null,
+      async writeTemp(key, value) { remember(tempId(key)); await putRow(store, tempId(key), { value }); },
       async clearTemp() {
         for (const id of rows) await store.remove(id);
         job.rows = [];
@@ -113,7 +117,8 @@ export function createGhlImportRoutes(deps) {
       const who = await access(req, res);
       requireCapability(who, 'agency', 'Seu usuário não pode abrir a visualização da agência.');
       if (!who.settings) throw error('Seu usuário não tem acesso às configurações da agência.', 403);
-      const { code, job } = await changeAgency(who.agencyId, a => newImportCode(a));
+      const { code, job, released } = await changeAgency(who.agencyId, a => newImportCode(a));
+      for (const id of released) { try { await store.remove(id); } catch { /* uma linha que não saiu não impede o código novo */ } }
       return json({ code, jobId: job.id, expiresAt: job.expiresAt });
     }
     const match = p.match(/^\/api\/agency\/ghl-import\/([\w-]{1,64})(\/step)?$/);

@@ -21,13 +21,25 @@ export function whiteLabelHost(value) {
   return host;
 }
 
+/** graao.com from app.graao.com, agencia.com.br from app.agencia.com.br, when the hosting did not say. */
+const guessApex = host => {
+  const labels = host.split('.');
+  const second = labels.length > 2 && labels.at(-1).length === 2 && /^(com|net|org|gov|edu|co|ac|art|adv|eng|med|tur|ind|inf)$/.test(labels.at(-2));
+  return labels.slice(second ? -3 : -2).join('.');
+};
+
 /** The host the request came in on, without the port. */
 export const requestHost = req => String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim().toLowerCase().replace(/:\d+$/, '');
 
+/** The agency that owns this host ({ id, state }), or null on the platform's own addresses and unknown hosts. */
+export async function whiteLabelAgency(store, host) {
+  if (!host || platformHosts.some(platform => host === platform || host.endsWith(`.${platform}`))) return null;
+  return (await store.findAgency({ company: { domain: host } })) || null;
+}
+
 /** Name, logo and color of the agency that owns this host, or {} on the platform's own addresses. */
 export async function whiteLabelBrand(store, host) {
-  if (!host || platformHosts.some(platform => host === platform || host.endsWith(`.${platform}`))) return {};
-  const owner = await store.findAgency({ company: { domain: host } });
+  const owner = await whiteLabelAgency(store, host);
   const company = owner?.state?.company;
   return company ? { name: company.name || '', logo: company.logo || '', primary: company.primary || '' } : {};
 }
@@ -91,7 +103,47 @@ export function hostingDomains({ token = process.env.VERCEL_API_TOKEN, project =
       // issue the certificate behind it and the visitor sees error 525.
       const proxied = (dns.nameservers || []).some(ns => /cloudflare/i.test(ns)) && !(dns.cnames || []).length
         && (dns.aValues || []).length > 0 && !(dns.aValues || []).some(ip => vercelIps.includes(ip));
-      return { domain: host, cname, hosting: true, added: domain.ok, verified, pointing: config.ok && dns.misconfigured === false, verification, proxied };
+      // The records exactly as the DNS panel asks for them. Panels such as Squarespace, Registro.br and GoDaddy add
+      // ".graao.com" to the name on their own, so the full name became graao.com.graao.com: the short one goes.
+      // A domain without subdomain cannot hold a CNAME; the hosting asks for an A record there.
+      const apex = String(found.body?.apexName || domain.body?.apexName || guessApex(host));
+      const short = name => name === apex ? '@' : name.endsWith(`.${apex}`) ? name.slice(0, -apex.length - 1) : name;
+      const address = host === apex
+        ? { type: 'A', name: '@', value: String(best(dns.recommendedIPv4)[0]?.value?.[0] || '76.76.21.21') }
+        : { type: 'CNAME', name: short(host), value: cname };
+      const records = [address, ...verification.map(row => ({ ...row, name: short(row.name) }))];
+      return { domain: host, apex, cname, hosting: true, added: domain.ok, verified, pointing: config.ok && dns.misconfigured === false, verification, records, proxied };
     }
   };
+}
+
+const escapeHtml = text => String(text ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+/** The logo as the agency saved it: an image kept in the document or one moved to the asset store. */
+const safeLogo = value => typeof value === 'string' && (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(value) || /^\/asset\/[0-9a-f]{64}\.(png|jpg|webp|gif)$/.test(value)) ? value : '';
+
+/**
+ * login.html or app.html already in the agency's brand, so the page never shows soci first: name, logo, tab icon,
+ * theme color, the line under the title and the footer. `data-marca` tells login.js not to brand it again.
+ */
+export function brandedPage(html, brand = {}) {
+  const name = escapeHtml(String(brand.name || '').slice(0, 120)) || 'Entrar';
+  const logo = safeLogo(brand.logo);
+  const color = /^#[0-9a-f]{6}$/i.test(brand.primary || '') ? brand.primary : '';
+  // The loading screen, the phone check and the tab title read the name and logo from <html> (ui/icons.js domainBrand).
+  const mark = logo ? `<img class="boot-logo" src="${escapeHtml(logo)}" alt="">` : '';
+  let page = html
+    .replace('<html lang="pt-BR">', `<html lang="pt-BR" data-marca="agencia" data-marca-nome="${name}"${logo ? ` data-marca-logo="${escapeHtml(logo)}"` : ''}>`)
+    .replace('<strong class="boot-title">Abrindo a soci…</strong>', `${mark}<strong class="boot-title">Abrindo ${name}…</strong>`)
+    .replace(/<title>Entrar · soci<\/title>/, `<title>Entrar · ${name}</title>`)
+    .replace(/<title>soci<\/title>/, `<title>${name}</title>`)
+    .replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="Acesse ${name}.">`)
+    .replace(/<div class="brand" aria-label="soci">[\s\S]*?<\/div>/, `<div class="brand" aria-label="${name}">${logo ? `<img class="brand-logo" src="${escapeHtml(logo)}" alt="${name}">` : name}</div>`)
+    .replace('Acesse a plataforma soci com a sua conta Google.', `Acesse a plataforma ${name} com a sua conta Google.`)
+    .replace(/© \d{4} soci\. Feita no Brasil com ☕, carinho e muita API\./, `© ${new Date().getFullYear()} ${name}.`);
+  if (logo) page = page.replace(/<link rel="icon" type="image\/svg\+xml" href="\/favicon\.svg">/, `<link rel="icon" href="${escapeHtml(logo)}">`);
+  if (color) {
+    page = page.replace(/<meta name="theme-color" content="[^"]*">/, `<meta name="theme-color" content="${color}">`)
+      .replace('</head>', `<style>:root{--marca:${color}}body{background:radial-gradient(circle at 50% 0%,color-mix(in srgb,var(--marca) 16%,#f7f7f8) 0,#f7f7f8 37rem)}.google-button:focus-visible,.login-account:focus-visible{outline-color:color-mix(in srgb,var(--marca) 35%,transparent)}</style></head>`);
+  }
+  return page;
 }

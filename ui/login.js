@@ -9,12 +9,13 @@
   let request;
 
   // White Label: aberta no domínio de uma agência, a tela de entrada mostra o nome e o logotipo dela.
-  fetch('/api/marca').then(response => response.ok ? response.json() : {}).then(brand => {
+  // O servidor já monta a marca no domínio da agência (data-marca); a busca fica para páginas guardadas em cache.
+  if (!document.documentElement.dataset.marca) fetch('/api/marca').then(response => response.ok ? response.json() : {}).then(brand => {
     if (!brand?.name) return;
     const mark = document.querySelector('.brand');
     mark.setAttribute('aria-label', brand.name);
     mark.textContent = '';
-    if (/^data:image\/(png|jpeg|webp|gif);base64,/.test(brand.logo || '')) {
+    if (/^data:image\/(png|jpeg|webp|gif);base64,|^\/asset\/[0-9a-f]{64}\.(png|jpg|webp|gif)$/.test(brand.logo || '')) {
       const logo = Object.assign(document.createElement('img'), { src: brand.logo, alt: brand.name });
       logo.className = 'brand-logo';
       mark.append(logo);

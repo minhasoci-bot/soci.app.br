@@ -10,8 +10,12 @@ export async function readRow(store, id) {
   try { return await store.load(id); } catch (e) { if (e.status === 404) return null; throw e; }
 }
 
-/** Grava a linha inteira, criando ou trocando o conteúdo (também usado pelas linhas temporárias da importação do GHL). */
-export async function putRow(store, id, doc) {
+/**
+ * Grava a linha inteira, criando ou trocando o conteúdo (também usado pelas linhas temporárias da importação do GHL).
+ * Toda linha precisa de profile.name: no Supabase a coluna name de go_workspaces sai dele e não pode ser nula.
+ */
+export async function putRow(store, id, value) {
+  const doc = typeof value?.profile?.name === 'string' ? value : { ...value, profile: { name: 'Dados de setup' } };
   if (await store.insert(id, doc)) return;
   // A linha já existe (ou ficou vazia num remove sem DELETE no Supabase): troca o conteúdo inteiro.
   await store.change(id, state => {

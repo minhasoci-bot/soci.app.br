@@ -48,7 +48,9 @@ test('With a hosting token the domain is added to the project and its DNS is rea
   const hosting = hostingDomains({ token: 't', project: 'prj_1', team: 'team_1', fetch });
   assert.equal(await hosting.add('app.a.com.br'), true);
   assert.deepEqual(calls[0], ['POST', '/v10/projects/prj_1/domains', 'team_1', '{"name":"app.a.com.br"}']);
-  assert.deepEqual(await hosting.status('app.a.com.br'), { domain: 'app.a.com.br', cname: 'cname.vercel-dns.com', hosting: true, added: true, verified: true, pointing: true, verification: [], proxied: false });
+  const read = await hosting.status('app.a.com.br');
+  assert.deepEqual({ ...read, records: undefined }, { domain: 'app.a.com.br', apex: 'a.com.br', cname: 'cname.vercel-dns.com', hosting: true, added: true, verified: true, pointing: true, verification: [], records: undefined, proxied: false });
+  assert.deepEqual(read.records, [{ type: 'CNAME', name: 'app', value: 'cname.vercel-dns.com' }], 'sem apexName, a.com.br sai do próprio endereço');
   const off = hostingDomains({ token: '', project: '', fetch });
   assert.equal(await off.add('app.a.com.br'), false);
   assert.equal((await off.status('app.a.com.br')).hosting, false);
@@ -133,4 +135,27 @@ test('The root of an agency domain opens its branded login; soci.app.br keeps th
   assert.deepEqual(await get('/?utm_source=x', 'app.agencia.com.br'), [303, '/login?utm_source=x']);
   assert.deepEqual(await get('/', 'soci.app.br'), [200, '']);
   assert.deepEqual(await get('/', 'outro.com.br'), [200, ''], 'um domínio que não é de agência segue com a página da soci');
+});
+
+// Produção, 26/11: graao.com (sem subdomínio, DNS na Squarespace). A tela pedia um CNAME em "graao.com" e um TXT
+// em "_vercel.graao.com"; a Squarespace completa o nome sozinha e criou graao.com.graao.com e
+// _vercel.graao.com.graao.com. Domínio sem subdomínio também não aceita CNAME: a Vercel pede um registro A.
+test('The records come with the short name the DNS panel expects, and a domain without subdomain gets an A record', async () => {
+  const proof = [{ type: 'TXT', domain: '_vercel.graao.com', value: 'vc-domain-verify=graao.com,7800', reason: 'pending_domain_verification' }];
+  const hosting = apexName => hostingDomains({ token: 't', project: 'prj_1', fetch: async (url, init) => {
+    if (url.pathname.endsWith('/verify')) return { ok: false, status: 400, json: async () => ({}) };
+    if (url.pathname.endsWith('/config')) return { ok: true, status: 200, json: async () => ({ misconfigured: true, recommendedIPv4: [{ rank: 2, value: ['76.76.21.21'] }, { rank: 1, value: ['216.198.79.1', '64.29.17.1'] }], recommendedCNAME: [{ rank: 1, value: '6ccad80b.vercel-dns-017.com.' }] }) };
+    return { ok: true, status: 200, json: async () => ({ apexName, verified: false, verification: proof }) };
+  } });
+  const apex = await hosting('graao.com').status('graao.com');
+  assert.deepEqual(apex.records, [
+    { type: 'A', name: '@', value: '216.198.79.1' },
+    { type: 'TXT', name: '_vercel', value: 'vc-domain-verify=graao.com,7800' }
+  ]);
+  assert.equal(apex.apex, 'graao.com');
+  const sub = await hosting('graao.com').status('app.graao.com');
+  assert.deepEqual(sub.records, [
+    { type: 'CNAME', name: 'app', value: '6ccad80b.vercel-dns-017.com' },
+    { type: 'TXT', name: '_vercel', value: 'vc-domain-verify=graao.com,7800' }
+  ]);
 });

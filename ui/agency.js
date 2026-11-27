@@ -1,4 +1,4 @@
-import { brandHighlight, brandIcon, icon as i, logo, brandName, bootScreen, shcLayers } from './icons.js';
+import { brandHighlight, brandIcon, icon as i, logo, brandName, bootScreen, domainBrand, shcLayers } from './icons.js';
 import { rodapeHtml } from './rodape.js';
 import { desktopPage, desktopPreview, readDesktop } from './agency-desktop.js';
 import { createMobileCreator } from './agency-mobile.js';
@@ -1158,7 +1158,7 @@ export function startAgency(env) {
         ${section('whitelabel', 'White Label das subcontas', 'O endereço e o logotipo que as subcontas veem no lugar da marca da plataforma.', `<div class="field-grid">
           <div><label>Domínio para subcontas<input name="domain" placeholder="app.suaagencia.com.br" value="${h(c.domain)}" aria-describedby="ag-domain-hint"></label>
             ${c.domain ? `<p class="inline-gap"><button type="button" class="secondary" data-ag-domain-check>${i('check')} Verificar domínio</button></p><div class="dim ag-domain-status" data-ag-domain-status role="status"></div>` : ''}
-            <small class="dim" id="ag-domain-hint">No DNS do domínio, crie um registro CNAME apontando para cname.vercel-dns.com.</small></div>
+            <small class="dim" id="ag-domain-hint">Prefira um subdomínio, como app.suaagencia.com.br. Depois de salvar, clique em Verificar domínio para ver os registros exatos (em geral um CNAME para cname.vercel-dns.com).</small></div>
           <div class="ag-company-logo">
             <span class="ag-logo-preview">${c.logo ? `<img src="${h(c.logo)}" alt="Logotipo das subcontas">` : i('upload')}</span>
             <div>
@@ -1252,7 +1252,7 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
     }
     const prev = document.querySelector('#screen')?.scrollTop || 0;
     const page = pages[A.page] || pages.dashboard;
-    document.title = 'soci';
+    document.title = domainBrand()?.name || 'soci';
     applyBrandColor(D().company.primary, D().company.secondary, D().company.accent);
     // The menu stays put while the page redraws: same markup keeps the very same element (no flash, no
     // replayed indicator); a changed one at least keeps where it was scrolled.
@@ -1380,8 +1380,8 @@ Authorization: Bearer &lt;sua-chave&gt;</pre></div>`,
           : s.proxied ? 'O registro está passando pelo proxy da Cloudflare (nuvem laranja). Mude para “Somente DNS” (nuvem cinza): com o proxy, o endereço mostra erro 525.'
           : 'Aguardando o CNAME: a mudança de DNS pode levar algumas horas.';
         // Os registros que faltam no DNS da agência: o CNAME do endereço e, quando a hospedagem pede, o TXT de posse.
-        const records = s.hosting && s.added && !ready ? [{ type: 'CNAME', name: s.domain, value: s.cname }, ...proof] : [];
-        out.innerHTML = `<span>${h(tr(message))}</span>${s.proxied && proof.length ? `<span class="ag-hint">${h(tr('No Cloudflare, deixe o registro do endereço como “Somente DNS” (nuvem cinza).'))}</span>` : ''}${records.length ? `<span class="surface table-shell ag-gap"><table><thead><tr><th scope="col">${h(tr('Tipo'))}</th><th scope="col">${h(tr('Nome'))}</th><th scope="col">${h(tr('Valor'))}</th></tr></thead><tbody>${records.map(r => `<tr><td>${h(r.type)}</td><td><code>${h(r.name)}</code></td><td><code>${h(r.value)}</code></td></tr>`).join('')}</tbody></table></span>` : ''}`;
+        const records = s.hosting && s.added && !ready ? (s.records || [{ type: 'CNAME', name: s.domain, value: s.cname }, ...proof]) : [];
+        out.innerHTML = `<span>${h(tr(message))}</span>${records.length && s.apex ? `<span>${h(tr(`No campo Nome, digite só o que está na coluna Nome: o painel do domínio completa com .${s.apex} sozinho. @ é o próprio ${s.apex}.`))}</span>` : ''}${s.proxied && proof.length ? `<span class="ag-hint">${h(tr('No Cloudflare, deixe o registro do endereço como “Somente DNS” (nuvem cinza).'))}</span>` : ''}${records.length ? `<span class="surface table-shell ag-gap"><table><thead><tr><th scope="col">${h(tr('Tipo'))}</th><th scope="col">${h(tr('Nome'))}</th><th scope="col">${h(tr('Valor'))}</th></tr></thead><tbody>${records.map(r => `<tr><td>${h(r.type)}</td><td><code>${h(r.name)}</code></td><td><code>${h(r.value)}</code></td></tr>`).join('')}</tbody></table></span>` : ''}`;
       } catch (problem) { out.textContent = problem.message; }
       domainCheck.disabled = false;
       return;
